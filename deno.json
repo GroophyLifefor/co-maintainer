@@ -1,0 +1,11 @@
+{
+  "tasks": {
+    "dev": "deno run --allow-all --watch main.ts",
+    "probe": "deno run --allow-all main.ts probe",
+    "init": "deno run --allow-all main.ts init",
+    "remake": "deno run --allow-all main.ts remake",
+    "check": "deno check main.ts",
+    "fmt": "deno fmt",
+    "test": "deno test --allow-all"
+  }
+}

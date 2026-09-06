@@ -1,0 +1,380 @@
+import { parseArgs } from "./cli/args.ts";
+import { createAiProvider } from "./ai/ai.ts";
+import { enrichFacts, synthesizeSections } from "./ai/jobs.ts";
+import { collectSource } from "./data/data.ts";
+import { GhClient } from "./data/gh.ts";
+import { PatClient } from "./data/pat.ts";
+import { extractFacts } from "./analysis/facts.ts";
+import { analyzeProbe } from "./analysis/probe.ts";
+import { assembleSkill, factSectionHashes } from "./analysis/skill.ts";
+import { validateSkill } from "./analysis/validate.ts";
+import { cacheRoot, readState, writeState } from "./state/state.ts";
+import type { AiResponse, Json, Options, Source, State } from "./types.ts";
+
+function log(phase: string, message: string): void {
+  console.log(`[${phase}] ${message}`);
+}
+
+function optionsForState(
+  options: Options,
+): Omit<Options, "command" | "aiToken"> {
+  const { command: _, aiToken: __, ...rest } = options;
+  return rest;
+}
+
+function emptyState(options: Options): State {
+  const source: Source = {
+    repo: {},
+    tree: [],
+    treeSha: {},
+    files: {},
+    pullRequests: [],
+    commits: [],
+  };
+  return {
+    version: 1,
+    repo: options.repo,
+    options: optionsForState(options),
+    source,
+    facts: [],
+    sectionHashes: {},
+    scanDone: {
+      pullRequests: 0,
+      commits: 0,
+      updatedAt: new Date().toISOString(),
+    },
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function clientFor(options: Options) {
+  if (options.auth === "pat") {
+    return new PatClient(
+      Deno.env.get("GITHUB_TOKEN") ?? Deno.env.get("GH_TOKEN") ?? "",
+    );
+  }
+  return new GhClient();
+}
+
+async function skillPath(repo: string): Promise<string> {
+  const path = `repos/${repo}/SKILL.md`;
+  await Deno.mkdir(`repos/${repo}`, { recursive: true });
+  return path;
+}
+
+async function recordAiCost(
+  repo: string,
+  job: string,
+  response: AiResponse,
+): Promise<void> {
+  await Deno.mkdir(cacheRoot(repo), { recursive: true });
+  await Deno.writeTextFile(
+    `${cacheRoot(repo)}/cost.jsonl`,
+    JSON.stringify({
+      at: new Date().toISOString(),
+      job,
+      provider: response.provider,
+      model: response.model,
+      tokensIn: response.tokensIn,
+      tokensOut: response.tokensOut,
+      usd: response.provider === "hetzner" ? 0 : null,
+    }) + "\n",
+    { append: true },
+  );
+}
+
+async function runInitOrRemake(options: Options): Promise<void> {
+  const previous = await readState(options.repo);
+  if (options.command === "remake" && !previous) {
+    throw new Error(
+      "remake requires a previous init or remake for this repository",
+    );
+  }
+  if (options.command === "remake" && previous) {
+    options.maxCommits ??= previous.options.maxCommits;
+    options.maxPrYears ??= previous.options.maxPrYears;
+    options.maxPullRequestChangeLines ??=
+      previous.options.maxPullRequestChangeLines;
+  }
+  const checkpoint = previous ?? emptyState(options);
+  const client = clientFor(options);
+  const lowAi = createAiProvider(options, options.lowModel ?? "");
+  const highAi = createAiProvider(options, options.highModel ?? "");
+  if (lowAi || highAi) {
+    log(
+      "ai",
+      `${options.ai} providers configured · low=${options.lowModel} · high=${options.highModel}`,
+    );
+  }
+
+  log("fetch", `${options.repo} via ${options.auth}`);
+  const source = await collectSource(
+    client,
+    options,
+    previous,
+    async (pullRequests) => {
+      checkpoint.source.pullRequests = pullRequests;
+      checkpoint.scanDone = {
+        ...checkpoint.scanDone,
+        pullRequests: pullRequests.length,
+        updatedAt: new Date().toISOString(),
+      };
+      await writeState(checkpoint);
+    },
+  );
+  log(
+    "fetch",
+    `source ready · ${
+      Object.keys(source.files).length
+    } files · ${source.pullRequests.length} PRs · ${source.commits.length} commits`,
+  );
+  const path = await skillPath(options.repo);
+  let previousMarkdown: string | undefined;
+  try {
+    previousMarkdown = await Deno.readTextFile(path);
+  } catch {
+    // init can create the first output.
+  }
+  let facts = extractFacts(source, options);
+  let overrides: Record<string, string> = {};
+  if (lowAi) {
+    log("ai", "starting extract_unit jobs");
+    const usage = (job: string, response: AiResponse) =>
+      recordAiCost(options.repo, job, response);
+    facts = await enrichFacts(
+      lowAi,
+      options.repo,
+      facts,
+      source,
+      options,
+      usage,
+    );
+    log("ai", `extract_unit complete · ${facts.length} facts`);
+    const hashes = await factSectionHashes(facts);
+    const synthesisChanged = previous &&
+      (previous.options.highModel !== options.highModel ||
+        previous.options.synthesisVersion !== options.synthesisVersion);
+    const dirtySections = previous
+      ? synthesisChanged ? new Set(Object.keys(hashes)) : new Set(
+        Object.entries(hashes)
+          .filter(([key, hash]) => previous.sectionHashes[key] !== hash)
+          .map(([key]) => key),
+      )
+      : undefined;
+    log(
+      "ai",
+      `starting synth_section jobs${
+        dirtySections ? ` · ${dirtySections.size} dirty sections` : ""
+      }`,
+    );
+    if (highAi) {
+      overrides = await synthesizeSections(
+        highAi,
+        options.repo,
+        facts,
+        previousMarkdown,
+        options.ai,
+        options.highModel ?? "",
+        usage,
+        dirtySections,
+      );
+    }
+    log(
+      "ai",
+      `synth_section complete · ${Object.keys(overrides).length} sections`,
+    );
+  }
+  let result = await assembleSkill(
+    options.repo,
+    facts,
+    previousMarkdown,
+    previous?.sectionHashes ?? {},
+    overrides,
+  );
+  const validation = await validateSkill(
+    result.markdown,
+    `repos/${options.repo}`,
+    source,
+  );
+  if (!validation.valid && Object.keys(overrides).length) {
+    log("validate", `AI output rejected: ${validation.errors.join("; ")}`);
+    result = await assembleSkill(
+      options.repo,
+      facts,
+      previousMarkdown,
+      previous?.sectionHashes ?? {},
+      overrides,
+    );
+  }
+  let finalValidation = await validateSkill(
+    result.markdown,
+    `repos/${options.repo}`,
+    source,
+  );
+  if (!finalValidation.valid) {
+    throw new Error(
+      `generated skill is invalid: ${finalValidation.errors.join("; ")}`,
+    );
+  }
+  await Deno.writeTextFile(path, result.markdown);
+  await writeState({
+    version: 1,
+    repo: options.repo,
+    options: optionsForState(options),
+    source,
+    facts,
+    sectionHashes: result.hashes,
+    scanDone: {
+      pullRequests: source.pullRequests.length,
+      commits: source.commits.length,
+      updatedAt: new Date().toISOString(),
+    },
+    updatedAt: new Date().toISOString(),
+  });
+  log(
+    "write",
+    `${path} · ${
+      result.changed.length
+        ? `updated ${result.changed.join(", ")}`
+        : "already current"
+    }`,
+  );
+  log(
+    "done",
+    `${facts.length} facts · ${source.pullRequests.length} pull requests · ${source.commits.length} commits`,
+  );
+}
+
+async function runProbe(options: Options): Promise<void> {
+  const client = clientFor(options);
+  log("probe", `reading ${options.repo} via ${options.auth}`);
+  const meta = await client.request<Json>(`repos/${options.repo}`);
+  let latestReleaseAt = "";
+  try {
+    const releases = await client.pages<Json>(
+      `repos/${options.repo}/releases?per_page=1`,
+      1,
+    );
+    latestReleaseAt = String(
+      releases[0]?.published_at ?? releases[0]?.created_at ?? "",
+    );
+  } catch {
+    // Release metadata is an optional probe signal.
+  }
+  const pulls = await client.pages<Json>(
+    `repos/${options.repo}/pulls?state=all&sort=updated&direction=desc`,
+  );
+  const yearBuckets = new Map<number, Json[]>();
+  for (const pull of pulls) {
+    const year = new Date(String(pull.updated_at)).getFullYear();
+    yearBuckets.set(year, [...(yearBuckets.get(year) ?? []), pull]);
+  }
+  const sampleTargets = new Map<number, Json>();
+  for (const pull of pulls.slice(0, 30)) {
+    sampleTargets.set(Number(pull.number), pull);
+  }
+  for (const yearPulls of yearBuckets.values()) {
+    for (const pull of yearPulls.slice(0, 3)) {
+      sampleTargets.set(Number(pull.number), pull);
+    }
+  }
+  const detailSamples: Json[] = [];
+  for (const pull of sampleTargets.values()) {
+    try {
+      const detail = await client.request<Json>(
+        `repos/${options.repo}/pulls/${Number(pull.number)}`,
+      );
+      detailSamples.push(detail);
+    } catch {
+      // A missing detail should not invalidate the rest of the probe.
+    }
+  }
+  const branch = String(meta.default_branch ?? "main");
+  log(
+    "probe",
+    `sampled ${detailSamples.length} PR details; reading ${branch} commit history`,
+  );
+  const commits = await client.pages<Json>(
+    `repos/${options.repo}/commits?sha=${encodeURIComponent(branch)}`,
+  );
+  const analysis = analyzeProbe(
+    { ...meta, latest_release_at: latestReleaseAt },
+    pulls,
+    detailSamples,
+    commits,
+  );
+  const recommendation = ["--include-codebase"];
+  if (analysis.includePullRequests) {
+    recommendation.push("--include-pull-requests");
+  }
+  if (analysis.includePullRequestChanges) {
+    recommendation.push("--include-pull-request-changes");
+  }
+  if (analysis.includeCommitHistory) {
+    recommendation.push("--include-commit-history");
+  }
+  if (pulls.length || Boolean(meta.has_issues)) {
+    recommendation.push("--include-how-repo-works");
+  }
+  if (analysis.maxPullRequestChangeLines) {
+    recommendation.push(
+      `--max-pull-request-change-lines=${analysis.maxPullRequestChangeLines}`,
+    );
+  }
+  if (analysis.maxPrYears) {
+    recommendation.push(`--max-pr-years=${analysis.maxPrYears}`);
+  }
+  if (analysis.maxCommits) {
+    recommendation.push(`--max-commits=${analysis.maxCommits}`);
+  }
+  const command = [
+    "deno",
+    "task",
+    "init",
+    options.repo,
+    ...recommendation,
+  ].join(" ");
+  const report = {
+    repo: options.repo,
+    ...analysis.report,
+    recommendations: {
+      includePullRequests: analysis.includePullRequests,
+      includePullRequestChanges: analysis.includePullRequestChanges,
+      includeCommitHistory: analysis.includeCommitHistory,
+      maxPrYears: analysis.maxPrYears ?? "all",
+      maxCommits: analysis.maxCommits ?? "all",
+      maxPullRequestChangeLines: analysis.maxPullRequestChangeLines ?? "all",
+    },
+    reasons: analysis.reasons,
+    recommendedCommand: command,
+    createdAt: new Date().toISOString(),
+  };
+  await Deno.mkdir(cacheRoot(options.repo), { recursive: true });
+  await Deno.writeTextFile(
+    `${cacheRoot(options.repo)}/probe.json`,
+    JSON.stringify(report, null, 2) + "\n",
+  );
+  console.log(`\nrecommended\n  ${command}`);
+  console.log("\nresearch");
+  console.log(
+    `  PRs: ${analysis.report.pullRequests} · sampled: ${analysis.report.sampledPullRequests}`,
+  );
+  console.log(
+    `  commits: ${analysis.report.commits} · useful: ${analysis.report.usefulCommits}`,
+  );
+  console.log(
+    `  windows: PR years=${analysis.maxPrYears ?? "all"} · commits=${
+      analysis.maxCommits ?? "all"
+    } · diff lines=${analysis.maxPullRequestChangeLines ?? "all"}`,
+  );
+  for (const reason of analysis.reasons) console.log(`  - ${reason}`);
+  console.log(
+    "  This is a recommendation only; probe does not create or modify a skill.",
+  );
+}
+
+export async function run(args: string[]): Promise<void> {
+  const options = parseArgs(args);
+  if (options.command === "probe") await runProbe(options);
+  else await runInitOrRemake(options);
+}
