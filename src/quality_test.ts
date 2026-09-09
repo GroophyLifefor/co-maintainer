@@ -22,6 +22,7 @@ function options(overrides: Partial<Options> = {}): Options {
     debug: false,
     logTime: false,
     improveMatrix: 1,
+    concurrent: 1,
     auth: "gh",
     ai: "none",
     synthesisVersion: 1,

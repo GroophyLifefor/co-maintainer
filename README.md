@@ -58,5 +58,6 @@ built-in defaults. See the command documentation: [`probe`](docs/probe.md),
 [`authentication`](docs/authentication.md), and [`caching`](docs/caching.md).
 
 Add `--log-time` to any command to print core operation durations and AI
-token/cost totals. Use `co-maintainer help`, `co-maintainer -h`, or
+token/cost totals. Use `--concurrent=N` to control bounded PR detail sampling in
+`probe` (default: `1`). Use `co-maintainer help`, `co-maintainer -h`, or
 `co-maintainer --help` for the full CLI help.

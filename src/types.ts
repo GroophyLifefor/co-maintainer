@@ -7,6 +7,7 @@ export type Options = {
   debug: boolean;
   logTime: boolean;
   improveMatrix: number;
+  concurrent: number;
   envPath?: string;
   auth: "gh" | "pat";
   ai: "none" | "openrouter" | "hetzner";

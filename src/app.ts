@@ -429,22 +429,40 @@ async function runProbe(options: Options): Promise<void> {
       sampleTargets.set(Number(pull.number), pull);
     }
   }
+  const samplePulls = [...sampleTargets.values()];
   const detailSamples: Json[] = [];
-  log("probe", `sampling ${sampleTargets.size} pull request details`);
+  log(
+    "probe",
+    `sampling ${samplePulls.length} pull request details · concurrency=${options.concurrent}`,
+  );
   await timed(
     "probe PR detail sampling",
     options.logTime,
     async () => {
-      for (const pull of sampleTargets.values()) {
-        try {
-          const detail = await client.request<Json>(
-            `repos/${options.repo}/pulls/${Number(pull.number)}`,
-          );
-          detailSamples.push(detail);
-        } catch {
-          // A missing detail should not invalidate the rest of the probe.
+      const details: (Json | undefined)[] = new Array(samplePulls.length);
+      let cursor = 0;
+      const worker = async () => {
+        while (cursor < samplePulls.length) {
+          const index = cursor++;
+          const pull = samplePulls[index];
+          try {
+            details[index] = await client.request<Json>(
+              `repos/${options.repo}/pulls/${Number(pull.number)}`,
+            );
+          } catch {
+            // A missing detail should not invalidate the rest of the probe.
+          }
         }
-      }
+      };
+      await Promise.all(
+        Array.from(
+          { length: Math.min(options.concurrent, samplePulls.length) },
+          worker,
+        ),
+      );
+      detailSamples.push(
+        ...details.filter((detail): detail is Json => !!detail),
+      );
     },
   );
   const branch = String(meta.default_branch ?? "main");
