@@ -17,6 +17,17 @@ keeps configuration and cache data in platform-specific user directories.
 deno install -g -A --name co-maintainer jsr:@murat/co-maintainer
 ```
 
+If fails to install, try:
+```sh
+deno install -f -g -A --min-dep-age=0 --name co-maintainer jsr:@murat/co-maintainer
+```
+
+## Usage
+
+```sh
+co-maintainer probe owner/repo --auth=gh
+```
+
 ```sh
 deno task probe owner/repo --auth=gh
 
