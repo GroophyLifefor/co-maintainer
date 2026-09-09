@@ -184,6 +184,26 @@ async function pullRequests(
     const discussionUnchanged = cached?.updatedAt === current.updatedAt;
     const diffUnchanged = cached?.headSha === current.headSha &&
       Boolean(cached?.diff);
+    const discussionStatus = discussionUnchanged
+      ? "comments/reviews cache"
+      : "download comments/reviews";
+    let diffStatus = "diff disabled";
+    if (options.includePullRequestChanges) {
+      const lines = current.additions + current.deletions;
+      diffStatus = diffUnchanged
+        ? "diff cache"
+        : !detail
+        ? "diff unavailable"
+        : options.maxPullRequestChangeLines !== undefined &&
+            lines > options.maxPullRequestChangeLines
+        ? `diff skipped (${lines} lines > limit)`
+        : "download diff";
+    }
+    console.log(
+      `[fetch] PR ${
+        index + 1
+      }/${selected.length} #${number} · ${discussionStatus} · ${diffStatus}`,
+    );
     if (!discussionUnchanged) {
       const comments = await client.pages<Json>(
         `repos/${options.repo}/issues/${number}/comments`,
@@ -218,9 +238,6 @@ async function pullRequests(
       }
     }
     result.push(current);
-    if (index % 10 === 0 || index === selected.length - 1) {
-      console.log(`[fetch] pull requests ${index + 1}/${selected.length}`);
-    }
     if (progress) await progress(result);
   }
   return result;
