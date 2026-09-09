@@ -29,10 +29,15 @@ export function parseChatResponse(
     : undefined;
   const message = choice?.message as Json | undefined;
   const usage = json.usage as Json | undefined;
+  const cost = Number(
+    usage?.cost ??
+      (usage?.cost_details as Json | undefined)?.total_cost,
+  );
   return {
     text: String(message?.content ?? ""),
     tokensIn: Number(usage?.prompt_tokens ?? 0),
     tokensOut: Number(usage?.completion_tokens ?? 0),
+    cost: Number.isFinite(cost) ? cost : undefined,
     model,
     provider,
   };

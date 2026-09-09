@@ -3,7 +3,7 @@ import { buildReviewDocuments } from "./analysis/review.ts";
 import { validateSkill } from "./analysis/validate.ts";
 import { collectSource } from "./data/data.ts";
 import { synthesizeSections } from "./ai/jobs.ts";
-import { cacheRoot } from "./state/state.ts";
+import { cacheDeletePrefix } from "./state/database.ts";
 import { qualityFixtures } from "./fixtures/quality.ts";
 import type {
   AiProvider,
@@ -20,6 +20,7 @@ function options(overrides: Partial<Options> = {}): Options {
     command: "init",
     repo: "fixture/repo",
     debug: false,
+    logTime: false,
     improveMatrix: 1,
     auth: "gh",
     ai: "none",
@@ -356,7 +357,7 @@ Deno.test("current evidence is ordered before historical evidence", async () => 
       );
     }
   } finally {
-    await Deno.remove(cacheRoot(repo), { recursive: true }).catch(() => {});
+    await cacheDeletePrefix("ai-jobs", `${repo}:`);
   }
 });
 
@@ -376,6 +377,6 @@ Deno.test("invalid synthesis output is omitted instead of copied", async () => {
       throw new Error("invalid synthesis output was accepted");
     }
   } finally {
-    await Deno.remove(cacheRoot(repo), { recursive: true }).catch(() => {});
+    await cacheDeletePrefix("ai-jobs", `${repo}:`);
   }
 });

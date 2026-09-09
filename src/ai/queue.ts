@@ -1,4 +1,4 @@
-import { cacheRoot } from "../state/state.ts";
+import { cacheGet, cacheSet } from "../state/database.ts";
 import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
 
 type JobRecord = {
@@ -124,22 +124,30 @@ export class AiQueue {
 
   private async load(): Promise<void> {
     if (this.loaded) return;
-    this.loaded = true;
+    const key = `${this.repo}:${this.profile}`;
+    const cached = await cacheGet("ai-jobs", key);
+    if (cached) {
+      this.records = JSON.parse(cached) as JobCache;
+      this.loaded = true;
+      return;
+    }
     try {
       this.records = JSON.parse(
-        await Deno.readTextFile(`${cacheRoot(this.repo)}/ai-jobs.json`),
+        await Deno.readTextFile(`.cache/${this.repo}/ai-jobs.json`),
       ) as JobCache;
+      await cacheSet("ai-jobs", key, JSON.stringify(this.records));
     } catch (error) {
       if (!(error instanceof Deno.errors.NotFound)) throw error;
     }
+    this.loaded = true;
   }
 
   private async persist(): Promise<void> {
     const snapshot = JSON.stringify(this.records, null, 2) + "\n";
     this.saveChain = this.saveChain.then(async () => {
-      await Deno.mkdir(cacheRoot(this.repo), { recursive: true });
-      await Deno.writeTextFile(
-        `${cacheRoot(this.repo)}/ai-jobs.json`,
+      await cacheSet(
+        "ai-jobs",
+        `${this.repo}:${this.profile}`,
         snapshot,
       );
     });

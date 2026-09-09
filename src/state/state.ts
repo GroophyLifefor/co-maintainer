@@ -1,14 +1,21 @@
 import type { State } from "../types.ts";
-
-export function cacheRoot(repo: string): string {
-  return `.cache/${repo}`;
-}
+import { cacheGet, cacheSet } from "./database.ts";
 
 export async function readState(repo: string): Promise<State | undefined> {
+  const value = await cacheGet("state", repo);
+  if (value) return JSON.parse(value) as State;
   try {
-    return JSON.parse(
-      await Deno.readTextFile(`${cacheRoot(repo)}/state.json`),
-    ) as State;
+    const legacy = JSON.parse(
+      await Deno.readTextFile(`.cache/${repo}/state.json`),
+    ) as State & { options: State["options"] & { maxPrYears?: number } };
+    if (
+      legacy.options.maxPrMonths === undefined &&
+      legacy.options.maxPrYears !== undefined
+    ) {
+      legacy.options.maxPrMonths = legacy.options.maxPrYears * 12;
+    }
+    await writeState(legacy);
+    return legacy;
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) return undefined;
     throw error;
@@ -16,9 +23,5 @@ export async function readState(repo: string): Promise<State | undefined> {
 }
 
 export async function writeState(state: State): Promise<void> {
-  await Deno.mkdir(cacheRoot(state.repo), { recursive: true });
-  await Deno.writeTextFile(
-    `${cacheRoot(state.repo)}/state.json`,
-    JSON.stringify(state, null, 2) + "\n",
-  );
+  await cacheSet("state", state.repo, JSON.stringify(state));
 }

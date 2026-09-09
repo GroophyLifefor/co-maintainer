@@ -1,5 +1,5 @@
 import { AiQueue } from "./queue.ts";
-import { cacheRoot } from "../state/state.ts";
+import { cacheDeletePrefix } from "../state/database.ts";
 import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
 
 class MockProvider implements AiProvider {
@@ -52,6 +52,6 @@ Deno.test("AI queue limits concurrency and resumes from disk", async () => {
       throw new Error("cached jobs were called again");
     }
   } finally {
-    await Deno.remove(cacheRoot(repo), { recursive: true });
+    await cacheDeletePrefix("ai-jobs", `${repo}:`);
   }
 });

@@ -1,4 +1,5 @@
 import type { Options } from "../types.ts";
+import { prepareConfig } from "../config.ts";
 
 function die(message: string): never {
   throw new Error(message);
@@ -12,6 +13,7 @@ function numberOption(value: string, name: string): number {
   return number;
 }
 
+const commands = ["probe", "init", "remake", "review"] as const;
 const defaultLowModel = "openai/gpt-oss-120b";
 const defaultHighModel = "openai/gpt-5.6-luna";
 
@@ -36,16 +38,19 @@ export function parseArgs(args: string[]): Options {
   const [command, repo, ...rest] = args;
   if (
     !command ||
+    command === "help" ||
     command === "--help" ||
     command === "-h" ||
     repo === "--help" ||
     repo === "-h"
   ) {
     console.log(
-      "Usage: deno task <probe|init|remake> owner/repo [options]",
+      "Usage: co-maintainer <probe|init|remake|review> owner/repo [options]",
     );
     console.log("       deno task review owner/repo PR_NUMBER [options]");
-    console.log("         --debug --improve-matrix=N");
+    console.log(
+      "         --env=PATH --debug --log-time --improve-matrix=N",
+    );
     console.log(
       "Options: --include-codebase --include-pull-requests --include-pull-request-changes",
     );
@@ -58,12 +63,26 @@ export function parseArgs(args: string[]): Options {
     );
     Deno.exit(0);
   }
-  if (!["probe", "init", "remake", "review"].includes(command)) {
+  if (!commands.includes(command as typeof commands[number])) {
     die(`Unknown command: ${command}`);
+  }
+  if (rest.includes("--help") || rest.includes("-h")) {
+    console.log(`Usage: co-maintainer ${command} ...`);
+    console.log("Run co-maintainer --help for all options.");
+    Deno.exit(0);
+  }
+  if (repo === "--help" || repo === "-h") {
+    console.log(`Usage: co-maintainer ${command} ...`);
+    console.log("Run co-maintainer --help for all options.");
+    Deno.exit(0);
   }
   if (!repo || !/^[^/]+\/[^/]+$/.test(repo)) {
     die("Repository must look like owner/repo");
   }
+
+  const { config, envPath } = prepareConfig(args);
+  const env = (name: string): string | undefined => Deno.env.get(name);
+  const configDefault = config.defaults ?? {};
 
   let prNumber: number | undefined;
   if (command === "review") {
@@ -117,6 +136,7 @@ export function parseArgs(args: string[]): Options {
         "max-pr-months",
         "max-pull-request-change-lines",
         "improve-matrix",
+        "env",
         "auth",
         "ai",
         "token",
@@ -124,12 +144,29 @@ export function parseArgs(args: string[]): Options {
         "high-model",
       ]
         .some((name) => arg.startsWith(`--${name}=`));
-    if (arg === "--debug") continue;
+    if (arg === "--debug" || arg === "--log-time") continue;
     if (arg.startsWith("--") && !known) die(`Unknown option: ${arg}`);
   }
 
   const explicitAi = rest.some((arg) => arg.startsWith("--ai="));
-  let ai = choice("ai", ["none", "openrouter", "hetzner"], "none");
+  const configuredAiRaw = env("CO_MAINTAINER_AI") ?? config.ai;
+  if (
+    configuredAiRaw &&
+    !["none", "openrouter", "hetzner"].includes(configuredAiRaw)
+  ) {
+    die("CO_MAINTAINER_AI/config.ai must be none, openrouter, or hetzner");
+  }
+  const configuredAi = configuredAiRaw as Options["ai"] | undefined;
+  const configuredAuthRaw = env("CO_MAINTAINER_AUTH") ?? config.auth;
+  if (configuredAuthRaw && !["gh", "pat"].includes(configuredAuthRaw)) {
+    die("CO_MAINTAINER_AUTH/config.auth must be gh or pat");
+  }
+  const configuredAuth = configuredAuthRaw as Options["auth"] | undefined;
+  let ai = choice(
+    "ai",
+    ["none", "openrouter", "hetzner"],
+    configuredAi ?? "none",
+  );
   if (command === "review") {
     if (
       explicitAi &&
@@ -138,7 +175,11 @@ export function parseArgs(args: string[]): Options {
       die("review supports OpenRouter only");
     }
     ai = "openrouter";
-  } else if (!explicitAi && command !== "probe") {
+  } else if (
+    !explicitAi &&
+    !configuredAi &&
+    command !== "probe"
+  ) {
     const selected = ask(
       "AI provider (openrouter|hetzner)",
       "openrouter",
@@ -148,9 +189,18 @@ export function parseArgs(args: string[]): Options {
     }
     ai = selected as Options["ai"];
   }
-  let aiToken = text("token");
-  let lowModel = text("low-model");
-  let highModel = text("high-model");
+  let aiToken = text("token") ??
+    env("CO_MAINTAINER_TOKEN") ??
+    (ai === "openrouter" ? env("OPENROUTER_API_KEY") : undefined) ??
+    (ai === "hetzner" ? env("HETZNER_API_KEY") : undefined);
+  let lowModel = text("low-model") ??
+    env("OPENROUTER_LOW_MODEL") ??
+    env("HETZNER_LOW_MODEL") ??
+    config.lowModel;
+  let highModel = text("high-model") ??
+    env("OPENROUTER_HIGH_MODEL") ??
+    env("HETZNER_HIGH_MODEL") ??
+    config.highModel;
   if (command === "review") {
     aiToken ??= ask("openrouter API key", undefined, true);
     highModel ??= ask("high model", defaultHighModel, true);
@@ -174,8 +224,10 @@ export function parseArgs(args: string[]): Options {
     repo,
     prNumber,
     debug: rest.includes("--debug"),
+    logTime: rest.includes("--log-time"),
+    envPath,
     improveMatrix: value("improve-matrix") ?? 1,
-    auth: choice("auth", ["gh", "pat"], "gh"),
+    auth: choice("auth", ["gh", "pat"], configuredAuth ?? "gh"),
     ai,
     aiToken,
     lowModel,
@@ -186,8 +238,9 @@ export function parseArgs(args: string[]): Options {
     includePullRequestChanges: enabled("include-pull-request-changes"),
     includeCommitHistory: enabled("include-commit-history"),
     includeHowRepoWorks: enabled("include-how-repo-works"),
-    maxCommits: value("max-commits"),
-    maxPrMonths: value("max-pr-months"),
-    maxPullRequestChangeLines: value("max-pull-request-change-lines"),
+    maxCommits: value("max-commits") ?? configDefault.maxCommits,
+    maxPrMonths: value("max-pr-months") ?? configDefault.maxPrMonths,
+    maxPullRequestChangeLines: value("max-pull-request-change-lines") ??
+      configDefault.maxPullRequestChangeLines,
   };
 }

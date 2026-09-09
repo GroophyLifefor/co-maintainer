@@ -7,6 +7,8 @@ import type {
   Options,
 } from "./types.ts";
 
+type UsageSink = (response: AiResponse) => Promise<void>;
+
 function text(value: unknown, limit = 20_000): string {
   const result = String(value ?? "");
   return result.length > limit
@@ -25,6 +27,7 @@ async function readGuide(repo: string, name: string): Promise<string> {
 export async function reviewPullRequest(
   client: GitHubClient,
   options: Options,
+  usage?: UsageSink,
 ): Promise<AiResponse> {
   if (!options.prNumber) throw new Error("review requires a PR number");
   const number = options.prNumber;
@@ -128,6 +131,7 @@ ${text(patch, 60_000)}`;
     );
   }
   let response = await provider.complete(request);
+  if (usage) await usage(response);
   if (options.debug) {
     console.log(
       `[debug] initial review response · input=${response.tokensIn} tokens · output=${response.tokensOut} tokens`,
@@ -165,6 +169,7 @@ ${reviewText}`,
       );
     }
     response = await provider.complete(improvementRequest);
+    if (usage) await usage(response);
     if (!response.text.trim()) {
       throw new Error(
         `OpenRouter returned an empty review improvement at pass ${pass - 1}`,

@@ -10,11 +10,25 @@ import { buildReviewDocuments } from "./analysis/review.ts";
 import { assembleSkill, factSectionHashes } from "./analysis/skill.ts";
 import { validateSkill } from "./analysis/validate.ts";
 import { reviewPullRequest } from "./review.ts";
-import { cacheRoot, readState, writeState } from "./state/state.ts";
+import { readState, writeState } from "./state/state.ts";
+import { cacheSet } from "./state/database.ts";
+import { startHeartbeat, timed } from "./log.ts";
 import type { AiResponse, Json, Options, Source, State } from "./types.ts";
 
 function log(phase: string, message: string): void {
   console.log(`[${phase}] ${message}`);
+}
+
+type AiMetrics = {
+  calls: number;
+  tokensIn: number;
+  tokensOut: number;
+  cost: number;
+  costKnown: boolean;
+};
+
+function emptyAiMetrics(): AiMetrics {
+  return { calls: 0, tokensIn: 0, tokensOut: 0, cost: 0, costKnown: true };
 }
 
 function optionsForState(
@@ -105,9 +119,9 @@ async function recordAiCost(
   job: string,
   response: AiResponse,
 ): Promise<void> {
-  await Deno.mkdir(cacheRoot(repo), { recursive: true });
-  await Deno.writeTextFile(
-    `${cacheRoot(repo)}/cost.jsonl`,
+  await cacheSet(
+    "cost",
+    `${repo}:${crypto.randomUUID()}`,
     JSON.stringify({
       at: new Date().toISOString(),
       job,
@@ -115,13 +129,14 @@ async function recordAiCost(
       model: response.model,
       tokensIn: response.tokensIn,
       tokensOut: response.tokensOut,
-      usd: response.provider === "hetzner" ? 0 : null,
-    }) + "\n",
-    { append: true },
+      usd: response.provider === "hetzner" ? 0 : response.cost ?? null,
+    }),
   );
 }
 
 async function runInitOrRemake(options: Options): Promise<void> {
+  const operationStarted = performance.now();
+  const aiMetrics = emptyAiMetrics();
   const previous = await readState(options.repo);
   if (options.command === "remake" && !previous) {
     throw new Error(
@@ -146,29 +161,40 @@ async function runInitOrRemake(options: Options): Promise<void> {
   }
 
   log("fetch", `${options.repo} via ${options.auth}`);
-  const source = await collectSource(
-    client,
-    options,
-    previous,
-    async (pullRequests) => {
-      checkpoint.source.pullRequests = pullRequests;
-      checkpoint.scanDone = {
-        ...checkpoint.scanDone,
-        pullRequests: pullRequests.length,
-        updatedAt: new Date().toISOString(),
-      };
-      await writeState(checkpoint);
-    },
-    async (codebase) => {
-      checkpoint.source = {
-        ...checkpoint.source,
-        tree: codebase.tree,
-        treeSha: codebase.treeSha,
-        files: codebase.files,
-      };
-      await writeState(checkpoint);
-    },
-  );
+  const stopFetchHeartbeat = startHeartbeat("fetching repository data");
+  let source: Source;
+  try {
+    source = await timed(
+      "fetch repository data",
+      options.logTime,
+      () =>
+        collectSource(
+          client,
+          options,
+          previous,
+          async (pullRequests) => {
+            checkpoint.source.pullRequests = pullRequests;
+            checkpoint.scanDone = {
+              ...checkpoint.scanDone,
+              pullRequests: pullRequests.length,
+              updatedAt: new Date().toISOString(),
+            };
+            await writeState(checkpoint);
+          },
+          async (codebase) => {
+            checkpoint.source = {
+              ...checkpoint.source,
+              tree: codebase.tree,
+              treeSha: codebase.treeSha,
+              files: codebase.files,
+            };
+            await writeState(checkpoint);
+          },
+        ),
+    );
+  } finally {
+    stopFetchHeartbeat();
+  }
   log(
     "fetch",
     `source ready · ${
@@ -182,19 +208,40 @@ async function runInitOrRemake(options: Options): Promise<void> {
   } catch {
     // init can create the first output.
   }
+  const factsStarted = performance.now();
   let facts = extractFacts(source, options);
+  if (options.logTime) {
+    log(
+      "time",
+      `extract deterministic facts · ${
+        ((performance.now() - factsStarted) / 1000).toFixed(2)
+      }s`,
+    );
+  }
   let overrides: Record<string, string> = {};
   if (lowAi) {
     log("ai", "starting extract_unit jobs");
-    const usage = (job: string, response: AiResponse) =>
-      recordAiCost(options.repo, job, response);
-    facts = await enrichFacts(
-      lowAi,
-      options.repo,
-      facts,
-      source,
-      options,
-      usage,
+    const usage = async (job: string, response: AiResponse) => {
+      aiMetrics.calls++;
+      aiMetrics.tokensIn += response.tokensIn;
+      aiMetrics.tokensOut += response.tokensOut;
+      if (response.provider === "hetzner") aiMetrics.cost += 0;
+      else if (response.cost === undefined) aiMetrics.costKnown = false;
+      else aiMetrics.cost += response.cost;
+      await recordAiCost(options.repo, job, response);
+    };
+    facts = await timed(
+      "extract_unit AI",
+      options.logTime,
+      () =>
+        enrichFacts(
+          lowAi,
+          options.repo,
+          facts,
+          source,
+          options,
+          usage,
+        ),
     );
     log("ai", `extract_unit complete · ${facts.length} facts`);
     const hashes = await factSectionHashes(facts);
@@ -215,15 +262,20 @@ async function runInitOrRemake(options: Options): Promise<void> {
       }`,
     );
     if (highAi) {
-      overrides = await synthesizeSections(
-        highAi,
-        options.repo,
-        facts,
-        previousMarkdown,
-        options.ai,
-        options.highModel ?? "",
-        usage,
-        dirtySections,
+      overrides = await timed(
+        "synth_section AI",
+        options.logTime,
+        () =>
+          synthesizeSections(
+            highAi,
+            options.repo,
+            facts,
+            previousMarkdown,
+            options.ai,
+            options.highModel ?? "",
+            usage,
+            dirtySections,
+          ),
       );
     }
     log(
@@ -231,57 +283,73 @@ async function runInitOrRemake(options: Options): Promise<void> {
       `synth_section complete · ${Object.keys(overrides).length} sections`,
     );
   }
-  let result = await assembleSkill(
-    options.repo,
-    facts,
-    previousMarkdown,
-    previous?.sectionHashes ?? {},
-    overrides,
+  let result = await timed(
+    "assemble skill",
+    options.logTime,
+    () =>
+      assembleSkill(
+        options.repo,
+        facts,
+        previousMarkdown,
+        previous?.sectionHashes ?? {},
+        overrides,
+      ),
   );
   const reviewDocuments = buildReviewDocuments(facts);
   await writeReviewDocuments(options.repo, reviewDocuments);
   result.markdown = addReviewLink(result.markdown, reviewDocuments);
-  const validation = await validateSkill(
-    result.markdown,
-    `repos/${options.repo}`,
-    source,
+  const validation = await timed(
+    "validate skill",
+    options.logTime,
+    () => validateSkill(result.markdown, `repos/${options.repo}`, source),
   );
   if (!validation.valid && Object.keys(overrides).length) {
     log("validate", `AI output rejected: ${validation.errors.join("; ")}`);
-    result = await assembleSkill(
-      options.repo,
-      facts,
-      previousMarkdown,
-      previous?.sectionHashes ?? {},
-      overrides,
+    result = await timed(
+      "reassemble valid skill",
+      options.logTime,
+      () =>
+        assembleSkill(
+          options.repo,
+          facts,
+          previousMarkdown,
+          previous?.sectionHashes ?? {},
+          overrides,
+        ),
     );
     result.markdown = addReviewLink(result.markdown, reviewDocuments);
   }
-  let finalValidation = await validateSkill(
-    result.markdown,
-    `repos/${options.repo}`,
-    source,
+  let finalValidation = await timed(
+    "final skill validation",
+    options.logTime,
+    () => validateSkill(result.markdown, `repos/${options.repo}`, source),
   );
   if (!finalValidation.valid) {
     throw new Error(
       `generated skill is invalid: ${finalValidation.errors.join("; ")}`,
     );
   }
-  await Deno.writeTextFile(path, result.markdown);
-  await writeState({
-    version: 1,
-    repo: options.repo,
-    options: optionsForState(options),
-    source,
-    facts,
-    sectionHashes: result.hashes,
-    scanDone: {
-      pullRequests: source.pullRequests.length,
-      commits: source.commits.length,
-      updatedAt: new Date().toISOString(),
+  await timed(
+    "write skill and state",
+    options.logTime,
+    async () => {
+      await Deno.writeTextFile(path, result.markdown);
+      await writeState({
+        version: 1,
+        repo: options.repo,
+        options: optionsForState(options),
+        source,
+        facts,
+        sectionHashes: result.hashes,
+        scanDone: {
+          pullRequests: source.pullRequests.length,
+          commits: source.commits.length,
+          updatedAt: new Date().toISOString(),
+        },
+        updatedAt: new Date().toISOString(),
+      });
     },
-    updatedAt: new Date().toISOString(),
-  });
+  );
   log(
     "write",
     `${path} · ${
@@ -294,17 +362,42 @@ async function runInitOrRemake(options: Options): Promise<void> {
     "done",
     `${facts.length} facts · ${source.pullRequests.length} pull requests · ${source.commits.length} commits`,
   );
+  if (options.logTime) {
+    log(
+      "time",
+      `AI total · calls=${aiMetrics.calls} · input=${aiMetrics.tokensIn} tokens · output=${aiMetrics.tokensOut} tokens · cost=${
+        aiMetrics.costKnown ? aiMetrics.cost.toFixed(4) : "unknown"
+      }`,
+    );
+    log(
+      "time",
+      `total init/remake · ${
+        ((performance.now() - operationStarted) / 1000).toFixed(2)
+      }s`,
+    );
+  }
 }
 
 async function runProbe(options: Options): Promise<void> {
+  const operationStarted = performance.now();
+  const stopHeartbeat = startHeartbeat("probing repository");
   const client = clientFor(options);
   log("probe", `reading ${options.repo} via ${options.auth}`);
-  const meta = await client.request<Json>(`repos/${options.repo}`);
+  const meta = await timed(
+    "probe repository metadata",
+    options.logTime,
+    () => client.request<Json>(`repos/${options.repo}`),
+  );
   let latestReleaseAt = "";
   try {
-    const releases = await client.pages<Json>(
-      `repos/${options.repo}/releases?per_page=1`,
-      1,
+    const releases = await timed(
+      "probe release metadata",
+      options.logTime,
+      () =>
+        client.pages<Json>(
+          `repos/${options.repo}/releases?per_page=1`,
+          1,
+        ),
     );
     latestReleaseAt = String(
       releases[0]?.published_at ?? releases[0]?.created_at ?? "",
@@ -312,8 +405,13 @@ async function runProbe(options: Options): Promise<void> {
   } catch {
     // Release metadata is an optional probe signal.
   }
-  const pulls = await client.pages<Json>(
-    `repos/${options.repo}/pulls?state=all&sort=updated&direction=desc`,
+  const pulls = await timed(
+    "probe pull request listing",
+    options.logTime,
+    () =>
+      client.pages<Json>(
+        `repos/${options.repo}/pulls?state=all&sort=updated&direction=desc`,
+      ),
   );
   const yearBuckets = new Map<number, Json[]>();
   for (const pull of pulls) {
@@ -330,29 +428,45 @@ async function runProbe(options: Options): Promise<void> {
     }
   }
   const detailSamples: Json[] = [];
-  for (const pull of sampleTargets.values()) {
-    try {
-      const detail = await client.request<Json>(
-        `repos/${options.repo}/pulls/${Number(pull.number)}`,
-      );
-      detailSamples.push(detail);
-    } catch {
-      // A missing detail should not invalidate the rest of the probe.
-    }
-  }
+  await timed(
+    "probe PR detail sampling",
+    options.logTime,
+    async () => {
+      for (const pull of sampleTargets.values()) {
+        try {
+          const detail = await client.request<Json>(
+            `repos/${options.repo}/pulls/${Number(pull.number)}`,
+          );
+          detailSamples.push(detail);
+        } catch {
+          // A missing detail should not invalidate the rest of the probe.
+        }
+      }
+    },
+  );
   const branch = String(meta.default_branch ?? "main");
   log(
     "probe",
     `sampled ${detailSamples.length} PR details; reading ${branch} commit history`,
   );
-  const commits = await client.pages<Json>(
-    `repos/${options.repo}/commits?sha=${encodeURIComponent(branch)}`,
+  const commits = await timed(
+    "probe commit history",
+    options.logTime,
+    () =>
+      client.pages<Json>(
+        `repos/${options.repo}/commits?sha=${encodeURIComponent(branch)}`,
+      ),
   );
-  const analysis = analyzeProbe(
-    { ...meta, latest_release_at: latestReleaseAt },
-    pulls,
-    detailSamples,
-    commits,
+  const analysis = await timed(
+    "probe analysis",
+    options.logTime,
+    async () =>
+      analyzeProbe(
+        { ...meta, latest_release_at: latestReleaseAt },
+        pulls,
+        detailSamples,
+        commits,
+      ),
   );
   const recommendation = ["--include-codebase"];
   if (analysis.includePullRequests) {
@@ -400,10 +514,10 @@ async function runProbe(options: Options): Promise<void> {
     recommendedCommand: command,
     createdAt: new Date().toISOString(),
   };
-  await Deno.mkdir(cacheRoot(options.repo), { recursive: true });
-  await Deno.writeTextFile(
-    `${cacheRoot(options.repo)}/probe.json`,
-    JSON.stringify(report, null, 2) + "\n",
+  await timed(
+    "probe report write",
+    options.logTime,
+    () => cacheSet("probe", options.repo, JSON.stringify(report)),
   );
   console.log(`\nrecommended\n  ${command}`);
   console.log("\nresearch");
@@ -422,16 +536,56 @@ async function runProbe(options: Options): Promise<void> {
   console.log(
     "  This is a recommendation only; probe does not create or modify a skill.",
   );
+  if (options.logTime) {
+    console.log(
+      `  total time: ${
+        ((performance.now() - operationStarted) / 1000).toFixed(2)
+      }s`,
+    );
+  }
+  stopHeartbeat();
 }
 
 async function runReview(options: Options): Promise<void> {
+  const operationStarted = performance.now();
+  const aiMetrics = emptyAiMetrics();
+  const stopHeartbeat = startHeartbeat("reviewing pull request");
   if (options.auth !== "gh") {
     throw new Error("review supports gh authentication only");
   }
   log("review", `reading PR #${options.prNumber} in ${options.repo} via gh`);
-  const result = await reviewPullRequest(new GhClient(), options);
-  await recordAiCost(options.repo, "review_pull_request", result);
+  const result = await timed(
+    "review GitHub collection and AI",
+    options.logTime,
+    () =>
+      reviewPullRequest(
+        new GhClient(),
+        options,
+        async (response) => {
+          aiMetrics.calls++;
+          aiMetrics.tokensIn += response.tokensIn;
+          aiMetrics.tokensOut += response.tokensOut;
+          if (response.cost === undefined) aiMetrics.costKnown = false;
+          else aiMetrics.cost += response.cost;
+          await recordAiCost(options.repo, "review_pull_request", response);
+        },
+      ),
+  );
   console.log(`\n${result.text}\n`);
+  if (options.logTime) {
+    log(
+      "time",
+      `AI total · calls=${aiMetrics.calls} · input=${aiMetrics.tokensIn} tokens · output=${aiMetrics.tokensOut} tokens · cost=${
+        aiMetrics.costKnown ? aiMetrics.cost.toFixed(4) : "unknown"
+      }`,
+    );
+    console.log(
+      `[time] total review · ${
+        ((performance.now() - operationStarted) / 1000).toFixed(2)
+      }s`,
+    );
+  }
+  stopHeartbeat();
 }
 
 export async function run(args: string[]): Promise<void> {

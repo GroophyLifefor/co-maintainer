@@ -5,7 +5,9 @@ export type Options = {
   repo: string;
   prNumber?: number;
   debug: boolean;
+  logTime: boolean;
   improveMatrix: number;
+  envPath?: string;
   auth: "gh" | "pat";
   ai: "none" | "openrouter" | "hetzner";
   aiToken?: string;
@@ -87,6 +89,7 @@ export type AiResponse = {
   text: string;
   tokensIn: number;
   tokensOut: number;
+  cost?: number;
   model: string;
   provider: "openrouter" | "hetzner";
 };
