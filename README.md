@@ -11,6 +11,12 @@ implementation, testing, review, and release decisions.
 This is a local Deno CLI. It writes generated skills to `repos/owner/repo/` and
 keeps source and AI-job caches in `.cache/owner/repo/`.
 
+## Installation
+
+```sh
+deno install -g -A --name co-maintainer jsr:@murat/co-maintainer
+```
+
 ```sh
 deno task probe owner/repo --auth=gh
 
