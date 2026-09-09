@@ -389,6 +389,7 @@ async function runProbe(options: Options): Promise<void> {
     () => client.request<Json>(`repos/${options.repo}`),
   );
   let latestReleaseAt = "";
+  log("probe", "reading release metadata");
   try {
     const releases = await timed(
       "probe release metadata",
@@ -405,6 +406,7 @@ async function runProbe(options: Options): Promise<void> {
   } catch {
     // Release metadata is an optional probe signal.
   }
+  log("probe", "reading pull request list");
   const pulls = await timed(
     "probe pull request listing",
     options.logTime,
@@ -428,6 +430,7 @@ async function runProbe(options: Options): Promise<void> {
     }
   }
   const detailSamples: Json[] = [];
+  log("probe", `sampling ${sampleTargets.size} pull request details`);
   await timed(
     "probe PR detail sampling",
     options.logTime,
