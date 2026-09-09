@@ -21,7 +21,11 @@ export class PatClient implements GitHubClient {
     return await response.json() as T;
   }
 
-  async pages<T>(endpoint: string, limit?: number): Promise<T[]> {
+  async pages<T>(
+    endpoint: string,
+    limit?: number,
+    progress?: (page: number, fetched: number) => void,
+  ): Promise<T[]> {
     const items: T[] = [];
     for (let page = 1;; page++) {
       const separator = endpoint.includes("?") ? "&" : "?";
@@ -29,6 +33,7 @@ export class PatClient implements GitHubClient {
         `${endpoint}${separator}per_page=100&page=${page}`,
       );
       items.push(...pageItems);
+      progress?.(page, items.length);
       if (
         pageItems.length < 100 ||
         (limit !== undefined && items.length >= limit)

@@ -75,7 +75,11 @@ export type State = {
 
 export type GitHubClient = {
   request<T>(endpoint: string): Promise<T>;
-  pages<T>(endpoint: string, limit?: number): Promise<T[]>;
+  pages<T>(
+    endpoint: string,
+    limit?: number,
+    progress?: (page: number, fetched: number) => void,
+  ): Promise<T[]>;
 };
 
 export type AiRequest = {

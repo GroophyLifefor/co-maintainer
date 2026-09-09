@@ -19,7 +19,11 @@ export class GhClient implements GitHubClient {
     }
   }
 
-  async pages<T>(endpoint: string, limit?: number): Promise<T[]> {
+  async pages<T>(
+    endpoint: string,
+    limit?: number,
+    progress?: (page: number, fetched: number) => void,
+  ): Promise<T[]> {
     const items: T[] = [];
     for (let page = 1;; page++) {
       const separator = endpoint.includes("?") ? "&" : "?";
@@ -27,6 +31,7 @@ export class GhClient implements GitHubClient {
         `${endpoint}${separator}per_page=100&page=${page}`,
       );
       items.push(...pageItems);
+      progress?.(page, items.length);
       if (
         pageItems.length < 100 ||
         (limit !== undefined && items.length >= limit)

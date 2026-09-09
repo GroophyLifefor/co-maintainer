@@ -413,6 +413,12 @@ async function runProbe(options: Options): Promise<void> {
     () =>
       client.pages<Json>(
         `repos/${options.repo}/pulls?state=all&sort=updated&direction=desc`,
+        undefined,
+        (page, fetched) =>
+          log(
+            "probe",
+            `pull request listing · page ${page} · fetched ${fetched} · total unknown`,
+          ),
       ),
   );
   const yearBuckets = new Map<number, Json[]>();
@@ -441,6 +447,7 @@ async function runProbe(options: Options): Promise<void> {
     async () => {
       const details: (Json | undefined)[] = new Array(samplePulls.length);
       let cursor = 0;
+      let completed = 0;
       const worker = async () => {
         while (cursor < samplePulls.length) {
           const index = cursor++;
@@ -451,6 +458,14 @@ async function runProbe(options: Options): Promise<void> {
             );
           } catch {
             // A missing detail should not invalidate the rest of the probe.
+          } finally {
+            completed++;
+            log(
+              "probe",
+              `PR detail sampling · ${completed}/${samplePulls.length} · ${
+                Math.round((completed / samplePulls.length) * 100)
+              }%`,
+            );
           }
         }
       };
@@ -476,6 +491,12 @@ async function runProbe(options: Options): Promise<void> {
     () =>
       client.pages<Json>(
         `repos/${options.repo}/commits?sha=${encodeURIComponent(branch)}`,
+        undefined,
+        (page, fetched) =>
+          log(
+            "probe",
+            `commit history · page ${page} · fetched ${fetched} · total unknown`,
+          ),
       ),
   );
   const analysis = await timed(
