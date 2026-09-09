@@ -47,7 +47,7 @@ export function parseArgs(args: string[]): Options {
     console.log(
       "Usage: co-maintainer <probe|init|remake|review> owner/repo [options]",
     );
-    console.log("       deno task review owner/repo PR_NUMBER [options]");
+    console.log("       co-maintainer review owner/repo PR_NUMBER [options]");
     console.log(
       "         --env=PATH --debug --log-time --improve-matrix=N",
     );

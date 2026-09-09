@@ -496,8 +496,7 @@ async function runProbe(options: Options): Promise<void> {
     recommendation.push(`--max-commits=${analysis.maxCommits}`);
   }
   const command = [
-    "deno",
-    "task",
+    "co-maintainer",
     "init",
     options.repo,
     ...recommendation,

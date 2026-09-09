@@ -18,6 +18,7 @@ deno install -g -A --name co-maintainer jsr:@murat/co-maintainer
 ```
 
 If fails to install, try:
+
 ```sh
 deno install -f -g -A --min-dep-age=0 --name co-maintainer jsr:@murat/co-maintainer
 ```
@@ -29,16 +30,16 @@ co-maintainer probe owner/repo --auth=gh
 ```
 
 ```sh
-deno task probe owner/repo --auth=gh
+co-maintainer probe owner/repo --auth=gh
 
-deno task init owner/repo --auth=gh --ai=openrouter --token=... \
+co-maintainer init owner/repo --auth=gh --ai=openrouter --token=... \
   --low-model=openai/gpt-oss-120b \
   --high-model=openai/gpt-5.6-luna \
   --include-codebase --include-pull-requests \
   --include-pull-request-changes --include-commit-history \
   --include-how-repo-works
 
-deno task review owner/repo 123 --improve-matrix=2 --debug
+co-maintainer review owner/repo 123 --improve-matrix=2 --debug
 ```
 
 `probe` recommends source limits without writing a skill. `remake` refreshes
