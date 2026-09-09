@@ -1,4 +1,8 @@
 {
+  "name": "@murat/co-maintainer",
+  "version": "0.1.0",
+  "license": "MIT",
+  "exports": "./mod.ts",
   "tasks": {
     "dev": "deno run --allow-all --watch main.ts",
     "probe": "deno run --allow-all main.ts probe",
