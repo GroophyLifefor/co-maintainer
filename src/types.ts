@@ -1,8 +1,11 @@
 export type Json = Record<string, unknown>;
 
 export type Options = {
-  command: "probe" | "init" | "remake";
+  command: "probe" | "init" | "remake" | "review";
   repo: string;
+  prNumber?: number;
+  debug: boolean;
+  improveMatrix: number;
   auth: "gh" | "pat";
   ai: "none" | "openrouter" | "hetzner";
   aiToken?: string;
@@ -15,7 +18,7 @@ export type Options = {
   includeCommitHistory: boolean;
   includeHowRepoWorks: boolean;
   maxCommits?: number;
-  maxPrYears?: number;
+  maxPrMonths?: number;
   maxPullRequestChangeLines?: number;
 };
 

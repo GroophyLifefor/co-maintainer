@@ -6,8 +6,10 @@ import { GhClient } from "./data/gh.ts";
 import { PatClient } from "./data/pat.ts";
 import { extractFacts } from "./analysis/facts.ts";
 import { analyzeProbe } from "./analysis/probe.ts";
+import { buildReviewDocuments } from "./analysis/review.ts";
 import { assembleSkill, factSectionHashes } from "./analysis/skill.ts";
 import { validateSkill } from "./analysis/validate.ts";
+import { reviewPullRequest } from "./review.ts";
 import { cacheRoot, readState, writeState } from "./state/state.ts";
 import type { AiResponse, Json, Options, Source, State } from "./types.ts";
 
@@ -62,6 +64,42 @@ async function skillPath(repo: string): Promise<string> {
   return path;
 }
 
+async function writeReviewDocuments(
+  repo: string,
+  documents: ReturnType<typeof buildReviewDocuments>,
+): Promise<void> {
+  const directory = `repos/${repo}`;
+  if (!documents) {
+    await Promise.all([
+      Deno.remove(`${directory}/PR_REVIEW_GUIDE.md`).catch(() => {}),
+      Deno.remove(`${directory}/PR_REVIEW_DETAILED_GUIDE.md`).catch(() => {}),
+    ]);
+    return;
+  }
+  await Deno.writeTextFile(`${directory}/PR_REVIEW_GUIDE.md`, documents.guide);
+  if (documents.detailed) {
+    await Deno.writeTextFile(
+      `${directory}/PR_REVIEW_DETAILED_GUIDE.md`,
+      documents.detailed,
+    );
+  } else {
+    await Deno.remove(`${directory}/PR_REVIEW_DETAILED_GUIDE.md`).catch(
+      () => {},
+    );
+  }
+}
+
+function addReviewLink(
+  markdown: string,
+  documents: ReturnType<typeof buildReviewDocuments>,
+): string {
+  if (!documents) return markdown;
+  const detailedLink = documents.detailed
+    ? " See [PR_REVIEW_DETAILED_GUIDE.md](PR_REVIEW_DETAILED_GUIDE.md) for evidence."
+    : "";
+  return `${markdown.trimEnd()}\n\n## Pull request review guides\n\n- Read [PR_REVIEW_GUIDE.md](PR_REVIEW_GUIDE.md).${detailedLink}\n`;
+}
+
 async function recordAiCost(
   repo: string,
   job: string,
@@ -92,7 +130,7 @@ async function runInitOrRemake(options: Options): Promise<void> {
   }
   if (options.command === "remake" && previous) {
     options.maxCommits ??= previous.options.maxCommits;
-    options.maxPrYears ??= previous.options.maxPrYears;
+    options.maxPrMonths ??= previous.options.maxPrMonths;
     options.maxPullRequestChangeLines ??=
       previous.options.maxPullRequestChangeLines;
   }
@@ -118,6 +156,15 @@ async function runInitOrRemake(options: Options): Promise<void> {
         ...checkpoint.scanDone,
         pullRequests: pullRequests.length,
         updatedAt: new Date().toISOString(),
+      };
+      await writeState(checkpoint);
+    },
+    async (codebase) => {
+      checkpoint.source = {
+        ...checkpoint.source,
+        tree: codebase.tree,
+        treeSha: codebase.treeSha,
+        files: codebase.files,
       };
       await writeState(checkpoint);
     },
@@ -191,6 +238,9 @@ async function runInitOrRemake(options: Options): Promise<void> {
     previous?.sectionHashes ?? {},
     overrides,
   );
+  const reviewDocuments = buildReviewDocuments(facts);
+  await writeReviewDocuments(options.repo, reviewDocuments);
+  result.markdown = addReviewLink(result.markdown, reviewDocuments);
   const validation = await validateSkill(
     result.markdown,
     `repos/${options.repo}`,
@@ -205,6 +255,7 @@ async function runInitOrRemake(options: Options): Promise<void> {
       previous?.sectionHashes ?? {},
       overrides,
     );
+    result.markdown = addReviewLink(result.markdown, reviewDocuments);
   }
   let finalValidation = await validateSkill(
     result.markdown,
@@ -321,8 +372,8 @@ async function runProbe(options: Options): Promise<void> {
       `--max-pull-request-change-lines=${analysis.maxPullRequestChangeLines}`,
     );
   }
-  if (analysis.maxPrYears) {
-    recommendation.push(`--max-pr-years=${analysis.maxPrYears}`);
+  if (analysis.maxPrMonths) {
+    recommendation.push(`--max-pr-months=${analysis.maxPrMonths}`);
   }
   if (analysis.maxCommits) {
     recommendation.push(`--max-commits=${analysis.maxCommits}`);
@@ -341,7 +392,7 @@ async function runProbe(options: Options): Promise<void> {
       includePullRequests: analysis.includePullRequests,
       includePullRequestChanges: analysis.includePullRequestChanges,
       includeCommitHistory: analysis.includeCommitHistory,
-      maxPrYears: analysis.maxPrYears ?? "all",
+      maxPrMonths: analysis.maxPrMonths ?? "all",
       maxCommits: analysis.maxCommits ?? "all",
       maxPullRequestChangeLines: analysis.maxPullRequestChangeLines ?? "all",
     },
@@ -363,7 +414,7 @@ async function runProbe(options: Options): Promise<void> {
     `  commits: ${analysis.report.commits} · useful: ${analysis.report.usefulCommits}`,
   );
   console.log(
-    `  windows: PR years=${analysis.maxPrYears ?? "all"} · commits=${
+    `  windows: PR months=${analysis.maxPrMonths ?? "all"} · commits=${
       analysis.maxCommits ?? "all"
     } · diff lines=${analysis.maxPullRequestChangeLines ?? "all"}`,
   );
@@ -373,8 +424,19 @@ async function runProbe(options: Options): Promise<void> {
   );
 }
 
+async function runReview(options: Options): Promise<void> {
+  if (options.auth !== "gh") {
+    throw new Error("review supports gh authentication only");
+  }
+  log("review", `reading PR #${options.prNumber} in ${options.repo} via gh`);
+  const result = await reviewPullRequest(new GhClient(), options);
+  await recordAiCost(options.repo, "review_pull_request", result);
+  console.log(`\n${result.text}\n`);
+}
+
 export async function run(args: string[]): Promise<void> {
   const options = parseArgs(args);
   if (options.command === "probe") await runProbe(options);
+  else if (options.command === "review") await runReview(options);
   else await runInitOrRemake(options);
 }

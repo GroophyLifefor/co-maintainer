@@ -4,6 +4,7 @@
     "probe": "deno run --allow-all main.ts probe",
     "init": "deno run --allow-all main.ts init",
     "remake": "deno run --allow-all main.ts remake",
+    "review": "deno run --allow-all main.ts review",
     "check": "deno check main.ts",
     "fmt": "deno fmt",
     "test": "deno test --allow-all"

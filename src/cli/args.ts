@@ -44,23 +44,34 @@ export function parseArgs(args: string[]): Options {
     console.log(
       "Usage: deno task <probe|init|remake> owner/repo [options]",
     );
+    console.log("       deno task review owner/repo PR_NUMBER [options]");
+    console.log("         --debug --improve-matrix=N");
     console.log(
       "Options: --include-codebase --include-pull-requests --include-pull-request-changes",
     );
     console.log("         --include-commit-history --include-how-repo-works");
     console.log(
-      "         --max-commits=N --max-pr-years=N --max-pull-request-change-lines=N",
+      "         --max-commits=N --max-pr-months=N --max-pull-request-change-lines=N",
     );
     console.log(
       "         --auth=gh|pat --ai=none|openrouter|hetzner --token=... --low-model=... --high-model=...",
     );
     Deno.exit(0);
   }
-  if (!["probe", "init", "remake"].includes(command)) {
+  if (!["probe", "init", "remake", "review"].includes(command)) {
     die(`Unknown command: ${command}`);
   }
   if (!repo || !/^[^/]+\/[^/]+$/.test(repo)) {
     die("Repository must look like owner/repo");
+  }
+
+  let prNumber: number | undefined;
+  if (command === "review") {
+    const rawNumber = rest.shift();
+    if (!rawNumber || !/^\d+$/.test(rawNumber)) {
+      die("review requires a numeric PR number");
+    }
+    prNumber = Number(rawNumber);
   }
 
   const includeNames = [
@@ -103,8 +114,9 @@ export function parseArgs(args: string[]): Options {
     const known = includeNames.some((name) => arg === `--${name}`) ||
       [
         "max-commits",
-        "max-pr-years",
+        "max-pr-months",
         "max-pull-request-change-lines",
+        "improve-matrix",
         "auth",
         "ai",
         "token",
@@ -112,12 +124,21 @@ export function parseArgs(args: string[]): Options {
         "high-model",
       ]
         .some((name) => arg.startsWith(`--${name}=`));
+    if (arg === "--debug") continue;
     if (arg.startsWith("--") && !known) die(`Unknown option: ${arg}`);
   }
 
   const explicitAi = rest.some((arg) => arg.startsWith("--ai="));
   let ai = choice("ai", ["none", "openrouter", "hetzner"], "none");
-  if (!explicitAi && command !== "probe") {
+  if (command === "review") {
+    if (
+      explicitAi &&
+      choice("ai", ["none", "openrouter", "hetzner"], "none") !== "openrouter"
+    ) {
+      die("review supports OpenRouter only");
+    }
+    ai = "openrouter";
+  } else if (!explicitAi && command !== "probe") {
     const selected = ask(
       "AI provider (openrouter|hetzner)",
       "openrouter",
@@ -130,12 +151,19 @@ export function parseArgs(args: string[]): Options {
   let aiToken = text("token");
   let lowModel = text("low-model");
   let highModel = text("high-model");
-  if (ai !== "none" && command !== "probe") {
+  if (command === "review") {
+    aiToken ??= ask("openrouter API key", undefined, true);
+    highModel ??= ask("high model", defaultHighModel, true);
+  } else if (ai !== "none" && command !== "probe") {
     aiToken ??= ask(`${ai} API key`, undefined, true);
     lowModel ??= ask("low model", defaultLowModel, true);
     highModel ??= ask("high model", defaultHighModel, true);
   }
-  if (ai !== "none" && (!lowModel || !highModel || !aiToken)) {
+  if (
+    command !== "review" &&
+    ai !== "none" &&
+    (!lowModel || !highModel || !aiToken)
+  ) {
     die(
       "--token, --low-model, and --high-model are required when AI is enabled",
     );
@@ -144,6 +172,9 @@ export function parseArgs(args: string[]): Options {
   return {
     command: command as Options["command"],
     repo,
+    prNumber,
+    debug: rest.includes("--debug"),
+    improveMatrix: value("improve-matrix") ?? 1,
     auth: choice("auth", ["gh", "pat"], "gh"),
     ai,
     aiToken,
@@ -156,7 +187,7 @@ export function parseArgs(args: string[]): Options {
     includeCommitHistory: enabled("include-commit-history"),
     includeHowRepoWorks: enabled("include-how-repo-works"),
     maxCommits: value("max-commits"),
-    maxPrYears: value("max-pr-years"),
+    maxPrMonths: value("max-pr-months"),
     maxPullRequestChangeLines: value("max-pull-request-change-lines"),
   };
 }

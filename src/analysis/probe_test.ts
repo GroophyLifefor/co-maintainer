@@ -10,7 +10,7 @@ function pullsForYear(year: number, count: number): Json[] {
   }));
 }
 
-Deno.test("probe prefers two recent years after a recent release", () => {
+Deno.test("probe prefers 24 recent months after a recent release", () => {
   const pulls = [
     ...pullsForYear(currentYear, 160),
     ...pullsForYear(currentYear - 1, 140),
@@ -28,8 +28,10 @@ Deno.test("probe prefers two recent years after a recent release", () => {
     [],
     [],
   );
-  if (result.maxPrYears !== 2) {
-    throw new Error(`expected a two-year window, got ${result.maxPrYears}`);
+  if (result.maxPrMonths !== 24) {
+    throw new Error(
+      `expected a 24-month window, got ${result.maxPrMonths}`,
+    );
   }
   if (!result.reasons.some((reason) => /recent/i.test(reason))) {
     throw new Error("probe did not explain the recent-release decision");

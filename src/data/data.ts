@@ -13,10 +13,10 @@ function decodeBase64(value: string): string {
   return new TextDecoder().decode(bytes);
 }
 
-function withinPrWindow(updatedAt: string, years?: number): boolean {
-  if (years === undefined || years === 0) return true;
+function withinPrWindow(updatedAt: string, months?: number): boolean {
+  if (months === undefined || months === 0) return true;
   const cutoff = new Date();
-  cutoff.setFullYear(cutoff.getFullYear() - years);
+  cutoff.setMonth(cutoff.getMonth() - months);
   return new Date(updatedAt) >= cutoff;
 }
 
@@ -43,6 +43,11 @@ async function codebase(
   repo: string,
   meta: Json,
   previous?: Source,
+  progress?: (data: {
+    tree: string[];
+    treeSha: Record<string, string>;
+    files: Record<string, string>;
+  }) => Promise<void>,
 ): Promise<
   {
     tree: string[];
@@ -87,6 +92,10 @@ async function codebase(
       previous.files[path] !== undefined
     ) {
       files[path] = previous.files[path];
+      console.log(
+        `[fetch] codebase cache ${index + 1}/${important.length}: ${path}`,
+      );
+      if (progress) await progress({ tree, treeSha, files });
       continue;
     }
     console.log(
@@ -96,6 +105,7 @@ async function codebase(
     if (content !== undefined && content.length <= 200_000) {
       files[path] = content;
     }
+    if (progress) await progress({ tree, treeSha, files });
   }
   return { tree, treeSha, files };
 }
@@ -110,7 +120,7 @@ async function pullRequests(
     `repos/${options.repo}/pulls?state=all&sort=updated&direction=desc`,
   );
   const selected = raw.filter((pr) =>
-    withinPrWindow(String(pr.updated_at), options.maxPrYears)
+    withinPrWindow(String(pr.updated_at), options.maxPrMonths)
   );
   const previousByNumber = new Map(
     (previous?.source.pullRequests ?? []).map((pr) => [pr.number, pr]),
@@ -236,12 +246,23 @@ export async function collectSource(
   options: Options,
   previous?: State,
   progress?: (items: PullRequest[]) => Promise<void>,
+  codebaseProgress?: (data: {
+    tree: string[];
+    treeSha: Record<string, string>;
+    files: Record<string, string>;
+  }) => Promise<void>,
 ): Promise<Source> {
   const repo = await client.request<Json>(`repos/${options.repo}`);
   const includeCodebase = options.includeCodebase ||
     options.includeHowRepoWorks;
   const files = includeCodebase
-    ? await codebase(client, options.repo, repo, previous?.source)
+    ? await codebase(
+      client,
+      options.repo,
+      repo,
+      previous?.source,
+      codebaseProgress,
+    )
     : { tree: [], treeSha: {}, files: {} };
   const pullRequestData = options.includePullRequests
     ? await pullRequests(client, options, previous, progress)

@@ -20,7 +20,14 @@ deno task init owner/repo --auth=gh --ai=openrouter --token=... \
   --include-codebase --include-pull-requests \
   --include-pull-request-changes --include-commit-history \
   --include-how-repo-works
+
+deno task review owner/repo 123 --improve-matrix=2 --debug
 ```
 
 `probe` recommends source limits without writing a skill. `remake` refreshes
 changed repository evidence and reuses cached analysis when possible.
+`review` checks a pull request against the generated review guides using
+OpenRouter and GitHub CLI data. `--improve-matrix=N` performs repeated review
+passes with a `24,000 × N` token budget per pass; `--debug` prints each pass
+for comparison. Review results are printed to the terminal and costs are
+recorded in `.cache/owner/repo/cost.jsonl`.
