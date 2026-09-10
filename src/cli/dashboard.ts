@@ -21,7 +21,7 @@ type Job = {
 
 let currentJob: Job | undefined;
 
-function startInitJob(repo: string): Job {
+function startInitJob(repo: string, extraArgs: string[]): Job {
   const job: Job = { repo, lines: [], done: false, subscribers: new Set() };
   currentJob = job;
   const push = (line: string) => {
@@ -30,7 +30,7 @@ function startInitJob(repo: string): Job {
   };
   (async () => {
     const command = new Deno.Command(Deno.execPath(), {
-      args: ["run", "-A", Deno.mainModule, "init", repo],
+      args: ["run", "-A", Deno.mainModule, "init", repo, ...extraArgs],
       stdout: "piped",
       stderr: "piped",
     });
@@ -106,23 +106,64 @@ function renderRepos(config: UserConfig): string {
     </table>
     <form id="init-form" method="post" action="/dashboard/init">
       <input name="repo" placeholder="owner/repo" required>
+      <details>
+        <summary>Parameters</summary>
+        <label>AI provider <select name="ai">
+          <option value="">(use default)</option>
+          <option value="none">none</option>
+          <option value="openrouter">openrouter</option>
+          <option value="hetzner">hetzner</option>
+        </select></label>
+        <label>Auth <select name="auth">
+          <option value="">(use default)</option>
+          <option value="gh">gh</option>
+          <option value="pat">pat</option>
+        </select></label>
+        <label>Low model <input name="low-model" placeholder="(use default)"></label>
+        <label>High model <input name="high-model" placeholder="(use default)"></label>
+        <label>Max PR months <input name="max-pr-months" type="number" min="0" placeholder="(no limit)"></label>
+        <label>Max commits <input name="max-commits" type="number" min="0" placeholder="(no limit)"></label>
+        <label>Max PR change lines <input name="max-pull-request-change-lines" type="number" min="0" placeholder="(no limit)"></label>
+        <label>Max comments per PR <input name="max-comment" type="number" min="0" placeholder="(no limit)"></label>
+        <label>GitHub fetch concurrency <input name="gh-concurrent" type="number" min="1" placeholder="1"></label>
+        <label>AI job concurrency <input name="ai-concurrent" type="number" min="1" placeholder="3"></label>
+        <label><input type="checkbox" name="customize-sources"> Customize included sources</label>
+        <fieldset id="sources" disabled>
+          <label><input type="checkbox" name="include-codebase" checked> codebase</label>
+          <label><input type="checkbox" name="include-pull-requests" checked> pull requests</label>
+          <label><input type="checkbox" name="include-pull-request-changes" checked> pull request changes</label>
+          <label><input type="checkbox" name="include-commit-history" checked> commit history</label>
+          <label><input type="checkbox" name="include-how-repo-works" checked> how repo works</label>
+        </fieldset>
+      </details>
       <button type="submit">Init</button>
     </form>
     <pre id="log"></pre>
   </div>
   <script>
+    document.querySelector('[name=customize-sources]').addEventListener('change', (e) => {
+      document.getElementById('sources').disabled = !e.target.checked;
+    });
     const log = document.getElementById('log');
     const form = document.getElementById('init-form');
-    form.addEventListener('submit', () => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
       log.textContent = '';
-      setTimeout(() => {
-        const source = new EventSource('/dashboard/init/stream');
-        source.onmessage = (event) => {
-          if (event.data === '__close__') { source.close(); return; }
-          log.textContent += event.data + '\\n';
-          log.scrollTop = log.scrollHeight;
-        };
-      }, 300);
+      const response = await fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+      });
+      if (!response.ok) {
+        log.textContent = await response.text();
+        return;
+      }
+      const source = new EventSource('/dashboard/init/stream');
+      source.onmessage = (msgEvent) => {
+        if (msgEvent.data === '__close__') { source.close(); return; }
+        log.textContent += msgEvent.data + '\\n';
+        log.scrollTop = log.scrollHeight;
+      };
+      source.onerror = () => source.close();
     });
   </script>`;
 }
@@ -135,7 +176,12 @@ function page(body: string): string {
   h1 { font-size: 1.2rem; }
   .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
   label { display: block; margin: .5rem 0; font-size: .85rem; color: #555; }
-  input { width: 100%; box-sizing: border-box; padding: .4rem; font: inherit; margin-top: .2rem; }
+  input, select { width: 100%; box-sizing: border-box; padding: .4rem; font: inherit; margin-top: .2rem; }
+  fieldset { border: 1px solid #eee; border-radius: 6px; margin: .5rem 0; }
+  fieldset[disabled] { opacity: .5; }
+  fieldset label, details > label { display: flex; align-items: center; gap: .4rem; }
+  fieldset input, details > label input[type=checkbox] { width: auto; }
+  details summary { cursor: pointer; margin: .5rem 0; color: #555; }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: .3rem .4rem; border-bottom: 1px solid #eee; font-size: .9rem; }
   button { padding: .4rem .8rem; margin-top: .5rem; cursor: pointer; }
@@ -188,29 +234,84 @@ export async function handleDashboardRequest(req: Request): Promise<Response> {
         { status: 409 },
       );
     }
-    startInitJob(repo);
-    return Response.redirect(`${url.origin}/dashboard`, 303);
+    const extraArgs: string[] = [];
+    const textFields = [
+      "ai",
+      "auth",
+      "low-model",
+      "high-model",
+      "max-pr-months",
+      "max-commits",
+      "max-pull-request-change-lines",
+      "max-comment",
+      "gh-concurrent",
+      "ai-concurrent",
+    ];
+    for (const name of textFields) {
+      const value = form.get(name);
+      if (typeof value === "string" && value !== "") {
+        extraArgs.push(`--${name}=${value}`);
+      }
+    }
+    if (form.get("customize-sources")) {
+      for (
+        const name of [
+          "include-codebase",
+          "include-pull-requests",
+          "include-pull-request-changes",
+          "include-commit-history",
+          "include-how-repo-works",
+        ]
+      ) {
+        if (form.get(name)) extraArgs.push(`--${name}`);
+      }
+    }
+    startInitJob(repo, extraArgs);
+    return new Response("started", { status: 200 });
   }
 
   if (url.pathname === "/dashboard/init/stream" && req.method === "GET") {
     if (!currentJob) return new Response("no job running", { status: 404 });
     const job = currentJob;
+    let subscriber: ((line: string) => void) | undefined;
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
         const encoder = new TextEncoder();
-        const send = (line: string) =>
-          controller.enqueue(encoder.encode(`data: ${line}\n\n`));
+        let closed = false;
+        const send = (line: string) => {
+          if (closed) return;
+          try {
+            controller.enqueue(encoder.encode(`data: ${line}\n\n`));
+          } catch {
+            closed = true;
+          }
+        };
+        const close = () => {
+          if (closed) return;
+          closed = true;
+          if (subscriber) job.subscribers.delete(subscriber);
+          try {
+            controller.close();
+          } catch {
+            // already closed by the client disconnecting
+          }
+        };
         for (const line of job.lines) send(line);
         if (job.done) {
           send("__close__");
-          controller.close();
+          close();
           return;
         }
-        const subscriber = (line: string) => {
+        subscriber = (line: string) => {
           send(line);
-          if (line === "__close__") controller.close();
+          if (line === "__close__") close();
         };
         job.subscribers.add(subscriber);
+      },
+      cancel() {
+        // The client disconnected (closed the tab, called source.close(),
+        // or the connection dropped) — stop pushing to it.
+        if (subscriber) job.subscribers.delete(subscriber);
       },
     });
     return new Response(body, {
