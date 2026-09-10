@@ -1,4 +1,5 @@
 import { parseArgs } from "../src/cli/args.ts";
+import { reposDir } from "../src/config.ts";
 import { GhClient } from "../src/data/gh.ts";
 import { reviewPullRequest } from "../src/review.ts";
 import { average, scores } from "./metrics.ts";
@@ -6,6 +7,10 @@ import { matchPairs, matchSpans } from "./match.ts";
 import { parseFindings } from "./parse.ts";
 import { judgeMatches } from "./judge.ts";
 
+// Gold sourced from a re-review round: the diff a human reviewer saw was the
+// incremental change between round_base_commit (what round N-1 left off at)
+// and round_commit (what the author pushed in response) — not the whole PR.
+// See benchmark/README.md.
 type Row = {
   pr: number;
   path: string;
@@ -14,7 +19,8 @@ type Row = {
   side: string;
   quote: string;
   why: string;
-  ref_commit: string;
+  round_base_commit: string;
+  round_commit: string;
   ref_before: string;
 };
 
@@ -54,7 +60,7 @@ async function mapPool<T>(
 
 const args = Deno.args.filter((arg) => arg !== "--");
 const repo = flag(args, "repo") ?? "nodejs/undici";
-const datasetPath = flag(args, "dataset") ?? "benchmark/benchv2_dataset.json";
+const datasetPath = flag(args, "dataset") ?? "benchmark/rereview_dataset.json";
 const reviewConcurrent = intFlag(args, "review-concurrent", 1);
 const judgeModel = flag(args, "judge-model") ?? "openai/gpt-oss-120b";
 const reviewFlags = args.filter((arg) =>
@@ -76,10 +82,10 @@ try {
 if (dataset.length === 0) throw new Error(`Empty dataset ${datasetPath}`);
 
 try {
-  await Deno.stat(`repos/${repo}/PR_REVIEW_GUIDE.md`);
+  await Deno.stat(`${reposDir()}/${repo}/PR_REVIEW_GUIDE.md`);
 } catch {
   throw new Error(
-    `Missing repos/${repo}/PR_REVIEW_GUIDE.md. Init first (not timed):\n  deno task init ${repo} --max-pr-months=3 --log-time --env=.env`,
+    `Missing ${reposDir()}/${repo}/PR_REVIEW_GUIDE.md. Init first (not timed):\n  deno task init ${repo} --max-pr-months=3 --log-time --env=.env`,
   );
 }
 
@@ -125,7 +131,7 @@ const details: {
 
 const jobs = [...byPr.entries()];
 console.log(
-  `[bench-v2] ${jobs.length} PRs in ${repo} · review-concurrent=${reviewConcurrent}`,
+  `[bench-rereview] ${jobs.length} PRs in ${repo} · review-concurrent=${reviewConcurrent}`,
 );
 const baseOptions = parseArgs([
   "review",
@@ -143,7 +149,11 @@ await mapPool(jobs, reviewConcurrent, async ([number, rows]) => {
     why: row.why,
   }));
   const options = { ...baseOptions, prNumber: number };
-  const snapshot = { commit: rows[0].ref_commit, before: rows[0].ref_before };
+  const snapshot = {
+    base: rows[0].round_base_commit,
+    commit: rows[0].round_commit,
+    before: rows[0].ref_before,
+  };
   let tokensIn = 0;
   let tokensOut = 0;
   let cost = 0;
@@ -205,9 +215,6 @@ await mapPool(jobs, reviewConcurrent, async ([number, rows]) => {
   const matchedPredicted = new Set(pairs.map((pair) => pair.predicted));
   const matchedGold = new Set(pairs.map((pair) => pair.gold));
 
-  // Same defect, different anchor line/file (model points at the fix site,
-  // the human reviewer at the triggering line) — ask a judge model before
-  // scoring the leftovers as pure misses.
   const leftoverPredicted = predicted.map((_, i) => i).filter((i) =>
     !matchedPredicted.has(i)
   );
@@ -289,7 +296,8 @@ const totalCost = reports.reduce((sum, row) => sum + row.cost, 0);
 const { f1, precision, recall } = scores(totals);
 const result = {
   repo,
-  gold: "benchmark v2 — real human reviewer comments, pinned to the diff/discussion state as of the first review",
+  gold:
+    "re-review benchmark — real human comments from a later review round, shown only the incremental diff since the prior round",
   prs: reports.length,
   f1,
   precision,
@@ -317,7 +325,7 @@ console.log(
 );
 
 await Deno.mkdir("benchmark/results", { recursive: true });
-const slug = `${repo.replace("/", "-")}-v2`;
+const slug = `${repo.replace("/", "-")}-rereview`;
 const out = `benchmark/results/${slug}.json`;
 await Deno.writeTextFile(out, `${JSON.stringify(result, null, 2)}\n`);
 details.sort((a, b) => a.pr - b.pr);

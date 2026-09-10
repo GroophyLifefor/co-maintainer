@@ -1,4 +1,5 @@
 import { OpenRouterProvider } from "./ai/openrouter.ts";
+import { reposDir } from "./config.ts";
 import type {
   AiRequest,
   AiResponse,
@@ -18,16 +19,19 @@ function text(value: unknown, limit = 20_000): string {
 
 async function readGuide(repo: string, name: string): Promise<string> {
   try {
-    return await Deno.readTextFile(`repos/${repo}/${name}`);
+    return await Deno.readTextFile(`${reposDir()}/${repo}/${name}`);
   } catch {
     return "";
   }
 }
 
 /** Pins the review to a historical diff/discussion state instead of the PR's
- * current (latest) state — used by benchmark v2 to show the model exactly
- * what a human reviewer saw, without leaking later comments as hints. */
-export type Snapshot = { commit: string; before: string };
+ * current (latest) state — used by the benchmarks to show the model exactly
+ * what a human reviewer saw, without leaking later comments as hints.
+ * `base` defaults to the PR's merge-base with its base branch (the whole PR
+ * so far); pass an earlier review round's commit as `base` to show only the
+ * incremental diff a re-reviewer would see since that round. */
+export type Snapshot = { base?: string; commit: string; before: string };
 
 export async function reviewPullRequest(
   client: GitHubClient,
@@ -55,7 +59,7 @@ export async function reviewPullRequest(
   const files = snapshot
     ? ((await client.request<Json>(
       `repos/${options.repo}/compare/${
-        String((pr.base as Json | undefined)?.ref ?? "main")
+        snapshot.base ?? String((pr.base as Json | undefined)?.ref ?? "main")
       }...${snapshot.commit}`,
     )).files as Json[] ?? [])
     : await client.pages<Json>(`repos/${options.repo}/pulls/${number}/files`);

@@ -1,4 +1,5 @@
 import { parseArgs } from "../src/cli/args.ts";
+import { reposDir } from "../src/config.ts";
 import { GhClient } from "../src/data/gh.ts";
 import { reviewPullRequest } from "../src/review.ts";
 import { average, scores } from "./metrics.ts";
@@ -84,10 +85,10 @@ const rows = dataset.filter((row) =>
 if (rows.length === 0) throw new Error(`No AACR comments for ${repo}`);
 
 try {
-  await Deno.stat(`repos/${repo}/PR_REVIEW_GUIDE.md`);
+  await Deno.stat(`${reposDir()}/${repo}/PR_REVIEW_GUIDE.md`);
 } catch {
   throw new Error(
-    `Missing repos/${repo}/PR_REVIEW_GUIDE.md. Init first (not timed):\n  deno task init ${repo} --max-pr-months=3 --log-time --env=.env`,
+    `Missing ${reposDir()}/${repo}/PR_REVIEW_GUIDE.md. Init first (not timed):\n  deno task init ${repo} --max-pr-months=3 --log-time --env=.env`,
   );
 }
 

@@ -13,6 +13,7 @@ import {
   factSectionHashes,
 } from "./analysis/skill.ts";
 import { validateSkill } from "./analysis/validate.ts";
+import { reposDir } from "./config.ts";
 import { reviewPullRequest } from "./review.ts";
 import { readState, writeState } from "./state/state.ts";
 import { cacheSet } from "./state/database.ts";
@@ -77,8 +78,8 @@ function clientFor(options: Options) {
 }
 
 async function skillPath(repo: string): Promise<string> {
-  const path = `repos/${repo}/SKILL.md`;
-  await Deno.mkdir(`repos/${repo}`, { recursive: true });
+  const path = `${reposDir()}/${repo}/SKILL.md`;
+  await Deno.mkdir(`${reposDir()}/${repo}`, { recursive: true });
   return path;
 }
 
@@ -86,7 +87,7 @@ async function writeReviewDocuments(
   repo: string,
   documents: ReturnType<typeof buildReviewDocuments>,
 ): Promise<void> {
-  const directory = `repos/${repo}`;
+  const directory = `${reposDir()}/${repo}`;
   if (!documents) {
     await Promise.all([
       Deno.remove(`${directory}/PR_REVIEW_GUIDE.md`).catch(() => {}),
@@ -115,7 +116,7 @@ async function writeCodebaseDocument(
   repo: string,
   skillMarkdown: string,
 ): Promise<void> {
-  const path = `repos/${repo}/CODEBASE.md`;
+  const path = `${reposDir()}/${repo}/CODEBASE.md`;
   const sections = extractSections(skillMarkdown);
   const body = ["layout", "style", "tests", "devloop"]
     .map((key) => sections[key])
@@ -324,7 +325,7 @@ async function runInitOrRemake(options: Options): Promise<void> {
   const validation = await timed(
     "validate skill",
     options.logTime,
-    () => validateSkill(result.markdown, `repos/${options.repo}`, source),
+    () => validateSkill(result.markdown, `${reposDir()}/${options.repo}`, source),
   );
   if (!validation.valid && Object.keys(overrides).length) {
     log("validate", `AI output rejected: ${validation.errors.join("; ")}`);
@@ -345,7 +346,7 @@ async function runInitOrRemake(options: Options): Promise<void> {
   let finalValidation = await timed(
     "final skill validation",
     options.logTime,
-    () => validateSkill(result.markdown, `repos/${options.repo}`, source),
+    () => validateSkill(result.markdown, `${reposDir()}/${options.repo}`, source),
   );
   if (!finalValidation.valid) {
     throw new Error(

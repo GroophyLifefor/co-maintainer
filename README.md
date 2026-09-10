@@ -8,8 +8,13 @@ default-branch commits. A low-cost model extracts evidence-bound observations; a
 higher-reasoning model turns them into concise contribution guidance for
 implementation, testing, review, and release decisions.
 
-This is a local Deno CLI. It writes generated skills to `repos/owner/repo/` and
-keeps configuration and cache data in platform-specific user directories.
+This is a local Deno CLI. It writes generated skills, configuration, and
+cache data to platform-specific user directories — generated skills live
+under `<config dir>/co-maintainer/repos/owner/repo/` (e.g.
+`%APPDATA%\co-maintainer\repos` on Windows, `~/Library/Application
+Support/co-maintainer/repos` on macOS, `~/.config/co-maintainer/repos`
+elsewhere) — never relative to the current directory, since the CLI can be
+invoked from anywhere.
 
 ## Installation
 

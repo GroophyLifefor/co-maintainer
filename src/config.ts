@@ -44,6 +44,14 @@ export function configPath(): string {
   return `${getConfigDir()}/co-maintainer/config.json`;
 }
 
+/** Where generated skills (SKILL.md, CODEBASE.md, review guides) live.
+ * Never relative to the current directory — a globally installed CLI can be
+ * invoked from anywhere, including directories it has no permission to
+ * write into (e.g. C:\Windows\System32). */
+export function reposDir(): string {
+  return `${getConfigDir()}/co-maintainer/repos`;
+}
+
 export function cacheDbPath(): string {
   return `${getCacheDir()}/co-maintainer/cache.db`;
 }

@@ -1,7 +1,8 @@
 # `init`
 
 `init` performs the first repository analysis and writes generated files under
-`repos/owner/repo/`.
+`<config dir>/co-maintainer/repos/owner/repo/` — see
+[`configuration`](configuration.md) for the platform-specific config dir.
 
 ## Usage
 
