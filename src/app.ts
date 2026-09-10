@@ -40,8 +40,8 @@ function emptyAiMetrics(): AiMetrics {
 
 function optionsForState(
   options: Options,
-): Omit<Options, "command" | "aiToken"> {
-  const { command: _, aiToken: __, ...rest } = options;
+): Omit<Options, "command" | "aiToken" | "githubPat"> {
+  const { command: _, aiToken: __, githubPat: ___, ...rest } = options;
   return rest;
 }
 
@@ -72,9 +72,7 @@ function emptyState(options: Options): State {
 
 function clientFor(options: Options) {
   if (options.auth === "pat") {
-    return new PatClient(
-      Deno.env.get("GITHUB_TOKEN") ?? Deno.env.get("GH_TOKEN") ?? "",
-    );
+    return new PatClient(options.githubPat ?? "");
   }
   return new GhClient();
 }

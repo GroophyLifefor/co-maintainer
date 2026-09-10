@@ -63,7 +63,7 @@ export function parseArgs(args: string[]): Options {
       "         --max-commits=N --max-pr-months=N --max-pull-request-change-lines=N --max-comment=N",
     );
     console.log(
-      "         --auth=gh|pat --ai=none|openrouter|hetzner --token=... --low-model=... --high-model=...",
+      "         --auth=gh|pat --github-pat=... --ai=none|openrouter|hetzner --token=... --low-model=... --high-model=...",
     );
     Deno.exit(0);
   }
@@ -159,6 +159,7 @@ export function parseArgs(args: string[]): Options {
         "auth",
         "ai",
         "token",
+        "github-pat",
         "low-model",
         "high-model",
       ]
@@ -183,6 +184,17 @@ export function parseArgs(args: string[]): Options {
     die("CO_MAINTAINER_AUTH/config.auth must be gh or pat");
   }
   const configuredAuth = configuredAuthRaw as Options["auth"] | undefined;
+  const auth = choice("auth", ["gh", "pat"], configuredAuth ?? "gh");
+  const githubPat = text("github-pat") ??
+    env("GITHUB_TOKEN") ??
+    env("GH_TOKEN") ??
+    config.githubPat;
+  if (auth === "pat" && !githubPat) {
+    die(
+      "--auth=pat requires a GitHub token; pass --github-pat=..., set GITHUB_TOKEN/GH_TOKEN, " +
+        "or run: co-maintainer set --github-pat=...",
+    );
+  }
   let ai = choice(
     "ai",
     ["none", "openrouter", "hetzner"],
@@ -255,7 +267,8 @@ export function parseArgs(args: string[]): Options {
     improveMatrix: value("improve-matrix") ?? 1,
     ghConcurrent: Math.max(1, value("gh-concurrent") ?? 1),
     aiConcurrent: Math.max(1, value("ai-concurrent") ?? 3),
-    auth: choice("auth", ["gh", "pat"], configuredAuth ?? "gh"),
+    auth,
+    githubPat,
     ai,
     aiToken,
     lowModel,

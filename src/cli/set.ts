@@ -10,7 +10,12 @@ function text(args: string[], name: string): string | undefined {
   );
 }
 
-const secretFields = new Set(["token", "githubAppPrivateKey", "githubWebhookSecret"]);
+const secretFields = new Set([
+  "token",
+  "githubPat",
+  "githubAppPrivateKey",
+  "githubWebhookSecret",
+]);
 
 /** `co-maintainer set --token=... --ai=... --low-model=... --high-model=...
  * --auth=... --github-app-id=... --github-app-private-key=... (or
@@ -21,7 +26,7 @@ const secretFields = new Set(["token", "githubAppPrivateKey", "githubWebhookSecr
 export async function runSet(args: string[]): Promise<void> {
   if (args.includes("--help") || args.includes("-h") || args.length === 0) {
     console.log(
-      "Usage: co-maintainer set --token=... --ai=none|openrouter|hetzner --low-model=... --high-model=... --auth=gh|pat",
+      "Usage: co-maintainer set --token=... --ai=none|openrouter|hetzner --low-model=... --high-model=... --auth=gh|pat --github-pat=...",
     );
     console.log(
       "                        --github-app-id=... --github-app-private-key=... | --github-app-private-key-file=path",
@@ -38,6 +43,7 @@ export async function runSet(args: string[]): Promise<void> {
     "low-model",
     "high-model",
     "auth",
+    "github-pat",
     "github-app-id",
     "github-app-private-key",
     "github-app-private-key-file",
@@ -70,6 +76,7 @@ export async function runSet(args: string[]): Promise<void> {
     "low-model": "lowModel",
     "high-model": "highModel",
     auth: "auth",
+    "github-pat": "githubPat",
     "github-app-id": "githubAppId",
     "github-app-private-key": "githubAppPrivateKey",
     "github-webhook-secret": "githubWebhookSecret",
@@ -91,6 +98,8 @@ export async function runSet(args: string[]): Promise<void> {
   if (highModel) patch.highModel = highModel;
   const token = text(args, "token");
   if (token) patch.token = token;
+  const githubPat = text(args, "github-pat");
+  if (githubPat) patch.githubPat = githubPat;
   const githubAppId = text(args, "github-app-id");
   if (githubAppId) patch.githubAppId = githubAppId;
   const githubWebhookSecret = text(args, "github-webhook-secret");
@@ -108,7 +117,7 @@ export async function runSet(args: string[]): Promise<void> {
 
   if (Object.keys(patch).length === 0) {
     die(
-      "Nothing to set; pass --token=, --ai=, --low-model=, --high-model=, --auth=, " +
+      "Nothing to set; pass --token=, --ai=, --low-model=, --high-model=, --auth=, --github-pat=, " +
         "--github-app-id=, --github-app-private-key(-file)=, --github-webhook-secret=, or --unset=name",
     );
   }

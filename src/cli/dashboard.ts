@@ -76,6 +76,7 @@ function renderConfigForm(config: UserConfig): string {
   <form method="post" action="/dashboard/config" class="card">
     <h2>Global configuration</h2>
     ${field("Auth (gh|pat)", "auth", config.auth)}
+    ${field("GitHub PAT (used when auth=pat)", "github-pat", config.githubPat, true)}
     ${field("AI provider (none|openrouter|hetzner)", "ai", config.ai)}
     ${field("Low model", "low-model", config.lowModel)}
     ${field("High model", "high-model", config.highModel)}
@@ -87,7 +88,7 @@ function renderConfigForm(config: UserConfig): string {
   </form>`;
 }
 
-function renderRepos(config: UserConfig): string {
+function renderRepos(config: UserConfig, jobRunning: boolean): string {
   const repos = Object.entries(config.repos ?? {});
   const rows = repos.map(([repo, r]) =>
     `<tr>
@@ -146,6 +147,20 @@ function renderRepos(config: UserConfig): string {
     });
     const log = document.getElementById('log');
     const form = document.getElementById('init-form');
+    let source = null;
+    function connectStream(clearFirst) {
+      if (source) source.close();
+      if (clearFirst) log.textContent = '';
+      source = new EventSource('/dashboard/init/stream');
+      source.onmessage = (msgEvent) => {
+        if (msgEvent.data === '__close__') { source.close(); source = null; return; }
+        log.textContent += msgEvent.data + '\\n';
+        log.scrollTop = log.scrollHeight;
+      };
+      // Do NOT close on error: a dropped connection (server restart, network
+      // blip) should let EventSource's native retry reconnect on its own —
+      // closing here was silently ending the stream on any hiccup.
+    }
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       log.textContent = '';
@@ -157,14 +172,9 @@ function renderRepos(config: UserConfig): string {
         log.textContent = await response.text();
         return;
       }
-      const source = new EventSource('/dashboard/init/stream');
-      source.onmessage = (msgEvent) => {
-        if (msgEvent.data === '__close__') { source.close(); return; }
-        log.textContent += msgEvent.data + '\\n';
-        log.scrollTop = log.scrollHeight;
-      };
-      source.onerror = () => source.close();
+      connectStream(false);
     });
+    ${jobRunning ? "connectStream(false);" : ""}
   </script>`;
 }
 
@@ -196,9 +206,10 @@ export async function handleDashboardRequest(req: Request): Promise<Response> {
 
   if (url.pathname === "/dashboard" && req.method === "GET") {
     const config = readConfig();
-    return new Response(page(renderRepos(config) + renderConfigForm(config)), {
-      headers: { "content-type": "text/html; charset=utf-8" },
-    });
+    return new Response(
+      page(renderRepos(config, currentJob !== undefined) + renderConfigForm(config)),
+      { headers: { "content-type": "text/html; charset=utf-8" } },
+    );
   }
 
   if (url.pathname === "/dashboard/config" && req.method === "POST") {
@@ -206,6 +217,7 @@ export async function handleDashboardRequest(req: Request): Promise<Response> {
     const patch: Record<string, unknown> = {};
     const fields: [string, string][] = [
       ["auth", "auth"],
+      ["github-pat", "githubPat"],
       ["ai", "ai"],
       ["low-model", "lowModel"],
       ["high-model", "highModel"],

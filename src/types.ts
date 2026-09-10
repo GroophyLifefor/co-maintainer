@@ -11,6 +11,7 @@ export type Options = {
   aiConcurrent: number;
   envPath?: string;
   auth: "gh" | "pat";
+  githubPat?: string;
   ai: "none" | "openrouter" | "hetzner";
   aiToken?: string;
   lowModel?: string;
@@ -67,7 +68,7 @@ export type Fact = {
 export type State = {
   version: 1;
   repo: string;
-  options: Omit<Options, "command" | "aiToken">;
+  options: Omit<Options, "command" | "aiToken" | "githubPat">;
   source: Source;
   facts: Fact[];
   sectionHashes: Record<string, string>;
