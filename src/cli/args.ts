@@ -51,6 +51,7 @@ export function parseArgs(args: string[]): Options {
     console.log(
       "       co-maintainer set --token=... --ai=... --low-model=... --high-model=... --auth=...",
     );
+    console.log("       co-maintainer serve --port=N");
     console.log(
       "         --env=PATH --debug --log-time --gh-concurrent=N --ai-concurrent=N --improve-matrix=N",
     );
