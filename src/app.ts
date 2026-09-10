@@ -295,6 +295,7 @@ async function runInitOrRemake(options: Options): Promise<void> {
             previousMarkdown,
             options.ai,
             options.highModel ?? "",
+            options.aiConcurrent,
             usage,
             dirtySections,
           ),
@@ -462,7 +463,7 @@ async function runProbe(options: Options): Promise<void> {
   const detailSamples: Json[] = [];
   log(
     "probe",
-    `sampling ${samplePulls.length} pull request details · concurrency=${options.concurrent}`,
+    `sampling ${samplePulls.length} pull request details · concurrency=${options.ghConcurrent}`,
   );
   await timed(
     "probe PR detail sampling",
@@ -494,7 +495,7 @@ async function runProbe(options: Options): Promise<void> {
       };
       await Promise.all(
         Array.from(
-          { length: Math.min(options.concurrent, samplePulls.length) },
+          { length: Math.min(options.ghConcurrent, samplePulls.length) },
           worker,
         ),
       );

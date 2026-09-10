@@ -22,8 +22,8 @@ function options(overrides: Partial<Options> = {}): Options {
     debug: false,
     logTime: false,
     improveMatrix: 1,
-    concurrent: 1,
-    extractConcurrent: 3,
+    ghConcurrent: 1,
+    aiConcurrent: 3,
     auth: "gh",
     ai: "none",
     synthesisVersion: 1,
@@ -364,7 +364,7 @@ Deno.test("init fetch overlaps PR downloads when concurrent > 1", async () => {
       includeCodebase: false,
       includePullRequests: true,
       includePullRequestChanges: true,
-      concurrent: 2,
+      ghConcurrent: 2,
     }),
   );
   if (peak < 2) {
@@ -501,6 +501,7 @@ Deno.test("current evidence is ordered before historical evidence", async () => 
       undefined,
       "openrouter",
       "fixture",
+      3,
     );
     const prompt = provider.requests[0].prompt;
     if (prompt.indexOf("pnpm test") > prompt.indexOf("npm test")) {
@@ -524,6 +525,7 @@ Deno.test("invalid synthesis output is omitted instead of copied", async () => {
       undefined,
       "openrouter",
       "fixture",
+      3,
     );
     if (overrides.tests !== "") {
       throw new Error("invalid synthesis output was accepted");

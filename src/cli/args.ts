@@ -49,7 +49,7 @@ export function parseArgs(args: string[]): Options {
     );
     console.log("       co-maintainer review owner/repo PR_NUMBER [options]");
     console.log(
-      "         --env=PATH --debug --log-time --concurrent=N --extract-concurrent=N --improve-matrix=N",
+      "         --env=PATH --debug --log-time --gh-concurrent=N --ai-concurrent=N --improve-matrix=N",
     );
     console.log(
       "Options: --include-codebase --include-pull-requests --include-pull-request-changes",
@@ -138,8 +138,8 @@ export function parseArgs(args: string[]): Options {
         "max-comment",
         "improve-matrix",
         "env",
-        "concurrent",
-        "extract-concurrent",
+        "gh-concurrent",
+        "ai-concurrent",
         "auth",
         "ai",
         "token",
@@ -232,8 +232,8 @@ export function parseArgs(args: string[]): Options {
     logTime: rest.includes("--log-time"),
     envPath,
     improveMatrix: value("improve-matrix") ?? 1,
-    concurrent: Math.max(1, value("concurrent") ?? 1),
-    extractConcurrent: Math.max(1, value("extract-concurrent") ?? 3),
+    ghConcurrent: Math.max(1, value("gh-concurrent") ?? 1),
+    aiConcurrent: Math.max(1, value("ai-concurrent") ?? 3),
     auth: choice("auth", ["gh", "pat"], configuredAuth ?? "gh"),
     ai,
     aiToken,

@@ -291,7 +291,7 @@ ${files}`,
     repo,
     options.ai,
     options.lowModel ?? "",
-    options.extractConcurrent,
+    options.aiConcurrent,
   );
   const responses = await queue.run(requests, usage);
   const facts: Fact[] = [];
@@ -364,6 +364,7 @@ export async function synthesizeSections(
   _previousMarkdown: string | undefined,
   ai: Options["ai"],
   model: string,
+  concurrency: number,
   usage?: UsageSink,
   onlySections?: Set<string>,
 ): Promise<Record<string, string>> {
@@ -416,7 +417,7 @@ ${JSON.stringify(relevant)}`,
     repo,
     ai,
     model,
-    ai === "hetzner" ? 1 : 3,
+    ai === "hetzner" ? 1 : concurrency,
   );
   const responses = await queue.run(requests, usage);
   const overrides: Record<string, string> = {};

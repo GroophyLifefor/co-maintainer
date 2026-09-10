@@ -16,6 +16,6 @@ suggests limits such as `--max-pr-months`, `--max-commits`, and
 
 Use `--env=PATH` when credentials or defaults are stored in an env file. The
 output includes a ready-to-run `co-maintainer init` command with the recommended
-flags and limits. Use `--concurrent=N` to sample PR details with bounded
+flags and limits. Use `--gh-concurrent=N` to sample PR details with bounded
 concurrency; the default is `1`. The same flag bounds GitHub fetches in `init`
 and `remake`.

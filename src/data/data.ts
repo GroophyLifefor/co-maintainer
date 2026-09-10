@@ -70,7 +70,7 @@ async function listPullRequestPages(
   );
   const selected: Json[] = [];
   const seen = new Set<number>();
-  const concurrency = Math.max(1, options.concurrent);
+  const concurrency = Math.max(1, options.ghConcurrent);
   console.log(
     `[fetch] pull request listing · concurrency=${concurrency}`,
   );
@@ -318,13 +318,13 @@ async function pullRequests(
   let save = Promise.resolve();
   if (phase) {
     phase.text =
-      `pull requests 0/${selected.length} · 0% · concurrency=${options.concurrent}`;
+      `pull requests 0/${selected.length} · 0% · concurrency=${options.ghConcurrent}`;
   }
   console.log(
-    `[fetch] ${selected.length} pull requests · concurrency=${options.concurrent}`,
+    `[fetch] ${selected.length} pull requests · concurrency=${options.ghConcurrent}`,
   );
 
-  await mapPool(selected, options.concurrent, async (pr, index) => {
+  await mapPool(selected, options.ghConcurrent, async (pr, index) => {
     const number = Number(pr.number);
     const cached = previousByNumber.get(number);
     const listedAdditions = Number(pr.additions);
@@ -502,7 +502,7 @@ export async function collectSource(
         client,
         options.repo,
         repo,
-        options.concurrent,
+        options.ghConcurrent,
         previous?.source,
         phase,
         codebaseProgress,

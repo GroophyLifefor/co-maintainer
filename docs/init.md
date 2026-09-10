@@ -15,7 +15,7 @@ not asked again.
 
 Use `--max-pr-months`, `--max-commits`, `--max-pull-request-change-lines`, and
 `--max-comment` (caps discussion comments kept per pull request) to limit
-historical input. Use `--concurrent=N` to fetch listing pages, codebase
+historical input. Use `--gh-concurrent=N` to fetch listing pages, codebase
 files, and pull-request details in parallel (default: `1`). Use
-`--extract-concurrent=N` to run `extract_unit` AI jobs in parallel (default:
-`3`).
+`--ai-concurrent=N` to run `extract_unit` and `synth_section` AI jobs in
+parallel (default: `3`).
