@@ -7,7 +7,11 @@ import { PatClient } from "./data/pat.ts";
 import { extractFacts } from "./analysis/facts.ts";
 import { analyzeProbe } from "./analysis/probe.ts";
 import { buildReviewDocuments } from "./analysis/review.ts";
-import { assembleSkill, factSectionHashes } from "./analysis/skill.ts";
+import {
+  assembleSkill,
+  extractSections,
+  factSectionHashes,
+} from "./analysis/skill.ts";
 import { validateSkill } from "./analysis/validate.ts";
 import { reviewPullRequest } from "./review.ts";
 import { readState, writeState } from "./state/state.ts";
@@ -103,6 +107,30 @@ async function writeReviewDocuments(
   }
 }
 
+/** Splits the codebase-description sections (layout/style/tests/devloop) out
+ * of the assembled skill into their own file, so `review` can check a pull
+ * request against how this repository's code actually looks, not just the
+ * review-bar checklist mined from past PR comments. */
+async function writeCodebaseDocument(
+  repo: string,
+  skillMarkdown: string,
+): Promise<void> {
+  const path = `repos/${repo}/CODEBASE.md`;
+  const sections = extractSections(skillMarkdown);
+  const body = ["layout", "style", "tests", "devloop"]
+    .map((key) => sections[key])
+    .filter(Boolean)
+    .join("\n\n");
+  if (!body) {
+    await Deno.remove(path).catch(() => {});
+    return;
+  }
+  await Deno.writeTextFile(
+    path,
+    `# Codebase conventions for ${repo}\n\nHow this repository's code is actually structured and written. A pull request that departs from these observed conventions is worth flagging even without a matching review-bar rule.\n\n${body}\n`,
+  );
+}
+
 function addReviewLink(
   markdown: string,
   documents: ReturnType<typeof buildReviewDocuments>,
@@ -161,40 +189,34 @@ async function runInitOrRemake(options: Options): Promise<void> {
   }
 
   log("fetch", `${options.repo} via ${options.auth}`);
-  const stopFetchHeartbeat = startHeartbeat("fetching repository data");
-  let source: Source;
-  try {
-    source = await timed(
-      "fetch repository data",
-      options.logTime,
-      () =>
-        collectSource(
-          client,
-          options,
-          previous,
-          async (pullRequests) => {
-            checkpoint.source.pullRequests = pullRequests;
-            checkpoint.scanDone = {
-              ...checkpoint.scanDone,
-              pullRequests: pullRequests.length,
-              updatedAt: new Date().toISOString(),
-            };
-            await writeState(checkpoint);
-          },
-          async (codebase) => {
-            checkpoint.source = {
-              ...checkpoint.source,
-              tree: codebase.tree,
-              treeSha: codebase.treeSha,
-              files: codebase.files,
-            };
-            await writeState(checkpoint);
-          },
-        ),
-    );
-  } finally {
-    stopFetchHeartbeat();
-  }
+  const source = await timed(
+    "fetch repository data",
+    options.logTime,
+    () =>
+      collectSource(
+        client,
+        options,
+        previous,
+        async (pullRequests) => {
+          checkpoint.source.pullRequests = pullRequests;
+          checkpoint.scanDone = {
+            ...checkpoint.scanDone,
+            pullRequests: pullRequests.length,
+            updatedAt: new Date().toISOString(),
+          };
+          await writeState(checkpoint);
+        },
+        async (codebase) => {
+          checkpoint.source = {
+            ...checkpoint.source,
+            tree: codebase.tree,
+            treeSha: codebase.treeSha,
+            files: codebase.files,
+          };
+          await writeState(checkpoint);
+        },
+      ),
+  );
   log(
     "fetch",
     `source ready · ${
@@ -334,6 +356,7 @@ async function runInitOrRemake(options: Options): Promise<void> {
     options.logTime,
     async () => {
       await Deno.writeTextFile(path, result.markdown);
+      await writeCodebaseDocument(options.repo, result.markdown);
       await writeState({
         version: 1,
         repo: options.repo,

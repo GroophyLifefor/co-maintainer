@@ -23,7 +23,9 @@ function hasBullets(value: string): boolean {
   return /^-\s+/m.test(value);
 }
 
-function oldSections(markdown: string): Record<string, string> {
+/** Slices an assembled skill's `## Heading` sections back out by section key,
+ * from `<!-- section:key -->` markers or (fallback) canonical heading text. */
+export function extractSections(markdown: string): Record<string, string> {
   const result: Record<string, string> = {};
   const markerPattern =
     /<!-- section:([a-z-]+) -->\n([\s\S]*?)\n<!-- \/section:\1 -->/g;
@@ -85,7 +87,7 @@ export async function assembleSkill(
 ): Promise<
   { markdown: string; hashes: Record<string, string>; changed: string[] }
 > {
-  const previous = previousMarkdown ? oldSections(previousMarkdown) : {};
+  const previous = previousMarkdown ? extractSections(previousMarkdown) : {};
   const sections: Record<string, string> = {};
   const hashes: Record<string, string> = {};
   const changed: string[] = [];

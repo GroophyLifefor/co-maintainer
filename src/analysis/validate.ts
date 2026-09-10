@@ -109,7 +109,8 @@ export async function validateSkill(
         !reference.startsWith("./") &&
         !reference.includes(" ")
       ) {
-        const normalized = reference.replace(/^\.\/+/, "").replace(/\/+$/, "");
+        const normalized = reference.replace(/^\.\/+/, "").replace(/^\/+/, "")
+          .replace(/\/+$/, "");
         if (normalized === repositoryName) continue;
         const wildcardPattern = normalized.includes("*")
           ? new RegExp(

@@ -49,14 +49,14 @@ export function parseArgs(args: string[]): Options {
     );
     console.log("       co-maintainer review owner/repo PR_NUMBER [options]");
     console.log(
-      "         --env=PATH --debug --log-time --concurrent=N --improve-matrix=N",
+      "         --env=PATH --debug --log-time --concurrent=N --extract-concurrent=N --improve-matrix=N",
     );
     console.log(
       "Options: --include-codebase --include-pull-requests --include-pull-request-changes",
     );
     console.log("         --include-commit-history --include-how-repo-works");
     console.log(
-      "         --max-commits=N --max-pr-months=N --max-pull-request-change-lines=N",
+      "         --max-commits=N --max-pr-months=N --max-pull-request-change-lines=N --max-comment=N",
     );
     console.log(
       "         --auth=gh|pat --ai=none|openrouter|hetzner --token=... --low-model=... --high-model=...",
@@ -135,9 +135,11 @@ export function parseArgs(args: string[]): Options {
         "max-commits",
         "max-pr-months",
         "max-pull-request-change-lines",
+        "max-comment",
         "improve-matrix",
         "env",
         "concurrent",
+        "extract-concurrent",
         "auth",
         "ai",
         "token",
@@ -197,10 +199,12 @@ export function parseArgs(args: string[]): Options {
   let lowModel = text("low-model") ??
     env("OPENROUTER_LOW_MODEL") ??
     env("HETZNER_LOW_MODEL") ??
+    env("LOW_MODEL") ??
     config.lowModel;
   let highModel = text("high-model") ??
     env("OPENROUTER_HIGH_MODEL") ??
     env("HETZNER_HIGH_MODEL") ??
+    env("HIGH_MODEL") ??
     config.highModel;
   if (command === "review") {
     aiToken ??= ask("openrouter API key", undefined, true);
@@ -229,6 +233,7 @@ export function parseArgs(args: string[]): Options {
     envPath,
     improveMatrix: value("improve-matrix") ?? 1,
     concurrent: Math.max(1, value("concurrent") ?? 1),
+    extractConcurrent: Math.max(1, value("extract-concurrent") ?? 3),
     auth: choice("auth", ["gh", "pat"], configuredAuth ?? "gh"),
     ai,
     aiToken,
@@ -244,5 +249,6 @@ export function parseArgs(args: string[]): Options {
     maxPrMonths: value("max-pr-months") ?? configDefault.maxPrMonths,
     maxPullRequestChangeLines: value("max-pull-request-change-lines") ??
       configDefault.maxPullRequestChangeLines,
+    maxComments: value("max-comment"),
   };
 }

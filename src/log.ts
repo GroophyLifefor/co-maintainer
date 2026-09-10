@@ -1,8 +1,9 @@
-export function startHeartbeat(phase: string): () => void {
+export function startHeartbeat(phase: string | (() => string)): () => void {
   const started = Date.now();
+  const label = () => typeof phase === "function" ? phase() : phase;
   const timer = setInterval(() => {
     console.log(
-      `[progress] still running ${phase} · ${
+      `[progress] still running ${label()} · ${
         Math.round((Date.now() - started) / 1000)
       }s elapsed`,
     );

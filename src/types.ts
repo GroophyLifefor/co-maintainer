@@ -8,6 +8,7 @@ export type Options = {
   logTime: boolean;
   improveMatrix: number;
   concurrent: number;
+  extractConcurrent: number;
   envPath?: string;
   auth: "gh" | "pat";
   ai: "none" | "openrouter" | "hetzner";
@@ -23,6 +24,7 @@ export type Options = {
   maxCommits?: number;
   maxPrMonths?: number;
   maxPullRequestChangeLines?: number;
+  maxComments?: number;
 };
 
 export type PullRequest = {

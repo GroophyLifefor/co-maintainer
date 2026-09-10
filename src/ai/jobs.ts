@@ -154,11 +154,12 @@ function queueFor(
   repo: string,
   ai: Options["ai"],
   model: string,
+  concurrency: number,
 ): AiQueue {
   return new AiQueue(
     provider,
     repo,
-    ai === "hetzner" ? 1 : 3,
+    Math.max(1, concurrency),
     `${ai}:v2:${model}`,
   );
 }
@@ -285,7 +286,13 @@ ${files}`,
     }
   }
 
-  const queue = queueFor(provider, repo, options.ai, options.lowModel ?? "");
+  const queue = queueFor(
+    provider,
+    repo,
+    options.ai,
+    options.lowModel ?? "",
+    options.extractConcurrent,
+  );
   const responses = await queue.run(requests, usage);
   const facts: Fact[] = [];
   for (let index = 0; index < responses.length; index++) {
@@ -404,7 +411,13 @@ ${JSON.stringify(relevant)}`,
     });
   }
 
-  const queue = queueFor(provider, repo, ai, model);
+  const queue = queueFor(
+    provider,
+    repo,
+    ai,
+    model,
+    ai === "hetzner" ? 1 : 3,
+  );
   const responses = await queue.run(requests, usage);
   const overrides: Record<string, string> = {};
   responses.forEach((response, index) => {

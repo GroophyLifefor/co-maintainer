@@ -2,4 +2,5 @@
 repos/
 .env
 z_flow/
-benchmark/
+benchmark/dataset.json
+benchmark/results/

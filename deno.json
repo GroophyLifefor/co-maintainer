@@ -1,6 +1,6 @@
 {
   "name": "@murat/co-maintainer",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "license": "MIT",
   "exports": "./mod.ts",
   "imports": {
@@ -12,6 +12,8 @@
     "init": "deno run --allow-all main.ts init",
     "remake": "deno run --allow-all main.ts remake",
     "review": "deno run --allow-all main.ts review",
+    "bench": "deno run --allow-all benchmark/run.ts",
+    "bench-v2": "deno run --allow-all benchmark/run_v2.ts",
     "check": "deno check main.ts",
     "fmt": "deno fmt",
     "test": "deno test --allow-all"

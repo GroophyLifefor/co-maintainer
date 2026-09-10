@@ -24,23 +24,41 @@ async function readGuide(repo: string, name: string): Promise<string> {
   }
 }
 
+/** Pins the review to a historical diff/discussion state instead of the PR's
+ * current (latest) state — used by benchmark v2 to show the model exactly
+ * what a human reviewer saw, without leaking later comments as hints. */
+export type Snapshot = { commit: string; before: string };
+
 export async function reviewPullRequest(
   client: GitHubClient,
   options: Options,
   usage?: UsageSink,
+  snapshot?: Snapshot,
 ): Promise<AiResponse> {
   if (!options.prNumber) throw new Error("review requires a PR number");
   const number = options.prNumber;
-  const [pr, comments, reviews, files, guide, detailed] = await Promise.all([
-    client.request<Json>(`repos/${options.repo}/pulls/${number}`),
-    client.pages<Json>(
-      `repos/${options.repo}/issues/${number}/comments`,
-    ),
-    client.pages<Json>(`repos/${options.repo}/pulls/${number}/reviews`),
-    client.pages<Json>(`repos/${options.repo}/pulls/${number}/files`),
-    readGuide(options.repo, "PR_REVIEW_GUIDE.md"),
-    readGuide(options.repo, "PR_REVIEW_DETAILED_GUIDE.md"),
-  ]);
+  const [pr, allComments, allReviews, guide, detailed, codebase] =
+    await Promise.all([
+      client.request<Json>(`repos/${options.repo}/pulls/${number}`),
+      client.pages<Json>(
+        `repos/${options.repo}/issues/${number}/comments`,
+      ),
+      client.pages<Json>(`repos/${options.repo}/pulls/${number}/reviews`),
+      readGuide(options.repo, "PR_REVIEW_GUIDE.md"),
+      readGuide(options.repo, "PR_REVIEW_DETAILED_GUIDE.md"),
+      readGuide(options.repo, "CODEBASE.md"),
+    ]);
+  const before = (item: Json) =>
+    !snapshot || String(item.created_at ?? "") < snapshot.before;
+  const comments = allComments.filter(before);
+  const reviews = allReviews.filter(before);
+  const files = snapshot
+    ? ((await client.request<Json>(
+      `repos/${options.repo}/compare/${
+        String((pr.base as Json | undefined)?.ref ?? "main")
+      }...${snapshot.commit}`,
+    )).files as Json[] ?? [])
+    : await client.pages<Json>(`repos/${options.repo}/pulls/${number}/files`);
   if (!guide) {
     throw new Error(
       `repos/${options.repo}/PR_REVIEW_GUIDE.md was not found; run init first`,
@@ -48,7 +66,7 @@ export async function reviewPullRequest(
   }
   if (options.debug) {
     console.log(
-      `[debug] guides · short=${guide.length} chars · detailed=${detailed.length} chars`,
+      `[debug] guides · short=${guide.length} chars · detailed=${detailed.length} chars · codebase=${codebase.length} chars`,
     );
     console.log(
       `[debug] PR #${number} · comments=${comments.length} · reviews=${reviews.length} · files=${files.length}`,
@@ -62,8 +80,11 @@ export async function reviewPullRequest(
     }`;
   }).join("\n\n");
   const prompt =
-    `Review this pull request against the repository's review guide.
-Find only actionable code-level violations supported by the diff and guide.
+    `Review this pull request against the repository's review guide and
+codebase conventions. Find only actionable code-level violations supported by
+the diff and either the guide or the codebase conventions — a pull request
+that departs from how this repository's own code is actually written is a
+valid finding even when the review guide has no matching rule.
 Do not repeat existing review comments unless the diff still contains the issue.
 Do not invent requirements. Ignore bot noise and historical PR identities.
 Reason thoroughly, then return concise Markdown only with either:
@@ -84,6 +105,9 @@ ${text(guide)}
 
 DETAILED GUIDE:
 ${text(detailed)}
+
+CODEBASE CONVENTIONS:
+${text(codebase) || "None recorded."}
 
 PULL REQUEST:
 ${

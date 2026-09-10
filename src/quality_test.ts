@@ -23,6 +23,7 @@ function options(overrides: Partial<Options> = {}): Options {
     logTime: false,
     improveMatrix: 1,
     concurrent: 1,
+    extractConcurrent: 3,
     auth: "gh",
     ai: "none",
     synthesisVersion: 1,
@@ -214,6 +215,19 @@ class PullRequestCacheClient implements GitHubClient {
     if (endpoint === "repos/fixture/repo") {
       return { default_branch: "main" } as T;
     }
+    if (endpoint.includes("/pulls?") && endpoint.includes("state=all")) {
+      const page = Number(/[?&]page=(\d+)/.exec(endpoint)?.[1] ?? 1);
+      if (page > 1) return [] as T;
+      return [{
+        number: 1,
+        title: "Change",
+        updated_at: this.updatedAt,
+        head: { sha: this.headSha },
+        additions: 1,
+        deletions: 1,
+        labels: [],
+      }] as T;
+    }
     throw new Error(`unexpected request endpoint: ${endpoint}`);
   }
 
@@ -246,6 +260,7 @@ class PullRequestCacheClient implements GitHubClient {
 }
 
 Deno.test("PR discussion and diff caches follow their independent revisions", async () => {
+  await cacheDeletePrefix("pr-listing", "fixture/repo");
   const client = new PullRequestCacheClient();
   const prOptions = options({
     includeCodebase: false,
@@ -289,6 +304,142 @@ Deno.test("PR discussion and diff caches follow their independent revisions", as
   );
   if (Number(client.fileRequests) !== 2) {
     throw new Error("changed head did not refresh diff");
+  }
+});
+
+Deno.test("init fetch overlaps PR downloads when concurrent > 1", async () => {
+  await cacheDeletePrefix("pr-listing", "fixture/repo");
+  let inflight = 0;
+  let peak = 0;
+  const client: GitHubClient = {
+    async request<T>(endpoint: string): Promise<T> {
+      if (endpoint === "repos/fixture/repo") {
+        return { default_branch: "main" } as T;
+      }
+      if (endpoint.includes("/pulls?") && endpoint.includes("state=all")) {
+        const page = Number(/[?&]page=(\d+)/.exec(endpoint)?.[1] ?? 1);
+        if (page > 1) return [] as T;
+        return [
+          {
+            number: 1,
+            title: "One",
+            updated_at: "1",
+            head: { sha: "h1" },
+            additions: 1,
+            deletions: 0,
+            labels: [],
+          },
+          {
+            number: 2,
+            title: "Two",
+            updated_at: "1",
+            head: { sha: "h2" },
+            additions: 1,
+            deletions: 0,
+            labels: [],
+          },
+        ] as T;
+      }
+      throw new Error(`unexpected request endpoint: ${endpoint}`);
+    },
+    async pages<T>(endpoint: string): Promise<T[]> {
+      if (endpoint.includes("/pulls?")) {
+        throw new Error("listing should use request pagination");
+      }
+      inflight++;
+      peak = Math.max(peak, inflight);
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      inflight--;
+      if (endpoint.includes("/comments")) return [{ body: "c" }] as T[];
+      if (endpoint.includes("/reviews")) return [] as T[];
+      if (endpoint.includes("/files")) {
+        return [{ filename: "src/app.ts", patch: "@@ -1 +1 @@" }] as T[];
+      }
+      throw new Error(`unexpected pages endpoint: ${endpoint}`);
+    },
+  };
+  await collectSource(
+    client,
+    options({
+      includeCodebase: false,
+      includePullRequests: true,
+      includePullRequestChanges: true,
+      concurrent: 2,
+    }),
+  );
+  if (peak < 2) {
+    throw new Error(`expected overlapping PR fetches, peak=${peak}`);
+  }
+});
+
+Deno.test("PR listing catch-up skips extra GitHub pages", async () => {
+  const repo = `fixture/listing-${crypto.randomUUID()}`;
+  const now = new Date().toISOString();
+  const fetched = { listPages: 0 };
+  const pageOne = Array.from({ length: 100 }, (_, index) => ({
+    number: index + 1,
+    title: "PR",
+    updated_at: now,
+    head: { sha: `h${index + 1}` },
+    additions: 1,
+    deletions: 0,
+    labels: [],
+  }));
+  const client: GitHubClient = {
+    async request<T>(endpoint: string): Promise<T> {
+      if (endpoint === `repos/${repo}`) {
+        return { default_branch: "main" } as T;
+      }
+      if (endpoint.includes("/pulls?") && endpoint.includes("state=all")) {
+        fetched.listPages++;
+        const page = Number(/[?&]page=(\d+)/.exec(endpoint)?.[1] ?? 1);
+        if (page === 1) return pageOne as T;
+        if (page === 2) {
+          return [{
+            number: 101,
+            title: "PR",
+            updated_at: now,
+            head: { sha: "h101" },
+            additions: 1,
+            deletions: 0,
+            labels: [],
+          }] as T;
+        }
+        return [] as T;
+      }
+      throw new Error(`unexpected request endpoint: ${endpoint}`);
+    },
+    async pages<T>(): Promise<T[]> {
+      return [] as T[];
+    },
+  };
+  try {
+    await collectSource(
+      client,
+      options({
+        repo,
+        includeCodebase: false,
+        includePullRequests: true,
+      }),
+    );
+    const firstPages = fetched.listPages;
+    await collectSource(
+      client,
+      options({
+        repo,
+        includeCodebase: false,
+        includePullRequests: true,
+      }),
+    );
+    const secondPages = fetched.listPages;
+    if (firstPages !== 2 || secondPages !== firstPages + 1) {
+      throw new Error(
+        `listing pages: first=${firstPages} second=${secondPages}`,
+      );
+    }
+  } finally {
+    await cacheDeletePrefix("pr-listing", repo);
+    await cacheDeletePrefix("state", repo);
   }
 });
 
