@@ -1,13 +1,40 @@
 import { readConfig } from "../config.ts";
+import { handleDashboardRequest } from "./dashboard.ts";
 
 function die(message: string): never {
   throw new Error(message);
 }
 
-/** `co-maintainer serve --port=N` — placeholder HTTP server. Requires the
- * GitHub App credentials to already be set via `co-maintainer set`
- * (webhook secret is optional; only the App ID and private key gate
- * startup). */
+function generatePassword(): string {
+  const bytes = new Uint8Array(12);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function isAuthorized(req: Request, password: string): boolean {
+  const header = req.headers.get("authorization") ?? "";
+  if (!header.startsWith("Basic ")) return false;
+  try {
+    const decoded = atob(header.slice("Basic ".length));
+    const suppliedPassword = decoded.slice(decoded.indexOf(":") + 1);
+    return suppliedPassword === password;
+  } catch {
+    return false;
+  }
+}
+
+const unauthorized = () =>
+  new Response("Authentication required", {
+    status: 401,
+    headers: { "www-authenticate": 'Basic realm="co-maintainer dashboard"' },
+  });
+
+/** `co-maintainer serve --port=N [--password=...]` — placeholder webhook
+ * endpoint (logs every request, replies "hello") plus a password-gated
+ * `/dashboard` for listing/init'ing repos and editing `set` config with
+ * live init logs streamed over SSE. Requires the GitHub App to already be
+ * configured via `co-maintainer set` (webhook secret is optional; only the
+ * App ID and private key gate startup). */
 export async function runServe(args: string[]): Promise<void> {
   const portArg = args.find((arg) => arg.startsWith("--port="))?.slice(
     "--port=".length,
@@ -31,8 +58,18 @@ export async function runServe(args: string[]): Promise<void> {
     );
   }
 
+  const password = args.find((arg) => arg.startsWith("--password="))?.slice(
+    "--password=".length,
+  ) ?? generatePassword();
+  console.log(`[serve] dashboard password: ${password}`);
+
   const server = Deno.serve({ port }, async (req) => {
     const url = new URL(req.url);
+    if (url.pathname.startsWith("/dashboard")) {
+      if (!isAuthorized(req, password)) return unauthorized();
+      return await handleDashboardRequest(req);
+    }
+
     const headers = Object.fromEntries(req.headers);
     const bodyText = await req.text();
     let body: unknown = bodyText;
@@ -49,5 +86,6 @@ export async function runServe(args: string[]): Promise<void> {
     return new Response("hello");
   });
   console.log(`[serve] listening on http://localhost:${port}`);
+  console.log(`[serve] dashboard at http://localhost:${port}/dashboard`);
   await server.finished;
 }

@@ -59,7 +59,7 @@ Use `--env=PATH` to load credentials and defaults from an env file. CLI values
 take precedence over the env file, user config, interactive prompts, and
 built-in defaults. See the command documentation: [`probe`](docs/probe.md),
 [`init`](docs/init.md), [`remake`](docs/remake.md), [`review`](docs/review.md),
-[`configuration`](docs/configuration.md),
+[`serve`](docs/serve.md), [`configuration`](docs/configuration.md),
 [`authentication`](docs/authentication.md), and [`caching`](docs/caching.md).
 
 Add `--log-time` to any command to print core operation durations and AI
