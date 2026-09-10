@@ -13,7 +13,7 @@ import {
   factSectionHashes,
 } from "./analysis/skill.ts";
 import { validateSkill } from "./analysis/validate.ts";
-import { reposDir } from "./config.ts";
+import { reposDir, writeRepoConfig } from "./config.ts";
 import { reviewPullRequest } from "./review.ts";
 import { readState, writeState } from "./state/state.ts";
 import { cacheSet } from "./state/database.ts";
@@ -372,6 +372,23 @@ async function runInitOrRemake(options: Options): Promise<void> {
           updatedAt: new Date().toISOString(),
         },
         updatedAt: new Date().toISOString(),
+      });
+      // Remember everything but the token, so `remake owner/repo` alone
+      // (no flags, no prompts) reuses what this run resolved.
+      await writeRepoConfig(options.repo, {
+        auth: options.auth,
+        ai: options.ai,
+        lowModel: options.lowModel,
+        highModel: options.highModel,
+        maxCommits: options.maxCommits,
+        maxPrMonths: options.maxPrMonths,
+        maxPullRequestChangeLines: options.maxPullRequestChangeLines,
+        maxComments: options.maxComments,
+        includeCodebase: options.includeCodebase,
+        includePullRequests: options.includePullRequests,
+        includePullRequestChanges: options.includePullRequestChanges,
+        includeCommitHistory: options.includeCommitHistory,
+        includeHowRepoWorks: options.includeHowRepoWorks,
       });
     },
   );

@@ -1,3 +1,23 @@
+/** Everything init/remake resolved for one repo, except secrets — an API
+ * token is never written to config.json, only ever taken from --token or
+ * an env file. Remembering this lets `remake owner/repo` run with no
+ * flags and no interactive prompts, reusing what `init` was told. */
+export type RepoConfig = {
+  auth?: "gh" | "pat";
+  ai?: "none" | "openrouter" | "hetzner";
+  lowModel?: string;
+  highModel?: string;
+  maxCommits?: number;
+  maxPrMonths?: number;
+  maxPullRequestChangeLines?: number;
+  maxComments?: number;
+  includeCodebase?: boolean;
+  includePullRequests?: boolean;
+  includePullRequestChanges?: boolean;
+  includeCommitHistory?: boolean;
+  includeHowRepoWorks?: boolean;
+};
+
 export type UserConfig = {
   auth?: "gh" | "pat";
   ai?: "none" | "openrouter" | "hetzner";
@@ -8,6 +28,7 @@ export type UserConfig = {
     maxPrMonths?: number;
     maxPullRequestChangeLines?: number;
   };
+  repos?: Record<string, RepoConfig>;
 };
 
 function homeDir(): string {
@@ -79,6 +100,26 @@ export function readConfig(): UserConfig {
     if (error instanceof Deno.errors.NotFound) return {};
     throw new Error(`Could not read config ${configPath()}: ${String(error)}`);
   }
+}
+
+/** Merges `patch` into `repos[repo]` in config.json, dropping undefined
+ * fields. Never call this with a token or other secret. */
+export async function writeRepoConfig(
+  repo: string,
+  patch: RepoConfig,
+): Promise<void> {
+  const config = readConfig();
+  const repos = { ...config.repos };
+  repos[repo] = Object.fromEntries(
+    Object.entries({ ...repos[repo], ...patch }).filter(
+      ([, value]) => value !== undefined,
+    ),
+  );
+  await Deno.mkdir(`${getConfigDir()}/co-maintainer`, { recursive: true });
+  await Deno.writeTextFile(
+    configPath(),
+    `${JSON.stringify({ ...config, repos }, null, 2)}\n`,
+  );
 }
 
 export function prepareConfig(args: string[]): {
