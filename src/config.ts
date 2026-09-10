@@ -26,6 +26,11 @@ export type UserConfig = {
   /** Written only by `co-maintainer set --token=...`. Every other write
    * path (writeRepoConfig, init/remake) must never put a secret here. */
   token?: string;
+  /** GitHub App credentials for `co-maintainer serve` — also only ever
+   * written by `set`. `githubWebhookSecret` is optional. */
+  githubAppId?: string;
+  githubAppPrivateKey?: string;
+  githubWebhookSecret?: string;
   defaults?: {
     maxCommits?: number;
     maxPrMonths?: number;
