@@ -1,4 +1,5 @@
 import { parseArgs } from "./cli/args.ts";
+import { runSet } from "./cli/set.ts";
 import { createAiProvider } from "./ai/ai.ts";
 import { enrichFacts, synthesizeSections } from "./ai/jobs.ts";
 import { collectSource } from "./data/data.ts";
@@ -672,6 +673,10 @@ async function runReview(options: Options): Promise<void> {
 }
 
 export async function run(args: string[]): Promise<void> {
+  if (args[0] === "set") {
+    await runSet(args.slice(1));
+    return;
+  }
   const options = parseArgs(args);
   if (options.command === "probe") await runProbe(options);
   else if (options.command === "review") await runReview(options);

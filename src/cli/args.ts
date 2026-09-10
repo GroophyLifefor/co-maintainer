@@ -49,6 +49,9 @@ export function parseArgs(args: string[]): Options {
     );
     console.log("       co-maintainer review owner/repo PR_NUMBER [options]");
     console.log(
+      "       co-maintainer set --token=... --ai=... --low-model=... --high-model=... --auth=...",
+    );
+    console.log(
       "         --env=PATH --debug --log-time --gh-concurrent=N --ai-concurrent=N --improve-matrix=N",
     );
     console.log(
@@ -209,7 +212,8 @@ export function parseArgs(args: string[]): Options {
   let aiToken = text("token") ??
     env("CO_MAINTAINER_TOKEN") ??
     (ai === "openrouter" ? env("OPENROUTER_API_KEY") : undefined) ??
-    (ai === "hetzner" ? env("HETZNER_API_KEY") : undefined);
+    (ai === "hetzner" ? env("HETZNER_API_KEY") : undefined) ??
+    config.token;
   let lowModel = text("low-model") ??
     env("OPENROUTER_LOW_MODEL") ??
     env("HETZNER_LOW_MODEL") ??

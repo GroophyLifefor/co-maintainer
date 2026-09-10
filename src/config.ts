@@ -23,6 +23,9 @@ export type UserConfig = {
   ai?: "none" | "openrouter" | "hetzner";
   lowModel?: string;
   highModel?: string;
+  /** Written only by `co-maintainer set --token=...`. Every other write
+   * path (writeRepoConfig, init/remake) must never put a secret here. */
+  token?: string;
   defaults?: {
     maxCommits?: number;
     maxPrMonths?: number;
@@ -102,6 +105,19 @@ export function readConfig(): UserConfig {
   }
 }
 
+async function writeConfig(config: UserConfig): Promise<void> {
+  await Deno.mkdir(`${getConfigDir()}/co-maintainer`, { recursive: true });
+  const path = configPath();
+  await Deno.writeTextFile(path, `${JSON.stringify(config, null, 2)}\n`);
+  // config.json can hold an API token (see UserConfig.token) — keep it
+  // readable only by the current user where the platform supports it.
+  try {
+    await Deno.chmod(path, 0o600);
+  } catch {
+    // Windows has no POSIX chmod; NotSupported there is expected.
+  }
+}
+
 /** Merges `patch` into `repos[repo]` in config.json, dropping undefined
  * fields. Never call this with a token or other secret. */
 export async function writeRepoConfig(
@@ -115,11 +131,22 @@ export async function writeRepoConfig(
       ([, value]) => value !== undefined,
     ),
   );
-  await Deno.mkdir(`${getConfigDir()}/co-maintainer`, { recursive: true });
-  await Deno.writeTextFile(
-    configPath(),
-    `${JSON.stringify({ ...config, repos }, null, 2)}\n`,
-  );
+  await writeConfig({ ...config, repos });
+}
+
+/** Merges `patch` into the top-level (global, cross-repo) config —
+ * used by `co-maintainer set`. This is the only path allowed to persist
+ * a token. */
+export async function writeUserConfig(
+  patch: Partial<UserConfig>,
+): Promise<void> {
+  const config = readConfig();
+  const merged = Object.fromEntries(
+    Object.entries({ ...config, ...patch }).filter(
+      ([, value]) => value !== undefined,
+    ),
+  ) as UserConfig;
+  await writeConfig(merged);
 }
 
 export function prepareConfig(args: string[]): {
