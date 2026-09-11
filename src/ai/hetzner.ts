@@ -1,4 +1,4 @@
-import { chatBody, parseChatResponse } from "./ai.ts";
+import { chatBody, parseChatResponse } from "./provider.ts";
 import type { AiProvider, AiRequest, AiResponse, Json } from "../types.ts";
 
 const sleep = (milliseconds: number) =>

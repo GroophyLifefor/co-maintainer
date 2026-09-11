@@ -1,18 +1,20 @@
-import { run } from "./src/app.ts";
+import { run } from "./src/cli/main.ts";
 
 export { run };
 export type {
   AiProvider,
   AiRequest,
   AiResponse,
-  Fact,
   GitHubClient,
   Json,
   Options,
+} from "./src/types.ts";
+export type {
+  Fact,
   PullRequest,
   Source,
   State,
-} from "./src/types.ts";
+} from "./src/knowledge/types.ts";
 
 if (import.meta.main) {
   try {

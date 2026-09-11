@@ -1,6 +1,6 @@
 import { OpenRouterProvider } from "../src/ai/openrouter.ts";
 import type { AiResponse } from "../src/types.ts";
-import type { ParsedFinding } from "./parse.ts";
+import type { ParsedFinding } from "../src/pr/findings.ts";
 
 export type JudgeGold = {
   path: string;
@@ -70,7 +70,10 @@ ${
   const pairs: { predicted: number; gold: number }[] = [];
   for (const item of parsed) {
     if (!item || typeof item !== "object") continue;
-    const { predicted: p, gold: g } = item as { predicted?: number; gold?: number };
+    const { predicted: p, gold: g } = item as {
+      predicted?: number;
+      gold?: number;
+    };
     if (
       typeof p !== "number" || typeof g !== "number" ||
       !predictedIndices.includes(p) || !goldIndices.includes(g) ||

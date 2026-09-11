@@ -1,6 +1,6 @@
 import { matchSpans, overlaps } from "./match.ts";
 import { scores } from "./metrics.ts";
-import { parseFindings } from "./parse.ts";
+import { parseFindings } from "../src/pr/findings.ts";
 
 Deno.test("line ranges on the same path overlap", () => {
   if (
@@ -64,6 +64,24 @@ Deno.test("parseFindings collects every file:line in findings", () => {
 **File:** \`src/b.js:20-22\`
 `);
   if (found.length !== 2 || found[1].from !== 20 || found[1].to !== 22) {
+    throw new Error(JSON.stringify(found));
+  }
+});
+
+Deno.test("parseFindings accepts a file at the repository root", () => {
+  const found = parseFindings(`## Findings
+
+### P0 eval of untrusted input
+
+e2e-seed.ts:2
+
+Do not pass untrusted input to eval.
+`);
+  if (
+    found.length !== 1 ||
+    found[0].path !== "e2e-seed.ts" ||
+    found[0].from !== 2
+  ) {
     throw new Error(JSON.stringify(found));
   }
 });

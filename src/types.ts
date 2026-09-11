@@ -1,3 +1,6 @@
+/** Cross-layer contracts only. A type owned by one layer (Fact, Source,
+ * PullRequest, State) lives next to the code that owns it instead, in
+ * `knowledge/types.ts` — see PLAN.md Section 3. */
 export type Json = Record<string, unknown>;
 
 export type Options = {
@@ -28,54 +31,6 @@ export type Options = {
   maxComments?: number;
 };
 
-export type PullRequest = {
-  number: number;
-  title: string;
-  body: string;
-  state: string;
-  merged: boolean;
-  updatedAt: string;
-  headSha: string;
-  labels: string[];
-  additions: number;
-  deletions: number;
-  comments: string[];
-  reviews: string[];
-  changedFiles: string[];
-  diff: string;
-};
-
-export type Source = {
-  repo: Json;
-  tree: string[];
-  treeSha: Record<string, string>;
-  files: Record<string, string>;
-  pullRequests: PullRequest[];
-  commits: Json[];
-};
-
-export type Fact = {
-  id: string;
-  sectionKey: string;
-  claim: string;
-  evidence: string[];
-  weight: number;
-  scope: "current" | "repeated-history" | "historical-example";
-  confidence: "high" | "medium" | "low";
-  status: "active" | "contradicted" | "stale";
-};
-
-export type State = {
-  version: 1;
-  repo: string;
-  options: Omit<Options, "command" | "aiToken" | "githubPat">;
-  source: Source;
-  facts: Fact[];
-  sectionHashes: Record<string, string>;
-  scanDone: { pullRequests: number; commits: number; updatedAt: string };
-  updatedAt: string;
-};
-
 export type GitHubClient = {
   request<T>(endpoint: string): Promise<T>;
   pages<T>(
@@ -83,6 +38,13 @@ export type GitHubClient = {
     limit?: number,
     progress?: (page: number, fetched: number) => void,
   ): Promise<T[]>;
+  /** POST JSON. Optional so collect-test fakes stay GET-only. Review
+   * posting requires it. */
+  write?<T>(endpoint: string, body: unknown): Promise<T>;
+  /** GitHub Checks API operations. Optional so read-only test clients and
+   * older integrations can continue to review without check runs. */
+  createCheckRun?<T>(endpoint: string, body: unknown): Promise<T>;
+  updateCheckRun?<T>(endpoint: string, body: unknown): Promise<T>;
 };
 
 export type AiRequest = {

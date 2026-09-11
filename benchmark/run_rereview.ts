@@ -1,10 +1,10 @@
 import { parseArgs } from "../src/cli/args.ts";
 import { reposDir } from "../src/config.ts";
-import { GhClient } from "../src/data/gh.ts";
-import { reviewPullRequest } from "../src/review.ts";
+import { GhClient } from "../src/github/gh.ts";
+import { reviewPullRequest } from "../src/pr/reviewer.ts";
 import { average, scores } from "./metrics.ts";
 import { matchPairs, matchSpans } from "./match.ts";
-import { parseFindings } from "./parse.ts";
+import { parseFindings } from "../src/pr/findings.ts";
 import { judgeMatches } from "./judge.ts";
 
 // Gold sourced from a re-review round: the diff a human reviewer saw was the
@@ -123,7 +123,13 @@ const details: {
   costKnown: boolean;
   review: string;
   predicted: ReturnType<typeof parseFindings>;
-  gold: { path: string; from: number; to: number; quote: string; why: string }[];
+  gold: {
+    path: string;
+    from: number;
+    to: number;
+    quote: string;
+    why: string;
+  }[];
   pairs: { predicted: number; gold: number }[];
   unmatchedPredicted: number[];
   unmatchedGold: number[];
