@@ -441,6 +441,48 @@ textarea {
   background: transparent;
   color: var(--text);
 }
+.markdown > :first-child {
+  margin-top: 0;
+}
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+.markdown p,
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown ul,
+.markdown ol,
+.markdown pre {
+  margin: 0 0 12px;
+}
+.markdown h1,
+.markdown h2,
+.markdown h3 {
+  font-size: 15px;
+}
+.markdown ul,
+.markdown ol {
+  padding-left: 22px;
+}
+.markdown pre {
+  overflow-x: auto;
+  padding: 10px 12px;
+  border-radius: 4px;
+  background: #f1f2f3;
+  font-family: var(--mono);
+  font-size: 13px;
+  white-space: pre;
+}
+.markdown code {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #f1f2f3;
+}
+.markdown pre code {
+  padding: 0;
+  background: transparent;
+}
 .log {
   background: #1f2124;
   color: #e6e6e6;

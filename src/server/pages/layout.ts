@@ -19,6 +19,107 @@ export function text(value: unknown): string {
   return escapeHtml(safeCopy(String(value ?? "")));
 }
 
+function markdownInline(value: string): string {
+  const slots: string[] = [];
+  const slot = (html: string): string => {
+    const index = slots.push(html) - 1;
+    return `\uE000${index}\uE001`;
+  };
+  let result = escapeHtml(value);
+  result = result.replace(
+    /`([^`\n]+)`/g,
+    (_, code: string) => slot(`<code>${code}</code>`),
+  );
+  result = result.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+    (_, _label: string, href: string) =>
+      slot(`<a href="${href}" rel="noreferrer">${href}</a>`),
+  );
+  result = result.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+  result = result.replace(/__([^_\n]+)__/g, "<strong>$1</strong>");
+  result = result.replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
+  result = result.replace(/_([^_\n]+)_/g, "<em>$1</em>");
+  result = result.replace(
+    /\uE000(\d+)\uE001/g,
+    (_, index: string) => slots[Number(index)],
+  );
+  return result;
+}
+
+export function markdown(value: unknown): string {
+  const lines = safeCopy(String(value ?? "")).replace(/\r\n?/g, "\n").split(
+    "\n",
+  );
+  const blocks: string[] = [];
+  let paragraph: string[] = [];
+  let list: string[] = [];
+  let listKind: "ul" | "ol" | undefined;
+  let code: string[] | undefined;
+
+  const flushParagraph = () => {
+    if (paragraph.length) {
+      blocks.push(`<p>${markdownInline(paragraph.join("\n"))}</p>`);
+      paragraph = [];
+    }
+  };
+  const flushList = () => {
+    if (!list.length || !listKind) return;
+    blocks.push(`<${listKind}>${list.join("")}</${listKind}>`);
+    list = [];
+    listKind = undefined;
+  };
+  const flushText = () => {
+    flushParagraph();
+    flushList();
+  };
+
+  for (const line of lines) {
+    const fence = line.match(/^```(?:[A-Za-z0-9_-]+)?\s*$/);
+    if (fence) {
+      flushText();
+      if (code) {
+        blocks.push(`<pre><code>${escapeHtml(code.join("\n"))}</code></pre>`);
+        code = undefined;
+      } else {
+        code = [];
+      }
+      continue;
+    }
+    if (code) {
+      code.push(line);
+      continue;
+    }
+    if (!line.trim()) {
+      flushText();
+      continue;
+    }
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      flushText();
+      const level = heading[1].length;
+      blocks.push(`<h${level}>${markdownInline(heading[2])}</h${level}>`);
+      continue;
+    }
+    const bullet = line.match(/^\s*[-*+]\s+(.+)$/);
+    const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+    if (bullet || ordered) {
+      const kind = bullet ? "ul" : "ol";
+      if (listKind && listKind !== kind) flushList();
+      flushParagraph();
+      listKind = kind;
+      list.push(`<li>${markdownInline((bullet ?? ordered)![1])}</li>`);
+      continue;
+    }
+    flushList();
+    paragraph.push(line.trim());
+  }
+  if (code) {
+    blocks.push(`<pre><code>${escapeHtml(code.join("\n"))}</code></pre>`);
+  }
+  flushText();
+  return `<div class="markdown">${blocks.join("")}</div>`;
+}
+
 export function money(value: number): string {
   const n = Number(value || 0);
   if (!Number.isFinite(n) || n === 0) return "$0.00";
