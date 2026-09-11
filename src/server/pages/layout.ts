@@ -32,8 +32,8 @@ function markdownInline(value: string): string {
   );
   result = result.replace(
     /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-    (_, _label: string, href: string) =>
-      slot(`<a href="${href}" rel="noreferrer">${href}</a>`),
+    (_, label: string, href: string) =>
+      slot(`<a href="${href}" rel="noreferrer">${label}</a>`),
   );
   result = result.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
   result = result.replace(/__([^_\n]+)__/g, "<strong>$1</strong>");
