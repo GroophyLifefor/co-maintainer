@@ -1,45 +1,24 @@
-const CSS_PATH = new URL("./pages/styles.css", import.meta.url);
-const CLIENT_PATH = new URL("./pages/client.js", import.meta.url);
-const LOGO_PATH = new URL("../../logo.png", import.meta.url);
+import client from "./pages/client.js" with { type: "text" };
+import { logo } from "./logo.ts";
+import styles from "./pages/styles.css" with { type: "text" };
 
 export async function handleStyles(): Promise<Response> {
-  try {
-    const css = await Deno.readTextFile(CSS_PATH);
-    return new Response(css, {
-      headers: { "content-type": "text/css; charset=utf-8" },
-    });
-  } catch {
-    return new Response("/* styles missing */", {
-      status: 404,
-      headers: { "content-type": "text/css" },
-    });
-  }
+  return new Response(styles, {
+    headers: { "content-type": "text/css; charset=utf-8" },
+  });
 }
 
 export async function handleLogo(): Promise<Response> {
-  try {
-    const bytes = await Deno.readFile(LOGO_PATH);
-    return new Response(bytes, {
-      headers: {
-        "content-type": "image/png",
-        "cache-control": "public, max-age=86400",
-      },
-    });
-  } catch {
-    return new Response("", { status: 404 });
-  }
+  return new Response(logo, {
+    headers: {
+      "content-type": "image/png",
+      "cache-control": "public, max-age=86400",
+    },
+  });
 }
 
 export async function handleClient(): Promise<Response> {
-  try {
-    const js = await Deno.readTextFile(CLIENT_PATH);
-    return new Response(js, {
-      headers: { "content-type": "text/javascript; charset=utf-8" },
-    });
-  } catch {
-    return new Response("/* client missing */", {
-      status: 404,
-      headers: { "content-type": "text/javascript" },
-    });
-  }
+  return new Response(client, {
+    headers: { "content-type": "text/javascript; charset=utf-8" },
+  });
 }
