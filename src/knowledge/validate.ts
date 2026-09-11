@@ -67,8 +67,9 @@ export async function validateSkill(
           const tasks =
             (JSON.parse(content) as { tasks?: Record<string, string> })
               .tasks ?? {};
-          for (const name of Object.keys(tasks)) {
+          for (const [name, task] of Object.entries(tasks)) {
             commands.add(`deno task ${name}`);
+            commands.add(String(task));
           }
         } catch {
           // Ignore malformed manifests; syntax validation is outside this gate.

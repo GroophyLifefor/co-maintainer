@@ -28,3 +28,35 @@ description: fixture
     throw new Error("unsupported path was not rejected");
   }
 });
+
+Deno.test("skill validation accepts commands defined by deno tasks", async () => {
+  const markdown = `---
+name: fixture
+description: fixture
+---
+
+# fixture
+
+## Tests
+
+- Run \`deno test --allow-all\` and \`deno check main.ts\`.
+`;
+  const result = await validateSkill(
+    markdown,
+    ".",
+    testSource({
+      tree: ["deno.json"],
+      files: {
+        "deno.json": JSON.stringify({
+          tasks: {
+            test: "deno test --allow-all",
+            check: "deno check main.ts",
+          },
+        }),
+      },
+    }),
+  );
+  if (!result.valid) {
+    throw new Error(`deno task commands were rejected: ${result.errors}`);
+  }
+});
