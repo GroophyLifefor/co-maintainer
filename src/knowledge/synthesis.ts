@@ -106,6 +106,7 @@ function hasUnsupportedPath(claim: string, source: Source): boolean {
   const repositoryName = String(source.repo.full_name ?? "");
   const references = [
     ...[...claim.matchAll(/`([^`\n]+\/[^`\n]+)`/g)].map(([, value]) => value),
+    ...[...claim.matchAll(/`([^`\n]+\/)`/g)].map(([, value]) => value),
     ...[...claim.matchAll(
       /(?:^|[\s("'`])((?!@)[A-Za-z0-9_.-]+\/[A-Za-z0-9_.*?{}<>:+-]+(?:\/[A-Za-z0-9_.*?{}<>:+-]+)*)/g,
     )].map(([, value]) => value),

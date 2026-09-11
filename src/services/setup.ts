@@ -330,6 +330,7 @@ export async function runInitOrRemake(options: Options): Promise<void> {
   );
   if (!validation.valid && Object.keys(overrides).length) {
     log("validate", `AI output rejected: ${validation.errors.join("; ")}`);
+    overrides = {};
     result = await timed(
       "reassemble valid skill",
       options.logTime,
