@@ -2,6 +2,7 @@ import {
   empty,
   html,
   layout,
+  markdown,
   money,
   repoNav,
   skSlot,
@@ -40,7 +41,7 @@ export function renderPr(
           finding.path ? `${finding.path}:${finding.line_from ?? ""}` : "",
         )
       }</div>
-          <p style="margin:0">${text(finding.body_md)}</p>
+          ${markdown(finding.body_md)}
         </div>`
     ).join("");
   const reviewsTable = data.reviews.length === 0

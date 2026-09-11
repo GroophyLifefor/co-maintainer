@@ -1,5 +1,5 @@
 import { createApp } from "./app.ts";
-import { money } from "./pages/layout.ts";
+import { markdown, money } from "./pages/layout.ts";
 import { closeAppDb, openAppDb } from "../store/app_db.ts";
 import { writeUserConfig } from "../config.ts";
 import { activateRepo, markKnowledgeBuilt } from "../store/repos.ts";
@@ -448,4 +448,19 @@ Deno.test("money keeps sub-cent costs visible", () => {
   if (money(0.01) !== "$0.01") throw new Error(money(0.01));
   if (money(0.0002118) !== "$0.0002118") throw new Error(money(0.0002118));
   if (money(0.001) !== "$0.001") throw new Error(money(0.001));
+});
+
+Deno.test("finding markdown renders safely", () => {
+  const html = markdown(
+    "**Bold** `code`\n\n- item\n\n```ts\n<script>alert(1)</script>\n```",
+  );
+  if (
+    !html.includes("<strong>Bold</strong>") ||
+    !html.includes("<code>code</code>") ||
+    !html.includes("<ul>") ||
+    !html.includes("&lt;script&gt;")
+  ) {
+    throw new Error(`markdown was not rendered: ${html}`);
+  }
+  if (html.includes("<script>")) throw new Error("markdown was not escaped");
 });
