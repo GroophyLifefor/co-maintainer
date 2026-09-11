@@ -189,6 +189,12 @@ Deno.test("each page renders 200 with empty data", async () => {
     ) {
       throw new Error("settings about block missing");
     }
+    if (
+      !settings.includes('<textarea id="app-key"') ||
+      !settings.includes("BEGIN RSA PRIVATE KEY")
+    ) {
+      throw new Error("settings private key field missed PEM guidance");
+    }
   });
 });
 

@@ -251,7 +251,11 @@ async function repoPicker(
         }))
       ),
     };
-  } catch {
+  } catch (error) {
+    console.error(
+      "[dashboard] Could not list repositories from GitHub:",
+      error instanceof Error ? error.stack ?? error.message : String(error),
+    );
     return {
       repos: [],
       error: "Could not list repositories from GitHub.",

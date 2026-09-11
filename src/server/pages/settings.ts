@@ -103,8 +103,13 @@ export function renderSettings(
             <input id="webhook-url" value="${text(webhookUrl)}">
             <div class="hint">Public URL GitHub uses to send webhook events</div></div>
         </div>
-        <div class="field"><label>Private key</label>
-          <input id="app-key" type="password" placeholder="Leave blank to keep the current key"></div>
+        <div class="field wide"><label>Private key</label>
+          <textarea id="app-key" class="mono pem" rows="8" spellcheck="false"
+            autocomplete="off" autocapitalize="off"
+            placeholder="-----BEGIN RSA PRIVATE KEY-----
+...
+-----END RSA PRIVATE KEY-----
+Leave blank to keep the current key"></textarea></div>
         <div class="field"><label>Webhook secret</label>
           <input id="hook-secret" type="password" placeholder="Leave blank to keep the current secret"></div>
       </div>
