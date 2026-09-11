@@ -415,6 +415,15 @@ Deno.test("activity lists a job as a link and the job page shows the error", asy
     if (!activity.includes("/activity/job-fail")) {
       throw new Error("failed job was not a link");
     }
+    const analytics = await (await app.fetch(
+      new Request("http://localhost/analytics", { headers: { cookie } }),
+    )).text();
+    if (
+      !analytics.includes('data-worth-id="job-fail"') ||
+      !analytics.includes('data-dismiss-worth="job-fail"')
+    ) {
+      throw new Error("analytics missed dismissible failed job");
+    }
     const job = await app.fetch(
       new Request("http://localhost/activity/job-fail", {
         headers: { cookie },

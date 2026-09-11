@@ -34,7 +34,6 @@ export function resolveWebhookUrl(
   const flag = args.find((arg) => arg.startsWith("--webhook-url="));
   const raw = flag?.slice("--webhook-url=".length) ??
     Deno.env.get("CM_WEBHOOK_URL") ??
-    configured ??
     `http://localhost:${port}/github/webhook`;
   let url: URL;
   try {

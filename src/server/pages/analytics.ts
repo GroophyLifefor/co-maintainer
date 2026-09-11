@@ -30,11 +30,16 @@ export function renderAnalytics(
   const looks = failed.length === 0
     ? empty("Nothing stands out", "Failed jobs will be listed here.")
     : failed.map((job) =>
-      `<div class="notice bad" style="margin-bottom:12px">
+      `<div class="notice bad worth-item" data-worth-id="${
+        text(job.id)
+      }" style="margin-bottom:12px">
         <div class="txt"><b>${text(job.repo)}</b>. ${text(job.type)} failed${
         job.error ? `. ${text(job.error)}` : ""
       }.</div>
         <a class="btn" href="/activity">See why</a>
+        <button class="dismiss-worth" type="button" data-dismiss-worth="${
+        text(job.id)
+      }" aria-label="Dismiss">×</button>
       </div>`
     ).join("");
   return html(layout({
@@ -72,7 +77,7 @@ export function renderAnalytics(
     <div class="hd"><h2>By repository</h2></div>
     <div class="bd flush">${byRepo}</div>
   </div>
-  <div class="card">
+  <div class="card" id="worth-a-look">
     <div class="hd"><h2>Worth a look</h2></div>
     <div class="bd">${looks}</div>
   </div>
@@ -81,6 +86,40 @@ export function renderAnalytics(
 document.getElementById("range").addEventListener("change", function() {
   location.href = "/analytics?range=" + this.value;
 });
+(function() {
+  var key = "co-maintainer:dismissed-worth";
+  var read = function() {
+    try {
+      var value = JSON.parse(localStorage.getItem(key) || "[]");
+      return Array.isArray(value) ? value : [];
+    } catch (_) {
+      return [];
+    }
+  };
+  var dismissed = read();
+  document.querySelectorAll("[data-worth-id]").forEach(function(item) {
+    if (dismissed.indexOf(item.getAttribute("data-worth-id")) !== -1) {
+      item.remove();
+    }
+  });
+  document.addEventListener("click", function(event) {
+    var button = event.target.closest("[data-dismiss-worth]");
+    if (!button) return;
+    var id = button.getAttribute("data-dismiss-worth");
+    if (!id) return;
+    var next = read();
+    if (next.indexOf(id) === -1) next.push(id);
+    try {
+      localStorage.setItem(key, JSON.stringify(next));
+    } catch (_) {}
+    var item = button.closest("[data-worth-id]");
+    if (item) item.remove();
+    if (!document.querySelector("[data-worth-id]")) {
+      document.querySelector("#worth-a-look .bd").textContent =
+        "Nothing stands out.";
+    }
+  });
+})();
 </script>`,
   }));
 }
