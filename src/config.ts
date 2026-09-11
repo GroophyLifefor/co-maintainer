@@ -34,6 +34,7 @@ export type UserConfig = {
   githubAppId?: string;
   githubAppPrivateKey?: string;
   githubWebhookSecret?: string;
+  webhookUrl?: string;
   defaults?: {
     maxCommits?: number;
     maxPrMonths?: number;

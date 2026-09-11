@@ -26,6 +26,31 @@ function generatePassword(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+export function resolveWebhookUrl(
+  args: string[],
+  port: number,
+  configured?: string,
+): string {
+  const flag = args.find((arg) => arg.startsWith("--webhook-url="));
+  const raw = flag?.slice("--webhook-url=".length) ??
+    Deno.env.get("CM_WEBHOOK_URL") ??
+    configured ??
+    `http://localhost:${port}/github/webhook`;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    die(
+      "--webhook-url must be an absolute http(s) URL, e.g. " +
+        "--webhook-url=https://example.com/github/webhook",
+    );
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    die("--webhook-url must use http or https");
+  }
+  return url.toString();
+}
+
 /** `co-maintainer serve --port=N [--password=...] [--inject-500]`. HMAC-verified
  * `POST /github/webhook` plus a password-gated dashboard. Requires the
  * GitHub App via `co-maintainer set` (webhook secret is optional, only the
@@ -41,6 +66,7 @@ export async function runServe(args: string[]): Promise<void> {
   }
 
   const config = readConfig();
+  const webhookUrl = resolveWebhookUrl(args, port, config.webhookUrl);
   const missing = [
     !config.githubAppId && "--github-app-id=...",
     !config.githubAppPrivateKey &&
@@ -90,7 +116,7 @@ export async function runServe(args: string[]): Promise<void> {
       }
       : undefined,
     webhookSecret: config.githubWebhookSecret,
-    webhookUrl: `http://localhost:${port}/github/webhook`,
+    webhookUrl,
     inject500,
   });
   const server = Deno.serve({ port }, async (req, info) => {
@@ -101,6 +127,7 @@ export async function runServe(args: string[]): Promise<void> {
   });
   console.log(`[serve] listening on http://localhost:${port}`);
   console.log(`[serve] dashboard at http://localhost:${port}/`);
+  console.log(`[serve] webhook URL: ${webhookUrl}`);
 
   let shuttingDown = false;
   const shutdown = async (signal: string) => {

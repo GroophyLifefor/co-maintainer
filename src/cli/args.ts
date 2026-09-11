@@ -53,6 +53,9 @@ export function parseArgs(args: string[]): Options {
     );
     console.log("       co-maintainer serve --port=N");
     console.log(
+      "         --webhook-url=https://host/github/webhook [or CM_WEBHOOK_URL]",
+    );
+    console.log(
       "         --env=PATH --debug --log-time --gh-concurrent=N --ai-concurrent=N --improve-matrix=N",
     );
     console.log(

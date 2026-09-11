@@ -9,6 +9,7 @@ See [Decision 5](../PLAN.md) and [`dashboard`](dashboard.md).
 ```sh
 co-maintainer serve --port=5000
 co-maintainer serve --port=5000 --password=...
+co-maintainer serve --port=5000 --webhook-url=https://example.com/github/webhook
 ```
 
 It requires the GitHub App to already be configured. Run
@@ -42,11 +43,14 @@ record why not (`repo-not-active`, `auto-review-off`, `draft`, `bot-author`,
 `nothing-new-since-last-round`, `own-comment`). Installation events update
 `app.db`. Other events are recorded as ignored. A queued review job posts
 through the GitHub App: `REQUEST_CHANGES` when there are findings, `COMMENT`
-when there are none. If GitHub rejects the inline comments, it falls back to
-one issue comment. Re-reviews can look at only the commits since the last
-round when the repository's review setting is incremental.
+when there are none. If GitHub rejects the inline comments, it falls back to one
+issue comment. Re-reviews can look at only the commits since the last round when
+the repository's review setting is incremental.
 
-Point the GitHub App's webhook URL at `http://<host>:<port>/github/webhook`.
+Point the GitHub App's webhook URL at `http://<host>:<port>/github/webhook`. The
+dashboard shows the same address. Set a public address with the editable Webhook
+address field in Settings, `--webhook-url=...`, or `CM_WEBHOOK_URL`; the default
+is the local development address `http://localhost:<port>/github/webhook`.
 
 ## Dashboard
 
@@ -56,8 +60,8 @@ failure UI, credential checks, and the Linux note live in
 
 ## Updating
 
-Stop `serve`, then install the new release, then start it again against the
-same `app.db` and `config.json`:
+Stop `serve`, then install the new release, then start it again against the same
+`app.db` and `config.json`:
 
 ```sh
 deno install -f -g jsr:@murat/co-maintainer

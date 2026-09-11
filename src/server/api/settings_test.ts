@@ -1,4 +1,5 @@
 import { createApp } from "../app.ts";
+import { handleSettingsRoute } from "./settings.ts";
 import { closeAppDb, openAppDb } from "../../store/app_db.ts";
 import { readConfig, writeUserConfig } from "../../config.ts";
 
@@ -67,6 +68,28 @@ Deno.test("PUT /api/settings rejects a PAT GitHub refused", async () => {
       }
     } finally {
       globalThis.fetch = original;
+    }
+  });
+});
+
+Deno.test("PUT /api/settings saves a public webhook URL", async () => {
+  await withTempEnv(async () => {
+    const response = await handleSettingsRoute(
+      new Request("http://localhost/api/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          webhookUrl: "https://example.com/github/webhook",
+        }),
+      }),
+      new URL("http://localhost/api/settings"),
+      "http://localhost:5000/github/webhook",
+    );
+    if (response.status !== 200) {
+      throw new Error(`status ${response.status}: ${await response.text()}`);
+    }
+    if (readConfig().webhookUrl !== "https://example.com/github/webhook") {
+      throw new Error("webhook URL was not saved");
     }
   });
 });

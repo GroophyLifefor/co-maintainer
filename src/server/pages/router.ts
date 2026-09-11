@@ -135,7 +135,12 @@ export async function handlePageRequest(
       return renderAnalytics(username, range, statsForRange(range));
     }
     if (url.pathname === "/settings" && request.method === "GET") {
-      return renderSettings(username, readConfig(), deps.webhookUrl ?? "");
+      const config = readConfig();
+      return renderSettings(
+        username,
+        config,
+        config.webhookUrl || deps.webhookUrl || "",
+      );
     }
 
     const match = REPO.exec(url.pathname);

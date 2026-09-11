@@ -100,7 +100,8 @@ export function renderSettings(
           <div class="field"><label>App ID</label>
             <input id="app-id" value="${text(config.githubAppId ?? "")}"></div>
           <div class="field"><label>Webhook address</label>
-            <input value="${text(webhookUrl)}" readonly></div>
+            <input id="webhook-url" value="${text(webhookUrl)}">
+            <div class="hint">Public URL GitHub uses to send webhook events</div></div>
         </div>
         <div class="field"><label>Private key</label>
           <input id="app-key" type="password" placeholder="Leave blank to keep the current key"></div>
@@ -180,7 +181,8 @@ document.getElementById("save-app").addEventListener("click", function() {
   save(this, {
     githubAppId: document.getElementById("app-id").value,
     githubAppPrivateKey: document.getElementById("app-key").value,
-    githubWebhookSecret: document.getElementById("hook-secret").value
+    githubWebhookSecret: document.getElementById("hook-secret").value,
+    webhookUrl: document.getElementById("webhook-url").value
   });
 });
 document.getElementById("save-def").addEventListener("click", function() {

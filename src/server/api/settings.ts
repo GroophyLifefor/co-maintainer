@@ -3,6 +3,21 @@ import { readConfig, writeUserConfig } from "../../config.ts";
 import type { UserConfig } from "../../config.ts";
 import { testAppAccess, testGithubAccess } from "../../services/credentials.ts";
 
+function validateWebhookUrl(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.trim()) {
+    return "webhook URL is required";
+  }
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return "webhook URL must use http or https";
+    }
+  } catch {
+    return "webhook URL must be an absolute http(s) URL";
+  }
+  return undefined;
+}
+
 export async function handleSettingsRoute(
   request: Request,
   url: URL,
@@ -21,7 +36,7 @@ export async function handleSettingsRoute(
       hasPat: Boolean(config.githubPat),
       hasAppKey: Boolean(config.githubAppPrivateKey),
       hasWebhookSecret: Boolean(config.githubWebhookSecret),
-      webhookUrl,
+      webhookUrl: config.webhookUrl || webhookUrl,
     });
   }
 
@@ -49,6 +64,13 @@ export async function handleSettingsRoute(
     text("githubAppId");
     text("githubAppPrivateKey");
     text("githubWebhookSecret");
+    if ("webhookUrl" in body) {
+      const webhookError = validateWebhookUrl(body.webhookUrl);
+      if (webhookError) {
+        return errorResponse(400, "invalid_webhook_url", webhookError);
+      }
+      patch.webhookUrl = (body.webhookUrl as string).trim();
+    }
     if (body.defaults && typeof body.defaults === "object") {
       const defaults = body.defaults as Record<string, unknown>;
       patch.defaults = {
