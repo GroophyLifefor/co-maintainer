@@ -427,6 +427,20 @@ textarea {
 .notice b {
   font-weight: 600;
 }
+.notice .dismiss-worth {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 0 4px;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.notice .dismiss-worth:hover {
+  background: transparent;
+  color: var(--text);
+}
 .log {
   background: #1f2124;
   color: #e6e6e6;
