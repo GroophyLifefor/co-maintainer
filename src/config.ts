@@ -72,8 +72,11 @@ export function getCacheDir(): string {
   }
 }
 
+/** `CM_CONFIG_PATH` overrides the path — tests point it at a temp file so
+ * they never read or write the real config.json. */
 export function configPath(): string {
-  return `${getConfigDir()}/co-maintainer/config.json`;
+  return Deno.env.get("CM_CONFIG_PATH") ??
+    `${getConfigDir()}/co-maintainer/config.json`;
 }
 
 /** Where generated skills (SKILL.md, CODEBASE.md, review guides) live.
@@ -81,7 +84,8 @@ export function configPath(): string {
  * invoked from anywhere, including directories it has no permission to
  * write into (e.g. C:\Windows\System32). */
 export function reposDir(): string {
-  return `${getConfigDir()}/co-maintainer/repos`;
+  return Deno.env.get("CM_REPOS_DIR") ??
+    `${getConfigDir()}/co-maintainer/repos`;
 }
 
 export function cacheDbPath(): string {

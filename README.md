@@ -8,13 +8,14 @@ default-branch commits. A low-cost model extracts evidence-bound observations; a
 higher-reasoning model turns them into concise contribution guidance for
 implementation, testing, review, and release decisions.
 
-This is a local Deno CLI. It writes generated skills, configuration, and
-cache data to platform-specific user directories — generated skills live
-under `<config dir>/co-maintainer/repos/owner/repo/` (e.g.
-`%APPDATA%\co-maintainer\repos` on Windows, `~/Library/Application
-Support/co-maintainer/repos` on macOS, `~/.config/co-maintainer/repos`
-elsewhere) — never relative to the current directory, since the CLI can be
-invoked from anywhere.
+This is a local Deno CLI. It writes generated skills, configuration, and cache
+data to platform-specific user directories — generated skills live under
+`<config dir>/co-maintainer/repos/owner/repo/` (e.g.
+`%APPDATA%\co-maintainer\repos` on Windows,
+`~/Library/Application
+Support/co-maintainer/repos` on macOS,
+`~/.config/co-maintainer/repos` elsewhere) — never relative to the current
+directory, since the CLI can be invoked from anywhere.
 
 ## Installation
 
@@ -59,7 +60,8 @@ Use `--env=PATH` to load credentials and defaults from an env file. CLI values
 take precedence over the env file, user config, interactive prompts, and
 built-in defaults. See the command documentation: [`probe`](docs/probe.md),
 [`init`](docs/init.md), [`remake`](docs/remake.md), [`review`](docs/review.md),
-[`serve`](docs/serve.md), [`configuration`](docs/configuration.md),
+[`serve`](docs/serve.md), [`dashboard`](docs/dashboard.md),
+[`configuration`](docs/configuration.md),
 [`authentication`](docs/authentication.md), and [`caching`](docs/caching.md).
 
 Add `--log-time` to any command to print core operation durations and AI

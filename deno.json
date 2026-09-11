@@ -1,10 +1,13 @@
 {
   "name": "@murat/co-maintainer",
-  "version": "0.1.17",
+  "version": "0.2.0",
   "license": "MIT",
   "exports": "./mod.ts",
   "imports": {
     "@db/sqlite": "jsr:@db/sqlite@^0.13.0"
+  },
+  "fmt": {
+    "exclude": ["PLAN.md", "z_flow/"]
   },
   "tasks": {
     "dev": "deno run --allow-all --watch main.ts",
@@ -17,6 +20,7 @@
     "bench-rereview": "deno run --allow-all benchmark/run_rereview.ts",
     "check": "deno check main.ts",
     "fmt": "deno fmt",
-    "test": "deno test --allow-all"
+    "test": "deno test --allow-all",
+    "e2e": "deno run --allow-all scripts/e2e.ts"
   }
 }

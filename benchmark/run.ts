@@ -1,10 +1,10 @@
 import { parseArgs } from "../src/cli/args.ts";
 import { reposDir } from "../src/config.ts";
-import { GhClient } from "../src/data/gh.ts";
-import { reviewPullRequest } from "../src/review.ts";
+import { GhClient } from "../src/github/gh.ts";
+import { reviewPullRequest } from "../src/pr/reviewer.ts";
 import { average, scores } from "./metrics.ts";
 import { matchPairs, matchSpans } from "./match.ts";
-import { parseFindings } from "./parse.ts";
+import { parseFindings } from "../src/pr/findings.ts";
 
 type Row = {
   pr_url: string;

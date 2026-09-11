@@ -1,4 +1,4 @@
-import { run } from "./src/app.ts";
+import { run } from "./src/cli/main.ts";
 
 try {
   await run(Deno.args);

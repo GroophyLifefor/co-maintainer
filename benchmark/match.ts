@@ -1,8 +1,6 @@
-export type Span = {
-  path: string;
-  from: number;
-  to: number;
-};
+import type { Span } from "../src/pr/findings.ts";
+
+export type { Span };
 
 export function normalizePath(path: string): string {
   return path.replaceAll("\\", "/").replace(/^\.\//, "");
