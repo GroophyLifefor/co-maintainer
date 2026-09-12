@@ -1,6 +1,13 @@
 import { HetznerProvider } from "./hetzner.ts";
 import { OpenRouterProvider } from "./openrouter.ts";
-import type { AiProvider, AiResponse, Json, Options } from "../types.ts";
+import type {
+  AiMessage,
+  AiProvider,
+  AiRequest,
+  AiResponse,
+  Json,
+  Options,
+} from "../types.ts";
 
 export function createAiProvider(
   options: Options,
@@ -33,8 +40,23 @@ export function parseChatResponse(
     usage?.cost ??
       (usage?.cost_details as Json | undefined)?.total_cost,
   );
+  const toolCalls = Array.isArray(message?.tool_calls)
+    ? message.tool_calls.map((call) => {
+      const value = call as Json;
+      const fn = value.function as Json | undefined;
+      return {
+        id: String(value.id ?? ""),
+        type: "function" as const,
+        function: {
+          name: String(fn?.name ?? ""),
+          arguments: String(fn?.arguments ?? "{}"),
+        },
+      };
+    }).filter((call) => call.id && call.function.name)
+    : undefined;
   return {
     text: String(message?.content ?? ""),
+    ...(toolCalls?.length ? { toolCalls } : {}),
     tokensIn: Number(usage?.prompt_tokens ?? 0),
     tokensOut: Number(usage?.completion_tokens ?? 0),
     cost: Number.isFinite(cost) ? cost : undefined,
@@ -45,13 +67,14 @@ export function parseChatResponse(
 
 export function chatBody(
   model: string,
-  request: {
-    system?: string;
-    prompt: string;
-    maxTokens: number;
-    reasoningEffort?: "high";
-  },
+  request: AiRequest,
 ): Json {
+  const messages: AiMessage[] = request.messages ?? [
+    ...(request.system
+      ? [{ role: "system" as const, content: request.system }]
+      : []),
+    { role: "user" as const, content: request.prompt },
+  ];
   return {
     model,
     temperature: 0,
@@ -59,9 +82,9 @@ export function chatBody(
     ...(request.reasoningEffort
       ? { reasoning: { effort: request.reasoningEffort } }
       : {}),
-    messages: [
-      ...(request.system ? [{ role: "system", content: request.system }] : []),
-      { role: "user", content: request.prompt },
-    ],
+    messages,
+    ...(request.tools?.length
+      ? { tools: request.tools, tool_choice: "auto" }
+      : {}),
   };
 }

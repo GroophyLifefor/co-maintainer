@@ -1,4 +1,5 @@
 import { OpenRouterProvider } from "../ai/openrouter.ts";
+import { completeWithMermaidTools } from "../ai/mermaid_loop.ts";
 import { reposDir } from "../config.ts";
 import type { Snapshot } from "./snapshot.ts";
 import type {
@@ -14,6 +15,35 @@ type UsageSink = (response: AiResponse) => Promise<void>;
 type ProgressSink = (message: string) => void;
 
 const MAX_REVIEW_DIFF_CHARS = 240_000;
+export const MERMAID_GUIDANCE = `Mermaid selection and minimal syntax:
+flowchart = decisions, branches, pipelines, and fallback paths;
+swimlane-beta = work crossing owners, actors, services, teams, or layers;
+sequenceDiagram = ordered calls, webhooks, retries, responses, and timing;
+classDiagram = class, interface, type, inheritance, or composition relationships;
+stateDiagram-v2 = lifecycle and state transitions;
+erDiagram = database entities, keys, and cardinality;
+requirementDiagram = requirements linked to tests or implementation;
+usecase-beta = actors and system capabilities;
+C4Context = users, systems, boundaries, and integrations;
+zenuml = compact nested call sequences;
+packet = binary fields, bit ranges, and protocol layout;
+architecture-beta = services, containers, storage, and deployment topology;
+eventmodeling = commands, events, processors, read models, and timelines;
+treeView-beta = directory, file, module, or dependency hierarchy.
+If a diagram is useful, call read-mermaid-syntaxes before writing any Mermaid.
+Request every type you need in a single call, because repeated tool rounds are
+capped. Use the smallest type that matches the evidence.`;
+
+const REVIEW_SYSTEM_PROMPT = `You are a precise open-source code reviewer.
+Evidence must come from the supplied diff and review guide. Keep findings
+concise by default. Use Mermaid only when a diagram materially clarifies a
+multi-step flow, lifecycle, dependency, data model, protocol, or architecture.
+Use zero diagrams when prose is clearer. During the initial review, use at most
+one diagram. If a user later asks for detailed reasoning in a reply, that reply
+may use up to five diagrams, but only when each adds a distinct useful view.
+${MERMAID_GUIDANCE}
+Do not invent nodes, actors, states, services, tables, or events. If syntax is
+uncertain, omit the diagram.`;
 
 function text(value: unknown, limit = 20_000): string {
   const result = String(value ?? "");
@@ -116,45 +146,29 @@ Do not stop early; inspect all supplied diff text first and return the natural
 count. If the diff contains a truncation marker, limit claims to the supplied
 text and do not imply that omitted files were reviewed.
 Do not invent low-value findings.
-Each finding must use this exact structure:
+Each finding must use this exact structure, keeping the default finding under
+120 words excluding an optional diagram:
 
 ### [P1 · blocking] \`path/to/file.ts\` — \`symbol()\`
 Location: \`path/to/file.ts:42\`
 
-One line describing what is wrong. It must stand alone as a complete finding.
+One sentence describing what is wrong and its impact.
 
-Mechanism
-  Explain why the code does the wrong thing and name the two things that
-  disagree.
-
-Symptom
-  Describe what the user or operator observes.
-
-Scenario
-  Give a mundane path to the bad input and how the failure could be
-  misattributed. Omit when reachability is obvious.
-
-Verified
-  Say whether this was executed or read-only, separating inferred from
-  confirmed facts.
-
-Repro
-  Give a failing test or exact steps. Omit for style-only findings.
-
-Options
-  a) Preferred option and its tradeoff.
-  b) Alternative option and its cost.
-
-Scope
-  Say where else you looked and what you found. Omit if you did not look.
+Add one short evidence paragraph explaining the mechanism or reproduction.
+Do not add labels such as Mechanism, Symptom, Scenario, Verified, Repro,
+Options, or Scope unless that detail is necessary to understand a complex
+finding. End with "If you want the detailed reasoning, reply to this finding."
+for findings where more detail would be useful.
 
 Use P0-P3 severity and exactly either "blocking" or "non-blocking".
 Keep the Location line machine-readable; it is removed from user-facing
 review copies. Use Markdown backticks around paths and symbols.
-When a concrete fix changes several adjacent lines in the same file, include
-the fix as a fenced \`\`\`diff code block with the file path and +/- lines.
-Use a diff only when the exact change is supported by the supplied code;
-otherwise describe the fix in prose.
+Use a Mermaid fenced code block only when it materially improves the
+explanation. This review may contain at most one diagram in total, and most
+reviews need none. Its type must be one of the types named in the system
+instructions, and you must read that type with read-mermaid-syntaxes first.
+Keep labels short and grounded in the supplied evidence. Never use a diagram
+for a one-line fix or for obvious cause and effect. Close every fenced block.
 
 REVIEW GUIDE:
 ${text(guide)}
@@ -194,8 +208,7 @@ ${diff}`;
   const matrix = Math.max(1, options.improveMatrix);
   const request: AiRequest = {
     job: "review_pull_request",
-    system:
-      "You are a precise open-source code reviewer. Evidence must come from the supplied diff and review guide.",
+    system: REVIEW_SYSTEM_PROMPT,
     prompt,
     maxTokens: 24_000 * matrix,
     reasoningEffort: "high",
@@ -214,7 +227,7 @@ ${diff}`;
       } · maxTokens=${request.maxTokens}`,
     );
   }
-  let response = await provider.complete(request);
+  let response = await completeWithMermaidTools(provider, request, 1);
   if (usage) await usage(response);
   report(
     `AI response · input=${response.tokensIn} tokens · output=${response.tokensOut} tokens`,
@@ -256,7 +269,7 @@ ${reviewText}`,
       );
     }
     report(`AI improvement pass ${pass - 1} of ${matrix - 1}`);
-    response = await provider.complete(improvementRequest);
+    response = await completeWithMermaidTools(provider, improvementRequest, 1);
     if (usage) await usage(response);
     report(
       `AI improvement response · input=${response.tokensIn} tokens · ` +

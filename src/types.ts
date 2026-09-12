@@ -47,9 +47,28 @@ export type GitHubClient = {
   updateCheckRun?<T>(endpoint: string, body: unknown): Promise<T>;
 };
 
+export type AiToolCall = {
+  id: string;
+  type: "function";
+  function: {
+    name: string;
+    arguments: string;
+  };
+};
+
+export type AiMessage = {
+  role: "system" | "user" | "assistant" | "tool";
+  content?: string | null;
+  tool_calls?: AiToolCall[];
+  tool_call_id?: string;
+  name?: string;
+};
+
 export type AiRequest = {
   system?: string;
   prompt: string;
+  messages?: AiMessage[];
+  tools?: Json[];
   maxTokens: number;
   job: string;
   reasoningEffort?: "high";
@@ -57,6 +76,7 @@ export type AiRequest = {
 
 export type AiResponse = {
   text: string;
+  toolCalls?: AiToolCall[];
   tokensIn: number;
   tokensOut: number;
   cost?: number;
@@ -65,5 +85,6 @@ export type AiResponse = {
 };
 
 export type AiProvider = {
+  supportsTools?: boolean;
   complete(request: AiRequest): Promise<AiResponse>;
 };
