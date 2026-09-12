@@ -28,11 +28,11 @@ Deno.test("withLogSink scopes to its own async call, concurrent sinks do not cro
   const a: string[] = [];
   const b: string[] = [];
   await Promise.all([
-    withLogSink((phase, message) => a.push(message), async () => {
+    withLogSink((_phase, message) => a.push(message), async () => {
       await new Promise((resolve) => setTimeout(resolve, 5));
       log("x", "from a");
     }),
-    withLogSink((phase, message) => b.push(message), async () => {
+    withLogSink((_phase, message) => b.push(message), async () => {
       log("x", "from b");
     }),
   ]);

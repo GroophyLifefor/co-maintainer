@@ -21,7 +21,6 @@ async function withFetch(
   fn: () => Promise<void>,
 ): Promise<void> {
   const original = globalThis.fetch;
-  // deno-lint-ignore require-await
   globalThis.fetch =
     (async (input: string | URL | Request) =>
       handler(String(input))) as typeof fetch;

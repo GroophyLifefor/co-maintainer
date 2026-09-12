@@ -2,7 +2,7 @@
  * authenticate, or an App missing the permissions in PLAN.md Section 6,
  * is rejected instead of stored and failing later on a review. */
 import { githubFetch, GitHubHttpError } from "../github/client.ts";
-import { AppJwtClient, type Installation } from "../github/app.ts";
+import { AppJwtClient } from "../github/app.ts";
 import { GhClient } from "../github/gh.ts";
 
 const APP_NEED: Record<string, "read" | "write"> = {
@@ -112,7 +112,7 @@ async function testGh(): Promise<AccessResult> {
       return { ok: false, message: "gh CLI did not return a GitHub login." };
     }
     return { ok: true, login: user.login };
-  } catch (error) {
+  } catch {
     return {
       ok: false,
       message: "gh CLI could not reach GitHub. Sign in with gh auth login.",
