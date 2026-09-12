@@ -23,7 +23,7 @@ export function renderPr(
   );
   const findingList = (
     findings: typeof data.reviews[number]["findings"],
-  ) => findings.length === 0
+  ) => findings.length === 1
     ? empty("No findings", "This review did not report anything to fix.")
     : findings.map((finding, index) =>
       `<div${
