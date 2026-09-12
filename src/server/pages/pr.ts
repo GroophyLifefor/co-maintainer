@@ -17,14 +17,14 @@ export function renderPr(
   data: ReturnType<typeof prDetail>,
 ): Response {
   const n = data.prNumber;
-  const newest = data.reviews[0];
-  const findings = newest?.findings ?? [];
   const totalCost = data.reviews.reduce(
     (sum, review) => sum + Number(review.cost ?? 0),
     0,
   );
-  const findingsBlock = findings.length === 0
-    ? empty("No findings", "The latest review did not report anything to fix.")
+  const findingList = (
+    findings: typeof data.reviews[number]["findings"],
+  ) => findings.length === 0
+    ? empty("No findings", "This review did not report anything to fix.")
     : findings.map((finding, index) =>
       `<div${
         index < findings.length - 1
@@ -43,6 +43,23 @@ export function renderPr(
       }</div>
           ${markdown(finding.body_md)}
         </div>`
+    ).join("");
+  const findingsBlock = data.reviews.length === 0
+    ? empty("No findings", "Run a review to post findings on this pull request.")
+    : data.reviews.map((review, index) =>
+      `<details${index === 0 ? " open" : ""} style="padding:14px 0${
+        index < data.reviews.length - 1
+          ? ";border-bottom:1px solid var(--border2)"
+          : ""
+      }">
+        <summary style="cursor:pointer">
+          <b>Round ${text(review.round)}</b>
+          <span class="muted"> · ${text(review.head_sha.slice(0, 7))} · ${
+        review.findings.length
+      } finding${review.findings.length === 1 ? "" : "s"}</span>
+        </summary>
+        <div style="padding:16px 4px 4px">${findingList(review.findings)}</div>
+      </details>`
     ).join("");
   const reviewsTable = data.reviews.length === 0
     ? empty(
@@ -97,7 +114,11 @@ export function renderPr(
     </div>
     <div class="card">
       <div class="hd"><h2>Findings</h2>
-        <span class="muted" style="margin-left:auto;font-size:13px">${findings.length} findings</span></div>
+        <span class="muted" style="margin-left:auto;font-size:13px">${
+      data.reviews.reduce((sum, review) => sum + review.findings.length, 0)
+    } findings across ${data.reviews.length} review${
+      data.reviews.length === 1 ? "" : "s"
+    }</span></div>
       <div class="bd">${findingsBlock}</div>
     </div>
     <div class="card">
