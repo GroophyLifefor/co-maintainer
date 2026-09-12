@@ -352,6 +352,7 @@ Deno.test("GET /client.js is the fetch wrapper with toast and retry", async () =
       "Retry",
       'addEventListener("error"',
       "unhandledrejection",
+      "bindToggle",
       "pollActivity",
       "5000",
     ]

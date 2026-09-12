@@ -90,6 +90,33 @@ async function postAndGo(url, body, next, btn) {
   });
 }
 
+// Called from the inline scripts on the repo list and repo pages, which deno lint
+// cannot see, so it looks unused from inside this file.
+// deno-lint-ignore no-unused-vars
+function bindToggle(btn, url, field) {
+  btn.addEventListener("click", async function () {
+    if (btn.disabled) return;
+    const on = !btn.classList.contains("on");
+    btn.classList.toggle("on", on);
+    btn.setAttribute("data-on", on ? "1" : "0");
+    btn.disabled = true;
+    const card = btn.closest("[data-async]");
+    try {
+      const payload = {};
+      payload[field] = on;
+      await api("PATCH", url, payload);
+    } catch (err) {
+      btn.classList.toggle("on", !on);
+      btn.setAttribute("data-on", on ? "0" : "1");
+      fail(card, err.message, function () {
+        btn.click();
+      });
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
 addEventListener("error", function (ev) {
   toast((ev.error && ev.error.message) || "Something broke");
 });
