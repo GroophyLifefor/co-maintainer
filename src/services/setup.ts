@@ -507,12 +507,21 @@ export function buildSetupHandler(
         (phase, message) => jobLog("info", `[${phase}] ${message}`),
         () => runner(options),
       );
-      // knowledge_base_sha is "built at this time" until P7/P8 have a
-      // commit sha to store. maybeEnqueueReview only checks that
-      // knowledge_built_at is set.
-      markKnowledgeBuilt(job.repo, nowIso());
+      // The newest commit the fetch saw is the base the guide describes.
+      // Drift compares against it; without a real sha it can only fall
+      // back to a date range.
+      markKnowledgeBuilt(job.repo, await builtBaseSha(job.repo));
     },
   };
+}
+
+/** The head commit of the default branch as of the fetch that just ran.
+ * Falls back to the build timestamp when commit history was not collected,
+ * which is what this column held before. */
+async function builtBaseSha(repo: string): Promise<string> {
+  const state = await readState(repo);
+  const head = state?.source.commits[0] as { sha?: string } | undefined;
+  return head?.sha ?? nowIso();
 }
 
 /** No `reconcile` hook: `run` is idempotent, so an orphan from a crash is

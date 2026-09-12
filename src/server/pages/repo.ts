@@ -17,11 +17,12 @@ export function renderRepo(
   const name = data.repo.full_name;
   const stats = data.stats;
   const drift = data.drift;
-  const notice = drift && (drift.prs_since > 0 || drift.commits_since > 0)
+  const notice = drift &&
+      (drift.prs_since > 0 || drift.prs_updated > 0 || drift.commits_since > 0)
     ? `<div class="notice" data-async>
       ${skSlot()}
       <div class="txt"><b>Update recommended.</b> Since the guide was built:
-        ${drift.prs_since} pull requests, ${drift.commits_since} commits, ${drift.files_changed} files changed.</div>
+        ${drift.prs_since} new pull requests, ${drift.prs_updated} changed pull requests, ${drift.commits_since} commits, ${drift.files_changed} files changed.</div>
       <button class="btn primary" id="remake">Update now</button>
     </div>`
     : "";

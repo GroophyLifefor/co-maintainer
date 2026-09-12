@@ -156,4 +156,9 @@ export const migrations: string[][] = [
     `CREATE INDEX idx_reply_requests_status
      ON reply_requests(status, created_at)`,
   ],
+  // 4 — drift separates pull requests opened since the build from older
+  // ones that were merely touched again
+  [
+    `ALTER TABLE drift ADD COLUMN prs_updated INTEGER NOT NULL DEFAULT 0`,
+  ],
 ];

@@ -1,6 +1,12 @@
 import { empty, html, layout, repoNav, skSlot, text, when } from "./layout.ts";
 import type { repoKnowledge } from "../../services/dashboard.ts";
 
+/** A compare response stops listing files at 300, so that figure is a
+ * floor rather than a count. */
+function fileCount(files: number): string {
+  return files >= 300 ? "300+" : String(files);
+}
+
 function sizeLabel(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   return `${(bytes / 1024).toFixed(1)} KB`;
@@ -19,7 +25,11 @@ export function renderKnowledge(
       when(data.repo.knowledge_built_at)
     }.${
       drift
-        ? ` Since then this repository has seen <b>${drift.prs_since} pull requests</b>, <b>${drift.commits_since} commits</b> and <b>${drift.files_changed} changed files</b>.`
+        ? ` Since then: <b>${drift.prs_since} new pull requests</b>, <b>${drift.prs_updated} changed pull requests</b>, <b>${drift.commits_since} new commits</b> and <b>${
+          fileCount(drift.files_changed)
+        } changed files</b>. <span class="muted">Checked ${
+          when(drift.as_of)
+        }.</span>`
         : ""
     }</div></div>`
     : `<div class="notice info"><div class="txt">Knowledge has not been built yet. Run init from the repository list.</div></div>`;

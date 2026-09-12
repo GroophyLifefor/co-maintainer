@@ -1,6 +1,7 @@
 /** Read models for dashboard pages and the JSON APIs that mirror them. */
 import { reposDir } from "../config.ts";
 import { getDrift } from "../store/drift.ts";
+import { refreshDrift } from "./drift.ts";
 import { listSkipped } from "../store/deliveries.ts";
 import { listJobs } from "../store/jobs.ts";
 import { getRepo, listActiveRepos } from "../store/repos.ts";
@@ -157,7 +158,7 @@ export async function repoKnowledge(fullName: string) {
       if (!(error instanceof Deno.errors.NotFound)) throw error;
     }
   }
-  return { repo, drift: getDrift(fullName), docs };
+  return { repo, drift: await refreshDrift(fullName), docs };
 }
 
 export type ActivityItem =
