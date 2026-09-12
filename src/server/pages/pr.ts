@@ -23,29 +23,33 @@ export function renderPr(
   );
   const findingList = (
     findings: typeof data.reviews[number]["findings"],
-  ) => findings.length === 0
-    ? empty("No findings", "This review did not report anything to fix.")
-    : findings.map((finding, index) =>
-      `<div${
-        index < findings.length - 1
-          ? ` style="padding-bottom:18px;border-bottom:1px solid var(--border2);margin-bottom:18px"`
-          : ""
-      }>
+  ) =>
+    findings.length === 0
+      ? empty("No findings", "This review did not report anything to fix.")
+      : findings.map((finding, index) =>
+        `<div${
+          index < findings.length - 1
+            ? ` style="padding-bottom:18px;border-bottom:1px solid var(--border2);margin-bottom:18px"`
+            : ""
+        }>
           <div style="margin-bottom:6px"><b>${text(finding.title)}</b>${
-        finding.first_seen_review_id
-          ? ` <span class="muted" style="font-size:13px">Seen in an earlier round</span>`
-          : ""
-      }</div>
+          finding.first_seen_review_id
+            ? ` <span class="muted" style="font-size:13px">Seen in an earlier round</span>`
+            : ""
+        }</div>
           <div class="mono muted" style="font-size:13px;margin-bottom:8px">${
-        text(
-          finding.path ? `${finding.path}:${finding.line_from ?? ""}` : "",
-        )
-      }</div>
+          text(
+            finding.path ? `${finding.path}:${finding.line_from ?? ""}` : "",
+          )
+        }</div>
           ${markdown(finding.body_md)}
         </div>`
-    ).join("");
+      ).join("");
   const findingsBlock = data.reviews.length === 0
-    ? empty("No findings", "Run a review to post findings on this pull request.")
+    ? empty(
+      "No findings",
+      "Run a review to post findings on this pull request.",
+    )
     : data.reviews.map((review, index) =>
       `<details${index === 0 ? " open" : ""} style="padding:14px 0${
         index < data.reviews.length - 1
@@ -54,9 +58,11 @@ export function renderPr(
       }">
         <summary style="cursor:pointer">
           <b>Round ${text(review.round)}</b>
-          <span class="muted"> · ${text(review.head_sha.slice(0, 7))} · ${
-        review.findings.length
-      } finding${review.findings.length === 1 ? "" : "s"}</span>
+          <span class="muted"> · ${
+        text(review.head_sha.slice(0, 7))
+      } · ${review.findings.length} finding${
+        review.findings.length === 1 ? "" : "s"
+      }</span>
         </summary>
         <div style="padding:16px 4px 4px">${findingList(review.findings)}</div>
       </details>`

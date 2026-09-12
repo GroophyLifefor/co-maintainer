@@ -1,6 +1,6 @@
 import { FakeAiProvider } from "../ai/fake.ts";
 import { completeWithMermaidTools } from "../ai/mermaid_loop.ts";
-import { type AiProvider, type GitHubClient, type Json } from "../types.ts";
+import type { AiProvider, GitHubClient, Json } from "../types.ts";
 import {
   MERMAID_GUIDANCE,
   NO_DIAGRAM_RULES,

@@ -13,7 +13,6 @@ function withFetch(
   fn: () => Promise<void>,
 ): Promise<void> {
   const original = globalThis.fetch;
-  // deno-lint-ignore require-await
   globalThis.fetch =
     (async (input: string | URL | Request, init?: RequestInit) =>
       handler(String(input), init ?? {})) as typeof fetch;

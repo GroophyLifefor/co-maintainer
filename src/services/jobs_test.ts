@@ -224,7 +224,7 @@ Deno.test("logs are resumable: getLogsSince(fromSeq) and live subscribers both w
   await withTempDb(async () => {
     const received: string[] = [];
     registerHandler("test-logs", {
-      async run(job, log) {
+      async run(_job, log) {
         log("info", "line one");
         log("info", "line two");
       },

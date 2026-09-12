@@ -1,7 +1,7 @@
 import { collectSource } from "./collect.ts";
 import { cacheDeletePrefix } from "../store/cache_db.ts";
 import { testOptions } from "../testing/helpers.ts";
-import type { GitHubClient, Json } from "../types.ts";
+import type { GitHubClient } from "../types.ts";
 
 class CacheClient implements GitHubClient {
   contentRequests = 0;
