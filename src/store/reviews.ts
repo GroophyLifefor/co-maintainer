@@ -121,37 +121,58 @@ export type ReviewStats = {
   pullRequests: number;
   findings: number;
   cost: number;
+  tokensIn: number;
+  tokensOut: number;
+  failed: number;
+  avgDurationMs: number;
 };
 
-function asStats(row: ReviewStats | undefined): ReviewStats {
+/** Every aggregate the dashboard reads comes from this one column list, so a
+ * new figure lands on the totals, the per repo table and the trend window at
+ * the same time. */
+const STATS_COLUMNS = `COUNT(*) AS reviews,
+      COUNT(DISTINCT pr_number) AS pullRequests,
+      COALESCE(SUM(findings_count), 0) AS findings,
+      COALESCE(SUM(cost), 0) AS cost,
+      COALESCE(SUM(tokens_in), 0) AS tokensIn,
+      COALESCE(SUM(tokens_out), 0) AS tokensOut,
+      COALESCE(SUM(status = 'failed'), 0) AS failed,
+      COALESCE(AVG(duration_ms), 0) AS avgDurationMs`;
+
+function asStats(row: Partial<ReviewStats> | undefined): ReviewStats {
   return {
     reviews: Number(row?.reviews ?? 0),
     pullRequests: Number(row?.pullRequests ?? 0),
     findings: Number(row?.findings ?? 0),
     cost: Number(row?.cost ?? 0),
+    tokensIn: Number(row?.tokensIn ?? 0),
+    tokensOut: Number(row?.tokensOut ?? 0),
+    failed: Number(row?.failed ?? 0),
+    avgDurationMs: Number(row?.avgDurationMs ?? 0),
   };
 }
 
-export function reviewStats(sinceIso: string, repo?: string): ReviewStats {
+/** `untilIso` is exclusive, which is what lets the trend row ask for the
+ * window before the one on screen without double counting its edge. */
+export function reviewStats(
+  sinceIso: string,
+  repo?: string,
+  untilIso?: string,
+): ReviewStats {
+  const where = ["created_at >= ?"];
+  const params: (string | number)[] = [sinceIso];
+  if (untilIso) {
+    where.push("created_at < ?");
+    params.push(untilIso);
+  }
   if (repo) {
-    return asStats(
-      getAppDb().prepare<ReviewStats>(
-        `SELECT COUNT(*) AS reviews,
-            COUNT(DISTINCT pr_number) AS pullRequests,
-            COALESCE(SUM(findings_count), 0) AS findings,
-            COALESCE(SUM(cost), 0) AS cost
-         FROM reviews WHERE created_at >= ? AND repo = ?`,
-      ).get(sinceIso, repo),
-    );
+    where.push("repo = ?");
+    params.push(repo);
   }
   return asStats(
     getAppDb().prepare<ReviewStats>(
-      `SELECT COUNT(*) AS reviews,
-          COUNT(DISTINCT pr_number) AS pullRequests,
-          COALESCE(SUM(findings_count), 0) AS findings,
-          COALESCE(SUM(cost), 0) AS cost
-       FROM reviews WHERE created_at >= ?`,
-    ).get(sinceIso),
+      `SELECT ${STATS_COLUMNS} FROM reviews WHERE ${where.join(" AND ")}`,
+    ).get(...params),
   );
 }
 
@@ -159,15 +180,11 @@ export function reviewStatsByRepo(
   sinceIso: string,
 ): (ReviewStats & { repo: string })[] {
   return getAppDb().prepare<ReviewStats & { repo: string }>(
-    `SELECT repo,
-        COUNT(*) AS reviews,
-        COUNT(DISTINCT pr_number) AS pullRequests,
-        COALESCE(SUM(findings_count), 0) AS findings,
-        COALESCE(SUM(cost), 0) AS cost
+    `SELECT repo, ${STATS_COLUMNS}
      FROM reviews WHERE created_at >= ?
      GROUP BY repo
      ORDER BY cost DESC`,
-  ).all(sinceIso);
+  ).all(sinceIso).map((row) => ({ ...asStats(row), repo: row.repo }));
 }
 
 export function reviewStatsByDay(
@@ -191,15 +208,13 @@ export function reviewStatsByDay(
 
 export function reviewStatsByModel(
   sinceIso: string,
-): { model: string; reviews: number; cost: number }[] {
-  return getAppDb().prepare(
-    `SELECT model,
-        COUNT(*) AS reviews,
-        COALESCE(SUM(cost), 0) AS cost
+): (ReviewStats & { model: string })[] {
+  return getAppDb().prepare<ReviewStats & { model: string }>(
+    `SELECT model, ${STATS_COLUMNS}
      FROM reviews WHERE created_at >= ?
      GROUP BY model
      ORDER BY cost DESC`,
-  ).all(sinceIso) as { model: string; reviews: number; cost: number }[];
+  ).all(sinceIso).map((row) => ({ ...asStats(row), model: row.model }));
 }
 
 export function listRecentReviews(limit: number, offset = 0): ReviewRow[] {

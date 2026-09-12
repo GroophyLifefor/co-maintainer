@@ -127,6 +127,55 @@ export function money(value: number): string {
   return `$${n.toFixed(7).replace(/0+$/, "").replace(/\.$/, "")}`;
 }
 
+const compactNumber = new Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+export function count(value: number): string {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n)) return "0";
+  return n < 1000 ? String(Math.round(n)) : compactNumber.format(n);
+}
+
+export function duration(ms: number | null | undefined): string {
+  const n = Number(ms || 0);
+  if (!Number.isFinite(n) || n <= 0) return "n/a";
+  if (n < 1000) return `${Math.round(n)}ms`;
+  const sec = Math.round(n / 1000);
+  if (sec < 60) return `${sec}s`;
+  return `${Math.floor(sec / 60)}m ${sec % 60}s`;
+}
+
+/** Rendered only when the earlier window had something to compare against,
+ * so an empty first month stays quiet rather than claiming a jump. */
+export function delta(
+  change: number | undefined,
+  days: number,
+  lowerIsBetter = false,
+): string {
+  if (change === undefined || change === 0) return "";
+  const better = lowerIsBetter ? change < 0 : change > 0;
+  const sign = change > 0 ? "+" : "";
+  return `<div class="trend ${
+    better ? "up" : "down"
+  }">${sign}${change}% vs previous ${days} days</div>`;
+}
+
+/** A flex row of divs beats pulling in a chart library for one series, and
+ * it stays readable when a range has a single day in it. */
+export function bars(items: { label: string; value: number }[]): string {
+  if (items.length === 0) return "";
+  const max = Math.max(...items.map((item) => item.value));
+  return `<div class="bars">${
+    items.map((item) =>
+      `<i title="${escapeHtml(item.label)}" style="height:${
+        max > 0 ? Math.max(2, (item.value / max) * 100).toFixed(1) : "2"
+      }%"></i>`
+    ).join("")
+  }</div>`;
+}
+
 /** GitHub truncates long responses, so a count that reached its ceiling is
  * a floor rather than a total and has to read as one. */
 export function capped(value: number, cap: number): string {

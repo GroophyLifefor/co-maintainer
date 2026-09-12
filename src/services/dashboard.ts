@@ -15,7 +15,10 @@ import {
   reviewStatsByModel,
   reviewStatsByRepo,
 } from "../store/reviews.ts";
-import { listFindingsForReview } from "../store/findings.ts";
+import {
+  findingStatsBySeverity,
+  listFindingsForReview,
+} from "../store/findings.ts";
 import { daysAgoIso } from "../util/time.ts";
 import type { DeliveryRow, JobRow, RepoRow, ReviewRow } from "../store/rows.ts";
 
@@ -34,16 +37,48 @@ export class RepoNotFound extends Error {
   }
 }
 
+/** Undefined rather than a made up percentage when the earlier window had
+ * nothing to grow from, so the page can leave the trend line out instead of
+ * printing an infinite jump. */
+function percentChange(before: number, after: number): number | undefined {
+  if (!before) return undefined;
+  return Math.round(((after - before) / before) * 100);
+}
+
+/** A day with no reviews still has to occupy a slot, otherwise the bar chart
+ * silently closes the gap and a quiet week reads like a busy one. */
+function fillDays(
+  days: number,
+  rows: ReturnType<typeof reviewStatsByDay>,
+): ReturnType<typeof reviewStatsByDay> {
+  const byDay = new Map(rows.map((row) => [row.day, row]));
+  const out = [];
+  for (let back = days - 1; back >= 0; back--) {
+    const day = daysAgoIso(back).slice(0, 10);
+    out.push(byDay.get(day) ?? { day, reviews: 0, findings: 0, cost: 0 });
+  }
+  return out;
+}
+
 export function statsForRange(range: string, repo?: string) {
   const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
   const since = daysAgoIso(days);
+  const totals = reviewStats(since, repo);
+  const previous = reviewStats(daysAgoIso(days * 2), repo, since);
   return {
     days,
     since,
-    totals: reviewStats(since, repo),
+    totals,
+    previous,
+    change: {
+      pullRequests: percentChange(previous.pullRequests, totals.pullRequests),
+      findings: percentChange(previous.findings, totals.findings),
+      cost: percentChange(previous.cost, totals.cost),
+    },
     byRepo: reviewStatsByRepo(since),
-    byDay: reviewStatsByDay(since),
+    byDay: fillDays(days, reviewStatsByDay(since)),
     byModel: reviewStatsByModel(since),
+    bySeverity: findingStatsBySeverity(since),
   };
 }
 
