@@ -16,7 +16,7 @@ export function escapeHtml(value: unknown): string {
 }
 
 export function text(value: unknown): string {
-  return escapeHtml(safeCopy(String(value ?? "")));
+  return safeCopy(String(value ?? ""));
 }
 
 function markdownInline(value: string): string {
