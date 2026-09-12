@@ -163,13 +163,15 @@ export function delta(
 }
 
 /** A flex row of divs beats pulling in a chart library for one series, and
- * it stays readable when a range has a single day in it. */
+ * it stays readable when a range has a single day in it. Each column is full
+ * height with the bar painted as a gradient stop, because a bar sized by its
+ * own height leaves nothing to hover over on a quiet day. */
 export function bars(items: { label: string; value: number }[]): string {
   if (items.length === 0) return "";
   const max = Math.max(...items.map((item) => item.value));
   return `<div class="bars">${
     items.map((item) =>
-      `<i title="${escapeHtml(item.label)}" style="height:${
+      `<i title="${escapeHtml(item.label)}" style="--h:${
         max > 0 ? Math.max(2, (item.value / max) * 100).toFixed(1) : "2"
       }%"></i>`
     ).join("")
