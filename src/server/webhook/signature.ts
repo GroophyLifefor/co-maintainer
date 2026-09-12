@@ -14,9 +14,10 @@ function hexToBytes(hex: string): Uint8Array | undefined {
 }
 
 function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.byteLength !== b.byteLength) return false;
+  const n = Math.min(a.byteLength, b.byteLength);
+  if (n === 0) return false;
   let diff = 0;
-  for (let i = 0; i < a.byteLength; i++) diff |= a[i] ^ b[i];
+  for (let i = 0; i < n; i++) diff |= a[i] ^ b[i];
   return diff === 0;
 }
 
