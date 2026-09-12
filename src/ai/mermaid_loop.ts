@@ -45,13 +45,19 @@ export async function completeWithMermaidTools(
     tokensOut: 0,
     cost: undefined as number | undefined,
   };
+  let costKnown = true;
   const merge = (response: AiResponse): AiResponse => {
     totals.tokensIn += response.tokensIn;
     totals.tokensOut += response.tokensOut;
-    if (response.cost !== undefined) {
-      totals.cost = (totals.cost ?? 0) + response.cost;
-    }
-    return { ...response, ...totals };
+    // A missing cost is unknown, not zero, so one silent round makes the whole
+    // total unknown rather than an understated number.
+    if (response.cost === undefined) costKnown = false;
+    else if (costKnown) totals.cost = (totals.cost ?? 0) + response.cost;
+    return {
+      ...response,
+      ...totals,
+      cost: costKnown ? totals.cost : undefined,
+    };
   };
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {

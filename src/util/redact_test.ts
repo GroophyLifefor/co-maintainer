@@ -1,4 +1,4 @@
-import { redact, safeCopy } from "./redact.ts";
+import { outsideCode, redact, safeCopy } from "./redact.ts";
 
 Deno.test("redact replaces known secret shapes", () => {
   const cases: [string, string][] = [
@@ -34,8 +34,29 @@ MIIBOgIBAAJBAK...
 
 Deno.test("safeCopy strips a dash and a semicolon", () => {
   const cleaned = safeCopy("Broken — really; stop");
-  if (cleaned.includes("\u2014") || cleaned.includes(";")) {
+  if (cleaned.includes("—") || cleaned.includes(";")) {
     throw new Error(cleaned);
+  }
+});
+
+Deno.test("safeCopy leaves code blocks alone so suggestions still compile", () => {
+  const source = `Prose with a semicolon; and more.
+
+\`\`\`ts
+let known = true;
+\`\`\`
+
+Inline \`a; b\` stays too.`;
+  const cleaned = safeCopy(source);
+  if (cleaned.includes("semicolon;")) throw new Error(cleaned);
+  if (!cleaned.includes("let known = true;")) throw new Error(cleaned);
+  if (!cleaned.includes("`a; b`")) throw new Error(cleaned);
+});
+
+Deno.test("outsideCode reports untouched text when prose is already clean", () => {
+  const source = "clean prose \`\`\`code; here\`\`\`";
+  if (outsideCode(source, (prose) => prose.replaceAll(";", "")) !== source) {
+    throw new Error("a semicolon inside code was treated as forbidden copy");
   }
 });
 

@@ -15,8 +15,25 @@ export function redact(text: string): string {
   return result;
 }
 
+/** Fenced blocks and inline code spans. The capture group puts code on odd
+ * split indices, so prose can be cleaned without rewriting the code. */
+const CODE = /(```[\s\S]*?```|`[^`\n]*`)/;
+
+export function outsideCode(
+  text: string,
+  clean: (prose: string) => string,
+): string {
+  return text
+    .split(CODE)
+    .map((part, index) => index % 2 === 1 ? part : clean(part))
+    .join("");
+}
+
 /** Dashboard and other human-readable copy. Secrets out, no dash, no
- * semicolon. */
+ * semicolon. Code keeps its own punctuation or it stops compiling. */
 export function safeCopy(text: string): string {
-  return redact(text).replaceAll("\u2014", ", ").replaceAll(";", ".");
+  return outsideCode(
+    redact(text),
+    (prose) => prose.replaceAll("\u2014", ", ").replaceAll(";", "."),
+  );
 }

@@ -8,7 +8,7 @@ import { reviewPullRequest } from "../pr/reviewer.ts";
 import type { Snapshot } from "../pr/snapshot.ts";
 import { matchRepeat } from "../pr/rounds.ts";
 import { readConfig } from "../config.ts";
-import { redact } from "../util/redact.ts";
+import { outsideCode, redact } from "../util/redact.ts";
 import { getRepo, setInstallationId } from "../store/repos.ts";
 import {
   getReviewByJobId,
@@ -31,11 +31,11 @@ const ACCESS_DENIED_BODY =
   "The App does not have access to review this pull request.";
 
 export function humanCopy(text: string): string {
-  return redact(text).replaceAll(";", ".");
+  return outsideCode(redact(text), (prose) => prose.replaceAll(";", "."));
 }
 
 function hasForbiddenCopy(text: string): boolean {
-  return text.includes(";");
+  return outsideCode(text, (prose) => prose.replaceAll(";", "")) !== text;
 }
 
 function severityOf(heading: string): string {
@@ -327,7 +327,10 @@ async function publish(
   const replies = stored.filter((row) => row.thread_comment_id);
   const fresh = parsed.filter((_, index) => !stored[index].thread_comment_id);
   const { inline, leftover } = splitInline(fresh, files);
-  const body = reviewBody([...leftover, ...inline], inline.length + replies.length);
+  const body = reviewBody(
+    [...leftover, ...inline],
+    inline.length + replies.length,
+  );
   const comments = inline.map((finding) => ({
     path: finding.path,
     body: inlineCommentBody(finding),

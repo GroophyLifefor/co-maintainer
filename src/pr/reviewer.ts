@@ -34,16 +34,37 @@ If a diagram is useful, call read-mermaid-syntaxes before writing any Mermaid.
 Request every type you need in a single call, because repeated tool rounds are
 capped. Use the smallest type that matches the evidence.`;
 
-const REVIEW_SYSTEM_PROMPT = `You are a precise open-source code reviewer.
+const REVIEW_ROLE = `You are a precise open-source code reviewer.
 Evidence must come from the supplied diff and review guide. Keep findings
-concise by default. Use Mermaid only when a diagram materially clarifies a
-multi-step flow, lifecycle, dependency, data model, protocol, or architecture.
-Use zero diagrams when prose is clearer. During the initial review, use at most
-one diagram. If a user later asks for detailed reasoning in a reply, that reply
-may use up to five diagrams, but only when each adds a distinct useful view.
+concise by default.`;
+
+const REVIEW_DIAGRAM_RULES = `Use Mermaid only when a diagram materially
+clarifies a multi-step flow, lifecycle, dependency, data model, protocol, or
+architecture. Use zero diagrams when prose is clearer. During the initial
+review, use at most one diagram. If a user later asks for detailed reasoning in
+a reply, that reply may use up to five diagrams, but only when each adds a
+distinct useful view.
 ${MERMAID_GUIDANCE}
 Do not invent nodes, actors, states, services, tables, or events. If syntax is
 uncertain, omit the diagram.`;
+
+/** Without tool support the model cannot read the Mermaid syntax docs, so
+ * asking for a diagram only invites invented syntax. */
+export const NO_DIAGRAM_RULES =
+  `Do not use Mermaid or any other diagram. Explain with prose only.`;
+
+const DIAGRAM_PROMPT_RULES = `Use a Mermaid fenced code block only when it
+materially improves the explanation. This review may contain at most one
+diagram in total, and most reviews need none. Its type must be one of the types
+named in the system instructions, and you must read that type with
+read-mermaid-syntaxes first. Keep labels short and grounded in the supplied
+evidence. Never use a diagram for a one-line fix or for obvious cause and
+effect. Close every fenced block.`;
+
+export function reviewSystemPrompt(diagrams: boolean): string {
+  return `${REVIEW_ROLE}
+${diagrams ? REVIEW_DIAGRAM_RULES : NO_DIAGRAM_RULES}`;
+}
 
 function text(value: unknown, limit = 20_000): string {
   const result = String(value ?? "");
@@ -88,7 +109,9 @@ export async function reviewPullRequest(
     ]);
   report(
     `context loaded · comments=${allComments.length} · reviews=${allReviews.length} · ` +
-      `guide=${shortGuide.length || skill.length} chars · codebase=${codebase.length} chars`,
+      `guide=${
+        shortGuide.length || skill.length
+      } chars · codebase=${codebase.length} chars`,
   );
   const guide = shortGuide || skill;
   const before = (item: Json) =>
@@ -130,6 +153,11 @@ export async function reviewPullRequest(
       diffWasTruncated ? " · truncated for model context" : ""
     }`,
   );
+  const provider = ai ?? new OpenRouterProvider(
+    options.aiToken ?? "",
+    options.highModel ?? "openai/gpt-5.6-luna",
+  );
+  const diagrams = provider.supportsTools !== false;
   const prompt =
     `Review this pull request against the repository's review guide and
 codebase conventions. Find only actionable code-level violations supported by
@@ -163,12 +191,7 @@ for findings where more detail would be useful.
 Use P0-P3 severity and exactly either "blocking" or "non-blocking".
 Keep the Location line machine-readable; it is removed from user-facing
 review copies. Use Markdown backticks around paths and symbols.
-Use a Mermaid fenced code block only when it materially improves the
-explanation. This review may contain at most one diagram in total, and most
-reviews need none. Its type must be one of the types named in the system
-instructions, and you must read that type with read-mermaid-syntaxes first.
-Keep labels short and grounded in the supplied evidence. Never use a diagram
-for a one-line fix or for obvious cause and effect. Close every fenced block.
+${diagrams ? DIAGRAM_PROMPT_RULES : NO_DIAGRAM_RULES}
 
 REVIEW GUIDE:
 ${text(guide)}
@@ -201,14 +224,10 @@ ${
 DIFF:
 ${diff}`;
 
-  const provider = ai ?? new OpenRouterProvider(
-    options.aiToken ?? "",
-    options.highModel ?? "openai/gpt-5.6-luna",
-  );
   const matrix = Math.max(1, options.improveMatrix);
   const request: AiRequest = {
     job: "review_pull_request",
-    system: REVIEW_SYSTEM_PROMPT,
+    system: reviewSystemPrompt(diagrams),
     prompt,
     maxTokens: 24_000 * matrix,
     reasoningEffort: "high",

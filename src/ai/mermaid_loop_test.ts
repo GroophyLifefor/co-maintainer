@@ -10,10 +10,12 @@ function toolCall(name: string, tools: string[]) {
 }
 
 class ScriptedProvider implements AiProvider {
-  readonly supportsTools = true;
   requests: AiRequest[] = [];
 
-  constructor(private readonly script: Partial<AiResponse>[]) {}
+  constructor(
+    private readonly script: Partial<AiResponse>[],
+    readonly supportsTools = true,
+  ) {}
 
   complete(request: AiRequest): Promise<AiResponse> {
     this.requests.push(structuredClone(request));
@@ -118,4 +120,26 @@ Deno.test("cost is summed across tool rounds when the provider reports it", asyn
   ]);
   const result = await ask(provider);
   if (result.cost !== 0.75) throw new Error(`cost was ${result.cost}`);
+});
+
+Deno.test("an unreported cost in any round leaves the total unknown", async () => {
+  const provider = new ScriptedProvider([
+    { toolCalls: toolCall("read-mermaid-syntaxes", ["flowchart"]) },
+    { text: "done", cost: 0.5 },
+  ]);
+  const result = await ask(provider);
+  if (result.cost !== undefined) {
+    throw new Error(`a partial total was reported as known: ${result.cost}`);
+  }
+});
+
+Deno.test("a provider without tool support skips the loop entirely", async () => {
+  const provider = new ScriptedProvider([{ text: "plain" }], false);
+  const result = await completeWithMermaidTools(provider, {
+    job: "test",
+    prompt: "hi",
+    maxTokens: 10,
+  }, 1);
+  if (result.text !== "plain") throw new Error(result.text);
+  if (provider.requests[0].tools) throw new Error("tools were sent anyway");
 });
