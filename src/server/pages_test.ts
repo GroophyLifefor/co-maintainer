@@ -103,6 +103,28 @@ function seed(): void {
     prNumber: 7,
   });
   insertReview({
+    id: "rev-old",
+    repo: "acme/widgets",
+    prNumber: 7,
+    jobId: "job-old",
+    headSha: "oldhead",
+    baseSha: "cafebabe",
+    scope: "whole-pr",
+    model: "fake",
+    round: 1,
+  });
+  setReviewStatus("rev-old", "posted", { findings_count: 1, cost: 0.01 });
+  insertFinding({
+    id: "f-old",
+    reviewId: "rev-old",
+    severity: "P1",
+    path: "src/legacy.ts",
+    lineFrom: 9,
+    lineTo: 9,
+    title: "old finding",
+    bodyMd: "This finding belongs to an earlier review.",
+  });
+  insertReview({
     id: "rev-1",
     repo: "acme/widgets",
     prNumber: 7,
@@ -111,6 +133,7 @@ function seed(): void {
     baseSha: "cafebabe",
     scope: "whole-pr",
     model: "fake",
+    round: 2,
   });
   setReviewStatus("rev-1", "posted", { findings_count: 1, cost: 0.02 });
   insertFinding({
@@ -238,6 +261,9 @@ Deno.test("each page renders 200 with seeded data", async () => {
     )).text();
     if (!pr.includes("unused value")) {
       throw new Error("pr page missed the finding");
+    }
+    if (!pr.includes("old finding") || !pr.includes("This finding belongs")) {
+      throw new Error("pr page missed findings from an older review");
     }
     const pulls = await (await app.fetch(
       new Request("http://localhost/repos/acme/widgets/pulls", {
