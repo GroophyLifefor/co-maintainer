@@ -99,7 +99,9 @@ function inlineCommentBody(finding: ParsedFinding): string {
   const excerpt = humanCopy(finding.excerpt);
   const marker = `${finding.path}:${finding.from}`;
   const at = excerpt.indexOf(marker);
-  const rest = at >= 0 ? excerpt.slice(at + marker.length).trim() : "";
+  const rest = at >= 0
+    ? excerpt.slice(at + marker.length).trim()
+    : excerpt.trim();
   if (!rest) return heading;
   return `${heading}\n\n${rest}`;
 }

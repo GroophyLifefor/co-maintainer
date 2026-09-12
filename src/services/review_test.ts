@@ -173,6 +173,14 @@ Deno.test("fake AI markdown becomes findings rows and a GitHub review POST", asy
     if (body.comments[0].body.includes("## Findings")) {
       throw new Error(`inline dump ${body.comments[0].body}`);
     }
+    if (
+      !body.comments[0].body.includes(
+        "The helper ignores its argument, so the new behavior is never applied.",
+      ) ||
+      !body.comments[0].body.includes("Mechanism")
+    ) {
+      throw new Error(`inline finding was truncated ${body.comments[0].body}`);
+    }
     if (JSON.stringify(posted.body).includes(";")) {
       throw new Error("posted review body used a semicolon");
     }
