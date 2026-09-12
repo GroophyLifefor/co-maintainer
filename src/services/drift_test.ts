@@ -90,6 +90,31 @@ Deno.test("refreshDrift stores a first reading and then serves it from the table
   });
 });
 
+Deno.test("refreshDrift discards a fresh reading taken against an older build", async () => {
+  await withTempDb(async () => {
+    activateRepo("acme/widgets", 9);
+    markKnowledgeBuilt("acme/widgets", BASE_SHA);
+    upsertDrift({
+      repo: "acme/widgets",
+      as_of: new Date().toISOString(),
+      prs_since: 99,
+      prs_updated: 99,
+      commits_since: 99,
+      files_changed: 99,
+    });
+
+    markKnowledgeBuilt("acme/widgets", BASE_SHA);
+    if (getDrift("acme/widgets") !== undefined) {
+      throw new Error("a rebuild left the previous baseline's counts behind");
+    }
+
+    const row = await refreshDrift("acme/widgets", new FakeClient());
+    if (row?.prs_since !== 4) {
+      throw new Error(`not recomputed after a rebuild: ${JSON.stringify(row)}`);
+    }
+  });
+});
+
 Deno.test("refreshDrift keeps the stored row when GitHub fails", async () => {
   await withTempDb(async () => {
     activateRepo("acme/widgets", 9);

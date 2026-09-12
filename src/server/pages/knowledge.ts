@@ -1,11 +1,15 @@
-import { empty, html, layout, repoNav, skSlot, text, when } from "./layout.ts";
+import {
+  capped,
+  empty,
+  html,
+  layout,
+  repoNav,
+  skSlot,
+  text,
+  when,
+} from "./layout.ts";
+import { COMPARE_FILE_CAP, MAX_COMMITS_COUNTED } from "../../services/drift.ts";
 import type { repoKnowledge } from "../../services/dashboard.ts";
-
-/** A compare response stops listing files at 300, so that figure is a
- * floor rather than a count. */
-function fileCount(files: number): string {
-  return files >= 300 ? "300+" : String(files);
-}
 
 function sizeLabel(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -25,8 +29,10 @@ export function renderKnowledge(
       when(data.repo.knowledge_built_at)
     }.${
       drift
-        ? ` Since then: <b>${drift.prs_since} new pull requests</b>, <b>${drift.prs_updated} changed pull requests</b>, <b>${drift.commits_since} new commits</b> and <b>${
-          fileCount(drift.files_changed)
+        ? ` Since then: <b>${drift.prs_since} new pull requests</b>, <b>${drift.prs_updated} changed pull requests</b>, <b>${
+          capped(drift.commits_since, MAX_COMMITS_COUNTED)
+        } new commits</b> and <b>${
+          capped(drift.files_changed, COMPARE_FILE_CAP)
         } changed files</b>. <span class="muted">Checked ${
           when(drift.as_of)
         }.</span>`

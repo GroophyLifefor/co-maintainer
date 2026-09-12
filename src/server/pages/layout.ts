@@ -127,6 +127,12 @@ export function money(value: number): string {
   return `$${n.toFixed(7).replace(/0+$/, "").replace(/\.$/, "")}`;
 }
 
+/** GitHub truncates long responses, so a count that reached its ceiling is
+ * a floor rather than a total and has to read as one. */
+export function capped(value: number, cap: number): string {
+  return value >= cap ? `${cap}+` : String(value);
+}
+
 export function when(iso: string | null | undefined): string {
   if (!iso) return "never";
   const abs = new Date(iso);

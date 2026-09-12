@@ -12,9 +12,11 @@ const FRESH_MS = 15 * 60 * 1000;
 
 /** GitHub caps a compare response at 300 files, so a very large drift
  * reports 300 and the UI reads "300+". */
-const COMPARE_FILE_CAP = 300;
+export const COMPARE_FILE_CAP = 300;
 
-const MAX_COMMITS_COUNTED = 500;
+/** The fallback path pages through commits, so it stops counting rather than
+ * walking a year of history. Pages read this ceiling the same way. */
+export const MAX_COMMITS_COUNTED = 500;
 
 function isCommitSha(value: string | null): value is string {
   return !!value && /^[0-9a-f]{40}$/.test(value);

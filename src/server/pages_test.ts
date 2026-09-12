@@ -366,6 +366,35 @@ Deno.test("the knowledge page counts new and changed pull requests apart", async
   });
 });
 
+Deno.test("a drift count that hit its ceiling reads as a floor on both pages", async () => {
+  await withEnv(async () => {
+    seed();
+    upsertDrift({
+      repo: "acme/widgets",
+      as_of: new Date().toISOString(),
+      prs_since: 2,
+      prs_updated: 1,
+      commits_since: 500,
+      files_changed: 300,
+    });
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    for (
+      const path of [
+        "/repos/acme/widgets",
+        "/repos/acme/widgets/knowledge",
+      ]
+    ) {
+      const html = await (await app.fetch(
+        new Request(`http://localhost${path}`, { headers: { cookie } }),
+      )).text();
+      if (!html.includes("500+") || !html.includes("300+")) {
+        throw new Error(`${path} showed a capped count as exact`);
+      }
+    }
+  });
+});
+
 Deno.test("GET /client.js is the fetch wrapper with toast and retry", async () => {
   const app = createApp({ password: PASSWORD });
   const response = await app.fetch(new Request("http://localhost/client.js"));

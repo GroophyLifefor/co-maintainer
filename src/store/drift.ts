@@ -22,6 +22,10 @@ export function upsertDrift(row: DriftRow): void {
   );
 }
 
+export function deleteDrift(repo: string): void {
+  getAppDb().prepare(`DELETE FROM drift WHERE repo = ?`).run(repo);
+}
+
 export function getDrift(repo: string): DriftRow | undefined {
   return getAppDb().prepare<DriftRow>(`SELECT * FROM drift WHERE repo = ?`)
     .get(repo);
