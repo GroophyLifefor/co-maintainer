@@ -71,7 +71,7 @@ reviewer flags in that round tends to be sharper.
      a line can drift between when the comment was made and when it was
      fetched).
 6. What survives is written as one gold row:
-   `{ pr, path, from_line, to_line, side, quote, why, round_base_commit,
+   `{ repo, pr, path, from_line, to_line, side, quote, why, round_base_commit,
    round_commit, ref_before }`.
    `quote` is the reviewer's own words; `why` explains, in the curator's words,
    what the actual defect is and why the comment is right — this is what a judge
@@ -111,5 +111,100 @@ same underlying defect regardless of file/line; a confirmed pair still counts as
 a match.
 
 ```sh
-deno task bench-rereview --repo=owner/repo --review-concurrent=4 --high-model=... --judge-model=...
+deno task bench-rereview --review-concurrent=4 --high-model=... --judge-model=...
 ```
+
+### Comparing against another tool
+
+`--runner=` selects what produces the findings. `comaintainer` (default) calls
+`reviewPullRequest`; `ocr` shells out to Alibaba's
+[Open Code Review](https://github.com/alibaba/open-code-review) CLI. Both are
+handed the same incremental diff (`round_base_commit..round_commit`) and scored
+by the same `match.ts` + `judge.ts` + `metrics.ts`, so the numbers sit side by
+side.
+
+```sh
+deno task bench-rereview --runner=ocr
+deno task bench-rereview --runner=comaintainer
+```
+
+The gold set spans five repositories, so each row carries its own `repo` and the
+run groups jobs by `(repo, pr)`. `--repo=owner/repo` is a **filter** that
+narrows a run to one of them, not a default, and `--ocr-clone=` names the
+**root** that holds one clone per repo (`benchmark/clones/owner-repo`). Results
+are written per dataset rather than per repo, and the summary prints one line
+per repo plus a pooled total. A single-repo dataset whose rows have no `repo`
+still works, as long as `--repo` is given.
+
+**Preparation is not timed** — for either tool. `deno task init` for
+co-maintainer, and for OCR the provider/model setup (`ocr config`) plus a clone
+holding both of the round's commits:
+
+```sh
+git clone https://github.com/owner/repo benchmark/clones/owner-repo
+git -C benchmark/clones/owner-repo fetch origin <round_base_commit> <round_commit>
+```
+
+Both runners check every repo in the dataset before the first review, so a
+missing init or a missing clone fails in a second with the exact command to fix
+it rather than partway through a paid run.
+
+The runner refuses to review a commit the clone does not have, rather than
+silently reviewing a different diff — squashed or rebased PRs need the dangling
+SHAs fetched explicitly. What is measured is one review call: wall-clock time,
+tokens, cost, and findings.
+
+### Upstream scope
+
+A re-review round's diff (`round_base_commit..round_commit`) can include a
+`merge <default branch>` the author made mid-round — one measured case here had
+a round diff of 48 files where the author's own commits touched 5. Neither the
+human reviewer whose comments became gold nor the benchmark's judge ever reads
+that other 43; scoring a tool against it would only reward or punish behavior on
+code nobody asked it to look at.
+
+Both runners apply the same scope (`src/pr/scope.ts`) before reviewing: files
+touched by the author's own non-merge commits, plus the conflict-resolution
+hunks of any merge they made — a clean "merge main in" contributes nothing.
+co-maintainer still shows upstream files as compact, patch-free context (see
+`--review-upstream` below); OCR excludes them outright via `--exclude`, the
+closest equivalent its CLI has. Either way, neither tool is scored against code
+it was never shown as its own to fix. Scope needs a git clone (the same one
+`--runner=ocr` already requires, and co-maintainer's own cache otherwise); if
+that clone or its history is unavailable, scoping is skipped for that run and
+both tools fall back to reviewing every changed file, logged as such.
+
+Two things to keep honest when reporting a comparison:
+
+- **Same model on both sides**, set OCR to the same model via a custom provider,
+  otherwise the result compares models rather than tools.
+- **Each tool runs with its own structure.** co-maintainer sees its
+  `PR_REVIEW_GUIDE.md` and the PR's prior comments; OCR sees its own ruleset and
+  the diff. That asymmetry is the tools being different, not the benchmark being
+  unfair, and neither side is stripped down to match the other.
+- **Both are scoped to the same files** (above), so a merge the author made
+  mid-round does not inflate one tool's false positives or the other's token
+  count relative to the other.
+
+Cost is reported only when the tool reports it. OCR's JSON does not always carry
+usage, in which case `costKnown` is `false` and the cost column reads `unknown`.
+
+# Results
+
+## typescript-eslint/typescript-eslint — 3 PRs, 4 gold rows, `openai/gpt-5.6-luna`
+
+date: 12.09.2026
+
+|            | co-maintainer | OCR         | Ratio                          |
+| ---------- | ------------- | ----------- | ------------------------------ |
+| F1         | **0.667**     | 0.211       | 3.16x better than OCR          |
+| Precision  | **1.000**     | 0.133       | 7.52x better than OCR          |
+| Recall     | 0.500         | 0.500       | same                           |
+| Avg time   | **49.8s**     | 202.0s      | 4.05x faster than OCR          |
+| Avg tokens | **18.9K**     | 1.35M (71×) | 71.00x fewer (better) than OCR |
+| Total cost | **$0.025**    | $1.62 (65×) | 65.00x cheaper than OCR        |
+
+q: why too low PR and gold? 
+a: OCR is expensive and right now it's only a side
+project. I could run the co-maintainer through 65 benchmark tests, but a single
+small OCR benchmark test is cost worth all of them.

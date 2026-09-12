@@ -9,6 +9,19 @@ export type Options = {
   prNumber?: number;
   debug: boolean;
   logTime: boolean;
+  /** Pre-approves installing the pinned third-party tools, for non-interactive
+   * runs where there is nobody to answer the prompt. Optional so that absence
+   * means "not approved", which is the safe default for every caller that
+   * builds Options itself. */
+  allowToolInstall?: boolean;
+  /** Builds a codegraph repository map and adds it to the review prompt. */
+  map?: boolean;
+  /** Reviews every changed file with no own/upstream split — the behavior
+   * before scope.ts existed. Off by default: a re-review round's diff can
+   * carry a merge from the default branch that dwarfs the PR's own change,
+   * and neither a human reviewer nor this flag's absence asks anyone to read
+   * it as if the PR authored it. */
+  reviewUpstream?: boolean;
   improveMatrix: number;
   ghConcurrent: number;
   aiConcurrent: number;
@@ -71,7 +84,12 @@ export type AiRequest = {
   tools?: Json[];
   maxTokens: number;
   job: string;
-  reasoningEffort?: "high";
+  // The full scale OpenRouter exposes for models that support it (see a
+  // model's `reasoning.supported_efforts`), highest first. Not every model
+  // supports every level — "max"/"xhigh" are newer additions some models
+  // don't have, and requesting an unsupported one is the caller's mistake to
+  // avoid, not something validated here.
+  reasoningEffort?: "max" | "xhigh" | "high" | "medium" | "low" | "none";
 };
 
 export type AiResponse = {

@@ -56,7 +56,7 @@ export function parseArgs(args: string[]): Options {
       "         --webhook-url=https://host/github/webhook [or CM_WEBHOOK_URL]",
     );
     console.log(
-      "         --env=PATH --debug --log-time --gh-concurrent=N --ai-concurrent=N --improve-matrix=N",
+      "         --env=PATH --debug --log-time --allow-tool-install --gh-concurrent=N --ai-concurrent=N",
     );
     console.log(
       "Options: --include-codebase --include-pull-requests --include-pull-request-changes",
@@ -167,7 +167,10 @@ export function parseArgs(args: string[]): Options {
         "high-model",
       ]
         .some((name) => arg.startsWith(`--${name}=`));
-    if (arg === "--debug" || arg === "--log-time") continue;
+    if (
+      arg === "--debug" || arg === "--log-time" || arg === "--map" ||
+      arg === "--allow-tool-install" || arg === "--review-upstream"
+    ) continue;
     if (arg.startsWith("--") && !known) die(`Unknown option: ${arg}`);
   }
 
@@ -266,6 +269,9 @@ export function parseArgs(args: string[]): Options {
     prNumber,
     debug: rest.includes("--debug"),
     logTime: rest.includes("--log-time"),
+    allowToolInstall: rest.includes("--allow-tool-install"),
+    map: rest.includes("--map"),
+    reviewUpstream: rest.includes("--review-upstream"),
     envPath,
     improveMatrix: value("improve-matrix") ?? 1,
     ghConcurrent: Math.max(1, value("gh-concurrent") ?? 1),
