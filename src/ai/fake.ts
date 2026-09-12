@@ -9,7 +9,7 @@ The helper ignores its argument, so the new behavior is never applied.
 
 The helper accepts an argument but returns the same result without reading it.
 
-If you want the detailed reasoning, reply to this finding.
+If you'd like me to explain it in more detail, please ask.
 `;
 
 export class FakeAiProvider implements AiProvider {

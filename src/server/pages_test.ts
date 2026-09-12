@@ -473,6 +473,63 @@ Deno.test("mutating pages ship a skeleton and a failure path", async () => {
   });
 });
 
+Deno.test("usage breaks spend down by day, model and severity", async () => {
+  await withEnv(async () => {
+    seed();
+    setReviewStatus("rev-1", "posted", {
+      tokens_in: 12000,
+      tokens_out: 3400,
+      duration_ms: 90000,
+    });
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const html = await (await app.fetch(
+      new Request("http://localhost/analytics?range=7d", {
+        headers: { cookie },
+      }),
+    )).text();
+    assertCleanCopy(html, "/analytics");
+    const visible = visibleText(html);
+    for (const label of ["Cost per day", "By model", "Findings by severity"]) {
+      if (!visible.includes(label)) throw new Error(`usage missed ${label}`);
+    }
+    if ((html.match(/<div class="bars">/g) ?? []).length !== 1) {
+      throw new Error("usage missed the daily bar chart");
+    }
+    if ((html.match(/<i title="/g) ?? []).length !== 7) {
+      throw new Error("7d range did not fill every day with a bar");
+    }
+    if (
+      !visible.includes("15.4K") || !visible.includes("12K in and 3.4K out")
+    ) {
+      throw new Error(`usage missed the token split: ${visible.slice(0, 400)}`);
+    }
+    if (!visible.includes("1m 30s")) {
+      throw new Error("usage missed the average review duration");
+    }
+    if (!visible.includes("P1") || !visible.includes("P2")) {
+      throw new Error("usage missed the severity rows");
+    }
+    const api = await (await app.fetch(
+      new Request("http://localhost/api/analytics?range=7d", {
+        headers: { cookie },
+      }),
+    )).json();
+    if (api.bySeverity.length !== 2 || api.byDay.length !== 7) {
+      throw new Error(`api shape ${JSON.stringify(api).slice(0, 200)}`);
+    }
+    const repeat = api.bySeverity.find((row: { severity: string }) =>
+      row.severity === "P2"
+    );
+    if (repeat.repeats !== 1) {
+      throw new Error("api lost the raised again count");
+    }
+    if (api.previous === undefined || api.change === undefined) {
+      throw new Error("api lost the trend window");
+    }
+  });
+});
+
 Deno.test("activity lists a job as a link and the job page shows the error", async () => {
   await withEnv(async () => {
     seed();
