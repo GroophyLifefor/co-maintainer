@@ -2,6 +2,7 @@ import { chatBody, parseChatResponse } from "./provider.ts";
 import type { AiProvider, AiRequest, AiResponse, Json } from "../types.ts";
 
 export class OpenRouterProvider implements AiProvider {
+  readonly supportsTools = true;
   private readonly endpoint = "https://openrouter.ai/api/v1/chat/completions";
 
   constructor(

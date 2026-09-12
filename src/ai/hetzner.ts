@@ -5,6 +5,7 @@ const sleep = (milliseconds: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 
 export class HetznerProvider implements AiProvider {
+  readonly supportsTools = false;
   private readonly endpoint: string;
   private nextRequest = 0;
   private spacing = 8_000;
