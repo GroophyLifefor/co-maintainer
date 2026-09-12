@@ -2,6 +2,7 @@
  * directly; it used to re-spawn the CLI as a subprocess, a second
  * execution path with its own failure modes. */
 import { createAiProvider } from "../ai/provider.ts";
+import { ensureCodegraph } from "../tools/codegraph.ts";
 import { enrichFacts, synthesizeSections } from "../knowledge/synthesis.ts";
 import { collectSource } from "../github/collect.ts";
 import { GhClient } from "../github/gh.ts";
@@ -164,6 +165,9 @@ function addReviewLink(
 }
 
 export async function runInitOrRemake(options: Options): Promise<void> {
+  // Before any work or any spend: indexing needs codegraph, and declining to
+  // install it ends the command rather than silently producing a lesser index.
+  await ensureCodegraph({ allowInstall: options.allowToolInstall });
   const operationStarted = performance.now();
   const aiMetrics = emptyAiMetrics();
   const previous = await readState(options.repo);

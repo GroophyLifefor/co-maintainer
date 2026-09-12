@@ -1,4 +1,5 @@
 import { readConfig } from "../../config.ts";
+import { ensureCodegraph } from "../../tools/codegraph.ts";
 import { appDbPath, closeAppDb, openAppDb } from "../../store/app_db.ts";
 import { createApp } from "../../server/app.ts";
 import {
@@ -68,6 +69,12 @@ export async function runServe(args: string[]): Promise<void> {
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
     die("--port must be an integer between 1 and 65535");
   }
+
+  // The server indexes repositories on demand, so the tool has to be there
+  // before it starts accepting webhooks rather than failing on the first job.
+  await ensureCodegraph({
+    allowInstall: args.includes("--allow-tool-install"),
+  });
 
   const config = readConfig();
   const webhookUrl = resolveWebhookUrl(args, port, config.webhookUrl);

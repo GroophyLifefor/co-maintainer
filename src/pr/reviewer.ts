@@ -1,6 +1,8 @@
 import { OpenRouterProvider } from "../ai/openrouter.ts";
 import { completeWithMermaidTools } from "../ai/mermaid_loop.ts";
 import { reposDir } from "../config.ts";
+import { buildMap } from "./map.ts";
+import { computeScope } from "./scope.ts";
 import type { Snapshot } from "./snapshot.ts";
 import type {
   AiProvider,
@@ -73,6 +75,35 @@ function text(value: unknown, limit = 20_000): string {
     : result;
 }
 
+const MAX_FILE_PATCH_CHARS = 12_000;
+
+/** GitHub omits `patch` entirely for files it considers too large, and the file
+ * still appears in the compare response with only its counts. Rendering that as
+ * an empty body reads as "this file did not change", and a reviewer then
+ * reports the absence as a finding (a lockfile that was in fact regenerated,
+ * say). Say plainly that the hunks are missing, and mark a per-file truncation
+ * for the same reason. */
+export function filePatch(file: Json): string {
+  const patch = String(file.patch ?? "");
+  const status = String(file.status ?? "modified");
+  const changes = Number(file.changes ?? 0);
+  const additions = Number(file.additions ?? 0);
+  const deletions = Number(file.deletions ?? 0);
+  if (patch === "") {
+    const counts = Number.isFinite(changes) && changes > 0
+      ? `${changes} changed lines (+${additions} -${deletions})`
+      : "an unreported number of changed lines";
+    return `[${status}; ${counts}; diff withheld by GitHub, not shown here. ` +
+      `Do not treat this file as unchanged and do not report its contents.]`;
+  }
+  if (patch.length > MAX_FILE_PATCH_CHARS) {
+    return `${patch.slice(0, MAX_FILE_PATCH_CHARS)}\n[${status}; ${changes} ` +
+      `changed lines total; this file's diff is cut off here, later hunks are ` +
+      `not shown.]`;
+  }
+  return patch;
+}
+
 export async function readGuide(repo: string, name: string): Promise<string> {
   try {
     return await Deno.readTextFile(`${reposDir()}/${repo}/${name}`);
@@ -140,16 +171,95 @@ export async function reviewPullRequest(
     );
   }
 
-  const patch = files.map((file) => {
+  // What the author actually wrote this round, as opposed to code that
+  // arrived by merging the default branch in — see scope.ts. A re-review
+  // round's diff regularly carries a `merge main` that dwarfs the PR's own
+  // change and that no human reviewer reads either; --review-upstream turns
+  // this off and reviews everything, matching the pre-scope behavior.
+  const headSha = snapshot?.commit ??
+    String((pr.head as Json | undefined)?.sha ?? "");
+  const baseRevision = snapshot?.base ??
+    String((pr.base as Json | undefined)?.ref ?? "main");
+  if (options.reviewUpstream) {
+    report("scope skipped · --review-upstream");
+  } else if (!headSha) {
+    report("scope skipped · no head commit for this pull request");
+  }
+  const scope = options.reviewUpstream || !headSha
+    ? undefined
+    : await computeScope(options.repo, baseRevision, headSha);
+  if (!options.reviewUpstream && headSha && !scope) {
+    report("scope unavailable · reviewing every changed file");
+  }
+
+  const named = files.map((file) => {
     const value = file as Json;
-    return `FILE: ${String(value.filename ?? "")}\n${
-      text(value.patch, 12_000)
-    }`;
-  }).join("\n\n");
-  const diffWasTruncated = patch.length > MAX_REVIEW_DIFF_CHARS;
-  const diff = text(patch, MAX_REVIEW_DIFF_CHARS);
+    return { file: value, path: String(value.filename ?? "") };
+  });
+  const ownFiles = scope
+    ? named.filter(({ path }) => !scope.upstreamFiles.has(path))
+    : named;
+  const upstreamFiles = scope
+    ? named.filter(({ path }) => scope.upstreamFiles.has(path))
+    : [];
+  if (scope) {
+    report(
+      `scope resolved · own=${ownFiles.length} files · upstream=${upstreamFiles.length} files`,
+    );
+  }
+
+  const ownPatch = ownFiles.map(({ file, path }) =>
+    `FILE: ${path}\n${filePatch(file)}`
+  ).join("\n\n");
+  const diffWasTruncated = ownPatch.length > MAX_REVIEW_DIFF_CHARS;
+  const ownDiff = text(ownPatch, MAX_REVIEW_DIFF_CHARS);
+  const upstreamListing = upstreamFiles.map(({ file, path }) =>
+    `- ${path} (+${Number(file.additions ?? 0)} -${
+      Number(file.deletions ?? 0)
+    })`
+  ).join("\n");
+  const diff = upstreamFiles.length === 0 ? ownDiff : `${ownDiff}
+
+UPSTREAM CONTEXT — arrived via a merge this round, not authored by this pull
+request. Do not raise a finding located only in this code; only note an
+interaction if the pull request's own change above relies on or conflicts with
+one of these files, and never mark that finding blocking:
+${text(upstreamListing, 20_000)}`;
+
+  // The map answers what the diff cannot: who calls the changed symbols and
+  // whether a test reaches them. Off by default so the review path stays
+  // self-contained, and so its effect can be measured against a run without it.
+  let map = "";
+  if (options.map) {
+    if (!headSha) {
+      report("map skipped · no head commit for this pull request");
+    } else {
+      try {
+        const built = await buildMap(
+          options.repo,
+          number,
+          headSha,
+          named.map(({ path, file }) => ({
+            path,
+            changes: Number(file.changes ?? 0),
+          })),
+          {
+            allowInstall: options.allowToolInstall,
+            priority: scope?.ownFiles,
+          },
+        );
+        map = built.text;
+        report(
+          `map ready · ${built.queried.length} files · ${built.chars} chars`,
+        );
+      } catch (error) {
+        // A missing clone or a codegraph failure must not cost the review.
+        report(`map unavailable · ${String(error)}`);
+      }
+    }
+  }
   report(
-    `diff prepared · ${patch.length} chars${
+    `diff prepared · ${ownPatch.length} chars${
       diffWasTruncated ? " · truncated for model context" : ""
     }`,
   );
@@ -174,6 +284,10 @@ Do not stop early; inspect all supplied diff text first and return the natural
 count. If the diff contains a truncation marker, limit claims to the supplied
 text and do not imply that omitted files were reviewed.
 Do not invent low-value findings.
+When the DIFF section below has an UPSTREAM CONTEXT part, that code arrived
+through a merge and was not authored by this pull request; do not raise a
+finding located only there, and never mark blocking a finding whose only
+support is upstream context.
 Each finding must use this exact structure, keeping the default finding under
 120 words excluding an optional diagram:
 
@@ -203,6 +317,17 @@ ${text(detailed)}
 CODEBASE CONVENTIONS:
 ${text(codebase) || "None recorded."}
 
+REPOSITORY MAP:
+${
+      map
+        ? `Symbols in the changed files, their callers, and whether a test
+reaches them. Use it to judge completeness and coverage, which the diff alone
+cannot show. Absence of a caller or a test here is evidence, not proof.
+
+${text(map, 60_000)}`
+        : "Not available for this review."
+    }
+
 PULL REQUEST:
 ${
       JSON.stringify({
@@ -230,8 +355,14 @@ ${diff}`;
     job: "review_pull_request",
     system: reviewSystemPrompt(diagrams),
     prompt,
-    maxTokens: 24_000 * matrix,
-    reasoningEffort: "high",
+    // openai/gpt-5.6-luna supports effort above "high" (max > xhigh > high on
+    // OpenRouter's scale for this model; verified via its /models endpoint,
+    // not assumed). Reasoning tokens draw from the same completion budget the
+    // provider caps at 128,000, so maxTokens has to grow with the effort or a
+    // "max"-effort call can spend its whole budget thinking and return no
+    // findings text at all.
+    maxTokens: 48_000 * matrix,
+    reasoningEffort: "max",
   };
   report(
     `AI request · model=${options.highModel ?? "openrouter default"} · ` +
@@ -239,7 +370,7 @@ ${diff}`;
   );
   if (options.debug) {
     console.log(
-      `[debug] review prompt · ${prompt.length} chars · diff=${patch.length} chars`,
+      `[debug] review prompt · ${prompt.length} chars · diff=${diff.length} chars`,
     );
     console.log(
       `[debug] openrouter request · model=${

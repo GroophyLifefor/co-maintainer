@@ -4,3 +4,4 @@ repos/
 z_flow/
 benchmark/dataset.json
 benchmark/results/
+benchmark/clones/
