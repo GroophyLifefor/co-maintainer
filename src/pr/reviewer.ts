@@ -116,12 +116,45 @@ Do not stop early; inspect all supplied diff text first and return the natural
 count. If the diff contains a truncation marker, limit claims to the supplied
 text and do not imply that omitted files were reviewed.
 Do not invent low-value findings.
-Each finding must include severity (P0-P3), file and line when available,
-problem, why it violates the guide, and a concrete fix.
+Each finding must use this exact structure:
+
+### [P1 · blocking] \`path/to/file.ts\` — \`symbol()\`
+Location: \`path/to/file.ts:42\`
+
+One line describing what is wrong. It must stand alone as a complete finding.
+
+Mechanism
+  Explain why the code does the wrong thing and name the two things that
+  disagree.
+
+Symptom
+  Describe what the user or operator observes.
+
+Scenario
+  Give a mundane path to the bad input and how the failure could be
+  misattributed. Omit when reachability is obvious.
+
+Verified
+  Say whether this was executed or read-only, separating inferred from
+  confirmed facts.
+
+Repro
+  Give a failing test or exact steps. Omit for style-only findings.
+
+Options
+  a) Preferred option and its tradeoff.
+  b) Alternative option and its cost.
+
+Scope
+  Say where else you looked and what you found. Omit if you did not look.
+
+Use P0-P3 severity and exactly either "blocking" or "non-blocking".
+Keep the Location line machine-readable; it is removed from user-facing
+review copies. Use Markdown backticks around paths and symbols.
 When a concrete fix changes several adjacent lines in the same file, include
 the fix as a fenced \`\`\`diff code block with the file path and +/- lines.
-Use a diff only when the exact change is supported by the supplied code; otherwise
-describe the fix in prose. Keep the existing finding structure unchanged.
+Use a diff only when the exact change is supported by the supplied code;
+otherwise describe the fix in prose.
 
 REVIEW GUIDE:
 ${text(guide)}

@@ -31,11 +31,11 @@ const ACCESS_DENIED_BODY =
   "The App does not have access to review this pull request.";
 
 export function humanCopy(text: string): string {
-  return redact(text).replaceAll("\u2014", ", ").replaceAll(";", ".");
+  return redact(text).replaceAll(";", ".");
 }
 
 function hasForbiddenCopy(text: string): boolean {
-  return text.includes("\u2014") || text.includes(";");
+  return text.includes(";");
 }
 
 function severityOf(heading: string): string {
@@ -61,7 +61,7 @@ export function splitInline(
   const inline: ParsedFinding[] = [];
   const leftover: ParsedFinding[] = [];
   for (const finding of findings) {
-    if (names.has(finding.path)) inline.push(finding);
+    if (names.has(finding.path) && finding.from > 0) inline.push(finding);
     else leftover.push(finding);
   }
   return { inline, leftover };
@@ -76,21 +76,20 @@ export function reviewEvent(
 /** Short summary on the review itself. Findings that map to the diff go
  * inline. Leftovers are listed here as one line each, not as a CLI dump. */
 export function reviewBody(
-  leftover: ParsedFinding[],
-  inlineCount = 0,
+  findings: ParsedFinding[],
+  _inlineCount = 0,
 ): string {
-  if (inlineCount === 0 && leftover.length === 0) {
+  if (findings.length === 0) {
     return "No actionable findings.";
   }
-  const lines: string[] = [];
-  if (inlineCount > 0) lines.push("See the inline comments.");
-  if (leftover.length > 0) {
-    if (inlineCount > 0) lines.push("");
-    lines.push("These could not be pinned to a line in the diff.");
-    for (const finding of leftover) {
-      const title = humanCopy(finding.heading || finding.path);
-      lines.push(`${title} (${finding.path}:${finding.from})`);
-    }
+  const lines: string[] = ["Review summary", ""];
+  for (const finding of findings) {
+    const title = humanCopy(finding.heading || finding.path);
+    const summary = humanCopy(
+      finding.summary ??
+        finding.excerpt.split(/\r?\n/).find((line) => line.trim()) ?? "",
+    );
+    lines.push(`- ${title}${summary ? `: ${summary}` : ""}`);
   }
   return lines.join("\n");
 }
@@ -326,7 +325,7 @@ async function publish(
   const replies = stored.filter((row) => row.thread_comment_id);
   const fresh = parsed.filter((_, index) => !stored[index].thread_comment_id);
   const { inline, leftover } = splitInline(fresh, files);
-  const body = reviewBody(leftover, inline.length + replies.length);
+  const body = reviewBody([...leftover, ...inline], inline.length + replies.length);
   const comments = inline.map((finding) => ({
     path: finding.path,
     body: inlineCommentBody(finding),
@@ -620,7 +619,7 @@ async function runReviewJobCore(
     insertFinding({
       id: crypto.randomUUID(),
       reviewId,
-      severity: severityOf(finding.heading),
+      severity: finding.severity ?? severityOf(finding.heading),
       path: finding.path,
       lineFrom: finding.from,
       lineTo: finding.to,

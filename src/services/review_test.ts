@@ -159,7 +159,10 @@ Deno.test("fake AI markdown becomes findings rows and a GitHub review POST", asy
     if (body.event !== "REQUEST_CHANGES" || body.commit_id !== "head1") {
       throw new Error(`payload ${JSON.stringify(body)}`);
     }
-    if (body.body !== "See the inline comments.") {
+    if (
+      !body.body.includes("Review summary") ||
+      !body.body.includes("The helper ignores its argument")
+    ) {
       throw new Error(`review body ${body.body}`);
     }
     if (
@@ -170,11 +173,8 @@ Deno.test("fake AI markdown becomes findings rows and a GitHub review POST", asy
     if (body.comments[0].body.includes("## Findings")) {
       throw new Error(`inline dump ${body.comments[0].body}`);
     }
-    if (
-      JSON.stringify(posted.body).includes("\u2014") ||
-      JSON.stringify(posted.body).includes(";")
-    ) {
-      throw new Error("posted review body used a dash or semicolon");
+    if (JSON.stringify(posted.body).includes(";")) {
+      throw new Error("posted review body used a semicolon");
     }
   });
 });
@@ -359,8 +359,8 @@ Deno.test("findings outside the diff stay on the review body", async () => {
       throw new Error(`comments ${JSON.stringify(posted.comments)}`);
     }
     if (
-      !posted.body.includes("could not be pinned") ||
-      posted.body.includes("## Findings")
+      !posted.body.includes("Review summary") ||
+      !posted.body.includes("`src/app.ts`")
     ) {
       throw new Error(`body ${posted.body}`);
     }
@@ -469,13 +469,13 @@ Deno.test("a finding that repeats a previous round replies in the thread", async
   });
 });
 
-Deno.test("humanCopy and reviewBody never emit a dash or semicolon", () => {
+Deno.test("humanCopy preserves the review heading dash and removes semicolons", () => {
   const cleaned = humanCopy("Broken — really; stop");
-  if (cleaned.includes("\u2014") || cleaned.includes(";")) {
+  if (!cleaned.includes("\u2014") || cleaned.includes(";")) {
     throw new Error(cleaned);
   }
   const body = reviewBody([]);
-  if (body.includes("\u2014") || body.includes(";")) {
+  if (body.includes(";")) {
     throw new Error(body);
   }
 });

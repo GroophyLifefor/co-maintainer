@@ -85,3 +85,28 @@ Do not pass untrusted input to eval.
     throw new Error(JSON.stringify(found));
   }
 });
+
+Deno.test("parseFindings reads the structured review format", () => {
+  const found = parseFindings(`## Findings
+
+### [P1 · blocking] \`src/app.ts\` — \`loadConfig()\`
+Location: \`src/app.ts:42\`
+
+The config is loaded before the environment is validated.
+
+Mechanism
+  The loader and validator disagree about when defaults apply.
+`);
+  if (
+    found.length !== 1 ||
+    found[0].severity !== "P1" ||
+    !found[0].blocking ||
+    found[0].path !== "src/app.ts" ||
+    found[0].from !== 42 ||
+    found[0].symbol !== "loadConfig()" ||
+    found[0].summary !==
+      "The config is loaded before the environment is validated."
+  ) {
+    throw new Error(JSON.stringify(found));
+  }
+});

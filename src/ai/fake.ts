@@ -2,11 +2,16 @@ import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
 
 export const FAKE_REVIEW_MARKDOWN = `## Findings
 
-### P2 src/app.ts:4 unused value
+### [P2 · non-blocking] \`src/app.ts\` — \`helper()\`
+Location: \`src/app.ts:4\`
 
-src/app.ts:4
+The helper ignores its argument, so the new behavior is never applied.
 
-The new helper ignores its argument. Use the value or drop the parameter.
+Mechanism
+  The helper accepts an argument but returns the same result without reading it.
+
+Verified
+  Read-only. Confirmed from the supplied diff.
 `;
 
 export class FakeAiProvider implements AiProvider {
