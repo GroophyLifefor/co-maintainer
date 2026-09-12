@@ -60,11 +60,11 @@ function fillDays(
   return out;
 }
 
-export function statsForRange(range: string, repo?: string) {
+export function statsForRange(range: string) {
   const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
   const since = daysAgoIso(days);
-  const totals = reviewStats(since, repo);
-  const previous = reviewStats(daysAgoIso(days * 2), repo, since);
+  const totals = reviewStats(since);
+  const previous = reviewStats(daysAgoIso(days * 2), undefined, since);
   return {
     days,
     since,

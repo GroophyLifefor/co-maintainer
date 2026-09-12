@@ -177,7 +177,9 @@ Deno.test("fake AI markdown becomes findings rows and a GitHub review POST", asy
       !body.comments[0].body.includes(
         "The helper ignores its argument, so the new behavior is never applied.",
       ) ||
-      !body.comments[0].body.includes("If you want the detailed reasoning")
+      !body.comments[0].body.includes(
+        "If you'd like me to explain it in more detail, please ask.",
+      )
     ) {
       throw new Error(`inline finding was truncated ${body.comments[0].body}`);
     }

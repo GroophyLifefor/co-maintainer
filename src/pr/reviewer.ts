@@ -185,8 +185,9 @@ One sentence describing what is wrong and its impact.
 Add one short evidence paragraph explaining the mechanism or reproduction.
 Do not add labels such as Mechanism, Symptom, Scenario, Verified, Repro,
 Options, or Scope unless that detail is necessary to understand a complex
-finding. End with "If you want the detailed reasoning, reply to this finding."
-for findings where more detail would be useful.
+finding. End every finding with this exact sentence on its own line:
+"If you'd like me to explain it in more detail, please ask." No finding may
+omit it and nothing may follow it.
 
 Use P0-P3 severity and exactly either "blocking" or "non-blocking".
 Keep the Location line machine-readable; it is removed from user-facing
