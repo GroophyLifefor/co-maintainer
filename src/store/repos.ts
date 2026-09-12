@@ -1,4 +1,5 @@
 import { getAppDb } from "./app_db.ts";
+import { deleteDrift } from "./drift.ts";
 import { nowIso } from "../util/time.ts";
 import type { RepoRow } from "./rows.ts";
 
@@ -46,6 +47,9 @@ export function markKnowledgeBuilt(fullName: string, baseSha: string): void {
   getAppDb().prepare(
     `UPDATE repos SET knowledge_built_at = ?, knowledge_base_sha = ? WHERE full_name = ?`,
   ).run(nowIso(), baseSha, fullName);
+  // The stored drift counts how far the repository moved past the previous
+  // baseline, so a rebuild makes them meaningless rather than merely stale.
+  deleteDrift(fullName);
 }
 
 export function setInstallationId(

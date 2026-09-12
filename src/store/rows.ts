@@ -134,6 +134,7 @@ export type DriftRow = {
   repo: string;
   as_of: string;
   prs_since: number;
+  prs_updated: number;
   commits_since: number;
   files_changed: number;
 };

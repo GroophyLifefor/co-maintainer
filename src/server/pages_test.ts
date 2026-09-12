@@ -93,6 +93,7 @@ function seed(): void {
     repo: "acme/widgets",
     as_of: new Date().toISOString(),
     prs_since: 2,
+    prs_updated: 1,
     commits_since: 4,
     files_changed: 3,
   });
@@ -338,6 +339,60 @@ Deno.test("GET /logo.png is public", async () => {
   ) {
     throw new Error("did not serve the png");
   }
+});
+
+Deno.test("the knowledge page counts new and changed pull requests apart", async () => {
+  await withEnv(async () => {
+    seed();
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const html = await (await app.fetch(
+      new Request("http://localhost/repos/acme/widgets/knowledge", {
+        headers: { cookie },
+      }),
+    )).text();
+    for (
+      const needle of [
+        "2 new pull requests",
+        "1 changed pull requests",
+        "4 new commits",
+        "3 changed files",
+      ]
+    ) {
+      if (!html.includes(needle)) {
+        throw new Error(`knowledge page missed "${needle}"`);
+      }
+    }
+  });
+});
+
+Deno.test("a drift count that hit its ceiling reads as a floor on both pages", async () => {
+  await withEnv(async () => {
+    seed();
+    upsertDrift({
+      repo: "acme/widgets",
+      as_of: new Date().toISOString(),
+      prs_since: 2,
+      prs_updated: 1,
+      commits_since: 500,
+      files_changed: 300,
+    });
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    for (
+      const path of [
+        "/repos/acme/widgets",
+        "/repos/acme/widgets/knowledge",
+      ]
+    ) {
+      const html = await (await app.fetch(
+        new Request(`http://localhost${path}`, { headers: { cookie } }),
+      )).text();
+      if (!html.includes("500+") || !html.includes("300+")) {
+        throw new Error(`${path} showed a capped count as exact`);
+      }
+    }
+  });
 });
 
 Deno.test("GET /client.js is the fetch wrapper with toast and retry", async () => {

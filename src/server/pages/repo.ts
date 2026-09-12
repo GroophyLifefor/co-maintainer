@@ -1,4 +1,5 @@
 import {
+  capped,
   empty,
   html,
   layout,
@@ -8,6 +9,7 @@ import {
   text,
   when,
 } from "./layout.ts";
+import { COMPARE_FILE_CAP, MAX_COMMITS_COUNTED } from "../../services/drift.ts";
 import type { repoOverview } from "../../services/dashboard.ts";
 
 export function renderRepo(
@@ -17,11 +19,16 @@ export function renderRepo(
   const name = data.repo.full_name;
   const stats = data.stats;
   const drift = data.drift;
-  const notice = drift && (drift.prs_since > 0 || drift.commits_since > 0)
+  const notice = drift &&
+      (drift.prs_since > 0 || drift.prs_updated > 0 || drift.commits_since > 0)
     ? `<div class="notice" data-async>
       ${skSlot()}
       <div class="txt"><b>Update recommended.</b> Since the guide was built:
-        ${drift.prs_since} pull requests, ${drift.commits_since} commits, ${drift.files_changed} files changed.</div>
+        ${drift.prs_since} new pull requests, ${drift.prs_updated} changed pull requests, ${
+      capped(drift.commits_since, MAX_COMMITS_COUNTED)
+    } commits, ${
+      capped(drift.files_changed, COMPARE_FILE_CAP)
+    } files changed.</div>
       <button class="btn primary" id="remake">Update now</button>
     </div>`
     : "";

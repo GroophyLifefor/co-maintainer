@@ -1,4 +1,14 @@
-import { empty, html, layout, repoNav, skSlot, text, when } from "./layout.ts";
+import {
+  capped,
+  empty,
+  html,
+  layout,
+  repoNav,
+  skSlot,
+  text,
+  when,
+} from "./layout.ts";
+import { COMPARE_FILE_CAP, MAX_COMMITS_COUNTED } from "../../services/drift.ts";
 import type { repoKnowledge } from "../../services/dashboard.ts";
 
 function sizeLabel(bytes: number): string {
@@ -19,7 +29,13 @@ export function renderKnowledge(
       when(data.repo.knowledge_built_at)
     }.${
       drift
-        ? ` Since then this repository has seen <b>${drift.prs_since} pull requests</b>, <b>${drift.commits_since} commits</b> and <b>${drift.files_changed} changed files</b>.`
+        ? ` Since then: <b>${drift.prs_since} new pull requests</b>, <b>${drift.prs_updated} changed pull requests</b>, <b>${
+          capped(drift.commits_since, MAX_COMMITS_COUNTED)
+        } new commits</b> and <b>${
+          capped(drift.files_changed, COMPARE_FILE_CAP)
+        } changed files</b>. <span class="muted">Checked ${
+          when(drift.as_of)
+        }.</span>`
         : ""
     }</div></div>`
     : `<div class="notice info"><div class="txt">Knowledge has not been built yet. Run init from the repository list.</div></div>`;

@@ -106,11 +106,13 @@ Deno.test("repos: activate, settings patch, deactivate, drift", async () => {
       repo: "acme/widgets",
       as_of: new Date().toISOString(),
       prs_since: 3,
+      prs_updated: 2,
       commits_since: 10,
       files_changed: 5,
     });
-    if (getDrift("acme/widgets")?.prs_since !== 3) {
-      throw new Error("drift was not stored");
+    const stored = getDrift("acme/widgets");
+    if (stored?.prs_since !== 3 || stored.prs_updated !== 2) {
+      throw new Error(`drift was not stored: ${JSON.stringify(stored)}`);
     }
   });
 });
