@@ -29,6 +29,14 @@ If fails to install, try:
 deno install -f -g -A --min-dep-age=0 --name co-maintainer jsr:@murat/co-maintainer
 ```
 
+On a Linux VPS, persist Deno's PATH entry if the installer prints
+`Add ~/.deno/bin to PATH`:
+
+```sh
+grep -qxF 'export PATH="$HOME/.deno/bin:$PATH"' ~/.bashrc || printf '\nexport PATH="$HOME/.deno/bin:$PATH"\n' >> ~/.bashrc
+source ~/.bashrc
+```
+
 ## Usage
 
 ```sh

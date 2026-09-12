@@ -11,10 +11,12 @@ export function insertJob(row: {
   prNumber?: number;
   args?: unknown;
   deliveryId?: string;
+  queueKey?: string;
 }): void {
   getAppDb().prepare(
-    `INSERT INTO jobs (id, type, repo, pr_number, status, args, delivery_id, created_at)
-     VALUES (?, ?, ?, ?, 'queued', ?, ?, ?)`,
+    `INSERT INTO jobs
+       (id, type, repo, pr_number, status, args, delivery_id, queue_key, created_at)
+     VALUES (?, ?, ?, ?, 'queued', ?, ?, ?, ?)`,
   ).run(
     row.id,
     row.type,
@@ -22,6 +24,7 @@ export function insertJob(row: {
     row.prNumber ?? null,
     JSON.stringify(row.args ?? {}),
     row.deliveryId ?? null,
+    row.queueKey ?? null,
     nowIso(),
   );
 }
@@ -82,8 +85,16 @@ export function getQueuedJob(
   prNumber: number,
 ): JobRow | undefined {
   return getAppDb().prepare<JobRow>(
-    `SELECT * FROM jobs WHERE repo = ? AND pr_number = ? AND status = 'queued'`,
-  ).get(repo, prNumber);
+    `SELECT * FROM jobs
+     WHERE repo = ? AND pr_number = ? AND status = 'queued'
+       AND (queue_key = ? OR (queue_key IS NULL AND type = 'review'))`,
+  ).get(repo, prNumber, `review:${repo}:${prNumber}`);
+}
+
+export function getQueuedJobByKey(queueKey: string): JobRow | undefined {
+  return getAppDb().prepare<JobRow>(
+    `SELECT * FROM jobs WHERE queue_key = ? AND status = 'queued'`,
+  ).get(queueKey);
 }
 
 export function getOldestQueuedJob(): JobRow | undefined {

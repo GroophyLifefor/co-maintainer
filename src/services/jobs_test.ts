@@ -66,6 +66,25 @@ Deno.test("enqueue within the debounce window collapses into the existing job", 
   });
 });
 
+Deno.test("reply jobs do not supersede a queued review for the same PR", async () => {
+  await withTempDb(async () => {
+    const review = enqueue({ type: "review", repo: "a/b", prNumber: 1 });
+    const reply = enqueue({
+      type: "reply",
+      repo: "a/b",
+      prNumber: 1,
+      queueKey: "reply:a/b:review_comment:99",
+    });
+    if (
+      review.id === reply.id ||
+      getJob(review.id)?.status !== "queued" ||
+      getJob(reply.id)?.status !== "queued"
+    ) {
+      throw new Error("reply and review jobs collided");
+    }
+  });
+});
+
 Deno.test("claimAndRun runs the registered handler and appends redacted logs", async () => {
   await withTempDb(async () => {
     const seen: string[] = [];

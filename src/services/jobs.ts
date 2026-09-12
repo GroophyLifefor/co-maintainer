@@ -1,7 +1,7 @@
 import {
   claimJob,
   getJob,
-  getQueuedJob,
+  getQueuedJobByKey,
   insertJob,
   listJobs,
   setJobStatus,
@@ -60,9 +60,14 @@ export function enqueue(input: {
   args?: unknown;
   deliveryId?: string;
   debounceMs?: number;
+  queueKey?: string;
 }): { id: string; debounced: boolean } {
-  if (input.prNumber !== undefined) {
-    const existing = getQueuedJob(input.repo, input.prNumber);
+  const queueKey = input.queueKey ??
+    (input.type === "review" && input.prNumber !== undefined
+      ? `review:${input.repo}:${input.prNumber}`
+      : undefined);
+  if (queueKey) {
+    const existing = getQueuedJobByKey(queueKey);
     if (existing) {
       const age = Date.now() - Date.parse(existing.created_at);
       if (input.debounceMs && age < input.debounceMs) {
@@ -71,12 +76,12 @@ export function enqueue(input: {
       const id = crypto.randomUUID();
       setJobStatus(existing.id, "canceled", { superseded_by: id });
       log(existing.id, "info", `superseded by ${id}`);
-      insertJob({ ...input, id });
+      insertJob({ ...input, id, queueKey });
       return { id, debounced: false };
     }
   }
   const id = crypto.randomUUID();
-  insertJob({ ...input, id });
+  insertJob({ ...input, id, queueKey });
   return { id, debounced: false };
 }
 

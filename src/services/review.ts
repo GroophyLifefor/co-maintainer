@@ -105,7 +105,7 @@ function inlineCommentBody(finding: ParsedFinding): string {
   return `${heading}\n\n${rest}`;
 }
 
-function reviewOptions(repo: string, prNumber: number): Options {
+export function reviewOptions(repo: string, prNumber: number): Options {
   const config = readConfig();
   return {
     command: "review",
@@ -130,7 +130,7 @@ function reviewOptions(repo: string, prNumber: number): Options {
   };
 }
 
-function aiFor(options: Options): AiProvider {
+export function aiFor(options: Options): AiProvider {
   if (Deno.env.get("CM_FAKE_AI") === "1") return new FakeAiProvider();
   const provider = createAiProvider(options, options.highModel ?? "");
   if (!provider) {
@@ -141,7 +141,7 @@ function aiFor(options: Options): AiProvider {
   return provider;
 }
 
-function clientFor(installationId: number): GitHubClient {
+export function clientFor(installationId: number): GitHubClient {
   const config = readConfig();
   if (!config.githubAppId || !config.githubAppPrivateKey) {
     throw new Error("review jobs need the GitHub App configured");
@@ -153,7 +153,7 @@ function clientFor(installationId: number): GitHubClient {
   );
 }
 
-async function resolveInstallationId(
+export async function resolveInstallationId(
   fullName: string,
 ): Promise<number | undefined> {
   const current = getRepo(fullName)?.installation_id;

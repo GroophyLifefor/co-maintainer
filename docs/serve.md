@@ -44,13 +44,17 @@ record why not (`repo-not-active`, `auto-review-off`, `draft`, `bot-author`,
 `app.db`. Other events are recorded as ignored. A queued review job posts
 through the GitHub App: `REQUEST_CHANGES` when there are findings, `COMMENT`
 when there are none. If GitHub rejects the inline comments, it falls back to one
-issue comment. Re-reviews can look at only the commits since the last round when
-the repository's review setting is incremental.
+issue comment. Human replies to a co-maintainer inline comment and
+`@co-maintainer` mentions in PR conversation comments enqueue a separate reply
+job. Re-reviews can look at only the commits since the last round when the
+repository's review setting is incremental.
 
 Point the GitHub App's webhook URL at `http://<host>:<port>/github/webhook`. The
 dashboard shows the same address. Set a public address with the editable Webhook
 address field in Settings, `--webhook-url=...`, or `CM_WEBHOOK_URL`; the default
 is the local development address `http://localhost:<port>/github/webhook`.
+Enable the GitHub App's `Issue comments` webhook event and grant `Issues: write`
+when conversation replies are enabled.
 
 ## Dashboard
 

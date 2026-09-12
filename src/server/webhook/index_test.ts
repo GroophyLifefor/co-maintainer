@@ -9,6 +9,7 @@ import {
 } from "../../store/repos.ts";
 import { hasDelivery, listSkipped } from "../../store/deliveries.ts";
 import { getQueuedJob } from "../../store/jobs.ts";
+import { findReplyRequest } from "../../store/replies.ts";
 
 const PASSWORD = "webhook-test";
 const SECRET = "webhook-secret";
@@ -200,6 +201,40 @@ Deno.test("unparseable JSON is 400 and a missing delivery header is 400", async 
     );
     if (missing.status !== 400) {
       throw new Error(`missing header status ${missing.status}`);
+    }
+  });
+});
+
+Deno.test("a PR mention enqueues a conversation reply job", async () => {
+  await withTempEnv(async () => {
+    activateRepo("acme/widgets", 1);
+    const app = createApp({ password: PASSWORD });
+    const response = await app.fetch(
+      new Request("http://localhost/github/webhook", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-github-event": "issue_comment",
+          "x-github-delivery": "del-reply",
+        },
+        body: JSON.stringify({
+          action: "created",
+          repository: { full_name: "acme/widgets" },
+          issue: { number: 11, pull_request: { url: "pr" } },
+          comment: {
+            id: 501,
+            body: "@co-maintainer why is this blocking?",
+            user: { login: "octocat", type: "User" },
+          },
+        }),
+      }),
+    );
+    const result = await response.json();
+    if (result.outcome !== "enqueued" || !result.jobId) {
+      throw new Error(`expected reply enqueue, got ${JSON.stringify(result)}`);
+    }
+    if (!findReplyRequest("acme/widgets", "issue_comment", "501")) {
+      throw new Error("reply request was not persisted");
     }
   });
 });

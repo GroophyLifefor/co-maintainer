@@ -134,7 +134,7 @@ Deno.test("an App with the required permissions is accepted", async () => {
         permissions: {
           metadata: "read",
           contents: "read",
-          issues: "read",
+          issues: "write",
           pull_requests: "write",
           checks: "write",
         },

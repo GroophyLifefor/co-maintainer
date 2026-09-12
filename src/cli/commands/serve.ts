@@ -8,6 +8,10 @@ import {
 } from "../../services/jobs.ts";
 import { registerSetupJobHandler } from "../../services/setup.ts";
 import { registerReviewJobHandler } from "../../services/review.ts";
+import {
+  recoverReplyRequests,
+  registerReplyJobHandler,
+} from "../../services/replies.ts";
 
 /** `undefined` on Linux, otherwise one line naming the platform (a pure
  * function so it is testable without actually being off Linux). */
@@ -86,10 +90,19 @@ export async function runServe(args: string[]): Promise<void> {
   console.log(`[serve] app.db ready at ${appDbPath()}`);
   registerSetupJobHandler();
   registerReviewJobHandler();
+  registerReplyJobHandler();
   const recovered = await recoverOrphans();
   if (recovered > 0) {
     console.log(
       `[serve] recovered ${recovered} orphaned job(s) from a previous run`,
+    );
+  }
+  const recoveredReplies = recoverReplyRequests();
+  if (recoveredReplies > 0) {
+    console.log(
+      `[serve] requeued ${recoveredReplies} unfinished conversation repl${
+        recoveredReplies === 1 ? "y" : "ies"
+      }`,
     );
   }
   startWorkerLoop();

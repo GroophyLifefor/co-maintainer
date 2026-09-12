@@ -22,7 +22,7 @@ function text(value: unknown, limit = 20_000): string {
     : result;
 }
 
-async function readGuide(repo: string, name: string): Promise<string> {
+export async function readGuide(repo: string, name: string): Promise<string> {
   try {
     return await Deno.readTextFile(`${reposDir()}/${repo}/${name}`);
   } catch {
