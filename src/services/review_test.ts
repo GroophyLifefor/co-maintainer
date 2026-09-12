@@ -123,6 +123,7 @@ function seed(): JobRow {
     status: "running",
     args: JSON.stringify({ trigger: "opened" }),
     delivery_id: null,
+    queue_key: null,
     attempt: 0,
     created_at: new Date().toISOString(),
     started_at: null,

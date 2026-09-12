@@ -8,6 +8,8 @@ import {
 import { getInstallation } from "../store/installations.ts";
 import { getJob, getQueuedJob } from "../store/jobs.ts";
 import { insertReview, setReviewStatus } from "../store/reviews.ts";
+import { insertFinding, setFindingPosted } from "../store/findings.ts";
+import { findReplyRequest } from "../store/replies.ts";
 import { dispatchGithubEvent, maybeEnqueueReview } from "./webhook.ts";
 
 async function withTempDb(fn: () => Promise<void> | void): Promise<void> {
@@ -308,6 +310,101 @@ Deno.test("a review comment on the same head as the last posted review is skippe
     }, "stale-1");
     if (result.reason !== "nothing-new-since-last-round") {
       throw new Error(`expected nothing-new, got ${JSON.stringify(result)}`);
+    }
+  });
+});
+
+Deno.test("inline replies and PR mentions enqueue reply jobs", async () => {
+  await withTempDb(() => {
+    readyRepo();
+    insertReview({
+      id: "rev-bot",
+      repo: "acme/widgets",
+      prNumber: 3,
+      jobId: "job-bot",
+      headSha: "head",
+      baseSha: "base",
+      scope: "whole-pr",
+      model: "fake",
+    });
+    setReviewStatus("rev-bot", "posted");
+    insertFinding({
+      id: "finding-bot",
+      reviewId: "rev-bot",
+      severity: "P1",
+      path: "src/app.ts",
+      lineFrom: 4,
+      lineTo: 4,
+      title: "Bad branch",
+      bodyMd: "The branch is wrong.",
+    });
+    setFindingPosted("finding-bot", "comment-bot");
+
+    const inline = dispatchGithubEvent(
+      "pull_request_review_comment",
+      {
+        action: "created",
+        comment: {
+          id: 101,
+          in_reply_to_id: "comment-bot",
+          body: "Why is this blocking?",
+          path: "src/app.ts",
+          line: 4,
+          commit_id: "head",
+          user: { login: "octocat", type: "User" },
+        },
+        pull_request: { number: 3, head: { sha: "head" } },
+        repository: { full_name: "acme/widgets" },
+      },
+      "reply-1",
+    );
+    if (inline.outcome !== "enqueued" || !inline.jobId) {
+      throw new Error(`inline reply was not queued: ${JSON.stringify(inline)}`);
+    }
+    if (
+      findReplyRequest("acme/widgets", "review_comment", "101")
+        ?.target_comment_id !== "comment-bot"
+    ) {
+      throw new Error("inline reply did not retain its thread target");
+    }
+
+    const unrelated = dispatchGithubEvent(
+      "issue_comment",
+      {
+        action: "created",
+        comment: {
+          id: 103,
+          body: "This is a normal PR comment.",
+          user: { login: "octocat", type: "User" },
+        },
+        issue: { number: 3, pull_request: { url: "pr" } },
+        repository: { full_name: "acme/widgets" },
+      },
+      "reply-ignored",
+    );
+    if (unrelated.reason !== "no-app-mention") {
+      throw new Error(
+        `unrelated comment was queued: ${JSON.stringify(unrelated)}`,
+      );
+    }
+
+    const mention = dispatchGithubEvent(
+      "issue_comment",
+      {
+        action: "created",
+        comment: {
+          id: 102,
+          body: "@co-maintainer can you clarify this?",
+          user: { login: "octocat", type: "User" },
+        },
+        issue: { number: 3, pull_request: { url: "pr" } },
+        installation: { app_slug: "co-maintainer-beta" },
+        repository: { full_name: "acme/widgets" },
+      },
+      "reply-2",
+    );
+    if (mention.outcome !== "enqueued" || !mention.jobId) {
+      throw new Error(`mention was not queued: ${JSON.stringify(mention)}`);
     }
   });
 });

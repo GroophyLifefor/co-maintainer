@@ -59,3 +59,16 @@ export function listFindingsForPr(
      ORDER BY r.round, f.id`,
   ).all(repo, prNumber);
 }
+
+export function findFindingByPostedComment(
+  repo: string,
+  prNumber: number,
+  commentId: string,
+): FindingRow | undefined {
+  return getAppDb().prepare<FindingRow>(
+    `SELECT f.* FROM findings f
+     INNER JOIN reviews r ON r.id = f.review_id
+     WHERE r.repo = ? AND r.pr_number = ? AND f.posted_comment_id = ?
+     ORDER BY r.created_at DESC LIMIT 1`,
+  ).get(repo, prNumber, commentId);
+}

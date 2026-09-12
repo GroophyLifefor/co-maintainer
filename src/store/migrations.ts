@@ -120,4 +120,40 @@ export const migrations: string[][] = [
   [
     `ALTER TABLE reviews ADD COLUMN posted_fallback INTEGER NOT NULL DEFAULT 0`,
   ],
+  // 3 — durable conversation replies and purpose-specific queued jobs
+  [
+    `ALTER TABLE jobs ADD COLUMN queue_key TEXT`,
+    `UPDATE jobs SET queue_key = 'review:' || repo || ':' || pr_number
+     WHERE type = 'review' AND status = 'queued' AND pr_number IS NOT NULL`,
+    `DROP INDEX idx_jobs_one_queued_per_pr`,
+    `CREATE UNIQUE INDEX idx_jobs_one_queued_key
+     ON jobs(queue_key) WHERE status = 'queued' AND queue_key IS NOT NULL`,
+    `CREATE UNIQUE INDEX idx_jobs_one_legacy_review_per_pr
+     ON jobs(repo, pr_number)
+     WHERE status = 'queued' AND type = 'review' AND queue_key IS NULL`,
+    `CREATE TABLE reply_requests (
+      id TEXT PRIMARY KEY,
+      repo TEXT NOT NULL,
+      pr_number INTEGER NOT NULL,
+      source_kind TEXT NOT NULL,
+      source_comment_id TEXT NOT NULL,
+      target_comment_id TEXT,
+      source_body TEXT NOT NULL,
+      source_author TEXT,
+      source_path TEXT,
+      source_line INTEGER,
+      source_commit_id TEXT,
+      status TEXT NOT NULL,
+      answer_md TEXT,
+      posted_comment_id TEXT,
+      job_id TEXT,
+      error TEXT,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(repo, source_kind, source_comment_id)
+    )`,
+    `CREATE INDEX idx_reply_requests_status
+     ON reply_requests(status, created_at)`,
+  ],
 ];

@@ -35,6 +35,7 @@ export type JobRow = {
   status: string;
   args: string;
   delivery_id: string | null;
+  queue_key: string | null;
   attempt: number;
   created_at: string;
   started_at: string | null;
@@ -86,6 +87,28 @@ export type FindingRow = {
   posted_comment_id: string | null;
   thread_comment_id: string | null;
   first_seen_review_id: string | null;
+};
+
+export type ReplyRequestRow = {
+  id: string;
+  repo: string;
+  pr_number: number;
+  source_kind: string;
+  source_comment_id: string;
+  target_comment_id: string | null;
+  source_body: string;
+  source_author: string | null;
+  source_path: string | null;
+  source_line: number | null;
+  source_commit_id: string | null;
+  status: string;
+  answer_md: string | null;
+  posted_comment_id: string | null;
+  job_id: string | null;
+  error: string | null;
+  attempts: number;
+  created_at: string;
+  updated_at: string;
 };
 
 export type DeliveryRow = {

@@ -8,7 +8,7 @@ import { GhClient } from "../github/gh.ts";
 const APP_NEED: Record<string, "read" | "write"> = {
   metadata: "read",
   contents: "read",
-  issues: "read",
+  issues: "write",
   pull_requests: "write",
   checks: "write",
 };
