@@ -131,18 +131,19 @@ deno task bench-rereview --runner=comaintainer
 The gold set spans five repositories, so each row carries its own `repo` and the
 run groups jobs by `(repo, pr)`. `--repo=owner/repo` is a **filter** that
 narrows a run to one of them, not a default, and `--ocr-clone=` names the
-**root** that holds one clone per repo (`benchmark/clones/owner-repo`). Results
-are written per dataset rather than per repo, and the summary prints one line
-per repo plus a pooled total. A single-repo dataset whose rows have no `repo`
-still works, as long as `--repo` is given.
+**root** that holds one clone per repo (`benchmark/clones/owner+repo` — `+`
+rather than `-`, since `owner-repo` in `a/b-c` and `a-b/c` would collide).
+Results are written per dataset rather than per repo, and the summary prints one
+line per repo plus a pooled total. A single-repo dataset whose rows have no
+`repo` still works, as long as `--repo` is given.
 
 **Preparation is not timed** — for either tool. `deno task init` for
 co-maintainer, and for OCR the provider/model setup (`ocr config`) plus a clone
 holding both of the round's commits:
 
 ```sh
-git clone https://github.com/owner/repo benchmark/clones/owner-repo
-git -C benchmark/clones/owner-repo fetch origin <round_base_commit> <round_commit>
+git clone https://github.com/owner/repo benchmark/clones/owner+repo
+git -C benchmark/clones/owner+repo fetch origin <round_base_commit> <round_commit>
 ```
 
 Both runners check every repo in the dataset before the first review, so a

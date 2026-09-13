@@ -161,6 +161,9 @@ const reports: {
   f1: number;
   ms: number;
   prepMs: number;
+  /** False for a failed run: `ms` is then whatever elapsed before the throw,
+   * not a real prep/review split, and must not skew the timing averages. */
+  timeKnown: boolean;
   tokensIn: number;
   tokensOut: number;
   tokens: number;
@@ -252,6 +255,7 @@ await mapPool(jobs, reviewConcurrent, async (rows) => {
       f1: 0,
       ms,
       prepMs: 0,
+      timeKnown: false,
       tokensIn,
       tokensOut,
       tokens: tokensIn + tokensOut,
@@ -325,6 +329,7 @@ await mapPool(jobs, reviewConcurrent, async (rows) => {
     ...scored,
     ms,
     prepMs,
+    timeKnown: true,
     tokensIn,
     tokensOut,
     tokens,
@@ -390,8 +395,15 @@ const perRepo = repos.map((name) => {
     prs: rows.length,
     ...counts,
     ...scores(counts),
-    avgTimeMs: average(rows.map((row) => row.ms)),
-    avgPrepMs: average(rows.map((row) => row.prepMs)),
+    // A failed run's elapsed time is not split into prep vs. review, so it
+    // would misrepresent both averages rather than just being absent from
+    // one — excluded here the same way an unknown cost stays out of avgCost.
+    avgTimeMs: average(
+      rows.filter((row) => row.timeKnown).map((row) => row.ms),
+    ),
+    avgPrepMs: average(
+      rows.filter((row) => row.timeKnown).map((row) => row.prepMs),
+    ),
     avgTokensIn: average(rows.map((row) => row.tokensIn)),
     avgTokensOut: average(rows.map((row) => row.tokensOut)),
     avgTokens: average(rows.map((row) => row.tokens)),
@@ -407,8 +419,12 @@ const result = {
   f1,
   precision,
   recall,
-  avgTimeMs: average(reports.map((row) => row.ms)),
-  avgPrepMs: average(reports.map((row) => row.prepMs)),
+  avgTimeMs: average(
+    reports.filter((row) => row.timeKnown).map((row) => row.ms),
+  ),
+  avgPrepMs: average(
+    reports.filter((row) => row.timeKnown).map((row) => row.prepMs),
+  ),
   avgTokensIn: average(reports.map((row) => row.tokensIn)),
   avgTokensOut: average(reports.map((row) => row.tokensOut)),
   avgTokens: average(reports.map((row) => row.tokens)),
