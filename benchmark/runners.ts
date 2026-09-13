@@ -11,11 +11,17 @@ export type RunResult = {
   tokensOut: number;
   cost: number;
   costKnown: boolean;
+  /** Scope resolution, worktree checkout, and codegraph indexing done inside
+   * the timed call — real per-PR cost, but not the "review" a human would
+   * compare across tools, so the caller reports it separately rather than
+   * folding it into the headline time. 0 when a runner cannot separate it. */
+  prepMs: number;
 };
 
-/** One PR review by one tool. Everything a tool needs beyond this (a cloned
- * repo, an init'd guide, a configured provider) is preparation and happens
- * before the benchmark runs, so it stays out of the measured time. */
+/** One PR review by one tool. A one-time global setup (a cloned repo, an
+ * init'd guide, a configured provider) happens before the benchmark runs and
+ * stays out of the measured time entirely; per-PR setup happens inside the
+ * timed call and is reported back as `prepMs`. */
 export type Runner = (
   client: GitHubClient,
   options: Options,
@@ -27,6 +33,8 @@ export const comaintainerRunner: Runner = async (client, options, snapshot) => {
   let tokensOut = 0;
   let cost = 0;
   let costKnown = true;
+  const started = performance.now();
+  let prepMs = 0;
   const response = await reviewPullRequest(
     client,
     options,
@@ -37,12 +45,21 @@ export const comaintainerRunner: Runner = async (client, options, snapshot) => {
       else cost += usage.cost;
     },
     snapshot,
+    undefined,
+    (message) => {
+      // First "AI request" log marks where scope/checkout/codegraph prep
+      // ends and the actual review call begins.
+      if (prepMs === 0 && message.startsWith("AI request")) {
+        prepMs = performance.now() - started;
+      }
+    },
   );
   return {
     text: response.text,
     findings: parseFindings(response.text),
     tokensIn,
     tokensOut,
+    prepMs,
     cost,
     costKnown,
   };
@@ -244,9 +261,12 @@ async function requireCommit(
 }
 
 /** Where a repo's clone lives under the clone root: one directory per repo, so
- * a dataset spanning several repos needs one root rather than one flag each. */
+ * a dataset spanning several repos needs one root rather than one flag each.
+ * `+` rather than `-` as the separator: GitHub owner and repo names never
+ * contain `+`, so `a/b-c` and `a-b/c` cannot collide the way they would if `/`
+ * were simply replaced with the same `-` those names already use. */
 export function cloneDirFor(cloneRoot: string, repo: string): string {
-  return `${cloneRoot}/${repo.replace("/", "-")}`;
+  return `${cloneRoot}/${repo.replace("/", "+")}`;
 }
 
 /** Runs the OCR CLI over the same incremental diff co-maintainer is shown:
@@ -255,6 +275,7 @@ export function cloneDirFor(cloneRoot: string, repo: string): string {
 export function ocrRunner(cloneRoot: string, bin: string): Runner {
   return async (_client, options, snapshot) => {
     if (!snapshot.base) throw new Error("ocr runner needs snapshot.base");
+    const prepStarted = performance.now();
     const cloneDir = cloneDirFor(cloneRoot, options.repo);
     try {
       await Deno.stat(`${cloneDir}/.git`);
@@ -294,6 +315,7 @@ export function ocrRunner(cloneRoot: string, bin: string): Runner {
       );
     }
 
+    const prepMs = performance.now() - prepStarted;
     const outFile = await Deno.makeTempFile({ suffix: ".json" });
     try {
       const result = await run(cloneDir, bin, [
@@ -308,6 +330,16 @@ export function ocrRunner(cloneRoot: string, bin: string): Runner {
         outFile,
         ...(exclude ? ["--exclude", exclude] : []),
       ]);
+      // Checked before touching the output file: a crash can still leave
+      // partial or stale JSON there, which would otherwise parse as a
+      // legitimate (if impoverished) result instead of a failed run.
+      if (result.code !== 0) {
+        throw new Error(
+          `${bin} review exited ${result.code}: ${
+            result.stderr.trim() || result.stdout.trim() || "(no output)"
+          }`,
+        );
+      }
       let raw = "";
       try {
         raw = await Deno.readTextFile(outFile);
@@ -315,17 +347,11 @@ export function ocrRunner(cloneRoot: string, bin: string): Runner {
         raw = "";
       }
       if (raw.trim() === "") raw = result.stdout;
-      if (raw.trim() === "" && result.code !== 0) {
-        throw new Error(
-          `${bin} review exited ${result.code}: ${
-            result.stderr.trim() || result.stdout.trim()
-          }`,
-        );
-      }
       return {
         text: raw,
         findings: parseOcrFindings(raw),
         ...parseOcrUsage(raw),
+        prepMs,
       };
     } finally {
       await Deno.remove(outFile).catch(() => {});

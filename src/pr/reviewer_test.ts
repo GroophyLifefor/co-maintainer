@@ -1,4 +1,4 @@
-import { filePatch } from "./reviewer.ts";
+import { clampImproveMatrix, clampToolRounds, filePatch } from "./reviewer.ts";
 
 function contains(haystack: string, needle: string, what: string): void {
   if (!haystack.includes(needle)) {
@@ -43,4 +43,24 @@ Deno.test("filePatch marks a per-file truncation", () => {
   contains(rendered, "cut off here", "marker");
   contains(rendered, "5000 changed lines total", "counts");
   if (rendered.length > 13_000) throw new Error("expected the patch trimmed");
+});
+
+Deno.test("clampToolRounds scales with diff size but never runs away", () => {
+  if (clampToolRounds(0) !== 4) throw new Error("small diff should stay at 4");
+  if (clampToolRounds(200) !== 6) {
+    throw new Error("expected 4 + 200/100 = 6");
+  }
+  if (clampToolRounds(100_000) !== 8) {
+    throw new Error("a huge diff must still be capped at 8");
+  }
+});
+
+Deno.test("clampImproveMatrix stays within 1 and 4", () => {
+  if (clampImproveMatrix(0) !== 1) throw new Error("must not go below 1");
+  if (clampImproveMatrix(2) !== 2) {
+    throw new Error("a normal value passes through");
+  }
+  if (clampImproveMatrix(10) !== 4) {
+    throw new Error("must not exceed the provider's token budget");
+  }
 });

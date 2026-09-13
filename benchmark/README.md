@@ -154,6 +154,13 @@ silently reviewing a different diff — squashed or rebased PRs need the danglin
 SHAs fetched explicitly. What is measured is one review call: wall-clock time,
 tokens, cost, and findings.
 
+Per-PR setup that still happens inside that call (scope resolution, worktree
+checkout, codegraph indexing) is real cost but not the "review" a human would
+compare across tools or runs — a cold worktree and a warm one otherwise swing
+the headline time without either tool reviewing any differently. It is tracked
+separately as `prepMs`/`avgPrepMs` (printed as `+Ns prep`) rather than folded
+into the reported time.
+
 ### Upstream scope
 
 A re-review round's diff (`round_base_commit..round_commit`) can include a
@@ -204,7 +211,6 @@ date: 12.09.2026
 | Avg tokens | **18.9K**     | 1.35M (71×) | 71.00x fewer (better) than OCR |
 | Total cost | **$0.025**    | $1.62 (65×) | 65.00x cheaper than OCR        |
 
-q: why too low PR and gold? 
-a: OCR is expensive and right now it's only a side
+q: why too low PR and gold? a: OCR is expensive and right now it's only a side
 project. I could run the co-maintainer through 65 benchmark tests, but a single
 small OCR benchmark test is cost worth all of them.

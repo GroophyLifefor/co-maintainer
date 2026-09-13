@@ -113,6 +113,18 @@ export function filePatch(file: Json): string {
   return patch;
 }
 
+// Uncapped, a 100,000-line diff would ask for 1,000+ tool-loop rounds, each
+// able to spend multiple external calls.
+export function clampToolRounds(totalDiffLines: number): number {
+  return Math.min(Math.round(4 + totalDiffLines / 100), 8);
+}
+
+// Uncapped, --improve-matrix scales maxTokens past what most providers'
+// 128k-token context can hold on its own, before the prompt even counts.
+export function clampImproveMatrix(matrix: number): number {
+  return Math.min(Math.max(1, matrix), 4);
+}
+
 export async function readGuide(repo: string, name: string): Promise<string> {
   try {
     return await Deno.readTextFile(`${reposDir()}/${repo}/${name}`);
@@ -273,7 +285,7 @@ export async function reviewPullRequest(
     (sum, { file }) => sum + Number(file.changes ?? 0),
     0,
   );
-  const maxToolRounds = Math.round(4 + totalDiffLines / 100);
+  const maxToolRounds = clampToolRounds(totalDiffLines);
   report(
     `tool rounds · ${maxToolRounds} (own diff ${totalDiffLines} changed lines)`,
   );
@@ -385,7 +397,7 @@ ${
 DIFF:
 ${diff}`;
 
-  const matrix = Math.max(1, options.improveMatrix);
+  const matrix = clampImproveMatrix(options.improveMatrix);
   const request: AiRequest = {
     job: "review_pull_request",
     system: reviewSystemPrompt(diagrams),

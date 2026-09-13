@@ -56,7 +56,7 @@ export function parseArgs(args: string[]): Options {
       "         --webhook-url=https://host/github/webhook [or CM_WEBHOOK_URL]",
     );
     console.log(
-      "         --env=PATH --debug --log-time --allow-tool-install --gh-concurrent=N --ai-concurrent=N",
+      "         --env=PATH --debug --log-time --gh-concurrent=N --ai-concurrent=N",
     );
     console.log(
       "Options: --include-codebase --include-pull-requests --include-pull-request-changes",
@@ -169,8 +169,7 @@ export function parseArgs(args: string[]): Options {
         .some((name) => arg.startsWith(`--${name}=`));
     if (
       arg === "--debug" || arg === "--log-time" ||
-      arg === "--allow-tool-install" || arg === "--review-upstream" ||
-      arg === "--codegraph"
+      arg === "--review-upstream" || arg === "--codegraph"
     ) continue;
     if (arg.startsWith("--") && !known) die(`Unknown option: ${arg}`);
   }
@@ -270,7 +269,6 @@ export function parseArgs(args: string[]): Options {
     prNumber,
     debug: rest.includes("--debug"),
     logTime: rest.includes("--log-time"),
-    allowToolInstall: rest.includes("--allow-tool-install"),
     reviewUpstream: rest.includes("--review-upstream"),
     useCodegraph: rest.includes("--codegraph"),
     envPath,

@@ -1,10 +1,16 @@
-import { parseOcrFindings, parseOcrUsage } from "./runners.ts";
+import { cloneDirFor, parseOcrFindings, parseOcrUsage } from "./runners.ts";
 
 function same(actual: unknown, expected: unknown, what: string): void {
   const a = JSON.stringify(actual);
   const b = JSON.stringify(expected);
   if (a !== b) throw new Error(`${what}: got ${a}, want ${b}`);
 }
+
+Deno.test("cloneDirFor does not collide across a moved slash", () => {
+  const a = cloneDirFor("clones", "a/b-c");
+  const b = cloneDirFor("clones", "a-b/c");
+  if (a === b) throw new Error(`both mapped to ${a}`);
+});
 
 Deno.test("parseOcrFindings reads a top-level array", () => {
   const findings = parseOcrFindings(JSON.stringify([

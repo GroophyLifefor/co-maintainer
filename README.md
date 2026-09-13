@@ -8,15 +8,6 @@ default-branch commits. A low-cost model extracts evidence-bound observations; a
 higher-reasoning model turns them into concise contribution guidance for
 implementation, testing, review, and release decisions.
 
-This is a local Deno CLI. It writes generated skills, configuration, and cache
-data to platform-specific user directories — generated skills live under
-`<config dir>/co-maintainer/repos/owner/repo/` (e.g.
-`%APPDATA%\co-maintainer\repos` on Windows,
-`~/Library/Application
-Support/co-maintainer/repos` on macOS,
-`~/.config/co-maintainer/repos` elsewhere) — never relative to the current
-directory, since the CLI can be invoked from anywhere.
-
 ## Installation
 
 ```sh
@@ -56,25 +47,20 @@ co-maintainer init owner/repo --auth=gh --ai=openrouter --token=... \
 co-maintainer review owner/repo 123 --improve-matrix=2 --debug
 ```
 
-`probe` recommends source limits without writing a skill. `remake` refreshes
-changed repository evidence and reuses cached analysis when possible. `review`
-checks a pull request against the generated review guides using OpenRouter and
-GitHub CLI data. `--improve-matrix=N` performs repeated review passes with a
-`24,000 × N` token budget per pass; `--debug` prints each pass for comparison.
-Review results are printed to the terminal and costs are recorded in the SQLite
-cache.
-
-Use `--env=PATH` to load credentials and defaults from an env file. CLI values
-take precedence over the env file, user config, interactive prompts, and
-built-in defaults. See the command documentation: [`probe`](docs/probe.md),
+See the command documentation: [`probe`](docs/probe.md),
 [`init`](docs/init.md), [`remake`](docs/remake.md), [`review`](docs/review.md),
 [`serve`](docs/serve.md), [`dashboard`](docs/dashboard.md),
 [`configuration`](docs/configuration.md),
 [`authentication`](docs/authentication.md), and [`caching`](docs/caching.md).
 
-Add `--log-time` to any command to print core operation durations and AI
-token/cost totals. Use `--gh-concurrent=N` to bound GitHub listing pages and
-detail fetches in `probe`, `init`, and `remake` (default: `1`). Use
-`--ai-concurrent=N` to bound `extract_unit` and `synth_section` AI jobs in
-`init` and `remake` (default: `3`). Use `co-maintainer help`,
+Use `co-maintainer help`,
 `co-maintainer -h`, or `co-maintainer --help` for the full CLI help.
+
+## Compared to other tools
+
+co-maintainer is a newly tool so not compared a lot of other tools. But did benchmarks with [OCR](https://open-codereview.ai/). Although I cannot offer any guarantees because I am working with very small datasets, but it shows promise.
+
+- **2-3x better results** than OCR
+- **2-8x faster** than OCR
+- **70-200x fewer tokens** than OCR
+- **60-270x cheaper** than OCR

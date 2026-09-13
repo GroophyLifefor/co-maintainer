@@ -160,6 +160,7 @@ const reports: {
   recall: number;
   f1: number;
   ms: number;
+  prepMs: number;
   tokensIn: number;
   tokensOut: number;
   tokens: number;
@@ -170,6 +171,7 @@ const details: {
   repo: string;
   pr: number;
   ms: number;
+  prepMs: number;
   tokensIn: number;
   tokensOut: number;
   tokens: number;
@@ -249,6 +251,7 @@ await mapPool(jobs, reviewConcurrent, async (rows) => {
       recall: 0,
       f1: 0,
       ms,
+      prepMs: 0,
       tokensIn,
       tokensOut,
       tokens: tokensIn + tokensOut,
@@ -259,6 +262,7 @@ await mapPool(jobs, reviewConcurrent, async (rows) => {
       repo,
       pr: number,
       ms,
+      prepMs: 0,
       tokensIn,
       tokensOut,
       tokens: tokensIn + tokensOut,
@@ -273,7 +277,12 @@ await mapPool(jobs, reviewConcurrent, async (rows) => {
     });
     return;
   }
-  const ms = performance.now() - started;
+  // `prepMs` (scope, checkout, codegraph indexing) is real per-PR cost but not
+  // the "review" a human would compare across tools or runs — a cold worktree
+  // vs. a warm one otherwise swings the headline time without either tool
+  // actually reviewing any differently. Reported separately instead.
+  const prepMs = result.prepMs;
+  const ms = performance.now() - started - prepMs;
   const predicted = result.findings;
   const pairs = matchPairs(predicted, gold);
   const matchedPredicted = new Set(pairs.map((pair) => pair.predicted));
@@ -315,6 +324,7 @@ await mapPool(jobs, reviewConcurrent, async (rows) => {
     ...counts,
     ...scored,
     ms,
+    prepMs,
     tokensIn,
     tokensOut,
     tokens,
@@ -325,6 +335,7 @@ await mapPool(jobs, reviewConcurrent, async (rows) => {
     repo,
     pr: number,
     ms,
+    prepMs,
     tokensIn,
     tokensOut,
     tokens,
@@ -342,7 +353,9 @@ await mapPool(jobs, reviewConcurrent, async (rows) => {
   console.log(
     `${repo}#${number}  tp=${counts.tp} fp=${counts.fp} fn=${counts.fn}  predicted=${predicted.length}/${gold.length} gold  ${
       (ms / 1000).toFixed(1)
-    }s  in=${tokensIn} out=${tokensOut} total=${tokens} tok  $${
+    }s (+${
+      (prepMs / 1000).toFixed(1)
+    }s prep)  in=${tokensIn} out=${tokensOut} total=${tokens} tok  $${
       costKnown ? cost.toFixed(4) : "unknown"
     }`,
   );
@@ -378,6 +391,7 @@ const perRepo = repos.map((name) => {
     ...counts,
     ...scores(counts),
     avgTimeMs: average(rows.map((row) => row.ms)),
+    avgPrepMs: average(rows.map((row) => row.prepMs)),
     avgTokensIn: average(rows.map((row) => row.tokensIn)),
     avgTokensOut: average(rows.map((row) => row.tokensOut)),
     avgTokens: average(rows.map((row) => row.tokens)),
@@ -394,6 +408,7 @@ const result = {
   precision,
   recall,
   avgTimeMs: average(reports.map((row) => row.ms)),
+  avgPrepMs: average(reports.map((row) => row.prepMs)),
   avgTokensIn: average(reports.map((row) => row.tokensIn)),
   avgTokensOut: average(reports.map((row) => row.tokensOut)),
   avgTokens: average(reports.map((row) => row.tokens)),
@@ -409,7 +424,9 @@ for (const row of perRepo) {
     `  ${row.repo}  PRs=${row.prs}  F1=${row.f1.toFixed(3)}  P=${
       row.precision.toFixed(3)
     }  R=${row.recall.toFixed(3)}  tp=${row.tp} fp=${row.fp} fn=${row.fn}  ` +
-      `avgTok(in/out)=${row.avgTokensIn.toFixed(0)}/${
+      `avgTime=${(row.avgTimeMs / 1000).toFixed(1)}s (+${
+        (row.avgPrepMs / 1000).toFixed(1)
+      }s prep)  avgTok(in/out)=${row.avgTokensIn.toFixed(0)}/${
         row.avgTokensOut.toFixed(0)
       }`,
   );
@@ -419,9 +436,11 @@ console.log(
     precision.toFixed(3)
   }  R=${recall.toFixed(3)}  avgTime=${
     (result.avgTimeMs / 1000).toFixed(1)
-  }s  avgTok(in/out/total)=${result.avgTokensIn.toFixed(0)}/${
-    result.avgTokensOut.toFixed(0)
-  }/${result.avgTokens.toFixed(0)}  avgCost=$${
+  }s (+${(result.avgPrepMs / 1000).toFixed(1)}s prep)  avgTok(in/out/total)=${
+    result.avgTokensIn.toFixed(0)
+  }/${result.avgTokensOut.toFixed(0)}/${
+    result.avgTokens.toFixed(0)
+  }  avgCost=$${
     costKnown ? result.avgCost.toFixed(4) : "unknown"
   }  totalCost=$${costKnown ? totalCost.toFixed(4) : "unknown"}`,
 );
