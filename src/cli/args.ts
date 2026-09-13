@@ -14,7 +14,7 @@ function numberOption(value: string, name: string): number {
 }
 
 const commands = ["probe", "init", "remake", "review"] as const;
-const defaultLowModel = "openai/gpt-oss-120b";
+export const defaultLowModel = "openai/gpt-oss-120b";
 const defaultHighModel = "openai/gpt-5.6-luna";
 
 function ask(
@@ -56,7 +56,7 @@ export function parseArgs(args: string[]): Options {
       "         --webhook-url=https://host/github/webhook [or CM_WEBHOOK_URL]",
     );
     console.log(
-      "         --env=PATH --debug --log-time --gh-concurrent=N --ai-concurrent=N --improve-matrix=N",
+      "         --env=PATH --debug --log-time --gh-concurrent=N --ai-concurrent=N",
     );
     console.log(
       "Options: --include-codebase --include-pull-requests --include-pull-request-changes",
@@ -167,7 +167,10 @@ export function parseArgs(args: string[]): Options {
         "high-model",
       ]
         .some((name) => arg.startsWith(`--${name}=`));
-    if (arg === "--debug" || arg === "--log-time") continue;
+    if (
+      arg === "--debug" || arg === "--log-time" ||
+      arg === "--review-upstream" || arg === "--codegraph"
+    ) continue;
     if (arg.startsWith("--") && !known) die(`Unknown option: ${arg}`);
   }
 
@@ -266,6 +269,8 @@ export function parseArgs(args: string[]): Options {
     prNumber,
     debug: rest.includes("--debug"),
     logTime: rest.includes("--log-time"),
+    reviewUpstream: rest.includes("--review-upstream"),
+    useCodegraph: rest.includes("--codegraph"),
     envPath,
     improveMatrix: value("improve-matrix") ?? 1,
     ghConcurrent: Math.max(1, value("gh-concurrent") ?? 1),

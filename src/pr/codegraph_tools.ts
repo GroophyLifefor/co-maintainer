@@ -1,0 +1,387 @@
+import type { ToolHandler } from "../ai/mermaid_loop.ts";
+import {
+  ensureWorktree,
+  pathExists,
+  type Run,
+  runCommand,
+} from "./checkout.ts";
+import { detect, type Presence } from "../tools/codegraph.ts";
+import { log } from "../util/log.ts";
+
+// Each codegraph subcommand as its own tool, no synthesis step in between —
+// verified against the installed `codegraph <command> --help` output.
+
+type Args = Record<string, unknown>;
+
+function str(args: Args, key: string): string | undefined {
+  const value = args[key];
+  return typeof value === "string" && value.trim() !== ""
+    ? value.trim()
+    : undefined;
+}
+
+function num(args: Args, key: string): number | undefined {
+  const value = args[key];
+  return typeof value === "number" && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function strArray(args: Args, key: string): string[] {
+  const value = args[key];
+  return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
+}
+
+async function run(
+  binary: string,
+  worktree: string,
+  runner: Run,
+  args: string[],
+): Promise<string> {
+  const result = await runner(binary, args, worktree);
+  const output = result.stdout.trim() || result.stderr.trim();
+  if (result.code !== 0) {
+    return `codegraph ${args[0]} exited ${result.code}: ${output}`;
+  }
+  return output || "(no output)";
+}
+
+async function ensureIndex(
+  binary: string,
+  worktree: string,
+  runner: Run,
+): Promise<void> {
+  const started = performance.now();
+  const fresh = !(await pathExists(`${worktree}/.codegraph`));
+  const result = await runner(binary, [fresh ? "init" : "sync", "."], worktree);
+  if (result.code !== 0) {
+    throw new Error(
+      `codegraph ${fresh ? "init" : "sync"} failed: ${
+        result.stderr.trim() || result.stdout.trim()
+      }`,
+    );
+  }
+  const indexed = result.stdout.match(/Indexed ([\d.]+) files/)?.[1] ??
+    result.stdout.match(/Synced (\d+) changed files/)?.[1] ?? "?";
+  log(
+    "codegraph",
+    `${fresh ? "init" : "sync"} · ${indexed} files · ${
+      ((performance.now() - started) / 1000).toFixed(1)
+    }s`,
+  );
+}
+
+/** Uses `detect`, never `ensureCodegraph`: the latter can call `Deno.exit` on
+ * a declined or failed install, fine for a one-time `init`/`remake`/`serve`
+ * setup step but not for a single review that happens to want this tool. */
+export async function prepareCodegraphTools(
+  repo: string,
+  pr: number,
+  commit: string,
+  options: { run?: Run; detect?: () => Promise<Presence> } = {},
+): Promise<ToolHandler[]> {
+  const runner = options.run ?? runCommand;
+  const detectPresence = options.detect ?? detect;
+  try {
+    const presence = await detectPresence();
+    if (presence.state !== "ok") {
+      log("codegraph", `tools unavailable · codegraph is ${presence.state}`);
+      return [];
+    }
+    const worktree = await ensureWorktree(repo, pr, commit, runner);
+    await ensureIndex(presence.path, worktree, runner);
+    return codegraphTools(presence.path, worktree, runner);
+  } catch (error) {
+    log("codegraph", `tools unavailable · ${String(error)}`);
+    return [];
+  }
+}
+
+export function codegraphTools(
+  binary: string,
+  worktree: string,
+  runner: Run,
+): ToolHandler[] {
+  return [
+    {
+      name: "codegraph-query",
+      tool: {
+        type: "function",
+        function: {
+          name: "codegraph-query",
+          description:
+            "Search for symbols (functions, classes, types, etc.) by name across the indexed repository.",
+          parameters: {
+            type: "object",
+            properties: {
+              search: {
+                type: "string",
+                description: "The symbol name or search term.",
+              },
+              kind: {
+                type: "string",
+                description: "Restrict to a node kind, e.g. function, class.",
+              },
+              limit: {
+                type: "number",
+                description: "Maximum results (default 10).",
+              },
+            },
+            required: ["search"],
+            additionalProperties: false,
+          },
+        },
+      },
+      run: (args) => {
+        const a = args as Args;
+        const search = str(a, "search");
+        if (!search) {
+          return Promise.resolve("codegraph-query requires 'search'.");
+        }
+        const kind = str(a, "kind");
+        const limit = num(a, "limit");
+        return run(binary, worktree, runner, [
+          "query",
+          search,
+          ...(kind ? ["-k", kind] : []),
+          ...(limit ? ["-l", String(limit)] : []),
+        ]);
+      },
+    },
+    {
+      name: "codegraph-node",
+      tool: {
+        type: "function",
+        function: {
+          name: "codegraph-node",
+          description:
+            "One symbol's source plus its caller/callee trail, given its name. Or, with `file` set instead, that file's own symbol map and dependents.",
+          parameters: {
+            type: "object",
+            properties: {
+              name: {
+                type: "string",
+                description: "A symbol name to look up.",
+              },
+              file: {
+                type: "string",
+                description:
+                  "A file path — reads the file's symbol map instead of a single symbol.",
+              },
+              symbolsOnly: {
+                type: "boolean",
+                description:
+                  "With `file`: return only the symbol map, not source text.",
+              },
+            },
+            additionalProperties: false,
+          },
+        },
+      },
+      run: (args) => {
+        const a = args as Args;
+        const name = str(a, "name");
+        const file = str(a, "file");
+        if (!name && !file) {
+          return Promise.resolve("codegraph-node requires 'name' or 'file'.");
+        }
+        return run(binary, worktree, runner, [
+          "node",
+          ...(name ? [name] : []),
+          ...(file ? ["-f", file] : []),
+          ...(a.symbolsOnly ? ["--symbols-only"] : []),
+        ]);
+      },
+    },
+    {
+      name: "codegraph-explore",
+      tool: {
+        type: "function",
+        function: {
+          name: "codegraph-explore",
+          description:
+            "Explore an area of the codebase by a natural-language query: relevant symbols' source and call paths in one shot.",
+          parameters: {
+            type: "object",
+            properties: {
+              query: {
+                type: "string",
+                description: "What to explore, in plain words.",
+              },
+              maxFiles: {
+                type: "number",
+                description: "Maximum number of files to include source from.",
+              },
+            },
+            required: ["query"],
+            additionalProperties: false,
+          },
+        },
+      },
+      run: (args) => {
+        const a = args as Args;
+        const query = str(a, "query");
+        if (!query) {
+          return Promise.resolve("codegraph-explore requires 'query'.");
+        }
+        const maxFiles = num(a, "maxFiles");
+        return run(binary, worktree, runner, [
+          "explore",
+          ...query.split(/\s+/),
+          ...(maxFiles ? ["--max-files", String(maxFiles)] : []),
+        ]);
+      },
+    },
+    {
+      name: "codegraph-callers",
+      tool: {
+        type: "function",
+        function: {
+          name: "codegraph-callers",
+          description:
+            "Find every function or method that calls a specific symbol.",
+          parameters: {
+            type: "object",
+            properties: {
+              symbol: { type: "string" },
+              limit: {
+                type: "number",
+                description: "Maximum results (default 20).",
+              },
+            },
+            required: ["symbol"],
+            additionalProperties: false,
+          },
+        },
+      },
+      run: (args) => {
+        const a = args as Args;
+        const symbol = str(a, "symbol");
+        if (!symbol) {
+          return Promise.resolve("codegraph-callers requires 'symbol'.");
+        }
+        const limit = num(a, "limit");
+        return run(binary, worktree, runner, [
+          "callers",
+          symbol,
+          ...(limit ? ["-l", String(limit)] : []),
+        ]);
+      },
+    },
+    {
+      name: "codegraph-callees",
+      tool: {
+        type: "function",
+        function: {
+          name: "codegraph-callees",
+          description:
+            "Find every function or method that a specific symbol calls.",
+          parameters: {
+            type: "object",
+            properties: {
+              symbol: { type: "string" },
+              limit: {
+                type: "number",
+                description: "Maximum results (default 20).",
+              },
+            },
+            required: ["symbol"],
+            additionalProperties: false,
+          },
+        },
+      },
+      run: (args) => {
+        const a = args as Args;
+        const symbol = str(a, "symbol");
+        if (!symbol) {
+          return Promise.resolve("codegraph-callees requires 'symbol'.");
+        }
+        const limit = num(a, "limit");
+        return run(binary, worktree, runner, [
+          "callees",
+          symbol,
+          ...(limit ? ["-l", String(limit)] : []),
+        ]);
+      },
+    },
+    {
+      name: "codegraph-impact",
+      tool: {
+        type: "function",
+        function: {
+          name: "codegraph-impact",
+          description:
+            "Analyze what else in the codebase is affected by changing a specific symbol — its blast radius.",
+          parameters: {
+            type: "object",
+            properties: {
+              symbol: { type: "string" },
+              depth: {
+                type: "number",
+                description: "Traversal depth (default 2).",
+              },
+            },
+            required: ["symbol"],
+            additionalProperties: false,
+          },
+        },
+      },
+      run: (args) => {
+        const a = args as Args;
+        const symbol = str(a, "symbol");
+        if (!symbol) {
+          return Promise.resolve("codegraph-impact requires 'symbol'.");
+        }
+        const depth = num(a, "depth");
+        return run(binary, worktree, runner, [
+          "impact",
+          symbol,
+          ...(depth ? ["-d", String(depth)] : []),
+        ]);
+      },
+    },
+    {
+      name: "codegraph-affected",
+      tool: {
+        type: "function",
+        function: {
+          name: "codegraph-affected",
+          description:
+            "Find test files affected by one or more changed source files — the direct way to check whether a change is covered by any test, instead of guessing from the diff.",
+          parameters: {
+            type: "object",
+            properties: {
+              files: {
+                type: "array",
+                items: { type: "string" },
+                description:
+                  "Changed file paths, exactly as shown in this pull request.",
+              },
+              depth: {
+                type: "number",
+                description: "Max dependency traversal depth (default 5).",
+              },
+            },
+            required: ["files"],
+            additionalProperties: false,
+          },
+        },
+      },
+      run: (args) => {
+        const a = args as Args;
+        const files = strArray(a, "files");
+        if (files.length === 0) {
+          return Promise.resolve(
+            "codegraph-affected requires a non-empty 'files' array.",
+          );
+        }
+        const depth = num(a, "depth");
+        return run(binary, worktree, runner, [
+          "affected",
+          ...files,
+          ...(depth ? ["-d", String(depth)] : []),
+        ]);
+      },
+    },
+  ];
+}

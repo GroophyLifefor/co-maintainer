@@ -9,6 +9,16 @@ export type Options = {
   prNumber?: number;
   debug: boolean;
   logTime: boolean;
+  /** Reviews every changed file with no own/upstream split — the behavior
+   * before scope.ts existed. Off by default: a re-review round's diff can
+   * carry a merge from the default branch that dwarfs the PR's own change,
+   * and neither a human reviewer nor this flag's absence asks anyone to read
+   * it as if the PR authored it. */
+  reviewUpstream?: boolean;
+  /** Off by default: verified to add tokens and wall-clock time with zero
+   * recall improvement on real PRs (a tokio benchmark run), so it is an
+   * explicit opt-in rather than something every review pays for. */
+  useCodegraph?: boolean;
   improveMatrix: number;
   ghConcurrent: number;
   aiConcurrent: number;
@@ -71,7 +81,12 @@ export type AiRequest = {
   tools?: Json[];
   maxTokens: number;
   job: string;
-  reasoningEffort?: "high";
+  // The full scale OpenRouter exposes for models that support it (see a
+  // model's `reasoning.supported_efforts`), highest first. Not every model
+  // supports every level — "max"/"xhigh" are newer additions some models
+  // don't have, and requesting an unsupported one is the caller's mistake to
+  // avoid, not something validated here.
+  reasoningEffort?: "max" | "xhigh" | "high" | "medium" | "low" | "none";
 };
 
 export type AiResponse = {

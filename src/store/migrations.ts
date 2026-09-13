@@ -161,4 +161,8 @@ export const migrations: string[][] = [
   [
     `ALTER TABLE drift ADD COLUMN prs_updated INTEGER NOT NULL DEFAULT 0`,
   ],
+  // 5 — codegraph tools are an opt-in cost per repo, off until asked for
+  [
+    `ALTER TABLE repos ADD COLUMN use_codegraph INTEGER NOT NULL DEFAULT 0`,
+  ],
 ];

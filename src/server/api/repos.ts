@@ -110,6 +110,9 @@ export async function handleReposRoute(
       if (typeof body.skipBots === "boolean") {
         patch.skip_bots = body.skipBots ? 1 : 0;
       }
+      if (typeof body.useCodegraph === "boolean") {
+        patch.use_codegraph = body.useCodegraph ? 1 : 0;
+      }
       if (
         body.reviewScope === "whole-pr" || body.reviewScope === "incremental"
       ) {

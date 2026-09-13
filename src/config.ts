@@ -89,6 +89,44 @@ export function reposDir(): string {
     `${getConfigDir()}/co-maintainer/repos`;
 }
 
+/** Third-party binaries co-maintainer installs for itself, never onto the
+ * user's global PATH. Each tool lives under its own version directory so an
+ * upgrade installs alongside the old one instead of over it, and a rollback is
+ * just pointing at the previous directory. */
+export function toolsDir(): string {
+  return Deno.env.get("CM_TOOLS_DIR") ??
+    `${getConfigDir()}/co-maintainer/tools`;
+}
+
+/** A short, stable directory name for a repository. Full `owner-repo` names
+ * blow the Windows 260 character path limit once a deep source tree is checked
+ * out under them: typescript-eslint's longest path is 169 characters on its
+ * own, which leaves under 91 for everything above it. */
+export function repoSlug(repo: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < repo.length; index++) {
+    hash ^= repo.charCodeAt(index);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+}
+
+/** Clones and worktrees are large, disposable and rebuildable in seconds, so
+ * they belong beside the cache rather than in the config directory, which on
+ * Windows is the roaming profile and gets synced across machines. */
+export function clonesDir(): string {
+  return Deno.env.get("CM_CLONES_DIR") ??
+    `${getCacheDir()}/co-maintainer/clones`;
+}
+
+export function cloneDir(repo: string): string {
+  return `${clonesDir()}/${repoSlug(repo)}`;
+}
+
+export function worktreeDir(repo: string, pr: number): string {
+  return `${getCacheDir()}/co-maintainer/wt/${repoSlug(repo)}/${pr}`;
+}
+
 export function cacheDbPath(): string {
   return `${getCacheDir()}/co-maintainer/cache.db`;
 }

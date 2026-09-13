@@ -1,6 +1,17 @@
 import { OpenRouterProvider } from "../ai/openrouter.ts";
-import { completeWithMermaidTools } from "../ai/mermaid_loop.ts";
+import {
+  completeWithMermaidTools,
+  type ToolHandler,
+} from "../ai/mermaid_loop.ts";
 import { reposDir } from "../config.ts";
+import { computeScope } from "./scope.ts";
+import { prepareCodegraphTools } from "./codegraph_tools.ts";
+import {
+  needsSummary,
+  READ_FULL_DIFF_TOOL,
+  readFullDiff,
+  summarizeDiff,
+} from "./diff_summary.ts";
 import type { Snapshot } from "./snapshot.ts";
 import type {
   AiProvider,
@@ -73,6 +84,47 @@ function text(value: unknown, limit = 20_000): string {
     : result;
 }
 
+const MAX_FILE_PATCH_CHARS = 12_000;
+
+/** GitHub omits `patch` entirely for files it considers too large, and the file
+ * still appears in the compare response with only its counts. Rendering that as
+ * an empty body reads as "this file did not change", and a reviewer then
+ * reports the absence as a finding (a lockfile that was in fact regenerated,
+ * say). Say plainly that the hunks are missing, and mark a per-file truncation
+ * for the same reason. */
+export function filePatch(file: Json): string {
+  const patch = String(file.patch ?? "");
+  const status = String(file.status ?? "modified");
+  const changes = Number(file.changes ?? 0);
+  const additions = Number(file.additions ?? 0);
+  const deletions = Number(file.deletions ?? 0);
+  if (patch === "") {
+    const counts = Number.isFinite(changes) && changes > 0
+      ? `${changes} changed lines (+${additions} -${deletions})`
+      : "an unreported number of changed lines";
+    return `[${status}; ${counts}; diff withheld by GitHub, not shown here. ` +
+      `Do not treat this file as unchanged and do not report its contents.]`;
+  }
+  if (patch.length > MAX_FILE_PATCH_CHARS) {
+    return `${patch.slice(0, MAX_FILE_PATCH_CHARS)}\n[${status}; ${changes} ` +
+      `changed lines total; this file's diff is cut off here, later hunks are ` +
+      `not shown.]`;
+  }
+  return patch;
+}
+
+// Uncapped, a 100,000-line diff would ask for 1,000+ tool-loop rounds, each
+// able to spend multiple external calls.
+export function clampToolRounds(totalDiffLines: number): number {
+  return Math.min(Math.round(4 + totalDiffLines / 100), 8);
+}
+
+// Uncapped, --improve-matrix scales maxTokens past what most providers'
+// 128k-token context can hold on its own, before the prompt even counts.
+export function clampImproveMatrix(matrix: number): number {
+  return Math.min(Math.max(1, matrix), 4);
+}
+
 export async function readGuide(repo: string, name: string): Promise<string> {
   try {
     return await Deno.readTextFile(`${reposDir()}/${repo}/${name}`);
@@ -140,16 +192,122 @@ export async function reviewPullRequest(
     );
   }
 
-  const patch = files.map((file) => {
+  // What the author actually wrote this round, as opposed to code that
+  // arrived by merging the default branch in — see scope.ts. A re-review
+  // round's diff regularly carries a `merge main` that dwarfs the PR's own
+  // change and that no human reviewer reads either; --review-upstream turns
+  // this off and reviews everything, matching the pre-scope behavior.
+  const headSha = snapshot?.commit ??
+    String((pr.head as Json | undefined)?.sha ?? "");
+  const baseRevision = snapshot?.base ??
+    String((pr.base as Json | undefined)?.ref ?? "main");
+  if (options.reviewUpstream) {
+    report("scope skipped · --review-upstream");
+  } else if (!headSha) {
+    report("scope skipped · no head commit for this pull request");
+  }
+  const scope = options.reviewUpstream || !headSha
+    ? undefined
+    : await computeScope(options.repo, baseRevision, headSha);
+  if (!options.reviewUpstream && headSha && !scope) {
+    report("scope unavailable · reviewing every changed file");
+  }
+
+  const named = files.map((file) => {
     const value = file as Json;
-    return `FILE: ${String(value.filename ?? "")}\n${
-      text(value.patch, 12_000)
-    }`;
-  }).join("\n\n");
-  const diffWasTruncated = patch.length > MAX_REVIEW_DIFF_CHARS;
-  const diff = text(patch, MAX_REVIEW_DIFF_CHARS);
+    return { file: value, path: String(value.filename ?? "") };
+  });
+  const ownFiles = scope
+    ? named.filter(({ path }) => !scope.upstreamFiles.has(path))
+    : named;
+  const upstreamFiles = scope
+    ? named.filter(({ path }) => scope.upstreamFiles.has(path))
+    : [];
+  if (scope) {
+    report(
+      `scope resolved · own=${ownFiles.length} files · upstream=${upstreamFiles.length} files`,
+    );
+  }
+
+  // Built only if needed: OpenRouterProvider's constructor requires a real
+  // API key, which a fake-AI test run never has.
+  const filesNeedSummary = ownFiles.some(({ file }) =>
+    needsSummary(Number(file.changes ?? 0), String(file.patch ?? ""))
+  );
+  const lowProvider = filesNeedSummary
+    ? ai ?? new OpenRouterProvider(
+      options.aiToken ?? "",
+      options.lowModel ?? "openai/gpt-oss-120b",
+    )
+    : undefined;
+  const patchByPath = new Map<string, string>();
+  const [ownSections, codegraphTools] = await Promise.all([
+    Promise.all(ownFiles.map(async ({ file, path }) => {
+      const changes = Number(file.changes ?? 0);
+      const patch = String(file.patch ?? "");
+      if (!needsSummary(changes, patch)) {
+        return `FILE: ${path}\n${filePatch(file)}`;
+      }
+      patchByPath.set(path, patch);
+      const description = await summarizeDiff(path, patch, lowProvider!, usage);
+      report(`summarized large diff · ${path} · ${changes} changed lines`);
+      return `FILE: ${path}\n[${changes} changed lines — summarized below; ` +
+        `call read-full-diff("${path}") for the complete diff if this is not ` +
+        `enough]\n${description}`;
+    })),
+    options.useCodegraph && headSha
+      ? prepareCodegraphTools(options.repo, number, headSha)
+      : Promise.resolve([] as ToolHandler[]),
+  ]);
+  if (options.useCodegraph) {
+    report(
+      `codegraph tools · ${
+        codegraphTools.length > 0 ? "ready" : "unavailable"
+      }`,
+    );
+  }
+  const extraTools: ToolHandler[] = [
+    ...codegraphTools,
+    ...(patchByPath.size > 0
+      ? [{
+        name: "read-full-diff",
+        tool: READ_FULL_DIFF_TOOL,
+        run: (args: unknown) => readFullDiff(patchByPath, args),
+      }]
+      : []),
+  ];
+
+  // Bigger own-scope diffs need more codegraph round-trips to trace — fixed
+  // at 3 rounds regardless of size caused the model to run out mid-review on
+  // large PRs (verified via a tokio benchmark run: it hallucinated fake
+  // tool-call text instead of a finding once tools were dropped).
+  const totalDiffLines = ownFiles.reduce(
+    (sum, { file }) => sum + Number(file.changes ?? 0),
+    0,
+  );
+  const maxToolRounds = clampToolRounds(totalDiffLines);
   report(
-    `diff prepared · ${patch.length} chars${
+    `tool rounds · ${maxToolRounds} (own diff ${totalDiffLines} changed lines)`,
+  );
+
+  const ownPatch = ownSections.join("\n\n");
+  const diffWasTruncated = ownPatch.length > MAX_REVIEW_DIFF_CHARS;
+  const ownDiff = text(ownPatch, MAX_REVIEW_DIFF_CHARS);
+  const upstreamListing = upstreamFiles.map(({ file, path }) =>
+    `- ${path} (+${Number(file.additions ?? 0)} -${
+      Number(file.deletions ?? 0)
+    })`
+  ).join("\n");
+  const diff = upstreamFiles.length === 0 ? ownDiff : `${ownDiff}
+
+UPSTREAM CONTEXT — arrived via a merge this round, not authored by this pull
+request. Do not raise a finding located only in this code; only note an
+interaction if the pull request's own change above relies on or conflicts with
+one of these files, and never mark that finding blocking:
+${upstreamListing}`;
+
+  report(
+    `diff prepared · ${ownPatch.length} chars${
       diffWasTruncated ? " · truncated for model context" : ""
     }`,
   );
@@ -174,6 +332,20 @@ Do not stop early; inspect all supplied diff text first and return the natural
 count. If the diff contains a truncation marker, limit claims to the supplied
 text and do not imply that omitted files were reviewed.
 Do not invent low-value findings.
+When the DIFF section below has an UPSTREAM CONTEXT part, that code arrived
+through a merge and was not authored by this pull request; do not raise a
+finding located only there, and never mark blocking a finding whose only
+support is upstream context.
+Examine the pull request's own changes line by line, not just file by file —
+a single file can contain more than one independent defect, and a change that
+looks fine in isolation can be wrong once you trace what calls it or what
+other branch of the same construct now behaves differently. Use codegraph-node,
+codegraph-callers, codegraph-callees, codegraph-impact, and codegraph-affected
+to check who calls a changed symbol, what else it affects, and whether a test
+reaches it — do not guess coverage or blast radius from the diff alone when a
+tool can answer it. A missing regression test is not a substitute for
+identifying what the change actually gets wrong; state the concrete input or
+code path that misbehaves when you can.
 Each finding must use this exact structure, keeping the default finding under
 120 words excluding an optional diagram:
 
@@ -195,29 +367,29 @@ review copies. Use Markdown backticks around paths and symbols.
 ${diagrams ? DIAGRAM_PROMPT_RULES : NO_DIAGRAM_RULES}
 
 REVIEW GUIDE:
-${text(guide)}
+${guide}
 
 DETAILED GUIDE:
-${text(detailed)}
+${detailed}
 
 CODEBASE CONVENTIONS:
-${text(codebase) || "None recorded."}
+${codebase || "None recorded."}
 
 PULL REQUEST:
 ${
       JSON.stringify({
         number,
-        title: text(pr.title, 2_000),
-        body: text(pr.body, 8_000),
+        title: String(pr.title ?? ""),
+        body: String(pr.body ?? ""),
         state: pr.state,
         changedFiles: files.map((file) =>
           String((file as Json).filename ?? "")
         ),
         existingComments: comments.map((comment) =>
-          text((comment as Json).body, 4_000)
+          String((comment as Json).body ?? "")
         ),
         existingReviews: reviews.map((review) =>
-          text((review as Json).body, 4_000)
+          String((review as Json).body ?? "")
         ),
       })
     }
@@ -225,7 +397,7 @@ ${
 DIFF:
 ${diff}`;
 
-  const matrix = Math.max(1, options.improveMatrix);
+  const matrix = clampImproveMatrix(options.improveMatrix);
   const request: AiRequest = {
     job: "review_pull_request",
     system: reviewSystemPrompt(diagrams),
@@ -239,7 +411,7 @@ ${diff}`;
   );
   if (options.debug) {
     console.log(
-      `[debug] review prompt · ${prompt.length} chars · diff=${patch.length} chars`,
+      `[debug] review prompt · ${prompt.length} chars · diff=${diff.length} chars`,
     );
     console.log(
       `[debug] openrouter request · model=${
@@ -247,7 +419,13 @@ ${diff}`;
       } · maxTokens=${request.maxTokens}`,
     );
   }
-  let response = await completeWithMermaidTools(provider, request, 1);
+  let response = await completeWithMermaidTools(
+    provider,
+    request,
+    1,
+    extraTools,
+    maxToolRounds,
+  );
   if (usage) await usage(response);
   report(
     `AI response · input=${response.tokensIn} tokens · output=${response.tokensOut} tokens`,
@@ -289,7 +467,13 @@ ${reviewText}`,
       );
     }
     report(`AI improvement pass ${pass - 1} of ${matrix - 1}`);
-    response = await completeWithMermaidTools(provider, improvementRequest, 1);
+    response = await completeWithMermaidTools(
+      provider,
+      improvementRequest,
+      1,
+      extraTools,
+      maxToolRounds,
+    );
     if (usage) await usage(response);
     report(
       `AI improvement response · input=${response.tokensIn} tokens · ` +

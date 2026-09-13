@@ -7,16 +7,34 @@ import type {
   Json,
 } from "../types.ts";
 import { MERMAID_TOOL, readMermaidSyntaxes } from "./mermaid.ts";
+import { log } from "../util/log.ts";
 
-const MAX_TOOL_ROUNDS = 3;
+const DEFAULT_MAX_TOOL_ROUNDS = 3;
 const TOOL_NAME = "read-mermaid-syntaxes";
 
-function runTool(call: AiToolCall, maxTools: number): string {
+/** Async because a review's tools shell out or hit disk, unlike the built-in
+ * Mermaid doc lookup. */
+export type ToolHandler = {
+  tool: Json;
+  name: string;
+  run: (args: unknown) => Promise<string> | string;
+};
+
+async function runTool(
+  call: AiToolCall,
+  maxTools: number,
+  extraTools: ToolHandler[],
+): Promise<string> {
   try {
-    if (call.function.name !== TOOL_NAME) {
-      throw new Error(`unsupported tool: ${call.function.name}`);
+    if (call.function.name === TOOL_NAME) {
+      return readMermaidSyntaxes(
+        JSON.parse(call.function.arguments),
+        maxTools,
+      );
     }
-    return readMermaidSyntaxes(JSON.parse(call.function.arguments), maxTools);
+    const extra = extraTools.find((item) => item.name === call.function.name);
+    if (extra) return await extra.run(JSON.parse(call.function.arguments));
+    throw new Error(`unsupported tool: ${call.function.name}`);
   } catch (error) {
     return `Tool error: ${
       error instanceof Error ? error.message : String(error)
@@ -28,6 +46,8 @@ export async function completeWithMermaidTools(
   provider: AiProvider,
   request: AiRequest,
   maxTools: number,
+  extraTools: ToolHandler[] = [],
+  maxToolRounds: number = DEFAULT_MAX_TOOL_ROUNDS,
 ): Promise<AiResponse> {
   if (provider.supportsTools === false) return provider.complete(request);
 
@@ -39,7 +59,10 @@ export async function completeWithMermaidTools(
       { role: "user" as const, content: request.prompt },
     ],
   ];
-  const tools = [MERMAID_TOOL as unknown as Json];
+  const tools = [
+    MERMAID_TOOL as unknown as Json,
+    ...extraTools.map((item) => item.tool),
+  ];
   const totals = {
     tokensIn: 0,
     tokensOut: 0,
@@ -60,25 +83,53 @@ export async function completeWithMermaidTools(
     };
   };
 
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+  for (let round = 0; round < maxToolRounds; round++) {
     const response = await provider.complete({ ...request, messages, tools });
     if (!response.toolCalls?.length) return merge(response);
     merge(response);
+    log(
+      "review-tools",
+      `round ${
+        round + 1
+      }/${maxToolRounds} · ${response.toolCalls.length} call(s): ${
+        response.toolCalls.map((call) => call.function.name).join(", ")
+      }`,
+    );
     messages.push({
       role: "assistant",
       content: response.text || null,
       tool_calls: response.toolCalls,
     });
     for (const call of response.toolCalls) {
+      const result = await runTool(call, maxTools, extraTools);
+      log(
+        "review-tools",
+        `${call.function.name}(${call.function.arguments}) → ${result.length} chars${
+          result.startsWith("Tool error") || result.startsWith("codegraph ")
+            ? `: ${result.slice(0, 200)}`
+            : ""
+        }`,
+      );
       messages.push({
         role: "tool",
         tool_call_id: call.id,
         name: call.function.name,
-        content: runTool(call, maxTools),
+        content: result,
       });
     }
   }
-  // ponytail: the model kept calling tools, so answer without them rather than
-  // losing the whole job. Raise MAX_TOOL_ROUNDS if that truncates real work.
+  // The model still wanted tools past the round budget — dropping `tools`
+  // silently here made past runs hallucinate fake tool-call syntax as text
+  // instead of a real finding (verified via a tokio benchmark run). Telling
+  // it plainly is cheap insurance against that.
+  log(
+    "review-tools",
+    `round budget (${maxToolRounds}) exhausted with the model still requesting tools`,
+  );
+  messages.push({
+    role: "user",
+    content:
+      "No more tool calls are available. Answer now using only what you already found.",
+  });
   return merge(await provider.complete({ ...request, messages }));
 }
