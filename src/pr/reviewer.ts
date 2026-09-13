@@ -355,14 +355,8 @@ ${diff}`;
     job: "review_pull_request",
     system: reviewSystemPrompt(diagrams),
     prompt,
-    // openai/gpt-5.6-luna supports effort above "high" (max > xhigh > high on
-    // OpenRouter's scale for this model; verified via its /models endpoint,
-    // not assumed). Reasoning tokens draw from the same completion budget the
-    // provider caps at 128,000, so maxTokens has to grow with the effort or a
-    // "max"-effort call can spend its whole budget thinking and return no
-    // findings text at all.
-    maxTokens: 48_000 * matrix,
-    reasoningEffort: "max",
+    maxTokens: 24_000 * matrix,
+    reasoningEffort: "high",
   };
   report(
     `AI request · model=${options.highModel ?? "openrouter default"} · ` +

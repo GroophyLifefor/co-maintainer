@@ -243,7 +243,11 @@ export function extractFacts(source: Source, options: Options): Fact[] {
 
   const seenScripts = new Set<string>();
   for (const [path, content] of Object.entries(source.files)) {
-    if (/^(?:src|lib|app|cmd)\//i.test(path)) {
+    // Anchored at any path segment, not just the repository root: a Cargo
+    // workspace nests each crate's source under `<crate>/src/...`, and this
+    // very repository's own `packages/<pkg>/src/...` layout is the same
+    // shape. A root-only anchor silently produced zero layout facts for both.
+    if (/(?:^|\/)(?:src|lib|app|cmd)\//i.test(path)) {
       const claim = sourceModuleClaim(path, content);
       if (claim) add(facts, fact("layout", claim, path, 3));
     }
