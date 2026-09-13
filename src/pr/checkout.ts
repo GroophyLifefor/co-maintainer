@@ -95,7 +95,7 @@ export async function ensureClone(repo: string, run: Run): Promise<string> {
  * commands rather than one `rev-parse <rev>^{commit}`: on Windows this runs
  * through `cmd /c`, where `^` is the shell's own escape character and would
  * silently eat the peel suffix, making a present commit look absent — the
- * same trap `benchmark/runners.ts`'s `requireCommit` avoids for the same
+ * same trap `benchmark/core_v2/runners.ts`'s `requireCommit` avoids for the same
  * reason. `cat-file -t` after a caret-free `rev-parse` sidesteps it. */
 async function resolveCommit(
   clone: string,

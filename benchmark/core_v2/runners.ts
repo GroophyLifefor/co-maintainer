@@ -1,8 +1,8 @@
-import { reviewPullRequest } from "../src/pr/reviewer.ts";
-import { type ParsedFinding, parseFindings } from "../src/pr/findings.ts";
-import { scopeInClone } from "../src/pr/scope.ts";
-import type { Snapshot } from "../src/pr/snapshot.ts";
-import type { GitHubClient, Options } from "../src/types.ts";
+import { reviewPullRequest } from "../../src/pr/reviewer.ts";
+import { type ParsedFinding, parseFindings } from "../../src/pr/findings.ts";
+import { scopeInClone } from "../../src/pr/scope.ts";
+import type { Snapshot } from "../../src/pr/snapshot.ts";
+import type { GitHubClient, Options } from "../../src/types.ts";
 
 export type RunResult = {
   text: string;

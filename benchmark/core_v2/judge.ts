@@ -1,6 +1,6 @@
-import { OpenRouterProvider } from "../src/ai/openrouter.ts";
-import type { AiResponse } from "../src/types.ts";
-import type { ParsedFinding } from "../src/pr/findings.ts";
+import { OpenRouterProvider } from "../../src/ai/openrouter.ts";
+import type { AiResponse } from "../../src/types.ts";
+import type { ParsedFinding } from "../../src/pr/findings.ts";
 
 export type JudgeGold = {
   path: string;

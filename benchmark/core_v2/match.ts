@@ -1,4 +1,4 @@
-import type { Span } from "../src/pr/findings.ts";
+import type { Span } from "../../src/pr/findings.ts";
 
 export type { Span };
 

@@ -1,10 +1,10 @@
-import { parseArgs } from "../src/cli/args.ts";
-import { reposDir } from "../src/config.ts";
-import { GhClient } from "../src/github/gh.ts";
-import { reviewPullRequest } from "../src/pr/reviewer.ts";
+import { parseArgs } from "../../src/cli/args.ts";
+import { reposDir } from "../../src/config.ts";
+import { GhClient } from "../../src/github/gh.ts";
+import { reviewPullRequest } from "../../src/pr/reviewer.ts";
 import { average, scores } from "./metrics.ts";
 import { matchPairs, matchSpans } from "./match.ts";
-import { parseFindings } from "../src/pr/findings.ts";
+import { parseFindings } from "../../src/pr/findings.ts";
 
 type Row = {
   pr_url: string;
@@ -61,7 +61,7 @@ function prNumber(url: string): number {
 
 const args = Deno.args.filter((arg) => arg !== "--");
 const repo = flag(args, "repo") ?? "mrdoob/three.js";
-const datasetPath = flag(args, "dataset") ?? "benchmark/dataset.json";
+const datasetPath = flag(args, "dataset") ?? "benchmark/core_v2/dataset.json";
 const reviewConcurrent = intFlag(args, "review-concurrent", 1);
 const reviewFlags = args.filter((arg) =>
   !arg.startsWith("--repo=") &&
@@ -244,12 +244,12 @@ console.log(
   }  totalCost=$${costKnown ? totalCost.toFixed(4) : "unknown"}`,
 );
 
-await Deno.mkdir("benchmark/results", { recursive: true });
+await Deno.mkdir("benchmark/core_v2/results", { recursive: true });
 const slug = repo.replace("/", "-");
-const out = `benchmark/results/${slug}.json`;
+const out = `benchmark/core_v2/results/${slug}.json`;
 await Deno.writeTextFile(out, `${JSON.stringify(result, null, 2)}\n`);
 details.sort((a, b) => a.pr - b.pr);
-const detailDir = `benchmark/results/${slug}`;
+const detailDir = `benchmark/core_v2/results/${slug}`;
 await Deno.mkdir(detailDir, { recursive: true });
 await Deno.writeTextFile(
   `${detailDir}/detail.json`,

@@ -1,6 +1,6 @@
 import { matchSpans, overlaps } from "./match.ts";
 import { scores } from "./metrics.ts";
-import { parseFindings } from "../src/pr/findings.ts";
+import { parseFindings } from "../../src/pr/findings.ts";
 
 Deno.test("line ranges on the same path overlap", () => {
   if (
