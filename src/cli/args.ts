@@ -14,7 +14,7 @@ function numberOption(value: string, name: string): number {
 }
 
 const commands = ["probe", "init", "remake", "review"] as const;
-const defaultLowModel = "openai/gpt-oss-120b";
+export const defaultLowModel = "openai/gpt-oss-120b";
 const defaultHighModel = "openai/gpt-5.6-luna";
 
 function ask(
@@ -168,8 +168,9 @@ export function parseArgs(args: string[]): Options {
       ]
         .some((name) => arg.startsWith(`--${name}=`));
     if (
-      arg === "--debug" || arg === "--log-time" || arg === "--map" ||
-      arg === "--allow-tool-install" || arg === "--review-upstream"
+      arg === "--debug" || arg === "--log-time" ||
+      arg === "--allow-tool-install" || arg === "--review-upstream" ||
+      arg === "--codegraph"
     ) continue;
     if (arg.startsWith("--") && !known) die(`Unknown option: ${arg}`);
   }
@@ -270,8 +271,8 @@ export function parseArgs(args: string[]): Options {
     debug: rest.includes("--debug"),
     logTime: rest.includes("--log-time"),
     allowToolInstall: rest.includes("--allow-tool-install"),
-    map: rest.includes("--map"),
     reviewUpstream: rest.includes("--review-upstream"),
+    useCodegraph: rest.includes("--codegraph"),
     envPath,
     improveMatrix: value("improve-matrix") ?? 1,
     ghConcurrent: Math.max(1, value("gh-concurrent") ?? 1),

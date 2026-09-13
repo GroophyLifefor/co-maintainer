@@ -14,14 +14,16 @@ export type Options = {
    * means "not approved", which is the safe default for every caller that
    * builds Options itself. */
   allowToolInstall?: boolean;
-  /** Builds a codegraph repository map and adds it to the review prompt. */
-  map?: boolean;
   /** Reviews every changed file with no own/upstream split — the behavior
    * before scope.ts existed. Off by default: a re-review round's diff can
    * carry a merge from the default branch that dwarfs the PR's own change,
    * and neither a human reviewer nor this flag's absence asks anyone to read
    * it as if the PR authored it. */
   reviewUpstream?: boolean;
+  /** Off by default: verified to add tokens and wall-clock time with zero
+   * recall improvement on real PRs (a tokio benchmark run), so it is an
+   * explicit opt-in rather than something every review pays for. */
+  useCodegraph?: boolean;
   improveMatrix: number;
   ghConcurrent: number;
   aiConcurrent: number;

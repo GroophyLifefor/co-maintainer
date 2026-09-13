@@ -30,7 +30,11 @@ export function updateRepoSettings(
   patch: Partial<
     Pick<
       RepoRow,
-      "auto_review" | "review_scope" | "skip_drafts" | "skip_bots"
+      | "auto_review"
+      | "review_scope"
+      | "skip_drafts"
+      | "skip_bots"
+      | "use_codegraph"
     >
   >,
 ): void {

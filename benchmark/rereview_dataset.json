@@ -196,19 +196,6 @@
   },
   {
     "repo": "tokio-rs/tokio",
-    "pr": 7983,
-    "path": "tokio/src/runtime/io/driver/uring.rs",
-    "from_line": 82,
-    "to_line": 82,
-    "side": "RIGHT",
-    "quote": "Now only canceled Open ops are handled.\nBut canceled Read/Write/... ops go to `Some(other) => panic!(...)`. Those should still do `ops.remove(idx);`",
-    "why": "Only cancelled Open operations are removed from the slab. Cancelled Read and Write operations reach the panic arm and never call ops.remove, so the entry is leaked.",
-    "round_base_commit": "2b927339c71eda90f8879736b6b388b2a4b1e36e",
-    "round_commit": "99a243de8cfa0c7fae2a855fcdb3d3ec96de3a89",
-    "ref_before": "2026-03-23T08:30:51Z"
-  },
-  {
-    "repo": "tokio-rs/tokio",
     "pr": 8181,
     "path": "tokio/src/macros/select.rs",
     "from_line": 98,

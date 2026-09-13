@@ -1,8 +1,17 @@
 import { OpenRouterProvider } from "../ai/openrouter.ts";
-import { completeWithMermaidTools } from "../ai/mermaid_loop.ts";
+import {
+  completeWithMermaidTools,
+  type ToolHandler,
+} from "../ai/mermaid_loop.ts";
 import { reposDir } from "../config.ts";
-import { buildMap } from "./map.ts";
 import { computeScope } from "./scope.ts";
+import { prepareCodegraphTools } from "./codegraph_tools.ts";
+import {
+  needsSummary,
+  READ_FULL_DIFF_TOOL,
+  readFullDiff,
+  summarizeDiff,
+} from "./diff_summary.ts";
 import type { Snapshot } from "./snapshot.ts";
 import type {
   AiProvider,
@@ -208,9 +217,68 @@ export async function reviewPullRequest(
     );
   }
 
-  const ownPatch = ownFiles.map(({ file, path }) =>
-    `FILE: ${path}\n${filePatch(file)}`
-  ).join("\n\n");
+  // Built only if needed: OpenRouterProvider's constructor requires a real
+  // API key, which a fake-AI test run never has.
+  const filesNeedSummary = ownFiles.some(({ file }) =>
+    needsSummary(Number(file.changes ?? 0), String(file.patch ?? ""))
+  );
+  const lowProvider = filesNeedSummary
+    ? ai ?? new OpenRouterProvider(
+      options.aiToken ?? "",
+      options.lowModel ?? "openai/gpt-oss-120b",
+    )
+    : undefined;
+  const patchByPath = new Map<string, string>();
+  const [ownSections, codegraphTools] = await Promise.all([
+    Promise.all(ownFiles.map(async ({ file, path }) => {
+      const changes = Number(file.changes ?? 0);
+      const patch = String(file.patch ?? "");
+      if (!needsSummary(changes, patch)) {
+        return `FILE: ${path}\n${filePatch(file)}`;
+      }
+      patchByPath.set(path, patch);
+      const description = await summarizeDiff(path, patch, lowProvider!, usage);
+      report(`summarized large diff · ${path} · ${changes} changed lines`);
+      return `FILE: ${path}\n[${changes} changed lines — summarized below; ` +
+        `call read-full-diff("${path}") for the complete diff if this is not ` +
+        `enough]\n${description}`;
+    })),
+    options.useCodegraph && headSha
+      ? prepareCodegraphTools(options.repo, number, headSha)
+      : Promise.resolve([] as ToolHandler[]),
+  ]);
+  if (options.useCodegraph) {
+    report(
+      `codegraph tools · ${
+        codegraphTools.length > 0 ? "ready" : "unavailable"
+      }`,
+    );
+  }
+  const extraTools: ToolHandler[] = [
+    ...codegraphTools,
+    ...(patchByPath.size > 0
+      ? [{
+        name: "read-full-diff",
+        tool: READ_FULL_DIFF_TOOL,
+        run: (args: unknown) => readFullDiff(patchByPath, args),
+      }]
+      : []),
+  ];
+
+  // Bigger own-scope diffs need more codegraph round-trips to trace — fixed
+  // at 3 rounds regardless of size caused the model to run out mid-review on
+  // large PRs (verified via a tokio benchmark run: it hallucinated fake
+  // tool-call text instead of a finding once tools were dropped).
+  const totalDiffLines = ownFiles.reduce(
+    (sum, { file }) => sum + Number(file.changes ?? 0),
+    0,
+  );
+  const maxToolRounds = Math.round(4 + totalDiffLines / 100);
+  report(
+    `tool rounds · ${maxToolRounds} (own diff ${totalDiffLines} changed lines)`,
+  );
+
+  const ownPatch = ownSections.join("\n\n");
   const diffWasTruncated = ownPatch.length > MAX_REVIEW_DIFF_CHARS;
   const ownDiff = text(ownPatch, MAX_REVIEW_DIFF_CHARS);
   const upstreamListing = upstreamFiles.map(({ file, path }) =>
@@ -224,40 +292,8 @@ UPSTREAM CONTEXT — arrived via a merge this round, not authored by this pull
 request. Do not raise a finding located only in this code; only note an
 interaction if the pull request's own change above relies on or conflicts with
 one of these files, and never mark that finding blocking:
-${text(upstreamListing, 20_000)}`;
+${upstreamListing}`;
 
-  // The map answers what the diff cannot: who calls the changed symbols and
-  // whether a test reaches them. Off by default so the review path stays
-  // self-contained, and so its effect can be measured against a run without it.
-  let map = "";
-  if (options.map) {
-    if (!headSha) {
-      report("map skipped · no head commit for this pull request");
-    } else {
-      try {
-        const built = await buildMap(
-          options.repo,
-          number,
-          headSha,
-          named.map(({ path, file }) => ({
-            path,
-            changes: Number(file.changes ?? 0),
-          })),
-          {
-            allowInstall: options.allowToolInstall,
-            priority: scope?.ownFiles,
-          },
-        );
-        map = built.text;
-        report(
-          `map ready · ${built.queried.length} files · ${built.chars} chars`,
-        );
-      } catch (error) {
-        // A missing clone or a codegraph failure must not cost the review.
-        report(`map unavailable · ${String(error)}`);
-      }
-    }
-  }
   report(
     `diff prepared · ${ownPatch.length} chars${
       diffWasTruncated ? " · truncated for model context" : ""
@@ -288,6 +324,16 @@ When the DIFF section below has an UPSTREAM CONTEXT part, that code arrived
 through a merge and was not authored by this pull request; do not raise a
 finding located only there, and never mark blocking a finding whose only
 support is upstream context.
+Examine the pull request's own changes line by line, not just file by file —
+a single file can contain more than one independent defect, and a change that
+looks fine in isolation can be wrong once you trace what calls it or what
+other branch of the same construct now behaves differently. Use codegraph-node,
+codegraph-callers, codegraph-callees, codegraph-impact, and codegraph-affected
+to check who calls a changed symbol, what else it affects, and whether a test
+reaches it — do not guess coverage or blast radius from the diff alone when a
+tool can answer it. A missing regression test is not a substitute for
+identifying what the change actually gets wrong; state the concrete input or
+code path that misbehaves when you can.
 Each finding must use this exact structure, keeping the default finding under
 120 words excluding an optional diagram:
 
@@ -309,40 +355,29 @@ review copies. Use Markdown backticks around paths and symbols.
 ${diagrams ? DIAGRAM_PROMPT_RULES : NO_DIAGRAM_RULES}
 
 REVIEW GUIDE:
-${text(guide)}
+${guide}
 
 DETAILED GUIDE:
-${text(detailed)}
+${detailed}
 
 CODEBASE CONVENTIONS:
-${text(codebase) || "None recorded."}
-
-REPOSITORY MAP:
-${
-      map
-        ? `Symbols in the changed files, their callers, and whether a test
-reaches them. Use it to judge completeness and coverage, which the diff alone
-cannot show. Absence of a caller or a test here is evidence, not proof.
-
-${text(map, 60_000)}`
-        : "Not available for this review."
-    }
+${codebase || "None recorded."}
 
 PULL REQUEST:
 ${
       JSON.stringify({
         number,
-        title: text(pr.title, 2_000),
-        body: text(pr.body, 8_000),
+        title: String(pr.title ?? ""),
+        body: String(pr.body ?? ""),
         state: pr.state,
         changedFiles: files.map((file) =>
           String((file as Json).filename ?? "")
         ),
         existingComments: comments.map((comment) =>
-          text((comment as Json).body, 4_000)
+          String((comment as Json).body ?? "")
         ),
         existingReviews: reviews.map((review) =>
-          text((review as Json).body, 4_000)
+          String((review as Json).body ?? "")
         ),
       })
     }
@@ -372,7 +407,13 @@ ${diff}`;
       } · maxTokens=${request.maxTokens}`,
     );
   }
-  let response = await completeWithMermaidTools(provider, request, 1);
+  let response = await completeWithMermaidTools(
+    provider,
+    request,
+    1,
+    extraTools,
+    maxToolRounds,
+  );
   if (usage) await usage(response);
   report(
     `AI response · input=${response.tokensIn} tokens · output=${response.tokensOut} tokens`,
@@ -414,7 +455,13 @@ ${reviewText}`,
       );
     }
     report(`AI improvement pass ${pass - 1} of ${matrix - 1}`);
-    response = await completeWithMermaidTools(provider, improvementRequest, 1);
+    response = await completeWithMermaidTools(
+      provider,
+      improvementRequest,
+      1,
+      extraTools,
+      maxToolRounds,
+    );
     if (usage) await usage(response);
     report(
       `AI improvement response · input=${response.tokensIn} tokens · ` +

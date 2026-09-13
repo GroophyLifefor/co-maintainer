@@ -25,6 +25,7 @@ export type RepoRow = {
   knowledge_base_sha: string | null;
   settings: string;
   created_at: string;
+  use_codegraph: number;
 };
 
 export type JobRow = {

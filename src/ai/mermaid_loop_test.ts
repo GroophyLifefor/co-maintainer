@@ -32,12 +32,18 @@ class ScriptedProvider implements AiProvider {
   }
 }
 
-const ask = (provider: AiProvider, maxTools = 1) =>
-  completeWithMermaidTools(provider, {
-    job: "test",
-    prompt: "Explain the tree",
-    maxTokens: 100,
-  }, maxTools);
+const ask = (provider: AiProvider, maxTools = 1, maxToolRounds?: number) =>
+  completeWithMermaidTools(
+    provider,
+    {
+      job: "test",
+      prompt: "Explain the tree",
+      maxTokens: 100,
+    },
+    maxTools,
+    [],
+    maxToolRounds,
+  );
 
 Deno.test("Mermaid tool loop returns final text after reading requested docs", async () => {
   const provider = new ScriptedProvider([
@@ -79,6 +85,27 @@ Deno.test("a model that never stops calling tools still gets a final answer", as
   if (result.text !== "final answer") throw new Error(result.text);
   const last = provider.requests[provider.requests.length - 1];
   if (last.tools) throw new Error("the closing call must drop the tools");
+  const notice = last.messages?.find((message) =>
+    message.role === "user" &&
+    message.content?.includes("No more tool calls")
+  );
+  if (!notice) {
+    throw new Error("the closing call must tell the model tools ran out");
+  }
+});
+
+Deno.test("a caller-supplied round budget is honored instead of the default", async () => {
+  const provider = new ScriptedProvider([
+    { toolCalls: toolCall("read-mermaid-syntaxes", ["flowchart"]) },
+    { toolCalls: toolCall("read-mermaid-syntaxes", ["erDiagram"]) },
+    { text: "final answer" },
+  ]);
+  const result = await ask(provider, 1, 2);
+  if (result.text !== "final answer") throw new Error(result.text);
+  // 2 tool rounds + 1 closing call, not the default 3 + 1.
+  if (provider.requests.length !== 3) {
+    throw new Error(`expected 3 requests, got ${provider.requests.length}`);
+  }
 });
 
 Deno.test("an unknown tool name becomes a tool error instead of killing the job", async () => {

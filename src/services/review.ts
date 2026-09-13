@@ -128,6 +128,7 @@ export function reviewOptions(repo: string, prNumber: number): Options {
     includePullRequestChanges: true,
     includeCommitHistory: true,
     includeHowRepoWorks: true,
+    useCodegraph: getRepo(repo)?.use_codegraph === 1,
   };
 }
 

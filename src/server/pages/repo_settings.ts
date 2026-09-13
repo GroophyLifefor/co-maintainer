@@ -63,6 +63,13 @@ export function renderRepoSettings(
           </select>
           <div class="hint">Reviewing only new changes costs less on long-running pull requests.</div>
         </div>
+        <div style="display:flex;align-items:center;gap:14px;margin-top:22px">
+          <button class="tg${
+      repo.use_codegraph === 1 ? " on" : ""
+    }" id="codegraph"></button>
+          <div>Let the review query the codebase's call graph (codegraph)</div>
+        </div>
+        <div class="hint">Slower and costs more tokens per review, try it before turning it on everywhere.</div>
       </div>
       <div class="ft"><button class="primary" id="save-auto">Save</button></div>
     </div>
@@ -112,10 +119,14 @@ document.getElementById("save-auto").addEventListener("click", function() {
     autoReview: document.getElementById("auto").classList.contains("on"),
     skipDrafts: skip === "both" || skip === "drafts",
     skipBots: skip === "both" || skip === "bots",
-    reviewScope: document.getElementById("scope").value
+    reviewScope: document.getElementById("scope").value,
+    useCodegraph: document.getElementById("codegraph").classList.contains("on")
   });
 });
 document.getElementById("auto").addEventListener("click", function() {
+  this.classList.toggle("on");
+});
+document.getElementById("codegraph").addEventListener("click", function() {
   this.classList.toggle("on");
 });
 document.getElementById("save-init").addEventListener("click", function() {
