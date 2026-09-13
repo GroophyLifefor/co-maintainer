@@ -1,6 +1,6 @@
 /** Round detection and repeat matching for P11 re-reviews.
  * Rounds are clusters of review comments that share `original_commit_id`,
- * oldest first, the same grouping benchmark/README.md describes. */
+ * oldest first, the same grouping benchmark/core_v2/README.md describes. */
 import type { FindingRow } from "../store/rows.ts";
 import type { Span } from "./findings.ts";
 

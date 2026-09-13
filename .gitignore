@@ -2,6 +2,10 @@
 repos/
 .env
 z_flow/
-benchmark/dataset.json
-benchmark/results/
-benchmark/clones/
+benchmark/core_v2/dataset.json
+benchmark/core_v2/results/
+benchmark/core_v2/clones/
+benchmark/swe-prbench/results/
+benchmark/swe-prbench/clones/
+benchmark/swe-prbench/prs.jsonl
+benchmark/swe-prbench/dataset.json

@@ -1,16 +1,16 @@
-import { parseArgs } from "../src/cli/args.ts";
-import { reposDir } from "../src/config.ts";
-import { GhClient } from "../src/github/gh.ts";
+import { parseArgs } from "../../src/cli/args.ts";
+import { reposDir } from "../../src/config.ts";
+import { GhClient } from "../../src/github/gh.ts";
 import { average, scores } from "./metrics.ts";
 import { matchPairs, matchSpans } from "./match.ts";
-import type { ParsedFinding } from "../src/pr/findings.ts";
+import type { ParsedFinding } from "../../src/pr/findings.ts";
 import { judgeMatches } from "./judge.ts";
 import { cloneDirFor, comaintainerRunner, ocrRunner } from "./runners.ts";
 
 // Gold sourced from a re-review round: the diff a human reviewer saw was the
 // incremental change between round_base_commit (what round N-1 left off at)
 // and round_commit (what the author pushed in response) — not the whole PR.
-// See benchmark/README.md.
+// See benchmark/core_v2/README.md.
 type Row = {
   /** Absent in a single-repo dataset, where every row belongs to `--repo`. */
   repo?: string;
@@ -64,14 +64,14 @@ const args = Deno.args.filter((arg) => arg !== "--");
 /** A filter, not a default: rows carry their own repo, and `--repo` narrows the
  * run to one of them. A dataset whose rows have no repo needs it. */
 const repoFilter = flag(args, "repo");
-const datasetPath = flag(args, "dataset") ?? "benchmark/rereview_dataset.json";
+const datasetPath = flag(args, "dataset") ?? "benchmark/core_v2/rereview_dataset.json";
 const reviewConcurrent = intFlag(args, "review-concurrent", 1);
 const judgeModel = flag(args, "judge-model") ?? "openai/gpt-oss-120b";
 const runnerName = flag(args, "runner") ?? "comaintainer";
 if (runnerName !== "comaintainer" && runnerName !== "ocr") {
   throw new Error(`--runner must be comaintainer or ocr, got ${runnerName}`);
 }
-const ocrCloneRoot = flag(args, "ocr-clone") ?? "benchmark/clones";
+const ocrCloneRoot = flag(args, "ocr-clone") ?? "benchmark/core_v2/clones";
 const ocrBin = flag(args, "ocr-bin") ?? "ocr";
 const reviewFlags = args.filter((arg) =>
   !arg.startsWith("--repo=") &&
@@ -461,7 +461,7 @@ console.log(
   }  totalCost=$${costKnown ? totalCost.toFixed(4) : "unknown"}`,
 );
 
-await Deno.mkdir("benchmark/results", { recursive: true });
+await Deno.mkdir("benchmark/core_v2/results", { recursive: true });
 // A multi-repo run is named after its dataset, so two runs over different gold
 // sets do not overwrite each other.
 const datasetName = datasetPath.split(/[\/]/).pop()?.replace(/\.json$/, "") ??
@@ -469,10 +469,10 @@ const datasetName = datasetPath.split(/[\/]/).pop()?.replace(/\.json$/, "") ??
 const slug = repoFilter
   ? `${repoFilter.replace("/", "-")}-${datasetName}-${runnerName}`
   : `${datasetName}-${runnerName}`;
-const out = `benchmark/results/${slug}.json`;
+const out = `benchmark/core_v2/results/${slug}.json`;
 await Deno.writeTextFile(out, `${JSON.stringify(result, null, 2)}\n`);
 details.sort((a, b) => a.repo.localeCompare(b.repo) || a.pr - b.pr);
-const detailDir = `benchmark/results/${slug}`;
+const detailDir = `benchmark/core_v2/results/${slug}`;
 await Deno.mkdir(detailDir, { recursive: true });
 await Deno.writeTextFile(
   `${detailDir}/detail.json`,
