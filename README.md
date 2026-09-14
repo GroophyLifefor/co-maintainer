@@ -63,6 +63,7 @@ benchmarks with [OCR](https://open-codereview.ai/). Although I cannot offer any
 guarantees because I am working with very small datasets, but it shows promise.
 
 In core_v2 benchmarks:
+
 - **2-3x better results** than OCR
 - **2-8x faster** than OCR
 - **70-200x fewer tokens** than OCR
@@ -70,7 +71,9 @@ In core_v2 benchmarks:
 
 ## Benchmarks
 
-We recommend consider core_v3 benchmark results because of more suits for co-maintainer use cases. It is a much more meaningful metric than other benchmarks. core_v3 is co-maintainer only benchmark.
+We recommend consider core_v3 benchmark results because of more suits for
+co-maintainer use cases. It is a much more meaningful metric than other
+benchmarks. core_v3 is co-maintainer only benchmark.
 
 Unlike the OCR comparison above (real human review comments as gold, see
 `benchmark/swe-prbench`), `bench core v3` scores against deliberately seeded,
@@ -79,11 +82,11 @@ defect-free controls so precision is measurable too, not just recall. Full
 breakdown, per-PR results, and methodology:
 [`benchmark/core_v3/README.md`](benchmark/core_v3/README.md).
 
-| metric                                 | value                         |
-| -------------------------------------- | ----------------------------- |
-| PRs reviewed                           | 30 (14 defective, 16 control) |
-| F1                                     | 0.750                         |
-| Precision                              | 0.667                         |
-| Recall                                 | 0.857                         |
-| Avg cost / PR                          | $0.0045                       |
-| Avg time / PR                          | 28.9s                         |
+| metric        | value                         |
+| ------------- | ----------------------------- |
+| PRs reviewed  | 30 (14 defective, 16 control) |
+| F1            | 0.500                         |
+| Precision     | 0.353                         |
+| Recall        | 0.857                         |
+| Avg cost / PR | $0.0045                       |
+| Avg time / PR | 28.9s                         |

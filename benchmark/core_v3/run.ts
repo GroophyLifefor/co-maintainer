@@ -438,13 +438,31 @@ await mapPool(selected, reviewConcurrent, async (row) => {
 reports.sort((a, b) => a.repo.localeCompare(b.repo) || a.pr - b.pr);
 
 const defectiveReports = reports.filter((r) => !r.isControl);
+// A review that errored (timeKnown: false) produced no findings and no
+// signal either way -- a control row here must not silently count as "0
+// severe findings, so clean", it has to be excluded from scoring entirely,
+// same as a failed defective row already drops out of the *rate* (though
+// not the *count*: its full gold still lands in fn, an honest miss, which
+// a failed control row has no equivalent of since it has no gold).
 const controlReports = reports.filter((r) => r.isControl);
-const totals = defectiveReports.reduce(
-  (sum, row) => ({
-    tp: sum.tp + row.tp,
-    fp: sum.fp + row.fp,
-    fn: sum.fn + row.fn,
-  }),
+const scoredControlReports = controlReports.filter((r) => r.timeKnown);
+const failedControlReports = controlReports.length -
+  scoredControlReports.length;
+
+// Precision/recall/F1 pool every finding across all 30 reviewed PRs, not
+// just the 14 with gold (plan.md K2: a severe finding on a control PR is a
+// false positive, full stop, meant to feed the same precision this does).
+// tp/fn only ever come from defective PRs (a control PR has no gold to
+// match or miss); fp comes from both: an unmatched finding on a defective
+// PR, or any severe finding on a *successfully reviewed* control PR.
+const totals = reports.reduce(
+  (sum, row) => {
+    if (row.isControl) {
+      if (!row.timeKnown) return sum; // excluded, not "0 fp"
+      return { ...sum, fp: sum.fp + row.controlFalsePositives };
+    }
+    return { tp: sum.tp + row.tp, fp: sum.fp + row.fp, fn: sum.fn + row.fn };
+  },
   { tp: 0, fp: 0, fn: 0 },
 );
 const { f1, precision, recall } = scores(totals);
@@ -470,17 +488,17 @@ const perAxis = [...axisTotals.entries()].map(([axis, counts]) => ({
   recall: counts.tp + counts.fn === 0 ? 0 : counts.tp / (counts.tp + counts.fn),
 }));
 
-const controlFalsePositiveTotal = controlReports.reduce(
+const controlFalsePositiveTotal = scoredControlReports.reduce(
   (sum, r) => sum + r.controlFalsePositives,
   0,
 );
-const controlNiceTotal = controlReports.reduce(
+const controlNiceTotal = scoredControlReports.reduce(
   (sum, r) => sum + r.niceToHaves,
   0,
 );
-const controlFalsePositiveRate = controlReports.length === 0
+const controlFalsePositiveRate = scoredControlReports.length === 0
   ? 0
-  : controlFalsePositiveTotal / controlReports.length;
+  : controlFalsePositiveTotal / scoredControlReports.length;
 
 const costKnown = reports.every((row) => row.costKnown);
 const totalCost = reports.reduce((sum, row) => sum + row.cost, 0);
@@ -493,6 +511,7 @@ const result = {
   prs: reports.length,
   defectivePrs: defectiveReports.length,
   controlPrs: controlReports.length,
+  failedControlPrs: failedControlReports,
   f1,
   precision,
   recall,
@@ -512,9 +531,11 @@ const result = {
 };
 
 console.log(
-  `\nDEFECTIVE (${defectiveReports.length} PRs)  F1=${f1.toFixed(3)}  P=${
-    precision.toFixed(3)
-  }  R=${recall.toFixed(3)}  tp=${totals.tp} fp=${totals.fp} fn=${totals.fn}`,
+  `\nALL ${reports.length} PRs (${defectiveReports.length} defective + ${controlReports.length} control)  F1=${
+    f1.toFixed(3)
+  }  P=${precision.toFixed(3)}  R=${
+    recall.toFixed(3)
+  }  tp=${totals.tp} fp=${totals.fp} fn=${totals.fn}  (fp pools defective mismatches and control severe findings)`,
 );
 for (const row of perAxis) {
   console.log(
@@ -524,7 +545,11 @@ for (const row of perAxis) {
   );
 }
 console.log(
-  `CONTROL (${controlReports.length} PRs)  severeFalsePositives=${controlFalsePositiveTotal} (${
+  `CONTROL (${scoredControlReports.length}/${controlReports.length} PRs reviewed${
+    failedControlReports > 0
+      ? `, ${failedControlReports} failed and excluded`
+      : ""
+  })  severeFalsePositives=${controlFalsePositiveTotal} (${
     controlFalsePositiveRate.toFixed(2)
   }/PR)  niceToHaves=${controlNiceTotal}`,
 );

@@ -34,18 +34,19 @@ numbers" wasn't formally in place for this pass.
 
 ## Headline
 
-| metric                          | value                      |
-| ------------------------------- | -------------------------- |
-| F1 (defective PRs)              | 0.750                      |
-| Precision                       | 0.667                      |
-| Recall                          | 0.857                      |
-| tp / fp / fn                    | 12 / 6 / 2                 |
-| Control false positives (P0-P2) | 16 total — **1.00 per PR** |
-| Control nice-to-haves (P3)      | 0                          |
-| Total cost                      | $0.1340                    |
-| Avg cost / PR                   | $0.0045                    |
-| Avg time / PR                   | 28.9s (+1.9s prep)         |
-| Avg tokens / PR (in/out/total)  | 5917 / 2564 / 8480         |
+| metric                          | value                                      |
+| ------------------------------- | ------------------------------------------ |
+| F1 (all 30 PRs, pooled)         | 0.500                                      |
+| Precision                       | 0.353                                      |
+| Recall                          | 0.857                                      |
+| tp / fp / fn                    | 12 / 22 / 2                                |
+| fp breakdown                    | 6 from defective PRs + 16 from control PRs |
+| Control false positives (P0-P2) | 16 total — **1.00 per PR**                 |
+| Control nice-to-haves (P3)      | 0                                          |
+| Total cost                      | $0.1340                                    |
+| Avg cost / PR                   | $0.0045                                    |
+| Avg time / PR                   | 28.9s (+1.9s prep)                         |
+| Avg tokens / PR (in/out/total)  | 5917 / 2564 / 8480                         |
 
 ## Recall by axis
 
@@ -125,10 +126,13 @@ average just over 1 severe finding, topping out at 2 on PRs 35, 41, 42, 45.
 
 ## What this run does and doesn't show
 
-- **Precision is the headline result.** 0.667 overall, dragged down almost
-  entirely by control-PR noise, not by wrong calls on real defects (every `fp`
-  on a defective PR came bundled with a correct `tp` on PR 47/49, only PR 33 was
-  a wrong call with nothing right alongside it).
+- **Precision is the headline result, and control-PR noise dominates it.** 0.353
+  pooled across all 30 PRs; without the 16 control false positives it would be
+  12/(12+6) = 0.667 from the defective PRs alone. Most of the fp on defective
+  PRs came bundled with a correct `tp` too (PR 47/49), only PR 33 was a wrong
+  call with nothing right alongside it — the gap between "the model finds real
+  bugs fine" and "the model also flags real code constantly" is the actual story
+  this run tells.
 - **`file_local` and `diff_local` underperforming `repo_wide` is the interesting
   finding**, not the reverse — this run's defect set doesn't support the story
   "the model needs codegraph to do well," it supports "the model sometimes
