@@ -9,3 +9,5 @@ benchmark/swe-prbench/results/
 benchmark/swe-prbench/clones/
 benchmark/swe-prbench/prs.jsonl
 benchmark/swe-prbench/dataset.json
+benchmark/core_v3/results/
+benchmark/core_v3/clones/
