@@ -1,0 +1,502 @@
+{
+  "rows": [
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 21,
+      "is_control": true,
+      "base_commit": "531f98d69c1f7e261e1061d6c63d24c17507f269",
+      "head_commit": "ed5a4004510b82ce79b8d8e363f2eb71986e831d",
+      "fix_commit": null,
+      "merge_commit": "7cd1941436197449ac74bccd815c7340853a5764",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": []
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 22,
+      "is_control": false,
+      "base_commit": "7cd1941436197449ac74bccd815c7340853a5764",
+      "head_commit": "408416c9f2349c9b1a9ac2f628b38486caac0bab",
+      "fix_commit": "8293c10ce4775d011d991a509e393581c36bd19b",
+      "merge_commit": "02bb601ef3b05d4d8e93551d242246ab6901b143",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": [
+        {
+          "id": "D7",
+          "path": "src/graph/dominator.js",
+          "from_line": 41,
+          "to_line": 41,
+          "side": "RIGHT",
+          "axis": "repo_wide",
+          "class": "predecessor/successor confusion",
+          "quote": "the predecessor list is filled with snapshot.edgesOf(b) (b's outgoing edges, successors) instead of snapshot.referrersOf(b) (b's incoming edges, real predecessors)",
+          "why": "silently, no crash or hang: every non-root idom stays unset (-1) since the wrong list is consulted; on the tiny fixture idom comes out [0,-1,-1] instead of [0,0,1]"
+        }
+      ]
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 23,
+      "is_control": true,
+      "base_commit": "02bb601ef3b05d4d8e93551d242246ab6901b143",
+      "head_commit": "785c04138e7053d166b496099a9b81da18132e2f",
+      "fix_commit": null,
+      "merge_commit": "c42b9abd97b5aa01c2705b1cbabf42bbfa0d02a1",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": []
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 24,
+      "is_control": false,
+      "base_commit": "c42b9abd97b5aa01c2705b1cbabf42bbfa0d02a1",
+      "head_commit": "ec8a6a3179f6843b30230438514e63048e4892e1",
+      "fix_commit": "cbbc3f9fa3c5e3f146ea88b88a5818275085e9b9",
+      "merge_commit": "61f3e09259b25a9a46e9197874a1fb1a29c83584",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": [
+        {
+          "id": "D8",
+          "path": "src/graph/dominator_children.js",
+          "from_line": 47,
+          "to_line": 47,
+          "side": "RIGHT",
+          "axis": "diff_local",
+          "class": "off-by-one bounds check",
+          "quote": "the bounds check uses `i > count` instead of `i >= count`, so the index one past the last valid child is accepted instead of rejected",
+          "why": "childAt(children, 0, count) silently returns a real-looking but wrong nodeIndex (reads into the next node's own children slice) instead of throwing"
+        }
+      ]
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 25,
+      "is_control": true,
+      "base_commit": "61f3e09259b25a9a46e9197874a1fb1a29c83584",
+      "head_commit": "fd0036ab878491276111d9899b00c739348afe29",
+      "fix_commit": null,
+      "merge_commit": "5376b82bb25fe41870d61ab26e2630e5f8716d9a",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": []
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 26,
+      "is_control": false,
+      "base_commit": "5376b82bb25fe41870d61ab26e2630e5f8716d9a",
+      "head_commit": "6855ea3f8a08a395a42140199d94bb1464646e47",
+      "fix_commit": "56a004f3db845e73e8637f6ece56313a21838b8a",
+      "merge_commit": "1ee9702f6176423241c0d92e3fcef6d9072fc38b",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": [
+        {
+          "id": "D9",
+          "path": "src/report/retained_by_constructor.js",
+          "from_line": 18,
+          "to_line": 18,
+          "side": "RIGHT",
+          "axis": "convention",
+          "class": "byte/KB unit mixup",
+          "quote": "totalRetained is accumulated as `Math.round(retained[nodeIndex] / 1024)` (KB) instead of raw bytes, violating CONTRIBUTING.md #3",
+          "why": "any object retaining under ~512 bytes (most small objects) rounds straight to 0, so it silently disappears from the report as totalRetained: 0"
+        }
+      ]
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 27,
+      "is_control": false,
+      "base_commit": "1ee9702f6176423241c0d92e3fcef6d9072fc38b",
+      "head_commit": "215124899f0fb68f59c4b68e3694ecbb0c88c12e",
+      "fix_commit": "2d3ffcd5710b4ccf2fa16734560c45bcc631e1e1",
+      "merge_commit": "bf3b8560f28d8dc7cf127f39ee63f8b694cc8735",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": [
+        {
+          "id": "D10",
+          "path": "src/graph/gc_path.js",
+          "from_line": 41,
+          "to_line": 41,
+          "side": "RIGHT",
+          "axis": "diff_local",
+          "class": "reversed output order",
+          "quote": "the path array is built walking from nodeIndex back to root and never reversed, so it comes out node-first/root-last, contradicting its own doc comment",
+          "why": "shortestPathToRoot(snap, 2) on the tiny fixture returns [2, 1, 0] instead of the documented [0, 1, 2] -- every caller reads the retain chain backwards"
+        }
+      ]
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 28,
+      "is_control": true,
+      "base_commit": "bf3b8560f28d8dc7cf127f39ee63f8b694cc8735",
+      "head_commit": "d03aca79f41128a87aef9f131d7fc4708ca16e5b",
+      "fix_commit": null,
+      "merge_commit": "223f1b24f331b6f185e467b28842b9ed547572e8",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": []
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 29,
+      "is_control": true,
+      "base_commit": "223f1b24f331b6f185e467b28842b9ed547572e8",
+      "head_commit": "1d60a3ffbb94bbe0726e367f98ecaf8ca44bba87",
+      "fix_commit": null,
+      "merge_commit": "7a8a4ac0c47f42cd4c4ca4ce9478862acdf57588",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": []
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 30,
+      "is_control": false,
+      "base_commit": "7a8a4ac0c47f42cd4c4ca4ce9478862acdf57588",
+      "head_commit": "a9ca9880d7fa1150631671e5fa7fe3bd3c13ff15",
+      "fix_commit": "71f1510772b833d74d42e3c537fd496dc59e75e1",
+      "merge_commit": "1cdf350bc19e4e3c387713189bf0172869638930",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": [
+        {
+          "id": "D12",
+          "path": "src/graph/find_by_class_name.js",
+          "from_line": 10,
+          "to_line": 10,
+          "side": "RIGHT",
+          "axis": "file_local",
+          "class": "substring match instead of exact",
+          "quote": "className.includes(filter) is used for matching instead of an exact === comparison",
+          "why": "a search for \"User\" also matches \"UserSession\", \"UserCache\", and any other class containing it as a substring, confirmed against a real snapshot"
+        }
+      ]
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 31,
+      "is_control": true,
+      "base_commit": "1cdf350bc19e4e3c387713189bf0172869638930",
+      "head_commit": "acea06e48aa3f17067baa5f029ee7840dad9022e",
+      "fix_commit": null,
+      "merge_commit": "2e1de1f8b8f45463061f2e1c3a7c31fe09fa9e9d",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": []
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 32,
+      "is_control": true,
+      "base_commit": "2e1de1f8b8f45463061f2e1c3a7c31fe09fa9e9d",
+      "head_commit": "97f1de336d464de5536955608225bc2e87f70158",
+      "fix_commit": null,
+      "merge_commit": "a7f55f9081497e83ad622b88a06e590f3d1b3e26",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": []
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 33,
+      "is_control": false,
+      "base_commit": "a7f55f9081497e83ad622b88a06e590f3d1b3e26",
+      "head_commit": "c17e0fa1736b3eecddafe0b69fd30d07a61efcce",
+      "fix_commit": "97b03589b56c15c812918f7179d20e93ccee2c03",
+      "merge_commit": "163eaf31826564a58f45a6c68f31994644cebcf2",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": [
+        {
+          "id": "D13",
+          "path": "src/report/duplicate_strings.js",
+          "from_line": 14,
+          "to_line": 14,
+          "side": "RIGHT",
+          "axis": "file_local",
+          "class": "incomplete type coverage",
+          "quote": "only nodes with `type === 'string'` are counted, `concatenated string` and `sliced string` node types are never matched",
+          "why": "on a real snapshot, concatenated string nodes outnumbered plain string nodes (24568 vs 20035) -- the majority of duplicate-string mass is silently missed while the tool still looks correct for what it does count"
+        }
+      ]
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 34,
+      "is_control": false,
+      "base_commit": "163eaf31826564a58f45a6c68f31994644cebcf2",
+      "head_commit": "9a05e778f1ba0ce7e9ac5de41a7b92b9bbb1fd16",
+      "fix_commit": "44f0c370bc01def1d08644ce5d304f9e3efa8794",
+      "merge_commit": "30a847a9d91707f83c88d95c7613d88099c27f6c",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": [
+        {
+          "id": "D14",
+          "path": "src/report/collection_waste.js",
+          "from_line": 41,
+          "to_line": 41,
+          "side": "RIGHT",
+          "axis": "diff_local",
+          "class": "wrong field / unit mismatch",
+          "quote": "usedBytes is read directly as the backing store's edgeCount (a slot/edge tally) instead of summing selfSize over its edges (bytes)",
+          "why": "compares a count against a byte figure -- for a Set of small integers (no edges at all) edgeCount is always 0, so wastedBytes always equals the full capacityBytes regardless of how full the Set actually is"
+        }
+      ]
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 35,
+      "is_control": true,
+      "base_commit": "30a847a9d91707f83c88d95c7613d88099c27f6c",
+      "head_commit": "048c85b67934cb1b5c746b2c13371bf3a846f487",
+      "fix_commit": "6494170f62d999f02625fd982b2b65ba077fb043",
+      "merge_commit": "eeb8599ea854c4096d305e5df6d2b3167eeebe41",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": []
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 36,
+      "is_control": false,
+      "base_commit": "eeb8599ea854c4096d305e5df6d2b3167eeebe41",
+      "head_commit": "f371db33a7e872de12d0ec5fcd1ab709658ea87d",
+      "fix_commit": "eaf9cdd278c5a6c7ba46627c7ea71285ac9088a5",
+      "merge_commit": "36233d0e1dda49e23473a2793ed47b7c5c52de60",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": [
+        {
+          "id": "D15",
+          "path": "src/snapshot.js",
+          "from_line": 206,
+          "to_line": 206,
+          "side": "RIGHT",
+          "axis": "repo_wide",
+          "class": "raw offset used as array index",
+          "quote": "the raw to_node value (a nodeOffset, CONTRIBUTING.md #2) is used directly as the subscript into a nodeCount-long Int32Array, without dividing by nodeStride first",
+          "why": "Int32Array silently drops an out-of-bounds write (no error, no growth) -- almost every real write is lost, so contextRetainerCountOf always reports 0 no matter how many closures actually share a context"
+        }
+      ]
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 37,
+      "is_control": false,
+      "base_commit": "36233d0e1dda49e23473a2793ed47b7c5c52de60",
+      "head_commit": "29254b5615e3fde3f765feb7a51e4fc1d9bf904d",
+      "fix_commit": "1db66d12f752653d019cfc9ad6ec313142bb9707",
+      "merge_commit": "990c7d7633c89c096651790774fe84ef7830e7ce",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": [
+        {
+          "id": "D16",
+          "path": "src/diff/align_snapshots.js",
+          "from_line": 18,
+          "to_line": 18,
+          "side": "RIGHT",
+          "axis": "repo_wide",
+          "class": "wrong alignment key",
+          "quote": "nodes from `before` and `after` are matched by shared nodeIndex position instead of by idOf() (the stable id)",
+          "why": "nodeIndex is only an ordinal position within one snapshot's own nodes array and means nothing across two separate captures -- hand traced against a fixture where two nodes swap position with no real add/remove: it reports 3 correct-looking matches, one of which actually points at the wrong object"
+        }
+      ]
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 38,
+      "is_control": true,
+      "base_commit": "990c7d7633c89c096651790774fe84ef7830e7ce",
+      "head_commit": "facdd6f8e2196320d00901bb89b08c18f5591ec7",
+      "fix_commit": null,
+      "merge_commit": "dcd9bfdbd03a80e31b99e15a6afc3186a52f96d1",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": []
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 39,
+      "is_control": true,
+      "base_commit": "dcd9bfdbd03a80e31b99e15a6afc3186a52f96d1",
+      "head_commit": "7e045bc205b69c2c27767ebc6ffa9d7e748338e1",
+      "fix_commit": null,
+      "merge_commit": "0d0e34d4f4aef3065dc167782f95bb30ca497991",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": []
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 40,
+      "is_control": false,
+      "base_commit": "0d0e34d4f4aef3065dc167782f95bb30ca497991",
+      "head_commit": "7c099e6c43b1668f9b59642f88776aeebbbb9146",
+      "fix_commit": "ba4b6d8b985f3227cedffbb0a4e6b25d7ae73de3",
+      "merge_commit": "f11e361445f8d1bc9696404a9cefd14e771d24e4",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": [
+        {
+          "id": "D17",
+          "path": "src/diff/growth.js",
+          "from_line": 16,
+          "to_line": 16,
+          "side": "RIGHT",
+          "axis": "diff_local",
+          "class": "divide by zero",
+          "quote": "growthRatio is computed as sizeDelta / sizeBefore with no check for sizeBefore === 0",
+          "why": "a brand new class has sizeBefore: 0, so growthRatio is Infinity, which sorts it to the very top ahead of real growth and becomes JSON null through JSON.stringify for exactly the case (a new class) the feature exists to highlight"
+        }
+      ]
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 41,
+      "is_control": true,
+      "base_commit": "f11e361445f8d1bc9696404a9cefd14e771d24e4",
+      "head_commit": "9edf2b6849e8845f1f3b02c8451007114249d9b7",
+      "fix_commit": null,
+      "merge_commit": "3432d1c818b357eef3b9154498e7275f9dc58c99",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": []
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 42,
+      "is_control": true,
+      "base_commit": "3432d1c818b357eef3b9154498e7275f9dc58c99",
+      "head_commit": "a28cb2b1969994d01359022d62b917e59718fe7a",
+      "fix_commit": null,
+      "merge_commit": "f9a71b9fbd98d27a21240f0867b6b12813cd9e49",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": []
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 43,
+      "is_control": false,
+      "base_commit": "f9a71b9fbd98d27a21240f0867b6b12813cd9e49",
+      "head_commit": "1b3476e3c1725c1d9d08b961c672b7ed614ea408",
+      "fix_commit": "e4cfc4825bf4133062e0e44485edd54d3373d869",
+      "merge_commit": "04e814868dca47750d879a8d6aee1e490fe9ec8f",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": [
+        {
+          "id": "D18",
+          "path": "src/report/with_display_size.js",
+          "from_line": 6,
+          "to_line": 6,
+          "side": "RIGHT",
+          "axis": "convention",
+          "class": "formatting in the library layer",
+          "quote": "withDisplaySize (in src/report/, the library) is called by both CLI commands before branching on --json, so it replaces the raw byte field with a formatted string like \"64 bytes\" unconditionally",
+          "why": "--json output silently becomes a string instead of a number, breaking any machine consumer that needs to sort or sum the value without re-parsing the unit suffix, violating CONTRIBUTING.md #3"
+        }
+      ]
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 44,
+      "is_control": true,
+      "base_commit": "04e814868dca47750d879a8d6aee1e490fe9ec8f",
+      "head_commit": "9ccba2837a085603a2b7df13aa1af49672227283",
+      "fix_commit": null,
+      "merge_commit": "15524b019f4731d048c058c3717313f0de2dcbe0",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": []
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 45,
+      "is_control": true,
+      "base_commit": "15524b019f4731d048c058c3717313f0de2dcbe0",
+      "head_commit": "c247500413c6604b3cee4e28bdb20ecc16d29702",
+      "fix_commit": null,
+      "merge_commit": "f9ce05360d4f73713aeca405cee7dbfe30ac849f",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": []
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 46,
+      "is_control": true,
+      "base_commit": "daa838ddc00bb142188e51e7bfa043799e8b6dde",
+      "head_commit": "5258f34c5ad2572be282fc9a0f9ae6bdadecaa07",
+      "fix_commit": null,
+      "merge_commit": "71cd48f8ba2fadbc3c9de7733479d4c7e2523eb6",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": []
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 47,
+      "is_control": false,
+      "base_commit": "71cd48f8ba2fadbc3c9de7733479d4c7e2523eb6",
+      "head_commit": "f93026ff388bcd2e7177d11680c60c808106b31c",
+      "fix_commit": "d1fb57c51a7404dc68c03b6509620f68a3ef8db5",
+      "merge_commit": "bfc733de4138b99f188ba25491c3e4af0d781c34",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": [
+        {
+          "id": "D19",
+          "path": "src/policy/evaluate_policy.js",
+          "from_line": 73,
+          "to_line": 73,
+          "side": "RIGHT",
+          "axis": "history",
+          "class": "swallowed error",
+          "quote": "the catch block around each rule's evaluation is empty, so a rule that throws (unknown type, missing params) is silently dropped instead of being pushed to ruleErrors as the function's own doc comment promises",
+          "why": "a policy-authoring typo (e.g. a rule missing a required param) makes that rule vanish with zero coverage, returning {violations: [], ruleErrors: []} -- indistinguishable from a genuinely clean, fully-checked snapshot; this is the exact D6/history pattern (this repo does not swallow errors) recurring in a new place"
+        }
+      ]
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 48,
+      "is_control": false,
+      "base_commit": "bfc733de4138b99f188ba25491c3e4af0d781c34",
+      "head_commit": "773439d9cd17440ca372714e6db48b7bfaf0317f",
+      "fix_commit": "e12e7d88ead2555d270d99d2add2405c3ad788f0",
+      "merge_commit": "10ddfecb6b12258e243dac007ab0e0a9cc6fa5cb",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": [
+        {
+          "id": "D20",
+          "path": "src/policy/gate.js",
+          "from_line": 18,
+          "to_line": 18,
+          "side": "RIGHT",
+          "axis": "diff_local",
+          "class": "off-by-one threshold comparison",
+          "quote": "violations are filtered with `SEVERITY_RANK[v.severity] > threshold` instead of `>= threshold`",
+          "why": "since \"error\" is already the highest severity rank, `--fail-on=error` can never fail the gate no matter how many error violations exist -- a CI gate that silently never gates on its strictest setting"
+        }
+      ]
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 49,
+      "is_control": false,
+      "base_commit": "92f1ca745a494b4f07fff83c9bfc63ce2b4641cf",
+      "head_commit": "c03f154d20ed5c18166ab8917b37c620edc4a050",
+      "fix_commit": "e5c7f8be8c85a32a776a5d04d9764b33a4d4e9fe",
+      "merge_commit": "cc76c284c99e06e1d7535d416c5e3171d35554f9",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": [
+        {
+          "id": "D21",
+          "path": "src/mcp/tools.js",
+          "from_line": 62,
+          "to_line": 62,
+          "side": "RIGHT",
+          "axis": "repo_wide",
+          "class": "schema/return type mismatch",
+          "quote": "the top_instances tool's outputSchema declares retainedSize as `{ type: 'string' }`, but its handler (topInstancesByRetainedSize) returns a real number",
+          "why": "any MCP client that validates structuredContent against the tool's own declared outputSchema (per the 2025-06-18 spec) rejects or mis-renders every response from this tool; the sibling summary tool's schema gets the same kind of field right, which is what makes this one easy to miss"
+        }
+      ]
+    },
+    {
+      "repo": "GroophyLifefor/heap-analysis",
+      "pr": 50,
+      "is_control": true,
+      "base_commit": "cc76c284c99e06e1d7535d416c5e3171d35554f9",
+      "head_commit": "b1819acd0b566a62cef789ce2f75c0edfeb761f7",
+      "fix_commit": null,
+      "merge_commit": "6a6db9f4b6830a1312ae7e9037aaaa1468d4171a",
+      "ref_before": "1970-01-01T00:00:00Z",
+      "defects": []
+    }
+  ]
+}
