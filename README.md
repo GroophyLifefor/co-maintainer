@@ -67,7 +67,18 @@ In core_v2 benchmarks:
 - **2-3x better results** than OCR
 - **2-8x faster** than OCR
 - **70-200x fewer tokens** than OCR
-- **60-270x cheaper** than OCR
+- **60-270x cheaper** than 
+
+```mermaid
+xychart-beta
+    title "Monthly PR Review Cost by Developer Count"
+    x-axis [1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 100]
+    y-axis "Monthly Cost ($)" 0 --> 13000
+    line "OCR" [129.6, 648, 1296, 2592, 3888, 5184, 6480, 7776, 9072, 10368, 12960]
+    line "co-maintainer" [2, 10, 20, 40, 60, 80, 100, 120, 140, 160, 200]
+```
+
+*Calculated based on co-maintainer's `core_v2` benchmark, which reports co-maintainer as 65x cheaper per review than OCR ($0.025/review vs. $1.62/review). Assumes 80 PR reviews per developer per month (40 PRs merged, avg. ~2 reviews each).*
 
 ## Benchmarks
 
