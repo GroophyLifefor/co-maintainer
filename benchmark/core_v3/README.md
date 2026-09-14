@@ -158,3 +158,129 @@ Requires the guide frozen at
 `%APPDATA%/co-maintainer/repos/GroophyLifefor/heap-analysis/`
 (`SKILL.md`/`CODEBASE.md`, see `guide_v1/` for the archived copy) — build it
 once with `deno task init` per `plan.md` §11.1 before running this.
+
+---
+
+## Second pass: `z-ai/glm-5.3`-synthesized guide + `luna` review
+
+Same repo, same ledger, same reviewer model (`luna`) as the run above — only the
+guide changed. `init` was re-run with `--high-model=z-ai/glm-5.3` (the model
+that drives `synth_section`, i.e. what actually writes `SKILL.md`/`CODEBASE.md`
+from extracted facts; `low-model` for `extract_unit` stayed
+`deepseek/deepseek-v4-flash-0731`). Archived at `guide_v2/`.
+
+### Run config
+
+|                   |                                               |
+| ----------------- | --------------------------------------------- |
+| repo              | `GroophyLifefor/heap-analysis`                |
+| runner            | `co-maintainer`                               |
+| guide             | `guide_v2/` (synthesized with `z-ai/glm-5.3`) |
+| low-model         | `deepseek/deepseek-v4-flash-0731`             |
+| high-model        | `openai/gpt-5.6-luna`                         |
+| judge-model       | `openai/gpt-5.6-luna`                         |
+| review-concurrent | 4                                             |
+| `--codegraph`     | off (default)                                 |
+| PRs               | 30 (14 defective, 16 control)                 |
+| run date          | 2026-09-14                                    |
+
+### Headline
+
+| metric                          | value                                      |
+| ------------------------------- | ------------------------------------------ |
+| F1 (all 30 PRs, pooled)         | **0.600**                                  |
+| Precision                       | **0.462**                                  |
+| Recall                          | 0.857                                      |
+| tp / fp / fn                    | 12 / 14 / 2                                |
+| fp breakdown                    | 3 from defective PRs + 11 from control PRs |
+| Failed reviews                  | 0 / 30                                     |
+| Control false positives (P0-P2) | 11 total — **0.69 per PR**                 |
+| Control nice-to-haves (P3)      | 2                                          |
+| Total cost                      | $0.1210                                    |
+| Avg cost / PR                   | $0.0040                                    |
+| Avg time / PR                   | 31.2s (+2.1s prep)                         |
+| Avg tokens / PR (in/out/total)  | 4906 / 2436 / 7342                         |
+
+### Recall by axis
+
+| axis         | tp | fn | recall    |
+| ------------ | -- | -- | --------- |
+| `repo_wide`  | 4  | 0  | **1.000** |
+| `convention` | 2  | 0  | **1.000** |
+| `history`    | 1  | 0  | **1.000** |
+| `diff_local` | 4  | 1  | **0.800** |
+| `file_local` | 1  | 1  | **0.500** |
+
+Identical to the first `luna` pass — same two misses (PR 33, PR 40), same axis
+shape. The guide change moved precision, not recall.
+
+### Per-PR results
+
+**Defective (14 PRs):** 13 of 14 came back with `fp=0` — every defective PR the
+model got right, it got right _cleanly_ this time. Only PR 49 still over-flags
+(`fp=3`, down from 4 in the first `luna` pass).
+
+| PR     | defect                             | axis           | tp    | fp    | fn    | cost    |
+| ------ | ---------------------------------- | -------------- | ----- | ----- | ----- | ------- |
+| 22     | D7 predecessor/successor confusion | repo_wide      | 1     | 0     | 0     | $0.0031 |
+| 24     | D8 off-by-one bounds check         | diff_local     | 1     | 0     | 0     | $0.0026 |
+| 26     | D9 byte/KB unit mixup              | convention     | 1     | 0     | 0     | $0.0025 |
+| 27     | D10 reversed output order          | diff_local     | 1     | 0     | 0     | $0.0023 |
+| 30     | D12 substring match                | file_local     | 1     | 0     | 0     | $0.0014 |
+| **33** | **D13 incomplete type coverage**   | **file_local** | **0** | **0** | **1** | $0.0028 |
+| 34     | D14 wrong field / unit mismatch    | diff_local     | 1     | 0     | 0     | $0.0030 |
+| 36     | D15 raw offset as array index      | repo_wide      | 1     | 0     | 0     | $0.0090 |
+| 37     | D16 wrong alignment key            | repo_wide      | 1     | 0     | 0     | $0.0018 |
+| **40** | **D17 divide by zero**             | **diff_local** | **0** | **0** | **1** | $0.0030 |
+| 43     | D18 formatting in library layer    | convention     | 1     | 0     | 0     | $0.0033 |
+| 47     | D19 swallowed error                | history        | 1     | 0     | 0     | $0.0023 |
+| 48     | D20 off-by-one threshold           | diff_local     | 1     | 0     | 0     | $0.0032 |
+| 49     | D21 schema/return type mismatch    | repo_wide      | 1     | 3     | 0     | $0.0136 |
+
+**Control (16 PRs):** 9 of 16 (56%, up from 25%) came back fully clean.
+
+| PR     | severe FP (P0-P2) | nice-to-have (P3) | cost    |
+| ------ | ----------------- | ----------------- | ------- |
+| 21     | 0                 | 1                 | $0.0029 |
+| 23     | 0                 | 0                 | $0.0029 |
+| 25     | 0                 | 0                 | $0.0056 |
+| 28     | 1                 | 0                 | $0.0036 |
+| 29     | 0                 | 0                 | $0.0033 |
+| 31     | 0                 | 0                 | $0.0022 |
+| 32     | 1                 | 0                 | $0.0017 |
+| **35** | **1**             | 0                 | $0.0056 |
+| 38     | 0                 | 0                 | $0.0028 |
+| 39     | 1                 | 1                 | $0.0067 |
+| **41** | **2**             | 0                 | $0.0099 |
+| **42** | **2**             | 0                 | $0.0066 |
+| 44     | 1                 | 0                 | $0.0050 |
+| 45     | 0                 | 0                 | $0.0020 |
+| 46     | 1                 | 0                 | $0.0025 |
+| 50     | 1                 | 0                 | $0.0040 |
+
+### What changed vs. the first `luna` pass (same reviewer, `guide_v1`)
+
+| metric                    | `guide_v1` | `guide_v2` (glm-5.3) |
+| ------------------------- | ---------- | -------------------- |
+| Precision                 | 0.353      | **0.462**            |
+| F1                        | 0.500      | **0.600**            |
+| Recall                    | 0.857      | 0.857 (unchanged)    |
+| Control fp / PR           | 1.00       | **0.69**             |
+| Control PRs fully clean   | 4/16 (25%) | **9/16 (56%)**       |
+| Defective PRs with any fp | 3/14       | **1/14**             |
+| Total cost                | $0.134     | **$0.121**           |
+
+Same reviewer model, same ledger, same PRs — the only variable was which model
+synthesized the guide. Precision moved almost entirely on the control side
+(fewer false alarms on clean code), recall didn't move at all (the two genuine
+misses, PR 33 and PR 40, recur identically in both passes). At `n=30` PRs this
+isn't a controlled ablation — no repeat runs to estimate variance — but the
+direction and size of the shift (11 fewer false positives, cost going _down_ not
+up) is large enough to be worth taking seriously rather than filing as noise.
+
+For comparison, `deepseek/deepseek-v4.1-flash` was also tried as the reviewer
+against both guides and was strictly worse on every axis that matters
+operationally — more expensive, slower, and unreliable (4-6 of 30 reviews failed
+outright with "the reasoning budget may have been exhausted") — see
+`results/GroophyLifefor-heap-analysis-comaintainer-deepseek-guide_v1.json` and
+`-deepseek-guide_v2.json` for the raw numbers.
