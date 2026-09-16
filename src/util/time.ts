@@ -18,7 +18,7 @@ export function relativeTime(iso: string, nowMs = Date.now()): string {
   const hour = Math.round(min / 60);
   if (hour < 24) return hour === 1 ? "1 hour ago" : `${hour} hours ago`;
   const day = Math.round(hour / 24);
-  if (day === 1) return "yesterday";
+  if (day === 1) return "1 day ago";
   if (day < 30) return `${day} days ago`;
   const month = Math.round(day / 30);
   if (month < 12) return month === 1 ? "1 month ago" : `${month} months ago`;
