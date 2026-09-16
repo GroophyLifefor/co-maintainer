@@ -23,6 +23,7 @@ import {
   resolveCarryOutcomes,
 } from "../review/carry_over.ts";
 import { runReviewEngine } from "../review/engine.ts";
+import { loadGuides } from "../review/guides.ts";
 import { matchRepeat } from "../pr/rounds.ts";
 import type { Snapshot } from "../pr/snapshot.ts";
 import { readConfig } from "../config.ts";
@@ -644,7 +645,6 @@ async function runReviewJobCore(
     ? args.sinceCommit
     : mergeBase;
   const subject = getOrCreatePrSubject(job.repo, job.pr_number);
-  const guideBuiltAt = getRepo(job.repo)?.knowledge_built_at ?? null;
   const reviewId = existing?.id ?? crypto.randomUUID();
   if (!existing) {
     insertReview({
@@ -659,7 +659,6 @@ async function runReviewJobCore(
       trigger: args.trigger,
       round: args.round ?? 1,
       subjectId: subject.id,
-      guideBuiltAt,
     });
   }
   let checkRunId = existing?.check_run_id;
@@ -736,6 +735,7 @@ async function runReviewJobCore(
     String((pr.base as Json | undefined)?.ref ?? "main")
   }`;
   const revision = githubPullRequestToRevision(publishFiles, pr, baseLabel);
+  let guideBuiltAt = (await loadGuides(job.repo)).guideBuiltAt;
   const subjectRevision = getSubjectRevision(subject.id);
   let carryItems: CarryItem[] = [];
   let carryPrevious: CarryPrevious | null = null;
@@ -759,6 +759,7 @@ async function runReviewJobCore(
         bodyMd: row.body_md,
         anchorText: row.anchor_text,
         severity: row.severity,
+        firstSeenReviewId: row.first_seen_review_id ?? subjectRevision.review_id,
       })),
       guideBuiltAt: subjectRevision.guide_built_at,
     };
@@ -779,6 +780,7 @@ async function runReviewJobCore(
     (message) => log("info", message),
     extras,
   );
+  guideBuiltAt = response.guideBuiltAt;
   const visiblePaths = new Set(response.visiblePaths);
   if (carryPrevious) {
     carryItems = classifyCarryItems(

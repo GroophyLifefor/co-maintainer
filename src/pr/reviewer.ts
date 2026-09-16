@@ -166,7 +166,7 @@ export async function reviewPullRequest(
   ai?: AiProvider,
   progress?: ProgressSink,
   extras?: ReviewExtras,
-): Promise<AiResponse & { visiblePaths: string[] }> {
+): Promise<AiResponse & { visiblePaths: string[]; guideBuiltAt: string | null }> {
   if (!options.prNumber) throw new Error("review requires a PR number");
   const number = options.prNumber;
   const report = progress ?? (() => {});
@@ -561,5 +561,6 @@ ${reviewText}`,
 
 ${reviewText}`,
     visiblePaths,
+    guideBuiltAt: guides.guideBuiltAt,
   };
 }

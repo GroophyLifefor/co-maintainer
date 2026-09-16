@@ -19,6 +19,7 @@ export type StoredFinding = {
   bodyMd: string;
   anchorText: string | null;
   severity: string;
+  firstSeenReviewId: string | null;
 };
 
 export type CarryPrevious = {
@@ -163,6 +164,14 @@ export function classifyCarryItems(
     const lineFrom = finding.lineFrom ?? 0;
     const lineTo = finding.lineTo ?? lineFrom;
     let klass: CarryClass = "verify_unlocated";
+    const prevFile = finding.path
+      ? previous.files.find((f) =>
+        normalizePath(f.path) === normalizePath(finding.path)
+      )
+      : undefined;
+    const prevPatch = prevFile?.patch ?? "";
+    const sameBody = prevFile && file &&
+      normalizeBody(prevPatch) === normalizeBody(file.patch);
 
     if (!finding.path) {
       klass = "unverifiable";
@@ -174,20 +183,14 @@ export function classifyCarryItems(
       finding.path && !previous.visiblePaths.has(normalizePath(finding.path))
     ) {
       klass = "unverifiable";
+    } else if (sameBody) {
+      klass = "unchanged";
     } else if (!visiblePaths.has(normalizePath(file.path))) {
       klass = "unverifiable";
     } else if (guideChanged(previous, currentGuideBuiltAt)) {
       klass = "verify_guide_changed";
     } else {
-      const prevFile = previous.files.find((f) =>
-        normalizePath(f.path) === normalizePath(finding.path ?? "")
-      );
-      const prevPatch = prevFile?.patch ?? "";
-      const sameBody = prevFile &&
-        normalizeBody(prevPatch) === normalizeBody(file.patch);
-      if (sameBody) {
-        klass = "unchanged";
-      } else if (anchorInPatch(finding.anchorText, file.patch)) {
+      if (anchorInPatch(finding.anchorText, file.patch)) {
         klass = "verify_present";
       } else if (
         finding.anchorText &&
@@ -371,7 +374,7 @@ export function resolveCarryOutcomes(
         anchorText: base.anchorText,
         severity: base.severity,
         carriedFromId: base.id,
-        firstSeenReviewId: null,
+        firstSeenReviewId: base.firstSeenReviewId,
       });
       continue;
     }
@@ -388,7 +391,7 @@ export function resolveCarryOutcomes(
         anchorText: base.anchorText,
         severity: base.severity,
         carriedFromId: base.id,
-        firstSeenReviewId: null,
+        firstSeenReviewId: base.firstSeenReviewId,
       });
       continue;
     }
@@ -422,7 +425,7 @@ export function resolveCarryOutcomes(
           : base.anchorText,
         severity: base.severity,
         carriedFromId: base.id,
-        firstSeenReviewId: base.id,
+        firstSeenReviewId: base.firstSeenReviewId,
       };
       resolved.push(row);
       openForMerge.push(row);
@@ -450,7 +453,7 @@ export function resolveCarryOutcomes(
       anchorText: anchor,
       severity: base.severity,
       carriedFromId: base.id,
-      firstSeenReviewId: base.id,
+      firstSeenReviewId: base.firstSeenReviewId,
     };
     resolved.push(row);
     if (state === "open") openForMerge.push(row);

@@ -16,7 +16,7 @@ export async function runReviewEngine(
   ai?: AiProvider,
   progress?: ProgressSink,
   extras?: ReviewExtras,
-): Promise<AiResponse & { visiblePaths: string[] }> {
+): Promise<AiResponse & { visiblePaths: string[]; guideBuiltAt: string | null }> {
   return reviewPullRequest(
     client,
     options,
