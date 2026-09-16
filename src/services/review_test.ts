@@ -12,7 +12,7 @@ import {
   setFindingPosted,
 } from "../store/findings.ts";
 import { GitHubHttpError } from "../github/client.ts";
-import { FakeAiProvider } from "../ai/fake.ts";
+import { FAKE_REVIEW_MARKDOWN, FakeAiProvider } from "../ai/fake.ts";
 import {
   humanCopy,
   reconcileReview,
@@ -55,6 +55,7 @@ class FakeGithub implements GitHubClient {
   checkUpdates: { endpoint: string; body: unknown }[] = [];
   listedReviews: Json[] = [];
   files: Json[] = [{ filename: "src/app.ts", patch: "@@ -4 +4 @@" }];
+  prFiles?: Json[];
   filesError?: Error;
   writeError?: Error;
   compareError?: Error;
@@ -80,7 +81,9 @@ class FakeGithub implements GitHubClient {
     if (this.filesError && endpoint.includes("/files")) {
       return Promise.reject(this.filesError);
     }
-    if (endpoint.includes("/files")) return Promise.resolve(this.files as T[]);
+    if (endpoint.includes("/files")) {
+      return Promise.resolve((this.prFiles ?? this.files) as T[]);
+    }
     if (endpoint.includes("/comments")) return Promise.resolve([]);
     if (endpoint.includes("/reviews")) {
       return Promise.resolve(this.listedReviews as T[]);
@@ -373,6 +376,151 @@ Deno.test("findings outside the diff stay on the review body", async () => {
       !posted.body.includes("`src/app.ts`")
     ) {
       throw new Error(`body ${posted.body}`);
+    }
+  });
+});
+
+function reviewAt(location: string): FakeAiProvider {
+  return new FakeAiProvider(
+    FAKE_REVIEW_MARKDOWN.replace("`src/app.ts:4`", `\`${location}\``),
+  );
+}
+
+type PostedReview = {
+  body: string;
+  comments: { line: number; start_line?: number; start_side?: string }[];
+};
+
+Deno.test("a multi-line finding inside one hunk posts start_line", async () => {
+  await withEnv(async () => {
+    const github = new FakeGithub();
+    github.files = [{ filename: "src/app.ts", patch: "@@ -1,6 +1,8 @@" }];
+    await runReviewJob(seed(), () => {}, github, reviewAt("src/app.ts:3-5"));
+    const posted = github.writes[0].body as PostedReview;
+    const comment = posted.comments[0];
+    if (
+      comment?.start_line !== 3 || comment.line !== 5 ||
+      comment.start_side !== "RIGHT"
+    ) {
+      throw new Error(`comments ${JSON.stringify(posted.comments)}`);
+    }
+  });
+});
+
+Deno.test("a finding on a changed file but outside every hunk stays on the review body", async () => {
+  await withEnv(async () => {
+    const github = new FakeGithub();
+    github.files = [{ filename: "src/app.ts", patch: "@@ -40,2 +40,3 @@" }];
+    await runReviewJob(seed(), () => {}, github, reviewAt("src/app.ts:4"));
+    const posted = github.writes[0].body as PostedReview;
+    if (posted.comments.length !== 0 || !posted.body.includes("`src/app.ts`")) {
+      throw new Error(`posted ${JSON.stringify(posted)}`);
+    }
+  });
+});
+
+const GATE_PATCH = [
+  "@@ -16,3 +16,3 @@",
+  " function gate() {",
+  "-  const failing = old;",
+  "+  const failing = list.filter((v) => v > threshold);",
+  "   return failing;",
+].join("\n");
+
+function reviewWithSuggestion(code: string): FakeAiProvider {
+  return new FakeAiProvider(`## Findings
+
+### [P1 · blocking] \`src/app.ts\` — \`gate()\`
+Location: \`src/app.ts:16-18\`
+
+The threshold comparison is strict, so a violation at the threshold passes.
+
+Suggestion: \`src/app.ts:17\`
+\`\`\`suggestion
+${code}
+\`\`\`
+
+If you'd like me to explain it in more detail, please ask.
+`);
+}
+
+Deno.test("a valid suggestion posts on its own line and keeps the block", async () => {
+  await withEnv(async () => {
+    const github = new FakeGithub();
+    github.files = [{ filename: "src/app.ts", patch: GATE_PATCH }];
+    await runReviewJob(
+      seed(),
+      () => {},
+      github,
+      reviewWithSuggestion("  const failing = list.filter((v) => v >= threshold);"),
+    );
+    const posted = github.writes[0].body as {
+      comments: { line: number; start_line?: number; body: string }[];
+    };
+    const comment = posted.comments[0];
+    if (
+      comment?.line !== 17 || comment.start_line !== undefined ||
+      !comment.body.includes("```suggestion\n  const failing") ||
+      comment.body.includes("Suggestion:")
+    ) {
+      throw new Error(`comments ${JSON.stringify(posted.comments)}`);
+    }
+    const findings = listFindingsForReview(getReviewByJobId("job-rev")!.id);
+    if (findings[0].line_from !== 16 || findings[0].line_to !== 18) {
+      throw new Error(`full span was not kept ${JSON.stringify(findings)}`);
+    }
+    const completed = github.checkUpdates.find((item) =>
+      (item.body as Json).status === "completed"
+    )?.body as Json;
+    const annotations = (completed.output as Json).annotations as Json[];
+    if (String(annotations[0].message).includes("suggestion")) {
+      throw new Error(`annotation kept the block ${annotations[0].message}`);
+    }
+  });
+});
+
+Deno.test("a suggestion that changes nothing is dropped and the span is kept", async () => {
+  await withEnv(async () => {
+    const github = new FakeGithub();
+    github.files = [{ filename: "src/app.ts", patch: GATE_PATCH }];
+    await runReviewJob(
+      seed(),
+      () => {},
+      github,
+      reviewWithSuggestion("  const failing = list.filter((v) => v > threshold);"),
+    );
+    const posted = github.writes[0].body as {
+      comments: { line: number; start_line?: number; body: string }[];
+    };
+    const comment = posted.comments[0];
+    if (
+      comment?.start_line !== 16 || comment.line !== 18 ||
+      comment.body.includes("suggestion") ||
+      comment.body.includes("Suggestion:") ||
+      !comment.body.includes("If you'd like me to explain it")
+    ) {
+      throw new Error(`comments ${JSON.stringify(posted.comments)}`);
+    }
+  });
+});
+
+Deno.test("an incremental review anchors against the pull request diff", async () => {
+  await withEnv(async () => {
+    const job = seed();
+    job.args = JSON.stringify({
+      trigger: "synchronize",
+      scope: "incremental",
+      sinceCommit: "oldsha",
+      round: 2,
+    });
+    const github = new FakeGithub();
+    github.prFiles = [{ filename: "src/app.ts", patch: "@@ -40,2 +40,3 @@" }];
+    await runReviewJob(job, () => {}, github, new FakeAiProvider());
+    const posted = github.writes.find((write) =>
+      write.endpoint.includes("/reviews")
+    )?.body as PostedReview;
+    if (posted.comments.length !== 0) {
+      throw new Error(`anchored to the compare diff ${JSON.stringify(posted)}`);
     }
   });
 });

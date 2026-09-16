@@ -6,10 +6,11 @@ function contains(haystack: string, needle: string, what: string): void {
   }
 }
 
-Deno.test("filePatch returns a present patch unchanged", () => {
+Deno.test("filePatch numbers a present patch", () => {
   const patch = "@@ -1,2 +1,3 @@\n context\n+added";
-  if (filePatch({ filename: "a.ts", patch }) !== patch) {
-    throw new Error("expected the patch verbatim");
+  const expected = "@@ -1,2 +1,3 @@\n     1  context\n     2 +added";
+  if (filePatch({ filename: "a.ts", patch }) !== expected) {
+    throw new Error("expected the patch with new file line numbers");
   }
 });
 

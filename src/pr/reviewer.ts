@@ -12,6 +12,7 @@ import {
   readFullDiff,
   summarizeDiff,
 } from "./diff_summary.ts";
+import { numberPatch } from "./hunks.ts";
 import type { Snapshot } from "./snapshot.ts";
 import type {
   AiProvider,
@@ -109,11 +110,13 @@ export function filePatch(file: Json): string {
       `Do not treat this file as unchanged and do not report its contents.]`;
   }
   if (patch.length > MAX_FILE_PATCH_CHARS) {
-    return `${patch.slice(0, MAX_FILE_PATCH_CHARS)}\n[${status}; ${changes} ` +
+    return `${
+      numberPatch(patch.slice(0, MAX_FILE_PATCH_CHARS))
+    }\n[${status}; ${changes} ` +
       `changed lines total; this file's diff is cut off here, later hunks are ` +
       `not shown.]`;
   }
-  return patch;
+  return numberPatch(patch);
 }
 
 // Uncapped, a 100,000-line diff would ask for 1,000+ tool-loop rounds, each
@@ -350,7 +353,7 @@ tool can answer it. A missing regression test is not a substitute for
 identifying what the change actually gets wrong; state the concrete input or
 code path that misbehaves when you can.
 Each finding must use this exact structure, keeping the default finding under
-120 words excluding an optional diagram:
+120 words excluding an optional diagram and an optional suggestion:
 
 ### [P1 · blocking] \`path/to/file.ts\` — \`symbol()\`
 Location: \`path/to/file.ts:42\`
@@ -367,6 +370,28 @@ omit it and nothing may follow it.
 Use P0-P3 severity and exactly either "blocking" or "non-blocking".
 Keep the Location line machine-readable; it is removed from user-facing
 review copies. Use Markdown backticks around paths and symbols.
+Every diff line in the DIFF section starts with its line number in the new
+file. Copy Location numbers from that column instead of counting from the @@
+header, and use \`path:from-to\` when the finding spans several lines. Removed
+lines have no number, so anchor a finding about removed code to the nearest
+numbered line.
+
+A finding of any severity may carry one GitHub suggestion when the fix is a
+direct replacement of consecutive numbered lines from a single hunk of the
+same file. Keep Location as the full span of the problem, and put the
+suggestion right before the closing sentence:
+
+Suggestion: \`path/to/file.ts:42-43\`
+\`\`\`suggestion
+every line of 42-43 as it should read, with its original indentation
+\`\`\`
+
+The Suggestion range must sit inside the Location range and cover only the
+lines the fix changes. The block replaces that whole range, so write every
+line of it, not just the edited part, and write nothing else inside the block.
+When the replacement itself contains three backticks, open and close the block
+with four. Leave the suggestion out when the fix needs removed lines, another
+file, or more than one hunk, or when you are not sure of the exact code.
 ${diagrams ? DIAGRAM_PROMPT_RULES : NO_DIAGRAM_RULES}
 
 REVIEW GUIDE:

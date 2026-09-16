@@ -19,6 +19,7 @@ import {
   setReplyStatus,
 } from "../store/replies.ts";
 import { findFindingByPostedComment } from "../store/findings.ts";
+import { plainSuggestionFences } from "../pr/suggestion.ts";
 import { enqueue, type LogFn, registerHandler } from "./jobs.ts";
 import { getJob } from "../store/jobs.ts";
 import type { JobRow, ReplyRequestRow } from "../store/rows.ts";
@@ -266,7 +267,7 @@ async function runReplyJobCore(
     setReplyStatus(request.id, "ready", { answer_md: answer });
   }
 
-  const body = `${marker}\n${answer}`;
+  const body = `${marker}\n${plainSuggestionFences(answer)}`;
   setReplyStatus(request.id, "posting");
   const posted = await postReply(github, request, body);
   setReplyStatus(request.id, "posted", {

@@ -98,6 +98,8 @@ export function parseFindings(markdown: string): ParsedFinding[] {
   const seen = new Set<string>();
   for (const lined of body.matchAll(FILE_LINE)) {
     if (!lined.groups?.path || !lined.groups.from) continue;
+    const lineStart = body.lastIndexOf("\n", lined.index ?? 0) + 1;
+    if (/^\s*Suggestion\s*:/.test(body.slice(lineStart, lined.index))) continue;
     const from = Number(lined.groups.from);
     const to = lined.groups.to ? Number(lined.groups.to) : from;
     const key = `${lined.groups.path}:${from}-${to}`;

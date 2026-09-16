@@ -17,7 +17,7 @@ export function redact(text: string): string {
 
 /** Fenced blocks and inline code spans. The capture group puts code on odd
  * split indices, so prose can be cleaned without rewriting the code. */
-const CODE = /(```[\s\S]*?```|`[^`\n]*`)/;
+const CODE = /(````[\s\S]*?````|```[\s\S]*?```|`[^`\n]*`)/;
 
 export function outsideCode(
   text: string,
