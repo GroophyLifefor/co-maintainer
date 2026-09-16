@@ -32,5 +32,14 @@ export async function writeTextFileAtomic(
   await cleanStaleTempFiles(dir, base);
   const temp = tempName(dir, base);
   await Deno.writeTextFile(temp, text);
+  // Windows does not replace an existing destination on rename (D1 in the
+  // CLI review plan); Unix overwrites in one step on the same volume.
+  if (Deno.build.os === "windows") {
+    try {
+      await Deno.remove(path);
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) throw error;
+    }
+  }
   await Deno.rename(temp, path);
 }
