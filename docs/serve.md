@@ -28,12 +28,17 @@ there.
 instead of, or alongside, the password. Reuses the GitHub App's own OAuth
 client, so no separate OAuth App is needed.
 
-1. Copy the App's client ID and client secret from its GitHub settings page.
-2. Save them, plus the one GitHub username allowed to sign in:
+1. On the App's GitHub settings page, under "Identifying and authorizing
+   users", set the **Redirect URL** (sometimes called the callback URL) to
+   `http://<host>:<port>/auth/github/callback` — the same host and port
+   `serve` runs on. Without this, GitHub refuses with "This GitHub App must
+   be configured with a callback URL."
+2. Copy the App's client ID and client secret from the same page.
+3. Save them, plus the one GitHub username allowed to sign in:
    ```sh
    co-maintainer set --github-oauth-client-id=... --github-oauth-client-secret=... --github-oauth-allowed-user=your-github-username
    ```
-3. Turn methods on or off per `serve` run with `--disable-auth=password` and
+4. Turn methods on or off per `serve` run with `--disable-auth=password` and
    `--enable-auth=github`. A flag here always overrides what was saved with
    `set`; without a flag, `serve` falls back to the saved setting. At least
    one method must stay enabled, or `serve` refuses to start.
