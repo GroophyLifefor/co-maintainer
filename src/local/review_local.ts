@@ -14,7 +14,10 @@ import {
   parsePreviousVerdicts,
   resolveCarryOutcomes,
   type CarryPrevious,
+  type ResolvedFinding,
+  type StoredFinding,
 } from "../review/carry_over.ts";
+import type { ParsedFinding } from "../pr/findings.ts";
 import { parseFindings } from "../pr/findings.ts";
 import { reviewWorkspaceRevision } from "../pr/reviewer.ts";
 import { runCommand } from "../pr/checkout.ts";
@@ -38,6 +41,38 @@ import {
   localSubjectId,
   saveLocalCarry,
 } from "./carry_over_store.ts";
+
+function storedFindings(
+  resolved: ResolvedFinding[],
+): StoredFinding[] {
+  return resolved
+    .filter((row) => row.state === "new" || row.state === "open")
+    .map((row) => ({
+      id: row.id,
+      path: row.path,
+      lineFrom: row.lineFrom,
+      lineTo: row.lineTo,
+      title: row.title,
+      bodyMd: row.bodyMd,
+      anchorText: row.anchorText,
+      severity: row.severity,
+      firstSeenReviewId: row.firstSeenReviewId,
+    }));
+}
+
+function storedFromParsed(parsed: ParsedFinding[]): StoredFinding[] {
+  return parsed.map((finding) => ({
+    id: crypto.randomUUID(),
+    path: finding.path,
+    lineFrom: finding.from,
+    lineTo: finding.to,
+    title: finding.heading || finding.path,
+    bodyMd: finding.excerpt,
+    anchorText: null,
+    severity: finding.severity ?? "P2",
+    firstSeenReviewId: null,
+  }));
+}
 
 function fail(error: ReviewCliError, json: boolean): never {
   if (json) {
@@ -86,7 +121,7 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
       remotes.stdout.split("\n").map((l) => l.trim()).includes(n)
     ) ?? remotes.stdout.split("\n").map((l) => l.trim()).filter(Boolean)[0]!;
     const base = await resolveBaseRef(root, remoteName, cli.toBranch, runCommand);
-    const baseSha = await mergeBase(root, base.ref, runCommand);
+    const baseSha = await mergeBase(root, base.ref, remoteName, runCommand);
     const revision = await buildLocalRevision(root, baseSha, base.label, runCommand);
     if (revision.files.length === 0) {
       if (json) {
@@ -159,8 +194,8 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
       );
     }
     const parsed = parseFindings(response.text);
-    if (carryPrevious) {
-      resolveCarryOutcomes(
+    const findingsToStore = carryPrevious
+      ? storedFindings(resolveCarryOutcomes(
         carryItems,
         revision,
         visiblePaths,
@@ -168,14 +203,14 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
         parsed,
         response.guideBuiltAt,
         carryPrevious,
-      );
-    }
+      ))
+      : storedFromParsed(parsed);
 
     await saveLocalCarry({
       subjectId,
       files: revision.files,
       visiblePaths: [...visiblePaths],
-      findings: [],
+      findings: findingsToStore,
       guideBuiltAt: response.guideBuiltAt,
     });
 

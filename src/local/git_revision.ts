@@ -12,6 +12,7 @@ const diffEnv = ["-c", "core.quotePath=false"];
 export async function mergeBase(
   cwd: string,
   baseRef: string,
+  remote: string,
   run: Run,
 ): Promise<string> {
   const result = await run(
@@ -24,7 +25,6 @@ export async function mergeBase(
   }
   const shallow = await run("git", ["rev-parse", "--is-shallow-repository"], cwd);
   if (shallow.stdout.trim() === "true") {
-    const remote = baseRef.split("/")[0];
     await run("git", ["fetch", "--quiet", "--unshallow", remote], cwd);
     const retry = await run(
       "git",
