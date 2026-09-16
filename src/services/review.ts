@@ -99,13 +99,25 @@ export function reviewEvent(
 export interface ReviewMetadata {
   jobId: string;
   model: string;
+  durationMs: number;
 }
 
-function metadataBlock({ jobId, model }: ReviewMetadata): string {
+export function formatDuration(ms: number): string {
+  const totalSeconds = Math.max(0, Math.round(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+}
+
+function metadataBlock({ jobId, model, durationMs }: ReviewMetadata): string {
   return `\n\n<details>\n<summary>Metadata</summary>\n\n` +
     `- Activity: ${jobId}\n` +
     `- co-maintainer version: ${denoConfig.version}\n` +
     `- Model: ${model}\n` +
+    `- Duration: ${formatDuration(durationMs)}\n` +
     `</details>`;
 }
 
@@ -262,7 +274,7 @@ function checkAnnotations(
         end_line: endLine,
         start_column: 1,
         end_column: 1,
-        annotation_level: finding.severity === "P0"
+        annotation_level: finding.severity === "P1"
           ? "failure"
           : finding.severity === "P2"
           ? "warning"
@@ -435,6 +447,7 @@ async function publish(
     setReviewStatus(reviewId, "posted", {
       posted_review_id: String(posted.id ?? ""),
       findings_count: stored.length,
+      duration_ms: metadata.durationMs,
     });
     try {
       const listed = await client.pages<Json>(
@@ -553,6 +566,7 @@ async function runReviewJobCore(
   client?: GitHubClient,
   ai?: AiProvider,
 ): Promise<void> {
+  const startedAt = Date.now();
   if (job.pr_number === null) {
     throw new Error("review job is missing a pull request number");
   }
@@ -713,7 +727,11 @@ async function runReviewJobCore(
     headSha,
     prFiles ?? files,
     log,
-    { jobId: job.id, model: options.highModel ?? "unknown" },
+    {
+      jobId: job.id,
+      model: options.highModel ?? "unknown",
+      durationMs: Date.now() - startedAt,
+    },
   );
   await finishCheck(
     github,

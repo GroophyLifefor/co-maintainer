@@ -632,7 +632,11 @@ Deno.test("humanCopy preserves the review heading dash and removes semicolons", 
   if (!cleaned.includes("\u2014") || cleaned.includes(";")) {
     throw new Error(cleaned);
   }
-  const body = reviewBody([], { jobId: "job-1", model: "test-model" });
+  const body = reviewBody([], {
+    jobId: "job-1",
+    model: "test-model",
+    durationMs: 1000,
+  });
   if (body.includes(";")) {
     throw new Error(body);
   }
