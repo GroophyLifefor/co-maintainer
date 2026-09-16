@@ -43,6 +43,7 @@ export type JobRow = {
   finished_at: string | null;
   error: string | null;
   superseded_by: string | null;
+  cancel_reason: string | null;
 };
 
 export type JobLogRow = {

@@ -25,6 +25,7 @@ export function renderSettings(
       <a href="/settings" class="on">Models and keys</a>
       <a href="#github">GitHub</a>
       <a href="#defaults">Defaults</a>
+      <a href="#server">Server</a>
       <a href="#access">Access</a>
       <a href="#about">About</a>
     </nav>
@@ -136,6 +137,18 @@ Leave blank to keep the current key"></textarea></div>
       </div>
       <div class="ft"><button class="primary" id="save-def">Save</button></div>
     </div>
+    <div class="card" id="server" data-async>
+      ${skSlot()}
+      <div class="hd"><h2>Job queue</h2></div>
+      <div class="bd">
+        <div class="field"><label>Max concurrent jobs</label>
+          <input id="max-jobs" value="${
+      text(config.maxConcurrentJobs ?? "")
+    }" placeholder="No limit">
+          <div class="hint">Cap how many background jobs run at once across init, remake, and review. Leave blank for no limit.</div></div>
+      </div>
+      <div class="ft"><button class="primary" id="save-server">Save</button></div>
+    </div>
     <div class="card" id="access" data-async>
       ${skSlot()}
       <div class="hd"><h2>Sign-in</h2></div>
@@ -222,6 +235,10 @@ document.getElementById("save-access").addEventListener("click", function() {
     githubOAuthClientSecret: document.getElementById("oauth-client-secret").value,
     githubOAuthAllowedUser: document.getElementById("oauth-allowed-user").value
   });
+});
+document.getElementById("save-server").addEventListener("click", function() {
+  var v = document.getElementById("max-jobs").value.trim();
+  save(this, { maxConcurrentJobs: v === "" ? null : Number(v) });
 });
 document.getElementById("save-def").addEventListener("click", function() {
   var num = function(id) {

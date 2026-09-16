@@ -1,5 +1,13 @@
 import { cloneDir, worktreeDir } from "../config.ts";
 import { log } from "../util/log.ts";
+import { withKeyedLock } from "../util/keyed_lock.ts";
+
+export function withCloneLock<T>(
+  repo: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return withKeyedLock(`clone:${repo}`, fn);
+}
 
 /** Shared git plumbing for anything that needs a real checkout of a
  * repository — the codegraph map and the upstream/own-work scope both need
@@ -78,7 +86,11 @@ async function cloneInto(repo: string, dir: string, run: Run): Promise<string> {
  * lock. */
 const cloningInFlight = new Map<string, Promise<string>>();
 
-export async function ensureClone(repo: string, run: Run): Promise<string> {
+/** Like `ensureClone` but assumes the caller already holds `withCloneLock`. */
+export async function ensureCloneUnlocked(
+  repo: string,
+  run: Run,
+): Promise<string> {
   const dir = cloneDir(repo);
   if (await pathExists(`${dir}/.git`)) return dir;
   let promise = cloningInFlight.get(dir);
@@ -89,6 +101,10 @@ export async function ensureClone(repo: string, run: Run): Promise<string> {
     cloningInFlight.set(dir, promise);
   }
   return promise;
+}
+
+export async function ensureClone(repo: string, run: Run): Promise<string> {
+  return withCloneLock(repo, () => ensureCloneUnlocked(repo, run));
 }
 
 /** Resolves `candidate` to a commit SHA, or returns undefined. Two plain
@@ -148,25 +164,27 @@ export async function ensureWorktree(
   commit: string,
   run: Run,
 ): Promise<string> {
-  const clone = await ensureClone(repo, run);
-  const sha = await ensureCommit(clone, commit, run);
-  const dir = worktreeDir(repo, pr);
-  if (await pathExists(`${dir}/.git`)) {
-    log("checkout", `reusing worktree ${dir}`);
-    const reset = await run("git", ["checkout", "-q", "--detach", sha], dir);
-    if (reset.code !== 0) {
-      throw new Error(`checkout ${sha} failed: ${reset.stderr.trim()}`);
+  return withCloneLock(repo, async () => {
+    const clone = await ensureCloneUnlocked(repo, run);
+    const sha = await ensureCommit(clone, commit, run);
+    const dir = worktreeDir(repo, pr);
+    if (await pathExists(`${dir}/.git`)) {
+      log("checkout", `reusing worktree ${dir}`);
+      const reset = await run("git", ["checkout", "-q", "--detach", sha], dir);
+      if (reset.code !== 0) {
+        throw new Error(`checkout ${sha} failed: ${reset.stderr.trim()}`);
+      }
+      return dir;
+    }
+    log("checkout", `creating worktree ${dir} at ${sha.slice(0, 10)}`);
+    const added = await run(
+      "git",
+      ["worktree", "add", "-q", "--detach", dir, sha],
+      clone,
+    );
+    if (added.code !== 0) {
+      throw new Error(`git worktree add failed: ${added.stderr.trim()}`);
     }
     return dir;
-  }
-  log("checkout", `creating worktree ${dir} at ${sha.slice(0, 10)}`);
-  const added = await run(
-    "git",
-    ["worktree", "add", "-q", "--detach", dir, sha],
-    clone,
-  );
-  if (added.code !== 0) {
-    throw new Error(`git worktree add failed: ${added.stderr.trim()}`);
-  }
-  return dir;
+  });
 }

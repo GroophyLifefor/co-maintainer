@@ -1,4 +1,10 @@
-import { ensureClone, ensureCommit, type Run, runCommand } from "./checkout.ts";
+import {
+  ensureCloneUnlocked,
+  ensureCommit,
+  type Run,
+  runCommand,
+  withCloneLock,
+} from "./checkout.ts";
 import { log } from "../util/log.ts";
 
 /** What a pull request's author actually wrote this round, as opposed to code
@@ -141,12 +147,14 @@ export async function computeScope(
   options: { run?: Run } = {},
 ): Promise<ScopeResult | undefined> {
   const run = options.run ?? runCommand;
-  let clone: string;
-  try {
-    clone = await ensureClone(repo, run);
-  } catch (error) {
-    log("scope", `unavailable · ${String(error)}`);
-    return undefined;
-  }
-  return await scopeInClone(clone, base, head, run);
+  return withCloneLock(repo, async () => {
+    let clone: string;
+    try {
+      clone = await ensureCloneUnlocked(repo, run);
+    } catch (error) {
+      log("scope", `unavailable · ${String(error)}`);
+      return undefined;
+    }
+    return await scopeInClone(clone, base, head, run);
+  });
 }

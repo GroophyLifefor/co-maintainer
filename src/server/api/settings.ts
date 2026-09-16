@@ -42,6 +42,7 @@ export async function handleSettingsRoute(
       githubOAuthAllowedUser: config.githubOAuthAllowedUser ?? "",
       passwordAuthDisabled: Boolean(config.passwordAuthDisabled),
       githubAuthEnabled: Boolean(config.githubAuthEnabled),
+      maxConcurrentJobs: config.maxConcurrentJobs ?? null,
     });
   }
 
@@ -84,6 +85,20 @@ export async function handleSettingsRoute(
         return errorResponse(400, "invalid_webhook_url", webhookError);
       }
       patch.webhookUrl = (body.webhookUrl as string).trim();
+    }
+    if ("maxConcurrentJobs" in body) {
+      const raw = body.maxConcurrentJobs;
+      if (raw === null || raw === "") {
+        patch.maxConcurrentJobs = undefined;
+      } else if (typeof raw === "number" && Number.isInteger(raw) && raw > 0) {
+        patch.maxConcurrentJobs = raw;
+      } else {
+        return errorResponse(
+          422,
+          "invalid_setting",
+          "maxConcurrentJobs must be a positive integer or null",
+        );
+      }
     }
     if (body.defaults && typeof body.defaults === "object") {
       const defaults = body.defaults as Record<string, unknown>;

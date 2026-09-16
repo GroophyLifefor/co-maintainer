@@ -165,4 +165,8 @@ export const migrations: string[][] = [
   [
     `ALTER TABLE repos ADD COLUMN use_codegraph INTEGER NOT NULL DEFAULT 0`,
   ],
+  // 6 — why a job was canceled (dashboard, superseded, remote abort, …)
+  [
+    `ALTER TABLE jobs ADD COLUMN cancel_reason TEXT`,
+  ],
 ];

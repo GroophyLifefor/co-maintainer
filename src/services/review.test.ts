@@ -133,6 +133,7 @@ function seed(): JobRow {
     finished_at: null,
     error: null,
     superseded_by: null,
+    cancel_reason: null,
   };
 }
 

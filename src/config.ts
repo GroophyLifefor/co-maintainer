@@ -50,6 +50,8 @@ export type UserConfig = {
     maxPrMonths?: number;
     maxPullRequestChangeLines?: number;
   };
+  /** Cap on jobs running at once across all types. Unset means no limit. */
+  maxConcurrentJobs?: number;
   repos?: Record<string, RepoConfig>;
 };
 

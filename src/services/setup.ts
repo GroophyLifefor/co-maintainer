@@ -115,9 +115,13 @@ async function writeReviewDocuments(
     ]);
     return;
   }
-  await Deno.writeTextFile(`${directory}/PR_REVIEW_GUIDE.md`, documents.guide);
+  const { writeTextFileAtomic } = await import("../util/atomic.ts");
+  await writeTextFileAtomic(
+    `${directory}/PR_REVIEW_GUIDE.md`,
+    documents.guide,
+  );
   if (documents.detailed) {
-    await Deno.writeTextFile(
+    await writeTextFileAtomic(
       `${directory}/PR_REVIEW_DETAILED_GUIDE.md`,
       documents.detailed,
     );
@@ -146,7 +150,8 @@ async function writeCodebaseDocument(
     await Deno.remove(path).catch(() => {});
     return;
   }
-  await Deno.writeTextFile(
+  const { writeTextFileAtomic } = await import("../util/atomic.ts");
+  await writeTextFileAtomic(
     path,
     `# Codebase conventions for ${repo}\n\nHow this repository's code is actually structured and written. A pull request that departs from these observed conventions is worth flagging even without a matching review-bar rule.\n\n${body}\n`,
   );
@@ -320,7 +325,6 @@ export async function runInitOrRemake(options: Options): Promise<void> {
       ),
   );
   const reviewDocuments = buildReviewDocuments(facts);
-  await writeReviewDocuments(options.repo, reviewDocuments);
   result.markdown = addReviewLink(result.markdown, reviewDocuments);
   const validation = await timed(
     "validate skill",
@@ -360,8 +364,13 @@ export async function runInitOrRemake(options: Options): Promise<void> {
     "write skill and state",
     options.logTime,
     async () => {
-      await Deno.writeTextFile(path, result.markdown);
-      await writeCodebaseDocument(options.repo, result.markdown);
+      const { withKnowledgeLock } = await import("../review/guides.ts");
+      const { writeTextFileAtomic } = await import("../util/atomic.ts");
+      await withKnowledgeLock(options.repo, async () => {
+        await writeTextFileAtomic(path, result.markdown);
+        await writeCodebaseDocument(options.repo, result.markdown);
+        await writeReviewDocuments(options.repo, reviewDocuments);
+      });
       await writeState({
         version: 1,
         repo: options.repo,
@@ -537,5 +546,10 @@ export function enqueueSetup(
   command: "init" | "remake",
   overrides: Partial<Options> = {},
 ): { id: string; debounced: boolean } {
-  return enqueue({ type: command, repo, args: overrides });
+  return enqueue({
+    type: command,
+    repo,
+    args: overrides,
+    queueKey: `setup:${repo}`,
+  });
 }

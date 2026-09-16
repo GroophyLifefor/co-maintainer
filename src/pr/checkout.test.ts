@@ -8,6 +8,9 @@ import type { CommandResult, Run } from "./checkout.ts";
  * back to an unscoped review. `ensureClone` should invoke `git clone` exactly
  * once no matter how many callers race in. */
 Deno.test("ensureClone clones exactly once under concurrent callers", async () => {
+  const clonesRoot = await Deno.makeTempDir();
+  const prev = Deno.env.get("CM_CLONES_DIR");
+  Deno.env.set("CM_CLONES_DIR", clonesRoot);
   let cloneInvocations = 0;
   let cloneResolve!: () => void;
   const clonePending = new Promise<void>((resolve) => {
@@ -20,6 +23,8 @@ Deno.test("ensureClone clones exactly once under concurrent callers", async () =
       // race would actually manifest rather than finishing before the other
       // callers even start.
       await clonePending;
+      const dir = args[args.length - 1];
+      await Deno.mkdir(`${dir}/.git`, { recursive: true });
       return { code: 0, stdout: "", stderr: "" };
     }
     return { code: 0, stdout: "", stderr: "" };
@@ -42,4 +47,7 @@ Deno.test("ensureClone clones exactly once under concurrent callers", async () =
       "all concurrent callers must resolve to the same directory",
     );
   }
+  if (prev === undefined) Deno.env.delete("CM_CLONES_DIR");
+  else Deno.env.set("CM_CLONES_DIR", prev);
+  await Deno.remove(clonesRoot, { recursive: true });
 });

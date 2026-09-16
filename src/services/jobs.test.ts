@@ -1,5 +1,6 @@
 import { closeAppDb, openAppDb } from "../store/app_db.ts";
-import { getJob } from "../store/jobs.ts";
+import { getJob, getRunningJobByKey, listJobs } from "../store/jobs.ts";
+import { writeUserConfig } from "../config.ts";
 import {
   cancel,
   claimAndRun,
@@ -269,6 +270,116 @@ Deno.test("claimAndRun skips a queued type with no handler so it does not block 
     }
     if (getJob(review.id)?.status !== "queued") {
       throw new Error("the handler-less review job should stay queued");
+    }
+  });
+});
+
+Deno.test("jobs: same key waits while a review is already running", async () => {
+  await withTempDb(async () => {
+    let firstRunning = false;
+    registerHandler("test-same-key", {
+      run(_job, _log, signal) {
+        return new Promise<void>((resolve) => {
+          firstRunning = true;
+          signal.addEventListener("abort", () => resolve());
+        });
+      },
+    });
+    const key = "review:a/b:1";
+    insertJob({
+      id: "running-1",
+      type: "test-same-key",
+      repo: "a/b",
+      queueKey: key,
+    });
+    const { setJobStatus } = await import("../store/jobs.ts");
+    setJobStatus("running-1", "running");
+    const { id: queuedId } = enqueue({
+      type: "test-same-key",
+      repo: "a/b",
+      queueKey: key,
+    });
+    const ran = await claimAndRun();
+    if (ran) throw new Error("should not claim while same key is running");
+    if (getJob(queuedId)?.status !== "queued") {
+      throw new Error("second job should stay queued");
+    }
+    if (!getRunningJobByKey(key)) {
+      throw new Error("running job should still be marked running");
+    }
+    if (firstRunning) throw new Error("queued job should not have started");
+  });
+});
+
+Deno.test("jobs: global limit caps concurrent workers", async () => {
+  const originalConfig = Deno.env.get("CM_CONFIG_PATH");
+  Deno.env.set("CM_CONFIG_PATH", `${Deno.makeTempDirSync()}/config.json`);
+  await writeUserConfig({ maxConcurrentJobs: 1 });
+  await withTempDb(async () => {
+    let active = 0;
+    let peak = 0;
+    registerHandler("test-limit", {
+      async run() {
+        active++;
+        peak = Math.max(peak, active);
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        active--;
+      },
+    });
+    enqueue({ type: "test-limit", repo: "a/b" });
+    enqueue({ type: "test-limit", repo: "a/b" });
+    try {
+      startWorkerLoop(10);
+      const deadline = Date.now() + 3000;
+      while (Date.now() < deadline) {
+        if (listJobs({ status: "done" }).length >= 2) break;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+    } finally {
+      await stopWorkerLoop();
+    }
+    if (peak > 1) throw new Error(`peak concurrency was ${peak}, expected 1`);
+  });
+  if (originalConfig === undefined) Deno.env.delete("CM_CONFIG_PATH");
+  else Deno.env.set("CM_CONFIG_PATH", originalConfig);
+});
+
+Deno.test("jobs: stop waits all in flight", async () => {
+  await withTempDb(async () => {
+    let finished = 0;
+    registerHandler("test-stop-wait", {
+      async run() {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        finished++;
+      },
+    });
+    enqueue({ type: "test-stop-wait", repo: "a/b" });
+    enqueue({ type: "test-stop-wait", repo: "a/b" });
+    startWorkerLoop(5);
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    await stopWorkerLoop();
+    if (finished < 2) {
+      throw new Error(`stopWorkerLoop returned before jobs finished (${finished})`);
+    }
+  });
+});
+
+Deno.test("cancel on a running job records dashboard_canceled", async () => {
+  await withTempDb(async () => {
+    registerHandler("test-cancel-reason", {
+      run(_job, _log, signal) {
+        return new Promise<void>((resolve) => {
+          signal.addEventListener("abort", () => resolve());
+        });
+      },
+    });
+    const { id } = enqueue({ type: "test-cancel-reason", repo: "a/b" });
+    const runPromise = claimAndRun();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    cancel(id, "dashboard_canceled");
+    await runPromise;
+    if (getJob(id)?.cancel_reason !== "dashboard_canceled") {
+      throw new Error("cancel_reason was not stored");
     }
   });
 });

@@ -3,7 +3,7 @@ import {
   completeWithMermaidTools,
   type ToolHandler,
 } from "../ai/mermaid_loop.ts";
-import { reposDir } from "../config.ts";
+import { loadGuides } from "../review/guides.ts";
 import { computeScope } from "./scope.ts";
 import { prepareCodegraphTools } from "./codegraph_tools.ts";
 import {
@@ -136,10 +136,18 @@ export function clampImproveMatrix(matrix: number): number {
 }
 
 export async function readGuide(repo: string, name: string): Promise<string> {
-  try {
-    return await Deno.readTextFile(`${reposDir()}/${repo}/${name}`);
-  } catch {
-    return "";
+  const guides = await loadGuides(repo);
+  switch (name) {
+    case "PR_REVIEW_GUIDE.md":
+      return guides.shortGuide;
+    case "PR_REVIEW_DETAILED_GUIDE.md":
+      return guides.detailed;
+    case "CODEBASE.md":
+      return guides.codebase;
+    case "SKILL.md":
+      return guides.skill;
+    default:
+      return "";
   }
 }
 
@@ -157,18 +165,15 @@ export async function reviewPullRequest(
   const number = options.prNumber;
   const report = progress ?? (() => {});
   report(`loading PR context for ${options.repo}#${number}`);
-  const [pr, allComments, allReviews, shortGuide, detailed, codebase, skill] =
-    await Promise.all([
-      client.request<Json>(`repos/${options.repo}/pulls/${number}`),
-      client.pages<Json>(
-        `repos/${options.repo}/issues/${number}/comments`,
-      ),
-      client.pages<Json>(`repos/${options.repo}/pulls/${number}/reviews`),
-      readGuide(options.repo, "PR_REVIEW_GUIDE.md"),
-      readGuide(options.repo, "PR_REVIEW_DETAILED_GUIDE.md"),
-      readGuide(options.repo, "CODEBASE.md"),
-      readGuide(options.repo, "SKILL.md"),
-    ]);
+  const [pr, allComments, allReviews, guides] = await Promise.all([
+    client.request<Json>(`repos/${options.repo}/pulls/${number}`),
+    client.pages<Json>(
+      `repos/${options.repo}/issues/${number}/comments`,
+    ),
+    client.pages<Json>(`repos/${options.repo}/pulls/${number}/reviews`),
+    loadGuides(options.repo),
+  ]);
+  const { shortGuide, detailed, codebase, skill } = guides;
   report(
     `context loaded · comments=${allComments.length} · reviews=${allReviews.length} · ` +
       `guide=${

@@ -179,21 +179,24 @@ const KNOWLEDGE_DOCS = [
 
 export async function repoKnowledge(fullName: string) {
   const repo = requireActiveRepo(fullName);
-  const docs = [];
-  for (const doc of KNOWLEDGE_DOCS) {
-    const path = `${reposDir()}/${fullName}/${doc.file}`;
-    try {
-      const text = await Deno.readTextFile(path);
-      docs.push({
-        ...doc,
-        bytes: new TextEncoder().encode(text).byteLength,
-        text,
-      });
-    } catch (error) {
-      if (!(error instanceof Deno.errors.NotFound)) throw error;
+  const { withKnowledgeLock } = await import("../review/guides.ts");
+  return withKnowledgeLock(fullName, async () => {
+    const docs = [];
+    for (const doc of KNOWLEDGE_DOCS) {
+      const path = `${reposDir()}/${fullName}/${doc.file}`;
+      try {
+        const text = await Deno.readTextFile(path);
+        docs.push({
+          ...doc,
+          bytes: new TextEncoder().encode(text).byteLength,
+          text,
+        });
+      } catch (error) {
+        if (!(error instanceof Deno.errors.NotFound)) throw error;
+      }
     }
-  }
-  return { repo, drift: await refreshDrift(fullName), docs };
+    return { repo, drift: await refreshDrift(fullName), docs };
+  });
 }
 
 export type ActivityItem =

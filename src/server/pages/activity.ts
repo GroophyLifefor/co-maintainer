@@ -37,12 +37,40 @@ function jobLabel(job: JobRow): string {
   return job.type;
 }
 
+function cancelReasonLabel(reason: string | null): string {
+  switch (reason) {
+    case "dashboard_canceled":
+      return "Canceled from the dashboard";
+    case "superseded":
+      return "Replaced by a newer job";
+    case "client_timeout":
+      return "No sync from the CLI";
+    case "client_canceled":
+      return "Canceled from the CLI";
+    case "token_deactivated":
+      return "Token was deactivated";
+    case "token_deleted":
+      return "Token was deleted";
+    case "repo_deactivated":
+      return "Repository was removed from the dashboard";
+    case "server_restarted":
+      return "Server restarted during the job";
+    default:
+      return reason ?? "Canceled";
+  }
+}
+
 function jobStatus(job: JobRow): string {
   if (job.status === "done") return `<span class="st ok">Done</span>`;
   if (job.status === "failed") {
     return `<a class="st err" href="/activity/${text(job.id)}">Failed</a>`;
   }
-  if (job.status === "canceled") return `<span class="st warn">Canceled</span>`;
+  if (job.status === "canceled") {
+    const detail = job.cancel_reason
+      ? ` title="${text(cancelReasonLabel(job.cancel_reason))}"`
+      : "";
+    return `<span class="st warn"${detail}>Canceled</span>`;
+  }
   if (job.status === "queued") return `<span class="st run">Queued</span>`;
   return `<span class="st run">${text(job.status)}</span>`;
 }
@@ -177,6 +205,11 @@ export function renderJob(
   const error = job.error
     ? `<div class="notice bad"><div class="txt">${text(job.error)}</div></div>`
     : "";
+  const canceled = job.status === "canceled" && job.cancel_reason
+    ? `<div class="notice warn"><div class="txt">${
+      text(cancelReasonLabel(job.cancel_reason))
+    }</div></div>`
+    : "";
   const stop = live
     ? `<button class="btn sm" data-cancel="${text(job.id)}">Stop</button>`
     : "";
@@ -207,7 +240,7 @@ export function renderJob(
     </div>
     <div class="actions">${stop}${retry}</div>
   </div>
-  ${error}
+  ${error}${canceled}
   <div class="card" data-async>
     ${skSlot()}
     <div class="hd"><h2>Log</h2>

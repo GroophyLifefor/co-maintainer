@@ -32,7 +32,7 @@ export function handleJobsRoute(request: Request, url: URL): Response {
 
   if (jobId && sub === "cancel" && request.method === "POST") {
     if (!getJob(jobId)) return errorResponse(404, "not_found", "no such job");
-    return Response.json({ ok: cancel(jobId) });
+    return Response.json({ ok: cancel(jobId, "dashboard_canceled") });
   }
 
   if (jobId && sub === "logs/stream" && request.method === "GET") {

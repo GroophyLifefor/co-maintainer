@@ -1,7 +1,9 @@
+import { readConfig } from "../config.ts";
 import {
   claimJob,
   getJob,
   getQueuedJobByKey,
+  getRunningJobByKey,
   insertJob,
   listJobs,
   setJobStatus,
@@ -17,7 +19,10 @@ export type JobHandler = {
   /** Called instead of `run` for a job found in `status = 'running'` at
    * boot: reconciles against whatever might already have happened rather
    * than blindly repeating side effects. Omit it when `run` is idempotent. */
-  reconcile?(job: JobRow, log: LogFn): Promise<void>;
+  reconcile?(
+    job: JobRow,
+    log: LogFn,
+  ): Promise<"done" | "canceled" | void>;
 };
 
 const handlers = new Map<string, JobHandler>();
@@ -74,7 +79,10 @@ export function enqueue(input: {
         return { id: existing.id, debounced: true };
       }
       const id = crypto.randomUUID();
-      setJobStatus(existing.id, "canceled", { superseded_by: id });
+      setJobStatus(existing.id, "canceled", {
+        superseded_by: id,
+        cancel_reason: "superseded",
+      });
       log(existing.id, "info", `superseded by ${id}`);
       insertJob({ ...input, id, queueKey });
       return { id, debounced: false };
@@ -86,6 +94,7 @@ export function enqueue(input: {
 }
 
 const running = new Map<string, AbortController>();
+const pendingCancelReason = new Map<string, string>();
 
 async function runJob(job: JobRow): Promise<void> {
   const handler = handlers.get(job.type);
@@ -101,80 +110,98 @@ async function runJob(job: JobRow): Promise<void> {
   try {
     await handler.run(job, logFn, controller.signal);
     const status = controller.signal.aborted ? "canceled" : "done";
-    setJobStatus(job.id, status);
+    const cancelReason = pendingCancelReason.get(job.id);
+    setJobStatus(
+      job.id,
+      status,
+      cancelReason ? { cancel_reason: cancelReason } : {},
+    );
     log(job.id, "status", status);
   } catch (error) {
     const status = controller.signal.aborted ? "canceled" : "failed";
     const message = error instanceof Error ? error.message : String(error);
+    const cancelReason = pendingCancelReason.get(job.id);
     setJobStatus(
       job.id,
       status,
-      controller.signal.aborted ? {} : { error: String(error) },
+      controller.signal.aborted
+        ? (cancelReason ? { cancel_reason: cancelReason } : {})
+        : { error: String(error) },
     );
     if (status === "failed") log(job.id, "error", message);
     log(job.id, "status", status);
   } finally {
     running.delete(job.id);
+    pendingCancelReason.delete(job.id);
   }
 }
 
-export async function claimAndRun(): Promise<boolean> {
-  // listJobs is newest-first. Reverse so we still pick the oldest queued
-  // job that actually has a handler. Types without a handler stay queued
-  // and do not block other types behind them.
+function claimNextEligible(): JobRow | undefined {
   const oldestFirst = listJobs({ status: "queued" }).slice().reverse();
   for (const candidate of oldestFirst) {
     if (!handlers.has(candidate.type)) continue;
+    if (candidate.queue_key) {
+      const busy = getRunningJobByKey(candidate.queue_key);
+      if (busy) continue;
+    }
     if (!claimJob(candidate.id)) continue;
-    await runJob(getJob(candidate.id)!);
-    return true;
+    return getJob(candidate.id);
   }
-  return false;
+  return undefined;
 }
 
-let workerTimer: ReturnType<typeof setInterval> | undefined;
-let currentTick: Promise<void> = Promise.resolve();
+export async function claimAndRun(): Promise<boolean> {
+  const job = claimNextEligible();
+  if (!job) return false;
+  await runJob(job);
+  return true;
+}
 
-// ponytail: poll every second rather than waking on enqueue. Simplest thing
-// that works for job durations measured in tens of seconds to minutes; swap
-// for an event-driven wakeup if sub-second latency ever matters here.
+const inFlight = new Set<Promise<void>>();
+let workerTimer: ReturnType<typeof setInterval> | undefined;
+
+function tick(): void {
+  const limit = readConfig().maxConcurrentJobs;
+  while (!limit || inFlight.size < limit) {
+    const job = claimNextEligible();
+    if (!job) break;
+    const p = runJob(job).finally(() => {
+      inFlight.delete(p);
+    });
+    inFlight.add(p);
+  }
+}
+
 export function startWorkerLoop(intervalMs = 1000): void {
   if (workerTimer !== undefined) return;
-  const tick = () => {
-    currentTick = (async () => {
-      while (await claimAndRun()) { /* drain */ }
-    })();
-    return currentTick;
-  };
-  workerTimer = setInterval(() => void tick(), intervalMs);
-  void tick();
+  workerTimer = setInterval(() => tick(), intervalMs);
+  tick();
 }
 
-/** `clearInterval` alone only stops future polls; a poll already running
- * when shutdown starts could still be mid `claimAndRun()` after
- * `closeAppDb()` closes the connection under it, so this also awaits
- * whichever tick is in flight. Always `await` this before closing the
- * database. */
 export async function stopWorkerLoop(): Promise<void> {
   if (workerTimer !== undefined) {
     clearInterval(workerTimer);
     workerTimer = undefined;
   }
-  await currentTick.catch(() => {});
+  await Promise.allSettled([...inFlight]);
 }
 
 /** Cooperative: aborts a running job's `AbortSignal` if this process is
  * running it, or cancels it outright if it is merely queued. Returns false
  * if neither applies (already finished, or running in another process). */
-export function cancel(jobId: string): boolean {
+export function cancel(
+  jobId: string,
+  reason = "dashboard_canceled",
+): boolean {
   const controller = running.get(jobId);
   if (controller) {
+    pendingCancelReason.set(jobId, reason);
     controller.abort();
     return true;
   }
   const job = getJob(jobId);
   if (job?.status === "queued") {
-    setJobStatus(jobId, "canceled");
+    setJobStatus(jobId, "canceled", { cancel_reason: reason });
     return true;
   }
   return false;
@@ -191,8 +218,8 @@ export async function recoverOrphans(): Promise<number> {
         "recovering after a restart: reconciling instead of rerunning",
       );
       try {
-        await handler.reconcile(job, logFn);
-        setJobStatus(job.id, "done");
+        const outcome = await handler.reconcile(job, logFn);
+        setJobStatus(job.id, outcome === "canceled" ? "canceled" : "done");
       } catch (error) {
         setJobStatus(job.id, "failed", { error: String(error) });
       }
