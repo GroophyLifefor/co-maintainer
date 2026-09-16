@@ -18,6 +18,8 @@ export class OpenRouterProvider implements AiProvider {
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         "Content-Type": "application/json",
+        "HTTP-Referer": "https://github.com/GroophyLifefor/co-maintainer",
+        "X-Title": "co-maintainer",
       },
       body: JSON.stringify(chatBody(this.model, request)),
     });
