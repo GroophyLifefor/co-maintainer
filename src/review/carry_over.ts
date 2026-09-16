@@ -5,6 +5,7 @@ import {
   normalizeAnchor,
   normalizeBody,
   normalizePath,
+  revisionFilesEquivalent,
   resolvePathAfterRename,
   type Revision,
   type RevisionFile,
@@ -506,7 +507,7 @@ export function incrementalDiffPaths(
   const unchanged: string[] = [];
   for (const file of current.files) {
     const prev = prevByPath.get(normalizePath(file.path));
-    if (!prev || normalizeBody(prev.patch) !== normalizeBody(file.patch)) {
+    if (!prev || !revisionFilesEquivalent(prev, file)) {
       changed.push(file);
     } else {
       unchanged.push(file.path);

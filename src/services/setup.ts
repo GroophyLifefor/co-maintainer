@@ -19,7 +19,7 @@ import { readState, writeState } from "../store/skill_state.ts";
 import { cacheSet } from "../store/cache_db.ts";
 import { log, timed, withLogSink } from "../util/log.ts";
 import { enqueue, registerHandler } from "./jobs.ts";
-import { markKnowledgeBuilt } from "../store/repos.ts";
+import { getRepo, markKnowledgeBuilt } from "../store/repos.ts";
 import { nowIso } from "../util/time.ts";
 import type { AiResponse, GitHubClient, Options } from "../types.ts";
 import type { Source, State } from "../knowledge/types.ts";
@@ -370,6 +370,9 @@ export async function runInitOrRemake(options: Options): Promise<void> {
         await writeTextFileAtomic(path, result.markdown);
         await writeCodebaseDocument(options.repo, result.markdown);
         await writeReviewDocuments(options.repo, reviewDocuments);
+        const head = source.commits[0] as { sha?: string } | undefined;
+        const baseSha = head?.sha ? String(head.sha) : new Date().toISOString();
+        markKnowledgeBuilt(options.repo, baseSha);
       });
       await writeState({
         version: 1,
@@ -516,10 +519,9 @@ export function buildSetupHandler(
         (phase, message) => jobLog("info", `[${phase}] ${message}`),
         () => runner(options),
       );
-      // The newest commit the fetch saw is the base the guide describes.
-      // Drift compares against it; without a real sha it can only fall
-      // back to a date range.
-      markKnowledgeBuilt(job.repo, await builtBaseSha(job.repo));
+      if (!getRepo(job.repo)?.knowledge_built_at) {
+        markKnowledgeBuilt(job.repo, await builtBaseSha(job.repo));
+      }
     },
   };
 }
@@ -530,7 +532,7 @@ export function buildSetupHandler(
 async function builtBaseSha(repo: string): Promise<string> {
   const state = await readState(repo);
   const head = state?.source.commits[0] as { sha?: string } | undefined;
-  return head?.sha ?? nowIso();
+  return head?.sha ? String(head.sha) : nowIso();
 }
 
 /** No `reconcile` hook: `run` is idempotent, so an orphan from a crash is

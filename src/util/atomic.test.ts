@@ -19,6 +19,7 @@ Deno.test("atomic: cleans stale temp files", async () => {
   const dir = await Deno.makeTempDir();
   const path = `${dir}/out.txt`;
   await Deno.writeTextFile(`${dir}/.out.txt.tmp-old`, "junk");
+  await cleanStaleTempFiles(dir, "out.txt", 0);
   await writeTextFileAtomic(path, "ok");
   let foundStale = false;
   for await (const entry of Deno.readDir(dir)) {

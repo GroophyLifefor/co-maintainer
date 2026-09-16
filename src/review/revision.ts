@@ -27,6 +27,18 @@ export function normalizePath(path: string): string {
 }
 
 /** Patch body for carry-over comparison (11.2). */
+/** Whether two revision files represent the same change for carry-over scope. */
+export function revisionFilesEquivalent(
+  a: RevisionFile,
+  b: RevisionFile,
+): boolean {
+  if (a.status !== b.status) return false;
+  if (a.binary !== b.binary) return false;
+  if (a.additions !== b.additions || a.deletions !== b.deletions) return false;
+  if ((a.previousPath ?? "") !== (b.previousPath ?? "")) return false;
+  return normalizeBody(a.patch) === normalizeBody(b.patch);
+}
+
 export function normalizeBody(patch: string): string {
   const lines = patch.split("\n").flatMap((line) => {
     if (line.startsWith("@@")) return ["@@"];

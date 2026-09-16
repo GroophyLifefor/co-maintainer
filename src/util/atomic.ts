@@ -4,17 +4,23 @@ function tempName(dir: string, base: string): string {
   return `${dir}/.${base}.tmp-${crypto.randomUUID()}`;
 }
 
-/** Remove leftover `.<name>.tmp-*` files from an interrupted write. */
+/** Remove leftover `.<name>.tmp-*` files from an interrupted write.
+ * Only deletes temps older than `minAgeMs` so concurrent writers are not disturbed. */
 export async function cleanStaleTempFiles(
   directory: string,
   baseName: string,
+  minAgeMs = 60_000,
 ): Promise<void> {
   const prefix = `.${baseName}.tmp-`;
+  const cutoff = Date.now() - minAgeMs;
   try {
     for await (const entry of Deno.readDir(directory)) {
-      if (entry.isFile && entry.name.startsWith(prefix)) {
-        await Deno.remove(`${directory}/${entry.name}`).catch(() => {});
-      }
+      if (!entry.isFile || !entry.name.startsWith(prefix)) continue;
+      const path = `${directory}/${entry.name}`;
+      const stat = await Deno.stat(path);
+      const mtime = stat.mtime?.getTime() ?? 0;
+      if (mtime > cutoff) continue;
+      await Deno.remove(path).catch(() => {});
     }
   } catch (error) {
     if (!(error instanceof Deno.errors.NotFound)) throw error;
@@ -57,7 +63,6 @@ export async function writeTextFileAtomic(
   const dir = dirname(path);
   await Deno.mkdir(dir, { recursive: true });
   const base = basename(path);
-  await cleanStaleTempFiles(dir, base);
   const temp = tempName(dir, base);
   await Deno.writeTextFile(temp, text);
   if (Deno.build.os === "windows") {
