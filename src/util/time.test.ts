@@ -20,6 +20,6 @@ Deno.test("relativeTime uses short labels without a dash or semicolon", () => {
 Deno.test("nowIso is always a UTC ISO8601 timestamp", () => {
   const value = nowIso();
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) {
-    throw new Error(`not a UTC ISO8601 timestamp: ${avalue}`);
+    throw new Error(`not a UTC ISO8601 timestamp: ${value}`);
   }
 });
