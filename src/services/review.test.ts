@@ -345,7 +345,7 @@ Deno.test("zero findings post COMMENT with a short body", async () => {
     if (posted.event !== "COMMENT") {
       throw new Error(`event ${posted.event}`);
     }
-    if (posted.body !== "No actionable findings.") {
+    if (!posted.body.startsWith("No actionable findings.\n\n<details>")) {
       throw new Error(`body ${posted.body}`);
     }
     if (posted.comments.length !== 0) {
@@ -632,7 +632,7 @@ Deno.test("humanCopy preserves the review heading dash and removes semicolons", 
   if (!cleaned.includes("\u2014") || cleaned.includes(";")) {
     throw new Error(cleaned);
   }
-  const body = reviewBody([]);
+  const body = reviewBody([], { jobId: "job-1", model: "test-model" });
   if (body.includes(";")) {
     throw new Error(body);
   }

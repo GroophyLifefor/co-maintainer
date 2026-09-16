@@ -1,4 +1,5 @@
 /** Review jobs: run the model, persist findings, post to GitHub. */
+import denoConfig from "../../deno.json" with { type: "json" };
 import { createAiProvider } from "../ai/provider.ts";
 import { FakeAiProvider } from "../ai/fake.ts";
 import { AppClient, findInstallationForRepo } from "../github/app.ts";
@@ -95,14 +96,28 @@ export function reviewEvent(
   return findingsCount > 0 ? "REQUEST_CHANGES" : "COMMENT";
 }
 
+export interface ReviewMetadata {
+  jobId: string;
+  model: string;
+}
+
+function metadataBlock({ jobId, model }: ReviewMetadata): string {
+  return `\n\n<details>\n<summary>Metadata</summary>\n\n` +
+    `- Activity: ${jobId}\n` +
+    `- co-maintainer version: ${denoConfig.version}\n` +
+    `- Model: ${model}\n` +
+    `</details>`;
+}
+
 /** Short summary on the review itself. Findings that map to the diff go
  * inline. Leftovers are listed here as one line each, not as a CLI dump. */
 export function reviewBody(
   findings: ParsedFinding[],
+  metadata: ReviewMetadata,
   _inlineCount = 0,
 ): string {
   if (findings.length === 0) {
-    return "No actionable findings.";
+    return `No actionable findings.${metadataBlock(metadata)}`;
   }
   const lines: string[] = ["Review summary", ""];
   for (const finding of findings) {
@@ -113,7 +128,7 @@ export function reviewBody(
     );
     lines.push(`- ${title}${summary ? `: ${summary}` : ""}`);
   }
-  return lines.join("\n");
+  return lines.join("\n") + metadataBlock(metadata);
 }
 
 function inlineCommentBody(
@@ -247,7 +262,7 @@ function checkAnnotations(
         end_line: endLine,
         start_column: 1,
         end_column: 1,
-        annotation_level: finding.severity === "P1"
+        annotation_level: finding.severity === "P0"
           ? "failure"
           : finding.severity === "P2"
           ? "warning"
@@ -345,6 +360,7 @@ async function publish(
   headSha: string,
   files: Json[],
   log: LogFn,
+  metadata: ReviewMetadata,
 ): Promise<void> {
   const stored = listFindingsForReview(reviewId);
   const parsed: ParsedFinding[] = stored.map((row) => ({
@@ -365,6 +381,7 @@ async function publish(
   );
   const body = reviewBody(
     [...leftover, ...inline.map(({ finding }) => finding)],
+    metadata,
     inline.length + replies.length,
   );
   const comments = inline.map(({ finding, anchor, suggestion }) => ({
@@ -443,7 +460,7 @@ async function publish(
       const posted = await post(
         client,
         `repos/${job.repo}/issues/${job.pr_number}/comments`,
-        { body: reviewBody(parsed) },
+        { body: reviewBody(parsed, metadata) },
       );
       setReviewStatus(reviewId, "posted", {
         posted_review_id: String(posted.id ?? ""),
@@ -696,6 +713,7 @@ async function runReviewJobCore(
     headSha,
     prFiles ?? files,
     log,
+    { jobId: job.id, model: options.highModel ?? "unknown" },
   );
   await finishCheck(
     github,
