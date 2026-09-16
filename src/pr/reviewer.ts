@@ -51,15 +51,17 @@ Evidence must come from the supplied diff and review guide. Keep findings
 concise by default.`;
 
 const REVIEW_DIAGRAM_RULES = `People generally find it easier to understand the
-problem you've identified when it's presented in diagrams. Use Mermaid
-whenever a multi-step flow, lifecycle, dependency, data model, protocol, or
-architecture change is part of the finding. During the initial review, use at
-most one diagram. If a user later asks for detailed reasoning in a reply, that
-reply may use up to five diagrams, but only when each adds a distinct useful
-view.
+problem you've identified when it's presented in diagrams. When a multi-step
+flow, lifecycle, dependency, data model, protocol, or architecture change is
+part of the finding, you are expected to draw it — do not skip the diagram
+just to avoid the extra tool call. During the initial review, use at most one
+diagram, so spend it on the finding that benefits most. If a user later asks
+for detailed reasoning in a reply, that reply may use up to five diagrams, but
+only when each adds a distinct useful view.
 ${MERMAID_GUIDANCE}
-Do not invent nodes, actors, states, services, tables, or events. If syntax is
-uncertain, omit the diagram.`;
+Do not invent nodes, actors, states, services, tables, or events. Omit the
+diagram only when no finding actually fits one of the categories above, or
+when the syntax is genuinely uncertain.`;
 
 /** Without tool support the model cannot read the Mermaid syntax docs, so
  * asking for a diagram only invites invented syntax. */
@@ -67,14 +69,16 @@ export const NO_DIAGRAM_RULES =
   `Do not use Mermaid or any other diagram. Explain with prose only.`;
 
 const DIAGRAM_PROMPT_RULES = `People generally find it easier to understand the
-problem you've identified when it's presented in diagrams. Include one Mermaid
-fenced code block when the finding involves a multi-step flow, lifecycle,
-dependency, data model, protocol, or architecture change. This review may
-contain at most one diagram in total. Its type must be one of the types named
-in the system instructions, and you must read that type with
-read-mermaid-syntaxes first. Keep labels short and grounded in the supplied
-evidence. A one-line fix or obvious cause and effect needs no diagram. Close
-every fenced block.`;
+problem you've identified when it's presented in diagrams. When a finding
+involves a multi-step flow, lifecycle, dependency, data model, protocol, or
+architecture change, you are expected to include a Mermaid fenced code block
+for it — reading the syntax with read-mermaid-syntaxes first is a small cost,
+not a reason to skip the diagram. This review may contain at most one diagram
+in total, so if more than one finding qualifies, pick the one the diagram
+clarifies most. Its type must be one of the types named in the system
+instructions. Keep labels short and grounded in the supplied evidence. A
+one-line fix or an obvious, single-step cause and effect genuinely needs no
+diagram — that is the only reason to omit one. Close every fenced block.`;
 
 export function reviewSystemPrompt(diagrams: boolean): string {
   return `${REVIEW_ROLE}
