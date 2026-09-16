@@ -164,7 +164,9 @@ export function classifyCarryItems(
     const lineTo = finding.lineTo ?? lineFrom;
     let klass: CarryClass = "verify_unlocated";
 
-    if (!targetPath || !file) {
+    if (!finding.path) {
+      klass = "unverifiable";
+    } else if (!targetPath || !file) {
       klass = "file_reverted";
     } else if (file.status === "removed") {
       klass = "file_removed";

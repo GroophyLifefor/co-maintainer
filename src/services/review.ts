@@ -637,6 +637,9 @@ async function runReviewJobCore(
   const headSha = String((pr.head as Json | undefined)?.sha ?? "");
   const mergeBase = String((pr.base as Json | undefined)?.sha ?? "");
   let scope = args.scope === "incremental" ? "incremental" : "whole-pr";
+  if (scope === "incremental" && !args.sinceCommit) {
+    scope = "whole-pr";
+  }
   let reviewBase = scope === "incremental" && args.sinceCommit
     ? args.sinceCommit
     : mergeBase;
@@ -732,7 +735,7 @@ async function runReviewJobCore(
   const baseLabel = `origin/${
     String((pr.base as Json | undefined)?.ref ?? "main")
   }`;
-  const revision = githubPullRequestToRevision(files, pr, baseLabel);
+  const revision = githubPullRequestToRevision(publishFiles, pr, baseLabel);
   const subjectRevision = getSubjectRevision(subject.id);
   let carryItems: CarryItem[] = [];
   let carryPrevious: CarryPrevious | null = null;

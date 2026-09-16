@@ -53,7 +53,11 @@ export async function completeWithMermaidTools(
     onResponse?: (response: AiResponse) => void | Promise<void>;
   } = {},
 ): Promise<AiResponse> {
-  if (provider.supportsTools === false) return provider.complete(request);
+  if (provider.supportsTools === false) {
+    const response = await provider.complete(request);
+    if (options.onResponse) await options.onResponse(response);
+    return response;
+  }
 
   const messages: AiMessage[] = [
     ...request.messages ?? [
