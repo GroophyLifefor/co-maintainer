@@ -13,14 +13,17 @@ export function insertReview(row: {
   model: string;
   trigger?: string;
   round?: number;
+  subjectId?: string;
+  guideBuiltAt?: string | null;
 }): void {
   getAppDb().prepare(
     `INSERT INTO reviews
-       (id, repo, pr_number, job_id, head_sha, base_sha, scope, model,
-        status, created_at, round, "trigger")
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'drafting', ?, ?, ?)`,
+       (id, kind, subject_id, repo, pr_number, job_id, head_sha, base_sha, scope, model,
+        status, created_at, round, "trigger", guide_built_at)
+     VALUES (?, 'pr', ?, ?, ?, ?, ?, ?, ?, ?, 'drafting', ?, ?, ?, ?)`,
   ).run(
     row.id,
+    row.subjectId ?? null,
     row.repo,
     row.prNumber,
     row.jobId,
@@ -31,6 +34,7 @@ export function insertReview(row: {
     nowIso(),
     row.round ?? 1,
     row.trigger ?? null,
+    row.guideBuiltAt ?? null,
   );
 }
 
@@ -50,6 +54,10 @@ export function setReviewStatus(
       | "duration_ms"
       | "check_run_id"
       | "posted_fallback"
+      | "open_count"
+      | "closed_count"
+      | "subject_id"
+      | "guide_built_at"
     >
   > = {},
 ): void {
@@ -57,23 +65,31 @@ export function setReviewStatus(
     `UPDATE reviews SET status = ?,
        posted_review_id = COALESCE(?, posted_review_id),
        findings_count = COALESCE(?, findings_count),
+       open_count = COALESCE(?, open_count),
+       closed_count = COALESCE(?, closed_count),
        tokens_in = COALESCE(?, tokens_in),
        tokens_out = COALESCE(?, tokens_out),
        cost = COALESCE(?, cost),
        duration_ms = COALESCE(?, duration_ms),
        check_run_id = COALESCE(?, check_run_id),
-       posted_fallback = COALESCE(?, posted_fallback)
+       posted_fallback = COALESCE(?, posted_fallback),
+       subject_id = COALESCE(?, subject_id),
+       guide_built_at = COALESCE(?, guide_built_at)
      WHERE id = ?`,
   ).run(
     status,
     patch.posted_review_id ?? null,
     patch.findings_count ?? null,
+    patch.open_count ?? null,
+    patch.closed_count ?? null,
     patch.tokens_in ?? null,
     patch.tokens_out ?? null,
     patch.cost ?? null,
     patch.duration_ms ?? null,
     patch.check_run_id ?? null,
     patch.posted_fallback ?? null,
+    patch.subject_id ?? null,
+    patch.guide_built_at ?? null,
     id,
   );
 }
@@ -159,7 +175,7 @@ export function reviewStats(
   repo?: string,
   untilIso?: string,
 ): ReviewStats {
-  const where = ["created_at >= ?"];
+  const where = ["created_at >= ?", "kind = 'pr'"];
   const params: (string | number)[] = [sinceIso];
   if (untilIso) {
     where.push("created_at < ?");

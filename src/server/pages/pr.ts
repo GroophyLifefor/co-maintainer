@@ -21,30 +21,54 @@ export function renderPr(
     (sum, review) => sum + Number(review.cost ?? 0),
     0,
   );
+  const stateLabel = (state: string) => {
+    if (state === "closed") return "Closed";
+    if (state === "open") return "Still open";
+    return "New";
+  };
   const findingList = (
     findings: typeof data.reviews[number]["findings"],
-  ) =>
-    findings.length === 0
-      ? empty("No findings", "This review did not report anything to fix.")
-      : findings.map((finding, index) =>
-        `<div${
-          index < findings.length - 1
-            ? ` style="padding-bottom:18px;border-bottom:1px solid var(--border2);margin-bottom:18px"`
-            : ""
-        }>
+  ) => {
+    if (findings.length === 0) {
+      return empty(
+        "No findings",
+        "This review did not report anything to fix.",
+      );
+    }
+    const order = ["new", "open", "closed"];
+    const groups = order.map((state) => ({
+      state,
+      items: findings.filter((f) => (f.state ?? "new") === state),
+    })).filter((group) => group.items.length > 0);
+    return groups.map((group) =>
+      `<div style="margin-bottom:20px">
+        <div class="muted" style="font-size:13px;font-weight:600;margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em">${
+        text(stateLabel(group.state))
+      }</div>
+        ${
+        group.items.map((finding, index) =>
+          `<div${
+            index < group.items.length - 1
+              ? ` style="padding-bottom:18px;border-bottom:1px solid var(--border2);margin-bottom:18px"`
+              : ""
+          }>
           <div style="margin-bottom:6px"><b>${text(finding.title)}</b>${
-          finding.first_seen_review_id
-            ? ` <span class="muted" style="font-size:13px">Seen in an earlier round</span>`
-            : ""
-        }</div>
+            finding.first_seen_review_id
+              ? ` <span class="muted" style="font-size:13px">Seen in an earlier round</span>`
+              : ""
+          }</div>
           <div class="mono muted" style="font-size:13px;margin-bottom:8px">${
-          text(
-            finding.path ? `${finding.path}:${finding.line_from ?? ""}` : "",
-          )
-        }</div>
+            text(
+              finding.path ? `${finding.path}:${finding.line_from ?? ""}` : "",
+            )
+          }</div>
           ${markdown(finding.body_md)}
         </div>`
-      ).join("");
+        ).join("")
+      }
+      </div>`
+    ).join("");
+  };
   const findingsBlock = data.reviews.length === 0
     ? empty(
       "No findings",
@@ -59,7 +83,7 @@ export function renderPr(
         <summary style="cursor:pointer">
           <b>Round ${text(review.round)}</b>
           <span class="muted"> · ${
-        text(review.head_sha.slice(0, 7))
+        text((review.head_sha ?? "").slice(0, 7))
       } · ${review.findings.length} finding${
         review.findings.length === 1 ? "" : "s"
       }</span>
@@ -80,7 +104,7 @@ export function renderPr(
       data.reviews.map((review) =>
         `<tr><td>${text(review.round)}</td>
               <td>${when(review.created_at)}</td>
-              <td class="mono">${text(review.head_sha.slice(0, 7))}</td>
+              <td class="mono">${text((review.head_sha ?? "").slice(0, 7))}</td>
               <td class="muted">${
           text(
             review.scope === "incremental"

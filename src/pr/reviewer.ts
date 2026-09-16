@@ -26,6 +26,11 @@ import type {
 type UsageSink = (response: AiResponse) => Promise<void>;
 type ProgressSink = (message: string) => void;
 
+export type ReviewExtras = {
+  carryPrompt?: string;
+  unchangedPaths?: string[];
+};
+
 const MAX_REVIEW_DIFF_CHARS = 240_000;
 export const MERMAID_GUIDANCE = `Mermaid selection and minimal syntax:
 flowchart = decisions, branches, pipelines, and fallback paths;
@@ -160,7 +165,8 @@ export async function reviewPullRequest(
   snapshot?: Snapshot,
   ai?: AiProvider,
   progress?: ProgressSink,
-): Promise<AiResponse> {
+  extras?: ReviewExtras,
+): Promise<AiResponse & { visiblePaths: string[] }> {
   if (!options.prNumber) throw new Error("review requires a PR number");
   const number = options.prNumber;
   const report = progress ?? (() => {});
@@ -232,9 +238,10 @@ export async function reviewPullRequest(
     const value = file as Json;
     return { file: value, path: String(value.filename ?? "") };
   });
-  const ownFiles = scope
-    ? named.filter(({ path }) => !scope.upstreamFiles.has(path))
-    : named;
+  const unchanged = new Set(extras?.unchangedPaths ?? []);
+  const ownFiles =
+    (scope ? named.filter(({ path }) => !scope.upstreamFiles.has(path)) : named)
+      .filter(({ path }) => !unchanged.has(path));
   const upstreamFiles = scope
     ? named.filter(({ path }) => scope.upstreamFiles.has(path))
     : [];
@@ -308,18 +315,25 @@ export async function reviewPullRequest(
   const ownPatch = ownSections.join("\n\n");
   const diffWasTruncated = ownPatch.length > MAX_REVIEW_DIFF_CHARS;
   const ownDiff = text(ownPatch, MAX_REVIEW_DIFF_CHARS);
+  const unchangedListing = extras?.unchangedPaths?.length
+    ? `\nUNCHANGED SINCE LAST REVIEW (paths only — do not re-report findings here):\n${
+      extras.unchangedPaths.map((path) => `- ${path}`).join("\n")
+    }`
+    : "";
   const upstreamListing = upstreamFiles.map(({ file, path }) =>
     `- ${path} (+${Number(file.additions ?? 0)} -${
       Number(file.deletions ?? 0)
     })`
   ).join("\n");
-  const diff = upstreamFiles.length === 0 ? ownDiff : `${ownDiff}
+  const diff = upstreamFiles.length === 0
+    ? `${ownDiff}${unchangedListing}`
+    : `${ownDiff}
 
 UPSTREAM CONTEXT — arrived via a merge this round, not authored by this pull
 request. Do not raise a finding located only in this code; only note an
 interaction if the pull request's own change above relies on or conflicts with
 one of these files, and never mark that finding blocking:
-${upstreamListing}`;
+${upstreamListing}${unchangedListing}`;
 
   report(
     `diff prepared · ${ownPatch.length} chars${
@@ -331,6 +345,7 @@ ${upstreamListing}`;
     options.highModel ?? "openai/gpt-5.6-luna",
   );
   const diagrams = provider.supportsTools !== false;
+  const carryBlock = extras?.carryPrompt ? `${extras.carryPrompt}\n` : "";
   const prompt =
     `Review this pull request against the repository's review guide and
 codebase conventions. Find only actionable code-level violations supported by
@@ -432,7 +447,7 @@ ${
       })
     }
 
-DIFF:
+${carryBlock}DIFF:
 ${diff}`;
 
   const matrix = clampImproveMatrix(options.improveMatrix);
@@ -534,6 +549,7 @@ ${reviewText}`,
       );
     }
   }
+  const visiblePaths = ownFiles.map(({ path }) => path);
   return {
     ...response,
     text: `## Severity
@@ -544,5 +560,6 @@ ${reviewText}`,
 - P3 — Low: minor, non-blocking improvement or edge case.
 
 ${reviewText}`,
+    visiblePaths,
   };
 }

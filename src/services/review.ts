@@ -11,9 +11,20 @@ import {
   suggestionAnchor,
   withoutSuggestionLine,
 } from "../pr/suggestion.ts";
-import { reviewPullRequest } from "../pr/reviewer.ts";
-import type { Snapshot } from "../pr/snapshot.ts";
+import { githubPullRequestToRevision } from "../pr/github_revision.ts";
+import {
+  anchorTextFromPatch,
+  buildCarryPromptSection,
+  type CarryItem,
+  type CarryPrevious,
+  classifyCarryItems,
+  incrementalDiffPaths,
+  parsePreviousVerdicts,
+  resolveCarryOutcomes,
+} from "../review/carry_over.ts";
+import { runReviewEngine } from "../review/engine.ts";
 import { matchRepeat } from "../pr/rounds.ts";
+import type { Snapshot } from "../pr/snapshot.ts";
 import { readConfig } from "../config.ts";
 import { outsideCode, redact } from "../util/redact.ts";
 import { getRepo, setInstallationId } from "../store/repos.ts";
@@ -26,10 +37,18 @@ import {
 } from "../store/reviews.ts";
 import {
   insertFinding,
+  listCarryableFindingsForReview,
   listFindingsForPr,
   listFindingsForReview,
   setFindingPosted,
 } from "../store/findings.ts";
+import {
+  getOrCreatePrSubject,
+  getSubjectRevision,
+  parseRevisionFiles,
+  parseVisiblePaths,
+  saveSubjectRevision,
+} from "../store/subjects.ts";
 import { enqueue, type LogFn, registerHandler } from "./jobs.ts";
 import type { AiProvider, GitHubClient, Json, Options } from "../types.ts";
 import type { JobRow } from "../store/rows.ts";
@@ -68,7 +87,9 @@ export function splitInline(
   leftover: ParsedFinding[];
 } {
   const patches = new Map(
-    files.map((file) => [String(file.filename ?? ""), String(file.patch ?? "")]),
+    files.map((
+      file,
+    ) => [String(file.filename ?? ""), String(file.patch ?? "")]),
   );
   const inline: {
     finding: ParsedFinding;
@@ -375,24 +396,40 @@ async function publish(
   metadata: ReviewMetadata,
 ): Promise<void> {
   const stored = listFindingsForReview(reviewId);
-  const parsed: ParsedFinding[] = stored.map((row) => ({
+  const replies = stored.filter((row) => row.thread_comment_id);
+  const freshRows = stored.filter((row) =>
+    row.state === "new" && !row.thread_comment_id
+  );
+  const fresh: ParsedFinding[] = freshRows.map((row) => ({
     path: row.path ?? "",
     from: row.line_from ?? 0,
     to: row.line_to ?? row.line_from ?? 0,
     heading: row.title,
     excerpt: row.body_md,
   }));
-  const replies = stored.filter((row) => row.thread_comment_id);
-  const fresh = parsed.filter((_, index) => !stored[index].thread_comment_id);
   const { inline, leftover } = splitInline(fresh, files);
-  const anchorByRow = new Map(
-    inline.map(({ finding, anchor }) => [
-      stored[parsed.indexOf(finding)].id,
-      anchor,
-    ]),
-  );
+  const anchorByRow = new Map<string, Anchor>();
+  for (const { finding, anchor } of inline) {
+    const row = freshRows.find((item) =>
+      item.path === finding.path &&
+      item.line_from === finding.from &&
+      item.line_to === finding.to
+    );
+    if (row) anchorByRow.set(row.id, anchor);
+  }
+  const summaryFindings = [
+    ...leftover,
+    ...inline.map(({ finding }) => finding),
+    ...stored.filter((row) => row.state === "open").map((row) => ({
+      path: row.path ?? "",
+      from: row.line_from ?? 0,
+      to: row.line_to ?? row.line_from ?? 0,
+      heading: row.title,
+      excerpt: row.body_md,
+    })),
+  ];
   const body = reviewBody(
-    [...leftover, ...inline.map(({ finding }) => finding)],
+    summaryFindings,
     metadata,
     inline.length + replies.length,
   );
@@ -473,7 +510,7 @@ async function publish(
       const posted = await post(
         client,
         `repos/${job.repo}/issues/${job.pr_number}/comments`,
-        { body: reviewBody(parsed, metadata) },
+        { body: reviewBody(summaryFindings, metadata) },
       );
       setReviewStatus(reviewId, "posted", {
         posted_review_id: String(posted.id ?? ""),
@@ -599,11 +636,12 @@ async function runReviewJobCore(
   );
   const headSha = String((pr.head as Json | undefined)?.sha ?? "");
   const mergeBase = String((pr.base as Json | undefined)?.sha ?? "");
-  let scope = args.scope === "incremental" && args.sinceCommit
-    ? "incremental"
-    : "whole-pr";
-  let reviewBase = mergeBase;
-  let snapshot: Snapshot | undefined;
+  let scope = args.scope === "incremental" ? "incremental" : "whole-pr";
+  let reviewBase = scope === "incremental" && args.sinceCommit
+    ? args.sinceCommit
+    : mergeBase;
+  const subject = getOrCreatePrSubject(job.repo, job.pr_number);
+  const guideBuiltAt = getRepo(job.repo)?.knowledge_built_at ?? null;
   const reviewId = existing?.id ?? crypto.randomUUID();
   if (!existing) {
     insertReview({
@@ -617,6 +655,8 @@ async function runReviewJobCore(
       model: options.highModel ?? "unknown",
       trigger: args.trigger,
       round: args.round ?? 1,
+      subjectId: subject.id,
+      guideBuiltAt,
     });
   }
   let checkRunId = existing?.check_run_id;
@@ -624,42 +664,48 @@ async function runReviewJobCore(
     checkRunId = await startCheck(github, job, reviewId, headSha, log);
   }
 
+  let snapshot: Snapshot | undefined;
   let files: Json[] = [];
-  let prFiles: Json[] | undefined;
+  let publishFiles: Json[] = [];
   try {
     if (scope === "incremental" && args.sinceCommit) {
       try {
-        const compared = await github.request<Json>(
+        const compare = await github.request<Json>(
           `repos/${job.repo}/compare/${args.sinceCommit}...${headSha}`,
         );
-        files = (compared.files as Json[] | undefined) ?? [];
-        // Comments anchor to the pull request diff, not this compare, and
-        // the two do not always share hunks.
-        prFiles = await github.pages<Json>(
-          `repos/${job.repo}/pulls/${job.pr_number}/files`,
-        );
-        reviewBase = args.sinceCommit;
+        files = (compare.files as Json[]) ?? [];
         snapshot = {
           base: args.sinceCommit,
           commit: headSha,
-          before: new Date(Date.now() + 60_000).toISOString(),
+          before: "9999-12-31T23:59:59.999Z",
         };
       } catch (error) {
-        if (!isAccessDenied(error)) throw error;
-        log(
-          "info",
-          "incremental compare denied, falling back to a whole-pr review",
-        );
-        scope = "whole-pr";
-        files = await github.pages<Json>(
-          `repos/${job.repo}/pulls/${job.pr_number}/files`,
-        );
+        if (
+          isAccessDenied(error) ||
+          (error instanceof GitHubHttpError &&
+            (error.status === 403 || error.status === 404))
+        ) {
+          log("info", "incremental compare unavailable, reviewing whole PR");
+          scope = "whole-pr";
+          reviewBase = mergeBase;
+          snapshot = undefined;
+          files = await github.pages<Json>(
+            `repos/${job.repo}/pulls/${job.pr_number}/files`,
+          );
+        } else {
+          throw error;
+        }
       }
     } else {
       files = await github.pages<Json>(
         `repos/${job.repo}/pulls/${job.pr_number}/files`,
       );
     }
+    publishFiles = snapshot
+      ? await github.pages<Json>(
+        `repos/${job.repo}/pulls/${job.pr_number}/files`,
+      )
+      : files;
   } catch (error) {
     if (isAccessDenied(error)) {
       await denyAccess(github, job, reviewId, log, checkRunId);
@@ -683,49 +729,163 @@ async function runReviewJobCore(
     log,
   );
   log("info", `reviewing ${job.repo}#${job.pr_number}`);
-  const response = await reviewPullRequest(
+  const baseLabel = `origin/${
+    String((pr.base as Json | undefined)?.ref ?? "main")
+  }`;
+  const revision = githubPullRequestToRevision(files, pr, baseLabel);
+  const subjectRevision = getSubjectRevision(subject.id);
+  let carryItems: CarryItem[] = [];
+  let carryPrevious: CarryPrevious | null = null;
+  const extras: { carryPrompt?: string; unchangedPaths?: string[] } = {};
+  if (subjectRevision) {
+    const prevFiles = parseRevisionFiles(subjectRevision);
+    const { unchanged } = incrementalDiffPaths(revision, prevFiles);
+    extras.unchangedPaths = scope === "incremental" ? unchanged : undefined;
+    const storedRows = listCarryableFindingsForReview(
+      subjectRevision.review_id,
+    );
+    carryPrevious = {
+      files: prevFiles,
+      visiblePaths: parseVisiblePaths(subjectRevision),
+      findings: storedRows.map((row) => ({
+        id: row.id,
+        path: row.path,
+        lineFrom: row.line_from,
+        lineTo: row.line_to,
+        title: row.title,
+        bodyMd: row.body_md,
+        anchorText: row.anchor_text,
+        severity: row.severity,
+      })),
+      guideBuiltAt: subjectRevision.guide_built_at,
+    };
+    carryItems = classifyCarryItems(
+      carryPrevious,
+      revision,
+      carryPrevious.visiblePaths,
+      guideBuiltAt,
+    );
+    extras.carryPrompt = buildCarryPromptSection(carryItems, revision);
+  }
+  const response = await runReviewEngine(
     github,
     options,
     undefined,
     snapshot,
     ai ?? aiFor(options),
     (message) => log("info", message),
+    extras,
   );
+  const visiblePaths = new Set(response.visiblePaths);
+  if (carryPrevious) {
+    carryItems = classifyCarryItems(
+      carryPrevious,
+      revision,
+      visiblePaths,
+      guideBuiltAt,
+    );
+  }
   const parsed = parseFindings(response.text);
-  log("info", `parsed ${parsed.length} finding(s) from the AI response`);
-  const previous = listFindingsForPr(job.repo, job.pr_number).filter((row) =>
-    row.review_id !== reviewId
-  );
-  for (const finding of parsed) {
-    const repeat = matchRepeat(finding, previous);
-    insertFinding({
-      id: crypto.randomUUID(),
-      reviewId,
-      severity: finding.severity ?? severityOf(finding.heading),
-      path: finding.path,
-      lineFrom: finding.from,
-      lineTo: finding.to,
-      title: finding.heading || finding.path,
-      bodyMd: redact(finding.excerpt),
-      firstSeenReviewId: repeat
-        ? (repeat.first_seen_review_id ?? repeat.review_id)
-        : undefined,
-      threadCommentId: repeat?.posted_comment_id ?? undefined,
-    });
+  log("info", `parsed ${parsed.length} new finding(s) from the AI response`);
+  let totalFindings = parsed.length;
+  let openCount = 0;
+  let closedCount = 0;
+  if (carryPrevious) {
+    const postedById = new Map(
+      listCarryableFindingsForReview(subjectRevision!.review_id).map((row) => [
+        row.id,
+        row.posted_comment_id,
+      ]),
+    );
+    const verdicts = parsePreviousVerdicts(response.text);
+    const resolved = resolveCarryOutcomes(
+      carryItems,
+      revision,
+      visiblePaths,
+      verdicts,
+      parsed,
+      guideBuiltAt,
+      carryPrevious,
+    );
+    totalFindings = resolved.length;
+    for (const row of resolved) {
+      if (row.state === "open") openCount++;
+      if (row.state === "closed") closedCount++;
+      const patch = revision.files.find((file) =>
+        file.path === row.path
+      )?.patch ??
+        "";
+      insertFinding({
+        id: row.id,
+        reviewId,
+        severity: row.severity,
+        path: row.path ?? undefined,
+        lineFrom: row.lineFrom ?? undefined,
+        lineTo: row.lineTo ?? undefined,
+        title: row.title,
+        bodyMd: redact(row.bodyMd),
+        anchorText: row.anchorText ??
+          (row.path && row.lineFrom
+            ? anchorTextFromPatch(
+              patch,
+              row.lineFrom,
+              row.lineTo ?? row.lineFrom,
+            )
+            : null),
+        state: row.state,
+        carriedFromFindingId: row.carriedFromId,
+        closeReason: row.closeReason ?? undefined,
+        firstSeenReviewId: row.firstSeenReviewId ?? undefined,
+        threadCommentId: row.state === "open" && row.carriedFromId
+          ? postedById.get(row.carriedFromId) ?? undefined
+          : undefined,
+      });
+    }
+  } else {
+    const previous = listFindingsForPr(job.repo, job.pr_number).filter((row) =>
+      row.review_id !== reviewId
+    );
+    for (const finding of parsed) {
+      const repeat = matchRepeat(finding, previous);
+      insertFinding({
+        id: crypto.randomUUID(),
+        reviewId,
+        severity: finding.severity ?? severityOf(finding.heading),
+        path: finding.path,
+        lineFrom: finding.from,
+        lineTo: finding.to,
+        title: finding.heading || finding.path,
+        bodyMd: redact(finding.excerpt),
+        state: "new",
+        firstSeenReviewId: repeat
+          ? (repeat.first_seen_review_id ?? repeat.review_id)
+          : undefined,
+        threadCommentId: repeat?.posted_comment_id ?? undefined,
+      });
+    }
   }
   setReviewStatus(reviewId, "drafting", {
-    findings_count: parsed.length,
+    findings_count: totalFindings,
+    open_count: openCount,
+    closed_count: closedCount,
     tokens_in: response.tokensIn,
     tokens_out: response.tokensOut,
     cost: response.cost,
   });
-  log("info", `publishing ${parsed.length} finding(s) to GitHub`);
+  saveSubjectRevision({
+    subjectId: subject.id,
+    reviewId,
+    files: revision.files,
+    visiblePaths: [...visiblePaths],
+    guideBuiltAt,
+  });
+  log("info", `publishing ${totalFindings} finding(s) to GitHub`);
   await publish(
     github,
     job,
     reviewId,
     headSha,
-    prFiles ?? files,
+    publishFiles,
     log,
     {
       jobId: job.id,
@@ -737,8 +897,8 @@ async function runReviewJobCore(
     github,
     job,
     checkRunId,
-    parsed.length === 0 ? "success" : "neutral",
-    parsed.length === 0 ? "Review completed" : "Review findings",
+    totalFindings === 0 ? "success" : "neutral",
+    totalFindings === 0 ? "Review completed" : "Review findings",
     listFindingsForReview(reviewId),
     log,
   );
