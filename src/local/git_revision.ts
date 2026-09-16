@@ -5,6 +5,7 @@ import {
   parseNumstatZ,
   splitDiffPatches,
 } from "./git_parse.ts";
+import { revisionFileFromUntracked, type UntrackedWarning } from "./git_untracked.ts";
 import { ReviewCliError } from "./git_ops.ts";
 
 const diffEnv = ["-c", "core.quotePath=false"];
@@ -92,12 +93,17 @@ export async function resolveBaseRef(
   return { ref, label: `${remote}/${branch}` };
 }
 
+export type LocalRevisionBuild = {
+  revision: Revision;
+  warnings: UntrackedWarning[];
+};
+
 export async function buildLocalRevision(
   cwd: string,
   mergeBaseSha: string,
   baseLabel: string,
   run: Run,
-): Promise<Revision> {
+): Promise<LocalRevisionBuild> {
   const base = mergeBaseSha;
   const nameStatus = await run(
     "git",
@@ -164,11 +170,41 @@ export async function buildLocalRevision(
       patch,
     };
   });
+  const warnings: UntrackedWarning[] = [];
+  const tracked = new Set(files.map((f) => f.path));
+  const untracked = await run(
+    "git",
+    [
+      ...diffEnv,
+      "ls-files",
+      "--others",
+      "--exclude-standard",
+      "-z",
+    ],
+    cwd,
+  );
+  if (untracked.code === 0 && untracked.stdout) {
+    for (const rel of untracked.stdout.split("\0").filter(Boolean)) {
+      const path = normalizePath(rel);
+      if (tracked.has(path)) continue;
+      tracked.add(path);
+      const result = await revisionFileFromUntracked(cwd, rel);
+      if ("warning" in result) {
+        warnings.push(result.warning);
+        continue;
+      }
+      files.push(result.file);
+    }
+  }
+  files.sort((a, b) => a.path.localeCompare(b.path));
   return {
-    files,
-    title: "",
-    description: "",
-    baseLabel,
-    producer: "local",
+    revision: {
+      files,
+      title: "",
+      description: "",
+      baseLabel,
+      producer: "local",
+    },
+    warnings,
   };
 }

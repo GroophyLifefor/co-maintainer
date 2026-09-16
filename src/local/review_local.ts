@@ -8,6 +8,7 @@ import { emptyAiMetrics, recordAiCost, runInitOrRemake } from "../services/setup
 import { aiFor } from "../services/review.ts";
 import { loadGuides } from "../review/guides.ts";
 import {
+  anchorTextFromPatch,
   buildCarryPromptSection,
   classifyCarryItems,
   incrementalDiffPaths,
@@ -17,6 +18,7 @@ import {
   type ResolvedFinding,
   type StoredFinding,
 } from "../review/carry_over.ts";
+import { revisionHash } from "../review/revision.ts";
 import type { ParsedFinding } from "../pr/findings.ts";
 import { parseFindings } from "../pr/findings.ts";
 import { reviewWorkspaceRevision } from "../pr/reviewer.ts";
@@ -60,18 +62,27 @@ function storedFindings(
     }));
 }
 
-function storedFromParsed(parsed: ParsedFinding[]): StoredFinding[] {
-  return parsed.map((finding) => ({
-    id: crypto.randomUUID(),
-    path: finding.path,
-    lineFrom: finding.from,
-    lineTo: finding.to,
-    title: finding.heading || finding.path,
-    bodyMd: finding.excerpt,
-    anchorText: null,
-    severity: finding.severity ?? "P2",
-    firstSeenReviewId: null,
-  }));
+function storedFromParsed(
+  parsed: ParsedFinding[],
+  filesByPath: Map<string, { patch: string }>,
+): StoredFinding[] {
+  return parsed.map((finding) => {
+    const file = finding.path ? filesByPath.get(finding.path) : undefined;
+    const anchor = file && finding.from
+      ? anchorTextFromPatch(file.patch, finding.from, finding.to ?? finding.from)
+      : null;
+    return {
+      id: crypto.randomUUID(),
+      path: finding.path,
+      lineFrom: finding.from,
+      lineTo: finding.to,
+      title: finding.heading || finding.path,
+      bodyMd: finding.excerpt,
+      anchorText: anchor,
+      severity: finding.severity ?? "P2",
+      firstSeenReviewId: null,
+    };
+  });
 }
 
 function fail(error: ReviewCliError, json: boolean): never {
@@ -122,7 +133,12 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
     ) ?? remotes.stdout.split("\n").map((l) => l.trim()).filter(Boolean)[0]!;
     const base = await resolveBaseRef(root, remoteName, cli.toBranch, runCommand);
     const baseSha = await mergeBase(root, base.ref, remoteName, runCommand);
-    const revision = await buildLocalRevision(root, baseSha, base.label, runCommand);
+    const built = await buildLocalRevision(root, baseSha, base.label, runCommand);
+    let revision = built.revision;
+    const warnings = built.warnings.map((w) => ({
+      code: w.code,
+      message: w.message,
+    }));
     if (revision.files.length === 0) {
       if (json) {
         console.log(JSON.stringify({
@@ -162,7 +178,9 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
     }
 
     const sha = await headSha(root);
+    const revisionHashBefore = await revisionHash(revision);
     const stopHeartbeat = startHeartbeat("reviewing local changes");
+    const started = performance.now();
     const aiMetrics = emptyAiMetrics();
     const response = await timed("local review AI", options.logTime, () =>
       reviewWorkspaceRevision(
@@ -204,7 +222,25 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
         response.guideBuiltAt,
         carryPrevious,
       ))
-      : storedFromParsed(parsed);
+      : storedFromParsed(
+        parsed,
+        new Map(revision.files.map((f) => [f.path, f])),
+      );
+
+    const afterBuilt = await buildLocalRevision(
+      root,
+      baseSha,
+      base.label,
+      runCommand,
+    );
+    const revisionHashAfter = await revisionHash(afterBuilt.revision);
+    if (revisionHashAfter !== revisionHashBefore) {
+      warnings.push({
+        code: "working_tree_changed",
+        message:
+          "Files changed while the review was running. Results reflect the state at submit time.",
+      });
+    }
 
     await saveLocalCarry({
       subjectId,
@@ -216,6 +252,7 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
 
     const header =
       `co-maintainer review · ${repo} · ${branch} → ${base.label}`;
+    const durationMs = Math.round(performance.now() - started);
     if (json) {
       console.log(JSON.stringify({
         schemaVersion: 1,
@@ -224,9 +261,20 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
         subject: { repo, branch },
         base: { toBranch: base.label, label: base.label },
         text: response.text,
+        warnings,
+        usage: {
+          tokensIn: aiMetrics.tokensIn,
+          tokensOut: aiMetrics.tokensOut,
+          costUsd: aiMetrics.costKnown ? aiMetrics.cost : null,
+        },
+        durationMs,
       }));
     } else {
       printLocalReview(header, response.text);
+      if (warnings.length) {
+        console.log("Warnings:");
+        for (const w of warnings) console.log(`  - ${w.message}`);
+      }
     }
     Deno.exit(reviewExitCode(response.text));
   } catch (error) {
