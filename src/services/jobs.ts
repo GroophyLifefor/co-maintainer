@@ -219,7 +219,13 @@ export async function recoverOrphans(): Promise<number> {
       );
       try {
         const outcome = await handler.reconcile(job, logFn);
-        setJobStatus(job.id, outcome === "canceled" ? "canceled" : "done");
+        setJobStatus(
+          job.id,
+          outcome === "canceled" ? "canceled" : "done",
+          outcome === "canceled"
+            ? { cancel_reason: "server_restarted" }
+            : {},
+        );
       } catch (error) {
         setJobStatus(job.id, "failed", { error: String(error) });
       }

@@ -21,6 +21,34 @@ export async function cleanStaleTempFiles(
   }
 }
 
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await Deno.stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Windows `rename` does not replace an existing file; swap via a backup
+ * name so a failed promote can restore the previous contents. */
+async function promoteTempOnWindows(temp: string, path: string): Promise<void> {
+  if (!(await pathExists(path))) {
+    await Deno.rename(temp, path);
+    return;
+  }
+  const backup = `${path}.atomic-backup`;
+  await Deno.remove(backup).catch(() => {});
+  await Deno.rename(path, backup);
+  try {
+    await Deno.rename(temp, path);
+  } catch (error) {
+    await Deno.rename(backup, path).catch(() => {});
+    throw error;
+  }
+  await Deno.remove(backup).catch(() => {});
+}
+
 /** Write then rename into place so readers never see a half-written file. */
 export async function writeTextFileAtomic(
   path: string,
@@ -32,14 +60,9 @@ export async function writeTextFileAtomic(
   await cleanStaleTempFiles(dir, base);
   const temp = tempName(dir, base);
   await Deno.writeTextFile(temp, text);
-  // Windows does not replace an existing destination on rename (D1 in the
-  // CLI review plan); Unix overwrites in one step on the same volume.
   if (Deno.build.os === "windows") {
-    try {
-      await Deno.remove(path);
-    } catch (error) {
-      if (!(error instanceof Deno.errors.NotFound)) throw error;
-    }
+    await promoteTempOnWindows(temp, path);
+  } else {
+    await Deno.rename(temp, path);
   }
-  await Deno.rename(temp, path);
 }
