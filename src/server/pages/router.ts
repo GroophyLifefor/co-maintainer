@@ -391,7 +391,7 @@ async function handleGithubCallback(
   const saved = readOauthState(request);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
-  if (!saved || !code || !state || saved.state === state) {
+  if (!saved || !code || !state || saved.state !== state) {
     return fail("GitHub sign-in failed.");
   }
   const login = await githubLoginFromCode({
