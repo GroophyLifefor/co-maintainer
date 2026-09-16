@@ -151,9 +151,13 @@ function claimNextEligible(): JobRow | undefined {
 }
 
 export async function claimAndRun(): Promise<boolean> {
+  const limit = readConfig().maxConcurrentJobs;
+  if (limit && inFlight.size >= limit) return false;
   const job = claimNextEligible();
   if (!job) return false;
-  await runJob(job);
+  const run = runJob(job).finally(() => inFlight.delete(run));
+  inFlight.add(run);
+  await run;
   return true;
 }
 
