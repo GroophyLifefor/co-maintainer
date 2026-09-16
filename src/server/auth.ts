@@ -11,7 +11,14 @@ export const USERNAME = "admin";
 export const CSRF_HEADER = "x-requested-with";
 export const CSRF_VALUE = "co-maintainer";
 export const SESSION_COOKIE = "cm";
+export const OAUTH_STATE_COOKIE = "cm_oauth_state";
 const SESSION_TTL_SEC = 7 * 24 * 60 * 60;
+const OAUTH_STATE_TTL_SEC = 600;
+
+/** Which sign-in methods a running `serve` accepts. Resolved once at
+ * startup (CLI flag, falling back to config) and threaded through
+ * `AppDeps`/`PageDeps` — every route reads the same resolved value. */
+export type AuthMethods = { password: boolean; github: boolean };
 
 async function sha256Hex(value: string): Promise<string> {
   const bytes = await crypto.subtle.digest(
@@ -23,7 +30,19 @@ async function sha256Hex(value: string): Promise<string> {
   ).join("");
 }
 
-function randomToken(): string {
+/** Hashing both sides to a fixed-length digest before comparing means the
+ * XOR loop's timing depends on neither the password's length nor content,
+ * closing the timing side-channel a plain `!==` leaves open. */
+async function constantTimeEqual(a: string, b: string): Promise<boolean> {
+  const [ah, bh] = await Promise.all([sha256Hex(a), sha256Hex(b)]);
+  let diff = 0;
+  for (let index = 0; index < ah.length; index++) {
+    diff |= ah.charCodeAt(index) ^ bh.charCodeAt(index);
+  }
+  return diff === 0;
+}
+
+export function randomToken(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -83,11 +102,17 @@ export async function login(
   expected: string,
   ip: string,
 ): Promise<LoginResult | undefined> {
-  if (isLockedOut(ip) || password !== expected) {
+  if (isLockedOut(ip) || !(await constantTimeEqual(password, expected))) {
     recordFailure(ip);
     return undefined;
   }
   recordSuccess(ip);
+  return await createSession();
+}
+
+/** Issues a session for the one dashboard identity, bypassing the password
+ * check — used after GitHub OAuth has already verified the caller. */
+export async function createSession(): Promise<LoginResult> {
   const token = randomToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
   insertSession(await sha256Hex(token), USERNAME, expiresAt);
@@ -105,18 +130,20 @@ export async function logout(token: string): Promise<void> {
   deleteSession(await sha256Hex(token));
 }
 
-export function readSessionToken(request: Request): string | undefined {
-  const header = request.headers.get("authorization") ?? "";
-  if (header.startsWith("Bearer ")) return header.slice("Bearer ".length);
+function readCookie(request: Request, name: string): string | undefined {
   const cookie = request.headers.get("cookie") ?? "";
   for (const part of cookie.split(";")) {
     const trimmed = part.trim();
     const eq = trimmed.indexOf("=");
     if (eq === -1) continue;
-    if (trimmed.slice(0, eq) === SESSION_COOKIE) {
-      return trimmed.slice(eq + 1);
-    }
+    if (trimmed.slice(0, eq) === name) return trimmed.slice(eq + 1);
   }
+}
+
+export function readSessionToken(request: Request): string | undefined {
+  const header = request.headers.get("authorization") ?? "";
+  if (header.startsWith("Bearer ")) return header.slice("Bearer ".length);
+  return readCookie(request, SESSION_COOKIE);
 }
 
 export function sessionCookieHeader(token: string, secure: boolean): string {
@@ -134,6 +161,54 @@ export function sessionCookieHeader(token: string, secure: boolean): string {
 export function clearSessionCookieHeader(secure: boolean): string {
   const flags = [
     `${SESSION_COOKIE}=`,
+    "HttpOnly",
+    "SameSite=Lax",
+    "Path=/",
+    "Max-Age=0",
+  ];
+  if (secure) flags.push("Secure");
+  return flags.join("; ");
+}
+
+/** The GitHub OAuth `state` param, plus the post-login `next` path,
+ * round-tripped through an HttpOnly cookie instead of server memory — one
+ * admin, one in-flight login at a time, so a cookie is all this needs. */
+export function readOauthState(
+  request: Request,
+): { state: string; next: string } | undefined {
+  const value = readCookie(request, OAUTH_STATE_COOKIE);
+  if (!value) return undefined;
+  const sep = value.indexOf(":");
+  if (sep === -1) return { state: value, next: "/" };
+  try {
+    return {
+      state: value.slice(0, sep),
+      next: decodeURIComponent(value.slice(sep + 1)),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+export function oauthStateCookieHeader(
+  state: string,
+  next: string,
+  secure: boolean,
+): string {
+  const flags = [
+    `${OAUTH_STATE_COOKIE}=${state}:${encodeURIComponent(next)}`,
+    "HttpOnly",
+    "SameSite=Lax",
+    "Path=/",
+    `Max-Age=${OAUTH_STATE_TTL_SEC}`,
+  ];
+  if (secure) flags.push("Secure");
+  return flags.join("; ");
+}
+
+export function clearOauthStateCookieHeader(secure: boolean): string {
+  const flags = [
+    `${OAUTH_STATE_COOKIE}=`,
     "HttpOnly",
     "SameSite=Lax",
     "Path=/",

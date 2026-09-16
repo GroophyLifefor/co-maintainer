@@ -380,10 +380,11 @@ header, and use \`path:from-to\` when the finding spans several lines. Removed
 lines have no number, so anchor a finding about removed code to the nearest
 numbered line.
 
-A finding of any severity may carry one GitHub suggestion when the fix is a
-direct replacement of consecutive numbered lines from a single hunk of the
-same file. Keep Location as the full span of the problem, and put the
-suggestion right before the closing sentence:
+Include one GitHub suggestion when the fix is a direct replacement of
+consecutive numbered lines from a single hunk of the same file and you are
+confident in the exact replacement text — this is the common case for
+single-line and small multi-line fixes. Keep Location as the full span of
+the problem, and put the suggestion right before the closing sentence:
 
 Suggestion: \`path/to/file.ts:42-43\`
 \`\`\`suggestion

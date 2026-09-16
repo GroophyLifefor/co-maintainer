@@ -1,11 +1,18 @@
 import {
+  clearOauthStateCookieHeader,
   clearSessionCookieHeader,
+  createSession,
   login,
   logout,
+  oauthStateCookieHeader,
+  randomToken,
+  readOauthState,
   readSessionToken,
   sessionCookieHeader,
   verifySession,
 } from "../auth.ts";
+import type { AuthMethods } from "../auth.ts";
+import { githubAuthorizeUrl, githubLoginFromCode } from "../../github/oauth.ts";
 import { handleClient, handleLogo, handleStyles } from "../assets.ts";
 import { readConfig } from "../../config.ts";
 import {
@@ -42,6 +49,8 @@ export type PageDeps = {
   webhookUrl?: string;
   secureCookie?: boolean;
   githubApp?: { appId: string; privateKeyPem: string };
+  auth?: AuthMethods;
+  githubOAuth?: { clientId: string; clientSecret: string; allowedUser: string };
 };
 
 const REPO =
@@ -66,14 +75,52 @@ export async function handlePageRequest(
     return Response.redirect(`${url.origin}/`, 303);
   }
 
+  const auth = deps.auth ?? { password: true, github: false };
+
   if (url.pathname === "/login" && request.method === "GET") {
     const session = await sessionOf(request);
     if (session) return Response.redirect(`${url.origin}/`, 303);
-    return renderLogin({ next: safeNext(url.searchParams.get("next")) });
+    return renderLogin({
+      next: safeNext(url.searchParams.get("next")),
+      error: url.searchParams.get("error") ?? undefined,
+      showPassword: auth.password,
+      showGithub: auth.github,
+    });
   }
 
   if (url.pathname === "/login" && request.method === "POST") {
-    return await handleLoginForm(request, deps, ip);
+    return await handleLoginForm(request, deps, ip, auth);
+  }
+
+  if (url.pathname === "/auth/github" && request.method === "GET") {
+    if (!auth.github || !deps.githubOAuth) {
+      return new Response("GitHub sign-in is not enabled.", { status: 404 });
+    }
+    const next = safeNext(url.searchParams.get("next"));
+    const state = randomToken();
+    const authorizeUrl = githubAuthorizeUrl(
+      deps.githubOAuth.clientId,
+      `${url.origin}/auth/github/callback`,
+      state,
+    );
+    return new Response(null, {
+      status: 303,
+      headers: {
+        location: authorizeUrl,
+        "set-cookie": oauthStateCookieHeader(
+          state,
+          next,
+          Boolean(deps.secureCookie),
+        ),
+      },
+    });
+  }
+
+  if (url.pathname === "/auth/github/callback" && request.method === "GET") {
+    if (!auth.github || !deps.githubOAuth) {
+      return new Response("GitHub sign-in is not enabled.", { status: 404 });
+    }
+    return await handleGithubCallback(request, url, deps.githubOAuth, deps);
   }
 
   if (url.pathname === "/logout" && request.method === "POST") {
@@ -289,18 +336,78 @@ async function handleLoginForm(
   request: Request,
   deps: PageDeps,
   ip: string,
+  auth: AuthMethods,
 ): Promise<Response> {
   const form = await request.formData();
   const password = String(form.get("password") ?? "");
   const next = safeNext(String(form.get("next") ?? "/"));
+  if (!auth.password) {
+    return renderLogin({
+      next,
+      error: "Password sign-in is disabled.",
+      showPassword: auth.password,
+      showGithub: auth.github,
+    });
+  }
   const result = await login(password, deps.password, ip);
   if (!result) {
-    return renderLogin({ next, error: "Wrong password." });
+    return renderLogin({
+      next,
+      error: "Wrong password.",
+      showPassword: auth.password,
+      showGithub: auth.github,
+    });
   }
   return new Response(null, {
     status: 303,
     headers: {
       location: next,
+      "set-cookie": sessionCookieHeader(
+        result.token,
+        Boolean(deps.secureCookie),
+      ),
+    },
+  });
+}
+
+/** `state` round-trips through an HttpOnly cookie set by `/auth/github`
+ * (see `oauthStateCookieHeader`), not server memory — comparing it against
+ * the query param is what stops a forged callback from creating a session. */
+async function handleGithubCallback(
+  request: Request,
+  url: URL,
+  githubOAuth: NonNullable<PageDeps["githubOAuth"]>,
+  deps: PageDeps,
+): Promise<Response> {
+  const clearState = clearOauthStateCookieHeader(Boolean(deps.secureCookie));
+  const fail = (message: string) =>
+    new Response(null, {
+      status: 303,
+      headers: {
+        location: `${url.origin}/login?error=${encodeURIComponent(message)}`,
+        "set-cookie": clearState,
+      },
+    });
+  const saved = readOauthState(request);
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  if (!saved || !code || !state || saved.state !== state) {
+    return fail("GitHub sign-in failed.");
+  }
+  const login = await githubLoginFromCode({
+    clientId: githubOAuth.clientId,
+    clientSecret: githubOAuth.clientSecret,
+    code,
+    redirectUri: `${url.origin}/auth/github/callback`,
+  });
+  if (!login || login.toLowerCase() !== githubOAuth.allowedUser.toLowerCase()) {
+    return fail("This GitHub account is not allowed to sign in.");
+  }
+  const result = await createSession();
+  return new Response(null, {
+    status: 303,
+    headers: {
+      location: saved.next,
       "set-cookie": sessionCookieHeader(
         result.token,
         Boolean(deps.secureCookie),

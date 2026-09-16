@@ -10,6 +10,7 @@ import {
   sessionCookieHeader,
   verifySession,
 } from "./auth.ts";
+import type { AuthMethods } from "./auth.ts";
 import { readConfig } from "../config.ts";
 import { listJobs } from "../store/jobs.ts";
 import { handleJobsRoute } from "./api/jobs.ts";
@@ -31,6 +32,10 @@ export type AppDeps = {
   webhookUrl?: string;
   secureCookie?: boolean;
   inject500?: boolean;
+  /** Defaults to password-only when omitted, matching every caller that
+   * pre-dates GitHub sign-in. */
+  auth?: AuthMethods;
+  githubOAuth?: { clientId: string; clientSecret: string; allowedUser: string };
 };
 
 export type App = {
@@ -65,6 +70,9 @@ async function handleLogin(
   deps: AppDeps,
   ip: string,
 ): Promise<Response> {
+  if (deps.auth?.password === false) {
+    return errorResponse(403, "password_disabled", "password sign-in is disabled");
+  }
   let body: { password?: unknown };
   try {
     body = await request.json();

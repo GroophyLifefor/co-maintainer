@@ -35,6 +35,16 @@ export type UserConfig = {
   githubAppPrivateKey?: string;
   githubWebhookSecret?: string;
   webhookUrl?: string;
+  /** "Sign in with GitHub" for the dashboard, reusing the App's own OAuth
+   * client — only `githubOAuthAllowedUser` may complete it. All three only
+   * ever written by `set`. */
+  githubOAuthClientId?: string;
+  githubOAuthClientSecret?: string;
+  githubOAuthAllowedUser?: string;
+  /** Which sign-in methods `serve` accepts by default; a `--disable-auth`/
+   * `--enable-auth` flag on the `serve` command overrides these per run. */
+  passwordAuthDisabled?: boolean;
+  githubAuthEnabled?: boolean;
   defaults?: {
     maxCommits?: number;
     maxPrMonths?: number;
