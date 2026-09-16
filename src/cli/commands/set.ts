@@ -15,6 +15,7 @@ const secretFields = new Set([
   "githubPat",
   "githubAppPrivateKey",
   "githubWebhookSecret",
+  "githubOAuthClientSecret",
 ]);
 
 /** `co-maintainer set --token=... --ai=... --low-model=... --high-model=...
@@ -33,6 +34,12 @@ export async function runSet(args: string[]): Promise<void> {
     );
     console.log("                        --github-webhook-secret=...");
     console.log(
+      "                        --github-oauth-client-id=... --github-oauth-client-secret=... --github-oauth-allowed-user=...",
+    );
+    console.log(
+      "                        --disable-auth=password --enable-auth=github",
+    );
+    console.log(
       "Writes to the user config file; unset an entry with --unset=name (e.g. --unset=token).",
     );
     return;
@@ -48,6 +55,11 @@ export async function runSet(args: string[]): Promise<void> {
     "github-app-private-key",
     "github-app-private-key-file",
     "github-webhook-secret",
+    "github-oauth-client-id",
+    "github-oauth-client-secret",
+    "github-oauth-allowed-user",
+    "disable-auth",
+    "enable-auth",
     "unset",
   ];
   for (const arg of args) {
@@ -86,6 +98,11 @@ export async function runSet(args: string[]): Promise<void> {
     "github-app-id": "githubAppId",
     "github-app-private-key": "githubAppPrivateKey",
     "github-webhook-secret": "githubWebhookSecret",
+    "github-oauth-client-id": "githubOAuthClientId",
+    "github-oauth-client-secret": "githubOAuthClientSecret",
+    "github-oauth-allowed-user": "githubOAuthAllowedUser",
+    "disable-auth": "passwordAuthDisabled",
+    "enable-auth": "githubAuthEnabled",
   };
   const unset = new Set(
     args.filter((arg) => arg.startsWith("--unset=")).map((arg) =>
@@ -120,11 +137,29 @@ export async function runSet(args: string[]): Promise<void> {
       die(`Could not read ${privateKeyFile}: ${String(error)}`);
     }
   }
+  const oauthClientId = text(args, "github-oauth-client-id");
+  if (oauthClientId) patch.githubOAuthClientId = oauthClientId;
+  const oauthClientSecret = text(args, "github-oauth-client-secret");
+  if (oauthClientSecret) patch.githubOAuthClientSecret = oauthClientSecret;
+  const oauthAllowedUser = text(args, "github-oauth-allowed-user");
+  if (oauthAllowedUser) patch.githubOAuthAllowedUser = oauthAllowedUser;
+  const disableAuth = text(args, "disable-auth");
+  if (disableAuth) {
+    if (disableAuth !== "password") die("--disable-auth only supports: password");
+    patch.passwordAuthDisabled = true;
+  }
+  const enableAuth = text(args, "enable-auth");
+  if (enableAuth) {
+    if (enableAuth !== "github") die("--enable-auth only supports: github");
+    patch.githubAuthEnabled = true;
+  }
 
   if (Object.keys(patch).length === 0) {
     die(
       "Nothing to set; pass --token=, --ai=, --low-model=, --high-model=, --auth=, --github-pat=, " +
-        "--github-app-id=, --github-app-private-key(-file)=, --github-webhook-secret=, or --unset=name",
+        "--github-app-id=, --github-app-private-key(-file)=, --github-webhook-secret=, " +
+        "--github-oauth-client-id=, --github-oauth-client-secret=, --github-oauth-allowed-user=, " +
+        "--disable-auth=password, --enable-auth=github, or --unset=name",
     );
   }
 

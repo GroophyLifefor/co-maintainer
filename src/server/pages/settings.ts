@@ -136,11 +136,35 @@ Leave blank to keep the current key"></textarea></div>
       </div>
       <div class="ft"><button class="primary" id="save-def">Save</button></div>
     </div>
-    <div class="card" id="access">
-      <div class="hd"><h2>Dashboard password</h2></div>
+    <div class="card" id="access" data-async>
+      ${skSlot()}
+      <div class="hd"><h2>Sign-in</h2></div>
       <div class="bd">
-        <p class="muted" style="margin:0">Set with <code>--password</code> when you start serve. It is printed to the console if you omit the flag.</p>
+        <p class="muted" style="margin:0 0 16px">A <code>--disable-auth</code>/<code>--enable-auth</code> flag on <code>serve</code> overrides these for that run.</p>
+        <div class="field wide"><label><input type="checkbox" id="password-auth"${
+      config.passwordAuthDisabled ? "" : " checked"
+    }> Password sign-in</label>
+          <div class="hint">Set with <code>--password</code> when you start serve, or printed to the console if you omit the flag.</div></div>
+        <div class="field wide"><label><input type="checkbox" id="github-auth"${
+      config.githubAuthEnabled ? " checked" : ""
+    }> GitHub sign-in</label></div>
+        <div class="two" style="max-width:none">
+          <div class="field"><label>OAuth client ID</label>
+            <input id="oauth-client-id" value="${
+      text(config.githubOAuthClientId ?? "")
+    }"></div>
+          <div class="field"><label>OAuth client secret</label>
+            <input id="oauth-client-secret" type="password" placeholder="${
+      config.githubOAuthClientSecret ? "Leave blank to keep the current secret" : ""
+    }"></div>
+        </div>
+        <div class="field wide"><label>Allowed GitHub username</label>
+          <input id="oauth-allowed-user" value="${
+      text(config.githubOAuthAllowedUser ?? "")
+    }">
+          <div class="hint">Only this GitHub account can sign in through OAuth.</div></div>
       </div>
+      <div class="ft"><button class="primary" id="save-access">Save</button></div>
     </div>
     <div class="card" id="about">
       <div class="hd"><h2>About</h2></div>
@@ -188,6 +212,15 @@ document.getElementById("save-app").addEventListener("click", function() {
     githubAppPrivateKey: document.getElementById("app-key").value,
     githubWebhookSecret: document.getElementById("hook-secret").value,
     webhookUrl: document.getElementById("webhook-url").value
+  });
+});
+document.getElementById("save-access").addEventListener("click", function() {
+  save(this, {
+    passwordAuthDisabled: !document.getElementById("password-auth").checked,
+    githubAuthEnabled: document.getElementById("github-auth").checked,
+    githubOAuthClientId: document.getElementById("oauth-client-id").value,
+    githubOAuthClientSecret: document.getElementById("oauth-client-secret").value,
+    githubOAuthAllowedUser: document.getElementById("oauth-allowed-user").value
   });
 });
 document.getElementById("save-def").addEventListener("click", function() {

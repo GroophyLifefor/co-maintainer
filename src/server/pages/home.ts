@@ -1,23 +1,44 @@
 import { empty, html, layout, skSlot, text, when } from "./layout.ts";
 
-export function renderLogin(opts: { next: string; error?: string }): Response {
+export function renderLogin(
+  opts: {
+    next: string;
+    error?: string;
+    showPassword: boolean;
+    showGithub: boolean;
+  },
+): Response {
   const err = opts.error
     ? `<p class="notice bad"><span class="txt">${text(opts.error)}</span></p>`
     : "";
+  const passwordForm = opts.showPassword
+    ? `<form method="post" action="/login">
+      <input type="hidden" name="next" value="${text(opts.next)}">
+      <div class="field wide"><label>Password</label>
+        <input type="password" name="password" autofocus required></div>
+      <button class="primary" type="submit">Sign in</button>
+    </form>`
+    : "";
+  const githubButton = opts.showGithub
+    ? `<a class="btn primary" style="display:block;text-align:center" href="/auth/github?next=${
+      encodeURIComponent(opts.next)
+    }">Continue with GitHub</a>`
+    : "";
+  const divider = opts.showPassword && opts.showGithub
+    ? `<p class="muted" style="text-align:center;margin:16px 0">or</p>`
+    : "";
+  const lead = opts.showPassword
+    ? "Use the dashboard password printed when serve started."
+    : "Sign in with your GitHub account.";
   return html(layout({
     title: "Sign in · co-maintainer",
     body: `<div class="wrap" style="max-width:420px">
   <img class="brand" src="/logo.png" alt="co-maintainer">
   <div class="pagehead"><div><h1>Sign in</h1>
-    <p class="lead">Use the dashboard password printed when serve started.</p></div></div>
+    <p class="lead">${text(lead)}</p></div></div>
   ${err}
   <div class="card"><div class="bd">
-    <form method="post" action="/login">
-      <input type="hidden" name="next" value="${text(opts.next)}">
-      <div class="field wide"><label>Password</label>
-        <input type="password" name="password" autofocus required></div>
-      <button class="primary" type="submit">Sign in</button>
-    </form>
+    ${passwordForm}${divider}${githubButton}
   </div></div>
 </div>`,
   }));

@@ -1,6 +1,8 @@
 import { readConfig } from "../../config.ts";
+import type { UserConfig } from "../../config.ts";
 import { appDbPath, closeAppDb, openAppDb } from "../../store/app_db.ts";
 import { createApp } from "../../server/app.ts";
+import type { AuthMethods } from "../../server/auth.ts";
 import {
   recoverOrphans,
   startWorkerLoop,
@@ -30,6 +32,33 @@ function generatePassword(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/** `--disable-auth=password` / `--enable-auth=github` always win over the
+ * config defaults `co-maintainer set` persisted; dies if the result would
+ * leave no sign-in method active. Pure so it is testable without a server. */
+export function resolveAuthMethods(
+  args: string[],
+  config: Pick<UserConfig, "passwordAuthDisabled" | "githubAuthEnabled">,
+): AuthMethods {
+  const disableAuth = args.find((arg) => arg.startsWith("--disable-auth="))
+    ?.slice("--disable-auth=".length);
+  if (disableAuth && disableAuth !== "password") {
+    die("--disable-auth only supports: password");
+  }
+  const enableAuth = args.find((arg) => arg.startsWith("--enable-auth="))
+    ?.slice("--enable-auth=".length);
+  if (enableAuth && enableAuth !== "github") {
+    die("--enable-auth only supports: github");
+  }
+  const password = disableAuth ? false : !config.passwordAuthDisabled;
+  const github = enableAuth ? true : Boolean(config.githubAuthEnabled);
+  if (!password && !github) {
+    die(
+      "at least one sign-in method is required; drop --disable-auth=password or pass --enable-auth=github",
+    );
+  }
+  return { password, github };
+}
+
 export function resolveWebhookUrl(
   args: string[],
   port: number,
@@ -55,10 +84,12 @@ export function resolveWebhookUrl(
   return url.toString();
 }
 
-/** `co-maintainer serve --port=N [--password=...] [--inject-500]`. HMAC-verified
- * `POST /github/webhook` plus a password-gated dashboard. Requires the
+/** `co-maintainer serve --port=N [--password=...] [--disable-auth=password]
+ * [--enable-auth=github] [--inject-500]`. HMAC-verified `POST /github/webhook`
+ * plus a dashboard gated by password and/or GitHub sign-in. Requires the
  * GitHub App via `co-maintainer set` (webhook secret is optional, only the
- * App ID and private key gate startup). */
+ * App ID and private key gate startup); GitHub sign-in additionally needs
+ * `--github-oauth-client-id`/`-client-secret`/`-allowed-user` set. */
 export async function runServe(args: string[]): Promise<void> {
   const portArg = args.find((arg) => arg.startsWith("--port="))?.slice(
     "--port=".length,
@@ -81,6 +112,27 @@ export async function runServe(args: string[]): Promise<void> {
       `serve requires the GitHub App to be configured first; run:\n` +
         `  co-maintainer set ${missing.join(" ")}`,
     );
+  }
+
+  const auth = resolveAuthMethods(args, config);
+  let githubOAuth:
+    | { clientId: string; clientSecret: string; allowedUser: string }
+    | undefined;
+  if (auth.github) {
+    if (
+      !config.githubOAuthClientId || !config.githubOAuthClientSecret ||
+      !config.githubOAuthAllowedUser
+    ) {
+      die(
+        "GitHub sign-in requires OAuth credentials; run:\n" +
+          "  co-maintainer set --github-oauth-client-id=... --github-oauth-client-secret=... --github-oauth-allowed-user=...",
+      );
+    }
+    githubOAuth = {
+      clientId: config.githubOAuthClientId,
+      clientSecret: config.githubOAuthClientSecret,
+      allowedUser: config.githubOAuthAllowedUser,
+    };
   }
 
   const warning = platformWarning(Deno.build.os);
@@ -107,10 +159,13 @@ export async function runServe(args: string[]): Promise<void> {
   }
   startWorkerLoop();
 
-  const password = args.find((arg) => arg.startsWith("--password="))?.slice(
-    "--password=".length,
-  ) ?? generatePassword();
-  console.log(`[serve] dashboard password: ${password}`);
+  const password = auth.password
+    ? args.find((arg) => arg.startsWith("--password="))?.slice(
+      "--password=".length,
+    ) ?? generatePassword()
+    : "";
+  if (auth.password) console.log(`[serve] dashboard password: ${password}`);
+  if (auth.github) console.log(`[serve] GitHub sign-in enabled for ${githubOAuth!.allowedUser}`);
 
   const inject500 = args.includes("--inject-500") ||
     Deno.env.get("CM_INJECT_500") === "1";
@@ -131,6 +186,8 @@ export async function runServe(args: string[]): Promise<void> {
     webhookSecret: config.githubWebhookSecret,
     webhookUrl,
     inject500,
+    auth,
+    githubOAuth,
   });
   const server = Deno.serve({ port }, async (req, info) => {
     const remoteAddr = info.remoteAddr.transport === "tcp"

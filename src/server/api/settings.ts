@@ -37,6 +37,11 @@ export async function handleSettingsRoute(
       hasAppKey: Boolean(config.githubAppPrivateKey),
       hasWebhookSecret: Boolean(config.githubWebhookSecret),
       webhookUrl: config.webhookUrl || webhookUrl,
+      githubOAuthClientId: config.githubOAuthClientId ?? "",
+      hasOAuthClientSecret: Boolean(config.githubOAuthClientSecret),
+      githubOAuthAllowedUser: config.githubOAuthAllowedUser ?? "",
+      passwordAuthDisabled: Boolean(config.passwordAuthDisabled),
+      githubAuthEnabled: Boolean(config.githubAuthEnabled),
     });
   }
 
@@ -64,6 +69,15 @@ export async function handleSettingsRoute(
     text("githubAppId");
     text("githubAppPrivateKey");
     text("githubWebhookSecret");
+    text("githubOAuthClientId");
+    text("githubOAuthClientSecret");
+    text("githubOAuthAllowedUser");
+    if (typeof body.passwordAuthDisabled === "boolean") {
+      patch.passwordAuthDisabled = body.passwordAuthDisabled;
+    }
+    if (typeof body.githubAuthEnabled === "boolean") {
+      patch.githubAuthEnabled = body.githubAuthEnabled;
+    }
     if ("webhookUrl" in body) {
       const webhookError = validateWebhookUrl(body.webhookUrl);
       if (webhookError) {
@@ -83,6 +97,24 @@ export async function handleSettingsRoute(
       };
     }
     const merged = { ...current, ...patch };
+    if (merged.passwordAuthDisabled && !merged.githubAuthEnabled) {
+      return errorResponse(
+        422,
+        "no_auth_method",
+        "at least one sign-in method is required",
+      );
+    }
+    if (
+      merged.githubAuthEnabled &&
+      (!merged.githubOAuthClientId || !merged.githubOAuthClientSecret ||
+        !merged.githubOAuthAllowedUser)
+    ) {
+      return errorResponse(
+        422,
+        "oauth_incomplete",
+        "GitHub sign-in needs a client ID, client secret, and allowed username",
+      );
+    }
     const touchingGithub = patch.auth !== undefined ||
       patch.githubPat !== undefined;
     const touchingApp = patch.githubAppId !== undefined ||
