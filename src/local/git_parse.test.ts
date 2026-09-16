@@ -42,7 +42,7 @@ Deno.test("parseNameStatusZ: added modified renamed", () => {
 });
 
 Deno.test("parseNumstatZ: binary and counts", () => {
-  const raw = "src/a.ts\x002\x001\x00assets/logo.png\x00-\x00-\x00";
+  const raw = "2\t1\tsrc/a.ts\x00-\t-\tassets/logo.png\x00";
   const map = parseNumstatZ(raw);
   const a = map.get("src/a.ts");
   const b = map.get("assets/logo.png");

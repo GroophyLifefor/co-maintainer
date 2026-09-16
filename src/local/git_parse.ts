@@ -87,14 +87,15 @@ export function parseNameStatusZ(raw: string): NameStatusEntry[] {
   return entries;
 }
 
-/** Parse `git diff --numstat -z` (path\0add\0del\0 per file). */
+/** Parse `git diff --numstat -z` (`add\tdelete\tpath\0` per file). */
 export function parseNumstatZ(raw: string): Map<string, NumstatEntry> {
   const map = new Map<string, NumstatEntry>();
-  const parts = raw.split("\0").filter((p) => p.length > 0);
-  for (let i = 0; i + 2 < parts.length; i += 3) {
-    const path = parts[i];
-    const addRaw = parts[i + 1];
-    const delRaw = parts[i + 2];
+  for (const record of raw.split("\0").filter((part) => part.length > 0)) {
+    const match = /^([^\t]*)\t([^\t]*)\t(.*)$/.exec(record);
+    if (!match) continue;
+    const addRaw = match[1];
+    const delRaw = match[2];
+    const path = match[3];
     const binary = addRaw === "-" && delRaw === "-";
     map.set(path, {
       additions: binary ? 0 : Number(addRaw),

@@ -4,9 +4,7 @@ import { humanCopy } from "../services/review.ts";
 export function reviewExitCode(markdown: string): number {
   const findings = parseFindings(markdown);
   const blocking = findings.some((f) =>
-    /\bblocking\b/i.test(f.heading) ||
-    /\[P0\b/i.test(f.heading) ||
-    /\[P1\s*·\s*blocking\]/i.test(f.heading)
+    f.blocking === true || /\[P0\b/i.test(f.heading)
   );
   return blocking ? 1 : 0;
 }
