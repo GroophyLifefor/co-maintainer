@@ -418,16 +418,27 @@ async function publish(
     );
     if (row) anchorByRow.set(row.id, anchor);
   }
+  const freshSummaryKeys = new Set(
+    [...leftover, ...inline.map(({ finding }) => finding)].map((finding) =>
+      `${finding.path}\0${finding.from}\0${finding.to}`),
+  );
   const summaryFindings = [
     ...leftover,
     ...inline.map(({ finding }) => finding),
-    ...stored.filter((row) => row.state === "open").map((row) => ({
-      path: row.path ?? "",
-      from: row.line_from ?? 0,
-      to: row.line_to ?? row.line_from ?? 0,
-      heading: row.title,
-      excerpt: row.body_md,
-    })),
+    ...stored
+      .filter((row) => row.state !== "closed")
+      .filter((row) => {
+        const key =
+          `${row.path ?? ""}\0${row.line_from ?? 0}\0${row.line_to ?? row.line_from ?? 0}`;
+        return !freshSummaryKeys.has(key);
+      })
+      .map((row) => ({
+        path: row.path ?? "",
+        from: row.line_from ?? 0,
+        to: row.line_to ?? row.line_from ?? 0,
+        heading: row.title,
+        excerpt: row.body_md,
+      })),
   ];
   const body = reviewBody(
     summaryFindings,
@@ -735,7 +746,8 @@ async function runReviewJobCore(
     String((pr.base as Json | undefined)?.ref ?? "main")
   }`;
   const revision = githubPullRequestToRevision(publishFiles, pr, baseLabel);
-  let guideBuiltAt = (await loadGuides(job.repo)).guideBuiltAt;
+  const guidesBefore = await loadGuides(job.repo);
+  let guideBuiltAt = guidesBefore.guideBuiltAt;
   const subjectRevision = getSubjectRevision(subject.id);
   let carryItems: CarryItem[] = [];
   let carryPrevious: CarryPrevious | null = null;
@@ -767,7 +779,7 @@ async function runReviewJobCore(
       carryPrevious,
       revision,
       carryPrevious.visiblePaths,
-      guideBuiltAt,
+      guidesBefore.guideBuiltAt,
     );
     extras.carryPrompt = buildCarryPromptSection(carryItems, revision);
   }

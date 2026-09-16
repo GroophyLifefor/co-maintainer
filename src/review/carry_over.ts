@@ -171,8 +171,9 @@ export function classifyCarryItems(
       )
       : undefined;
     const prevPatch = prevFile?.patch ?? "";
-    const sameBody = prevFile && file &&
-      normalizeBody(prevPatch) === normalizeBody(file.patch);
+    const sameBody = Boolean(
+      prevFile && file && revisionFilesEquivalent(prevFile, file),
+    );
 
     if (!finding.path) {
       klass = "unverifiable";

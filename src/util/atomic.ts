@@ -56,10 +56,19 @@ async function promoteTempOnWindows(temp: string, path: string): Promise<void> {
 }
 
 /** Write then rename into place so readers never see a half-written file. */
+async function recoverWindowsAtomicBackup(path: string): Promise<void> {
+  if (Deno.build.os !== "windows") return;
+  const backup = `${path}.atomic-backup`;
+  if (!(await pathExists(path)) && (await pathExists(backup))) {
+    await Deno.rename(backup, path);
+  }
+}
+
 export async function writeTextFileAtomic(
   path: string,
   text: string,
 ): Promise<void> {
+  await recoverWindowsAtomicBackup(path);
   const dir = dirname(path);
   await Deno.mkdir(dir, { recursive: true });
   const base = basename(path);
