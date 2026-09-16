@@ -1,4 +1,5 @@
 import type { AiProvider, AiResponse, Json } from "../types.ts";
+import { numberPatch } from "./hunks.ts";
 
 export const DIFF_SUMMARY_THRESHOLD = 500;
 
@@ -57,7 +58,7 @@ export function readFullDiff(
 ): string {
   const path = String((args as { path?: unknown } | null)?.path ?? "");
   const patch = patchByPath.get(path);
-  if (patch) return patch;
+  if (patch) return numberPatch(patch);
   return patchByPath.size === 0
     ? "No large files were summarized in this review; every file's diff is already shown in full above."
     : `No summarized diff found for \`${path}\`. Summarized files: ${

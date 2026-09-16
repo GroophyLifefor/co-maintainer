@@ -4,6 +4,11 @@ import { GhClient } from "../../src/github/gh.ts";
 import { average, scores } from "../core_v2/metrics.ts";
 import { matchPairs, matchSpans } from "../core_v2/match.ts";
 import type { ParsedFinding } from "../../src/pr/findings.ts";
+import {
+  readSuggestion,
+  suggestionAnchor,
+} from "../../src/pr/suggestion.ts";
+import type { Json } from "../../src/types.ts";
 import { judgeMatches } from "../core_v2/judge.ts";
 import {
   cloneDirFor,
@@ -81,6 +86,46 @@ async function mapPool<T>(
 }
 
 const SEVERE = new Set(["P0", "P1", "P2"]);
+
+const squash = (value: string) => value.replace(/\s+/g, " ").trim();
+
+// suggested: findings that wrote a suggestion. valid: ones publish would keep
+// (same checks against the same diff). matchesFix: valid, non-empty ones whose
+// code appears, whitespace aside, in the file at the ledger's fix commit.
+async function suggestionStats(
+  client: GhClient,
+  row: LedgerRow,
+  findings: ParsedFinding[],
+): Promise<{ suggested: number; valid: number; matchesFix: number }> {
+  const suggested = findings.filter((f) => readSuggestion(f.excerpt));
+  if (suggested.length === 0) return { suggested: 0, valid: 0, matchesFix: 0 };
+  const compared = await client.request<Json>(
+    `repos/${row.repo}/compare/${row.base_commit}...${row.head_commit}`,
+  );
+  const patches = new Map(
+    ((compared.files as Json[] | undefined) ?? []).map((file) => [
+      String(file.filename ?? ""),
+      String(file.patch ?? ""),
+    ]),
+  );
+  let valid = 0;
+  let matchesFix = 0;
+  for (const finding of suggested) {
+    if (!suggestionAnchor(finding, patches.get(finding.path))) continue;
+    valid++;
+    const code = squash(readSuggestion(finding.excerpt)!.code);
+    if (!row.fix_commit || code === "") continue;
+    const file = await client.request<Json>(
+      `repos/${row.repo}/contents/${finding.path}?ref=${row.fix_commit}`,
+    ).catch(() => undefined);
+    const base64 = String(file?.content ?? "").replaceAll("\n", "");
+    const fixed = new TextDecoder().decode(
+      Uint8Array.from(atob(base64), (char) => char.charCodeAt(0)),
+    );
+    if (squash(fixed).includes(code)) matchesFix++;
+  }
+  return { suggested: suggested.length, valid, matchesFix };
+}
 
 const args = Deno.args.filter((arg) => arg !== "--");
 const repoFilter = flag(args, "repo");
@@ -184,6 +229,9 @@ type Report = {
   tokens: number;
   cost: number;
   costKnown: boolean;
+  suggested: number;
+  validSuggestions: number;
+  suggestionsMatchingFix: number;
 };
 const reports: Report[] = [];
 const details: {
@@ -279,6 +327,9 @@ await mapPool(selected, reviewConcurrent, async (row) => {
       tokens: tokensIn + tokensOut,
       cost,
       costKnown,
+      suggested: 0,
+      validSuggestions: 0,
+      suggestionsMatchingFix: 0,
     });
     details.push({
       repo: row.repo,
@@ -303,6 +354,17 @@ await mapPool(selected, reviewConcurrent, async (row) => {
   const prepMs = result.prepMs;
   const ms = performance.now() - started - prepMs;
   const predicted = result.findings;
+  const suggestions = await suggestionStats(client, row, predicted).catch(
+    (error) => {
+      console.log(`${row.repo}#${row.pr}  suggestion stats failed  ${error}`);
+      return { suggested: 0, valid: 0, matchesFix: 0 };
+    },
+  );
+  const suggestionFields = {
+    suggested: suggestions.suggested,
+    validSuggestions: suggestions.valid,
+    suggestionsMatchingFix: suggestions.matchesFix,
+  };
 
   if (row.is_control) {
     const severe = predicted.filter((f) =>
@@ -332,6 +394,7 @@ await mapPool(selected, reviewConcurrent, async (row) => {
       tokens: tokensIn + tokensOut,
       cost,
       costKnown,
+      ...suggestionFields,
     });
     details.push({
       repo: row.repo,
@@ -408,6 +471,7 @@ await mapPool(selected, reviewConcurrent, async (row) => {
     tokens: tokensIn + tokensOut,
     cost,
     costKnown,
+    ...suggestionFields,
   });
   details.push({
     repo: row.repo,
@@ -500,6 +564,13 @@ const controlFalsePositiveRate = scoredControlReports.length === 0
   ? 0
   : controlFalsePositiveTotal / scoredControlReports.length;
 
+const suggestionTotals = {
+  suggested: reports.reduce((sum, r) => sum + r.suggested, 0),
+  valid: reports.reduce((sum, r) => sum + r.validSuggestions, 0),
+  matchesFix: reports.reduce((sum, r) => sum + r.suggestionsMatchingFix, 0),
+  onControlPrs: controlReports.reduce((sum, r) => sum + r.suggested, 0),
+};
+
 const costKnown = reports.every((row) => row.costKnown);
 const totalCost = reports.reduce((sum, row) => sum + row.cost, 0);
 
@@ -519,6 +590,7 @@ const result = {
   controlFalsePositiveTotal,
   controlFalsePositiveRate,
   controlNiceToHaveTotal: controlNiceTotal,
+  suggestions: suggestionTotals,
   avgTimeMs: average(reports.filter((r) => r.timeKnown).map((r) => r.ms)),
   avgPrepMs: average(reports.filter((r) => r.timeKnown).map((r) => r.prepMs)),
   avgTokensIn: average(reports.map((r) => r.tokensIn)),
@@ -552,6 +624,9 @@ console.log(
   })  severeFalsePositives=${controlFalsePositiveTotal} (${
     controlFalsePositiveRate.toFixed(2)
   }/PR)  niceToHaves=${controlNiceTotal}`,
+);
+console.log(
+  `SUGGESTIONS  suggested=${suggestionTotals.suggested} valid=${suggestionTotals.valid} matchesFix=${suggestionTotals.matchesFix} onControlPrs=${suggestionTotals.onControlPrs}`,
 );
 console.log(
   `avgTime=${(result.avgTimeMs / 1000).toFixed(1)}s (+${

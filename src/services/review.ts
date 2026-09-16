@@ -4,6 +4,12 @@ import { FakeAiProvider } from "../ai/fake.ts";
 import { AppClient, findInstallationForRepo } from "../github/app.ts";
 import { GitHubHttpError, isAccessDenied } from "../github/client.ts";
 import { type ParsedFinding, parseFindings } from "../pr/findings.ts";
+import { type Anchor, anchorFor } from "../pr/hunks.ts";
+import {
+  stripSuggestion,
+  suggestionAnchor,
+  withoutSuggestionLine,
+} from "../pr/suggestion.ts";
 import { reviewPullRequest } from "../pr/reviewer.ts";
 import type { Snapshot } from "../pr/snapshot.ts";
 import { matchRepeat } from "../pr/rounds.ts";
@@ -55,13 +61,29 @@ function post(
 
 export function splitInline(
   findings: ParsedFinding[],
-  files: { filename?: string }[],
-): { inline: ParsedFinding[]; leftover: ParsedFinding[] } {
-  const names = new Set(files.map((file) => file.filename).filter(Boolean));
-  const inline: ParsedFinding[] = [];
+  files: Json[],
+): {
+  inline: { finding: ParsedFinding; anchor: Anchor; suggestion: boolean }[];
+  leftover: ParsedFinding[];
+} {
+  const patches = new Map(
+    files.map((file) => [String(file.filename ?? ""), String(file.patch ?? "")]),
+  );
+  const inline: {
+    finding: ParsedFinding;
+    anchor: Anchor;
+    suggestion: boolean;
+  }[] = [];
   const leftover: ParsedFinding[] = [];
   for (const finding of findings) {
-    if (names.has(finding.path) && finding.from > 0) inline.push(finding);
+    const patch = patches.get(finding.path);
+    if (patch === undefined || finding.from <= 0) {
+      leftover.push(finding);
+      continue;
+    }
+    const fix = suggestionAnchor(finding, patch);
+    const anchor = fix ?? anchorFor(patch, finding.from, finding.to);
+    if (anchor) inline.push({ finding, anchor, suggestion: fix !== undefined });
     else leftover.push(finding);
   }
   return { inline, leftover };
@@ -94,9 +116,16 @@ export function reviewBody(
   return lines.join("\n");
 }
 
-function inlineCommentBody(finding: ParsedFinding): string {
+function inlineCommentBody(
+  finding: ParsedFinding,
+  suggestion = false,
+): string {
   const heading = humanCopy(finding.heading);
-  const excerpt = humanCopy(finding.excerpt);
+  const excerpt = humanCopy(
+    suggestion
+      ? withoutSuggestionLine(finding.excerpt)
+      : stripSuggestion(finding.excerpt),
+  );
   const marker = `${finding.path}:${finding.from}`;
   const at = excerpt.indexOf(marker);
   const rest = at >= 0
@@ -223,7 +252,7 @@ function checkAnnotations(
           : finding.severity === "P2"
           ? "warning"
           : "notice",
-        message: humanCopy(finding.body_md),
+        message: humanCopy(stripSuggestion(finding.body_md)),
         title: humanCopy(finding.title),
       };
     });
@@ -314,7 +343,7 @@ async function publish(
   job: JobRow,
   reviewId: string,
   headSha: string,
-  files: { filename?: string }[],
+  files: Json[],
   log: LogFn,
 ): Promise<void> {
   const stored = listFindingsForReview(reviewId);
@@ -328,15 +357,24 @@ async function publish(
   const replies = stored.filter((row) => row.thread_comment_id);
   const fresh = parsed.filter((_, index) => !stored[index].thread_comment_id);
   const { inline, leftover } = splitInline(fresh, files);
+  const anchorByRow = new Map(
+    inline.map(({ finding, anchor }) => [
+      stored[parsed.indexOf(finding)].id,
+      anchor,
+    ]),
+  );
   const body = reviewBody(
-    [...leftover, ...inline],
+    [...leftover, ...inline.map(({ finding }) => finding)],
     inline.length + replies.length,
   );
-  const comments = inline.map((finding) => ({
+  const comments = inline.map(({ finding, anchor, suggestion }) => ({
     path: finding.path,
-    body: inlineCommentBody(finding),
-    line: finding.to,
+    body: inlineCommentBody(finding, suggestion),
+    line: anchor.line,
     side: "RIGHT",
+    ...(anchor.start_line === undefined
+      ? {}
+      : { start_line: anchor.start_line, start_side: "RIGHT" }),
   }));
   if (
     hasForbiddenCopy(body) ||
@@ -386,10 +424,11 @@ async function publish(
         `repos/${job.repo}/pulls/${job.pr_number}/comments`,
       );
       for (const row of stored) {
-        if (row.posted_comment_id || !row.path) continue;
+        const anchor = anchorByRow.get(row.id);
+        if (row.posted_comment_id || !row.path || !anchor) continue;
         const hit = listed.find((item) =>
           String(item.path ?? "") === row.path &&
-          Number(item.line ?? item.original_line ?? 0) === (row.line_to ?? 0)
+          Number(item.line ?? item.original_line ?? 0) === anchor.line
         );
         if (hit?.id) setFindingPosted(row.id, String(hit.id));
       }
@@ -555,6 +594,7 @@ async function runReviewJobCore(
   }
 
   let files: Json[] = [];
+  let prFiles: Json[] | undefined;
   try {
     if (scope === "incremental" && args.sinceCommit) {
       try {
@@ -562,6 +602,11 @@ async function runReviewJobCore(
           `repos/${job.repo}/compare/${args.sinceCommit}...${headSha}`,
         );
         files = (compared.files as Json[] | undefined) ?? [];
+        // Comments anchor to the pull request diff, not this compare, and
+        // the two do not always share hunks.
+        prFiles = await github.pages<Json>(
+          `repos/${job.repo}/pulls/${job.pr_number}/files`,
+        );
         reviewBase = args.sinceCommit;
         snapshot = {
           base: args.sinceCommit,
@@ -649,7 +694,7 @@ async function runReviewJobCore(
     job,
     reviewId,
     headSha,
-    files,
+    prFiles ?? files,
     log,
   );
   await finishCheck(

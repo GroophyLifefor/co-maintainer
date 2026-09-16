@@ -20,9 +20,13 @@ Deno.test("needsSummary triggers only over the threshold with a real patch", () 
   same(needsSummary(10_000, ""), false, "no patch to summarize");
 });
 
-Deno.test("readFullDiff returns the exact stored patch for its path", () => {
-  const patchByPath = new Map([["a.ts", "@@ real patch @@"]]);
-  same(readFullDiff(patchByPath, { path: "a.ts" }), "@@ real patch @@", "hit");
+Deno.test("readFullDiff returns the stored patch for its path, numbered", () => {
+  const patchByPath = new Map([["a.ts", "@@ -1 +7 @@\n+real"]]);
+  same(
+    readFullDiff(patchByPath, { path: "a.ts" }),
+    "@@ -1 +7 @@\n     7 +real",
+    "hit",
+  );
 });
 
 Deno.test("readFullDiff explains an empty summary set plainly", () => {

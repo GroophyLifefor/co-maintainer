@@ -53,6 +53,13 @@ Inline \`a; b\` stays too.`;
   if (!cleaned.includes("`a; b`")) throw new Error(cleaned);
 });
 
+Deno.test("safeCopy leaves a four backtick fence with a nested fence alone", () => {
+  const source = "Fix it; like this.\n\n````suggestion\n```js\nlet a = 1;\n```\n````";
+  const cleaned = safeCopy(source);
+  if (!cleaned.includes("```js\nlet a = 1;\n```\n````")) throw new Error(cleaned);
+  if (cleaned.includes("it;")) throw new Error(cleaned);
+});
+
 Deno.test("outsideCode reports untouched text when prose is already clean", () => {
   const source = "clean prose \`\`\`code; here\`\`\`";
   if (outsideCode(source, (prose) => prose.replaceAll(";", "")) !== source) {
