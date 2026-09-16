@@ -587,7 +587,13 @@ export async function reviewWorkspaceRevision(
   ai?: AiProvider,
   progress?: ProgressSink,
   extras?: ReviewExtras,
-): Promise<AiResponse & { visiblePaths: string[]; guideBuiltAt: string | null }> {
+): Promise<
+  AiResponse & {
+    visiblePaths: string[];
+    guideBuiltAt: string | null;
+    codegraphState: "used" | "disabled" | "unavailable";
+  }
+> {
   const report = progress ?? (() => {});
   const guides = await loadGuides(options.repo);
   const { shortGuide, detailed, codebase, skill } = guides;
@@ -721,6 +727,11 @@ ${reviewText}`,
     if (usage) await usage(response);
     reviewText = response.text.trim();
   }
+  const codegraphState = !options.useCodegraph
+    ? "disabled"
+    : codegraphTools.length > 0
+    ? "used"
+    : "unavailable";
   return {
     ...response,
     text: `## Severity
@@ -733,5 +744,6 @@ ${reviewText}`,
 ${reviewText}`,
     visiblePaths: ownFiles.map(({ path }) => path),
     guideBuiltAt: guides.guideBuiltAt,
+    codegraphState,
   };
 }

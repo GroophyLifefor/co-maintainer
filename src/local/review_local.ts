@@ -3,12 +3,16 @@ import {
   filterReviewConfigArgs,
   type ReviewCliArgs,
 } from "../cli/review_args.ts";
-import { printLocalReview, reviewExitCode } from "../cli/review_output.ts";
+import {
+  buildLocalReviewJson,
+  formatHumanLocalReview,
+  resolvedFromFirstReview,
+  reviewExitCodeFromResolved,
+} from "../cli/review_result.ts";
 import { emptyAiMetrics, recordAiCost, runInitOrRemake } from "../services/setup.ts";
 import { aiFor } from "../services/review.ts";
 import { loadGuides } from "../review/guides.ts";
 import {
-  anchorTextFromPatch,
   buildCarryPromptSection,
   classifyCarryItems,
   incrementalDiffPaths,
@@ -60,29 +64,6 @@ function storedFindings(
       severity: row.severity,
       firstSeenReviewId: row.firstSeenReviewId,
     }));
-}
-
-function storedFromParsed(
-  parsed: ParsedFinding[],
-  filesByPath: Map<string, { patch: string }>,
-): StoredFinding[] {
-  return parsed.map((finding) => {
-    const file = finding.path ? filesByPath.get(finding.path) : undefined;
-    const anchor = file && finding.from
-      ? anchorTextFromPatch(file.patch, finding.from, finding.to ?? finding.from)
-      : null;
-    return {
-      id: crypto.randomUUID(),
-      path: finding.path,
-      lineFrom: finding.from,
-      lineTo: finding.to,
-      title: finding.heading || finding.path,
-      bodyMd: finding.excerpt,
-      anchorText: anchor,
-      severity: finding.severity ?? "P2",
-      firstSeenReviewId: null,
-    };
-  });
 }
 
 function fail(error: ReviewCliError, json: boolean): never {
@@ -212,8 +193,9 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
       );
     }
     const parsed = parseFindings(response.text);
-    const findingsToStore = carryPrevious
-      ? storedFindings(resolveCarryOutcomes(
+    const filesByPath = new Map(revision.files.map((f) => [f.path, f]));
+    const allResolved = carryPrevious
+      ? resolveCarryOutcomes(
         carryItems,
         revision,
         visiblePaths,
@@ -221,11 +203,9 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
         parsed,
         response.guideBuiltAt,
         carryPrevious,
-      ))
-      : storedFromParsed(
-        parsed,
-        new Map(revision.files.map((f) => [f.path, f])),
-      );
+      )
+      : resolvedFromFirstReview(parsed, filesByPath);
+    const findingsToStore = storedFindings(allResolved);
 
     const afterBuilt = await buildLocalRevision(
       root,
@@ -253,30 +233,42 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
     const header =
       `co-maintainer review · ${repo} · ${branch} → ${base.label}`;
     const durationMs = Math.round(performance.now() - started);
+    const usage = {
+      tokensIn: aiMetrics.tokensIn,
+      tokensOut: aiMetrics.tokensOut,
+      costUsd: aiMetrics.costKnown ? aiMetrics.cost : null,
+    };
     if (json) {
-      console.log(JSON.stringify({
-        schemaVersion: 1,
-        ok: true,
-        mode: "local",
-        subject: { repo, branch },
-        base: { toBranch: base.label, label: base.label },
-        text: response.text,
+      console.log(buildLocalReviewJson({
+        repo,
+        branch,
+        baseLabel: base.label,
+        revision,
+        guideBuiltAt: response.guideBuiltAt,
+        codegraphState: response.codegraphState,
+        codegraphReason: response.codegraphState === "unavailable"
+          ? "codegraph tools could not be prepared"
+          : null,
+        findings: allResolved,
         warnings,
-        usage: {
-          tokensIn: aiMetrics.tokensIn,
-          tokensOut: aiMetrics.tokensOut,
-          costUsd: aiMetrics.costKnown ? aiMetrics.cost : null,
-        },
+        usage,
         durationMs,
       }));
     } else {
-      printLocalReview(header, response.text);
-      if (warnings.length) {
-        console.log("Warnings:");
-        for (const w of warnings) console.log(`  - ${w.message}`);
-      }
+      console.log(
+        "\n" +
+          formatHumanLocalReview(
+            header,
+            revision,
+            response.guideBuiltAt,
+            response.codegraphState,
+            allResolved,
+            warnings,
+          ) +
+          "\n",
+      );
     }
-    Deno.exit(reviewExitCode(response.text));
+    Deno.exit(reviewExitCodeFromResolved(allResolved));
   } catch (error) {
     if (error instanceof ReviewCliError) fail(error, json);
     throw error;
