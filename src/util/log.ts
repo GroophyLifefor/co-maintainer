@@ -5,6 +5,16 @@ import { AsyncLocalStorage } from "node:async_hooks";
  * subscriber, without threading a logger through every function signature. */
 type Sink = (phase: string, message: string) => void;
 const sinkStorage = new AsyncLocalStorage<Sink>();
+let cliLogsToStderr = false;
+
+/** Plan §8.4 — progress and logs on stderr during CLI review. */
+export function withCliLogsToStderr<T>(fn: () => Promise<T>): Promise<T> {
+  const prev = cliLogsToStderr;
+  cliLogsToStderr = true;
+  return fn().finally(() => {
+    cliLogsToStderr = prev;
+  });
+}
 
 export function withLogSink<T>(sink: Sink, fn: () => Promise<T>): Promise<T> {
   return sinkStorage.run(sink, fn);
@@ -13,6 +23,7 @@ export function withLogSink<T>(sink: Sink, fn: () => Promise<T>): Promise<T> {
 export function log(phase: string, message: string): void {
   const sink = sinkStorage.getStore();
   if (sink) sink(phase, message);
+  else if (cliLogsToStderr) console.error(`[${phase}] ${message}`);
   else console.log(`[${phase}] ${message}`);
 }
 

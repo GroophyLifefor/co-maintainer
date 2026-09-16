@@ -27,7 +27,10 @@ import type { ParsedFinding } from "../pr/findings.ts";
 import { parseFindings } from "../pr/findings.ts";
 import { reviewWorkspaceRevision } from "../pr/reviewer.ts";
 import { runCommand } from "../pr/checkout.ts";
-import { log, startHeartbeat, timed } from "../util/log.ts";
+import { log, startHeartbeat, timed, withCliLogsToStderr } from "../util/log.ts";
+import { setCliInteractive } from "../cli/args.ts";
+import { prepareLocalCodegraph } from "./codegraph_prepare.ts";
+import { acquireLocalReviewLock } from "./review_lock.ts";
 import {
   assertGitQuiet,
   currentBranch,
@@ -83,6 +86,8 @@ function fail(error: ReviewCliError, json: boolean): never {
 
 export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Promise<void> {
   const json = cli.json;
+  setCliInteractive(!json);
+  await withCliLogsToStderr(async () => {
   try {
     const cwd = Deno.cwd();
     const root = await gitRoot(cwd);
@@ -160,28 +165,42 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
 
     const sha = await headSha(root);
     const revisionHashBefore = await revisionHash(revision);
+    const releaseLock = await acquireLocalReviewLock(root);
+    const codegraphPrep = await prepareLocalCodegraph({
+      gitRoot: root,
+      enabled: options.useCodegraph === true,
+      allowInstall: cli.allowToolInstall,
+      interactive: !json,
+    });
+    extras.prepareCodegraphTools = () => Promise.resolve(codegraphPrep.tools);
     const stopHeartbeat = startHeartbeat("reviewing local changes");
     const started = performance.now();
     const aiMetrics = emptyAiMetrics();
-    const response = await timed("local review AI", options.logTime, () =>
-      reviewWorkspaceRevision(
-        revision,
-        options,
-        sha,
-        async (usage) => {
-          aiMetrics.calls++;
-          aiMetrics.tokensIn += usage.tokensIn;
-          aiMetrics.tokensOut += usage.tokensOut;
-          if (usage.cost === undefined) aiMetrics.costKnown = false;
-          else aiMetrics.cost += usage.cost;
-          await recordAiCost(repo, "review_local", usage);
-        },
-        aiFor(options),
-        (message) => log("review", message),
-        extras,
-      )
-    );
+    let response;
+    try {
+      response = await timed("local review AI", options.logTime, () =>
+        reviewWorkspaceRevision(
+          revision,
+          options,
+          sha,
+          async (usage) => {
+            aiMetrics.calls++;
+            aiMetrics.tokensIn += usage.tokensIn;
+            aiMetrics.tokensOut += usage.tokensOut;
+            if (usage.cost === undefined) aiMetrics.costKnown = false;
+            else aiMetrics.cost += usage.cost;
+            await recordAiCost(repo, "review_local", usage);
+          },
+          aiFor(options),
+          (message) => log("review", message),
+          extras,
+        )
+      );
+    } finally {
+      await releaseLock();
+    }
     stopHeartbeat();
+    const codegraphState = codegraphPrep.state;
 
     const visiblePaths = new Set(response.visiblePaths);
     if (carryPrevious) {
@@ -245,10 +264,8 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
         baseLabel: base.label,
         revision,
         guideBuiltAt: response.guideBuiltAt,
-        codegraphState: response.codegraphState,
-        codegraphReason: response.codegraphState === "unavailable"
-          ? "codegraph tools could not be prepared"
-          : null,
+        codegraphState,
+        codegraphReason: codegraphPrep.reason,
         findings: allResolved,
         warnings,
         usage,
@@ -261,7 +278,7 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
             header,
             revision,
             response.guideBuiltAt,
-            response.codegraphState,
+            codegraphState,
             allResolved,
             warnings,
           ) +
@@ -273,4 +290,5 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
     if (error instanceof ReviewCliError) fail(error, json);
     throw error;
   }
+  });
 }

@@ -17,11 +17,24 @@ const commands = ["probe", "init", "remake", "review"] as const;
 export const defaultLowModel = "openai/gpt-oss-120b";
 const defaultHighModel = "openai/gpt-5.6-luna";
 
+let cliInteractive = true;
+
+/** Plan §8.7 — `--json` must not prompt. */
+export function setCliInteractive(value: boolean): void {
+  cliInteractive = value;
+}
+
 function ask(
   label: string,
   fallback?: string,
   required = false,
 ): string {
+  if (!cliInteractive) {
+    if (fallback !== undefined && fallback !== "") return fallback;
+    die(
+      `Missing ${label}; pass it as a CLI option when running without an interactive terminal`,
+    );
+  }
   if (!Deno.stdin.isTerminal()) {
     die(
       `Missing ${label}; pass it as a CLI option when running without an interactive terminal`,

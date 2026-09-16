@@ -30,6 +30,7 @@ type ProgressSink = (message: string) => void;
 export type ReviewExtras = {
   carryPrompt?: string;
   unchangedPaths?: string[];
+  prepareCodegraphTools?: () => Promise<ToolHandler[]>;
 };
 
 const MAX_REVIEW_DIFF_CHARS = 240_000;
@@ -627,7 +628,9 @@ export async function reviewWorkspaceRevision(
     return `FILE: ${path}\n[${changes} changed lines — summarized below]\n${description}`;
   }));
   const codegraphTools = options.useCodegraph
-    ? await prepareCodegraphTools(options.repo, 0, headSha)
+    ? (extras?.prepareCodegraphTools
+      ? await extras.prepareCodegraphTools()
+      : await prepareCodegraphTools(options.repo, 0, headSha))
     : [];
   const extraTools: ToolHandler[] = [
     ...codegraphTools,
