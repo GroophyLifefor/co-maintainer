@@ -4,6 +4,7 @@ import {
   type ToolHandler,
 } from "../ai/mermaid_loop.ts";
 import { loadGuides } from "../review/guides.ts";
+import type { Revision } from "../review/revision.ts";
 import { computeScope } from "./scope.ts";
 import { prepareCodegraphTools } from "./codegraph_tools.ts";
 import {
@@ -561,6 +562,176 @@ ${reviewText}`,
 
 ${reviewText}`,
     visiblePaths,
+    guideBuiltAt: guides.guideBuiltAt,
+  };
+}
+
+function revisionToGithubFiles(revision: Revision): Json[] {
+  return revision.files.map((file) => ({
+    filename: file.path,
+    status: file.status === "renamed" ? "renamed" : file.status,
+    previous_filename: file.previousPath,
+    additions: file.additions,
+    deletions: file.deletions,
+    changes: file.additions + file.deletions,
+    patch: file.patch,
+  }));
+}
+
+/** Local workspace review — same prompt loop as PR review without GitHub. */
+export async function reviewWorkspaceRevision(
+  revision: Revision,
+  options: Options,
+  headSha: string,
+  usage?: UsageSink,
+  ai?: AiProvider,
+  progress?: ProgressSink,
+  extras?: ReviewExtras,
+): Promise<AiResponse & { visiblePaths: string[]; guideBuiltAt: string | null }> {
+  const report = progress ?? (() => {});
+  const guides = await loadGuides(options.repo);
+  const { shortGuide, detailed, codebase, skill } = guides;
+  const guide = shortGuide || skill;
+  if (!guide) {
+    throw new Error(
+      `repos/${options.repo}/PR_REVIEW_GUIDE.md was not found; run init first`,
+    );
+  }
+  const files = revisionToGithubFiles(revision);
+  const unchanged = new Set(extras?.unchangedPaths ?? []);
+  const ownFiles = files
+    .map((file) => ({
+      file,
+      path: String(file.filename ?? ""),
+    }))
+    .filter(({ path }) => !unchanged.has(path));
+  const patchByPath = new Map<string, string>();
+  const ownSections = await Promise.all(ownFiles.map(async ({ file, path }) => {
+    const changes = Number(file.changes ?? 0);
+    const patch = String(file.patch ?? "");
+    const lowProvider = needsSummary(changes, patch)
+      ? ai ?? new OpenRouterProvider(
+        options.aiToken ?? "",
+        options.lowModel ?? "openai/gpt-oss-120b",
+      )
+      : undefined;
+    if (!lowProvider) return `FILE: ${path}\n${filePatch(file)}`;
+    patchByPath.set(path, patch);
+    const description = await summarizeDiff(path, patch, lowProvider, usage);
+    return `FILE: ${path}\n[${changes} changed lines — summarized below]\n${description}`;
+  }));
+  const codegraphTools = options.useCodegraph
+    ? await prepareCodegraphTools(options.repo, 0, headSha)
+    : [];
+  const extraTools: ToolHandler[] = [
+    ...codegraphTools,
+    ...(patchByPath.size > 0
+      ? [{
+        name: "read-full-diff",
+        tool: READ_FULL_DIFF_TOOL,
+        run: (args: unknown) => readFullDiff(patchByPath, args),
+      }]
+      : []),
+  ];
+  const totalDiffLines = ownFiles.reduce(
+    (sum, { file }) => sum + Number(file.changes ?? 0),
+    0,
+  );
+  const maxToolRounds = clampToolRounds(totalDiffLines);
+  const ownDiff = text(ownSections.join("\n\n"), MAX_REVIEW_DIFF_CHARS);
+  const unchangedListing = extras?.unchangedPaths?.length
+    ? `\nUNCHANGED SINCE LAST REVIEW (paths only):\n${
+      extras.unchangedPaths.map((path) => `- ${path}`).join("\n")
+    }`
+    : "";
+  const carryBlock = extras?.carryPrompt ? `${extras.carryPrompt}\n` : "";
+  const provider = ai ?? new OpenRouterProvider(
+    options.aiToken ?? "",
+    options.highModel ?? "openai/gpt-5.6-luna",
+  );
+  const diagrams = provider.supportsTools !== false;
+  const prompt =
+    `Review these local changes against the repository's review guide and
+codebase conventions. Find only actionable code-level violations supported by
+the diff and either the guide or the codebase conventions.
+Return concise Markdown with either "## Findings" and findings, or
+"## Findings\\n\\nNo actionable findings."
+${diagrams ? DIAGRAM_PROMPT_RULES : NO_DIAGRAM_RULES}
+
+REVIEW GUIDE:
+${guide}
+
+DETAILED GUIDE:
+${detailed}
+
+CODEBASE CONVENTIONS:
+${codebase || "None recorded."}
+
+WORKSPACE:
+${JSON.stringify({
+      branch: revision.baseLabel,
+      changedFiles: ownFiles.map(({ path }) => path),
+    })}
+
+${carryBlock}DIFF:
+${ownDiff}${unchangedListing}`;
+
+  const matrix = clampImproveMatrix(options.improveMatrix);
+  const request: AiRequest = {
+    job: "review_local",
+    system: reviewSystemPrompt(diagrams),
+    prompt,
+    maxTokens: 24_000 * matrix,
+    reasoningEffort: "high",
+  };
+  report(`AI request · prompt=${prompt.length} chars`);
+  let response = await completeWithMermaidTools(
+    provider,
+    request,
+    1,
+    extraTools,
+    maxToolRounds,
+  );
+  if (usage) await usage(response);
+  if (!response.text.trim()) {
+    throw new Error("OpenRouter returned an empty review");
+  }
+  let reviewText = response.text.trim();
+  for (let pass = 2; pass <= matrix; pass++) {
+    const improvementRequest: AiRequest = {
+      ...request,
+      job: "improve_review",
+      prompt:
+        `Audit the draft review below against the complete diff and guides.
+Return only the complete revised review in the same format.
+
+ORIGINAL REVIEW CONTEXT:
+${prompt}
+
+DRAFT REVIEW:
+${reviewText}`,
+    };
+    response = await completeWithMermaidTools(
+      provider,
+      improvementRequest,
+      1,
+      extraTools,
+      maxToolRounds,
+    );
+    if (usage) await usage(response);
+    reviewText = response.text.trim();
+  }
+  return {
+    ...response,
+    text: `## Severity
+
+- P0 — Critical: production outage, data loss, or security issue.
+- P1 — High: major behavior is broken and should be fixed before merge.
+- P2 — Medium: important correctness or maintainability issue.
+- P3 — Low: minor, non-blocking improvement or edge case.
+
+${reviewText}`,
+    visiblePaths: ownFiles.map(({ path }) => path),
     guideBuiltAt: guides.guideBuiltAt,
   };
 }

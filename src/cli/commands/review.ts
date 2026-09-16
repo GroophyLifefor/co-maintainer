@@ -1,10 +1,26 @@
+import { parseReviewArgs } from "../review_args.ts";
 import { emptyAiMetrics, recordAiCost } from "../../services/setup.ts";
 import { reviewPullRequest } from "../../pr/reviewer.ts";
 import { GhClient } from "../../github/gh.ts";
 import { log, startHeartbeat, timed } from "../../util/log.ts";
 import type { Options } from "../../types.ts";
+import { runLocalReview } from "../../local/review_local.ts";
+import { printLocalReview, reviewExitCode } from "../review_output.ts";
+
+export async function runReviewFromCli(args: string[]): Promise<void> {
+  const parsed = parseReviewArgs(args);
+  if (parsed.mode === "local") {
+    await runLocalReview(parsed);
+    return;
+  }
+  await runReviewPr(parsed.options);
+}
 
 export async function runReview(options: Options): Promise<void> {
+  await runReviewPr(options);
+}
+
+async function runReviewPr(options: Options): Promise<void> {
   const operationStarted = performance.now();
   const aiMetrics = emptyAiMetrics();
   const stopHeartbeat = startHeartbeat("reviewing pull request");
@@ -29,7 +45,10 @@ export async function runReview(options: Options): Promise<void> {
         },
       ),
   );
-  console.log(`\n${result.text}\n`);
+  printLocalReview(
+    `co-maintainer review · ${options.repo} · PR #${options.prNumber}`,
+    result.text,
+  );
   if (options.logTime) {
     log(
       "time",
@@ -44,4 +63,5 @@ export async function runReview(options: Options): Promise<void> {
     );
   }
   stopHeartbeat();
+  Deno.exit(reviewExitCode(result.text));
 }

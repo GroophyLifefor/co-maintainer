@@ -47,6 +47,7 @@ export function parseArgs(args: string[]): Options {
     console.log(
       "Usage: co-maintainer <probe|init|remake|review> owner/repo [options]",
     );
+    console.log("       co-maintainer review [options]");
     console.log("       co-maintainer review owner/repo PR_NUMBER [options]");
     console.log(
       "       co-maintainer set --token=... --ai=... --low-model=... --high-model=... --auth=...",
@@ -167,9 +168,10 @@ export function parseArgs(args: string[]): Options {
         "high-model",
       ]
         .some((name) => arg.startsWith(`--${name}=`));
+    if (arg === "--codegraph") die("Unknown option: --codegraph");
     if (
       arg === "--debug" || arg === "--log-time" ||
-      arg === "--review-upstream" || arg === "--codegraph"
+      arg === "--review-upstream" || arg === "--disable-codegraph"
     ) continue;
     if (arg.startsWith("--") && !known) die(`Unknown option: ${arg}`);
   }
