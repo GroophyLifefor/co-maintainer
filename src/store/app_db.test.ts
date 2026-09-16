@@ -1,5 +1,24 @@
+import { Database } from "@db/sqlite";
 import { appDbPath, closeAppDb, getAppDb, openAppDb } from "./app_db.ts";
 import { migrations } from "./migrations.ts";
+
+function applyMigrationsFrom(
+  db: Database,
+  fromVersion: number,
+  toVersion: number,
+): void {
+  for (let index = fromVersion; index < toVersion; index++) {
+    db.exec("BEGIN");
+    try {
+      for (const statement of migrations[index]) db.exec(statement);
+      db.exec(`PRAGMA user_version = ${index + 1}`);
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+}
 
 function tempDbPath(): string {
   return `${Deno.makeTempDirSync()}/app.db`;
@@ -117,6 +136,55 @@ Deno.test("a stale lock from a dead process is taken over automatically", async 
     await closeAppDb();
     if (original === undefined) Deno.env.delete("CM_APP_DB");
     else Deno.env.set("CM_APP_DB", original);
+  }
+});
+
+Deno.test("migration 7 keeps review rows and marks repeat findings open", () => {
+  const path = tempDbPath();
+  const db = new Database(path);
+  db.exec("PRAGMA foreign_keys = ON");
+  applyMigrationsFrom(db, 0, 6);
+  db.prepare(
+    `INSERT INTO reviews
+       (id, repo, pr_number, job_id, head_sha, base_sha, scope, model,
+        findings_count, tokens_in, tokens_out, status, created_at, round)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 'posted', ?, 1)`,
+  ).run(
+    "rev-old",
+    "acme/widgets",
+    1,
+    "job-1",
+    "head1",
+    "base1",
+    "whole-pr",
+    "fake",
+    "2026-01-01T00:00:00.000Z",
+  );
+  db.prepare(
+    `INSERT INTO findings
+       (id, review_id, severity, path, line_from, line_to, title, body_md,
+        first_seen_review_id)
+     VALUES (?, ?, 'P2', 'src/a.ts', 1, 1, 't', 'b', ?)`,
+  ).run("f-1", "rev-old", "rev-prev");
+  applyMigrationsFrom(db, 6, 7);
+  const review = db.prepare<{ kind: string; pr_number: number | null }>(
+    "SELECT kind, pr_number FROM reviews WHERE id = ?",
+  ).get("rev-old");
+  const finding = db.prepare<{ state: string }>(
+    "SELECT state FROM findings WHERE id = ?",
+  ).get("f-1");
+  const tables = db.prepare<{ name: string }>(
+    "SELECT name FROM sqlite_master WHERE type = 'table'",
+  ).all().map((row) => row.name);
+  db.close();
+  if (review?.kind !== "pr" || review.pr_number !== 1) {
+    throw new Error(`review not preserved: ${JSON.stringify(review)}`);
+  }
+  if (finding?.state !== "open") {
+    throw new Error(`repeat finding state: ${JSON.stringify(finding)}`);
+  }
+  if (!tables.includes("subjects") || !tables.includes("subject_revisions")) {
+    throw new Error(`missing carry-over tables: ${tables.join(", ")}`);
   }
 });
 
