@@ -166,7 +166,7 @@ export function classifyCarryItems(
     let klass: CarryClass = "verify_unlocated";
     const prevFile = finding.path
       ? previous.files.find((f) =>
-        normalizePath(f.path) === normalizePath(finding.path)
+        normalizePath(f.path) === normalizePath(finding.path!)
       )
       : undefined;
     const prevPatch = prevFile?.patch ?? "";
