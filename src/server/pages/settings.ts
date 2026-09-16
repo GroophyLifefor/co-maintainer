@@ -238,7 +238,20 @@ document.getElementById("save-access").addEventListener("click", function() {
 });
 document.getElementById("save-server").addEventListener("click", function() {
   var v = document.getElementById("max-jobs").value.trim();
-  save(this, { maxConcurrentJobs: v === "" ? null : Number(v) });
+  if (v === "") {
+    save(this, { maxConcurrentJobs: null });
+    return;
+  }
+  var n = Number(v);
+  if (!Number.isInteger(n) || n <= 0) {
+    fail(
+      this.closest("[data-async]"),
+      "Enter a positive whole number, or leave blank for no limit.",
+      function () {},
+    );
+    return;
+  }
+  save(this, { maxConcurrentJobs: n });
 });
 document.getElementById("save-def").addEventListener("click", function() {
   var num = function(id) {
