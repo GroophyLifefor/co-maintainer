@@ -180,7 +180,14 @@ export function readOauthState(
   if (!value) return undefined;
   const sep = value.indexOf(":");
   if (sep === -1) return { state: value, next: "/" };
-  return { state: value.slice(0, sep), next: decodeURIComponent(value.slice(sep + 1)) };
+  try {
+    return {
+      state: value.slice(0, sep),
+      next: decodeURIComponent(value.slice(sep + 1)),
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 export function oauthStateCookieHeader(

@@ -243,6 +243,32 @@ Deno.test("GET /auth/github/callback rejects a forged state", async () => {
   }
 });
 
+Deno.test("GET /auth/github/callback fails gracefully on a malformed state cookie", async () => {
+  const app = createApp({
+    password: PASSWORD,
+    auth: { password: true, github: true },
+    githubOAuth: {
+      clientId: "client-id",
+      clientSecret: "client-secret",
+      allowedUser: "octocat",
+    },
+  });
+  const response = await app.fetch(
+    new Request(
+      "http://localhost/auth/github/callback?code=abc&state=real-state",
+      {
+        headers: { cookie: "cm_oauth_state=real-state:%E0%A4%A" },
+        redirect: "manual",
+      },
+    ),
+  );
+  if (response.status !== 303) throw new Error(`status ${response.status}`);
+  const location = response.headers.get("location") ?? "";
+  if (!location.startsWith("http://localhost/login?error=")) {
+    throw new Error(`expected a redirect back to /login, got ${location}`);
+  }
+});
+
 Deno.test("inject500 returns 500 on mutating api except login", async () => {
   await withTempDb(async () => {
     const app = createApp({ password: PASSWORD, inject500: true });
