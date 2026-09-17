@@ -10,6 +10,32 @@ import { ReviewCliError } from "./git_ops.ts";
 
 const diffEnv = ["-c", "core.quotePath=false"];
 
+const unifiedDiffArgs = [
+  "diff",
+  "--no-color",
+  "--no-ext-diff",
+  "--no-textconv",
+  "-M",
+  "--unified=3",
+];
+
+/** Single-file unified patch when bulk `git diff` did not map a path (plan §10.7). */
+export async function perFileUnifiedPatch(
+  cwd: string,
+  base: string,
+  path: string,
+  run: Run,
+): Promise<string> {
+  const result = await run(
+    "git",
+    [...diffEnv, ...unifiedDiffArgs, base, "--", path],
+    cwd,
+  );
+  if (result.code !== 0 || !result.stdout.trim()) return "";
+  const map = splitDiffPatches(result.stdout);
+  return map.get(path) ?? map.values().next().value ?? "";
+}
+
 export async function mergeBase(
   cwd: string,
   baseRef: string,
@@ -135,30 +161,19 @@ export async function buildLocalRevision(
     ],
     cwd,
   );
-  const unified = await run(
-    "git",
-    [
-      ...diffEnv,
-      "diff",
-      "--no-color",
-      "--no-ext-diff",
-      "--no-textconv",
-      "-M",
-      "--unified=3",
-      base,
-    ],
-    cwd,
-  );
+  const unified = await run("git", [...diffEnv, ...unifiedDiffArgs, base], cwd);
   if (nameStatus.code !== 0) {
     throw new ReviewCliError("internal", "git diff failed.");
   }
   const statuses = parseNameStatusZ(nameStatus.stdout);
   const stats = parseNumstatZ(numstat.stdout);
-  const patches = splitDiffPatches(unified.stdout);
-  const files: RevisionFile[] = statuses.map((entry) => {
+  const patches = unified.code === 0
+    ? splitDiffPatches(unified.stdout)
+    : new Map<string, string>();
+  const files: RevisionFile[] = [];
+  for (const entry of statuses) {
     const stat = stats.get(entry.path);
-    const patch = patches.get(entry.path) ?? "";
-    return {
+    const file: RevisionFile = {
       path: normalizePath(entry.path),
       previousPath: entry.previousPath
         ? normalizePath(entry.previousPath)
@@ -167,9 +182,17 @@ export async function buildLocalRevision(
       binary: stat?.binary ?? false,
       additions: stat?.additions ?? 0,
       deletions: stat?.deletions ?? 0,
-      patch,
+      patch: patches.get(entry.path) ?? "",
     };
-  });
+    if (
+      !file.patch &&
+      file.status !== "removed" &&
+      !file.binary
+    ) {
+      file.patch = await perFileUnifiedPatch(cwd, base, entry.path, run);
+    }
+    files.push(file);
+  }
   const warnings: UntrackedWarning[] = [];
   const tracked = new Set(files.map((f) => f.path));
   const untracked = await run(
