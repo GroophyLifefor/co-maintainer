@@ -46,9 +46,9 @@ import {
 } from "./git_revision.ts";
 import {
   clearLocalCarry,
-  loadLocalCarry,
   localSubjectId,
   saveLocalCarry,
+  tryLoadLocalCarry,
 } from "./carry_over_store.ts";
 
 function storedFindings(
@@ -141,7 +141,15 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
 
     const subjectId = localSubjectId(repo, root, branch);
     if (cli.fresh) await clearLocalCarry(repo, root, branch);
-    const previous = await loadLocalCarry(repo, root, branch);
+    const carryLoad = await tryLoadLocalCarry(repo, root, branch);
+    if (carryLoad.unavailable) {
+      warnings.push({
+        code: "carry_over_unavailable",
+        message:
+          "Could not read the local carry-over cache; continuing without prior findings.",
+      });
+    }
+    const previous = carryLoad.data;
     let carryPrevious: CarryPrevious | null = null;
     let carryItems: ReturnType<typeof classifyCarryItems> = [];
     const extras: { carryPrompt?: string; unchangedPaths?: string[] } = {};
@@ -241,13 +249,20 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
       });
     }
 
-    await saveLocalCarry({
-      subjectId,
-      files: revision.files,
-      visiblePaths: [...visiblePaths],
-      findings: findingsToStore,
-      guideBuiltAt: response.guideBuiltAt,
-    });
+    try {
+      await saveLocalCarry({
+        subjectId,
+        files: revision.files,
+        visiblePaths: [...visiblePaths],
+        findings: findingsToStore,
+        guideBuiltAt: response.guideBuiltAt,
+      });
+    } catch {
+      warnings.push({
+        code: "carry_over_unavailable",
+        message: "Could not save local carry-over state for the next review.",
+      });
+    }
 
     const header =
       `co-maintainer review · ${repo} · ${branch} → ${base.label}`;

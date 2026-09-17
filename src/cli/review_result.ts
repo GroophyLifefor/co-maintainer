@@ -1,4 +1,4 @@
-import type { ParsedFinding } from "../pr/findings.ts";
+import { parseFindings, type ParsedFinding } from "../pr/findings.ts";
 import { readSuggestion, stripSuggestion } from "../pr/suggestion.ts";
 import {
   anchorTextFromPatch,
@@ -268,6 +268,41 @@ export type LocalReviewJsonInput = {
   usage: { tokensIn: number; tokensOut: number; costUsd: number | null };
   durationMs: number;
 };
+
+export type PrReviewJsonInput = {
+  repo: string;
+  prNumber: number;
+  markdown: string;
+  guideBuiltAt: string | null;
+  codegraphState: "used" | "disabled" | "unavailable";
+  codegraphReason: string | null;
+  usage: { tokensIn: number; tokensOut: number; costUsd: number | null };
+  durationMs: number;
+};
+
+export function buildPrReviewJson(input: PrReviewJsonInput): string {
+  const findings = resolvedFromFirstReview(
+    parseFindings(input.markdown),
+    new Map(),
+  );
+  const sorted = sortResolvedFindings(findings);
+  return JSON.stringify({
+    schemaVersion: 1,
+    ok: true,
+    mode: "pr",
+    subject: { repo: input.repo, branch: null, prNumber: input.prNumber },
+    guide: { builtAt: input.guideBuiltAt },
+    codegraph: {
+      state: input.codegraphState,
+      reason: input.codegraphReason,
+    },
+    summary: summaryCounts(findings),
+    findings: sorted.map(toJsonFinding),
+    warnings: [],
+    usage: input.usage,
+    durationMs: input.durationMs,
+  });
+}
 
 export function buildLocalReviewJson(input: LocalReviewJsonInput): string {
   const sorted = sortResolvedFindings(input.findings);

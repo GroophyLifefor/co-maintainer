@@ -29,9 +29,26 @@ export async function loadLocalCarry(
   root: string,
   branch: string,
 ): Promise<LocalCarrySnapshot | null> {
-  const raw = await cacheGet(NS, key(repo, root, branch));
-  if (!raw) return null;
-  return JSON.parse(raw) as LocalCarrySnapshot;
+  const loaded = await tryLoadLocalCarry(repo, root, branch);
+  if (loaded.unavailable) {
+    throw new Error("local carry-over cache is unreadable");
+  }
+  return loaded.data;
+}
+
+/** Plan E163 — corrupt or locked cache must not abort review. */
+export async function tryLoadLocalCarry(
+  repo: string,
+  root: string,
+  branch: string,
+): Promise<{ data: LocalCarrySnapshot | null; unavailable: boolean }> {
+  try {
+    const raw = await cacheGet(NS, key(repo, root, branch));
+    if (!raw) return { data: null, unavailable: false };
+    return { data: JSON.parse(raw) as LocalCarrySnapshot, unavailable: false };
+  } catch {
+    return { data: null, unavailable: true };
+  }
 }
 
 export async function saveLocalCarry(snapshot: LocalCarrySnapshot): Promise<void> {
