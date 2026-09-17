@@ -108,6 +108,7 @@ export async function handleSettingsRoute(
         "maxCommits",
         "maxPullRequestChangeLines",
       ] as const;
+      const intKeySet = new Set<string>(intKeys);
       for (const key of intKeys) {
         if (!(key in defaults)) continue;
         const raw = defaults[key];
@@ -124,6 +125,11 @@ export async function handleSettingsRoute(
           "invalid_setting",
           `${key} must be a positive integer or null`,
         );
+      }
+      for (const [key, value] of Object.entries(defaults)) {
+        if (intKeySet.has(key)) continue;
+        if (value === "" || value === null || value === undefined) continue;
+        (next as Record<string, unknown>)[key] = value;
       }
       patch.defaults = next;
     }

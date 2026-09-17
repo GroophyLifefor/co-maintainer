@@ -30,7 +30,10 @@ import { runCommand } from "../pr/checkout.ts";
 import { log, startHeartbeat, timed, withCliLogsToStderr } from "../util/log.ts";
 import { setCliInteractive } from "../cli/args.ts";
 import { prepareLocalCodegraph } from "./codegraph_prepare.ts";
-import { acquireLocalReviewLock } from "./review_lock.ts";
+import {
+  acquireLocalReviewLock,
+  type LocalReviewLock,
+} from "./review_lock.ts";
 import {
   assertGitQuiet,
   currentBranch,
@@ -85,10 +88,10 @@ function fail(error: ReviewCliError, json: boolean): never {
 }
 
 function installInterruptCleanup(
-  getRelease: () => (() => Promise<void>) | null,
+  releaseSync: () => (() => void) | null,
 ): () => void {
   const onSignal = () => {
-    void getRelease()?.();
+    releaseSync()?.();
     Deno.exit(130);
   };
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
@@ -112,8 +115,8 @@ function installInterruptCleanup(
 export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Promise<void> {
   const json = cli.json;
   setCliInteractive(!json);
-  let releaseLock: (() => Promise<void>) | null = null;
-  const clearInterrupt = installInterruptCleanup(() => releaseLock);
+  let lock: LocalReviewLock | null = null;
+  const clearInterrupt = installInterruptCleanup(() => lock?.releaseSync ?? null);
   await withCliLogsToStderr(async () => {
   try {
     const cwd = Deno.cwd();
@@ -200,7 +203,7 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
 
     const sha = await headSha(root);
     const revisionHashBefore = await revisionHash(revision);
-    releaseLock = await acquireLocalReviewLock(root);
+    lock = await acquireLocalReviewLock(root);
     const codegraphPrep = await prepareLocalCodegraph({
       gitRoot: root,
       enabled: options.useCodegraph === true,
@@ -232,8 +235,8 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
         )
       );
     } finally {
-      await releaseLock?.();
-      releaseLock = null;
+      await lock?.release();
+      lock = null;
     }
     stopHeartbeat();
     const codegraphState = codegraphPrep.state;

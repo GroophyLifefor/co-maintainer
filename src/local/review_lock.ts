@@ -33,10 +33,16 @@ async function lockPath(gitRoot: string): Promise<string> {
   return `${dir}/${hex}.lock`;
 }
 
+export type LocalReviewLock = {
+  release: () => Promise<void>;
+  /** For signal handlers — must not await before exit. */
+  releaseSync: () => void;
+};
+
 /** One local review per repo root (plan §13.3). */
 export async function acquireLocalReviewLock(
   gitRoot: string,
-): Promise<() => Promise<void>> {
+): Promise<LocalReviewLock> {
   const path = await lockPath(gitRoot);
   let existingPid: number | undefined;
   try {
@@ -54,7 +60,17 @@ export async function acquireLocalReviewLock(
     );
   }
   await Deno.writeTextFile(path, String(Deno.pid));
-  return async () => {
-    await Deno.remove(path).catch(() => {});
+  const releaseSync = () => {
+    try {
+      Deno.removeSync(path);
+    } catch {
+      // already removed
+    }
+  };
+  return {
+    release: async () => {
+      await Deno.remove(path).catch(() => {});
+    },
+    releaseSync,
   };
 }
