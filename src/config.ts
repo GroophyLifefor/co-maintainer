@@ -58,6 +58,10 @@ export type UserConfig = {
   remoteToken?: string;
   /** Hosts for which the unpublished-code notice was shown (plan §14.1 G13). */
   remoteNoticeShownFor?: string[];
+  /** Remote client watchdog timeout; dashboard may override (plan §19.6). */
+  remoteSyncTimeoutSeconds?: number;
+  maxConcurrentRemoteReviewsPerToken?: number;
+  remoteToolOutputMaxChars?: number;
   repos?: Record<string, RepoConfig>;
 };
 

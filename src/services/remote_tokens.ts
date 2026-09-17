@@ -63,10 +63,18 @@ export async function createRemoteToken(
 export async function resolveRemoteToken(
   bearer: string,
 ): Promise<RemoteTokenRow | undefined> {
+  const status = await lookupRemoteBearer(bearer);
+  return status === "invalid" || status === "inactive" ? undefined : status;
+}
+
+export async function lookupRemoteBearer(
+  bearer: string,
+): Promise<RemoteTokenRow | "invalid" | "inactive"> {
   const token = bearer.startsWith("cmr_") ? bearer : `cmr_${bearer}`;
   const hash = await hashRemoteBearerToken(token);
   const row = findRemoteTokenByHash(hash);
-  if (!row || row.active !== 1) return undefined;
+  if (!row) return "invalid";
+  if (row.active !== 1) return "inactive";
   touchRemoteToken(row.id);
   return row;
 }
