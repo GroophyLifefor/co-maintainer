@@ -16,6 +16,7 @@ const secretFields = new Set([
   "githubAppPrivateKey",
   "githubWebhookSecret",
   "githubOAuthClientSecret",
+  "remoteToken",
 ]);
 
 /** `co-maintainer set --token=... --ai=... --low-model=... --high-model=...
@@ -60,6 +61,8 @@ export async function runSet(args: string[]): Promise<void> {
     "github-oauth-allowed-user",
     "disable-auth",
     "enable-auth",
+    "remote-host",
+    "remote-token",
     "unset",
   ];
   for (const arg of args) {
@@ -103,6 +106,8 @@ export async function runSet(args: string[]): Promise<void> {
     "github-oauth-allowed-user": "githubOAuthAllowedUser",
     "disable-auth": "passwordAuthDisabled",
     "enable-auth": "githubAuthEnabled",
+    "remote-host": "remoteHost",
+    "remote-token": "remoteToken",
   };
   const unset = new Set(
     args.filter((arg) => arg.startsWith("--unset=")).map((arg) =>
@@ -153,6 +158,10 @@ export async function runSet(args: string[]): Promise<void> {
     if (enableAuth !== "github") die("--enable-auth only supports: github");
     patch.githubAuthEnabled = true;
   }
+  const remoteHost = text(args, "remote-host");
+  if (remoteHost) patch.remoteHost = remoteHost;
+  const remoteToken = text(args, "remote-token");
+  if (remoteToken) patch.remoteToken = remoteToken;
 
   if (Object.keys(patch).length === 0) {
     die(

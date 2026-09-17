@@ -165,4 +165,102 @@ export const migrations: string[][] = [
   [
     `ALTER TABLE repos ADD COLUMN use_codegraph INTEGER NOT NULL DEFAULT 0`,
   ],
+  // 6 — why a job was canceled (dashboard, superseded, remote abort, …)
+  [
+    `ALTER TABLE jobs ADD COLUMN cancel_reason TEXT`,
+  ],
+  // 7 — subjects, carry-over fields, reviews table rebuild for nullable PR keys
+  [
+    `CREATE TABLE reviews_new (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL DEFAULT 'pr',
+      subject_id TEXT,
+      repo TEXT NOT NULL,
+      pr_number INTEGER,
+      branch TEXT,
+      token_id TEXT,
+      token_name TEXT,
+      job_id TEXT NOT NULL,
+      head_sha TEXT,
+      base_sha TEXT,
+      scope TEXT NOT NULL,
+      model TEXT NOT NULL,
+      findings_count INTEGER NOT NULL DEFAULT 0,
+      open_count INTEGER NOT NULL DEFAULT 0,
+      closed_count INTEGER NOT NULL DEFAULT 0,
+      tokens_in INTEGER NOT NULL DEFAULT 0,
+      tokens_out INTEGER NOT NULL DEFAULT 0,
+      cost REAL,
+      duration_ms INTEGER,
+      posted_review_id TEXT,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      round INTEGER NOT NULL DEFAULT 1,
+      "trigger" TEXT,
+      check_run_id TEXT,
+      posted_fallback INTEGER NOT NULL DEFAULT 0,
+      guide_built_at TEXT,
+      codegraph TEXT
+    )`,
+    `INSERT INTO reviews_new
+      (id, kind, repo, pr_number, job_id, head_sha, base_sha, scope, model,
+       findings_count, tokens_in, tokens_out, cost, duration_ms, posted_review_id,
+       status, created_at, round, "trigger", check_run_id, posted_fallback)
+     SELECT id, 'pr', repo, pr_number, job_id, head_sha, base_sha, scope, model,
+       findings_count, tokens_in, tokens_out, cost, duration_ms, posted_review_id,
+       status, created_at, round, "trigger", check_run_id, posted_fallback
+     FROM reviews`,
+    `DROP TABLE reviews`,
+    `ALTER TABLE reviews_new RENAME TO reviews`,
+    `CREATE INDEX idx_reviews_repo_pr ON reviews(repo, pr_number)`,
+    `CREATE INDEX idx_reviews_subject ON reviews(subject_id, created_at)`,
+    `CREATE INDEX idx_reviews_token ON reviews(token_id, created_at)`,
+    `ALTER TABLE findings ADD COLUMN anchor_text TEXT`,
+    `ALTER TABLE findings ADD COLUMN state TEXT NOT NULL DEFAULT 'new'`,
+    `ALTER TABLE findings ADD COLUMN carried_from_finding_id TEXT`,
+    `ALTER TABLE findings ADD COLUMN close_reason TEXT`,
+    `UPDATE findings SET state = 'open' WHERE first_seen_review_id IS NOT NULL`,
+    `CREATE TABLE subjects (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      repo TEXT NOT NULL,
+      pr_number INTEGER,
+      branch TEXT,
+      token_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    `CREATE UNIQUE INDEX idx_subjects_pr ON subjects(repo, pr_number) WHERE kind = 'pr'`,
+    `CREATE UNIQUE INDEX idx_subjects_remote ON subjects(repo, branch, token_id) WHERE kind = 'remote'`,
+    `CREATE TABLE subject_revisions (
+      subject_id TEXT PRIMARY KEY,
+      review_id TEXT NOT NULL,
+      files_json TEXT NOT NULL,
+      visible_paths_json TEXT NOT NULL,
+      guide_built_at TEXT,
+      created_at TEXT NOT NULL
+    )`,
+  ],
+  // 8 — remote review bearer tokens and large submit payloads
+  [
+    `CREATE TABLE remote_tokens (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      last_used_at TEXT
+    )`,
+    `CREATE UNIQUE INDEX idx_remote_tokens_name ON remote_tokens(name)`,
+    `CREATE TABLE remote_review_inputs (
+      job_id TEXT PRIMARY KEY,
+      revision_json TEXT NOT NULL,
+      capabilities_json TEXT NOT NULL,
+      request_id TEXT NOT NULL,
+      token_id TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )`,
+    `CREATE UNIQUE INDEX idx_remote_inputs_request
+     ON remote_review_inputs(token_id, request_id)`,
+  ],
 ];

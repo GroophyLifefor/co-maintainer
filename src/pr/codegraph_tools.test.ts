@@ -1,5 +1,6 @@
 import { codegraphTools, prepareCodegraphTools } from "./codegraph_tools.ts";
-import type { CommandResult, Run } from "./checkout.ts";
+import type { CommandResult } from "./checkout.ts";
+import type { CodegraphRunner } from "../tools/codegraph_exec.ts";
 
 function same(actual: unknown, expected: unknown, what: string): void {
   const a = JSON.stringify(actual);
@@ -7,9 +8,9 @@ function same(actual: unknown, expected: unknown, what: string): void {
   if (a !== b) throw new Error(`${what}: got ${a}, want ${b}`);
 }
 
-function capturingRun(): { run: Run; calls: string[][] } {
+function capturingRun(): { run: CodegraphRunner; calls: string[][] } {
   const calls: string[][] = [];
-  const run: Run = (_command, args): Promise<CommandResult> => {
+  const run: CodegraphRunner = (_binary, args): Promise<CommandResult> => {
     calls.push(args);
     return Promise.resolve({ code: 0, stdout: "ok", stderr: "" });
   };
@@ -96,7 +97,7 @@ Deno.test("codegraph-affected passes every file and rejects an empty list", asyn
 });
 
 Deno.test("a failed command reports its exit code and output instead of throwing", async () => {
-  const run: Run = () =>
+  const run: CodegraphRunner = () =>
     Promise.resolve({ code: 1, stdout: "", stderr: "not found" });
   const tools = codegraphTools("codegraph", "/wt", run);
   const message = await tool(tools, "codegraph-callers").run({

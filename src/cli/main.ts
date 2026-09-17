@@ -4,7 +4,7 @@ import { parseArgs } from "./args.ts";
 import { runServe } from "./commands/serve.ts";
 import { runSet } from "./commands/set.ts";
 import { runProbe } from "./commands/probe.ts";
-import { runReview } from "./commands/review.ts";
+import { runReviewFromCli } from "./commands/review.ts";
 import { runInitOrRemake } from "../services/setup.ts";
 
 export async function run(args: string[]): Promise<void> {
@@ -16,8 +16,11 @@ export async function run(args: string[]): Promise<void> {
     await runServe(args.slice(1));
     return;
   }
+  if (args[0] === "review") {
+    await runReviewFromCli(args.slice(1));
+    return;
+  }
   const options = parseArgs(args);
   if (options.command === "probe") await runProbe(options);
-  else if (options.command === "review") await runReview(options);
   else await runInitOrRemake(options);
 }

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "requestId": "550e8400-e29b-41d4-a716-446655440000",
+  "repo": "Owner/Repo",
+  "branch": "feature/login",
+  "toBranch": "main",
+  "fresh": false,
+  "revision": {
+    "title": "Add login",
+    "description": "",
+    "baseLabel": "origin/main",
+    "files": [
+      {
+        "path": "src/auth.ts",
+        "previousPath": null,
+        "status": "added",
+        "binary": false,
+        "additions": 12,
+        "deletions": 0,
+        "patch": "@@ -0,0 +1,3 @@\n+export function login() {\n+  return true;\n+}\n"
+      }
+    ]
+  },
+  "capabilities": {
+    "tools": [{ "name": "codegraph-query", "version": "1.6.0" }]
+  }
+}

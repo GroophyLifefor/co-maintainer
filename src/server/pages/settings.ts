@@ -25,6 +25,8 @@ export function renderSettings(
       <a href="/settings" class="on">Models and keys</a>
       <a href="#github">GitHub</a>
       <a href="#defaults">Defaults</a>
+      <a href="#server">Server</a>
+      <a href="#remote">Remote review</a>
       <a href="#access">Access</a>
       <a href="#about">About</a>
     </nav>
@@ -136,6 +138,47 @@ Leave blank to keep the current key"></textarea></div>
       </div>
       <div class="ft"><button class="primary" id="save-def">Save</button></div>
     </div>
+    <div class="card" id="server" data-async>
+      ${skSlot()}
+      <div class="hd"><h2>Job queue</h2></div>
+      <div class="bd">
+        <div class="field"><label>Max concurrent jobs</label>
+          <input id="max-jobs" value="${
+      text(config.maxConcurrentJobs ?? "")
+    }" placeholder="No limit">
+          <div class="hint">Cap how many background jobs run at once across init, remake, and review. Leave blank for no limit.</div></div>
+        <div class="two" style="max-width:none;margin-top:16px">
+          <div class="field"><label>Remote sync timeout (seconds)</label>
+            <input id="remote-timeout" value="${
+      text(config.remoteSyncTimeoutSeconds ?? "")
+    }" placeholder="10"></div>
+          <div class="field"><label>Max remote reviews per token</label>
+            <input id="remote-per-token" value="${
+      text(config.maxConcurrentRemoteReviewsPerToken ?? "")
+    }" placeholder="No limit"></div>
+          <div class="field"><label>Max tool output chars</label>
+            <input id="remote-tool-chars" value="${
+      text(config.remoteToolOutputMaxChars ?? "")
+    }" placeholder="500000"></div>
+        </div>
+      </div>
+      <div class="ft"><button class="primary" id="save-server">Save</button></div>
+    </div>
+    <div class="card" id="remote" data-async>
+      ${skSlot()}
+      <div class="hd"><h2>Remote review tokens</h2></div>
+      <div class="bd">
+        <p class="muted" style="margin:0 0 16px">Bearer tokens for <code>co-maintainer review --remote</code>. The secret is shown once when created.</p>
+        <div id="remote-token-list" class="muted">Loading…</div>
+        <div class="two" style="max-width:none;margin-top:16px">
+          <div class="field"><label>New token name</label>
+            <input id="remote-token-name" placeholder="e.g. laptop"></div>
+        </div>
+      </div>
+      <div class="ft">
+        <button class="primary" id="create-remote-token">Create token</button>
+      </div>
+    </div>
     <div class="card" id="access" data-async>
       ${skSlot()}
       <div class="hd"><h2>Sign-in</h2></div>
@@ -223,16 +266,120 @@ document.getElementById("save-access").addEventListener("click", function() {
     githubOAuthAllowedUser: document.getElementById("oauth-allowed-user").value
   });
 });
+function positiveOrNull(raw, label) {
+  if (raw === "") return { ok: true, value: null };
+  var n = Number(raw);
+  if (!Number.isInteger(n) || n <= 0) {
+    return { ok: false, message: label + " must be a positive whole number, or blank." };
+  }
+  return { ok: true, value: n };
+}
+document.getElementById("save-server").addEventListener("click", function() {
+  var card = this.closest("[data-async]");
+  var jobs = positiveOrNull(document.getElementById("max-jobs").value.trim(), "Max concurrent jobs");
+  if (!jobs.ok) { fail(card, jobs.message, function () {}); return; }
+  var timeout = positiveOrNull(document.getElementById("remote-timeout").value.trim(), "Remote sync timeout");
+  if (!timeout.ok) { fail(card, timeout.message, function () {}); return; }
+  var perToken = positiveOrNull(document.getElementById("remote-per-token").value.trim(), "Max remote reviews per token");
+  if (!perToken.ok) { fail(card, perToken.message, function () {}); return; }
+  var toolChars = positiveOrNull(document.getElementById("remote-tool-chars").value.trim(), "Max tool output chars");
+  if (!toolChars.ok) { fail(card, toolChars.message, function () {}); return; }
+  save(this, {
+    maxConcurrentJobs: jobs.value,
+    remoteSyncTimeoutSeconds: timeout.value,
+    maxConcurrentRemoteReviewsPerToken: perToken.value,
+    remoteToolOutputMaxChars: toolChars.value
+  });
+});
+function escHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+async function loadRemoteTokens() {
+  var el = document.getElementById("remote-token-list");
+  try {
+    var rows = await api("GET", "/api/remote-tokens");
+    if (!rows.length) {
+      el.innerHTML = "<p>No tokens yet.</p>";
+      return;
+    }
+    el.innerHTML = "<table><thead><tr><th>Name</th><th>Status</th><th class=\\"num\\">Reviews (30d)</th><th class=\\"num\\">Cost (30d)</th><th></th></tr></thead><tbody>" +
+      rows.map(function(r) {
+        return "<tr><td>" + escHtml(r.name) + "</td><td>" + (r.active ? "Active" : "Inactive") + "</td>" +
+          "<td class=\\"num\\">" + r.reviews30d + "</td><td class=\\"num\\">" + r.cost30d + "</td>" +
+          "<td><button type=\\"button\\" class=\\"btn sm\\" data-token-id=\\"" + escHtml(r.id) + "\\" data-active=\\"" + r.active + "\\">" +
+          (r.active ? "Deactivate" : "Activate") + "</button> " +
+          "<button type=\\"button\\" class=\\"btn sm\\" data-delete-token=\\"" + escHtml(r.id) + "\\">Delete</button></td></tr>";
+      }).join("") + "</tbody></table>";
+    el.querySelectorAll("[data-token-id]").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        var id = btn.getAttribute("data-token-id");
+        var active = btn.getAttribute("data-active") === "true";
+        run(btn, cardFor(btn), async function() {
+          await api("PATCH", "/api/remote-tokens/" + id, { active: !active });
+          await loadRemoteTokens();
+        });
+      });
+    });
+    el.querySelectorAll("[data-delete-token]").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        if (!confirm("Delete this token? In-flight remote reviews will be canceled.")) return;
+        var id = btn.getAttribute("data-delete-token");
+        run(btn, cardFor(btn), async function() {
+          await api("DELETE", "/api/remote-tokens/" + id);
+          await loadRemoteTokens();
+        });
+      });
+    });
+  } catch (e) {
+    el.textContent = "Could not load tokens.";
+  }
+}
+function cardFor(btn) { return btn.closest("[data-async]"); }
+loadRemoteTokens();
+document.getElementById("create-remote-token").addEventListener("click", function() {
+  var name = document.getElementById("remote-token-name").value.trim();
+  if (!name) {
+    fail(this.closest("[data-async]"), "Enter a name for the token.", function () {});
+    return;
+  }
+  run(this, this.closest("[data-async]"), async function() {
+    var created = await api("POST", "/api/remote-tokens", { name: name });
+    prompt("Copy this token now — it will not be shown again:", created.token);
+    document.getElementById("remote-token-name").value = "";
+    await loadRemoteTokens();
+  });
+});
 document.getElementById("save-def").addEventListener("click", function() {
-  var num = function(id) {
+  var card = this.closest("[data-async]");
+  var positiveInt = function(id, label) {
     var v = document.getElementById(id).value.trim();
-    return v === "" ? null : Number(v);
+    if (v === "") return { ok: true, value: null };
+    var n = Number(v);
+    if (!Number.isInteger(n) || n <= 0) {
+      return { ok: false, message: label + " must be a positive whole number, or blank." };
+    }
+    return { ok: true, value: n };
   };
+  var months = positiveInt("def-months", "Max PR age (months)");
+  if (!months.ok) {
+    fail(card, months.message, function () {});
+    return;
+  }
+  var commits = positiveInt("def-commits", "Max commits");
+  if (!commits.ok) {
+    fail(card, commits.message, function () {});
+    return;
+  }
+  var lines = positiveInt("def-lines", "Max changed lines");
+  if (!lines.ok) {
+    fail(card, lines.message, function () {});
+    return;
+  }
   save(this, {
     defaults: {
-      maxPrMonths: num("def-months"),
-      maxCommits: num("def-commits"),
-      maxPullRequestChangeLines: num("def-lines")
+      maxPrMonths: months.value,
+      maxCommits: commits.value,
+      maxPullRequestChangeLines: lines.value
     }
   });
 });

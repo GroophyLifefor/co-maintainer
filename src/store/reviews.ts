@@ -2,6 +2,36 @@ import { getAppDb } from "./app_db.ts";
 import { nowIso } from "../util/time.ts";
 import type { ReviewRow } from "./rows.ts";
 
+export function insertRemoteReview(row: {
+  id: string;
+  subjectId: string;
+  repo: string;
+  branch: string;
+  tokenId: string;
+  tokenName: string;
+  jobId: string;
+  scope: string;
+  model: string;
+}): void {
+  getAppDb().prepare(
+    `INSERT INTO reviews
+       (id, kind, subject_id, repo, pr_number, branch, token_id, token_name,
+        job_id, head_sha, base_sha, scope, model, status, created_at, round)
+     VALUES (?, 'remote', ?, ?, NULL, ?, ?, ?, ?, NULL, NULL, ?, ?, 'queued', ?, 1)`,
+  ).run(
+    row.id,
+    row.subjectId,
+    row.repo,
+    row.branch,
+    row.tokenId,
+    row.tokenName,
+    row.jobId,
+    row.scope,
+    row.model,
+    nowIso(),
+  );
+}
+
 export function insertReview(row: {
   id: string;
   repo: string;
@@ -13,14 +43,17 @@ export function insertReview(row: {
   model: string;
   trigger?: string;
   round?: number;
+  subjectId?: string;
+  guideBuiltAt?: string | null;
 }): void {
   getAppDb().prepare(
     `INSERT INTO reviews
-       (id, repo, pr_number, job_id, head_sha, base_sha, scope, model,
-        status, created_at, round, "trigger")
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'drafting', ?, ?, ?)`,
+       (id, kind, subject_id, repo, pr_number, job_id, head_sha, base_sha, scope, model,
+        status, created_at, round, "trigger", guide_built_at)
+     VALUES (?, 'pr', ?, ?, ?, ?, ?, ?, ?, ?, 'drafting', ?, ?, ?, ?)`,
   ).run(
     row.id,
+    row.subjectId ?? null,
     row.repo,
     row.prNumber,
     row.jobId,
@@ -31,6 +64,7 @@ export function insertReview(row: {
     nowIso(),
     row.round ?? 1,
     row.trigger ?? null,
+    row.guideBuiltAt ?? null,
   );
 }
 
@@ -50,6 +84,10 @@ export function setReviewStatus(
       | "duration_ms"
       | "check_run_id"
       | "posted_fallback"
+      | "open_count"
+      | "closed_count"
+      | "subject_id"
+      | "guide_built_at"
     >
   > = {},
 ): void {
@@ -57,23 +95,31 @@ export function setReviewStatus(
     `UPDATE reviews SET status = ?,
        posted_review_id = COALESCE(?, posted_review_id),
        findings_count = COALESCE(?, findings_count),
+       open_count = COALESCE(?, open_count),
+       closed_count = COALESCE(?, closed_count),
        tokens_in = COALESCE(?, tokens_in),
        tokens_out = COALESCE(?, tokens_out),
        cost = COALESCE(?, cost),
        duration_ms = COALESCE(?, duration_ms),
        check_run_id = COALESCE(?, check_run_id),
-       posted_fallback = COALESCE(?, posted_fallback)
+       posted_fallback = COALESCE(?, posted_fallback),
+       subject_id = COALESCE(?, subject_id),
+       guide_built_at = COALESCE(?, guide_built_at)
      WHERE id = ?`,
   ).run(
     status,
     patch.posted_review_id ?? null,
     patch.findings_count ?? null,
+    patch.open_count ?? null,
+    patch.closed_count ?? null,
     patch.tokens_in ?? null,
     patch.tokens_out ?? null,
     patch.cost ?? null,
     patch.duration_ms ?? null,
     patch.check_run_id ?? null,
     patch.posted_fallback ?? null,
+    patch.subject_id ?? null,
+    patch.guide_built_at ?? null,
     id,
   );
 }
@@ -159,7 +205,7 @@ export function reviewStats(
   repo?: string,
   untilIso?: string,
 ): ReviewStats {
-  const where = ["created_at >= ?"];
+  const where = ["created_at >= ?", "kind = 'pr'"];
   const params: (string | number)[] = [sinceIso];
   if (untilIso) {
     where.push("created_at < ?");
@@ -260,6 +306,76 @@ export function listPullSummaries(
      LIMIT ? OFFSET ?`,
   ).all(repo, limit, offset);
   return { items, total };
+}
+
+export function listRemoteReviewsForRepo(
+  repo: string,
+  limit: number,
+  offset = 0,
+  sinceIso?: string,
+): ReviewRow[] {
+  if (sinceIso) {
+    return getAppDb().prepare<ReviewRow>(
+      `SELECT * FROM reviews
+       WHERE repo = ? AND kind = 'remote' AND created_at >= ?
+       ORDER BY created_at DESC
+       LIMIT ? OFFSET ?`,
+    ).all(repo, sinceIso, limit, offset);
+  }
+  return getAppDb().prepare<ReviewRow>(
+    `SELECT * FROM reviews
+     WHERE repo = ? AND kind = 'remote'
+     ORDER BY created_at DESC
+     LIMIT ? OFFSET ?`,
+  ).all(repo, limit, offset);
+}
+
+export function remoteTokenUsageSince(
+  tokenId: string,
+  sinceIso: string,
+): { reviews: number; cost: number } {
+  const row = getAppDb().prepare<{ reviews: number; cost: number }>(
+    `SELECT COUNT(*) AS reviews, COALESCE(SUM(cost), 0) AS cost
+     FROM reviews
+     WHERE token_id = ? AND kind = 'remote' AND created_at >= ?`,
+  ).get(tokenId, sinceIso);
+  return {
+    reviews: Number(row?.reviews ?? 0),
+    cost: Number(row?.cost ?? 0),
+  };
+}
+
+export function reviewStatsByRemoteToken(
+  sinceIso: string,
+): {
+  tokenId: string;
+  tokenName: string;
+  reviews: number;
+  cost: number;
+  findings: number;
+}[] {
+  return getAppDb().prepare<{
+    token_id: string;
+    token_name: string;
+    reviews: number;
+    cost: number;
+    findings: number;
+  }>(
+    `SELECT token_id, token_name,
+            COUNT(*) AS reviews,
+            COALESCE(SUM(cost), 0) AS cost,
+            COALESCE(SUM(findings_count), 0) AS findings
+     FROM reviews
+     WHERE kind = 'remote' AND created_at >= ? AND token_id IS NOT NULL
+     GROUP BY token_id, token_name
+     ORDER BY cost DESC`,
+  ).all(sinceIso).map((row) => ({
+    tokenId: row.token_id,
+    tokenName: row.token_name,
+    reviews: Number(row.reviews),
+    cost: Number(row.cost),
+    findings: Number(row.findings),
+  }));
 }
 
 export function listLatestReviewsForRepo(

@@ -43,6 +43,7 @@ export type JobRow = {
   finished_at: string | null;
   error: string | null;
   superseded_by: string | null;
+  cancel_reason: string | null;
 };
 
 export type JobLogRow = {
@@ -55,14 +56,21 @@ export type JobLogRow = {
 
 export type ReviewRow = {
   id: string;
+  kind: string;
+  subject_id: string | null;
   repo: string;
-  pr_number: number;
+  pr_number: number | null;
+  branch: string | null;
+  token_id: string | null;
+  token_name: string | null;
   job_id: string;
-  head_sha: string;
-  base_sha: string;
+  head_sha: string | null;
+  base_sha: string | null;
   scope: string;
   model: string;
   findings_count: number;
+  open_count: number;
+  closed_count: number;
   tokens_in: number;
   tokens_out: number;
   cost: number | null;
@@ -74,6 +82,8 @@ export type ReviewRow = {
   trigger: string | null;
   check_run_id: string | null;
   posted_fallback: number;
+  guide_built_at: string | null;
+  codegraph: string | null;
 };
 
 export type FindingRow = {
@@ -88,6 +98,30 @@ export type FindingRow = {
   posted_comment_id: string | null;
   thread_comment_id: string | null;
   first_seen_review_id: string | null;
+  anchor_text: string | null;
+  state: string;
+  carried_from_finding_id: string | null;
+  close_reason: string | null;
+};
+
+export type SubjectRow = {
+  id: string;
+  kind: string;
+  repo: string;
+  pr_number: number | null;
+  branch: string | null;
+  token_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SubjectRevisionRow = {
+  subject_id: string;
+  review_id: string;
+  files_json: string;
+  visible_paths_json: string;
+  guide_built_at: string | null;
+  created_at: string;
 };
 
 export type ReplyRequestRow = {
@@ -138,4 +172,22 @@ export type DriftRow = {
   prs_updated: number;
   commits_since: number;
   files_changed: number;
+};
+
+export type RemoteTokenRow = {
+  id: string;
+  name: string;
+  token_hash: string;
+  active: number;
+  created_at: string;
+  last_used_at: string | null;
+};
+
+export type RemoteReviewInputRow = {
+  job_id: string;
+  revision_json: string;
+  capabilities_json: string;
+  request_id: string;
+  token_id: string;
+  created_at: string;
 };

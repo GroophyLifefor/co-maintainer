@@ -133,6 +133,7 @@ function seed(): JobRow {
     finished_at: null,
     error: null,
     superseded_by: null,
+    cancel_reason: null,
   };
 }
 
@@ -452,7 +453,9 @@ Deno.test("a valid suggestion posts on its own line and keeps the block", async 
       seed(),
       () => {},
       github,
-      reviewWithSuggestion("  const failing = list.filter((v) => v >= threshold);"),
+      reviewWithSuggestion(
+        "  const failing = list.filter((v) => v >= threshold);",
+      ),
     );
     const posted = github.writes[0].body as {
       comments: { line: number; start_line?: number; body: string }[];
@@ -487,7 +490,9 @@ Deno.test("a suggestion that changes nothing is dropped and the span is kept", a
       seed(),
       () => {},
       github,
-      reviewWithSuggestion("  const failing = list.filter((v) => v > threshold);"),
+      reviewWithSuggestion(
+        "  const failing = list.filter((v) => v > threshold);",
+      ),
     );
     const posted = github.writes[0].body as {
       comments: { line: number; start_line?: number; body: string }[];

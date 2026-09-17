@@ -45,6 +45,11 @@ co-maintainer init owner/repo --auth=gh --ai=openrouter --token=... \
   --include-how-repo-works
 
 co-maintainer review owner/repo 123 --improve-matrix=2 --debug
+
+co-maintainer review              # local branch (staged, unstaged, untracked)
+co-maintainer review --json       # machine-readable stdout; logs on stderr
+
+deno task review-local-e2e        # fake-AI local loop (developers, from repo root)
 ```
 
 See the command documentation: [`probe`](docs/probe.md), [`init`](docs/init.md),

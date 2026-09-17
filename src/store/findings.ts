@@ -12,12 +12,17 @@ export function insertFinding(row: {
   bodyMd: string;
   firstSeenReviewId?: string;
   threadCommentId?: string;
+  anchorText?: string | null;
+  state?: string;
+  carriedFromFindingId?: string | null;
+  closeReason?: string | null;
 }): void {
   getAppDb().prepare(
     `INSERT INTO findings
        (id, review_id, severity, path, line_from, line_to, title, body_md,
-        first_seen_review_id, thread_comment_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        first_seen_review_id, thread_comment_id, anchor_text, state,
+        carried_from_finding_id, close_reason)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     row.id,
     row.reviewId,
@@ -29,7 +34,21 @@ export function insertFinding(row: {
     row.bodyMd,
     row.firstSeenReviewId ?? null,
     row.threadCommentId ?? null,
+    row.anchorText ?? null,
+    row.state ?? "new",
+    row.carriedFromFindingId ?? null,
+    row.closeReason ?? null,
   );
+}
+
+export function listCarryableFindingsForReview(
+  reviewId: string,
+): FindingRow[] {
+  return getAppDb().prepare<FindingRow>(
+    `SELECT * FROM findings
+     WHERE review_id = ? AND state IN ('new', 'open')
+     ORDER BY severity, id`,
+  ).all(reviewId);
 }
 
 export function setFindingPosted(
@@ -86,7 +105,7 @@ export function findingStatsBySeverity(sinceIso: string): SeverityStats[] {
   return getAppDb().prepare<SeverityStats>(
     `SELECT f.severity AS severity,
         COUNT(*) AS findings,
-        COALESCE(SUM(f.first_seen_review_id IS NOT NULL), 0) AS repeats,
+        COALESCE(SUM(f.state = 'open' OR f.first_seen_review_id IS NOT NULL), 0) AS repeats,
         COALESCE(SUM(f.posted_comment_id IS NOT NULL), 0) AS posted
      FROM findings f
      INNER JOIN reviews r ON r.id = f.review_id

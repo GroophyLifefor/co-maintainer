@@ -13,6 +13,8 @@ import {
   reviewStats,
   reviewStatsByDay,
   reviewStatsByModel,
+  reviewStatsByRemoteToken,
+  listRemoteReviewsForRepo,
   reviewStatsByRepo,
 } from "../store/reviews.ts";
 import {
@@ -78,6 +80,7 @@ export function statsForRange(range: string) {
     byRepo: reviewStatsByRepo(since),
     byDay: fillDays(days, reviewStatsByDay(since)),
     byModel: reviewStatsByModel(since),
+    byRemoteToken: reviewStatsByRemoteToken(since),
     bySeverity: findingStatsBySeverity(since),
   };
 }
@@ -114,6 +117,15 @@ export function repoOverview(fullName: string) {
     stats: reviewStats(since, fullName),
     recentPulls: listLatestReviewsForRepo(fullName, 8),
     latestJob: latestSetupJob(fullName),
+  };
+}
+
+export function repoRemoteReviews(fullName: string, limit = 30) {
+  requireActiveRepo(fullName);
+  const since = daysAgoIso(30);
+  return {
+    items: listRemoteReviewsForRepo(fullName, limit, 0, since),
+    stats: reviewStats(since, fullName),
   };
 }
 
@@ -179,21 +191,24 @@ const KNOWLEDGE_DOCS = [
 
 export async function repoKnowledge(fullName: string) {
   const repo = requireActiveRepo(fullName);
-  const docs = [];
-  for (const doc of KNOWLEDGE_DOCS) {
-    const path = `${reposDir()}/${fullName}/${doc.file}`;
-    try {
-      const text = await Deno.readTextFile(path);
-      docs.push({
-        ...doc,
-        bytes: new TextEncoder().encode(text).byteLength,
-        text,
-      });
-    } catch (error) {
-      if (!(error instanceof Deno.errors.NotFound)) throw error;
+  const { withKnowledgeLock } = await import("../review/guides.ts");
+  return withKnowledgeLock(fullName, async () => {
+    const docs = [];
+    for (const doc of KNOWLEDGE_DOCS) {
+      const path = `${reposDir()}/${fullName}/${doc.file}`;
+      try {
+        const text = await Deno.readTextFile(path);
+        docs.push({
+          ...doc,
+          bytes: new TextEncoder().encode(text).byteLength,
+          text,
+        });
+      } catch (error) {
+        if (!(error instanceof Deno.errors.NotFound)) throw error;
+      }
     }
-  }
-  return { repo, drift: await refreshDrift(fullName), docs };
+    return { repo, drift: await refreshDrift(fullName), docs };
+  });
 }
 
 export type ActivityItem =

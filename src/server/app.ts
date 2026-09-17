@@ -19,6 +19,8 @@ import { handleInstallationsRoute } from "./api/installations.ts";
 import { handleSettingsRoute } from "./api/settings.ts";
 import { handleActivityRoute } from "./api/activity.ts";
 import { handleAnalyticsRoute } from "./api/analytics.ts";
+import { handleRemoteTokensRoute } from "./api/remote_tokens.ts";
+import { handleRemoteRoute } from "../remote/server/routes.ts";
 import { handleWebhookRequest } from "./webhook/index.ts";
 import { handlePageRequest } from "./pages/router.ts";
 
@@ -135,6 +137,10 @@ export function createApp(deps: AppDeps): App {
       const page = await handlePageRequest(request, deps, remoteAddr);
       if (page) return page;
 
+      if (url.pathname.startsWith("/api/remote/")) {
+        return await handleRemoteRoute(request, url, remoteAddr);
+      }
+
       if (url.pathname.startsWith("/api/")) {
         if (mutating && !hasCsrfHeader(request)) {
           return errorResponse(
@@ -189,6 +195,9 @@ export function createApp(deps: AppDeps): App {
         }
         if (url.pathname === "/api/analytics") {
           return handleAnalyticsRoute(request, url);
+        }
+        if (url.pathname.startsWith("/api/remote-tokens")) {
+          return await handleRemoteTokensRoute(request, url);
         }
 
         return errorResponse(404, "not_found", `no route for ${url.pathname}`);

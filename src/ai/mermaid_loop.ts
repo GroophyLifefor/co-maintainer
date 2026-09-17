@@ -48,8 +48,16 @@ export async function completeWithMermaidTools(
   maxTools: number,
   extraTools: ToolHandler[] = [],
   maxToolRounds: number = DEFAULT_MAX_TOOL_ROUNDS,
+  options: {
+    signal?: AbortSignal;
+    onResponse?: (response: AiResponse) => void | Promise<void>;
+  } = {},
 ): Promise<AiResponse> {
-  if (provider.supportsTools === false) return provider.complete(request);
+  if (provider.supportsTools === false) {
+    const response = await provider.complete(request);
+    if (options.onResponse) await options.onResponse(response);
+    return response;
+  }
 
   const messages: AiMessage[] = [
     ...request.messages ?? [
@@ -72,8 +80,6 @@ export async function completeWithMermaidTools(
   const merge = (response: AiResponse): AiResponse => {
     totals.tokensIn += response.tokensIn;
     totals.tokensOut += response.tokensOut;
-    // A missing cost is unknown, not zero, so one silent round makes the whole
-    // total unknown rather than an understated number.
     if (response.cost === undefined) costKnown = false;
     else if (costKnown) totals.cost = (totals.cost ?? 0) + response.cost;
     return {
@@ -84,7 +90,11 @@ export async function completeWithMermaidTools(
   };
 
   for (let round = 0; round < maxToolRounds; round++) {
+    if (options.signal?.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
     const response = await provider.complete({ ...request, messages, tools });
+    if (options.onResponse) await options.onResponse(response);
     if (!response.toolCalls?.length) return merge(response);
     merge(response);
     log(
@@ -100,16 +110,21 @@ export async function completeWithMermaidTools(
       content: response.text || null,
       tool_calls: response.toolCalls,
     });
-    for (const call of response.toolCalls) {
-      const result = await runTool(call, maxTools, extraTools);
-      log(
-        "review-tools",
-        `${call.function.name}(${call.function.arguments}) → ${result.length} chars${
-          result.startsWith("Tool error") || result.startsWith("codegraph ")
-            ? `: ${result.slice(0, 200)}`
-            : ""
-        }`,
-      );
+    const results = await Promise.all(
+      response.toolCalls.map(async (call) => {
+        const result = await runTool(call, maxTools, extraTools);
+        log(
+          "review-tools",
+          `${call.function.name}(${call.function.arguments}) → ${result.length} chars${
+            result.startsWith("Tool error") || result.startsWith("codegraph ")
+              ? `: ${result.slice(0, 200)}`
+              : ""
+          }`,
+        );
+        return { call, result };
+      }),
+    );
+    for (const { call, result } of results) {
       messages.push({
         role: "tool",
         tool_call_id: call.id,
@@ -118,10 +133,6 @@ export async function completeWithMermaidTools(
       });
     }
   }
-  // The model still wanted tools past the round budget — dropping `tools`
-  // silently here made past runs hallucinate fake tool-call syntax as text
-  // instead of a real finding (verified via a tokio benchmark run). Telling
-  // it plainly is cheap insurance against that.
   log(
     "review-tools",
     `round budget (${maxToolRounds}) exhausted with the model still requesting tools`,
@@ -131,5 +142,7 @@ export async function completeWithMermaidTools(
     content:
       "No more tool calls are available. Answer now using only what you already found.",
   });
-  return merge(await provider.complete({ ...request, messages }));
+  const final = await provider.complete({ ...request, messages });
+  if (options.onResponse) await options.onResponse(final);
+  return merge(final);
 }

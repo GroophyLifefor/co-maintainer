@@ -58,6 +58,10 @@ type Attempt = {
 // needs to survive a hostile flood of spoofed source IPs.
 const attempts = new Map<string, Attempt>();
 
+export function recordAuthFailure(ip: string): void {
+  recordFailure(ip);
+}
+
 export function isLockedOut(ip: string): boolean {
   const attempt = attempts.get(ip);
   if (!attempt?.lockedUntil) return false;
@@ -140,9 +144,16 @@ function readCookie(request: Request, name: string): string | undefined {
   }
 }
 
-export function readSessionToken(request: Request): string | undefined {
+export function readBearerToken(request: Request): string | undefined {
   const header = request.headers.get("authorization") ?? "";
-  if (header.startsWith("Bearer ")) return header.slice("Bearer ".length);
+  if (!header.startsWith("Bearer ")) return undefined;
+  const token = header.slice("Bearer ".length).trim();
+  return token || undefined;
+}
+
+export function readSessionToken(request: Request): string | undefined {
+  const bearer = readBearerToken(request);
+  if (bearer) return bearer;
   return readCookie(request, SESSION_COOKIE);
 }
 

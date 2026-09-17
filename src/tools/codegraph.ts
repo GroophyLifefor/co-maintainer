@@ -187,3 +187,51 @@ export async function ensureCodegraph(
   log(`[codegraph] ready at ${after.path}`);
   return after.path;
 }
+
+/** Review paths must not call `Deno.exit` (plan §8.7, S13). */
+export async function ensureCodegraphForReview(
+  options: EnsureOptions = {},
+): Promise<{ path: string } | { reason: string }> {
+  const root = options.root ?? toolsDir();
+  const run = options.run ?? runCommand;
+  const log = options.log ?? ((message: string) => console.error(message));
+  const interactive = options.interactive ?? Deno.stdin.isTerminal();
+  const present = await detect(CODEGRAPH_VERSION, root, run);
+
+  if (present.state === "ok") return { path: present.path };
+  if (present.state === "mismatch") {
+    log(
+      `[codegraph] expected ${CODEGRAPH_VERSION} but found ${present.version}; reinstalling`,
+    );
+  }
+
+  if (!options.allowInstall) {
+    if (!interactive) {
+      return {
+        reason: `codegraph ${CODEGRAPH_VERSION} is not installed (use --allow-tool-install)`,
+      };
+    }
+    const confirm = options.confirm ?? defaultConfirm;
+    const approved = confirm(
+      `co-maintainer needs codegraph ${CODEGRAPH_VERSION} to index this repository.\n` +
+        `Install into ${versionDir(CODEGRAPH_VERSION, root)}?`,
+    );
+    if (!approved) return { reason: "codegraph install declined" };
+  }
+
+  const { command, args } = installCommand(CODEGRAPH_VERSION, root);
+  log(`[codegraph] installing ${CODEGRAPH_PACKAGE}@${CODEGRAPH_VERSION}`);
+  await Deno.mkdir(versionDir(CODEGRAPH_VERSION, root), { recursive: true });
+  const result = await run(command, args);
+  if (result.code !== 0) {
+    return {
+      reason: result.stderr.trim() || result.stdout.trim() ||
+        `install failed (exit ${result.code})`,
+    };
+  }
+  const after = await detect(CODEGRAPH_VERSION, root, run);
+  if (after.state !== "ok") {
+    return { reason: "install finished but the binary is still not usable" };
+  }
+  return { path: after.path };
+}

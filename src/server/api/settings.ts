@@ -42,6 +42,11 @@ export async function handleSettingsRoute(
       githubOAuthAllowedUser: config.githubOAuthAllowedUser ?? "",
       passwordAuthDisabled: Boolean(config.passwordAuthDisabled),
       githubAuthEnabled: Boolean(config.githubAuthEnabled),
+      maxConcurrentJobs: config.maxConcurrentJobs ?? null,
+      remoteSyncTimeoutSeconds: config.remoteSyncTimeoutSeconds ?? null,
+      maxConcurrentRemoteReviewsPerToken:
+        config.maxConcurrentRemoteReviewsPerToken ?? null,
+      remoteToolOutputMaxChars: config.remoteToolOutputMaxChars ?? null,
     });
   }
 
@@ -85,16 +90,87 @@ export async function handleSettingsRoute(
       }
       patch.webhookUrl = (body.webhookUrl as string).trim();
     }
+    if ("maxConcurrentJobs" in body) {
+      const raw = body.maxConcurrentJobs;
+      if (raw === null || raw === "") {
+        patch.maxConcurrentJobs = undefined;
+      } else if (typeof raw === "number" && Number.isInteger(raw) && raw > 0) {
+        patch.maxConcurrentJobs = raw;
+      } else {
+        return errorResponse(
+          422,
+          "invalid_setting",
+          "maxConcurrentJobs must be a positive integer or null",
+        );
+      }
+    }
+    const positiveIntOrNull = (
+      key: keyof UserConfig,
+      label: string,
+    ): Response | void => {
+      if (!(key in body)) return;
+      const raw = body[key as string];
+      if (raw === null || raw === "") {
+        (patch as Record<string, unknown>)[key] = undefined;
+        return;
+      }
+      if (typeof raw === "number" && Number.isInteger(raw) && raw > 0) {
+        (patch as Record<string, unknown>)[key] = raw;
+        return;
+      }
+      return errorResponse(
+        422,
+        "invalid_setting",
+        `${label} must be a positive integer or null`,
+      );
+    };
+    const remoteTimeout = positiveIntOrNull(
+      "remoteSyncTimeoutSeconds",
+      "remoteSyncTimeoutSeconds",
+    );
+    if (remoteTimeout) return remoteTimeout;
+    const remotePerToken = positiveIntOrNull(
+      "maxConcurrentRemoteReviewsPerToken",
+      "maxConcurrentRemoteReviewsPerToken",
+    );
+    if (remotePerToken) return remotePerToken;
+    const remoteToolOut = positiveIntOrNull(
+      "remoteToolOutputMaxChars",
+      "remoteToolOutputMaxChars",
+    );
+    if (remoteToolOut) return remoteToolOut;
     if (body.defaults && typeof body.defaults === "object") {
       const defaults = body.defaults as Record<string, unknown>;
-      patch.defaults = {
-        ...current.defaults,
-        ...Object.fromEntries(
-          Object.entries(defaults).filter(([, value]) =>
-            value !== "" && value !== null && value !== undefined
-          ),
-        ),
-      };
+      const next = { ...current.defaults };
+      const intKeys = [
+        "maxPrMonths",
+        "maxCommits",
+        "maxPullRequestChangeLines",
+      ] as const;
+      const intKeySet = new Set<string>(intKeys);
+      for (const key of intKeys) {
+        if (!(key in defaults)) continue;
+        const raw = defaults[key];
+        if (raw === null || raw === "") {
+          delete next[key];
+          continue;
+        }
+        if (typeof raw === "number" && Number.isInteger(raw) && raw > 0) {
+          next[key] = raw;
+          continue;
+        }
+        return errorResponse(
+          422,
+          "invalid_setting",
+          `${key} must be a positive integer or null`,
+        );
+      }
+      for (const [key, value] of Object.entries(defaults)) {
+        if (intKeySet.has(key)) continue;
+        if (value === "" || value === null || value === undefined) continue;
+        (next as Record<string, unknown>)[key] = value;
+      }
+      patch.defaults = next;
     }
     const merged = { ...current, ...patch };
     if (merged.passwordAuthDisabled && !merged.githubAuthEnabled) {

@@ -19,7 +19,7 @@ import { readState, writeState } from "../store/skill_state.ts";
 import { cacheSet } from "../store/cache_db.ts";
 import { log, timed, withLogSink } from "../util/log.ts";
 import { enqueue, registerHandler } from "./jobs.ts";
-import { markKnowledgeBuilt } from "../store/repos.ts";
+import { getRepo, markKnowledgeBuilt } from "../store/repos.ts";
 import { nowIso } from "../util/time.ts";
 import type { AiResponse, GitHubClient, Options } from "../types.ts";
 import type { Source, State } from "../knowledge/types.ts";
@@ -115,9 +115,13 @@ async function writeReviewDocuments(
     ]);
     return;
   }
-  await Deno.writeTextFile(`${directory}/PR_REVIEW_GUIDE.md`, documents.guide);
+  const { writeTextFileAtomic } = await import("../util/atomic.ts");
+  await writeTextFileAtomic(
+    `${directory}/PR_REVIEW_GUIDE.md`,
+    documents.guide,
+  );
   if (documents.detailed) {
-    await Deno.writeTextFile(
+    await writeTextFileAtomic(
       `${directory}/PR_REVIEW_DETAILED_GUIDE.md`,
       documents.detailed,
     );
@@ -146,7 +150,8 @@ async function writeCodebaseDocument(
     await Deno.remove(path).catch(() => {});
     return;
   }
-  await Deno.writeTextFile(
+  const { writeTextFileAtomic } = await import("../util/atomic.ts");
+  await writeTextFileAtomic(
     path,
     `# Codebase conventions for ${repo}\n\nHow this repository's code is actually structured and written. A pull request that departs from these observed conventions is worth flagging even without a matching review-bar rule.\n\n${body}\n`,
   );
@@ -320,7 +325,6 @@ export async function runInitOrRemake(options: Options): Promise<void> {
       ),
   );
   const reviewDocuments = buildReviewDocuments(facts);
-  await writeReviewDocuments(options.repo, reviewDocuments);
   result.markdown = addReviewLink(result.markdown, reviewDocuments);
   const validation = await timed(
     "validate skill",
@@ -360,8 +364,16 @@ export async function runInitOrRemake(options: Options): Promise<void> {
     "write skill and state",
     options.logTime,
     async () => {
-      await Deno.writeTextFile(path, result.markdown);
-      await writeCodebaseDocument(options.repo, result.markdown);
+      const { withKnowledgeLock } = await import("../review/guides.ts");
+      const { writeTextFileAtomic } = await import("../util/atomic.ts");
+      await withKnowledgeLock(options.repo, async () => {
+        await writeTextFileAtomic(path, result.markdown);
+        await writeCodebaseDocument(options.repo, result.markdown);
+        await writeReviewDocuments(options.repo, reviewDocuments);
+        const head = source.commits[0] as { sha?: string } | undefined;
+        const baseSha = head?.sha ? String(head.sha) : new Date().toISOString();
+        markKnowledgeBuilt(options.repo, baseSha);
+      });
       await writeState({
         version: 1,
         repo: options.repo,
@@ -507,10 +519,9 @@ export function buildSetupHandler(
         (phase, message) => jobLog("info", `[${phase}] ${message}`),
         () => runner(options),
       );
-      // The newest commit the fetch saw is the base the guide describes.
-      // Drift compares against it; without a real sha it can only fall
-      // back to a date range.
-      markKnowledgeBuilt(job.repo, await builtBaseSha(job.repo));
+      if (!getRepo(job.repo)?.knowledge_built_at) {
+        markKnowledgeBuilt(job.repo, await builtBaseSha(job.repo));
+      }
     },
   };
 }
@@ -521,7 +532,7 @@ export function buildSetupHandler(
 async function builtBaseSha(repo: string): Promise<string> {
   const state = await readState(repo);
   const head = state?.source.commits[0] as { sha?: string } | undefined;
-  return head?.sha ?? nowIso();
+  return head?.sha ? String(head.sha) : nowIso();
 }
 
 /** No `reconcile` hook: `run` is idempotent, so an orphan from a crash is
@@ -537,5 +548,10 @@ export function enqueueSetup(
   command: "init" | "remake",
   overrides: Partial<Options> = {},
 ): { id: string; debounced: boolean } {
-  return enqueue({ type: command, repo, args: overrides });
+  return enqueue({
+    type: command,
+    repo,
+    args: overrides,
+    queueKey: `setup:${repo}`,
+  });
 }

@@ -12,8 +12,20 @@ The helper accepts an argument but returns the same result without reading it.
 If you'd like me to explain it in more detail, please ask.
 `;
 
+function fakeReviewText(): string {
+  const path = Deno.env.get("CM_FAKE_REVIEW_FILE");
+  if (path) {
+    try {
+      return Deno.readTextFileSync(path);
+    } catch {
+      // fall through
+    }
+  }
+  return FAKE_REVIEW_MARKDOWN;
+}
+
 export class FakeAiProvider implements AiProvider {
-  constructor(private readonly text = FAKE_REVIEW_MARKDOWN) {}
+  constructor(private readonly text = fakeReviewText()) {}
 
   complete(_request: AiRequest): Promise<AiResponse> {
     return Promise.resolve({

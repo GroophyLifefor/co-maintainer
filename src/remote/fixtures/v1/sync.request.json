@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "afterLogSeq": 17,
+  "toolResults": [
+    { "callId": "c_01", "output": "ok" },
+    { "callId": "c_02", "error": "codegraph callers timed out after 60s" }
+  ]
+}

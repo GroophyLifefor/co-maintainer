@@ -72,6 +72,49 @@ Deno.test("PUT /api/settings rejects a PAT GitHub refused", async () => {
   });
 });
 
+Deno.test("PUT /api/settings rejects non-integer defaults", async () => {
+  await withTempEnv(async () => {
+    const response = await handleSettingsRoute(
+      new Request("http://localhost/api/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          defaults: { maxPrMonths: 1.5 },
+        }),
+      }),
+      new URL("http://localhost/api/settings"),
+      "http://localhost:5000/github/webhook",
+    );
+    if (response.status !== 422) {
+      throw new Error(`status ${response.status}: ${await response.text()}`);
+    }
+  });
+});
+
+Deno.test("PUT /api/settings merges non-int default keys", async () => {
+  await withTempEnv(async () => {
+    await writeUserConfig({ defaults: { maxCommits: 2, keepMe: true } as never });
+    const response = await handleSettingsRoute(
+      new Request("http://localhost/api/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          defaults: { maxCommits: 4, keepMe: true, added: "yes" },
+        }),
+      }),
+      new URL("http://localhost/api/settings"),
+      "http://localhost:5000/github/webhook",
+    );
+    if (response.status !== 200) {
+      throw new Error(`status ${response.status}: ${await response.text()}`);
+    }
+    const saved = readConfig().defaults as Record<string, unknown>;
+    if (saved.maxCommits !== 4 || saved.keepMe !== true || saved.added !== "yes") {
+      throw new Error(JSON.stringify(saved));
+    }
+  });
+});
+
 Deno.test("PUT /api/settings saves a public webhook URL", async () => {
   await withTempEnv(async () => {
     const response = await handleSettingsRoute(

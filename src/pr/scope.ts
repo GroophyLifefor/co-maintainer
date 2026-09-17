@@ -1,4 +1,11 @@
-import { ensureClone, ensureCommit, type Run, runCommand } from "./checkout.ts";
+import {
+  ensureCloneUnlocked,
+  ensureCommit,
+  type Run,
+  runCommand,
+  withCloneLock,
+} from "./checkout.ts";
+import { detectDefaultBranchRef } from "../git/default_branch.ts";
 import { log } from "../util/log.ts";
 
 /** What a pull request's author actually wrote this round, as opposed to code
@@ -28,29 +35,6 @@ function lines(output: string): string[] {
   return output.split("\n").map((line) => line.trim()).filter(Boolean);
 }
 
-async function detectDefaultBranch(
-  clone: string,
-  run: Run,
-): Promise<string | undefined> {
-  const symref = await run(
-    "git",
-    ["symbolic-ref", "-q", "refs/remotes/origin/HEAD"],
-    clone,
-  );
-  if (symref.code === 0 && symref.stdout.trim()) return symref.stdout.trim();
-  // A clone made without `origin/HEAD` set up (rare, but seen with some
-  // mirroring tools) falls back to probing the two conventional names.
-  for (const name of ["main", "master"]) {
-    const probe = await run(
-      "git",
-      ["rev-parse", "--verify", "-q", `refs/remotes/origin/${name}`],
-      clone,
-    );
-    if (probe.code === 0) return `refs/remotes/origin/${name}`;
-  }
-  return undefined;
-}
-
 /** The scope algorithm against a clone that is already on disk. Split out from
  * `computeScope` so a caller that already manages its own clone — the
  * benchmark's OCR runner has its own, separate from co-maintainer's — can run
@@ -60,6 +44,7 @@ export async function scopeInClone(
   base: string,
   head: string,
   run: Run = runCommand,
+  remote = "origin",
 ): Promise<ScopeResult | undefined> {
   let baseSha: string;
   let headSha: string;
@@ -70,7 +55,7 @@ export async function scopeInClone(
     log("scope", `unavailable · ${String(error)}`);
     return undefined;
   }
-  const defaultBranch = await detectDefaultBranch(clone, run);
+  const defaultBranch = await detectDefaultBranchRef(clone, remote, run);
   if (!defaultBranch) {
     log("scope", "unavailable · could not determine the default branch");
     return undefined;
@@ -141,12 +126,14 @@ export async function computeScope(
   options: { run?: Run } = {},
 ): Promise<ScopeResult | undefined> {
   const run = options.run ?? runCommand;
-  let clone: string;
-  try {
-    clone = await ensureClone(repo, run);
-  } catch (error) {
-    log("scope", `unavailable · ${String(error)}`);
-    return undefined;
-  }
-  return await scopeInClone(clone, base, head, run);
+  return withCloneLock(repo, async () => {
+    let clone: string;
+    try {
+      clone = await ensureCloneUnlocked(repo, run);
+    } catch (error) {
+      log("scope", `unavailable · ${String(error)}`);
+      return undefined;
+    }
+    return await scopeInClone(clone, base, head, run);
+  });
 }

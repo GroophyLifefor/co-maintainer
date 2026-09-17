@@ -1,11 +1,8 @@
 import { FakeAiProvider } from "../ai/fake.ts";
 import { completeWithMermaidTools } from "../ai/mermaid_loop.ts";
 import type { AiProvider, GitHubClient, Json } from "../types.ts";
-import {
-  MERMAID_GUIDANCE,
-  NO_DIAGRAM_RULES,
-  readGuide,
-} from "../pr/reviewer.ts";
+import { MERMAID_GUIDANCE, NO_DIAGRAM_RULES } from "../pr/reviewer.ts";
+import { loadGuides } from "../review/guides.ts";
 import {
   aiFor,
   clientFor,
@@ -61,7 +58,7 @@ async function replyContext(
   client: GitHubClient,
   request: ReplyRequestRow,
 ): Promise<string> {
-  const [pr, issueComments, reviewComments, reviews, files, guide, detailed] =
+  const [pr, issueComments, reviewComments, reviews, files, guides] =
     await Promise.all([
       client.request<Json>(
         `repos/${request.repo}/pulls/${request.pr_number}`,
@@ -84,9 +81,10 @@ async function replyContext(
           50,
         )
         : Promise.resolve([] as Json[]),
-      readGuide(request.repo, "PR_REVIEW_GUIDE.md"),
-      readGuide(request.repo, "PR_REVIEW_DETAILED_GUIDE.md"),
+      loadGuides(request.repo),
     ]);
+  const guide = guides.shortGuide;
+  const detailed = guides.detailed;
 
   const rootId = request.target_comment_id;
   const thread: Json[] = [];

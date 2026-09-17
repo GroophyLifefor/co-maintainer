@@ -15,9 +15,9 @@ export type Options = {
    * and neither a human reviewer nor this flag's absence asks anyone to read
    * it as if the PR authored it. */
   reviewUpstream?: boolean;
-  /** Off by default: verified to add tokens and wall-clock time with zero
-   * recall improvement on real PRs (a tokio benchmark run), so it is an
-   * explicit opt-in rather than something every review pays for. */
+  /** CLI review enables codegraph by default (`--disable-codegraph` to skip).
+   * Server jobs still follow per-repo settings. Indexing adds tokens and time;
+   * measured PR recall gains were small when this was opt-in only (K25). */
   useCodegraph?: boolean;
   improveMatrix: number;
   ghConcurrent: number;

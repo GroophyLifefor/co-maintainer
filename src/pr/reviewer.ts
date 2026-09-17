@@ -3,7 +3,8 @@ import {
   completeWithMermaidTools,
   type ToolHandler,
 } from "../ai/mermaid_loop.ts";
-import { reposDir } from "../config.ts";
+import { loadGuides } from "../review/guides.ts";
+import type { Revision } from "../review/revision.ts";
 import { computeScope } from "./scope.ts";
 import { prepareCodegraphTools } from "./codegraph_tools.ts";
 import {
@@ -25,6 +26,12 @@ import type {
 
 type UsageSink = (response: AiResponse) => Promise<void>;
 type ProgressSink = (message: string) => void;
+
+export type ReviewExtras = {
+  carryPrompt?: string;
+  unchangedPaths?: string[];
+  prepareCodegraphTools?: () => Promise<ToolHandler[]>;
+};
 
 const MAX_REVIEW_DIFF_CHARS = 240_000;
 export const MERMAID_GUIDANCE = `Mermaid selection and minimal syntax:
@@ -85,6 +92,21 @@ export function reviewSystemPrompt(diagrams: boolean): string {
 ${diagrams ? REVIEW_DIAGRAM_RULES : NO_DIAGRAM_RULES}`;
 }
 
+/** Shared PR and local/remote workspace review instructions: confirm claims
+ * against the indexed graph, not only the diff slice. */
+export const CODEGRAPH_DIFF_VERIFICATION =
+  `Examine the changes line by line, not just file by file — a single file can
+contain more than one independent defect, and a change that looks fine in
+isolation can be wrong once you trace what calls it or what else it affects.
+When a finding depends on behavior outside the changed lines, confirm it with
+codegraph-node, codegraph-callers, codegraph-callees, codegraph-impact, and
+codegraph-affected before reporting it. Drop or correct findings that only seem
+plausible from the diff but contradict unchanged callers, callees, or the same
+pattern elsewhere in the repo. Use those tools to check blast radius and whether
+a test reaches the path — do not guess coverage or impact from the diff alone
+when a tool can answer. A missing regression test is not a substitute for
+identifying the concrete input or code path that misbehaves when you can.`;
+
 function text(value: unknown, limit = 20_000): string {
   const result = String(value ?? "");
   return result.length > limit
@@ -136,10 +158,18 @@ export function clampImproveMatrix(matrix: number): number {
 }
 
 export async function readGuide(repo: string, name: string): Promise<string> {
-  try {
-    return await Deno.readTextFile(`${reposDir()}/${repo}/${name}`);
-  } catch {
-    return "";
+  const guides = await loadGuides(repo);
+  switch (name) {
+    case "PR_REVIEW_GUIDE.md":
+      return guides.shortGuide;
+    case "PR_REVIEW_DETAILED_GUIDE.md":
+      return guides.detailed;
+    case "CODEBASE.md":
+      return guides.codebase;
+    case "SKILL.md":
+      return guides.skill;
+    default:
+      return "";
   }
 }
 
@@ -152,23 +182,21 @@ export async function reviewPullRequest(
   snapshot?: Snapshot,
   ai?: AiProvider,
   progress?: ProgressSink,
-): Promise<AiResponse> {
+  extras?: ReviewExtras,
+): Promise<AiResponse & { visiblePaths: string[]; guideBuiltAt: string | null }> {
   if (!options.prNumber) throw new Error("review requires a PR number");
   const number = options.prNumber;
   const report = progress ?? (() => {});
   report(`loading PR context for ${options.repo}#${number}`);
-  const [pr, allComments, allReviews, shortGuide, detailed, codebase, skill] =
-    await Promise.all([
-      client.request<Json>(`repos/${options.repo}/pulls/${number}`),
-      client.pages<Json>(
-        `repos/${options.repo}/issues/${number}/comments`,
-      ),
-      client.pages<Json>(`repos/${options.repo}/pulls/${number}/reviews`),
-      readGuide(options.repo, "PR_REVIEW_GUIDE.md"),
-      readGuide(options.repo, "PR_REVIEW_DETAILED_GUIDE.md"),
-      readGuide(options.repo, "CODEBASE.md"),
-      readGuide(options.repo, "SKILL.md"),
-    ]);
+  const [pr, allComments, allReviews, guides] = await Promise.all([
+    client.request<Json>(`repos/${options.repo}/pulls/${number}`),
+    client.pages<Json>(
+      `repos/${options.repo}/issues/${number}/comments`,
+    ),
+    client.pages<Json>(`repos/${options.repo}/pulls/${number}/reviews`),
+    loadGuides(options.repo),
+  ]);
+  const { shortGuide, detailed, codebase, skill } = guides;
   report(
     `context loaded · comments=${allComments.length} · reviews=${allReviews.length} · ` +
       `guide=${
@@ -227,9 +255,10 @@ export async function reviewPullRequest(
     const value = file as Json;
     return { file: value, path: String(value.filename ?? "") };
   });
-  const ownFiles = scope
-    ? named.filter(({ path }) => !scope.upstreamFiles.has(path))
-    : named;
+  const unchanged = new Set(extras?.unchangedPaths ?? []);
+  const ownFiles =
+    (scope ? named.filter(({ path }) => !scope.upstreamFiles.has(path)) : named)
+      .filter(({ path }) => !unchanged.has(path));
   const upstreamFiles = scope
     ? named.filter(({ path }) => scope.upstreamFiles.has(path))
     : [];
@@ -303,18 +332,25 @@ export async function reviewPullRequest(
   const ownPatch = ownSections.join("\n\n");
   const diffWasTruncated = ownPatch.length > MAX_REVIEW_DIFF_CHARS;
   const ownDiff = text(ownPatch, MAX_REVIEW_DIFF_CHARS);
+  const unchangedListing = extras?.unchangedPaths?.length
+    ? `\nUNCHANGED SINCE LAST REVIEW (paths only — do not re-report findings here):\n${
+      extras.unchangedPaths.map((path) => `- ${path}`).join("\n")
+    }`
+    : "";
   const upstreamListing = upstreamFiles.map(({ file, path }) =>
     `- ${path} (+${Number(file.additions ?? 0)} -${
       Number(file.deletions ?? 0)
     })`
   ).join("\n");
-  const diff = upstreamFiles.length === 0 ? ownDiff : `${ownDiff}
+  const diff = upstreamFiles.length === 0
+    ? `${ownDiff}${unchangedListing}`
+    : `${ownDiff}
 
 UPSTREAM CONTEXT — arrived via a merge this round, not authored by this pull
 request. Do not raise a finding located only in this code; only note an
 interaction if the pull request's own change above relies on or conflicts with
 one of these files, and never mark that finding blocking:
-${upstreamListing}`;
+${upstreamListing}${unchangedListing}`;
 
   report(
     `diff prepared · ${ownPatch.length} chars${
@@ -326,6 +362,7 @@ ${upstreamListing}`;
     options.highModel ?? "openai/gpt-5.6-luna",
   );
   const diagrams = provider.supportsTools !== false;
+  const carryBlock = extras?.carryPrompt ? `${extras.carryPrompt}\n` : "";
   const prompt =
     `Review this pull request against the repository's review guide and
 codebase conventions. Find only actionable code-level violations supported by
@@ -346,16 +383,7 @@ When the DIFF section below has an UPSTREAM CONTEXT part, that code arrived
 through a merge and was not authored by this pull request; do not raise a
 finding located only there, and never mark blocking a finding whose only
 support is upstream context.
-Examine the pull request's own changes line by line, not just file by file —
-a single file can contain more than one independent defect, and a change that
-looks fine in isolation can be wrong once you trace what calls it or what
-other branch of the same construct now behaves differently. Use codegraph-node,
-codegraph-callers, codegraph-callees, codegraph-impact, and codegraph-affected
-to check who calls a changed symbol, what else it affects, and whether a test
-reaches it — do not guess coverage or blast radius from the diff alone when a
-tool can answer it. A missing regression test is not a substitute for
-identifying what the change actually gets wrong; state the concrete input or
-code path that misbehaves when you can.
+${CODEGRAPH_DIFF_VERIFICATION}
 Each finding must use this exact structure, keeping the default finding under
 120 words excluding an optional diagram and an optional suggestion:
 
@@ -427,7 +455,7 @@ ${
       })
     }
 
-DIFF:
+${carryBlock}DIFF:
 ${diff}`;
 
   const matrix = clampImproveMatrix(options.improveMatrix);
@@ -529,6 +557,7 @@ ${reviewText}`,
       );
     }
   }
+  const visiblePaths = ownFiles.map(({ path }) => path);
   return {
     ...response,
     text: `## Severity
@@ -539,5 +568,199 @@ ${reviewText}`,
 - P3 — Low: minor, non-blocking improvement or edge case.
 
 ${reviewText}`,
+    visiblePaths,
+    guideBuiltAt: guides.guideBuiltAt,
+  };
+}
+
+function revisionToGithubFiles(revision: Revision): Json[] {
+  return revision.files.map((file) => ({
+    filename: file.path,
+    status: file.status === "renamed" ? "renamed" : file.status,
+    previous_filename: file.previousPath,
+    additions: file.additions,
+    deletions: file.deletions,
+    changes: file.additions + file.deletions,
+    patch: file.patch,
+  }));
+}
+
+/** Local workspace review — same prompt loop as PR review without GitHub. */
+export async function reviewWorkspaceRevision(
+  revision: Revision,
+  options: Options,
+  headSha: string,
+  usage?: UsageSink,
+  ai?: AiProvider,
+  progress?: ProgressSink,
+  extras?: ReviewExtras,
+): Promise<
+  AiResponse & {
+    visiblePaths: string[];
+    guideBuiltAt: string | null;
+    codegraphState: "used" | "disabled" | "unavailable";
+  }
+> {
+  const report = progress ?? (() => {});
+  const guides = await loadGuides(options.repo);
+  const { shortGuide, detailed, codebase, skill } = guides;
+  const guide = shortGuide || skill;
+  if (!guide) {
+    throw new Error(
+      `repos/${options.repo}/PR_REVIEW_GUIDE.md was not found; run init first`,
+    );
+  }
+  const files = revisionToGithubFiles(revision);
+  const unchanged = new Set(extras?.unchangedPaths ?? []);
+  const ownFiles = files
+    .map((file) => ({
+      file,
+      path: String(file.filename ?? ""),
+    }))
+    .filter(({ path }) => !unchanged.has(path));
+  const patchByPath = new Map<string, string>();
+  const ownSections = await Promise.all(ownFiles.map(async ({ file, path }) => {
+    const changes = Number(file.changes ?? 0);
+    const patch = String(file.patch ?? "");
+    const lowProvider = needsSummary(changes, patch)
+      ? ai ?? new OpenRouterProvider(
+        options.aiToken ?? "",
+        options.lowModel ?? "openai/gpt-oss-120b",
+      )
+      : undefined;
+    if (!lowProvider) return `FILE: ${path}\n${filePatch(file)}`;
+    patchByPath.set(path, patch);
+    const description = await summarizeDiff(path, patch, lowProvider, usage);
+    return `FILE: ${path}\n[${changes} changed lines — summarized below]\n${description}`;
+  }));
+  const codegraphTools = options.useCodegraph
+    ? (extras?.prepareCodegraphTools
+      ? await extras.prepareCodegraphTools()
+      : await prepareCodegraphTools(options.repo, 0, headSha))
+    : [];
+  const extraTools: ToolHandler[] = [
+    ...codegraphTools,
+    ...(patchByPath.size > 0
+      ? [{
+        name: "read-full-diff",
+        tool: READ_FULL_DIFF_TOOL,
+        run: (args: unknown) => readFullDiff(patchByPath, args),
+      }]
+      : []),
+  ];
+  const totalDiffLines = ownFiles.reduce(
+    (sum, { file }) => sum + Number(file.changes ?? 0),
+    0,
+  );
+  const maxToolRounds = clampToolRounds(totalDiffLines);
+  const ownDiff = text(ownSections.join("\n\n"), MAX_REVIEW_DIFF_CHARS);
+  const unchangedListing = extras?.unchangedPaths?.length
+    ? `\nUNCHANGED SINCE LAST REVIEW (paths only):\n${
+      extras.unchangedPaths.map((path) => `- ${path}`).join("\n")
+    }`
+    : "";
+  const carryBlock = extras?.carryPrompt ? `${extras.carryPrompt}\n` : "";
+  const provider = ai ?? new OpenRouterProvider(
+    options.aiToken ?? "",
+    options.highModel ?? "openai/gpt-5.6-luna",
+  );
+  const diagrams = provider.supportsTools !== false;
+  const prompt =
+    `Review these local changes against the repository's review guide and
+codebase conventions. Find only actionable code-level violations supported by
+the diff and either the guide or the codebase conventions.
+Return concise Markdown with either "## Findings" and findings, or
+"## Findings\\n\\nNo actionable findings."
+Do not invent low-value findings. If the diff contains a truncation marker or a
+file is summarized, limit claims to the supplied text and use read-full-diff or
+codegraph tools before asserting behavior outside what was shown.
+${CODEGRAPH_DIFF_VERIFICATION}
+${diagrams ? DIAGRAM_PROMPT_RULES : NO_DIAGRAM_RULES}
+
+REVIEW GUIDE:
+${guide}
+
+DETAILED GUIDE:
+${detailed}
+
+CODEBASE CONVENTIONS:
+${codebase || "None recorded."}
+
+WORKSPACE:
+${JSON.stringify({
+      branch: revision.baseLabel,
+      changedFiles: ownFiles.map(({ path }) => path),
+    })}
+
+${carryBlock}DIFF:
+${ownDiff}${unchangedListing}`;
+
+  const matrix = clampImproveMatrix(options.improveMatrix);
+  const request: AiRequest = {
+    job: "review_local",
+    system: reviewSystemPrompt(diagrams),
+    prompt,
+    maxTokens: 24_000 * matrix,
+    reasoningEffort: "high",
+  };
+  report(`AI request · prompt=${prompt.length} chars`);
+  let response = await completeWithMermaidTools(
+    provider,
+    request,
+    1,
+    extraTools,
+    maxToolRounds,
+  );
+  if (usage) await usage(response);
+  if (!response.text.trim()) {
+    throw new Error("OpenRouter returned an empty review");
+  }
+  let reviewText = response.text.trim();
+  for (let pass = 2; pass <= matrix; pass++) {
+    const improvementRequest: AiRequest = {
+      ...request,
+      job: "improve_review",
+      prompt:
+        `Audit the draft review below against the complete diff and guides.
+Preserve valid findings, correct inaccurate ones, remove duplicate or
+unsupported ones, and add every missing actionable finding. Re-check each
+finding with codegraph when it depends on behavior outside the diff; remove
+findings that only looked plausible from the diff slice.
+Return only the complete revised review in the same format.
+
+ORIGINAL REVIEW CONTEXT:
+${prompt}
+
+DRAFT REVIEW:
+${reviewText}`,
+    };
+    response = await completeWithMermaidTools(
+      provider,
+      improvementRequest,
+      1,
+      extraTools,
+      maxToolRounds,
+    );
+    if (usage) await usage(response);
+    reviewText = response.text.trim();
+  }
+  const codegraphState = !options.useCodegraph
+    ? "disabled"
+    : codegraphTools.length > 0
+    ? "used"
+    : "unavailable";
+  return {
+    ...response,
+    text: `## Severity
+
+- P0 — Critical: production outage, data loss, or security issue.
+- P1 — High: major behavior is broken and should be fixed before merge.
+- P2 — Medium: important correctness or maintainability issue.
+- P3 — Low: minor, non-blocking improvement or edge case.
+
+${reviewText}`,
+    visiblePaths: ownFiles.map(({ path }) => path),
+    guideBuiltAt: guides.guideBuiltAt,
+    codegraphState,
   };
 }

@@ -17,11 +17,24 @@ const commands = ["probe", "init", "remake", "review"] as const;
 export const defaultLowModel = "openai/gpt-oss-120b";
 const defaultHighModel = "openai/gpt-5.6-luna";
 
+let cliInteractive = true;
+
+/** Plan §8.7 — `--json` must not prompt. */
+export function setCliInteractive(value: boolean): void {
+  cliInteractive = value;
+}
+
 function ask(
   label: string,
   fallback?: string,
   required = false,
 ): string {
+  if (!cliInteractive) {
+    if (fallback !== undefined && fallback !== "") return fallback;
+    die(
+      `Missing ${label}; pass it as a CLI option when running without an interactive terminal`,
+    );
+  }
   if (!Deno.stdin.isTerminal()) {
     die(
       `Missing ${label}; pass it as a CLI option when running without an interactive terminal`,
@@ -47,6 +60,7 @@ export function parseArgs(args: string[]): Options {
     console.log(
       "Usage: co-maintainer <probe|init|remake|review> owner/repo [options]",
     );
+    console.log("       co-maintainer review [options]");
     console.log("       co-maintainer review owner/repo PR_NUMBER [options]");
     console.log(
       "       co-maintainer set --token=... --ai=... --low-model=... --high-model=... --auth=...",
@@ -96,11 +110,11 @@ export function parseArgs(args: string[]): Options {
 
   let prNumber: number | undefined;
   if (command === "review") {
-    const rawNumber = rest.shift();
-    if (!rawNumber || !/^\d+$/.test(rawNumber)) {
-      die("review requires a numeric PR number");
+    const rawNumber = rest[0];
+    if (rawNumber && /^\d+$/.test(rawNumber)) {
+      rest.shift();
+      prNumber = Number(rawNumber);
     }
-    prNumber = Number(rawNumber);
   }
 
   const includeNames = [
@@ -167,9 +181,10 @@ export function parseArgs(args: string[]): Options {
         "high-model",
       ]
         .some((name) => arg.startsWith(`--${name}=`));
+    if (arg === "--codegraph") die("Unknown option: --codegraph");
     if (
       arg === "--debug" || arg === "--log-time" ||
-      arg === "--review-upstream" || arg === "--codegraph"
+      arg === "--review-upstream" || arg === "--disable-codegraph"
     ) continue;
     if (arg.startsWith("--") && !known) die(`Unknown option: ${arg}`);
   }
@@ -270,7 +285,9 @@ export function parseArgs(args: string[]): Options {
     debug: rest.includes("--debug"),
     logTime: rest.includes("--log-time"),
     reviewUpstream: rest.includes("--review-upstream"),
-    useCodegraph: rest.includes("--codegraph"),
+    useCodegraph: command === "review"
+      ? !rest.includes("--disable-codegraph")
+      : false,
     envPath,
     improveMatrix: value("improve-matrix") ?? 1,
     ghConcurrent: Math.max(1, value("gh-concurrent") ?? 1),

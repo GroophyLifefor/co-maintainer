@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "minClientSchema": 1,
+  "serverVersion": "0.3.0",
+  "token": { "name": "ayse" },
+  "repo": {
+    "fullName": "Owner/Repo",
+    "defaultBranch": "main",
+    "guideBuiltAt": "2026-09-15T10:00:00Z"
+  },
+  "sync": { "intervalSeconds": 3, "timeoutSeconds": 10 },
+  "limits": { "maxBodyBytes": 52428800, "toolOutputMaxChars": null }
+}

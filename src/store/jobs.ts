@@ -32,7 +32,8 @@ export function insertJob(row: {
 export function setJobStatus(
   id: string,
   status: JobRow["status"],
-  patch: Partial<Pick<JobRow, "error" | "superseded_by">> = {},
+  patch: Partial<Pick<JobRow, "error" | "superseded_by" | "cancel_reason">> =
+    {},
 ): void {
   const startedAt = status === "running" ? nowIso() : undefined;
   const finishedAt = ["done", "failed", "canceled"].includes(status)
@@ -43,7 +44,8 @@ export function setJobStatus(
        started_at = COALESCE(?, started_at),
        finished_at = COALESCE(?, finished_at),
        error = COALESCE(?, error),
-       superseded_by = COALESCE(?, superseded_by)
+       superseded_by = COALESCE(?, superseded_by),
+       cancel_reason = COALESCE(?, cancel_reason)
      WHERE id = ?`,
   ).run(
     status,
@@ -51,6 +53,7 @@ export function setJobStatus(
     finishedAt ?? null,
     patch.error ?? null,
     patch.superseded_by ?? null,
+    patch.cancel_reason ?? null,
     id,
   );
 }
@@ -95,6 +98,24 @@ export function getQueuedJobByKey(queueKey: string): JobRow | undefined {
   return getAppDb().prepare<JobRow>(
     `SELECT * FROM jobs WHERE queue_key = ? AND status = 'queued'`,
   ).get(queueKey);
+}
+
+export function getRunningJobByKey(queueKey: string): JobRow | undefined {
+  return getAppDb().prepare<JobRow>(
+    `SELECT * FROM jobs WHERE queue_key = ? AND status = 'running' LIMIT 1`,
+  ).get(queueKey);
+}
+
+export function listJobsByQueueKey(
+  queueKey: string,
+  statuses: string[],
+): JobRow[] {
+  if (statuses.length === 0) return [];
+  const placeholders = statuses.map(() => "?").join(", ");
+  return getAppDb().prepare<JobRow>(
+    `SELECT * FROM jobs WHERE queue_key = ? AND status IN (${placeholders})
+     ORDER BY created_at ASC`,
+  ).all(queueKey, ...statuses);
 }
 
 export function getOldestQueuedJob(): JobRow | undefined {

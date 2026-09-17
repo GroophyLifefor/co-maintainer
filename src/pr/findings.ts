@@ -75,10 +75,14 @@ function newFinding(
 }
 
 export function parseFindings(markdown: string): ParsedFinding[] {
-  const findingsHeading = markdown.search(/^## Findings\b/m);
-  const body = findingsHeading === -1
+  const previousHeading = markdown.search(/^## Previous findings\b/im);
+  const withoutVerdicts = previousHeading === -1
     ? markdown
-    : markdown.slice(findingsHeading);
+    : markdown.slice(0, previousHeading);
+  const findingsHeading = withoutVerdicts.search(/^## Findings\b/m);
+  const body = findingsHeading === -1
+    ? withoutVerdicts
+    : withoutVerdicts.slice(findingsHeading);
   if (/No actionable findings/i.test(body)) return [];
 
   const findings: ParsedFinding[] = [];
