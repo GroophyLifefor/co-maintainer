@@ -5,6 +5,7 @@ import {
 } from "./schema.ts";
 import {
   validateHandshakeRequest,
+  validateRemotePath,
   validateSubmitRequest,
   validateSyncRequest,
   validateSyncResponseStatus,
@@ -86,5 +87,43 @@ Deno.test("validateSubmitRequest rejects duplicate paths", () => {
   const err = validateSubmitRequest(body);
   if (!err?.includes("duplicate")) {
     throw new Error(`expected duplicate path error, got ${err}`);
+  }
+});
+
+Deno.test("validateRemotePath rejects absolute and escaping paths", () => {
+  for (const path of [
+    "../etc/passwd",
+    "/etc/passwd",
+    "C:/Windows/System32",
+    "src/../outside.ts",
+  ]) {
+    const err = validateRemotePath("revision.files[0].path", path);
+    if (!err) throw new Error(`expected reject for ${path}`);
+  }
+  if (validateRemotePath("revision.files[0].path", "src/foo.ts")) {
+    throw new Error("expected relative path to pass");
+  }
+});
+
+Deno.test("validateSubmitRequest rejects non-string branch", () => {
+  const base = {
+    schemaVersion: 1,
+    requestId: "550e8400-e29b-41d4-a716-446655440000",
+    repo: "o/r",
+    revision: {
+      files: [{
+        path: "a.ts",
+        previousPath: null,
+        status: "modified",
+        binary: false,
+        additions: 1,
+        deletions: 0,
+        patch: "x",
+      }],
+    },
+  };
+  const err = validateSubmitRequest({ ...base, branch: 123 });
+  if (!err?.includes("branch")) {
+    throw new Error(`expected branch error, got ${err}`);
   }
 });

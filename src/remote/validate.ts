@@ -62,6 +62,16 @@ export function validateRemotePath(field: string, path: string): string | null {
   if (!path) return bad(field, "must not be empty");
   if (path.includes("\\")) return bad(field, "must use forward slashes");
   if (/[\0]/.test(path)) return bad(field, "invalid characters");
+  const norm = path.replace(/\\/g, "/");
+  if (
+    norm.startsWith("/") ||
+    norm.startsWith("//") ||
+    /^[A-Za-z]:\//.test(norm) ||
+    /^[A-Za-z]:$/.test(norm) ||
+    norm.split("/").includes("..")
+  ) {
+    return bad(field, "must stay inside the repository");
+  }
   const escape = rejectEscapingPath(path);
   if (escape) return bad(field, escape.replace(/^Tool error: /, ""));
   return null;
@@ -158,7 +168,10 @@ export function validateSubmitRequest(body: unknown): string | null {
   if (typeof body.repo !== "string" || !body.repo) {
     return bad("repo", "required");
   }
-  const branchErr = validateBranch("branch", String(body.branch ?? ""));
+  if (typeof body.branch !== "string") {
+    return bad("branch", "must be a string");
+  }
+  const branchErr = validateBranch("branch", body.branch);
   if (branchErr) return branchErr;
   if (body.toBranch !== undefined && typeof body.toBranch !== "string") {
     return bad("toBranch", "must be a string");
