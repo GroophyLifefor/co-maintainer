@@ -81,9 +81,7 @@ await Deno.writeTextFile(`${worktree}/app.ts`, "export const v = 2;\n");
 await git(worktree, ["add", "app.ts"]);
 await git(worktree, ["commit", "-m", "change"]);
 
-await Deno.writeTextFile(
-  fakeFile,
-  `## Findings
+const twoFindingsMarkdown = `## Findings
 
 ### [P2 · non-blocking] \`app.ts\` — \`v\`
 Location: \`app.ts:1\`
@@ -94,8 +92,8 @@ First issue.
 Location: \`app.ts:1\`
 
 Second issue.
-`,
-);
+`;
+await Deno.writeTextFile(fakeFile, twoFindingsMarkdown);
 
 const baseEnv = {
   CM_CONFIG_PATH: configPath,
@@ -121,6 +119,37 @@ try {
   if (!findings || findings.length < 2) {
     throw new Error(`round1 expected 2 findings, got ${findings?.length}`);
   }
+
+  await Deno.writeTextFile(
+    fakeFile,
+    `## Previous findings
+
+- F1: closed
+- F2: open
+
+## Findings
+
+No new issues.
+`,
+  );
+  const roundCarry = await reviewJson(worktree, baseEnv, [
+    `--repo=${REPO}`,
+    "--disable-codegraph",
+    "--token=fake",
+    "--high-model=fake/model",
+  ]);
+  if (roundCarry.ok !== true) {
+    throw new Error(`round carry: ${JSON.stringify(roundCarry)}`);
+  }
+  const carryFindings = roundCarry.findings as Array<{ state: string }> | undefined;
+  if (!carryFindings || carryFindings.length < 2) {
+    throw new Error(`carry findings: ${carryFindings?.length}`);
+  }
+  if (!carryFindings.some((row) => row.state === "closed")) {
+    throw new Error(`carry states: ${JSON.stringify(carryFindings)}`);
+  }
+
+  await Deno.writeTextFile(fakeFile, twoFindingsMarkdown);
 
   const round2 = await reviewJson(worktree, baseEnv, [
     `--repo=${REPO}`,
