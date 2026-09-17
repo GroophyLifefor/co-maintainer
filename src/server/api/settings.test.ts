@@ -72,6 +72,25 @@ Deno.test("PUT /api/settings rejects a PAT GitHub refused", async () => {
   });
 });
 
+Deno.test("PUT /api/settings rejects non-integer defaults", async () => {
+  await withTempEnv(async () => {
+    const response = await handleSettingsRoute(
+      new Request("http://localhost/api/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          defaults: { maxPrMonths: 1.5 },
+        }),
+      }),
+      new URL("http://localhost/api/settings"),
+      "http://localhost:5000/github/webhook",
+    );
+    if (response.status !== 422) {
+      throw new Error(`status ${response.status}: ${await response.text()}`);
+    }
+  });
+});
+
 Deno.test("PUT /api/settings saves a public webhook URL", async () => {
   await withTempEnv(async () => {
     const response = await handleSettingsRoute(

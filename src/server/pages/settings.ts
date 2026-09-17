@@ -254,15 +254,36 @@ document.getElementById("save-server").addEventListener("click", function() {
   save(this, { maxConcurrentJobs: n });
 });
 document.getElementById("save-def").addEventListener("click", function() {
-  var num = function(id) {
+  var card = this.closest("[data-async]");
+  var positiveInt = function(id, label) {
     var v = document.getElementById(id).value.trim();
-    return v === "" ? null : Number(v);
+    if (v === "") return { ok: true, value: null };
+    var n = Number(v);
+    if (!Number.isInteger(n) || n <= 0) {
+      return { ok: false, message: label + " must be a positive whole number, or blank." };
+    }
+    return { ok: true, value: n };
   };
+  var months = positiveInt("def-months", "Max PR age (months)");
+  if (!months.ok) {
+    fail(card, months.message, function () {});
+    return;
+  }
+  var commits = positiveInt("def-commits", "Max commits");
+  if (!commits.ok) {
+    fail(card, commits.message, function () {});
+    return;
+  }
+  var lines = positiveInt("def-lines", "Max changed lines");
+  if (!lines.ok) {
+    fail(card, lines.message, function () {});
+    return;
+  }
   save(this, {
     defaults: {
-      maxPrMonths: num("def-months"),
-      maxCommits: num("def-commits"),
-      maxPullRequestChangeLines: num("def-lines")
+      maxPrMonths: months.value,
+      maxCommits: commits.value,
+      maxPullRequestChangeLines: lines.value
     }
   });
 });

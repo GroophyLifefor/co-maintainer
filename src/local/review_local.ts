@@ -84,9 +84,36 @@ function fail(error: ReviewCliError, json: boolean): never {
   Deno.exit(error.exitCode);
 }
 
+function installInterruptCleanup(
+  getRelease: () => (() => Promise<void>) | null,
+): () => void {
+  const onSignal = () => {
+    void getRelease()?.();
+    Deno.exit(130);
+  };
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    try {
+      Deno.addSignalListener(signal, onSignal);
+    } catch {
+      // unavailable on some platforms
+    }
+  }
+  return () => {
+    for (const signal of ["SIGINT", "SIGTERM"] as const) {
+      try {
+        Deno.removeSignalListener(signal, onSignal);
+      } catch {
+        // ignore
+      }
+    }
+  };
+}
+
 export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Promise<void> {
   const json = cli.json;
   setCliInteractive(!json);
+  let releaseLock: (() => Promise<void>) | null = null;
+  const clearInterrupt = installInterruptCleanup(() => releaseLock);
   await withCliLogsToStderr(async () => {
   try {
     const cwd = Deno.cwd();
@@ -173,7 +200,7 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
 
     const sha = await headSha(root);
     const revisionHashBefore = await revisionHash(revision);
-    const releaseLock = await acquireLocalReviewLock(root);
+    releaseLock = await acquireLocalReviewLock(root);
     const codegraphPrep = await prepareLocalCodegraph({
       gitRoot: root,
       enabled: options.useCodegraph === true,
@@ -205,7 +232,8 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
         )
       );
     } finally {
-      await releaseLock();
+      await releaseLock?.();
+      releaseLock = null;
     }
     stopHeartbeat();
     const codegraphState = codegraphPrep.state;
@@ -304,6 +332,8 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
   } catch (error) {
     if (error instanceof ReviewCliError) fail(error, json);
     throw error;
+  } finally {
+    clearInterrupt();
   }
   });
 }

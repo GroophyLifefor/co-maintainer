@@ -102,14 +102,30 @@ export async function handleSettingsRoute(
     }
     if (body.defaults && typeof body.defaults === "object") {
       const defaults = body.defaults as Record<string, unknown>;
-      patch.defaults = {
-        ...current.defaults,
-        ...Object.fromEntries(
-          Object.entries(defaults).filter(([, value]) =>
-            value !== "" && value !== null && value !== undefined
-          ),
-        ),
-      };
+      const next = { ...current.defaults };
+      const intKeys = [
+        "maxPrMonths",
+        "maxCommits",
+        "maxPullRequestChangeLines",
+      ] as const;
+      for (const key of intKeys) {
+        if (!(key in defaults)) continue;
+        const raw = defaults[key];
+        if (raw === null || raw === "") {
+          delete next[key];
+          continue;
+        }
+        if (typeof raw === "number" && Number.isInteger(raw) && raw > 0) {
+          next[key] = raw;
+          continue;
+        }
+        return errorResponse(
+          422,
+          "invalid_setting",
+          `${key} must be a positive integer or null`,
+        );
+      }
+      patch.defaults = next;
     }
     const merged = { ...current, ...patch };
     if (merged.passwordAuthDisabled && !merged.githubAuthEnabled) {
