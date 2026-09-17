@@ -386,7 +386,7 @@ body.layout-home {
 .home-kicker,
 .eyebrow {
   color: var(--text-secondary);
-  font: 600 12px/1.4 var(--mono);
+  font: 650 11px/1.4 var(--font);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -476,108 +476,116 @@ body.layout-home {
 .product-stage {
   padding-bottom: 140px;
 }
-.product-window {
+.knowledge-board {
+  margin: 0 auto;
   overflow: hidden;
-  border: 1px solid #20242a;
-  border-radius: 18px;
-  background: #0d0f12;
-  color: #e8e9eb;
-  box-shadow: 0 40px 100px rgba(17, 24, 39, 0.16),
-    0 2px 8px rgba(17, 24, 39, 0.08);
+  border-block: 1px solid #dfe2e6;
 }
-.window-bar {
-  position: relative;
-  height: 48px;
+.knowledge-head {
+  min-height: 150px;
   display: flex;
   align-items: center;
-  gap: 7px;
-  margin: 0 auto;
-  padding: 0 18px;
-  border-bottom: 1px solid #24282f;
+  gap: 32px;
+  padding: 34px 0;
+  border-bottom: 1px solid #e8eaed;
 }
-.window-bar > span {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #383e47;
+.knowledge-head > div {
+  margin-right: auto;
 }
-.window-bar > div {
-  position: absolute;
-  inset-inline: 100px;
-  text-align: center;
-  color: #707782;
-  font: 11px var(--mono);
+.knowledge-head span,
+.knowledge-flow h3,
+.knowledge-uses > span {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .07em;
+  text-transform: uppercase;
 }
-.product-body {
-  min-height: 440px;
-  display: grid;
-  grid-template-columns: 230px 1fr;
+.knowledge-head h2 {
+  margin: 10px 0 0;
+  color: var(--text);
+  font-size: clamp(1.6rem, 3vw, 2.5rem);
+  font-weight: 620;
+  letter-spacing: -.04em;
 }
-.product-nav {
-  padding: 32px 22px;
-  border-right: 1px solid #24282f;
-  background: #101216;
-}
-.product-nav-title {
-  margin-bottom: 30px;
-  color: #f1f2f3;
-  font: 600 12px var(--mono);
-}
-.product-nav-item {
-  display: flex;
-  gap: 13px;
-  margin: 18px 0;
-  color: #abb1ba;
+.knowledge-head a {
+  color: var(--text-secondary);
   font-size: 13px;
 }
-.product-nav-item span {
-  color: #5d6570;
-  font-family: var(--mono);
+.knowledge-flow {
+  display: grid;
+  grid-template-columns: 1fr 80px 1fr;
+  min-height: 390px;
 }
-.product-nav-item.active::after {
-  content: "";
-  width: 5px;
-  height: 5px;
-  margin: 8px 0 0 auto;
-  border-radius: 50%;
-  background: #51d88a;
-  box-shadow: 0 0 12px rgba(81, 216, 138, 0.65);
+.knowledge-sources,
+.knowledge-guides {
+  padding: 46px 0;
 }
-.terminal {
+.knowledge-flow h3 {
+  margin: 0 0 30px;
+}
+.knowledge-sources > div,
+.knowledge-guides > div {
+  min-height: 76px;
+  padding: 16px 0;
+  border-top: 1px solid #eceef0;
+}
+.knowledge-sources strong,
+.knowledge-guides span {
+  font-size: 15px;
+  font-weight: 600;
+}
+.knowledge-sources p {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.knowledge-guides > div {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 21px;
-  padding: clamp(32px, 7vw, 76px);
-  overflow: hidden;
-  color: #e4e7eb;
-  font: 13px/1.7 var(--mono);
+  align-items: center;
+  gap: 20px;
 }
-.terminal > div {
-  min-width: max-content;
+.knowledge-guides code {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: 12px;
 }
-.term-cmd {
-  color: #74b5ff;
+.knowledge-divider {
+  position: relative;
 }
-.term-dim,
-.term-output {
-  color: #777f8b;
+.knowledge-divider::before {
+  content: "";
+  position: absolute;
+  top: 46px;
+  bottom: 46px;
+  left: 50%;
+  border-left: 1px solid #dfe2e6;
 }
-.term-output {
-  margin: -11px 0 0 18px;
+.knowledge-divider span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 11px;
+  height: 11px;
+  border: solid #8f969e;
+  border-width: 1px 1px 0 0;
+  background: #fff;
+  transform: translate(-65%, -50%) rotate(45deg);
 }
-.term-ok {
-  color: #51d88a;
+.knowledge-uses {
+  min-height: 74px;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 18px 0;
+  border-top: 1px solid #e8eaed;
 }
-.term-cursor {
-  width: 7px;
-  height: 15px;
-  margin-top: -15px;
-  background: #c6cbd2;
-  animation: cursor-blink 1.1s steps(2, jump-none) infinite;
+.knowledge-uses > span {
+  margin-right: auto;
 }
-@keyframes cursor-blink {
-  50% { opacity: 0; }
+.knowledge-uses a {
+  color: var(--text);
+  font-size: 13px;
 }
 .how,
 .run-section {
@@ -624,7 +632,7 @@ body.layout-home {
 .run-number {
   padding-top: 3px;
   color: var(--text-tertiary);
-  font: 12px var(--mono);
+  font: 600 11px var(--font);
 }
 .steps li div > code {
   color: var(--text);
@@ -746,20 +754,12 @@ body.layout-home {
   @keyframes home-enter {
     from { opacity: 0; transform: translateY(14px); }
   }
-  @supports (animation-timeline: view()) {
-    .product-window,
-    .section-intro,
-    .steps,
-    .run-grid,
-    .self-hosted,
-    .final-cta {
-      animation: section-reveal linear both;
-      animation-timeline: view();
-      animation-range: entry 0% entry 35%;
-    }
-    @keyframes section-reveal {
-      from { opacity: 0; transform: translateY(28px); }
-    }
+  .knowledge-divider span {
+    animation: knowledge-mark 3.2s ease-in-out infinite;
+  }
+  @keyframes knowledge-mark {
+    0%, 100% { opacity: .45; }
+    50% { opacity: 1; }
   }
 }
 
@@ -800,12 +800,6 @@ body.layout-home {
     min-height: 600px;
     padding-top: 100px;
   }
-  .product-body {
-    grid-template-columns: 1fr;
-  }
-  .product-nav {
-    display: none;
-  }
   .product-stage,
   .how,
   .run-section {
@@ -832,6 +826,25 @@ body.layout-home {
     grid-template-columns: 1fr;
     margin-bottom: 100px;
   }
+  .knowledge-flow {
+    grid-template-columns: 1fr;
+  }
+  .knowledge-divider {
+    height: 55px;
+  }
+  .knowledge-divider::before {
+    top: 0;
+    bottom: 0;
+  }
+  .knowledge-divider span {
+    transform: translate(-50%, -65%) rotate(135deg);
+  }
+  .knowledge-sources {
+    padding-bottom: 0;
+  }
+  .knowledge-guides {
+    padding-top: 0;
+  }
 }
 @media (max-width: 600px) {
   .site-header-inner {
@@ -849,11 +862,23 @@ body.layout-home {
   .home-hero h1 {
     font-size: clamp(2.7rem, 13vw, 4.2rem);
   }
-  .terminal {
-    min-height: 380px;
-    padding: 30px 22px;
-    font-size: 11px;
-    overflow-x: auto;
+  .knowledge-head,
+  .knowledge-uses {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .knowledge-head {
+    padding-block: 28px;
+  }
+  .knowledge-head a {
+    margin-top: 4px;
+  }
+  .knowledge-uses {
+    padding-block: 24px;
+  }
+  .knowledge-uses > span {
+    margin: 0 0 8px;
   }
   .steps li {
     grid-template-columns: 42px 1fr;

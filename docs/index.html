@@ -41,41 +41,59 @@
       </div>
     </section>
 
-    <section class="product-stage home-section" aria-label="co-maintainer workflow">
-      <div class="product-window">
-        <div class="window-bar">
-          <span></span><span></span><span></span>
-          <div>co-maintainer</div>
-        </div>
-        <div class="product-body">
-          <div class="product-nav">
-            <div class="product-nav-title">ACME / API</div>
-            <div class="product-nav-item active"><span>01</span> Probe</div>
-            <div class="product-nav-item active"><span>02</span> Build context</div>
-            <div class="product-nav-item active"><span>03</span> Review</div>
+    <section class="product-stage home-section" aria-label="Repository knowledge">
+      <div class="knowledge-board">
+        <header class="knowledge-head">
+          <div>
+            <span>Repository knowledge</span>
+            <h2>Built once. Available at review time.</h2>
           </div>
-          <div class="terminal">
-            <div><span class="term-dim">$</span> <b>co-maintainer</b> <span class="term-cmd">probe</span> owner/repo</div>
-            <div class="term-output">recommended<br/>
-              $ co-maintainer init owner/repo --max-commits=150 </div>
-            <div><span class="term-dim">$</span> <b>co-maintainer</b> <span class="term-cmd">init</span> owner/repo --max-commits=150</div>
-            <div class="term-output">
-              <span class="term-ok">✓</span> CODEBASE.md<br>
-              <span class="term-ok">✓</span> PR_REVIEW_GUIDE.md<br>
-              <span class="term-ok">✓</span> SKILL.md
+          <a href="dashboard.html">Open the dashboard guide →</a>
+        </header>
+
+        <div class="knowledge-flow">
+          <section class="knowledge-sources">
+            <h3>Reads from the repository</h3>
+            <div>
+              <strong>Codebase</strong>
+              <p>Current source, structure, and workflows</p>
             </div>
-            <div><span class="term-dim">$</span> <b>co-maintainer</b> <span class="term-cmd">review</span></div>
-            <div class="term-output">
-              [P1 · blocking] `src/util/redact.ts` — `PATTERNS`<br/><br/>
-              Removing the OpenRouter-key pattern causes `redact` to leave <br/>
-              matching `sk-or-...` credentials unredacted, allowing them to <br/>
-              propagate wherever this pattern list is used for sensitive-value <br/>
-              sanitization.<br/><br/>
-              The deleted pattern explicitly matched `/sk-or-[A-Za-z0-9-]{10,}/g`. <br/>
-              after this change, the remaining patterns do not cover that credential format.<br/><br/>
-              If you'd like me to explain it in more detail, please ask.<br/>
-            </div><div class="term-cursor" aria-hidden="true"></div>
+            <div>
+              <strong>Pull requests</strong>
+              <p>Decisions, diffs, and review discussions</p>
+            </div>
+            <div>
+              <strong>Commit history</strong>
+              <p>How the default branch changed over time</p>
+            </div>
+          </section>
+
+          <div class="knowledge-divider" aria-hidden="true">
+            <span></span>
           </div>
+
+          <section class="knowledge-guides">
+            <h3>Writes repository-specific guides</h3>
+            <div>
+              <span>Contribution guidance</span>
+              <code>SKILL.md</code>
+            </div>
+            <div>
+              <span>Architecture and behavior</span>
+              <code>CODEBASE.md</code>
+            </div>
+            <div>
+              <span>Review decisions</span>
+              <code>PR_REVIEW_GUIDE.md</code>
+            </div>
+          </section>
+        </div>
+
+        <div class="knowledge-uses">
+          <span>Used by every review</span>
+          <a href="local-review.html">Local changes</a>
+          <a href="local-pr-review.html">GitHub pull requests</a>
+          <a href="remote-review.html">Shared server context</a>
         </div>
       </div>
     </section>
