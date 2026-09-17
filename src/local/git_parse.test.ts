@@ -2,6 +2,7 @@ import {
   normalizeGithubRemote,
   parseNameStatusZ,
   parseNumstatZ,
+  pathsMissingPatches,
 } from "./git_parse.ts";
 
 const cases: [string, string | "unsupported"][] = [
@@ -38,6 +39,15 @@ Deno.test("parseNameStatusZ: added modified renamed", () => {
     entries[2].previousPath !== "src/a.ts"
   ) {
     throw new Error(JSON.stringify(entries));
+  }
+});
+
+Deno.test("pathsMissingPatches: flags absent or empty bulk patches", () => {
+  const statuses = parseNameStatusZ("M\0src/a.ts\0D\0gone.ts\0");
+  const patches = new Map([["src/a.ts", ""]]);
+  const missing = pathsMissingPatches(statuses, patches);
+  if (missing.length !== 1 || missing[0] !== "src/a.ts") {
+    throw new Error(JSON.stringify(missing));
   }
 });
 

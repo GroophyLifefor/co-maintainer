@@ -106,6 +106,17 @@ export function parseNumstatZ(raw: string): Map<string, NumstatEntry> {
   return map;
 }
 
+/** Paths from name-status that have no entry in a bulk unified diff (plan §10.7). */
+export function pathsMissingPatches(
+  statuses: NameStatusEntry[],
+  patches: Map<string, string>,
+): string[] {
+  return statuses
+    .filter((entry) => entry.status !== "removed")
+    .map((entry) => entry.path)
+    .filter((path) => !patches.has(path) || patches.get(path) === "");
+}
+
 /** Split unified diff output into per-file patch bodies (without diff --git header). */
 export function splitDiffPatches(raw: string): Map<string, string> {
   const map = new Map<string, string>();

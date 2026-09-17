@@ -4,6 +4,7 @@ import { normalizePath, type Revision, type RevisionFile } from "../review/revis
 import {
   parseNameStatusZ,
   parseNumstatZ,
+  pathsMissingPatches,
   splitDiffPatches,
 } from "./git_parse.ts";
 import { revisionFileFromUntracked, type UntrackedWarning } from "./git_untracked.ts";
@@ -151,6 +152,11 @@ export async function buildLocalRevision(
   const patches = unified.code === 0
     ? splitDiffPatches(unified.stdout)
     : new Map<string, string>();
+  const needsPerFile = new Set(
+    unified.code !== 0
+      ? statuses.filter((e) => e.status !== "removed").map((e) => e.path)
+      : pathsMissingPatches(statuses, patches),
+  );
   const files: RevisionFile[] = [];
   for (const entry of statuses) {
     const stat = stats.get(entry.path);
@@ -166,7 +172,7 @@ export async function buildLocalRevision(
       patch: patches.get(entry.path) ?? "",
     };
     if (
-      !file.patch &&
+      needsPerFile.has(entry.path) &&
       file.status !== "removed" &&
       !file.binary
     ) {

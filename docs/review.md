@@ -62,5 +62,13 @@ or written, review continues with a `carry_over_unavailable` warning.
 - For PR review: `gh` authentication
 - For local review: a GitHub `origin`/`upstream` remote (or `--repo=`)
 
+## Local e2e (fake AI)
+
+```sh
+deno task review-local-e2e
+```
+
+Uses a temporary git worktree, `CM_FAKE_AI=1`, and optional `CM_FAKE_REVIEW_FILE`.
+
 See the implementation plan in `z_flow/7_cli_review_plan.md` for remote review
 (`--remote`, PR 4) and full edge-case catalog.
