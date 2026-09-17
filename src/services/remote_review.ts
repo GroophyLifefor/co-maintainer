@@ -1,8 +1,28 @@
+import denoConfig from "../../deno.json" with { type: "json" };
+import {
+  resolvedFromFirstReview,
+  revisionStats,
+  sortResolvedFindings,
+  summaryCounts,
+  toJsonFinding,
+} from "../cli/review_result.ts";
+import { parseFindings } from "../pr/findings.ts";
+import { reviewWorkspaceRevision } from "../pr/reviewer.ts";
+import { revisionFromSubmitJson } from "../remote/revision_from_submit.ts";
+import {
+  closeRemoteSession,
+  openRemoteSession,
+  setRemoteSyncResult,
+} from "../remote/server/sessions.ts";
 import { readConfig } from "../config.ts";
+import type { Options } from "../types.ts";
 import { cancel, registerHandler, type LogFn } from "./jobs.ts";
+import { recordAiCost } from "./setup.ts";
 import { findRepoByFullName } from "../store/repos.ts";
 import {
+  deleteRemoteReviewInput,
   findRemoteReviewInputByRequest,
+  getRemoteReviewInput,
   insertRemoteReviewInput,
 } from "../store/remote_review_inputs.ts";
 import {
@@ -23,6 +43,32 @@ const REPO_UNAVAILABLE =
 
 function remoteQueueKey(repo: string, branch: string, tokenId: string): string {
   return `remote:${repo}:${branch}:${tokenId}`;
+}
+
+function reviewOptionsForRepo(repo: string): Options {
+  const config = readConfig();
+  return {
+    command: "review",
+    repo,
+    debug: false,
+    logTime: false,
+    useCodegraph: false,
+    improveMatrix: 1,
+    ghConcurrent: 1,
+    aiConcurrent: 3,
+    auth: config.auth ?? "gh",
+    githubPat: config.githubPat,
+    ai: config.ai ?? "openrouter",
+    aiToken: config.token,
+    lowModel: config.lowModel,
+    highModel: config.highModel,
+    synthesisVersion: 16,
+    includeCodebase: true,
+    includePullRequests: true,
+    includePullRequestChanges: true,
+    includeCommitHistory: true,
+    includeHowRepoWorks: true,
+  };
 }
 
 function supersedeActiveRemoteJobs(
@@ -60,7 +106,10 @@ export function submitRemoteReview(
     return { error: REPO_UNAVAILABLE, status: 404, code: "repo_unavailable" };
   }
 
-  const branch = String(body.branch);
+  if (typeof body.branch !== "string") {
+    return { error: "branch must be a string", status: 400, code: "bad_request" };
+  }
+  const branch = body.branch;
   const fresh = body.fresh === true;
   const subject = getOrCreateRemoteSubject(
     repoRow.full_name,
@@ -105,6 +154,13 @@ export function submitRemoteReview(
     args: { subjectId: subject.id, requestId, reviewId },
   });
 
+  openRemoteSession({
+    jobId,
+    reviewId,
+    tokenId: token.id,
+    subjectId: subject.id,
+  });
+
   return { jobId, reviewId };
 }
 
@@ -113,14 +169,84 @@ export function registerRemoteReviewHandler(): void {
     async run(job: JobRow, log: LogFn, signal: AbortSignal) {
       const args = JSON.parse(job.args) as {
         reviewId?: string;
+        subjectId?: string;
       };
       const reviewId = args.reviewId;
-      log("info", "remote review worker stub — full engine pending");
-      if (signal.aborted) return;
-      if (reviewId) {
-        setReviewStatus(reviewId, "aborted");
+      if (!reviewId) throw new Error("remote review missing reviewId");
+
+      const input = getRemoteReviewInput(job.id);
+      if (!input) throw new Error("remote review input missing");
+
+      const review = getReviewByJobId(job.id);
+      if (!review) throw new Error("remote review row missing");
+
+      setReviewStatus(reviewId, "running");
+      log("info", `remote review started for ${job.repo}`);
+
+      const revision = revisionFromSubmitJson(JSON.parse(input.revision_json));
+      const options = reviewOptionsForRepo(job.repo);
+      if (!options.aiToken || options.ai === "none") {
+        throw new Error("server AI is not configured for remote review");
       }
-      throw new Error("remote review engine is not implemented yet");
+
+      const started = performance.now();
+      let tokensIn = 0;
+      let tokensOut = 0;
+      let costUsd: number | null = 0;
+      let costKnown = true;
+      const result = await reviewWorkspaceRevision(
+        revision,
+        options,
+        "remote",
+        async (response) => {
+          tokensIn += response.tokensIn;
+          tokensOut += response.tokensOut;
+          if (response.cost === undefined) costKnown = false;
+          else costUsd = (costUsd ?? 0) + response.cost;
+          await recordAiCost(job.repo, "remote_review", response);
+        },
+        undefined,
+        (message) => log("info", message),
+        undefined,
+      );
+
+      if (signal.aborted) return;
+
+      const parsed = parseFindings(result.text);
+      const filesByPath = new Map(
+        revision.files.map((file) => [file.path, { patch: file.patch }]),
+      );
+      const findings = sortResolvedFindings(
+        resolvedFromFirstReview(parsed, filesByPath),
+      );
+      const durationMs = Math.round(performance.now() - started);
+
+      setRemoteSyncResult(job.id, {
+        subject: {
+          repo: job.repo,
+          branch: review.branch,
+          prNumber: null,
+        },
+        revision: revisionStats(revision),
+        guide: { builtAt: result.guideBuiltAt },
+        summary: summaryCounts(findings),
+        findings: findings.map(toJsonFinding),
+        usage: {
+          tokensIn,
+          tokensOut,
+          costUsd: costKnown ? costUsd : null,
+        },
+        remote: { jobId: job.id, reviewId, clientVersion: denoConfig.version },
+      });
+
+      setReviewStatus(reviewId, "done", {
+        findings_count: findings.length,
+        guide_built_at: result.guideBuiltAt,
+        duration_ms: durationMs,
+      });
+      deleteRemoteReviewInput(job.id);
+      closeRemoteSession(job.id);
+      log("info", `remote review finished (${findings.length} findings)`);
     },
   });
 }

@@ -21,6 +21,7 @@ import {
 } from "../schema.ts";
 import { readBoundedJson } from "./body.ts";
 import { submitRemoteReview } from "../../services/remote_review.ts";
+import { handleRemoteCancel, handleRemoteSync } from "./sync.ts";
 import { validateHandshakeRequest, validateSubmitRequest } from "../validate.ts";
 
 const REPO_UNAVAILABLE =
@@ -124,6 +125,25 @@ async function handleHandshake(
   });
 }
 
+async function handleSync(
+  request: Request,
+  ip: string,
+  jobId: string,
+): Promise<Response> {
+  const auth = await authenticateRemote(request, ip);
+  if (auth instanceof Response) return auth;
+
+  const parsed = await readBoundedJson(request, REMOTE_MAX_BODY_BYTES);
+  if (!parsed.ok) {
+    return errorResponse(parsed.status, parsed.code, parsed.message);
+  }
+  return handleRemoteSync(
+    jobId,
+    auth,
+    parsed.value as Record<string, unknown>,
+  );
+}
+
 async function handleSubmit(
   request: Request,
   ip: string,
@@ -171,20 +191,14 @@ export async function handleRemoteRoute(
     url.pathname,
   );
   if (syncMatch && request.method === "POST") {
-    return errorResponse(
-      501,
-      "not_implemented",
-      "Remote review sync is not implemented yet",
-    );
+    return await handleSync(request, remoteAddr, syncMatch[1]!);
   }
 
   const reviewMatch = /^\/api\/remote\/reviews\/([^/]+)$/.exec(url.pathname);
   if (reviewMatch && request.method === "DELETE") {
-    return errorResponse(
-      501,
-      "not_implemented",
-      "Remote review cancel is not implemented yet",
-    );
+    const auth = await authenticateRemote(request, remoteAddr);
+    if (auth instanceof Response) return auth;
+    return handleRemoteCancel(reviewMatch[1]!, auth);
   }
 
   return errorResponse(404, "not_found", `no route for ${url.pathname}`);

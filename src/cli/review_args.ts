@@ -17,7 +17,8 @@ type ReviewFlags = {
 
 export type ReviewCliArgs =
   | { mode: "pr"; options: Options } & ReviewFlags
-  | { mode: "local"; rawArgs: string[] } & ReviewFlags;
+  | { mode: "local"; rawArgs: string[] } & ReviewFlags
+  | { mode: "remote"; rawArgs: string[] } & ReviewFlags;
 
 function die(message: string): never {
   throw new Error(message);
@@ -110,7 +111,7 @@ export function parseReviewArgs(args: string[]): ReviewCliArgs {
     };
   }
   if (positional.length === 0) {
-    if (flags.remote) die("remote review is not implemented yet");
+    if (flags.remote) return { mode: "remote", rawArgs: args, ...flags };
     return { mode: "local", rawArgs: args, ...flags };
   }
   die(

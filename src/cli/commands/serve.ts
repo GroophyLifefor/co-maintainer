@@ -15,6 +15,7 @@ import {
   registerReplyJobHandler,
 } from "../../services/replies.ts";
 import { registerRemoteReviewHandler } from "../../services/remote_review.ts";
+import { startRemoteWatchdog } from "../../remote/server/sessions.ts";
 
 /** `undefined` on Linux, otherwise one line naming the platform (a pure
  * function so it is testable without actually being off Linux). */
@@ -144,6 +145,7 @@ export async function runServe(args: string[]): Promise<void> {
   registerSetupJobHandler();
   registerReviewJobHandler();
   registerRemoteReviewHandler();
+  startRemoteWatchdog();
   registerReplyJobHandler();
   const recovered = await recoverOrphans();
   if (recovered > 0) {

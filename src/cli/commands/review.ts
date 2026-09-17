@@ -6,6 +6,7 @@ import { GhClient } from "../../github/gh.ts";
 import { log, startHeartbeat, timed, withCliLogsToStderr } from "../../util/log.ts";
 import type { Options } from "../../types.ts";
 import { runLocalReview } from "../../local/review_local.ts";
+import { runRemoteReview } from "../../remote/client.ts";
 import { printLocalReview, reviewExitCode } from "../review_output.ts";
 import {
   buildPrReviewJson,
@@ -18,6 +19,10 @@ export async function runReviewFromCli(args: string[]): Promise<void> {
   const parsed = parseReviewArgs(args);
   if (parsed.mode === "local") {
     await runLocalReview(parsed);
+    return;
+  }
+  if (parsed.mode === "remote") {
+    await runRemoteReview(parsed);
     return;
   }
   await runReviewPr(parsed.options, parsed);
