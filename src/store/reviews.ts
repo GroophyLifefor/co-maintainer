@@ -312,7 +312,16 @@ export function listRemoteReviewsForRepo(
   repo: string,
   limit: number,
   offset = 0,
+  sinceIso?: string,
 ): ReviewRow[] {
+  if (sinceIso) {
+    return getAppDb().prepare<ReviewRow>(
+      `SELECT * FROM reviews
+       WHERE repo = ? AND kind = 'remote' AND created_at >= ?
+       ORDER BY created_at DESC
+       LIMIT ? OFFSET ?`,
+    ).all(repo, sinceIso, limit, offset);
+  }
   return getAppDb().prepare<ReviewRow>(
     `SELECT * FROM reviews
      WHERE repo = ? AND kind = 'remote'

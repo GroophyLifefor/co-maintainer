@@ -124,7 +124,7 @@ export function repoRemoteReviews(fullName: string, limit = 30) {
   requireActiveRepo(fullName);
   const since = daysAgoIso(30);
   return {
-    items: listRemoteReviewsForRepo(fullName, limit),
+    items: listRemoteReviewsForRepo(fullName, limit, 0, since),
     stats: reviewStats(since, fullName),
   };
 }

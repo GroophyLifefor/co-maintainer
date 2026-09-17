@@ -291,6 +291,9 @@ document.getElementById("save-server").addEventListener("click", function() {
     remoteToolOutputMaxChars: toolChars.value
   });
 });
+function escHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
 async function loadRemoteTokens() {
   var el = document.getElementById("remote-token-list");
   try {
@@ -301,11 +304,11 @@ async function loadRemoteTokens() {
     }
     el.innerHTML = "<table><thead><tr><th>Name</th><th>Status</th><th class=\\"num\\">Reviews (30d)</th><th class=\\"num\\">Cost (30d)</th><th></th></tr></thead><tbody>" +
       rows.map(function(r) {
-        return "<tr><td>" + r.name + "</td><td>" + (r.active ? "Active" : "Inactive") + "</td>" +
+        return "<tr><td>" + escHtml(r.name) + "</td><td>" + (r.active ? "Active" : "Inactive") + "</td>" +
           "<td class=\\"num\\">" + r.reviews30d + "</td><td class=\\"num\\">" + r.cost30d + "</td>" +
-          "<td><button type=\\"button\\" class=\\"btn sm\\" data-token-id=\\"" + r.id + "\\" data-active=\\"" + r.active + "\\">" +
+          "<td><button type=\\"button\\" class=\\"btn sm\\" data-token-id=\\"" + escHtml(r.id) + "\\" data-active=\\"" + r.active + "\\">" +
           (r.active ? "Deactivate" : "Activate") + "</button> " +
-          "<button type=\\"button\\" class=\\"btn sm\\" data-delete-token=\\"" + r.id + "\\">Delete</button></td></tr>";
+          "<button type=\\"button\\" class=\\"btn sm\\" data-delete-token=\\"" + escHtml(r.id) + "\\">Delete</button></td></tr>";
       }).join("") + "</tbody></table>";
     el.querySelectorAll("[data-token-id]").forEach(function(btn) {
       btn.addEventListener("click", function() {

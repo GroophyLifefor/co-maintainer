@@ -10,6 +10,7 @@ import {
 } from "../store/jobs.ts";
 import { appendLog as storeAppendLog, listLogs } from "../store/job_logs.ts";
 import { redact } from "../util/redact.ts";
+import { abortQueuedRemoteReviewRow } from "./remote_review_abort.ts";
 import { getReviewByJobId } from "../store/reviews.ts";
 import type { JobLogRow, JobRow } from "../store/rows.ts";
 
@@ -241,6 +242,7 @@ export function cancel(
   }
   const job = getJob(jobId);
   if (job?.status === "queued") {
+    abortQueuedRemoteReviewRow(jobId);
     setJobStatus(jobId, "canceled", { cancel_reason: reason });
     return true;
   }
