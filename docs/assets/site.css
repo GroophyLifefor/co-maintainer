@@ -68,6 +68,18 @@ a:hover {
   color: var(--text);
   margin-right: auto;
 }
+.site-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+.site-brand img {
+  display: block;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  image-rendering: pixelated;
+}
 .brand:hover {
   text-decoration: none;
 }
@@ -361,16 +373,6 @@ body.layout-home {
 .home-footer {
   max-width: var(--home-max);
   margin-inline: auto;
-}
-.home-brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-}
-.home-brand img {
-  width: 28px;
-  height: 28px;
-  image-rendering: auto;
 }
 .home-section {
   padding-inline: 28px;
@@ -715,9 +717,6 @@ body.layout-home {
   padding-bottom: 150px;
   text-align: center;
 }
-.final-cta img {
-  margin-bottom: 24px;
-}
 .final-cta p {
   margin: 20px 0 28px;
   color: var(--text-secondary);
@@ -747,10 +746,11 @@ body.layout-home {
   .install-line {
     animation: home-enter 700ms cubic-bezier(.2, .75, .25, 1) both;
   }
-  .home-hero h1 { animation-delay: 70ms; }
-  .home-lead { animation-delay: 140ms; }
-  .home-actions { animation-delay: 210ms; }
-  .install-line { animation-delay: 280ms; }
+  .home-kicker { animation-delay: 70ms; }
+  .home-hero h1 { animation-delay: 140ms; }
+  .home-lead { animation-delay: 210ms; }
+  .home-actions { animation-delay: 280ms; }
+  .install-line { animation-delay: 350ms; }
   @keyframes home-enter {
     from { opacity: 0; transform: translateY(14px); }
   }

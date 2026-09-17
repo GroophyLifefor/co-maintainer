@@ -245,11 +245,15 @@ function buildToc(bodyHtml: string): { html: string; toc: string } {
   return { html: withIds, toc };
 }
 
+function siteBrandLink(): string {
+  return `<a class="brand site-brand" href="index.html"><img src="assets/logo.png" alt="" width="32" height="32">co-maintainer</a>`;
+}
+
 function topBar(active: "home" | "docs"): string {
   const docsClass = active === "docs" ? "toplink on" : "toplink";
   return `<header class="site-header">
     <div class="site-header-inner">
-      <a class="brand" href="index.html">co-maintainer</a>
+      ${siteBrandLink()}
       <nav class="topnav" aria-label="Site">
         <a class="${docsClass}" href="getting-started.html">Documentation</a>
         <a class="toplink" href="https://jsr.io/@murat/co-maintainer">JSR</a>
