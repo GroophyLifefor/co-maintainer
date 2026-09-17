@@ -1,3 +1,4 @@
+import { resolveDefaultBranchName } from "../git/default_branch.ts";
 import type { Run } from "../pr/checkout.ts";
 import { normalizePath, type Revision, type RevisionFile } from "../review/revision.ts";
 import {
@@ -74,27 +75,7 @@ export async function resolveBaseRef(
 ): Promise<{ ref: string; label: string }> {
   let branch = toBranch;
   if (!branch) {
-    const sym = await run(
-      "git",
-      ["symbolic-ref", "-q", `refs/remotes/${remote}/HEAD`],
-      cwd,
-    );
-    if (sym.code === 0 && sym.stdout.trim()) {
-      branch = sym.stdout.trim().split("/").pop();
-    }
-    if (!branch) {
-      for (const candidate of ["main", "master"]) {
-        const probe = await run(
-          "git",
-          ["rev-parse", "--verify", `refs/remotes/${remote}/${candidate}`],
-          cwd,
-        );
-        if (probe.code === 0) {
-          branch = candidate;
-          break;
-        }
-      }
-    }
+    branch = await resolveDefaultBranchName(cwd, remote, run);
   }
   if (!branch) {
     throw new ReviewCliError(

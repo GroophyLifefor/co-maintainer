@@ -14,6 +14,11 @@ import {
   type CodegraphRunner,
 } from "../tools/codegraph_exec.ts";
 import { log } from "../util/log.ts";
+import {
+  guardToolArgs,
+  rejectEscapingPath,
+  rejectFlagLike,
+} from "./codegraph_tool_args.ts";
 
 // Each codegraph subcommand as its own tool, no synthesis step in between —
 // verified against the installed `codegraph <command> --help` output.
@@ -141,11 +146,20 @@ export function codegraphTools(
       },
       run: (args) => {
         const a = args as Args;
+        const keys = new Set(["search", "kind", "limit"]);
+        const guard = guardToolArgs(a, keys);
+        if (guard) return Promise.resolve(guard);
         const search = str(a, "search");
         if (!search) {
           return Promise.resolve("codegraph-query requires 'search'.");
         }
+        const flag = rejectFlagLike(search, "search");
+        if (flag) return Promise.resolve(flag);
         const kind = str(a, "kind");
+        if (kind) {
+          const kindFlag = rejectFlagLike(kind, "kind");
+          if (kindFlag) return Promise.resolve(kindFlag);
+        }
         const limit = num(a, "limit");
         return run([
           "query",
@@ -187,10 +201,21 @@ export function codegraphTools(
       },
       run: (args) => {
         const a = args as Args;
+        const keys = new Set(["name", "file", "symbolsOnly"]);
+        const guard = guardToolArgs(a, keys);
+        if (guard) return Promise.resolve(guard);
         const name = str(a, "name");
         const file = str(a, "file");
         if (!name && !file) {
           return Promise.resolve("codegraph-node requires 'name' or 'file'.");
+        }
+        if (name) {
+          const flag = rejectFlagLike(name, "name");
+          if (flag) return Promise.resolve(flag);
+        }
+        if (file) {
+          const pathErr = rejectEscapingPath(file);
+          if (pathErr) return Promise.resolve(pathErr);
         }
         return run([
           "node",
@@ -227,14 +252,24 @@ export function codegraphTools(
       },
       run: (args) => {
         const a = args as Args;
+        const keys = new Set(["query", "maxFiles"]);
+        const guard = guardToolArgs(a, keys);
+        if (guard) return Promise.resolve(guard);
         const query = str(a, "query");
         if (!query) {
           return Promise.resolve("codegraph-explore requires 'query'.");
         }
+        const flag = rejectFlagLike(query, "query");
+        if (flag) return Promise.resolve(flag);
+        const parts = query.split(/\s+/).filter(Boolean);
+        for (const part of parts) {
+          const partFlag = rejectFlagLike(part, "query");
+          if (partFlag) return Promise.resolve(partFlag);
+        }
         const maxFiles = num(a, "maxFiles");
         return run([
           "explore",
-          ...query.split(/\s+/),
+          ...parts,
           ...(maxFiles ? ["--max-files", String(maxFiles)] : []),
         ]);
       },
@@ -263,10 +298,15 @@ export function codegraphTools(
       },
       run: (args) => {
         const a = args as Args;
+        const keys = new Set(["symbol", "limit"]);
+        const guard = guardToolArgs(a, keys);
+        if (guard) return Promise.resolve(guard);
         const symbol = str(a, "symbol");
         if (!symbol) {
           return Promise.resolve("codegraph-callers requires 'symbol'.");
         }
+        const flag = rejectFlagLike(symbol, "symbol");
+        if (flag) return Promise.resolve(flag);
         const limit = num(a, "limit");
         return run([
           "callers",
@@ -299,10 +339,15 @@ export function codegraphTools(
       },
       run: (args) => {
         const a = args as Args;
+        const keys = new Set(["symbol", "limit"]);
+        const guard = guardToolArgs(a, keys);
+        if (guard) return Promise.resolve(guard);
         const symbol = str(a, "symbol");
         if (!symbol) {
           return Promise.resolve("codegraph-callees requires 'symbol'.");
         }
+        const flag = rejectFlagLike(symbol, "symbol");
+        if (flag) return Promise.resolve(flag);
         const limit = num(a, "limit");
         return run([
           "callees",
@@ -335,10 +380,15 @@ export function codegraphTools(
       },
       run: (args) => {
         const a = args as Args;
+        const keys = new Set(["symbol", "depth"]);
+        const guard = guardToolArgs(a, keys);
+        if (guard) return Promise.resolve(guard);
         const symbol = str(a, "symbol");
         if (!symbol) {
           return Promise.resolve("codegraph-impact requires 'symbol'.");
         }
+        const flag = rejectFlagLike(symbol, "symbol");
+        if (flag) return Promise.resolve(flag);
         const depth = num(a, "depth");
         return run([
           "impact",
@@ -376,11 +426,18 @@ export function codegraphTools(
       },
       run: (args) => {
         const a = args as Args;
+        const keys = new Set(["files", "depth"]);
+        const guard = guardToolArgs(a, keys);
+        if (guard) return Promise.resolve(guard);
         const files = strArray(a, "files");
         if (files.length === 0) {
           return Promise.resolve(
             "codegraph-affected requires a non-empty 'files' array.",
           );
+        }
+        for (const file of files) {
+          const pathErr = rejectEscapingPath(file);
+          if (pathErr) return Promise.resolve(pathErr);
         }
         const depth = num(a, "depth");
         return run([

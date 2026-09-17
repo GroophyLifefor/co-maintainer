@@ -89,10 +89,22 @@ function fail(error: ReviewCliError, json: boolean): never {
 
 function installInterruptCleanup(
   releaseSync: () => (() => void) | null,
+  json: boolean,
 ): () => void {
   const onSignal = () => {
     releaseSync()?.();
-    Deno.exit(130);
+    if (json) {
+      console.log(JSON.stringify({
+        schemaVersion: 1,
+        ok: false,
+        error: {
+          code: "aborted",
+          message: "Review canceled.",
+        },
+        exitCode: 3,
+      }));
+    }
+    Deno.exit(3);
   };
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     try {
@@ -116,7 +128,10 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
   const json = cli.json;
   setCliInteractive(!json);
   let lock: LocalReviewLock | null = null;
-  const clearInterrupt = installInterruptCleanup(() => lock?.releaseSync ?? null);
+  const clearInterrupt = installInterruptCleanup(
+    () => lock?.releaseSync ?? null,
+    json,
+  );
   await withCliLogsToStderr(async () => {
   try {
     const cwd = Deno.cwd();
