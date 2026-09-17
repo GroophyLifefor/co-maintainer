@@ -173,3 +173,21 @@ export type DriftRow = {
   commits_since: number;
   files_changed: number;
 };
+
+export type RemoteTokenRow = {
+  id: string;
+  name: string;
+  token_hash: string;
+  active: number;
+  created_at: string;
+  last_used_at: string | null;
+};
+
+export type RemoteReviewInputRow = {
+  job_id: string;
+  revision_json: string;
+  capabilities_json: string;
+  request_id: string;
+  token_id: string;
+  created_at: string;
+};

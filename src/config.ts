@@ -52,6 +52,12 @@ export type UserConfig = {
   };
   /** Cap on jobs running at once across all types. Unset means no limit. */
   maxConcurrentJobs?: number;
+  /** Remote review CLI target (`co-maintainer set`). */
+  remoteHost?: string;
+  /** Bearer token for `/api/remote/*`; only written by `set`. */
+  remoteToken?: string;
+  /** Hosts for which the unpublished-code notice was shown (plan §14.1 G13). */
+  remoteNoticeShownFor?: string[];
   repos?: Record<string, RepoConfig>;
 };
 

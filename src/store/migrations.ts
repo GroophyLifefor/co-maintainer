@@ -241,4 +241,26 @@ export const migrations: string[][] = [
       created_at TEXT NOT NULL
     )`,
   ],
+  // 8 — remote review bearer tokens and large submit payloads
+  [
+    `CREATE TABLE remote_tokens (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      token_hash TEXT NOT NULL UNIQUE,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      last_used_at TEXT
+    )`,
+    `CREATE UNIQUE INDEX idx_remote_tokens_name ON remote_tokens(name)`,
+    `CREATE TABLE remote_review_inputs (
+      job_id TEXT PRIMARY KEY,
+      revision_json TEXT NOT NULL,
+      capabilities_json TEXT NOT NULL,
+      request_id TEXT NOT NULL,
+      token_id TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )`,
+    `CREATE UNIQUE INDEX idx_remote_inputs_request
+     ON remote_review_inputs(token_id, request_id)`,
+  ],
 ];
