@@ -19,29 +19,11 @@ import {
   REMOTE_SCHEMA_VERSION,
   REMOTE_SYNC_INTERVAL_SECONDS,
 } from "../schema.ts";
+import { readBoundedJson } from "./body.ts";
 import { validateHandshakeRequest } from "../validate.ts";
 
 const REPO_UNAVAILABLE =
   "Sorry, we could not access this repository.";
-
-async function readJsonBody(
-  request: Request,
-  maxBytes: number,
-): Promise<unknown | Response> {
-  const length = request.headers.get("content-length");
-  if (length && Number(length) > maxBytes) {
-    return errorResponse(413, "payload_too_large", "request body too large");
-  }
-  const text = await request.text();
-  if (text.length > maxBytes) {
-    return errorResponse(413, "payload_too_large", "request body too large");
-  }
-  try {
-    return JSON.parse(text);
-  } catch {
-    return errorResponse(400, "bad_request", "expected a JSON body");
-  }
-}
 
 async function authenticateRemote(
   request: Request,
@@ -81,13 +63,15 @@ async function handleHandshake(
   request: Request,
   ip: string,
 ): Promise<Response> {
-  const body = await readJsonBody(request, REMOTE_MAX_BODY_BYTES);
-  if (body instanceof Response) return body;
-  const validation = validateHandshakeRequest(body);
+  const parsed = await readBoundedJson(request, REMOTE_MAX_BODY_BYTES);
+  if (!parsed.ok) {
+    return errorResponse(parsed.status, parsed.code, parsed.message);
+  }
+  const validation = validateHandshakeRequest(parsed.value);
   if (validation) {
     return errorResponse(400, "bad_request", validation);
   }
-  const record = body as Record<string, unknown>;
+  const record = parsed.value as Record<string, unknown>;
   const schemaVersion = record.schemaVersion as number;
   if (schemaVersion < MIN_CLIENT_SCHEMA) {
     return errorResponse(
@@ -144,10 +128,8 @@ export async function handleRemoteRoute(
   url: URL,
   remoteAddr: string,
 ): Promise<Response> {
-  const ip = remoteAddr.includes(":") ? remoteAddr.split(":").pop()! : remoteAddr;
-
   if (url.pathname === "/api/remote/handshake" && request.method === "POST") {
-    return await handleHandshake(request, ip);
+    return await handleHandshake(request, remoteAddr);
   }
 
   if (url.pathname === "/api/remote/reviews" && request.method === "POST") {

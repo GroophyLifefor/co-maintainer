@@ -1,3 +1,4 @@
+import { readJsonObject } from "./json_body.ts";
 import { errorResponse } from "../errors.ts";
 import {
   createRemoteToken,
@@ -25,12 +26,8 @@ export async function handleRemoteTokensRoute(
   }
 
   if (url.pathname === "/api/remote-tokens" && request.method === "POST") {
-    let body: Record<string, unknown>;
-    try {
-      body = await request.json();
-    } catch {
-      return errorResponse(400, "bad_request", "expected a JSON body");
-    }
+    const body = await readJsonObject(request);
+    if (body instanceof Response) return body;
     if (typeof body.name !== "string") {
       return errorResponse(400, "bad_request", "name is required");
     }
@@ -57,12 +54,8 @@ export async function handleRemoteTokensRoute(
   }
 
   if (request.method === "PATCH") {
-    let body: Record<string, unknown>;
-    try {
-      body = await request.json();
-    } catch {
-      return errorResponse(400, "bad_request", "expected a JSON body");
-    }
+    const body = await readJsonObject(request);
+    if (body instanceof Response) return body;
     if (typeof body.active !== "boolean") {
       return errorResponse(400, "bad_request", "active must be a boolean");
     }
