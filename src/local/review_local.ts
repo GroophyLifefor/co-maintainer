@@ -155,6 +155,12 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
       );
     }
     if (cli.remakeBeforeReview) {
+      if (options.auth !== "gh") {
+        throw new ReviewCliError(
+          "usage",
+          "Remake before review requires GitHub CLI authentication (`--auth=gh`).",
+        );
+      }
       await runInitOrRemake({ ...options, command: "remake" });
     }
 

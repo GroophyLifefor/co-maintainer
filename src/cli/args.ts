@@ -110,11 +110,11 @@ export function parseArgs(args: string[]): Options {
 
   let prNumber: number | undefined;
   if (command === "review") {
-    const rawNumber = rest.shift();
-    if (!rawNumber || !/^\d+$/.test(rawNumber)) {
-      die("review requires a numeric PR number");
+    const rawNumber = rest[0];
+    if (rawNumber && /^\d+$/.test(rawNumber)) {
+      rest.shift();
+      prNumber = Number(rawNumber);
     }
-    prNumber = Number(rawNumber);
   }
 
   const includeNames = [

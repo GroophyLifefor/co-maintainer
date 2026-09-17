@@ -32,12 +32,18 @@ export async function loadGuides(repo: string): Promise<LoadedGuides> {
       readGuideFile(repo, "CODEBASE.md"),
       readGuideFile(repo, "SKILL.md"),
     ]);
+    let guideBuiltAt: string | null = null;
+    try {
+      guideBuiltAt = getRepo(repo)?.knowledge_built_at ?? null;
+    } catch {
+      // Local CLI review without `serve` — guides still load from disk.
+    }
     return {
       shortGuide,
       detailed,
       codebase,
       skill,
-      guideBuiltAt: getRepo(repo)?.knowledge_built_at ?? null,
+      guideBuiltAt,
     };
   });
 }
