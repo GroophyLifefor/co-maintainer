@@ -6,6 +6,13 @@ import {
   runCommand,
 } from "./checkout.ts";
 import { detect, type Presence } from "../tools/codegraph.ts";
+import {
+  createCodegraphRunner,
+  LOCAL_CODEGRAPH_DIR,
+  runCodegraphTool,
+  SERVER_CODEGRAPH_DIR,
+  type CodegraphRunner,
+} from "../tools/codegraph_exec.ts";
 import { log } from "../util/log.ts";
 
 // Each codegraph subcommand as its own tool, no synthesis step in between —
@@ -32,28 +39,25 @@ function strArray(args: Args, key: string): string[] {
   return Array.isArray(value) ? value.map(String).filter(Boolean) : [];
 }
 
-async function run(
+export async function ensureCodegraphIndex(
   binary: string,
   worktree: string,
-  runner: Run,
-  args: string[],
-): Promise<string> {
-  const result = await runner(binary, args, worktree);
-  const output = result.stdout.trim() || result.stderr.trim();
-  if (result.code !== 0) {
-    return `codegraph ${args[0]} exited ${result.code}: ${output}`;
-  }
-  return output || "(no output)";
-}
-
-async function ensureIndex(
-  binary: string,
-  worktree: string,
-  runner: Run,
+  runner: CodegraphRunner,
+  indexDir = SERVER_CODEGRAPH_DIR,
 ): Promise<void> {
   const started = performance.now();
-  const fresh = !(await pathExists(`${worktree}/.codegraph`));
-  const result = await runner(binary, [fresh ? "init" : "sync", "."], worktree);
+  const fresh = !(await pathExists(`${worktree}/${indexDir}`));
+  const initCmd = indexDir === LOCAL_CODEGRAPH_DIR
+    ? ["init", "-y", "."]
+    : ["init", "."];
+  let result = await runner(binary, fresh ? initCmd : ["sync", "."], worktree);
+  if (!fresh && result.code !== 0 && /lock/i.test(result.stderr + result.stdout)) {
+    await runner(binary, ["unlock", "."], worktree);
+    result = await runner(binary, ["sync", "."], worktree);
+  }
+  if (result.code !== 0) {
+    result = await runner(binary, ["index", "."], worktree);
+  }
   if (result.code !== 0) {
     throw new Error(
       `codegraph ${fresh ? "init" : "sync"} failed: ${
@@ -89,8 +93,9 @@ export async function prepareCodegraphTools(
       return [];
     }
     const worktree = await ensureWorktree(repo, pr, commit, runner);
-    await ensureIndex(presence.path, worktree, runner);
-    return codegraphTools(presence.path, worktree, runner);
+    const cgRun = createCodegraphRunner(SERVER_CODEGRAPH_DIR);
+    await ensureCodegraphIndex(presence.path, worktree, cgRun);
+    return codegraphTools(presence.path, worktree, cgRun);
   } catch (error) {
     log("codegraph", `tools unavailable · ${String(error)}`);
     return [];
@@ -100,8 +105,10 @@ export async function prepareCodegraphTools(
 export function codegraphTools(
   binary: string,
   worktree: string,
-  runner: Run,
+  runner: CodegraphRunner = createCodegraphRunner(SERVER_CODEGRAPH_DIR),
 ): ToolHandler[] {
+  const run = (args: string[]) =>
+    runCodegraphTool(binary, args, worktree, runner);
   return [
     {
       name: "codegraph-query",
@@ -140,7 +147,7 @@ export function codegraphTools(
         }
         const kind = str(a, "kind");
         const limit = num(a, "limit");
-        return run(binary, worktree, runner, [
+        return run([
           "query",
           search,
           ...(kind ? ["-k", kind] : []),
@@ -185,7 +192,7 @@ export function codegraphTools(
         if (!name && !file) {
           return Promise.resolve("codegraph-node requires 'name' or 'file'.");
         }
-        return run(binary, worktree, runner, [
+        return run([
           "node",
           ...(name ? [name] : []),
           ...(file ? ["-f", file] : []),
@@ -225,7 +232,7 @@ export function codegraphTools(
           return Promise.resolve("codegraph-explore requires 'query'.");
         }
         const maxFiles = num(a, "maxFiles");
-        return run(binary, worktree, runner, [
+        return run([
           "explore",
           ...query.split(/\s+/),
           ...(maxFiles ? ["--max-files", String(maxFiles)] : []),
@@ -261,7 +268,7 @@ export function codegraphTools(
           return Promise.resolve("codegraph-callers requires 'symbol'.");
         }
         const limit = num(a, "limit");
-        return run(binary, worktree, runner, [
+        return run([
           "callers",
           symbol,
           ...(limit ? ["-l", String(limit)] : []),
@@ -297,7 +304,7 @@ export function codegraphTools(
           return Promise.resolve("codegraph-callees requires 'symbol'.");
         }
         const limit = num(a, "limit");
-        return run(binary, worktree, runner, [
+        return run([
           "callees",
           symbol,
           ...(limit ? ["-l", String(limit)] : []),
@@ -333,7 +340,7 @@ export function codegraphTools(
           return Promise.resolve("codegraph-impact requires 'symbol'.");
         }
         const depth = num(a, "depth");
-        return run(binary, worktree, runner, [
+        return run([
           "impact",
           symbol,
           ...(depth ? ["-d", String(depth)] : []),
@@ -376,7 +383,7 @@ export function codegraphTools(
           );
         }
         const depth = num(a, "depth");
-        return run(binary, worktree, runner, [
+        return run([
           "affected",
           ...files,
           ...(depth ? ["-d", String(depth)] : []),

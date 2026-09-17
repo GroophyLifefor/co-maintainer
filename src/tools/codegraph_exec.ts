@@ -1,12 +1,21 @@
 import type { CommandResult } from "./codegraph.ts";
 
 export const LOCAL_CODEGRAPH_DIR = ".co-maintainer-codegraph";
+export const SERVER_CODEGRAPH_DIR = ".codegraph";
 const TOOL_TIMEOUT_MS = 60_000;
+const INDEX_COMMANDS = new Set(["init", "sync", "index", "unlock"]);
 
 export type ExecOptions = {
   timeoutMs?: number | null;
+  codegraphDir?: string;
   env?: Record<string, string>;
 };
+
+export type CodegraphRunner = (
+  binary: string,
+  args: string[],
+  worktree: string,
+) => Promise<CommandResult>;
 
 /** Run the codegraph CLI in a repo root (plan §13.4). No `cmd /c` wrapper. */
 export async function execCodegraph(
@@ -15,9 +24,10 @@ export async function execCodegraph(
   cwd: string,
   options: ExecOptions = {},
 ): Promise<CommandResult> {
+  const indexDir = options.codegraphDir ?? LOCAL_CODEGRAPH_DIR;
   const env = {
     ...Deno.env.toObject(),
-    CODEGRAPH_DIR: LOCAL_CODEGRAPH_DIR,
+    CODEGRAPH_DIR: indexDir,
     ...options.env,
   };
   const timeoutMs = options.timeoutMs === undefined
@@ -62,4 +72,30 @@ function decode(output: Deno.CommandOutput): CommandResult {
     stdout: new TextDecoder().decode(output.stdout),
     stderr: new TextDecoder().decode(output.stderr),
   };
+}
+
+export function createCodegraphRunner(
+  indexDir: string,
+): CodegraphRunner {
+  return (binary, args, worktree) => {
+    const timeoutMs = INDEX_COMMANDS.has(args[0] ?? "") ? null : undefined;
+    return execCodegraph(binary, args, worktree, {
+      timeoutMs,
+      codegraphDir: indexDir,
+    });
+  };
+}
+
+export async function runCodegraphTool(
+  binary: string,
+  args: string[],
+  worktree: string,
+  runner: CodegraphRunner,
+): Promise<string> {
+  const result = await runner(binary, args, worktree);
+  const output = result.stdout.trim() || result.stderr.trim();
+  if (result.code !== 0) {
+    return `codegraph ${args[0]} exited ${result.code}: ${output}`;
+  }
+  return output || "(no output)";
 }
