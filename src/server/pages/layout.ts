@@ -259,6 +259,7 @@ export function repoNav(fullName: string, on: string): string {
     <nav>
       ${item("overview", "Overview", href)}
       ${item("pulls", "Pull requests", `${href}/pulls`)}
+      ${item("remote", "Remote", `${href}/remote`)}
       ${item("knowledge", "Knowledge", `${href}/knowledge`)}
       ${item("settings", "Settings", `${href}/settings`)}
     </nav>

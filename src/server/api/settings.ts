@@ -43,6 +43,10 @@ export async function handleSettingsRoute(
       passwordAuthDisabled: Boolean(config.passwordAuthDisabled),
       githubAuthEnabled: Boolean(config.githubAuthEnabled),
       maxConcurrentJobs: config.maxConcurrentJobs ?? null,
+      remoteSyncTimeoutSeconds: config.remoteSyncTimeoutSeconds ?? null,
+      maxConcurrentRemoteReviewsPerToken:
+        config.maxConcurrentRemoteReviewsPerToken ?? null,
+      remoteToolOutputMaxChars: config.remoteToolOutputMaxChars ?? null,
     });
   }
 
@@ -100,6 +104,41 @@ export async function handleSettingsRoute(
         );
       }
     }
+    const positiveIntOrNull = (
+      key: keyof UserConfig,
+      label: string,
+    ): Response | void => {
+      if (!(key in body)) return;
+      const raw = body[key as string];
+      if (raw === null || raw === "") {
+        (patch as Record<string, unknown>)[key] = undefined;
+        return;
+      }
+      if (typeof raw === "number" && Number.isInteger(raw) && raw > 0) {
+        (patch as Record<string, unknown>)[key] = raw;
+        return;
+      }
+      return errorResponse(
+        422,
+        "invalid_setting",
+        `${label} must be a positive integer or null`,
+      );
+    };
+    const remoteTimeout = positiveIntOrNull(
+      "remoteSyncTimeoutSeconds",
+      "remoteSyncTimeoutSeconds",
+    );
+    if (remoteTimeout) return remoteTimeout;
+    const remotePerToken = positiveIntOrNull(
+      "maxConcurrentRemoteReviewsPerToken",
+      "maxConcurrentRemoteReviewsPerToken",
+    );
+    if (remotePerToken) return remotePerToken;
+    const remoteToolOut = positiveIntOrNull(
+      "remoteToolOutputMaxChars",
+      "remoteToolOutputMaxChars",
+    );
+    if (remoteToolOut) return remoteToolOut;
     if (body.defaults && typeof body.defaults === "object") {
       const defaults = body.defaults as Record<string, unknown>;
       const next = { ...current.defaults };

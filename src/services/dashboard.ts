@@ -13,6 +13,8 @@ import {
   reviewStats,
   reviewStatsByDay,
   reviewStatsByModel,
+  reviewStatsByRemoteToken,
+  listRemoteReviewsForRepo,
   reviewStatsByRepo,
 } from "../store/reviews.ts";
 import {
@@ -78,6 +80,7 @@ export function statsForRange(range: string) {
     byRepo: reviewStatsByRepo(since),
     byDay: fillDays(days, reviewStatsByDay(since)),
     byModel: reviewStatsByModel(since),
+    byRemoteToken: reviewStatsByRemoteToken(since),
     bySeverity: findingStatsBySeverity(since),
   };
 }
@@ -114,6 +117,15 @@ export function repoOverview(fullName: string) {
     stats: reviewStats(since, fullName),
     recentPulls: listLatestReviewsForRepo(fullName, 8),
     latestJob: latestSetupJob(fullName),
+  };
+}
+
+export function repoRemoteReviews(fullName: string, limit = 30) {
+  requireActiveRepo(fullName);
+  const since = daysAgoIso(30);
+  return {
+    items: listRemoteReviewsForRepo(fullName, limit),
+    stats: reviewStats(since, fullName),
   };
 }
 

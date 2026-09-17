@@ -107,6 +107,15 @@ export async function prepareCodegraphTools(
   }
 }
 
+/** Tool schemas for the remote bridge (runs are proxied to the CLI). */
+export function codegraphToolHandlersForBridge(): ToolHandler[] {
+  return codegraphTools(
+    "codegraph",
+    ".",
+    createCodegraphRunner(SERVER_CODEGRAPH_DIR),
+  );
+}
+
 export function codegraphTools(
   binary: string,
   worktree: string,

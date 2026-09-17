@@ -66,6 +66,22 @@ export function renderAnalytics(
     }
         </tbody>
       </table>`;
+  const byRemoteToken = (data.byRemoteToken ?? []).length === 0
+    ? empty("No remote reviews yet", "Usage from CLI tokens appears here.")
+    : `<table>
+        <thead><tr><th>Token</th><th class="num">Reviews</th><th class="num">Findings</th>
+          <th class="num">Cost</th></tr></thead>
+        <tbody>
+          ${
+      (data.byRemoteToken ?? []).map((row) =>
+        `<tr><td>${text(row.tokenName)}</td>
+            <td class="num">${row.reviews}</td>
+            <td class="num">${row.findings}</td>
+            <td class="num">${money(row.cost)}</td></tr>`
+      ).join("")
+    }
+        </tbody>
+      </table>`;
   const bySeverity = data.bySeverity.length === 0
     ? empty("No findings yet", "Severity shows how much of the noise matters.")
     : `<table>
@@ -179,6 +195,10 @@ export function renderAnalytics(
   <div class="card">
     <div class="hd"><h2>By model</h2></div>
     <div class="bd flush">${byModel}</div>
+  </div>
+  <div class="card">
+    <div class="hd"><h2>By remote token</h2></div>
+    <div class="bd flush">${byRemoteToken}</div>
   </div>
   <div class="card">
     <div class="hd"><h2>Findings by severity</h2></div>

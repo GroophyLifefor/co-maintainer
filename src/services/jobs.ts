@@ -10,6 +10,7 @@ import {
 } from "../store/jobs.ts";
 import { appendLog as storeAppendLog, listLogs } from "../store/job_logs.ts";
 import { redact } from "../util/redact.ts";
+import { getReviewByJobId } from "../store/reviews.ts";
 import type { JobLogRow, JobRow } from "../store/rows.ts";
 
 export type LogFn = (level: string, message: string) => void;
@@ -136,7 +137,26 @@ async function runJob(job: JobRow): Promise<void> {
   }
 }
 
+function runningRemoteReviewsPerToken(): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const job of listJobs({ status: "running" })) {
+    if (job.type !== "remote_review") continue;
+    const review = getReviewByJobId(job.id);
+    if (!review?.token_id) continue;
+    counts.set(
+      review.token_id,
+      (counts.get(review.token_id) ?? 0) + 1,
+    );
+  }
+  return counts;
+}
+
 function claimNextEligible(): JobRow | undefined {
+  const config = readConfig();
+  const perTokenLimit = config.maxConcurrentRemoteReviewsPerToken;
+  const remoteRunning = perTokenLimit
+    ? runningRemoteReviewsPerToken()
+    : undefined;
   const oldestFirst = listJobs({ status: "queued" }).slice().reverse();
   for (const candidate of oldestFirst) {
     if (!handlers.has(candidate.type)) continue;
@@ -144,7 +164,23 @@ function claimNextEligible(): JobRow | undefined {
       const busy = getRunningJobByKey(candidate.queue_key);
       if (busy) continue;
     }
+    if (perTokenLimit && candidate.type === "remote_review") {
+      const review = getReviewByJobId(candidate.id);
+      const tokenId = review?.token_id;
+      if (tokenId && (remoteRunning!.get(tokenId) ?? 0) >= perTokenLimit) {
+        continue;
+      }
+    }
     if (!claimJob(candidate.id)) continue;
+    if (perTokenLimit && candidate.type === "remote_review") {
+      const review = getReviewByJobId(candidate.id);
+      if (review?.token_id) {
+        remoteRunning!.set(
+          review.token_id,
+          (remoteRunning!.get(review.token_id) ?? 0) + 1,
+        );
+      }
+    }
     return getJob(candidate.id);
   }
   return undefined;

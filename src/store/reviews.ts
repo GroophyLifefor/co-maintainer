@@ -308,6 +308,67 @@ export function listPullSummaries(
   return { items, total };
 }
 
+export function listRemoteReviewsForRepo(
+  repo: string,
+  limit: number,
+  offset = 0,
+): ReviewRow[] {
+  return getAppDb().prepare<ReviewRow>(
+    `SELECT * FROM reviews
+     WHERE repo = ? AND kind = 'remote'
+     ORDER BY created_at DESC
+     LIMIT ? OFFSET ?`,
+  ).all(repo, limit, offset);
+}
+
+export function remoteTokenUsageSince(
+  tokenId: string,
+  sinceIso: string,
+): { reviews: number; cost: number } {
+  const row = getAppDb().prepare<{ reviews: number; cost: number }>(
+    `SELECT COUNT(*) AS reviews, COALESCE(SUM(cost), 0) AS cost
+     FROM reviews
+     WHERE token_id = ? AND kind = 'remote' AND created_at >= ?`,
+  ).get(tokenId, sinceIso);
+  return {
+    reviews: Number(row?.reviews ?? 0),
+    cost: Number(row?.cost ?? 0),
+  };
+}
+
+export function reviewStatsByRemoteToken(
+  sinceIso: string,
+): {
+  tokenId: string;
+  tokenName: string;
+  reviews: number;
+  cost: number;
+  findings: number;
+}[] {
+  return getAppDb().prepare<{
+    token_id: string;
+    token_name: string;
+    reviews: number;
+    cost: number;
+    findings: number;
+  }>(
+    `SELECT token_id, token_name,
+            COUNT(*) AS reviews,
+            COALESCE(SUM(cost), 0) AS cost,
+            COALESCE(SUM(findings_count), 0) AS findings
+     FROM reviews
+     WHERE kind = 'remote' AND created_at >= ? AND token_id IS NOT NULL
+     GROUP BY token_id, token_name
+     ORDER BY cost DESC`,
+  ).all(sinceIso).map((row) => ({
+    tokenId: row.token_id,
+    tokenName: row.token_name,
+    reviews: Number(row.reviews),
+    cost: Number(row.cost),
+    findings: Number(row.findings),
+  }));
+}
+
 export function listLatestReviewsForRepo(
   repo: string,
   limit: number,

@@ -1,5 +1,6 @@
 import { readConfig } from "../../config.ts";
 import { cancel } from "../../services/jobs.ts";
+import { clearRemoteToolBridge } from "../tool_bridge.ts";
 
 export type RemoteSession = {
   jobId: string;
@@ -30,6 +31,7 @@ export function getRemoteSession(jobId: string): RemoteSession | undefined {
 
 export function closeRemoteSession(jobId: string): void {
   sessions.delete(jobId);
+  clearRemoteToolBridge(jobId);
   setTimeout(() => finishedResults.delete(jobId), 60_000);
 }
 

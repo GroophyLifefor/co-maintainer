@@ -31,10 +31,8 @@ export async function runReviewFromCli(args: string[]): Promise<void> {
 export async function runReview(options: Options): Promise<void> {
   await runReviewPr(options, {
     json: false,
-    remote: false,
     disableCodegraph: false,
     allowToolInstall: false,
-    fresh: false,
     remakeBeforeReview: false,
   });
 }

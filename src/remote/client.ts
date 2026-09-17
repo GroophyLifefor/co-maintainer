@@ -2,7 +2,14 @@ import denoConfig from "../../deno.json" with { type: "json" };
 import type { ReviewCliArgs } from "../cli/review_args.ts";
 import { printLocalReview } from "../cli/review_output.ts";
 import { isBlockingFinding } from "../cli/review_result.ts";
-import { readConfig } from "../config.ts";
+import { readConfig, writeUserConfig } from "../config.ts";
+import { prepareLocalCodegraph } from "../local/codegraph_prepare.ts";
+import {
+  runRemoteToolCalls,
+  toolHandlerMap,
+  type RemoteToolCall,
+} from "./client_tools.ts";
+import { REMOTE_KNOWN_TOOL_NAMES } from "./schema.ts";
 import { runCommand } from "../pr/checkout.ts";
 import {
   assertGitQuiet,
@@ -152,6 +159,29 @@ export async function runRemoteReview(cli: ReviewCliArgs & { mode: "remote" }): 
       );
     }
 
+    const hostKey = baseUrl(host);
+    const shown = config.remoteNoticeShownFor ?? [];
+    if (!shown.includes(hostKey) && !cli.json) {
+      console.error(
+        "Remote review sends your unpublished diff to the server you configured. " +
+          "Use a host you trust.",
+      );
+      await writeUserConfig({
+        remoteNoticeShownFor: [...shown, hostKey],
+      });
+    }
+
+    const codegraphPrep = await prepareLocalCodegraph({
+      gitRoot: root,
+      enabled: !cli.disableCodegraph,
+      allowInstall: cli.allowToolInstall,
+      interactive: !cli.json,
+    });
+    const localTools = toolHandlerMap(codegraphPrep.tools);
+    const capabilityTools = [...localTools.keys()]
+      .filter((name) => REMOTE_KNOWN_TOOL_NAMES.has(name))
+      .map((name) => ({ name }));
+
     const requestId = crypto.randomUUID();
     const submitBody = {
       schemaVersion: REMOTE_SCHEMA_VERSION,
@@ -166,7 +196,7 @@ export async function runRemoteReview(cli: ReviewCliArgs & { mode: "remote" }): 
         baseLabel: built.revision.baseLabel,
         files: built.revision.files,
       },
-      capabilities: { tools: [] },
+      capabilities: { tools: capabilityTools },
     };
     const serialized = JSON.stringify(submitBody);
     if (serialized.length > hs.limits.maxBodyBytes) {
@@ -183,6 +213,7 @@ export async function runRemoteReview(cli: ReviewCliArgs & { mode: "remote" }): 
     const { jobId } = await submit.json() as { jobId: string };
 
     let afterLogSeq = 0;
+    let toolResults: Awaited<ReturnType<typeof runRemoteToolCalls>> = [];
     const intervalMs = hs.sync.intervalSeconds * 1000;
     while (true) {
       const sync = await remoteFetch(
@@ -194,15 +225,17 @@ export async function runRemoteReview(cli: ReviewCliArgs & { mode: "remote" }): 
           body: JSON.stringify({
             schemaVersion: REMOTE_SCHEMA_VERSION,
             afterLogSeq,
-            toolResults: [],
+            toolResults,
           }),
         },
       );
+      toolResults = [];
       if (!sync.ok) {
         die("remote_sync_failed", await readApiError(sync));
       }
       const payload = await sync.json() as {
         status: string;
+        toolCalls?: RemoteToolCall[];
         logs: Array<{ seq: number; message: string }>;
         result: Record<string, unknown> | null;
         abort: { reason: string; message: string } | null;
@@ -210,6 +243,10 @@ export async function runRemoteReview(cli: ReviewCliArgs & { mode: "remote" }): 
       for (const line of payload.logs ?? []) {
         afterLogSeq = Math.max(afterLogSeq, line.seq);
         if (!cli.json) console.error(line.message);
+      }
+      if (payload.toolCalls?.length) {
+        toolResults = await runRemoteToolCalls(payload.toolCalls, localTools);
+        continue;
       }
       if (payload.status === "done" && payload.result) {
         if (cli.json) {

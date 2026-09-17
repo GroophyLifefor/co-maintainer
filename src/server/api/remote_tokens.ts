@@ -6,22 +6,29 @@ import {
   listRemoteTokens,
   setRemoteTokenActive,
 } from "../../services/remote_tokens.ts";
+import { cancelRemoteJobsForToken } from "../../services/remote_token_jobs.ts";
+import { remoteTokenUsageSince } from "../../store/reviews.ts";
 import { getRemoteToken } from "../../store/remote_tokens.ts";
+import { daysAgoIso } from "../../util/time.ts";
 
 export async function handleRemoteTokensRoute(
   request: Request,
   url: URL,
 ): Promise<Response> {
   if (url.pathname === "/api/remote-tokens" && request.method === "GET") {
-    const items = listRemoteTokens().map((row) => ({
-      id: row.id,
-      name: row.name,
-      active: row.active === 1,
-      createdAt: row.created_at,
-      lastUsedAt: row.last_used_at,
-      reviews30d: 0,
-      cost30d: 0,
-    }));
+    const since = daysAgoIso(30);
+    const items = listRemoteTokens().map((row) => {
+      const usage = remoteTokenUsageSince(row.id, since);
+      return {
+        id: row.id,
+        name: row.name,
+        active: row.active === 1,
+        createdAt: row.created_at,
+        lastUsedAt: row.last_used_at,
+        reviews30d: usage.reviews,
+        cost30d: usage.cost,
+      };
+    });
     return Response.json(items);
   }
 
@@ -60,10 +67,12 @@ export async function handleRemoteTokensRoute(
       return errorResponse(400, "bad_request", "active must be a boolean");
     }
     setRemoteTokenActive(id, body.active);
+    if (!body.active) cancelRemoteJobsForToken(id, "token_deactivated");
     return Response.json({ ok: true });
   }
 
   if (request.method === "DELETE") {
+    cancelRemoteJobsForToken(id, "token_deleted");
     deleteRemoteToken(id);
     return new Response(null, { status: 204 });
   }

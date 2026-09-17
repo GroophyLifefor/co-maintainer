@@ -7,7 +7,15 @@ import {
   toJsonFinding,
 } from "../cli/review_result.ts";
 import { parseFindings } from "../pr/findings.ts";
-import { reviewWorkspaceRevision } from "../pr/reviewer.ts";
+import { codegraphToolHandlersForBridge } from "../pr/codegraph_tools.ts";
+import { type ReviewExtras, reviewWorkspaceRevision } from "../pr/reviewer.ts";
+import {
+  buildCarryPromptSection,
+  classifyCarryItems,
+  incrementalDiffPaths,
+  type CarryPrevious,
+} from "../review/carry_over.ts";
+import { remoteBridgeToolHandlers } from "../remote/tool_bridge.ts";
 import { revisionFromSubmitJson } from "../remote/revision_from_submit.ts";
 import {
   closeRemoteSession,
@@ -26,8 +34,16 @@ import {
   insertRemoteReviewInput,
 } from "../store/remote_review_inputs.ts";
 import {
+  insertFinding,
+  listCarryableFindingsForReview,
+} from "../store/findings.ts";
+import {
   deleteSubjectRevision,
   getOrCreateRemoteSubject,
+  getSubjectRevision,
+  parseRevisionFiles,
+  parseVisiblePaths,
+  saveSubjectRevision,
 } from "../store/subjects.ts";
 import {
   getReviewByJobId,
@@ -45,14 +61,14 @@ function remoteQueueKey(repo: string, branch: string, tokenId: string): string {
   return `remote:${repo}:${branch}:${tokenId}`;
 }
 
-function reviewOptionsForRepo(repo: string): Options {
+function reviewOptionsForRepo(repo: string, useCodegraph: boolean): Options {
   const config = readConfig();
   return {
     command: "review",
     repo,
     debug: false,
     logTime: false,
-    useCodegraph: false,
+    useCodegraph,
     improveMatrix: 1,
     ghConcurrent: 1,
     aiConcurrent: 3,
@@ -172,6 +188,7 @@ export function registerRemoteReviewHandler(): void {
         subjectId?: string;
       };
       const reviewId = args.reviewId;
+      const subjectId = args.subjectId;
       if (!reviewId) throw new Error("remote review missing reviewId");
 
       const input = getRemoteReviewInput(job.id);
@@ -186,9 +203,60 @@ export function registerRemoteReviewHandler(): void {
       let completed = false;
       try {
         const revision = revisionFromSubmitJson(JSON.parse(input.revision_json));
-        const options = reviewOptionsForRepo(job.repo);
+        const caps = JSON.parse(input.capabilities_json) as {
+          tools?: { name: string }[];
+        };
+        const allowed = new Set(
+          (caps.tools ?? [])
+            .map((tool) => tool.name)
+            .filter((name) => typeof name === "string" && name),
+        );
+        const useCodegraph = allowed.size > 0;
+        const options = reviewOptionsForRepo(job.repo, useCodegraph);
         if (!options.aiToken || options.ai === "none") {
           throw new Error("server AI is not configured for remote review");
+        }
+
+        const extras: ReviewExtras = {};
+        if (subjectId) {
+          const subjectRevision = getSubjectRevision(subjectId);
+          if (subjectRevision) {
+            const prevFiles = parseRevisionFiles(subjectRevision);
+            const { unchanged } = incrementalDiffPaths(revision, prevFiles);
+            extras.unchangedPaths = unchanged;
+            const storedRows = listCarryableFindingsForReview(
+              subjectRevision.review_id,
+            );
+            const carryPrevious: CarryPrevious = {
+              files: prevFiles,
+              visiblePaths: parseVisiblePaths(subjectRevision),
+              findings: storedRows.map((row) => ({
+                id: row.id,
+                path: row.path,
+                lineFrom: row.line_from,
+                lineTo: row.line_to,
+                title: row.title,
+                bodyMd: row.body_md,
+                anchorText: row.anchor_text,
+                severity: row.severity,
+                firstSeenReviewId:
+                  row.first_seen_review_id ?? subjectRevision.review_id,
+              })),
+              guideBuiltAt: subjectRevision.guide_built_at,
+            };
+            const carryItems = classifyCarryItems(
+              carryPrevious,
+              revision,
+              carryPrevious.visiblePaths,
+              null,
+            );
+            extras.carryPrompt = buildCarryPromptSection(carryItems, revision);
+          }
+        }
+        if (useCodegraph) {
+          const schemas = codegraphToolHandlersForBridge();
+          extras.prepareCodegraphTools = async () =>
+            remoteBridgeToolHandlers(job.id, signal, allowed, schemas);
         }
 
         const started = performance.now();
@@ -209,7 +277,7 @@ export function registerRemoteReviewHandler(): void {
           },
           undefined,
           (message) => log("info", message),
-          undefined,
+          extras,
         );
 
         if (signal.aborted) return;
@@ -245,7 +313,34 @@ export function registerRemoteReviewHandler(): void {
           findings_count: findings.length,
           guide_built_at: result.guideBuiltAt,
           duration_ms: durationMs,
+          tokens_in: tokensIn,
+          tokens_out: tokensOut,
+          cost: costKnown ? costUsd : null,
         });
+        if (subjectId) {
+          saveSubjectRevision({
+            subjectId,
+            reviewId,
+            files: revision.files,
+            visiblePaths: [...result.visiblePaths],
+            guideBuiltAt: result.guideBuiltAt,
+          });
+          for (const row of findings) {
+            insertFinding({
+              id: row.id,
+              reviewId,
+              severity: row.severity,
+              path: row.path ?? undefined,
+              lineFrom: row.lineFrom ?? undefined,
+              lineTo: row.lineTo ?? undefined,
+              title: row.title,
+              bodyMd: row.bodyMd,
+              anchorText: row.anchorText,
+              state: row.state,
+              closeReason: row.closeReason ?? null,
+            });
+          }
+        }
         deleteRemoteReviewInput(job.id);
         closeRemoteSession(job.id);
         completed = true;

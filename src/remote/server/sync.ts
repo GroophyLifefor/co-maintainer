@@ -11,6 +11,10 @@ import {
   touchRemoteSession,
   type RemoteSyncResult,
 } from "./sessions.ts";
+import {
+  applyToolResults,
+  drainPendingToolCalls,
+} from "../tool_bridge.ts";
 
 function jobToSyncStatus(
   jobStatus: string,
@@ -49,6 +53,14 @@ export function handleRemoteSync(
 
   touchRemoteSession(jobId);
 
+  const toolResults = body.toolResults;
+  if (Array.isArray(toolResults)) {
+    applyToolResults(
+      jobId,
+      toolResults as Array<{ callId: string; output?: string; error?: string }>,
+    );
+  }
+
   const afterLogSeq = Number(body.afterLogSeq);
   const logs = getLogsSince(jobId, afterLogSeq).map((row) => ({
     seq: row.seq,
@@ -83,10 +95,12 @@ export function handleRemoteSync(
     };
   }
 
+  const toolCalls = drainPendingToolCalls(jobId);
+
   return Response.json({
     schemaVersion: REMOTE_SCHEMA_VERSION,
     status,
-    toolCalls: [],
+    toolCalls,
     logs,
     result,
     abort,

@@ -8,6 +8,7 @@ import {
   formatHumanLocalReview,
   resolvedFromFirstReview,
   reviewExitCodeFromResolved,
+  type ReviewWarning,
 } from "../cli/review_result.ts";
 import { emptyAiMetrics, recordAiCost, runInitOrRemake } from "../services/setup.ts";
 import { aiFor } from "../services/review.ts";
@@ -25,7 +26,7 @@ import {
 import { revisionHash } from "../review/revision.ts";
 import type { ParsedFinding } from "../pr/findings.ts";
 import { parseFindings } from "../pr/findings.ts";
-import { reviewWorkspaceRevision } from "../pr/reviewer.ts";
+import { type ReviewExtras, reviewWorkspaceRevision } from "../pr/reviewer.ts";
 import { runCommand } from "../pr/checkout.ts";
 import { log, startHeartbeat, timed, withCliLogsToStderr } from "../util/log.ts";
 import { setCliInteractive } from "../cli/args.ts";
@@ -172,7 +173,7 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
     const baseSha = await mergeBase(root, base.ref, remoteName, runCommand);
     const built = await buildLocalRevision(root, baseSha, base.label, runCommand);
     let revision = built.revision;
-    const warnings = built.warnings.map((w) => ({
+    const warnings: ReviewWarning[] = built.warnings.map((w) => ({
       code: w.code,
       message: w.message,
     }));
@@ -203,7 +204,7 @@ export async function runLocalReview(cli: ReviewCliArgs & { mode: "local" }): Pr
     const previous = carryLoad.data;
     let carryPrevious: CarryPrevious | null = null;
     let carryItems: ReturnType<typeof classifyCarryItems> = [];
-    const extras: { carryPrompt?: string; unchangedPaths?: string[] } = {};
+    const extras: ReviewExtras = {};
     if (previous) {
       carryPrevious = {
         files: previous.files,

@@ -23,6 +23,7 @@ import {
   RepoNotFound,
   repoOverview,
   repoPulls,
+  repoRemoteReviews,
   runningJobs,
   skippedDeliveries,
   statsForRange,
@@ -33,6 +34,7 @@ import { renderSetup } from "./setup.ts";
 import { renderAddRepo } from "./add_repo.ts";
 import { renderRepo } from "./repo.ts";
 import { renderRepoPulls } from "./repo_prs.ts";
+import { renderRepoRemote } from "./repo_remote.ts";
 import { renderPr } from "./pr.ts";
 import { renderKnowledge } from "./knowledge.ts";
 import { renderRepoSettings } from "./repo_settings.ts";
@@ -208,6 +210,13 @@ export async function handlePageRequest(
           username,
           fullName,
           repoPulls(fullName, page, 20),
+        );
+      }
+      if (sub === "remote") {
+        return renderRepoRemote(
+          username,
+          fullName,
+          repoRemoteReviews(fullName),
         );
       }
       if (sub === "knowledge") {
