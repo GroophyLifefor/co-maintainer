@@ -17,3 +17,15 @@ Deno.test("parseReviewArgs: PR mode strips local-only flags before parseArgs", (
     throw new Error(`pr ${parsed.options.prNumber}`);
   }
 });
+
+Deno.test("parseReviewArgs: --remote without repo dies", () => {
+  let message = "";
+  try {
+    parseReviewArgs(["--remote"]);
+  } catch (error) {
+    message = String(error);
+  }
+  if (!message.includes("not implemented")) {
+    throw new Error(`expected not implemented, got ${message}`);
+  }
+});

@@ -285,7 +285,9 @@ export function parseArgs(args: string[]): Options {
     debug: rest.includes("--debug"),
     logTime: rest.includes("--log-time"),
     reviewUpstream: rest.includes("--review-upstream"),
-    useCodegraph: rest.includes("--codegraph"),
+    useCodegraph: command === "review"
+      ? !rest.includes("--disable-codegraph")
+      : false,
     envPath,
     improveMatrix: value("improve-matrix") ?? 1,
     ghConcurrent: Math.max(1, value("gh-concurrent") ?? 1),

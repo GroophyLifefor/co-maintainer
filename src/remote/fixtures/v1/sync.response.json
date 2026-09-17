@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "status": "running",
+  "toolCalls": [
+    {
+      "callId": "c_03",
+      "name": "codegraph-callers",
+      "arguments": { "symbol": "refresh" }
+    }
+  ],
+  "logs": [
+    {
+      "seq": 18,
+      "at": "2026-09-15T10:00:01.000Z",
+      "level": "info",
+      "message": "review started"
+    }
+  ],
+  "result": null,
+  "abort": null
+}
