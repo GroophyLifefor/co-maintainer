@@ -1,7 +1,11 @@
 import denoConfig from "../../deno.json" with { type: "json" };
 import type { ReviewCliArgs } from "../cli/review_args.ts";
 import { printLocalReview } from "../cli/review_output.ts";
-import { isBlockingFinding } from "../cli/review_result.ts";
+import {
+  formatHumanJsonFindings,
+  type JsonReviewFinding,
+  reviewExitCodeFromJsonFindings,
+} from "../cli/review_result.ts";
 import { readConfig, writeUserConfig } from "../config.ts";
 import { prepareLocalCodegraph } from "../local/codegraph_prepare.ts";
 import {
@@ -257,25 +261,23 @@ export async function runRemoteReview(cli: ReviewCliArgs & { mode: "remote" }): 
             ...payload.result,
           }));
         } else {
-          const findings = payload.result.findings as unknown[] | undefined;
-          const summary = JSON.stringify(payload.result.summary ?? {});
+          const findings = (payload.result.findings ?? []) as JsonReviewFinding[];
+          const summary = payload.result.summary as {
+            new?: number;
+            open?: number;
+            closed?: number;
+            blocking?: number;
+          } | undefined;
+          const summaryLine = summary
+            ? `${summary.new ?? 0} new · ${summary.open ?? 0} open · ${summary.closed ?? 0} closed · ${summary.blocking ?? 0} blocking`
+            : "";
           printLocalReview(
-            `co-maintainer review · ${repo} · ${branch} (remote)\n${summary}`,
-            findings?.length
-              ? `## Findings\n\n(${findings.length} finding(s) in JSON output)`
-              : "## Findings\n\nNo actionable findings.",
+            `co-maintainer review · ${repo} · ${branch} (remote)\n${summaryLine}`,
+            formatHumanJsonFindings(findings),
           );
         }
-        const findings = payload.result.findings as Array<{
-          blocking?: boolean;
-          severity?: string;
-          title?: string;
-        }> | undefined;
-        const blocking = findings?.some((f) =>
-          f.blocking === true ||
-          isBlockingFinding(String(f.title ?? ""), String(f.severity ?? "P2"))
-        ) ?? false;
-        Deno.exit(blocking ? 1 : 0);
+        const findings = (payload.result.findings ?? []) as JsonReviewFinding[];
+        Deno.exit(reviewExitCodeFromJsonFindings(findings));
       }
       if (payload.status === "failed" || payload.status === "canceled") {
         die(

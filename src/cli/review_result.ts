@@ -255,6 +255,64 @@ export function formatHumanLocalReview(
   return lines.join("\n");
 }
 
+/** Human-readable findings block for remote sync JSON (same shape as `toJsonFinding`). */
+export function formatHumanJsonFindings(
+  findings: JsonReviewFinding[],
+): string {
+  if (findings.length === 0) {
+    return "## Findings\n\nNo actionable findings.";
+  }
+  const lines: string[] = ["## Findings", ""];
+  const sorted = [...findings].sort(
+    (a, b) =>
+      (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9),
+  );
+  for (const row of sorted) {
+    const blocking = row.blocking ||
+      isBlockingFinding(row.title, row.severity);
+    const impact = `[${row.severity} · ${blocking ? "blocking" : "non-blocking"}]`;
+    let prefix = "";
+    if (row.path) {
+      const from = row.lineFrom ?? 0;
+      const to = row.lineTo ?? from;
+      const span = from === to ? `${from}` : `${from}-${to}`;
+      prefix = `${row.path}:${span}  `;
+    }
+    lines.push(`- ${prefix}${impact} ${row.title}`);
+    const body = row.body.trim();
+    if (body) {
+      for (const part of body.split("\n")) {
+        lines.push(`  ${part}`);
+      }
+    }
+    if (row.suggestion && row.path) {
+      const { lineFrom, lineTo, text } = row.suggestion;
+      lines.push(
+        `  Suggested replacement for ${row.path}:${lineFrom}${
+          lineTo !== lineFrom ? `-${lineTo}` : ""
+        }`,
+      );
+      lines.push("  ```");
+      for (const part of text.split("\n")) {
+        lines.push(`  ${part}`);
+      }
+      lines.push("  ```");
+    }
+    lines.push("");
+  }
+  return lines.join("\n").trimEnd();
+}
+
+export function reviewExitCodeFromJsonFindings(
+  findings: JsonReviewFinding[],
+): number {
+  return findings.some(
+    (f) => f.blocking || isBlockingFinding(f.title, f.severity),
+  )
+    ? 1
+    : 0;
+}
+
 export type LocalReviewJsonInput = {
   repo: string;
   branch: string;
