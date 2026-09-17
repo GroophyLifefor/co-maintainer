@@ -26,7 +26,13 @@ export function rejectEscapingPath(file: string): string | null {
   const flag = rejectFlagLike(file, "file");
   if (flag) return flag;
   const norm = file.replace(/\\/g, "/");
-  if (norm.startsWith("/") || norm.split("/").includes("..")) {
+  if (
+    norm.startsWith("/") ||
+    norm.startsWith("//") ||
+    /^[A-Za-z]:\//.test(norm) ||
+    /^[A-Za-z]:$/.test(norm) ||
+    norm.split("/").includes("..")
+  ) {
     return toolError("file must stay inside the repository");
   }
   return null;

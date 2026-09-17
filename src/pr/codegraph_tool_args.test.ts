@@ -16,8 +16,15 @@ Deno.test("codegraph_tool_args: rejects unknown keys", () => {
 });
 
 Deno.test("codegraph_tool_args: rejects escaping paths", () => {
-  const err = rejectEscapingPath("../etc/passwd");
-  if (!err?.includes("inside the repository")) throw new Error(String(err));
+  for (const file of ["../etc/passwd", "C:/Windows/System32", "C:\\Windows\\System32"]) {
+    const err = rejectEscapingPath(file);
+    if (!err?.includes("inside the repository")) {
+      throw new Error(`${file}: ${String(err)}`);
+    }
+  }
+  if (rejectEscapingPath("src/foo.ts")) {
+    throw new Error("repo-relative path should be allowed");
+  }
 });
 
 Deno.test("codegraph_tool_args: guardToolArgs passes known keys", () => {
