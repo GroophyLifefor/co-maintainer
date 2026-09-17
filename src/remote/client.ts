@@ -18,7 +18,11 @@ import {
 } from "../local/git_revision.ts";
 import { withCliLogsToStderr } from "../util/log.ts";
 import { setCliInteractive } from "../cli/args.ts";
-import { REMOTE_SCHEMA_VERSION } from "./schema.ts";
+import {
+  MIN_SERVER_SCHEMA,
+  REMOTE_CLI_UPGRADE_COMMAND,
+  REMOTE_SCHEMA_VERSION,
+} from "./schema.ts";
 
 type HandshakeResponse = {
   schemaVersion: number;
@@ -29,8 +33,13 @@ type HandshakeResponse = {
   limits: { maxBodyBytes: number };
 };
 
-function die(code: string, message: string, hint?: string): never {
-  throw new ReviewCliError(code, message, hint);
+function die(
+  code: string,
+  message: string,
+  hint?: string,
+  exitCode = 2,
+): never {
+  throw new ReviewCliError(code, message, hint, exitCode);
 }
 
 function baseUrl(host: string): string {
@@ -126,8 +135,21 @@ export async function runRemoteReview(cli: ReviewCliArgs & { mode: "remote" }): 
       die("remote_handshake_failed", await readApiError(handshake));
     }
     const hs = await handshake.json() as HandshakeResponse;
-    if (hs.schemaVersion < REMOTE_SCHEMA_VERSION) {
-      die("server_too_old", "The dashboard server is too old for this CLI.");
+    if (REMOTE_SCHEMA_VERSION < hs.minClientSchema) {
+      die(
+        "upgrade_required",
+        "This co-maintainer CLI is too old for the server.",
+        REMOTE_CLI_UPGRADE_COMMAND,
+        4,
+      );
+    }
+    if (hs.schemaVersion < MIN_SERVER_SCHEMA) {
+      die(
+        "server_too_old",
+        "The dashboard server is too old for this CLI.",
+        undefined,
+        4,
+      );
     }
 
     const requestId = crypto.randomUUID();

@@ -139,6 +139,20 @@ function validateRevisionFile(
   return null;
 }
 
+export function validateRevisionPayload(revision: unknown): string | null {
+  if (!isRecord(revision)) return bad("revision", "required");
+  const files = revision.files;
+  if (!Array.isArray(files) || files.length < 1) {
+    return bad("revision.files", "must have at least one file");
+  }
+  const paths = new Set<string>();
+  for (let i = 0; i < files.length; i++) {
+    const err = validateRevisionFile(files[i], i, paths);
+    if (err) return err;
+  }
+  return null;
+}
+
 export function validateHandshakeRequest(body: unknown): string | null {
   if (!isRecord(body)) return "body must be an object";
   const version = parseSchemaVersion(body);
@@ -180,17 +194,8 @@ export function validateSubmitRequest(body: unknown): string | null {
     return bad("fresh", "must be a boolean");
   }
 
-  const revision = body.revision;
-  if (!isRecord(revision)) return bad("revision", "required");
-  const files = revision.files;
-  if (!Array.isArray(files) || files.length < 1) {
-    return bad("revision.files", "must have at least one file");
-  }
-  const paths = new Set<string>();
-  for (let i = 0; i < files.length; i++) {
-    const err = validateRevisionFile(files[i], i, paths);
-    if (err) return err;
-  }
+  const revisionErr = validateRevisionPayload(body.revision);
+  if (revisionErr) return revisionErr;
 
   if (body.capabilities !== undefined) {
     if (!isRecord(body.capabilities)) {

@@ -183,70 +183,82 @@ export function registerRemoteReviewHandler(): void {
       setReviewStatus(reviewId, "running");
       log("info", `remote review started for ${job.repo}`);
 
-      const revision = revisionFromSubmitJson(JSON.parse(input.revision_json));
-      const options = reviewOptionsForRepo(job.repo);
-      if (!options.aiToken || options.ai === "none") {
-        throw new Error("server AI is not configured for remote review");
+      let completed = false;
+      try {
+        const revision = revisionFromSubmitJson(JSON.parse(input.revision_json));
+        const options = reviewOptionsForRepo(job.repo);
+        if (!options.aiToken || options.ai === "none") {
+          throw new Error("server AI is not configured for remote review");
+        }
+
+        const started = performance.now();
+        let tokensIn = 0;
+        let tokensOut = 0;
+        let costUsd: number | null = 0;
+        let costKnown = true;
+        const result = await reviewWorkspaceRevision(
+          revision,
+          options,
+          "remote",
+          async (response) => {
+            tokensIn += response.tokensIn;
+            tokensOut += response.tokensOut;
+            if (response.cost === undefined) costKnown = false;
+            else costUsd = (costUsd ?? 0) + response.cost;
+            await recordAiCost(job.repo, "remote_review", response);
+          },
+          undefined,
+          (message) => log("info", message),
+          undefined,
+        );
+
+        if (signal.aborted) return;
+
+        const parsed = parseFindings(result.text);
+        const filesByPath = new Map(
+          revision.files.map((file) => [file.path, { patch: file.patch }]),
+        );
+        const findings = sortResolvedFindings(
+          resolvedFromFirstReview(parsed, filesByPath),
+        );
+        const durationMs = Math.round(performance.now() - started);
+
+        setRemoteSyncResult(job.id, {
+          subject: {
+            repo: job.repo,
+            branch: review.branch,
+            prNumber: null,
+          },
+          revision: revisionStats(revision),
+          guide: { builtAt: result.guideBuiltAt },
+          summary: summaryCounts(findings),
+          findings: findings.map(toJsonFinding),
+          usage: {
+            tokensIn,
+            tokensOut,
+            costUsd: costKnown ? costUsd : null,
+          },
+          remote: { jobId: job.id, reviewId, clientVersion: denoConfig.version },
+        });
+
+        setReviewStatus(reviewId, "done", {
+          findings_count: findings.length,
+          guide_built_at: result.guideBuiltAt,
+          duration_ms: durationMs,
+        });
+        deleteRemoteReviewInput(job.id);
+        closeRemoteSession(job.id);
+        completed = true;
+        log("info", `remote review finished (${findings.length} findings)`);
+      } finally {
+        if (!completed) {
+          if (signal.aborted) {
+            setReviewStatus(reviewId, "aborted");
+          }
+          deleteRemoteReviewInput(job.id);
+          closeRemoteSession(job.id);
+        }
       }
-
-      const started = performance.now();
-      let tokensIn = 0;
-      let tokensOut = 0;
-      let costUsd: number | null = 0;
-      let costKnown = true;
-      const result = await reviewWorkspaceRevision(
-        revision,
-        options,
-        "remote",
-        async (response) => {
-          tokensIn += response.tokensIn;
-          tokensOut += response.tokensOut;
-          if (response.cost === undefined) costKnown = false;
-          else costUsd = (costUsd ?? 0) + response.cost;
-          await recordAiCost(job.repo, "remote_review", response);
-        },
-        undefined,
-        (message) => log("info", message),
-        undefined,
-      );
-
-      if (signal.aborted) return;
-
-      const parsed = parseFindings(result.text);
-      const filesByPath = new Map(
-        revision.files.map((file) => [file.path, { patch: file.patch }]),
-      );
-      const findings = sortResolvedFindings(
-        resolvedFromFirstReview(parsed, filesByPath),
-      );
-      const durationMs = Math.round(performance.now() - started);
-
-      setRemoteSyncResult(job.id, {
-        subject: {
-          repo: job.repo,
-          branch: review.branch,
-          prNumber: null,
-        },
-        revision: revisionStats(revision),
-        guide: { builtAt: result.guideBuiltAt },
-        summary: summaryCounts(findings),
-        findings: findings.map(toJsonFinding),
-        usage: {
-          tokensIn,
-          tokensOut,
-          costUsd: costKnown ? costUsd : null,
-        },
-        remote: { jobId: job.id, reviewId, clientVersion: denoConfig.version },
-      });
-
-      setReviewStatus(reviewId, "done", {
-        findings_count: findings.length,
-        guide_built_at: result.guideBuiltAt,
-        duration_ms: durationMs,
-      });
-      deleteRemoteReviewInput(job.id);
-      closeRemoteSession(job.id);
-      log("info", `remote review finished (${findings.length} findings)`);
     },
   });
 }

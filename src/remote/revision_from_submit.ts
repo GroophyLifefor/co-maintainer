@@ -1,34 +1,27 @@
-import type { Revision, RevisionFile } from "../review/revision.ts";
+import type { Revision, RevisionFile, RevisionFileStatus } from "../review/revision.ts";
+import { validateRevisionPayload } from "./validate.ts";
 
 export function revisionFromSubmitJson(raw: unknown): Revision {
-  if (typeof raw !== "object" || raw === null) {
-    throw new Error("revision must be an object");
-  }
+  const err = validateRevisionPayload(raw);
+  if (err) throw new Error(err);
   const record = raw as Record<string, unknown>;
-  const filesRaw = record.files;
-  if (!Array.isArray(filesRaw) || filesRaw.length === 0) {
-    throw new Error("revision.files required");
-  }
-  const files: RevisionFile[] = filesRaw.map((file, index) => {
-    if (typeof file !== "object" || file === null) {
-      throw new Error(`revision.files[${index}] invalid`);
-    }
+  const files = (record.files as unknown[]).map((file) => {
     const f = file as Record<string, unknown>;
     return {
-      path: String(f.path),
-      previousPath: f.previousPath == null ? null : String(f.previousPath),
-      status: f.status as RevisionFile["status"],
-      binary: Boolean(f.binary),
-      additions: Number(f.additions ?? 0),
-      deletions: Number(f.deletions ?? 0),
-      patch: String(f.patch ?? ""),
-    };
+      path: f.path as string,
+      previousPath: f.previousPath == null ? null : f.previousPath as string,
+      status: f.status as RevisionFileStatus,
+      binary: f.binary as boolean,
+      additions: f.additions as number,
+      deletions: f.deletions as number,
+      patch: f.patch as string,
+    } satisfies RevisionFile;
   });
   return {
     files,
-    title: String(record.title ?? ""),
-    description: String(record.description ?? ""),
-    baseLabel: String(record.baseLabel ?? ""),
+    title: typeof record.title === "string" ? record.title : "",
+    description: typeof record.description === "string" ? record.description : "",
+    baseLabel: typeof record.baseLabel === "string" ? record.baseLabel : "",
     producer: "remote",
   };
 }
