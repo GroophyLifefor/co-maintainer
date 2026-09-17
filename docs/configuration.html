@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Configuration · co-maintainer docs</title>
+  <link rel="stylesheet" href="assets/site.css">
+  <link rel="icon" href="assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://jsr.io/@murat/co-maintainer">JSR</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="remake.html">Remake</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="configuration.html" class="active">Configuration</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>Configuration</h1>
+<p>Global defaults live in <code>config.json</code> under the platform config directory.
+<a href="configuration.html#set"><code>co-maintainer set</code></a> writes that file. <a href="init.html"><code>init</code></a> /
+<a href="remake.html"><code>remake</code></a> also record <strong>per-repo</strong> choices there (not API tokens).
+Generated guides sit under <code>repos/</code> in the same tree. Full paths:
+<a href="caching.html#on-disk-layout">Caching</a>.</p>
+<p><a href="serve.html"><code>serve</code></a> reads the same <code>config.json</code> for the GitHub App, webhook
+URL, dashboard auth defaults, and CLI remote-review targets.</p>
+<h2 id="precedence">Precedence</h2>
+<p>For CLI commands (<code>probe</code>, <code>init</code>, <code>remake</code>, <code>review</code>):</p>
+<figure class="mermaid-figure">
+<div class="mermaid-viewport"><div class="mermaid">flowchart BT
+  flags["Command-line flags"]
+  envfile["--env=PATH file"]
+  env["Process env vars"]
+  repo["config.json repos owner/repo"]
+  global["config.json global"]
+  prompt["Interactive prompt"]
+
+  flags --> wins[Value used]
+  envfile --> env
+  env --> wins
+  repo --> wins
+  global --> wins
+  prompt --> wins</div></div>
+</figure>
+
+
+
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Examples</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Highest</td>
+<td><code>--token=</code>, <code>--auth=pat</code>, <code>--max-commits=500</code> on the command</td>
+</tr>
+<tr>
+<td>Env file</td>
+<td>Only when you pass <code>--env=./.env</code> (sets vars if not already set)</td>
+</tr>
+<tr>
+<td>Environment</td>
+<td><code>GITHUB_TOKEN</code>, <code>OPENROUTER_API_KEY</code>, <code>CO_MAINTAINER_AUTH</code>, model env vars</td>
+</tr>
+<tr>
+<td>Per-repo</td>
+<td><code>repos[&quot;owner/repo&quot;]</code> after a successful init/remake</td>
+</tr>
+<tr>
+<td>Global</td>
+<td><code>set</code> defaults in <code>config.json</code></td>
+</tr>
+<tr>
+<td>Lowest</td>
+<td>Prompts when a required value is still missing</td>
+</tr>
+</tbody></table>
+<p>API tokens are <strong>never</strong> stored per repo. They come from <code>--token=</code>, env, or
+<code>set --token=...</code> only.</p>
+<h2 id="co-maintainer-set"><code>co-maintainer set</code></h2>
+<p>Persists global settings so later commands can skip flags and prompts.</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--auth=gh</span> <span class="sh-flag">--ai=openrouter</span> <span class="sh-flag">--token=YOUR_KEY</span> <span class="sh-arg">\</span>
+  <span class="sh-flag">--low-model=openai/gpt-oss-120b</span> <span class="sh-flag">--high-model=openai/gpt-5.6-luna</span>
+
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-app-id=...</span> <span class="sh-flag">--github-app-private-key-file=./app.pem</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--remote-host=https://your-server</span> <span class="sh-flag">--remote-token=cmr_...</span>
+</code></pre>
+<h3 id="set-flags"><code>set</code> flags</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Written to</th>
+<th>Used by</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--token=...</code></td>
+<td><code>token</code></td>
+<td>CLI AI calls (OpenRouter/Hetzner)</td>
+</tr>
+<tr>
+<td><code>--ai=none|openrouter|hetzner</code></td>
+<td><code>ai</code></td>
+<td>CLI and dashboard jobs</td>
+</tr>
+<tr>
+<td><code>--low-model=...</code> / <code>--high-model=...</code></td>
+<td><code>lowModel</code>, <code>highModel</code></td>
+<td>CLI and dashboard jobs</td>
+</tr>
+<tr>
+<td><code>--auth=gh|pat</code></td>
+<td><code>auth</code></td>
+<td>CLI GitHub reads</td>
+</tr>
+<tr>
+<td><code>--github-pat=...</code></td>
+<td><code>githubPat</code></td>
+<td>CLI when <code>--auth=pat</code></td>
+</tr>
+<tr>
+<td><code>--github-app-id=...</code></td>
+<td><code>githubAppId</code></td>
+<td><code>serve</code></td>
+</tr>
+<tr>
+<td><code>--github-app-private-key=...</code></td>
+<td><code>githubAppPrivateKey</code></td>
+<td><code>serve</code></td>
+</tr>
+<tr>
+<td><code>--github-app-private-key-file=path</code></td>
+<td>same as inline key</td>
+<td><code>serve</code></td>
+</tr>
+<tr>
+<td><code>--github-webhook-secret=...</code></td>
+<td><code>githubWebhookSecret</code></td>
+<td><code>serve</code> webhook HMAC</td>
+</tr>
+<tr>
+<td><code>--github-oauth-client-id=...</code> etc.</td>
+<td>OAuth fields</td>
+<td>Dashboard GitHub sign-in</td>
+</tr>
+<tr>
+<td><code>--disable-auth=password</code></td>
+<td><code>passwordAuthDisabled</code></td>
+<td>Default for <code>serve</code></td>
+</tr>
+<tr>
+<td><code>--enable-auth=github</code></td>
+<td><code>githubAuthEnabled</code></td>
+<td>Default for <code>serve</code></td>
+</tr>
+<tr>
+<td><code>--remote-host=...</code></td>
+<td><code>remoteHost</code></td>
+<td><code>review --remote</code></td>
+</tr>
+<tr>
+<td><code>--remote-token=...</code></td>
+<td><code>remoteToken</code></td>
+<td><code>review --remote</code></td>
+</tr>
+</tbody></table>
+<p>OAuth setup steps: <a href="serve.html#sign-in-to-the-dashboard"><code>serve</code>: Sign in</a>.</p>
+<h3 id="unset">Unset</h3>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--unset=token</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--unset=github-webhook-secret</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--unset=disable-auth</span>
+</code></pre>
+<p><code>--unset=disable-auth</code> clears <code>passwordAuthDisabled</code> so the dashboard password
+is allowed again. Match <code>--unset=</code> to the field name or the flag name (see
+<code>co-maintainer set --help</code>).</p>
+<h2 id="per-repo-memory">Per-repo memory</h2>
+<p>After each successful <a href="init.html"><code>init</code></a> or <a href="remake.html"><code>remake</code></a>,
+<code>config.json</code> gains <code>repos[&quot;owner/repo&quot;]</code> with:</p>
+<table>
+<thead>
+<tr>
+<th>Stored</th>
+<th>Not stored</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>auth</code>, <code>ai</code>, models</td>
+<td>API token</td>
+</tr>
+<tr>
+<td><code>max-*</code> limits</td>
+<td>GitHub PAT (global only)</td>
+</tr>
+<tr>
+<td><code>include-*</code> flags</td>
+<td></td>
+</tr>
+</tbody></table>
+<p>A plain <code>co-maintainer remake owner/repo</code> reuses those values. Pass new flags
+on <code>remake</code> or run <code>init</code> again to change includes or limits permanently.</p>
+<p>Guide files (<code>SKILL.md</code>, <code>CODEBASE.md</code>, review guides) live under
+<code>&lt;config&gt;/co-maintainer/repos/&lt;slug&gt;/</code>, not in your git clone. See
+<a href="caching.html#generated-guides">Caching</a>.</p>
+<h2 id="secrets-on-disk">Secrets on disk</h2>
+<p><code>config.json</code> may contain tokens, PATs, App private keys, and webhook/OAuth
+secrets in <strong>plain text</strong>. The file is chmod <code>0600</code> where supported (not on
+Windows).</p>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>Suggestion</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Personal laptop</td>
+<td><code>set</code> is fine</td>
+</tr>
+<tr>
+<td>Shared CI</td>
+<td>Prefer <code>--env=PATH</code> or flags, avoid committing config</td>
+</tr>
+<tr>
+<td><code>serve</code> host</td>
+<td>Lock down the config directory like any secret store</td>
+</tr>
+</tbody></table>
+<p>Dashboard <strong>Settings</strong> can also save credentials after validating them with
+GitHub.</p>
+<h2 id="path-overrides">Path overrides</h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>CM_CONFIG_PATH</code></td>
+<td>Replace <code>config.json</code> location (tests)</td>
+</tr>
+<tr>
+<td><code>CM_REPOS_DIR</code></td>
+<td>Replace generated guides root (must match <code>serve</code> for server init)</td>
+</tr>
+</tbody></table>
+<p>More cache and database paths: <a href="caching.html#overrides">Caching</a>.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/configuration.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#precedence">Precedence</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#per-repo-memory">Per-repo memory</a></li><li><a href="#secrets-on-disk">Secrets on disk</a></li><li><a href="#path-overrides">Path overrides</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="assets/docs.js"></script>
+  <script src="assets/mermaid.min.js"></script>
+  <script src="assets/mermaid-init.js"></script>
+</body>
+</html>

@@ -52,11 +52,8 @@ co-maintainer review --json       # machine-readable stdout; logs on stderr
 deno task review-local-e2e        # fake-AI local loop (developers, from repo root)
 ```
 
-See the command documentation: [`probe`](docs/probe.md), [`init`](docs/init.md),
-[`remake`](docs/remake.md), [`review`](docs/review.md),
-[`serve`](docs/serve.md), [`dashboard`](docs/dashboard.md),
-[`configuration`](docs/configuration.md),
-[`authentication`](docs/authentication.md), and [`caching`](docs/caching.md).
+Documentation: [Getting started](docs/getting-started.html) (install → first
+review), [full docs site](docs/index.html), sources in [`docs/md/`](docs/md/).
 
 Use `co-maintainer help`, `co-maintainer -h`, or `co-maintainer --help` for the
 full CLI help.

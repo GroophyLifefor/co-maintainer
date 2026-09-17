@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard · co-maintainer docs</title>
+  <link rel="stylesheet" href="assets/site.css">
+  <link rel="icon" href="assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://jsr.io/@murat/co-maintainer">JSR</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="remake.html">Remake</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html" class="active">Dashboard</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>Dashboard</h1>
+<p>Web UI started by <a href="serve.html"><code>serve</code></a>. Use it to finish setup, add repositories,
+run <a href="init.html"><code>init</code></a> / <a href="remake.html"><code>remake</code></a>, tune auto-review, watch jobs, and
+manage <a href="remote-review.html">remote review</a> tokens. Webhooks and the job worker run
+in the same process as the UI.</p>
+<h2 id="what-it-is-for">What it is for</h2>
+<figure class="mermaid-figure">
+<div class="mermaid-viewport"><div class="mermaid">flowchart TD
+  login[Sign in] --> setup["Get started (/setup)"]
+  setup --> add[/repos/new/]
+  add --> init[Init job on Activity]
+  init --> ready[Repo overview]
+  ready --> auto[Repo settings: auto-review]
+  ready --> pr[Pull requests: manual review]
+  ready --> tok[Settings: remote tokens]
+  tok --> remote[Developers: review --remote]</div></div>
+</figure>
+
+
+
+<table>
+<thead>
+<tr>
+<th>Goal</th>
+<th>Where to go</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>First-time server setup</td>
+<td><strong>Get started</strong> on home or <code>/setup</code>, then <strong>Settings</strong></td>
+</tr>
+<tr>
+<td>Onboard a repo</td>
+<td><strong>Add repository</strong>, wait on <strong>Activity</strong></td>
+</tr>
+<tr>
+<td>Refresh guides after <code>main</code> moves</td>
+<td>Repo <strong>Overview</strong> or <strong>Settings</strong> (Remake)</td>
+</tr>
+<tr>
+<td>Team laptops without local init</td>
+<td><strong>Settings</strong> remote tokens, repo <strong>Remote</strong> tab</td>
+</tr>
+<tr>
+<td>Debug a failed job</td>
+<td><strong>Activity</strong> job detail</td>
+</tr>
+</tbody></table>
+<h2 id="before-you-open">Before you open</h2>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="serve.html"><code>serve</code></a> is running</td>
+<td>Dashboard is not a separate install</td>
+</tr>
+<tr>
+<td>Dashboard URL from startup log</td>
+<td>Default <code>http://localhost:&lt;port&gt;/</code></td>
+</tr>
+<tr>
+<td>Password or GitHub sign-in</td>
+<td>See <a href="#sign-in">Sign in</a> and <a href="serve.html#sign-in-to-the-dashboard"><code>serve</code>: Sign in</a></td>
+</tr>
+<tr>
+<td>Browser on a host that can reach the server</td>
+<td>Same network or VPN as production</td>
+</tr>
+</tbody></table>
+<p><code>/dashboard</code> redirects to <code>/</code>.</p>
+<h2 id="sign-in">Sign in</h2>
+<p>Open <code>http://&lt;host&gt;:&lt;port&gt;/</code>.</p>
+<ul>
+<li><strong>Password</strong>: printed at <code>serve</code> startup, or set with <code>--password=...</code>.</li>
+<li><strong>GitHub</strong> (optional): <strong>Continue with GitHub</strong> for the one allowed user.
+OAuth setup lives on <a href="serve.html#sign-in-to-the-dashboard"><code>serve</code></a>.</li>
+</ul>
+<p>Sessions use an <code>HttpOnly</code>, <code>SameSite=Lax</code> cookie (<code>Secure</code> on HTTPS).</p>
+<h2 id="get-started-setup">Get started (<code>/setup</code>)</h2>
+<p>Onboarding checklist: models and API key, GitHub access, GitHub App. Each step
+links to <strong>Settings</strong> to fix gaps.</p>
+<p>This page is <strong>not</strong> in the top bar. After sign-in, open
+<code>http://&lt;host&gt;:&lt;port&gt;/setup</code> or click <strong>Get started</strong> on the home page when you
+have no repositories yet. You can skip it and configure the same items under
+<strong>Settings</strong> at any time.</p>
+<h2 id="routes">Routes</h2>
+<p>Top bar: <strong>Activity</strong>, <strong>Usage</strong> (<code>/analytics</code>), <strong>Settings</strong>, signed-in user.</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/</code></td>
+<td>Repository list, <strong>Get started</strong> (when empty), <strong>Add repository</strong>, auto-review toggles</td>
+</tr>
+<tr>
+<td><code>/setup</code></td>
+<td>Same checklist as above (direct URL)</td>
+</tr>
+<tr>
+<td><code>/repos/new</code></td>
+<td>Pick an App-installed repo and start <strong>init</strong></td>
+</tr>
+<tr>
+<td><code>/repos/:owner/:repo</code></td>
+<td>Overview, 30-day stats, drift <strong>Update now</strong>, recent PRs</td>
+</tr>
+<tr>
+<td><code>/repos/:owner/:repo/pulls</code></td>
+<td>PR list by number, manual <strong>Review</strong> when webhooks fail</td>
+</tr>
+<tr>
+<td><code>/repos/:owner/:repo/pulls/:n</code></td>
+<td>Findings and cost for one PR</td>
+</tr>
+<tr>
+<td><code>/repos/:owner/:repo/remote</code></td>
+<td>Remote CLI reviews for this repo (last 30 days)</td>
+</tr>
+<tr>
+<td><code>/repos/:owner/:repo/knowledge</code></td>
+<td>Generated guides, <strong>Remake</strong></td>
+</tr>
+<tr>
+<td><code>/repos/:owner/:repo/settings</code></td>
+<td>Auto-review, skip rules, scope, remove repo</td>
+</tr>
+<tr>
+<td><code>/activity</code></td>
+<td>Live and recent jobs (refreshes about every 5 seconds)</td>
+</tr>
+<tr>
+<td><code>/activity/:id</code></td>
+<td>Single job log</td>
+</tr>
+<tr>
+<td><code>/analytics</code></td>
+<td>Usage for 7, 30, or 90 days</td>
+</tr>
+<tr>
+<td><code>/settings</code></td>
+<td>Global models, GitHub, App, webhook URL, remote limits and tokens</td>
+</tr>
+</tbody></table>
+<p>Per-repo sidebar: <strong>Overview</strong>, <strong>Pull requests</strong>, <strong>Remote</strong>, <strong>Knowledge</strong>, <strong>Settings</strong>.</p>
+<p>PR titles are not stored in <code>app.db</code>, so lists show <code>#number</code> only.</p>
+<h2 id="settings-global">Settings (global)</h2>
+<p>Single page with sections (anchor links in the sidebar):</p>
+<table>
+<thead>
+<tr>
+<th>Section</th>
+<th>What you configure</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Models and API key</td>
+<td>Provider, token, low/high models for server jobs</td>
+</tr>
+<tr>
+<td>GitHub</td>
+<td><code>gh</code> or PAT for init/remake and server-side Git reads</td>
+</tr>
+<tr>
+<td>Defaults</td>
+<td>Auth and include/limit defaults for new work</td>
+</tr>
+<tr>
+<td>Server</td>
+<td>Webhook URL shown to GitHub, queue and timeout knobs</td>
+</tr>
+<tr>
+<td>Remote review</td>
+<td><code>cmr_…</code> tokens, per-token concurrency, sync timeout</td>
+</tr>
+<tr>
+<td>Access</td>
+<td>Password vs GitHub sign-in toggles (mirrors <code>serve</code> flags)</td>
+</tr>
+<tr>
+<td>About</td>
+<td>Version and source link</td>
+</tr>
+</tbody></table>
+<p>Saving PAT, App key, or OAuth values is validated against GitHub first. Bad
+scopes return <strong>422</strong> and nothing is stored.</p>
+<h2 id="ui-behavior">UI behavior</h2>
+<ul>
+<li>Failed API calls show a toast and <strong>Retry</strong>.</li>
+<li>Toggles roll back if save fails.</li>
+<li><a href="serve.html#parameters"><code>serve --inject-500</code></a> (or <code>CM_INJECT_500=1</code>) forces mutating
+<code>/api/*</code> calls except login to fail, for testing error UI.</li>
+</ul>
+<h2 id="linux">Linux</h2>
+<p>Linux (WSL included) is the recommended platform for <a href="serve.html"><code>serve</code></a> and the
+dashboard:</p>
+<ul>
+<li>SQLite FFI, advisory locks, and POSIX signals behave more predictably.</li>
+<li>Windows is supported but treated as unstable.</li>
+<li><code>serve</code> logs a one-line warning when not on Linux.</li>
+</ul>
+<h2 id="updating">Updating</h2>
+<p>Forward-only <code>app.db</code> migrations. Do not downgrade the CLI after a newer version
+has run.</p>
+<ol>
+<li>Stop <code>serve</code>.</li>
+<li><code>deno install -f -g jsr:@murat/co-maintainer</code></li>
+<li>Start <code>serve</code> again with the same data directory.</li>
+</ol>
+<p>Restart after upgrading. Details also on <a href="serve.html#updating"><code>serve</code>: Updating</a>.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/dashboard.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#what-it-is-for">What it is for</a></li><li><a href="#before-you-open">Before you open</a></li><li><a href="#sign-in">Sign in</a></li><li><a href="#get-started-setup">Get started (/setup)</a></li><li><a href="#routes">Routes</a></li><li><a href="#settings-global">Settings (global)</a></li><li><a href="#ui-behavior">UI behavior</a></li><li><a href="#linux">Linux</a></li><li><a href="#updating">Updating</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="assets/docs.js"></script>
+  <script src="assets/mermaid.min.js"></script>
+  <script src="assets/mermaid-init.js"></script>
+</body>
+</html>

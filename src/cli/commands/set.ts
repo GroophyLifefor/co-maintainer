@@ -24,7 +24,7 @@ const secretFields = new Set([
  * --github-app-private-key-file=path) --github-webhook-secret=...` —
  * persists global defaults, including secrets, to config.json so every
  * other command can skip both the flag and the interactive prompt. See
- * docs/configuration.md for the tradeoff. */
+ * docs/md/configuration.md for the tradeoff. */
 export async function runSet(args: string[]): Promise<void> {
   if (args.includes("--help") || args.includes("-h") || args.length === 0) {
     console.log(

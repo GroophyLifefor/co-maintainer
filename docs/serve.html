@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>serve · co-maintainer docs</title>
+  <link rel="stylesheet" href="assets/site.css">
+  <link rel="icon" href="assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand" href="index.html">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://jsr.io/@murat/co-maintainer">JSR</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="remake.html">Remake</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html" class="active">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1><code>serve</code></h1>
+<p>Long-running process for <strong>self-hosted</strong> co-maintainer: GitHub App webhooks,
+background review jobs, the <a href="dashboard.html">dashboard</a>, and the API used by
+<a href="remote-review.html">remote review</a>. One binary, one <code>app.db</code>, one config dir.</p>
+<p>Linux (WSL included) is the recommended platform. See
+<a href="dashboard.html#linux">dashboard: Linux</a> for why.</p>
+<h2 id="what-it-does">What it does</h2>
+<figure class="mermaid-figure">
+<div class="mermaid-viewport"><div class="mermaid">flowchart LR
+  gh[GitHub App]
+  gh -->|POST webhook| serve[co-maintainer serve]
+  serve --> jobs[Review and reply jobs]
+  serve --> dash[Dashboard UI]
+  serve --> remote[Remote review API]
+  jobs -->|App token| gh
+  browser[Browser] --> dash
+  cli[CLI review --remote] --> remote</div></div>
+</figure>
+
+
+
+<table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>POST /github/webhook</code></td>
+<td>PR and conversation events enqueue work</td>
+</tr>
+<tr>
+<td>Dashboard at <code>/</code></td>
+<td>Per-repo init/remake, settings, activity, credentials</td>
+</tr>
+<tr>
+<td>Job worker</td>
+<td>Auto PR reviews, setup jobs, conversation replies</td>
+</tr>
+<tr>
+<td>Remote review</td>
+<td>Shared repo context for laptops without local init</td>
+</tr>
+</tbody></table>
+<p>Team flow: configure the App once, run <code>serve</code>, add repos on the dashboard,
+then either webhooks review PRs or developers use <a href="remote-review.html"><code>review --remote</code></a>.
+CLI-only users can ignore <code>serve</code> until they need shared context or automation.</p>
+<h2 id="before-you-run">Before you run</h2>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="getting-started.html#1-install">Install</a> <code>co-maintainer</code></td>
+<td><code>serve</code> is a CLI command</td>
+</tr>
+<tr>
+<td>GitHub App via <code>co-maintainer set</code></td>
+<td>Startup requires <code>--github-app-id</code> and a private key (<a href="configuration.html">Configuration</a>)</td>
+</tr>
+<tr>
+<td><code>--github-webhook-secret=</code> (recommended)</td>
+<td>Verifies webhook payloads</td>
+</tr>
+<tr>
+<td>AI and GitHub access via dashboard <strong>Get started</strong> (<code>/setup</code>) or <strong>Settings</strong></td>
+<td>Reviews need models and repo access (can finish after first boot)</td>
+</tr>
+<tr>
+<td>Public URL for webhooks (production)</td>
+<td>GitHub must reach <code>POST .../github/webhook</code></td>
+</tr>
+<tr>
+<td>Linux or WSL for production</td>
+<td>Other platforms log a warning and continue</td>
+</tr>
+</tbody></table>
+<h2 id="usage">Usage</h2>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-app-id=...</span> <span class="sh-flag">--github-app-private-key-file=./app.pem</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-webhook-secret=...</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">serve</span> <span class="sh-flag">--port=5000</span>
+
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">serve</span> <span class="sh-flag">--port=5000</span> <span class="sh-flag">--password=your-dashboard-secret</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">serve</span> <span class="sh-flag">--port=5000</span> <span class="sh-flag">--webhook-url=https://example.com/github/webhook</span>
+</code></pre>
+<p>At startup, <code>serve</code> prints <code>app.db</code> path, dashboard URL, webhook URL, and (when
+password auth is on) the dashboard password unless you passed <code>--password=</code>.</p>
+<h2 id="parameters">Parameters</h2>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--port=N</code></td>
+<td>HTTP port (required, 1 to 65535)</td>
+</tr>
+<tr>
+<td><code>--password=...</code></td>
+<td>Dashboard password (random one is generated if omitted)</td>
+</tr>
+<tr>
+<td><code>--webhook-url=...</code></td>
+<td>Public webhook URL GitHub should use (also <code>CM_WEBHOOK_URL</code> or saved in Settings)</td>
+</tr>
+<tr>
+<td><code>--disable-auth=password</code></td>
+<td>Turn off password sign-in for this run</td>
+</tr>
+<tr>
+<td><code>--enable-auth=github</code></td>
+<td>Turn on GitHub OAuth sign-in for this run</td>
+</tr>
+<tr>
+<td><code>--inject-500</code></td>
+<td>Every mutating <code>/api/*</code> call returns 500 (failure UI testing, also <code>CM_INJECT_500=1</code>)</td>
+</tr>
+</tbody></table>
+<p>Per-run <code>--disable-auth</code> / <code>--enable-auth</code> override values from <code>co-maintainer set</code>. At least one sign-in method must stay enabled.</p>
+<p>Persistent App, webhook, OAuth, and webhook URL fields: <a href="configuration.html">Configuration</a>
+and dashboard <strong>Settings</strong>.</p>
+<h2 id="sign-in-to-the-dashboard">Sign in to the dashboard</h2>
+<p><strong>Password (default).</strong> Copy the password from the <code>serve</code> console on first start,
+or set <code>--password=...</code>.</p>
+<p><strong>GitHub sign-in (optional).</strong> One allowed GitHub user can sign in with the App&#39;s
+OAuth client (no separate OAuth App).</p>
+<ol>
+<li>On the GitHub App settings page, set <strong>Redirect URL</strong> to
+<code>http://&lt;host&gt;:&lt;port&gt;/auth/github/callback</code> (same host and port as <code>serve</code>).</li>
+<li>Copy client ID and client secret from that page.</li>
+<li>Save credentials and the allowed username:<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-oauth-client-id=...</span> <span class="sh-arg">\</span>
+  <span class="sh-flag">--github-oauth-client-secret=...</span> <span class="sh-arg">\</span>
+  <span class="sh-flag">--github-oauth-allowed-user=your-github-username</span>
+</code></pre>
+</li>
+<li>Enable on the command line when needed:<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">serve</span> <span class="sh-flag">--port=5000</span> <span class="sh-flag">--enable-auth=github</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">serve</span> <span class="sh-flag">--port=5000</span> <span class="sh-flag">--disable-auth=password</span> <span class="sh-flag">--enable-auth=github</span>
+</code></pre>
+</li>
+</ol>
+<p>OAuth and auth toggles can also be changed later in dashboard <strong>Settings</strong>. UI
+routes and failure behavior: <a href="dashboard.html">Dashboard</a>.</p>
+<h2 id="webhook-url">Webhook URL</h2>
+<p>Point the GitHub App webhook at:</p>
+<p><code>http://&lt;host&gt;:&lt;port&gt;/github/webhook</code></p>
+<p>The dashboard <strong>Settings</strong> field, <code>--webhook-url=...</code>, <code>CM_WEBHOOK_URL</code>, or
+saved config override the default <code>http://localhost:&lt;port&gt;/github/webhook</code>.</p>
+<p>When a secret is configured, <code>serve</code> checks <code>x-hub-signature-256</code>. Duplicate
+delivery IDs are ignored. <code>pull_request</code> and review-comment events enqueue jobs
+when the repo is active and rules allow it. Enable <strong>Issue comments</strong> and
+<strong>Issues: write</strong> on the App if you want <code>@co-maintainer</code> conversation replies.</p>
+<p>Manual PR review from the UI when GitHub cannot reach your host:
+<a href="dashboard.html#routes">Dashboard: Pull requests</a>.</p>
+<h2 id="updating">Updating</h2>
+<p>Forward-only migrations: do not install an older CLI after a newer one has
+opened <code>app.db</code>.</p>
+<ol>
+<li>Stop <code>serve</code>.</li>
+<li><code>deno install -f -g jsr:@murat/co-maintainer</code></li>
+<li>Start <code>serve</code> again with the same data directory.</li>
+</ol>
+<p>Restart after upgrading. Do not <code>deno install -f</code> while the old process is still
+running. Same steps are listed on <a href="dashboard.html#updating">Dashboard: Updating</a>.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/serve.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#what-it-does">What it does</a></li><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#sign-in-to-the-dashboard">Sign in to the dashboard</a></li><li><a href="#webhook-url">Webhook URL</a></li><li><a href="#updating">Updating</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="assets/docs.js"></script>
+  <script src="assets/mermaid.min.js"></script>
+  <script src="assets/mermaid-init.js"></script>
+</body>
+</html>

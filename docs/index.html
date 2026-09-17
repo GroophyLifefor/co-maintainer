@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="co-maintainer: repository-specific AI guidance, PR review, and self-hosted dashboard.">
+  <title>co-maintainer</title>
+  <link rel="stylesheet" href="assets/site.css">
+</head>
+<body class="layout-home">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand home-brand" href="index.html">
+        <img src="assets/logo.png" alt="">
+        co-maintainer
+      </a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink" href="getting-started.html">Docs</a>
+        <a class="toplink" href="https://jsr.io/@murat/co-maintainer">JSR</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="home-hero home-section">
+      <div class="home-kicker">Repository context for code review</div>
+      <h1>Review the change.<br><span>Know the codebase.</span></h1>
+      <p class="home-lead">
+        co-maintainer turns your code, pull requests, and commit history into
+        repository-specific guides. Every review starts with that context,
+        whether it runs on your laptop or on your server.
+      </p>
+      <div class="home-actions">
+        <a class="btn btn-primary" href="getting-started.html">Get started <span aria-hidden="true">→</span></a>
+        <a class="btn" href="https://github.com/GroophyLifefor/co-maintainer">View on GitHub</a>
+      </div>
+      <div class="install-line" aria-label="Install command">
+        <span class="prompt">$</span>
+        <code>deno install -g -A --name co-maintainer jsr:@murat/co-maintainer</code>
+      </div>
+    </section>
+
+    <section class="product-stage home-section" aria-label="co-maintainer workflow">
+      <div class="product-window">
+        <div class="window-bar">
+          <span></span><span></span><span></span>
+          <div>co-maintainer</div>
+        </div>
+        <div class="product-body">
+          <div class="product-nav">
+            <div class="product-nav-title">ACME / API</div>
+            <div class="product-nav-item active"><span>01</span> Probe</div>
+            <div class="product-nav-item active"><span>02</span> Build context</div>
+            <div class="product-nav-item active"><span>03</span> Review</div>
+          </div>
+          <div class="terminal">
+            <div><span class="term-dim">$</span> <b>co-maintainer</b> <span class="term-cmd">probe</span> owner/repo</div>
+            <div class="term-output">recommended<br/>
+              $ co-maintainer init owner/repo --max-commits=150 </div>
+            <div><span class="term-dim">$</span> <b>co-maintainer</b> <span class="term-cmd">init</span> owner/repo --max-commits=150</div>
+            <div class="term-output">
+              <span class="term-ok">✓</span> CODEBASE.md<br>
+              <span class="term-ok">✓</span> PR_REVIEW_GUIDE.md<br>
+              <span class="term-ok">✓</span> SKILL.md
+            </div>
+            <div><span class="term-dim">$</span> <b>co-maintainer</b> <span class="term-cmd">review</span></div>
+            <div class="term-output">
+              [P1 · blocking] `src/util/redact.ts` — `PATTERNS`<br/><br/>
+              Removing the OpenRouter-key pattern causes `redact` to leave <br/>
+              matching `sk-or-...` credentials unredacted, allowing them to <br/>
+              propagate wherever this pattern list is used for sensitive-value <br/>
+              sanitization.<br/><br/>
+              The deleted pattern explicitly matched `/sk-or-[A-Za-z0-9-]{10,}/g`. <br/>
+              after this change, the remaining patterns do not cover that credential format.<br/><br/>
+              If you'd like me to explain it in more detail, please ask.<br/>
+            </div><div class="term-cursor" aria-hidden="true"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="home-section how">
+      <div class="section-intro">
+        <p class="eyebrow">How it works</p>
+        <h2>Context is built before review begins.</h2>
+        <p>Not a prompt pasted onto a diff. co-maintainer first learns the repository and keeps that knowledge available for later reviews.</p>
+      </div>
+      <ol class="steps">
+        <li>
+          <span>01</span>
+          <div><code>probe</code><p>Samples the repository and gives you a bounded <code>init</code> command.</p></div>
+        </li>
+        <li>
+          <span>02</span>
+          <div><code>init</code> / <code>remake</code><p>Builds and refreshes evidence-backed guides from code and project history.</p></div>
+        </li>
+        <li>
+          <span>03</span>
+          <div><code>review</code><p>Reviews a local diff or GitHub pull request against those guides.</p></div>
+        </li>
+      </ol>
+    </section>
+
+    <section class="home-section run-section">
+      <div class="section-intro">
+        <p class="eyebrow">One review, three paths</p>
+        <h2>Use the context where your team needs it.</h2>
+      </div>
+      <div class="run-grid">
+        <a href="local-review.html">
+          <span class="run-number">01</span>
+          <h3>Local review</h3>
+          <p>Your working tree, your local guides, your OpenRouter account.</p>
+          <code>co-maintainer review</code>
+        </a>
+        <a href="local-pr-review.html">
+          <span class="run-number">02</span>
+          <h3>PR review</h3>
+          <p>Review an open GitHub pull request by number through <code>gh</code>.</p>
+          <code>co-maintainer review owner/repo 123</code>
+        </a>
+        <a href="remote-review.html">
+          <span class="run-number">03</span>
+          <h3>Shared context</h3>
+          <p>Initialize once on <code>serve</code>. Developers review without rebuilding guides.</p>
+          <code>co-maintainer review --remote</code>
+        </a>
+      </div>
+    </section>
+
+    <section class="home-section self-hosted">
+      <div>
+        <p class="eyebrow">Self-hosted</p>
+        <h2>One server for context, reviews, and operations.</h2>
+        <p><code>serve</code> runs the dashboard, GitHub App webhooks, background jobs, and the remote review API. Your repository context stays under your control.</p>
+      </div>
+      <div class="server-command">
+        <span class="prompt">$</span>
+        <code>co-maintainer serve --port=5000</code>
+        <a href="serve.html">Read the guide →</a>
+      </div>
+    </section>
+
+    <section class="home-section final-cta">
+      <img src="assets/logo.png" alt="" width="72" height="72">
+      <h2>Start with one repository.</h2>
+      <p>Install the CLI, run <code>probe</code>, and follow the command it gives you.</p>
+      <a class="btn btn-primary" href="getting-started.html">Read the quickstart <span aria-hidden="true">→</span></a>
+    </section>
+  </main>
+
+  <footer class="home-footer">
+    <a class="brand home-brand" href="index.html"><img src="assets/logo.png" alt="">co-maintainer</a>
+    <nav aria-label="Footer">
+      <a href="getting-started.html">Documentation</a>
+      <a href="https://jsr.io/@murat/co-maintainer">JSR</a>
+      <a href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      <a href="https://github.com/GroophyLifefor/co-maintainer/blob/main/LICENSE">MIT License</a>
+    </nav>
+  </footer>
+</body>
+</html>

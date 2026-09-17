@@ -14,10 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **PR review carry-over** — Incremental PR reviews can carry findings across rounds using stored revisions, subject IDs, and guide timestamps (`migration 7`).
 - **Structured review output** — `--json` for local and PR reviews: `schemaVersion`, findings, summary counts, usage, duration, and codegraph state. Human-friendly grouped CLI output on stderr for progress.
 - **Codegraph on CLI review by default** — Local and remote reviews enable codegraph tools unless `--disable-codegraph` is set. Use `--allow-tool-install` to install the pinned codegraph build without a prompt.
-- **Remote review (beta)** — Run `co-maintainer review --remote` against a `serve` instance: handshake, diff submit, job queue, and `/sync` polling. Server runs AI; the CLI executes codegraph tools locally and returns results through the **tool bridge**.
+- **Remote review** — Run `co-maintainer review --remote` against a `serve` instance: handshake, diff submit, job queue, and `/sync` polling. Server runs AI; the CLI executes codegraph tools locally and returns results through the **tool bridge**.
 - **Remote dashboard** — Settings: create/deactivate/delete bearer tokens (`cmr_…`), sync timeout, per-token concurrency, and tool output limits. Per-repo **Remote** tab and analytics for CLI-submitted reviews.
 - **CLI configuration** — `co-maintainer set --remote-host=…` and `--remote-token=…` for remote review targets.
-- **Documentation** — [`docs/review.md`](docs/review.md) for local/PR review flags and exit codes; [`docs/remote.md`](docs/remote.md) for remote beta setup and limits.
+- **Documentation** — Review docs split into [`review`](docs/review.html), [`local-review`](docs/local-review.html), [`remote-review`](docs/remote-review.html), and [`local-pr-review`](docs/local-pr-review.html) (sources in [`docs/md/`](docs/md/)).
 - **Developer e2e** — `deno task review-local-e2e` (fake AI worktree loop) and expanded CLI/store tests for local review, carry-over, and remote protocol validation.
 
 ### Changed

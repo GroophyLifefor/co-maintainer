@@ -116,7 +116,11 @@ export function renderHome(
     body: `<div class="wrap">
   <div class="pagehead">
     <div><h1>Repositories</h1><p class="lead">${text(lead)}</p></div>
-    <div class="actions"><a class="btn primary" href="/repos/new">Add repository</a></div>
+    <div class="actions">${
+      rows.length === 0
+        ? `<a class="btn" href="/setup">Get started</a>`
+        : ""
+    }<a class="btn primary" href="/repos/new">Add repository</a></div>
   </div>
   ${body}
 </div>

@@ -30,6 +30,7 @@
     "fmt": "deno fmt",
     "test": "deno test --allow-all",
     "e2e": "deno run --allow-all scripts/e2e.ts",
-    "review-local-e2e": "deno run --allow-all scripts/review_local_e2e.ts"
+    "review-local-e2e": "deno run --allow-all scripts/review_local_e2e.ts",
+    "docs:build": "deno run --allow-all scripts/build_docs.ts"
   }
 }
