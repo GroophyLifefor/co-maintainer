@@ -2,6 +2,36 @@ import { getAppDb } from "./app_db.ts";
 import { nowIso } from "../util/time.ts";
 import type { ReviewRow } from "./rows.ts";
 
+export function insertRemoteReview(row: {
+  id: string;
+  subjectId: string;
+  repo: string;
+  branch: string;
+  tokenId: string;
+  tokenName: string;
+  jobId: string;
+  scope: string;
+  model: string;
+}): void {
+  getAppDb().prepare(
+    `INSERT INTO reviews
+       (id, kind, subject_id, repo, pr_number, branch, token_id, token_name,
+        job_id, head_sha, base_sha, scope, model, status, created_at, round)
+     VALUES (?, 'remote', ?, ?, NULL, ?, ?, ?, ?, NULL, NULL, ?, ?, 'queued', ?, 1)`,
+  ).run(
+    row.id,
+    row.subjectId,
+    row.repo,
+    row.branch,
+    row.tokenId,
+    row.tokenName,
+    row.jobId,
+    row.scope,
+    row.model,
+    nowIso(),
+  );
+}
+
 export function insertReview(row: {
   id: string;
   repo: string;

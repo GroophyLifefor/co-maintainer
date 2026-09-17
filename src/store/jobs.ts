@@ -106,6 +106,18 @@ export function getRunningJobByKey(queueKey: string): JobRow | undefined {
   ).get(queueKey);
 }
 
+export function listJobsByQueueKey(
+  queueKey: string,
+  statuses: string[],
+): JobRow[] {
+  if (statuses.length === 0) return [];
+  const placeholders = statuses.map(() => "?").join(", ");
+  return getAppDb().prepare<JobRow>(
+    `SELECT * FROM jobs WHERE queue_key = ? AND status IN (${placeholders})
+     ORDER BY created_at ASC`,
+  ).all(queueKey, ...statuses);
+}
+
 export function getOldestQueuedJob(): JobRow | undefined {
   return getAppDb().prepare<JobRow>(
     `SELECT * FROM jobs WHERE status = 'queued' ORDER BY created_at ASC LIMIT 1`,

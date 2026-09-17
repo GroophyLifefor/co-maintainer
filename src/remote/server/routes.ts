@@ -20,7 +20,8 @@ import {
   REMOTE_SYNC_INTERVAL_SECONDS,
 } from "../schema.ts";
 import { readBoundedJson } from "./body.ts";
-import { validateHandshakeRequest } from "../validate.ts";
+import { submitRemoteReview } from "../../services/remote_review.ts";
+import { validateHandshakeRequest, validateSubmitRequest } from "../validate.ts";
 
 const REPO_UNAVAILABLE =
   "Sorry, we could not access this repository.";
@@ -123,6 +124,36 @@ async function handleHandshake(
   });
 }
 
+async function handleSubmit(
+  request: Request,
+  ip: string,
+): Promise<Response> {
+  const auth = await authenticateRemote(request, ip);
+  if (auth instanceof Response) return auth;
+
+  const parsed = await readBoundedJson(request, REMOTE_MAX_BODY_BYTES);
+  if (!parsed.ok) {
+    return errorResponse(parsed.status, parsed.code, parsed.message);
+  }
+  const validation = validateSubmitRequest(parsed.value);
+  if (validation) {
+    return errorResponse(400, "bad_request", validation);
+  }
+
+  const result = submitRemoteReview(auth, parsed.value as Record<string, unknown>);
+  if ("error" in result) {
+    return errorResponse(result.status, result.code, result.error);
+  }
+  return Response.json(
+    {
+      schemaVersion: REMOTE_SCHEMA_VERSION,
+      jobId: result.jobId,
+      reviewId: result.reviewId,
+    },
+    { status: 202 },
+  );
+}
+
 export async function handleRemoteRoute(
   request: Request,
   url: URL,
@@ -133,11 +164,7 @@ export async function handleRemoteRoute(
   }
 
   if (url.pathname === "/api/remote/reviews" && request.method === "POST") {
-    return errorResponse(
-      501,
-      "not_implemented",
-      "Remote review submit is not implemented yet",
-    );
+    return await handleSubmit(request, remoteAddr);
   }
 
   const syncMatch = /^\/api\/remote\/reviews\/([^/]+)\/sync$/.exec(

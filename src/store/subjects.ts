@@ -3,6 +3,47 @@ import { nowIso } from "../util/time.ts";
 import type { RevisionFile } from "../review/revision.ts";
 import type { SubjectRevisionRow, SubjectRow } from "./rows.ts";
 
+export function getOrCreateRemoteSubject(
+  repo: string,
+  branch: string,
+  tokenId: string,
+): SubjectRow {
+  const db = getAppDb();
+  const existing = db.prepare<SubjectRow>(
+    `SELECT * FROM subjects
+     WHERE kind = 'remote' AND repo = ? AND branch = ? AND token_id = ?`,
+  ).get(repo, branch, tokenId);
+  if (existing) return existing;
+  const row: SubjectRow = {
+    id: crypto.randomUUID(),
+    kind: "remote",
+    repo,
+    pr_number: null,
+    branch,
+    token_id: tokenId,
+    created_at: nowIso(),
+    updated_at: nowIso(),
+  };
+  db.prepare(
+    `INSERT INTO subjects (id, kind, repo, pr_number, branch, token_id, created_at, updated_at)
+     VALUES (?, 'remote', ?, NULL, ?, ?, ?, ?)`,
+  ).run(
+    row.id,
+    repo,
+    branch,
+    tokenId,
+    row.created_at,
+    row.updated_at,
+  );
+  return row;
+}
+
+export function deleteSubjectRevision(subjectId: string): void {
+  getAppDb().prepare(`DELETE FROM subject_revisions WHERE subject_id = ?`).run(
+    subjectId,
+  );
+}
+
 export function getOrCreatePrSubject(
   repo: string,
   prNumber: number,

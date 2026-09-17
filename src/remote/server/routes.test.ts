@@ -81,6 +81,48 @@ Deno.test("remote handshake succeeds without CSRF", async () => {
   });
 });
 
+Deno.test("remote submit enqueues review and is idempotent", async () => {
+  await withEnv(async () => {
+    const repo = "Owner/Repo";
+    activateRepo(repo, undefined);
+    markKnowledgeBuilt(repo, "abc");
+    const guideDir = `${reposDir()}/${repo}`;
+    await Deno.mkdir(guideDir, { recursive: true });
+    await Deno.writeTextFile(
+      `${guideDir}/PR_REVIEW_GUIDE.md`,
+      "# Guide\n",
+    );
+    const { token } = await createRemoteToken("cli");
+    const app = createApp({ password: PASSWORD });
+    const submitBody = JSON.parse(
+      await Deno.readTextFile(
+        new URL("../fixtures/v1/submit.request.json", import.meta.url),
+      ),
+    );
+    const post = () =>
+      app.fetch(
+        new Request("http://localhost/api/remote/reviews", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(submitBody),
+        }),
+      );
+    const first = await post();
+    if (first.status !== 202) {
+      throw new Error(`submit: ${first.status} ${await first.text()}`);
+    }
+    const body1 = await first.json();
+    const second = await post();
+    const body2 = await second.json();
+    if (body1.jobId !== body2.jobId || body1.reviewId !== body2.reviewId) {
+      throw new Error("idempotent submit should return same ids");
+    }
+  });
+});
+
 Deno.test("dashboard can create remote tokens", async () => {
   await withEnv(async () => {
     const app = createApp({ password: PASSWORD });
