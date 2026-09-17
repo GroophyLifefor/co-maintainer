@@ -90,7 +90,12 @@ export function parseReviewArgs(args: string[]): ReviewCliArgs {
     /^[^/]+\/[^/]+$/.test(positional[0]!) &&
     /^\d+$/.test(positional[1]!);
   if (isPr) {
-    const options = parseArgs(["review", positional[0], positional[1], ...args]);
+    const options = parseArgs([
+      "review",
+      positional[0],
+      positional[1],
+      ...filterReviewConfigArgs(args),
+    ]);
     if (flags.remote) die("--remote is only for local review without a PR number");
     if (flags.remakeBeforeReview) {
       die("--remake-before-review is not supported for PR review");
