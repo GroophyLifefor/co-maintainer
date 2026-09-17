@@ -92,6 +92,21 @@ export function reviewSystemPrompt(diagrams: boolean): string {
 ${diagrams ? REVIEW_DIAGRAM_RULES : NO_DIAGRAM_RULES}`;
 }
 
+/** Shared PR and local/remote workspace review instructions: confirm claims
+ * against the indexed graph, not only the diff slice. */
+export const CODEGRAPH_DIFF_VERIFICATION =
+  `Examine the changes line by line, not just file by file — a single file can
+contain more than one independent defect, and a change that looks fine in
+isolation can be wrong once you trace what calls it or what else it affects.
+When a finding depends on behavior outside the changed lines, confirm it with
+codegraph-node, codegraph-callers, codegraph-callees, codegraph-impact, and
+codegraph-affected before reporting it. Drop or correct findings that only seem
+plausible from the diff but contradict unchanged callers, callees, or the same
+pattern elsewhere in the repo. Use those tools to check blast radius and whether
+a test reaches the path — do not guess coverage or impact from the diff alone
+when a tool can answer. A missing regression test is not a substitute for
+identifying the concrete input or code path that misbehaves when you can.`;
+
 function text(value: unknown, limit = 20_000): string {
   const result = String(value ?? "");
   return result.length > limit
@@ -368,16 +383,7 @@ When the DIFF section below has an UPSTREAM CONTEXT part, that code arrived
 through a merge and was not authored by this pull request; do not raise a
 finding located only there, and never mark blocking a finding whose only
 support is upstream context.
-Examine the pull request's own changes line by line, not just file by file —
-a single file can contain more than one independent defect, and a change that
-looks fine in isolation can be wrong once you trace what calls it or what
-other branch of the same construct now behaves differently. Use codegraph-node,
-codegraph-callers, codegraph-callees, codegraph-impact, and codegraph-affected
-to check who calls a changed symbol, what else it affects, and whether a test
-reaches it — do not guess coverage or blast radius from the diff alone when a
-tool can answer it. A missing regression test is not a substitute for
-identifying what the change actually gets wrong; state the concrete input or
-code path that misbehaves when you can.
+${CODEGRAPH_DIFF_VERIFICATION}
 Each finding must use this exact structure, keeping the default finding under
 120 words excluding an optional diagram and an optional suggestion:
 
@@ -665,6 +671,10 @@ codebase conventions. Find only actionable code-level violations supported by
 the diff and either the guide or the codebase conventions.
 Return concise Markdown with either "## Findings" and findings, or
 "## Findings\\n\\nNo actionable findings."
+Do not invent low-value findings. If the diff contains a truncation marker or a
+file is summarized, limit claims to the supplied text and use read-full-diff or
+codegraph tools before asserting behavior outside what was shown.
+${CODEGRAPH_DIFF_VERIFICATION}
 ${diagrams ? DIAGRAM_PROMPT_RULES : NO_DIAGRAM_RULES}
 
 REVIEW GUIDE:
@@ -712,6 +722,10 @@ ${ownDiff}${unchangedListing}`;
       job: "improve_review",
       prompt:
         `Audit the draft review below against the complete diff and guides.
+Preserve valid findings, correct inaccurate ones, remove duplicate or
+unsupported ones, and add every missing actionable finding. Re-check each
+finding with codegraph when it depends on behavior outside the diff; remove
+findings that only looked plausible from the diff slice.
 Return only the complete revised review in the same format.
 
 ORIGINAL REVIEW CONTEXT:

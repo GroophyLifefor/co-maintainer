@@ -24,6 +24,7 @@ import {
 } from "../remote/server/sessions.ts";
 import { readConfig } from "../config.ts";
 import type { Options } from "../types.ts";
+import { withLogSink } from "../util/log.ts";
 import { cancel, registerHandler, type LogFn } from "./jobs.ts";
 import { recordAiCost } from "./setup.ts";
 import { findRepoByFullName } from "../store/repos.ts";
@@ -264,20 +265,24 @@ export function registerRemoteReviewHandler(): void {
         let tokensOut = 0;
         let costUsd: number | null = 0;
         let costKnown = true;
-        const result = await reviewWorkspaceRevision(
-          revision,
-          options,
-          "remote",
-          async (response) => {
-            tokensIn += response.tokensIn;
-            tokensOut += response.tokensOut;
-            if (response.cost === undefined) costKnown = false;
-            else costUsd = (costUsd ?? 0) + response.cost;
-            await recordAiCost(job.repo, "remote_review", response);
-          },
-          undefined,
-          (message) => log("info", message),
-          extras,
+        const result = await withLogSink(
+          (phase, message) => log("info", `[${phase}] ${message}`),
+          () =>
+            reviewWorkspaceRevision(
+              revision,
+              options,
+              "remote",
+              async (response) => {
+                tokensIn += response.tokensIn;
+                tokensOut += response.tokensOut;
+                if (response.cost === undefined) costKnown = false;
+                else costUsd = (costUsd ?? 0) + response.cost;
+                await recordAiCost(job.repo, "remote_review", response);
+              },
+              undefined,
+              (message) => log("info", message),
+              extras,
+            ),
         );
 
         if (signal.aborted) return;
