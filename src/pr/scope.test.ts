@@ -96,6 +96,28 @@ Deno.test("a clean merge (no conflict) contributes no files", async () => {
   );
 });
 
+Deno.test("scopeInClone resolves default branch on a named remote", async () => {
+  const run = happyPathRun();
+  const upstreamRun: Run = (command, args, cwd) => {
+    if (
+      args[0] === "symbolic-ref" &&
+      args.includes("refs/remotes/upstream/HEAD")
+    ) {
+      return Promise.resolve(ok("refs/remotes/upstream/develop"));
+    }
+    return run(command, args, cwd);
+  };
+  const scope = await scopeInClone(
+    "clone",
+    "base",
+    "head",
+    upstreamRun,
+    "upstream",
+  );
+  if (!scope) throw new Error("expected a scope result");
+  same(scope.defaultBranch, "refs/remotes/upstream/develop", "upstream default");
+});
+
 Deno.test("falls back to probing main/master when origin/HEAD is unset", async () => {
   const run = happyPathRun();
   let sawMainProbe = false;

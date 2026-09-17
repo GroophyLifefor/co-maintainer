@@ -1,5 +1,6 @@
 import {
   buildPrReviewJson,
+  formatHumanLocalReview,
   isBlockingFinding,
   reviewExitCodeFromResolved,
   sortResolvedFindings,
@@ -71,5 +72,33 @@ Deno.test("sortResolvedFindings: new before open before closed", () => {
   ]);
   if (sorted.map((f) => f.state).join(",") !== "new,open,closed") {
     throw new Error(sorted.map((f) => f.state).join(","));
+  }
+});
+
+Deno.test("formatHumanLocalReview shows guide date (E161)", () => {
+  const text = formatHumanLocalReview(
+    "header",
+    {
+      files: [{
+        path: "a.ts",
+        previousPath: null,
+        status: "modified",
+        binary: false,
+        additions: 1,
+        deletions: 0,
+        patch: "",
+      }],
+      title: "",
+      description: "",
+      baseLabel: "origin/main",
+      producer: "local",
+    },
+    "2026-09-15T10:00:00Z",
+    "disabled",
+    [],
+    [],
+  );
+  if (!text.includes("guide 2026-09-15")) {
+    throw new Error(text);
   }
 });
