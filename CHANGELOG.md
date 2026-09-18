@@ -20,7 +20,7 @@ Node.js 24+, and drops Deno support entirely.
 - **Interactive prompts** — `confirm` now uses `node:readline/promises`, so prompt APIs are async.
 - **Tooling** — `deno task` → npm scripts; `deno lint`/`deno fmt` → `oxlint`/`oxfmt`.
 - **Packaging** — Sources are compiled to `dist/` with `tsc` for the published package; development still runs the `.ts` sources directly.
-- **Publish CI** — The workflow now caches the npm download, sets `timeout-minutes: 20`, and serializes runs with a `concurrency` group so two pushes cannot race the same version onto the registry.
+- **Publish CI** — The workflow now caches the npm download, sets `timeout-minutes: 20`, and serializes runs with a `concurrency` group. Because a queued run is only serialized and not skipped, the publish step now first checks `npm view` and no-ops when the version is already on the registry, so a duplicate push fails nothing.
 
 ### Fixed
 
