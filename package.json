@@ -3,6 +3,21 @@
   "version": "0.4.0",
   "description": "Analyzes a GitHub repository and writes repository-specific contribution guidance.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GroophyLifefor/co-maintainer"
+  },
+  "homepage": "https://github.com/GroophyLifefor/co-maintainer#readme",
+  "bugs": {
+    "url": "https://github.com/GroophyLifefor/co-maintainer/issues"
+  },
+  "keywords": [
+    "github",
+    "pull-request",
+    "code-review",
+    "maintainer",
+    "ai"
+  ],
   "bin": {
     "co-maintainer": "dist/main.js"
   },
