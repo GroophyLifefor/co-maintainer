@@ -5,9 +5,17 @@ on:
     branches:
       - main
 
+# A second push while a publish is in flight would race the same version on the
+# registry, so let the running one finish and skip the queued duplicate.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # A wedged publish would otherwise hold the queue for the default six hours.
+    timeout-minutes: 20
     permissions:
       contents: read
       id-token: write
@@ -17,6 +25,7 @@ jobs:
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
+          cache: npm
       - run: npm ci
       - run: npm run check
       - run: npm test

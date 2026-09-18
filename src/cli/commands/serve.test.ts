@@ -80,6 +80,7 @@ test("resolveWebhookUrl rejects malformed absolute URLs", () => {
   for (const bad of [
     "http://http://178.105.8.95/:5000/github/webhook",
     "http:///github/webhook",
+    "http:////evil/github/webhook",
     "https://example.com/",
     "ftp://example.com/github/webhook",
     "not a url",
@@ -91,6 +92,21 @@ test("resolveWebhookUrl rejects malformed absolute URLs", () => {
       threw = true;
     }
     if (!threw) throw new Error(`accepted malformed webhook URL: ${bad}`);
+  }
+});
+
+test("resolveWebhookUrl accepts internal hosts and IPv6 literals", () => {
+  // A webhook can legitimately point at a Docker/k8s service name (no dot, no
+  // port) or an IPv6 literal. The empty-authority spelling `http:///x` parses
+  // to the same host, so it is rejected on the raw string instead.
+  for (const good of [
+    "http://gitserver/github/webhook",
+    "http://codegraph:8080/github/webhook",
+    "http://[::1]/github/webhook",
+    "http://[2001:db8::1]:5000/github/webhook",
+  ]) {
+    const url = resolveWebhookUrl([`--webhook-url=${good}`], 5000);
+    if (url !== good) throw new Error(`${good} became ${url}`);
   }
 });
 

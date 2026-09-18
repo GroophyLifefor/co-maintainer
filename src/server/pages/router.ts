@@ -58,6 +58,15 @@ export type PageDeps = {
 const REPO =
   /^\/repos\/([^/]+)\/([^/]+)(?:\/(pulls|knowledge|settings|remote)(?:\/(\d+))?)?$/;
 
+/** Matches a repository page URL. Only `pulls` is keyed by a number, so a stray
+ * suffix such as `/repos/o/r/remote/7` must fall through to a 404 rather than
+ * render the listing and silently drop the number. */
+function matchRepo(pathname: string): RegExpExecArray | null {
+  const match = REPO.exec(pathname);
+  if (match && match[4] && match[3] !== "pulls") return null;
+  return match;
+}
+
 export async function handlePageRequest(
   request: Request,
   deps: PageDeps,
@@ -192,7 +201,7 @@ export async function handlePageRequest(
       );
     }
 
-    const match = REPO.exec(url.pathname);
+    const match = matchRepo(url.pathname);
     if (match && request.method === "GET") {
       const fullName = `${decodeURIComponent(match[1])}/${decodeURIComponent(match[2])}`;
       const row = requireRepo(fullName);

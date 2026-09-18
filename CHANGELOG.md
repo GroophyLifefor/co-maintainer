@@ -15,17 +15,25 @@ Node.js 24+, and drops Deno support entirely.
 
 - **Runtime: Deno → Node.js 24+** — Every `Deno.*` API was replaced with a Node equivalent across config, store, process execution, CLI prompts, and the HTTP server. Tests now run under `node --test`.
 - **Install** — `deno install … jsr:@murat/co-maintainer` → `npm install -g co-maintainer`. The JSR package is deprecated and no longer updated; the remote-review `426` upgrade hint and all docs now point at npm.
-- **SQLite** — The `@db/sqlite` driver was replaced by a thin wrapper over `node:sqlite`; behavior (`prepare<T>()`, `db.changes`, `undefined` → NULL) is preserved. Existing `app.db` / `cache.db` files are read in place.
+- **SQLite** — The `@db/sqlite` driver was replaced by a thin wrapper over `node:sqlite`; behavior (`prepare<T>()`, `db.changes`, `undefined` → NULL, `boolean` → 0/1) is preserved on both the positional and named-parameter paths. Existing `app.db` / `cache.db` files are read in place.
 - **HTTP server** — `Deno.serve` was replaced with a `node:http` bridge that feeds Web `Request`/`Response` objects, with graceful shutdown for SSE.
 - **Interactive prompts** — `confirm` now uses `node:readline/promises`, so prompt APIs are async.
 - **Tooling** — `deno task` → npm scripts; `deno lint`/`deno fmt` → `oxlint`/`oxfmt`.
 - **Packaging** — Sources are compiled to `dist/` with `tsc` for the published package; development still runs the `.ts` sources directly.
+- **Publish CI** — The workflow now caches the npm download, sets `timeout-minutes: 20`, and serializes runs with a `concurrency` group so two pushes cannot race the same version onto the registry.
 
 ### Fixed
 
 - **Codegraph on Windows** — `codegraph` is installed as a `.cmd`/`.ps1` shim, and `node:child_process.spawn` cannot execute those without a shell (`EINVAL`). `Deno.Command` resolved them natively, so this regressed in the Node move and every Windows review reported `codegraph: unavailable`. The runner now routes through `cmd /c`, matching `git`.
 - **Dashboard "Remote" tab** — `/repos/{owner}/{repo}/remote` returned `no route for …`. The page, its nav link, and its `sub === "remote"` handler all existed, but the page router's regex never listed `remote` as a sub-route, so the handler was unreachable.
-- **`serve --webhook-url` validation** — `new URL()` accepted malformed values such as `http://http://host/:5000/…` (parsed with host `http`) and `http:///github/webhook` (parsed with host `github`). A leaked scheme, a host without a dot or port, and a bare `/` path are now rejected with a clear message.
+- **`serve --webhook-url` validation** — `new URL()` accepted malformed values such as `http://http://host/:5000/…` (parsed with host `http`) and `http:///github/webhook` (parsed with host `github`). A leaked scheme, an empty authority, and a bare `/` path are now rejected with a clear message, while internal single-label hosts (a Docker/k8s service name) and IPv6 literals are accepted.
+- **Codegraph install prompt was effectively ignored** — `confirm()` became async with `node:readline/promises`, but `ensureCodegraph` / `ensureCodegraphForReview` still tested the returned promise for truthiness. A promise is always truthy, so answering "no" installed anyway (and a non-interactive run reported the binary as unavailable instead of declining). Both now await the answer, and an explicit decline stops the install.
+- **`review --json` could still prompt** — `parseReviewArgs` applied `setCliInteractive(!json)` only after parsing, and `--json` is stripped before `parseArgs` ever sees it. A missing value that has a default (`high-model`) died with "pass it as a CLI option" instead of taking the default. The flag is now applied before the parse.
+- **Stray number on a repo subpage** — `/repos/{owner}/{repo}/remote/{n}` (and `settings`/`knowledge`) rendered the page while silently dropping the number. Only `pulls` is keyed by a number; anything else is now a 404.
+- **Windows PID liveness could fail open** — a `tasklist` spawn failure or empty output was read as "process is dead", which would let a second writer take over a live `app.db` / review lock. An indeterminate probe now reports alive; an explicit no-match is still dead.
+- **`makeTempFile` leaked a directory per call** — it created a fresh `mkdtemp` directory for a single file, and callers only delete the file, so benchmark and review runs left empty `cm-*` directories in the temp dir. The file is now created directly with `wx` uniqueness.
+- **Codegraph tool args reached `cmd.exe` unescaped** — on Windows the CLI runs through `cmd /c`, so a search term or path containing `&`, `|`, `>`, `^`, `%` or a newline could append a second command. Tool arguments are now rejected if they contain a shell metacharacter.
+- **`askLine`/`askConfirm` rejected on a closed stdin** — a Ctrl-D or a detached pipeline surfaced as an uncaught rejection instead of an empty answer, bypassing the caller's fallback and `required` validation.
 
 ### Removed
 

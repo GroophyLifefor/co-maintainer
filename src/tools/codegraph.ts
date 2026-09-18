@@ -20,10 +20,13 @@ export type EnsureOptions = {
   allowInstall?: boolean;
   interactive?: boolean;
   run?: Runner;
-  confirm?: (question: string) => boolean;
+  /** `node:readline/promises` made this async; both shapes are accepted. */
+  confirm?: (question: string) => boolean | Promise<boolean>;
   log?: (message: string) => void;
   /** Overrides `toolsDir()`, for tests. */
   root?: string;
+  /** Overrides `process.exit`, for tests. */
+  exit?: (code: number) => never;
 };
 
 export async function runCommand(
@@ -130,6 +133,9 @@ export async function ensureCodegraph(
   const run = options.run ?? runCommand;
   const log = options.log ?? ((message: string) => console.log(message));
   const interactive = options.interactive ?? process.stdin.isTTY === true;
+  // Annotated so TypeScript can see the calls below never return and keeps the
+  // `Presence` narrowing intact.
+  const exit: (code: number) => never = options.exit ?? process.exit;
   const present = await detect(CODEGRAPH_VERSION, root, run);
 
   if (present.state === "ok") return present.path;
@@ -149,16 +155,18 @@ export async function ensureCodegraph(
             root,
           )}`,
       );
-      process.exit(1);
+      exit(1);
     }
     const confirm = options.confirm ?? defaultConfirm;
-    const approved = confirm(
+    // `defaultConfirm` is async, so an unawaited call is always truthy and the
+    // user's "no" was silently ignored. Await it before deciding.
+    const approved = await confirm(
       `co-maintainer needs codegraph ${CODEGRAPH_VERSION} to index the repository.\n` +
         `Install it into ${versionDir(CODEGRAPH_VERSION, root)} (your global PATH is not touched)?`,
     );
     if (!approved) {
       log("[codegraph] declined; nothing was installed");
-      process.exit(1);
+      exit(1);
     }
   }
 
@@ -172,7 +180,7 @@ export async function ensureCodegraph(
         result.stderr.trim() || result.stdout.trim()
       }`,
     );
-    process.exit(1);
+    exit(1);
   }
 
   const after = await detect(CODEGRAPH_VERSION, root, run);
@@ -180,7 +188,7 @@ export async function ensureCodegraph(
     log(
       `[codegraph] install finished but ${binaryPath(CODEGRAPH_VERSION, root)} is still not usable`,
     );
-    process.exit(1);
+    exit(1);
   }
   log(`[codegraph] ready at ${after.path}`);
   return after.path;
@@ -210,7 +218,8 @@ export async function ensureCodegraphForReview(
       };
     }
     const confirm = options.confirm ?? defaultConfirm;
-    const approved = confirm(
+    // Same as `ensureCodegraph`: an unawaited async confirm is always truthy.
+    const approved = await confirm(
       `co-maintainer needs codegraph ${CODEGRAPH_VERSION} to index this repository.\n` +
         `Install into ${versionDir(CODEGRAPH_VERSION, root)}?`,
     );

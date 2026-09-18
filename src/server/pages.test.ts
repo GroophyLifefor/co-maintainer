@@ -628,3 +628,37 @@ test("finding markdown renders safely", () => {
   }
   if (html.includes("<script>")) throw new Error("markdown was not escaped");
 });
+
+test("a repository subpage with a stray PR number is not a rendered page", async () => {
+  await withEnv(async () => {
+    seed();
+    const app = createApp({
+      password: PASSWORD,
+      webhookUrl: "http://localhost:5000/github/webhook",
+    });
+    const cookie = await cookieSession(app);
+    // Only `pulls` takes a numeric suffix; `/remote/7` is malformed and must
+    // not silently render the remote listing while dropping the number.
+    for (const path of [
+      "/repos/acme/widgets/remote/7",
+      "/repos/acme/widgets/settings/7",
+      "/repos/acme/widgets/knowledge/7",
+    ]) {
+      const response = await app.fetch(
+        new Request(`http://localhost${path}`, { headers: { cookie } }),
+      );
+      if (response.status !== 404) {
+        throw new Error(`${path} status ${response.status}, want 404`);
+      }
+    }
+    // The legitimate PR route still works.
+    const ok = await app.fetch(
+      new Request("http://localhost/repos/acme/widgets/pulls/7", {
+        headers: { cookie },
+      }),
+    );
+    if (ok.status !== 200) {
+      throw new Error(`/pulls/7 status ${ok.status}`);
+    }
+  });
+});

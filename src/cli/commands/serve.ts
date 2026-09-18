@@ -91,17 +91,16 @@ export function resolveWebhookUrl(
   // `new URL` is lenient: "http://http://host/:5000/x" parses with host
   // "http" and the real URL buried in the path, and "http:///x" treats "x"
   // as the host. GitHub needs a routable host and a real webhook path, so
-  // reject a scheme leaking into the path, a bare host with no dot or port,
-  // and a path that is just "/".
-  const hasQualifiedHost =
-    url.hostname === "localhost" ||
-    url.hostname.includes(".") ||
-    url.port !== "";
+  // reject a leaked scheme, an empty authority, and a path that is just "/".
+  // A single-label host (an internal Docker/k8s name) or an IPv6 literal is
+  // legitimate, and both are indistinguishable from the "http:///x" spelling
+  // once parsed, so the empty authority is caught on the raw string instead.
+  const hasAuthority = /^https?:\/\/[^/?#]+/.test(raw.trim());
   if (
+    !hasAuthority ||
     url.pathname.startsWith("//") ||
     url.pathname.includes("://") ||
-    url.pathname === "/" ||
-    !hasQualifiedHost
+    url.pathname === "/"
   ) {
     die(
       "--webhook-url must be an absolute http(s) URL with a webhook path, " +

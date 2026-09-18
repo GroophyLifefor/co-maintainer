@@ -1,4 +1,4 @@
-import { parseArgs } from "./args.ts";
+import { parseArgs, setCliInteractive } from "./args.ts";
 import type { Options } from "../types.ts";
 
 export type ReviewMode = "local" | "remote" | "pr";
@@ -89,6 +89,10 @@ export function filterReviewConfigArgs(raw: string[]): string[] {
 export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
   const positional = args.filter((a) => !a.startsWith("--"));
   const flags = reviewFlags(args);
+  // `--json` must never prompt (plan §8.7). `parseArgs` only receives the
+  // filtered args, and `--json` is stripped before it sees them, so the flag
+  // has to be applied here rather than after the parse returns.
+  setCliInteractive(!flags.json);
   const isPr =
     positional.length >= 2 &&
     /^[^/]+\/[^/]+$/.test(positional[0]!) &&

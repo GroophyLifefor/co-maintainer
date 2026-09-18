@@ -9,6 +9,11 @@ async function ask(question: string): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
     return (await rl.question(question)).trim();
+  } catch {
+    // `question` rejects when stdin closes mid-prompt (Ctrl-D, a detached
+    // pipeline, a killed parent). Treat that as "no answer" so the caller's
+    // own fallback/required validation runs instead of an uncaught rejection.
+    return "";
   } finally {
     rl.close();
   }

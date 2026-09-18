@@ -169,16 +169,28 @@ export function makeTempDirSync(options?: { prefix?: string }): string {
   return fsMkdtempSync(join(tmpdir(), options?.prefix ?? "cm-"));
 }
 
-/** A uniquely named temp file (created empty), mirroring `Deno.makeTempFile`. */
+/** A uniquely named temp file (created empty), mirroring `Deno.makeTempFile`.
+ *
+ * `wx` fails on collision instead of truncating an existing file, so the retry
+ * loop preserves `mkdtemp`'s uniqueness without leaving a directory behind —
+ * callers only ever delete the returned file. */
 export async function makeTempFile(options?: {
   prefix?: string;
   suffix?: string;
 }): Promise<string> {
-  const dir = await fsMkdtemp(join(tmpdir(), options?.prefix ?? "cm-"));
-  const name = `${crypto.randomUUID()}${options?.suffix ?? ""}`;
-  const path = join(dir, name);
-  await fsWriteFile(path, "");
-  return path;
+  const prefix = options?.prefix ?? "cm-";
+  const suffix = options?.suffix ?? "";
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const path = join(tmpdir(), `${prefix}${crypto.randomUUID()}${suffix}`);
+    try {
+      await fsWriteFile(path, "", { flag: "wx" });
+      return path;
+    } catch (error) {
+      if ((error as { code?: string }).code === "EEXIST") continue;
+      throw error;
+    }
+  }
+  throw new Error(`could not create a temp file with prefix ${prefix}`);
 }
 
 export type DirEntry = {
@@ -305,6 +317,21 @@ export function commandSpawn(
  * POSIX: signal 0 checks existence without delivering; `ESRCH` means dead,
  * while `EPERM` (or anything else) means it exists but is not ours — assume
  * alive rather than risk two writers on the same database. */
+/** Decides Windows PID liveness from a `tasklist` invocation. A matching row is
+ * CSV and starts with the quoted image name; the "no tasks" notice is prose, so
+ * the distinction is locale-independent. A spawn failure or an empty body is
+ * indeterminate and reports alive: refusing to start beats letting a second
+ * writer take over a live lock. */
+export function livenessFromTasklist(result: {
+  error?: unknown;
+  stdout?: string | null;
+}): boolean {
+  if (result.error) return true;
+  const out = (result.stdout ?? "").trim();
+  if (out === "") return true;
+  return out.startsWith('"');
+}
+
 export function isProcessAlive(pid: number): boolean {
   if (isWindows()) {
     const result = spawnSync(
@@ -314,7 +341,7 @@ export function isProcessAlive(pid: number): boolean {
         encoding: "utf8",
       },
     );
-    return (result.stdout ?? "").trim().startsWith('"');
+    return livenessFromTasklist(result);
   }
   try {
     process.kill(pid, 0);

@@ -2,9 +2,10 @@
  * surface the store layer was written against: a synchronous `Database`,
  * `prepare<T>()` generics, `.get()/.all()/.run()`, and `db.changes`.
  *
- * Two behaviours of the JSR driver must be reproduced on top of
+ * Three behaviours of the JSR driver must be reproduced on top of
  * `node:sqlite`:
  *  - `undefined` parameters bind as SQL NULL (node:sqlite rejects undefined)
+ *  - `boolean` parameters bind as 0/1 (node:sqlite rejects booleans)
  *  - `db.changes` reports the rows modified by the most recent `run()`, which
  *    `node:sqlite` only returns from the statement call
  */
@@ -48,12 +49,24 @@ export class Statement<Row = Record<string, unknown>> {
 }
 
 /** Normalizes call arguments: a single object binds by name, everything else
- * is a positional list with `undefined` mapped to NULL. */
+ * is a positional list. Values `node:sqlite` refuses are mapped to what it
+ * accepts — `undefined` to NULL, booleans to 0/1 — on both paths, so a field
+ * typed `boolean | undefined` survives a named bind too. */
 function args(params: Params): (BindValue | BindObject)[] {
-  if (params.length === 1 && isBindObject(params[0])) return [params[0]];
-  return (params as (BindValue | undefined)[]).map((value) =>
-    value === undefined ? null : value,
-  );
+  if (params.length === 1 && isBindObject(params[0])) {
+    const bound: BindObject = {};
+    for (const [key, value] of Object.entries(params[0])) {
+      bound[key] = normalize(value);
+    }
+    return [bound];
+  }
+  return (params as (BindValue | undefined)[]).map((value) => normalize(value));
+}
+
+function normalize(value: BindValue | undefined): BindValue {
+  if (value === undefined) return null;
+  if (typeof value === "boolean") return value ? 1 : 0;
+  return value;
 }
 
 function isBindObject(value: unknown): value is BindObject {
