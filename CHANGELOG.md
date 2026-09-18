@@ -20,7 +20,7 @@ Node.js 24+, and drops Deno support entirely.
 - **Interactive prompts** — `confirm` now uses `node:readline/promises`, so prompt APIs are async.
 - **Tooling** — `deno task` → npm scripts; `deno lint`/`deno fmt` → `oxlint`/`oxfmt`.
 - **Packaging** — Sources are compiled to `dist/` with `tsc` for the published package; development still runs the `.ts` sources directly.
-- **Publish CI** — The workflow now caches the npm download, sets `timeout-minutes: 20`, and serializes runs with a `concurrency` group. Because a queued run is only serialized and not skipped, the publish step now first checks `npm view` and no-ops when the version is already on the registry, so a duplicate push fails nothing.
+- **Publish CI** — The workflow caches the npm download, sets `timeout-minutes: 20`, and serializes runs with a `concurrency` group. Because a queued run is only serialized and not skipped, the publish step first checks `npm view` and no-ops when the version is already on the registry.
 
 ### Fixed
 
@@ -34,6 +34,8 @@ Node.js 24+, and drops Deno support entirely.
 - **`makeTempFile` leaked a directory per call** — it created a fresh `mkdtemp` directory for a single file, and callers only delete the file, so benchmark and review runs left empty `cm-*` directories in the temp dir. The file is now created directly with `wx` uniqueness.
 - **Codegraph tool args reached `cmd.exe` unescaped** — on Windows the CLI runs through `cmd /c`, so a search term or path containing `&`, `|`, `>`, `^`, `%` or a newline could append a second command. Tool arguments are now rejected if they contain a shell metacharacter.
 - **`askLine`/`askConfirm` rejected on a closed stdin** — a Ctrl-D or a detached pipeline surfaced as an uncaught rejection instead of an empty answer, bypassing the caller's fallback and `required` validation.
+- **Remote fixture hash was line-ending sensitive** — the expected `REMOTE_FIXTURE_HASH` had been computed on a Windows checkout, where `autocrlf` turned the fixture files into CRLF; CI checks the repo out at LF (`.gitattributes` is `eol=lf`) and computed a different digest, so the test only passed locally. The hash now normalizes `\r\n` to `\n` before digesting, and the constant was recomputed against the canonical LF contents.
+- **Publish CI could fail on a duplicate push** — a `concurrency` group only serializes a queued run, it does not skip it, so two pushes carrying the same `package.json` version ran `npm publish` twice and the second one failed with "version already exists". The publish step now checks `npm view` first and no-ops when that version is already on the registry.
 
 ### Removed
 

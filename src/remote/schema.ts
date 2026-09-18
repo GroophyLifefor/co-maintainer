@@ -10,9 +10,10 @@ export const REMOTE_CLI_UPGRADE_COMMAND = "npm install -g co-maintainer@latest";
 export const REMOTE_MAX_BODY_BYTES = 52_428_800;
 export const REMOTE_SYNC_INTERVAL_SECONDS = 3;
 
-/** SHA-256 of sorted `fixtures/v<N>/*.json` (name + contents); bump with schema version. */
+/** SHA-256 of sorted `fixtures/v<N>/*.json` (name + contents, `\r\n` normalized
+ * to `\n`); bump with schema version. */
 export const REMOTE_FIXTURE_HASH: Record<number, string> = {
-  1: "1cbb11016227fcc7fc58b692ed5a2b72dc9b0e23b4cf68858e2d7facc98efd79",
+  1: "71e4e5f8637eab4b53d47817a688812a517310d967abe26aa0d7f4e7d7d65092",
 };
 
 export const REMOTE_SYNC_STATUSES = [
