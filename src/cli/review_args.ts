@@ -16,9 +16,9 @@ type ReviewFlags = {
 };
 
 export type ReviewCliArgs =
-  | { mode: "pr"; options: Options } & ReviewFlags
-  | { mode: "local"; rawArgs: string[] } & ReviewFlags
-  | { mode: "remote"; rawArgs: string[] } & ReviewFlags;
+  | ({ mode: "pr"; options: Options } & ReviewFlags)
+  | ({ mode: "local"; rawArgs: string[] } & ReviewFlags)
+  | ({ mode: "remote"; rawArgs: string[] } & ReviewFlags);
 
 function die(message: string): never {
   throw new Error(message);
@@ -41,7 +41,10 @@ function reviewFlags(rest: string[]): {
     if (arg === "--codegraph") {
       die("Unknown option: --codegraph");
     }
-    if (arg === "--remote" && rest.some((r) => r === "--remake-before-review")) {
+    if (
+      arg === "--remote" &&
+      rest.some((r) => r === "--remake-before-review")
+    ) {
       die("--remake-before-review cannot be used with --remote");
     }
   }
@@ -83,7 +86,7 @@ export function filterReviewConfigArgs(raw: string[]): string[] {
 }
 
 /** Parses `co-maintainer review` after the `review` token (plan §8.1). */
-export function parseReviewArgs(args: string[]): ReviewCliArgs {
+export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
   const positional = args.filter((a) => !a.startsWith("--"));
   const flags = reviewFlags(args);
   const isPr =
@@ -91,13 +94,14 @@ export function parseReviewArgs(args: string[]): ReviewCliArgs {
     /^[^/]+\/[^/]+$/.test(positional[0]!) &&
     /^\d+$/.test(positional[1]!);
   if (isPr) {
-    const options = parseArgs([
+    const options = await parseArgs([
       "review",
       positional[0],
       positional[1],
       ...filterReviewConfigArgs(args),
     ]);
-    if (flags.remote) die("--remote is only for local review without a PR number");
+    if (flags.remote)
+      die("--remote is only for local review without a PR number");
     if (flags.remakeBeforeReview) {
       die("--remake-before-review is not supported for PR review");
     }

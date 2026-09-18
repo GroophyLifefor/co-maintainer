@@ -1,8 +1,9 @@
 import { matchSpans, overlaps } from "./match.ts";
 import { scores } from "./metrics.ts";
 import { parseFindings } from "../../src/pr/findings.ts";
+import { test } from "node:test";
 
-Deno.test("line ranges on the same path overlap", () => {
+test("line ranges on the same path overlap", () => {
   if (
     !overlaps(
       { path: "src/a.js", from: 10, to: 12 },
@@ -13,7 +14,7 @@ Deno.test("line ranges on the same path overlap", () => {
   }
 });
 
-Deno.test("greedy matching scores a true positive and a false positive", () => {
+test("greedy matching scores a true positive and a false positive", () => {
   const counts = matchSpans(
     [
       { path: "src/a.js", from: 10, to: 10 },
@@ -30,7 +31,7 @@ Deno.test("greedy matching scores a true positive and a false positive", () => {
   }
 });
 
-Deno.test("parseFindings reads file:line from markdown findings", () => {
+test("parseFindings reads file:line from markdown findings", () => {
   const found = parseFindings(`## Severity
 
 - P0 — Critical
@@ -52,7 +53,7 @@ The parameter can be a number or an array.
   }
 });
 
-Deno.test("parseFindings collects every file:line in findings", () => {
+test("parseFindings collects every file:line in findings", () => {
   const found = parseFindings(`## Findings
 
 ### [P1] First
@@ -68,7 +69,7 @@ Deno.test("parseFindings collects every file:line in findings", () => {
   }
 });
 
-Deno.test("parseFindings accepts a file at the repository root", () => {
+test("parseFindings accepts a file at the repository root", () => {
   const found = parseFindings(`## Findings
 
 ### P0 eval of untrusted input
@@ -86,7 +87,7 @@ Do not pass untrusted input to eval.
   }
 });
 
-Deno.test("parseFindings reads the structured review format", () => {
+test("parseFindings reads the structured review format", () => {
   const found = parseFindings(`## Findings
 
 ### [P1 · blocking] \`src/app.ts\` — \`loadConfig()\`

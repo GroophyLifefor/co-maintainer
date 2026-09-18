@@ -126,11 +126,7 @@ export function relocate(
     });
   }
   if (matches.length === 0) return null;
-  if (
-    want.length === 1 &&
-    want[0].length < 12 &&
-    matches.length > 1
-  ) {
+  if (want.length === 1 && want[0].length < 12 && matches.length > 1) {
     return null;
   }
   matches.sort((a, b) => a.distance - b.distance || a.from - b.from);
@@ -166,9 +162,9 @@ export function classifyCarryItems(
     const lineTo = finding.lineTo ?? lineFrom;
     let klass: CarryClass = "verify_unlocated";
     const prevFile = finding.path
-      ? previous.files.find((f) =>
-        normalizePath(f.path) === normalizePath(finding.path!)
-      )
+      ? previous.files.find(
+          (f) => normalizePath(f.path) === normalizePath(finding.path!),
+        )
       : undefined;
     const prevPatch = prevFile?.patch ?? "";
     const sameBody = Boolean(
@@ -182,7 +178,8 @@ export function classifyCarryItems(
     } else if (file.status === "removed") {
       klass = "file_removed";
     } else if (
-      finding.path && !previous.visiblePaths.has(normalizePath(finding.path))
+      finding.path &&
+      !previous.visiblePaths.has(normalizePath(finding.path))
     ) {
       klass = "unverifiable";
     } else if (sameBody) {
@@ -196,9 +193,9 @@ export function classifyCarryItems(
         klass = "verify_present";
       } else if (
         finding.anchorText &&
-        finding.anchorText.split("\n").every((line) =>
-          line.trim().startsWith("+")
-        )
+        finding.anchorText
+          .split("\n")
+          .every((line) => line.trim().startsWith("+"))
       ) {
         klass = "verify_likely_fixed";
       } else {
@@ -241,8 +238,8 @@ export function buildCarryPromptSection(
       continue;
     }
     if (item.class === "unchanged") {
-      const file = current.files.find((f) =>
-        normalizePath(f.path) === normalizePath(item.targetPath ?? "")
+      const file = current.files.find(
+        (f) => normalizePath(f.path) === normalizePath(item.targetPath ?? ""),
       );
       const relocated = file
         ? relocate(item.finding.anchorText, item.lineFrom, file.patch)
@@ -250,15 +247,11 @@ export function buildCarryPromptSection(
       const from = relocated?.from ?? item.lineFrom;
       const to = relocated?.to ?? item.lineTo;
       unchanged.push(
-        `- ${item.targetPath}:${from}${
-          to !== from ? `-${to}` : ""
-        } · ${item.finding.title}`,
+        `- ${item.targetPath}:${from}${to !== from ? `-${to}` : ""} · ${item.finding.title}`,
       );
       continue;
     }
-    if (
-      item.class === "unverifiable"
-    ) {
+    if (item.class === "unverifiable") {
       continue;
     }
     index++;
@@ -266,14 +259,12 @@ export function buildCarryPromptSection(
     (item as CarryItem & { promptId?: string }).promptId = label;
     const loc = item.targetPath
       ? `${item.targetPath}:${item.lineFrom}${
-        item.lineTo !== item.lineFrom ? `-${item.lineTo}` : ""
-      }`
+          item.lineTo !== item.lineFrom ? `-${item.lineTo}` : ""
+        }`
       : "";
     const body = item.finding.bodyMd.slice(0, 600);
     verify.push(
-      `${label} · ${
-        VERIFY_HINT[item.class]
-      } · ${loc}\n${item.finding.title}\n${body}`,
+      `${label} · ${VERIFY_HINT[item.class]} · ${loc}\n${item.finding.title}\n${body}`,
     );
   }
   if (verify.length === 0 && unchanged.length === 0) return "";
@@ -399,9 +390,9 @@ export function resolveCarryOutcomes(
     }
 
     const file = item.targetPath
-      ? current.files.find((f) =>
-        normalizePath(f.path) === normalizePath(item.targetPath!)
-      )
+      ? current.files.find(
+          (f) => normalizePath(f.path) === normalizePath(item.targetPath!),
+        )
       : undefined;
     let lineFrom = item.lineFrom;
     let lineTo = item.lineTo;
@@ -437,13 +428,14 @@ export function resolveCarryOutcomes(
     const promptId = promptIds.get(base.id);
     const verdict = promptId ? verdictByPromptId.get(promptId) : undefined;
     const state = verdict?.state ?? "open";
-    const anchor = file && verdict?.path
-      ? anchorTextFromPatch(
-        file.patch,
-        verdict.from ?? lineFrom,
-        verdict.to ?? verdict.from ?? lineTo,
-      )
-      : base.anchorText;
+    const anchor =
+      file && verdict?.path
+        ? anchorTextFromPatch(
+            file.patch,
+            verdict.from ?? lineFrom,
+            verdict.to ?? verdict.from ?? lineTo,
+          )
+        : base.anchorText;
     const row: ResolvedFinding = {
       id: crypto.randomUUID(),
       state,
@@ -462,12 +454,13 @@ export function resolveCarryOutcomes(
   }
 
   for (const finding of parsedNew) {
-    const overlap = openForMerge.find((open) =>
-      open.path &&
-      spansOverlap(
-        { path: open.path, from: open.lineFrom ?? 0, to: open.lineTo ?? 0 },
-        finding,
-      )
+    const overlap = openForMerge.find(
+      (open) =>
+        open.path &&
+        spansOverlap(
+          { path: open.path, from: open.lineFrom ?? 0, to: open.lineTo ?? 0 },
+          finding,
+        ),
     );
     if (overlap) {
       overlap.bodyMd = finding.excerpt;

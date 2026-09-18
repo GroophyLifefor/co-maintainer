@@ -1,7 +1,8 @@
 import { validateSkill } from "./validate.ts";
 import { testSource } from "../testing/helpers.ts";
+import { test } from "node:test";
 
-Deno.test("skill validation rejects raw dumps and unsupported references", async () => {
+test("skill validation rejects raw dumps and unsupported references", async () => {
   const markdown = `---
 name: fixture
 description: fixture
@@ -29,7 +30,7 @@ description: fixture
   }
 });
 
-Deno.test("skill validation accepts commands defined by deno tasks", async () => {
+test("skill validation accepts commands defined by deno tasks", async () => {
   const markdown = `---
 name: fixture
 description: fixture

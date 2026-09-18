@@ -12,7 +12,7 @@ export type RoundComment = {
 
 export function reviewRounds(comments: RoundComment[]): string[] {
   const sorted = [...comments].sort((a, b) =>
-    String(a.created_at ?? "").localeCompare(String(b.created_at ?? ""))
+    String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")),
   );
   const rounds: string[] = [];
   const seen = new Set<string>();

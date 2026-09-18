@@ -2,19 +2,26 @@ import { createApp } from "../app.ts";
 import { closeAppDb, openAppDb } from "../../store/app_db.ts";
 import { activateRepo } from "../../store/repos.ts";
 import { TEST_PKCS1_PEM } from "../../testing/fixtures/rsa_key.ts";
+import {
+  deleteEnv,
+  getEnv,
+  setEnv,
+  tempDirSync,
+} from "../../testing/runtime.ts";
+import { test } from "node:test";
 
 const PASSWORD = "installations-api-test";
 
 async function withTempDb(fn: () => Promise<void>): Promise<void> {
-  const original = Deno.env.get("CM_APP_DB");
-  Deno.env.set("CM_APP_DB", `${Deno.makeTempDirSync()}/app.db`);
+  const original = getEnv("CM_APP_DB");
+  setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
   try {
     await openAppDb();
     await fn();
   } finally {
     await closeAppDb();
-    if (original === undefined) Deno.env.delete("CM_APP_DB");
-    else Deno.env.set("CM_APP_DB", original);
+    if (original === undefined) deleteEnv("CM_APP_DB");
+    else setEnv("CM_APP_DB", original);
   }
 }
 
@@ -24,9 +31,10 @@ function jsonResponse(body: unknown): Response {
   });
 }
 
-async function loggedInApp(
-  githubApp?: { appId: string; privateKeyPem: string },
-) {
+async function loggedInApp(githubApp?: {
+  appId: string;
+  privateKeyPem: string;
+}) {
   const app = createApp({ password: PASSWORD, githubApp });
   const loginResponse = await app.fetch(
     new Request("http://localhost/api/login", {
@@ -50,7 +58,7 @@ async function loggedInApp(
     );
 }
 
-Deno.test("GET /api/installations without a configured App reports 422, not a crash", async () => {
+test("GET /api/installations without a configured App reports 422, not a crash", async () => {
   await withTempDb(async () => {
     const authed = await loggedInApp(undefined);
     const response = await authed("/api/installations");
@@ -58,7 +66,7 @@ Deno.test("GET /api/installations without a configured App reports 422, not a cr
   });
 });
 
-Deno.test("GET /api/installations marks repos already active in app.db", async () => {
+test("GET /api/installations marks repos already active in app.db", async () => {
   await withTempDb(async () => {
     activateRepo("acme/widgets", undefined);
     const originalFetch = globalThis.fetch;

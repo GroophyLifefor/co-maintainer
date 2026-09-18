@@ -2,6 +2,7 @@ import { collectSource } from "./collect.ts";
 import { cacheDeletePrefix } from "../store/cache_db.ts";
 import { testOptions } from "../testing/helpers.ts";
 import type { GitHubClient } from "../types.ts";
+import { test } from "node:test";
 
 class CacheClient implements GitHubClient {
   contentRequests = 0;
@@ -32,7 +33,7 @@ class CacheClient implements GitHubClient {
   }
 }
 
-Deno.test("unchanged codebase blobs are reused on remake", async () => {
+test("unchanged codebase blobs are reused on remake", async () => {
   const client = new CacheClient();
   const first = await collectSource(
     client,
@@ -42,7 +43,9 @@ Deno.test("unchanged codebase blobs are reused on remake", async () => {
   const second = await collectSource(
     client,
     testOptions({ repo: "fixture/repo" }),
-    { source: first } as never,
+    {
+      source: first,
+    } as never,
   );
   if (firstRequests === 0) throw new Error("fixture did not fetch a file");
   if (client.contentRequests !== firstRequests) {
@@ -67,30 +70,34 @@ class PullRequestCacheClient implements GitHubClient {
     if (endpoint.includes("/pulls?") && endpoint.includes("state=all")) {
       const page = Number(/[?&]page=(\d+)/.exec(endpoint)?.[1] ?? 1);
       if (page > 1) return [] as T;
-      return [{
-        number: 1,
-        title: "Change",
-        updated_at: this.updatedAt,
-        head: { sha: this.headSha },
-        additions: 1,
-        deletions: 1,
-        labels: [],
-      }] as T;
+      return [
+        {
+          number: 1,
+          title: "Change",
+          updated_at: this.updatedAt,
+          head: { sha: this.headSha },
+          additions: 1,
+          deletions: 1,
+          labels: [],
+        },
+      ] as T;
     }
     throw new Error(`unexpected request endpoint: ${endpoint}`);
   }
 
   async pages<T>(endpoint: string): Promise<T[]> {
     if (endpoint.includes("/pulls?")) {
-      return [{
-        number: 1,
-        title: "Change",
-        updated_at: this.updatedAt,
-        head: { sha: this.headSha },
-        additions: 1,
-        deletions: 1,
-        labels: [],
-      }] as T[];
+      return [
+        {
+          number: 1,
+          title: "Change",
+          updated_at: this.updatedAt,
+          head: { sha: this.headSha },
+          additions: 1,
+          deletions: 1,
+          labels: [],
+        },
+      ] as T[];
     }
     if (endpoint.includes("/comments")) {
       this.commentsRequests++;
@@ -108,7 +115,7 @@ class PullRequestCacheClient implements GitHubClient {
   }
 }
 
-Deno.test("PR discussion and diff caches follow their independent revisions", async () => {
+test("PR discussion and diff caches follow their independent revisions", async () => {
   await cacheDeletePrefix("pr-listing", "fixture/repo");
   const client = new PullRequestCacheClient();
   const prOptions = testOptions({
@@ -130,11 +137,9 @@ Deno.test("PR discussion and diff caches follow their independent revisions", as
   }
 
   client.updatedAt = "2";
-  const discussionChanged = await collectSource(
-    client,
-    prOptions,
-    { source: first } as never,
-  );
+  const discussionChanged = await collectSource(client, prOptions, {
+    source: first,
+  } as never);
   if (
     Number(client.commentsRequests) !== 2 ||
     Number(client.reviewRequests) !== 2
@@ -146,17 +151,15 @@ Deno.test("PR discussion and diff caches follow their independent revisions", as
   }
 
   client.headSha = "head-2";
-  await collectSource(
-    client,
-    prOptions,
-    { source: discussionChanged } as never,
-  );
+  await collectSource(client, prOptions, {
+    source: discussionChanged,
+  } as never);
   if (Number(client.fileRequests) !== 2) {
     throw new Error("changed head did not refresh diff");
   }
 });
 
-Deno.test("init fetch overlaps PR downloads when concurrent > 1", async () => {
+test("init fetch overlaps PR downloads when concurrent > 1", async () => {
   await cacheDeletePrefix("pr-listing", "fixture/repo");
   let inflight = 0;
   let peak = 0;
@@ -221,7 +224,7 @@ Deno.test("init fetch overlaps PR downloads when concurrent > 1", async () => {
   }
 });
 
-Deno.test("PR listing catch-up skips extra GitHub pages", async () => {
+test("PR listing catch-up skips extra GitHub pages", async () => {
   const repo = `fixture/listing-${crypto.randomUUID()}`;
   const now = new Date().toISOString();
   const fetched = { listPages: 0 };
@@ -244,15 +247,17 @@ Deno.test("PR listing catch-up skips extra GitHub pages", async () => {
         const page = Number(/[?&]page=(\d+)/.exec(endpoint)?.[1] ?? 1);
         if (page === 1) return pageOne as T;
         if (page === 2) {
-          return [{
-            number: 101,
-            title: "PR",
-            updated_at: now,
-            head: { sha: "h101" },
-            additions: 1,
-            deletions: 0,
-            labels: [],
-          }] as T;
+          return [
+            {
+              number: 101,
+              title: "PR",
+              updated_at: now,
+              head: { sha: "h101" },
+              additions: 1,
+              deletions: 0,
+              labels: [],
+            },
+          ] as T;
         }
         return [] as T;
       }

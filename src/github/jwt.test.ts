@@ -1,5 +1,6 @@
 import { importAppPrivateKey, pkcs1ToPkcs8, signAppJwt } from "./jwt.ts";
 import { TEST_PKCS1_PEM as PKCS1_PEM } from "../testing/fixtures/rsa_key.ts";
+import { test } from "node:test";
 
 // The PKCS#8 and public key below came from the same key via `openssl pkcs8
 // -topk8` and `openssl rsa -pubout`, so the assertions compare this code's
@@ -27,7 +28,7 @@ function pkcs1DerFromPem(pem: string): Uint8Array {
   return fromBase64(body);
 }
 
-Deno.test("pkcs1ToPkcs8 matches openssl's own PKCS#8 conversion byte for byte", () => {
+test("pkcs1ToPkcs8 matches openssl's own PKCS#8 conversion byte for byte", () => {
   const pkcs1 = pkcs1DerFromPem(PKCS1_PEM);
   const converted = pkcs1ToPkcs8(pkcs1);
   if (toBase64(converted) !== GOLDEN_PKCS8_DER_BASE64) {
@@ -35,7 +36,7 @@ Deno.test("pkcs1ToPkcs8 matches openssl's own PKCS#8 conversion byte for byte", 
   }
 });
 
-Deno.test("importAppPrivateKey imports the PKCS#1 PEM and can sign", async () => {
+test("importAppPrivateKey imports the PKCS#1 PEM and can sign", async () => {
   const key = await importAppPrivateKey(PKCS1_PEM);
   const signature = await crypto.subtle.sign(
     "RSASSA-PKCS1-v1_5",
@@ -49,7 +50,7 @@ Deno.test("importAppPrivateKey imports the PKCS#1 PEM and can sign", async () =>
   }
 });
 
-Deno.test("signAppJwt produces a JWT verifiable with the matching public key", async () => {
+test("signAppJwt produces a JWT verifiable with the matching public key", async () => {
   const key = await importAppPrivateKey(PKCS1_PEM);
   const jwt = await signAppJwt("4900449", key);
   const [headerB64, payloadB64, signatureB64] = jwt.split(".");
@@ -94,10 +95,10 @@ Deno.test("signAppJwt produces a JWT verifiable with the matching public key", a
   }
 });
 
-Deno.test("importAppPrivateKey also accepts an already-PKCS#8 key", async () => {
-  const pkcs8Pem = `-----BEGIN PRIVATE KEY-----\n${
-    GOLDEN_PKCS8_DER_BASE64.match(/.{1,64}/g)!.join("\n")
-  }\n-----END PRIVATE KEY-----`;
+test("importAppPrivateKey also accepts an already-PKCS#8 key", async () => {
+  const pkcs8Pem = `-----BEGIN PRIVATE KEY-----\n${GOLDEN_PKCS8_DER_BASE64.match(
+    /.{1,64}/g,
+  )!.join("\n")}\n-----END PRIVATE KEY-----`;
   const key = await importAppPrivateKey(pkcs8Pem);
   const signature = await crypto.subtle.sign(
     "RSASSA-PKCS1-v1_5",

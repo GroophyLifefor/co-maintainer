@@ -1,13 +1,16 @@
 import type { State } from "../knowledge/types.ts";
 import { cacheGet, cacheSet } from "./cache_db.ts";
+import { isNotFound, readTextFile } from "../util/runtime.ts";
 
 export async function readState(repo: string): Promise<State | undefined> {
   const value = await cacheGet("state", repo);
   if (value) return JSON.parse(value) as State;
   try {
     const legacy = JSON.parse(
-      await Deno.readTextFile(`.cache/${repo}/state.json`),
-    ) as State & { options: State["options"] & { maxPrYears?: number } };
+      await readTextFile(`.cache/${repo}/state.json`),
+    ) as State & {
+      options: State["options"] & { maxPrYears?: number };
+    };
     if (
       legacy.options.maxPrMonths === undefined &&
       legacy.options.maxPrYears !== undefined
@@ -17,7 +20,7 @@ export async function readState(repo: string): Promise<State | undefined> {
     await writeState(legacy);
     return legacy;
   } catch (error) {
-    if (error instanceof Deno.errors.NotFound) return undefined;
+    if (isNotFound(error)) return undefined;
     throw error;
   }
 }

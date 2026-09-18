@@ -1,6 +1,7 @@
 import { codegraphTools, prepareCodegraphTools } from "./codegraph_tools.ts";
 import type { CommandResult } from "./checkout.ts";
 import type { CodegraphRunner } from "../tools/codegraph_exec.ts";
+import { test } from "node:test";
 
 function same(actual: unknown, expected: unknown, what: string): void {
   const a = JSON.stringify(actual);
@@ -23,7 +24,7 @@ function tool(tools: ReturnType<typeof codegraphTools>, name: string) {
   return found;
 }
 
-Deno.test("codegraph-query builds the right command", async () => {
+test("codegraph-query builds the right command", async () => {
   const { run, calls } = capturingRun();
   const tools = codegraphTools("codegraph", "/wt", run);
   await tool(tools, "codegraph-query").run({
@@ -38,7 +39,7 @@ Deno.test("codegraph-query builds the right command", async () => {
   );
 });
 
-Deno.test("codegraph-node supports symbol mode and file mode", async () => {
+test("codegraph-node supports symbol mode and file mode", async () => {
   const { run, calls } = capturingRun();
   const tools = codegraphTools("codegraph", "/wt", run);
   await tool(tools, "codegraph-node").run({ name: "Builder" });
@@ -50,7 +51,7 @@ Deno.test("codegraph-node supports symbol mode and file mode", async () => {
   same(calls[1], ["node", "-f", "src/a.ts", "--symbols-only"], "file mode");
 });
 
-Deno.test("codegraph-node without name or file is rejected before shelling out", async () => {
+test("codegraph-node without name or file is rejected before shelling out", async () => {
   const { run, calls } = capturingRun();
   const tools = codegraphTools("codegraph", "/wt", run);
   const message = await tool(tools, "codegraph-node").run({});
@@ -58,7 +59,7 @@ Deno.test("codegraph-node without name or file is rejected before shelling out",
   if (!message.includes("requires")) throw new Error(message);
 });
 
-Deno.test("codegraph-explore splits a plain-words query into separate args", async () => {
+test("codegraph-explore splits a plain-words query into separate args", async () => {
   const { run, calls } = capturingRun();
   const tools = codegraphTools("codegraph", "/wt", run);
   await tool(tools, "codegraph-explore").run({
@@ -72,7 +73,7 @@ Deno.test("codegraph-explore splits a plain-words query into separate args", asy
   );
 });
 
-Deno.test("codegraph-callers, codegraph-callees, codegraph-impact build their own commands", async () => {
+test("codegraph-callers, codegraph-callees, codegraph-impact build their own commands", async () => {
   const { run, calls } = capturingRun();
   const tools = codegraphTools("codegraph", "/wt", run);
   await tool(tools, "codegraph-callers").run({ symbol: "foo", limit: 20 });
@@ -83,7 +84,7 @@ Deno.test("codegraph-callers, codegraph-callees, codegraph-impact build their ow
   same(calls[2], ["impact", "foo", "-d", "3"], "impact");
 });
 
-Deno.test("codegraph-affected passes every file and rejects an empty list", async () => {
+test("codegraph-affected passes every file and rejects an empty list", async () => {
   const { run, calls } = capturingRun();
   const tools = codegraphTools("codegraph", "/wt", run);
   await tool(tools, "codegraph-affected").run({
@@ -96,7 +97,7 @@ Deno.test("codegraph-affected passes every file and rejects an empty list", asyn
   if (!empty.includes("requires")) throw new Error(empty);
 });
 
-Deno.test("a failed command reports its exit code and output instead of throwing", async () => {
+test("a failed command reports its exit code and output instead of throwing", async () => {
   const run: CodegraphRunner = () =>
     Promise.resolve({ code: 1, stdout: "", stderr: "not found" });
   const tools = codegraphTools("codegraph", "/wt", run);
@@ -108,14 +109,14 @@ Deno.test("a failed command reports its exit code and output instead of throwing
   }
 });
 
-Deno.test("prepareCodegraphTools returns no tools, not an error, when codegraph is missing", async () => {
+test("prepareCodegraphTools returns no tools, not an error, when codegraph is missing", async () => {
   const tools = await prepareCodegraphTools("owner/repo", 1, "sha", {
     detect: () => Promise.resolve({ state: "missing" }),
   });
   same(tools, [], "empty");
 });
 
-Deno.test("prepareCodegraphTools returns no tools when the worktree cannot be prepared", async () => {
+test("prepareCodegraphTools returns no tools when the worktree cannot be prepared", async () => {
   const tools = await prepareCodegraphTools("owner/repo", 1, "sha", {
     detect: () =>
       Promise.resolve({ state: "ok", version: "1.6.0", path: "codegraph" }),

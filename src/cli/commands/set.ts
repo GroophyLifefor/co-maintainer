@@ -1,13 +1,14 @@
 import { writeUserConfig } from "../../config.ts";
+import { readTextFile } from "../../util/runtime.ts";
 
 function die(message: string): never {
   throw new Error(message);
 }
 
 function text(args: string[], name: string): string | undefined {
-  return args.find((arg) => arg.startsWith(`--${name}=`))?.slice(
-    name.length + 3,
-  );
+  return args
+    .find((arg) => arg.startsWith(`--${name}=`))
+    ?.slice(name.length + 3);
 }
 
 const secretFields = new Set([
@@ -110,9 +111,9 @@ export async function runSet(args: string[]): Promise<void> {
     "remote-token": "remoteToken",
   };
   const unset = new Set(
-    args.filter((arg) => arg.startsWith("--unset=")).map((arg) =>
-      arg.slice("--unset=".length)
-    ),
+    args
+      .filter((arg) => arg.startsWith("--unset="))
+      .map((arg) => arg.slice("--unset=".length)),
   );
   const patch: Record<string, unknown> = {};
   for (const [flag, field] of Object.entries(fieldByFlag)) {
@@ -137,7 +138,7 @@ export async function runSet(args: string[]): Promise<void> {
   const privateKeyFile = text(args, "github-app-private-key-file");
   if (privateKeyFile) {
     try {
-      patch.githubAppPrivateKey = await Deno.readTextFile(privateKeyFile);
+      patch.githubAppPrivateKey = await readTextFile(privateKeyFile);
     } catch (error) {
       die(`Could not read ${privateKeyFile}: ${String(error)}`);
     }
@@ -150,7 +151,8 @@ export async function runSet(args: string[]): Promise<void> {
   if (oauthAllowedUser) patch.githubOAuthAllowedUser = oauthAllowedUser;
   const disableAuth = text(args, "disable-auth");
   if (disableAuth) {
-    if (disableAuth !== "password") die("--disable-auth only supports: password");
+    if (disableAuth !== "password")
+      die("--disable-auth only supports: password");
     patch.passwordAuthDisabled = true;
   }
   const enableAuth = text(args, "enable-auth");
@@ -176,7 +178,7 @@ export async function runSet(args: string[]): Promise<void> {
   const summary = Object.entries(patch).map(([key, value]) =>
     value === undefined
       ? `${key} (unset)`
-      : `${key}=${secretFields.has(key) ? "•".repeat(8) : value}`
+      : `${key}=${secretFields.has(key) ? "•".repeat(8) : value}`,
   );
   console.log(`[set] updated: ${summary.join(", ")}`);
 }

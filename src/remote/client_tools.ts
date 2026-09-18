@@ -12,7 +12,9 @@ export type RemoteToolResult = {
   error?: string;
 };
 
-export function toolHandlerMap(handlers: ToolHandler[]): Map<string, ToolHandler> {
+export function toolHandlerMap(
+  handlers: ToolHandler[],
+): Map<string, ToolHandler> {
   return new Map(handlers.map((handler) => [handler.name, handler]));
 }
 

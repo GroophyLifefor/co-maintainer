@@ -1,4 +1,5 @@
 import type { Source } from "./types.ts";
+import { stat } from "../util/runtime.ts";
 
 export type ValidationResult = {
   valid: boolean;
@@ -47,12 +48,12 @@ export async function validateSkill(
             (JSON.parse(content) as { scripts?: Record<string, string> })
               .scripts ?? {};
           const prefix = source.tree.some((item) =>
-              /pnpm-lock\.yaml$/.test(item)
-            )
+            /pnpm-lock\.yaml$/.test(item),
+          )
             ? "pnpm"
             : source.tree.some((item) => /yarn\.lock$/.test(item))
-            ? "yarn"
-            : "npm";
+              ? "yarn"
+              : "npm";
           for (const name of Object.keys(scripts)) {
             commands.add(`${prefix} ${name}`);
             commands.add(`${prefix} run ${name}`);
@@ -65,8 +66,8 @@ export async function validateSkill(
       if (/deno\.jsonc?$/.test(path)) {
         try {
           const tasks =
-            (JSON.parse(content) as { tasks?: Record<string, string> })
-              .tasks ?? {};
+            (JSON.parse(content) as { tasks?: Record<string, string> }).tasks ??
+            {};
           for (const [name, task] of Object.entries(tasks)) {
             commands.add(`deno task ${name}`);
             commands.add(String(task));
@@ -78,18 +79,14 @@ export async function validateSkill(
       for (const match of content.matchAll(/^\s*run:\s*([^\s#].*?)\s*$/gm)) {
         commands.add(match[1].replace(/^['"]|['"]$/g, ""));
       }
-      for (
-        const match of content.matchAll(
-          /`((?:npm|pnpm|yarn|bun|deno|cargo|make|go|python|node|git)\s+[^`\n]+)`/g,
-        )
-      ) {
+      for (const match of content.matchAll(
+        /`((?:npm|pnpm|yarn|bun|deno|cargo|make|go|python|node|git)\s+[^`\n]+)`/g,
+      )) {
         commands.add(match[1]);
       }
-      for (
-        const match of content.matchAll(
-          /^\s*((?:npm|pnpm|yarn|bun|deno|cargo|make|go|python|node|git)\s+[^\n`]+)$/gm,
-        )
-      ) {
+      for (const match of content.matchAll(
+        /^\s*((?:npm|pnpm|yarn|bun|deno|cargo|make|go|python|node|git)\s+[^\n`]+)$/gm,
+      )) {
         commands.add(match[1].trim());
       }
     }
@@ -97,9 +94,9 @@ export async function validateSkill(
       commands.add("cargo test");
       commands.add("cargo build");
     }
-    const references = [
-      ...markdown.matchAll(/`([^`\n]+)`/g),
-    ].map((match) => match[1]);
+    const references = [...markdown.matchAll(/`([^`\n]+)`/g)].map(
+      (match) => match[1],
+    );
     for (const reference of references) {
       const isQualifier = /^[a-z][a-z\d_-]*:/i.test(reference);
       if (
@@ -110,24 +107,25 @@ export async function validateSkill(
         !reference.startsWith("./") &&
         !reference.includes(" ")
       ) {
-        const normalized = reference.replace(/^\.\/+/, "").replace(/^\/+/, "")
+        const normalized = reference
+          .replace(/^\.\/+/, "")
+          .replace(/^\/+/, "")
           .replace(/\/+$/, "");
         if (normalized === repositoryName) continue;
         const wildcardPattern = normalized.includes("*")
           ? new RegExp(
-            `^${
-              normalized.split("*").map((part) =>
-                part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-              ).join(".*")
-            }$`,
-          )
+              `^${normalized
+                .split("*")
+                .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+                .join(".*")}$`,
+            )
           : undefined;
         if (
           !paths.has(normalized) &&
           ![...paths].some((path) =>
             wildcardPattern
               ? wildcardPattern.test(path)
-              : path.startsWith(`${normalized}/`)
+              : path.startsWith(`${normalized}/`),
           )
         ) {
           errors.push(`referenced path is absent from source: ${reference}`);
@@ -137,10 +135,11 @@ export async function validateSkill(
         /^(?:npm|pnpm|yarn|bun|deno|cargo|make|go|python|node|git)\s/.test(
           reference,
         ) &&
-        ![...commands].some((command) =>
-          reference === command ||
-          reference.startsWith(`${command} `) ||
-          command.startsWith(`${reference} `)
+        ![...commands].some(
+          (command) =>
+            reference === command ||
+            reference.startsWith(`${command} `) ||
+            command.startsWith(`${reference} `),
         )
       ) {
         errors.push(`referenced command is absent from source: ${reference}`);
@@ -148,19 +147,20 @@ export async function validateSkill(
     }
   }
 
-  const links = [...markdown.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map((match) =>
-    match[1]
+  const links = [...markdown.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map(
+    (match) => match[1],
   );
   for (const link of links) {
     if (
-      /^[a-z][a-z\d+.-]*:/i.test(link) || link.startsWith("/") ||
+      /^[a-z][a-z\d+.-]*:/i.test(link) ||
+      link.startsWith("/") ||
       link.includes("..")
     ) {
       errors.push(`link is not relative: ${link}`);
       continue;
     }
     try {
-      await Deno.stat(`${outputDirectory}/${link}`);
+      await stat(`${outputDirectory}/${link}`);
     } catch {
       errors.push(`linked file does not exist: ${link}`);
     }

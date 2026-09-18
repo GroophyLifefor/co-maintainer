@@ -1,18 +1,20 @@
 import { createApp } from "./app.ts";
 import { closeAppDb, openAppDb } from "../store/app_db.ts";
+import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
+import { test } from "node:test";
 
 const PASSWORD = "correct-horse";
 
 async function withTempDb(fn: () => Promise<void>): Promise<void> {
-  const original = Deno.env.get("CM_APP_DB");
-  Deno.env.set("CM_APP_DB", `${Deno.makeTempDirSync()}/app.db`);
+  const original = getEnv("CM_APP_DB");
+  setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
   try {
     await openAppDb();
     await fn();
   } finally {
     await closeAppDb();
-    if (original === undefined) Deno.env.delete("CM_APP_DB");
-    else Deno.env.set("CM_APP_DB", original);
+    if (original === undefined) deleteEnv("CM_APP_DB");
+    else setEnv("CM_APP_DB", original);
   }
 }
 
@@ -32,18 +34,16 @@ function withCsrf(headers: Record<string, string> = {}) {
   return { "x-requested-with": "co-maintainer", ...headers };
 }
 
-Deno.test("GET /api/health reports ok and a version, no auth needed", async () => {
+test("GET /api/health reports ok and a version, no auth needed", async () => {
   const app = createApp({ password: PASSWORD });
-  const response = await app.fetch(
-    new Request("http://localhost/api/health"),
-  );
+  const response = await app.fetch(new Request("http://localhost/api/health"));
   if (response.status !== 200) throw new Error(`status ${response.status}`);
   const body = await response.json();
   if (body.ok !== true) throw new Error("health did not report ok");
   if (!body.version) throw new Error("health did not report a version");
 });
 
-Deno.test("an unknown route returns the shared error envelope", async () => {
+test("an unknown route returns the shared error envelope", async () => {
   const app = createApp({ password: PASSWORD });
   const response = await app.fetch(
     new Request("http://localhost/nothing-here"),
@@ -61,7 +61,7 @@ Deno.test("an unknown route returns the shared error envelope", async () => {
   }
 });
 
-Deno.test("/api/* without a session returns 401", async () => {
+test("/api/* without a session returns 401", async () => {
   await withTempDb(async () => {
     const app = createApp({ password: PASSWORD });
     const response = await app.fetch(
@@ -71,7 +71,7 @@ Deno.test("/api/* without a session returns 401", async () => {
   });
 });
 
-Deno.test("a mutating request with no CSRF header is rejected before auth", async () => {
+test("a mutating request with no CSRF header is rejected before auth", async () => {
   await withTempDb(async () => {
     const app = createApp({ password: PASSWORD });
     const response = await app.fetch(postJson("/api/logout", {}));
@@ -79,7 +79,7 @@ Deno.test("a mutating request with no CSRF header is rejected before auth", asyn
   });
 });
 
-Deno.test("login, /api/me, logout, then the old token is rejected", async () => {
+test("login, /api/me, logout, then the old token is rejected", async () => {
   await withTempDb(async () => {
     const app = createApp({ password: PASSWORD });
     const loginResponse = await app.fetch(
@@ -111,10 +111,14 @@ Deno.test("login, /api/me, logout, then the old token is rejected", async () => 
     }
 
     const logoutResponse = await app.fetch(
-      postJson("/api/logout", {}, {
-        ...withCsrf(),
-        authorization: `Bearer ${token}`,
-      }),
+      postJson(
+        "/api/logout",
+        {},
+        {
+          ...withCsrf(),
+          authorization: `Bearer ${token}`,
+        },
+      ),
     );
     if (logoutResponse.status !== 204) {
       throw new Error(`logout status ${logoutResponse.status}`);
@@ -131,7 +135,7 @@ Deno.test("login, /api/me, logout, then the old token is rejected", async () => 
   });
 });
 
-Deno.test("a wrong password never creates a session", async () => {
+test("a wrong password never creates a session", async () => {
   await withTempDb(async () => {
     const app = createApp({ password: PASSWORD });
     const response = await app.fetch(
@@ -141,7 +145,7 @@ Deno.test("a wrong password never creates a session", async () => {
   });
 });
 
-Deno.test("five wrong passwords lock out the sixth attempt, even the right one", async () => {
+test("five wrong passwords lock out the sixth attempt, even the right one", async () => {
   await withTempDb(async () => {
     const app = createApp({ password: PASSWORD });
     const ip = "203.0.113.1";
@@ -173,7 +177,7 @@ Deno.test("five wrong passwords lock out the sixth attempt, even the right one",
   });
 });
 
-Deno.test("password sign-in disabled by auth.password rejects /api/login", async () => {
+test("password sign-in disabled by auth.password rejects /api/login", async () => {
   await withTempDb(async () => {
     const app = createApp({
       password: PASSWORD,
@@ -186,15 +190,13 @@ Deno.test("password sign-in disabled by auth.password rejects /api/login", async
   });
 });
 
-Deno.test("GET /auth/github 404s when GitHub sign-in is not enabled", async () => {
+test("GET /auth/github 404s when GitHub sign-in is not enabled", async () => {
   const app = createApp({ password: PASSWORD });
-  const response = await app.fetch(
-    new Request("http://localhost/auth/github"),
-  );
+  const response = await app.fetch(new Request("http://localhost/auth/github"));
   if (response.status !== 404) throw new Error(`status ${response.status}`);
 });
 
-Deno.test("GET /auth/github redirects to GitHub with a state cookie", async () => {
+test("GET /auth/github redirects to GitHub with a state cookie", async () => {
   const app = createApp({
     password: PASSWORD,
     auth: { password: true, github: true },
@@ -217,7 +219,7 @@ Deno.test("GET /auth/github redirects to GitHub with a state cookie", async () =
   }
 });
 
-Deno.test("GET /auth/github/callback rejects a forged state", async () => {
+test("GET /auth/github/callback rejects a forged state", async () => {
   const app = createApp({
     password: PASSWORD,
     auth: { password: true, github: true },
@@ -230,7 +232,10 @@ Deno.test("GET /auth/github/callback rejects a forged state", async () => {
   const response = await app.fetch(
     new Request(
       "http://localhost/auth/github/callback?code=abc&state=attacker-guessed",
-      { headers: { cookie: "cm_oauth_state=real-state:%2F" }, redirect: "manual" },
+      {
+        headers: { cookie: "cm_oauth_state=real-state:%2F" },
+        redirect: "manual",
+      },
     ),
   );
   if (response.status !== 303) throw new Error(`status ${response.status}`);
@@ -243,7 +248,7 @@ Deno.test("GET /auth/github/callback rejects a forged state", async () => {
   }
 });
 
-Deno.test("GET /auth/github/callback fails gracefully on a malformed state cookie", async () => {
+test("GET /auth/github/callback fails gracefully on a malformed state cookie", async () => {
   const app = createApp({
     password: PASSWORD,
     auth: { password: true, github: true },
@@ -269,7 +274,7 @@ Deno.test("GET /auth/github/callback fails gracefully on a malformed state cooki
   }
 });
 
-Deno.test("inject500 returns 500 on mutating api except login", async () => {
+test("inject500 returns 500 on mutating api except login", async () => {
   await withTempDb(async () => {
     const app = createApp({ password: PASSWORD, inject500: true });
     const login = await app.fetch(

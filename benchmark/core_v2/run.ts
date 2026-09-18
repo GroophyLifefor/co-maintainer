@@ -5,6 +5,13 @@ import { reviewPullRequest } from "../../src/pr/reviewer.ts";
 import { average, scores } from "./metrics.ts";
 import { matchPairs, matchSpans } from "./match.ts";
 import { parseFindings } from "../../src/pr/findings.ts";
+import {
+  isNotFound,
+  mkdir,
+  readTextFile,
+  stat,
+  writeTextFile,
+} from "../../src/util/runtime.ts";
 
 type Row = {
   pr_url: string;
@@ -17,9 +24,9 @@ type Row = {
 };
 
 function flag(args: string[], name: string): string | undefined {
-  return args.find((arg) => arg.startsWith(`--${name}=`))?.slice(
-    name.length + 3,
-  );
+  return args
+    .find((arg) => arg.startsWith(`--${name}=`))
+    ?.slice(name.length + 3);
 }
 
 function intFlag(args: string[], name: string, fallback: number): number {
@@ -46,10 +53,7 @@ async function mapPool<T>(
     }
   };
   await Promise.all(
-    Array.from(
-      { length: Math.min(concurrency, items.length) },
-      worker,
-    ),
+    Array.from({ length: Math.min(concurrency, items.length) }, worker),
   );
 }
 
@@ -59,36 +63,37 @@ function prNumber(url: string): number {
   return Number(match[1]);
 }
 
-const args = Deno.args.filter((arg) => arg !== "--");
+const args = process.argv.slice(2).filter((arg) => arg !== "--");
 const repo = flag(args, "repo") ?? "mrdoob/three.js";
 const datasetPath = flag(args, "dataset") ?? "benchmark/core_v2/dataset.json";
 const reviewConcurrent = intFlag(args, "review-concurrent", 1);
-const reviewFlags = args.filter((arg) =>
-  !arg.startsWith("--repo=") &&
-  !arg.startsWith("--dataset=") &&
-  !arg.startsWith("--review-concurrent=")
+const reviewFlags = args.filter(
+  (arg) =>
+    !arg.startsWith("--repo=") &&
+    !arg.startsWith("--dataset=") &&
+    !arg.startsWith("--review-concurrent="),
 );
 
 let dataset: Row[];
 try {
-  dataset = JSON.parse(await Deno.readTextFile(datasetPath)) as Row[];
+  dataset = JSON.parse(await readTextFile(datasetPath)) as Row[];
 } catch (error) {
-  if (error instanceof Deno.errors.NotFound) {
+  if (isNotFound(error)) {
     throw new Error(`Missing ${datasetPath}; download AACR-Bench there first`);
   }
   throw error;
 }
 
 const rows = dataset.filter((row) =>
-  row.pr_url.includes(`github.com/${repo}/pull/`)
+  row.pr_url.includes(`github.com/${repo}/pull/`),
 );
 if (rows.length === 0) throw new Error(`No AACR comments for ${repo}`);
 
 try {
-  await Deno.stat(`${reposDir()}/${repo}/PR_REVIEW_GUIDE.md`);
+  await stat(`${reposDir()}/${repo}/PR_REVIEW_GUIDE.md`);
 } catch {
   throw new Error(
-    `Missing ${reposDir()}/${repo}/PR_REVIEW_GUIDE.md. Init first (not timed):\n  deno task init ${repo} --max-pr-months=3 --log-time --env=.env`,
+    `Missing ${reposDir()}/${repo}/PR_REVIEW_GUIDE.md. Init first (not timed):\n  npm run init ${repo} --max-pr-months=3 --log-time --env=.env`,
   );
 }
 
@@ -140,7 +145,7 @@ console.log(
   `[bench] ${jobs.length} PRs in ${repo} · review-concurrent=${reviewConcurrent}`,
 );
 if (jobs.length === 0) throw new Error(`No PRs for ${repo}`);
-const baseOptions = parseArgs([
+const baseOptions = await parseArgs([
   "review",
   repo,
   String(jobs[0][0]),
@@ -195,15 +200,15 @@ await mapPool(jobs, reviewConcurrent, async ([number, comments]) => {
     predicted,
     gold,
     pairs,
-    unmatchedPredicted: predicted.map((_, i) => i).filter((i) =>
-      !matchedPredicted.has(i)
-    ),
+    unmatchedPredicted: predicted
+      .map((_, i) => i)
+      .filter((i) => !matchedPredicted.has(i)),
     unmatchedGold: gold.map((_, i) => i).filter((i) => !matchedGold.has(i)),
   });
   console.log(
-    `#${number}  tp=${counts.tp} fp=${counts.fp} fn=${counts.fn}  predicted=${predicted.length}/${gold.length} gold  ${
-      (ms / 1000).toFixed(1)
-    }s  ${tokens} tok  $${costKnown ? cost.toFixed(4) : "unknown"}`,
+    `#${number}  tp=${counts.tp} fp=${counts.fp} fn=${counts.fn}  predicted=${predicted.length}/${gold.length} gold  ${(
+      ms / 1000
+    ).toFixed(1)}s  ${tokens} tok  $${costKnown ? cost.toFixed(4) : "unknown"}`,
   );
 });
 reports.sort((a, b) => a.pr - b.pr);
@@ -235,28 +240,28 @@ const result = {
 };
 
 console.log(
-  `\n${repo}  PRs=${result.prs}  F1=${f1.toFixed(3)}  P=${
-    precision.toFixed(3)
-  }  R=${recall.toFixed(3)}  avgTime=${
-    (result.avgTimeMs / 1000).toFixed(1)
-  }s  avgTok=${result.avgTokens.toFixed(0)}  avgCost=$${
+  `\n${repo}  PRs=${result.prs}  F1=${f1.toFixed(3)}  P=${precision.toFixed(
+    3,
+  )}  R=${recall.toFixed(3)}  avgTime=${(result.avgTimeMs / 1000).toFixed(
+    1,
+  )}s  avgTok=${result.avgTokens.toFixed(0)}  avgCost=$${
     costKnown ? result.avgCost.toFixed(4) : "unknown"
   }  totalCost=$${costKnown ? totalCost.toFixed(4) : "unknown"}`,
 );
 
-await Deno.mkdir("benchmark/core_v2/results", { recursive: true });
+await mkdir("benchmark/core_v2/results", { recursive: true });
 const slug = repo.replace("/", "-");
 const out = `benchmark/core_v2/results/${slug}.json`;
-await Deno.writeTextFile(out, `${JSON.stringify(result, null, 2)}\n`);
+await writeTextFile(out, `${JSON.stringify(result, null, 2)}\n`);
 details.sort((a, b) => a.pr - b.pr);
 const detailDir = `benchmark/core_v2/results/${slug}`;
-await Deno.mkdir(detailDir, { recursive: true });
-await Deno.writeTextFile(
+await mkdir(detailDir, { recursive: true });
+await writeTextFile(
   `${detailDir}/detail.json`,
   `${JSON.stringify({ repo, ...scores(totals), details }, null, 2)}\n`,
 );
 for (const item of details) {
-  await Deno.writeTextFile(`${detailDir}/${item.pr}.md`, item.review);
+  await writeTextFile(`${detailDir}/${item.pr}.md`, item.review);
 }
 console.log(`wrote ${out}`);
 console.log(

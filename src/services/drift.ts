@@ -48,9 +48,10 @@ async function codeDrift(
   defaultBranch: string,
 ): Promise<{ commits: number; files: number }> {
   if (isCommitSha(baseSha)) {
-    const compare = await client.request<
-      { total_commits?: number; files?: unknown[] }
-    >(
+    const compare = await client.request<{
+      total_commits?: number;
+      files?: unknown[];
+    }>(
       `repos/${repo}/compare/${baseSha}...${encodeURIComponent(defaultBranch)}`,
     );
     return {
@@ -59,9 +60,9 @@ async function codeDrift(
     };
   }
   const commits = await client.pages<Json>(
-    `repos/${repo}/commits?sha=${encodeURIComponent(defaultBranch)}&since=${
-      encodeURIComponent(builtAt)
-    }`,
+    `repos/${repo}/commits?sha=${encodeURIComponent(defaultBranch)}&since=${encodeURIComponent(
+      builtAt,
+    )}`,
     MAX_COMMITS_COUNTED,
   );
   return { commits: commits.length, files: 0 };

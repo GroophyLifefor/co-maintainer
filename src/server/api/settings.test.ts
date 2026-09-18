@@ -2,28 +2,35 @@ import { createApp } from "../app.ts";
 import { handleSettingsRoute } from "./settings.ts";
 import { closeAppDb, openAppDb } from "../../store/app_db.ts";
 import { readConfig, writeUserConfig } from "../../config.ts";
+import {
+  deleteEnv,
+  getEnv,
+  setEnv,
+  tempDirSync,
+} from "../../testing/runtime.ts";
+import { test } from "node:test";
 
 const PASSWORD = "settings-api-test";
 
 async function withTempEnv(fn: () => Promise<void>): Promise<void> {
-  const originalConfig = Deno.env.get("CM_CONFIG_PATH");
-  const originalDb = Deno.env.get("CM_APP_DB");
-  Deno.env.set("CM_CONFIG_PATH", `${Deno.makeTempDirSync()}/config.json`);
-  Deno.env.set("CM_APP_DB", `${Deno.makeTempDirSync()}/app.db`);
+  const originalConfig = getEnv("CM_CONFIG_PATH");
+  const originalDb = getEnv("CM_APP_DB");
+  setEnv("CM_CONFIG_PATH", `${tempDirSync()}/config.json`);
+  setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
   try {
     await openAppDb();
     await writeUserConfig({ auth: "gh", ai: "none" });
     await fn();
   } finally {
     await closeAppDb();
-    if (originalConfig === undefined) Deno.env.delete("CM_CONFIG_PATH");
-    else Deno.env.set("CM_CONFIG_PATH", originalConfig);
-    if (originalDb === undefined) Deno.env.delete("CM_APP_DB");
-    else Deno.env.set("CM_APP_DB", originalDb);
+    if (originalConfig === undefined) deleteEnv("CM_CONFIG_PATH");
+    else setEnv("CM_CONFIG_PATH", originalConfig);
+    if (originalDb === undefined) deleteEnv("CM_APP_DB");
+    else setEnv("CM_APP_DB", originalDb);
   }
 }
 
-Deno.test("PUT /api/settings rejects a PAT GitHub refused", async () => {
+test("PUT /api/settings rejects a PAT GitHub refused", async () => {
   await withTempEnv(async () => {
     const original = globalThis.fetch;
     globalThis.fetch = (() =>
@@ -72,7 +79,7 @@ Deno.test("PUT /api/settings rejects a PAT GitHub refused", async () => {
   });
 });
 
-Deno.test("PUT /api/settings rejects non-integer defaults", async () => {
+test("PUT /api/settings rejects non-integer defaults", async () => {
   await withTempEnv(async () => {
     const response = await handleSettingsRoute(
       new Request("http://localhost/api/settings", {
@@ -91,9 +98,11 @@ Deno.test("PUT /api/settings rejects non-integer defaults", async () => {
   });
 });
 
-Deno.test("PUT /api/settings merges non-int default keys", async () => {
+test("PUT /api/settings merges non-int default keys", async () => {
   await withTempEnv(async () => {
-    await writeUserConfig({ defaults: { maxCommits: 2, keepMe: true } as never });
+    await writeUserConfig({
+      defaults: { maxCommits: 2, keepMe: true } as never,
+    });
     const response = await handleSettingsRoute(
       new Request("http://localhost/api/settings", {
         method: "PUT",
@@ -109,13 +118,17 @@ Deno.test("PUT /api/settings merges non-int default keys", async () => {
       throw new Error(`status ${response.status}: ${await response.text()}`);
     }
     const saved = readConfig().defaults as Record<string, unknown>;
-    if (saved.maxCommits !== 4 || saved.keepMe !== true || saved.added !== "yes") {
+    if (
+      saved.maxCommits !== 4 ||
+      saved.keepMe !== true ||
+      saved.added !== "yes"
+    ) {
       throw new Error(JSON.stringify(saved));
     }
   });
 });
 
-Deno.test("PUT /api/settings saves a public webhook URL", async () => {
+test("PUT /api/settings saves a public webhook URL", async () => {
   await withTempEnv(async () => {
     const response = await handleSettingsRoute(
       new Request("http://localhost/api/settings", {

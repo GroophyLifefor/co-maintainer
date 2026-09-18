@@ -1,6 +1,6 @@
-import client from "./pages/client.js" with { type: "text" };
+import { client } from "./pages/client.ts";
 import { logo } from "./logo.ts";
-import styles from "./pages/styles.css" with { type: "text" };
+import { styles } from "./pages/styles.ts";
 
 export async function handleStyles(): Promise<Response> {
   return new Response(styles, {

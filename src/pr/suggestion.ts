@@ -25,7 +25,10 @@ export function readSuggestion(body: string): Suggestion | undefined {
 }
 
 export function withoutSuggestionLine(body: string): string {
-  return body.replace(LINE, "").replace(/\n{3,}/g, "\n\n").trim();
+  return body
+    .replace(LINE, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 export function stripSuggestion(body: string): string {
@@ -40,7 +43,10 @@ export function plainSuggestionFences(text: string): string {
 
 function sameCode(a: string, b: string): boolean {
   const clean = (value: string) =>
-    value.split("\n").map((line) => line.trimEnd()).join("\n");
+    value
+      .split("\n")
+      .map((line) => line.trimEnd())
+      .join("\n");
   return clean(a) === clean(b);
 }
 
@@ -60,7 +66,8 @@ export function suggestionAnchor(
   const high = Math.max(finding.from, finding.to);
   if (from > to || from < low || to > high) return undefined;
   const anchor = anchorFor(patch, from, to);
-  const whole = anchor?.line === to &&
+  const whole =
+    anchor?.line === to &&
     anchor.start_line === (from === to ? undefined : from);
   if (!whole) return undefined;
   const lines = rightLines(patch);

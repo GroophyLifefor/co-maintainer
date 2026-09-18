@@ -1,7 +1,8 @@
 import { parseReviewArgs } from "./review_args.ts";
+import { test } from "node:test";
 
-Deno.test("parseReviewArgs: PR mode strips local-only flags before parseArgs", () => {
-  const parsed = parseReviewArgs([
+test("parseReviewArgs: PR mode strips local-only flags before parseArgs", async () => {
+  const parsed = await parseReviewArgs([
     "owner/repo",
     "42",
     "--json",
@@ -18,8 +19,8 @@ Deno.test("parseReviewArgs: PR mode strips local-only flags before parseArgs", (
   }
 });
 
-Deno.test("parseReviewArgs: --remote selects remote mode", () => {
-  const parsed = parseReviewArgs(["--remote"]);
+test("parseReviewArgs: --remote selects remote mode", async () => {
+  const parsed = await parseReviewArgs(["--remote"]);
   if (parsed.mode !== "remote") {
     throw new Error(`expected remote mode, got ${parsed.mode}`);
   }

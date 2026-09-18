@@ -121,7 +121,7 @@ Forward-only `app.db` migrations. Do not downgrade the CLI after a newer version
 has run.
 
 1. Stop `serve`.
-2. `deno install -f -g jsr:@murat/co-maintainer`
+2. `npm install -g co-maintainer@latest`
 3. Start `serve` again with the same data directory.
 
 Restart after upgrading. Details also on [`serve`: Updating](serve.md#updating).

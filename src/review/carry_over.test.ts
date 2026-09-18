@@ -2,8 +2,9 @@ import {
   findingsMarkdownForParse,
   parsePreviousVerdicts,
 } from "./carry_over.ts";
+import { test } from "node:test";
 
-Deno.test("carry_over: parse previous verdict lines", () => {
+test("carry_over: parse previous verdict lines", () => {
   const text = `## Findings
 - something
 
@@ -20,7 +21,7 @@ Deno.test("carry_over: parse previous verdict lines", () => {
   }
 });
 
-Deno.test("carry_over: strip previous findings before parse", () => {
+test("carry_over: strip previous findings before parse", () => {
   const md = "## Findings\n- [P2] bug\n\n## Previous findings\n- F1: closed\n";
   const cut = findingsMarkdownForParse(md);
   if (cut.includes("Previous findings")) {

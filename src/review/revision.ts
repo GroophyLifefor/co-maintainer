@@ -1,8 +1,4 @@
-export type RevisionFileStatus =
-  | "added"
-  | "modified"
-  | "removed"
-  | "renamed";
+export type RevisionFileStatus = "added" | "modified" | "removed" | "renamed";
 
 export type RevisionFile = {
   path: string;
@@ -59,7 +55,7 @@ export function normalizeAnchor(text: string): string {
 export async function revisionHash(revision: Revision): Promise<string> {
   const parts: string[] = [];
   const files = [...revision.files].sort((a, b) =>
-    a.path.localeCompare(b.path)
+    a.path.localeCompare(b.path),
   );
   for (const file of files) {
     parts.push(
@@ -72,7 +68,8 @@ export async function revisionHash(revision: Revision): Promise<string> {
   }
   const data = new TextEncoder().encode(parts.join("\0"));
   const digest = await crypto.subtle.digest("SHA-256", data);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0"))
+  return [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
 

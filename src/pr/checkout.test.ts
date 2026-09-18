@@ -1,5 +1,14 @@
 import { ensureClone } from "./checkout.ts";
 import type { CommandResult, Run } from "./checkout.ts";
+import {
+  deleteEnv,
+  getEnv,
+  mkdirPath,
+  removePath,
+  setEnv,
+  tempDir,
+} from "../testing/runtime.ts";
+import { test } from "node:test";
 
 /** Reproduces the race a benchmark run hits at `--review-concurrent` > 1:
  * several jobs for the same repo call `ensureClone` before the clone exists,
@@ -7,10 +16,10 @@ import type { CommandResult, Run } from "./checkout.ts";
  * directory — the loser failing with "already exists" and its caller falling
  * back to an unscoped review. `ensureClone` should invoke `git clone` exactly
  * once no matter how many callers race in. */
-Deno.test("ensureClone clones exactly once under concurrent callers", async () => {
-  const clonesRoot = await Deno.makeTempDir();
-  const prev = Deno.env.get("CM_CLONES_DIR");
-  Deno.env.set("CM_CLONES_DIR", clonesRoot);
+test("ensureClone clones exactly once under concurrent callers", async () => {
+  const clonesRoot = await tempDir();
+  const prev = getEnv("CM_CLONES_DIR");
+  setEnv("CM_CLONES_DIR", clonesRoot);
   let cloneInvocations = 0;
   let cloneResolve!: () => void;
   const clonePending = new Promise<void>((resolve) => {
@@ -24,7 +33,7 @@ Deno.test("ensureClone clones exactly once under concurrent callers", async () =
       // callers even start.
       await clonePending;
       const dir = args[args.length - 1];
-      await Deno.mkdir(`${dir}/.git`, { recursive: true });
+      await mkdirPath(`${dir}/.git`, { recursive: true });
       return { code: 0, stdout: "", stderr: "" };
     }
     return { code: 0, stdout: "", stderr: "" };
@@ -38,16 +47,14 @@ Deno.test("ensureClone clones exactly once under concurrent callers", async () =
   const dirs = await Promise.all(calls);
 
   if (cloneInvocations !== 1) {
-    throw new Error(
-      `expected exactly one git clone, got ${cloneInvocations}`,
-    );
+    throw new Error(`expected exactly one git clone, got ${cloneInvocations}`);
   }
   if (new Set(dirs).size !== 1) {
     throw new Error(
       "all concurrent callers must resolve to the same directory",
     );
   }
-  if (prev === undefined) Deno.env.delete("CM_CLONES_DIR");
-  else Deno.env.set("CM_CLONES_DIR", prev);
-  await Deno.remove(clonesRoot, { recursive: true });
+  if (prev === undefined) deleteEnv("CM_CLONES_DIR");
+  else setEnv("CM_CLONES_DIR", prev);
+  await removePath(clonesRoot, { recursive: true });
 });

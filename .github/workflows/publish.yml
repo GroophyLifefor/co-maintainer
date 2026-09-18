@@ -12,9 +12,26 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v6
-      - uses: denoland/setup-deno@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          deno-version: v2.9.6
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+        env:
+          CM_FAKE_AI: "1"
+      - name: Determine npm dist-tag
+        id: tag
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [[ "$version" == *-* ]]; then
+            echo "tag=beta" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
       - name: Publish package
-        run: deno publish
+        run: npm publish --provenance --access public --tag "${{ steps.tag.outputs.tag }}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

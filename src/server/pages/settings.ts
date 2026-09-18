@@ -1,6 +1,6 @@
 import { html, layout, skSlot, text } from "./layout.ts";
 import type { UserConfig } from "../../config.ts";
-import denoConfig from "../../../deno.json" with { type: "json" };
+import { VERSION } from "../../version.ts";
 
 const SOURCE_URL = "https://github.com/GroophyLifefor/co-maintainer";
 
@@ -14,11 +14,12 @@ export function renderSettings(
     config.auth === "gh" || (config.auth === "pat" && config.githubPat),
   );
   const appOk = Boolean(config.githubAppId && config.githubAppPrivateKey);
-  return html(layout({
-    title: "Settings · co-maintainer",
-    username,
-    active: "settings",
-    body: `<div class="wrap side">
+  return html(
+    layout({
+      title: "Settings · co-maintainer",
+      username,
+      active: "settings",
+      body: `<div class="wrap side">
   <aside>
     <p class="lbl">Settings</p>
     <nav>
@@ -38,26 +39,22 @@ export function renderSettings(
       ${skSlot()}
       <div class="hd"><h2>Models and API key</h2>
         <span class="st ${aiOk ? "ok" : "warn"}" style="margin-left:auto">${
-      aiOk ? "Configured" : "Not set"
-    }</span></div>
+          aiOk ? "Configured" : "Not set"
+        }</span></div>
       <div class="bd">
         <div class="field"><label>Provider</label>
           <select id="ai">
             <option value="none"${
-      !config.ai || config.ai === "none" ? " selected" : ""
-    }>None</option>
+              !config.ai || config.ai === "none" ? " selected" : ""
+            }>None</option>
             <option value="openrouter"${
-      config.ai === "openrouter" ? " selected" : ""
-    }>OpenRouter</option>
-            <option value="hetzner"${
-      config.ai === "hetzner" ? " selected" : ""
-    }>Hetzner</option>
+              config.ai === "openrouter" ? " selected" : ""
+            }>OpenRouter</option>
+            <option value="hetzner"${config.ai === "hetzner" ? " selected" : ""}>Hetzner</option>
           </select></div>
         <div class="field"><label>API key</label>
           <input id="token" type="password" placeholder="Leave blank to keep the current key">
-          <div class="hint">${
-      config.token ? "A key is saved" : "No key saved"
-    }</div></div>
+          <div class="hint">${config.token ? "A key is saved" : "No key saved"}</div></div>
         <div class="two" style="max-width:none">
           <div class="field"><label>Main model</label>
             <input id="high" value="${text(config.highModel ?? "")}">
@@ -73,17 +70,15 @@ export function renderSettings(
       ${skSlot()}
       <div class="hd"><h2>GitHub</h2>
         <span class="st ${ghOk ? "ok" : "warn"}" style="margin-left:auto">${
-      ghOk ? "Configured" : "Not set"
-    }</span></div>
+          ghOk ? "Configured" : "Not set"
+        }</span></div>
       <div class="bd">
         <div class="field"><label>Access</label>
           <select id="auth">
-            <option value="gh"${
-      config.auth !== "pat" ? " selected" : ""
-    }>gh CLI</option>
+            <option value="gh"${config.auth !== "pat" ? " selected" : ""}>gh CLI</option>
             <option value="pat"${
-      config.auth === "pat" ? " selected" : ""
-    }>Personal access token</option>
+              config.auth === "pat" ? " selected" : ""
+            }>Personal access token</option>
           </select></div>
         <div class="field"><label>Personal access token</label>
           <input id="pat" type="password" placeholder="Leave blank to keep the current token"></div>
@@ -94,8 +89,8 @@ export function renderSettings(
       ${skSlot()}
       <div class="hd"><h2>GitHub App</h2>
         <span class="st ${appOk ? "ok" : "warn"}" style="margin-left:auto">${
-      appOk ? "Configured" : "Not set"
-    }</span></div>
+          appOk ? "Configured" : "Not set"
+        }</span></div>
       <div class="bd">
         <p class="muted" style="margin:0 0 16px">Needed to post reviews on pull requests.</p>
         <div class="two" style="max-width:none">
@@ -123,17 +118,13 @@ Leave blank to keep the current key"></textarea></div>
       <div class="bd">
         <div class="two" style="max-width:none">
           <div class="field"><label>Months of pull requests</label>
-            <input id="def-months" value="${
-      text(config.defaults?.maxPrMonths ?? "")
-    }"></div>
+            <input id="def-months" value="${text(config.defaults?.maxPrMonths ?? "")}"></div>
           <div class="field"><label>Commits</label>
-            <input id="def-commits" value="${
-      text(config.defaults?.maxCommits ?? "")
-    }"></div>
+            <input id="def-commits" value="${text(config.defaults?.maxCommits ?? "")}"></div>
           <div class="field"><label>Max lines per pull request</label>
-            <input id="def-lines" value="${
-      text(config.defaults?.maxPullRequestChangeLines ?? "")
-    }"></div>
+            <input id="def-lines" value="${text(
+              config.defaults?.maxPullRequestChangeLines ?? "",
+            )}"></div>
         </div>
       </div>
       <div class="ft"><button class="primary" id="save-def">Save</button></div>
@@ -143,23 +134,23 @@ Leave blank to keep the current key"></textarea></div>
       <div class="hd"><h2>Job queue</h2></div>
       <div class="bd">
         <div class="field"><label>Max concurrent jobs</label>
-          <input id="max-jobs" value="${
-      text(config.maxConcurrentJobs ?? "")
-    }" placeholder="No limit">
+          <input id="max-jobs" value="${text(
+            config.maxConcurrentJobs ?? "",
+          )}" placeholder="No limit">
           <div class="hint">Cap how many background jobs run at once across init, remake, and review. Leave blank for no limit.</div></div>
         <div class="two" style="max-width:none;margin-top:16px">
           <div class="field"><label>Remote sync timeout (seconds)</label>
-            <input id="remote-timeout" value="${
-      text(config.remoteSyncTimeoutSeconds ?? "")
-    }" placeholder="10"></div>
+            <input id="remote-timeout" value="${text(
+              config.remoteSyncTimeoutSeconds ?? "",
+            )}" placeholder="10"></div>
           <div class="field"><label>Max remote reviews per token</label>
-            <input id="remote-per-token" value="${
-      text(config.maxConcurrentRemoteReviewsPerToken ?? "")
-    }" placeholder="No limit"></div>
+            <input id="remote-per-token" value="${text(
+              config.maxConcurrentRemoteReviewsPerToken ?? "",
+            )}" placeholder="No limit"></div>
           <div class="field"><label>Max tool output chars</label>
-            <input id="remote-tool-chars" value="${
-      text(config.remoteToolOutputMaxChars ?? "")
-    }" placeholder="500000"></div>
+            <input id="remote-tool-chars" value="${text(
+              config.remoteToolOutputMaxChars ?? "",
+            )}" placeholder="500000"></div>
         </div>
       </div>
       <div class="ft"><button class="primary" id="save-server">Save</button></div>
@@ -185,26 +176,24 @@ Leave blank to keep the current key"></textarea></div>
       <div class="bd">
         <p class="muted" style="margin:0 0 16px">A <code>--disable-auth</code>/<code>--enable-auth</code> flag on <code>serve</code> overrides these for that run.</p>
         <div class="field wide"><label><input type="checkbox" id="password-auth"${
-      config.passwordAuthDisabled ? "" : " checked"
-    }> Password sign-in</label>
+          config.passwordAuthDisabled ? "" : " checked"
+        }> Password sign-in</label>
           <div class="hint">Set with <code>--password</code> when you start serve, or printed to the console if you omit the flag.</div></div>
         <div class="field wide"><label><input type="checkbox" id="github-auth"${
-      config.githubAuthEnabled ? " checked" : ""
-    }> GitHub sign-in</label></div>
+          config.githubAuthEnabled ? " checked" : ""
+        }> GitHub sign-in</label></div>
         <div class="two" style="max-width:none">
           <div class="field"><label>OAuth client ID</label>
-            <input id="oauth-client-id" value="${
-      text(config.githubOAuthClientId ?? "")
-    }"></div>
+            <input id="oauth-client-id" value="${text(config.githubOAuthClientId ?? "")}"></div>
           <div class="field"><label>OAuth client secret</label>
             <input id="oauth-client-secret" type="password" placeholder="${
-      config.githubOAuthClientSecret ? "Leave blank to keep the current secret" : ""
-    }"></div>
+              config.githubOAuthClientSecret
+                ? "Leave blank to keep the current secret"
+                : ""
+            }"></div>
         </div>
         <div class="field wide"><label>Allowed GitHub username</label>
-          <input id="oauth-allowed-user" value="${
-      text(config.githubOAuthAllowedUser ?? "")
-    }">
+          <input id="oauth-allowed-user" value="${text(config.githubOAuthAllowedUser ?? "")}">
           <div class="hint">Only this GitHub account can sign in through OAuth.</div></div>
       </div>
       <div class="ft"><button class="primary" id="save-access">Save</button></div>
@@ -215,11 +204,9 @@ Leave blank to keep the current key"></textarea></div>
         <table style="margin:-18px -18px 0;width:calc(100% + 36px)">
           <tbody>
             <tr><td style="width:200px" class="muted">Version</td>
-              <td>${text(denoConfig.version)}</td></tr>
+              <td>${text(VERSION)}</td></tr>
             <tr><td class="muted">Repository</td>
-              <td><a href="${SOURCE_URL}">${
-      text(SOURCE_URL.replace("https://", ""))
-    }</a></td></tr>
+              <td><a href="${SOURCE_URL}">${text(SOURCE_URL.replace("https://", ""))}</a></td></tr>
             <tr><td class="muted">Developed by</td>
               <td>Murat Kirazkaya</td></tr>
           </tbody>
@@ -384,5 +371,6 @@ document.getElementById("save-def").addEventListener("click", function() {
   });
 });
 </script>`,
-  }));
+    }),
+  );
 }

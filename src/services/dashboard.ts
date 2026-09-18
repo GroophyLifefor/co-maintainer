@@ -23,6 +23,7 @@ import {
 } from "../store/findings.ts";
 import { daysAgoIso } from "../util/time.ts";
 import type { DeliveryRow, JobRow, RepoRow, ReviewRow } from "../store/rows.ts";
+import { isNotFound, readTextFile } from "../util/runtime.ts";
 
 export function requireActiveRepo(fullName: string): RepoRow {
   const row = getRepo(fullName);
@@ -93,8 +94,8 @@ export type RepoListItem = {
 };
 
 function latestSetupJob(fullName: string): JobRow | undefined {
-  return listJobs({ repo: fullName }).find((job) =>
-    job.type === "init" || job.type === "remake"
+  return listJobs({ repo: fullName }).find(
+    (job) => job.type === "init" || job.type === "remake",
   );
 }
 
@@ -197,14 +198,14 @@ export async function repoKnowledge(fullName: string) {
     for (const doc of KNOWLEDGE_DOCS) {
       const path = `${reposDir()}/${fullName}/${doc.file}`;
       try {
-        const text = await Deno.readTextFile(path);
+        const text = await readTextFile(path);
         docs.push({
           ...doc,
           bytes: new TextEncoder().encode(text).byteLength,
           text,
         });
       } catch (error) {
-        if (!(error instanceof Deno.errors.NotFound)) throw error;
+        if (!isNotFound(error)) throw error;
       }
     }
     return { repo, drift: await refreshDrift(fullName), docs };

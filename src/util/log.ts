@@ -29,13 +29,11 @@ export function log(phase: string, message: string): void {
 
 export function startHeartbeat(phase: string | (() => string)): () => void {
   const started = Date.now();
-  const label = () => typeof phase === "function" ? phase() : phase;
+  const label = () => (typeof phase === "function" ? phase() : phase);
   const timer = setInterval(() => {
     log(
       "progress",
-      `still running ${label()} · ${
-        Math.round((Date.now() - started) / 1000)
-      }s elapsed`,
+      `still running ${label()} · ${Math.round((Date.now() - started) / 1000)}s elapsed`,
     );
   }, 15_000);
   return () => clearInterval(timer);

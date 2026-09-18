@@ -10,25 +10,32 @@ import {
 import { hasDelivery, listSkipped } from "../../store/deliveries.ts";
 import { getQueuedJob } from "../../store/jobs.ts";
 import { findReplyRequest } from "../../store/replies.ts";
+import {
+  deleteEnv,
+  getEnv,
+  setEnv,
+  tempDirSync,
+} from "../../testing/runtime.ts";
+import { test } from "node:test";
 
 const PASSWORD = "webhook-test";
 const SECRET = "webhook-secret";
 
 async function withTempEnv(fn: () => Promise<void>): Promise<void> {
-  const originalConfig = Deno.env.get("CM_CONFIG_PATH");
-  const originalDb = Deno.env.get("CM_APP_DB");
-  Deno.env.set("CM_CONFIG_PATH", `${Deno.makeTempDirSync()}/config.json`);
-  Deno.env.set("CM_APP_DB", `${Deno.makeTempDirSync()}/app.db`);
+  const originalConfig = getEnv("CM_CONFIG_PATH");
+  const originalDb = getEnv("CM_APP_DB");
+  setEnv("CM_CONFIG_PATH", `${tempDirSync()}/config.json`);
+  setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
   try {
     await openAppDb();
     await writeUserConfig({ auth: "gh", ai: "none" });
     await fn();
   } finally {
     await closeAppDb();
-    if (originalConfig === undefined) Deno.env.delete("CM_CONFIG_PATH");
-    else Deno.env.set("CM_CONFIG_PATH", originalConfig);
-    if (originalDb === undefined) Deno.env.delete("CM_APP_DB");
-    else Deno.env.set("CM_APP_DB", originalDb);
+    if (originalConfig === undefined) deleteEnv("CM_CONFIG_PATH");
+    else setEnv("CM_CONFIG_PATH", originalConfig);
+    if (originalDb === undefined) deleteEnv("CM_APP_DB");
+    else setEnv("CM_APP_DB", originalDb);
   }
 }
 
@@ -69,7 +76,7 @@ async function signedRequest(
   });
 }
 
-Deno.test("POST /github/webhook rejects a bad HMAC when a secret is configured", async () => {
+test("POST /github/webhook rejects a bad HMAC when a secret is configured", async () => {
   await withTempEnv(async () => {
     const app = createApp({ password: PASSWORD, webhookSecret: SECRET });
     const response = await app.fetch(
@@ -81,7 +88,7 @@ Deno.test("POST /github/webhook rejects a bad HMAC when a secret is configured",
   });
 });
 
-Deno.test("POST /github/webhook does not need a session or CSRF header", async () => {
+test("POST /github/webhook does not need a session or CSRF header", async () => {
   await withTempEnv(async () => {
     activateRepo("acme/widgets", 1);
     markKnowledgeBuilt("acme/widgets", "sha");
@@ -111,7 +118,7 @@ Deno.test("POST /github/webhook does not need a session or CSRF header", async (
   });
 });
 
-Deno.test("a duplicate x-github-delivery returns duplicate and does not create a second job", async () => {
+test("a duplicate x-github-delivery returns duplicate and does not create a second job", async () => {
   await withTempEnv(async () => {
     activateRepo("acme/widgets", 1);
     markKnowledgeBuilt("acme/widgets", "sha");
@@ -138,7 +145,7 @@ Deno.test("a duplicate x-github-delivery returns duplicate and does not create a
   });
 });
 
-Deno.test("a draft pull request is recorded as skipped, not enqueued", async () => {
+test("a draft pull request is recorded as skipped, not enqueued", async () => {
   await withTempEnv(async () => {
     activateRepo("acme/widgets", 1);
     markKnowledgeBuilt("acme/widgets", "sha");
@@ -177,7 +184,7 @@ Deno.test("a draft pull request is recorded as skipped, not enqueued", async () 
   });
 });
 
-Deno.test("unparseable JSON is 400 and a missing delivery header is 400", async () => {
+test("unparseable JSON is 400 and a missing delivery header is 400", async () => {
   await withTempEnv(async () => {
     const app = createApp({ password: PASSWORD });
     const badJson = await app.fetch(
@@ -205,7 +212,7 @@ Deno.test("unparseable JSON is 400 and a missing delivery header is 400", async 
   });
 });
 
-Deno.test("a PR mention enqueues a conversation reply job", async () => {
+test("a PR mention enqueues a conversation reply job", async () => {
   await withTempEnv(async () => {
     activateRepo("acme/widgets", 1);
     const app = createApp({ password: PASSWORD });
@@ -239,7 +246,7 @@ Deno.test("a PR mention enqueues a conversation reply job", async () => {
   });
 });
 
-Deno.test("auto-review-off is skipped when the repo setting is off", async () => {
+test("auto-review-off is skipped when the repo setting is off", async () => {
   await withTempEnv(async () => {
     activateRepo("acme/widgets", 1);
     updateRepoSettings("acme/widgets", { auto_review: 0 });

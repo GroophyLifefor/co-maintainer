@@ -4,31 +4,41 @@ import { sessionCookieHeader } from "../../server/auth.ts";
 import { closeAppDb, openAppDb } from "../../store/app_db.ts";
 import { activateRepo, markKnowledgeBuilt } from "../../store/repos.ts";
 import { createRemoteToken } from "../../services/remote_tokens.ts";
+import {
+  deleteEnv,
+  getEnv,
+  mkdirPath,
+  readTextFile,
+  setEnv,
+  tempDirSync,
+  writeTextFile,
+} from "../../testing/runtime.ts";
+import { test } from "node:test";
 
 const PASSWORD = "test-password";
 
-async function withEnv(
-  fn: () => Promise<void>,
-): Promise<void> {
-  const dbPath = `${Deno.makeTempDirSync()}/app.db`;
-  const repos = `${Deno.makeTempDirSync()}/repos`;
-  const prevDb = Deno.env.get("CM_APP_DB");
-  const prevRepos = Deno.env.get("CM_REPOS_DIR");
-  Deno.env.set("CM_APP_DB", dbPath);
-  Deno.env.set("CM_REPOS_DIR", repos);
+async function withEnv(fn: () => Promise<void>): Promise<void> {
+  const dbPath = `${tempDirSync()}/app.db`;
+  const repos = `${tempDirSync()}/repos`;
+  const prevDb = getEnv("CM_APP_DB");
+  const prevRepos = getEnv("CM_REPOS_DIR");
+  setEnv("CM_APP_DB", dbPath);
+  setEnv("CM_REPOS_DIR", repos);
   try {
     await openAppDb();
     await fn();
   } finally {
     await closeAppDb();
-    if (prevDb === undefined) Deno.env.delete("CM_APP_DB");
-    else Deno.env.set("CM_APP_DB", prevDb);
-    if (prevRepos === undefined) Deno.env.delete("CM_REPOS_DIR");
-    else Deno.env.set("CM_REPOS_DIR", prevRepos);
+    if (prevDb === undefined) deleteEnv("CM_APP_DB");
+    else setEnv("CM_APP_DB", prevDb);
+    if (prevRepos === undefined) deleteEnv("CM_REPOS_DIR");
+    else setEnv("CM_REPOS_DIR", prevRepos);
   }
 }
 
-async function sessionCookie(app: ReturnType<typeof createApp>): Promise<string> {
+async function sessionCookie(
+  app: ReturnType<typeof createApp>,
+): Promise<string> {
   const login = await app.fetch(
     new Request("http://localhost/api/login", {
       method: "POST",
@@ -43,17 +53,14 @@ async function sessionCookie(app: ReturnType<typeof createApp>): Promise<string>
   return sessionCookieHeader(body.token, false);
 }
 
-Deno.test("remote handshake succeeds without CSRF", async () => {
+test("remote handshake succeeds without CSRF", async () => {
   await withEnv(async () => {
     const repo = "Owner/Repo";
     activateRepo(repo, undefined);
     markKnowledgeBuilt(repo, "abc");
     const guideDir = `${reposDir()}/${repo}`;
-    await Deno.mkdir(guideDir, { recursive: true });
-    await Deno.writeTextFile(
-      `${guideDir}/PR_REVIEW_GUIDE.md`,
-      "# Guide\n",
-    );
+    await mkdirPath(guideDir, { recursive: true });
+    await writeTextFile(`${guideDir}/PR_REVIEW_GUIDE.md`, "# Guide\n");
     const { token } = await createRemoteToken("cli");
     const app = createApp({ password: PASSWORD });
     const response = await app.fetch(
@@ -81,21 +88,18 @@ Deno.test("remote handshake succeeds without CSRF", async () => {
   });
 });
 
-Deno.test("remote submit enqueues review and is idempotent", async () => {
+test("remote submit enqueues review and is idempotent", async () => {
   await withEnv(async () => {
     const repo = "Owner/Repo";
     activateRepo(repo, undefined);
     markKnowledgeBuilt(repo, "abc");
     const guideDir = `${reposDir()}/${repo}`;
-    await Deno.mkdir(guideDir, { recursive: true });
-    await Deno.writeTextFile(
-      `${guideDir}/PR_REVIEW_GUIDE.md`,
-      "# Guide\n",
-    );
+    await mkdirPath(guideDir, { recursive: true });
+    await writeTextFile(`${guideDir}/PR_REVIEW_GUIDE.md`, "# Guide\n");
     const { token } = await createRemoteToken("cli");
     const app = createApp({ password: PASSWORD });
     const submitBody = JSON.parse(
-      await Deno.readTextFile(
+      await readTextFile(
         new URL("../fixtures/v1/submit.request.json", import.meta.url),
       ),
     );
@@ -123,7 +127,7 @@ Deno.test("remote submit enqueues review and is idempotent", async () => {
   });
 });
 
-Deno.test("dashboard can create remote tokens", async () => {
+test("dashboard can create remote tokens", async () => {
   await withEnv(async () => {
     const app = createApp({ password: PASSWORD });
     const cookie = await sessionCookie(app);

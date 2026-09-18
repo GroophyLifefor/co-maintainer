@@ -1,19 +1,26 @@
 import { createApp } from "../app.ts";
 import { closeAppDb, openAppDb } from "../../store/app_db.ts";
 import { enqueue } from "../../services/jobs.ts";
+import {
+  deleteEnv,
+  getEnv,
+  setEnv,
+  tempDirSync,
+} from "../../testing/runtime.ts";
+import { test } from "node:test";
 
 const PASSWORD = "jobs-api-test";
 
 async function withTempDb(fn: () => Promise<void>): Promise<void> {
-  const original = Deno.env.get("CM_APP_DB");
-  Deno.env.set("CM_APP_DB", `${Deno.makeTempDirSync()}/app.db`);
+  const original = getEnv("CM_APP_DB");
+  setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
   try {
     await openAppDb();
     await fn();
   } finally {
     await closeAppDb();
-    if (original === undefined) Deno.env.delete("CM_APP_DB");
-    else Deno.env.set("CM_APP_DB", original);
+    if (original === undefined) deleteEnv("CM_APP_DB");
+    else setEnv("CM_APP_DB", original);
   }
 }
 
@@ -56,7 +63,7 @@ async function readSse(response: Response): Promise<string> {
   return text;
 }
 
-Deno.test("GET /api/jobs lists queued jobs, GET /api/jobs/:id returns detail with logs", async () => {
+test("GET /api/jobs lists queued jobs, GET /api/jobs/:id returns detail with logs", async () => {
   await withTempDb(async () => {
     const authed = await loggedInApp();
     const { id } = enqueue({ type: "unused", repo: "a/b" });
@@ -83,7 +90,7 @@ Deno.test("GET /api/jobs lists queued jobs, GET /api/jobs/:id returns detail wit
   });
 });
 
-Deno.test("POST /api/jobs/:id/cancel cancels a queued job", async () => {
+test("POST /api/jobs/:id/cancel cancels a queued job", async () => {
   await withTempDb(async () => {
     const authed = await loggedInApp();
     const { id } = enqueue({ type: "unused", repo: "a/b" });
@@ -103,7 +110,7 @@ Deno.test("POST /api/jobs/:id/cancel cancels a queued job", async () => {
   });
 });
 
-Deno.test("GET /api/jobs/:id/logs/stream replays existing lines then closes for a finished job", async () => {
+test("GET /api/jobs/:id/logs/stream replays existing lines then closes for a finished job", async () => {
   await withTempDb(async () => {
     const authed = await loggedInApp();
     const { id } = enqueue({ type: "unused", repo: "a/b" });

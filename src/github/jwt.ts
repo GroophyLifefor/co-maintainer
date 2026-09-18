@@ -88,9 +88,13 @@ export async function signAppJwt(
   key: CryptoKey,
 ): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
-  const signingInput = `${base64urlJson({ alg: "RS256", typ: "JWT" })}.${
-    base64urlJson({ iat: now - 60, exp: now + 600, iss: appId })
-  }`;
+  const signingInput = `${base64urlJson({ alg: "RS256", typ: "JWT" })}.${base64urlJson(
+    {
+      iat: now - 60,
+      exp: now + 600,
+      iss: appId,
+    },
+  )}`;
   const signature = await crypto.subtle.sign(
     "RSASSA-PKCS1-v1_5",
     key,

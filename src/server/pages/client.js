@@ -125,9 +125,10 @@ addEventListener("unhandledrejection", function (ev) {
 });
 
 document.addEventListener("click", function (ev) {
-  const btn = ev.target && ev.target.closest
-    ? ev.target.closest("[data-cancel], [data-post]")
-    : null;
+  const btn =
+    ev.target && ev.target.closest
+      ? ev.target.closest("[data-cancel], [data-post]")
+      : null;
   if (!btn) return;
   ev.preventDefault();
   if (btn.hasAttribute("data-cancel")) {

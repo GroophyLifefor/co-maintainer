@@ -53,13 +53,13 @@ numbers" wasn't formally in place for this pass.
 The number each axis exists to produce (`plan.md` §11.3): what capability a miss
 on that axis is actually pointing at.
 
-| axis         | capability it measures                      | tp | fn | recall    |
-| ------------ | ------------------------------------------- | -- | -- | --------- |
-| `repo_wide`  | codegraph / cross-file reasoning            | 4  | 0  | **1.000** |
-| `convention` | `CODEBASE.md`                               | 2  | 0  | **1.000** |
-| `history`    | `PR_REVIEW_GUIDE.md` / prior review culture | 1  | 0  | **1.000** |
-| `diff_local` | base review, no extra context needed        | 4  | 1  | **0.800** |
-| `file_local` | rest-of-file context                        | 1  | 1  | **0.500** |
+| axis         | capability it measures                      | tp  | fn  | recall    |
+| ------------ | ------------------------------------------- | --- | --- | --------- |
+| `repo_wide`  | codegraph / cross-file reasoning            | 4   | 0   | **1.000** |
+| `convention` | `CODEBASE.md`                               | 2   | 0   | **1.000** |
+| `history`    | `PR_REVIEW_GUIDE.md` / prior review culture | 1   | 0   | **1.000** |
+| `diff_local` | base review, no extra context needed        | 4   | 1   | **0.800** |
+| `file_local` | rest-of-file context                        | 1   | 1   | **0.500** |
 
 `file_local` and `diff_local` are supposed to be the _easiest_ axes — both
 misses are worth reading in detail below rather than writing off as noise.
@@ -147,7 +147,7 @@ average just over 1 severe finding, topping out at 2 on PRs 35, 41, 42, 45.
 ## Reproducing
 
 ```sh
-deno task bench-core-v3 -- --repo=GroophyLifefor/heap-analysis \
+npm run bench-core-v3 -- --repo=GroophyLifefor/heap-analysis \
   --review-concurrent=4 \
   --ai=openrouter --low-model=deepseek/deepseek-v4-flash-0731 --high-model=openai/gpt-5.6-luna \
   --judge-model=openai/gpt-5.6-luna \
@@ -157,7 +157,7 @@ deno task bench-core-v3 -- --repo=GroophyLifefor/heap-analysis \
 Requires the guide frozen at
 `%APPDATA%/co-maintainer/repos/GroophyLifefor/heap-analysis/`
 (`SKILL.md`/`CODEBASE.md`, see `guide_v1/` for the archived copy) — build it
-once with `deno task init` per `plan.md` §11.1 before running this.
+once with `npm run init` per `plan.md` §11.1 before running this.
 
 ---
 
@@ -203,13 +203,13 @@ from extracted facts; `low-model` for `extract_unit` stayed
 
 ### Recall by axis
 
-| axis         | tp | fn | recall    |
-| ------------ | -- | -- | --------- |
-| `repo_wide`  | 4  | 0  | **1.000** |
-| `convention` | 2  | 0  | **1.000** |
-| `history`    | 1  | 0  | **1.000** |
-| `diff_local` | 4  | 1  | **0.800** |
-| `file_local` | 1  | 1  | **0.500** |
+| axis         | tp  | fn  | recall    |
+| ------------ | --- | --- | --------- |
+| `repo_wide`  | 4   | 0   | **1.000** |
+| `convention` | 2   | 0   | **1.000** |
+| `history`    | 1   | 0   | **1.000** |
+| `diff_local` | 4   | 1   | **0.800** |
+| `file_local` | 1   | 1   | **0.500** |
 
 Identical to the first `luna` pass — same two misses (PR 33, PR 40), same axis
 shape. The guide change moved precision, not recall.

@@ -21,10 +21,7 @@ export type JobHandler = {
   /** Called instead of `run` for a job found in `status = 'running'` at
    * boot: reconciles against whatever might already have happened rather
    * than blindly repeating side effects. Omit it when `run` is idempotent. */
-  reconcile?(
-    job: JobRow,
-    log: LogFn,
-  ): Promise<"done" | "canceled" | void>;
+  reconcile?(job: JobRow, log: LogFn): Promise<"done" | "canceled" | void>;
 };
 
 const handlers = new Map<string, JobHandler>();
@@ -69,7 +66,8 @@ export function enqueue(input: {
   debounceMs?: number;
   queueKey?: string;
 }): { id: string; debounced: boolean } {
-  const queueKey = input.queueKey ??
+  const queueKey =
+    input.queueKey ??
     (input.type === "review" && input.prNumber !== undefined
       ? `review:${input.repo}:${input.prNumber}`
       : undefined);
@@ -127,7 +125,9 @@ async function runJob(job: JobRow): Promise<void> {
       job.id,
       status,
       controller.signal.aborted
-        ? (cancelReason ? { cancel_reason: cancelReason } : {})
+        ? cancelReason
+          ? { cancel_reason: cancelReason }
+          : {}
         : { error: String(error) },
     );
     if (status === "failed") log(job.id, "error", message);
@@ -144,10 +144,7 @@ function runningRemoteReviewsPerToken(): Map<string, number> {
     if (job.type !== "remote_review") continue;
     const review = getReviewByJobId(job.id);
     if (!review?.token_id) continue;
-    counts.set(
-      review.token_id,
-      (counts.get(review.token_id) ?? 0) + 1,
-    );
+    counts.set(review.token_id, (counts.get(review.token_id) ?? 0) + 1);
   }
   return counts;
 }
@@ -230,10 +227,7 @@ export async function stopWorkerLoop(): Promise<void> {
 /** Cooperative: aborts a running job's `AbortSignal` if this process is
  * running it, or cancels it outright if it is merely queued. Returns false
  * if neither applies (already finished, or running in another process). */
-export function cancel(
-  jobId: string,
-  reason = "dashboard_canceled",
-): boolean {
+export function cancel(jobId: string, reason = "dashboard_canceled"): boolean {
   const controller = running.get(jobId);
   if (controller) {
     pendingCancelReason.set(jobId, reason);
@@ -264,9 +258,7 @@ export async function recoverOrphans(): Promise<number> {
         setJobStatus(
           job.id,
           outcome === "canceled" ? "canceled" : "done",
-          outcome === "canceled"
-            ? { cancel_reason: "server_restarted" }
-            : {},
+          outcome === "canceled" ? { cancel_reason: "server_restarted" } : {},
         );
       } catch (error) {
         setJobStatus(job.id, "failed", { error: String(error) });

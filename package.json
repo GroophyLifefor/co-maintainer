@@ -1,0 +1,54 @@
+{
+  "name": "co-maintainer",
+  "version": "0.4.0",
+  "description": "Analyzes a GitHub repository and writes repository-specific contribution guidance.",
+  "license": "MIT",
+  "bin": {
+    "co-maintainer": "dist/main.js"
+  },
+  "files": [
+    "dist/",
+    "LICENSE",
+    "README.md"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/mod.js"
+  },
+  "scripts": {
+    "build": "npm run assets:embed && tsc -p tsconfig.build.json",
+    "assets:embed": "node scripts/embed_assets.mjs",
+    "prepack": "npm run build",
+    "test": "node --test \"src/**/*.test.ts\" \"benchmark/**/*.test.ts\"",
+    "check": "tsc --noEmit",
+    "lint": "oxlint",
+    "fmt": "oxfmt --write .",
+    "fmt:check": "oxfmt --check .",
+    "dev": "node --watch main.ts",
+    "probe": "node main.ts probe",
+    "init": "node main.ts init",
+    "remake": "node main.ts remake",
+    "review": "node main.ts review",
+    "serve": "node main.ts serve",
+    "bench": "node benchmark/core_v2/run.ts",
+    "bench-rereview": "node benchmark/core_v2/run_rereview.ts",
+    "bench-swe-prbench": "node benchmark/swe-prbench/run.ts",
+    "bench-core-v3": "node benchmark/core_v3/run.ts",
+    "swe-prbench-prepare": "node benchmark/swe-prbench/prepare_dataset.ts",
+    "e2e": "node scripts/e2e.ts",
+    "review-local-e2e": "node scripts/review_local_e2e.ts",
+    "docs:build": "node scripts/build_docs.ts"
+  },
+  "dependencies": {
+    "marked": "^15.0.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "oxfmt": "^0.68.0",
+    "oxlint": "^1.83.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

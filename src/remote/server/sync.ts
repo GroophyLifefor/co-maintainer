@@ -5,16 +5,16 @@ import { getJob } from "../../store/jobs.ts";
 import { getReviewByJobId } from "../../store/reviews.ts";
 import type { RemoteTokenRow } from "../../store/rows.ts";
 import { REMOTE_SCHEMA_VERSION } from "../schema.ts";
-import { validateSyncRequest, validateSyncResponseStatus } from "../validate.ts";
+import {
+  validateSyncRequest,
+  validateSyncResponseStatus,
+} from "../validate.ts";
 import {
   getRemoteSyncResult,
   touchRemoteSession,
   type RemoteSyncResult,
 } from "./sessions.ts";
-import {
-  applyToolResults,
-  drainPendingToolCalls,
-} from "../tool_bridge.ts";
+import { applyToolResults, drainPendingToolCalls } from "../tool_bridge.ts";
 
 function jobToSyncStatus(
   jobStatus: string,
@@ -84,9 +84,10 @@ export function handleRemoteSync(
     const reason = job.cancel_reason ?? "canceled";
     abort = {
       reason,
-      message: reason === "client_timeout"
-        ? "No sync received for the configured timeout."
-        : "Review was canceled.",
+      message:
+        reason === "client_timeout"
+          ? "No sync received for the configured timeout."
+          : "Review was canceled.",
     };
   } else if (status === "failed") {
     abort = {

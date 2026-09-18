@@ -26,15 +26,14 @@ export function outsideCode(
 ): string {
   return text
     .split(CODE)
-    .map((part, index) => index % 2 === 1 ? part : clean(part))
+    .map((part, index) => (index % 2 === 1 ? part : clean(part)))
     .join("");
 }
 
 /** Dashboard and other human-readable copy. Secrets out, no dash, no
  * semicolon. Code keeps its own punctuation or it stops compiling. */
 export function safeCopy(text: string): string {
-  return outsideCode(
-    redact(text),
-    (prose) => prose.replaceAll("\u2014", ", ").replaceAll(";", "."),
+  return outsideCode(redact(text), (prose) =>
+    prose.replaceAll("\u2014", ", ").replaceAll(";", "."),
   );
 }

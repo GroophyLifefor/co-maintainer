@@ -1,9 +1,10 @@
 /** Fixture directory hashing for plan §15.3. */
+import { readDir, readFile } from "../util/runtime.ts";
 
 export async function hashRemoteFixtures(version: number): Promise<string> {
   const dir = new URL(`./fixtures/v${version}/`, import.meta.url);
   const names: string[] = [];
-  for await (const entry of Deno.readDir(dir)) {
+  for await (const entry of readDir(dir)) {
     if (entry.isFile && entry.name.endsWith(".json")) {
       names.push(entry.name);
     }
@@ -13,7 +14,7 @@ export async function hashRemoteFixtures(version: number): Promise<string> {
   const enc = new TextEncoder();
   for (const name of names) {
     chunks.push(enc.encode(`${name}\n`));
-    chunks.push(await Deno.readFile(new URL(name, dir)));
+    chunks.push(await readFile(new URL(name, dir)));
     chunks.push(enc.encode("\n"));
   }
   const total = chunks.reduce((n, c) => n + c.length, 0);
@@ -24,6 +25,7 @@ export async function hashRemoteFixtures(version: number): Promise<string> {
     offset += chunk.length;
   }
   const digest = await crypto.subtle.digest("SHA-256", merged);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0"))
+  return [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }

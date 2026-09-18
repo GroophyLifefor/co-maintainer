@@ -13,23 +13,25 @@ export function insertRemoteReview(row: {
   scope: string;
   model: string;
 }): void {
-  getAppDb().prepare(
-    `INSERT INTO reviews
+  getAppDb()
+    .prepare(
+      `INSERT INTO reviews
        (id, kind, subject_id, repo, pr_number, branch, token_id, token_name,
         job_id, head_sha, base_sha, scope, model, status, created_at, round)
      VALUES (?, 'remote', ?, ?, NULL, ?, ?, ?, ?, NULL, NULL, ?, ?, 'queued', ?, 1)`,
-  ).run(
-    row.id,
-    row.subjectId,
-    row.repo,
-    row.branch,
-    row.tokenId,
-    row.tokenName,
-    row.jobId,
-    row.scope,
-    row.model,
-    nowIso(),
-  );
+    )
+    .run(
+      row.id,
+      row.subjectId,
+      row.repo,
+      row.branch,
+      row.tokenId,
+      row.tokenName,
+      row.jobId,
+      row.scope,
+      row.model,
+      nowIso(),
+    );
 }
 
 export function insertReview(row: {
@@ -46,26 +48,28 @@ export function insertReview(row: {
   subjectId?: string;
   guideBuiltAt?: string | null;
 }): void {
-  getAppDb().prepare(
-    `INSERT INTO reviews
+  getAppDb()
+    .prepare(
+      `INSERT INTO reviews
        (id, kind, subject_id, repo, pr_number, job_id, head_sha, base_sha, scope, model,
         status, created_at, round, "trigger", guide_built_at)
      VALUES (?, 'pr', ?, ?, ?, ?, ?, ?, ?, ?, 'drafting', ?, ?, ?, ?)`,
-  ).run(
-    row.id,
-    row.subjectId ?? null,
-    row.repo,
-    row.prNumber,
-    row.jobId,
-    row.headSha,
-    row.baseSha,
-    row.scope,
-    row.model,
-    nowIso(),
-    row.round ?? 1,
-    row.trigger ?? null,
-    row.guideBuiltAt ?? null,
-  );
+    )
+    .run(
+      row.id,
+      row.subjectId ?? null,
+      row.repo,
+      row.prNumber,
+      row.jobId,
+      row.headSha,
+      row.baseSha,
+      row.scope,
+      row.model,
+      nowIso(),
+      row.round ?? 1,
+      row.trigger ?? null,
+      row.guideBuiltAt ?? null,
+    );
 }
 
 /** Written immediately before and after the `POST .../reviews` call, with
@@ -91,8 +95,9 @@ export function setReviewStatus(
     >
   > = {},
 ): void {
-  getAppDb().prepare(
-    `UPDATE reviews SET status = ?,
+  getAppDb()
+    .prepare(
+      `UPDATE reviews SET status = ?,
        posted_review_id = COALESCE(?, posted_review_id),
        findings_count = COALESCE(?, findings_count),
        open_count = COALESCE(?, open_count),
@@ -106,22 +111,23 @@ export function setReviewStatus(
        subject_id = COALESCE(?, subject_id),
        guide_built_at = COALESCE(?, guide_built_at)
      WHERE id = ?`,
-  ).run(
-    status,
-    patch.posted_review_id ?? null,
-    patch.findings_count ?? null,
-    patch.open_count ?? null,
-    patch.closed_count ?? null,
-    patch.tokens_in ?? null,
-    patch.tokens_out ?? null,
-    patch.cost ?? null,
-    patch.duration_ms ?? null,
-    patch.check_run_id ?? null,
-    patch.posted_fallback ?? null,
-    patch.subject_id ?? null,
-    patch.guide_built_at ?? null,
-    id,
-  );
+    )
+    .run(
+      status,
+      patch.posted_review_id ?? null,
+      patch.findings_count ?? null,
+      patch.open_count ?? null,
+      patch.closed_count ?? null,
+      patch.tokens_in ?? null,
+      patch.tokens_out ?? null,
+      patch.cost ?? null,
+      patch.duration_ms ?? null,
+      patch.check_run_id ?? null,
+      patch.posted_fallback ?? null,
+      patch.subject_id ?? null,
+      patch.guide_built_at ?? null,
+      id,
+    );
 }
 
 export function setReviewScope(
@@ -129,37 +135,45 @@ export function setReviewScope(
   scope: string,
   baseSha: string,
 ): void {
-  getAppDb().prepare(`UPDATE reviews SET scope = ?, base_sha = ? WHERE id = ?`)
+  getAppDb()
+    .prepare(`UPDATE reviews SET scope = ?, base_sha = ? WHERE id = ?`)
     .run(scope, baseSha, id);
 }
 
 export function getReview(id: string): ReviewRow | undefined {
-  return getAppDb().prepare<ReviewRow>(`SELECT * FROM reviews WHERE id = ?`)
+  return getAppDb()
+    .prepare<ReviewRow>(`SELECT * FROM reviews WHERE id = ?`)
     .get(id);
 }
 
 export function getReviewByJobId(jobId: string): ReviewRow | undefined {
-  return getAppDb().prepare<ReviewRow>(
-    `SELECT * FROM reviews WHERE job_id = ? ORDER BY created_at DESC LIMIT 1`,
-  ).get(jobId);
+  return getAppDb()
+    .prepare<ReviewRow>(
+      `SELECT * FROM reviews WHERE job_id = ? ORDER BY created_at DESC LIMIT 1`,
+    )
+    .get(jobId);
 }
 
 /** Newest round first. The PR detail page reads this directly. */
 export function listReviewsForPr(repo: string, prNumber: number): ReviewRow[] {
-  return getAppDb().prepare<ReviewRow>(
-    `SELECT * FROM reviews WHERE repo = ? AND pr_number = ? ORDER BY round DESC, created_at DESC`,
-  ).all(repo, prNumber);
+  return getAppDb()
+    .prepare<ReviewRow>(
+      `SELECT * FROM reviews WHERE repo = ? AND pr_number = ? ORDER BY round DESC, created_at DESC`,
+    )
+    .all(repo, prNumber);
 }
 
 export function latestPostedReview(
   repo: string,
   prNumber: number,
 ): ReviewRow | undefined {
-  return getAppDb().prepare<ReviewRow>(
-    `SELECT * FROM reviews
+  return getAppDb()
+    .prepare<ReviewRow>(
+      `SELECT * FROM reviews
      WHERE repo = ? AND pr_number = ? AND status = 'posted'
      ORDER BY round DESC, created_at DESC LIMIT 1`,
-  ).get(repo, prNumber);
+    )
+    .get(repo, prNumber);
 }
 
 export type ReviewStats = {
@@ -216,35 +230,42 @@ export function reviewStats(
     params.push(repo);
   }
   return asStats(
-    getAppDb().prepare<ReviewStats>(
-      `SELECT ${STATS_COLUMNS} FROM reviews WHERE ${where.join(" AND ")}`,
-    ).get(...params),
+    getAppDb()
+      .prepare<ReviewStats>(
+        `SELECT ${STATS_COLUMNS} FROM reviews WHERE ${where.join(" AND ")}`,
+      )
+      .get(...params),
   );
 }
 
 export function reviewStatsByRepo(
   sinceIso: string,
 ): (ReviewStats & { repo: string })[] {
-  return getAppDb().prepare<ReviewStats & { repo: string }>(
-    `SELECT repo, ${STATS_COLUMNS}
+  return getAppDb()
+    .prepare<ReviewStats & { repo: string }>(
+      `SELECT repo, ${STATS_COLUMNS}
      FROM reviews WHERE created_at >= ?
      GROUP BY repo
      ORDER BY cost DESC`,
-  ).all(sinceIso).map((row) => ({ ...asStats(row), repo: row.repo }));
+    )
+    .all(sinceIso)
+    .map((row) => ({ ...asStats(row), repo: row.repo }));
 }
 
 export function reviewStatsByDay(
   sinceIso: string,
 ): { day: string; reviews: number; findings: number; cost: number }[] {
-  return getAppDb().prepare(
-    `SELECT substr(created_at, 1, 10) AS day,
+  return getAppDb()
+    .prepare(
+      `SELECT substr(created_at, 1, 10) AS day,
         COUNT(*) AS reviews,
         COALESCE(SUM(findings_count), 0) AS findings,
         COALESCE(SUM(cost), 0) AS cost
      FROM reviews WHERE created_at >= ?
      GROUP BY day
      ORDER BY day`,
-  ).all(sinceIso) as {
+    )
+    .all(sinceIso) as {
     day: string;
     reviews: number;
     findings: number;
@@ -255,24 +276,29 @@ export function reviewStatsByDay(
 export function reviewStatsByModel(
   sinceIso: string,
 ): (ReviewStats & { model: string })[] {
-  return getAppDb().prepare<ReviewStats & { model: string }>(
-    `SELECT model, ${STATS_COLUMNS}
+  return getAppDb()
+    .prepare<ReviewStats & { model: string }>(
+      `SELECT model, ${STATS_COLUMNS}
      FROM reviews WHERE created_at >= ?
      GROUP BY model
      ORDER BY cost DESC`,
-  ).all(sinceIso).map((row) => ({ ...asStats(row), model: row.model }));
+    )
+    .all(sinceIso)
+    .map((row) => ({ ...asStats(row), model: row.model }));
 }
 
 export function listRecentReviews(limit: number, offset = 0): ReviewRow[] {
-  return getAppDb().prepare<ReviewRow>(
-    `SELECT * FROM reviews ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-  ).all(limit, offset);
+  return getAppDb()
+    .prepare<ReviewRow>(
+      `SELECT * FROM reviews ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+    )
+    .all(limit, offset);
 }
 
 export function countReviews(): number {
   return Number(
-    getAppDb().prepare<{ n: number }>(`SELECT COUNT(*) AS n FROM reviews`)
-      .get()?.n ?? 0,
+    getAppDb().prepare<{ n: number }>(`SELECT COUNT(*) AS n FROM reviews`).get()
+      ?.n ?? 0,
   );
 }
 
@@ -290,12 +316,15 @@ export function listPullSummaries(
   offset: number,
 ): { items: PullSummary[]; total: number } {
   const total = Number(
-    getAppDb().prepare<{ n: number }>(
-      `SELECT COUNT(DISTINCT pr_number) AS n FROM reviews WHERE repo = ?`,
-    ).get(repo)?.n ?? 0,
+    getAppDb()
+      .prepare<{ n: number }>(
+        `SELECT COUNT(DISTINCT pr_number) AS n FROM reviews WHERE repo = ?`,
+      )
+      .get(repo)?.n ?? 0,
   );
-  const items = getAppDb().prepare<PullSummary>(
-    `SELECT pr_number,
+  const items = getAppDb()
+    .prepare<PullSummary>(
+      `SELECT pr_number,
         MAX(created_at) AS last_reviewed,
         COALESCE(SUM(findings_count), 0) AS findings,
         COALESCE(SUM(cost), 0) AS cost,
@@ -304,7 +333,8 @@ export function listPullSummaries(
      GROUP BY pr_number
      ORDER BY last_reviewed DESC
      LIMIT ? OFFSET ?`,
-  ).all(repo, limit, offset);
+    )
+    .all(repo, limit, offset);
   return { items, total };
 }
 
@@ -315,53 +345,58 @@ export function listRemoteReviewsForRepo(
   sinceIso?: string,
 ): ReviewRow[] {
   if (sinceIso) {
-    return getAppDb().prepare<ReviewRow>(
-      `SELECT * FROM reviews
+    return getAppDb()
+      .prepare<ReviewRow>(
+        `SELECT * FROM reviews
        WHERE repo = ? AND kind = 'remote' AND created_at >= ?
        ORDER BY created_at DESC
        LIMIT ? OFFSET ?`,
-    ).all(repo, sinceIso, limit, offset);
+      )
+      .all(repo, sinceIso, limit, offset);
   }
-  return getAppDb().prepare<ReviewRow>(
-    `SELECT * FROM reviews
+  return getAppDb()
+    .prepare<ReviewRow>(
+      `SELECT * FROM reviews
      WHERE repo = ? AND kind = 'remote'
      ORDER BY created_at DESC
      LIMIT ? OFFSET ?`,
-  ).all(repo, limit, offset);
+    )
+    .all(repo, limit, offset);
 }
 
 export function remoteTokenUsageSince(
   tokenId: string,
   sinceIso: string,
 ): { reviews: number; cost: number } {
-  const row = getAppDb().prepare<{ reviews: number; cost: number }>(
-    `SELECT COUNT(*) AS reviews, COALESCE(SUM(cost), 0) AS cost
+  const row = getAppDb()
+    .prepare<{ reviews: number; cost: number }>(
+      `SELECT COUNT(*) AS reviews, COALESCE(SUM(cost), 0) AS cost
      FROM reviews
      WHERE token_id = ? AND kind = 'remote' AND created_at >= ?`,
-  ).get(tokenId, sinceIso);
+    )
+    .get(tokenId, sinceIso);
   return {
     reviews: Number(row?.reviews ?? 0),
     cost: Number(row?.cost ?? 0),
   };
 }
 
-export function reviewStatsByRemoteToken(
-  sinceIso: string,
-): {
+export function reviewStatsByRemoteToken(sinceIso: string): {
   tokenId: string;
   tokenName: string;
   reviews: number;
   cost: number;
   findings: number;
 }[] {
-  return getAppDb().prepare<{
-    token_id: string;
-    token_name: string;
-    reviews: number;
-    cost: number;
-    findings: number;
-  }>(
-    `SELECT token_id, token_name,
+  return getAppDb()
+    .prepare<{
+      token_id: string;
+      token_name: string;
+      reviews: number;
+      cost: number;
+      findings: number;
+    }>(
+      `SELECT token_id, token_name,
             COUNT(*) AS reviews,
             COALESCE(SUM(cost), 0) AS cost,
             COALESCE(SUM(findings_count), 0) AS findings
@@ -369,21 +404,24 @@ export function reviewStatsByRemoteToken(
      WHERE kind = 'remote' AND created_at >= ? AND token_id IS NOT NULL
      GROUP BY token_id, token_name
      ORDER BY cost DESC`,
-  ).all(sinceIso).map((row) => ({
-    tokenId: row.token_id,
-    tokenName: row.token_name,
-    reviews: Number(row.reviews),
-    cost: Number(row.cost),
-    findings: Number(row.findings),
-  }));
+    )
+    .all(sinceIso)
+    .map((row) => ({
+      tokenId: row.token_id,
+      tokenName: row.token_name,
+      reviews: Number(row.reviews),
+      cost: Number(row.cost),
+      findings: Number(row.findings),
+    }));
 }
 
 export function listLatestReviewsForRepo(
   repo: string,
   limit: number,
 ): ReviewRow[] {
-  return getAppDb().prepare<ReviewRow>(
-    `SELECT r.* FROM reviews r
+  return getAppDb()
+    .prepare<ReviewRow>(
+      `SELECT r.* FROM reviews r
      INNER JOIN (
        SELECT pr_number, MAX(created_at) AS t
        FROM reviews WHERE repo = ?
@@ -392,5 +430,6 @@ export function listLatestReviewsForRepo(
        ON r.repo = ? AND r.pr_number = latest.pr_number AND r.created_at = latest.t
      ORDER BY r.created_at DESC
      LIMIT ?`,
-  ).all(repo, repo, limit);
+    )
+    .all(repo, repo, limit);
 }

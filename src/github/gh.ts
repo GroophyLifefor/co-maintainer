@@ -1,14 +1,14 @@
 import { paginate } from "./client.ts";
 import type { GitHubClient } from "../types.ts";
+import { commandOutput, commandWithInput } from "../util/runtime.ts";
 
 export class GhClient implements GitHubClient {
   async request<T>(endpoint: string): Promise<T> {
-    const command = new Deno.Command("gh", {
+    const result = await commandOutput("gh", {
       args: ["api", endpoint],
       stdout: "piped",
       stderr: "piped",
     });
-    const result = await command.output();
     if (!result.success) {
       const error = new TextDecoder().decode(result.stderr).trim();
       throw new Error(`gh api failed: ${error || endpoint}`);
@@ -21,17 +21,16 @@ export class GhClient implements GitHubClient {
   }
 
   async write<T>(endpoint: string, body: unknown): Promise<T> {
-    const command = new Deno.Command("gh", {
-      args: ["api", "-X", "POST", endpoint, "--input", "-"],
-      stdin: "piped",
-      stdout: "piped",
-      stderr: "piped",
-    });
-    const child = command.spawn();
-    const writer = child.stdin.getWriter();
-    await writer.write(new TextEncoder().encode(JSON.stringify(body)));
-    await writer.close();
-    const result = await child.output();
+    const result = await commandWithInput(
+      "gh",
+      {
+        args: ["api", "-X", "POST", endpoint, "--input", "-"],
+        stdin: "piped",
+        stdout: "piped",
+        stderr: "piped",
+      },
+      JSON.stringify(body),
+    );
     if (!result.success) {
       const error = new TextDecoder().decode(result.stderr).trim();
       throw new Error(`gh api failed: ${error || endpoint}`);
@@ -48,17 +47,16 @@ export class GhClient implements GitHubClient {
   }
 
   async updateCheckRun<T>(endpoint: string, body: unknown): Promise<T> {
-    const command = new Deno.Command("gh", {
-      args: ["api", "-X", "PATCH", endpoint, "--input", "-"],
-      stdin: "piped",
-      stdout: "piped",
-      stderr: "piped",
-    });
-    const child = command.spawn();
-    const writer = child.stdin.getWriter();
-    await writer.write(new TextEncoder().encode(JSON.stringify(body)));
-    await writer.close();
-    const result = await child.output();
+    const result = await commandWithInput(
+      "gh",
+      {
+        args: ["api", "-X", "PATCH", endpoint, "--input", "-"],
+        stdin: "piped",
+        stdout: "piped",
+        stderr: "piped",
+      },
+      JSON.stringify(body),
+    );
     if (!result.success) {
       const error = new TextDecoder().decode(result.stderr).trim();
       throw new Error(`gh api failed: ${error || endpoint}`);

@@ -54,7 +54,7 @@ start clean. If the cache cannot be read or written, review continues with a
 ## Developers
 
 ```sh
-deno task review-local-e2e
+npm run review-local-e2e
 ```
 
 Temporary worktree, `CM_FAKE_AI=1`, optional `CM_FAKE_REVIEW_FILE`.

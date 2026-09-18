@@ -8,17 +8,19 @@ export function renderRepoSettings(
   config: RepoConfig,
 ): Response {
   const name = repo.full_name;
-  const skip = repo.skip_drafts && repo.skip_bots
-    ? "both"
-    : repo.skip_drafts
-    ? "drafts"
-    : repo.skip_bots
-    ? "bots"
-    : "none";
-  return html(layout({
-    title: `Settings · ${name}`,
-    username,
-    body: `<div class="wrap side">
+  const skip =
+    repo.skip_drafts && repo.skip_bots
+      ? "both"
+      : repo.skip_drafts
+        ? "drafts"
+        : repo.skip_bots
+          ? "bots"
+          : "none";
+  return html(
+    layout({
+      title: `Settings · ${name}`,
+      username,
+      body: `<div class="wrap side">
   ${repoNav(name, "settings")}
   <div>
     <div class="crumbs"><a href="/">Repositories</a> /
@@ -29,44 +31,34 @@ export function renderRepoSettings(
       <div class="hd"><h2>Automatic review</h2></div>
       <div class="bd">
         <div style="display:flex;align-items:center;gap:14px;margin-bottom:22px">
-          <button class="tg${
-      repo.auto_review === 1 ? " on" : ""
-    }" id="auto"></button>
+          <button class="tg${repo.auto_review === 1 ? " on" : ""}" id="auto"></button>
           <div>Review pull requests as they are pushed</div>
         </div>
         <div class="field">
           <label>Skip</label>
           <select id="skip">
             <option value="both"${
-      skip === "both" ? " selected" : ""
-    }>Drafts and bot pull requests</option>
-            <option value="drafts"${
-      skip === "drafts" ? " selected" : ""
-    }>Drafts only</option>
-            <option value="bots"${
-      skip === "bots" ? " selected" : ""
-    }>Bots only</option>
-            <option value="none"${
-      skip === "none" ? " selected" : ""
-    }>Nothing</option>
+              skip === "both" ? " selected" : ""
+            }>Drafts and bot pull requests</option>
+            <option value="drafts"${skip === "drafts" ? " selected" : ""}>Drafts only</option>
+            <option value="bots"${skip === "bots" ? " selected" : ""}>Bots only</option>
+            <option value="none"${skip === "none" ? " selected" : ""}>Nothing</option>
           </select>
         </div>
         <div class="field">
           <label>Review</label>
           <select id="scope">
             <option value="whole-pr"${
-      repo.review_scope !== "incremental" ? " selected" : ""
-    }>The whole pull request every time</option>
+              repo.review_scope !== "incremental" ? " selected" : ""
+            }>The whole pull request every time</option>
             <option value="incremental"${
-      repo.review_scope === "incremental" ? " selected" : ""
-    }>Only what changed since the last review</option>
+              repo.review_scope === "incremental" ? " selected" : ""
+            }>Only what changed since the last review</option>
           </select>
           <div class="hint">Reviewing only new changes costs less on long-running pull requests.</div>
         </div>
         <div style="display:flex;align-items:center;gap:14px;margin-top:22px">
-          <button class="tg${
-      repo.use_codegraph === 1 ? " on" : ""
-    }" id="codegraph"></button>
+          <button class="tg${repo.use_codegraph === 1 ? " on" : ""}" id="codegraph"></button>
           <div>Let the review query the codebase's call graph (codegraph)</div>
         </div>
         <div class="hint">Slower and costs more tokens per review, try it before turning it on everywhere.</div>
@@ -84,13 +76,9 @@ export function renderRepoSettings(
           <div class="field"><label>Commits</label>
             <input id="commits" value="${text(config.maxCommits ?? "")}"></div>
           <div class="field"><label>Max lines per pull request</label>
-            <input id="lines" value="${
-      text(config.maxPullRequestChangeLines ?? "")
-    }"></div>
+            <input id="lines" value="${text(config.maxPullRequestChangeLines ?? "")}"></div>
           <div class="field"><label>Max comments per pull request</label>
-            <input id="comments" value="${
-      text(config.maxComments ?? "")
-    }"></div>
+            <input id="comments" value="${text(config.maxComments ?? "")}"></div>
         </div>
       </div>
       <div class="ft"><button class="primary" id="save-init">Save</button></div>
@@ -150,5 +138,6 @@ document.getElementById("remove").addEventListener("click", function() {
   });
 });
 </script>`,
-  }));
+    }),
+  );
 }

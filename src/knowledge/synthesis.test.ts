@@ -2,6 +2,7 @@ import { synthesizeSections } from "./synthesis.ts";
 import { cacheDeletePrefix } from "../store/cache_db.ts";
 import { testFact } from "../testing/helpers.ts";
 import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
+import { test } from "node:test";
 
 class SynthesisProvider implements AiProvider {
   requests: AiRequest[] = [];
@@ -25,7 +26,7 @@ class SynthesisProvider implements AiProvider {
   }
 }
 
-Deno.test("current evidence is ordered before historical evidence", async () => {
+test("current evidence is ordered before historical evidence", async () => {
   const repo = `fixture-conflict-${crypto.randomUUID()}`;
   const provider = new SynthesisProvider(true);
   const facts = [
@@ -57,7 +58,7 @@ Deno.test("current evidence is ordered before historical evidence", async () => 
   }
 });
 
-Deno.test("invalid synthesis output is omitted instead of copied", async () => {
+test("invalid synthesis output is omitted instead of copied", async () => {
   const repo = `fixture-invalid-${crypto.randomUUID()}`;
   const provider = new SynthesisProvider(false);
   try {

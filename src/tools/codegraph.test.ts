@@ -8,6 +8,15 @@ import {
   parseVersion,
   versionDir,
 } from "./codegraph.ts";
+import {
+  mkdirPath,
+  mkdirPathSync,
+  removePath,
+  tempDir,
+  writeTextFile,
+  writeTextFileSync,
+} from "../testing/runtime.ts";
+import { test } from "node:test";
 
 const ROOT = "/tmp/cm-tools";
 
@@ -21,7 +30,7 @@ function ok(code = 0, stdout = "", stderr = ""): CommandResult {
   return { code, stdout, stderr };
 }
 
-Deno.test("parseVersion tolerates decoration around the number", () => {
+test("parseVersion tolerates decoration around the number", () => {
   same(parseVersion("1.6.0"), "1.6.0", "bare");
   same(parseVersion("v1.6.0\n"), "1.6.0", "v prefix");
   same(parseVersion("codegraph 1.6.0 (abc123) windows"), "1.6.0", "decorated");
@@ -29,7 +38,7 @@ Deno.test("parseVersion tolerates decoration around the number", () => {
   same(parseVersion("no version here"), undefined, "absent");
 });
 
-Deno.test("each version gets its own directory", () => {
+test("each version gets its own directory", () => {
   same(versionDir("1.6.0", ROOT), `${ROOT}/codegraph/1.6.0`, "pinned");
   same(versionDir("1.7.0", ROOT), `${ROOT}/codegraph/1.7.0`, "next");
   if (versionDir("1.6.0", ROOT) === versionDir("1.7.0", ROOT)) {
@@ -37,7 +46,7 @@ Deno.test("each version gets its own directory", () => {
   }
 });
 
-Deno.test("install targets the version directory, never the global prefix", () => {
+test("install targets the version directory, never the global prefix", () => {
   const { command, args } = installCommand("1.6.0", ROOT);
   same(command, "npm", "command");
   if (args.includes("-g") || args.includes("--global")) {
@@ -52,20 +61,18 @@ Deno.test("install targets the version directory, never the global prefix", () =
   if (!args[1].endsWith("@1.6.0")) throw new Error("expected a pinned spec");
 });
 
-Deno.test("detect reports missing when the binary is not there", async () => {
-  const present = await detect(
-    CODEGRAPH_VERSION,
-    "/tmp/cm-absent",
-    () => Promise.resolve(ok(0, CODEGRAPH_VERSION)),
+test("detect reports missing when the binary is not there", async () => {
+  const present = await detect(CODEGRAPH_VERSION, "/tmp/cm-absent", () =>
+    Promise.resolve(ok(0, CODEGRAPH_VERSION)),
   );
   same(present.state, "missing", "state");
 });
 
-Deno.test("ensureCodegraph returns the path when the pinned version is present", async () => {
-  const dir = await Deno.makeTempDir();
+test("ensureCodegraph returns the path when the pinned version is present", async () => {
+  const dir = await tempDir();
   const path = binaryPath(CODEGRAPH_VERSION, dir);
-  await Deno.mkdir(path.slice(0, path.lastIndexOf("/")), { recursive: true });
-  await Deno.writeTextFile(path, "");
+  await mkdirPath(path.slice(0, path.lastIndexOf("/")), { recursive: true });
+  await writeTextFile(path, "");
   let installs = 0;
   const found = await ensureCodegraph({
     root: dir,
@@ -81,11 +88,11 @@ Deno.test("ensureCodegraph returns the path when the pinned version is present",
   });
   same(found, path, "path");
   same(installs, 0, "install count");
-  await Deno.remove(dir, { recursive: true });
+  await removePath(dir, { recursive: true });
 });
 
-Deno.test("ensureCodegraph installs after the prompt is accepted", async () => {
-  const dir = await Deno.makeTempDir();
+test("ensureCodegraph installs after the prompt is accepted", async () => {
+  const dir = await tempDir();
   const path = binaryPath(CODEGRAPH_VERSION, dir);
   let installs = 0;
   let asked = 0;
@@ -105,14 +112,14 @@ Deno.test("ensureCodegraph installs after the prompt is accepted", async () => {
       }
       if (command === "npm") {
         installs++;
-        Deno.mkdirSync(path.slice(0, path.lastIndexOf("/")), {
+        mkdirPathSync(path.slice(0, path.lastIndexOf("/")), {
           recursive: true,
         });
-        Deno.writeTextFileSync(path, "");
+        writeTextFileSync(path, "");
       }
       return Promise.resolve(ok());
     },
   });
   same([asked, installs, found], [1, 1, path], "prompted install");
-  await Deno.remove(dir, { recursive: true });
+  await removePath(dir, { recursive: true });
 });

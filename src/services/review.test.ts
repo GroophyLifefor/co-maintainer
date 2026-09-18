@@ -21,17 +21,27 @@ import {
 } from "./review.ts";
 import type { GitHubClient, Json } from "../types.ts";
 import type { JobRow } from "../store/rows.ts";
+import {
+  deleteEnv,
+  getEnv,
+  mkdirPath,
+  removePath,
+  setEnv,
+  tempDirSync,
+  writeTextFile,
+} from "../testing/runtime.ts";
+import { test } from "node:test";
 
 async function withEnv(fn: () => Promise<void>): Promise<void> {
-  const originalDb = Deno.env.get("CM_APP_DB");
-  const originalRepos = Deno.env.get("CM_REPOS_DIR");
-  const originalConfig = Deno.env.get("CM_CONFIG_PATH");
-  const dir = Deno.makeTempDirSync();
-  Deno.env.set("CM_APP_DB", `${dir}/app.db`);
-  Deno.env.set("CM_REPOS_DIR", `${dir}/repos`);
-  Deno.env.set("CM_CONFIG_PATH", `${dir}/config.json`);
-  await Deno.mkdir(`${dir}/repos/acme/widgets`, { recursive: true });
-  await Deno.writeTextFile(
+  const originalDb = getEnv("CM_APP_DB");
+  const originalRepos = getEnv("CM_REPOS_DIR");
+  const originalConfig = getEnv("CM_CONFIG_PATH");
+  const dir = tempDirSync();
+  setEnv("CM_APP_DB", `${dir}/app.db`);
+  setEnv("CM_REPOS_DIR", `${dir}/repos`);
+  setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
+  await mkdirPath(`${dir}/repos/acme/widgets`, { recursive: true });
+  await writeTextFile(
     `${dir}/repos/acme/widgets/PR_REVIEW_GUIDE.md`,
     "# guide\nKeep helpers honest.\n",
   );
@@ -40,12 +50,12 @@ async function withEnv(fn: () => Promise<void>): Promise<void> {
     await fn();
   } finally {
     await closeAppDb();
-    if (originalDb === undefined) Deno.env.delete("CM_APP_DB");
-    else Deno.env.set("CM_APP_DB", originalDb);
-    if (originalRepos === undefined) Deno.env.delete("CM_REPOS_DIR");
-    else Deno.env.set("CM_REPOS_DIR", originalRepos);
-    if (originalConfig === undefined) Deno.env.delete("CM_CONFIG_PATH");
-    else Deno.env.set("CM_CONFIG_PATH", originalConfig);
+    if (originalDb === undefined) deleteEnv("CM_APP_DB");
+    else setEnv("CM_APP_DB", originalDb);
+    if (originalRepos === undefined) deleteEnv("CM_REPOS_DIR");
+    else setEnv("CM_REPOS_DIR", originalRepos);
+    if (originalConfig === undefined) deleteEnv("CM_CONFIG_PATH");
+    else setEnv("CM_CONFIG_PATH", originalConfig);
   }
 }
 
@@ -137,7 +147,7 @@ function seed(): JobRow {
   };
 }
 
-Deno.test("fake AI markdown becomes findings rows and a GitHub review POST", async () => {
+test("fake AI markdown becomes findings rows and a GitHub review POST", async () => {
   await withEnv(async () => {
     const job = seed();
     const github = new FakeGithub();
@@ -170,7 +180,8 @@ Deno.test("fake AI markdown becomes findings rows and a GitHub review POST", asy
       throw new Error(`review body ${body.body}`);
     }
     if (
-      body.comments[0]?.path !== "src/app.ts" || body.comments[0]?.line !== 4
+      body.comments[0]?.path !== "src/app.ts" ||
+      body.comments[0]?.line !== 4
     ) {
       throw new Error(`inline ${JSON.stringify(body.comments)}`);
     }
@@ -193,7 +204,7 @@ Deno.test("fake AI markdown becomes findings rows and a GitHub review POST", asy
   });
 });
 
-Deno.test("review checks use annotations and the conclusion matrix", async () => {
+test("review checks use annotations and the conclusion matrix", async () => {
   await withEnv(async () => {
     const findingsGithub = new FakeGithub();
     await runReviewJob(seed(), () => {}, findingsGithub, new FakeAiProvider());
@@ -201,15 +212,13 @@ Deno.test("review checks use annotations and the conclusion matrix", async () =>
     if (created.status !== "queued" || created.head_sha !== "head1") {
       throw new Error(`unexpected check creation ${JSON.stringify(created)}`);
     }
-    const completed = findingsGithub.checkUpdates.find((item) =>
-      (item.body as Json).status === "completed"
+    const completed = findingsGithub.checkUpdates.find(
+      (item) => (item.body as Json).status === "completed",
     )?.body as Json;
     const output = completed.output as Json;
     const annotations = output.annotations as Json[];
     if (completed.conclusion !== "neutral" || annotations.length !== 1) {
-      throw new Error(
-        `unexpected finding check ${JSON.stringify(completed)}`,
-      );
+      throw new Error(`unexpected finding check ${JSON.stringify(completed)}`);
     }
     if (
       annotations[0].path !== "src/app.ts" ||
@@ -228,8 +237,8 @@ Deno.test("review checks use annotations and the conclusion matrix", async () =>
       clearGithub,
       new FakeAiProvider("## Findings\n\nNo actionable findings.\n"),
     );
-    const clearCompleted = clearGithub.checkUpdates.find((item) =>
-      (item.body as Json).status === "completed"
+    const clearCompleted = clearGithub.checkUpdates.find(
+      (item) => (item.body as Json).status === "completed",
     )?.body as Json;
     if (clearCompleted.conclusion !== "success") {
       throw new Error(
@@ -239,7 +248,7 @@ Deno.test("review checks use annotations and the conclusion matrix", async () =>
   });
 });
 
-Deno.test("a failed review completes its check with failure", async () => {
+test("a failed review completes its check with failure", async () => {
   await withEnv(async () => {
     const github = new FakeGithub();
     const failingAi = {
@@ -252,8 +261,8 @@ Deno.test("a failed review completes its check with failure", async () => {
       threw = true;
     }
     if (!threw) throw new Error("failed review did not throw");
-    const completed = github.checkUpdates.find((item) =>
-      (item.body as Json).status === "completed"
+    const completed = github.checkUpdates.find(
+      (item) => (item.body as Json).status === "completed",
     )?.body as Json;
     if (completed.conclusion !== "failure") {
       throw new Error(`unexpected failed check ${JSON.stringify(completed)}`);
@@ -261,7 +270,7 @@ Deno.test("a failed review completes its check with failure", async () => {
   });
 });
 
-Deno.test("a 422 on inline comments falls back to one issue comment", async () => {
+test("a 422 on inline comments falls back to one issue comment", async () => {
   await withEnv(async () => {
     const job = seed();
     const github = new FakeGithub();
@@ -283,7 +292,7 @@ Deno.test("a 422 on inline comments falls back to one issue comment", async () =
   });
 });
 
-Deno.test("denied pull request files post one comment and access_denied", async () => {
+test("denied pull request files post one comment and access_denied", async () => {
   await withEnv(async () => {
     const job = seed();
     const github = new FakeGithub();
@@ -304,7 +313,7 @@ Deno.test("denied pull request files post one comment and access_denied", async 
   });
 });
 
-Deno.test("reconcile after a crash between posting and posted does not post again", async () => {
+test("reconcile after a crash between posting and posted does not post again", async () => {
   await withEnv(async () => {
     const job = seed();
     const github = new FakeGithub();
@@ -312,11 +321,13 @@ Deno.test("reconcile after a crash between posting and posted does not post agai
     const review = getReviewByJobId("job-rev")!;
     const { setReviewStatus } = await import("../store/reviews.ts");
     setReviewStatus(review.id, "posting");
-    github.listedReviews = [{
-      id: 42,
-      commit_id: "head1",
-      user: { type: "Bot" },
-    }];
+    github.listedReviews = [
+      {
+        id: 42,
+        commit_id: "head1",
+        user: { type: "Bot" },
+      },
+    ];
     const writesBefore = github.writes.length;
     await reconcileReview(job, () => {}, github);
     if (github.writes.length !== writesBefore) {
@@ -328,7 +339,7 @@ Deno.test("reconcile after a crash between posting and posted does not post agai
   });
 });
 
-Deno.test("zero findings post COMMENT with a short body", async () => {
+test("zero findings post COMMENT with a short body", async () => {
   await withEnv(async () => {
     const job = seed();
     const github = new FakeGithub();
@@ -355,7 +366,7 @@ Deno.test("zero findings post COMMENT with a short body", async () => {
   });
 });
 
-Deno.test("findings outside the diff stay on the review body", async () => {
+test("findings outside the diff stay on the review body", async () => {
   await withEnv(async () => {
     const job = seed();
     const github = new FakeGithub();
@@ -392,7 +403,7 @@ type PostedReview = {
   comments: { line: number; start_line?: number; start_side?: string }[];
 };
 
-Deno.test("a multi-line finding inside one hunk posts start_line", async () => {
+test("a multi-line finding inside one hunk posts start_line", async () => {
   await withEnv(async () => {
     const github = new FakeGithub();
     github.files = [{ filename: "src/app.ts", patch: "@@ -1,6 +1,8 @@" }];
@@ -400,7 +411,8 @@ Deno.test("a multi-line finding inside one hunk posts start_line", async () => {
     const posted = github.writes[0].body as PostedReview;
     const comment = posted.comments[0];
     if (
-      comment?.start_line !== 3 || comment.line !== 5 ||
+      comment?.start_line !== 3 ||
+      comment.line !== 5 ||
       comment.start_side !== "RIGHT"
     ) {
       throw new Error(`comments ${JSON.stringify(posted.comments)}`);
@@ -408,7 +420,7 @@ Deno.test("a multi-line finding inside one hunk posts start_line", async () => {
   });
 });
 
-Deno.test("a finding on a changed file but outside every hunk stays on the review body", async () => {
+test("a finding on a changed file but outside every hunk stays on the review body", async () => {
   await withEnv(async () => {
     const github = new FakeGithub();
     github.files = [{ filename: "src/app.ts", patch: "@@ -40,2 +40,3 @@" }];
@@ -445,7 +457,7 @@ If you'd like me to explain it in more detail, please ask.
 `);
 }
 
-Deno.test("a valid suggestion posts on its own line and keeps the block", async () => {
+test("a valid suggestion posts on its own line and keeps the block", async () => {
   await withEnv(async () => {
     const github = new FakeGithub();
     github.files = [{ filename: "src/app.ts", patch: GATE_PATCH }];
@@ -462,7 +474,8 @@ Deno.test("a valid suggestion posts on its own line and keeps the block", async 
     };
     const comment = posted.comments[0];
     if (
-      comment?.line !== 17 || comment.start_line !== undefined ||
+      comment?.line !== 17 ||
+      comment.start_line !== undefined ||
       !comment.body.includes("```suggestion\n  const failing") ||
       comment.body.includes("Suggestion:")
     ) {
@@ -472,8 +485,8 @@ Deno.test("a valid suggestion posts on its own line and keeps the block", async 
     if (findings[0].line_from !== 16 || findings[0].line_to !== 18) {
       throw new Error(`full span was not kept ${JSON.stringify(findings)}`);
     }
-    const completed = github.checkUpdates.find((item) =>
-      (item.body as Json).status === "completed"
+    const completed = github.checkUpdates.find(
+      (item) => (item.body as Json).status === "completed",
     )?.body as Json;
     const annotations = (completed.output as Json).annotations as Json[];
     if (String(annotations[0].message).includes("suggestion")) {
@@ -482,7 +495,7 @@ Deno.test("a valid suggestion posts on its own line and keeps the block", async 
   });
 });
 
-Deno.test("a suggestion that changes nothing is dropped and the span is kept", async () => {
+test("a suggestion that changes nothing is dropped and the span is kept", async () => {
   await withEnv(async () => {
     const github = new FakeGithub();
     github.files = [{ filename: "src/app.ts", patch: GATE_PATCH }];
@@ -499,7 +512,8 @@ Deno.test("a suggestion that changes nothing is dropped and the span is kept", a
     };
     const comment = posted.comments[0];
     if (
-      comment?.start_line !== 16 || comment.line !== 18 ||
+      comment?.start_line !== 16 ||
+      comment.line !== 18 ||
       comment.body.includes("suggestion") ||
       comment.body.includes("Suggestion:") ||
       !comment.body.includes("If you'd like me to explain it")
@@ -509,7 +523,7 @@ Deno.test("a suggestion that changes nothing is dropped and the span is kept", a
   });
 });
 
-Deno.test("an incremental review anchors against the pull request diff", async () => {
+test("an incremental review anchors against the pull request diff", async () => {
   await withEnv(async () => {
     const job = seed();
     job.args = JSON.stringify({
@@ -522,7 +536,7 @@ Deno.test("an incremental review anchors against the pull request diff", async (
     github.prFiles = [{ filename: "src/app.ts", patch: "@@ -40,2 +40,3 @@" }];
     await runReviewJob(job, () => {}, github, new FakeAiProvider());
     const posted = github.writes.find((write) =>
-      write.endpoint.includes("/reviews")
+      write.endpoint.includes("/reviews"),
     )?.body as PostedReview;
     if (posted.comments.length !== 0) {
       throw new Error(`anchored to the compare diff ${JSON.stringify(posted)}`);
@@ -530,11 +544,11 @@ Deno.test("an incremental review anchors against the pull request diff", async (
   });
 });
 
-Deno.test("SKILL.md is enough when PR_REVIEW_GUIDE.md was not generated", async () => {
+test("SKILL.md is enough when PR_REVIEW_GUIDE.md was not generated", async () => {
   await withEnv(async () => {
-    const dir = Deno.env.get("CM_REPOS_DIR")!;
-    await Deno.remove(`${dir}/acme/widgets/PR_REVIEW_GUIDE.md`);
-    await Deno.writeTextFile(
+    const dir = getEnv("CM_REPOS_DIR")!;
+    await removePath(`${dir}/acme/widgets/PR_REVIEW_GUIDE.md`);
+    await writeTextFile(
       `${dir}/acme/widgets/SKILL.md`,
       "# skill\nKeep helpers honest.\n",
     );
@@ -547,7 +561,7 @@ Deno.test("SKILL.md is enough when PR_REVIEW_GUIDE.md was not generated", async 
   });
 });
 
-Deno.test("incremental scope reviews the compare diff", async () => {
+test("incremental scope reviews the compare diff", async () => {
   await withEnv(async () => {
     const job = seed();
     job.args = JSON.stringify({
@@ -565,7 +579,7 @@ Deno.test("incremental scope reviews the compare diff", async () => {
   });
 });
 
-Deno.test("a denied incremental compare falls back to a whole-pr review", async () => {
+test("a denied incremental compare falls back to a whole-pr review", async () => {
   await withEnv(async () => {
     const job = seed();
     job.args = JSON.stringify({
@@ -584,7 +598,7 @@ Deno.test("a denied incremental compare falls back to a whole-pr review", async 
   });
 });
 
-Deno.test("a finding that repeats a previous round replies in the thread", async () => {
+test("a finding that repeats a previous round replies in the thread", async () => {
   await withEnv(async () => {
     insertReview({
       id: "rev-prev",
@@ -612,14 +626,14 @@ Deno.test("a finding that repeats a previous round replies in the thread", async
     const github = new FakeGithub();
     await runReviewJob(job, () => {}, github, new FakeAiProvider());
     const reply = github.writes.find((write) =>
-      write.endpoint.includes("/comments")
+      write.endpoint.includes("/comments"),
     );
     const payload = reply?.body as { in_reply_to?: number };
     if (payload?.in_reply_to !== 42) {
       throw new Error(`expected a reply, got ${JSON.stringify(github.writes)}`);
     }
     const reviewPost = github.writes.find((write) =>
-      write.endpoint.includes("/reviews")
+      write.endpoint.includes("/reviews"),
     );
     const comments = (reviewPost?.body as { comments?: unknown[] }).comments;
     if (comments && comments.length !== 0) {
@@ -632,7 +646,7 @@ Deno.test("a finding that repeats a previous round replies in the thread", async
   });
 });
 
-Deno.test("humanCopy preserves the review heading dash and removes semicolons", () => {
+test("humanCopy preserves the review heading dash and removes semicolons", () => {
   const cleaned = humanCopy("Broken — really; stop");
   if (!cleaned.includes("\u2014") || cleaned.includes(";")) {
     throw new Error(cleaned);

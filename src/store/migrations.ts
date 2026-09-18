@@ -117,9 +117,7 @@ export const migrations: string[][] = [
     )`,
   ],
   // 2 — P7 records when a review fell back to an issue comment
-  [
-    `ALTER TABLE reviews ADD COLUMN posted_fallback INTEGER NOT NULL DEFAULT 0`,
-  ],
+  [`ALTER TABLE reviews ADD COLUMN posted_fallback INTEGER NOT NULL DEFAULT 0`],
   // 3 — durable conversation replies and purpose-specific queued jobs
   [
     `ALTER TABLE jobs ADD COLUMN queue_key TEXT`,
@@ -158,17 +156,11 @@ export const migrations: string[][] = [
   ],
   // 4 — drift separates pull requests opened since the build from older
   // ones that were merely touched again
-  [
-    `ALTER TABLE drift ADD COLUMN prs_updated INTEGER NOT NULL DEFAULT 0`,
-  ],
+  [`ALTER TABLE drift ADD COLUMN prs_updated INTEGER NOT NULL DEFAULT 0`],
   // 5 — codegraph tools are an opt-in cost per repo, off until asked for
-  [
-    `ALTER TABLE repos ADD COLUMN use_codegraph INTEGER NOT NULL DEFAULT 0`,
-  ],
+  [`ALTER TABLE repos ADD COLUMN use_codegraph INTEGER NOT NULL DEFAULT 0`],
   // 6 — why a job was canceled (dashboard, superseded, remote abort, …)
-  [
-    `ALTER TABLE jobs ADD COLUMN cancel_reason TEXT`,
-  ],
+  [`ALTER TABLE jobs ADD COLUMN cancel_reason TEXT`],
   // 7 — subjects, carry-over fields, reviews table rebuild for nullable PR keys
   [
     `CREATE TABLE reviews_new (

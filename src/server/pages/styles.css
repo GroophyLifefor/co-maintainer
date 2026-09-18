@@ -12,7 +12,7 @@
   --green: #1a9d5a;
   --amber: #c98a00;
   --red: #cf3c3c;
-  --mono: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 * {
   box-sizing: border-box;
@@ -21,8 +21,14 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.5
-    -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font:
+    14px/1.5 -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
 }
 a {
   color: var(--link);
@@ -34,7 +40,7 @@ a:hover {
 code,
 .mono {
   font-family: var(--mono);
-  font-size: .9em;
+  font-size: 0.9em;
 }
 
 /* top bar */
@@ -124,7 +130,7 @@ aside nav a.on {
 aside .lbl {
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: .06em;
+  letter-spacing: 0.06em;
   color: var(--dim);
   padding: 0 12px;
   margin: 0 0 8px;
@@ -292,7 +298,7 @@ button.primary:hover {
   text-decoration: underline;
 }
 button[disabled] {
-  opacity: .5;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -306,7 +312,7 @@ button[disabled] {
   border: none;
   padding: 0;
   cursor: pointer;
-  transition: background .12s ease;
+  transition: background 0.12s ease;
 }
 .tg::after {
   content: "";
@@ -317,8 +323,8 @@ button[disabled] {
   height: 18px;
   border-radius: 50%;
   background: #fff;
-  transition: left .12s ease;
-  box-shadow: 0 1px 2px rgba(0,0,0,.2);
+  transition: left 0.12s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 .tg.on {
   background: var(--accent);
@@ -327,7 +333,7 @@ button[disabled] {
   left: 18px;
 }
 .tg:hover {
-  filter: brightness(.97);
+  filter: brightness(0.97);
 }
 
 /* forms */
@@ -354,7 +360,7 @@ select:focus,
 textarea:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(128,197,128,.35);
+  box-shadow: 0 0 0 2px rgba(128, 197, 128, 0.35);
 }
 textarea {
   resize: vertical;
@@ -392,7 +398,7 @@ textarea {
 .big {
   font-size: 26px;
   font-weight: 600;
-  letter-spacing: -.01em;
+  letter-spacing: -0.01em;
 }
 .kfig {
   display: flex;
@@ -572,8 +578,12 @@ button,
 .tg,
 .tg::after,
 tbody tr {
-  transition: background .12s ease,border-color .12s ease,filter .12s ease,left
-    .12s ease,color .12s ease;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    filter 0.12s ease,
+    left 0.12s ease,
+    color 0.12s ease;
 }
 :focus-visible {
   outline: 2px solid var(--accent);
@@ -596,7 +606,7 @@ tbody tr {
   border-radius: 6px;
   padding: 10px 14px;
   font-size: 13px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
 }
 .fail {
   margin: 12px 18px;
@@ -636,7 +646,7 @@ tbody tr {
   visibility: visible;
 }
 
-@media (prefers-reduced-motion:reduce) {
+@media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {

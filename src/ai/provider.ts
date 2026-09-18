@@ -15,15 +15,9 @@ export function createAiProvider(
 ): AiProvider | undefined {
   if (options.ai === "none") return undefined;
   if (options.ai === "openrouter") {
-    return new OpenRouterProvider(
-      options.aiToken ?? "",
-      model,
-    );
+    return new OpenRouterProvider(options.aiToken ?? "", model);
   }
-  return new HetznerProvider(
-    options.aiToken ?? "",
-    model,
-  );
+  return new HetznerProvider(options.aiToken ?? "", model);
 }
 
 export function parseChatResponse(
@@ -32,27 +26,28 @@ export function parseChatResponse(
   model: string,
 ): AiResponse {
   const choice = Array.isArray(json.choices)
-    ? json.choices[0] as Json | undefined
+    ? (json.choices[0] as Json | undefined)
     : undefined;
   const message = choice?.message as Json | undefined;
   const usage = json.usage as Json | undefined;
   const cost = Number(
-    usage?.cost ??
-      (usage?.cost_details as Json | undefined)?.total_cost,
+    usage?.cost ?? (usage?.cost_details as Json | undefined)?.total_cost,
   );
   const toolCalls = Array.isArray(message?.tool_calls)
-    ? message.tool_calls.map((call) => {
-      const value = call as Json;
-      const fn = value.function as Json | undefined;
-      return {
-        id: String(value.id ?? ""),
-        type: "function" as const,
-        function: {
-          name: String(fn?.name ?? ""),
-          arguments: String(fn?.arguments ?? "{}"),
-        },
-      };
-    }).filter((call) => call.id && call.function.name)
+    ? message.tool_calls
+        .map((call) => {
+          const value = call as Json;
+          const fn = value.function as Json | undefined;
+          return {
+            id: String(value.id ?? ""),
+            type: "function" as const,
+            function: {
+              name: String(fn?.name ?? ""),
+              arguments: String(fn?.arguments ?? "{}"),
+            },
+          };
+        })
+        .filter((call) => call.id && call.function.name)
     : undefined;
   return {
     text: String(message?.content ?? ""),
@@ -65,10 +60,7 @@ export function parseChatResponse(
   };
 }
 
-export function chatBody(
-  model: string,
-  request: AiRequest,
-): Json {
+export function chatBody(model: string, request: AiRequest): Json {
   const messages: AiMessage[] = request.messages ?? [
     ...(request.system
       ? [{ role: "system" as const, content: request.system }]

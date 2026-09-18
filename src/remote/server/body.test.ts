@@ -1,6 +1,7 @@
 import { readBoundedJson, readBoundedUtf8 } from "./body.ts";
+import { test } from "node:test";
 
-Deno.test("readBoundedUtf8 enforces byte limit while streaming", async () => {
+test("readBoundedUtf8 enforces byte limit while streaming", async () => {
   const over = new Uint8Array(1025);
   over.fill(97);
   const request = new Request("http://localhost/", {
@@ -13,7 +14,7 @@ Deno.test("readBoundedUtf8 enforces byte limit while streaming", async () => {
   }
 });
 
-Deno.test("readBoundedUtf8 rejects declared Content-Length over limit", async () => {
+test("readBoundedUtf8 rejects declared Content-Length over limit", async () => {
   const request = new Request("http://localhost/", {
     method: "POST",
     headers: { "content-length": "999999" },
@@ -25,7 +26,7 @@ Deno.test("readBoundedUtf8 rejects declared Content-Length over limit", async ()
   }
 });
 
-Deno.test("readBoundedJson parses UTF-8 JSON within limit", async () => {
+test("readBoundedJson parses UTF-8 JSON within limit", async () => {
   const request = new Request("http://localhost/", {
     method: "POST",
     body: '{"schemaVersion":1}',

@@ -21,7 +21,7 @@ not reviewer findings, things like:
 Moved this check up to speedup this rule.
 ```
 
-The real reviewer feedback on those PRs sat in the *replies* to those notes,
+The real reviewer feedback on those PRs sat in the _replies_ to those notes,
 inverted from what every filtering heuristic assumes (top-level comment =
 reviewer, reply = author). A model that correctly found nothing wrong on
 `#9080` was scored as having missed 8 findings.

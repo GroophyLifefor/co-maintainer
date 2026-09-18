@@ -1,4 +1,5 @@
 import { githubFetch, paginate } from "./client.ts";
+import { test } from "node:test";
 
 function response(
   status: number,
@@ -7,7 +8,7 @@ function response(
   return new Response("{}", { status, headers });
 }
 
-Deno.test("a secondary rate limit is retried and then succeeds", async () => {
+test("a secondary rate limit is retried and then succeeds", async () => {
   const originalFetch = globalThis.fetch;
   try {
     let calls = 0;
@@ -25,7 +26,7 @@ Deno.test("a secondary rate limit is retried and then succeeds", async () => {
   }
 });
 
-Deno.test("a primary rate limit at zero remaining fails immediately", async () => {
+test("a primary rate limit at zero remaining fails immediately", async () => {
   const originalFetch = globalThis.fetch;
   try {
     let calls = 0;
@@ -55,18 +56,15 @@ Deno.test("a primary rate limit at zero remaining fails immediately", async () =
   }
 });
 
-Deno.test("paginate stops at a short page and respects a limit", async () => {
+test("paginate stops at a short page and respects a limit", async () => {
   const pages: Record<number, number[]> = {
     1: Array.from({ length: 100 }, (_, i) => i),
     2: [100, 101],
   };
-  const items = await paginate<number>(
-    async (endpoint) => {
-      const page = Number(/[?&]page=(\d+)/.exec(endpoint)?.[1]);
-      return pages[page] ?? [];
-    },
-    "items",
-  );
+  const items = await paginate<number>(async (endpoint) => {
+    const page = Number(/[?&]page=(\d+)/.exec(endpoint)?.[1]);
+    return pages[page] ?? [];
+  }, "items");
   if (items.length !== 102) {
     throw new Error(`expected 102 items, got ${items.length}`);
   }

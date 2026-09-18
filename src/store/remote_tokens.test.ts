@@ -16,21 +16,23 @@ import {
   hashRemoteBearerToken,
   resolveRemoteToken,
 } from "../services/remote_tokens.ts";
+import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
+import { test } from "node:test";
 
 async function withTempDb(fn: () => Promise<void> | void): Promise<void> {
-  const original = Deno.env.get("CM_APP_DB");
-  Deno.env.set("CM_APP_DB", `${Deno.makeTempDirSync()}/app.db`);
+  const original = getEnv("CM_APP_DB");
+  setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
   try {
     await openAppDb();
     await fn();
   } finally {
     await closeAppDb();
-    if (original === undefined) Deno.env.delete("CM_APP_DB");
-    else Deno.env.set("CM_APP_DB", original);
+    if (original === undefined) deleteEnv("CM_APP_DB");
+    else setEnv("CM_APP_DB", original);
   }
 }
 
-Deno.test("remote tokens: create, resolve, deactivate", async () => {
+test("remote tokens: create, resolve, deactivate", async () => {
   await withTempDb(async () => {
     const created = await createRemoteToken("ayse");
     if (!created.token.startsWith("cmr_")) {
@@ -50,7 +52,7 @@ Deno.test("remote tokens: create, resolve, deactivate", async () => {
   });
 });
 
-Deno.test("remote tokens: unique name", async () => {
+test("remote tokens: unique name", async () => {
   await withTempDb(async () => {
     await createRemoteToken("dup");
     let err = "";
@@ -65,7 +67,7 @@ Deno.test("remote tokens: unique name", async () => {
   });
 });
 
-Deno.test("remote review inputs: idempotency key", async () => {
+test("remote review inputs: idempotency key", async () => {
   await withTempDb(async () => {
     insertRemoteToken("t1", "test", "abc");
     insertRemoteReviewInput({
@@ -85,7 +87,7 @@ Deno.test("remote review inputs: idempotency key", async () => {
   });
 });
 
-Deno.test("touchRemoteToken throttles to once per minute", async () => {
+test("touchRemoteToken throttles to once per minute", async () => {
   await withTempDb(async () => {
     insertRemoteToken("t1", "n", "hash");
     touchRemoteToken("t1");

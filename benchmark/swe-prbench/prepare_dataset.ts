@@ -1,3 +1,8 @@
+import {
+  isNotFound,
+  readTextFile,
+  writeTextFile,
+} from "../../src/util/runtime.ts";
 // Converts a local swe-prbench `prs.jsonl` (download `dataset/prs.jsonl` from
 // https://huggingface.co/datasets/foundry-ai/swe-prbench) into the Row shape
 // run.ts expects, restricted to --repos=owner/a,owner/b.
@@ -36,26 +41,28 @@ function flag(args: string[], name: string): string | undefined {
   return args.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
 }
 
-const args = Deno.args;
+const args = process.argv.slice(2);
 const srcPath = flag(args, "source") ?? "benchmark/swe-prbench/prs.jsonl";
-const repos = (flag(args, "repos") ?? "pipecat-ai/pipecat,stylelint/stylelint")
-  .split(",");
+const repos = (
+  flag(args, "repos") ?? "pipecat-ai/pipecat,stylelint/stylelint"
+).split(",");
 const outPath = flag(args, "out") ?? "benchmark/swe-prbench/dataset.json";
 
 let text: string;
 try {
-  text = await Deno.readTextFile(srcPath);
+  text = await readTextFile(srcPath);
 } catch (error) {
-  if (error instanceof Deno.errors.NotFound) {
+  if (isNotFound(error)) {
     throw new Error(
       `Missing ${srcPath}; download dataset/prs.jsonl from https://huggingface.co/datasets/foundry-ai/swe-prbench there first`,
     );
   }
   throw error;
 }
-const rows: SourceRow[] = text.trim().split("\n").map((line) =>
-  JSON.parse(line)
-);
+const rows: SourceRow[] = text
+  .trim()
+  .split("\n")
+  .map((line) => JSON.parse(line));
 const selected = rows.filter((row) => repos.includes(row.repo));
 if (selected.length === 0) {
   throw new Error(`No rows in ${srcPath} for --repos=${repos.join(",")}`);
@@ -63,8 +70,8 @@ if (selected.length === 0) {
 
 const out: Record<string, unknown>[] = [];
 for (const row of selected) {
-  const gold = row.human_review_comments.filter((c) =>
-    c.replyTo === null && c.line !== null
+  const gold = row.human_review_comments.filter(
+    (c) => c.replyTo === null && c.line !== null,
   );
   if (gold.length === 0) {
     console.log(`skip ${row.task_id}: no anchored top-level comment`);
@@ -91,9 +98,7 @@ for (const row of selected) {
 if (out.length === 0) {
   throw new Error("No gold rows produced — nothing to write");
 }
-await Deno.writeTextFile(outPath, `${JSON.stringify(out, null, 2)}\n`);
+await writeTextFile(outPath, `${JSON.stringify(out, null, 2)}\n`);
 console.log(
-  `wrote ${outPath}: ${out.length} gold rows across ${
-    new Set(out.map((r) => r.repo)).size
-  } repos`,
+  `wrote ${outPath}: ${out.length} gold rows across ${new Set(out.map((r) => r.repo)).size} repos`,
 );

@@ -4,12 +4,13 @@ import type { AiProvider, AiRequest, AiResponse, Json } from "../types.ts";
 export class OpenRouterProvider implements AiProvider {
   readonly supportsTools = true;
   private readonly endpoint = "https://openrouter.ai/api/v1/chat/completions";
+  private readonly apiKey: string;
+  private readonly model: string;
 
-  constructor(
-    private readonly apiKey: string,
-    private readonly model: string,
-  ) {
+  constructor(apiKey: string, model: string) {
     if (!apiKey) throw new Error("OpenRouter requires OPENROUTER_API_KEY");
+    this.apiKey = apiKey;
+    this.model = model;
   }
 
   async complete(request: AiRequest): Promise<AiResponse> {
@@ -29,7 +30,7 @@ export class OpenRouterProvider implements AiProvider {
       );
     }
     return parseChatResponse(
-      await response.json() as Json,
+      (await response.json()) as Json,
       "openrouter",
       this.model,
     );

@@ -1,4 +1,11 @@
 import type { CommandResult } from "./codegraph.ts";
+import {
+  commandOutput,
+  commandSpawn,
+  envToObject,
+  isWindows,
+  type CommandOutput,
+} from "../util/runtime.ts";
 
 export const LOCAL_CODEGRAPH_DIR = ".co-maintainer-codegraph";
 export const SERVER_CODEGRAPH_DIR = ".codegraph";
@@ -17,7 +24,13 @@ export type CodegraphRunner = (
   worktree: string,
 ) => Promise<CommandResult>;
 
-/** Run the codegraph CLI in a repo root (plan §13.4). No `cmd /c` wrapper. */
+/** Run the codegraph CLI in a repo root (plan §13.4).
+ *
+ * On Windows the CLI is a `.cmd`/`.ps1` shim, and `node:child_process.spawn`
+ * cannot execute those without a shell — it fails with `EINVAL`. `Deno.Command`
+ * resolved them natively, so this wrapper is needed only after the Node move.
+ * Route through `cmd /c` exactly like `pr/checkout.ts` does for `git`.
+ */
 export async function execCodegraph(
   binary: string,
   args: string[],
@@ -26,33 +39,30 @@ export async function execCodegraph(
 ): Promise<CommandResult> {
   const indexDir = options.codegraphDir ?? LOCAL_CODEGRAPH_DIR;
   const env = {
-    ...Deno.env.toObject(),
+    ...envToObject(),
     CODEGRAPH_DIR: indexDir,
     ...options.env,
   };
-  const timeoutMs = options.timeoutMs === undefined
-    ? TOOL_TIMEOUT_MS
-    : options.timeoutMs;
-  const child = new Deno.Command(binary, {
-    args,
+  const timeoutMs =
+    options.timeoutMs === undefined ? TOOL_TIMEOUT_MS : options.timeoutMs;
+  const windows = isWindows();
+  const commandOptions = {
+    args: windows ? ["/c", binary, ...args] : args,
     cwd,
     env,
     stdout: "piped",
     stderr: "piped",
-  });
+  } as const;
+  const target = windows ? "cmd" : binary;
   if (timeoutMs === null) {
-    const output = await child.output();
+    const output = await commandOutput(target, commandOptions);
     return decode(output);
   }
-  const proc = child.spawn();
+  const proc = commandSpawn(target, commandOptions);
   let timedOut = false;
   const timer = setTimeout(() => {
     timedOut = true;
-    try {
-      proc.kill("SIGKILL");
-    } catch {
-      // already exited
-    }
+    proc.kill("SIGKILL");
   }, timeoutMs);
   const output = await proc.output();
   clearTimeout(timer);
@@ -66,7 +76,7 @@ export async function execCodegraph(
   return decode(output);
 }
 
-function decode(output: Deno.CommandOutput): CommandResult {
+function decode(output: CommandOutput): CommandResult {
   return {
     code: output.code,
     stdout: new TextDecoder().decode(output.stdout),
@@ -74,9 +84,7 @@ function decode(output: Deno.CommandOutput): CommandResult {
   };
 }
 
-export function createCodegraphRunner(
-  indexDir: string,
-): CodegraphRunner {
+export function createCodegraphRunner(indexDir: string): CodegraphRunner {
   return (binary, args, worktree) => {
     const timeoutMs = INDEX_COMMANDS.has(args[0] ?? "") ? null : undefined;
     return execCodegraph(binary, args, worktree, {

@@ -1,6 +1,7 @@
 import { reposDir } from "../config.ts";
 import { getRepo } from "../store/repos.ts";
 import { withKeyedLock } from "../util/keyed_lock.ts";
+import { readTextFile } from "../util/runtime.ts";
 
 export function knowledgeLockKey(repo: string): string {
   return `knowledge:${repo}`;
@@ -16,7 +17,7 @@ export type LoadedGuides = {
 
 async function readGuideFile(repo: string, name: string): Promise<string> {
   try {
-    return await Deno.readTextFile(`${reposDir()}/${repo}/${name}`);
+    return await readTextFile(`${reposDir()}/${repo}/${name}`);
   } catch {
     return "";
   }

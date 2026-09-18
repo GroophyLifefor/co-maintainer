@@ -81,9 +81,7 @@ export async function handleReposRoute(
   if (!match) {
     return errorResponse(404, "not_found", `no route for ${url.pathname}`);
   }
-  const fullName = `${decodeURIComponent(match[1])}/${
-    decodeURIComponent(match[2])
-  }`;
+  const fullName = `${decodeURIComponent(match[1])}/${decodeURIComponent(match[2])}`;
   const sub = match[3];
   const pr = match[4] ? Number(match[4]) : undefined;
   const action = match[5];
@@ -114,20 +112,19 @@ export async function handleReposRoute(
         patch.use_codegraph = body.useCodegraph ? 1 : 0;
       }
       if (
-        body.reviewScope === "whole-pr" || body.reviewScope === "incremental"
+        body.reviewScope === "whole-pr" ||
+        body.reviewScope === "incremental"
       ) {
         patch.review_scope = body.reviewScope;
       }
       updateRepoSettings(fullName, patch);
       const init: Record<string, number | undefined> = {};
-      for (
-        const key of [
-          "maxPrMonths",
-          "maxCommits",
-          "maxPullRequestChangeLines",
-          "maxComments",
-        ] as const
-      ) {
+      for (const key of [
+        "maxPrMonths",
+        "maxCommits",
+        "maxPullRequestChangeLines",
+        "maxComments",
+      ] as const) {
         if (typeof body[key] === "number" && Number.isFinite(body[key])) {
           init[key] = body[key] as number;
         }
@@ -148,7 +145,10 @@ export async function handleReposRoute(
       return Response.json(await repoKnowledge(fullName));
     }
     if (
-      sub === "pulls" && pr && action === "review" && request.method === "POST"
+      sub === "pulls" &&
+      pr &&
+      action === "review" &&
+      request.method === "POST"
     ) {
       requireActiveRepo(fullName);
       const { id } = enqueueManualReview(fullName, pr);

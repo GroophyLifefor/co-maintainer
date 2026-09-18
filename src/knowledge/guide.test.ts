@@ -1,7 +1,8 @@
 import { buildReviewDocuments } from "./guide.ts";
 import { testFact } from "../testing/helpers.ts";
+import { test } from "node:test";
 
-Deno.test("review guides are optional and avoid duplicate detailed content", () => {
+test("review guides are optional and avoid duplicate detailed content", () => {
   const facts = [
     testFact(
       "Include tests for behavior changes.",
@@ -25,14 +26,12 @@ Deno.test("review guides are optional and avoid duplicate detailed content", () 
   if (buildReviewDocuments(facts.slice(0, 2))) {
     throw new Error("review guide was created below the request threshold");
   }
-  const manyFacts = Array.from(
-    { length: 60 },
-    (_, index) =>
-      testFact(
-        `Request ${index}: verify the affected behavior.`,
-        "historical-example",
-        `PR #${index + 1}`,
-      ),
+  const manyFacts = Array.from({ length: 60 }, (_, index) =>
+    testFact(
+      `Request ${index}: verify the affected behavior.`,
+      "historical-example",
+      `PR #${index + 1}`,
+    ),
   ).map((item) => ({ ...item, sectionKey: "review-bar" }));
   const largeDocuments = buildReviewDocuments(manyFacts);
   if (!largeDocuments?.detailed) {

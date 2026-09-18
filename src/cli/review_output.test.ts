@@ -1,6 +1,7 @@
 import { reviewExitCode } from "./review_output.ts";
+import { test } from "node:test";
 
-Deno.test("reviewExitCode: non-blocking P2 exits 0", () => {
+test("reviewExitCode: non-blocking P2 exits 0", () => {
   const md = `## Findings
 
 ### [P2 · non-blocking] \`src/a.ts\` — \`fn()\`
@@ -13,7 +14,7 @@ Issue here.
   }
 });
 
-Deno.test("reviewExitCode: blocking P1 exits 1", () => {
+test("reviewExitCode: blocking P1 exits 1", () => {
   const md = `## Findings
 
 ### [P1 · blocking] \`src/a.ts\` — \`fn()\`

@@ -123,8 +123,8 @@ Forward-only migrations: do not install an older CLI after a newer one has
 opened `app.db`.
 
 1. Stop `serve`.
-2. `deno install -f -g jsr:@murat/co-maintainer`
+2. `npm install -g co-maintainer@latest`
 3. Start `serve` again with the same data directory.
 
-Restart after upgrading. Do not `deno install -f` while the old process is still
+Restart after upgrading. Do not reinstall while the old process is still
 running. Same steps are listed on [Dashboard: Updating](dashboard.md#updating).

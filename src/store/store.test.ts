@@ -43,21 +43,23 @@ import {
   insertSession,
 } from "./sessions.ts";
 import { getDrift, upsertDrift } from "./drift.ts";
+import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
+import { test } from "node:test";
 
 async function withTempDb(fn: () => Promise<void> | void): Promise<void> {
-  const original = Deno.env.get("CM_APP_DB");
-  Deno.env.set("CM_APP_DB", `${Deno.makeTempDirSync()}/app.db`);
+  const original = getEnv("CM_APP_DB");
+  setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
   try {
     await openAppDb();
     await fn();
   } finally {
     await closeAppDb();
-    if (original === undefined) Deno.env.delete("CM_APP_DB");
-    else Deno.env.set("CM_APP_DB", original);
+    if (original === undefined) deleteEnv("CM_APP_DB");
+    else setEnv("CM_APP_DB", original);
   }
 }
 
-Deno.test("installations: upsert, suspend, remove round-trip", async () => {
+test("installations: upsert, suspend, remove round-trip", async () => {
   await withTempDb(() => {
     upsertInstallation({
       id: 1,
@@ -81,7 +83,7 @@ Deno.test("installations: upsert, suspend, remove round-trip", async () => {
   });
 });
 
-Deno.test("repos: activate, settings patch, deactivate, drift", async () => {
+test("repos: activate, settings patch, deactivate, drift", async () => {
   await withTempDb(() => {
     activateRepo("acme/widgets", 1);
     if (!getRepo("acme/widgets")?.active) throw new Error("repo not active");
@@ -117,7 +119,7 @@ Deno.test("repos: activate, settings patch, deactivate, drift", async () => {
   });
 });
 
-Deno.test("jobs and job_logs: insert, transition, resumable log stream", async () => {
+test("jobs and job_logs: insert, transition, resumable log stream", async () => {
   await withTempDb(() => {
     insertJob({
       id: "job-1",
@@ -155,7 +157,7 @@ Deno.test("jobs and job_logs: insert, transition, resumable log stream", async (
   });
 });
 
-Deno.test("reviews and findings: draft, post, list newest round first", async () => {
+test("reviews and findings: draft, post, list newest round first", async () => {
   await withTempDb(() => {
     insertReview({
       id: "rev-1",
@@ -207,14 +209,15 @@ Deno.test("reviews and findings: draft, post, list newest round first", async ()
     setFindingPosted("f-1", "comment-1");
     const findings = listFindingsForReview("rev-1");
     if (
-      findings.length !== 1 || findings[0].posted_comment_id !== "comment-1"
+      findings.length !== 1 ||
+      findings[0].posted_comment_id !== "comment-1"
     ) {
       throw new Error("finding was not stored or posted correctly");
     }
   });
 });
 
-Deno.test("deliveries: dedupe and the skipped listing", async () => {
+test("deliveries: dedupe and the skipped listing", async () => {
   await withTempDb(() => {
     recordDelivery({
       deliveryId: "d-1",
@@ -243,7 +246,7 @@ Deno.test("deliveries: dedupe and the skipped listing", async () => {
   });
 });
 
-Deno.test("sessions: valid, expired, and deleted", async () => {
+test("sessions: valid, expired, and deleted", async () => {
   await withTempDb(() => {
     const future = new Date(Date.now() + 60_000).toISOString();
     const past = new Date(Date.now() - 60_000).toISOString();

@@ -2,17 +2,15 @@ import type { Fact } from "./types.ts";
 import { sectionKeys, sectionTitles } from "./sections.ts";
 
 function sectionFacts(facts: Fact[], key: string): Fact[] {
-  return facts.filter((item) => item.sectionKey === key).sort((a, b) =>
-    b.weight - a.weight
-  );
+  return facts
+    .filter((item) => item.sectionKey === key)
+    .sort((a, b) => b.weight - a.weight);
 }
 
 function render(key: string, facts: Fact[]): string {
   const items = sectionFacts(facts, key).slice(0, 6);
   if (!items.length) return "";
-  return `## ${sectionTitles[key] ?? key}\n\n${
-    items.map((item) => `- ${item.claim}`).join("\n")
-  }`;
+  return `## ${sectionTitles[key] ?? key}\n\n${items.map((item) => `- ${item.claim}`).join("\n")}`;
 }
 
 function cleanSection(value: string): string {
@@ -51,9 +49,9 @@ async function hash(value: string): Promise<string> {
     "SHA-256",
     new TextEncoder().encode(value),
   );
-  return [...new Uint8Array(bytes)].map((byte) =>
-    byte.toString(16).padStart(2, "0")
-  ).join("");
+  return [...new Uint8Array(bytes)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 export async function factSectionHashes(
@@ -84,15 +82,17 @@ export async function assembleSkill(
   previousMarkdown: string | undefined,
   previousHashes: Record<string, string>,
   overrides: Record<string, string> = {},
-): Promise<
-  { markdown: string; hashes: Record<string, string>; changed: string[] }
-> {
+): Promise<{
+  markdown: string;
+  hashes: Record<string, string>;
+  changed: string[];
+}> {
   const previous = previousMarkdown ? extractSections(previousMarkdown) : {};
   const sections: Record<string, string> = {};
   const hashes: Record<string, string> = {};
   const changed: string[] = [];
   const keys = sectionKeys.filter((key) =>
-    facts.some((item) => item.sectionKey === key)
+    facts.some((item) => item.sectionKey === key),
   );
 
   for (const key of keys) {

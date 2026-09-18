@@ -1,6 +1,7 @@
 import { AiBatch } from "./batch.ts";
 import { cacheDeletePrefix } from "../store/cache_db.ts";
 import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
+import { test } from "node:test";
 
 class MockProvider implements AiProvider {
   calls = 0;
@@ -23,7 +24,7 @@ class MockProvider implements AiProvider {
   }
 }
 
-Deno.test("AI queue limits concurrency and resumes from disk", async () => {
+test("AI queue limits concurrency and resumes from disk", async () => {
   const repo = `queue-test-${crypto.randomUUID()}`;
   const requests = Array.from({ length: 5 }, (_, index) => ({
     job: "test",

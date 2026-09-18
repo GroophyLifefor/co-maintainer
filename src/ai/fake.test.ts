@@ -1,10 +1,18 @@
 import { FakeAiProvider } from "./fake.ts";
+import {
+  deleteEnv,
+  getEnv,
+  setEnv,
+  tempDirSync,
+  writeTextFile,
+} from "../testing/runtime.ts";
+import { test } from "node:test";
 
-Deno.test("FakeAiProvider reads CM_FAKE_REVIEW_FILE", async () => {
-  const path = `${Deno.makeTempDirSync()}/custom.md`;
-  await Deno.writeTextFile(path, "## Findings\n\nCustom body.\n");
-  const prev = Deno.env.get("CM_FAKE_REVIEW_FILE");
-  Deno.env.set("CM_FAKE_REVIEW_FILE", path);
+test("FakeAiProvider reads CM_FAKE_REVIEW_FILE", async () => {
+  const path = `${tempDirSync()}/custom.md`;
+  await writeTextFile(path, "## Findings\n\nCustom body.\n");
+  const prev = getEnv("CM_FAKE_REVIEW_FILE");
+  setEnv("CM_FAKE_REVIEW_FILE", path);
   try {
     const response = await new FakeAiProvider().complete({
       prompt: "test",
@@ -15,7 +23,7 @@ Deno.test("FakeAiProvider reads CM_FAKE_REVIEW_FILE", async () => {
       throw new Error(response.text);
     }
   } finally {
-    if (prev === undefined) Deno.env.delete("CM_FAKE_REVIEW_FILE");
-    else Deno.env.set("CM_FAKE_REVIEW_FILE", prev);
+    if (prev === undefined) deleteEnv("CM_FAKE_REVIEW_FILE");
+    else setEnv("CM_FAKE_REVIEW_FILE", prev);
   }
 });

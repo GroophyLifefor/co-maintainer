@@ -3,14 +3,21 @@ import { closeAppDb, openAppDb } from "../../store/app_db.ts";
 import { writeUserConfig } from "../../config.ts";
 import { registerHandler } from "../../services/jobs.ts";
 import { getRepo } from "../../store/repos.ts";
+import {
+  deleteEnv,
+  getEnv,
+  setEnv,
+  tempDirSync,
+} from "../../testing/runtime.ts";
+import { test } from "node:test";
 
 const PASSWORD = "repos-api-test";
 
 async function withTempEnv(fn: () => Promise<void>): Promise<void> {
-  const originalConfig = Deno.env.get("CM_CONFIG_PATH");
-  const originalDb = Deno.env.get("CM_APP_DB");
-  Deno.env.set("CM_CONFIG_PATH", `${Deno.makeTempDirSync()}/config.json`);
-  Deno.env.set("CM_APP_DB", `${Deno.makeTempDirSync()}/app.db`);
+  const originalConfig = getEnv("CM_CONFIG_PATH");
+  const originalDb = getEnv("CM_APP_DB");
+  setEnv("CM_CONFIG_PATH", `${tempDirSync()}/config.json`);
+  setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
   try {
     await openAppDb();
     await writeUserConfig({ auth: "gh", ai: "none" });
@@ -22,10 +29,10 @@ async function withTempEnv(fn: () => Promise<void>): Promise<void> {
     await fn();
   } finally {
     await closeAppDb();
-    if (originalConfig === undefined) Deno.env.delete("CM_CONFIG_PATH");
-    else Deno.env.set("CM_CONFIG_PATH", originalConfig);
-    if (originalDb === undefined) Deno.env.delete("CM_APP_DB");
-    else Deno.env.set("CM_APP_DB", originalDb);
+    if (originalConfig === undefined) deleteEnv("CM_CONFIG_PATH");
+    else setEnv("CM_CONFIG_PATH", originalConfig);
+    if (originalDb === undefined) deleteEnv("CM_APP_DB");
+    else setEnv("CM_APP_DB", originalDb);
   }
 }
 
@@ -56,7 +63,7 @@ async function loggedInApp() {
     );
 }
 
-Deno.test("POST /api/repos activates the repo and enqueues an init job", async () => {
+test("POST /api/repos activates the repo and enqueues an init job", async () => {
   await withTempEnv(async () => {
     const authed = await loggedInApp();
     const response = await authed("/api/repos", {
@@ -72,8 +79,8 @@ Deno.test("POST /api/repos activates the repo and enqueues an init job", async (
     const listResponse = await authed("/api/repos");
     const { items } = await listResponse.json();
     if (
-      !items.some((repo: { full_name: string }) =>
-        repo.full_name === "acme/widgets"
+      !items.some(
+        (repo: { full_name: string }) => repo.full_name === "acme/widgets",
       )
     ) {
       throw new Error("the repo did not appear in the active list");
@@ -87,7 +94,7 @@ Deno.test("POST /api/repos activates the repo and enqueues an init job", async (
   });
 });
 
-Deno.test("POST /api/repos rejects a malformed repo name before touching anything", async () => {
+test("POST /api/repos rejects a malformed repo name before touching anything", async () => {
   await withTempEnv(async () => {
     const authed = await loggedInApp();
     const response = await authed("/api/repos", {
@@ -98,7 +105,7 @@ Deno.test("POST /api/repos rejects a malformed repo name before touching anythin
   });
 });
 
-Deno.test("POST /api/repos/:owner/:repo/remake enqueues a remake job", async () => {
+test("POST /api/repos/:owner/:repo/remake enqueues a remake job", async () => {
   await withTempEnv(async () => {
     const authed = await loggedInApp();
     const response = await authed("/api/repos/acme/widgets/remake", {
@@ -115,7 +122,7 @@ Deno.test("POST /api/repos/:owner/:repo/remake enqueues a remake job", async () 
   });
 });
 
-Deno.test("PATCH /api/repos stores reviewScope", async () => {
+test("PATCH /api/repos stores reviewScope", async () => {
   await withTempEnv(async () => {
     const authed = await loggedInApp();
     await authed("/api/repos", {

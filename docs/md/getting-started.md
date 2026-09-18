@@ -15,17 +15,17 @@ flowchart LR
   init --> remake["remake <br/>(to keep your context up to date)"]
 ```
 
-**Need:** [Deno](https://deno.com/), a repo you can read, `gh auth login`, an
+**Need:** [Node.js 24+](https://nodejs.org/), a repo you can read, `gh auth login`, an
 [OpenRouter](https://openrouter.ai/) key. Details: [Authentication](authentication.md).
 
 ## 1. Install
 
 ```sh
-deno install -g -A --name co-maintainer jsr:@murat/co-maintainer
+npm install -g co-maintainer
 co-maintainer help
 ```
 
-PATH issues or Windows registry: [README install](https://github.com/GroophyLifefor/co-maintainer#installation).
+PATH issues or general install notes: [README install](https://github.com/GroophyLifefor/co-maintainer#installation).
 
 ## 2. Save defaults (once)
 

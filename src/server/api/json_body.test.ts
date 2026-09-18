@@ -1,6 +1,7 @@
 import { readJsonObject } from "./json_body.ts";
+import { test } from "node:test";
 
-Deno.test("readJsonObject rejects null JSON body", async () => {
+test("readJsonObject rejects null JSON body", async () => {
   const request = new Request("http://localhost/", {
     method: "POST",
     headers: { "content-type": "application/json" },

@@ -24,19 +24,19 @@ time rather than concurrently:
 ```sh
 # download dataset/prs.jsonl from the HF dataset above into benchmark/swe-prbench/prs.jsonl (not committed, ~29MB)
 
-deno task swe-prbench-prepare -- --repos=stylelint/stylelint,pipecat-ai/pipecat
+npm run swe-prbench-prepare -- --repos=stylelint/stylelint,pipecat-ai/pipecat
 ```
 
 Then init each repo (not timed, run once per repo):
 
 ```sh
-deno task init stylelint/stylelint --auth=gh \
+npm run init stylelint/stylelint --auth=gh \
   --max-pr-months=6 --max-commits=200 \
   --gh-concurrent=8 --ai-concurrent=10 \
   --ai=openrouter --low-model=deepseek/deepseek-v4-flash-0731 --high-model=openai/gpt-5.6-luna \
   --env=.env
 
-deno task init pipecat-ai/pipecat --auth=gh \
+npm run init pipecat-ai/pipecat --auth=gh \
   --max-pr-months=6 --max-commits=200 \
   --gh-concurrent=8 --ai-concurrent=10 \
   --ai=openrouter --low-model=deepseek/deepseek-v4-flash-0731 --high-model=openai/gpt-5.6-luna \
@@ -50,7 +50,7 @@ deno task init pipecat-ai/pipecat --auth=gh \
 Stylelint alone first:
 
 ```sh
-deno task bench-swe-prbench -- --repo=stylelint/stylelint \
+npm run bench-swe-prbench -- --repo=stylelint/stylelint \
   --ai=openrouter --low-model=deepseek/deepseek-v4-flash-0731 --high-model=openai/gpt-5.6-luna \
   --env=.env
 ```
@@ -59,7 +59,7 @@ Then pipecat, once stylelint's numbers look right — don't run both repos in th
 same pass while still validating the setup:
 
 ```sh
-deno task bench-swe-prbench -- --repo=pipecat-ai/pipecat \
+npm run bench-swe-prbench -- --repo=pipecat-ai/pipecat \
   --ai=openrouter --low-model=deepseek/deepseek-v4-flash-0731 --high-model=openai/gpt-5.6-luna \
   --env=.env
 ```

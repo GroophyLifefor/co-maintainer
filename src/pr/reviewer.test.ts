@@ -1,4 +1,5 @@
 import { clampImproveMatrix, clampToolRounds, filePatch } from "./reviewer.ts";
+import { test } from "node:test";
 
 function contains(haystack: string, needle: string, what: string): void {
   if (!haystack.includes(needle)) {
@@ -6,7 +7,7 @@ function contains(haystack: string, needle: string, what: string): void {
   }
 }
 
-Deno.test("filePatch numbers a present patch", () => {
+test("filePatch numbers a present patch", () => {
   const patch = "@@ -1,2 +1,3 @@\n context\n+added";
   const expected = "@@ -1,2 +1,3 @@\n     1  context\n     2 +added";
   if (filePatch({ filename: "a.ts", patch }) !== expected) {
@@ -14,7 +15,7 @@ Deno.test("filePatch numbers a present patch", () => {
   }
 });
 
-Deno.test("filePatch says so when GitHub withheld the diff", () => {
+test("filePatch says so when GitHub withheld the diff", () => {
   const rendered = filePatch({
     filename: "pnpm-lock.yaml",
     status: "modified",
@@ -28,13 +29,13 @@ Deno.test("filePatch says so when GitHub withheld the diff", () => {
   contains(rendered, "Do not treat this file as unchanged", "instruction");
 });
 
-Deno.test("filePatch still reports a withheld file with no counts", () => {
+test("filePatch still reports a withheld file with no counts", () => {
   const rendered = filePatch({ filename: "big.bin", status: "modified" });
   contains(rendered, "unreported number of changed lines", "fallback");
   contains(rendered, "withheld by GitHub", "reason");
 });
 
-Deno.test("filePatch marks a per-file truncation", () => {
+test("filePatch marks a per-file truncation", () => {
   const rendered = filePatch({
     filename: "huge.ts",
     status: "modified",
@@ -46,7 +47,7 @@ Deno.test("filePatch marks a per-file truncation", () => {
   if (rendered.length > 13_000) throw new Error("expected the patch trimmed");
 });
 
-Deno.test("clampToolRounds scales with diff size but never runs away", () => {
+test("clampToolRounds scales with diff size but never runs away", () => {
   if (clampToolRounds(0) !== 4) throw new Error("small diff should stay at 4");
   if (clampToolRounds(200) !== 6) {
     throw new Error("expected 4 + 200/100 = 6");
@@ -56,7 +57,7 @@ Deno.test("clampToolRounds scales with diff size but never runs away", () => {
   }
 });
 
-Deno.test("clampImproveMatrix stays within 1 and 4", () => {
+test("clampImproveMatrix stays within 1 and 4", () => {
   if (clampImproveMatrix(0) !== 1) throw new Error("must not go below 1");
   if (clampImproveMatrix(2) !== 2) {
     throw new Error("a normal value passes through");

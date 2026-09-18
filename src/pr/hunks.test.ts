@@ -1,4 +1,5 @@
 import { anchorFor, numberPatch, rightHunks } from "./hunks.ts";
+import { test } from "node:test";
 
 function same(actual: unknown, expected: unknown, what: string): void {
   const a = JSON.stringify(actual);
@@ -18,13 +19,20 @@ const TWO_HUNKS = [
   " tail",
 ].join("\n");
 
-Deno.test("rightHunks reads new file ranges and skips a deleted file", () => {
-  same(rightHunks(TWO_HUNKS), [[1, 4], [21, 22]], "two hunks");
+test("rightHunks reads new file ranges and skips a deleted file", () => {
+  same(
+    rightHunks(TWO_HUNKS),
+    [
+      [1, 4],
+      [21, 22],
+    ],
+    "two hunks",
+  );
   same(rightHunks("@@ -1 +1 @@\n-a\n+b"), [[1, 1]], "count omitted");
   same(rightHunks("@@ -1,2 +0,0 @@\n-a\n-b"), [], "deleted file");
 });
 
-Deno.test("anchorFor keeps a span only when one hunk holds it", () => {
+test("anchorFor keeps a span only when one hunk holds it", () => {
   same(anchorFor(TWO_HUNKS, 2, 4), { start_line: 2, line: 4 }, "fits");
   same(anchorFor(TWO_HUNKS, 3, 21), { line: 21 }, "split, end inside");
   same(anchorFor(TWO_HUNKS, 3, 15), { line: 3 }, "split, start inside");
@@ -34,7 +42,7 @@ Deno.test("anchorFor keeps a span only when one hunk holds it", () => {
   same(anchorFor("", 5, 9), { line: 9 }, "withheld patch");
 });
 
-Deno.test("numberPatch numbers new file lines and skips removed ones", () => {
+test("numberPatch numbers new file lines and skips removed ones", () => {
   const patch = [
     "@@ -10,3 +12,3 @@ function a() {",
     " keep",

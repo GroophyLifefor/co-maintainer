@@ -3,6 +3,14 @@ import { type ParsedFinding, parseFindings } from "../../src/pr/findings.ts";
 import { scopeInClone } from "../../src/pr/scope.ts";
 import type { Snapshot } from "../../src/pr/snapshot.ts";
 import type { GitHubClient, Options } from "../../src/types.ts";
+import {
+  commandOutput,
+  isWindows,
+  makeTempFile,
+  readTextFile,
+  remove,
+  stat,
+} from "../../src/util/runtime.ts";
 
 export type RunResult = {
   text: string;
@@ -89,8 +97,9 @@ function findingList(parsed: unknown): Record<string, unknown>[] {
   const seen = new Set<unknown>();
   const walk = (node: unknown, depth: number): Record<string, unknown>[] => {
     if (Array.isArray(node)) {
-      return node.filter((item): item is Record<string, unknown> =>
-        !!item && typeof item === "object" && !Array.isArray(item)
+      return node.filter(
+        (item): item is Record<string, unknown> =>
+          !!item && typeof item === "object" && !Array.isArray(item),
       );
     }
     if (!node || typeof node !== "object" || depth > 3 || seen.has(node)) {
@@ -131,50 +140,59 @@ export function parseOcrFindings(raw: string): ParsedFinding[] {
       "fileName",
       "filename",
     ]);
-    const from = num(field(item, [
-      "line",
-      "start_line",
-      "startLine",
-      "from_line",
-      "from",
-      "lineStart",
-      "line_start",
-    ]));
+    const from = num(
+      field(item, [
+        "line",
+        "start_line",
+        "startLine",
+        "from_line",
+        "from",
+        "lineStart",
+        "line_start",
+      ]),
+    );
     if (path === undefined || from === undefined) continue;
-    const to = num(field(item, [
-      "end_line",
-      "endLine",
-      "to_line",
-      "to",
-      "lineEnd",
-      "line_end",
-    ])) ?? from;
-    const heading = str(field(item, [
-      "title",
-      "heading",
-      "rule",
-      "rule_name",
-      "ruleName",
-      "summary",
-      "category",
-    ]));
-    const excerpt = str(field(item, [
-      "message",
-      "content",
-      "body",
-      "description",
-      "detail",
-      "comment",
-      "suggestion",
-    ]));
+    const to =
+      num(
+        field(item, [
+          "end_line",
+          "endLine",
+          "to_line",
+          "to",
+          "lineEnd",
+          "line_end",
+        ]),
+      ) ?? from;
+    const heading = str(
+      field(item, [
+        "title",
+        "heading",
+        "rule",
+        "rule_name",
+        "ruleName",
+        "summary",
+        "category",
+      ]),
+    );
+    const excerpt = str(
+      field(item, [
+        "message",
+        "content",
+        "body",
+        "description",
+        "detail",
+        "comment",
+        "suggestion",
+      ]),
+    );
     findings.push({
       path: String(path),
       from,
       to: to < from ? from : to,
       heading: heading || excerpt.slice(0, 80),
       excerpt,
-      severity: str(field(item, ["severity", "level", "priority"])) ||
-        undefined,
+      severity:
+        str(field(item, ["severity", "level", "priority"])) || undefined,
     });
   }
   return findings;
@@ -200,20 +218,24 @@ export function parseOcrUsage(raw: string): {
     "stats",
     "summary",
   ]) ?? root) as Record<string, unknown>;
-  const tokensIn = num(field(usage, [
-    "input_tokens",
-    "inputTokens",
-    "prompt_tokens",
-    "promptTokens",
-    "tokens_in",
-  ]));
-  const tokensOut = num(field(usage, [
-    "output_tokens",
-    "outputTokens",
-    "completion_tokens",
-    "completionTokens",
-    "tokens_out",
-  ]));
+  const tokensIn = num(
+    field(usage, [
+      "input_tokens",
+      "inputTokens",
+      "prompt_tokens",
+      "promptTokens",
+      "tokens_in",
+    ]),
+  );
+  const tokensOut = num(
+    field(usage, [
+      "output_tokens",
+      "outputTokens",
+      "completion_tokens",
+      "completionTokens",
+      "tokens_out",
+    ]),
+  );
   const cost = num(field(usage, ["cost", "total_cost", "totalCost"]));
   return {
     tokensIn: tokensIn ?? 0,
@@ -228,14 +250,13 @@ async function run(
   bin: string,
   args: string[],
 ): Promise<{ code: number; stdout: string; stderr: string }> {
-  const windows = Deno.build.os === "windows";
-  const command = new Deno.Command(windows ? "cmd" : bin, {
+  const windows = isWindows();
+  const output = await commandOutput(windows ? "cmd" : bin, {
     args: windows ? ["/c", bin, ...args] : args,
     cwd,
     stdout: "piped",
     stderr: "piped",
   });
-  const output = await command.output();
   return {
     code: output.code,
     stdout: new TextDecoder().decode(output.stdout),
@@ -278,7 +299,7 @@ export function ocrRunner(cloneRoot: string, bin: string): Runner {
     const prepStarted = performance.now();
     const cloneDir = cloneDirFor(cloneRoot, options.repo);
     try {
-      await Deno.stat(`${cloneDir}/.git`);
+      await stat(`${cloneDir}/.git`);
     } catch {
       throw new Error(
         `Missing clone ${cloneDir}. Prepare it first (not timed):\n` +
@@ -300,23 +321,20 @@ export function ocrRunner(cloneRoot: string, bin: string): Runner {
       snapshot.commit,
       (command, args, cwd) => run(cwd ?? cloneDir, command, args),
     );
-    const exclude = scope && scope.upstreamFiles.size > 0
-      ? [...scope.upstreamFiles].join(",")
-      : undefined;
+    const exclude =
+      scope && scope.upstreamFiles.size > 0
+        ? [...scope.upstreamFiles].join(",")
+        : undefined;
     if (exclude) {
       console.log(
-        `  [ocr] excluding ${
-          scope!.upstreamFiles.size
-        } upstream file(s) from review`,
+        `  [ocr] excluding ${scope!.upstreamFiles.size} upstream file(s) from review`,
       );
     } else if (!scope) {
-      console.log(
-        `  [ocr] scope unavailable · reviewing every changed file`,
-      );
+      console.log(`  [ocr] scope unavailable · reviewing every changed file`);
     }
 
     const prepMs = performance.now() - prepStarted;
-    const outFile = await Deno.makeTempFile({ suffix: ".json" });
+    const outFile = await makeTempFile({ suffix: ".json" });
     try {
       const result = await run(cloneDir, bin, [
         "review",
@@ -342,7 +360,7 @@ export function ocrRunner(cloneRoot: string, bin: string): Runner {
       }
       let raw = "";
       try {
-        raw = await Deno.readTextFile(outFile);
+        raw = await readTextFile(outFile);
       } catch {
         raw = "";
       }
@@ -354,7 +372,7 @@ export function ocrRunner(cloneRoot: string, bin: string): Runner {
         prepMs,
       };
     } finally {
-      await Deno.remove(outFile).catch(() => {});
+      await remove(outFile).catch(() => {});
     }
   };
 }

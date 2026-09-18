@@ -1,12 +1,6 @@
 import type { ToolHandler } from "../ai/mermaid_loop.ts";
-import {
-  codegraphTools,
-  ensureCodegraphIndex,
-} from "../pr/codegraph_tools.ts";
-import {
-  ensureCodegraphForReview,
-  type Presence,
-} from "../tools/codegraph.ts";
+import { codegraphTools, ensureCodegraphIndex } from "../pr/codegraph_tools.ts";
+import { ensureCodegraphForReview, type Presence } from "../tools/codegraph.ts";
 import {
   createCodegraphRunner,
   LOCAL_CODEGRAPH_DIR,
@@ -39,7 +33,8 @@ export async function prepareLocalCodegraph(input: {
   const resolved = await ensureCodegraphForReview({
     allowInstall: input.allowInstall,
     interactive: input.interactive,
-    log: (message) => log("codegraph", message.replace(/^\[codegraph\]\s*/, "")),
+    log: (message) =>
+      log("codegraph", message.replace(/^\[codegraph\]\s*/, "")),
   });
   if (!("path" in resolved)) {
     log("codegraph", `tools unavailable · ${resolved.reason}`);
@@ -48,7 +43,9 @@ export async function prepareLocalCodegraph(input: {
   const binary = resolved.path;
   const cgRun = createCodegraphRunner(LOCAL_CODEGRAPH_DIR);
   try {
-    const fresh = !(await pathExists(`${input.gitRoot}/${LOCAL_CODEGRAPH_DIR}`));
+    const fresh = !(await pathExists(
+      `${input.gitRoot}/${LOCAL_CODEGRAPH_DIR}`,
+    ));
     if (fresh) {
       log(
         "codegraph",

@@ -52,7 +52,10 @@ export async function readBoundedUtf8(
 export async function readBoundedJson(
   request: Request,
   maxBytes: number,
-): Promise<{ ok: true; value: unknown } | { ok: false; status: number; code: string; message: string }> {
+): Promise<
+  | { ok: true; value: unknown }
+  | { ok: false; status: number; code: string; message: string }
+> {
   const body = await readBoundedUtf8(request, maxBytes);
   if (!body.ok) {
     return {

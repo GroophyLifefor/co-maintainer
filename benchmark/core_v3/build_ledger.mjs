@@ -209,8 +209,7 @@ const defects = {
     class: "predecessor/successor confusion",
     quote:
       "the predecessor list is filled with snapshot.edgesOf(b) (b's outgoing edges, successors) instead of snapshot.referrersOf(b) (b's incoming edges, real predecessors)",
-    why:
-      "silently, no crash or hang: every non-root idom stays unset (-1) since the wrong list is consulted; on the tiny fixture idom comes out [0,-1,-1] instead of [0,0,1]",
+    why: "silently, no crash or hang: every non-root idom stays unset (-1) since the wrong list is consulted; on the tiny fixture idom comes out [0,-1,-1] instead of [0,0,1]",
   },
   24: {
     id: "D8",
@@ -220,8 +219,7 @@ const defects = {
     class: "off-by-one bounds check",
     quote:
       "the bounds check uses `i > count` instead of `i >= count`, so the index one past the last valid child is accepted instead of rejected",
-    why:
-      "childAt(children, 0, count) silently returns a real-looking but wrong nodeIndex (reads into the next node's own children slice) instead of throwing",
+    why: "childAt(children, 0, count) silently returns a real-looking but wrong nodeIndex (reads into the next node's own children slice) instead of throwing",
   },
   26: {
     id: "D9",
@@ -231,8 +229,7 @@ const defects = {
     class: "byte/KB unit mixup",
     quote:
       "totalRetained is accumulated as `Math.round(retained[nodeIndex] / 1024)` (KB) instead of raw bytes, violating CONTRIBUTING.md #3",
-    why:
-      "any object retaining under ~512 bytes (most small objects) rounds straight to 0, so it silently disappears from the report as totalRetained: 0",
+    why: "any object retaining under ~512 bytes (most small objects) rounds straight to 0, so it silently disappears from the report as totalRetained: 0",
   },
   27: {
     id: "D10",
@@ -242,8 +239,7 @@ const defects = {
     class: "reversed output order",
     quote:
       "the path array is built walking from nodeIndex back to root and never reversed, so it comes out node-first/root-last, contradicting its own doc comment",
-    why:
-      "shortestPathToRoot(snap, 2) on the tiny fixture returns [2, 1, 0] instead of the documented [0, 1, 2] -- every caller reads the retain chain backwards",
+    why: "shortestPathToRoot(snap, 2) on the tiny fixture returns [2, 1, 0] instead of the documented [0, 1, 2] -- every caller reads the retain chain backwards",
   },
   30: {
     id: "D12",
@@ -253,8 +249,7 @@ const defects = {
     class: "substring match instead of exact",
     quote:
       "className.includes(filter) is used for matching instead of an exact === comparison",
-    why:
-      'a search for "User" also matches "UserSession", "UserCache", and any other class containing it as a substring, confirmed against a real snapshot',
+    why: 'a search for "User" also matches "UserSession", "UserCache", and any other class containing it as a substring, confirmed against a real snapshot',
   },
   33: {
     id: "D13",
@@ -264,8 +259,7 @@ const defects = {
     class: "incomplete type coverage",
     quote:
       "only nodes with `type === 'string'` are counted, `concatenated string` and `sliced string` node types are never matched",
-    why:
-      "on a real snapshot, concatenated string nodes outnumbered plain string nodes (24568 vs 20035) -- the majority of duplicate-string mass is silently missed while the tool still looks correct for what it does count",
+    why: "on a real snapshot, concatenated string nodes outnumbered plain string nodes (24568 vs 20035) -- the majority of duplicate-string mass is silently missed while the tool still looks correct for what it does count",
   },
   34: {
     id: "D14",
@@ -275,8 +269,7 @@ const defects = {
     class: "wrong field / unit mismatch",
     quote:
       "usedBytes is read directly as the backing store's edgeCount (a slot/edge tally) instead of summing selfSize over its edges (bytes)",
-    why:
-      "compares a count against a byte figure -- for a Set of small integers (no edges at all) edgeCount is always 0, so wastedBytes always equals the full capacityBytes regardless of how full the Set actually is",
+    why: "compares a count against a byte figure -- for a Set of small integers (no edges at all) edgeCount is always 0, so wastedBytes always equals the full capacityBytes regardless of how full the Set actually is",
   },
   36: {
     id: "D15",
@@ -286,8 +279,7 @@ const defects = {
     class: "raw offset used as array index",
     quote:
       "the raw to_node value (a nodeOffset, CONTRIBUTING.md #2) is used directly as the subscript into a nodeCount-long Int32Array, without dividing by nodeStride first",
-    why:
-      "Int32Array silently drops an out-of-bounds write (no error, no growth) -- almost every real write is lost, so contextRetainerCountOf always reports 0 no matter how many closures actually share a context",
+    why: "Int32Array silently drops an out-of-bounds write (no error, no growth) -- almost every real write is lost, so contextRetainerCountOf always reports 0 no matter how many closures actually share a context",
   },
   37: {
     id: "D16",
@@ -297,8 +289,7 @@ const defects = {
     class: "wrong alignment key",
     quote:
       "nodes from `before` and `after` are matched by shared nodeIndex position instead of by idOf() (the stable id)",
-    why:
-      "nodeIndex is only an ordinal position within one snapshot's own nodes array and means nothing across two separate captures -- hand traced against a fixture where two nodes swap position with no real add/remove: it reports 3 correct-looking matches, one of which actually points at the wrong object",
+    why: "nodeIndex is only an ordinal position within one snapshot's own nodes array and means nothing across two separate captures -- hand traced against a fixture where two nodes swap position with no real add/remove: it reports 3 correct-looking matches, one of which actually points at the wrong object",
   },
   40: {
     id: "D17",
@@ -308,8 +299,7 @@ const defects = {
     class: "divide by zero",
     quote:
       "growthRatio is computed as sizeDelta / sizeBefore with no check for sizeBefore === 0",
-    why:
-      "a brand new class has sizeBefore: 0, so growthRatio is Infinity, which sorts it to the very top ahead of real growth and becomes JSON null through JSON.stringify for exactly the case (a new class) the feature exists to highlight",
+    why: "a brand new class has sizeBefore: 0, so growthRatio is Infinity, which sorts it to the very top ahead of real growth and becomes JSON null through JSON.stringify for exactly the case (a new class) the feature exists to highlight",
   },
   43: {
     id: "D18",
@@ -319,8 +309,7 @@ const defects = {
     class: "formatting in the library layer",
     quote:
       'withDisplaySize (in src/report/, the library) is called by both CLI commands before branching on --json, so it replaces the raw byte field with a formatted string like "64 bytes" unconditionally',
-    why:
-      "--json output silently becomes a string instead of a number, breaking any machine consumer that needs to sort or sum the value without re-parsing the unit suffix, violating CONTRIBUTING.md #3",
+    why: "--json output silently becomes a string instead of a number, breaking any machine consumer that needs to sort or sum the value without re-parsing the unit suffix, violating CONTRIBUTING.md #3",
   },
   47: {
     id: "D19",
@@ -330,8 +319,7 @@ const defects = {
     class: "swallowed error",
     quote:
       "the catch block around each rule's evaluation is empty, so a rule that throws (unknown type, missing params) is silently dropped instead of being pushed to ruleErrors as the function's own doc comment promises",
-    why:
-      "a policy-authoring typo (e.g. a rule missing a required param) makes that rule vanish with zero coverage, returning {violations: [], ruleErrors: []} -- indistinguishable from a genuinely clean, fully-checked snapshot; this is the exact D6/history pattern (this repo does not swallow errors) recurring in a new place",
+    why: "a policy-authoring typo (e.g. a rule missing a required param) makes that rule vanish with zero coverage, returning {violations: [], ruleErrors: []} -- indistinguishable from a genuinely clean, fully-checked snapshot; this is the exact D6/history pattern (this repo does not swallow errors) recurring in a new place",
   },
   48: {
     id: "D20",
@@ -341,8 +329,7 @@ const defects = {
     class: "off-by-one threshold comparison",
     quote:
       "violations are filtered with `SEVERITY_RANK[v.severity] > threshold` instead of `>= threshold`",
-    why:
-      'since "error" is already the highest severity rank, `--fail-on=error` can never fail the gate no matter how many error violations exist -- a CI gate that silently never gates on its strictest setting',
+    why: 'since "error" is already the highest severity rank, `--fail-on=error` can never fail the gate no matter how many error violations exist -- a CI gate that silently never gates on its strictest setting',
   },
   49: {
     id: "D21",
@@ -352,8 +339,7 @@ const defects = {
     class: "schema/return type mismatch",
     quote:
       "the top_instances tool's outputSchema declares retainedSize as `{ type: 'string' }`, but its handler (topInstancesByRetainedSize) returns a real number",
-    why:
-      "any MCP client that validates structuredContent against the tool's own declared outputSchema (per the 2025-06-18 spec) rejects or mis-renders every response from this tool; the sibling summary tool's schema gets the same kind of field right, which is what makes this one easy to miss",
+    why: "any MCP client that validates structuredContent against the tool's own declared outputSchema (per the 2025-06-18 spec) rejects or mis-renders every response from this tool; the sibling summary tool's schema gets the same kind of field right, which is what makes this one easy to miss",
   },
 };
 
@@ -374,19 +360,21 @@ for (let pr = 21; pr <= 50; pr++) {
     fix_commit: fixCommit,
     merge_commit: c.merge,
     ref_before: "1970-01-01T00:00:00Z",
-    defects: isControl ? [] : [
-      {
-        id: d.id,
-        path: d.path,
-        from_line: d.line,
-        to_line: d.line,
-        side: "RIGHT",
-        axis: d.axis,
-        class: d.class,
-        quote: d.quote,
-        why: d.why,
-      },
-    ],
+    defects: isControl
+      ? []
+      : [
+          {
+            id: d.id,
+            path: d.path,
+            from_line: d.line,
+            to_line: d.line,
+            side: "RIGHT",
+            axis: d.axis,
+            class: d.class,
+            quote: d.quote,
+            why: d.why,
+          },
+        ],
   });
 }
 

@@ -5,15 +5,20 @@
  * its own copy of. */
 
 export class GitHubHttpError extends Error {
-  constructor(readonly status: number, body: string) {
+  readonly status: number;
+
+  constructor(status: number, body: string) {
     super(`GitHub API ${status}: ${body}`);
+    this.status = status;
     this.name = "GitHubHttpError";
   }
 }
 
 export function isAccessDenied(error: unknown): boolean {
-  return error instanceof GitHubHttpError &&
-    (error.status === 403 || error.status === 404);
+  return (
+    error instanceof GitHubHttpError &&
+    (error.status === 403 || error.status === 404)
+  );
 }
 
 type RateLimit = { remaining: number; resetAt: Date };
@@ -42,9 +47,8 @@ export async function githubFetch(
     response = await fetch(url, init);
     if (response.status !== 403 && response.status !== 429) return response;
     const retryAfterHeader = response.headers.get("retry-after");
-    const retryAfter = retryAfterHeader === null
-      ? NaN
-      : Number(retryAfterHeader);
+    const retryAfter =
+      retryAfterHeader === null ? NaN : Number(retryAfterHeader);
     if (Number.isFinite(retryAfter) && retryAfter >= 0 && attempt < 3) {
       console.log(
         `[github] secondary rate limit, waiting ${retryAfter}s (attempt ${attempt} of 3)`,
@@ -70,7 +74,7 @@ export async function paginate<T>(
   progress?: (page: number, fetched: number) => void,
 ): Promise<T[]> {
   const items: T[] = [];
-  for (let page = 1;; page++) {
+  for (let page = 1; ; page++) {
     const separator = endpoint.includes("?") ? "&" : "?";
     const pageItems = await request(
       `${endpoint}${separator}per_page=100&page=${page}`,
@@ -80,7 +84,8 @@ export async function paginate<T>(
     if (
       pageItems.length < 100 ||
       (limit !== undefined && items.length >= limit)
-    ) break;
+    )
+      break;
   }
   return limit === undefined ? items : items.slice(0, limit);
 }

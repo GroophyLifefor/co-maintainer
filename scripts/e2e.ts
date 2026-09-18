@@ -1,7 +1,7 @@
 /** Live e2e against a real private test repo and a running `serve`.
  * Assertions are on GitHub state. `CM_FAKE_AI=1` is refused.
  *
- *   E2E_REPO=owner/repo deno task e2e
+ *   E2E_REPO=owner/repo npm run e2e
  *
  * Optional: `E2E_BASE` (default http://localhost:5000), `E2E_TIMEOUT_MS`,
  * `E2E_INSTALLATION_ID`. Uses the same `CM_CONFIG_PATH` as `serve` when
@@ -9,22 +9,32 @@
  * POSTs `opened` to `/github/webhook` after the PR exists. */
 import { readConfig } from "../src/config.ts";
 import { hmacSha256Hex } from "../src/server/webhook/signature.ts";
+import {
+  commandOutput,
+  getEnv,
+  isNotFound,
+  mkdir,
+  readFile,
+  remove,
+  writeFile,
+  writeTextFile,
+} from "../src/util/runtime.ts";
 
-const repo = Deno.env.get("E2E_REPO");
+const repo = getEnv("E2E_REPO");
 if (!repo) throw new Error("E2E_REPO is required, e.g. owner/repo");
-if (Deno.env.get("CM_FAKE_AI") === "1") {
+if (getEnv("CM_FAKE_AI") === "1") {
   throw new Error(
     "e2e refuses CM_FAKE_AI=1. Unset it and use a real provider.",
   );
 }
 
-const base = Deno.env.get("E2E_BASE") ?? "http://localhost:5000";
-const repos = Deno.env.get("CM_REPOS_DIR");
+const base = getEnv("E2E_BASE") ?? "http://localhost:5000";
+const repos = getEnv("CM_REPOS_DIR");
 if (!repos) {
   throw new Error("CM_REPOS_DIR must match the running serve process");
 }
-const timeoutMs = Number(Deno.env.get("E2E_TIMEOUT_MS") ?? 900_000);
-const installationId = Number(Deno.env.get("E2E_INSTALLATION_ID") || 0);
+const timeoutMs = Number(getEnv("E2E_TIMEOUT_MS") ?? 900_000);
+const installationId = Number(getEnv("E2E_INSTALLATION_ID") || 0);
 const branch = `e2e-${Date.now()}`;
 const seedPath = `e2e-seed-${Date.now()}.ts`;
 const guidePath = `${repos}/${repo}/PR_REVIEW_GUIDE.md`;
@@ -60,11 +70,11 @@ type GhReview = {
 };
 
 async function gh(args: string[]): Promise<string> {
-  const result = await new Deno.Command("gh", {
+  const result = await commandOutput("gh", {
     args,
     stdout: "piped",
     stderr: "piped",
-  }).output();
+  });
   const stdout = new TextDecoder().decode(result.stdout);
   const stderr = new TextDecoder().decode(result.stderr);
   if (!result.success) {
@@ -111,10 +121,8 @@ async function postWebhook(pr: GhPr): Promise<void> {
   };
   const secret = readConfig().githubWebhookSecret;
   if (secret) {
-    headers["x-hub-signature-256"] = `sha256=${await hmacSha256Hex(
-      secret,
-      bytes,
-    )}`;
+    headers["x-hub-signature-256"] =
+      `sha256=${await hmacSha256Hex(secret, bytes)}`;
   }
   const response = await fetch(`${base}/github/webhook`, {
     method: "POST",
@@ -142,23 +150,22 @@ async function waitForFinding(
       "api",
       `repos/${repo}/pulls/${prNumber}/reviews`,
     ]);
-    const mine = reviews.filter((review) =>
-      isBot(review.user) &&
-      (review.submitted_at ?? "") >= createdAt
+    const mine = reviews.filter(
+      (review) =>
+        isBot(review.user) && (review.submitted_at ?? "") >= createdAt,
     );
-    const withFindings = mine.find((review) =>
-      review.state === "CHANGES_REQUESTED" ||
-      (review.body ?? "").includes("See the inline comments.") ||
-      (review.body ?? "").includes("could not be pinned")
+    const withFindings = mine.find(
+      (review) =>
+        review.state === "CHANGES_REQUESTED" ||
+        (review.body ?? "").includes("See the inline comments.") ||
+        (review.body ?? "").includes("could not be pinned"),
     );
     if (withFindings) return withFindings;
     const empty = mine.find((review) =>
-      (review.body ?? "").includes("No actionable findings.")
+      (review.body ?? "").includes("No actionable findings."),
     );
     if (empty) {
-      throw new Error(
-        `bot posted review ${empty.id} with zero findings`,
-      );
+      throw new Error(`bot posted review ${empty.id} with zero findings`);
     }
     await sleep(5000);
   }
@@ -192,8 +199,8 @@ async function cleanup(prNumber: number | undefined): Promise<void> {
   }
   if (fixtureGuideWritten) {
     try {
-      if (originalGuide) await Deno.writeFile(guidePath, originalGuide);
-      else await Deno.remove(guidePath);
+      if (originalGuide) await writeFile(guidePath, originalGuide);
+      else await remove(guidePath);
     } catch (error) {
       console.error(`restore review guide failed: ${error}`);
     }
@@ -225,15 +232,15 @@ await gh([
   `sha=${ref.object.sha}`,
 ]);
 
-await Deno.mkdir(`${repos}/${repo}`, { recursive: true });
+await mkdir(`${repos}/${repo}`, { recursive: true });
 let originalGuide: Uint8Array | undefined;
 let fixtureGuideWritten = false;
 try {
-  originalGuide = await Deno.readFile(guidePath);
+  originalGuide = await readFile(guidePath);
 } catch (error) {
-  if (!(error instanceof Deno.errors.NotFound)) throw error;
+  if (!isNotFound(error)) throw error;
 }
-await Deno.writeTextFile(guidePath, fixtureGuide);
+await writeTextFile(guidePath, fixtureGuide);
 fixtureGuideWritten = true;
 
 let prNumber: number | undefined;

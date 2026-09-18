@@ -1,7 +1,8 @@
 import type { Run } from "../pr/checkout.ts";
 import { perFileUnifiedPatch } from "./git_revision.ts";
+import { test } from "node:test";
 
-Deno.test("perFileUnifiedPatch: extracts hunk body from single-file diff", async () => {
+test("perFileUnifiedPatch: extracts hunk body from single-file diff", async () => {
   const stdout =
     "diff --git a/src/a.ts b/src/a.ts\n" +
     "index 111..222 100644\n" +

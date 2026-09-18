@@ -1,7 +1,8 @@
 import { parseArgs } from "./args.ts";
+import { test } from "node:test";
 
-Deno.test("parseArgs: review without PR number is valid for local CLI", () => {
-  const options = parseArgs([
+test("parseArgs: review without PR number is valid for local CLI", async () => {
+  const options = await parseArgs([
     "review",
     "owner/repo",
     "--token=test",
@@ -12,15 +13,15 @@ Deno.test("parseArgs: review without PR number is valid for local CLI", () => {
   }
 });
 
-Deno.test("parseArgs: review enables codegraph unless disabled", () => {
-  const on = parseArgs([
+test("parseArgs: review enables codegraph unless disabled", async () => {
+  const on = await parseArgs([
     "review",
     "owner/repo",
     "--token=test",
     "--high-model=test/model",
   ]);
   if (!on.useCodegraph) throw new Error("expected codegraph on by default");
-  const off = parseArgs([
+  const off = await parseArgs([
     "review",
     "owner/repo",
     "--disable-codegraph",

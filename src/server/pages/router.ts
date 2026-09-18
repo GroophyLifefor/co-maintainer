@@ -56,7 +56,7 @@ export type PageDeps = {
 };
 
 const REPO =
-  /^\/repos\/([^/]+)\/([^/]+)(?:\/(pulls|knowledge|settings)(?:\/(\d+))?)?$/;
+  /^\/repos\/([^/]+)\/([^/]+)(?:\/(pulls|knowledge|settings|remote)(?:\/(\d+))?)?$/;
 
 export async function handlePageRequest(
   request: Request,
@@ -194,9 +194,7 @@ export async function handlePageRequest(
 
     const match = REPO.exec(url.pathname);
     if (match && request.method === "GET") {
-      const fullName = `${decodeURIComponent(match[1])}/${
-        decodeURIComponent(match[2])
-      }`;
+      const fullName = `${decodeURIComponent(match[1])}/${decodeURIComponent(match[2])}`;
       const row = requireRepo(fullName);
       const sub = match[3];
       const pr = match[4] ? Number(match[4]) : undefined;
@@ -258,9 +256,8 @@ function toHomeRow(item: ReturnType<typeof listReposForHome>[number]) {
   let knowledge = "Not built";
   let knowledgeAt: string | undefined;
   if (item.repo.knowledge_built_at) {
-    knowledge = (item.drift?.prs_since ?? 0) > 0
-      ? "Needs update"
-      : "Up to date";
+    knowledge =
+      (item.drift?.prs_since ?? 0) > 0 ? "Needs update" : "Up to date";
     knowledgeAt = item.repo.knowledge_built_at;
   }
   return {
@@ -281,9 +278,7 @@ function requireRepo(fullName: string) {
   return row;
 }
 
-async function repoPicker(
-  githubApp: PageDeps["githubApp"],
-): Promise<{
+async function repoPicker(githubApp: PageDeps["githubApp"]): Promise<{
   repos: { fullName: string; account: string; alreadyActive: boolean }[];
   error?: string;
 }> {
@@ -300,17 +295,19 @@ async function repoPicker(
     );
     return {
       repos: installations.flatMap(({ installation, repos }) =>
-        repos.filter((repo) => repo.fullName).map((repo) => ({
-          fullName: repo.fullName,
-          account: installation.account?.login ?? "unknown",
-          alreadyActive: Boolean(getRepo(repo.fullName)?.active),
-        }))
+        repos
+          .filter((repo) => repo.fullName)
+          .map((repo) => ({
+            fullName: repo.fullName,
+            account: installation.account?.login ?? "unknown",
+            alreadyActive: Boolean(getRepo(repo.fullName)?.active),
+          })),
       ),
     };
   } catch (error) {
     console.error(
       "[dashboard] Could not list repositories from GitHub:",
-      error instanceof Error ? error.stack ?? error.message : String(error),
+      error instanceof Error ? (error.stack ?? error.message) : String(error),
     );
     return {
       repos: [],
@@ -320,14 +317,16 @@ async function repoPicker(
 }
 
 function isPagePath(pathname: string): boolean {
-  return pathname === "/" ||
+  return (
+    pathname === "/" ||
     pathname === "/setup" ||
     pathname === "/activity" ||
     pathname.startsWith("/activity/") ||
     pathname === "/analytics" ||
     pathname === "/settings" ||
     pathname === "/repos/new" ||
-    pathname.startsWith("/repos/");
+    pathname.startsWith("/repos/")
+  );
 }
 
 async function sessionOf(request: Request) {

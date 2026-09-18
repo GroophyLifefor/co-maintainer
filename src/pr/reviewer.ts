@@ -72,8 +72,7 @@ when the syntax is genuinely uncertain.`;
 
 /** Without tool support the model cannot read the Mermaid syntax docs, so
  * asking for a diagram only invites invented syntax. */
-export const NO_DIAGRAM_RULES =
-  `Do not use Mermaid or any other diagram. Explain with prose only.`;
+export const NO_DIAGRAM_RULES = `Do not use Mermaid or any other diagram. Explain with prose only.`;
 
 const DIAGRAM_PROMPT_RULES = `People generally find it easier to understand the
 problem you've identified when it's presented in diagrams. When a finding
@@ -94,8 +93,7 @@ ${diagrams ? REVIEW_DIAGRAM_RULES : NO_DIAGRAM_RULES}`;
 
 /** Shared PR and local/remote workspace review instructions: confirm claims
  * against the indexed graph, not only the diff slice. */
-export const CODEGRAPH_DIFF_VERIFICATION =
-  `Examine the changes line by line, not just file by file — a single file can
+export const CODEGRAPH_DIFF_VERIFICATION = `Examine the changes line by line, not just file by file — a single file can
 contain more than one independent defect, and a change that looks fine in
 isolation can be wrong once you trace what calls it or what else it affects.
 When a finding depends on behavior outside the changed lines, confirm it with
@@ -129,18 +127,21 @@ export function filePatch(file: Json): string {
   const additions = Number(file.additions ?? 0);
   const deletions = Number(file.deletions ?? 0);
   if (patch === "") {
-    const counts = Number.isFinite(changes) && changes > 0
-      ? `${changes} changed lines (+${additions} -${deletions})`
-      : "an unreported number of changed lines";
-    return `[${status}; ${counts}; diff withheld by GitHub, not shown here. ` +
-      `Do not treat this file as unchanged and do not report its contents.]`;
+    const counts =
+      Number.isFinite(changes) && changes > 0
+        ? `${changes} changed lines (+${additions} -${deletions})`
+        : "an unreported number of changed lines";
+    return (
+      `[${status}; ${counts}; diff withheld by GitHub, not shown here. ` +
+      `Do not treat this file as unchanged and do not report its contents.]`
+    );
   }
   if (patch.length > MAX_FILE_PATCH_CHARS) {
-    return `${
-      numberPatch(patch.slice(0, MAX_FILE_PATCH_CHARS))
-    }\n[${status}; ${changes} ` +
+    return (
+      `${numberPatch(patch.slice(0, MAX_FILE_PATCH_CHARS))}\n[${status}; ${changes} ` +
       `changed lines total; this file's diff is cut off here, later hunks are ` +
-      `not shown.]`;
+      `not shown.]`
+    );
   }
   return numberPatch(patch);
 }
@@ -183,25 +184,23 @@ export async function reviewPullRequest(
   ai?: AiProvider,
   progress?: ProgressSink,
   extras?: ReviewExtras,
-): Promise<AiResponse & { visiblePaths: string[]; guideBuiltAt: string | null }> {
+): Promise<
+  AiResponse & { visiblePaths: string[]; guideBuiltAt: string | null }
+> {
   if (!options.prNumber) throw new Error("review requires a PR number");
   const number = options.prNumber;
   const report = progress ?? (() => {});
   report(`loading PR context for ${options.repo}#${number}`);
   const [pr, allComments, allReviews, guides] = await Promise.all([
     client.request<Json>(`repos/${options.repo}/pulls/${number}`),
-    client.pages<Json>(
-      `repos/${options.repo}/issues/${number}/comments`,
-    ),
+    client.pages<Json>(`repos/${options.repo}/issues/${number}/comments`),
     client.pages<Json>(`repos/${options.repo}/pulls/${number}/reviews`),
     loadGuides(options.repo),
   ]);
   const { shortGuide, detailed, codebase, skill } = guides;
   report(
     `context loaded · comments=${allComments.length} · reviews=${allReviews.length} · ` +
-      `guide=${
-        shortGuide.length || skill.length
-      } chars · codebase=${codebase.length} chars`,
+      `guide=${shortGuide.length || skill.length} chars · codebase=${codebase.length} chars`,
   );
   const guide = shortGuide || skill;
   const before = (item: Json) =>
@@ -209,11 +208,14 @@ export async function reviewPullRequest(
   const comments = allComments.filter(before);
   const reviews = allReviews.filter(before);
   const files = snapshot
-    ? ((await client.request<Json>(
-      `repos/${options.repo}/compare/${
-        snapshot.base ?? String((pr.base as Json | undefined)?.ref ?? "main")
-      }...${snapshot.commit}`,
-    )).files as Json[] ?? [])
+    ? (((
+        await client.request<Json>(
+          `repos/${options.repo}/compare/${
+            snapshot.base ??
+            String((pr.base as Json | undefined)?.ref ?? "main")
+          }...${snapshot.commit}`,
+        )
+      ).files as Json[]) ?? [])
     : await client.pages<Json>(`repos/${options.repo}/pulls/${number}/files`);
   report(`diff files loaded · ${files.length} files`);
   if (!guide) {
@@ -235,18 +237,19 @@ export async function reviewPullRequest(
   // round's diff regularly carries a `merge main` that dwarfs the PR's own
   // change and that no human reviewer reads either; --review-upstream turns
   // this off and reviews everything, matching the pre-scope behavior.
-  const headSha = snapshot?.commit ??
-    String((pr.head as Json | undefined)?.sha ?? "");
-  const baseRevision = snapshot?.base ??
-    String((pr.base as Json | undefined)?.ref ?? "main");
+  const headSha =
+    snapshot?.commit ?? String((pr.head as Json | undefined)?.sha ?? "");
+  const baseRevision =
+    snapshot?.base ?? String((pr.base as Json | undefined)?.ref ?? "main");
   if (options.reviewUpstream) {
     report("scope skipped · --review-upstream");
   } else if (!headSha) {
     report("scope skipped · no head commit for this pull request");
   }
-  const scope = options.reviewUpstream || !headSha
-    ? undefined
-    : await computeScope(options.repo, baseRevision, headSha);
+  const scope =
+    options.reviewUpstream || !headSha
+      ? undefined
+      : await computeScope(options.repo, baseRevision, headSha);
   if (!options.reviewUpstream && headSha && !scope) {
     report("scope unavailable · reviewing every changed file");
   }
@@ -256,9 +259,9 @@ export async function reviewPullRequest(
     return { file: value, path: String(value.filename ?? "") };
   });
   const unchanged = new Set(extras?.unchangedPaths ?? []);
-  const ownFiles =
-    (scope ? named.filter(({ path }) => !scope.upstreamFiles.has(path)) : named)
-      .filter(({ path }) => !unchanged.has(path));
+  const ownFiles = (
+    scope ? named.filter(({ path }) => !scope.upstreamFiles.has(path)) : named
+  ).filter(({ path }) => !unchanged.has(path));
   const upstreamFiles = scope
     ? named.filter(({ path }) => scope.upstreamFiles.has(path))
     : [];
@@ -271,48 +274,58 @@ export async function reviewPullRequest(
   // Built only if needed: OpenRouterProvider's constructor requires a real
   // API key, which a fake-AI test run never has.
   const filesNeedSummary = ownFiles.some(({ file }) =>
-    needsSummary(Number(file.changes ?? 0), String(file.patch ?? ""))
+    needsSummary(Number(file.changes ?? 0), String(file.patch ?? "")),
   );
   const lowProvider = filesNeedSummary
-    ? ai ?? new OpenRouterProvider(
-      options.aiToken ?? "",
-      options.lowModel ?? "openai/gpt-oss-120b",
-    )
+    ? (ai ??
+      new OpenRouterProvider(
+        options.aiToken ?? "",
+        options.lowModel ?? "openai/gpt-oss-120b",
+      ))
     : undefined;
   const patchByPath = new Map<string, string>();
   const [ownSections, codegraphTools] = await Promise.all([
-    Promise.all(ownFiles.map(async ({ file, path }) => {
-      const changes = Number(file.changes ?? 0);
-      const patch = String(file.patch ?? "");
-      if (!needsSummary(changes, patch)) {
-        return `FILE: ${path}\n${filePatch(file)}`;
-      }
-      patchByPath.set(path, patch);
-      const description = await summarizeDiff(path, patch, lowProvider!, usage);
-      report(`summarized large diff · ${path} · ${changes} changed lines`);
-      return `FILE: ${path}\n[${changes} changed lines — summarized below; ` +
-        `call read-full-diff("${path}") for the complete diff if this is not ` +
-        `enough]\n${description}`;
-    })),
+    Promise.all(
+      ownFiles.map(async ({ file, path }) => {
+        const changes = Number(file.changes ?? 0);
+        const patch = String(file.patch ?? "");
+        if (!needsSummary(changes, patch)) {
+          return `FILE: ${path}\n${filePatch(file)}`;
+        }
+        patchByPath.set(path, patch);
+        const description = await summarizeDiff(
+          path,
+          patch,
+          lowProvider!,
+          usage,
+        );
+        report(`summarized large diff · ${path} · ${changes} changed lines`);
+        return (
+          `FILE: ${path}\n[${changes} changed lines — summarized below; ` +
+          `call read-full-diff("${path}") for the complete diff if this is not ` +
+          `enough]\n${description}`
+        );
+      }),
+    ),
     options.useCodegraph && headSha
       ? prepareCodegraphTools(options.repo, number, headSha)
       : Promise.resolve([] as ToolHandler[]),
   ]);
   if (options.useCodegraph) {
     report(
-      `codegraph tools · ${
-        codegraphTools.length > 0 ? "ready" : "unavailable"
-      }`,
+      `codegraph tools · ${codegraphTools.length > 0 ? "ready" : "unavailable"}`,
     );
   }
   const extraTools: ToolHandler[] = [
     ...codegraphTools,
     ...(patchByPath.size > 0
-      ? [{
-        name: "read-full-diff",
-        tool: READ_FULL_DIFF_TOOL,
-        run: (args: unknown) => readFullDiff(patchByPath, args),
-      }]
+      ? [
+          {
+            name: "read-full-diff",
+            tool: READ_FULL_DIFF_TOOL,
+            run: (args: unknown) => readFullDiff(patchByPath, args),
+          },
+        ]
       : []),
   ];
 
@@ -333,18 +346,20 @@ export async function reviewPullRequest(
   const diffWasTruncated = ownPatch.length > MAX_REVIEW_DIFF_CHARS;
   const ownDiff = text(ownPatch, MAX_REVIEW_DIFF_CHARS);
   const unchangedListing = extras?.unchangedPaths?.length
-    ? `\nUNCHANGED SINCE LAST REVIEW (paths only — do not re-report findings here):\n${
-      extras.unchangedPaths.map((path) => `- ${path}`).join("\n")
-    }`
+    ? `\nUNCHANGED SINCE LAST REVIEW (paths only — do not re-report findings here):\n${extras.unchangedPaths
+        .map((path) => `- ${path}`)
+        .join("\n")}`
     : "";
-  const upstreamListing = upstreamFiles.map(({ file, path }) =>
-    `- ${path} (+${Number(file.additions ?? 0)} -${
-      Number(file.deletions ?? 0)
-    })`
-  ).join("\n");
-  const diff = upstreamFiles.length === 0
-    ? `${ownDiff}${unchangedListing}`
-    : `${ownDiff}
+  const upstreamListing = upstreamFiles
+    .map(
+      ({ file, path }) =>
+        `- ${path} (+${Number(file.additions ?? 0)} -${Number(file.deletions ?? 0)})`,
+    )
+    .join("\n");
+  const diff =
+    upstreamFiles.length === 0
+      ? `${ownDiff}${unchangedListing}`
+      : `${ownDiff}
 
 UPSTREAM CONTEXT — arrived via a merge this round, not authored by this pull
 request. Do not raise a finding located only in this code; only note an
@@ -357,14 +372,15 @@ ${upstreamListing}${unchangedListing}`;
       diffWasTruncated ? " · truncated for model context" : ""
     }`,
   );
-  const provider = ai ?? new OpenRouterProvider(
-    options.aiToken ?? "",
-    options.highModel ?? "openai/gpt-5.6-luna",
-  );
+  const provider =
+    ai ??
+    new OpenRouterProvider(
+      options.aiToken ?? "",
+      options.highModel ?? "openai/gpt-5.6-luna",
+    );
   const diagrams = provider.supportsTools !== false;
   const carryBlock = extras?.carryPrompt ? `${extras.carryPrompt}\n` : "";
-  const prompt =
-    `Review this pull request against the repository's review guide and
+  const prompt = `Review this pull request against the repository's review guide and
 codebase conventions. Find only actionable code-level violations supported by
 the diff and either the guide or the codebase conventions — a pull request
 that departs from how this repository's own code is actually written is a
@@ -437,23 +453,17 @@ CODEBASE CONVENTIONS:
 ${codebase || "None recorded."}
 
 PULL REQUEST:
-${
-      JSON.stringify({
-        number,
-        title: String(pr.title ?? ""),
-        body: String(pr.body ?? ""),
-        state: pr.state,
-        changedFiles: files.map((file) =>
-          String((file as Json).filename ?? "")
-        ),
-        existingComments: comments.map((comment) =>
-          String((comment as Json).body ?? "")
-        ),
-        existingReviews: reviews.map((review) =>
-          String((review as Json).body ?? "")
-        ),
-      })
-    }
+${JSON.stringify({
+  number,
+  title: String(pr.title ?? ""),
+  body: String(pr.body ?? ""),
+  state: pr.state,
+  changedFiles: files.map((file) => String((file as Json).filename ?? "")),
+  existingComments: comments.map((comment) =>
+    String((comment as Json).body ?? ""),
+  ),
+  existingReviews: reviews.map((review) => String((review as Json).body ?? "")),
+})}
 
 ${carryBlock}DIFF:
 ${diff}`;
@@ -507,8 +517,7 @@ ${diff}`;
     const improvementRequest: AiRequest = {
       ...request,
       job: "improve_review",
-      prompt:
-        `Audit the draft review below against the complete pull-request diff
+      prompt: `Audit the draft review below against the complete pull-request diff
 and the supplied review guides. Preserve valid findings, correct inaccurate ones,
 remove duplicate or unsupported ones, and add every missing actionable finding.
 Do not stop early and do not invent requirements. Keep the existing finding
@@ -552,9 +561,7 @@ ${reviewText}`,
           pass - 1
         } response · input=${response.tokensIn} tokens · output=${response.tokensOut} tokens`,
       );
-      console.log(
-        `\n----- IMPROVED REVIEW ${pass - 1} -----\n${reviewText}\n`,
-      );
+      console.log(`\n----- IMPROVED REVIEW ${pass - 1} -----\n${reviewText}\n`);
     }
   }
   const visiblePaths = ownFiles.map(({ path }) => path);
@@ -619,33 +626,38 @@ export async function reviewWorkspaceRevision(
     }))
     .filter(({ path }) => !unchanged.has(path));
   const patchByPath = new Map<string, string>();
-  const ownSections = await Promise.all(ownFiles.map(async ({ file, path }) => {
-    const changes = Number(file.changes ?? 0);
-    const patch = String(file.patch ?? "");
-    const lowProvider = needsSummary(changes, patch)
-      ? ai ?? new OpenRouterProvider(
-        options.aiToken ?? "",
-        options.lowModel ?? "openai/gpt-oss-120b",
-      )
-      : undefined;
-    if (!lowProvider) return `FILE: ${path}\n${filePatch(file)}`;
-    patchByPath.set(path, patch);
-    const description = await summarizeDiff(path, patch, lowProvider, usage);
-    return `FILE: ${path}\n[${changes} changed lines — summarized below]\n${description}`;
-  }));
+  const ownSections = await Promise.all(
+    ownFiles.map(async ({ file, path }) => {
+      const changes = Number(file.changes ?? 0);
+      const patch = String(file.patch ?? "");
+      const lowProvider = needsSummary(changes, patch)
+        ? (ai ??
+          new OpenRouterProvider(
+            options.aiToken ?? "",
+            options.lowModel ?? "openai/gpt-oss-120b",
+          ))
+        : undefined;
+      if (!lowProvider) return `FILE: ${path}\n${filePatch(file)}`;
+      patchByPath.set(path, patch);
+      const description = await summarizeDiff(path, patch, lowProvider, usage);
+      return `FILE: ${path}\n[${changes} changed lines — summarized below]\n${description}`;
+    }),
+  );
   const codegraphTools = options.useCodegraph
-    ? (extras?.prepareCodegraphTools
+    ? extras?.prepareCodegraphTools
       ? await extras.prepareCodegraphTools()
-      : await prepareCodegraphTools(options.repo, 0, headSha))
+      : await prepareCodegraphTools(options.repo, 0, headSha)
     : [];
   const extraTools: ToolHandler[] = [
     ...codegraphTools,
     ...(patchByPath.size > 0
-      ? [{
-        name: "read-full-diff",
-        tool: READ_FULL_DIFF_TOOL,
-        run: (args: unknown) => readFullDiff(patchByPath, args),
-      }]
+      ? [
+          {
+            name: "read-full-diff",
+            tool: READ_FULL_DIFF_TOOL,
+            run: (args: unknown) => readFullDiff(patchByPath, args),
+          },
+        ]
       : []),
   ];
   const totalDiffLines = ownFiles.reduce(
@@ -655,18 +667,19 @@ export async function reviewWorkspaceRevision(
   const maxToolRounds = clampToolRounds(totalDiffLines);
   const ownDiff = text(ownSections.join("\n\n"), MAX_REVIEW_DIFF_CHARS);
   const unchangedListing = extras?.unchangedPaths?.length
-    ? `\nUNCHANGED SINCE LAST REVIEW (paths only):\n${
-      extras.unchangedPaths.map((path) => `- ${path}`).join("\n")
-    }`
+    ? `\nUNCHANGED SINCE LAST REVIEW (paths only):\n${extras.unchangedPaths
+        .map((path) => `- ${path}`)
+        .join("\n")}`
     : "";
   const carryBlock = extras?.carryPrompt ? `${extras.carryPrompt}\n` : "";
-  const provider = ai ?? new OpenRouterProvider(
-    options.aiToken ?? "",
-    options.highModel ?? "openai/gpt-5.6-luna",
-  );
+  const provider =
+    ai ??
+    new OpenRouterProvider(
+      options.aiToken ?? "",
+      options.highModel ?? "openai/gpt-5.6-luna",
+    );
   const diagrams = provider.supportsTools !== false;
-  const prompt =
-    `Review these local changes against the repository's review guide and
+  const prompt = `Review these local changes against the repository's review guide and
 codebase conventions. Find only actionable code-level violations supported by
 the diff and either the guide or the codebase conventions.
 Return concise Markdown with either "## Findings" and findings, or
@@ -688,9 +701,9 @@ ${codebase || "None recorded."}
 
 WORKSPACE:
 ${JSON.stringify({
-      branch: revision.baseLabel,
-      changedFiles: ownFiles.map(({ path }) => path),
-    })}
+  branch: revision.baseLabel,
+  changedFiles: ownFiles.map(({ path }) => path),
+})}
 
 ${carryBlock}DIFF:
 ${ownDiff}${unchangedListing}`;
@@ -720,8 +733,7 @@ ${ownDiff}${unchangedListing}`;
     const improvementRequest: AiRequest = {
       ...request,
       job: "improve_review",
-      prompt:
-        `Audit the draft review below against the complete diff and guides.
+      prompt: `Audit the draft review below against the complete diff and guides.
 Preserve valid findings, correct inaccurate ones, remove duplicate or
 unsupported ones, and add every missing actionable finding. Re-check each
 finding with codegraph when it depends on behavior outside the diff; remove
@@ -747,8 +759,8 @@ ${reviewText}`,
   const codegraphState = !options.useCodegraph
     ? "disabled"
     : codegraphTools.length > 0
-    ? "used"
-    : "unavailable";
+      ? "used"
+      : "unavailable";
   return {
     ...response,
     text: `## Severity

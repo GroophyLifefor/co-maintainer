@@ -38,11 +38,13 @@ async function exchangeGithubCode(opts: {
     },
   );
   if (!response.ok) return undefined;
-  const body = await response.json() as { access_token?: string };
+  const body = (await response.json()) as { access_token?: string };
   return body.access_token;
 }
 
-async function githubLoginFor(accessToken: string): Promise<string | undefined> {
+async function githubLoginFor(
+  accessToken: string,
+): Promise<string | undefined> {
   const response = await githubFetch("https://api.github.com/user", {
     headers: {
       Accept: "application/vnd.github+json",
@@ -51,7 +53,7 @@ async function githubLoginFor(accessToken: string): Promise<string | undefined> 
     },
   });
   if (!response.ok) return undefined;
-  const body = await response.json() as { login?: string };
+  const body = (await response.json()) as { login?: string };
   return body.login;
 }
 

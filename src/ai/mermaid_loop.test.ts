@@ -1,25 +1,31 @@
 import { completeWithMermaidTools } from "./mermaid_loop.ts";
 import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
+import { test } from "node:test";
 
 function toolCall(name: string, tools: string[]) {
-  return [{
-    id: `call-${name}`,
-    type: "function" as const,
-    function: { name, arguments: JSON.stringify({ tools }) },
-  }];
+  return [
+    {
+      id: `call-${name}`,
+      type: "function" as const,
+      function: { name, arguments: JSON.stringify({ tools }) },
+    },
+  ];
 }
 
 class ScriptedProvider implements AiProvider {
   requests: AiRequest[] = [];
+  private readonly script: Partial<AiResponse>[];
+  readonly supportsTools: boolean;
 
-  constructor(
-    private readonly script: Partial<AiResponse>[],
-    readonly supportsTools = true,
-  ) {}
+  constructor(script: Partial<AiResponse>[], supportsTools = true) {
+    this.script = script;
+    this.supportsTools = supportsTools;
+  }
 
   complete(request: AiRequest): Promise<AiResponse> {
     this.requests.push(structuredClone(request));
-    const step = this.script[this.requests.length - 1] ??
+    const step =
+      this.script[this.requests.length - 1] ??
       this.script[this.script.length - 1];
     return Promise.resolve({
       text: "",
@@ -45,7 +51,7 @@ const ask = (provider: AiProvider, maxTools = 1, maxToolRounds?: number) =>
     maxToolRounds,
   );
 
-Deno.test("Mermaid tool loop returns final text after reading requested docs", async () => {
+test("Mermaid tool loop returns final text after reading requested docs", async () => {
   const provider = new ScriptedProvider([
     { toolCalls: toolCall("read-mermaid-syntaxes", ["treeView-beta"]) },
     {
@@ -74,7 +80,7 @@ Deno.test("Mermaid tool loop returns final text after reading requested docs", a
   }
 });
 
-Deno.test("a model that never stops calling tools still gets a final answer", async () => {
+test("a model that never stops calling tools still gets a final answer", async () => {
   const provider = new ScriptedProvider([
     { toolCalls: toolCall("read-mermaid-syntaxes", ["flowchart"]) },
     { toolCalls: toolCall("read-mermaid-syntaxes", ["erDiagram"]) },
@@ -85,16 +91,17 @@ Deno.test("a model that never stops calling tools still gets a final answer", as
   if (result.text !== "final answer") throw new Error(result.text);
   const last = provider.requests[provider.requests.length - 1];
   if (last.tools) throw new Error("the closing call must drop the tools");
-  const notice = last.messages?.find((message) =>
-    message.role === "user" &&
-    message.content?.includes("No more tool calls")
+  const notice = last.messages?.find(
+    (message) =>
+      message.role === "user" &&
+      message.content?.includes("No more tool calls"),
   );
   if (!notice) {
     throw new Error("the closing call must tell the model tools ran out");
   }
 });
 
-Deno.test("a caller-supplied round budget is honored instead of the default", async () => {
+test("a caller-supplied round budget is honored instead of the default", async () => {
   const provider = new ScriptedProvider([
     { toolCalls: toolCall("read-mermaid-syntaxes", ["flowchart"]) },
     { toolCalls: toolCall("read-mermaid-syntaxes", ["erDiagram"]) },
@@ -108,39 +115,43 @@ Deno.test("a caller-supplied round budget is honored instead of the default", as
   }
 });
 
-Deno.test("an unknown tool name becomes a tool error instead of killing the job", async () => {
+test("an unknown tool name becomes a tool error instead of killing the job", async () => {
   const provider = new ScriptedProvider([
     { toolCalls: toolCall("read-the-whole-repo", ["flowchart"]) },
     { text: "recovered" },
   ]);
   const result = await ask(provider);
   if (result.text !== "recovered") throw new Error(result.text);
-  const tool = (provider.requests[1].messages ?? []).find((message) =>
-    message.role === "tool"
+  const tool = (provider.requests[1].messages ?? []).find(
+    (message) => message.role === "tool",
   );
   if (!tool?.content?.includes("Tool error: unsupported tool")) {
     throw new Error(`expected a tool error ${tool?.content}`);
   }
 });
 
-Deno.test("a caller supplied message list is not mutated", async () => {
+test("a caller supplied message list is not mutated", async () => {
   const messages = [{ role: "user" as const, content: "hello" }];
   const provider = new ScriptedProvider([
     { toolCalls: toolCall("read-mermaid-syntaxes", ["flowchart"]) },
     { text: "done" },
   ]);
-  await completeWithMermaidTools(provider, {
-    job: "test",
-    prompt: "hello",
-    messages,
-    maxTokens: 100,
-  }, 1);
+  await completeWithMermaidTools(
+    provider,
+    {
+      job: "test",
+      prompt: "hello",
+      messages,
+      maxTokens: 100,
+    },
+    1,
+  );
   if (messages.length !== 1) {
     throw new Error(`caller messages were mutated ${JSON.stringify(messages)}`);
   }
 });
 
-Deno.test("cost is summed across tool rounds when the provider reports it", async () => {
+test("cost is summed across tool rounds when the provider reports it", async () => {
   const provider = new ScriptedProvider([
     { toolCalls: toolCall("read-mermaid-syntaxes", ["flowchart"]), cost: 0.25 },
     { text: "done", cost: 0.5 },
@@ -149,7 +160,7 @@ Deno.test("cost is summed across tool rounds when the provider reports it", asyn
   if (result.cost !== 0.75) throw new Error(`cost was ${result.cost}`);
 });
 
-Deno.test("an unreported cost in any round leaves the total unknown", async () => {
+test("an unreported cost in any round leaves the total unknown", async () => {
   const provider = new ScriptedProvider([
     { toolCalls: toolCall("read-mermaid-syntaxes", ["flowchart"]) },
     { text: "done", cost: 0.5 },
@@ -160,13 +171,17 @@ Deno.test("an unreported cost in any round leaves the total unknown", async () =
   }
 });
 
-Deno.test("a provider without tool support skips the loop entirely", async () => {
+test("a provider without tool support skips the loop entirely", async () => {
   const provider = new ScriptedProvider([{ text: "plain" }], false);
-  const result = await completeWithMermaidTools(provider, {
-    job: "test",
-    prompt: "hi",
-    maxTokens: 10,
-  }, 1);
+  const result = await completeWithMermaidTools(
+    provider,
+    {
+      job: "test",
+      prompt: "hi",
+      maxTokens: 10,
+    },
+    1,
+  );
   if (result.text !== "plain") throw new Error(result.text);
   if (provider.requests[0].tools) throw new Error("tools were sent anyway");
 });

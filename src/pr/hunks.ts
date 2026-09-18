@@ -60,11 +60,13 @@ function* walk(patch: string): Generator<PatchLine> {
  * Removed lines get no number because GitHub cannot anchor a RIGHT side
  * comment to them. */
 export function numberPatch(patch: string): string {
-  return [...walk(patch)].map(({ text, number, inHunk }) =>
-    !inHunk ? text : `${
-      number === undefined ? "".padStart(GUTTER) : String(number).padStart(GUTTER)
-    } ${text}`
-  ).join("\n");
+  return [...walk(patch)]
+    .map(({ text, number, inHunk }) =>
+      !inHunk
+        ? text
+        : `${number === undefined ? "".padStart(GUTTER) : String(number).padStart(GUTTER)} ${text}`,
+    )
+    .join("\n");
 }
 
 /** The new file's text for every line the patch shows, without the diff

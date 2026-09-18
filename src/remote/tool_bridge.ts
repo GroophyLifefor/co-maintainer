@@ -50,9 +50,7 @@ export function applyToolResults(
     }
     const out = row.output ?? "";
     entry.resolve(
-      out.length > maxChars
-        ? `${out.slice(0, maxChars)}\n...[truncated]`
-        : out,
+      out.length > maxChars ? `${out.slice(0, maxChars)}\n...[truncated]` : out,
     );
   }
 }
@@ -99,7 +97,9 @@ export function remoteBridgeToolHandlers(
   allowedNames: ReadonlySet<string>,
   sourceHandlers: ToolHandler[],
 ): ToolHandler[] {
-  const byName = new Map(sourceHandlers.map((handler) => [handler.name, handler]));
+  const byName = new Map(
+    sourceHandlers.map((handler) => [handler.name, handler]),
+  );
   const handlers: ToolHandler[] = [];
   for (const name of allowedNames) {
     if (name === "read-full-diff" || !REMOTE_KNOWN_TOOL_NAMES.has(name)) {

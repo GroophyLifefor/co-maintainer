@@ -4,10 +4,7 @@ import { GhClient } from "../../src/github/gh.ts";
 import { average, scores } from "../core_v2/metrics.ts";
 import { matchPairs, matchSpans } from "../core_v2/match.ts";
 import type { ParsedFinding } from "../../src/pr/findings.ts";
-import {
-  readSuggestion,
-  suggestionAnchor,
-} from "../../src/pr/suggestion.ts";
+import { readSuggestion, suggestionAnchor } from "../../src/pr/suggestion.ts";
 import type { Json } from "../../src/types.ts";
 import { judgeMatches } from "../core_v2/judge.ts";
 import {
@@ -15,6 +12,13 @@ import {
   comaintainerRunner,
   ocrRunner,
 } from "../core_v2/runners.ts";
+import {
+  isNotFound,
+  mkdir,
+  readTextFile,
+  stat,
+  writeTextFile,
+} from "../../src/util/runtime.ts";
 
 // Ledger sourced from GroophyLifefor/heap-analysis (bench core v3, see
 // plan.md in that repo's working tree -- gitignored, the answer key). Unlike
@@ -52,9 +56,9 @@ type LedgerRow = {
 };
 
 function flag(args: string[], name: string): string | undefined {
-  return args.find((arg) => arg.startsWith(`--${name}=`))?.slice(
-    name.length + 3,
-  );
+  return args
+    .find((arg) => arg.startsWith(`--${name}=`))
+    ?.slice(name.length + 3);
 }
 
 function intFlag(args: string[], name: string, fallback: number): number {
@@ -115,9 +119,11 @@ async function suggestionStats(
     valid++;
     const code = squash(readSuggestion(finding.excerpt)!.code);
     if (!row.fix_commit || code === "") continue;
-    const file = await client.request<Json>(
-      `repos/${row.repo}/contents/${finding.path}?ref=${row.fix_commit}`,
-    ).catch(() => undefined);
+    const file = await client
+      .request<Json>(
+        `repos/${row.repo}/contents/${finding.path}?ref=${row.fix_commit}`,
+      )
+      .catch(() => undefined);
     const base64 = String(file?.content ?? "").replaceAll("\n", "");
     const fixed = new TextDecoder().decode(
       Uint8Array.from(atob(base64), (char) => char.charCodeAt(0)),
@@ -127,7 +133,7 @@ async function suggestionStats(
   return { suggested: suggested.length, valid, matchesFix };
 }
 
-const args = Deno.args.filter((arg) => arg !== "--");
+const args = process.argv.slice(2).filter((arg) => arg !== "--");
 const repoFilter = flag(args, "repo");
 const ledgerPath = flag(args, "ledger") ?? "benchmark/core_v3/ledger.json";
 const reviewConcurrent = intFlag(args, "review-concurrent", 1);
@@ -138,24 +144,24 @@ if (runnerName !== "comaintainer" && runnerName !== "ocr") {
 }
 const ocrCloneRoot = flag(args, "ocr-clone") ?? "benchmark/core_v3/clones";
 const ocrBin = flag(args, "ocr-bin") ?? "ocr";
-const reviewFlags = args.filter((arg) =>
-  !arg.startsWith("--repo=") &&
-  !arg.startsWith("--ledger=") &&
-  !arg.startsWith("--review-concurrent=") &&
-  !arg.startsWith("--judge-model=") &&
-  !arg.startsWith("--runner=") &&
-  !arg.startsWith("--ocr-clone=") &&
-  !arg.startsWith("--ocr-bin=")
+const reviewFlags = args.filter(
+  (arg) =>
+    !arg.startsWith("--repo=") &&
+    !arg.startsWith("--ledger=") &&
+    !arg.startsWith("--review-concurrent=") &&
+    !arg.startsWith("--judge-model=") &&
+    !arg.startsWith("--runner=") &&
+    !arg.startsWith("--ocr-clone=") &&
+    !arg.startsWith("--ocr-bin="),
 );
-const runner = runnerName === "ocr"
-  ? ocrRunner(ocrCloneRoot, ocrBin)
-  : comaintainerRunner;
+const runner =
+  runnerName === "ocr" ? ocrRunner(ocrCloneRoot, ocrBin) : comaintainerRunner;
 
 let ledger: { rows: LedgerRow[] };
 try {
-  ledger = JSON.parse(await Deno.readTextFile(ledgerPath));
+  ledger = JSON.parse(await readTextFile(ledgerPath));
 } catch (error) {
-  if (error instanceof Deno.errors.NotFound) {
+  if (isNotFound(error)) {
     throw new Error(`Missing ${ledgerPath}; build it first (see plan.md §9)`);
   }
   throw error;
@@ -176,15 +182,19 @@ if (runnerName === "comaintainer") {
   // SKILL.md/CODEBASE.md for this repo, so both are checked, not just the
   // (unused here) PR_REVIEW_GUIDE.md name the older bench scripts check.
   for (const name of repos) {
-    const hasGuide = await Deno.stat(`${reposDir()}/${name}/PR_REVIEW_GUIDE.md`)
-      .then(() => true, () => false);
-    const hasSkill = await Deno.stat(`${reposDir()}/${name}/SKILL.md`).then(
+    const hasGuide = await stat(
+      `${reposDir()}/${name}/PR_REVIEW_GUIDE.md`,
+    ).then(
+      () => true,
+      () => false,
+    );
+    const hasSkill = await stat(`${reposDir()}/${name}/SKILL.md`).then(
       () => true,
       () => false,
     );
     if (!hasGuide && !hasSkill) {
       throw new Error(
-        `Missing ${reposDir()}/${name}/PR_REVIEW_GUIDE.md or SKILL.md. Init first (not timed, then archive per plan.md §11.1):\n  deno task init ${name} --max-pr-months=6 --max-commits=200 --log-time --env=.env`,
+        `Missing ${reposDir()}/${name}/PR_REVIEW_GUIDE.md or SKILL.md. Init first (not timed, then archive per plan.md §11.1):\n  npm run init ${name} --max-pr-months=6 --max-commits=200 --log-time --env=.env`,
       );
     }
   }
@@ -192,7 +202,7 @@ if (runnerName === "comaintainer") {
   for (const name of repos) {
     const dir = cloneDirFor(ocrCloneRoot, name);
     try {
-      await Deno.stat(`${dir}/.git`);
+      await stat(`${dir}/.git`);
     } catch {
       throw new Error(
         `Missing clone ${dir}. Prepare it first (not timed):\n  git clone https://github.com/${name} ${dir}`,
@@ -260,17 +270,19 @@ const details: {
 }[] = [];
 
 console.log(
-  `[bench-core-v3] ${selected.length} PRs across ${repos.length} repos (${
-    repos.join(", ")
-  }) · ${selected.filter((r) => !r.is_control).length} defective, ${
+  `[bench-core-v3] ${selected.length} PRs across ${repos.length} repos (${repos.join(
+    ", ",
+  )}) · ${selected.filter((r) => !r.is_control).length} defective, ${
     selected.filter((r) => r.is_control).length
   } control · runner=${runnerName} · review-concurrent=${reviewConcurrent}`,
 );
 const baseByRepo = new Map(
-  repos.map((name) => [
-    name,
-    parseArgs(["review", name, "1", ...reviewFlags]),
-  ]),
+  await Promise.all(
+    repos.map(
+      async (name) =>
+        [name, await parseArgs(["review", name, "1", ...reviewFlags])] as const,
+    ),
+  ),
 );
 
 await mapPool(selected, reviewConcurrent, async (row) => {
@@ -367,8 +379,8 @@ await mapPool(selected, reviewConcurrent, async (row) => {
   };
 
   if (row.is_control) {
-    const severe = predicted.filter((f) =>
-      f.severity && SEVERE.has(f.severity)
+    const severe = predicted.filter(
+      (f) => f.severity && SEVERE.has(f.severity),
     );
     const nice = predicted.filter((f) => f.severity === "P3");
     reports.push({
@@ -415,9 +427,9 @@ await mapPool(selected, reviewConcurrent, async (row) => {
       unmatchedGold: [],
     });
     console.log(
-      `${row.repo}#${row.pr}  CONTROL  severeFP=${severe.length} nice=${nice.length}  ${
-        (ms / 1000).toFixed(1)
-      }s (+${(prepMs / 1000).toFixed(1)}s prep)`,
+      `${row.repo}#${row.pr}  CONTROL  severeFP=${severe.length} nice=${nice.length}  ${(
+        ms / 1000
+      ).toFixed(1)}s (+${(prepMs / 1000).toFixed(1)}s prep)`,
     );
     return;
   }
@@ -425,9 +437,9 @@ await mapPool(selected, reviewConcurrent, async (row) => {
   const pairs = matchPairs(predicted, gold);
   const matchedPredicted = new Set(pairs.map((p) => p.predicted));
   const matchedGold = new Set(pairs.map((p) => p.gold));
-  const leftoverPredicted = predicted.map((_, i) => i).filter((i) =>
-    !matchedPredicted.has(i)
-  );
+  const leftoverPredicted = predicted
+    .map((_, i) => i)
+    .filter((i) => !matchedPredicted.has(i));
   const leftoverGold = gold.map((_, i) => i).filter((i) => !matchedGold.has(i));
   if (options.aiToken) {
     const semanticPairs = await judgeMatches(
@@ -488,15 +500,15 @@ await mapPool(selected, reviewConcurrent, async (row) => {
     predicted,
     gold,
     pairs,
-    unmatchedPredicted: predicted.map((_, i) => i).filter((i) =>
-      !matchedPredicted.has(i)
-    ),
+    unmatchedPredicted: predicted
+      .map((_, i) => i)
+      .filter((i) => !matchedPredicted.has(i)),
     unmatchedGold: gold.map((_, i) => i).filter((i) => !matchedGold.has(i)),
   });
   console.log(
-    `${row.repo}#${row.pr}  tp=${counts.tp} fp=${counts.fp} fn=${counts.fn}  predicted=${predicted.length}/${gold.length} gold  ${
-      (ms / 1000).toFixed(1)
-    }s (+${(prepMs / 1000).toFixed(1)}s prep)`,
+    `${row.repo}#${row.pr}  tp=${counts.tp} fp=${counts.fp} fn=${counts.fn}  predicted=${predicted.length}/${gold.length} gold  ${(
+      ms / 1000
+    ).toFixed(1)}s (+${(prepMs / 1000).toFixed(1)}s prep)`,
   );
 });
 reports.sort((a, b) => a.repo.localeCompare(b.repo) || a.pr - b.pr);
@@ -510,8 +522,8 @@ const defectiveReports = reports.filter((r) => !r.isControl);
 // a failed control row has no equivalent of since it has no gold).
 const controlReports = reports.filter((r) => r.isControl);
 const scoredControlReports = controlReports.filter((r) => r.timeKnown);
-const failedControlReports = controlReports.length -
-  scoredControlReports.length;
+const failedControlReports =
+  controlReports.length - scoredControlReports.length;
 
 // Precision/recall/F1 pool every finding across all 30 reviewed PRs, not
 // just the 14 with gold (plan.md K2: a severe finding on a control PR is a
@@ -560,9 +572,10 @@ const controlNiceTotal = scoredControlReports.reduce(
   (sum, r) => sum + r.niceToHaves,
   0,
 );
-const controlFalsePositiveRate = scoredControlReports.length === 0
-  ? 0
-  : controlFalsePositiveTotal / scoredControlReports.length;
+const controlFalsePositiveRate =
+  scoredControlReports.length === 0
+    ? 0
+    : controlFalsePositiveTotal / scoredControlReports.length;
 
 const suggestionTotals = {
   suggested: reports.reduce((sum, r) => sum + r.suggested, 0),
@@ -577,8 +590,7 @@ const totalCost = reports.reduce((sum, row) => sum + row.cost, 0);
 const result = {
   repos,
   runner: runnerName,
-  gold:
-    "bench core v3 — seeded, hand-verified defects (GroophyLifefor/heap-analysis), half the PRs are clean controls",
+  gold: "bench core v3 — seeded, hand-verified defects (GroophyLifefor/heap-analysis), half the PRs are clean controls",
   prs: reports.length,
   defectivePrs: defectiveReports.length,
   controlPrs: controlReports.length,
@@ -603,17 +615,15 @@ const result = {
 };
 
 console.log(
-  `\nALL ${reports.length} PRs (${defectiveReports.length} defective + ${controlReports.length} control)  F1=${
-    f1.toFixed(3)
-  }  P=${precision.toFixed(3)}  R=${
-    recall.toFixed(3)
-  }  tp=${totals.tp} fp=${totals.fp} fn=${totals.fn}  (fp pools defective mismatches and control severe findings)`,
+  `\nALL ${reports.length} PRs (${defectiveReports.length} defective + ${controlReports.length} control)  F1=${f1.toFixed(
+    3,
+  )}  P=${precision.toFixed(3)}  R=${recall.toFixed(
+    3,
+  )}  tp=${totals.tp} fp=${totals.fp} fn=${totals.fn}  (fp pools defective mismatches and control severe findings)`,
 );
 for (const row of perAxis) {
   console.log(
-    `  axis=${row.axis}  recall=${
-      row.recall.toFixed(3)
-    }  tp=${row.tp} fn=${row.fn}`,
+    `  axis=${row.axis}  recall=${row.recall.toFixed(3)}  tp=${row.tp} fn=${row.fn}`,
   );
 }
 console.log(
@@ -621,38 +631,40 @@ console.log(
     failedControlReports > 0
       ? `, ${failedControlReports} failed and excluded`
       : ""
-  })  severeFalsePositives=${controlFalsePositiveTotal} (${
-    controlFalsePositiveRate.toFixed(2)
-  }/PR)  niceToHaves=${controlNiceTotal}`,
+  })  severeFalsePositives=${controlFalsePositiveTotal} (${controlFalsePositiveRate.toFixed(
+    2,
+  )}/PR)  niceToHaves=${controlNiceTotal}`,
 );
 console.log(
   `SUGGESTIONS  suggested=${suggestionTotals.suggested} valid=${suggestionTotals.valid} matchesFix=${suggestionTotals.matchesFix} onControlPrs=${suggestionTotals.onControlPrs}`,
 );
 console.log(
-  `avgTime=${(result.avgTimeMs / 1000).toFixed(1)}s (+${
-    (result.avgPrepMs / 1000).toFixed(1)
-  }s prep)  avgTok(in/out/total)=${result.avgTokensIn.toFixed(0)}/${
-    result.avgTokensOut.toFixed(0)
-  }/${result.avgTokens.toFixed(0)}  avgCost=$${
+  `avgTime=${(result.avgTimeMs / 1000).toFixed(1)}s (+${(
+    result.avgPrepMs / 1000
+  ).toFixed(
+    1,
+  )}s prep)  avgTok(in/out/total)=${result.avgTokensIn.toFixed(0)}/${result.avgTokensOut.toFixed(
+    0,
+  )}/${result.avgTokens.toFixed(0)}  avgCost=$${
     costKnown ? result.avgCost.toFixed(4) : "unknown"
   }  totalCost=$${costKnown ? totalCost.toFixed(4) : "unknown"}`,
 );
 
-await Deno.mkdir("benchmark/core_v3/results", { recursive: true });
+await mkdir("benchmark/core_v3/results", { recursive: true });
 const slug = repoFilter
   ? `${repoFilter.replace("/", "-")}-${runnerName}`
   : `core-v3-${runnerName}`;
 const out = `benchmark/core_v3/results/${slug}.json`;
-await Deno.writeTextFile(out, `${JSON.stringify(result, null, 2)}\n`);
+await writeTextFile(out, `${JSON.stringify(result, null, 2)}\n`);
 details.sort((a, b) => a.repo.localeCompare(b.repo) || a.pr - b.pr);
 const detailDir = `benchmark/core_v3/results/${slug}`;
-await Deno.mkdir(detailDir, { recursive: true });
-await Deno.writeTextFile(
+await mkdir(detailDir, { recursive: true });
+await writeTextFile(
   `${detailDir}/detail.json`,
   `${JSON.stringify({ repos, ...scores(totals), details }, null, 2)}\n`,
 );
 for (const item of details) {
-  await Deno.writeTextFile(
+  await writeTextFile(
     `${detailDir}/${item.repo.replace("/", "-")}-${item.pr}.md`,
     item.review,
   );

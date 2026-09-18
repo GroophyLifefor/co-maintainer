@@ -1,10 +1,11 @@
-import { Database } from "@db/sqlite";
+import { Database } from "./sqlite.ts";
 import { cacheDbPath, getCacheDir } from "../config.ts";
+import { mkdirSync } from "../util/runtime.ts";
 
 let initialized = false;
 
 function openDatabase(): Database {
-  Deno.mkdirSync(`${getCacheDir()}/co-maintainer`, { recursive: true });
+  mkdirSync(`${getCacheDir()}/co-maintainer`, { recursive: true });
   const db = new Database(cacheDbPath());
   if (!initialized) {
     db.exec(`
@@ -27,9 +28,11 @@ export async function cacheGet(
 ): Promise<string | undefined> {
   const db = openDatabase();
   try {
-    const row = db.prepare<{ value: string }>(
-      "SELECT value FROM cache WHERE namespace = ? AND cache_key = ?",
-    ).get(namespace, key);
+    const row = db
+      .prepare<{ value: string }>(
+        "SELECT value FROM cache WHERE namespace = ? AND cache_key = ?",
+      )
+      .get(namespace, key);
     return row?.value;
   } finally {
     db.close();
@@ -60,9 +63,10 @@ export async function cacheDelete(
 ): Promise<void> {
   const db = openDatabase();
   try {
-    db.prepare(
-      "DELETE FROM cache WHERE namespace = ? AND cache_key = ?",
-    ).run(namespace, key);
+    db.prepare("DELETE FROM cache WHERE namespace = ? AND cache_key = ?").run(
+      namespace,
+      key,
+    );
   } finally {
     db.close();
   }
