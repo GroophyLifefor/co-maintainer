@@ -1,4 +1,4 @@
-import denoConfig from "../../../deno.json" with { type: "json" };
+import { VERSION } from "../../version.ts";
 import { cloneDir, readConfig } from "../../config.ts";
 import { resolveDefaultBranchName } from "../../git/default_branch.ts";
 import { runCommand } from "../../pr/checkout.ts";
@@ -22,10 +22,13 @@ import {
 import { readBoundedJson } from "./body.ts";
 import { submitRemoteReview } from "../../services/remote_review.ts";
 import { handleRemoteCancel, handleRemoteSync } from "./sync.ts";
-import { validateHandshakeRequest, validateSubmitRequest } from "../validate.ts";
+import {
+  validateHandshakeRequest,
+  validateSubmitRequest,
+} from "../validate.ts";
+import { stat } from "../../util/runtime.ts";
 
-const REPO_UNAVAILABLE =
-  "Sorry, we could not access this repository.";
+const REPO_UNAVAILABLE = "Sorry, we could not access this repository.";
 
 async function authenticateRemote(
   request: Request,
@@ -53,7 +56,7 @@ async function authenticateRemote(
 async function defaultBranchForRepo(fullName: string): Promise<string | null> {
   try {
     const dir = cloneDir(fullName);
-    await Deno.stat(dir);
+    await stat(dir);
     const name = await resolveDefaultBranchName(dir, "origin", runCommand);
     return name ?? null;
   } catch {
@@ -107,7 +110,7 @@ async function handleHandshake(
   return Response.json({
     schemaVersion: REMOTE_SCHEMA_VERSION,
     minClientSchema: MIN_CLIENT_SCHEMA,
-    serverVersion: denoConfig.version,
+    serverVersion: VERSION,
     token: { name: auth.name },
     repo: {
       fullName: repoRow.full_name,
@@ -137,17 +140,10 @@ async function handleSync(
   if (!parsed.ok) {
     return errorResponse(parsed.status, parsed.code, parsed.message);
   }
-  return handleRemoteSync(
-    jobId,
-    auth,
-    parsed.value as Record<string, unknown>,
-  );
+  return handleRemoteSync(jobId, auth, parsed.value as Record<string, unknown>);
 }
 
-async function handleSubmit(
-  request: Request,
-  ip: string,
-): Promise<Response> {
+async function handleSubmit(request: Request, ip: string): Promise<Response> {
   const auth = await authenticateRemote(request, ip);
   if (auth instanceof Response) return auth;
 
@@ -160,7 +156,10 @@ async function handleSubmit(
     return errorResponse(400, "bad_request", validation);
   }
 
-  const result = submitRemoteReview(auth, parsed.value as Record<string, unknown>);
+  const result = submitRemoteReview(
+    auth,
+    parsed.value as Record<string, unknown>,
+  );
   if ("error" in result) {
     return errorResponse(result.status, result.code, result.error);
   }

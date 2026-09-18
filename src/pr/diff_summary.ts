@@ -16,8 +16,7 @@ export async function summarizeDiff(
 ): Promise<string> {
   const response = await provider.complete({
     job: "summarize_large_diff",
-    prompt:
-      `Summarize this diff for \`${path}\` in 3-5 sentences: what changed, the
+    prompt: `Summarize this diff for \`${path}\` in 3-5 sentences: what changed, the
 mechanism, and precisely which branches, patterns, or call paths are affected.
 Do not speculate beyond what the diff shows. Do not suggest fixes or judge
 whether the change is correct — only describe it.
@@ -61,7 +60,7 @@ export function readFullDiff(
   if (patch) return numberPatch(patch);
   return patchByPath.size === 0
     ? "No large files were summarized in this review; every file's diff is already shown in full above."
-    : `No summarized diff found for \`${path}\`. Summarized files: ${
-      [...patchByPath.keys()].join(", ")
-    }`;
+    : `No summarized diff found for \`${path}\`. Summarized files: ${[
+        ...patchByPath.keys(),
+      ].join(", ")}`;
 }

@@ -26,9 +26,8 @@ function markdownInline(value: string): string {
     return `\uE000${index}\uE001`;
   };
   let result = escapeHtml(value);
-  result = result.replace(
-    /`([^`\n]+)`/g,
-    (_, code: string) => slot(`<code>${code}</code>`),
+  result = result.replace(/`([^`\n]+)`/g, (_, code: string) =>
+    slot(`<code>${code}</code>`),
   );
   result = result.replace(
     /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
@@ -47,9 +46,9 @@ function markdownInline(value: string): string {
 }
 
 export function markdown(value: unknown): string {
-  const lines = safeCopy(String(value ?? "")).replace(/\r\n?/g, "\n").split(
-    "\n",
-  );
+  const lines = safeCopy(String(value ?? ""))
+    .replace(/\r\n?/g, "\n")
+    .split("\n");
   const blocks: string[] = [];
   let paragraph: string[] = [];
   let list: string[] = [];
@@ -169,13 +168,14 @@ export function delta(
 export function bars(items: { label: string; value: number }[]): string {
   if (items.length === 0) return "";
   const max = Math.max(...items.map((item) => item.value));
-  return `<div class="bars">${
-    items.map((item) =>
-      `<i title="${escapeHtml(item.label)}" style="--h:${
-        max > 0 ? Math.max(2, (item.value / max) * 100).toFixed(1) : "2"
-      }%"></i>`
-    ).join("")
-  }</div>`;
+  return `<div class="bars">${items
+    .map(
+      (item) =>
+        `<i title="${escapeHtml(item.label)}" style="--h:${
+          max > 0 ? Math.max(2, (item.value / max) * 100).toFixed(1) : "2"
+        }%"></i>`,
+    )
+    .join("")}</div>`;
 }
 
 /** GitHub truncates long responses, so a count that reached its ceiling is
@@ -189,10 +189,13 @@ export function when(iso: string | null | undefined): string {
   const abs = new Date(iso);
   const title = Number.isNaN(abs.getTime())
     ? iso
-    : abs.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
-  return `<time datetime="${escapeHtml(iso)}" title="${escapeHtml(title)}">${
-    text(relativeTime(iso))
-  }</time>`;
+    : abs
+        .toISOString()
+        .replace("T", " ")
+        .replace(/\.\d{3}Z$/, " UTC");
+  return `<time datetime="${escapeHtml(iso)}" title="${escapeHtml(title)}">${text(
+    relativeTime(iso),
+  )}</time>`;
 }
 
 export function skSlot(kind: "table" | "block" = "block"): string {
@@ -229,9 +232,9 @@ export function layout(opts: {
   </div>`
     : "";
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<title>${
-    text(opts.title)
-  }</title><link rel="stylesheet" href="/styles.css"><link rel="icon" href="/logo.png" type="image/png"></head><body>
+<title>${text(
+    opts.title,
+  )}</title><link rel="stylesheet" href="/styles.css"><link rel="icon" href="/logo.png" type="image/png"></head><body>
 <div class="top"><div class="in">
   <a class="logo" href="/"><img src="/logo.png" alt="">co-maintainer</a>
   ${right}

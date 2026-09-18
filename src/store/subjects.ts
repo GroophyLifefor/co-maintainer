@@ -9,10 +9,12 @@ export function getOrCreateRemoteSubject(
   tokenId: string,
 ): SubjectRow {
   const db = getAppDb();
-  const existing = db.prepare<SubjectRow>(
-    `SELECT * FROM subjects
+  const existing = db
+    .prepare<SubjectRow>(
+      `SELECT * FROM subjects
      WHERE kind = 'remote' AND repo = ? AND branch = ? AND token_id = ?`,
-  ).get(repo, branch, tokenId);
+    )
+    .get(repo, branch, tokenId);
   if (existing) return existing;
   const row: SubjectRow = {
     id: crypto.randomUUID(),
@@ -27,21 +29,14 @@ export function getOrCreateRemoteSubject(
   db.prepare(
     `INSERT INTO subjects (id, kind, repo, pr_number, branch, token_id, created_at, updated_at)
      VALUES (?, 'remote', ?, NULL, ?, ?, ?, ?)`,
-  ).run(
-    row.id,
-    repo,
-    branch,
-    tokenId,
-    row.created_at,
-    row.updated_at,
-  );
+  ).run(row.id, repo, branch, tokenId, row.created_at, row.updated_at);
   return row;
 }
 
 export function deleteSubjectRevision(subjectId: string): void {
-  getAppDb().prepare(`DELETE FROM subject_revisions WHERE subject_id = ?`).run(
-    subjectId,
-  );
+  getAppDb()
+    .prepare(`DELETE FROM subject_revisions WHERE subject_id = ?`)
+    .run(subjectId);
 }
 
 export function getOrCreatePrSubject(
@@ -49,9 +44,11 @@ export function getOrCreatePrSubject(
   prNumber: number,
 ): SubjectRow {
   const db = getAppDb();
-  const existing = db.prepare<SubjectRow>(
-    `SELECT * FROM subjects WHERE kind = 'pr' AND repo = ? AND pr_number = ?`,
-  ).get(repo, prNumber);
+  const existing = db
+    .prepare<SubjectRow>(
+      `SELECT * FROM subjects WHERE kind = 'pr' AND repo = ? AND pr_number = ?`,
+    )
+    .get(repo, prNumber);
   if (existing) return existing;
   const row: SubjectRow = {
     id: crypto.randomUUID(),
@@ -73,9 +70,11 @@ export function getOrCreatePrSubject(
 export function getSubjectRevision(
   subjectId: string,
 ): SubjectRevisionRow | undefined {
-  return getAppDb().prepare<SubjectRevisionRow>(
-    `SELECT * FROM subject_revisions WHERE subject_id = ?`,
-  ).get(subjectId);
+  return getAppDb()
+    .prepare<SubjectRevisionRow>(
+      `SELECT * FROM subject_revisions WHERE subject_id = ?`,
+    )
+    .get(subjectId);
 }
 
 export function saveSubjectRevision(input: {
@@ -86,8 +85,9 @@ export function saveSubjectRevision(input: {
   guideBuiltAt: string | null;
 }): void {
   const createdAt = nowIso();
-  getAppDb().prepare(
-    `INSERT INTO subject_revisions
+  getAppDb()
+    .prepare(
+      `INSERT INTO subject_revisions
        (subject_id, review_id, files_json, visible_paths_json, guide_built_at, created_at)
      VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT(subject_id) DO UPDATE SET
@@ -96,18 +96,18 @@ export function saveSubjectRevision(input: {
        visible_paths_json = excluded.visible_paths_json,
        guide_built_at = excluded.guide_built_at,
        created_at = excluded.created_at`,
-  ).run(
-    input.subjectId,
-    input.reviewId,
-    JSON.stringify(input.files),
-    JSON.stringify(input.visiblePaths),
-    input.guideBuiltAt,
-    createdAt,
-  );
-  getAppDb().prepare(`UPDATE subjects SET updated_at = ? WHERE id = ?`).run(
-    createdAt,
-    input.subjectId,
-  );
+    )
+    .run(
+      input.subjectId,
+      input.reviewId,
+      JSON.stringify(input.files),
+      JSON.stringify(input.visiblePaths),
+      input.guideBuiltAt,
+      createdAt,
+    );
+  getAppDb()
+    .prepare(`UPDATE subjects SET updated_at = ? WHERE id = ?`)
+    .run(createdAt, input.subjectId);
 }
 
 export function parseRevisionFiles(row: SubjectRevisionRow): RevisionFile[] {

@@ -13,26 +13,30 @@ export function recordDelivery(row: {
   outcome: string;
   reason?: string;
 }): void {
-  getAppDb().prepare(
-    `INSERT INTO deliveries
+  getAppDb()
+    .prepare(
+      `INSERT INTO deliveries
        (delivery_id, event, action, repo, pr_number, received_at, outcome, reason)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    row.deliveryId,
-    row.event,
-    row.action ?? null,
-    row.repo ?? null,
-    row.prNumber ?? null,
-    nowIso(),
-    row.outcome,
-    row.reason ?? null,
-  );
+    )
+    .run(
+      row.deliveryId,
+      row.event,
+      row.action ?? null,
+      row.repo ?? null,
+      row.prNumber ?? null,
+      nowIso(),
+      row.outcome,
+      row.reason ?? null,
+    );
 }
 
 export function hasDelivery(deliveryId: string): boolean {
-  return getAppDb().prepare(
-    `SELECT 1 FROM deliveries WHERE delivery_id = ?`,
-  ).get(deliveryId) !== undefined;
+  return (
+    getAppDb()
+      .prepare(`SELECT 1 FROM deliveries WHERE delivery_id = ?`)
+      .get(deliveryId) !== undefined
+  );
 }
 
 export function listSkipped(repo?: string): DeliveryRow[] {

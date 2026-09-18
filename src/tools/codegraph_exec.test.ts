@@ -1,6 +1,7 @@
 import { runCodegraphTool } from "./codegraph_exec.ts";
+import { test } from "node:test";
 
-Deno.test("runCodegraphTool surfaces non-zero exit", async () => {
+test("runCodegraphTool surfaces non-zero exit", async () => {
   const runner = async () => ({
     code: 2,
     stdout: "",

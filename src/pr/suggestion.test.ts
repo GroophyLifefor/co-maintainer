@@ -5,6 +5,7 @@ import {
   suggestionAnchor,
 } from "./suggestion.ts";
 import type { ParsedFinding } from "./findings.ts";
+import { test } from "node:test";
 
 function same(actual: unknown, expected: unknown, what: string): void {
   const a = JSON.stringify(actual);
@@ -40,13 +41,21 @@ function finding(
   };
 }
 
-Deno.test("suggestionAnchor accepts a real change inside the span and one hunk", () => {
+test("suggestionAnchor accepts a real change inside the span and one hunk", () => {
   same(suggestionAnchor(finding("17"), PATCH), { line: 17 }, "single line");
 });
 
-Deno.test("suggestionAnchor rejects what GitHub could not apply as written", () => {
-  same(suggestionAnchor(finding("17", 18, 18), PATCH), undefined, "outside span");
-  same(suggestionAnchor(finding("19", 16, 20), PATCH), undefined, "outside hunk");
+test("suggestionAnchor rejects what GitHub could not apply as written", () => {
+  same(
+    suggestionAnchor(finding("17", 18, 18), PATCH),
+    undefined,
+    "outside span",
+  );
+  same(
+    suggestionAnchor(finding("19", 16, 20), PATCH),
+    undefined,
+    "outside hunk",
+  );
   same(
     suggestionAnchor(finding("17", 16, 18, "src/other.js"), PATCH),
     undefined,
@@ -61,7 +70,7 @@ Deno.test("suggestionAnchor rejects what GitHub could not apply as written", () 
   same(suggestionAnchor(twice, PATCH), undefined, "two blocks");
 });
 
-Deno.test("suggestionAnchor anchors a multi-line replacement on its whole range", () => {
+test("suggestionAnchor anchors a multi-line replacement on its whole range", () => {
   const multi = finding("17-18");
   multi.excerpt = multi.excerpt.replace(
     "threshold);\n```",
@@ -70,8 +79,9 @@ Deno.test("suggestionAnchor anchors a multi-line replacement on its whole range"
   same(suggestionAnchor(multi, PATCH), { start_line: 17, line: 18 }, "range");
 });
 
-Deno.test("readSuggestion reads a four backtick block with a fence inside", () => {
-  const body = "Suggestion: `README.md:3`\n````suggestion\n```js\nrun()\n```\n````";
+test("readSuggestion reads a four backtick block with a fence inside", () => {
+  const body =
+    "Suggestion: `README.md:3`\n````suggestion\n```js\nrun()\n```\n````";
   same(
     readSuggestion(body),
     { path: "README.md", from: 3, to: 3, code: "```js\nrun()\n```" },
@@ -79,7 +89,7 @@ Deno.test("readSuggestion reads a four backtick block with a fence inside", () =
   );
 });
 
-Deno.test("stripSuggestion keeps the prose and the closing sentence", () => {
+test("stripSuggestion keeps the prose and the closing sentence", () => {
   same(
     stripSuggestion(finding("17").excerpt),
     `The comparison is strict.\n\n${CLOSING}`,
@@ -87,9 +97,11 @@ Deno.test("stripSuggestion keeps the prose and the closing sentence", () => {
   );
 });
 
-Deno.test("plainSuggestionFences turns a suggestion into a normal code block", () => {
+test("plainSuggestionFences turns a suggestion into a normal code block", () => {
   same(
-    plainSuggestionFences("Try:\n```suggestion\nx\n```\n````suggestion\ny\n````"),
+    plainSuggestionFences(
+      "Try:\n```suggestion\nx\n```\n````suggestion\ny\n````",
+    ),
     "Try:\n```\nx\n```\n````\ny\n````",
     "plain",
   );

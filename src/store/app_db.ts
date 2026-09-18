@@ -1,6 +1,15 @@
-import { Database } from "@db/sqlite";
+import { Database } from "./sqlite.ts";
 import { getCacheDir } from "../config.ts";
 import { migrations } from "./migrations.ts";
+import {
+  getEnv,
+  isNotFound,
+  isProcessAlive,
+  mkdir,
+  readTextFile,
+  remove,
+  writeTextFile,
+} from "../util/runtime.ts";
 
 export function appDbDir(): string {
   return `${getCacheDir()}/co-maintainer`;
@@ -8,40 +17,11 @@ export function appDbDir(): string {
 
 /** `CM_APP_DB` overrides the path — tests point it at a temp file. */
 export function appDbPath(): string {
-  return Deno.env.get("CM_APP_DB") ?? `${appDbDir()}/app.db`;
+  return getEnv("CM_APP_DB") ?? `${appDbDir()}/app.db`;
 }
 
 function lockPath(): string {
   return `${appDbPath()}.lock`;
-}
-
-/** `Deno.kill` has no signal that only checks a process on Windows: the
- * ones that report a dead PID as `NotFound` (SIGTERM, SIGKILL, SIGINT...)
- * really do terminate a live one there, and SIGCONT, the safe POSIX check,
- * is not a signal Windows recognizes at all. `tasklist` answers the same
- * question without touching the process. */
-async function isAliveOnWindows(pid: number): Promise<boolean> {
-  const command = new Deno.Command("tasklist", {
-    args: ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"],
-    stdout: "piped",
-    stderr: "piped",
-  });
-  const result = await command.output();
-  return new TextDecoder().decode(result.stdout).trim().startsWith('"');
-}
-
-async function isAlive(pid: number): Promise<boolean> {
-  if (Deno.build.os === "windows") return isAliveOnWindows(pid);
-  try {
-    Deno.kill(pid, "SIGCONT");
-    return true;
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) return false;
-    // Permission denied checking another user's process, or the signal is
-    // unsupported on this platform — assume alive rather than risk two
-    // writers on the same app.db.
-    return true;
-  }
 }
 
 /** A PID file next to the database is the lock: a live PID inside it
@@ -50,23 +30,24 @@ async function acquireLock(): Promise<void> {
   const path = lockPath();
   let existingPid: number | undefined;
   try {
-    existingPid = Number((await Deno.readTextFile(path)).trim());
+    existingPid = Number((await readTextFile(path)).trim());
   } catch (error) {
-    if (!(error instanceof Deno.errors.NotFound)) throw error;
+    if (!isNotFound(error)) throw error;
   }
   if (
-    existingPid !== undefined && Number.isInteger(existingPid) &&
-    await isAlive(existingPid)
+    existingPid !== undefined &&
+    Number.isInteger(existingPid) &&
+    isProcessAlive(existingPid)
   ) {
     throw new Error(
       `co-maintainer serve is already running (pid ${existingPid}) against this app.db. Only one serve process may write to it at a time.`,
     );
   }
-  await Deno.writeTextFile(path, String(Deno.pid));
+  await writeTextFile(path, String(process.pid));
 }
 
 export async function releaseLock(): Promise<void> {
-  await Deno.remove(lockPath()).catch(() => {});
+  await remove(lockPath()).catch(() => {});
 }
 
 /** A database already at a migration this binary does not know about means
@@ -101,7 +82,7 @@ let db: Database | undefined;
  * connection every store module reuses. Call once at `serve` startup. */
 export async function openAppDb(): Promise<Database> {
   if (db) return db;
-  await Deno.mkdir(appDbDir(), { recursive: true });
+  await mkdir(appDbDir(), { recursive: true });
   await acquireLock();
   const database = new Database(appDbPath());
   database.exec("PRAGMA journal_mode = WAL");

@@ -1,6 +1,6 @@
 /** `createApp(deps).fetch(request)` — no port, no sockets, so it is testable
  * with a plain `Request`. */
-import denoConfig from "../../deno.json" with { type: "json" };
+import { VERSION } from "../version.ts";
 import { errorResponse } from "./errors.ts";
 import {
   hasCsrfHeader,
@@ -73,7 +73,11 @@ async function handleLogin(
   ip: string,
 ): Promise<Response> {
   if (deps.auth?.password === false) {
-    return errorResponse(403, "password_disabled", "password sign-in is disabled");
+    return errorResponse(
+      403,
+      "password_disabled",
+      "password sign-in is disabled",
+    );
   }
   let body: { password?: unknown };
   try {
@@ -112,7 +116,7 @@ function health(): Response {
   }
   return Response.json({
     ok: true,
-    version: denoConfig.version,
+    version: VERSION,
     queue,
     db,
   });
@@ -159,9 +163,7 @@ export function createApp(deps: AppDeps): App {
           return errorResponse(401, "unauthorized", "sign in required");
         }
 
-        if (
-          deps.inject500 && mutating && url.pathname !== "/api/login"
-        ) {
+        if (deps.inject500 && mutating && url.pathname !== "/api/login") {
           return errorResponse(500, "injected", "The request failed.");
         }
 
@@ -184,11 +186,7 @@ export function createApp(deps: AppDeps): App {
           return await handleInstallationsRoute(request, deps.githubApp);
         }
         if (url.pathname.startsWith("/api/settings")) {
-          return await handleSettingsRoute(
-            request,
-            url,
-            deps.webhookUrl ?? "",
-          );
+          return await handleSettingsRoute(request, url, deps.webhookUrl ?? "");
         }
         if (url.pathname.startsWith("/api/activity")) {
           return handleActivityRoute(request, url);

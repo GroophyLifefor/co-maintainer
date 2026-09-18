@@ -1,30 +1,38 @@
-import { platformWarning, resolveAuthMethods, resolveWebhookUrl } from "./serve.ts";
+import {
+  platformWarning,
+  resolveAuthMethods,
+  resolveWebhookUrl,
+} from "./serve.ts";
+import { deleteEnv, getEnv, setEnv } from "../../testing/runtime.ts";
+import { test } from "node:test";
 
-Deno.test("resolveAuthMethods defaults to password only", () => {
+test("resolveAuthMethods defaults to password only", () => {
   const auth = resolveAuthMethods([], {});
   if (!auth.password || auth.github) {
     throw new Error(`expected password-only, got ${JSON.stringify(auth)}`);
   }
 });
 
-Deno.test("resolveAuthMethods: config enables github, no flags needed", () => {
+test("resolveAuthMethods: config enables github, no flags needed", () => {
   const auth = resolveAuthMethods([], { githubAuthEnabled: true });
   if (!auth.password || !auth.github) {
     throw new Error(`expected both on, got ${JSON.stringify(auth)}`);
   }
 });
 
-Deno.test("resolveAuthMethods: a CLI flag always overrides its config default", () => {
+test("resolveAuthMethods: a CLI flag always overrides its config default", () => {
   const auth = resolveAuthMethods(
     ["--disable-auth=password", "--enable-auth=github"],
-    { githubAuthEnabled: false },
+    {
+      githubAuthEnabled: false,
+    },
   );
   if (auth.password || !auth.github) {
     throw new Error(`expected github-only, got ${JSON.stringify(auth)}`);
   }
 });
 
-Deno.test("resolveAuthMethods dies when both methods end up off", () => {
+test("resolveAuthMethods dies when both methods end up off", () => {
   let threw = false;
   try {
     resolveAuthMethods(["--disable-auth=password"], {});
@@ -34,7 +42,7 @@ Deno.test("resolveAuthMethods dies when both methods end up off", () => {
   if (!threw) throw new Error("expected resolveAuthMethods to die");
 });
 
-Deno.test("resolveAuthMethods rejects an unknown --disable-auth value", () => {
+test("resolveAuthMethods rejects an unknown --disable-auth value", () => {
   let threw = false;
   try {
     resolveAuthMethods(["--disable-auth=github"], {});
@@ -44,7 +52,7 @@ Deno.test("resolveAuthMethods rejects an unknown --disable-auth value", () => {
   if (!threw) throw new Error("expected resolveAuthMethods to die");
 });
 
-Deno.test("platformWarning is silent on linux and speaks up everywhere else", () => {
+test("platformWarning is silent on linux and speaks up everywhere else", () => {
   if (platformWarning("linux") !== undefined) {
     throw new Error("linux should have no warning");
   }
@@ -56,7 +64,7 @@ Deno.test("platformWarning is silent on linux and speaks up everywhere else", ()
   }
 });
 
-Deno.test("resolveWebhookUrl prefers the CLI URL and accepts public http(s)", () => {
+test("resolveWebhookUrl prefers the CLI URL and accepts public http(s)", () => {
   const url = resolveWebhookUrl(
     ["--webhook-url=https://example.com/github/webhook"],
     5000,
@@ -66,16 +74,52 @@ Deno.test("resolveWebhookUrl prefers the CLI URL and accepts public http(s)", ()
   }
 });
 
-Deno.test("resolveWebhookUrl defaults to localhost", () => {
-  const original = Deno.env.get("CM_WEBHOOK_URL");
-  Deno.env.delete("CM_WEBHOOK_URL");
+test("resolveWebhookUrl rejects malformed absolute URLs", () => {
+  // `new URL` accepts these; a leaked scheme or a bare path would make
+  // GitHub deliver webhooks to a host that does not exist.
+  for (const bad of [
+    "http://http://178.105.8.95/:5000/github/webhook",
+    "http:///github/webhook",
+    "http:////evil/github/webhook",
+    "https://example.com/",
+    "ftp://example.com/github/webhook",
+    "not a url",
+  ]) {
+    let threw = false;
+    try {
+      resolveWebhookUrl([`--webhook-url=${bad}`], 5000);
+    } catch {
+      threw = true;
+    }
+    if (!threw) throw new Error(`accepted malformed webhook URL: ${bad}`);
+  }
+});
+
+test("resolveWebhookUrl accepts internal hosts and IPv6 literals", () => {
+  // A webhook can legitimately point at a Docker/k8s service name (no dot, no
+  // port) or an IPv6 literal. The empty-authority spelling `http:///x` parses
+  // to the same host, so it is rejected on the raw string instead.
+  for (const good of [
+    "http://gitserver/github/webhook",
+    "http://codegraph:8080/github/webhook",
+    "http://[::1]/github/webhook",
+    "http://[2001:db8::1]:5000/github/webhook",
+  ]) {
+    const url = resolveWebhookUrl([`--webhook-url=${good}`], 5000);
+    if (url !== good) throw new Error(`${good} became ${url}`);
+  }
+});
+
+test("resolveWebhookUrl defaults to localhost", () => {
+  const original = getEnv("CM_WEBHOOK_URL");
+  deleteEnv("CM_WEBHOOK_URL");
   try {
     const url = resolveWebhookUrl([], 5000);
     if (url !== "http://localhost:5000/github/webhook") {
       throw new Error(`unexpected default webhook URL: ${url}`);
     }
   } finally {
-    if (original === undefined) Deno.env.delete("CM_WEBHOOK_URL");
-    else Deno.env.set("CM_WEBHOOK_URL", original);
+    if (original === undefined) deleteEnv("CM_WEBHOOK_URL");
+    else setEnv("CM_WEBHOOK_URL", original);
   }
 });

@@ -51,14 +51,20 @@ export async function tryLoadLocalCarry(
   }
 }
 
-export async function saveLocalCarry(snapshot: LocalCarrySnapshot): Promise<void> {
+export async function saveLocalCarry(
+  snapshot: LocalCarrySnapshot,
+): Promise<void> {
   const { subjectId, ...rest } = snapshot;
   const parts = subjectId.split("\0");
   if (parts.length !== 3) throw new Error("invalid local subject id");
-  await cacheSet(NS, key(parts[0], parts[1], parts[2]), JSON.stringify({
-    subjectId,
-    ...rest,
-  }));
+  await cacheSet(
+    NS,
+    key(parts[0], parts[1], parts[2]),
+    JSON.stringify({
+      subjectId,
+      ...rest,
+    }),
+  );
 }
 
 export async function clearLocalCarry(

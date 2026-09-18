@@ -1,6 +1,9 @@
 .cache/
 repos/
 .env
+node_modules/
+dist/
+*.tgz
 z_flow/
 benchmark/core_v2/dataset.json
 benchmark/core_v2/results/

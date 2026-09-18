@@ -19,7 +19,7 @@ reviewer's own words — the labels are themselves AI-generated comments a human
 later marked valid or not.
 
 ```sh
-deno task bench --repo=owner/repo
+npm run bench --repo=owner/repo
 ```
 
 ## `rereview_dataset.json` + `run_rereview.ts`
@@ -63,7 +63,7 @@ reviewer flags in that round tends to be sharper.
      someone else's point without adding a new one,
    - **not** a bot,
    - **not** a self-declared or effectively pure style nit (a bare
-     `` ```suggestion``` `` reformat, a naming/import-order preference, a "nit:"
+     ` ```suggestion``` ` reformat, a naming/import-order preference, a "nit:"
      — these are the majority of what real reviewers leave and they are not what
      this benchmark measures),
    - anchored to a `path` + line **inside the round's diff** (verified by
@@ -72,7 +72,7 @@ reviewer flags in that round tends to be sharper.
      fetched).
 6. What survives is written as one gold row:
    `{ repo, pr, path, from_line, to_line, side, quote, why, round_base_commit,
-   round_commit, ref_before }`.
+round_commit, ref_before }`.
    `quote` is the reviewer's own words; `why` explains, in the curator's words,
    what the actual defect is and why the comment is right — this is what a judge
    model is shown when deciding whether a differently-anchored finding is the
@@ -111,7 +111,7 @@ same underlying defect regardless of file/line; a confirmed pair still counts as
 a match.
 
 ```sh
-deno task bench-rereview --review-concurrent=4 --high-model=... --judge-model=...
+npm run bench-rereview --review-concurrent=4 --high-model=... --judge-model=...
 ```
 
 ### Comparing against another tool
@@ -124,8 +124,8 @@ by the same `match.ts` + `judge.ts` + `metrics.ts`, so the numbers sit side by
 side.
 
 ```sh
-deno task bench-rereview --runner=ocr
-deno task bench-rereview --runner=comaintainer
+npm run bench-rereview --runner=ocr
+npm run bench-rereview --runner=comaintainer
 ```
 
 The gold set spans five repositories, so each row carries its own `repo` and the
@@ -137,7 +137,7 @@ Results are written per dataset rather than per repo, and the summary prints one
 line per repo plus a pooled total. A single-repo dataset whose rows have no
 `repo` still works, as long as `--repo` is given.
 
-**Preparation is not timed** — for either tool. `deno task init` for
+**Preparation is not timed** — for either tool. `npm run init` for
 co-maintainer, and for OCR the provider/model setup (`ocr config`) plus a clone
 holding both of the round's commits:
 

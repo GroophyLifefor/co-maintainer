@@ -13,21 +13,23 @@ import {
   subscribeToLogs,
 } from "./jobs.ts";
 import { insertJob } from "../store/jobs.ts";
+import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
+import { test } from "node:test";
 
 async function withTempDb(fn: () => Promise<void>): Promise<void> {
-  const original = Deno.env.get("CM_APP_DB");
-  Deno.env.set("CM_APP_DB", `${Deno.makeTempDirSync()}/app.db`);
+  const original = getEnv("CM_APP_DB");
+  setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
   try {
     await openAppDb();
     await fn();
   } finally {
     await closeAppDb();
-    if (original === undefined) Deno.env.delete("CM_APP_DB");
-    else Deno.env.set("CM_APP_DB", original);
+    if (original === undefined) deleteEnv("CM_APP_DB");
+    else setEnv("CM_APP_DB", original);
   }
 }
 
-Deno.test("enqueue supersedes an existing queued job for the same PR", async () => {
+test("enqueue supersedes an existing queued job for the same PR", async () => {
   await withTempDb(async () => {
     const first = enqueue({ type: "review", repo: "a/b", prNumber: 1 });
     const second = enqueue({ type: "review", repo: "a/b", prNumber: 1 });
@@ -42,7 +44,7 @@ Deno.test("enqueue supersedes an existing queued job for the same PR", async () 
   });
 });
 
-Deno.test("enqueue within the debounce window collapses into the existing job", async () => {
+test("enqueue within the debounce window collapses into the existing job", async () => {
   await withTempDb(async () => {
     const first = enqueue({
       type: "review",
@@ -67,7 +69,7 @@ Deno.test("enqueue within the debounce window collapses into the existing job", 
   });
 });
 
-Deno.test("reply jobs do not supersede a queued review for the same PR", async () => {
+test("reply jobs do not supersede a queued review for the same PR", async () => {
   await withTempDb(async () => {
     const review = enqueue({ type: "review", repo: "a/b", prNumber: 1 });
     const reply = enqueue({
@@ -86,7 +88,7 @@ Deno.test("reply jobs do not supersede a queued review for the same PR", async (
   });
 });
 
-Deno.test("claimAndRun runs the registered handler and appends redacted logs", async () => {
+test("claimAndRun runs the registered handler and appends redacted logs", async () => {
   await withTempDb(async () => {
     const seen: string[] = [];
     registerHandler("test-run", {
@@ -118,7 +120,7 @@ Deno.test("claimAndRun runs the registered handler and appends redacted logs", a
   });
 });
 
-Deno.test("a failing handler marks the job failed with the error message", async () => {
+test("a failing handler marks the job failed with the error message", async () => {
   await withTempDb(async () => {
     registerHandler("test-fail", {
       async run() {
@@ -138,7 +140,7 @@ Deno.test("a failing handler marks the job failed with the error message", async
   });
 });
 
-Deno.test("cancel aborts a running job cooperatively", async () => {
+test("cancel aborts a running job cooperatively", async () => {
   await withTempDb(async () => {
     let observedAborted = false;
     registerHandler("test-cancel", {
@@ -169,7 +171,7 @@ Deno.test("cancel aborts a running job cooperatively", async () => {
   });
 });
 
-Deno.test("cancel on a merely queued job marks it canceled without running it", async () => {
+test("cancel on a merely queued job marks it canceled without running it", async () => {
   await withTempDb(async () => {
     const { id } = enqueue({ type: "unused", repo: "a/b" });
     if (!cancel(id)) throw new Error("cancel() did not find the queued job");
@@ -179,7 +181,7 @@ Deno.test("cancel on a merely queued job marks it canceled without running it", 
   });
 });
 
-Deno.test("orphan recovery reconciles when a handler provides it", async () => {
+test("orphan recovery reconciles when a handler provides it", async () => {
   await withTempDb(async () => {
     let reconciled = false;
     registerHandler("test-reconcile", {
@@ -205,7 +207,7 @@ Deno.test("orphan recovery reconciles when a handler provides it", async () => {
   });
 });
 
-Deno.test("orphan recovery requeues a job whose type has no reconcile hook", async () => {
+test("orphan recovery requeues a job whose type has no reconcile hook", async () => {
   await withTempDb(async () => {
     registerHandler("test-no-reconcile", { async run() {} });
     insertJob({ id: "orphan-2", type: "test-no-reconcile", repo: "a/b" });
@@ -221,7 +223,7 @@ Deno.test("orphan recovery requeues a job whose type has no reconcile hook", asy
   });
 });
 
-Deno.test("logs are resumable: getLogsSince(fromSeq) and live subscribers both work", async () => {
+test("logs are resumable: getLogsSince(fromSeq) and live subscribers both work", async () => {
   await withTempDb(async () => {
     const received: string[] = [];
     registerHandler("test-logs", {
@@ -231,9 +233,8 @@ Deno.test("logs are resumable: getLogsSince(fromSeq) and live subscribers both w
       },
     });
     const { id } = enqueue({ type: "test-logs", repo: "a/b" });
-    const unsubscribe = subscribeToLogs(
-      id,
-      (line) => received.push(line.message),
+    const unsubscribe = subscribeToLogs(id, (line) =>
+      received.push(line.message),
     );
     await claimAndRun();
     unsubscribe();
@@ -254,7 +255,7 @@ Deno.test("logs are resumable: getLogsSince(fromSeq) and live subscribers both w
   });
 });
 
-Deno.test("claimAndRun skips a queued type with no handler so it does not block others", async () => {
+test("claimAndRun skips a queued type with no handler so it does not block others", async () => {
   await withTempDb(async () => {
     const seen: string[] = [];
     registerHandler("test-skip-unknown", {
@@ -274,7 +275,7 @@ Deno.test("claimAndRun skips a queued type with no handler so it does not block 
   });
 });
 
-Deno.test("jobs: same key waits while a review is already running", async () => {
+test("jobs: same key waits while a review is already running", async () => {
   await withTempDb(async () => {
     let firstRunning = false;
     registerHandler("test-same-key", {
@@ -311,9 +312,9 @@ Deno.test("jobs: same key waits while a review is already running", async () => 
   });
 });
 
-Deno.test("jobs: global limit caps concurrent workers", async () => {
-  const originalConfig = Deno.env.get("CM_CONFIG_PATH");
-  Deno.env.set("CM_CONFIG_PATH", `${Deno.makeTempDirSync()}/config.json`);
+test("jobs: global limit caps concurrent workers", async () => {
+  const originalConfig = getEnv("CM_CONFIG_PATH");
+  setEnv("CM_CONFIG_PATH", `${tempDirSync()}/config.json`);
   await writeUserConfig({ maxConcurrentJobs: 1 });
   await withTempDb(async () => {
     let active = 0;
@@ -340,11 +341,11 @@ Deno.test("jobs: global limit caps concurrent workers", async () => {
     }
     if (peak > 1) throw new Error(`peak concurrency was ${peak}, expected 1`);
   });
-  if (originalConfig === undefined) Deno.env.delete("CM_CONFIG_PATH");
-  else Deno.env.set("CM_CONFIG_PATH", originalConfig);
+  if (originalConfig === undefined) deleteEnv("CM_CONFIG_PATH");
+  else setEnv("CM_CONFIG_PATH", originalConfig);
 });
 
-Deno.test("jobs: stop waits all in flight", async () => {
+test("jobs: stop waits all in flight", async () => {
   await withTempDb(async () => {
     let finished = 0;
     registerHandler("test-stop-wait", {
@@ -359,12 +360,14 @@ Deno.test("jobs: stop waits all in flight", async () => {
     await new Promise((resolve) => setTimeout(resolve, 15));
     await stopWorkerLoop();
     if (finished < 2) {
-      throw new Error(`stopWorkerLoop returned before jobs finished (${finished})`);
+      throw new Error(
+        `stopWorkerLoop returned before jobs finished (${finished})`,
+      );
     }
   });
 });
 
-Deno.test("cancel on a running job records dashboard_canceled", async () => {
+test("cancel on a running job records dashboard_canceled", async () => {
   await withTempDb(async () => {
     registerHandler("test-cancel-reason", {
       run(_job, _log, signal) {
@@ -384,7 +387,7 @@ Deno.test("cancel on a running job records dashboard_canceled", async () => {
   });
 });
 
-Deno.test("startWorkerLoop drains a queued job without anyone calling claimAndRun by hand", async () => {
+test("startWorkerLoop drains a queued job without anyone calling claimAndRun by hand", async () => {
   await withTempDb(async () => {
     let ran = false;
     registerHandler("test-worker-loop", {

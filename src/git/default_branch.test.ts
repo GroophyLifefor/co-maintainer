@@ -3,8 +3,9 @@ import {
   detectDefaultBranchRef,
   resolveDefaultBranchName,
 } from "./default_branch.ts";
+import { test } from "node:test";
 
-Deno.test("default_branch: uses upstream remote ref", async () => {
+test("default_branch: uses upstream remote ref", async () => {
   const run: Run = async (_cmd, args) => {
     if (args.includes("refs/remotes/upstream/HEAD")) {
       return { code: 0, stdout: "refs/remotes/upstream/main\n", stderr: "" };

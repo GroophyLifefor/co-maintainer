@@ -1,5 +1,6 @@
 import { cacheGet, cacheSet } from "../store/cache_db.ts";
 import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
+import { isNotFound, readTextFile } from "../util/runtime.ts";
 
 type JobRecord = {
   status: "done" | "quarantine";
@@ -16,22 +17,31 @@ async function digest(value: string): Promise<string> {
     "SHA-256",
     new TextEncoder().encode(value),
   );
-  return [...new Uint8Array(bytes)].map((byte) =>
-    byte.toString(16).padStart(2, "0")
-  ).join("");
+  return [...new Uint8Array(bytes)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 export class AiBatch {
   private records: JobCache = {};
   private loaded = false;
   private saveChain = Promise.resolve();
+  private readonly provider: AiProvider;
+  private readonly repo: string;
+  private readonly concurrency: number;
+  private readonly profile: string;
 
   constructor(
-    private readonly provider: AiProvider,
-    private readonly repo: string,
-    private readonly concurrency: number,
-    private readonly profile: string,
-  ) {}
+    provider: AiProvider,
+    repo: string,
+    concurrency: number,
+    profile: string,
+  ) {
+    this.provider = provider;
+    this.repo = repo;
+    this.concurrency = concurrency;
+    this.profile = profile;
+  }
 
   async run(
     requests: AiRequest[],
@@ -43,13 +53,15 @@ export class AiBatch {
 
     for (let index = 0; index < requests.length; index++) {
       const request = requests[index];
-      const id = await digest(JSON.stringify({
-        profile: this.profile,
-        job: request.job,
-        system: request.system,
-        prompt: request.prompt,
-        maxTokens: request.maxTokens,
-      }));
+      const id = await digest(
+        JSON.stringify({
+          profile: this.profile,
+          job: request.job,
+          system: request.system,
+          prompt: request.prompt,
+          maxTokens: request.maxTokens,
+        }),
+      );
       const cached = this.records[id];
       if (cached?.status === "done" && cached.response) {
         results[index] = cached.response;
@@ -75,9 +87,7 @@ export class AiBatch {
         const heartbeat = setInterval(() => {
           const seconds = Math.round((Date.now() - startedAt) / 1000);
           console.log(
-            `[ai] still running ${item.request.job} ${
-              item.id.slice(0, 8)
-            } · ${seconds}s`,
+            `[ai] still running ${item.request.job} ${item.id.slice(0, 8)} · ${seconds}s`,
           );
         }, 15_000);
         try {
@@ -91,9 +101,9 @@ export class AiBatch {
           await this.persist();
           if (usage) await usage(item.request.job, response);
           console.log(
-            `[ai] done ${item.request.job} ${item.id.slice(0, 8)} · ${
-              Math.round((Date.now() - startedAt) / 1000)
-            }s`,
+            `[ai] done ${item.request.job} ${item.id.slice(0, 8)} · ${Math.round(
+              (Date.now() - startedAt) / 1000,
+            )}s`,
           );
         } catch (error) {
           this.records[item.id] = {
@@ -103,9 +113,7 @@ export class AiBatch {
           };
           await this.persist();
           console.log(
-            `[ai] quarantined ${item.request.job} ${item.id.slice(0, 8)}: ${
-              String(error)
-            }`,
+            `[ai] quarantined ${item.request.job} ${item.id.slice(0, 8)}: ${String(error)}`,
           );
         } finally {
           clearInterval(heartbeat);
@@ -133,11 +141,11 @@ export class AiBatch {
     }
     try {
       this.records = JSON.parse(
-        await Deno.readTextFile(`.cache/${this.repo}/ai-jobs.json`),
+        await readTextFile(`.cache/${this.repo}/ai-jobs.json`),
       ) as JobCache;
       await cacheSet("ai-jobs", key, JSON.stringify(this.records));
     } catch (error) {
-      if (!(error instanceof Deno.errors.NotFound)) throw error;
+      if (!isNotFound(error)) throw error;
     }
     this.loaded = true;
   }
@@ -145,11 +153,7 @@ export class AiBatch {
   private async persist(): Promise<void> {
     const snapshot = JSON.stringify(this.records, null, 2) + "\n";
     this.saveChain = this.saveChain.then(async () => {
-      await cacheSet(
-        "ai-jobs",
-        `${this.repo}:${this.profile}`,
-        snapshot,
-      );
+      await cacheSet("ai-jobs", `${this.repo}:${this.profile}`, snapshot);
     });
     await this.saveChain;
   }

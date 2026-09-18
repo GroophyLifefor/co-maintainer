@@ -17,38 +17,40 @@ export function insertFinding(row: {
   carriedFromFindingId?: string | null;
   closeReason?: string | null;
 }): void {
-  getAppDb().prepare(
-    `INSERT INTO findings
+  getAppDb()
+    .prepare(
+      `INSERT INTO findings
        (id, review_id, severity, path, line_from, line_to, title, body_md,
         first_seen_review_id, thread_comment_id, anchor_text, state,
         carried_from_finding_id, close_reason)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    row.id,
-    row.reviewId,
-    row.severity,
-    row.path ?? null,
-    row.lineFrom ?? null,
-    row.lineTo ?? null,
-    row.title,
-    row.bodyMd,
-    row.firstSeenReviewId ?? null,
-    row.threadCommentId ?? null,
-    row.anchorText ?? null,
-    row.state ?? "new",
-    row.carriedFromFindingId ?? null,
-    row.closeReason ?? null,
-  );
+    )
+    .run(
+      row.id,
+      row.reviewId,
+      row.severity,
+      row.path ?? null,
+      row.lineFrom ?? null,
+      row.lineTo ?? null,
+      row.title,
+      row.bodyMd,
+      row.firstSeenReviewId ?? null,
+      row.threadCommentId ?? null,
+      row.anchorText ?? null,
+      row.state ?? "new",
+      row.carriedFromFindingId ?? null,
+      row.closeReason ?? null,
+    );
 }
 
-export function listCarryableFindingsForReview(
-  reviewId: string,
-): FindingRow[] {
-  return getAppDb().prepare<FindingRow>(
-    `SELECT * FROM findings
+export function listCarryableFindingsForReview(reviewId: string): FindingRow[] {
+  return getAppDb()
+    .prepare<FindingRow>(
+      `SELECT * FROM findings
      WHERE review_id = ? AND state IN ('new', 'open')
      ORDER BY severity, id`,
-  ).all(reviewId);
+    )
+    .all(reviewId);
 }
 
 export function setFindingPosted(
@@ -56,27 +58,33 @@ export function setFindingPosted(
   postedCommentId: string,
   threadCommentId?: string,
 ): void {
-  getAppDb().prepare(
-    `UPDATE findings SET posted_comment_id = ?, thread_comment_id = COALESCE(?, thread_comment_id) WHERE id = ?`,
-  ).run(postedCommentId, threadCommentId ?? null, id);
+  getAppDb()
+    .prepare(
+      `UPDATE findings SET posted_comment_id = ?, thread_comment_id = COALESCE(?, thread_comment_id) WHERE id = ?`,
+    )
+    .run(postedCommentId, threadCommentId ?? null, id);
 }
 
 export function listFindingsForReview(reviewId: string): FindingRow[] {
-  return getAppDb().prepare<FindingRow>(
-    `SELECT * FROM findings WHERE review_id = ? ORDER BY severity, id`,
-  ).all(reviewId);
+  return getAppDb()
+    .prepare<FindingRow>(
+      `SELECT * FROM findings WHERE review_id = ? ORDER BY severity, id`,
+    )
+    .all(reviewId);
 }
 
 export function listFindingsForPr(
   repo: string,
   prNumber: number,
 ): FindingRow[] {
-  return getAppDb().prepare<FindingRow>(
-    `SELECT f.* FROM findings f
+  return getAppDb()
+    .prepare<FindingRow>(
+      `SELECT f.* FROM findings f
      INNER JOIN reviews r ON r.id = f.review_id
      WHERE r.repo = ? AND r.pr_number = ?
      ORDER BY r.round, f.id`,
-  ).all(repo, prNumber);
+    )
+    .all(repo, prNumber);
 }
 
 export function findFindingByPostedComment(
@@ -84,12 +92,14 @@ export function findFindingByPostedComment(
   prNumber: number,
   commentId: string,
 ): FindingRow | undefined {
-  return getAppDb().prepare<FindingRow>(
-    `SELECT f.* FROM findings f
+  return getAppDb()
+    .prepare<FindingRow>(
+      `SELECT f.* FROM findings f
      INNER JOIN reviews r ON r.id = f.review_id
      WHERE r.repo = ? AND r.pr_number = ? AND f.posted_comment_id = ?
      ORDER BY r.created_at DESC LIMIT 1`,
-  ).get(repo, prNumber, commentId);
+    )
+    .get(repo, prNumber, commentId);
 }
 
 export type SeverityStats = {
@@ -102,8 +112,9 @@ export type SeverityStats = {
 /** A repeat is a finding the previous round already raised, so the repeat
  * column reads as "raised again after the author saw it". */
 export function findingStatsBySeverity(sinceIso: string): SeverityStats[] {
-  return getAppDb().prepare<SeverityStats>(
-    `SELECT f.severity AS severity,
+  return getAppDb()
+    .prepare<SeverityStats>(
+      `SELECT f.severity AS severity,
         COUNT(*) AS findings,
         COALESCE(SUM(f.state = 'open' OR f.first_seen_review_id IS NOT NULL), 0) AS repeats,
         COALESCE(SUM(f.posted_comment_id IS NOT NULL), 0) AS posted
@@ -112,10 +123,12 @@ export function findingStatsBySeverity(sinceIso: string): SeverityStats[] {
      WHERE r.created_at >= ?
      GROUP BY f.severity
      ORDER BY f.severity`,
-  ).all(sinceIso).map((row) => ({
-    severity: String(row.severity),
-    findings: Number(row.findings),
-    repeats: Number(row.repeats),
-    posted: Number(row.posted),
-  }));
+    )
+    .all(sinceIso)
+    .map((row) => ({
+      severity: String(row.severity),
+      findings: Number(row.findings),
+      repeats: Number(row.repeats),
+      posted: Number(row.posted),
+    }));
 }

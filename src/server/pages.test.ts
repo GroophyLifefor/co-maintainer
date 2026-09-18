@@ -8,6 +8,15 @@ import { insertFinding } from "../store/findings.ts";
 import { insertJob, setJobStatus } from "../store/jobs.ts";
 import { upsertDrift } from "../store/drift.ts";
 import { recordDelivery } from "../store/deliveries.ts";
+import {
+  deleteEnv,
+  getEnv,
+  mkdirPath,
+  setEnv,
+  tempDirSync,
+  writeTextFile,
+} from "../testing/runtime.ts";
+import { test } from "node:test";
 
 const PASSWORD = "page-pass";
 
@@ -26,28 +35,29 @@ const REPO_PAGES = [
   "/repos/acme/widgets/pulls/7",
   "/repos/acme/widgets/knowledge",
   "/repos/acme/widgets/settings",
+  "/repos/acme/widgets/remote",
 ];
 
 async function withEnv(fn: () => Promise<void>): Promise<void> {
-  const originalDb = Deno.env.get("CM_APP_DB");
-  const originalConfig = Deno.env.get("CM_CONFIG_PATH");
-  const originalRepos = Deno.env.get("CM_REPOS_DIR");
-  const dir = Deno.makeTempDirSync();
-  Deno.env.set("CM_APP_DB", `${dir}/app.db`);
-  Deno.env.set("CM_CONFIG_PATH", `${dir}/config.json`);
-  Deno.env.set("CM_REPOS_DIR", `${dir}/repos`);
+  const originalDb = getEnv("CM_APP_DB");
+  const originalConfig = getEnv("CM_CONFIG_PATH");
+  const originalRepos = getEnv("CM_REPOS_DIR");
+  const dir = tempDirSync();
+  setEnv("CM_APP_DB", `${dir}/app.db`);
+  setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
+  setEnv("CM_REPOS_DIR", `${dir}/repos`);
   try {
     await openAppDb();
     await writeUserConfig({ auth: "gh", ai: "none" });
     await fn();
   } finally {
     await closeAppDb();
-    if (originalDb === undefined) Deno.env.delete("CM_APP_DB");
-    else Deno.env.set("CM_APP_DB", originalDb);
-    if (originalConfig === undefined) Deno.env.delete("CM_CONFIG_PATH");
-    else Deno.env.set("CM_CONFIG_PATH", originalConfig);
-    if (originalRepos === undefined) Deno.env.delete("CM_REPOS_DIR");
-    else Deno.env.set("CM_REPOS_DIR", originalRepos);
+    if (originalDb === undefined) deleteEnv("CM_APP_DB");
+    else setEnv("CM_APP_DB", originalDb);
+    if (originalConfig === undefined) deleteEnv("CM_CONFIG_PATH");
+    else setEnv("CM_CONFIG_PATH", originalConfig);
+    if (originalRepos === undefined) deleteEnv("CM_REPOS_DIR");
+    else setEnv("CM_REPOS_DIR", originalRepos);
   }
 }
 
@@ -159,7 +169,7 @@ function seed(): void {
   });
 }
 
-Deno.test("GET / without a session redirects to login", async () => {
+test("GET / without a session redirects to login", async () => {
   await withEnv(async () => {
     const app = createApp({ password: PASSWORD });
     const response = await app.fetch(
@@ -169,16 +179,16 @@ Deno.test("GET / without a session redirects to login", async () => {
     if (!response.headers.get("location")?.includes("/login")) {
       throw new Error(String(response.headers.get("location")));
     }
-    const login = await (await app.fetch(
-      new Request("http://localhost/login"),
-    )).text();
+    const login = await (
+      await app.fetch(new Request("http://localhost/login"))
+    ).text();
     if (!login.includes('class="brand" src="/logo.png"')) {
       throw new Error("login missed the logo");
     }
   });
 });
 
-Deno.test("each page renders 200 with empty data", async () => {
+test("each page renders 200 with empty data", async () => {
   await withEnv(async () => {
     const app = createApp({
       password: PASSWORD,
@@ -198,15 +208,19 @@ Deno.test("each page renders 200 with empty data", async () => {
       }
       assertCleanCopy(html, path);
     }
-    const add = await (await app.fetch(
-      new Request("http://localhost/repos/new", { headers: { cookie } }),
-    )).text();
+    const add = await (
+      await app.fetch(
+        new Request("http://localhost/repos/new", { headers: { cookie } }),
+      )
+    ).text();
     if (!add.includes('<select id="repo"') || !add.includes("GitHub App")) {
       throw new Error("add-repo missed the installation picker");
     }
-    const settings = await (await app.fetch(
-      new Request("http://localhost/settings", { headers: { cookie } }),
-    )).text();
+    const settings = await (
+      await app.fetch(
+        new Request("http://localhost/settings", { headers: { cookie } }),
+      )
+    ).text();
     if (
       !settings.includes("Murat Kirazkaya") ||
       !settings.includes("github.com/GroophyLifefor/co-maintainer")
@@ -222,14 +236,14 @@ Deno.test("each page renders 200 with empty data", async () => {
   });
 });
 
-Deno.test("each page renders 200 with seeded data", async () => {
+test("each page renders 200 with seeded data", async () => {
   await withEnv(async () => {
     seed();
-    await Deno.mkdir(`${Deno.env.get("CM_REPOS_DIR")}/acme/widgets`, {
+    await mkdirPath(`${getEnv("CM_REPOS_DIR")}/acme/widgets`, {
       recursive: true,
     });
-    await Deno.writeTextFile(
-      `${Deno.env.get("CM_REPOS_DIR")}/acme/widgets/PR_REVIEW_GUIDE.md`,
+    await writeTextFile(
+      `${getEnv("CM_REPOS_DIR")}/acme/widgets/PR_REVIEW_GUIDE.md`,
       "# guide\nKeep helpers honest.\n",
     );
     const app = createApp({
@@ -249,28 +263,32 @@ Deno.test("each page renders 200 with seeded data", async () => {
       const html = await response.text();
       assertCleanCopy(html, path);
     }
-    const home = await (await app.fetch(
-      new Request("http://localhost/", { headers: { cookie } }),
-    )).text();
+    const home = await (
+      await app.fetch(new Request("http://localhost/", { headers: { cookie } }))
+    ).text();
     if (!home.includes("acme/widgets")) {
       throw new Error("home did not list the seeded repo");
     }
-    const pr = await (await app.fetch(
-      new Request("http://localhost/repos/acme/widgets/pulls/7", {
-        headers: { cookie },
-      }),
-    )).text();
+    const pr = await (
+      await app.fetch(
+        new Request("http://localhost/repos/acme/widgets/pulls/7", {
+          headers: { cookie },
+        }),
+      )
+    ).text();
     if (!pr.includes("unused value")) {
       throw new Error("pr page missed the finding");
     }
     if (!pr.includes("old finding") || !pr.includes("This finding belongs")) {
       throw new Error("pr page missed findings from an older review");
     }
-    const pulls = await (await app.fetch(
-      new Request("http://localhost/repos/acme/widgets/pulls", {
-        headers: { cookie },
-      }),
-    )).text();
+    const pulls = await (
+      await app.fetch(
+        new Request("http://localhost/repos/acme/widgets/pulls", {
+          headers: { cookie },
+        }),
+      )
+    ).text();
     if (
       !pulls.includes('id="manual-review"') ||
       !pulls.includes('id="pr-number"') ||
@@ -279,18 +297,15 @@ Deno.test("each page renders 200 with seeded data", async () => {
       throw new Error("pull requests page missed manual review");
     }
     const manual = await app.fetch(
-      new Request(
-        "http://localhost/api/repos/acme/widgets/pulls/42/review",
-        {
-          method: "POST",
-          headers: {
-            cookie,
-            "content-type": "application/json",
-            "x-requested-with": "co-maintainer",
-          },
-          body: "{}",
+      new Request("http://localhost/api/repos/acme/widgets/pulls/42/review", {
+        method: "POST",
+        headers: {
+          cookie,
+          "content-type": "application/json",
+          "x-requested-with": "co-maintainer",
         },
-      ),
+        body: "{}",
+      }),
     );
     if (manual.status !== 200) {
       throw new Error(`manual review status ${manual.status}`);
@@ -302,7 +317,7 @@ Deno.test("each page renders 200 with seeded data", async () => {
   });
 });
 
-Deno.test("cookie session can call /api/me", async () => {
+test("cookie session can call /api/me", async () => {
   await withEnv(async () => {
     const app = createApp({ password: PASSWORD });
     const cookie = await cookieSession(app);
@@ -315,7 +330,7 @@ Deno.test("cookie session can call /api/me", async () => {
   });
 });
 
-Deno.test("GET /styles.css is public", async () => {
+test("GET /styles.css is public", async () => {
   const app = createApp({ password: PASSWORD });
   const response = await app.fetch(new Request("http://localhost/styles.css"));
   if (response.status !== 200) throw new Error(`status ${response.status}`);
@@ -326,7 +341,7 @@ Deno.test("GET /styles.css is public", async () => {
   }
 });
 
-Deno.test("GET /logo.png is public", async () => {
+test("GET /logo.png is public", async () => {
   const app = createApp({ password: PASSWORD });
   const response = await app.fetch(new Request("http://localhost/logo.png"));
   if (response.status !== 200) throw new Error(`status ${response.status}`);
@@ -334,31 +349,33 @@ Deno.test("GET /logo.png is public", async () => {
   if (!type.includes("image/png")) throw new Error(type);
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (
-    bytes[0] !== 0x89 || bytes[1] !== 0x50 || bytes[2] !== 0x4e ||
+    bytes[0] !== 0x89 ||
+    bytes[1] !== 0x50 ||
+    bytes[2] !== 0x4e ||
     bytes[3] !== 0x47
   ) {
     throw new Error("did not serve the png");
   }
 });
 
-Deno.test("the knowledge page counts new and changed pull requests apart", async () => {
+test("the knowledge page counts new and changed pull requests apart", async () => {
   await withEnv(async () => {
     seed();
     const app = createApp({ password: PASSWORD });
     const cookie = await cookieSession(app);
-    const html = await (await app.fetch(
-      new Request("http://localhost/repos/acme/widgets/knowledge", {
-        headers: { cookie },
-      }),
-    )).text();
-    for (
-      const needle of [
-        "2 new pull requests",
-        "1 changed pull requests",
-        "4 new commits",
-        "3 changed files",
-      ]
-    ) {
+    const html = await (
+      await app.fetch(
+        new Request("http://localhost/repos/acme/widgets/knowledge", {
+          headers: { cookie },
+        }),
+      )
+    ).text();
+    for (const needle of [
+      "2 new pull requests",
+      "1 changed pull requests",
+      "4 new commits",
+      "3 changed files",
+    ]) {
       if (!html.includes(needle)) {
         throw new Error(`knowledge page missed "${needle}"`);
       }
@@ -366,7 +383,7 @@ Deno.test("the knowledge page counts new and changed pull requests apart", async
   });
 });
 
-Deno.test("a drift count that hit its ceiling reads as a floor on both pages", async () => {
+test("a drift count that hit its ceiling reads as a floor on both pages", async () => {
   await withEnv(async () => {
     seed();
     upsertDrift({
@@ -379,15 +396,15 @@ Deno.test("a drift count that hit its ceiling reads as a floor on both pages", a
     });
     const app = createApp({ password: PASSWORD });
     const cookie = await cookieSession(app);
-    for (
-      const path of [
-        "/repos/acme/widgets",
-        "/repos/acme/widgets/knowledge",
-      ]
-    ) {
-      const html = await (await app.fetch(
-        new Request(`http://localhost${path}`, { headers: { cookie } }),
-      )).text();
+    for (const path of [
+      "/repos/acme/widgets",
+      "/repos/acme/widgets/knowledge",
+    ]) {
+      const html = await (
+        await app.fetch(
+          new Request(`http://localhost${path}`, { headers: { cookie } }),
+        )
+      ).text();
       if (!html.includes("500+") || !html.includes("300+")) {
         throw new Error(`${path} showed a capped count as exact`);
       }
@@ -395,37 +412,35 @@ Deno.test("a drift count that hit its ceiling reads as a floor on both pages", a
   });
 });
 
-Deno.test("GET /client.js is the fetch wrapper with toast and retry", async () => {
+test("GET /client.js is the fetch wrapper with toast and retry", async () => {
   const app = createApp({ password: PASSWORD });
   const response = await app.fetch(new Request("http://localhost/client.js"));
   if (response.status !== 200) throw new Error(`status ${response.status}`);
   const js = await response.text();
-  for (
-    const needle of [
-      "function toast",
-      "function fail",
-      "Retry",
-      'addEventListener("error"',
-      "unhandledrejection",
-      "bindToggle",
-      "pollActivity",
-      "5000",
-    ]
-  ) {
+  for (const needle of [
+    "function toast",
+    "function fail",
+    "Retry",
+    'addEventListener("error"',
+    "unhandledrejection",
+    "bindToggle",
+    "pollActivity",
+    "5000",
+  ]) {
     if (!js.includes(needle)) throw new Error(`client.js missed ${needle}`);
   }
   if (js.includes("alert(")) throw new Error("client.js still alerts");
 });
 
-Deno.test("mutating pages ship a skeleton and a failure path", async () => {
+test("mutating pages ship a skeleton and a failure path", async () => {
   await withEnv(async () => {
     seed();
     setJobStatus("job-rev", "running");
-    await Deno.mkdir(`${Deno.env.get("CM_REPOS_DIR")}/acme/widgets`, {
+    await mkdirPath(`${getEnv("CM_REPOS_DIR")}/acme/widgets`, {
       recursive: true,
     });
-    await Deno.writeTextFile(
-      `${Deno.env.get("CM_REPOS_DIR")}/acme/widgets/PR_REVIEW_GUIDE.md`,
+    await writeTextFile(
+      `${getEnv("CM_REPOS_DIR")}/acme/widgets/PR_REVIEW_GUIDE.md`,
       "# guide\nKeep helpers honest.\n",
     );
     const app = createApp({
@@ -444,9 +459,11 @@ Deno.test("mutating pages ship a skeleton and a failure path", async () => {
       "/repos/acme/widgets/settings",
     ];
     for (const path of paths) {
-      const html = await (await app.fetch(
-        new Request(`http://localhost${path}`, { headers: { cookie } }),
-      )).text();
+      const html = await (
+        await app.fetch(
+          new Request(`http://localhost${path}`, { headers: { cookie } }),
+        )
+      ).text();
       if (!html.includes('id="toasts"') || !html.includes("/client.js")) {
         throw new Error(`${path} missed the toast host`);
       }
@@ -464,16 +481,16 @@ Deno.test("mutating pages ship a skeleton and a failure path", async () => {
       }
       assertCleanCopy(html, path);
     }
-    const home = await (await app.fetch(
-      new Request("http://localhost/", { headers: { cookie } }),
-    )).text();
+    const home = await (
+      await app.fetch(new Request("http://localhost/", { headers: { cookie } }))
+    ).text();
     if (!home.includes("<time datetime=")) {
       throw new Error("home missed absolute times on hover");
     }
   });
 });
 
-Deno.test("usage breaks spend down by day, model and severity", async () => {
+test("usage breaks spend down by day, model and severity", async () => {
   await withEnv(async () => {
     seed();
     setReviewStatus("rev-1", "posted", {
@@ -483,11 +500,13 @@ Deno.test("usage breaks spend down by day, model and severity", async () => {
     });
     const app = createApp({ password: PASSWORD });
     const cookie = await cookieSession(app);
-    const html = await (await app.fetch(
-      new Request("http://localhost/analytics?range=7d", {
-        headers: { cookie },
-      }),
-    )).text();
+    const html = await (
+      await app.fetch(
+        new Request("http://localhost/analytics?range=7d", {
+          headers: { cookie },
+        }),
+      )
+    ).text();
     assertCleanCopy(html, "/analytics");
     const visible = visibleText(html);
     for (const label of ["Cost per day", "By model", "Findings by severity"]) {
@@ -500,7 +519,8 @@ Deno.test("usage breaks spend down by day, model and severity", async () => {
       throw new Error("7d range did not fill every day with a bar");
     }
     if (
-      !visible.includes("15.4K") || !visible.includes("12K in and 3.4K out")
+      !visible.includes("15.4K") ||
+      !visible.includes("12K in and 3.4K out")
     ) {
       throw new Error(`usage missed the token split: ${visible.slice(0, 400)}`);
     }
@@ -510,16 +530,18 @@ Deno.test("usage breaks spend down by day, model and severity", async () => {
     if (!visible.includes("P1") || !visible.includes("P2")) {
       throw new Error("usage missed the severity rows");
     }
-    const api = await (await app.fetch(
-      new Request("http://localhost/api/analytics?range=7d", {
-        headers: { cookie },
-      }),
-    )).json();
+    const api = await (
+      await app.fetch(
+        new Request("http://localhost/api/analytics?range=7d", {
+          headers: { cookie },
+        }),
+      )
+    ).json();
     if (api.bySeverity.length !== 2 || api.byDay.length !== 7) {
       throw new Error(`api shape ${JSON.stringify(api).slice(0, 200)}`);
     }
-    const repeat = api.bySeverity.find((row: { severity: string }) =>
-      row.severity === "P2"
+    const repeat = api.bySeverity.find(
+      (row: { severity: string }) => row.severity === "P2",
     );
     if (repeat.repeats !== 1) {
       throw new Error("api lost the raised again count");
@@ -530,7 +552,7 @@ Deno.test("usage breaks spend down by day, model and severity", async () => {
   });
 });
 
-Deno.test("activity lists a job as a link and the job page shows the error", async () => {
+test("activity lists a job as a link and the job page shows the error", async () => {
   await withEnv(async () => {
     seed();
     insertJob({
@@ -544,18 +566,22 @@ Deno.test("activity lists a job as a link and the job page shows the error", asy
     });
     const app = createApp({ password: PASSWORD });
     const cookie = await cookieSession(app);
-    const activity = await (await app.fetch(
-      new Request("http://localhost/activity", { headers: { cookie } }),
-    )).text();
+    const activity = await (
+      await app.fetch(
+        new Request("http://localhost/activity", { headers: { cookie } }),
+      )
+    ).text();
     if (!activity.includes('id="activity-root"')) {
       throw new Error("activity missed the poll root");
     }
     if (!activity.includes("/activity/job-fail")) {
       throw new Error("failed job was not a link");
     }
-    const analytics = await (await app.fetch(
-      new Request("http://localhost/analytics", { headers: { cookie } }),
-    )).text();
+    const analytics = await (
+      await app.fetch(
+        new Request("http://localhost/analytics", { headers: { cookie } }),
+      )
+    ).text();
     if (
       !analytics.includes('data-worth-id="job-fail"') ||
       !analytics.includes('data-dismiss-worth="job-fail"')
@@ -580,7 +606,7 @@ Deno.test("activity lists a job as a link and the job page shows the error", asy
   });
 });
 
-Deno.test("money keeps sub-cent costs visible", () => {
+test("money keeps sub-cent costs visible", () => {
   if (money(0) !== "$0.00") throw new Error(money(0));
   if (money(2.41) !== "$2.41") throw new Error(money(2.41));
   if (money(0.01) !== "$0.01") throw new Error(money(0.01));
@@ -588,7 +614,7 @@ Deno.test("money keeps sub-cent costs visible", () => {
   if (money(0.001) !== "$0.001") throw new Error(money(0.001));
 });
 
-Deno.test("finding markdown renders safely", () => {
+test("finding markdown renders safely", () => {
   const html = markdown(
     "**Bold** `code`\n\n- item\n\n```ts\n<script>alert(1)</script>\n```",
   );
@@ -601,4 +627,38 @@ Deno.test("finding markdown renders safely", () => {
     throw new Error(`markdown was not rendered: ${html}`);
   }
   if (html.includes("<script>")) throw new Error("markdown was not escaped");
+});
+
+test("a repository subpage with a stray PR number is not a rendered page", async () => {
+  await withEnv(async () => {
+    seed();
+    const app = createApp({
+      password: PASSWORD,
+      webhookUrl: "http://localhost:5000/github/webhook",
+    });
+    const cookie = await cookieSession(app);
+    // Only `pulls` takes a numeric suffix; `/remote/7` is malformed and must
+    // not silently render the remote listing while dropping the number.
+    for (const path of [
+      "/repos/acme/widgets/remote/7",
+      "/repos/acme/widgets/settings/7",
+      "/repos/acme/widgets/knowledge/7",
+    ]) {
+      const response = await app.fetch(
+        new Request(`http://localhost${path}`, { headers: { cookie } }),
+      );
+      if (response.status !== 404) {
+        throw new Error(`${path} status ${response.status}, want 404`);
+      }
+    }
+    // The legitimate PR route still works.
+    const ok = await app.fetch(
+      new Request("http://localhost/repos/acme/widgets/pulls/7", {
+        headers: { cookie },
+      }),
+    );
+    if (ok.status !== 200) {
+      throw new Error(`/pulls/7 status ${ok.status}`);
+    }
+  });
 });

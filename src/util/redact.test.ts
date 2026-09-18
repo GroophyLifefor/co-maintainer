@@ -1,6 +1,7 @@
 import { outsideCode, redact, safeCopy } from "./redact.ts";
+import { test } from "node:test";
 
-Deno.test("redact replaces known secret shapes", () => {
+test("redact replaces known secret shapes", () => {
   const cases: [string, string][] = [
     [
       "token ghp_1234567890abcdEFGH1234567890 was used",
@@ -19,7 +20,7 @@ Deno.test("redact replaces known secret shapes", () => {
   }
 });
 
-Deno.test("redact strips a PEM private key block", () => {
+test("redact strips a PEM private key block", () => {
   const pem = `-----BEGIN RSA PRIVATE KEY-----
 MIIBOgIBAAJBAK...
 -----END RSA PRIVATE KEY-----`;
@@ -32,14 +33,14 @@ MIIBOgIBAAJBAK...
   }
 });
 
-Deno.test("safeCopy strips a dash and a semicolon", () => {
+test("safeCopy strips a dash and a semicolon", () => {
   const cleaned = safeCopy("Broken — really; stop");
   if (cleaned.includes("—") || cleaned.includes(";")) {
     throw new Error(cleaned);
   }
 });
 
-Deno.test("safeCopy leaves code blocks alone so suggestions still compile", () => {
+test("safeCopy leaves code blocks alone so suggestions still compile", () => {
   const source = `Prose with a semicolon; and more.
 
 \`\`\`ts
@@ -53,21 +54,23 @@ Inline \`a; b\` stays too.`;
   if (!cleaned.includes("`a; b`")) throw new Error(cleaned);
 });
 
-Deno.test("safeCopy leaves a four backtick fence with a nested fence alone", () => {
-  const source = "Fix it; like this.\n\n````suggestion\n```js\nlet a = 1;\n```\n````";
+test("safeCopy leaves a four backtick fence with a nested fence alone", () => {
+  const source =
+    "Fix it; like this.\n\n````suggestion\n```js\nlet a = 1;\n```\n````";
   const cleaned = safeCopy(source);
-  if (!cleaned.includes("```js\nlet a = 1;\n```\n````")) throw new Error(cleaned);
+  if (!cleaned.includes("```js\nlet a = 1;\n```\n````"))
+    throw new Error(cleaned);
   if (cleaned.includes("it;")) throw new Error(cleaned);
 });
 
-Deno.test("outsideCode reports untouched text when prose is already clean", () => {
+test("outsideCode reports untouched text when prose is already clean", () => {
   const source = "clean prose \`\`\`code; here\`\`\`";
   if (outsideCode(source, (prose) => prose.replaceAll(";", "")) !== source) {
     throw new Error("a semicolon inside code was treated as forbidden copy");
   }
 });
 
-Deno.test("redact leaves ordinary text and commit shas alone", () => {
+test("redact leaves ordinary text and commit shas alone", () => {
   const line = "merged commit a1b2c3d into main, 12 files changed";
   if (redact(line) !== line) {
     throw new Error("an ordinary log line was altered");

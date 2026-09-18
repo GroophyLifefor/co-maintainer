@@ -46,14 +46,10 @@ export const qualityFixtures: Record<string, Source> = {
         "on:\n  push:\n    branches:\n      - main\njobs:\n  release:\n    steps:\n      - run: cargo build --release",
     },
   ),
-  docs: makeSource(
-    "docs-process",
-    ["README.md", "CONTRIBUTING.md"],
-    {
-      "README.md":
-        "# Project\n\n## Develop\nRun the documented development checks before opening a change.",
-      "CONTRIBUTING.md":
-        "# Contributing\n\n## Tests\nExplain the verification performed in the pull request.",
-    },
-  ),
+  docs: makeSource("docs-process", ["README.md", "CONTRIBUTING.md"], {
+    "README.md":
+      "# Project\n\n## Develop\nRun the documented development checks before opening a change.",
+    "CONTRIBUTING.md":
+      "# Contributing\n\n## Tests\nExplain the verification performed in the pull request.",
+  }),
 };

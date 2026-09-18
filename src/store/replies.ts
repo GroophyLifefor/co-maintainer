@@ -17,9 +17,10 @@ export type ReplyRequestInput = {
   deliveryId?: string;
 };
 
-export function createReplyRequestAndJob(
-  input: ReplyRequestInput,
-): { request: ReplyRequestRow; created: boolean } {
+export function createReplyRequestAndJob(input: ReplyRequestInput): {
+  request: ReplyRequestRow;
+  created: boolean;
+} {
   const existing = findReplyRequest(
     input.repo,
     input.sourceKind,
@@ -31,8 +32,7 @@ export function createReplyRequestAndJob(
   const requestId = crypto.randomUUID();
   const jobId = crypto.randomUUID();
   const now = nowIso();
-  const queueKey =
-    `reply:${input.repo}:${input.sourceKind}:${input.sourceCommentId}`;
+  const queueKey = `reply:${input.repo}:${input.sourceKind}:${input.sourceCommentId}`;
   db.exec("BEGIN");
   try {
     db.prepare(
@@ -75,9 +75,9 @@ export function createReplyRequestAndJob(
 }
 
 export function getReplyRequest(id: string): ReplyRequestRow | undefined {
-  return getAppDb().prepare<ReplyRequestRow>(
-    `SELECT * FROM reply_requests WHERE id = ?`,
-  ).get(id);
+  return getAppDb()
+    .prepare<ReplyRequestRow>(`SELECT * FROM reply_requests WHERE id = ?`)
+    .get(id);
 }
 
 export function findReplyRequest(
@@ -85,10 +85,12 @@ export function findReplyRequest(
   sourceKind: string,
   sourceCommentId: string,
 ): ReplyRequestRow | undefined {
-  return getAppDb().prepare<ReplyRequestRow>(
-    `SELECT * FROM reply_requests
+  return getAppDb()
+    .prepare<ReplyRequestRow>(
+      `SELECT * FROM reply_requests
      WHERE repo = ? AND source_kind = ? AND source_comment_id = ?`,
-  ).get(repo, sourceKind, sourceCommentId);
+    )
+    .get(repo, sourceKind, sourceCommentId);
 }
 
 export function findReplyByPostedComment(
@@ -96,11 +98,13 @@ export function findReplyByPostedComment(
   prNumber: number,
   commentId: string,
 ): ReplyRequestRow | undefined {
-  return getAppDb().prepare<ReplyRequestRow>(
-    `SELECT * FROM reply_requests
+  return getAppDb()
+    .prepare<ReplyRequestRow>(
+      `SELECT * FROM reply_requests
      WHERE repo = ? AND pr_number = ? AND posted_comment_id = ?
      ORDER BY created_at DESC LIMIT 1`,
-  ).get(repo, prNumber, commentId);
+    )
+    .get(repo, prNumber, commentId);
 }
 
 export function setReplyStatus(
@@ -111,8 +115,9 @@ export function setReplyStatus(
   > = {},
 ): void {
   const attempts = status === "generating" || status === "posting" ? 1 : 0;
-  getAppDb().prepare(
-    `UPDATE reply_requests SET
+  getAppDb()
+    .prepare(
+      `UPDATE reply_requests SET
        status = ?,
        answer_md = COALESCE(?, answer_md),
        posted_comment_id = COALESCE(?, posted_comment_id),
@@ -120,27 +125,32 @@ export function setReplyStatus(
        attempts = attempts + ?,
        updated_at = ?
      WHERE id = ?`,
-  ).run(
-    status,
-    patch.answer_md ?? null,
-    patch.posted_comment_id ?? null,
-    patch.error ?? null,
-    attempts,
-    nowIso(),
-    id,
-  );
+    )
+    .run(
+      status,
+      patch.answer_md ?? null,
+      patch.posted_comment_id ?? null,
+      patch.error ?? null,
+      attempts,
+      nowIso(),
+      id,
+    );
 }
 
 export function setReplyJobId(id: string, jobId: string): void {
-  getAppDb().prepare(
-    `UPDATE reply_requests SET job_id = ?, updated_at = ? WHERE id = ?`,
-  ).run(jobId, nowIso(), id);
+  getAppDb()
+    .prepare(
+      `UPDATE reply_requests SET job_id = ?, updated_at = ? WHERE id = ?`,
+    )
+    .run(jobId, nowIso(), id);
 }
 
 export function listRecoverableReplies(): ReplyRequestRow[] {
-  return getAppDb().prepare<ReplyRequestRow>(
-    `SELECT * FROM reply_requests
+  return getAppDb()
+    .prepare<ReplyRequestRow>(
+      `SELECT * FROM reply_requests
      WHERE status IN ('queued', 'generating', 'ready', 'posting')
      ORDER BY created_at`,
-  ).all();
+    )
+    .all();
 }

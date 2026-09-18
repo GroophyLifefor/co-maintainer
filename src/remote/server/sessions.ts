@@ -16,7 +16,9 @@ const sessions = new Map<string, RemoteSession>();
 const finishedResults = new Map<string, RemoteSyncResult>();
 let watchdogTimer: ReturnType<typeof setInterval> | undefined;
 
-export function openRemoteSession(session: Omit<RemoteSession, "lastSyncAt">): void {
+export function openRemoteSession(
+  session: Omit<RemoteSession, "lastSyncAt">,
+): void {
   sessions.set(session.jobId, { ...session, lastSyncAt: Date.now() });
 }
 
@@ -35,11 +37,16 @@ export function closeRemoteSession(jobId: string): void {
   setTimeout(() => finishedResults.delete(jobId), 60_000);
 }
 
-export function setRemoteSyncResult(jobId: string, result: RemoteSyncResult): void {
+export function setRemoteSyncResult(
+  jobId: string,
+  result: RemoteSyncResult,
+): void {
   finishedResults.set(jobId, result);
 }
 
-export function getRemoteSyncResult(jobId: string): RemoteSyncResult | undefined {
+export function getRemoteSyncResult(
+  jobId: string,
+): RemoteSyncResult | undefined {
   return finishedResults.get(jobId);
 }
 

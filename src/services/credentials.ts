@@ -54,8 +54,8 @@ export async function testAppAccess(opts: {
     for (const installation of installations) {
       const missing = missingAppPermissions(installation.permissions);
       if (missing.length === 0) continue;
-      const account = installation.account?.login ??
-        `installation ${installation.id}`;
+      const account =
+        installation.account?.login ?? `installation ${installation.id}`;
       return {
         ok: false,
         message: `The App on ${account} is missing ${missing.join(" and ")}.`,
@@ -140,7 +140,7 @@ async function githubGet(
   }
   let login: string | undefined;
   try {
-    const body = await response.json() as { login?: string };
+    const body = (await response.json()) as { login?: string };
     login = body.login;
   } catch {
     login = undefined;

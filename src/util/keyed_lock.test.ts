@@ -1,6 +1,7 @@
 import { keyedLockActiveKeys, withKeyedLock } from "./keyed_lock.ts";
+import { test } from "node:test";
 
-Deno.test("keyed_lock: serializes concurrent callers on the same key", async () => {
+test("keyed_lock: serializes concurrent callers on the same key", async () => {
   let active = 0;
   let peak = 0;
   await Promise.all([
@@ -22,7 +23,7 @@ Deno.test("keyed_lock: serializes concurrent callers on the same key", async () 
   }
 });
 
-Deno.test("keyed_lock: drops map entry when the queue drains", async () => {
+test("keyed_lock: drops map entry when the queue drains", async () => {
   const keys = Array.from({ length: 20 }, (_, i) => `repo-${i}`);
   for (const key of keys) {
     await withKeyedLock(key, async () => {});

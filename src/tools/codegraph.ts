@@ -1,4 +1,6 @@
 import { toolsDir } from "../config.ts";
+import { commandOutput, isWindows, mkdir, stat } from "../util/runtime.ts";
+import { askConfirm } from "../cli/prompt.ts";
 
 /** The version co-maintainer is built against. codegraph's CLI output shape is
  * what the reviewer parses, so this is pinned rather than tracking latest: a
@@ -18,10 +20,13 @@ export type EnsureOptions = {
   allowInstall?: boolean;
   interactive?: boolean;
   run?: Runner;
-  confirm?: (question: string) => boolean;
+  /** `node:readline/promises` made this async; both shapes are accepted. */
+  confirm?: (question: string) => boolean | Promise<boolean>;
   log?: (message: string) => void;
   /** Overrides `toolsDir()`, for tests. */
   root?: string;
+  /** Overrides `process.exit`, for tests. */
+  exit?: (code: number) => never;
 };
 
 export async function runCommand(
@@ -29,12 +34,12 @@ export async function runCommand(
   args: string[],
 ): Promise<CommandResult> {
   // Windows resolves npm and other shims through the shell, not as bare exes.
-  const windows = Deno.build.os === "windows";
-  const output = await new Deno.Command(windows ? "cmd" : command, {
+  const windows = isWindows();
+  const output = await commandOutput(windows ? "cmd" : command, {
     args: windows ? ["/c", command, ...args] : args,
     stdout: "piped",
     stderr: "piped",
-  }).output();
+  });
   return {
     code: output.code,
     stdout: new TextDecoder().decode(output.stdout),
@@ -50,7 +55,7 @@ export function versionDir(version: string, root = toolsDir()): string {
 
 export function binaryPath(version: string, root = toolsDir()): string {
   const dir = versionDir(version, root);
-  return Deno.build.os === "windows"
+  return isWindows()
     ? `${dir}/node_modules/.bin/codegraph.cmd`
     : `${dir}/node_modules/.bin/codegraph`;
 }
@@ -77,7 +82,7 @@ export async function detect(
 ): Promise<Presence> {
   const path = binaryPath(version, root);
   try {
-    await Deno.stat(path);
+    await stat(path);
   } catch {
     return { state: "missing" };
   }
@@ -114,9 +119,8 @@ export function installHint(
   return `${command} ${args.join(" ")}`;
 }
 
-function defaultConfirm(question: string): boolean {
-  const answer = prompt(`${question} [y/N]`)?.trim().toLowerCase() ?? "";
-  return answer === "y" || answer === "yes";
+async function defaultConfirm(question: string): Promise<boolean> {
+  return await askConfirm(question);
 }
 
 /** Makes sure the pinned codegraph is available, asking first. Returns the path
@@ -128,7 +132,10 @@ export async function ensureCodegraph(
   const root = options.root ?? toolsDir();
   const run = options.run ?? runCommand;
   const log = options.log ?? ((message: string) => console.log(message));
-  const interactive = options.interactive ?? Deno.stdin.isTerminal();
+  const interactive = options.interactive ?? process.stdin.isTTY === true;
+  // Annotated so TypeScript can see the calls below never return and keeps the
+  // `Presence` narrowing intact.
+  const exit: (code: number) => never = options.exit ?? process.exit;
   const present = await detect(CODEGRAPH_VERSION, root, run);
 
   if (present.state === "ok") return present.path;
@@ -143,28 +150,29 @@ export async function ensureCodegraph(
     if (!interactive) {
       log(
         `[codegraph] co-maintainer needs codegraph ${CODEGRAPH_VERSION} to index the repository.\n` +
-          `Run it with --allow-tool-install, or install it yourself:\n  ${
-            installHint(CODEGRAPH_VERSION, root)
-          }`,
+          `Run it with --allow-tool-install, or install it yourself:\n  ${installHint(
+            CODEGRAPH_VERSION,
+            root,
+          )}`,
       );
-      Deno.exit(1);
+      exit(1);
     }
     const confirm = options.confirm ?? defaultConfirm;
-    const approved = confirm(
+    // `defaultConfirm` is async, so an unawaited call is always truthy and the
+    // user's "no" was silently ignored. Await it before deciding.
+    const approved = await confirm(
       `co-maintainer needs codegraph ${CODEGRAPH_VERSION} to index the repository.\n` +
-        `Install it into ${
-          versionDir(CODEGRAPH_VERSION, root)
-        } (your global PATH is not touched)?`,
+        `Install it into ${versionDir(CODEGRAPH_VERSION, root)} (your global PATH is not touched)?`,
     );
     if (!approved) {
       log("[codegraph] declined; nothing was installed");
-      Deno.exit(1);
+      exit(1);
     }
   }
 
   const { command, args } = installCommand(CODEGRAPH_VERSION, root);
   log(`[codegraph] installing ${CODEGRAPH_PACKAGE}@${CODEGRAPH_VERSION}`);
-  await Deno.mkdir(versionDir(CODEGRAPH_VERSION, root), { recursive: true });
+  await mkdir(versionDir(CODEGRAPH_VERSION, root), { recursive: true });
   const result = await run(command, args);
   if (result.code !== 0) {
     log(
@@ -172,17 +180,15 @@ export async function ensureCodegraph(
         result.stderr.trim() || result.stdout.trim()
       }`,
     );
-    Deno.exit(1);
+    exit(1);
   }
 
   const after = await detect(CODEGRAPH_VERSION, root, run);
   if (after.state !== "ok") {
     log(
-      `[codegraph] install finished but ${
-        binaryPath(CODEGRAPH_VERSION, root)
-      } is still not usable`,
+      `[codegraph] install finished but ${binaryPath(CODEGRAPH_VERSION, root)} is still not usable`,
     );
-    Deno.exit(1);
+    exit(1);
   }
   log(`[codegraph] ready at ${after.path}`);
   return after.path;
@@ -195,7 +201,7 @@ export async function ensureCodegraphForReview(
   const root = options.root ?? toolsDir();
   const run = options.run ?? runCommand;
   const log = options.log ?? ((message: string) => console.error(message));
-  const interactive = options.interactive ?? Deno.stdin.isTerminal();
+  const interactive = options.interactive ?? process.stdin.isTTY === true;
   const present = await detect(CODEGRAPH_VERSION, root, run);
 
   if (present.state === "ok") return { path: present.path };
@@ -212,7 +218,8 @@ export async function ensureCodegraphForReview(
       };
     }
     const confirm = options.confirm ?? defaultConfirm;
-    const approved = confirm(
+    // Same as `ensureCodegraph`: an unawaited async confirm is always truthy.
+    const approved = await confirm(
       `co-maintainer needs codegraph ${CODEGRAPH_VERSION} to index this repository.\n` +
         `Install into ${versionDir(CODEGRAPH_VERSION, root)}?`,
     );
@@ -221,11 +228,13 @@ export async function ensureCodegraphForReview(
 
   const { command, args } = installCommand(CODEGRAPH_VERSION, root);
   log(`[codegraph] installing ${CODEGRAPH_PACKAGE}@${CODEGRAPH_VERSION}`);
-  await Deno.mkdir(versionDir(CODEGRAPH_VERSION, root), { recursive: true });
+  await mkdir(versionDir(CODEGRAPH_VERSION, root), { recursive: true });
   const result = await run(command, args);
   if (result.code !== 0) {
     return {
-      reason: result.stderr.trim() || result.stdout.trim() ||
+      reason:
+        result.stderr.trim() ||
+        result.stdout.trim() ||
         `install failed (exit ${result.code})`,
     };
   }

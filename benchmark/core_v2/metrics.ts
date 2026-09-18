@@ -8,9 +8,10 @@ export function scores(counts: Counts): {
   const { tp, fp, fn } = counts;
   const precision = tp + fp === 0 ? 0 : tp / (tp + fp);
   const recall = tp + fn === 0 ? 0 : tp / (tp + fn);
-  const f1 = precision + recall === 0
-    ? 0
-    : (2 * precision * recall) / (precision + recall);
+  const f1 =
+    precision + recall === 0
+      ? 0
+      : (2 * precision * recall) / (precision + recall);
   return { precision, recall, f1 };
 }
 

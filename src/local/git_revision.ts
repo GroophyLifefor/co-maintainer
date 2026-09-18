@@ -1,13 +1,20 @@
 import { resolveDefaultBranchName } from "../git/default_branch.ts";
 import type { Run } from "../pr/checkout.ts";
-import { normalizePath, type Revision, type RevisionFile } from "../review/revision.ts";
+import {
+  normalizePath,
+  type Revision,
+  type RevisionFile,
+} from "../review/revision.ts";
 import {
   parseNameStatusZ,
   parseNumstatZ,
   pathsMissingPatches,
   splitDiffPatches,
 } from "./git_parse.ts";
-import { revisionFileFromUntracked, type UntrackedWarning } from "./git_untracked.ts";
+import {
+  revisionFileFromUntracked,
+  type UntrackedWarning,
+} from "./git_untracked.ts";
 import { ReviewCliError } from "./git_ops.ts";
 
 const diffEnv = ["-c", "core.quotePath=false"];
@@ -52,7 +59,11 @@ export async function mergeBase(
   if (result.code === 0 && result.stdout.trim()) {
     return result.stdout.trim();
   }
-  const shallow = await run("git", ["rev-parse", "--is-shallow-repository"], cwd);
+  const shallow = await run(
+    "git",
+    ["rev-parse", "--is-shallow-repository"],
+    cwd,
+  );
   if (shallow.stdout.trim() === "true") {
     await run("git", ["fetch", "--quiet", "--unshallow", remote], cwd);
     const retry = await run(
@@ -149,9 +160,10 @@ export async function buildLocalRevision(
   }
   const statuses = parseNameStatusZ(nameStatus.stdout);
   const stats = parseNumstatZ(numstat.stdout);
-  const patches = unified.code === 0
-    ? splitDiffPatches(unified.stdout)
-    : new Map<string, string>();
+  const patches =
+    unified.code === 0
+      ? splitDiffPatches(unified.stdout)
+      : new Map<string, string>();
   const needsPerFile = new Set(
     unified.code !== 0
       ? statuses.filter((e) => e.status !== "removed").map((e) => e.path)
@@ -184,13 +196,7 @@ export async function buildLocalRevision(
   const tracked = new Set(files.map((f) => f.path));
   const untracked = await run(
     "git",
-    [
-      ...diffEnv,
-      "ls-files",
-      "--others",
-      "--exclude-standard",
-      "-z",
-    ],
+    [...diffEnv, "ls-files", "--others", "--exclude-standard", "-z"],
     cwd,
   );
   if (untracked.code === 0 && untracked.stdout) {

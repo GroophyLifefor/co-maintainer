@@ -1,6 +1,7 @@
 import { HetznerProvider } from "./hetzner.ts";
 import { OpenRouterProvider } from "./openrouter.ts";
 import type { AiRequest } from "../types.ts";
+import { test } from "node:test";
 
 const request: AiRequest = {
   job: "test",
@@ -18,7 +19,7 @@ function response(content: string, status = 200): Response {
   );
 }
 
-Deno.test("AI providers parse responses and apply retry policy", async () => {
+test("AI providers parse responses and apply retry policy", async () => {
   const originalFetch = globalThis.fetch;
   try {
     let calls = 0;

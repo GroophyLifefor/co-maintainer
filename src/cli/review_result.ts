@@ -33,10 +33,7 @@ const SEVERITY_RANK: Record<string, number> = {
   P3: 3,
 };
 
-export function isBlockingFinding(
-  title: string,
-  severity: string,
-): boolean {
+export function isBlockingFinding(title: string, severity: string): boolean {
   if (/\[P0\b/i.test(title) || /^P0$/i.test(severity)) return true;
   if (/\[P\d\s*·\s*blocking\]/i.test(title)) return true;
   return false;
@@ -48,9 +45,14 @@ export function resolvedFromFirstReview(
 ): ResolvedFinding[] {
   return parsed.map((finding) => {
     const file = finding.path ? filesByPath.get(finding.path) : undefined;
-    const anchor = file && finding.from
-      ? anchorTextFromPatch(file.patch, finding.from, finding.to ?? finding.from)
-      : null;
+    const anchor =
+      file && finding.from
+        ? anchorTextFromPatch(
+            file.patch,
+            finding.from,
+            finding.to ?? finding.from,
+          )
+        : null;
     return {
       id: crypto.randomUUID(),
       state: "new",
@@ -101,10 +103,10 @@ export function toJsonFinding(row: ResolvedFinding): JsonReviewFinding {
     body: humanCopy(stripSuggestion(row.bodyMd)),
     suggestion: suggestion
       ? {
-        lineFrom: suggestion.from,
-        lineTo: suggestion.to,
-        text: suggestion.code,
-      }
+          lineFrom: suggestion.from,
+          lineTo: suggestion.to,
+          text: suggestion.code,
+        }
       : null,
   };
 }
@@ -169,7 +171,12 @@ function locationLabel(row: ResolvedFinding): string {
 function shortTitle(row: ResolvedFinding): string {
   const title = humanCopy(row.title);
   const dash = title.indexOf(" — ");
-  return dash === -1 ? title : title.slice(dash + 3).replace(/^`|`$/g, "").trim();
+  return dash === -1
+    ? title
+    : title
+        .slice(dash + 3)
+        .replace(/^`|`$/g, "")
+        .trim();
 }
 
 function impactLabel(row: ResolvedFinding): string {
@@ -190,18 +197,23 @@ export function formatHumanLocalReview(
   const guideBit = guideBuiltAt
     ? `guide ${guideBuiltAt.slice(0, 10)}`
     : "guide unknown";
-  const cgBit = codegraphState === "used"
-    ? "codegraph used"
-    : codegraphState === "disabled"
-      ? "codegraph disabled"
-      : "codegraph unavailable";
+  const cgBit =
+    codegraphState === "used"
+      ? "codegraph used"
+      : codegraphState === "disabled"
+        ? "codegraph disabled"
+        : "codegraph unavailable";
   const lines: string[] = [
     header,
     `${stats.files} files · +${stats.additions} −${stats.deletions} · ${guideBit} · ${cgBit}`,
     "",
   ];
   const sorted = sortResolvedFindings(findings);
-  const groups: Array<{ label: string; state: ResolvedFinding["state"]; bullet: string }> = [
+  const groups: Array<{
+    label: string;
+    state: ResolvedFinding["state"];
+    bullet: string;
+  }> = [
     { label: "Closed", state: "closed", bullet: "✓" },
     { label: "Still open", state: "open", bullet: "•" },
     { label: "New", state: "new", bullet: "•" },
@@ -256,9 +268,7 @@ export function formatHumanLocalReview(
 }
 
 /** Human-readable findings block for remote sync JSON (same shape as `toJsonFinding`). */
-export function formatHumanJsonFindings(
-  findings: JsonReviewFinding[],
-): string {
+export function formatHumanJsonFindings(findings: JsonReviewFinding[]): string {
   if (findings.length === 0) {
     return "## Findings\n\nNo actionable findings.";
   }
@@ -268,8 +278,7 @@ export function formatHumanJsonFindings(
       (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9),
   );
   for (const row of sorted) {
-    const blocking = row.blocking ||
-      isBlockingFinding(row.title, row.severity);
+    const blocking = row.blocking || isBlockingFinding(row.title, row.severity);
     const impact = `[${row.severity} · ${blocking ? "blocking" : "non-blocking"}]`;
     let prefix = "";
     if (row.path) {

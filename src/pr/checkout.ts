@@ -1,6 +1,7 @@
 import { cloneDir, worktreeDir } from "../config.ts";
 import { log } from "../util/log.ts";
 import { withKeyedLock } from "../util/keyed_lock.ts";
+import { commandOutput, isWindows, stat } from "../util/runtime.ts";
 
 export function withCloneLock<T>(
   repo: string,
@@ -29,13 +30,13 @@ export async function runCommand(
   cwd?: string,
 ): Promise<CommandResult> {
   // Windows resolves git and other shims through the shell, not as bare exes.
-  const windows = Deno.build.os === "windows";
-  const output = await new Deno.Command(windows ? "cmd" : command, {
+  const windows = isWindows();
+  const output = await commandOutput(windows ? "cmd" : command, {
     args: windows ? ["/c", command, ...args] : args,
     cwd,
     stdout: "piped",
     stderr: "piped",
-  }).output();
+  });
   return {
     code: output.code,
     stdout: new TextDecoder().decode(output.stdout),
@@ -45,7 +46,7 @@ export async function runCommand(
 
 export async function pathExists(path: string): Promise<boolean> {
   try {
-    await Deno.stat(path);
+    await stat(path);
     return true;
   } catch {
     return false;

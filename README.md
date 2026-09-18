@@ -11,20 +11,20 @@ implementation, testing, review, and release decisions.
 ## Installation
 
 ```sh
-deno install -g -A --name co-maintainer jsr:@murat/co-maintainer
+npm install -g co-maintainer
 ```
 
-If fails to install, try:
+Requires Node.js 24 or newer.
+
+> **Migrating from JSR:** co-maintainer used to be published as
+> `jsr:@murat/co-maintainer` for Deno. JSR is deprecated and no longer updated;
+> install the npm package instead.
+
+On a Linux VPS, persist npm's global bin directory if the installer prints a
+PATH notice:
 
 ```sh
-deno install -f -g -A --min-dep-age=0 --name co-maintainer jsr:@murat/co-maintainer
-```
-
-On a Linux VPS, persist Deno's PATH entry if the installer prints
-`Add ~/.deno/bin to PATH`:
-
-```sh
-grep -qxF 'export PATH="$HOME/.deno/bin:$PATH"' ~/.bashrc || printf '\nexport PATH="$HOME/.deno/bin:$PATH"\n' >> ~/.bashrc
+grep -qxF 'export PATH="$(npm prefix -g)/bin:$PATH"' ~/.bashrc || printf '\nexport PATH="$(npm prefix -g)/bin:$PATH"\n' >> ~/.bashrc
 source ~/.bashrc
 ```
 
@@ -49,7 +49,7 @@ co-maintainer review owner/repo 123 --improve-matrix=2 --debug
 co-maintainer review              # local branch (staged, unstaged, untracked)
 co-maintainer review --json       # machine-readable stdout; logs on stderr
 
-deno task review-local-e2e        # fake-AI local loop (developers, from repo root)
+npm run review-local-e2e        # fake-AI local loop (developers, from repo root)
 ```
 
 Documentation: [Getting started](docs/getting-started.html) (install → first
@@ -69,7 +69,7 @@ In core_v2 benchmarks:
 - **2-3x better results** than OCR
 - **2-8x faster** than OCR
 - **70-200x fewer tokens** than OCR
-- **60-270x cheaper** than 
+- **60-270x cheaper** than
 
 ```mermaid
 xychart-beta
@@ -80,7 +80,7 @@ xychart-beta
     line "co-maintainer" [2, 10, 20, 40, 60, 80, 100, 120, 140, 160, 200]
 ```
 
-*Calculated based on co-maintainer's `core_v2` benchmark, which reports co-maintainer as 65x cheaper per review than OCR ($0.025/review vs. $1.62/review). Assumes 80 PR reviews per developer per month (40 PRs merged, avg. ~2 reviews each).*
+_Calculated based on co-maintainer's `core_v2` benchmark, which reports co-maintainer as 65x cheaper per review than OCR ($0.025/review vs. $1.62/review). Assumes 80 PR reviews per developer per month (40 PRs merged, avg. ~2 reviews each)._
 
 ## Benchmarks
 

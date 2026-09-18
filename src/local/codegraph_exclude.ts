@@ -1,5 +1,11 @@
 import { dirname } from "node:path";
 import type { Run } from "../pr/checkout.ts";
+import {
+  isNotFound,
+  mkdir,
+  readTextFile,
+  writeTextFile,
+} from "../util/runtime.ts";
 
 const EXCLUDE_LINE = "/.co-maintainer-codegraph/";
 
@@ -18,13 +24,13 @@ export async function ensureCodegraphGitExclude(
   if (!excludePath) return;
   let text = "";
   try {
-    text = await Deno.readTextFile(excludePath);
+    text = await readTextFile(excludePath);
   } catch (error) {
-    if (!(error instanceof Deno.errors.NotFound)) throw error;
+    if (!isNotFound(error)) throw error;
   }
   const lines = text.split("\n").map((line) => line.trim());
   if (lines.includes(EXCLUDE_LINE.trim())) return;
   const prefix = text.length > 0 && !text.endsWith("\n") ? "\n" : "";
-  await Deno.mkdir(dirname(excludePath), { recursive: true }).catch(() => {});
-  await Deno.writeTextFile(excludePath, `${text}${prefix}${EXCLUDE_LINE}\n`);
+  await mkdir(dirname(excludePath), { recursive: true }).catch(() => {});
+  await writeTextFile(excludePath, `${text}${prefix}${EXCLUDE_LINE}\n`);
 }

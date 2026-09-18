@@ -1,5 +1,8 @@
 import { hashRemoteFixtures } from "./fixtures.ts";
 import {
+  MIN_CLIENT_SCHEMA,
+  MIN_SERVER_SCHEMA,
+  REMOTE_CLI_UPGRADE_COMMAND,
   REMOTE_FIXTURE_HASH,
   REMOTE_SCHEMA_VERSION,
 } from "./schema.ts";
@@ -10,15 +13,17 @@ import {
   validateSyncRequest,
   validateSyncResponseStatus,
 } from "./validate.ts";
+import { readTextFile } from "../testing/runtime.ts";
+import { test } from "node:test";
 
 async function loadFixture(name: string): Promise<unknown> {
-  const text = await Deno.readTextFile(
+  const text = await readTextFile(
     new URL(`./fixtures/v1/${name}`, import.meta.url),
   );
   return JSON.parse(text);
 }
 
-Deno.test("remote fixtures: hash matches schema.ts", async () => {
+test("remote fixtures: hash matches schema.ts", async () => {
   const hash = await hashRemoteFixtures(REMOTE_SCHEMA_VERSION);
   const expected = REMOTE_FIXTURE_HASH[REMOTE_SCHEMA_VERSION];
   if (!expected || expected === "PLACEHOLDER") {
@@ -27,13 +32,11 @@ Deno.test("remote fixtures: hash matches schema.ts", async () => {
     );
   }
   if (hash !== expected) {
-    throw new Error(
-      `fixture hash mismatch: got ${hash}, expected ${expected}`,
-    );
+    throw new Error(`fixture hash mismatch: got ${hash}, expected ${expected}`);
   }
 });
 
-Deno.test("remote validators accept v1 fixtures", async () => {
+test("remote validators accept v1 fixtures", async () => {
   const handshake = await loadFixture("handshake.request.json");
   if (validateHandshakeRequest(handshake)) {
     throw new Error("handshake request");
@@ -46,7 +49,7 @@ Deno.test("remote validators accept v1 fixtures", async () => {
   if (validateSyncRequest(sync)) {
     throw new Error("sync request");
   }
-  const syncResp = await loadFixture("sync.response.json") as Record<
+  const syncResp = (await loadFixture("sync.response.json")) as Record<
     string,
     unknown
   >;
@@ -55,7 +58,26 @@ Deno.test("remote validators accept v1 fixtures", async () => {
   }
 });
 
-Deno.test("validateSubmitRequest rejects duplicate paths", () => {
+test("remote wire constants are frozen", () => {
+  // Bumping these changes the protocol; a 426/upgrade loop depends on the
+  // exact upgrade command reaching older clients.
+  if (REMOTE_SCHEMA_VERSION !== 1) {
+    throw new Error(`REMOTE_SCHEMA_VERSION changed: ${REMOTE_SCHEMA_VERSION}`);
+  }
+  if (MIN_CLIENT_SCHEMA !== 1) {
+    throw new Error(`MIN_CLIENT_SCHEMA changed: ${MIN_CLIENT_SCHEMA}`);
+  }
+  if (MIN_SERVER_SCHEMA !== 1) {
+    throw new Error(`MIN_SERVER_SCHEMA changed: ${MIN_SERVER_SCHEMA}`);
+  }
+  if (REMOTE_CLI_UPGRADE_COMMAND !== "npm install -g co-maintainer@latest") {
+    throw new Error(
+      `REMOTE_CLI_UPGRADE_COMMAND changed: ${REMOTE_CLI_UPGRADE_COMMAND}`,
+    );
+  }
+});
+
+test("validateSubmitRequest rejects duplicate paths", () => {
   const body = {
     schemaVersion: 1,
     requestId: "550e8400-e29b-41d4-a716-446655440000",
@@ -90,7 +112,7 @@ Deno.test("validateSubmitRequest rejects duplicate paths", () => {
   }
 });
 
-Deno.test("validateRemotePath rejects absolute and escaping paths", () => {
+test("validateRemotePath rejects absolute and escaping paths", () => {
   for (const path of [
     "../etc/passwd",
     "/etc/passwd",
@@ -105,21 +127,23 @@ Deno.test("validateRemotePath rejects absolute and escaping paths", () => {
   }
 });
 
-Deno.test("validateSubmitRequest rejects non-string branch", () => {
+test("validateSubmitRequest rejects non-string branch", () => {
   const base = {
     schemaVersion: 1,
     requestId: "550e8400-e29b-41d4-a716-446655440000",
     repo: "o/r",
     revision: {
-      files: [{
-        path: "a.ts",
-        previousPath: null,
-        status: "modified",
-        binary: false,
-        additions: 1,
-        deletions: 0,
-        patch: "x",
-      }],
+      files: [
+        {
+          path: "a.ts",
+          previousPath: null,
+          status: "modified",
+          binary: false,
+          additions: 1,
+          deletions: 0,
+          patch: "x",
+        },
+      ],
     },
   };
   const err = validateSubmitRequest({ ...base, branch: 123 });

@@ -9,21 +9,23 @@ import {
 import { insertRemoteToken } from "../store/remote_tokens.ts";
 import { cancel } from "./jobs.ts";
 import { cancelRemoteJobsForToken } from "./remote_token_jobs.ts";
+import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
+import { test } from "node:test";
 
 async function withTempDb(fn: () => Promise<void> | void): Promise<void> {
-  const original = Deno.env.get("CM_APP_DB");
-  Deno.env.set("CM_APP_DB", `${Deno.makeTempDirSync()}/app.db`);
+  const original = getEnv("CM_APP_DB");
+  setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
   try {
     await openAppDb();
     await fn();
   } finally {
     await closeAppDb();
-    if (original === undefined) Deno.env.delete("CM_APP_DB");
-    else Deno.env.set("CM_APP_DB", original);
+    if (original === undefined) deleteEnv("CM_APP_DB");
+    else setEnv("CM_APP_DB", original);
   }
 }
 
-Deno.test("cancelRemoteJobsForToken marks queued remote review aborted", async () => {
+test("cancelRemoteJobsForToken marks queued remote review aborted", async () => {
   await withTempDb(async () => {
     insertRemoteToken("tok", "laptop", "hash");
     insertRemoteReview({
@@ -54,7 +56,7 @@ Deno.test("cancelRemoteJobsForToken marks queued remote review aborted", async (
   });
 });
 
-Deno.test("listRemoteReviewsForRepo respects sinceIso", async () => {
+test("listRemoteReviewsForRepo respects sinceIso", async () => {
   await withTempDb(async () => {
     insertRemoteReview({
       id: "rev-old",
@@ -67,9 +69,9 @@ Deno.test("listRemoteReviewsForRepo respects sinceIso", async () => {
       scope: "remote",
       model: "m",
     });
-    getAppDb().prepare(
-      `UPDATE reviews SET created_at = ? WHERE id = ?`,
-    ).run("2020-01-01T00:00:00.000Z", "rev-old");
+    getAppDb()
+      .prepare(`UPDATE reviews SET created_at = ? WHERE id = ?`)
+      .run("2020-01-01T00:00:00.000Z", "rev-old");
     insertRemoteReview({
       id: "rev-new",
       subjectId: "s",
@@ -89,7 +91,7 @@ Deno.test("listRemoteReviewsForRepo respects sinceIso", async () => {
   });
 });
 
-Deno.test("cancel() on queued remote review aborts the review row", async () => {
+test("cancel() on queued remote review aborts the review row", async () => {
   await withTempDb(async () => {
     insertRemoteReview({
       id: "rev-2",

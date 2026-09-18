@@ -13,7 +13,7 @@
       <a class="brand site-brand" href="index.html"><img src="assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
       <nav class="topnav" aria-label="Site">
         <a class="toplink on" href="getting-started.html">Documentation</a>
-        <a class="toplink" href="https://jsr.io/@murat/co-maintainer">JSR</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
         <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
       </nav>
       <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
@@ -75,13 +75,13 @@ reviews a PR or local diff. Start with the CLI. <a href="serve.html"><code>serve
 
 
 
-<p><strong>Need:</strong> <a href="https://deno.com/">Deno</a>, a repo you can read, <code>gh auth login</code>, an
+<p><strong>Need:</strong> <a href="https://nodejs.org/">Node.js 24+</a>, a repo you can read, <code>gh auth login</code>, an
 <a href="https://openrouter.ai/">OpenRouter</a> key. Details: <a href="authentication.html">Authentication</a>.</p>
 <h2 id="1-install">1. Install</h2>
-<pre class="shell-block"><code><span class="sh-arg">deno</span> <span class="sh-arg">install</span> <span class="sh-arg">-g</span> <span class="sh-arg">-A</span> <span class="sh-flag">--name</span> <span class="sh-arg">co-maintainer</span> <span class="sh-arg">jsr:@murat/co-maintainer</span>
+<pre class="shell-block"><code>npm install -g co-maintainer
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">help</span>
 </code></pre>
-<p>PATH issues or Windows registry: <a href="https://github.com/GroophyLifefor/co-maintainer#installation">README install</a>.</p>
+<p>PATH issues or general install notes: <a href="https://github.com/GroophyLifefor/co-maintainer#installation">README install</a>.</p>
 <h2 id="2-save-defaults-once">2. Save defaults (once)</h2>
 <pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--auth=gh</span> <span class="sh-flag">--ai=openrouter</span> <span class="sh-flag">--token=YOUR_OPENROUTER_KEY</span> <span class="sh-flag">--low-model=openai/gpt-oss-120b</span> <span class="sh-flag">--high-model=openai/gpt-5.6-luna</span>
 </code></pre>

@@ -15,7 +15,7 @@ export async function handleWebhookRequest(
   const raw = new Uint8Array(await request.arrayBuffer());
   if (secret) {
     const header = request.headers.get("x-hub-signature-256");
-    if (!await verifySignature(secret, raw, header)) {
+    if (!(await verifySignature(secret, raw, header))) {
       return errorResponse(401, "unauthorized", "bad webhook signature");
     }
   }
@@ -40,17 +40,21 @@ export async function handleWebhookRequest(
     return errorResponse(400, "bad_request", "body is not JSON");
   }
   if (
-    payload === null || typeof payload !== "object" || Array.isArray(payload)
+    payload === null ||
+    typeof payload !== "object" ||
+    Array.isArray(payload)
   ) {
     return errorResponse(400, "bad_request", "body is not a JSON object");
   }
 
   const config = readConfig();
-  const repoFullName =
-    (payload.repository as { full_name?: unknown } | undefined)?.full_name;
+  const repoFullName = (
+    payload.repository as { full_name?: unknown } | undefined
+  )?.full_name;
   const repoName = typeof repoFullName === "string" ? repoFullName : undefined;
   const repoConfig = repoName ? config.repos?.[repoName] : undefined;
-  const maxDiffLines = repoConfig?.maxPullRequestChangeLines ??
+  const maxDiffLines =
+    repoConfig?.maxPullRequestChangeLines ??
     config.defaults?.maxPullRequestChangeLines;
 
   let result;

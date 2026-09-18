@@ -1,3 +1,15 @@
+import {
+  chmod,
+  currentPlatform,
+  getEnv,
+  isNotFound,
+  mkdir,
+  readTextFileSync,
+  setEnv,
+  type Platform,
+  writeTextFile,
+} from "./util/runtime.ts";
+
 /** Everything init/remake resolved for one repo, except secrets — an API
  * token is never written to config.json, only ever taken from --token or
  * an env file. Remembering this lets `remake owner/repo` run with no
@@ -65,41 +77,50 @@ export type UserConfig = {
   repos?: Record<string, RepoConfig>;
 };
 
-function homeDir(): string {
-  const home = Deno.env.get("HOME") ?? Deno.env.get("USERPROFILE");
+function homeDir(env: (name: string) => string | undefined): string {
+  const home = env("HOME") ?? env("USERPROFILE");
   if (!home) throw new Error("Could not determine the home directory");
   return home;
 }
 
-export function getConfigDir(): string {
-  const home = homeDir();
-  switch (Deno.build.os) {
+/** Platform/env injection keeps the OS branches testable (plan §0b): the
+ * migration's `"windows"` vs `"win32"` trap is invisible otherwise. */
+export function getConfigDir(
+  os: Platform = currentPlatform(),
+  env: (name: string) => string | undefined = getEnv,
+): string {
+  const home = homeDir(env);
+  switch (os) {
     case "windows":
-      return Deno.env.get("APPDATA") ?? `${home}\\AppData\\Roaming`;
+      return env("APPDATA") ?? `${home}\\AppData\\Roaming`;
     case "darwin":
       return `${home}/Library/Application Support`;
     default:
-      return Deno.env.get("XDG_CONFIG_HOME") ?? `${home}/.config`;
+      return env("XDG_CONFIG_HOME") ?? `${home}/.config`;
   }
 }
 
-export function getCacheDir(): string {
-  const home = homeDir();
-  switch (Deno.build.os) {
+export function getCacheDir(
+  os: Platform = currentPlatform(),
+  env: (name: string) => string | undefined = getEnv,
+): string {
+  const home = homeDir(env);
+  switch (os) {
     case "windows":
-      return Deno.env.get("LOCALAPPDATA") ?? `${home}\\AppData\\Local`;
+      return env("LOCALAPPDATA") ?? `${home}\\AppData\\Local`;
     case "darwin":
       return `${home}/Library/Caches`;
     default:
-      return Deno.env.get("XDG_CACHE_HOME") ?? `${home}/.cache`;
+      return env("XDG_CACHE_HOME") ?? `${home}/.cache`;
   }
 }
 
 /** `CM_CONFIG_PATH` overrides the path — tests point it at a temp file so
  * they never read or write the real config.json. */
 export function configPath(): string {
-  return Deno.env.get("CM_CONFIG_PATH") ??
-    `${getConfigDir()}/co-maintainer/config.json`;
+  return (
+    getEnv("CM_CONFIG_PATH") ?? `${getConfigDir()}/co-maintainer/config.json`
+  );
 }
 
 /** Where generated skills (SKILL.md, CODEBASE.md, review guides) live.
@@ -107,8 +128,7 @@ export function configPath(): string {
  * invoked from anywhere, including directories it has no permission to
  * write into (e.g. C:\Windows\System32). */
 export function reposDir(): string {
-  return Deno.env.get("CM_REPOS_DIR") ??
-    `${getConfigDir()}/co-maintainer/repos`;
+  return getEnv("CM_REPOS_DIR") ?? `${getConfigDir()}/co-maintainer/repos`;
 }
 
 /** Third-party binaries co-maintainer installs for itself, never onto the
@@ -116,8 +136,7 @@ export function reposDir(): string {
  * upgrade installs alongside the old one instead of over it, and a rollback is
  * just pointing at the previous directory. */
 export function toolsDir(): string {
-  return Deno.env.get("CM_TOOLS_DIR") ??
-    `${getConfigDir()}/co-maintainer/tools`;
+  return getEnv("CM_TOOLS_DIR") ?? `${getConfigDir()}/co-maintainer/tools`;
 }
 
 /** A short, stable directory name for a repository. Full `owner-repo` names
@@ -137,8 +156,7 @@ export function repoSlug(repo: string): string {
  * they belong beside the cache rather than in the config directory, which on
  * Windows is the roaming profile and gets synced across machines. */
 export function clonesDir(): string {
-  return Deno.env.get("CM_CLONES_DIR") ??
-    `${getCacheDir()}/co-maintainer/clones`;
+  return getEnv("CM_CLONES_DIR") ?? `${getCacheDir()}/co-maintainer/clones`;
 }
 
 export function cloneDir(repo: string): string {
@@ -154,7 +172,7 @@ export function cacheDbPath(): string {
 }
 
 export function loadEnvFile(path: string): void {
-  const contents = Deno.readTextFileSync(path);
+  const contents = readTextFileSync(path);
   for (const line of contents.split(/\r?\n/)) {
     const match = line.match(/^\s*(?:export\s+)?([A-Za-z_]\w*)\s*=\s*(.*)\s*$/);
     if (!match) continue;
@@ -165,27 +183,27 @@ export function loadEnvFile(path: string): void {
     ) {
       value = value.slice(1, -1);
     }
-    if (Deno.env.get(match[1]) === undefined) Deno.env.set(match[1], value);
+    if (getEnv(match[1]) === undefined) setEnv(match[1], value);
   }
 }
 
 export function readConfig(): UserConfig {
   try {
-    return JSON.parse(Deno.readTextFileSync(configPath())) as UserConfig;
+    return JSON.parse(readTextFileSync(configPath())) as UserConfig;
   } catch (error) {
-    if (error instanceof Deno.errors.NotFound) return {};
+    if (isNotFound(error)) return {};
     throw new Error(`Could not read config ${configPath()}: ${String(error)}`);
   }
 }
 
 async function writeConfig(config: UserConfig): Promise<void> {
-  await Deno.mkdir(`${getConfigDir()}/co-maintainer`, { recursive: true });
+  await mkdir(`${getConfigDir()}/co-maintainer`, { recursive: true });
   const path = configPath();
-  await Deno.writeTextFile(path, `${JSON.stringify(config, null, 2)}\n`);
+  await writeTextFile(path, `${JSON.stringify(config, null, 2)}\n`);
   // config.json can hold an API token (see UserConfig.token) — keep it
   // readable only by the current user where the platform supports it.
   try {
-    await Deno.chmod(path, 0o600);
+    await chmod(path, 0o600);
   } catch {
     // Windows has no POSIX chmod; NotSupported there is expected.
   }

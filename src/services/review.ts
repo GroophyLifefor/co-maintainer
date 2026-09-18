@@ -1,5 +1,5 @@
 /** Review jobs: run the model, persist findings, post to GitHub. */
-import denoConfig from "../../deno.json" with { type: "json" };
+import { VERSION } from "../version.ts";
 import { createAiProvider } from "../ai/provider.ts";
 import { FakeAiProvider } from "../ai/fake.ts";
 import { AppClient, findInstallationForRepo } from "../github/app.ts";
@@ -53,6 +53,7 @@ import {
 import { enqueue, type LogFn, registerHandler } from "./jobs.ts";
 import type { AiProvider, GitHubClient, Json, Options } from "../types.ts";
 import type { JobRow } from "../store/rows.ts";
+import { getEnv } from "../util/runtime.ts";
 
 const ACCESS_DENIED_BODY =
   "The App does not have access to review this pull request.";
@@ -88,9 +89,10 @@ export function splitInline(
   leftover: ParsedFinding[];
 } {
   const patches = new Map(
-    files.map((
-      file,
-    ) => [String(file.filename ?? ""), String(file.patch ?? "")]),
+    files.map((file) => [
+      String(file.filename ?? ""),
+      String(file.patch ?? ""),
+    ]),
   );
   const inline: {
     finding: ParsedFinding;
@@ -135,12 +137,14 @@ export function formatDuration(ms: number): string {
 }
 
 function metadataBlock({ jobId, model, durationMs }: ReviewMetadata): string {
-  return `\n\n<details>\n<summary>Metadata</summary>\n\n` +
+  return (
+    `\n\n<details>\n<summary>Metadata</summary>\n\n` +
     `- Activity: ${jobId}\n` +
-    `- co-maintainer version: ${denoConfig.version}\n` +
+    `- co-maintainer version: ${VERSION}\n` +
     `- Model: ${model}\n` +
     `- Duration: ${formatDuration(durationMs)}\n` +
-    `</details>`;
+    `</details>`
+  );
 }
 
 /** Short summary on the review itself. Findings that map to the diff go
@@ -158,17 +162,15 @@ export function reviewBody(
     const title = humanCopy(finding.heading || finding.path);
     const summary = humanCopy(
       finding.summary ??
-        finding.excerpt.split(/\r?\n/).find((line) => line.trim()) ?? "",
+        finding.excerpt.split(/\r?\n/).find((line) => line.trim()) ??
+        "",
     );
     lines.push(`- ${title}${summary ? `: ${summary}` : ""}`);
   }
   return lines.join("\n") + metadataBlock(metadata);
 }
 
-function inlineCommentBody(
-  finding: ParsedFinding,
-  suggestion = false,
-): string {
+function inlineCommentBody(finding: ParsedFinding, suggestion = false): string {
   const heading = humanCopy(finding.heading);
   const excerpt = humanCopy(
     suggestion
@@ -177,9 +179,8 @@ function inlineCommentBody(
   );
   const marker = `${finding.path}:${finding.from}`;
   const at = excerpt.indexOf(marker);
-  const rest = at >= 0
-    ? excerpt.slice(at + marker.length).trim()
-    : excerpt.trim();
+  const rest =
+    at >= 0 ? excerpt.slice(at + marker.length).trim() : excerpt.trim();
   if (!rest) return heading;
   return `${heading}\n\n${rest}`;
 }
@@ -211,7 +212,7 @@ export function reviewOptions(repo: string, prNumber: number): Options {
 }
 
 export function aiFor(options: Options): AiProvider {
-  if (Deno.env.get("CM_FAKE_AI") === "1") return new FakeAiProvider();
+  if (getEnv("CM_FAKE_AI") === "1") return new FakeAiProvider();
   const provider = createAiProvider(options, options.highModel ?? "");
   if (!provider) {
     throw new Error(
@@ -261,7 +262,9 @@ async function denyAccess(
   const posted = await post(
     client,
     `repos/${job.repo}/issues/${job.pr_number}/comments`,
-    { body: ACCESS_DENIED_BODY },
+    {
+      body: ACCESS_DENIED_BODY,
+    },
   );
   setReviewStatus(reviewId, "access_denied", {
     posted_review_id: String(posted.id ?? ""),
@@ -285,10 +288,7 @@ function checkAnnotations(
     .filter((finding) => finding.path)
     .slice(0, 50)
     .map((finding) => {
-      const startLine = Math.max(
-        1,
-        finding.line_from ?? finding.line_to ?? 1,
-      );
+      const startLine = Math.max(1, finding.line_from ?? finding.line_to ?? 1);
       const endLine = Math.max(startLine, finding.line_to ?? startLine);
       return {
         path: finding.path,
@@ -296,11 +296,12 @@ function checkAnnotations(
         end_line: endLine,
         start_column: 1,
         end_column: 1,
-        annotation_level: finding.severity === "P1"
-          ? "failure"
-          : finding.severity === "P2"
-          ? "warning"
-          : "notice",
+        annotation_level:
+          finding.severity === "P1"
+            ? "failure"
+            : finding.severity === "P2"
+              ? "warning"
+              : "notice",
         message: humanCopy(stripSuggestion(finding.body_md)),
         title: humanCopy(finding.title),
       };
@@ -398,8 +399,8 @@ async function publish(
 ): Promise<void> {
   const stored = listFindingsForReview(reviewId);
   const replies = stored.filter((row) => row.thread_comment_id);
-  const freshRows = stored.filter((row) =>
-    row.state === "new" && !row.thread_comment_id
+  const freshRows = stored.filter(
+    (row) => row.state === "new" && !row.thread_comment_id,
   );
   const fresh: ParsedFinding[] = freshRows.map((row) => ({
     path: row.path ?? "",
@@ -411,16 +412,18 @@ async function publish(
   const { inline, leftover } = splitInline(fresh, files);
   const anchorByRow = new Map<string, Anchor>();
   for (const { finding, anchor } of inline) {
-    const row = freshRows.find((item) =>
-      item.path === finding.path &&
-      item.line_from === finding.from &&
-      item.line_to === finding.to
+    const row = freshRows.find(
+      (item) =>
+        item.path === finding.path &&
+        item.line_from === finding.from &&
+        item.line_to === finding.to,
     );
     if (row) anchorByRow.set(row.id, anchor);
   }
   const freshSummaryKeys = new Set(
-    [...leftover, ...inline.map(({ finding }) => finding)].map((finding) =>
-      `${finding.path}\0${finding.from}\0${finding.to}`),
+    [...leftover, ...inline.map(({ finding }) => finding)].map(
+      (finding) => `${finding.path}\0${finding.from}\0${finding.to}`,
+    ),
   );
   const summaryFindings = [
     ...leftover,
@@ -428,8 +431,7 @@ async function publish(
     ...stored
       .filter((row) => row.state !== "closed")
       .filter((row) => {
-        const key =
-          `${row.path ?? ""}\0${row.line_from ?? 0}\0${row.line_to ?? row.line_from ?? 0}`;
+        const key = `${row.path ?? ""}\0${row.line_from ?? 0}\0${row.line_to ?? row.line_from ?? 0}`;
         return !freshSummaryKeys.has(key);
       })
       .map((row) => ({
@@ -472,7 +474,10 @@ async function publish(
     const posted = await post(
       client,
       `repos/${job.repo}/pulls/${job.pr_number}/comments`,
-      { body: text, in_reply_to: Number(row.thread_comment_id) },
+      {
+        body: text,
+        in_reply_to: Number(row.thread_comment_id),
+      },
     );
     setFindingPosted(
       row.id,
@@ -505,9 +510,10 @@ async function publish(
       for (const row of stored) {
         const anchor = anchorByRow.get(row.id);
         if (row.posted_comment_id || !row.path || !anchor) continue;
-        const hit = listed.find((item) =>
-          String(item.path ?? "") === row.path &&
-          Number(item.line ?? item.original_line ?? 0) === anchor.line
+        const hit = listed.find(
+          (item) =>
+            String(item.path ?? "") === row.path &&
+            Number(item.line ?? item.original_line ?? 0) === anchor.line,
         );
         if (hit?.id) setFindingPosted(row.id, String(hit.id));
       }
@@ -522,7 +528,9 @@ async function publish(
       const posted = await post(
         client,
         `repos/${job.repo}/issues/${job.pr_number}/comments`,
-        { body: reviewBody(summaryFindings, metadata) },
+        {
+          body: reviewBody(summaryFindings, metadata),
+        },
       );
       setReviewStatus(reviewId, "posted", {
         posted_review_id: String(posted.id ?? ""),
@@ -559,8 +567,10 @@ export async function reconcileReview(
   );
   const match = listed.find((item) => {
     const user = item.user as Json | undefined;
-    return String(item.commit_id ?? "") === review.head_sha &&
-      String(user?.type ?? "") === "Bot";
+    return (
+      String(item.commit_id ?? "") === review.head_sha &&
+      String(user?.type ?? "") === "Bot"
+    );
   });
   if (match) {
     setReviewStatus(review.id, "posted", {
@@ -620,8 +630,8 @@ async function runReviewJobCore(
     throw new Error("review job is missing a pull request number");
   }
   const repo = getRepo(job.repo);
-  const installationId = repo?.installation_id ??
-    await resolveInstallationId(job.repo);
+  const installationId =
+    repo?.installation_id ?? (await resolveInstallationId(job.repo));
   if (!client && installationId === undefined) {
     throw new Error(`no GitHub App installation stored for ${job.repo}`);
   }
@@ -629,7 +639,8 @@ async function runReviewJobCore(
   const existing = getReviewByJobId(job.id);
   if (
     existing &&
-    (existing.status === "posting" || existing.status === "posted" ||
+    (existing.status === "posting" ||
+      existing.status === "posted" ||
       existing.status === "access_denied")
   ) {
     await reconcileReview(job, log, github);
@@ -652,9 +663,8 @@ async function runReviewJobCore(
   if (scope === "incremental" && !args.sinceCommit) {
     scope = "whole-pr";
   }
-  let reviewBase = scope === "incremental" && args.sinceCommit
-    ? args.sinceCommit
-    : mergeBase;
+  let reviewBase =
+    scope === "incremental" && args.sinceCommit ? args.sinceCommit : mergeBase;
   const subject = getOrCreatePrSubject(job.repo, job.pr_number);
   const reviewId = existing?.id ?? crypto.randomUUID();
   if (!existing) {
@@ -716,8 +726,8 @@ async function runReviewJobCore(
     }
     publishFiles = snapshot
       ? await github.pages<Json>(
-        `repos/${job.repo}/pulls/${job.pr_number}/files`,
-      )
+          `repos/${job.repo}/pulls/${job.pr_number}/files`,
+        )
       : files;
   } catch (error) {
     if (isAccessDenied(error)) {
@@ -742,9 +752,7 @@ async function runReviewJobCore(
     log,
   );
   log("info", `reviewing ${job.repo}#${job.pr_number}`);
-  const baseLabel = `origin/${
-    String((pr.base as Json | undefined)?.ref ?? "main")
-  }`;
+  const baseLabel = `origin/${String((pr.base as Json | undefined)?.ref ?? "main")}`;
   const revision = githubPullRequestToRevision(publishFiles, pr, baseLabel);
   const guidesBefore = await loadGuides(job.repo);
   let guideBuiltAt = guidesBefore.guideBuiltAt;
@@ -771,7 +779,8 @@ async function runReviewJobCore(
         bodyMd: row.body_md,
         anchorText: row.anchor_text,
         severity: row.severity,
-        firstSeenReviewId: row.first_seen_review_id ?? subjectRevision.review_id,
+        firstSeenReviewId:
+          row.first_seen_review_id ?? subjectRevision.review_id,
       })),
       guideBuiltAt: subjectRevision.guide_built_at,
     };
@@ -828,10 +837,8 @@ async function runReviewJobCore(
     for (const row of resolved) {
       if (row.state === "open") openCount++;
       if (row.state === "closed") closedCount++;
-      const patch = revision.files.find((file) =>
-        file.path === row.path
-      )?.patch ??
-        "";
+      const patch =
+        revision.files.find((file) => file.path === row.path)?.patch ?? "";
       insertFinding({
         id: row.id,
         reviewId,
@@ -841,26 +848,28 @@ async function runReviewJobCore(
         lineTo: row.lineTo ?? undefined,
         title: row.title,
         bodyMd: redact(row.bodyMd),
-        anchorText: row.anchorText ??
+        anchorText:
+          row.anchorText ??
           (row.path && row.lineFrom
             ? anchorTextFromPatch(
-              patch,
-              row.lineFrom,
-              row.lineTo ?? row.lineFrom,
-            )
+                patch,
+                row.lineFrom,
+                row.lineTo ?? row.lineFrom,
+              )
             : null),
         state: row.state,
         carriedFromFindingId: row.carriedFromId,
         closeReason: row.closeReason ?? undefined,
         firstSeenReviewId: row.firstSeenReviewId ?? undefined,
-        threadCommentId: row.state === "open" && row.carriedFromId
-          ? postedById.get(row.carriedFromId) ?? undefined
-          : undefined,
+        threadCommentId:
+          row.state === "open" && row.carriedFromId
+            ? (postedById.get(row.carriedFromId) ?? undefined)
+            : undefined,
       });
     }
   } else {
-    const previous = listFindingsForPr(job.repo, job.pr_number).filter((row) =>
-      row.review_id !== reviewId
+    const previous = listFindingsForPr(job.repo, job.pr_number).filter(
+      (row) => row.review_id !== reviewId,
     );
     for (const finding of parsed) {
       const repeat = matchRepeat(finding, previous);
@@ -897,19 +906,11 @@ async function runReviewJobCore(
     guideBuiltAt,
   });
   log("info", `publishing ${totalFindings} finding(s) to GitHub`);
-  await publish(
-    github,
-    job,
-    reviewId,
-    headSha,
-    publishFiles,
-    log,
-    {
-      jobId: job.id,
-      model: options.highModel ?? "unknown",
-      durationMs: Date.now() - startedAt,
-    },
-  );
+  await publish(github, job, reviewId, headSha, publishFiles, log, {
+    jobId: job.id,
+    model: options.highModel ?? "unknown",
+    durationMs: Date.now() - startedAt,
+  });
   await finishCheck(
     github,
     job,
@@ -929,9 +930,7 @@ export function registerReviewJobHandler(): void {
     reconcile(job, log) {
       return resolveInstallationId(job.repo).then((installationId) => {
         if (installationId === undefined) {
-          throw new Error(
-            `no GitHub App installation stored for ${job.repo}`,
-          );
+          throw new Error(`no GitHub App installation stored for ${job.repo}`);
         }
         return reconcileReview(job, log, clientFor(installationId));
       });
@@ -945,8 +944,8 @@ export function enqueueManualReview(
 ): { id: string; debounced: boolean } {
   const last = latestPostedReview(repo, prNumber);
   const row = getRepo(repo);
-  const incremental = row?.review_scope === "incremental" &&
-    Boolean(last?.head_sha);
+  const incremental =
+    row?.review_scope === "incremental" && Boolean(last?.head_sha);
   return enqueue({
     type: "review",
     repo,

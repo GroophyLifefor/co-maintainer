@@ -27,18 +27,13 @@ async function runTool(
 ): Promise<string> {
   try {
     if (call.function.name === TOOL_NAME) {
-      return readMermaidSyntaxes(
-        JSON.parse(call.function.arguments),
-        maxTools,
-      );
+      return readMermaidSyntaxes(JSON.parse(call.function.arguments), maxTools);
     }
     const extra = extraTools.find((item) => item.name === call.function.name);
     if (extra) return await extra.run(JSON.parse(call.function.arguments));
     throw new Error(`unsupported tool: ${call.function.name}`);
   } catch (error) {
-    return `Tool error: ${
-      error instanceof Error ? error.message : String(error)
-    }`;
+    return `Tool error: ${error instanceof Error ? error.message : String(error)}`;
   }
 }
 
@@ -60,12 +55,12 @@ export async function completeWithMermaidTools(
   }
 
   const messages: AiMessage[] = [
-    ...request.messages ?? [
+    ...(request.messages ?? [
       ...(request.system
         ? [{ role: "system" as const, content: request.system }]
         : []),
       { role: "user" as const, content: request.prompt },
-    ],
+    ]),
   ];
   const tools = [
     MERMAID_TOOL as unknown as Json,
@@ -101,9 +96,9 @@ export async function completeWithMermaidTools(
       "review-tools",
       `round ${
         round + 1
-      }/${maxToolRounds} · ${response.toolCalls.length} call(s): ${
-        response.toolCalls.map((call) => call.function.name).join(", ")
-      }`,
+      }/${maxToolRounds} · ${response.toolCalls.length} call(s): ${response.toolCalls
+        .map((call) => call.function.name)
+        .join(", ")}`,
     );
     messages.push({
       role: "assistant",

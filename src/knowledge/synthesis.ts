@@ -27,10 +27,10 @@ function promptText(value: string, limit = 6_000): string {
 }
 
 function parseJson(text: string): unknown {
-  const cleaned = text.trim().replace(/^```(?:json)?\s*/i, "").replace(
-    /\s*```$/,
-    "",
-  );
+  const cleaned = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "");
   try {
     return JSON.parse(cleaned);
   } catch {
@@ -61,26 +61,30 @@ function factsFromResponse(
     const claim = String(value.claim ?? "").trim();
     const sectionKey = String(value.sectionKey ?? "").trim();
     if (!claim || !allowedSections.has(sectionKey)) return [];
-    const scope = value.scope === "current" ||
-        value.scope === "repeated-history" ||
-        value.scope === "historical-example"
-      ? value.scope
-      : defaultScope;
-    const confidence = value.confidence === "high" ||
-        value.confidence === "medium" ||
-        value.confidence === "low"
-      ? value.confidence
-      : "medium";
-    return [{
-      id: `${sectionKey}:${slug(claim)}`,
-      sectionKey,
-      claim,
-      evidence: [evidence],
-      weight: 1,
-      scope,
-      confidence,
-      status: "active",
-    }];
+    const scope =
+      value.scope === "current" ||
+      value.scope === "repeated-history" ||
+      value.scope === "historical-example"
+        ? value.scope
+        : defaultScope;
+    const confidence =
+      value.confidence === "high" ||
+      value.confidence === "medium" ||
+      value.confidence === "low"
+        ? value.confidence
+        : "medium";
+    return [
+      {
+        id: `${sectionKey}:${slug(claim)}`,
+        sectionKey,
+        claim,
+        evidence: [evidence],
+        weight: 1,
+        scope,
+        confidence,
+        status: "active",
+      },
+    ];
   });
 }
 
@@ -90,14 +94,14 @@ function hasUnsupportedIdentifier(claim: string, source: Source): boolean {
     ...Object.keys(source.files),
     ...Object.values(source.files),
   ].join("\n");
-  return [...claim.matchAll(/`([A-Za-z_]\w*)`/g)].some(([_, identifier]) =>
-    !evidence.includes(identifier)
+  return [...claim.matchAll(/`([A-Za-z_]\w*)`/g)].some(
+    ([_, identifier]) => !evidence.includes(identifier),
   );
 }
 
 function allowsContributionSections(source: Source): boolean {
   return Object.keys(source.files).some((path) =>
-    /CONTRIBUTING|PULL_REQUEST_TEMPLATE/i.test(path)
+    /CONTRIBUTING|PULL_REQUEST_TEMPLATE/i.test(path),
   );
 }
 
@@ -107,26 +111,29 @@ function hasUnsupportedPath(claim: string, source: Source): boolean {
   const references = [
     ...[...claim.matchAll(/`([^`\n]+\/[^`\n]+)`/g)].map(([, value]) => value),
     ...[...claim.matchAll(/`([^`\n]+\/)`/g)].map(([, value]) => value),
-    ...[...claim.matchAll(
-      /(?:^|[\s("'`])((?!@)[A-Za-z0-9_.-]+\/[A-Za-z0-9_.*?{}<>:+-]+(?:\/[A-Za-z0-9_.*?{}<>:+-]+)*)/g,
-    )].map(([, value]) => value),
+    ...[
+      ...claim.matchAll(
+        /(?:^|[\s("'`])((?!@)[A-Za-z0-9_.-]+\/[A-Za-z0-9_.*?{}<>:+-]+(?:\/[A-Za-z0-9_.*?{}<>:+-]+)*)/g,
+      ),
+    ].map(([, value]) => value),
   ];
   return references.some((reference) => {
     if (reference.startsWith("@") || reference === repositoryName) return false;
     const normalized = reference.replace(/^\.\/+/, "").replace(/\/+$/, "");
     const wildcard = normalized.includes("*")
       ? new RegExp(
-        `^${
-          normalized.split("*").map((part) =>
-            part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-          ).join(".*")
-        }$`,
-      )
+          `^${normalized
+            .split("*")
+            .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+            .join(".*")}$`,
+        )
       : undefined;
-    return !paths.has(normalized) &&
+    return (
+      !paths.has(normalized) &&
       ![...paths].some((path) =>
-        wildcard ? wildcard.test(path) : path.startsWith(`${normalized}/`)
-      );
+        wildcard ? wildcard.test(path) : path.startsWith(`${normalized}/`),
+      )
+    );
   });
 }
 
@@ -177,11 +184,13 @@ function cleanSection(text: string, key: string): string {
 function validSection(text: string, key: string): boolean {
   const heading = `## ${sectionTitles[key] ?? key}`;
   const bullets = text.match(/^-\s+/gm) ?? [];
-  return text.startsWith(heading) &&
+  return (
+    text.startsWith(heading) &&
     bullets.length > 0 &&
     bullets.length <= 6 &&
     !text.includes("```") &&
-    !/\b(?:TODO|TBD)\b/i.test(text);
+    !/\b(?:TODO|TBD)\b/i.test(text)
+  );
 }
 
 function sectionGoal(key: string): string {
@@ -192,8 +201,7 @@ function sectionGoal(key: string): string {
       "State which verification is required after a behavior change and the dependency/setup that makes it meaningful.",
     devloop:
       "Give local build, debugging, or change-impact guidance that is not already stated in Shipping.",
-    ship:
-      "Give one concise release/CI checklist; merge overlapping workflow, artifact, and release-gate facts.",
+    ship: "Give one concise release/CI checklist; merge overlapping workflow, artifact, and release-gate facts.",
     style:
       "Keep only repository-specific, evidenced conventions. Return only the heading when none are actionable.",
   };
@@ -201,24 +209,24 @@ function sectionGoal(key: string): string {
 }
 
 function synthesisFacts(facts: Fact[], key: string): Fact[] {
-  return facts.filter((item) => item.sectionKey === key)
-    .sort((a, b) =>
-      (b.status === "active" ? 1 : 0) - (a.status === "active" ? 1 : 0) ||
-      ({
-          current: 3,
-          "repeated-history": 2,
-          "historical-example": 1,
-        }[b.scope] ??
-          0) -
+  return facts
+    .filter((item) => item.sectionKey === key)
+    .sort(
+      (a, b) =>
+        (b.status === "active" ? 1 : 0) - (a.status === "active" ? 1 : 0) ||
         ({
           current: 3,
           "repeated-history": 2,
           "historical-example": 1,
-        }[a.scope] ??
-          0) ||
-      b.weight - a.weight ||
-      b.evidence.length - a.evidence.length ||
-      a.claim.localeCompare(b.claim)
+        }[b.scope] ?? 0) -
+          ({
+            current: 3,
+            "repeated-history": 2,
+            "historical-example": 1,
+          }[a.scope] ?? 0) ||
+        b.weight - a.weight ||
+        b.evidence.length - a.evidence.length ||
+        a.claim.localeCompare(b.claim),
     )
     .slice(0, 20);
 }
@@ -236,8 +244,9 @@ export async function extractAiFacts(
   const prs = options.includePullRequests ? source.pullRequests : [];
 
   for (const pr of prs) {
-    requests.push(extractRequest(
-      `Analyze this pull request and return only a JSON array of atomic observations. Each item must have exactly:
+    requests.push(
+      extractRequest(
+        `Analyze this pull request and return only a JSON array of atomic observations. Each item must have exactly:
 {"sectionKey":"one allowed section","claim":"one directly evidenced observation","scope":"historical-example","confidence":"medium"}
 Allowed sections: ${[...allowedSections].join(", ")}
 Use evidence from this PR only. Do not generalize this PR into a repository-wide policy.
@@ -245,8 +254,9 @@ Return at most 6 items. Keep each claim under 180 characters. Do not explain the
 
 PULL REQUEST:
 ${pullRequestUnit(pr)}`,
-      1_200,
-    ));
+        1_200,
+      ),
+    );
     evidence.push(`PR #${pr.number}`);
     scopes.push("historical-example");
   }
@@ -256,8 +266,9 @@ ${pullRequestUnit(pr)}`,
       .map(([path, content]) => `${path}\n${promptText(content, 4_000)}`)
       .join("\n\n");
     if (files) {
-      requests.push(extractRequest(
-        `Analyze these canonical repository files and return only a JSON array of atomic observations.
+      requests.push(
+        extractRequest(
+          `Analyze these canonical repository files and return only a JSON array of atomic observations.
 Each item must have exactly:
 {"sectionKey":"one allowed section","claim":"one directly evidenced observation","scope":"current","confidence":"high"}
 Allowed sections: ${[...allowedSections].join(", ")}
@@ -273,8 +284,9 @@ Return at most 10 items. Keep each claim under 180 characters. Do not explain th
 
 FILES:
 ${files}`,
-        2_200,
-      ));
+          2_200,
+        ),
+      );
       evidence.push("repository files");
       scopes.push("current");
     }
@@ -298,14 +310,15 @@ ${files}`,
           response.text,
           evidence[index],
           scopes[index] ?? "historical-example",
-        ).filter((item) =>
-          !hasUnsupportedIdentifier(item.claim, source) &&
-          !hasUnsupportedPath(item.claim, source) &&
-          (evidence[index] !== "repository files" ||
-            allowsContributionSections(source) ||
-            !["title-body", "labels", "review-bar", "process"].includes(
-              item.sectionKey,
-            ))
+        ).filter(
+          (item) =>
+            !hasUnsupportedIdentifier(item.claim, source) &&
+            !hasUnsupportedPath(item.claim, source) &&
+            (evidence[index] !== "repository files" ||
+              allowsContributionSections(source) ||
+              !["title-body", "labels", "review-bar", "process"].includes(
+                item.sectionKey,
+              )),
         ),
       );
     } catch (error) {
@@ -372,15 +385,13 @@ export async function synthesizeSections(
       job: "synth_section",
       maxTokens: 1_800,
       reasoningEffort: "high",
-      system:
-        `You synthesize contribution guidance for an unfamiliar open-source repository.
+      system: `You synthesize contribution guidance for an unfamiliar open-source repository.
 Help developers make correct implementation, testing, review, debugging, and release
 decisions. Current repository evidence outranks history. A single historical
 observation is not a repository-wide rule. If sources conflict and current evidence
 does not resolve the conflict, omit the claim. Never invent paths, commands,
 conventions, or policies. Do not summarize README prose or list incidental details.`,
-      prompt:
-        `Write only the Markdown for the "${key}" section of a repository Agent Skill.
+      prompt: `Write only the Markdown for the "${key}" section of a repository Agent Skill.
 Use only the facts below. Keep rules that change implementation, testing, review,
 debugging, or release decisions. Drop end-user README instructions, feature lists,
 file inventories, duplicate commands, and generic programming advice. Preserve useful

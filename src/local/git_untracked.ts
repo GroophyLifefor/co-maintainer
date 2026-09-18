@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { normalizePath, type RevisionFile } from "../review/revision.ts";
+import { lstat, readFile, readLink } from "../util/runtime.ts";
 
 const NUL_SCAN_BYTES = 8000;
 
@@ -9,9 +10,11 @@ export type UntrackedWarning = {
 };
 
 /** Build patch for a new untracked file (plan §10.8). */
-export function patchFromNewFileContent(
-  content: Uint8Array,
-): { patch: string; additions: number; binary: boolean } {
+export function patchFromNewFileContent(content: Uint8Array): {
+  patch: string;
+  additions: number;
+  binary: boolean;
+} {
   const scan = content.subarray(0, Math.min(content.length, NUL_SCAN_BYTES));
   if (scan.includes(0)) {
     return { patch: "", additions: 0, binary: true };
@@ -53,9 +56,9 @@ export async function revisionFileFromUntracked(
   const path = normalizePath(relPath);
   const abs = join(cwd, relPath);
   try {
-    const lstat = await Deno.lstat(abs);
-    if (lstat.isSymlink) {
-      const target = await Deno.readLink(abs);
+    const info = await lstat(abs);
+    if (info.isSymbolicLink()) {
+      const target = await readLink(abs);
       const { patch, additions, binary } = patchFromSymlinkTarget(target);
       return {
         file: {
@@ -69,7 +72,7 @@ export async function revisionFileFromUntracked(
         },
       };
     }
-    const content = await Deno.readFile(abs);
+    const content = await readFile(abs);
     const { patch, additions, binary } = patchFromNewFileContent(content);
     return {
       file: {

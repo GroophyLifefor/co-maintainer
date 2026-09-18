@@ -22,14 +22,14 @@ function uncode(value: string): string {
   return value.trim().replace(/^`|`$/g, "").trim();
 }
 
-function location(block: string): {
-  path: string;
-  from: number;
-  to: number;
-} | undefined {
-  const match = block.match(
-    /^\s*(?:Location|File)\s*:\s*`?(.+?)`?\s*$/im,
-  );
+function location(block: string):
+  | {
+      path: string;
+      from: number;
+      to: number;
+    }
+  | undefined {
+  const match = block.match(/^\s*(?:Location|File)\s*:\s*`?(.+?)`?\s*$/im);
   const source = match?.[1] ?? block;
   const found = [...source.matchAll(FILE_LINE)][0];
   if (!found?.groups?.path || !found.groups.from) return undefined;
@@ -42,16 +42,10 @@ function location(block: string): {
 }
 
 function bodyWithoutLocation(block: string): string {
-  return block.replace(
-    /^\s*(?:Location|File)\s*:\s*`?.+?`?\s*$/im,
-    "",
-  ).trim();
+  return block.replace(/^\s*(?:Location|File)\s*:\s*`?.+?`?\s*$/im, "").trim();
 }
 
-function newFinding(
-  header: string,
-  block: string,
-): ParsedFinding | undefined {
+function newFinding(header: string, block: string): ParsedFinding | undefined {
   const meta = NEW_HEADING.exec(header);
   if (!meta?.groups) return undefined;
   const at = location(block);
@@ -76,13 +70,13 @@ function newFinding(
 
 export function parseFindings(markdown: string): ParsedFinding[] {
   const previousHeading = markdown.search(/^## Previous findings\b/im);
-  const withoutVerdicts = previousHeading === -1
-    ? markdown
-    : markdown.slice(0, previousHeading);
+  const withoutVerdicts =
+    previousHeading === -1 ? markdown : markdown.slice(0, previousHeading);
   const findingsHeading = withoutVerdicts.search(/^## Findings\b/m);
-  const body = findingsHeading === -1
-    ? withoutVerdicts
-    : withoutVerdicts.slice(findingsHeading);
+  const body =
+    findingsHeading === -1
+      ? withoutVerdicts
+      : withoutVerdicts.slice(findingsHeading);
   if (/No actionable findings/i.test(body)) return [];
 
   const findings: ParsedFinding[] = [];
@@ -91,10 +85,7 @@ export function parseFindings(markdown: string): ParsedFinding[] {
     const current = headings[index];
     const start = (current.index ?? 0) + current[0].length;
     const end = headings[index + 1]?.index ?? body.length;
-    const parsed = newFinding(
-      current[1].trim(),
-      body.slice(start, end),
-    );
+    const parsed = newFinding(current[1].trim(), body.slice(start, end));
     if (parsed) findings.push(parsed);
   }
   if (findings.length > 0) return findings;
@@ -111,9 +102,10 @@ export function parseFindings(markdown: string): ParsedFinding[] {
     seen.add(key);
     const at = lined.index ?? 0;
     const headingStart = body.lastIndexOf("\n###", at);
-    const headingLine = headingStart >= 0
-      ? body.slice(headingStart, body.indexOf("\n", headingStart + 1)).trim()
-      : "";
+    const headingLine =
+      headingStart >= 0
+        ? body.slice(headingStart, body.indexOf("\n", headingStart + 1)).trim()
+        : "";
     findings.push({
       path: lined.groups.path,
       from,

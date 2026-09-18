@@ -1,0 +1,11 @@
+{
+  "printWidth": 80,
+  "ignorePatterns": [
+    "docs",
+    "benchmark/core_v2/*.json",
+    "benchmark/core_v3/*.json",
+    "src/remote/fixtures",
+    "src/server/pages/client.ts",
+    "src/server/pages/styles.ts"
+  ]
+}

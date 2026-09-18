@@ -17,55 +17,57 @@ export function renderRepoPulls(
 ): Response {
   const start = (data.page - 1) * data.per + 1;
   const end = Math.min(data.page * data.per, data.total);
-  const pager = data.total === 0 ? "" : `<div class="pager">
+  const pager =
+    data.total === 0
+      ? ""
+      : `<div class="pager">
           <span>${start}-${end} of ${data.total}</span>
           <span class="sp"></span>
           ${
-    data.page > 1
-      ? `<a class="btn sm" href="?page=${data.page - 1}">Previous</a>`
-      : `<button class="btn sm" disabled>Previous</button>`
-  }
+            data.page > 1
+              ? `<a class="btn sm" href="?page=${data.page - 1}">Previous</a>`
+              : `<button class="btn sm" disabled>Previous</button>`
+          }
           ${
-    end < data.total
-      ? `<a class="btn sm" href="?page=${data.page + 1}">Next</a>`
-      : `<button class="btn sm" disabled>Next</button>`
-  }
+            end < data.total
+              ? `<a class="btn sm" href="?page=${data.page + 1}">Next</a>`
+              : `<button class="btn sm" disabled>Next</button>`
+          }
         </div>`;
-  const table = data.items.length === 0
-    ? empty(
-      "No pull requests reviewed",
-      "A review of an open pull request will show up here.",
-    )
-    : `<table>
+  const table =
+    data.items.length === 0
+      ? empty(
+          "No pull requests reviewed",
+          "A review of an open pull request will show up here.",
+        )
+      : `<table>
           <thead><tr><th>Pull request</th><th>Last reviewed</th>
             <th class="num">Findings</th><th class="num">Cost</th></tr></thead>
           <tbody>
-            ${
-      data.items.map((item) =>
-        `<tr><td><a href="/repos/${
-          text(fullName)
-        }/pulls/${item.pr_number}">#${item.pr_number}</a></td>
+            ${data.items
+              .map(
+                (item) =>
+                  `<tr><td><a href="/repos/${text(
+                    fullName,
+                  )}/pulls/${item.pr_number}">#${item.pr_number}</a></td>
               <td class="muted">${when(item.last_reviewed)}</td>
               <td class="num">${item.findings}</td>
-              <td class="num">${money(item.cost)}</td></tr>`
-      ).join("")
-    }
+              <td class="num">${money(item.cost)}</td></tr>`,
+              )
+              .join("")}
           </tbody>
         </table>${pager}`;
   const [owner, repo] = fullName.split("/");
-  const reviewBase = `/api/repos/${encodeURIComponent(owner)}/${
-    encodeURIComponent(repo)
-  }/pulls/`;
-  return html(layout({
-    title: `Pull requests · ${fullName}`,
-    username,
-    body: `<div class="wrap side">
+  const reviewBase = `/api/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/`;
+  return html(
+    layout({
+      title: `Pull requests · ${fullName}`,
+      username,
+      body: `<div class="wrap side">
   ${repoNav(fullName, "pulls")}
   <div>
     <div class="crumbs"><a href="/">Repositories</a> /
-      <a href="/repos/${text(fullName)}">${
-      text(fullName)
-    }</a> / Pull requests</div>
+      <a href="/repos/${text(fullName)}">${text(fullName)}</a> / Pull requests</div>
     <div class="pagehead">
       <div><h1>Pull requests</h1>
         <p class="lead">${data.stats.pullRequests} reviewed in the last 30 days</p></div>
@@ -96,10 +98,11 @@ document.getElementById("manual-review").addEventListener("submit", function(eve
     input.focus();
     return;
   }
-  postAndGo(${
-      JSON.stringify(reviewBase)
-    } + number + "/review", {}, "/activity", this.querySelector("button"));
+  postAndGo(${JSON.stringify(
+    reviewBase,
+  )} + number + "/review", {}, "/activity", this.querySelector("button"));
 });
 </script>`,
-  }));
+    }),
+  );
 }

@@ -125,7 +125,8 @@ export function splitDiffPatches(raw: string): Map<string, string> {
     const headerEnd = chunk.indexOf("\n");
     if (headerEnd === -1) continue;
     const header = chunk.slice(0, headerEnd);
-    const pathMatch = /^a\/(.+?) b\/(.+)$/m.exec(header) ??
+    const pathMatch =
+      /^a\/(.+?) b\/(.+)$/m.exec(header) ??
       /^a\/(.+?) b\/(.+)$/m.exec(header.replace(/\t.*$/, ""));
     const path = pathMatch?.[2] ?? pathMatch?.[1];
     if (!path) continue;

@@ -2,8 +2,11 @@ import { githubFetch, GitHubHttpError, paginate } from "./client.ts";
 import type { GitHubClient } from "../types.ts";
 
 export class PatClient implements GitHubClient {
-  constructor(private readonly token: string) {
+  private readonly token: string;
+
+  constructor(token: string) {
     if (!token) throw new Error("PAT mode requires GITHUB_TOKEN or GH_TOKEN");
+    this.token = token;
   }
 
   async request<T>(endpoint: string): Promise<T> {
@@ -17,7 +20,7 @@ export class PatClient implements GitHubClient {
     if (!response.ok) {
       throw new GitHubHttpError(response.status, await response.text());
     }
-    return await response.json() as T;
+    return (await response.json()) as T;
   }
 
   async write<T>(endpoint: string, body: unknown): Promise<T> {
@@ -34,7 +37,7 @@ export class PatClient implements GitHubClient {
     if (!response.ok) {
       throw new GitHubHttpError(response.status, await response.text());
     }
-    return await response.json() as T;
+    return (await response.json()) as T;
   }
 
   async createCheckRun<T>(endpoint: string, body: unknown): Promise<T> {
@@ -55,7 +58,7 @@ export class PatClient implements GitHubClient {
     if (!response.ok) {
       throw new GitHubHttpError(response.status, await response.text());
     }
-    return await response.json() as T;
+    return (await response.json()) as T;
   }
 
   pages<T>(

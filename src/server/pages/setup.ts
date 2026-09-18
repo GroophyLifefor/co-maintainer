@@ -28,10 +28,11 @@ export function renderSetup(
   const appDetail = setup.app
     ? "The GitHub App is configured"
     : "Needed to post reviews on pull requests";
-  return html(layout({
-    title: "Get started · co-maintainer",
-    username,
-    body: `<div class="wrap" style="max-width:660px">
+  return html(
+    layout({
+      title: "Get started · co-maintainer",
+      username,
+      body: `<div class="wrap" style="max-width:660px">
   <div class="pagehead">
     <div><h1>Get started</h1>
       <p class="lead">Two things now, then add your first repository.</p></div>
@@ -39,27 +40,12 @@ export function renderSetup(
   <div class="card"><div class="bd">
     <ul class="steps">
       ${row(setup.ai, !setup.ai, "1", "Models and API key", aiDetail)}
-      ${
-      row(
-        setup.github,
-        setup.ai && !setup.github,
-        "2",
-        "GitHub access",
-        ghDetail,
-      )
-    }
-      ${
-      row(
-        setup.app,
-        setup.ai && setup.github && !setup.app,
-        "3",
-        "GitHub App",
-        appDetail,
-      )
-    }
+      ${row(setup.github, setup.ai && !setup.github, "2", "GitHub access", ghDetail)}
+      ${row(setup.app, setup.ai && setup.github && !setup.app, "3", "GitHub App", appDetail)}
     </ul>
   </div></div>
   <p class="muted" style="font-size:13px">Ready? <a href="/repos/new">Add a repository</a>.</p>
 </div>`,
-  }));
+    }),
+  );
 }

@@ -1,18 +1,21 @@
 import { revisionFromSubmitJson } from "./revision_from_submit.ts";
+import { test } from "node:test";
 
-Deno.test("revisionFromSubmitJson rejects invalid file status", () => {
+test("revisionFromSubmitJson rejects invalid file status", () => {
   let err = "";
   try {
     revisionFromSubmitJson({
-      files: [{
-        path: "a.ts",
-        previousPath: null,
-        status: "not-a-status",
-        binary: false,
-        additions: 1,
-        deletions: 0,
-        patch: "x",
-      }],
+      files: [
+        {
+          path: "a.ts",
+          previousPath: null,
+          status: "not-a-status",
+          binary: false,
+          additions: 1,
+          deletions: 0,
+          patch: "x",
+        },
+      ],
     });
   } catch (error) {
     err = String(error);

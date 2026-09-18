@@ -26,16 +26,17 @@ function add(facts: Map<string, Fact>, item: Fact): void {
     existing.weight += item.weight;
     existing.evidence = [...new Set([...existing.evidence, ...item.evidence])];
     if (existing.scope !== item.scope) {
-      existing.scope = existing.scope === "current" || item.scope === "current"
-        ? "current"
-        : "repeated-history";
+      existing.scope =
+        existing.scope === "current" || item.scope === "current"
+          ? "current"
+          : "repeated-history";
     }
-    existing.confidence = existing.confidence === "high" ||
-        item.confidence === "high"
-      ? "high"
-      : existing.confidence === "medium" || item.confidence === "medium"
-      ? "medium"
-      : "low";
+    existing.confidence =
+      existing.confidence === "high" || item.confidence === "high"
+        ? "high"
+        : existing.confidence === "medium" || item.confidence === "medium"
+          ? "medium"
+          : "low";
   }
 }
 
@@ -44,8 +45,8 @@ function counts(values: string[]): [string, number][] {
   for (const value of values.filter(Boolean)) {
     result.set(value, (result.get(value) ?? 0) + 1);
   }
-  return [...result.entries()].sort((a, b) =>
-    b[1] - a[1] || a[0].localeCompare(b[0])
+  return [...result.entries()].sort(
+    (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
   );
 }
 
@@ -53,9 +54,10 @@ function packageScripts(content: string): [string, string][] {
   try {
     const scripts = (JSON.parse(content) as Json).scripts as Json | undefined;
     return scripts
-      ? Object.entries(scripts).map((
-        [name, command],
-      ) => [name, String(command)])
+      ? Object.entries(scripts).map(([name, command]) => [
+          name,
+          String(command),
+        ])
       : [];
   } catch {
     return [];
@@ -67,7 +69,8 @@ function markdownSections(content: string): [string, string][] {
   let heading = "";
   let lines: string[] = [];
   const flush = () => {
-    const summary = lines.join(" ")
+    const summary = lines
+      .join(" ")
       .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
       .replace(/https?:\/\/\S+/g, "")
       .replace(/\s+/g, " ")
@@ -99,11 +102,14 @@ function sourceModuleClaim(path: string, content: string): string | undefined {
     ...content.matchAll(
       /\b(?:pub\s+)?(?:struct|enum|trait|fn|function|class|interface|type|func|def|const)\s+([A-Za-z_]\w*)|\bexport\s+(?:default\s+)?(?:function|class|const|interface|type)\s+([A-Za-z_]\w*)/g,
     ),
-  ].map((match) => match[1] ?? match[2]).filter(Boolean).slice(0, 8);
+  ]
+    .map((match) => match[1] ?? match[2])
+    .filter(Boolean)
+    .slice(0, 8);
   if (!symbols.length) return undefined;
-  return `\`${path}\` contains ${
-    symbols.map((symbol) => `\`${symbol}\``).join(", ")
-  }; keep related changes in this module.`;
+  return `\`${path}\` contains ${symbols
+    .map((symbol) => `\`${symbol}\``)
+    .join(", ")}; keep related changes in this module.`;
 }
 
 function commandPrefix(source: Source): string {
@@ -128,22 +134,22 @@ function sanitizeDocumentBody(body: string, source: Source): string {
     const normalized = reference.replace(/^\.\/+/, "").replace(/\/+$/, "");
     const wildcard = normalized.includes("*")
       ? new RegExp(
-        `^${
-          normalized.split("*").map((part) =>
-            part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-          ).join(".*")
-        }$`,
-      )
+          `^${normalized
+            .split("*")
+            .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+            .join(".*")}$`,
+        )
       : undefined;
-    return paths.has(normalized) ||
+    return (
+      paths.has(normalized) ||
       [...paths].some((path) =>
-        wildcard ? wildcard.test(path) : path.startsWith(`${normalized}/`)
-      );
+        wildcard ? wildcard.test(path) : path.startsWith(`${normalized}/`),
+      )
+    );
   };
   return body
-    .replace(
-      /`([^`\n]+\/[^`\n]+)`/g,
-      (whole, reference: string) => known(reference) ? whole : "",
+    .replace(/`([^`\n]+\/[^`\n]+)`/g, (whole, reference: string) =>
+      known(reference) ? whole : "",
     )
     .replace(
       /(?:^|[\s("'`])((?!@)[A-Za-z0-9_.-]+\/[A-Za-z0-9_.*?{}<>:+-]+(?:\/[A-Za-z0-9_.*?{}<>:+-]+)*)/g,
@@ -168,11 +174,14 @@ export function extractFacts(source: Source, options: Options): Fact[] {
 
   const directories = [
     ...new Set(
-      source.tree.map((path) => path.split("/")[0]).filter((path) =>
-        path &&
-        !path.includes(".") &&
-        !/^(test|tests|spec|__tests__)$/i.test(path)
-      ),
+      source.tree
+        .map((path) => path.split("/")[0])
+        .filter(
+          (path) =>
+            path &&
+            !path.includes(".") &&
+            !/^(test|tests|spec|__tests__)$/i.test(path),
+        ),
     ),
   ].sort();
   if (directories.length) {
@@ -180,9 +189,10 @@ export function extractFacts(source: Source, options: Options): Fact[] {
       facts,
       fact(
         "layout",
-        `Top-level directories include ${
-          directories.slice(0, 12).map((dir) => `\`${dir}/\``).join(", ")
-        }.`,
+        `Top-level directories include ${directories
+          .slice(0, 12)
+          .map((dir) => `\`${dir}/\``)
+          .join(", ")}.`,
         "repository tree",
         2,
       ),
@@ -190,9 +200,9 @@ export function extractFacts(source: Source, options: Options): Fact[] {
   }
   const testRoots = [
     ...new Set(
-      source.tree.map((path) => path.split("/")[0]).filter((root) =>
-        /^(test|tests|spec|__tests__)$/i.test(root)
-      ),
+      source.tree
+        .map((path) => path.split("/")[0])
+        .filter((root) => /^(test|tests|spec|__tests__)$/i.test(root)),
     ),
   ];
   if (testRoots.length) {
@@ -200,34 +210,31 @@ export function extractFacts(source: Source, options: Options): Fact[] {
       facts,
       fact(
         "tests",
-        `Repository tests live under ${
-          testRoots.map((root) => `\`${root}/\``).join(", ")
-        }.`,
+        `Repository tests live under ${testRoots.map((root) => `\`${root}/\``).join(", ")}.`,
         "repository tree",
         3,
       ),
     );
   }
   const workflows = source.tree.filter((path) =>
-    /^\.github\/workflows\/.+\.(yml|yaml)$/i.test(path)
+    /^\.github\/workflows\/.+\.(yml|yaml)$/i.test(path),
   );
   if (workflows.length) {
     add(
       facts,
       fact(
         "ship",
-        `CI workflows are defined in ${
-          workflows.map((path) => `\`${path}\``).join(", ")
-        }.`,
+        `CI workflows are defined in ${workflows.map((path) => `\`${path}\``).join(", ")}.`,
         "repository tree",
         3,
       ),
     );
   }
   if (
-    source.tree.some((path) =>
-      /^\.github\/workflows\/.+release.+\.(yml|yaml)$/i.test(path) ||
-      /(^|\/)(changesets|release-please|\.releaserc)/i.test(path)
+    source.tree.some(
+      (path) =>
+        /^\.github\/workflows\/.+release.+\.(yml|yaml)$/i.test(path) ||
+        /(^|\/)(changesets|release-please|\.releaserc)/i.test(path),
     )
   ) {
     add(
@@ -256,8 +263,7 @@ export function extractFacts(source: Source, options: Options): Fact[] {
         const isReadme = /^README\.md$/i.test(path);
         const relevant = isReadme
           ? /usage|run|develop|build|test|contribut|release/i.test(heading)
-          : /install|setup|usage|run|develop|build|test|contribut|release/i
-            .test(
+          : /install|setup|usage|run|develop|build|test|contribut|release/i.test(
               heading,
             );
         if (!relevant) {
@@ -267,9 +273,10 @@ export function extractFacts(source: Source, options: Options): Fact[] {
           facts,
           fact(
             "devloop",
-            `README ${heading}: ${
-              sanitizeDocumentBody(body, source).slice(0, 260)
-            }${body.length > 260 ? "…" : ""}`,
+            `README ${heading}: ${sanitizeDocumentBody(body, source).slice(
+              0,
+              260,
+            )}${body.length > 260 ? "…" : ""}`,
             path,
             3,
           ),
@@ -282,9 +289,7 @@ export function extractFacts(source: Source, options: Options): Fact[] {
         facts,
         fact(
           "identity",
-          `This is a Rust Cargo project${
-            packageName ? ` named \`${packageName}\`` : ""
-          }.`,
+          `This is a Rust Cargo project${packageName ? ` named \`${packageName}\`` : ""}.`,
           path,
           4,
         ),
@@ -316,34 +321,32 @@ export function extractFacts(source: Source, options: Options): Fact[] {
         ),
       );
       const headings = [...content.matchAll(/^#{1,3}\s+(.+)$/gm)]
-        .map((match) => match[1].trim()).slice(0, 12);
+        .map((match) => match[1].trim())
+        .slice(0, 12);
       if (headings.length) {
         add(
           facts,
           fact(
             "title-body",
-            `The pull request template asks for: ${
-              headings.map((heading) => `**${heading}**`).join(", ")
-            }.`,
+            `The pull request template asks for: ${headings
+              .map((heading) => `**${heading}**`)
+              .join(", ")}.`,
             path,
             4,
           ),
         );
       }
     }
-    for (
-      const [name, command] of path.endsWith("package.json")
-        ? packageScripts(content)
-        : []
-    ) {
+    for (const [name, command] of path.endsWith("package.json")
+      ? packageScripts(content)
+      : []) {
       const rootScript = path === "package.json";
-      const usefulWorkspaceScript = /test|lint|check|type|build|load|compare/i
-        .test(name);
+      const usefulWorkspaceScript =
+        /test|lint|check|type|build|load|compare/i.test(name);
       if (!rootScript && !usefulWorkspaceScript) continue;
-      const cleanCommand = sanitizeDocumentBody(command, source).replace(
-        /\s+/g,
-        " ",
-      ).trim();
+      const cleanCommand = sanitizeDocumentBody(command, source)
+        .replace(/\s+/g, " ")
+        .trim();
       if (!cleanCommand) continue;
       const scriptKey = `${name}:${command}`;
       if (seenScripts.has(scriptKey)) continue;
@@ -351,8 +354,8 @@ export function extractFacts(source: Source, options: Options): Fact[] {
       const section = /test|lint|check|type/i.test(name)
         ? "tests"
         : /build|dev|start|format/i.test(name)
-        ? "devloop"
-        : "ship";
+          ? "devloop"
+          : "ship";
       add(
         facts,
         fact(
@@ -367,15 +370,14 @@ export function extractFacts(source: Source, options: Options): Fact[] {
       const jobsBlock =
         content.match(/^jobs:\s*\n([\s\S]*?)(?=^[^\s]|\s*$)/m)?.[1] ?? "";
       const jobs = [...jobsBlock.matchAll(/^\s{2}([A-Za-z0-9_-]+):\s*$/gm)]
-        .map((match) => match[1]).slice(0, 20);
+        .map((match) => match[1])
+        .slice(0, 20);
       if (jobs.length) {
         add(
           facts,
           fact(
             "ship",
-            `Workflow \`${path}\` defines jobs: ${
-              jobs.map((job) => `\`${job}\``).join(", ")
-            }.`,
+            `Workflow \`${path}\` defines jobs: ${jobs.map((job) => `\`${job}\``).join(", ")}.`,
             path,
             2,
           ),
@@ -468,7 +470,8 @@ export function extractFacts(source: Source, options: Options): Fact[] {
       ),
     );
     const labels = counts(source.pullRequests.flatMap((pr) => pr.labels))
-      .slice(0, 12).map(([label, count]) => `\`${label}\` (${count})`);
+      .slice(0, 12)
+      .map(([label, count]) => `\`${label}\` (${count})`);
     if (labels.length) {
       add(
         facts,
@@ -480,8 +483,8 @@ export function extractFacts(source: Source, options: Options): Fact[] {
         ),
       );
     }
-    const described = source.pullRequests.filter((pr) =>
-      pr.body.trim().length > 80
+    const described = source.pullRequests.filter(
+      (pr) => pr.body.trim().length > 80,
     ).length;
     if (described / source.pullRequests.length >= 0.7) {
       add(
@@ -494,22 +497,22 @@ export function extractFacts(source: Source, options: Options): Fact[] {
         ),
       );
     }
-    const reviewText = source.pullRequests.flatMap((
-      pr,
-    ) => [...pr.comments, ...pr.reviews]).join("\n").toLowerCase();
-    for (
-      const [term, instruction] of [
-        ["test", "Include or update tests when behavior changes."],
-        [
-          "changelog",
-          "Update the changelog when the repository process requires it.",
-        ],
-        ["documentation", "Update documentation when public behavior changes."],
-        ["type", "Keep types and type-checking valid before review."],
-      ]
-    ) {
-      const count =
-        (reviewText.match(new RegExp(`\\b${term}\\w*\\b`, "g")) ?? []).length;
+    const reviewText = source.pullRequests
+      .flatMap((pr) => [...pr.comments, ...pr.reviews])
+      .join("\n")
+      .toLowerCase();
+    for (const [term, instruction] of [
+      ["test", "Include or update tests when behavior changes."],
+      [
+        "changelog",
+        "Update the changelog when the repository process requires it.",
+      ],
+      ["documentation", "Update documentation when public behavior changes."],
+      ["type", "Keep types and type-checking valid before review."],
+    ]) {
+      const count = (
+        reviewText.match(new RegExp(`\\b${term}\\w*\\b`, "g")) ?? []
+      ).length;
       if (count >= 2) {
         add(
           facts,
@@ -537,10 +540,9 @@ export function extractFacts(source: Source, options: Options): Fact[] {
 
   if (source.commits.length) {
     const conventional = source.commits.filter((commit) =>
-      /^(feat|fix|docs|refactor|test|build|ci|chore|perf|style)(\(.+\))?!?:\s/i
-        .test(
-          String((commit.commit as Json | undefined)?.message ?? ""),
-        )
+      /^(feat|fix|docs|refactor|test|build|ci|chore|perf|style)(\(.+\))?!?:\s/i.test(
+        String((commit.commit as Json | undefined)?.message ?? ""),
+      ),
     ).length;
     if (conventional / source.commits.length >= 0.6) {
       add(
@@ -553,19 +555,23 @@ export function extractFacts(source: Source, options: Options): Fact[] {
         ),
       );
     }
-    const examples = source.commits.slice(0, 8).map((commit) =>
-      String((commit.commit as Json | undefined)?.message ?? "").split("\n")[0]
-    ).filter(Boolean);
+    const examples = source.commits
+      .slice(0, 8)
+      .map(
+        (commit) =>
+          String((commit.commit as Json | undefined)?.message ?? "").split(
+            "\n",
+          )[0],
+      )
+      .filter(Boolean);
     if (examples.length) {
       add(
         facts,
         fact(
           "style",
-          `Recent commit examples: ${
-            examples.map((message) =>
-              `\`${message.slice(0, 100)}\``
-            ).join("; ")
-          }.`,
+          `Recent commit examples: ${examples
+            .map((message) => `\`${message.slice(0, 100)}\``)
+            .join("; ")}.`,
           "commit history",
           2,
         ),
@@ -577,15 +583,16 @@ export function extractFacts(source: Source, options: Options): Fact[] {
     options.includePullRequestChanges &&
     source.pullRequests.some((pr) => pr.changedFiles.length)
   ) {
-    const files = counts(source.pullRequests.flatMap((pr) => pr.changedFiles))
-      .slice(0, 10);
+    const files = counts(
+      source.pullRequests.flatMap((pr) => pr.changedFiles),
+    ).slice(0, 10);
     add(
       facts,
       fact(
         "review-bar",
-        `Frequently changed files include ${
-          files.map(([path]) => `\`${path}\``).join(", ")
-        }; check nearby tests and workflows before editing.`,
+        `Frequently changed files include ${files
+          .map(([path]) => `\`${path}\``)
+          .join(", ")}; check nearby tests and workflows before editing.`,
         "pull request files",
         2,
       ),

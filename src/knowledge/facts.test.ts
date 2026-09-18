@@ -2,8 +2,9 @@ import { extractFacts } from "./facts.ts";
 import { qualityFixtures } from "../testing/fixtures/quality.ts";
 import { testOptions } from "../testing/helpers.ts";
 import type { Source } from "./types.ts";
+import { test } from "node:test";
 
-Deno.test("facts remain useful for a non-Rust, non-npm fixture", () => {
+test("facts remain useful for a non-Rust, non-npm fixture", () => {
   const facts = extractFacts(qualityFixtures.node, testOptions());
   if (!facts.some((item) => item.sectionKey === "layout")) {
     throw new Error("expected a module layout fact");
@@ -19,7 +20,7 @@ Deno.test("facts remain useful for a non-Rust, non-npm fixture", () => {
   }
 });
 
-Deno.test("layout facts fire for a nested crate/package src, not just repo-root src", () => {
+test("layout facts fire for a nested crate/package src, not just repo-root src", () => {
   // Mirrors two real layouts that produced zero deterministic layout facts
   // before the fix: a Cargo workspace (crate/src/...) and this very repo's
   // own packages/<pkg>/src/... shape.
@@ -42,18 +43,14 @@ Deno.test("layout facts fire for a nested crate/package src, not just repo-root 
   const facts = extractFacts(source, testOptions());
   const layout = facts.filter((item) => item.sectionKey === "layout");
   if (!layout.some((item) => item.claim.includes("Builder"))) {
-    throw new Error(
-      "expected a layout fact for the nested Cargo crate's src/",
-    );
+    throw new Error("expected a layout fact for the nested Cargo crate's src/");
   }
   if (!layout.some((item) => item.claim.includes("createRule"))) {
-    throw new Error(
-      "expected a layout fact for the nested package's src/",
-    );
+    throw new Error("expected a layout fact for the nested package's src/");
   }
 });
 
-Deno.test("quality fixtures cover different repository shapes", () => {
+test("quality fixtures cover different repository shapes", () => {
   const cargoFacts = extractFacts(qualityFixtures.cargo, testOptions());
   if (!cargoFacts.some((item) => /cargo test/i.test(item.claim))) {
     throw new Error("Cargo fixture did not produce test guidance");

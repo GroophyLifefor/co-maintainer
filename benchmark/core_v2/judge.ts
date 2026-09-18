@@ -34,20 +34,20 @@ describe a different problem. Each index may appear in at most one pair.
 Return only a JSON array like [{"predicted":0,"gold":1}], or [] if none match.
 
 PREDICTED:
-${
-    predictedIndices.map((i) => {
-      const item = predicted[i];
-      return `${i}. ${item.path}:${item.from}-${item.to} — ${item.heading}\n${item.excerpt}`;
-    }).join("\n\n")
-  }
+${predictedIndices
+  .map((i) => {
+    const item = predicted[i];
+    return `${i}. ${item.path}:${item.from}-${item.to} — ${item.heading}\n${item.excerpt}`;
+  })
+  .join("\n\n")}
 
 GOLD:
-${
-    goldIndices.map((i) => {
-      const item = gold[i];
-      return `${i}. ${item.path}:${item.from}-${item.to} — ${item.quote}\n${item.why}`;
-    }).join("\n\n")
-  }`;
+${goldIndices
+  .map((i) => {
+    const item = gold[i];
+    return `${i}. ${item.path}:${item.from}-${item.to} — ${item.quote}\n${item.why}`;
+  })
+  .join("\n\n")}`;
   const response = await provider.complete({
     job: "judge_match",
     system:
@@ -58,7 +58,9 @@ ${
   if (usage) await usage(response);
   let parsed: unknown;
   try {
-    const cleaned = response.text.trim().replace(/^```(?:json)?\s*/i, "")
+    const cleaned = response.text
+      .trim()
+      .replace(/^```(?:json)?\s*/i, "")
       .replace(/\s*```$/, "");
     parsed = JSON.parse(cleaned);
   } catch {
@@ -75,10 +77,14 @@ ${
       gold?: number;
     };
     if (
-      typeof p !== "number" || typeof g !== "number" ||
-      !predictedIndices.includes(p) || !goldIndices.includes(g) ||
-      usedPredicted.has(p) || usedGold.has(g)
-    ) continue;
+      typeof p !== "number" ||
+      typeof g !== "number" ||
+      !predictedIndices.includes(p) ||
+      !goldIndices.includes(g) ||
+      usedPredicted.has(p) ||
+      usedGold.has(g)
+    )
+      continue;
     usedPredicted.add(p);
     usedGold.add(g);
     pairs.push({ predicted: p, gold: g });

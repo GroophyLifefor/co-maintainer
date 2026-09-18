@@ -1,6 +1,7 @@
 import { nowIso, relativeTime } from "./time.ts";
+import { test } from "node:test";
 
-Deno.test("relativeTime uses short labels without a dash or semicolon", () => {
+test("relativeTime uses short labels without a dash or semicolon", () => {
   const now = Date.parse("2026-09-11T12:00:00.000Z");
   const cases: [string, string][] = [
     ["2026-09-11T11:59:50.000Z", "just now"],
@@ -17,7 +18,7 @@ Deno.test("relativeTime uses short labels without a dash or semicolon", () => {
   }
 });
 
-Deno.test("nowIso is always a UTC ISO8601 timestamp", () => {
+test("nowIso is always a UTC ISO8601 timestamp", () => {
   const value = nowIso();
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) {
     throw new Error(`not a UTC ISO8601 timestamp: ${value}`);

@@ -1,5 +1,7 @@
 import type { Options } from "../types.ts";
 import { prepareConfig } from "../config.ts";
+import { getEnv } from "../util/runtime.ts";
+import { askLine } from "./prompt.ts";
 
 function die(message: string): never {
   throw new Error(message);
@@ -24,30 +26,28 @@ export function setCliInteractive(value: boolean): void {
   cliInteractive = value;
 }
 
-function ask(
+async function ask(
   label: string,
   fallback?: string,
   required = false,
-): string {
+): Promise<string> {
   if (!cliInteractive) {
     if (fallback !== undefined && fallback !== "") return fallback;
     die(
       `Missing ${label}; pass it as a CLI option when running without an interactive terminal`,
     );
   }
-  if (!Deno.stdin.isTerminal()) {
+  if (process.stdin.isTTY !== true) {
     die(
       `Missing ${label}; pass it as a CLI option when running without an interactive terminal`,
     );
   }
-  const suffix = fallback ? ` [${fallback}]` : "";
-  const answer = prompt(`${label}${suffix}:`)?.trim() ?? "";
-  const value = answer || fallback || "";
+  const value = await askLine(label, fallback);
   if (required && !value) die(`${label} is required`);
   return value;
 }
 
-export function parseArgs(args: string[]): Options {
+export async function parseArgs(args: string[]): Promise<Options> {
   const [command, repo, ...rest] = args;
   if (
     !command ||
@@ -82,27 +82,27 @@ export function parseArgs(args: string[]): Options {
     console.log(
       "         --auth=gh|pat --github-pat=... --ai=none|openrouter|hetzner --token=... --low-model=... --high-model=...",
     );
-    Deno.exit(0);
+    process.exit(0);
   }
-  if (!commands.includes(command as typeof commands[number])) {
+  if (!commands.includes(command as (typeof commands)[number])) {
     die(`Unknown command: ${command}`);
   }
   if (rest.includes("--help") || rest.includes("-h")) {
     console.log(`Usage: co-maintainer ${command} ...`);
     console.log("Run co-maintainer --help for all options.");
-    Deno.exit(0);
+    process.exit(0);
   }
   if (repo === "--help" || repo === "-h") {
     console.log(`Usage: co-maintainer ${command} ...`);
     console.log("Run co-maintainer --help for all options.");
-    Deno.exit(0);
+    process.exit(0);
   }
   if (!repo || !/^[^/]+\/[^/]+$/.test(repo)) {
     die("Repository must look like owner/repo");
   }
 
   const { config, envPath } = prepareConfig(args);
-  const env = (name: string): string | undefined => Deno.env.get(name);
+  const env = (name: string): string | undefined => getEnv(name);
   const configDefault = config.defaults ?? {};
   // Remembered from a prior `init`/`remake` on this exact repo — never a
   // secret, so it can safely fill in everything except the API token.
@@ -125,7 +125,7 @@ export function parseArgs(args: string[]): Options {
     "include-how-repo-works",
   ];
   const explicitlyIncluded = rest.some((arg) =>
-    includeNames.some((name) => arg === `--${name}`)
+    includeNames.some((name) => arg === `--${name}`),
   );
   const includeKeys = {
     "include-codebase": "includeCodebase",
@@ -137,7 +137,7 @@ export function parseArgs(args: string[]): Options {
   const enabled = (name: keyof typeof includeKeys) =>
     explicitlyIncluded
       ? rest.includes(`--${name}`)
-      : repoConfig[includeKeys[name]] ?? true;
+      : (repoConfig[includeKeys[name]] ?? true);
   const value = (name: string): number | undefined => {
     const arg = rest.find((item) => item.startsWith(`--${name}=`));
     return arg
@@ -152,9 +152,9 @@ export function parseArgs(args: string[]): Options {
     fallback: T,
   ): T => {
     const prefix = `--${name}=`;
-    const raw = rest.find((arg) => arg.startsWith(prefix))?.slice(
-      prefix.length,
-    );
+    const raw = rest
+      .find((arg) => arg.startsWith(prefix))
+      ?.slice(prefix.length);
     if (!raw) return fallback;
     if (!allowed.includes(raw as T)) {
       die(`${name} must be one of: ${allowed.join(", ")}`);
@@ -163,7 +163,8 @@ export function parseArgs(args: string[]): Options {
   };
 
   for (const arg of rest) {
-    const known = includeNames.some((name) => arg === `--${name}`) ||
+    const known =
+      includeNames.some((name) => arg === `--${name}`) ||
       [
         "max-commits",
         "max-pr-months",
@@ -179,19 +180,20 @@ export function parseArgs(args: string[]): Options {
         "github-pat",
         "low-model",
         "high-model",
-      ]
-        .some((name) => arg.startsWith(`--${name}=`));
+      ].some((name) => arg.startsWith(`--${name}=`));
     if (arg === "--codegraph") die("Unknown option: --codegraph");
     if (
-      arg === "--debug" || arg === "--log-time" ||
-      arg === "--review-upstream" || arg === "--disable-codegraph"
-    ) continue;
+      arg === "--debug" ||
+      arg === "--log-time" ||
+      arg === "--review-upstream" ||
+      arg === "--disable-codegraph"
+    )
+      continue;
     if (arg.startsWith("--") && !known) die(`Unknown option: ${arg}`);
   }
 
   const explicitAi = rest.some((arg) => arg.startsWith("--ai="));
-  const configuredAiRaw = env("CO_MAINTAINER_AI") ?? repoConfig.ai ??
-    config.ai;
+  const configuredAiRaw = env("CO_MAINTAINER_AI") ?? repoConfig.ai ?? config.ai;
   if (
     configuredAiRaw &&
     !["none", "openrouter", "hetzner"].includes(configuredAiRaw)
@@ -199,14 +201,15 @@ export function parseArgs(args: string[]): Options {
     die("CO_MAINTAINER_AI/config.ai must be none, openrouter, or hetzner");
   }
   const configuredAi = configuredAiRaw as Options["ai"] | undefined;
-  const configuredAuthRaw = env("CO_MAINTAINER_AUTH") ?? repoConfig.auth ??
-    config.auth;
+  const configuredAuthRaw =
+    env("CO_MAINTAINER_AUTH") ?? repoConfig.auth ?? config.auth;
   if (configuredAuthRaw && !["gh", "pat"].includes(configuredAuthRaw)) {
     die("CO_MAINTAINER_AUTH/config.auth must be gh or pat");
   }
   const configuredAuth = configuredAuthRaw as Options["auth"] | undefined;
   const auth = choice("auth", ["gh", "pat"], configuredAuth ?? "gh");
-  const githubPat = text("github-pat") ??
+  const githubPat =
+    text("github-pat") ??
     env("GITHUB_TOKEN") ??
     env("GH_TOKEN") ??
     config.githubPat;
@@ -229,12 +232,8 @@ export function parseArgs(args: string[]): Options {
       die("review supports OpenRouter only");
     }
     ai = "openrouter";
-  } else if (
-    !explicitAi &&
-    !configuredAi &&
-    command !== "probe"
-  ) {
-    const selected = ask(
+  } else if (!explicitAi && !configuredAi && command !== "probe") {
+    const selected = await ask(
       "AI provider (openrouter|hetzner)",
       "openrouter",
     );
@@ -243,30 +242,33 @@ export function parseArgs(args: string[]): Options {
     }
     ai = selected as Options["ai"];
   }
-  let aiToken = text("token") ??
+  let aiToken =
+    text("token") ??
     env("CO_MAINTAINER_TOKEN") ??
     (ai === "openrouter" ? env("OPENROUTER_API_KEY") : undefined) ??
     (ai === "hetzner" ? env("HETZNER_API_KEY") : undefined) ??
     config.token;
-  let lowModel = text("low-model") ??
+  let lowModel =
+    text("low-model") ??
     env("OPENROUTER_LOW_MODEL") ??
     env("HETZNER_LOW_MODEL") ??
     env("LOW_MODEL") ??
     repoConfig.lowModel ??
     config.lowModel;
-  let highModel = text("high-model") ??
+  let highModel =
+    text("high-model") ??
     env("OPENROUTER_HIGH_MODEL") ??
     env("HETZNER_HIGH_MODEL") ??
     env("HIGH_MODEL") ??
     repoConfig.highModel ??
     config.highModel;
   if (command === "review") {
-    aiToken ??= ask("openrouter API key", undefined, true);
-    highModel ??= ask("high model", defaultHighModel, true);
+    aiToken ??= await ask("openrouter API key", undefined, true);
+    highModel ??= await ask("high model", defaultHighModel, true);
   } else if (ai !== "none" && command !== "probe") {
-    aiToken ??= ask(`${ai} API key`, undefined, true);
-    lowModel ??= ask("low model", defaultLowModel, true);
-    highModel ??= ask("high model", defaultHighModel, true);
+    aiToken ??= await ask(`${ai} API key`, undefined, true);
+    lowModel ??= await ask("low model", defaultLowModel, true);
+    highModel ??= await ask("high model", defaultHighModel, true);
   }
   if (
     command !== "review" &&
@@ -285,9 +287,8 @@ export function parseArgs(args: string[]): Options {
     debug: rest.includes("--debug"),
     logTime: rest.includes("--log-time"),
     reviewUpstream: rest.includes("--review-upstream"),
-    useCodegraph: command === "review"
-      ? !rest.includes("--disable-codegraph")
-      : false,
+    useCodegraph:
+      command === "review" ? !rest.includes("--disable-codegraph") : false,
     envPath,
     improveMatrix: value("improve-matrix") ?? 1,
     ghConcurrent: Math.max(1, value("gh-concurrent") ?? 1),
@@ -304,11 +305,14 @@ export function parseArgs(args: string[]): Options {
     includePullRequestChanges: enabled("include-pull-request-changes"),
     includeCommitHistory: enabled("include-commit-history"),
     includeHowRepoWorks: enabled("include-how-repo-works"),
-    maxCommits: value("max-commits") ?? repoConfig.maxCommits ??
-      configDefault.maxCommits,
-    maxPrMonths: value("max-pr-months") ?? repoConfig.maxPrMonths ??
+    maxCommits:
+      value("max-commits") ?? repoConfig.maxCommits ?? configDefault.maxCommits,
+    maxPrMonths:
+      value("max-pr-months") ??
+      repoConfig.maxPrMonths ??
       configDefault.maxPrMonths,
-    maxPullRequestChangeLines: value("max-pull-request-change-lines") ??
+    maxPullRequestChangeLines:
+      value("max-pull-request-change-lines") ??
       repoConfig.maxPullRequestChangeLines ??
       configDefault.maxPullRequestChangeLines,
     maxComments: value("max-comment") ?? repoConfig.maxComments,

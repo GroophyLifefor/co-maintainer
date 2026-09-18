@@ -8,12 +8,14 @@ export type ReviewDocuments = {
 function reviewFacts(facts: Fact[]): Fact[] {
   const seen = new Set<string>();
   return facts
-    .filter((item) =>
-      item.sectionKey === "review-bar" &&
-      item.evidence.some((evidence) =>
-        evidence.startsWith("PR #") ||
-        evidence.startsWith("review discussion")
-      )
+    .filter(
+      (item) =>
+        item.sectionKey === "review-bar" &&
+        item.evidence.some(
+          (evidence) =>
+            evidence.startsWith("PR #") ||
+            evidence.startsWith("review discussion"),
+        ),
     )
     .sort((a, b) => b.weight - a.weight || a.claim.localeCompare(b.claim))
     .filter((item) => {
@@ -31,14 +33,14 @@ function detailedDocument(facts: Fact[]): string {
     const category = lower.includes("test")
       ? "Missing or insufficient tests"
       : lower.includes("type")
-      ? "Type and static validation"
-      : lower.includes("documentation")
-      ? "Missing documentation"
-      : lower.includes("changelog")
-      ? "Release-note completeness"
-      : lower.includes("large") || lower.includes("focused")
-      ? "Unfocused or risky scope"
-      : "Repository-specific review expectation";
+        ? "Type and static validation"
+        : lower.includes("documentation")
+          ? "Missing documentation"
+          : lower.includes("changelog")
+            ? "Release-note completeness"
+            : lower.includes("large") || lower.includes("focused")
+              ? "Unfocused or risky scope"
+              : "Repository-specific review expectation";
     return [
       `### ${category}`,
       `- Violation to avoid: ${claim}`,

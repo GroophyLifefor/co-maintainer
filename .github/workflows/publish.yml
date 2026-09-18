@@ -5,16 +5,56 @@ on:
     branches:
       - main
 
+# Serializes duplicate pushes so two `npm publish` runs cannot interleave on the
+# same version. It does NOT skip the queued run: that run still executes, so the
+# publish step is guarded by an "already on the registry?" check below rather
+# than relying on concurrency to deduplicate.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # A wedged publish would otherwise hold the queue for the default six hours.
+    timeout-minutes: 20
     permissions:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v6
-      - uses: denoland/setup-deno@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          deno-version: v2.9.6
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+        env:
+          CM_FAKE_AI: "1"
+      - name: Determine npm dist-tag
+        id: tag
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$version" == *-* ]]; then
+            echo "tag=beta" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Skip if this version is already published
+        id: check
+        run: |
+          version="${{ steps.tag.outputs.version }}"
+          if npm view "co-maintainer@$version" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::co-maintainer@$version is already on the registry; skipping publish"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Publish package
-        run: deno publish
+        if: steps.check.outputs.published == 'false'
+        run: npm publish --provenance --access public --tag "${{ steps.tag.outputs.tag }}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

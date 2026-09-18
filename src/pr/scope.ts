@@ -32,7 +32,10 @@ export type ScopeResult = {
 };
 
 function lines(output: string): string[] {
-  return output.split("\n").map((line) => line.trim()).filter(Boolean);
+  return output
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 /** The scope algorithm against a clone that is already on disk. Split out from

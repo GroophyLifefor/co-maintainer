@@ -20,7 +20,7 @@ export async function run(args: string[]): Promise<void> {
     await runReviewFromCli(args.slice(1));
     return;
   }
-  const options = parseArgs(args);
+  const options = await parseArgs(args);
   if (options.command === "probe") await runProbe(options);
   else await runInitOrRemake(options);
 }

@@ -1,4 +1,4 @@
-import denoConfig from "../../deno.json" with { type: "json" };
+import { VERSION } from "../version.ts";
 import type { ReviewCliArgs } from "../cli/review_args.ts";
 import { printLocalReview } from "../cli/review_output.ts";
 import {
@@ -89,7 +89,9 @@ async function readApiError(response: Response): Promise<string> {
   }
 }
 
-export async function runRemoteReview(cli: ReviewCliArgs & { mode: "remote" }): Promise<void> {
+export async function runRemoteReview(
+  cli: ReviewCliArgs & { mode: "remote" },
+): Promise<void> {
   const config = readConfig();
   const host = config.remoteHost;
   const token = config.remoteToken;
@@ -103,15 +105,23 @@ export async function runRemoteReview(cli: ReviewCliArgs & { mode: "remote" }): 
 
   setCliInteractive(!cli.json);
   await withCliLogsToStderr(async () => {
-    const root = await gitRoot(Deno.cwd());
+    const root = await gitRoot(process.cwd());
     await assertGitQuiet(root);
     const repo = await detectRemoteRepo(root, cli.repoOverride);
     const branch = await currentBranch(root, cli.branch);
 
     const remotes = await runCommand("git", ["remote"], root);
-    const remoteName = ["upstream", "origin"].find((n) =>
-      remotes.stdout.split("\n").map((l) => l.trim()).includes(n)
-    ) ?? remotes.stdout.split("\n").map((l) => l.trim()).filter(Boolean)[0]!;
+    const remoteName =
+      ["upstream", "origin"].find((n) =>
+        remotes.stdout
+          .split("\n")
+          .map((l) => l.trim())
+          .includes(n),
+      ) ??
+      remotes.stdout
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean)[0]!;
     const base = await resolveBaseRef(
       root,
       remoteName,
@@ -119,33 +129,40 @@ export async function runRemoteReview(cli: ReviewCliArgs & { mode: "remote" }): 
       runCommand,
     );
     const baseSha = await mergeBase(root, base.ref, remoteName, runCommand);
-    const built = await buildLocalRevision(root, baseSha, base.label, runCommand);
+    const built = await buildLocalRevision(
+      root,
+      baseSha,
+      base.label,
+      runCommand,
+    );
     if (built.revision.files.length === 0) {
       if (cli.json) {
-        console.log(JSON.stringify({
-          schemaVersion: 1,
-          ok: true,
-          mode: "remote",
-          message: "No changes to review.",
-        }));
+        console.log(
+          JSON.stringify({
+            schemaVersion: 1,
+            ok: true,
+            mode: "remote",
+            message: "No changes to review.",
+          }),
+        );
       } else {
         console.log("No changes to review.");
       }
-      Deno.exit(0);
+      process.exit(0);
     }
 
     const handshake = await remoteFetch(host, token, "/api/remote/handshake", {
       method: "POST",
       body: JSON.stringify({
         schemaVersion: REMOTE_SCHEMA_VERSION,
-        clientVersion: denoConfig.version,
+        clientVersion: VERSION,
         repo,
       }),
     });
     if (!handshake.ok) {
       die("remote_handshake_failed", await readApiError(handshake));
     }
-    const hs = await handshake.json() as HandshakeResponse;
+    const hs = (await handshake.json()) as HandshakeResponse;
     if (REMOTE_SCHEMA_VERSION < hs.minClientSchema) {
       die(
         "upgrade_required",
@@ -204,7 +221,10 @@ export async function runRemoteReview(cli: ReviewCliArgs & { mode: "remote" }): 
     };
     const serialized = JSON.stringify(submitBody);
     if (serialized.length > hs.limits.maxBodyBytes) {
-      die("payload_too_large", "Diff is too large for the remote server limit.");
+      die(
+        "payload_too_large",
+        "Diff is too large for the remote server limit.",
+      );
     }
 
     const submit = await remoteFetch(host, token, "/api/remote/reviews", {
@@ -214,7 +234,7 @@ export async function runRemoteReview(cli: ReviewCliArgs & { mode: "remote" }): 
     if (submit.status !== 202) {
       die("remote_submit_failed", await readApiError(submit));
     }
-    const { jobId } = await submit.json() as { jobId: string };
+    const { jobId } = (await submit.json()) as { jobId: string };
 
     let afterLogSeq = 0;
     let toolResults: Awaited<ReturnType<typeof runRemoteToolCalls>> = [];
@@ -237,7 +257,7 @@ export async function runRemoteReview(cli: ReviewCliArgs & { mode: "remote" }): 
       if (!sync.ok) {
         die("remote_sync_failed", await readApiError(sync));
       }
-      const payload = await sync.json() as {
+      const payload = (await sync.json()) as {
         status: string;
         toolCalls?: RemoteToolCall[];
         logs: Array<{ seq: number; message: string }>;
@@ -254,20 +274,25 @@ export async function runRemoteReview(cli: ReviewCliArgs & { mode: "remote" }): 
       }
       if (payload.status === "done" && payload.result) {
         if (cli.json) {
-          console.log(JSON.stringify({
-            schemaVersion: 1,
-            ok: true,
-            mode: "remote",
-            ...payload.result,
-          }));
+          console.log(
+            JSON.stringify({
+              schemaVersion: 1,
+              ok: true,
+              mode: "remote",
+              ...payload.result,
+            }),
+          );
         } else {
-          const findings = (payload.result.findings ?? []) as JsonReviewFinding[];
-          const summary = payload.result.summary as {
-            new?: number;
-            open?: number;
-            closed?: number;
-            blocking?: number;
-          } | undefined;
+          const findings = (payload.result.findings ??
+            []) as JsonReviewFinding[];
+          const summary = payload.result.summary as
+            | {
+                new?: number;
+                open?: number;
+                closed?: number;
+                blocking?: number;
+              }
+            | undefined;
           const summaryLine = summary
             ? `${summary.new ?? 0} new · ${summary.open ?? 0} open · ${summary.closed ?? 0} closed · ${summary.blocking ?? 0} blocking`
             : "";
@@ -277,7 +302,7 @@ export async function runRemoteReview(cli: ReviewCliArgs & { mode: "remote" }): 
           );
         }
         const findings = (payload.result.findings ?? []) as JsonReviewFinding[];
-        Deno.exit(reviewExitCodeFromJsonFindings(findings));
+        process.exit(reviewExitCodeFromJsonFindings(findings));
       }
       if (payload.status === "failed" || payload.status === "canceled") {
         die(

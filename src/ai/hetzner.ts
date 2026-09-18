@@ -7,17 +7,23 @@ const sleep = (milliseconds: number) =>
 export class HetznerProvider implements AiProvider {
   readonly supportsTools = false;
   private readonly endpoint: string;
+  private readonly apiKey: string;
+  private readonly model: string;
+  private readonly sleeper: typeof sleep;
   private nextRequest = 0;
   private spacing = 8_000;
 
   constructor(
-    private readonly apiKey: string,
-    private readonly model: string,
+    apiKey: string,
+    model: string,
     endpoint = "https://inference.hetzner.com/api/v1/chat/completions",
-    private readonly sleeper: typeof sleep = sleep,
+    sleeper: typeof sleep = sleep,
   ) {
     if (!apiKey) throw new Error("Hetzner requires HETZNER_API_KEY");
     if (!model) throw new Error("Hetzner requires HETZNER_MODEL");
+    this.apiKey = apiKey;
+    this.model = model;
+    this.sleeper = sleeper;
     this.endpoint = endpoint;
   }
 
@@ -38,7 +44,7 @@ export class HetznerProvider implements AiProvider {
       if (response.ok) {
         this.spacing = Math.max(8_000, this.spacing * 0.9);
         return parseChatResponse(
-          await response.json() as Json,
+          (await response.json()) as Json,
           "hetzner",
           this.model,
         );
@@ -52,9 +58,7 @@ export class HetznerProvider implements AiProvider {
         this.spacing = Math.min(180_000, this.spacing * 1.5);
         const wait = this.jitter(this.spacing);
         console.log(
-          `[ai] hetzner 429 on attempt ${attempt}; retrying in ${
-            Math.round(wait / 1000)
-          }s`,
+          `[ai] hetzner 429 on attempt ${attempt}; retrying in ${Math.round(wait / 1000)}s`,
         );
         await this.sleeper(wait);
         continue;
@@ -62,9 +66,9 @@ export class HetznerProvider implements AiProvider {
       if (response.status >= 500 || response.status === 408) {
         const wait = this.jitter(Math.min(180_000, this.spacing * 1.5));
         console.log(
-          `[ai] hetzner ${response.status} on attempt ${attempt}; retrying in ${
-            Math.round(wait / 1000)
-          }s`,
+          `[ai] hetzner ${response.status} on attempt ${attempt}; retrying in ${Math.round(
+            wait / 1000,
+          )}s`,
         );
         await this.sleeper(wait);
         continue;

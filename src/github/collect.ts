@@ -57,7 +57,8 @@ async function listPullRequestPages(
   phase?: FetchPhase,
 ): Promise<Json[]> {
   const cached = await loadListing(options.repo);
-  const canCatchUp = cached !== undefined &&
+  const canCatchUp =
+    cached !== undefined &&
     listingCovers(cached.maxPrMonths, options.maxPrMonths);
   const cachedByNumber = new Map(
     (cached?.items ?? []).map((pr) => [Number(pr.number), pr]),
@@ -76,8 +77,7 @@ async function listPullRequestPages(
 
   const ingest = (page: number, pageItems: Json[]): boolean => {
     if (pageItems.length === 0) {
-      const message =
-        `pull request listing · page ${page} · fetched ${selected.length} · done`;
+      const message = `pull request listing · page ${page} · fetched ${selected.length} · done`;
       if (phase) phase.text = message;
       log("fetch", message);
       return true;
@@ -101,8 +101,7 @@ async function listPullRequestPages(
         break;
       }
     }
-    const message =
-      `pull request listing · page ${page} · fetched ${selected.length} · ${reason}`;
+    const message = `pull request listing · page ${page} · fetched ${selected.length} · ${reason}`;
     if (phase) phase.text = message;
     log("fetch", message);
     return stop || pageItems.length < 100;
@@ -203,13 +202,11 @@ async function codebase(
     treeSha: Record<string, string>;
     files: Record<string, string>;
   }) => Promise<void>,
-): Promise<
-  {
-    tree: string[];
-    treeSha: Record<string, string>;
-    files: Record<string, string>;
-  }
-> {
+): Promise<{
+  tree: string[];
+  treeSha: Record<string, string>;
+  files: Record<string, string>;
+}> {
   const branch = String(meta.default_branch ?? "main");
   const response = await client.request<Json>(
     `repos/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
@@ -225,15 +222,17 @@ async function codebase(
     }),
   );
   const canonical = tree.filter((path) =>
-    /(^|\/)(README|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY|CHANGELOG)(\.[^/]*)?$|(^|\/)(package\.json|deno\.json|Cargo\.toml|Makefile|justfile|CODEOWNERS|build\.rs)$|^\.github\/(workflows\/.+\.(yml|yaml)|PULL_REQUEST_TEMPLATE.*)$/i
-      .test(
-        path,
-      )
+    /(^|\/)(README|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY|CHANGELOG)(\.[^/]*)?$|(^|\/)(package\.json|deno\.json|Cargo\.toml|Makefile|justfile|CODEOWNERS|build\.rs)$|^\.github\/(workflows\/.+\.(yml|yaml)|PULL_REQUEST_TEMPLATE.*)$/i.test(
+      path,
+    ),
   );
-  const representative = tree.filter((path) =>
-    /\.(rs|ts|tsx|js|jsx|py|go|java|cs|cpp|c|swift)$/i.test(path) &&
-    !/(^|\/)(test|tests|vendor|dist|target)\//i.test(path)
-  ).slice(0, 20);
+  const representative = tree
+    .filter(
+      (path) =>
+        /\.(rs|ts|tsx|js|jsx|py|go|java|cs|cpp|c|swift)$/i.test(path) &&
+        !/(^|\/)(test|tests|vendor|dist|target)\//i.test(path),
+    )
+    .slice(0, 20);
   const important = [...new Set([...canonical, ...representative])].slice(
     0,
     80,
@@ -242,8 +241,7 @@ async function codebase(
   let completed = 0;
   let save = Promise.resolve();
   if (phase) {
-    phase.text =
-      `codebase files 0/${important.length} · 0% · concurrency=${concurrency}`;
+    phase.text = `codebase files 0/${important.length} · 0% · concurrency=${concurrency}`;
   }
   log(
     "fetch",
@@ -263,15 +261,17 @@ async function codebase(
       files[path] = previous.files[path];
       completed++;
       if (phase) {
-        phase.text = `codebase files ${completed}/${important.length} · ${
-          percent(completed, important.length)
-        }`;
+        phase.text = `codebase files ${completed}/${important.length} · ${percent(
+          completed,
+          important.length,
+        )}`;
       }
       log(
         "fetch",
-        `codebase cache ${completed}/${important.length} · ${
-          percent(completed, important.length)
-        }: ${path}`,
+        `codebase cache ${completed}/${important.length} · ${percent(
+          completed,
+          important.length,
+        )}: ${path}`,
       );
       await checkpoint();
       return;
@@ -282,15 +282,17 @@ async function codebase(
     }
     completed++;
     if (phase) {
-      phase.text = `codebase files ${completed}/${important.length} · ${
-        percent(completed, important.length)
-      }`;
+      phase.text = `codebase files ${completed}/${important.length} · ${percent(
+        completed,
+        important.length,
+      )}`;
     }
     log(
       "fetch",
-      `codebase file ${completed}/${important.length} · ${
-        percent(completed, important.length)
-      }: ${path}`,
+      `codebase file ${completed}/${important.length} · ${percent(
+        completed,
+        important.length,
+      )}: ${path}`,
     );
     await checkpoint();
   });
@@ -313,8 +315,7 @@ async function pullRequests(
   let completed = 0;
   let save = Promise.resolve();
   if (phase) {
-    phase.text =
-      `pull requests 0/${selected.length} · 0% · concurrency=${options.ghConcurrent}`;
+    phase.text = `pull requests 0/${selected.length} · 0% · concurrency=${options.ghConcurrent}`;
   }
   log(
     "fetch",
@@ -326,11 +327,13 @@ async function pullRequests(
     const cached = previousByNumber.get(number);
     const listedAdditions = Number(pr.additions);
     const listedDeletions = Number(pr.deletions);
-    const listedStatsAvailable = Number.isFinite(listedAdditions) &&
+    const listedStatsAvailable =
+      Number.isFinite(listedAdditions) &&
       Number.isFinite(listedDeletions) &&
       pr.additions !== undefined &&
       pr.deletions !== undefined;
-    const cachedStatsAvailable = cached &&
+    const cachedStatsAvailable =
+      cached &&
       cached.updatedAt === String(pr.updated_at ?? "") &&
       cached.headSha === String((pr.head as Json | undefined)?.sha ?? "") &&
       Number.isFinite(cached.additions) &&
@@ -338,11 +341,11 @@ async function pullRequests(
     let detail: Json | undefined = listedStatsAvailable
       ? pr
       : cachedStatsAvailable
-      ? {
-        additions: cached.additions,
-        deletions: cached.deletions,
-      }
-      : undefined;
+        ? {
+            additions: cached.additions,
+            deletions: cached.deletions,
+          }
+        : undefined;
     if (!detail) {
       try {
         detail = await client.request<Json>(
@@ -374,8 +377,8 @@ async function pullRequests(
       diff: cached?.diff ?? "",
     };
     const discussionUnchanged = cached?.updatedAt === current.updatedAt;
-    const diffUnchanged = cached?.headSha === current.headSha &&
-      Boolean(cached?.diff);
+    const diffUnchanged =
+      cached?.headSha === current.headSha && Boolean(cached?.diff);
     const discussionStatus = discussionUnchanged
       ? "comments/reviews cache"
       : "download comments/reviews";
@@ -385,17 +388,17 @@ async function pullRequests(
       diffStatus = diffUnchanged
         ? "diff cache"
         : !detail
-        ? "diff unavailable"
-        : options.maxPullRequestChangeLines !== undefined &&
-            lines > options.maxPullRequestChangeLines
-        ? `diff skipped (${lines} lines > limit)`
-        : "download diff";
+          ? "diff unavailable"
+          : options.maxPullRequestChangeLines !== undefined &&
+              lines > options.maxPullRequestChangeLines
+            ? `diff skipped (${lines} lines > limit)`
+            : "download diff";
     }
     if (phase) {
-      phase.text =
-        `PR #${number} · ${discussionStatus} · ${diffStatus} · ${completed}/${selected.length} · ${
-          percent(completed, selected.length)
-        }`;
+      phase.text = `PR #${number} · ${discussionStatus} · ${diffStatus} · ${completed}/${selected.length} · ${percent(
+        completed,
+        selected.length,
+      )}`;
     }
     if (!discussionUnchanged) {
       const comments = await client.pages<Json>(
@@ -404,10 +407,12 @@ async function pullRequests(
       const reviews = await client.pages<Json>(
         `repos/${options.repo}/pulls/${number}/reviews`,
       );
-      current.comments = comments.map((comment) => String(comment.body ?? ""))
+      current.comments = comments
+        .map((comment) => String(comment.body ?? ""))
         .filter(Boolean)
         .slice(0, options.maxComments);
-      current.reviews = reviews.map((review) => String(review.body ?? ""))
+      current.reviews = reviews
+        .map((review) => String(review.body ?? ""))
         .filter(Boolean);
     }
     if (options.includePullRequestChanges && !diffUnchanged && detail) {
@@ -419,13 +424,17 @@ async function pullRequests(
         const files = await client.pages<Json>(
           `repos/${options.repo}/pulls/${number}/files`,
         );
-        current.changedFiles = files.map((item) => String(item.filename))
+        current.changedFiles = files
+          .map((item) => String(item.filename))
           .filter(Boolean);
-        current.diff = files.map((item) => {
-          const path = String(item.filename ?? "");
-          const patch = String(item.patch ?? "");
-          return patch ? `FILE: ${path}\n${patch}` : "";
-        }).filter(Boolean).join("\n\n");
+        current.diff = files
+          .map((item) => {
+            const path = String(item.filename ?? "");
+            const patch = String(item.patch ?? "");
+            return patch ? `FILE: ${path}\n${patch}` : "";
+          })
+          .filter(Boolean)
+          .join("\n\n");
       } else {
         current.changedFiles = [];
         current.diff = "";
@@ -434,19 +443,21 @@ async function pullRequests(
     result[index] = current;
     completed++;
     if (phase) {
-      phase.text = `pull requests ${completed}/${selected.length} · ${
-        percent(completed, selected.length)
-      }`;
+      phase.text = `pull requests ${completed}/${selected.length} · ${percent(
+        completed,
+        selected.length,
+      )}`;
     }
     log(
       "fetch",
-      `PR ${completed}/${selected.length} · ${
-        percent(completed, selected.length)
-      } #${number} · ${discussionStatus} · ${diffStatus}`,
+      `PR ${completed}/${selected.length} · ${percent(
+        completed,
+        selected.length,
+      )} #${number} · ${discussionStatus} · ${diffStatus}`,
     );
     if (progress) {
       save = save.then(() =>
-        progress(result.filter((item): item is PullRequest => !!item))
+        progress(result.filter((item): item is PullRequest => !!item)),
       );
       await save;
     }
@@ -461,16 +472,16 @@ async function commits(
   phase?: FetchPhase,
 ): Promise<Json[]> {
   const branch = String(meta.default_branch ?? "main");
-  const limit = options.maxCommits && options.maxCommits > 0
-    ? options.maxCommits
-    : undefined;
+  const limit =
+    options.maxCommits && options.maxCommits > 0
+      ? options.maxCommits
+      : undefined;
   if (phase) phase.text = "commit history · page 0 · fetched 0";
   return client.pages<Json>(
     `repos/${options.repo}/commits?sha=${encodeURIComponent(branch)}`,
     limit,
     (page, fetched) => {
-      const message =
-        `commit history · page ${page} · fetched ${fetched} · total unknown`;
+      const message = `commit history · page ${page} · fetched ${fetched} · total unknown`;
       if (phase) phase.text = message;
       log("fetch", message);
     },
@@ -492,18 +503,18 @@ export async function collectSource(
   const stopHeartbeat = startHeartbeat(() => phase.text);
   try {
     const repo = await client.request<Json>(`repos/${options.repo}`);
-    const includeCodebase = options.includeCodebase ||
-      options.includeHowRepoWorks;
+    const includeCodebase =
+      options.includeCodebase || options.includeHowRepoWorks;
     const files = includeCodebase
       ? await codebase(
-        client,
-        options.repo,
-        repo,
-        options.ghConcurrent,
-        previous?.source,
-        phase,
-        codebaseProgress,
-      )
+          client,
+          options.repo,
+          repo,
+          options.ghConcurrent,
+          previous?.source,
+          phase,
+          codebaseProgress,
+        )
       : { tree: [], treeSha: {}, files: {} };
     const pullRequestData = options.includePullRequests
       ? await pullRequests(client, options, previous, phase, progress)

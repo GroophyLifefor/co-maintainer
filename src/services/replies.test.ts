@@ -9,15 +9,24 @@ import { getJob } from "../store/jobs.ts";
 import { runReplyJob } from "./replies.ts";
 import type { AiProvider, GitHubClient, Json } from "../types.ts";
 import type { JobRow } from "../store/rows.ts";
+import {
+  deleteEnv,
+  getEnv,
+  mkdirPath,
+  setEnv,
+  tempDirSync,
+  writeTextFile,
+} from "../testing/runtime.ts";
+import { test } from "node:test";
 
 async function withEnv(fn: () => Promise<void>): Promise<void> {
-  const originalDb = Deno.env.get("CM_APP_DB");
-  const originalRepos = Deno.env.get("CM_REPOS_DIR");
-  const dir = Deno.makeTempDirSync();
-  Deno.env.set("CM_APP_DB", `${dir}/app.db`);
-  Deno.env.set("CM_REPOS_DIR", `${dir}/repos`);
-  await Deno.mkdir(`${dir}/repos/acme/widgets`, { recursive: true });
-  await Deno.writeTextFile(
+  const originalDb = getEnv("CM_APP_DB");
+  const originalRepos = getEnv("CM_REPOS_DIR");
+  const dir = tempDirSync();
+  setEnv("CM_APP_DB", `${dir}/app.db`);
+  setEnv("CM_REPOS_DIR", `${dir}/repos`);
+  await mkdirPath(`${dir}/repos/acme/widgets`, { recursive: true });
+  await writeTextFile(
     `${dir}/repos/acme/widgets/PR_REVIEW_GUIDE.md`,
     "Answer review questions from the supplied code.",
   );
@@ -27,10 +36,10 @@ async function withEnv(fn: () => Promise<void>): Promise<void> {
     await fn();
   } finally {
     await closeAppDb();
-    if (originalDb === undefined) Deno.env.delete("CM_APP_DB");
-    else Deno.env.set("CM_APP_DB", originalDb);
-    if (originalRepos === undefined) Deno.env.delete("CM_REPOS_DIR");
-    else Deno.env.set("CM_REPOS_DIR", originalRepos);
+    if (originalDb === undefined) deleteEnv("CM_APP_DB");
+    else setEnv("CM_APP_DB", originalDb);
+    if (originalRepos === undefined) deleteEnv("CM_REPOS_DIR");
+    else setEnv("CM_REPOS_DIR", originalRepos);
   }
 }
 
@@ -52,13 +61,15 @@ class FakeGithub implements GitHubClient {
 
   pages<T>(endpoint: string): Promise<T[]> {
     if (endpoint.includes("/pulls/1/comments")) {
-      return Promise.resolve([{
-        id: 10,
-        body: "The original finding.",
-        path: "src/app.ts",
-        line: 4,
-        user: { login: "co-maintainer-beta[bot]", type: "Bot" },
-      }] as T[]);
+      return Promise.resolve([
+        {
+          id: 10,
+          body: "The original finding.",
+          path: "src/app.ts",
+          line: 4,
+          user: { login: "co-maintainer-beta[bot]", type: "Bot" },
+        },
+      ] as T[]);
     }
     if (endpoint.includes("/issues/1/comments")) {
       return Promise.resolve(
@@ -104,7 +115,7 @@ function requestJob(
   return getJob(result.request.job_id!)!;
 }
 
-Deno.test("reply jobs post inline replies to the stored thread target", async () => {
+test("reply jobs post inline replies to the stored thread target", async () => {
   await withEnv(async () => {
     const github = new FakeGithub();
     const job = requestJob("review_comment", "101", "10");
@@ -128,7 +139,7 @@ Deno.test("reply jobs post inline replies to the stored thread target", async ()
   });
 });
 
-Deno.test("the same source comment creates only one reply request", async () => {
+test("the same source comment creates only one reply request", async () => {
   await withEnv(async () => {
     const first = createReplyRequestAndJob({
       repo: "acme/widgets",
@@ -150,7 +161,7 @@ Deno.test("the same source comment creates only one reply request", async () => 
   });
 });
 
-Deno.test("reply jobs use issue comments for explicit PR mentions", async () => {
+test("reply jobs use issue comments for explicit PR mentions", async () => {
   await withEnv(async () => {
     const github = new FakeGithub();
     const job = requestJob("issue_comment", "102");
@@ -166,7 +177,7 @@ Deno.test("reply jobs use issue comments for explicit PR mentions", async () => 
   });
 });
 
-Deno.test("a persisted answer is posted without calling the AI again", async () => {
+test("a persisted answer is posted without calling the AI again", async () => {
   await withEnv(async () => {
     const github = new FakeGithub();
     const job = requestJob("issue_comment", "103");
@@ -183,7 +194,7 @@ Deno.test("a persisted answer is posted without calling the AI again", async () 
   });
 });
 
-Deno.test("a reply already accepted by GitHub is reconciled by its marker", async () => {
+test("a reply already accepted by GitHub is reconciled by its marker", async () => {
   await withEnv(async () => {
     const github = new FakeGithub();
     const result = createReplyRequestAndJob({
@@ -198,8 +209,7 @@ Deno.test("a reply already accepted by GitHub is reconciled by its marker", asyn
     });
     github.existingReply = {
       id: 901,
-      body:
-        `<!-- co-maintainer:reply:${result.request.id} -->\nAlready generated.`,
+      body: `<!-- co-maintainer:reply:${result.request.id} -->\nAlready generated.`,
     };
     await runReplyJob(
       getJob(result.request.job_id!)!,

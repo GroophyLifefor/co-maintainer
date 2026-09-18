@@ -11,17 +11,19 @@ import { insertReview, setReviewStatus } from "../store/reviews.ts";
 import { insertFinding, setFindingPosted } from "../store/findings.ts";
 import { findReplyRequest } from "../store/replies.ts";
 import { dispatchGithubEvent, maybeEnqueueReview } from "./webhook.ts";
+import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
+import { test } from "node:test";
 
 async function withTempDb(fn: () => Promise<void> | void): Promise<void> {
-  const original = Deno.env.get("CM_APP_DB");
-  Deno.env.set("CM_APP_DB", `${Deno.makeTempDirSync()}/app.db`);
+  const original = getEnv("CM_APP_DB");
+  setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
   try {
     await openAppDb();
     await fn();
   } finally {
     await closeAppDb();
-    if (original === undefined) Deno.env.delete("CM_APP_DB");
-    else Deno.env.set("CM_APP_DB", original);
+    if (original === undefined) deleteEnv("CM_APP_DB");
+    else setEnv("CM_APP_DB", original);
   }
 }
 
@@ -47,7 +49,7 @@ function enqueueArgs(
   };
 }
 
-Deno.test("maybeEnqueueReview records every skip reason and enqueues when none apply", async () => {
+test("maybeEnqueueReview records every skip reason and enqueues when none apply", async () => {
   await withTempDb(() => {
     const missing = maybeEnqueueReview(enqueueArgs());
     if (missing.reason !== "repo-not-active") {
@@ -101,7 +103,7 @@ Deno.test("maybeEnqueueReview records every skip reason and enqueues when none a
   });
 });
 
-Deno.test("a second pull_request for the same PR within the debounce window keeps one job", async () => {
+test("a second pull_request for the same PR within the debounce window keeps one job", async () => {
   await withTempDb(() => {
     readyRepo();
     const first = maybeEnqueueReview(enqueueArgs({ deliveryId: "d-a" }));
@@ -133,7 +135,7 @@ function prPayload(overrides: Record<string, unknown> = {}) {
   };
 }
 
-Deno.test("dispatchGithubEvent enqueues opened pull requests and ignores closed ones", async () => {
+test("dispatchGithubEvent enqueues opened pull requests and ignores closed ones", async () => {
   await withTempDb(() => {
     readyRepo();
     if (getRepo("acme/widgets")?.installation_id !== 1) {
@@ -186,18 +188,22 @@ Deno.test("dispatchGithubEvent enqueues opened pull requests and ignores closed 
   });
 });
 
-Deno.test("installation events update the installations table and deactivate on delete", async () => {
+test("installation events update the installations table and deactivate on delete", async () => {
   await withTempDb(() => {
     activateRepo("acme/widgets", 42);
-    const created = dispatchGithubEvent("installation", {
-      action: "created",
-      installation: {
-        id: 42,
-        account: { login: "acme", type: "Organization" },
-        permissions: { pull_requests: "write" },
-        events: ["pull_request"],
+    const created = dispatchGithubEvent(
+      "installation",
+      {
+        action: "created",
+        installation: {
+          id: 42,
+          account: { login: "acme", type: "Organization" },
+          permissions: { pull_requests: "write" },
+          events: ["pull_request"],
+        },
       },
-    }, "i-1");
+      "i-1",
+    );
     if (created.reason !== "installation-created") {
       throw new Error(`unexpected created result ${JSON.stringify(created)}`);
     }
@@ -205,25 +211,37 @@ Deno.test("installation events update the installations table and deactivate on 
       throw new Error("installation was not upserted");
     }
 
-    dispatchGithubEvent("installation", {
-      action: "suspend",
-      installation: { id: 42 },
-    }, "i-2");
+    dispatchGithubEvent(
+      "installation",
+      {
+        action: "suspend",
+        installation: { id: 42 },
+      },
+      "i-2",
+    );
     if (!getInstallation(42)?.suspended_at) {
       throw new Error("suspend did not stick");
     }
-    dispatchGithubEvent("installation", {
-      action: "unsuspend",
-      installation: { id: 42 },
-    }, "i-3");
+    dispatchGithubEvent(
+      "installation",
+      {
+        action: "unsuspend",
+        installation: { id: 42 },
+      },
+      "i-3",
+    );
     if (getInstallation(42)?.suspended_at) {
       throw new Error("unsuspend left suspended_at set");
     }
 
-    dispatchGithubEvent("installation", {
-      action: "deleted",
-      installation: { id: 42 },
-    }, "i-4");
+    dispatchGithubEvent(
+      "installation",
+      {
+        action: "deleted",
+        installation: { id: 42 },
+      },
+      "i-4",
+    );
     if (!getInstallation(42)?.removed_at) {
       throw new Error("delete did not mark removed");
     }
@@ -233,23 +251,31 @@ Deno.test("installation events update the installations table and deactivate on 
   });
 });
 
-Deno.test("installation_repositories.added binds repos and removed deactivates them", async () => {
+test("installation_repositories.added binds repos and removed deactivates them", async () => {
   await withTempDb(() => {
     activateRepo("acme/new", undefined);
     activateRepo("acme/keep", 1);
     activateRepo("acme/drop", 1);
-    dispatchGithubEvent("installation_repositories", {
-      action: "added",
-      installation: { id: 7 },
-      repositories_added: [{ full_name: "acme/new" }],
-    }, "r-0");
+    dispatchGithubEvent(
+      "installation_repositories",
+      {
+        action: "added",
+        installation: { id: 7 },
+        repositories_added: [{ full_name: "acme/new" }],
+      },
+      "r-0",
+    );
     if (getRepo("acme/new")?.installation_id !== 7) {
       throw new Error("added repo did not store its installation");
     }
-    dispatchGithubEvent("installation_repositories", {
-      action: "removed",
-      repositories_removed: [{ full_name: "acme/drop" }],
-    }, "r-1");
+    dispatchGithubEvent(
+      "installation_repositories",
+      {
+        action: "removed",
+        repositories_removed: [{ full_name: "acme/drop" }],
+      },
+      "r-1",
+    );
     if (getRepo("acme/drop")?.active !== 0) {
       throw new Error("removed repo stayed active");
     }
@@ -259,29 +285,33 @@ Deno.test("installation_repositories.added binds repos and removed deactivates t
   });
 });
 
-Deno.test("a bot review comment is skipped as own-comment", async () => {
+test("a bot review comment is skipped as own-comment", async () => {
   await withTempDb(() => {
     readyRepo();
-    const result = dispatchGithubEvent("pull_request_review_comment", {
-      action: "created",
-      comment: { user: { login: "co-maintainer-beta[bot]", type: "Bot" } },
-      pull_request: {
-        number: 7,
-        draft: false,
-        changed_files: 1,
-        additions: 1,
-        deletions: 0,
-        head: { sha: "h2" },
+    const result = dispatchGithubEvent(
+      "pull_request_review_comment",
+      {
+        action: "created",
+        comment: { user: { login: "co-maintainer-beta[bot]", type: "Bot" } },
+        pull_request: {
+          number: 7,
+          draft: false,
+          changed_files: 1,
+          additions: 1,
+          deletions: 0,
+          head: { sha: "h2" },
+        },
+        repository: { full_name: "acme/widgets" },
       },
-      repository: { full_name: "acme/widgets" },
-    }, "own-1");
+      "own-1",
+    );
     if (result.reason !== "own-comment") {
       throw new Error(`expected own-comment, got ${JSON.stringify(result)}`);
     }
   });
 });
 
-Deno.test("a review comment on the same head as the last posted review is skipped", async () => {
+test("a review comment on the same head as the last posted review is skipped", async () => {
   await withTempDb(() => {
     readyRepo();
     insertReview({
@@ -295,26 +325,30 @@ Deno.test("a review comment on the same head as the last posted review is skippe
       model: "fake",
     });
     setReviewStatus("rev-last", "posted");
-    const result = dispatchGithubEvent("pull_request_review", {
-      action: "submitted",
-      review: { user: { login: "octocat", type: "User" } },
-      pull_request: {
-        number: 7,
-        draft: false,
-        changed_files: 1,
-        additions: 1,
-        deletions: 0,
-        head: { sha: "same-head" },
+    const result = dispatchGithubEvent(
+      "pull_request_review",
+      {
+        action: "submitted",
+        review: { user: { login: "octocat", type: "User" } },
+        pull_request: {
+          number: 7,
+          draft: false,
+          changed_files: 1,
+          additions: 1,
+          deletions: 0,
+          head: { sha: "same-head" },
+        },
+        repository: { full_name: "acme/widgets" },
       },
-      repository: { full_name: "acme/widgets" },
-    }, "stale-1");
+      "stale-1",
+    );
     if (result.reason !== "nothing-new-since-last-round") {
       throw new Error(`expected nothing-new, got ${JSON.stringify(result)}`);
     }
   });
 });
 
-Deno.test("inline replies and PR mentions enqueue reply jobs", async () => {
+test("inline replies and PR mentions enqueue reply jobs", async () => {
   await withTempDb(() => {
     readyRepo();
     insertReview({

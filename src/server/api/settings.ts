@@ -182,7 +182,8 @@ export async function handleSettingsRoute(
     }
     if (
       merged.githubAuthEnabled &&
-      (!merged.githubOAuthClientId || !merged.githubOAuthClientSecret ||
+      (!merged.githubOAuthClientId ||
+        !merged.githubOAuthClientSecret ||
         !merged.githubOAuthAllowedUser)
     ) {
       return errorResponse(
@@ -191,9 +192,10 @@ export async function handleSettingsRoute(
         "GitHub sign-in needs a client ID, client secret, and allowed username",
       );
     }
-    const touchingGithub = patch.auth !== undefined ||
-      patch.githubPat !== undefined;
-    const touchingApp = patch.githubAppId !== undefined ||
+    const touchingGithub =
+      patch.auth !== undefined || patch.githubPat !== undefined;
+    const touchingApp =
+      patch.githubAppId !== undefined ||
       patch.githubAppPrivateKey !== undefined;
     if (touchingGithub) {
       const github = await testGithubAccess({

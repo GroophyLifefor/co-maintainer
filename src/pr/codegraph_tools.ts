@@ -52,11 +52,14 @@ export async function ensureCodegraphIndex(
 ): Promise<void> {
   const started = performance.now();
   const fresh = !(await pathExists(`${worktree}/${indexDir}`));
-  const initCmd = indexDir === LOCAL_CODEGRAPH_DIR
-    ? ["init", "-y", "."]
-    : ["init", "."];
+  const initCmd =
+    indexDir === LOCAL_CODEGRAPH_DIR ? ["init", "-y", "."] : ["init", "."];
   let result = await runner(binary, fresh ? initCmd : ["sync", "."], worktree);
-  if (!fresh && result.code !== 0 && /lock/i.test(result.stderr + result.stdout)) {
+  if (
+    !fresh &&
+    result.code !== 0 &&
+    /lock/i.test(result.stderr + result.stdout)
+  ) {
     await runner(binary, ["unlock", "."], worktree);
     result = await runner(binary, ["sync", "."], worktree);
   }
@@ -70,13 +73,16 @@ export async function ensureCodegraphIndex(
       }`,
     );
   }
-  const indexed = result.stdout.match(/Indexed ([\d.]+) files/)?.[1] ??
-    result.stdout.match(/Synced (\d+) changed files/)?.[1] ?? "?";
+  const indexed =
+    result.stdout.match(/Indexed ([\d.]+) files/)?.[1] ??
+    result.stdout.match(/Synced (\d+) changed files/)?.[1] ??
+    "?";
   log(
     "codegraph",
-    `${fresh ? "init" : "sync"} · ${indexed} files · ${
-      ((performance.now() - started) / 1000).toFixed(1)
-    }s`,
+    `${fresh ? "init" : "sync"} · ${indexed} files · ${(
+      (performance.now() - started) /
+      1000
+    ).toFixed(1)}s`,
   );
 }
 
@@ -399,11 +405,7 @@ export function codegraphTools(
         const flag = rejectFlagLike(symbol, "symbol");
         if (flag) return Promise.resolve(flag);
         const depth = num(a, "depth");
-        return run([
-          "impact",
-          symbol,
-          ...(depth ? ["-d", String(depth)] : []),
-        ]);
+        return run(["impact", symbol, ...(depth ? ["-d", String(depth)] : [])]);
       },
     },
     {

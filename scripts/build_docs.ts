@@ -1,9 +1,10 @@
 /**
  * Build static HTML docs under docs/ from docs/md/*.md
- * Run: deno task docs:build
+ * Run: npm run docs:build
  */
-import { marked } from "npm:marked@15.0.7";
+import { marked } from "marked";
 import { logo } from "../src/server/logo.ts";
+import { mkdir, readTextFile, stat, writeFile } from "../src/util/runtime.ts";
 
 const ROOT = new URL("../docs/", import.meta.url);
 const MD_DIR = new URL("md/", ROOT);
@@ -56,10 +57,13 @@ const DOCS_EDIT_BRANCH = "main";
 marked.setOptions({ gfm: true });
 
 function esc(text: string): string {
-  return text.replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
-      c
-    ] ?? c);
+  return text.replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ] ?? c,
+  );
 }
 
 /** Markdown ```mermaid fences become placeholders, then figures after marked (blank lines break raw HTML). */
@@ -123,7 +127,7 @@ const MERMAID_CDN =
 async function ensureMermaidBundle(assetsDir: URL): Promise<void> {
   const out = new URL("mermaid.min.js", assetsDir);
   try {
-    await Deno.stat(out);
+    await stat(out);
     return;
   } catch {
     /* download below */
@@ -132,7 +136,7 @@ async function ensureMermaidBundle(assetsDir: URL): Promise<void> {
   if (!resp.ok) {
     throw new Error(`Failed to download mermaid: HTTP ${resp.status}`);
   }
-  await Deno.writeFile(out, new Uint8Array(await resp.arrayBuffer()));
+  await writeFile(out, new Uint8Array(await resp.arrayBuffer()));
   console.log("wrote assets/mermaid.min.js");
 }
 
@@ -238,9 +242,9 @@ function buildToc(bodyHtml: string): { html: string; toc: string } {
     `<nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
       <ul>` +
-    headings.map((h) =>
-      `<li><a href="#${esc(h.id)}">${esc(h.text)}</a></li>`
-    ).join("") +
+    headings
+      .map((h) => `<li><a href="#${esc(h.id)}">${esc(h.text)}</a></li>`)
+      .join("") +
     `</ul></nav>`;
   return { html: withIds, toc };
 }
@@ -256,7 +260,7 @@ function topBar(active: "home" | "docs"): string {
       ${siteBrandLink()}
       <nav class="topnav" aria-label="Site">
         <a class="${docsClass}" href="getting-started.html">Documentation</a>
-        <a class="toplink" href="https://jsr.io/@murat/co-maintainer">JSR</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
         <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
       </nav>
       <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
@@ -266,10 +270,12 @@ function topBar(active: "home" | "docs"): string {
 
 function sidebarHtml(activeSlug: string): string {
   const blocks = NAV.map((section) => {
-    const items = section.items.map(({ slug, label }) => {
-      const cls = slug === activeSlug ? ' class="active"' : "";
-      return `<li><a href="${slug}.html"${cls}>${esc(label)}</a></li>`;
-    }).join("\n          ");
+    const items = section.items
+      .map(({ slug, label }) => {
+        const cls = slug === activeSlug ? ' class="active"' : "";
+        return `<li><a href="${slug}.html"${cls}>${esc(label)}</a></li>`;
+      })
+      .join("\n          ");
     return `<div class="nav-section">
           <p class="nav-section-title">${esc(section.title)}</p>
           <ul class="nav-list">
@@ -322,14 +328,14 @@ function docPageShell(
 
 async function main(): Promise<void> {
   const assetsDir = new URL("assets/", ROOT);
-  await Deno.mkdir(assetsDir, { recursive: true });
+  await mkdir(assetsDir, { recursive: true });
   await ensureMermaidBundle(assetsDir);
-  await Deno.writeFile(new URL("logo.png", assetsDir), logo);
-  await Deno.writeFile(new URL(".nojekyll", ROOT), new Uint8Array());
+  await writeFile(new URL("logo.png", assetsDir), logo);
+  await writeFile(new URL(".nojekyll", ROOT), new Uint8Array());
 
   for (const { slug } of ALL_PAGES) {
     const mdPath = new URL(`${slug}.md`, MD_DIR);
-    let md = await Deno.readTextFile(mdPath);
+    let md = await readTextFile(mdPath);
     lintDocMd(md, `${slug}.md`);
     md = fixMdSourceLinks(md);
     const { md: mdNoMermaid, slots } = extractMermaidFences(md);
@@ -342,7 +348,7 @@ async function main(): Promise<void> {
     const titleMatch = md.match(/^#\s+`?([^`\n]+)`?/);
     const title = titleMatch?.[1]?.trim() ?? slug;
     const html = docPageShell(title, body, toc, slug);
-    await Deno.writeFile(
+    await writeFile(
       new URL(`${slug}.html`, ROOT),
       new TextEncoder().encode(html),
     );

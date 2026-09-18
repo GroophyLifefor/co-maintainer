@@ -1,5 +1,6 @@
 import { computeScope, scopeInClone } from "./scope.ts";
 import type { CommandResult, Run } from "./checkout.ts";
+import { test } from "node:test";
 
 function same(actual: unknown, expected: unknown, what: string): void {
   const a = JSON.stringify(actual);
@@ -70,7 +71,7 @@ function happyPathRun(): Run {
   }) as Run;
 }
 
-Deno.test("scopeInClone separates own work from upstream, merge resolution included", async () => {
+test("scopeInClone separates own work from upstream, merge resolution included", async () => {
   const scope = await scopeInClone("clone", "base", "head", happyPathRun());
   if (!scope) throw new Error("expected a scope result");
   same(sorted(scope.ownFiles), ["a.ts", "b.ts", "c.ts"], "own files");
@@ -80,7 +81,7 @@ Deno.test("scopeInClone separates own work from upstream, merge resolution inclu
   same(scope.defaultBranch, "refs/remotes/origin/main", "default branch");
 });
 
-Deno.test("a clean merge (no conflict) contributes no files", async () => {
+test("a clean merge (no conflict) contributes no files", async () => {
   const run = happyPathRun();
   const cleanRun: Run = (command, args, cwd) => {
     if (args[0] === "diff-tree") return Promise.resolve(ok(""));
@@ -96,7 +97,7 @@ Deno.test("a clean merge (no conflict) contributes no files", async () => {
   );
 });
 
-Deno.test("scopeInClone resolves default branch on a named remote", async () => {
+test("scopeInClone resolves default branch on a named remote", async () => {
   const run = happyPathRun();
   const upstreamRun: Run = (command, args, cwd) => {
     if (
@@ -115,10 +116,14 @@ Deno.test("scopeInClone resolves default branch on a named remote", async () => 
     "upstream",
   );
   if (!scope) throw new Error("expected a scope result");
-  same(scope.defaultBranch, "refs/remotes/upstream/develop", "upstream default");
+  same(
+    scope.defaultBranch,
+    "refs/remotes/upstream/develop",
+    "upstream default",
+  );
 });
 
-Deno.test("falls back to probing main/master when origin/HEAD is unset", async () => {
+test("falls back to probing main/master when origin/HEAD is unset", async () => {
   const run = happyPathRun();
   let sawMainProbe = false;
   const noSymref: Run = (command, args, cwd) => {
@@ -138,21 +143,22 @@ Deno.test("falls back to probing main/master when origin/HEAD is unset", async (
   same(scope.defaultBranch, "refs/remotes/origin/main", "resolved default");
 });
 
-Deno.test("returns undefined when no default branch can be found", async () => {
+test("returns undefined when no default branch can be found", async () => {
   const run = happyPathRun();
   const noDefault: Run = (command, args, cwd) => {
     if (args[0] === "symbolic-ref") return Promise.resolve(fail());
     if (
       args[0] === "rev-parse" &&
       String(args[args.length - 1]).startsWith("refs/remotes/origin/")
-    ) return Promise.resolve(fail());
+    )
+      return Promise.resolve(fail());
     return run(command, args, cwd);
   };
   const scope = await scopeInClone("clone", "base", "head", noDefault);
   same(scope, undefined, "no default branch means no scope");
 });
 
-Deno.test("returns undefined when a commit cannot be resolved or fetched", async () => {
+test("returns undefined when a commit cannot be resolved or fetched", async () => {
   const run: Run = (_command, args) => {
     if (args[0] === "rev-parse") return Promise.resolve(fail());
     if (args[0] === "fetch") return Promise.resolve(fail("not found"));
@@ -162,7 +168,7 @@ Deno.test("returns undefined when a commit cannot be resolved or fetched", async
   same(scope, undefined, "an unfetchable commit means no scope");
 });
 
-Deno.test("returns undefined when git rev-list fails outright", async () => {
+test("returns undefined when git rev-list fails outright", async () => {
   const run = happyPathRun();
   const brokenRevList: Run = (command, args, cwd) => {
     if (args[0] === "rev-list") return Promise.resolve(fail());
@@ -172,7 +178,7 @@ Deno.test("returns undefined when git rev-list fails outright", async () => {
   same(scope, undefined, "a git failure means no scope, not a thrown error");
 });
 
-Deno.test("computeScope returns undefined when the clone itself cannot be made, without throwing", async () => {
+test("computeScope returns undefined when the clone itself cannot be made, without throwing", async () => {
   const run: Run = (_command, args) => {
     if (args[0] === "clone") {
       return Promise.resolve(fail("network unreachable"));

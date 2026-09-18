@@ -17,10 +17,10 @@ export const MERMAID_TYPES = [
   "treeView-beta",
 ] as const;
 
-export type MermaidType = typeof MERMAID_TYPES[number];
+export type MermaidType = (typeof MERMAID_TYPES)[number];
 
 const DOCS: Record<MermaidType, string> = {
-  "flowchart": `# flowchart
+  flowchart: `# flowchart
 Use for decisions, branches, pipelines, and fallback paths.
 Syntax: flowchart LR
   A[Input] --> B{Check}
@@ -42,7 +42,7 @@ swimlane-beta LR
 Top-level subgraph blocks are lanes. Nodes use flowchart shapes. Directions:
 TB, TD, BT, LR, RL. Label cross-lane handoffs. Optional frontmatter config
 may set swimlane and themeVariables values documented by Mermaid.`,
-  "sequenceDiagram": `# sequenceDiagram
+  sequenceDiagram: `# sequenceDiagram
 Use for ordered messages, webhooks, retries, responses, and timing.
 Syntax:
 sequenceDiagram
@@ -53,7 +53,7 @@ sequenceDiagram
 Use participant, actor, alt, opt, loop, par, and critical only when supported
 by the evidence. Use ->> for calls and -->> for replies. Optional frontmatter
 config may set sequence and themeVariables values documented by Mermaid.`,
-  "classDiagram": `# classDiagram
+  classDiagram: `# classDiagram
 Use for class, interface, type, inheritance, and composition relationships.
 Syntax:
 classDiagram
@@ -76,7 +76,7 @@ stateDiagram-v2
 Use [*] for start/end, --> for transitions, and labels after :. Composite
 states use state Name { ... }. Optional frontmatter config may set state and
 themeVariables values documented by Mermaid.`,
-  "erDiagram": `# erDiagram
+  erDiagram: `# erDiagram
 Use for database entities, keys, and cardinality.
 Syntax:
 erDiagram
@@ -90,7 +90,7 @@ erDiagram
 Use ||, o|, ||, }|, and related cardinality markers only when supported.
 Optional frontmatter config may set er and themeVariables values documented
 by Mermaid.`,
-  "requirementDiagram": `# requirementDiagram
+  requirementDiagram: `# requirementDiagram
 Use for requirements linked to tests or implementation elements.
 Syntax:
 requirementDiagram
@@ -122,7 +122,7 @@ Use actor declarations, systemBoundary blocks, and --> relationships. Use
 ..> for include/extend relationships when the evidence supports them.
 Optional frontmatter config may set usecase and themeVariables values documented
 by Mermaid.`,
-  "C4Context": `# C4Context
+  C4Context: `# C4Context
 Use for users, systems, boundaries, and integrations.
 Syntax:
 C4Context
@@ -135,7 +135,7 @@ Use stable aliases and Person, System, System_Ext, SystemDb, Boundary, Rel,
 and BiRel forms. C4 is experimental and compatible with C4-PlantUML style.
 Optional frontmatter config may set c4 and themeVariables values documented
 by Mermaid.`,
-  "zenuml": `# zenuml
+  zenuml: `# zenuml
 Use for compact, nested call sequences.
 Syntax:
 zenuml
@@ -146,7 +146,7 @@ zenuml
 Participants may be implicit. Use nested braces for synchronous calls and
 if/else, loop, opt, par, and try/catch only when useful. Optional frontmatter
 config may set zenuml and themeVariables values documented by Mermaid.`,
-  "packet": `# packet
+  packet: `# packet
 Use for binary packet fields, bit ranges, and protocol layout.
 Syntax:
 packet
@@ -168,7 +168,7 @@ Declare groups and services before edges. Built-in icons include cloud,
 database, disk, internet, and server. Edge ports are T, B, L, or R. Optional
 frontmatter config may set architecture, including randomize, seed,
 nodeSeparation, and idealEdgeLengthMultiplier, plus themeVariables.`,
-  "eventmodeling": `# eventmodeling
+  eventmodeling: `# eventmodeling
 Use for UI/processor actions, commands, read models, and events over time.
 Syntax:
 eventmodeling
@@ -208,7 +208,7 @@ highlightBg, and highlightStroke. Use config only when it improves clarity.`,
 };
 
 const CONFIG_DOCS: Record<MermaidType, string> = {
-  "flowchart": `Configuration:
+  flowchart: `Configuration:
 ---
 config:
   flowchart:
@@ -235,7 +235,7 @@ config:
 ---
 lineHops accepts arc, gap, or false. Keep automaticLaneOrdering false when
 source lane order carries meaning. Swimlane also reuses flowchart spacing.`,
-  "sequenceDiagram": `Configuration:
+  sequenceDiagram: `Configuration:
 ---
 config:
   sequence:
@@ -252,7 +252,7 @@ config:
 Use hideUnusedParticipants to remove unused declarations, actor/message margins
 for spacing, mirrorActors for repeated headers, and showSequenceNumbers only
 when numbered traces are useful.`,
-  "classDiagram": `Configuration:
+  classDiagram: `Configuration:
 ---
 config:
   class:
@@ -281,7 +281,7 @@ config:
 ---
 Use padding and spacing for readability. Use defaultRenderer only when the
 target renderer supports the chosen renderer.`,
-  "erDiagram": `Configuration:
+  erDiagram: `Configuration:
 ---
 config:
   er:
@@ -297,7 +297,7 @@ config:
 ---
 layoutDirection accepts TB, BT, LR, or RL. Use entity sizes and spacing for
 crowded schemas. Use stroke/fill/fontSize only for readable contrast.`,
-  "requirementDiagram": `Configuration:
+  requirementDiagram: `Configuration:
 ---
 config:
   requirement:
@@ -331,7 +331,7 @@ config:
 ---
 Use font settings for legibility and spacing for crowded actor-capability
 graphs. Font values must not contain ;, <, >, (, ), {, }, or backslash.`,
-  "C4Context": `Configuration:
+  C4Context: `Configuration:
 ---
 config:
   c4:
@@ -347,12 +347,12 @@ config:
 ---
 Use shape margin/padding for spacing, shape/boundary counts for layout density,
 and width/height for box size. C4 is experimental. Do not invent style calls.`,
-  "zenuml": `Configuration:
+  zenuml: `Configuration:
 ZenUML is an external Mermaid diagram integration and has no stable dedicated
 zenuml block in Mermaid core config. Do not invent one. Use only frontmatter
 options documented by the target renderer, such as supported title/theme
 settings, and omit config when unsure.`,
-  "packet": `Configuration:
+  packet: `Configuration:
 ---
 config:
   packet:
@@ -384,7 +384,7 @@ config:
 Use padding/iconSize/fontSize for scale. Increase nodeSeparation or
 idealEdgeLengthMultiplier when nodes overlap. Keep randomize false and seed
 stable for reproducible output. Increase numIter only for dense diagrams.`,
-  "eventmodeling": `Configuration:
+  eventmodeling: `Configuration:
 ---
 config:
   eventmodeling:
@@ -446,10 +446,7 @@ export const MERMAID_TOOL = {
   },
 } as const;
 
-export function readMermaidSyntaxes(
-  args: Json,
-  maxTools: number,
-): string {
+export function readMermaidSyntaxes(args: Json, maxTools: number): string {
   const raw = args.tools;
   if (!Array.isArray(raw)) {
     throw new Error("read-mermaid-syntaxes requires a tools array");
@@ -463,7 +460,10 @@ export function readMermaidSyntaxes(
       throw new Error(`unsupported Mermaid syntax: ${name}`);
     }
   }
-  return names.map((name) =>
-    `${DOCS[name as MermaidType]}\n\n${CONFIG_DOCS[name as MermaidType]}`
-  ).join("\n\n");
+  return names
+    .map(
+      (name) =>
+        `${DOCS[name as MermaidType]}\n\n${CONFIG_DOCS[name as MermaidType]}`,
+    )
+    .join("\n\n");
 }

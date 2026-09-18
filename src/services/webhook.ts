@@ -62,16 +62,15 @@ function appSlug(payload: Record<string, unknown>): string | undefined {
 }
 
 function hasAppMention(body: string, slug?: string): boolean {
-  const candidates = [slug, "co-maintainer"].filter(
-    (value): value is string => Boolean(value),
+  const candidates = [slug, "co-maintainer"].filter((value): value is string =>
+    Boolean(value),
   );
   return candidates.some((candidate) => {
     const escaped = candidate.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const suffix = candidate === "co-maintainer" ? "(?:-[a-z0-9-]+)?" : "";
-    return new RegExp(
-      `(^|[^\\w-])@${escaped}${suffix}(?![\\w-])`,
-      "i",
-    ).test(body);
+    return new RegExp(`(^|[^\\w-])@${escaped}${suffix}(?![\\w-])`, "i").test(
+      body,
+    );
   });
 }
 
@@ -170,8 +169,8 @@ export function maybeEnqueueReview(input: {
     }
   }
   const last = latestPostedReview(input.repo, input.prNumber);
-  const incremental = row.review_scope === "incremental" &&
-    Boolean(last?.head_sha);
+  const incremental =
+    row.review_scope === "incremental" && Boolean(last?.head_sha);
   const { id } = enqueue({
     type: "review",
     repo: input.repo,
@@ -292,9 +291,10 @@ function reviewWakeEvent(
   maxDiffLines?: number,
 ): WebhookResult {
   const action = asString(payload.action) ?? "";
-  const allowed = event === "pull_request_review"
-    ? action === "submitted"
-    : action === "created";
+  const allowed =
+    event === "pull_request_review"
+      ? action === "submitted"
+      : action === "created";
   const pr = asRecord(payload.pull_request);
   const repo = asString(asRecord(payload.repository)?.full_name);
   const prNumber = asNumber(pr?.number);
@@ -339,8 +339,10 @@ function replyTarget(
   if (findFindingByPostedComment(repo, prNumber, parentCommentId)) {
     return parentCommentId;
   }
-  return findReplyByPostedComment(repo, prNumber, parentCommentId)
-    ?.target_comment_id ?? undefined;
+  return (
+    findReplyByPostedComment(repo, prNumber, parentCommentId)
+      ?.target_comment_id ?? undefined
+  );
 }
 
 function enqueueReply(
@@ -411,11 +413,7 @@ function reviewCommentEvent(
   const sourceId = comment?.id;
   const parentId = comment?.in_reply_to_id;
   const author = asRecord(comment?.user);
-  if (
-    action !== "created" ||
-    !repo ||
-    prNumber === undefined
-  ) {
+  if (action !== "created" || !repo || prNumber === undefined) {
     return { outcome: "ignored", repo, prNumber };
   }
   if (isBot(author)) {

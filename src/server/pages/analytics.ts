@@ -22,170 +22,189 @@ export function renderAnalytics(
     (sum, row) => sum + row.findings,
     0,
   );
-  const byRepo = data.byRepo.length === 0
-    ? empty("No usage yet", "Cost and findings show up after reviews run.")
-    : `<table>
+  const byRepo =
+    data.byRepo.length === 0
+      ? empty("No usage yet", "Cost and findings show up after reviews run.")
+      : `<table>
         <thead><tr><th>Repository</th><th class="num">Pull requests</th><th class="num">Findings</th>
           <th class="num">Per pull request</th><th class="num">Tokens</th>
           <th class="num">Average review</th><th class="num">Cost</th></tr></thead>
         <tbody>
-          ${
-      data.byRepo.map((row) =>
-        `<tr><td><a href="/repos/${text(row.repo)}">${text(row.repo)}</a></td>
+          ${data.byRepo
+            .map(
+              (row) =>
+                `<tr><td><a href="/repos/${text(row.repo)}">${text(row.repo)}</a></td>
             <td class="num">${row.pullRequests}</td>
             <td class="num">${row.findings}</td>
             <td class="num">${
-          row.pullRequests ? (row.findings / row.pullRequests).toFixed(1) : "0"
-        }</td>
+              row.pullRequests
+                ? (row.findings / row.pullRequests).toFixed(1)
+                : "0"
+            }</td>
             <td class="num">${count(row.tokensIn + row.tokensOut)}</td>
             <td class="num">${duration(row.avgDurationMs)}</td>
-            <td class="num">${money(row.cost)}</td></tr>`
-      ).join("")
-    }
+            <td class="num">${money(row.cost)}</td></tr>`,
+            )
+            .join("")}
         </tbody>
       </table>`;
-  const byModel = data.byModel.length === 0
-    ? empty("No models yet", "Each review records the model that wrote it.")
-    : `<table>
+  const byModel =
+    data.byModel.length === 0
+      ? empty("No models yet", "Each review records the model that wrote it.")
+      : `<table>
         <thead><tr><th>Model</th><th class="num">Reviews</th><th class="num">Tokens in</th>
           <th class="num">Tokens out</th><th class="num">Average review</th>
           <th class="num">Per review</th><th class="num">Cost</th></tr></thead>
         <tbody>
-          ${
-      data.byModel.map((row) =>
-        `<tr><td>${text(row.model)}</td>
+          ${data.byModel
+            .map(
+              (row) =>
+                `<tr><td>${text(row.model)}</td>
             <td class="num">${row.reviews}</td>
             <td class="num">${count(row.tokensIn)}</td>
             <td class="num">${count(row.tokensOut)}</td>
             <td class="num">${duration(row.avgDurationMs)}</td>
-            <td class="num">${
-          money(row.reviews ? row.cost / row.reviews : 0)
-        }</td>
-            <td class="num">${money(row.cost)}</td></tr>`
-      ).join("")
-    }
+            <td class="num">${money(row.reviews ? row.cost / row.reviews : 0)}</td>
+            <td class="num">${money(row.cost)}</td></tr>`,
+            )
+            .join("")}
         </tbody>
       </table>`;
-  const byRemoteToken = (data.byRemoteToken ?? []).length === 0
-    ? empty("No remote reviews yet", "Usage from CLI tokens appears here.")
-    : `<table>
+  const byRemoteToken =
+    (data.byRemoteToken ?? []).length === 0
+      ? empty("No remote reviews yet", "Usage from CLI tokens appears here.")
+      : `<table>
         <thead><tr><th>Token</th><th class="num">Reviews</th><th class="num">Findings</th>
           <th class="num">Cost</th></tr></thead>
         <tbody>
-          ${
-      (data.byRemoteToken ?? []).map((row) =>
-        `<tr><td>${text(row.tokenName)}</td>
+          ${(data.byRemoteToken ?? [])
+            .map(
+              (row) =>
+                `<tr><td>${text(row.tokenName)}</td>
             <td class="num">${row.reviews}</td>
             <td class="num">${row.findings}</td>
-            <td class="num">${money(row.cost)}</td></tr>`
-      ).join("")
-    }
+            <td class="num">${money(row.cost)}</td></tr>`,
+            )
+            .join("")}
         </tbody>
       </table>`;
-  const bySeverity = data.bySeverity.length === 0
-    ? empty("No findings yet", "Severity shows how much of the noise matters.")
-    : `<table>
+  const bySeverity =
+    data.bySeverity.length === 0
+      ? empty(
+          "No findings yet",
+          "Severity shows how much of the noise matters.",
+        )
+      : `<table>
         <thead><tr><th>Severity</th><th class="num">Findings</th><th class="num">Share</th>
           <th class="num">Posted</th><th class="num">Raised again</th></tr></thead>
         <tbody>
-          ${
-      data.bySeverity.map((row) =>
-        `<tr><td>${text(row.severity)}</td>
+          ${data.bySeverity
+            .map(
+              (row) =>
+                `<tr><td>${text(row.severity)}</td>
             <td class="num">${row.findings}</td>
             <td class="num">${
-          totalFindings ? Math.round((row.findings / totalFindings) * 100) : 0
-        }%</td>
+              totalFindings
+                ? Math.round((row.findings / totalFindings) * 100)
+                : 0
+            }%</td>
             <td class="num">${row.posted}</td>
-            <td class="num">${row.repeats}</td></tr>`
-      ).join("")
-    }
+            <td class="num">${row.repeats}</td></tr>`,
+            )
+            .join("")}
         </tbody>
       </table>`;
   const busiest = data.byDay.reduce(
     (best, row) => (row.cost > best.cost ? row : best),
-    { day: "", cost: 0, reviews: 0, findings: 0 },
+    {
+      day: "",
+      cost: 0,
+      reviews: 0,
+      findings: 0,
+    },
   );
-  const looks = failed.length === 0
-    ? empty("Nothing stands out", "Failed jobs will be listed here.")
-    : failed.map((job) =>
-      `<div class="notice bad worth-item" data-worth-id="${
-        text(job.id)
-      }" style="margin-bottom:12px">
+  const looks =
+    failed.length === 0
+      ? empty("Nothing stands out", "Failed jobs will be listed here.")
+      : failed
+          .map(
+            (job) =>
+              `<div class="notice bad worth-item" data-worth-id="${text(
+                job.id,
+              )}" style="margin-bottom:12px">
         <div class="txt"><b>${text(job.repo)}</b>. ${text(job.type)} failed${
-        job.error ? `. ${text(job.error)}` : ""
-      }.</div>
+          job.error ? `. ${text(job.error)}` : ""
+        }.</div>
         <a class="btn" href="/activity">See why</a>
-        <button class="dismiss-worth" type="button" data-dismiss-worth="${
-        text(job.id)
-      }" aria-label="Dismiss">×</button>
-      </div>`
-    ).join("");
-  return html(layout({
-    title: "Usage · co-maintainer",
-    username,
-    active: "analytics",
-    body: `<div class="wrap">
+        <button class="dismiss-worth" type="button" data-dismiss-worth="${text(
+          job.id,
+        )}" aria-label="Dismiss">×</button>
+      </div>`,
+          )
+          .join("");
+  return html(
+    layout({
+      title: "Usage · co-maintainer",
+      username,
+      active: "analytics",
+      body: `<div class="wrap">
   <div class="pagehead">
     <div><h1>Usage</h1>
       <p class="lead">Last ${data.days} days</p></div>
     <div class="actions">
       <select id="range" style="width:150px">
-        <option value="7d"${
-      range === "7d" ? " selected" : ""
-    }>Last 7 days</option>
-        <option value="30d"${
-      range === "30d" ? " selected" : ""
-    }>Last 30 days</option>
-        <option value="90d"${
-      range === "90d" ? " selected" : ""
-    }>Last 90 days</option>
+        <option value="7d"${range === "7d" ? " selected" : ""}>Last 7 days</option>
+        <option value="30d"${range === "30d" ? " selected" : ""}>Last 30 days</option>
+        <option value="90d"${range === "90d" ? " selected" : ""}>Last 90 days</option>
       </select>
     </div>
   </div>
   <div class="card"><div class="bd">
     <div class="kfig wrap4">
-      <div><div class="k">Pull requests reviewed</div><div class="big">${data.totals.pullRequests}</div>${
-      delta(data.change.pullRequests, data.days)
-    }</div>
-      <div><div class="k">Findings</div><div class="big">${data.totals.findings}</div>${
-      delta(data.change.findings, data.days)
-    }</div>
-      <div><div class="k">Cost</div><div class="big">${
-      money(data.totals.cost)
-    }</div>${delta(data.change.cost, data.days, true)}</div>
-      <div><div class="k">Tokens</div><div class="big">${
-      count(data.totals.tokensIn + data.totals.tokensOut)
-    }</div><div class="trend">${count(data.totals.tokensIn)} in and ${
-      count(data.totals.tokensOut)
-    } out</div></div>
-      <div><div class="k">Average review</div><div class="big">${
-      duration(data.totals.avgDurationMs)
-    }</div></div>
+      <div><div class="k">Pull requests reviewed</div><div class="big">${data.totals.pullRequests}</div>${delta(
+        data.change.pullRequests,
+        data.days,
+      )}</div>
+      <div><div class="k">Findings</div><div class="big">${data.totals.findings}</div>${delta(
+        data.change.findings,
+        data.days,
+      )}</div>
+      <div><div class="k">Cost</div><div class="big">${money(
+        data.totals.cost,
+      )}</div>${delta(data.change.cost, data.days, true)}</div>
+      <div><div class="k">Tokens</div><div class="big">${count(
+        data.totals.tokensIn + data.totals.tokensOut,
+      )}</div><div class="trend">${count(data.totals.tokensIn)} in and ${count(
+        data.totals.tokensOut,
+      )} out</div></div>
+      <div><div class="k">Average review</div><div class="big">${duration(
+        data.totals.avgDurationMs,
+      )}</div></div>
       <div><div class="k">Rounds per pull request</div><div class="big">${
-      data.totals.pullRequests
-        ? (data.totals.reviews / data.totals.pullRequests).toFixed(1)
-        : "0"
-    }</div>${
-      data.totals.failed
-        ? `<div class="trend down">${data.totals.failed} failed</div>`
-        : ""
-    }</div>
+        data.totals.pullRequests
+          ? (data.totals.reviews / data.totals.pullRequests).toFixed(1)
+          : "0"
+      }</div>${
+        data.totals.failed
+          ? `<div class="trend down">${data.totals.failed} failed</div>`
+          : ""
+      }</div>
     </div>
   </div></div>
   <div class="card">
     <div class="hd"><h2>Cost per day</h2></div>
     <div class="bd">
-      ${
-      bars(data.byDay.map((row) => ({
-        label: `${row.day} ${money(row.cost)} over ${row.reviews} reviews`,
-        value: row.cost,
-      })))
-    }
+      ${bars(
+        data.byDay.map((row) => ({
+          label: `${row.day} ${money(row.cost)} over ${row.reviews} reviews`,
+          value: row.cost,
+        })),
+      )}
       <p class="muted" style="margin:10px 0 0">${
-      busiest.cost
-        ? `Busiest day was ${text(busiest.day)} at ${money(busiest.cost)}`
-        : "No spend in this range"
-    }</p>
+        busiest.cost
+          ? `Busiest day was ${text(busiest.day)} at ${money(busiest.cost)}`
+          : "No spend in this range"
+      }</p>
     </div>
   </div>
   <div class="card">
@@ -248,5 +267,6 @@ document.getElementById("range").addEventListener("change", function() {
   });
 })();
 </script>`,
-  }));
+    }),
+  );
 }

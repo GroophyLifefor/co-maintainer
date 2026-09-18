@@ -37,16 +37,10 @@ export function parseSchemaVersion(
 
 export function assertClientSchema(version: number): string | null {
   if (version < MIN_CLIENT_SCHEMA) {
-    return bad(
-      "schemaVersion",
-      `must be at least ${MIN_CLIENT_SCHEMA}`,
-    );
+    return bad("schemaVersion", `must be at least ${MIN_CLIENT_SCHEMA}`);
   }
   if (version > REMOTE_SCHEMA_VERSION) {
-    return bad(
-      "schemaVersion",
-      `must be at most ${REMOTE_SCHEMA_VERSION}`,
-    );
+    return bad("schemaVersion", `must be at most ${REMOTE_SCHEMA_VERSION}`);
   }
   return null;
 }
@@ -97,14 +91,20 @@ function validateRevisionFile(
   paths.add(path);
 
   const status = file.status;
-  if (typeof status !== "string" || !REVISION_STATUSES.has(status as RevisionFileStatus)) {
+  if (
+    typeof status !== "string" ||
+    !REVISION_STATUSES.has(status as RevisionFileStatus)
+  ) {
     return bad(`revision.files[${index}].status`, "invalid status");
   }
 
   const previousPath = file.previousPath;
   if (previousPath !== null && previousPath !== undefined) {
     if (typeof previousPath !== "string") {
-      return bad(`revision.files[${index}].previousPath`, "must be a string or null");
+      return bad(
+        `revision.files[${index}].previousPath`,
+        "must be a string or null",
+      );
     }
     const prevErr = validateRemotePath(
       `revision.files[${index}].previousPath`,
@@ -114,7 +114,10 @@ function validateRevisionFile(
   }
   if (status === "renamed") {
     if (typeof previousPath !== "string" || !previousPath) {
-      return bad(`revision.files[${index}].previousPath`, "required for renamed");
+      return bad(
+        `revision.files[${index}].previousPath`,
+        "required for renamed",
+      );
     }
   }
 
@@ -127,13 +130,19 @@ function validateRevisionFile(
     return bad(`revision.files[${index}].patch`, "must be a string");
   }
   if (binary && patch.length > 0) {
-    return bad(`revision.files[${index}].patch`, "must be empty for binary files");
+    return bad(
+      `revision.files[${index}].patch`,
+      "must be empty for binary files",
+    );
   }
 
   for (const key of ["additions", "deletions"] as const) {
     const n = file[key];
     if (typeof n !== "number" || !Number.isInteger(n) || n < 0) {
-      return bad(`revision.files[${index}].${key}`, "must be a non-negative integer");
+      return bad(
+        `revision.files[${index}].${key}`,
+        "must be a non-negative integer",
+      );
     }
   }
   return null;
@@ -203,7 +212,8 @@ export function validateSubmitRequest(body: unknown): string | null {
     }
     const tools = body.capabilities.tools;
     if (tools !== undefined) {
-      if (!Array.isArray(tools)) return bad("capabilities.tools", "must be an array");
+      if (!Array.isArray(tools))
+        return bad("capabilities.tools", "must be an array");
       for (let i = 0; i < tools.length; i++) {
         const tool = tools[i];
         if (!isRecord(tool)) {

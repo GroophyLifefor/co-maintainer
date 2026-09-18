@@ -1,4 +1,4 @@
-import denoConfig from "../../deno.json" with { type: "json" };
+import { VERSION } from "../version.ts";
 import {
   resolvedFromFirstReview,
   revisionStats,
@@ -55,8 +55,7 @@ import { insertJob, listJobsByQueueKey, setJobStatus } from "../store/jobs.ts";
 import type { RemoteTokenRow } from "../store/rows.ts";
 import type { JobRow } from "../store/rows.ts";
 
-const REPO_UNAVAILABLE =
-  "Sorry, we could not access this repository.";
+const REPO_UNAVAILABLE = "Sorry, we could not access this repository.";
 
 function remoteQueueKey(repo: string, branch: string, tokenId: string): string {
   return `remote:${repo}:${branch}:${tokenId}`;
@@ -108,7 +107,9 @@ function supersedeActiveRemoteJobs(
 export function submitRemoteReview(
   token: RemoteTokenRow,
   body: Record<string, unknown>,
-): { jobId: string; reviewId: string } | { error: string; status: number; code: string } {
+):
+  | { jobId: string; reviewId: string }
+  | { error: string; status: number; code: string } {
   const requestId = String(body.requestId);
   const existing = findRemoteReviewInputByRequest(token.id, requestId);
   if (existing) {
@@ -124,15 +125,15 @@ export function submitRemoteReview(
   }
 
   if (typeof body.branch !== "string") {
-    return { error: "branch must be a string", status: 400, code: "bad_request" };
+    return {
+      error: "branch must be a string",
+      status: 400,
+      code: "bad_request",
+    };
   }
   const branch = body.branch;
   const fresh = body.fresh === true;
-  const subject = getOrCreateRemoteSubject(
-    repoRow.full_name,
-    branch,
-    token.id,
-  );
+  const subject = getOrCreateRemoteSubject(repoRow.full_name, branch, token.id);
   if (fresh) deleteSubjectRevision(subject.id);
 
   const jobId = crypto.randomUUID();
@@ -203,7 +204,9 @@ export function registerRemoteReviewHandler(): void {
 
       let completed = false;
       try {
-        const revision = revisionFromSubmitJson(JSON.parse(input.revision_json));
+        const revision = revisionFromSubmitJson(
+          JSON.parse(input.revision_json),
+        );
         const caps = JSON.parse(input.capabilities_json) as {
           tools?: { name: string }[];
         };
@@ -311,7 +314,7 @@ export function registerRemoteReviewHandler(): void {
             tokensOut,
             costUsd: costKnown ? costUsd : null,
           },
-          remote: { jobId: job.id, reviewId, clientVersion: denoConfig.version },
+          remote: { jobId: job.id, reviewId, clientVersion: VERSION },
         });
 
         setReviewStatus(reviewId, "done", {

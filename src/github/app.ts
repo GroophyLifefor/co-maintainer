@@ -32,7 +32,7 @@ async function call<T>(
     throw new GitHubHttpError(response.status, await response.text());
   }
   if (response.status === 204) return undefined as T;
-  return await response.json() as T;
+  return (await response.json()) as T;
 }
 
 async function get<T>(endpoint: string, token: string): Promise<T> {
@@ -45,10 +45,13 @@ const installationTokens = new Map<number, TokenCache>();
 /** App-level calls: list installations, mint an installation access token.
  * Not scoped to one installation — `AppClient` below is. */
 export class AppJwtClient {
-  constructor(
-    private readonly appId: string,
-    private readonly privateKeyPem: string,
-  ) {}
+  private readonly appId: string;
+  private readonly privateKeyPem: string;
+
+  constructor(appId: string, privateKeyPem: string) {
+    this.appId = appId;
+    this.privateKeyPem = privateKeyPem;
+  }
 
   private async jwt(): Promise<string> {
     const key = await importAppPrivateKey(this.privateKeyPem);
@@ -70,14 +73,20 @@ export class AppJwtClient {
     const jwt = await this.jwt();
     const response = await githubFetch(
       `${API}/app/installations/${installationId}/access_tokens`,
-      { method: "POST", headers: headers(jwt) },
+      {
+        method: "POST",
+        headers: headers(jwt),
+      },
     );
     if (!response.ok) {
       throw new Error(
         `GitHub API ${response.status}: ${await response.text()}`,
       );
     }
-    const body = await response.json() as { token: string; expires_at: string };
+    const body = (await response.json()) as {
+      token: string;
+      expires_at: string;
+    };
     const expiresAt = new Date(body.expires_at).getTime();
     installationTokens.set(installationId, { token: body.token, expiresAt });
     return body.token;
@@ -87,13 +96,11 @@ export class AppJwtClient {
 /** A `GitHubClient` scoped to one installation. */
 export class AppClient implements GitHubClient {
   private readonly app: AppJwtClient;
+  private readonly installationId: number;
 
-  constructor(
-    appId: string,
-    privateKeyPem: string,
-    private readonly installationId: number,
-  ) {
+  constructor(appId: string, privateKeyPem: string, installationId: number) {
     this.app = new AppJwtClient(appId, privateKeyPem);
+    this.installationId = installationId;
   }
 
   async request<T>(endpoint: string): Promise<T> {
@@ -165,9 +172,9 @@ export async function listInstallationsWithRepos(
     const body = await get<Json>("installation/repositories", token);
     const repos = Array.isArray(body.repositories)
       ? (body.repositories as Json[]).map((repo) => ({
-        fullName: String(repo.full_name ?? ""),
-        private: Boolean(repo.private),
-      }))
+          fullName: String(repo.full_name ?? ""),
+          private: Boolean(repo.private),
+        }))
       : [];
     result.push({ installation, repos });
   }
@@ -182,7 +189,7 @@ export async function findInstallationForRepo(
   const normalized = fullName.toLowerCase();
   const installations = await listInstallationsWithRepos(appId, privateKeyPem);
   const match = installations.find(({ repos }) =>
-    repos.some((repo) => repo.fullName.toLowerCase() === normalized)
+    repos.some((repo) => repo.fullName.toLowerCase() === normalized),
   );
   return match?.installation.id;
 }

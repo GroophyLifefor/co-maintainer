@@ -23,8 +23,8 @@ export function matchPairs(
   const used = new Set<number>();
   const pairs: { predicted: number; gold: number }[] = [];
   for (let i = 0; i < predicted.length; i++) {
-    const index = gold.findIndex((item, g) =>
-      !used.has(g) && overlaps(predicted[i], item)
+    const index = gold.findIndex(
+      (item, g) => !used.has(g) && overlaps(predicted[i], item),
     );
     if (index === -1) continue;
     used.add(index);

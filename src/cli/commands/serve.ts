@@ -16,10 +16,12 @@ import {
 } from "../../services/replies.ts";
 import { registerRemoteReviewHandler } from "../../services/remote_review.ts";
 import { startRemoteWatchdog } from "../../remote/server/sessions.ts";
+import { serveHttp } from "../../server/http.ts";
+import { currentPlatform, getEnv, type Platform } from "../../util/runtime.ts";
 
 /** `undefined` on Linux, otherwise one line naming the platform (a pure
  * function so it is testable without actually being off Linux). */
-export function platformWarning(os: typeof Deno.build.os): string | undefined {
+export function platformWarning(os: Platform): string | undefined {
   if (os === "linux") return undefined;
   return `running on ${os}. Linux (WSL included) is the recommended platform for serve — see PLAN.md Decision 5.`;
 }
@@ -41,12 +43,14 @@ export function resolveAuthMethods(
   args: string[],
   config: Pick<UserConfig, "passwordAuthDisabled" | "githubAuthEnabled">,
 ): AuthMethods {
-  const disableAuth = args.find((arg) => arg.startsWith("--disable-auth="))
+  const disableAuth = args
+    .find((arg) => arg.startsWith("--disable-auth="))
     ?.slice("--disable-auth=".length);
   if (disableAuth && disableAuth !== "password") {
     die("--disable-auth only supports: password");
   }
-  const enableAuth = args.find((arg) => arg.startsWith("--enable-auth="))
+  const enableAuth = args
+    .find((arg) => arg.startsWith("--enable-auth="))
     ?.slice("--enable-auth=".length);
   if (enableAuth && enableAuth !== "github") {
     die("--enable-auth only supports: github");
@@ -67,8 +71,9 @@ export function resolveWebhookUrl(
   configured?: string,
 ): string {
   const flag = args.find((arg) => arg.startsWith("--webhook-url="));
-  const raw = flag?.slice("--webhook-url=".length) ??
-    Deno.env.get("CM_WEBHOOK_URL") ??
+  const raw =
+    flag?.slice("--webhook-url=".length) ??
+    getEnv("CM_WEBHOOK_URL") ??
     configured ??
     `http://localhost:${port}/github/webhook`;
   let url: URL;
@@ -83,6 +88,25 @@ export function resolveWebhookUrl(
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     die("--webhook-url must use http or https");
   }
+  // `new URL` is lenient: "http://http://host/:5000/x" parses with host
+  // "http" and the real URL buried in the path, and "http:///x" treats "x"
+  // as the host. GitHub needs a routable host and a real webhook path, so
+  // reject a leaked scheme, an empty authority, and a path that is just "/".
+  // A single-label host (an internal Docker/k8s name) or an IPv6 literal is
+  // legitimate, and both are indistinguishable from the "http:///x" spelling
+  // once parsed, so the empty authority is caught on the raw string instead.
+  const hasAuthority = /^https?:\/\/[^/?#]+/.test(raw.trim());
+  if (
+    !hasAuthority ||
+    url.pathname.startsWith("//") ||
+    url.pathname.includes("://") ||
+    url.pathname === "/"
+  ) {
+    die(
+      "--webhook-url must be an absolute http(s) URL with a webhook path, " +
+        "e.g. --webhook-url=https://example.com/github/webhook",
+    );
+  }
   return url.toString();
 }
 
@@ -93,9 +117,9 @@ export function resolveWebhookUrl(
  * App ID and private key gate startup); GitHub sign-in additionally needs
  * `--github-oauth-client-id`/`-client-secret`/`-allowed-user` set. */
 export async function runServe(args: string[]): Promise<void> {
-  const portArg = args.find((arg) => arg.startsWith("--port="))?.slice(
-    "--port=".length,
-  );
+  const portArg = args
+    .find((arg) => arg.startsWith("--port="))
+    ?.slice("--port=".length);
   if (!portArg) die("--port is required, e.g. --port=5000");
   const port = Number(portArg);
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
@@ -107,7 +131,7 @@ export async function runServe(args: string[]): Promise<void> {
   const missing = [
     !config.githubAppId && "--github-app-id=...",
     !config.githubAppPrivateKey &&
-    "--github-app-private-key=... (or --github-app-private-key-file=path)",
+      "--github-app-private-key=... (or --github-app-private-key-file=path)",
   ].filter(Boolean);
   if (missing.length > 0) {
     die(
@@ -122,7 +146,8 @@ export async function runServe(args: string[]): Promise<void> {
     | undefined;
   if (auth.github) {
     if (
-      !config.githubOAuthClientId || !config.githubOAuthClientSecret ||
+      !config.githubOAuthClientId ||
+      !config.githubOAuthClientSecret ||
       !config.githubOAuthAllowedUser
     ) {
       die(
@@ -137,7 +162,7 @@ export async function runServe(args: string[]): Promise<void> {
     };
   }
 
-  const warning = platformWarning(Deno.build.os);
+  const warning = platformWarning(currentPlatform());
   if (warning) console.log(`[serve] warning: ${warning}`);
 
   await openAppDb();
@@ -164,15 +189,18 @@ export async function runServe(args: string[]): Promise<void> {
   startWorkerLoop();
 
   const password = auth.password
-    ? args.find((arg) => arg.startsWith("--password="))?.slice(
-      "--password=".length,
-    ) ?? generatePassword()
+    ? (args
+        .find((arg) => arg.startsWith("--password="))
+        ?.slice("--password=".length) ?? generatePassword())
     : "";
   if (auth.password) console.log(`[serve] dashboard password: ${password}`);
-  if (auth.github) console.log(`[serve] GitHub sign-in enabled for ${githubOAuth!.allowedUser}`);
+  if (auth.github)
+    console.log(
+      `[serve] GitHub sign-in enabled for ${githubOAuth!.allowedUser}`,
+    );
 
-  const inject500 = args.includes("--inject-500") ||
-    Deno.env.get("CM_INJECT_500") === "1";
+  const inject500 =
+    args.includes("--inject-500") || getEnv("CM_INJECT_500") === "1";
   if (inject500) {
     console.log(
       "[serve] --inject-500 is on. Mutating /api requests return 500.",
@@ -181,24 +209,23 @@ export async function runServe(args: string[]): Promise<void> {
 
   const app = createApp({
     password,
-    githubApp: config.githubAppId && config.githubAppPrivateKey
-      ? {
-        appId: config.githubAppId,
-        privateKeyPem: config.githubAppPrivateKey,
-      }
-      : undefined,
+    githubApp:
+      config.githubAppId && config.githubAppPrivateKey
+        ? {
+            appId: config.githubAppId,
+            privateKeyPem: config.githubAppPrivateKey,
+          }
+        : undefined,
     webhookSecret: config.githubWebhookSecret,
     webhookUrl,
     inject500,
     auth,
     githubOAuth,
   });
-  const server = Deno.serve({ port }, async (req, info) => {
-    const remoteAddr = info.remoteAddr.transport === "tcp"
-      ? info.remoteAddr.hostname
-      : undefined;
-    return await app.fetch(req, remoteAddr);
-  });
+  const server = serveHttp(
+    (req, remoteAddr) => app.fetch(req, remoteAddr),
+    port,
+  );
   console.log(`[serve] listening on http://localhost:${port}`);
   console.log(`[serve] dashboard at http://localhost:${port}/`);
   console.log(`[serve] webhook URL: ${webhookUrl}`);
@@ -214,7 +241,7 @@ export async function runServe(args: string[]): Promise<void> {
     await server.shutdown();
     await closeAppDb();
     console.log("[serve] shut down cleanly");
-    Deno.exit(0);
+    process.exit(0);
   };
   // Ctrl+C in an interactive terminal fires this reliably everywhere,
   // including Windows. A SIGTERM sent by another process (a process
@@ -223,11 +250,7 @@ export async function runServe(args: string[]): Promise<void> {
   // see the P3 Live note in PLAN.md. Registering it anyway costs nothing
   // and is correct wherever it does work.
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
-    try {
-      Deno.addSignalListener(signal, () => void shutdown(signal));
-    } catch {
-      // Not supported on this platform — nothing to fall back to.
-    }
+    process.on(signal, () => void shutdown(signal));
   }
 
   await server.finished;

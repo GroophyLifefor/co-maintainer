@@ -4,6 +4,7 @@ import {
   testGithubAccess,
 } from "./credentials.ts";
 import { TEST_PKCS1_PEM } from "../testing/fixtures/rsa_key.ts";
+import { test } from "node:test";
 
 function jsonResponse(
   body: unknown,
@@ -21,9 +22,8 @@ async function withFetch(
   fn: () => Promise<void>,
 ): Promise<void> {
   const original = globalThis.fetch;
-  globalThis.fetch =
-    (async (input: string | URL | Request) =>
-      handler(String(input))) as typeof fetch;
+  globalThis.fetch = (async (input: string | URL | Request) =>
+    handler(String(input))) as typeof fetch;
   try {
     await fn();
   } finally {
@@ -31,7 +31,7 @@ async function withFetch(
   }
 }
 
-Deno.test("missingAppPermissions requires pull_requests write", () => {
+test("missingAppPermissions requires pull_requests write", () => {
   const missing = missingAppPermissions({
     metadata: "read",
     contents: "read",
@@ -44,43 +44,51 @@ Deno.test("missingAppPermissions requires pull_requests write", () => {
   }
 });
 
-Deno.test("a PAT with repo scope is accepted", async () => {
-  await withFetch((url) => {
-    if (url.endsWith("/user")) {
-      return jsonResponse({ login: "octo" }, 200, { "x-oauth-scopes": "repo" });
-    }
-    throw new Error(`unexpected ${url}`);
-  }, async () => {
-    const result = await testGithubAccess({
-      auth: "pat",
-      githubPat: "ghp_abcdefghijklmnopqrstuvwx",
-    });
-    if (!result.ok || result.login !== "octo") {
-      throw new Error(JSON.stringify(result));
-    }
-  });
-});
-
-Deno.test("a PAT missing repo scope is rejected", async () => {
-  await withFetch((url) => {
-    if (url.endsWith("/user")) {
-      return jsonResponse({ login: "octo" }, 200, {
-        "x-oauth-scopes": "read:user",
+test("a PAT with repo scope is accepted", async () => {
+  await withFetch(
+    (url) => {
+      if (url.endsWith("/user")) {
+        return jsonResponse({ login: "octo" }, 200, {
+          "x-oauth-scopes": "repo",
+        });
+      }
+      throw new Error(`unexpected ${url}`);
+    },
+    async () => {
+      const result = await testGithubAccess({
+        auth: "pat",
+        githubPat: "ghp_abcdefghijklmnopqrstuvwx",
       });
-    }
-    throw new Error(`unexpected ${url}`);
-  }, async () => {
-    const result = await testGithubAccess({
-      auth: "pat",
-      githubPat: "ghp_abcdefghijklmnopqrstuvwx",
-    });
-    if (result.ok || !result.message.includes("repo scope")) {
-      throw new Error(JSON.stringify(result));
-    }
-  });
+      if (!result.ok || result.login !== "octo") {
+        throw new Error(JSON.stringify(result));
+      }
+    },
+  );
 });
 
-Deno.test("a rejected PAT is 401", async () => {
+test("a PAT missing repo scope is rejected", async () => {
+  await withFetch(
+    (url) => {
+      if (url.endsWith("/user")) {
+        return jsonResponse({ login: "octo" }, 200, {
+          "x-oauth-scopes": "read:user",
+        });
+      }
+      throw new Error(`unexpected ${url}`);
+    },
+    async () => {
+      const result = await testGithubAccess({
+        auth: "pat",
+        githubPat: "ghp_abcdefghijklmnopqrstuvwx",
+      });
+      if (result.ok || !result.message.includes("repo scope")) {
+        throw new Error(JSON.stringify(result));
+      }
+    },
+  );
+});
+
+test("a rejected PAT is 401", async () => {
   await withFetch(
     () => jsonResponse({ message: "Bad credentials" }, 401),
     async () => {
@@ -95,59 +103,69 @@ Deno.test("a rejected PAT is 401", async () => {
   );
 });
 
-Deno.test("an App missing contents read is rejected", async () => {
-  await withFetch((url) => {
-    if (url.includes("/app/installations") && url.includes("page=1")) {
-      return jsonResponse([{
-        id: 1,
-        account: { login: "acme", type: "Organization" },
-        suspended_at: null,
-        permissions: {
-          metadata: "read",
-          issues: "read",
-          pull_requests: "write",
-          checks: "write",
-        },
-      }]);
-    }
-    if (url.includes("/app/installations")) return jsonResponse([]);
-    throw new Error(`unexpected ${url}`);
-  }, async () => {
-    const result = await testAppAccess({
-      appId: "4900449",
-      privateKeyPem: TEST_PKCS1_PEM,
-    });
-    if (result.ok || !result.message.includes("contents read")) {
-      throw new Error(JSON.stringify(result));
-    }
-  });
+test("an App missing contents read is rejected", async () => {
+  await withFetch(
+    (url) => {
+      if (url.includes("/app/installations") && url.includes("page=1")) {
+        return jsonResponse([
+          {
+            id: 1,
+            account: { login: "acme", type: "Organization" },
+            suspended_at: null,
+            permissions: {
+              metadata: "read",
+              issues: "read",
+              pull_requests: "write",
+              checks: "write",
+            },
+          },
+        ]);
+      }
+      if (url.includes("/app/installations")) return jsonResponse([]);
+      throw new Error(`unexpected ${url}`);
+    },
+    async () => {
+      const result = await testAppAccess({
+        appId: "4900449",
+        privateKeyPem: TEST_PKCS1_PEM,
+      });
+      if (result.ok || !result.message.includes("contents read")) {
+        throw new Error(JSON.stringify(result));
+      }
+    },
+  );
 });
 
-Deno.test("an App with the required permissions is accepted", async () => {
-  await withFetch((url) => {
-    if (url.includes("/app/installations") && url.includes("page=1")) {
-      return jsonResponse([{
-        id: 1,
-        account: { login: "acme", type: "Organization" },
-        suspended_at: null,
-        permissions: {
-          metadata: "read",
-          contents: "read",
-          issues: "write",
-          pull_requests: "write",
-          checks: "write",
-        },
-      }]);
-    }
-    if (url.includes("/app/installations")) return jsonResponse([]);
-    throw new Error(`unexpected ${url}`);
-  }, async () => {
-    const result = await testAppAccess({
-      appId: "4900449",
-      privateKeyPem: TEST_PKCS1_PEM,
-    });
-    if (!result.ok || result.installations !== 1) {
-      throw new Error(JSON.stringify(result));
-    }
-  });
+test("an App with the required permissions is accepted", async () => {
+  await withFetch(
+    (url) => {
+      if (url.includes("/app/installations") && url.includes("page=1")) {
+        return jsonResponse([
+          {
+            id: 1,
+            account: { login: "acme", type: "Organization" },
+            suspended_at: null,
+            permissions: {
+              metadata: "read",
+              contents: "read",
+              issues: "write",
+              pull_requests: "write",
+              checks: "write",
+            },
+          },
+        ]);
+      }
+      if (url.includes("/app/installations")) return jsonResponse([]);
+      throw new Error(`unexpected ${url}`);
+    },
+    async () => {
+      const result = await testAppAccess({
+        appId: "4900449",
+        privateKeyPem: TEST_PKCS1_PEM,
+      });
+      if (!result.ok || result.installations !== 1) {
+        throw new Error(JSON.stringify(result));
+      }
+    },
+  );
 });

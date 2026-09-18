@@ -3,17 +3,19 @@ import { activateRepo, markKnowledgeBuilt } from "../store/repos.ts";
 import { getDrift, upsertDrift } from "../store/drift.ts";
 import { computeDrift, refreshDrift } from "./drift.ts";
 import type { GitHubClient } from "../types.ts";
+import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
+import { test } from "node:test";
 
 async function withTempDb(fn: () => Promise<void> | void): Promise<void> {
-  const original = Deno.env.get("CM_APP_DB");
-  Deno.env.set("CM_APP_DB", `${Deno.makeTempDirSync()}/app.db`);
+  const original = getEnv("CM_APP_DB");
+  setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
   try {
     await openAppDb();
     await fn();
   } finally {
     await closeAppDb();
-    if (original === undefined) Deno.env.delete("CM_APP_DB");
-    else Deno.env.set("CM_APP_DB", original);
+    if (original === undefined) deleteEnv("CM_APP_DB");
+    else setEnv("CM_APP_DB", original);
   }
 }
 
@@ -42,7 +44,7 @@ class FakeClient implements GitHubClient {
   }
 }
 
-Deno.test("computeDrift separates new pull requests from changed ones", async () => {
+test("computeDrift separates new pull requests from changed ones", async () => {
   const client = new FakeClient();
   const row = await computeDrift(client, "acme/widgets", BUILT_AT, BASE_SHA);
   if (row.prs_since !== 4 || row.prs_updated !== 7) {
@@ -57,7 +59,7 @@ Deno.test("computeDrift separates new pull requests from changed ones", async ()
   }
 });
 
-Deno.test("computeDrift falls back to a commit listing without a base sha", async () => {
+test("computeDrift falls back to a commit listing without a base sha", async () => {
   const client = new FakeClient();
   const row = await computeDrift(client, "acme/widgets", BUILT_AT, "not-a-sha");
   if (row.commits_since !== 2 || row.files_changed !== 0) {
@@ -68,7 +70,7 @@ Deno.test("computeDrift falls back to a commit listing without a base sha", asyn
   }
 });
 
-Deno.test("refreshDrift stores a first reading and then serves it from the table", async () => {
+test("refreshDrift stores a first reading and then serves it from the table", async () => {
   await withTempDb(async () => {
     activateRepo("acme/widgets", 9);
     markKnowledgeBuilt("acme/widgets", BASE_SHA);
@@ -90,7 +92,7 @@ Deno.test("refreshDrift stores a first reading and then serves it from the table
   });
 });
 
-Deno.test("refreshDrift discards a fresh reading taken against an older build", async () => {
+test("refreshDrift discards a fresh reading taken against an older build", async () => {
   await withTempDb(async () => {
     activateRepo("acme/widgets", 9);
     markKnowledgeBuilt("acme/widgets", BASE_SHA);
@@ -115,7 +117,7 @@ Deno.test("refreshDrift discards a fresh reading taken against an older build", 
   });
 });
 
-Deno.test("refreshDrift keeps the stored row when GitHub fails", async () => {
+test("refreshDrift keeps the stored row when GitHub fails", async () => {
   await withTempDb(async () => {
     activateRepo("acme/widgets", 9);
     markKnowledgeBuilt("acme/widgets", BASE_SHA);
@@ -139,12 +141,12 @@ Deno.test("refreshDrift keeps the stored row when GitHub fails", async () => {
   });
 });
 
-Deno.test("refreshDrift does nothing before knowledge is built", async () => {
+test("refreshDrift does nothing before knowledge is built", async () => {
   await withTempDb(async () => {
     activateRepo("acme/widgets", 9);
     const client = new FakeClient();
 
-    if (await refreshDrift("acme/widgets", client) !== undefined) {
+    if ((await refreshDrift("acme/widgets", client)) !== undefined) {
       throw new Error("reported drift against a guide that does not exist");
     }
     if (client.seen.length !== 0) {

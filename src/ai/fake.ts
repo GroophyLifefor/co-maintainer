@@ -1,4 +1,5 @@
 import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
+import { getEnv, readTextFileSync } from "../util/runtime.ts";
 
 export const FAKE_REVIEW_MARKDOWN = `## Findings
 
@@ -13,10 +14,10 @@ If you'd like me to explain it in more detail, please ask.
 `;
 
 function fakeReviewText(): string {
-  const path = Deno.env.get("CM_FAKE_REVIEW_FILE");
+  const path = getEnv("CM_FAKE_REVIEW_FILE");
   if (path) {
     try {
-      return Deno.readTextFileSync(path);
+      return readTextFileSync(path);
     } catch {
       // fall through
     }
@@ -25,7 +26,11 @@ function fakeReviewText(): string {
 }
 
 export class FakeAiProvider implements AiProvider {
-  constructor(private readonly text = fakeReviewText()) {}
+  private readonly text: string;
+
+  constructor(text = fakeReviewText()) {
+    this.text = text;
+  }
 
   complete(_request: AiRequest): Promise<AiResponse> {
     return Promise.resolve({
