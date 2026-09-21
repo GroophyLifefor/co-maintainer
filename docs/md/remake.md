@@ -82,5 +82,29 @@ Changed evidence invalidates only the facts and skill sections that depend on
 it. Outputs still land under `<config dir>/repos/owner/repo/` (see
 [Caching](caching.md)).
 
+## Scheduled remake
+
+A [`serve`](serve.md) instance can run `remake` for you. Open a repository in the
+dashboard, go to **Settings**, and fill **Scheduled remake** with a five field
+cron expression (minute, hour, day of month, month, day of week). Leave it blank
+to turn it off.
+
+| Example | Runs |
+| ------- | ---- |
+| `0 3 * * 1` | Every Monday at 03:00 UTC |
+| `30 4 * * *` | Every day at 04:30 UTC |
+| `0 */6 * * *` | Every six hours, on the hour |
+
+- Times are UTC.
+- The minute field takes a single value, so a schedule fires at most once an
+  hour. A remake spends model tokens, and this keeps a typo from burning them.
+- A repository is skipped while its first setup is unfinished or while another
+  setup or remake for it is queued or running.
+- A minute the server was down for is not made up. The next matching minute runs.
+- The scheduler lives inside `serve`, so nothing runs while `serve` is stopped.
+
+The schedule is stored per repository as `remakeCron` in
+[`config.json`](configuration.md#per-repo-memory).
+
 Next: [`review`](review.md). For a one-off refresh before a local review, see
 `--remake-before-review` in [local review](local-review.md).

@@ -7,6 +7,8 @@ import {
   updateRepoSettings,
 } from "../../store/repos.ts";
 import { writeRepoConfig } from "../../config.ts";
+import type { RepoConfig } from "../../config.ts";
+import { parseRemakeCron } from "../../services/remake_cron.ts";
 import { enqueueSetup } from "../../services/setup.ts";
 import { enqueueManualReview } from "../../services/review.ts";
 import {
@@ -98,6 +100,30 @@ export async function handleReposRoute(
       } catch {
         return errorResponse(400, "bad_request", "expected a JSON body");
       }
+      const cronPatch: RepoConfig = {};
+      if ("remakeCron" in body) {
+        const raw = body.remakeCron;
+        if (raw === null || raw === "") {
+          cronPatch.remakeCron = undefined;
+        } else if (typeof raw === "string") {
+          try {
+            parseRemakeCron(raw);
+          } catch (error) {
+            return errorResponse(
+              422,
+              "invalid_cron",
+              error instanceof Error ? error.message : String(error),
+            );
+          }
+          cronPatch.remakeCron = raw.trim();
+        } else {
+          return errorResponse(
+            422,
+            "invalid_cron",
+            "remakeCron must be text or null",
+          );
+        }
+      }
       const patch: Parameters<typeof updateRepoSettings>[1] = {};
       if (typeof body.autoReview === "boolean") {
         patch.auto_review = body.autoReview ? 1 : 0;
@@ -129,7 +155,9 @@ export async function handleReposRoute(
           init[key] = body[key] as number;
         }
       }
-      if (Object.keys(init).length > 0) await writeRepoConfig(fullName, init);
+      if (Object.keys(init).length > 0 || "remakeCron" in cronPatch) {
+        await writeRepoConfig(fullName, { ...init, ...cronPatch });
+      }
       return Response.json({ ok: true });
     }
     if (!sub && request.method === "DELETE") {

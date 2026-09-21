@@ -218,6 +218,42 @@ choices apply.</p>
 <p>Changed evidence invalidates only the facts and skill sections that depend on
 it. Outputs still land under <code>&lt;config dir&gt;/repos/owner/repo/</code> (see
 <a href="caching.html">Caching</a>).</p>
+<h2 id="scheduled-remake">Scheduled remake</h2>
+<p>A <a href="serve.html"><code>serve</code></a> instance can run <code>remake</code> for you. Open a repository in the
+dashboard, go to <strong>Settings</strong>, and fill <strong>Scheduled remake</strong> with a five field
+cron expression (minute, hour, day of month, month, day of week). Leave it blank
+to turn it off.</p>
+<table>
+<thead>
+<tr>
+<th>Example</th>
+<th>Runs</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>0 3 * * 1</code></td>
+<td>Every Monday at 03:00 UTC</td>
+</tr>
+<tr>
+<td><code>30 4 * * *</code></td>
+<td>Every day at 04:30 UTC</td>
+</tr>
+<tr>
+<td><code>0 */6 * * *</code></td>
+<td>Every six hours, on the hour</td>
+</tr>
+</tbody></table>
+<ul>
+<li>Times are UTC.</li>
+<li>The minute field takes a single value, so a schedule fires at most once an
+hour. A remake spends model tokens, and this keeps a typo from burning them.</li>
+<li>A repository is skipped while its first setup is unfinished or while another
+setup or remake for it is queued or running.</li>
+<li>A minute the server was down for is not made up. The next matching minute runs.</li>
+<li>The scheduler lives inside <code>serve</code>, so nothing runs while <code>serve</code> is stopped.</li>
+</ul>
+<p>The schedule is stored per repository as <code>remakeCron</code> in
+<a href="configuration.html#per-repo-memory"><code>config.json</code></a>.</p>
 <p>Next: <a href="review.html"><code>review</code></a>. For a one-off refresh before a local review, see
 <code>--remake-before-review</code> in <a href="local-review.html">local review</a>.</p>
 </article>
@@ -227,7 +263,7 @@ it. Outputs still land under <code>&lt;config dir&gt;/repos/owner/repo/</code> (
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#what-gets-reused">What gets reused</a></li></ul></nav>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#what-gets-reused">What gets reused</a></li><li><a href="#scheduled-remake">Scheduled remake</a></li></ul></nav>
     </div>
   </div>
   <script src="assets/docs.js"></script>

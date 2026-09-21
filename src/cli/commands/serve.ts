@@ -15,6 +15,10 @@ import {
   recoverReplyRequests,
   registerReplyJobHandler,
 } from "../../services/replies.ts";
+import {
+  startRemakeScheduler,
+  stopRemakeScheduler,
+} from "../../services/remake_cron.ts";
 import { registerRemoteReviewHandler } from "../../services/remote_review.ts";
 import { startRemoteWatchdog } from "../../remote/server/sessions.ts";
 import { passwordProblem } from "../../util/password.ts";
@@ -219,6 +223,7 @@ export async function runServe(args: string[]): Promise<void> {
     );
   }
   startWorkerLoop();
+  startRemakeScheduler();
 
   if (auth.github)
     console.log(
@@ -256,6 +261,7 @@ export async function runServe(args: string[]): Promise<void> {
     console.log(
       `[serve] received ${signal}, stopping new requests and closing app.db`,
     );
+    stopRemakeScheduler();
     await stopWorkerLoop();
     await server.shutdown();
     await closeAppDb();

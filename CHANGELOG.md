@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4] - 2026-09-21
+
+### Added
+
+- **Scheduled remake** — Each repository has a Scheduled remake card in its dashboard Settings that takes a five field cron expression in UTC. `serve` checks the schedules every 15 seconds and queues a `remake` when one matches. A schedule fires at most once an hour, so the minute field must be a single value. A repository is skipped while its first setup is unfinished or a setup job for it is already queued or running, and a minute the server was down for is not made up. The value is saved as `remakeCron` through `PATCH /api/repos/:owner/:repo`, which answers `422 invalid_cron` for a bad expression and changes nothing else in that request.
+
 ## [0.4.3] - 2026-09-21
 
 ### Added

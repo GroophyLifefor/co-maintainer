@@ -28,6 +28,8 @@ export type RepoConfig = {
   includePullRequestChanges?: boolean;
   includeCommitHistory?: boolean;
   includeHowRepoWorks?: boolean;
+  /** Five field cron in UTC, checked by `serve` to queue a remake. */
+  remakeCron?: string;
 };
 
 export type UserConfig = {
