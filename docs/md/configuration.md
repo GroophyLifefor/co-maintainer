@@ -68,6 +68,7 @@ co-maintainer set --remote-host=https://your-server --remote-token=cmr_...
 | `--github-app-private-key-file=path` | same as inline key | `serve` |
 | `--github-webhook-secret=...` | `githubWebhookSecret` | `serve` webhook HMAC |
 | `--github-oauth-client-id=...` etc. | OAuth fields | Dashboard GitHub sign-in |
+| `--password=...` | `dashboardPasswordHash` (stored as a hash) | Dashboard password sign-in |
 | `--disable-auth=password` | `passwordAuthDisabled` | Default for `serve` |
 | `--enable-auth=github` | `githubAuthEnabled` | Default for `serve` |
 | `--remote-host=...` | `remoteHost` | `review --remote` |

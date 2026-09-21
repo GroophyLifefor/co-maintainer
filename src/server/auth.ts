@@ -1,6 +1,13 @@
 /** Only a token's hash ever reaches `store/sessions.ts`; the raw token is
  * handed back once, at login, and never stored. */
-import { deleteSession, getSession, insertSession } from "../store/sessions.ts";
+import { readConfig, writeUserConfig } from "../config.ts";
+import { hashPassword, verifyPasswordHash } from "../util/password.ts";
+import {
+  deleteOtherSessions,
+  deleteSession,
+  getSession,
+  insertSession,
+} from "../store/sessions.ts";
 
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const LOCKOUT_THRESHOLD = 5;
@@ -99,19 +106,66 @@ export type LoginResult = {
   expiresAt: string;
 };
 
+export type PasswordStore = {
+  verify(password: string): Promise<boolean>;
+  set(password: string): Promise<void>;
+};
+
+/** Holds the password in memory only: what `createApp` uses when `serve` did
+ * not hand it a config-backed store. */
+export function memoryPasswordStore(initial: string): PasswordStore {
+  let current = initial;
+  return {
+    verify: async (password) =>
+      current !== "" && (await constantTimeEqual(password, current)),
+    set: async (password) => {
+      current = password;
+    },
+  };
+}
+
+/** Reads the hash on every check, so a change made from the dashboard or
+ * `co-maintainer set` applies without restarting `serve`. */
+export function configPasswordStore(): PasswordStore {
+  return {
+    verify: async (password) => {
+      const stored = readConfig().dashboardPasswordHash;
+      return stored ? await verifyPasswordHash(password, stored) : false;
+    },
+    set: async (password) => {
+      await writeUserConfig({
+        dashboardPasswordHash: await hashPassword(password),
+      });
+    },
+  };
+}
+
 /** A locked-out attempt is indistinguishable from a wrong password to the
- * caller — both return `undefined` — so a probe gains nothing either way. */
-export async function login(
+ * caller, so a probe gains nothing either way. */
+export async function checkPassword(
   password: string,
-  expected: string,
+  store: PasswordStore,
   ip: string,
-): Promise<LoginResult | undefined> {
-  if (isLockedOut(ip) || !(await constantTimeEqual(password, expected))) {
+): Promise<boolean> {
+  if (isLockedOut(ip) || !(await store.verify(password))) {
     recordFailure(ip);
-    return undefined;
+    return false;
   }
   recordSuccess(ip);
+  return true;
+}
+
+export async function login(
+  password: string,
+  store: PasswordStore,
+  ip: string,
+): Promise<LoginResult | undefined> {
+  if (!(await checkPassword(password, store, ip))) return undefined;
   return await createSession();
+}
+
+export async function revokeOtherSessions(keepToken: string): Promise<void> {
+  deleteOtherSessions(await sha256Hex(keepToken));
 }
 
 /** Issues a session for the one dashboard identity, bypassing the password

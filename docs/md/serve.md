@@ -54,15 +54,17 @@ co-maintainer serve --port=5000 --password=your-dashboard-secret
 co-maintainer serve --port=5000 --webhook-url=https://example.com/github/webhook
 ```
 
-At startup, `serve` prints `app.db` path, dashboard URL, webhook URL, and (when
-password auth is on) the dashboard password unless you passed `--password=`.
+At startup, `serve` prints `app.db` path, dashboard URL, and webhook URL. On the
+first start with password auth on it also generates a dashboard password and
+prints it once. The password is stored in `config.json` as a hash, so later
+starts keep it.
 
 ## Parameters
 
 | Flag | Meaning |
 | ------ | ----- |
 | `--port=N` | HTTP port (required, 1 to 65535) |
-| `--password=...` | Dashboard password (random one is generated if omitted) |
+| `--password=...` | Replace the stored dashboard password (a random one is generated on the first start if none exists) |
 | `--webhook-url=...` | Public webhook URL GitHub should use (also `CM_WEBHOOK_URL` or saved in Settings) |
 | `--disable-auth=password` | Turn off password sign-in for this run |
 | `--enable-auth=github` | Turn on GitHub OAuth sign-in for this run |
@@ -77,7 +79,8 @@ and dashboard **Settings**.
 ## Sign in to the dashboard
 
 **Password (default).** Copy the password from the `serve` console on first start,
-or set `--password=...`.
+or set it with `--password=...` or `co-maintainer set --password=...`. Change it
+any time from **Settings**, which also signs out the other browser sessions.
 
 **GitHub sign-in (optional).** One allowed GitHub user can sign in with the App's
 OAuth client (no separate OAuth App).

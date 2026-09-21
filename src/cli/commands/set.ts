@@ -1,4 +1,5 @@
 import { writeUserConfig } from "../../config.ts";
+import { hashPassword, passwordProblem } from "../../util/password.ts";
 import { readTextFile } from "../../util/runtime.ts";
 
 function die(message: string): never {
@@ -18,6 +19,7 @@ const secretFields = new Set([
   "githubWebhookSecret",
   "githubOAuthClientSecret",
   "remoteToken",
+  "dashboardPasswordHash",
 ]);
 
 /** `co-maintainer set --token=... --ai=... --low-model=... --high-model=...
@@ -39,7 +41,7 @@ export async function runSet(args: string[]): Promise<void> {
       "                        --github-oauth-client-id=... --github-oauth-client-secret=... --github-oauth-allowed-user=...",
     );
     console.log(
-      "                        --disable-auth=password --enable-auth=github",
+      "                        --password=... --disable-auth=password --enable-auth=github",
     );
     console.log(
       "Writes to the user config file; unset an entry with --unset=name (e.g. --unset=token).",
@@ -64,6 +66,7 @@ export async function runSet(args: string[]): Promise<void> {
     "enable-auth",
     "remote-host",
     "remote-token",
+    "password",
     "unset",
   ];
   for (const arg of args) {
@@ -109,6 +112,7 @@ export async function runSet(args: string[]): Promise<void> {
     "enable-auth": "githubAuthEnabled",
     "remote-host": "remoteHost",
     "remote-token": "remoteToken",
+    password: "dashboardPasswordHash",
   };
   const unset = new Set(
     args
@@ -164,13 +168,19 @@ export async function runSet(args: string[]): Promise<void> {
   if (remoteHost) patch.remoteHost = remoteHost;
   const remoteToken = text(args, "remote-token");
   if (remoteToken) patch.remoteToken = remoteToken;
+  const password = text(args, "password");
+  if (password) {
+    const problem = passwordProblem(password);
+    if (problem) die(`--password: ${problem}`);
+    patch.dashboardPasswordHash = await hashPassword(password);
+  }
 
   if (Object.keys(patch).length === 0) {
     die(
       "Nothing to set; pass --token=, --ai=, --low-model=, --high-model=, --auth=, --github-pat=, " +
         "--github-app-id=, --github-app-private-key(-file)=, --github-webhook-secret=, " +
         "--github-oauth-client-id=, --github-oauth-client-secret=, --github-oauth-allowed-user=, " +
-        "--disable-auth=password, --enable-auth=github, or --unset=name",
+        "--password=, --disable-auth=password, --enable-auth=github, or --unset=name",
     );
   }
 

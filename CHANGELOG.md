@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-09-21
+
+### Added
+
+- **Change the dashboard password from Settings** — A new Password card asks for the current password and a new one (8 to 200 characters), then signs out every other browser session. The new endpoint is `POST /api/settings/password`, and repeated wrong guesses count toward the same lockout as sign-in.
+- **`co-maintainer set --password=...`** — Sets the dashboard password without starting `serve`. `--unset=password` clears it, and the next `serve` start generates a fresh one.
+
+### Changed
+
+- **The dashboard password is stored in `config.json` as a scrypt hash** — It used to live only in the memory of the running `serve` process, so a restart printed a new one. `serve` now generates a password on the first start only, keeps it across restarts, and reads it on every sign-in so a change applies immediately. `serve --password=...` replaces the stored password.
+
 ## [0.4.2] - 2026-09-21
 
 ### Fixed

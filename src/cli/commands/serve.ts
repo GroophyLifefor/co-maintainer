@@ -2,7 +2,8 @@ import { readConfig } from "../../config.ts";
 import type { UserConfig } from "../../config.ts";
 import { appDbPath, closeAppDb, openAppDb } from "../../store/app_db.ts";
 import { createApp } from "../../server/app.ts";
-import type { AuthMethods } from "../../server/auth.ts";
+import { configPasswordStore } from "../../server/auth.ts";
+import type { AuthMethods, PasswordStore } from "../../server/auth.ts";
 import {
   recoverOrphans,
   startWorkerLoop,
@@ -34,6 +35,26 @@ function generatePassword(): string {
   const bytes = new Uint8Array(12);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** `--password=` replaces the stored password. With no flag the stored one is
+ * kept, and a first start generates one, returned so the caller can print it. */
+export async function ensureDashboardPassword(
+  args: string[],
+  hasStoredPassword: boolean,
+  store: PasswordStore,
+): Promise<string | undefined> {
+  const flag = args
+    .find((arg) => arg.startsWith("--password="))
+    ?.slice("--password=".length);
+  if (flag) {
+    await store.set(flag);
+    return undefined;
+  }
+  if (hasStoredPassword) return undefined;
+  const generated = generatePassword();
+  await store.set(generated);
+  return generated;
 }
 
 /** `--disable-auth=password` / `--enable-auth=github` always win over the
@@ -182,12 +203,19 @@ export async function runServe(args: string[]): Promise<void> {
   }
   startWorkerLoop();
 
-  const password = auth.password
-    ? (args
-        .find((arg) => arg.startsWith("--password="))
-        ?.slice("--password=".length) ?? generatePassword())
-    : "";
-  if (auth.password) console.log(`[serve] dashboard password: ${password}`);
+  const passwordStore = configPasswordStore();
+  if (auth.password) {
+    const generated = await ensureDashboardPassword(
+      args,
+      Boolean(config.dashboardPasswordHash),
+      passwordStore,
+    );
+    console.log(
+      generated
+        ? `[serve] dashboard password: ${generated}`
+        : "[serve] dashboard password is stored in config.json, change it in Settings",
+    );
+  }
   if (auth.github)
     console.log(
       `[serve] GitHub sign-in enabled for ${githubOAuth!.allowedUser}`,
@@ -202,7 +230,8 @@ export async function runServe(args: string[]): Promise<void> {
   }
 
   const app = createApp({
-    password,
+    password: "",
+    passwordStore,
     webhookUrl,
     inject500,
     auth,

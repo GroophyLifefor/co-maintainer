@@ -136,7 +136,7 @@ in the same process as the UI.</p>
 <h2 id="sign-in">Sign in</h2>
 <p>Open <code>http://&lt;host&gt;:&lt;port&gt;/</code>.</p>
 <ul>
-<li><strong>Password</strong>: printed at <code>serve</code> startup, or set with <code>--password=...</code>.</li>
+<li><strong>Password</strong>: printed once on the first <code>serve</code> start, or set with <code>--password=...</code>. Change it in <strong>Settings</strong>.</li>
 <li><strong>GitHub</strong> (optional): <strong>Continue with GitHub</strong> for the one allowed user.
 OAuth setup lives on <a href="serve.html#sign-in-to-the-dashboard"><code>serve</code></a>.</li>
 </ul>
@@ -244,6 +244,10 @@ have no repositories yet. You can skip it and configure the same items under
 <tr>
 <td>Access</td>
 <td>Password vs GitHub sign-in toggles (mirrors <code>serve</code> flags)</td>
+</tr>
+<tr>
+<td>Password</td>
+<td>Change the dashboard password and sign out other sessions</td>
 </tr>
 <tr>
 <td>About</td>
