@@ -357,14 +357,18 @@ async function pullRequests(
   options: Options,
   previous: State | undefined,
   phase?: FetchPhase,
-  progress?: (items: PullRequest[]) => Promise<void>,
-): Promise<PullRequest[]> {
+  progress?: (items: PullRequest[], cache: PullRequest[]) => Promise<void>,
+): Promise<{ kept: PullRequest[]; cache: PullRequest[] }> {
   if (phase) phase.text = "listing pull requests · page 0 · fetched 0";
   const selected = await listPullRequestPages(client, options, phase);
-  const previousByNumber = new Map(
+  const keptByNumber = new Map(
     (previous?.source.pullRequests ?? []).map((pr) => [pr.number, pr]),
   );
+  const cacheByNumber = new Map(
+    (previous?.source.pullRequestCache ?? []).map((pr) => [pr.number, pr]),
+  );
   const result: PullRequest[] = new Array(selected.length);
+  const cache: PullRequest[] = new Array(selected.length);
   let completed = 0;
   let save = Promise.resolve();
   if (phase) {
@@ -377,7 +381,8 @@ async function pullRequests(
 
   await mapPool(selected, options.ghConcurrent, async (pr, index) => {
     const number = Number(pr.number);
-    const cached = previousByNumber.get(number);
+    const full = keptByNumber.get(number);
+    const cached = full ?? cacheByNumber.get(number);
     const listedAdditions = Number(pr.additions);
     const listedDeletions = Number(pr.deletions);
     const listedStatsAvailable =
@@ -433,12 +438,14 @@ async function pullRequests(
       current.changesRequested = cached.changesRequested;
     }
     const only = options.onlyRequestChangedPr;
-    const discussionUnchanged = cached?.updatedAt === current.updatedAt;
+    const discussionUnchanged = full?.updatedAt === current.updatedAt;
     const decisionKnown = typeof cached?.changesRequested === "boolean";
     const diffUnchanged =
-      cached?.headSha === current.headSha && Boolean(cached?.diff);
+      full?.headSha === current.headSha && Boolean(full?.diff);
     let droppedFromCache =
-      only && discussionUnchanged && cached?.changesRequested === false;
+      only &&
+      cached?.updatedAt === current.updatedAt &&
+      cached.changesRequested === false;
     let dropped = droppedFromCache;
     const loadComments = async () => {
       const comments = await client.pages<Json>(
@@ -519,6 +526,7 @@ async function pullRequests(
         current.diff = "";
       }
     }
+    cache[index] = current;
     if (!dropped) result[index] = current;
     completed++;
     if (phase) {
@@ -536,49 +544,112 @@ async function pullRequests(
     );
     if (progress) {
       save = save.then(() =>
-        progress(result.filter((item): item is PullRequest => !!item)),
+        progress(
+          result.filter((item): item is PullRequest => !!item),
+          cache.filter((item): item is PullRequest => !!item),
+        ),
       );
       await save;
     }
   });
   const kept = result.filter((item): item is PullRequest => !!item);
+  const decided = cache.filter((item): item is PullRequest => !!item);
   if (options.onlyRequestChangedPr) {
     log(
       "fetch",
       `only request-changed pr · kept ${kept.length} · dropped ${selected.length - kept.length}`,
     );
   }
-  return kept;
+  return { kept, cache: decided };
+}
+
+function commitLimit(maxCommits: number | undefined): number | undefined {
+  return maxCommits && maxCommits > 0 ? maxCommits : undefined;
+}
+
+function commitsCovered(
+  cached: Json[],
+  previousMax: number | undefined,
+  limit: number | undefined,
+): boolean {
+  if (cached.length === 0) return false;
+  const previousAll = commitLimit(previousMax) === undefined;
+  if (limit === undefined) return previousAll;
+  return previousAll || cached.length >= limit;
 }
 
 async function commits(
   client: GitHubClient,
   options: Options,
   meta: Json,
+  previous: State | undefined,
   phase?: FetchPhase,
 ): Promise<Json[]> {
   const branch = String(meta.default_branch ?? "main");
-  const limit =
-    options.maxCommits && options.maxCommits > 0
-      ? options.maxCommits
-      : undefined;
+  const limit = commitLimit(options.maxCommits);
+  const cached = previous?.source.commits ?? [];
+  const cachedTip = String(cached[0]?.sha ?? "");
+  const endpoint = `repos/${options.repo}/commits?sha=${encodeURIComponent(branch)}`;
+  const note = (page: number, fetched: number) => {
+    const message = `commit history · page ${page} · fetched ${fetched} · total unknown`;
+    if (phase) phase.text = message;
+    log("fetch", message);
+  };
   if (phase) phase.text = "commit history · page 0 · fetched 0";
-  return client.pages<Json>(
-    `repos/${options.repo}/commits?sha=${encodeURIComponent(branch)}`,
-    limit,
-    (page, fetched) => {
-      const message = `commit history · page ${page} · fetched ${fetched} · total unknown`;
-      if (phase) phase.text = message;
-      log("fetch", message);
-    },
-  );
+  if (!cachedTip) {
+    return client.pages<Json>(endpoint, limit, note);
+  }
+
+  const fresh: Json[] = [];
+  let found = false;
+  for (let page = 1; ; page++) {
+    const pageItems = await client.request<Json[]>(
+      `${endpoint}&per_page=100&page=${page}`,
+    );
+    const items = Array.isArray(pageItems) ? pageItems : [];
+    for (const commit of items) {
+      if (String(commit.sha ?? "") === cachedTip) {
+        found = true;
+        break;
+      }
+      fresh.push(commit);
+      if (limit !== undefined && fresh.length >= limit) break;
+    }
+    note(page, fresh.length);
+    if (
+      found ||
+      items.length < 100 ||
+      (limit !== undefined && fresh.length >= limit)
+    ) {
+      break;
+    }
+  }
+
+  if (!found || !commitsCovered(cached, previous?.options.maxCommits, limit)) {
+    if (found) return client.pages<Json>(endpoint, limit, note);
+    return limit === undefined ? fresh : fresh.slice(0, limit);
+  }
+
+  const selected = [...fresh];
+  for (const commit of cached) {
+    if (limit !== undefined && selected.length >= limit) break;
+    selected.push(commit);
+  }
+  const reused = selected.length - fresh.length;
+  if (reused > 0) {
+    log(
+      "fetch",
+      `commit history · reused ${reused} cached commits · ${selected.length} total`,
+    );
+  }
+  return selected;
 }
 
 export async function collectSource(
   client: GitHubClient,
   options: Options,
   previous?: State,
-  progress?: (items: PullRequest[]) => Promise<void>,
+  progress?: (items: PullRequest[], cache: PullRequest[]) => Promise<void>,
   codebaseProgress?: (data: {
     tree: string[];
     treeSha: Record<string, string>;
@@ -604,16 +675,17 @@ export async function collectSource(
       : { tree: [], treeSha: {}, files: {} };
     const pullRequestData = options.includePullRequests
       ? await pullRequests(client, options, previous, phase, progress)
-      : [];
+      : { kept: [], cache: previous?.source.pullRequestCache ?? [] };
     const commitData = options.includeCommitHistory
-      ? await commits(client, options, repo, phase)
+      ? await commits(client, options, repo, previous, phase)
       : [];
     return {
       repo,
       tree: files.tree,
       treeSha: files.treeSha,
       files: files.files,
-      pullRequests: pullRequestData,
+      pullRequests: pullRequestData.kept,
+      pullRequestCache: pullRequestData.cache,
       commits: commitData,
     };
   } finally {

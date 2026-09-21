@@ -2,6 +2,7 @@ import { collectSource } from "./collect.ts";
 import { cacheDeletePrefix } from "../store/cache_db.ts";
 import { testOptions } from "../testing/helpers.ts";
 import { withLogSink } from "../util/log.ts";
+import type { State } from "../knowledge/types.ts";
 import type { GitHubClient } from "../types.ts";
 import { test } from "node:test";
 
@@ -437,6 +438,105 @@ test("pull request selection is unchanged when --only-request-changed-pr is off"
     }
   } finally {
     await cacheDeletePrefix("pr-listing", repo);
+  }
+});
+
+test("a dropped pull request is cached and not downloaded again", async () => {
+  const repo = `fixture/drop-cache-${crypto.randomUUID()}`;
+  const { client, calls } = requestChangedClient(repo);
+  const options = testOptions({
+    repo,
+    includeCodebase: false,
+    includePullRequests: true,
+    includePullRequestChanges: true,
+    onlyRequestChangedPr: true,
+  });
+  try {
+    const lines: string[] = [];
+    const first = await withLogSink(
+      (_phase, message) => lines.push(message),
+      () => collectSource(client, options),
+    );
+    const dropped = first.pullRequestCache?.find((pr) => pr.number === 2);
+    if (!dropped || dropped.changesRequested !== false) {
+      throw new Error("dropped pull request was not cached");
+    }
+    if (first.pullRequests.some((pr) => pr.number === 2)) {
+      throw new Error("dropped pull request was selected");
+    }
+    const downloaded = calls.filter((endpoint) =>
+      endpoint.includes("/pulls/2/reviews"),
+    ).length;
+    if (downloaded !== 1) {
+      throw new Error(`expected one review download, got ${downloaded}`);
+    }
+    lines.length = 0;
+    await withLogSink(
+      (_phase, message) => lines.push(message),
+      () =>
+        collectSource(client, options, {
+          source: first,
+          options,
+        } as unknown as State),
+    );
+    const again = calls.filter((endpoint) =>
+      endpoint.includes("/pulls/2/reviews"),
+    ).length;
+    if (again !== downloaded) {
+      throw new Error(
+        `dropped pull request was downloaded again: ${calls.join(" ")}`,
+      );
+    }
+    if (
+      !lines.some(
+        (line) => line.includes("#2") && line.includes("dropped cache"),
+      )
+    ) {
+      throw new Error(`second run did not use the cache: ${lines.join(" | ")}`);
+    }
+  } finally {
+    await cacheDeletePrefix("pr-listing", repo);
+  }
+});
+
+test("commit history reuses the cached list when the tip is unchanged", async () => {
+  const repo = `fixture/commits-${crypto.randomUUID()}`;
+  const calls: string[] = [];
+  const client: GitHubClient = {
+    async request<T>(endpoint: string): Promise<T> {
+      calls.push(endpoint);
+      if (endpoint === `repos/${repo}`) return { default_branch: "main" } as T;
+      if (endpoint.includes("/commits?")) {
+        const page = Number(/[?&]page=(\d+)/.exec(endpoint)?.[1] ?? 1);
+        if (page > 1) return [] as T;
+        return [{ sha: "tip" }, { sha: "older" }] as T;
+      }
+      throw new Error(`unexpected request endpoint: ${endpoint}`);
+    },
+    async pages<T>(endpoint: string): Promise<T[]> {
+      throw new Error(`unexpected pages endpoint: ${endpoint}`);
+    },
+  };
+  const source = await collectSource(
+    client,
+    testOptions({
+      repo,
+      includeCodebase: false,
+      includeCommitHistory: true,
+      maxCommits: 2,
+    }),
+    {
+      source: { commits: [{ sha: "tip" }, { sha: "older" }] },
+      options: { maxCommits: 2 },
+    } as unknown as State,
+  );
+  if (
+    source.commits.map((commit) => String(commit.sha)).join() !== "tip,older"
+  ) {
+    throw new Error(`unexpected commits: ${JSON.stringify(source.commits)}`);
+  }
+  if (calls.some((endpoint) => /page=2/.test(endpoint))) {
+    throw new Error(`fetched past the cached tip: ${calls.join(" ")}`);
   }
 });
 

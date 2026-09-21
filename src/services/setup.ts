@@ -196,8 +196,9 @@ export async function runInitOrRemake(options: Options): Promise<void> {
       client,
       options,
       previous,
-      async (pullRequests) => {
+      async (pullRequests, cache) => {
         checkpoint.source.pullRequests = pullRequests;
+        checkpoint.source.pullRequestCache = cache;
         checkpoint.scanDone = {
           ...checkpoint.scanDone,
           pullRequests: pullRequests.length,

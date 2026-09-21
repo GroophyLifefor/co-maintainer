@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.12] - 2026-09-22
+
+### Fixed
+
+- **Fetched pull request decisions and commit history stay in the cache** — A pull request dropped by `--only-request-changed-pr` was left out of the saved state, so the next `init` or `remake` downloaded its detail and reviews again (`dropped download`). The decision is now stored, and an unchanged pull request logs `dropped cache` without calling `gh`. It still stays out of the skill. Commit history reuses the saved list when the newest commit is unchanged, instead of paging the whole window again.
+
 ## [0.4.11] - 2026-09-21
 
 ### Fixed

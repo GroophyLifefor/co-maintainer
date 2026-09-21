@@ -1,6 +1,6 @@
 {
   "name": "co-maintainer",
-  "version": "0.4.11",
+  "version": "0.4.12",
   "description": "Analyzes a GitHub repository and writes repository-specific contribution guidance.",
   "license": "MIT",
   "repository": {
