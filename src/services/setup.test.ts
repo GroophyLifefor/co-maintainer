@@ -1,7 +1,15 @@
 import { writeRepoConfig, writeUserConfig } from "../config.ts";
 import { closeAppDb, openAppDb } from "../store/app_db.ts";
 import { activateRepo, getRepo } from "../store/repos.ts";
-import { buildSetupHandler, enqueueSetup, optionsFromConfig } from "./setup.ts";
+import {
+  buildSetupHandler,
+  enqueueSetup,
+  optionsFromConfig,
+  runInitOrRemake,
+} from "./setup.ts";
+import { cacheDelete } from "../store/cache_db.ts";
+import { readState } from "../store/skill_state.ts";
+import { testOptions } from "../testing/helpers.ts";
 import { claimAndRun, getLogsSince, registerHandler } from "./jobs.ts";
 import type { Options } from "../types.ts";
 import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
@@ -137,4 +145,53 @@ test("a remake job with no cached state runs init instead of failing", async () 
       throw new Error(`expected init fallback, got ${seen?.command}`);
     }
   });
+});
+
+test("cli init opens app.db itself and still writes the cache", async () => {
+  const root = tempDirSync();
+  const repo = `acme/cli-${crypto.randomUUID()}`;
+  const original = {
+    config: getEnv("CM_CONFIG_PATH"),
+    db: getEnv("CM_APP_DB"),
+    repos: getEnv("CM_REPOS_DIR"),
+  };
+  const restore = (name: string, value: string | undefined) => {
+    if (value === undefined) deleteEnv(name);
+    else setEnv(name, value);
+  };
+  setEnv("CM_CONFIG_PATH", `${root}/config.json`);
+  setEnv("CM_APP_DB", `${root}/app.db`);
+  setEnv("CM_REPOS_DIR", `${root}/repos`);
+  await closeAppDb();
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({ default_branch: "main", full_name: repo }), {
+      status: 200,
+    })) as typeof fetch;
+  try {
+    await writeUserConfig({ auth: "pat", githubPat: "test-token", ai: "none" });
+    await runInitOrRemake(
+      testOptions({
+        command: "init",
+        repo,
+        auth: "pat",
+        githubPat: "test-token",
+        ai: "none",
+        includeCodebase: false,
+        includePullRequests: false,
+        includePullRequestChanges: false,
+        includeCommitHistory: false,
+        includeHowRepoWorks: false,
+      }),
+    );
+    const state = await readState(repo);
+    if (!state) throw new Error("init did not write state");
+  } finally {
+    globalThis.fetch = previousFetch;
+    await cacheDelete("state", repo);
+    await closeAppDb();
+    restore("CM_CONFIG_PATH", original.config);
+    restore("CM_APP_DB", original.db);
+    restore("CM_REPOS_DIR", original.repos);
+  }
 });

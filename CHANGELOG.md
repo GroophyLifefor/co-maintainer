@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.13] - 2026-09-22
+
+### Fixed
+
+- **CLI `init` and `remake` open `app.db`** — The run wrote the skill, then called `markKnowledgeBuilt` on a database only `serve` had opened, and exited with `app.db is not open` before the final state write. The command now opens `app.db` for the run and closes it afterward, so the cache from that run is saved. A `serve` process that already holds the database is left open.
+
 ## [0.4.12] - 2026-09-22
 
 ### Fixed

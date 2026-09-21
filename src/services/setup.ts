@@ -19,6 +19,7 @@ import { readState, writeState } from "../store/skill_state.ts";
 import { cacheSet } from "../store/cache_db.ts";
 import { log, timed, withLogSink } from "../util/log.ts";
 import { enqueue, registerHandler } from "./jobs.ts";
+import { closeAppDb, isAppDbOpen, openAppDb } from "../store/app_db.ts";
 import { getRepo, markKnowledgeBuilt } from "../store/repos.ts";
 import { nowIso } from "../util/time.ts";
 import type { AiResponse, GitHubClient, Options } from "../types.ts";
@@ -165,6 +166,16 @@ function addReviewLink(
 }
 
 export async function runInitOrRemake(options: Options): Promise<void> {
+  const openedAppDb = !isAppDbOpen();
+  if (openedAppDb) await openAppDb();
+  try {
+    await initOrRemake(options);
+  } finally {
+    if (openedAppDb) await closeAppDb();
+  }
+}
+
+async function initOrRemake(options: Options): Promise<void> {
   const operationStarted = performance.now();
   const aiMetrics = emptyAiMetrics();
   const previous = await readState(options.repo);

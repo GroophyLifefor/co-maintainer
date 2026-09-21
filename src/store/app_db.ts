@@ -78,8 +78,13 @@ function migrate(database: Database): void {
 
 let db: Database | undefined;
 
+export function isAppDbOpen(): boolean {
+  return db !== undefined;
+}
+
 /** Opens (creating and migrating if needed) the single shared `app.db`
- * connection every store module reuses. Call once at `serve` startup. */
+ * connection every store module reuses. `serve` opens it for the process.
+ * `init` and `remake` open it for the run when it is not already open. */
 export async function openAppDb(): Promise<Database> {
   if (db) return db;
   await mkdir(appDbDir(), { recursive: true });
