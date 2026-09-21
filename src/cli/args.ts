@@ -66,6 +66,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
       "       co-maintainer set --token=... --ai=... --low-model=... --high-model=... --auth=...",
     );
     console.log("       co-maintainer serve --port=N");
+    console.log("       co-maintainer -v | --version");
     console.log(
       "         --webhook-url=https://host/github/webhook [or CM_WEBHOOK_URL]",
     );

@@ -112,9 +112,9 @@ export function resolveWebhookUrl(
 
 /** `co-maintainer serve --port=N [--password=...] [--disable-auth=password]
  * [--enable-auth=github] [--inject-500]`. HMAC-verified `POST /github/webhook`
- * plus a dashboard gated by password and/or GitHub sign-in. Requires the
- * GitHub App via `co-maintainer set` (webhook secret is optional, only the
- * App ID and private key gate startup); GitHub sign-in additionally needs
+ * plus a dashboard gated by password and/or GitHub sign-in. The GitHub App
+ * is optional at startup and can be added later from the dashboard settings
+ * or `co-maintainer set`. GitHub sign-in needs
  * `--github-oauth-client-id`/`-client-secret`/`-allowed-user` set. */
 export async function runServe(args: string[]): Promise<void> {
   const portArg = args
@@ -128,15 +128,9 @@ export async function runServe(args: string[]): Promise<void> {
 
   const config = readConfig();
   const webhookUrl = resolveWebhookUrl(args, port, config.webhookUrl);
-  const missing = [
-    !config.githubAppId && "--github-app-id=...",
-    !config.githubAppPrivateKey &&
-      "--github-app-private-key=... (or --github-app-private-key-file=path)",
-  ].filter(Boolean);
-  if (missing.length > 0) {
-    die(
-      `serve requires the GitHub App to be configured first; run:\n` +
-        `  co-maintainer set ${missing.join(" ")}`,
+  if (!config.githubAppId || !config.githubAppPrivateKey) {
+    console.log(
+      "[serve] GitHub App is not configured yet. Add it in the dashboard settings or with co-maintainer set.",
     );
   }
 
@@ -209,14 +203,6 @@ export async function runServe(args: string[]): Promise<void> {
 
   const app = createApp({
     password,
-    githubApp:
-      config.githubAppId && config.githubAppPrivateKey
-        ? {
-            appId: config.githubAppId,
-            privateKeyPem: config.githubAppPrivateKey,
-          }
-        : undefined,
-    webhookSecret: config.githubWebhookSecret,
     webhookUrl,
     inject500,
     auth,

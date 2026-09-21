@@ -25,12 +25,9 @@ import { handleWebhookRequest } from "./webhook/index.ts";
 import { handlePageRequest } from "./pages/router.ts";
 
 /** `password` is the dashboard password `serve` generates or takes via
- * `--password`. `githubApp` is unset until `co-maintainer set` has both
- * the App ID and private key. */
+ * `--password`. */
 export type AppDeps = {
   password: string;
-  githubApp?: { appId: string; privateKeyPem: string };
-  webhookSecret?: string;
   webhookUrl?: string;
   secureCookie?: boolean;
   inject500?: boolean;
@@ -122,10 +119,27 @@ function health(): Response {
   });
 }
 
+/** Read per request so credentials saved from the dashboard take effect
+ * without restarting `serve`. */
+function liveGithubConfig() {
+  const config = readConfig();
+  return {
+    githubApp:
+      config.githubAppId && config.githubAppPrivateKey
+        ? {
+            appId: config.githubAppId,
+            privateKeyPem: config.githubAppPrivateKey,
+          }
+        : undefined,
+    webhookSecret: config.githubWebhookSecret,
+  };
+}
+
 export function createApp(deps: AppDeps): App {
   return {
     async fetch(request: Request, remoteAddr = "unknown"): Promise<Response> {
       const url = new URL(request.url);
+      const { githubApp, webhookSecret } = liveGithubConfig();
       const mutating = ["POST", "PATCH", "PUT", "DELETE"].includes(
         request.method,
       );
@@ -135,10 +149,14 @@ export function createApp(deps: AppDeps): App {
       }
 
       if (url.pathname === "/github/webhook" && request.method === "POST") {
-        return await handleWebhookRequest(request, deps.webhookSecret);
+        return await handleWebhookRequest(request, webhookSecret);
       }
 
-      const page = await handlePageRequest(request, deps, remoteAddr);
+      const page = await handlePageRequest(
+        request,
+        { ...deps, githubApp },
+        remoteAddr,
+      );
       if (page) return page;
 
       if (url.pathname.startsWith("/api/remote/")) {
@@ -180,10 +198,10 @@ export function createApp(deps: AppDeps): App {
           return handleJobsRoute(request, url);
         }
         if (url.pathname.startsWith("/api/repos")) {
-          return await handleReposRoute(request, url, deps.githubApp);
+          return await handleReposRoute(request, url, githubApp);
         }
         if (url.pathname === "/api/installations") {
-          return await handleInstallationsRoute(request, deps.githubApp);
+          return await handleInstallationsRoute(request, githubApp);
         }
         if (url.pathname.startsWith("/api/settings")) {
           return await handleSettingsRoute(request, url, deps.webhookUrl ?? "");

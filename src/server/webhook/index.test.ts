@@ -78,7 +78,8 @@ async function signedRequest(
 
 test("POST /github/webhook rejects a bad HMAC when a secret is configured", async () => {
   await withTempEnv(async () => {
-    const app = createApp({ password: PASSWORD, webhookSecret: SECRET });
+    await writeUserConfig({ githubWebhookSecret: SECRET });
+    const app = createApp({ password: PASSWORD });
     const response = await app.fetch(
       await signedRequest(prBody(), {}, "wrong-secret"),
     );
@@ -122,7 +123,8 @@ test("a duplicate x-github-delivery returns duplicate and does not create a seco
   await withTempEnv(async () => {
     activateRepo("acme/widgets", 1);
     markKnowledgeBuilt("acme/widgets", "sha");
-    const app = createApp({ password: PASSWORD, webhookSecret: SECRET });
+    await writeUserConfig({ githubWebhookSecret: SECRET });
+    const app = createApp({ password: PASSWORD });
     const body = prBody();
     const first = await app.fetch(
       await signedRequest(body, { "x-github-delivery": "same-id" }),

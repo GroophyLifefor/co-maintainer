@@ -1,5 +1,6 @@
 import { createApp } from "../app.ts";
 import { closeAppDb, openAppDb } from "../../store/app_db.ts";
+import { writeUserConfig } from "../../config.ts";
 import { activateRepo } from "../../store/repos.ts";
 import { TEST_PKCS1_PEM } from "../../testing/fixtures/rsa_key.ts";
 import {
@@ -14,7 +15,9 @@ const PASSWORD = "installations-api-test";
 
 async function withTempDb(fn: () => Promise<void>): Promise<void> {
   const original = getEnv("CM_APP_DB");
+  const originalConfig = getEnv("CM_CONFIG_PATH");
   setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
+  setEnv("CM_CONFIG_PATH", `${tempDirSync()}/config.json`);
   try {
     await openAppDb();
     await fn();
@@ -22,6 +25,8 @@ async function withTempDb(fn: () => Promise<void>): Promise<void> {
     await closeAppDb();
     if (original === undefined) deleteEnv("CM_APP_DB");
     else setEnv("CM_APP_DB", original);
+    if (originalConfig === undefined) deleteEnv("CM_CONFIG_PATH");
+    else setEnv("CM_CONFIG_PATH", originalConfig);
   }
 }
 
@@ -35,7 +40,13 @@ async function loggedInApp(githubApp?: {
   appId: string;
   privateKeyPem: string;
 }) {
-  const app = createApp({ password: PASSWORD, githubApp });
+  if (githubApp) {
+    await writeUserConfig({
+      githubAppId: githubApp.appId,
+      githubAppPrivateKey: githubApp.privateKeyPem,
+    });
+  }
+  const app = createApp({ password: PASSWORD });
   const loginResponse = await app.fetch(
     new Request("http://localhost/api/login", {
       method: "POST",
@@ -125,6 +136,30 @@ test("GET /api/installations marks repos already active in app.db", async () => 
       }
       if (other?.alreadyActive) {
         throw new Error("acme/other should not be marked alreadyActive");
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+test("an App saved after the app started is picked up without a restart", async () => {
+  await withTempDb(async () => {
+    const authed = await loggedInApp(undefined);
+    const before = await authed("/api/installations");
+    if (before.status !== 422) throw new Error(`status ${before.status}`);
+
+    await writeUserConfig({
+      githubAppId: "4900449",
+      githubAppPrivateKey: TEST_PKCS1_PEM,
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (() =>
+      Promise.resolve(jsonResponse([]))) as typeof fetch;
+    try {
+      const after = await authed("/api/installations");
+      if (after.status !== 200) {
+        throw new Error(`status ${after.status}: ${await after.text()}`);
       }
     } finally {
       globalThis.fetch = originalFetch;
