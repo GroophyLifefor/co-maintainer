@@ -120,6 +120,40 @@ when the repo is active and rules allow it. Enable **Issue comments** and
 Manual PR review from the UI when GitHub cannot reach your host:
 [Dashboard: Pull requests](dashboard.md#routes).
 
+## Run with Docker
+
+Each release is also published as an image at
+`ghcr.io/groophylifefor/co-maintainer`, tagged with the version and, for stable
+releases, `latest`. It bundles Node.js, `git`, and the codegraph binary that
+reviews use.
+
+```sh
+docker run -d --name co-maintainer -p 5000:5000 \
+  -v co-maintainer-data:/data \
+  -e CM_WEBHOOK_URL=https://example.com/github/webhook \
+  ghcr.io/groophylifefor/co-maintainer:latest
+
+docker logs co-maintainer
+```
+
+The first start prints the dashboard password in the logs. To choose it yourself,
+set it on the volume before the first start:
+
+```sh
+docker run --rm -v co-maintainer-data:/data \
+  ghcr.io/groophylifefor/co-maintainer:latest set --password=your-dashboard-secret
+```
+
+- Everything lives in the `/data` volume: `config.json`, `app.db`, generated
+  guides, and repository clones. Keep it to survive upgrades.
+- The container listens on port `5000` and runs as the non-root `node` user
+  (uid 1000). A bind mounted host folder must be writable by that user.
+- The image runs `serve --port=5000` by default. Any other command works too,
+  for example `... set --token=...`. The health check assumes port `5000`.
+- Run one container per volume. Only one `serve` may write to an `app.db`.
+- Upgrade by pulling the new tag and recreating the container with the same
+  volume. Queued jobs that were interrupted are picked up again on start.
+
 ## Updating
 
 Forward-only migrations: do not install an older CLI after a newer one has
