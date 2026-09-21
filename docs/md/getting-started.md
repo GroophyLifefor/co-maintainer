@@ -23,6 +23,7 @@ flowchart LR
 ```sh
 npm install -g co-maintainer
 co-maintainer help
+co-maintainer --version
 ```
 
 PATH issues or general install notes: [README install](https://github.com/GroophyLifefor/co-maintainer#installation).

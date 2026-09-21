@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.1] - 2026-09-21
 
+### Added
+
+- **`-v` and `--version`** — Print the installed version and exit.
+
 ### Changed
 
 - **`serve` starts without a GitHub App** — Startup no longer exits when the App ID or private key is missing. It prints a notice and keeps running, so a fresh instance can be brought up first and connected to GitHub afterwards from the dashboard settings.

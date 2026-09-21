@@ -6,8 +6,13 @@ import { runSet } from "./commands/set.ts";
 import { runProbe } from "./commands/probe.ts";
 import { runReviewFromCli } from "./commands/review.ts";
 import { runInitOrRemake } from "../services/setup.ts";
+import { VERSION } from "../version.ts";
 
 export async function run(args: string[]): Promise<void> {
+  if (args[0] === "-v" || args[0] === "--version") {
+    console.log(VERSION);
+    return;
+  }
   if (args[0] === "set") {
     await runSet(args.slice(1));
     return;
