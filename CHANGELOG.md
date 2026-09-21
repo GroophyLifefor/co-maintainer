@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-09-21
+
+### Changed
+
+- **`serve` starts without a GitHub App** — Startup no longer exits when the App ID or private key is missing. It prints a notice and keeps running, so a fresh instance can be brought up first and connected to GitHub afterwards from the dashboard settings.
+- **GitHub App credentials apply without a restart** — The App ID, private key, and webhook secret are read from `config.json` on every request instead of once at startup. Saving them in the dashboard takes effect immediately, including for webhook signature checks.
+
 ## [0.4.0] - 2026-09-18
 
 The first release that runs on Node.js. co-maintainer was Deno/JSR-only through
