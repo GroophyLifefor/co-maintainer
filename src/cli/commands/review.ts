@@ -62,14 +62,18 @@ async function runReviewPr(
       "review GitHub collection and AI",
       options.logTime,
       () =>
-        reviewPullRequest(new GhClient(), options, async (response) => {
-          aiMetrics.calls++;
-          aiMetrics.tokensIn += response.tokensIn;
-          aiMetrics.tokensOut += response.tokensOut;
-          if (response.cost === undefined) aiMetrics.costKnown = false;
-          else aiMetrics.cost += response.cost;
-          await recordAiCost(options.repo, "review_pull_request", response);
-        }),
+        reviewPullRequest(
+          new GhClient(options.debug),
+          options,
+          async (response) => {
+            aiMetrics.calls++;
+            aiMetrics.tokensIn += response.tokensIn;
+            aiMetrics.tokensOut += response.tokensOut;
+            if (response.cost === undefined) aiMetrics.costKnown = false;
+            else aiMetrics.cost += response.cost;
+            await recordAiCost(options.repo, "review_pull_request", response);
+          },
+        ),
     );
     const durationMs = Math.round(performance.now() - operationStarted);
     const usage = {
