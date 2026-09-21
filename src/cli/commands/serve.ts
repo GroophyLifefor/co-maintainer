@@ -42,6 +42,13 @@ function generatePassword(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+export function resolveTrustProxy(
+  args: string[],
+  env: (name: string) => string | undefined = getEnv,
+): boolean {
+  return args.includes("--trust-proxy") || env("CM_TRUST_PROXY") === "1";
+}
+
 /** `--password=` replaces the stored password. With no flag the stored one is
  * kept, and a first start generates one, returned so the caller can print it. */
 export async function ensureDashboardPassword(
@@ -230,6 +237,13 @@ export async function runServe(args: string[]): Promise<void> {
       `[serve] GitHub sign-in enabled for ${githubOAuth!.allowedUser}`,
     );
 
+  const trustProxy = resolveTrustProxy(args);
+  if (trustProxy) {
+    console.log(
+      "[serve] trusting x-forwarded-for and x-forwarded-proto from a reverse proxy",
+    );
+  }
+
   const inject500 =
     args.includes("--inject-500") || getEnv("CM_INJECT_500") === "1";
   if (inject500) {
@@ -243,6 +257,7 @@ export async function runServe(args: string[]): Promise<void> {
     passwordStore,
     webhookUrl,
     inject500,
+    trustProxy,
     auth,
     githubOAuth,
   });

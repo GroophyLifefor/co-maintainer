@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.6] - 2026-09-21
+
+### Added
+
+- **`serve --trust-proxy` and `CM_TRUST_PROXY=1`** — For a `serve` that sits behind a reverse proxy. It takes the client address from the last entry of `x-forwarded-for` and marks the session cookie `Secure` when the last `x-forwarded-proto` is `https`. Before this, every visitor behind a proxy looked like one address, so anyone on the internet could lock the owner out of password sign-in with five wrong guesses, and the session cookie never carried the `Secure` flag even over HTTPS. Off by default, because without a proxy the headers can be forged.
+
 ## [0.4.5] - 2026-09-21
 
 ### Added

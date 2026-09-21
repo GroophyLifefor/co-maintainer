@@ -11,6 +11,7 @@ import {
   verifySession,
 } from "./auth.ts";
 import { memoryPasswordStore } from "./auth.ts";
+import { clientAddress, forwardedHttps } from "./proxy_headers.ts";
 import type { AuthMethods, PasswordStore } from "./auth.ts";
 import { readConfig } from "../config.ts";
 import { listJobs } from "../store/jobs.ts";
@@ -32,6 +33,9 @@ export type AppDeps = {
   passwordStore?: PasswordStore;
   webhookUrl?: string;
   secureCookie?: boolean;
+  /** Behind a reverse proxy this process trusts, the client address and the
+   * scheme come from `x-forwarded-for` and `x-forwarded-proto`. */
+  trustProxy?: boolean;
   inject500?: boolean;
   /** Defaults to password-only when omitted, matching every caller that
    * pre-dates GitHub sign-in. */
@@ -141,8 +145,17 @@ function liveGithubConfig() {
 export function createApp(deps: AppDeps): App {
   const passwords = deps.passwordStore ?? memoryPasswordStore(deps.password);
   return {
-    async fetch(request: Request, remoteAddr = "unknown"): Promise<Response> {
+    async fetch(
+      request: Request,
+      socketAddress = "unknown",
+    ): Promise<Response> {
       const url = new URL(request.url);
+      const remoteAddr = deps.trustProxy
+        ? clientAddress(request, socketAddress)
+        : socketAddress;
+      const secureCookie =
+        Boolean(deps.secureCookie) ||
+        (Boolean(deps.trustProxy) && forwardedHttps(request));
       const { githubApp, webhookSecret } = liveGithubConfig();
       const mutating = ["POST", "PATCH", "PUT", "DELETE"].includes(
         request.method,
@@ -158,7 +171,7 @@ export function createApp(deps: AppDeps): App {
 
       const page = await handlePageRequest(
         request,
-        { ...deps, githubApp, passwordStore: passwords },
+        { ...deps, githubApp, passwordStore: passwords, secureCookie },
         remoteAddr,
       );
       if (page) return page;
@@ -177,7 +190,12 @@ export function createApp(deps: AppDeps): App {
         }
 
         if (url.pathname === "/api/login" && request.method === "POST") {
-          return await handleLogin(request, deps, passwords, remoteAddr);
+          return await handleLogin(
+            request,
+            { ...deps, secureCookie },
+            passwords,
+            remoteAddr,
+          );
         }
 
         const session = await requireSession(request);

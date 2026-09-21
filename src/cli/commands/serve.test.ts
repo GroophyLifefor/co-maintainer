@@ -2,6 +2,7 @@ import {
   ensureDashboardPassword,
   platformWarning,
   resolveAuthMethods,
+  resolveTrustProxy,
   resolveWebhookUrl,
 } from "./serve.ts";
 import { memoryPasswordStore } from "../../server/auth.ts";
@@ -184,4 +185,19 @@ test("ensureDashboardPassword treats an empty --password= as an invalid value", 
   if (!(await store.verify("old-password"))) {
     throw new Error("an empty flag replaced the stored password");
   }
+});
+
+test("resolveTrustProxy reads the flag or CM_TRUST_PROXY=1 and nothing else", () => {
+  const none = () => undefined;
+  const on = (name: string) => (name === "CM_TRUST_PROXY" ? "1" : undefined);
+  const wrong = (name: string) =>
+    name === "CM_TRUST_PROXY" ? "true" : undefined;
+  if (resolveTrustProxy([], none)) throw new Error("on by default");
+  if (!resolveTrustProxy(["--trust-proxy"], none))
+    throw new Error("flag ignored");
+  if (!resolveTrustProxy([], on)) throw new Error("env ignored");
+  if (resolveTrustProxy([], wrong))
+    throw new Error("a loose env value counted");
+  if (resolveTrustProxy(["--trust-proxy=1"], none))
+    throw new Error("flag with a value counted");
 });
