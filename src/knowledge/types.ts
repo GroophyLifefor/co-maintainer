@@ -13,6 +13,9 @@ export type PullRequest = {
   deletions: number;
   comments: string[];
   reviews: string[];
+  /** Set once reviews have been read. Missing means an older checkpoint
+   * never stored the review state. */
+  changesRequested?: boolean;
   changedFiles: string[];
   diff: string;
 };
