@@ -9,6 +9,7 @@ import {
 } from "../auth.ts";
 import type { PasswordStore } from "../auth.ts";
 import { passwordProblem } from "../../util/password.ts";
+import { readJsonObject } from "./json_body.ts";
 
 function validateWebhookUrl(value: unknown): string | undefined {
   if (typeof value !== "string" || !value.trim()) {
@@ -30,12 +31,8 @@ async function changePassword(
   passwords: PasswordStore,
   ip: string,
 ): Promise<Response> {
-  let body: { currentPassword?: unknown; newPassword?: unknown };
-  try {
-    body = await request.json();
-  } catch {
-    return errorResponse(400, "bad_request", "expected a JSON body");
-  }
+  const body = await readJsonObject(request);
+  if (body instanceof Response) return body;
   const next = typeof body.newPassword === "string" ? body.newPassword : "";
   const problem = passwordProblem(next);
   if (problem) return errorResponse(422, "weak_password", problem);

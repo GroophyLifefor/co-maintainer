@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **The dashboard password is stored in `config.json` as a scrypt hash** — It used to live only in the memory of the running `serve` process, so a restart printed a new one. `serve` now generates a password on the first start only, keeps it across restarts, and reads it on every sign-in so a change applies immediately. `serve --password=...` replaces the stored password.
+- **The dashboard password is stored in `config.json` as a scrypt hash** — It used to live only in the memory of the running `serve` process, so a restart printed a new one. `serve` now generates a password on the first start only, keeps it across restarts, and reads it on every sign-in so a change applies immediately. `serve --password=...` replaces the stored password, and a value outside 8 to 200 characters stops `serve` before it opens the database, matching Settings and `set --password`.
 
 ## [0.4.2] - 2026-09-21
 

@@ -245,3 +245,18 @@ test("changing the password swaps it and signs out the other sessions", async ()
     }
   });
 });
+
+test("changing the password with a null JSON body is a 400, not a crash", async () => {
+  await withTempEnv(async () => {
+    const app = createApp({ password: PASSWORD });
+    const token = (await signIn(app, PASSWORD))!;
+    for (const body of [null, [], "text"]) {
+      const response = await changePassword(app, token, body);
+      if (response.status !== 400) {
+        throw new Error(
+          `body ${JSON.stringify(body)}: status ${response.status}`,
+        );
+      }
+    }
+  });
+});

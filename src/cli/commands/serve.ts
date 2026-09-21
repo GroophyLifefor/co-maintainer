@@ -17,6 +17,7 @@ import {
 } from "../../services/replies.ts";
 import { registerRemoteReviewHandler } from "../../services/remote_review.ts";
 import { startRemoteWatchdog } from "../../remote/server/sessions.ts";
+import { passwordProblem } from "../../util/password.ts";
 import { serveHttp } from "../../server/http.ts";
 import { currentPlatform, getEnv, type Platform } from "../../util/runtime.ts";
 
@@ -48,6 +49,8 @@ export async function ensureDashboardPassword(
     .find((arg) => arg.startsWith("--password="))
     ?.slice("--password=".length);
   if (flag) {
+    const problem = passwordProblem(flag);
+    if (problem) die(`--password: ${problem}`);
     await store.set(flag);
     return undefined;
   }
@@ -177,6 +180,20 @@ export async function runServe(args: string[]): Promise<void> {
     };
   }
 
+  const passwordStore = configPasswordStore();
+  if (auth.password) {
+    const generated = await ensureDashboardPassword(
+      args,
+      Boolean(config.dashboardPasswordHash),
+      passwordStore,
+    );
+    console.log(
+      generated
+        ? `[serve] dashboard password: ${generated}`
+        : "[serve] dashboard password is stored in config.json, change it in Settings",
+    );
+  }
+
   const warning = platformWarning(currentPlatform());
   if (warning) console.log(`[serve] warning: ${warning}`);
 
@@ -203,19 +220,6 @@ export async function runServe(args: string[]): Promise<void> {
   }
   startWorkerLoop();
 
-  const passwordStore = configPasswordStore();
-  if (auth.password) {
-    const generated = await ensureDashboardPassword(
-      args,
-      Boolean(config.dashboardPasswordHash),
-      passwordStore,
-    );
-    console.log(
-      generated
-        ? `[serve] dashboard password: ${generated}`
-        : "[serve] dashboard password is stored in config.json, change it in Settings",
-    );
-  }
   if (auth.github)
     console.log(
       `[serve] GitHub sign-in enabled for ${githubOAuth!.allowedUser}`,

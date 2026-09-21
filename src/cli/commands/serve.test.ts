@@ -153,3 +153,19 @@ test("ensureDashboardPassword lets --password replace the stored one", async () 
     throw new Error("the old password still works");
   }
 });
+
+test("ensureDashboardPassword rejects a --password the dashboard would refuse", async () => {
+  const store = memoryPasswordStore("old-password");
+  let message = "";
+  try {
+    await ensureDashboardPassword(["--password=short"], true, store);
+  } catch (error) {
+    message = error instanceof Error ? error.message : String(error);
+  }
+  if (!message.startsWith("--password:")) {
+    throw new Error(`expected a --password error, got: ${message}`);
+  }
+  if (!(await store.verify("old-password"))) {
+    throw new Error("a rejected flag replaced the stored password");
+  }
+});
