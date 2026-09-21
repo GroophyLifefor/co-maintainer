@@ -1,6 +1,7 @@
 # co-maintainer
 
-[![NPM Version](https://img.shields.io/npm/v/co-maintainer)](https://www.npmjs.com/package/co-maintainer)
+[![NPM Version](https://img.shields.io/npm/v/co-maintainer)](https://www.npmjs.com/package/co-maintainer) [![](https://img.shields.io/badge/blog-co_maintainer_an_imiator_of_yours-blue)](https://muratkirazkaya.com/blogs/co-maintainer-an-imitator-of-yours)
+
 
 `co-maintainer` analyzes a GitHub repository and writes repository-specific
 `SKILL.md` guidance that helps developers contribute changes more reliably.
