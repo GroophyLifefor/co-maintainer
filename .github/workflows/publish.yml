@@ -87,10 +87,23 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Skip if this version is already pushed
         id: check
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+          VERSION: ${{ steps.image.outputs.version }}
         run: |
-          if docker manifest inspect "${{ steps.image.outputs.name }}:${{ steps.image.outputs.version }}" >/dev/null 2>&1; then
+          if docker manifest inspect "$IMAGE:$VERSION" >/dev/null 2>&1; then
             echo "pushed=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::${{ steps.image.outputs.name }}:${{ steps.image.outputs.version }} is already on ghcr.io; skipping push"
+            echo "::notice::$IMAGE:$VERSION is already on ghcr.io; skipping push"
+            if [[ "$VERSION" != *-* ]]; then
+              if latest="$(docker manifest inspect "$IMAGE:latest" 2>&1)"; then
+                :
+              elif grep -qiE "no such manifest|manifest unknown|not found" <<<"$latest"; then
+                docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$VERSION"
+                echo "::notice::$IMAGE:latest was missing and now points at $VERSION"
+              else
+                echo "::warning::could not read $IMAGE:latest, leaving it alone: $latest"
+              fi
+            fi
           else
             echo "pushed=false" >> "$GITHUB_OUTPUT"
           fi
