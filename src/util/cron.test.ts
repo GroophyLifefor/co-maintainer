@@ -83,3 +83,17 @@ test("nextCronRun gives up on a date that never comes within a year", () => {
     throw new Error("February 31st matched");
   }
 });
+
+test("a stepped star day field counts as unrestricted, as in classic cron", () => {
+  const cron = parseCron("0 0 */2 * 1");
+  if (!cron.anyDayOfMonth) throw new Error("*/2 was treated as restricted");
+  if (!cronMatches(cron, at("2026-09-21T00:00:00Z"))) {
+    throw new Error("Monday the 21st is an odd day and should match");
+  }
+  if (cronMatches(cron, at("2026-09-28T00:00:00Z"))) {
+    throw new Error("Monday the 28th is an even day and should not match");
+  }
+  if (cronMatches(cron, at("2026-09-23T00:00:00Z"))) {
+    throw new Error("an odd day that is not a Monday should not match");
+  }
+});

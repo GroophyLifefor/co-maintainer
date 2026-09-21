@@ -98,6 +98,10 @@ to turn it off.
 - Times are UTC.
 - The minute field takes a single value, so a schedule fires at most once an
   hour. A remake spends model tokens, and this keeps a typo from burning them.
+- As in classic cron, a day field that starts with `*` counts as unrestricted, so
+  both day fields must match. `0 0 */2 * 1` runs only on Mondays that fall on an
+  odd day of the month. When neither day field has a `*`, either one matching is
+  enough.
 - A repository is skipped while its first setup is unfinished or while another
   setup or remake for it is queued or running.
 - A minute the server was down for is not made up. The next matching minute runs.
