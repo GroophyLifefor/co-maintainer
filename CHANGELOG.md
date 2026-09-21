@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-09-21
+
+### Fixed
+
+- **Remake failed with `referenced path is absent from source`** — The "frequently changed files" fact was built from pull request history without checking the current tree, so a file that was later deleted or moved ended up in the skill and failed validation. When that skill was the deterministic fallback, every `init` and `remake` failed until the pull request aged out of the window. The fact now lists only files that still exist, and stale path or command references in the final skill are logged as warnings instead of aborting the run. AI output that references a missing path is still rejected.
+
 ## [0.4.1] - 2026-09-21
 
 ### Added

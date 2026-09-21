@@ -61,3 +61,22 @@ description: fixture
     throw new Error(`deno task commands were rejected: ${result.errors}`);
   }
 });
+
+test("reference problems can be downgraded to warnings", async () => {
+  const markdown = `---
+name: fixture
+description: fixture
+---
+
+# fixture
+
+## Tests
+
+- Inspect \`missing/file.ts\`.
+`;
+  const result = await validateSkill(markdown, ".", testSource(), "warning");
+  if (!result.valid) throw new Error(result.errors.join("; "));
+  if (!result.warnings.some((item) => item.includes("missing/file.ts"))) {
+    throw new Error("the stale path was not reported as a warning");
+  }
+});

@@ -62,3 +62,47 @@ test("quality fixtures cover different repository shapes", () => {
     );
   }
 });
+
+test("frequently changed files skips paths that no longer exist", () => {
+  const pullRequest = (changedFiles: string[]) => ({
+    number: 1,
+    title: "t",
+    body: "",
+    state: "closed",
+    merged: true,
+    updatedAt: "2026-01-01T00:00:00Z",
+    headSha: "sha",
+    labels: [],
+    additions: 1,
+    deletions: 1,
+    comments: [],
+    reviews: [],
+    changedFiles,
+    diff: "",
+  });
+  const source: Source = {
+    repo: { full_name: "fixture/moved", default_branch: "main" },
+    tree: ["src/new/app.ts"],
+    treeSha: {},
+    files: {},
+    pullRequests: [
+      pullRequest(["src/old/app.ts", "src/new/app.ts", "src/old/app.ts"]),
+    ],
+    commits: [],
+  };
+  const options = testOptions({ includePullRequestChanges: true });
+  const claim = extractFacts(source, options).find((item) =>
+    item.claim.startsWith("Frequently changed files"),
+  )?.claim;
+  if (!claim?.includes("src/new/app.ts") || claim.includes("src/old/app.ts")) {
+    throw new Error(`unexpected claim: ${claim}`);
+  }
+  source.tree = [];
+  if (
+    extractFacts(source, options).some((item) =>
+      item.claim.startsWith("Frequently changed files"),
+    )
+  ) {
+    throw new Error("a claim was written with no surviving files");
+  }
+});

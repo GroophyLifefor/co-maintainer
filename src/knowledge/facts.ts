@@ -579,13 +579,12 @@ export function extractFacts(source: Source, options: Options): Fact[] {
     }
   }
 
-  if (
-    options.includePullRequestChanges &&
-    source.pullRequests.some((pr) => pr.changedFiles.length)
-  ) {
-    const files = counts(
-      source.pullRequests.flatMap((pr) => pr.changedFiles),
-    ).slice(0, 10);
+  const currentPaths = new Set(source.tree);
+  const changedFiles = source.pullRequests
+    .flatMap((pr) => pr.changedFiles)
+    .filter((path) => currentPaths.has(path));
+  if (options.includePullRequestChanges && changedFiles.length) {
+    const files = counts(changedFiles).slice(0, 10);
     add(
       facts,
       fact(

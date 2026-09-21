@@ -4,14 +4,18 @@ import { stat } from "../util/runtime.ts";
 export type ValidationResult = {
   valid: boolean;
   errors: string[];
+  warnings: string[];
 };
 
 export async function validateSkill(
   markdown: string,
   outputDirectory: string,
   source?: Source,
+  referenceIssues: "error" | "warning" = "error",
 ): Promise<ValidationResult> {
   const errors: string[] = [];
+  const warnings: string[] = [];
+  const referenceProblems = referenceIssues === "error" ? errors : warnings;
   if (!markdown.startsWith("---\n")) errors.push("missing YAML frontmatter");
   if (!/^name:\s+\S+/m.test(markdown)) errors.push("missing frontmatter name");
   if (!/^description:\s+\S+/m.test(markdown)) {
@@ -128,7 +132,9 @@ export async function validateSkill(
               : path.startsWith(`${normalized}/`),
           )
         ) {
-          errors.push(`referenced path is absent from source: ${reference}`);
+          referenceProblems.push(
+            `referenced path is absent from source: ${reference}`,
+          );
         }
       }
       if (
@@ -142,7 +148,9 @@ export async function validateSkill(
             command.startsWith(`${reference} `),
         )
       ) {
-        errors.push(`referenced command is absent from source: ${reference}`);
+        referenceProblems.push(
+          `referenced command is absent from source: ${reference}`,
+        );
       }
     }
   }
@@ -165,5 +173,5 @@ export async function validateSkill(
       errors.push(`linked file does not exist: ${link}`);
     }
   }
-  return { valid: errors.length === 0, errors };
+  return { valid: errors.length === 0, errors, warnings };
 }

@@ -325,8 +325,19 @@ export async function runInitOrRemake(options: Options): Promise<void> {
     "final skill validation",
     options.logTime,
     () =>
-      validateSkill(result.markdown, `${reposDir()}/${options.repo}`, source),
+      validateSkill(
+        result.markdown,
+        `${reposDir()}/${options.repo}`,
+        source,
+        "warning",
+      ),
   );
+  if (finalValidation.warnings.length) {
+    log(
+      "validate",
+      `stale references kept: ${finalValidation.warnings.join(", ")}`,
+    );
+  }
   if (!finalValidation.valid) {
     throw new Error(
       `generated skill is invalid: ${finalValidation.errors.join("; ")}`,
