@@ -80,6 +80,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
     console.log(
       "         --max-commits=N --max-pr-months=N --max-pull-request-change-lines=N --max-comment=N",
     );
+    console.log("         --only-request-changed-pr");
     console.log(
       "         --auth=gh|pat --github-pat=... --ai=none|openrouter|hetzner --token=... --low-model=... --high-model=...",
     );
@@ -187,7 +188,8 @@ export async function parseArgs(args: string[]): Promise<Options> {
       arg === "--debug" ||
       arg === "--log-time" ||
       arg === "--review-upstream" ||
-      arg === "--disable-codegraph"
+      arg === "--disable-codegraph" ||
+      arg === "--only-request-changed-pr"
     )
       continue;
     if (arg.startsWith("--") && !known) die(`Unknown option: ${arg}`);
@@ -306,6 +308,9 @@ export async function parseArgs(args: string[]): Promise<Options> {
     includePullRequestChanges: enabled("include-pull-request-changes"),
     includeCommitHistory: enabled("include-commit-history"),
     includeHowRepoWorks: enabled("include-how-repo-works"),
+    onlyRequestChangedPr:
+      rest.includes("--only-request-changed-pr") ||
+      repoConfig.onlyRequestChangedPr === true,
     maxCommits:
       value("max-commits") ?? repoConfig.maxCommits ?? configDefault.maxCommits,
     maxPrMonths:

@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.8] - 2026-09-21
+
+### Added
+
+- **`--only-request-changed-pr`** — `init` and `remake` can keep only the pull requests in the `--max-pr-months` window that have at least one `CHANGES_REQUESTED` review. A dismissed review does not count. Dropped pull requests skip comment and diff downloads. The run logs `only request-changed pr · kept N · dropped N`. The choice is saved for the repo, so a later `remake` without the flag keeps it. Off by default, and the flag does not turn itself back off.
+
 ## [0.4.7] - 2026-09-21
 
 ### Added

@@ -28,6 +28,7 @@ export type RepoConfig = {
   includePullRequestChanges?: boolean;
   includeCommitHistory?: boolean;
   includeHowRepoWorks?: boolean;
+  onlyRequestChangedPr?: boolean;
   /** Five field cron in UTC, checked by `serve` to queue a remake. */
   remakeCron?: string;
 };

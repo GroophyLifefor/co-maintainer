@@ -16,6 +16,14 @@ function percent(done: number, total: number): string {
   return `${Math.round((done / total) * 100)}%`;
 }
 
+function changesRequested(reviews: Json[]): boolean {
+  return reviews.some((review) => review.state === "CHANGES_REQUESTED");
+}
+
+function reviewBodies(reviews: Json[]): string[] {
+  return reviews.map((review) => String(review.body ?? "")).filter(Boolean);
+}
+
 function withinPrWindow(updatedAt: string, months?: number): boolean {
   if (months === undefined || months === 0) return true;
   const cutoff = new Date();
@@ -376,14 +384,47 @@ async function pullRequests(
       changedFiles: cached?.changedFiles ?? [],
       diff: cached?.diff ?? "",
     };
+    if (typeof cached?.changesRequested === "boolean") {
+      current.changesRequested = cached.changesRequested;
+    }
+    const only = options.onlyRequestChangedPr;
     const discussionUnchanged = cached?.updatedAt === current.updatedAt;
+    const decisionKnown = typeof cached?.changesRequested === "boolean";
     const diffUnchanged =
       cached?.headSha === current.headSha && Boolean(cached?.diff);
-    const discussionStatus = discussionUnchanged
-      ? "comments/reviews cache"
-      : "download comments/reviews";
+    let dropped =
+      only && discussionUnchanged && cached?.changesRequested === false;
+    const loadComments = async () => {
+      const comments = await client.pages<Json>(
+        `repos/${options.repo}/issues/${number}/comments`,
+      );
+      current.comments = comments
+        .map((comment) => String(comment.body ?? ""))
+        .filter(Boolean)
+        .slice(0, options.maxComments);
+    };
+    const loadReviews = async () => {
+      const reviews = await client.pages<Json>(
+        `repos/${options.repo}/pulls/${number}/reviews`,
+      );
+      current.reviews = reviewBodies(reviews);
+      current.changesRequested = changesRequested(reviews);
+    };
+    if (!dropped && only && (!discussionUnchanged || !decisionKnown)) {
+      await loadReviews();
+      if (!current.changesRequested) dropped = true;
+      else if (!discussionUnchanged) await loadComments();
+    } else if (!dropped && !discussionUnchanged) {
+      await loadComments();
+      await loadReviews();
+    }
+    const discussionStatus = dropped
+      ? "dropped"
+      : discussionUnchanged
+        ? "comments/reviews cache"
+        : "download comments/reviews";
     let diffStatus = "diff disabled";
-    if (options.includePullRequestChanges) {
+    if (!dropped && options.includePullRequestChanges) {
       const lines = current.additions + current.deletions;
       diffStatus = diffUnchanged
         ? "diff cache"
@@ -400,22 +441,12 @@ async function pullRequests(
         selected.length,
       )}`;
     }
-    if (!discussionUnchanged) {
-      const comments = await client.pages<Json>(
-        `repos/${options.repo}/issues/${number}/comments`,
-      );
-      const reviews = await client.pages<Json>(
-        `repos/${options.repo}/pulls/${number}/reviews`,
-      );
-      current.comments = comments
-        .map((comment) => String(comment.body ?? ""))
-        .filter(Boolean)
-        .slice(0, options.maxComments);
-      current.reviews = reviews
-        .map((review) => String(review.body ?? ""))
-        .filter(Boolean);
-    }
-    if (options.includePullRequestChanges && !diffUnchanged && detail) {
+    if (
+      !dropped &&
+      options.includePullRequestChanges &&
+      !diffUnchanged &&
+      detail
+    ) {
       const lines = current.additions + current.deletions;
       if (
         options.maxPullRequestChangeLines === undefined ||
@@ -440,7 +471,7 @@ async function pullRequests(
         current.diff = "";
       }
     }
-    result[index] = current;
+    if (!dropped) result[index] = current;
     completed++;
     if (phase) {
       phase.text = `pull requests ${completed}/${selected.length} · ${percent(
@@ -462,7 +493,14 @@ async function pullRequests(
       await save;
     }
   });
-  return result;
+  const kept = result.filter((item): item is PullRequest => !!item);
+  if (options.onlyRequestChangedPr) {
+    log(
+      "fetch",
+      `only request-changed pr · kept ${kept.length} · dropped ${selected.length - kept.length}`,
+    );
+  }
+  return kept;
 }
 
 async function commits(

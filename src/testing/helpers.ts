@@ -19,6 +19,7 @@ export function testOptions(overrides: Partial<Options> = {}): Options {
     includePullRequestChanges: false,
     includeCommitHistory: false,
     includeHowRepoWorks: false,
+    onlyRequestChangedPr: false,
     ...overrides,
   };
 }

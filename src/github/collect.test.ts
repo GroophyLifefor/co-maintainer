@@ -1,6 +1,7 @@
 import { collectSource } from "./collect.ts";
 import { cacheDeletePrefix } from "../store/cache_db.ts";
 import { testOptions } from "../testing/helpers.ts";
+import { withLogSink } from "../util/log.ts";
 import type { GitHubClient } from "../types.ts";
 import { test } from "node:test";
 
@@ -294,5 +295,140 @@ test("PR listing catch-up skips extra GitHub pages", async () => {
   } finally {
     await cacheDeletePrefix("pr-listing", repo);
     await cacheDeletePrefix("state", repo);
+  }
+});
+
+function requestChangedClient(repo: string): {
+  client: GitHubClient;
+  calls: string[];
+} {
+  const calls: string[] = [];
+  const client: GitHubClient = {
+    async request<T>(endpoint: string): Promise<T> {
+      if (endpoint === `repos/${repo}`) {
+        return { default_branch: "main" } as T;
+      }
+      if (endpoint.includes("/pulls?") && endpoint.includes("state=all")) {
+        const page = Number(/[?&]page=(\d+)/.exec(endpoint)?.[1] ?? 1);
+        if (page > 1) return [] as T;
+        return [
+          {
+            number: 1,
+            title: "Kept",
+            updated_at: "1",
+            head: { sha: "h1" },
+            additions: 1,
+            deletions: 0,
+            labels: [],
+          },
+          {
+            number: 2,
+            title: "Dropped",
+            updated_at: "1",
+            head: { sha: "h2" },
+            additions: 1,
+            deletions: 0,
+            labels: [],
+          },
+        ] as T;
+      }
+      throw new Error(`unexpected request endpoint: ${endpoint}`);
+    },
+    async pages<T>(endpoint: string): Promise<T[]> {
+      calls.push(endpoint);
+      if (endpoint.includes("/reviews")) {
+        const state = endpoint.includes("/pulls/1/")
+          ? "CHANGES_REQUESTED"
+          : "APPROVED";
+        return [{ state, body: "note" }] as T[];
+      }
+      if (endpoint.includes("/comments")) return [{ body: "c" }] as T[];
+      if (endpoint.includes("/files")) {
+        return [{ filename: "src/app.ts", patch: "@@ -1 +1 @@" }] as T[];
+      }
+      throw new Error(`unexpected pages endpoint: ${endpoint}`);
+    },
+  };
+  return { client, calls };
+}
+
+test("--only-request-changed-pr keeps a changes-requested pull request and drops the rest", async () => {
+  const repo = `fixture/only-${crypto.randomUUID()}`;
+  const { client, calls } = requestChangedClient(repo);
+  const lines: string[] = [];
+  try {
+    const source = await withLogSink(
+      (_phase, message) => lines.push(message),
+      () =>
+        collectSource(
+          client,
+          testOptions({
+            repo,
+            includeCodebase: false,
+            includePullRequests: true,
+            includePullRequestChanges: true,
+            onlyRequestChangedPr: true,
+          }),
+        ),
+    );
+    if (
+      source.pullRequests.length !== 1 ||
+      source.pullRequests[0]?.number !== 1
+    ) {
+      throw new Error(
+        `expected PR #1 only, got ${source.pullRequests.map((pr) => pr.number).join(",")}`,
+      );
+    }
+    if (source.pullRequests[0]?.changesRequested !== true) {
+      throw new Error("kept pull request did not record changesRequested");
+    }
+    if (
+      calls.some(
+        (endpoint) =>
+          endpoint.includes("/issues/2/comments") ||
+          endpoint.includes("/pulls/2/files"),
+      )
+    ) {
+      throw new Error(`dropped pull request was fetched: ${calls.join(" ")}`);
+    }
+    if (!lines.includes("only request-changed pr · kept 1 · dropped 1")) {
+      throw new Error(`missing summary: ${lines.join(" | ")}`);
+    }
+  } finally {
+    await cacheDeletePrefix("pr-listing", repo);
+  }
+});
+
+test("pull request selection is unchanged when --only-request-changed-pr is off", async () => {
+  const repo = `fixture/all-${crypto.randomUUID()}`;
+  const { client, calls } = requestChangedClient(repo);
+  const lines: string[] = [];
+  try {
+    const source = await withLogSink(
+      (_phase, message) => lines.push(message),
+      () =>
+        collectSource(
+          client,
+          testOptions({
+            repo,
+            includeCodebase: false,
+            includePullRequests: true,
+            includePullRequestChanges: true,
+          }),
+        ),
+    );
+    if (source.pullRequests.length !== 2) {
+      throw new Error(
+        `expected both pull requests, got ${source.pullRequests.length}`,
+      );
+    }
+    if (!calls.some((endpoint) => endpoint.includes("/pulls/2/files"))) {
+      throw new Error("flag-off run skipped the second diff");
+    }
+    if (lines.some((line) => line.startsWith("only request-changed pr"))) {
+      throw new Error("summary was logged while the flag was off");
+    }
+  } finally {
+    await cacheDeletePrefix("pr-listing", repo);
   }
 });

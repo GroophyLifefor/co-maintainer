@@ -35,6 +35,9 @@ export type Options = {
   includePullRequestChanges: boolean;
   includeCommitHistory: boolean;
   includeHowRepoWorks: boolean;
+  /** Keep only pull requests in the window that have at least one
+   * `CHANGES_REQUESTED` review. Off by default, so the window is unchanged. */
+  onlyRequestChangedPr: boolean;
   maxCommits?: number;
   maxPrMonths?: number;
   maxPullRequestChangeLines?: number;

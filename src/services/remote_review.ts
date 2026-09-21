@@ -84,6 +84,7 @@ function reviewOptionsForRepo(repo: string, useCodegraph: boolean): Options {
     includePullRequestChanges: true,
     includeCommitHistory: true,
     includeHowRepoWorks: true,
+    onlyRequestChangedPr: false,
   };
 }
 
