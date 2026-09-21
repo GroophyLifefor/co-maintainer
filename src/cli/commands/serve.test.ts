@@ -169,3 +169,19 @@ test("ensureDashboardPassword rejects a --password the dashboard would refuse", 
     throw new Error("a rejected flag replaced the stored password");
   }
 });
+
+test("ensureDashboardPassword treats an empty --password= as an invalid value", async () => {
+  const store = memoryPasswordStore("old-password");
+  let message = "";
+  try {
+    await ensureDashboardPassword(["--password="], true, store);
+  } catch (error) {
+    message = error instanceof Error ? error.message : String(error);
+  }
+  if (!message.startsWith("--password:")) {
+    throw new Error(`expected a --password error, got: ${message}`);
+  }
+  if (!(await store.verify("old-password"))) {
+    throw new Error("an empty flag replaced the stored password");
+  }
+});

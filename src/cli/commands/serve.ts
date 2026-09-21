@@ -48,7 +48,7 @@ export async function ensureDashboardPassword(
   const flag = args
     .find((arg) => arg.startsWith("--password="))
     ?.slice("--password=".length);
-  if (flag) {
+  if (flag !== undefined) {
     const problem = passwordProblem(flag);
     if (problem) die(`--password: ${problem}`);
     await store.set(flag);
