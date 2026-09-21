@@ -394,6 +394,13 @@ test("--only-request-changed-pr keeps a changes-requested pull request and drops
     if (!lines.includes("only request-changed pr · kept 1 · dropped 1")) {
       throw new Error(`missing summary: ${lines.join(" | ")}`);
     }
+    if (
+      !lines.some(
+        (line) => line.includes("#2") && line.includes("dropped download"),
+      )
+    ) {
+      throw new Error(`drop did not say download: ${lines.join(" | ")}`);
+    }
   } finally {
     await cacheDeletePrefix("pr-listing", repo);
   }

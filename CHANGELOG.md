@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.9] - 2026-09-21
+
+### Changed
+
+- **A dropped pull request log says cache or download** — With `--only-request-changed-pr`, a pull request skipped because the saved decision is already `changesRequested: false` logs `dropped cache` and does not call `gh`. One whose reviews were just fetched and had no `CHANGES_REQUESTED` review logs `dropped download`. Comment and diff downloads stay skipped either way.
+
 ## [0.4.8] - 2026-09-21
 
 ### Added

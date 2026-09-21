@@ -392,8 +392,9 @@ async function pullRequests(
     const decisionKnown = typeof cached?.changesRequested === "boolean";
     const diffUnchanged =
       cached?.headSha === current.headSha && Boolean(cached?.diff);
-    let dropped =
+    let droppedFromCache =
       only && discussionUnchanged && cached?.changesRequested === false;
+    let dropped = droppedFromCache;
     const loadComments = async () => {
       const comments = await client.pages<Json>(
         `repos/${options.repo}/issues/${number}/comments`,
@@ -419,7 +420,9 @@ async function pullRequests(
       await loadReviews();
     }
     const discussionStatus = dropped
-      ? "dropped"
+      ? droppedFromCache
+        ? "dropped cache"
+        : "dropped download"
       : discussionUnchanged
         ? "comments/reviews cache"
         : "download comments/reviews";
