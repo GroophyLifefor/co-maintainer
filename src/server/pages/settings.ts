@@ -178,7 +178,7 @@ Leave blank to keep the current key"></textarea></div>
         <div class="field wide"><label><input type="checkbox" id="password-auth"${
           config.passwordAuthDisabled ? "" : " checked"
         }> Password sign-in</label>
-          <div class="hint">Set with <code>--password</code> when you start serve, or printed to the console if you omit the flag.</div></div>
+          <div class="hint">The first start prints a generated password to the console. Change it in the Password card below.</div></div>
         <div class="field wide"><label><input type="checkbox" id="github-auth"${
           config.githubAuthEnabled ? " checked" : ""
         }> GitHub sign-in</label></div>
@@ -197,6 +197,23 @@ Leave blank to keep the current key"></textarea></div>
           <div class="hint">Only this GitHub account can sign in through OAuth.</div></div>
       </div>
       <div class="ft"><button class="primary" id="save-access">Save</button></div>
+    </div>
+    <div class="card" id="password" data-async>
+      ${skSlot()}
+      <div class="hd"><h2>Password</h2></div>
+      <div class="bd">
+        <p class="muted" style="margin:0 0 16px">Changing it signs out every other browser session.</p>
+        <div class="field wide"><label>Current password</label>
+          <input id="pw-current" type="password" autocomplete="current-password"></div>
+        <div class="two" style="max-width:none">
+          <div class="field"><label>New password</label>
+            <input id="pw-new" type="password" autocomplete="new-password">
+            <div class="hint">8 to 200 characters.</div></div>
+          <div class="field"><label>Repeat new password</label>
+            <input id="pw-repeat" type="password" autocomplete="new-password"></div>
+        </div>
+      </div>
+      <div class="ft"><button class="primary" id="save-password">Change password</button></div>
     </div>
     <div class="card" id="about">
       <div class="hd"><h2>About</h2></div>
@@ -251,6 +268,25 @@ document.getElementById("save-access").addEventListener("click", function() {
     githubOAuthClientId: document.getElementById("oauth-client-id").value,
     githubOAuthClientSecret: document.getElementById("oauth-client-secret").value,
     githubOAuthAllowedUser: document.getElementById("oauth-allowed-user").value
+  });
+});
+document.getElementById("save-password").addEventListener("click", function() {
+  var btn = this;
+  var card = btn.closest("[data-async]");
+  var next = document.getElementById("pw-new").value;
+  if (next !== document.getElementById("pw-repeat").value) {
+    fail(card, "The two new passwords do not match.", function () {});
+    return;
+  }
+  run(btn, card, async function() {
+    await api("POST", "/api/settings/password", {
+      currentPassword: document.getElementById("pw-current").value,
+      newPassword: next
+    });
+    ["pw-current", "pw-new", "pw-repeat"].forEach(function(id) {
+      document.getElementById(id).value = "";
+    });
+    toast("Password changed");
   });
 });
 function positiveOrNull(raw, label) {

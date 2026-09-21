@@ -148,8 +148,10 @@ CLI-only users can ignore <code>serve</code> until they need shared context or a
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">serve</span> <span class="sh-flag">--port=5000</span> <span class="sh-flag">--password=your-dashboard-secret</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">serve</span> <span class="sh-flag">--port=5000</span> <span class="sh-flag">--webhook-url=https://example.com/github/webhook</span>
 </code></pre>
-<p>At startup, <code>serve</code> prints <code>app.db</code> path, dashboard URL, webhook URL, and (when
-password auth is on) the dashboard password unless you passed <code>--password=</code>.</p>
+<p>At startup, <code>serve</code> prints <code>app.db</code> path, dashboard URL, and webhook URL. On the
+first start with password auth on it also generates a dashboard password and
+prints it once. The password is stored in <code>config.json</code> as a hash, so later
+starts keep it.</p>
 <h2 id="parameters">Parameters</h2>
 <table>
 <thead>
@@ -164,7 +166,7 @@ password auth is on) the dashboard password unless you passed <code>--password=<
 </tr>
 <tr>
 <td><code>--password=...</code></td>
-<td>Dashboard password (random one is generated if omitted)</td>
+<td>Replace the stored dashboard password (a random one is generated on the first start if none exists)</td>
 </tr>
 <tr>
 <td><code>--webhook-url=...</code></td>
@@ -188,7 +190,8 @@ password auth is on) the dashboard password unless you passed <code>--password=<
 and dashboard <strong>Settings</strong>.</p>
 <h2 id="sign-in-to-the-dashboard">Sign in to the dashboard</h2>
 <p><strong>Password (default).</strong> Copy the password from the <code>serve</code> console on first start,
-or set <code>--password=...</code>.</p>
+or set it with <code>--password=...</code> or <code>co-maintainer set --password=...</code>. Change it
+any time from <strong>Settings</strong>, which also signs out the other browser sessions.</p>
 <p><strong>GitHub sign-in (optional).</strong> One allowed GitHub user can sign in with the App&#39;s
 OAuth client (no separate OAuth App).</p>
 <ol>

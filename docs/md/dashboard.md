@@ -42,7 +42,7 @@ flowchart TD
 
 Open `http://<host>:<port>/`.
 
-- **Password**: printed at `serve` startup, or set with `--password=...`.
+- **Password**: printed once on the first `serve` start, or set with `--password=...`. Change it in **Settings**.
 - **GitHub** (optional): **Continue with GitHub** for the one allowed user.
   OAuth setup lives on [`serve`](serve.md#sign-in-to-the-dashboard).
 
@@ -94,6 +94,7 @@ Single page with sections (anchor links in the sidebar):
 | Server | Webhook URL shown to GitHub, queue and timeout knobs |
 | Remote review | `cmr_…` tokens, per-token concurrency, sync timeout |
 | Access | Password vs GitHub sign-in toggles (mirrors `serve` flags) |
+| Password | Change the dashboard password and sign out other sessions |
 | About | Version and source link |
 
 Saving PAT, App key, or OAuth values is validated against GitHub first. Bad

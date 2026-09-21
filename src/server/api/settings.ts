@@ -2,6 +2,14 @@ import { errorResponse } from "../errors.ts";
 import { readConfig, writeUserConfig } from "../../config.ts";
 import type { UserConfig } from "../../config.ts";
 import { testAppAccess, testGithubAccess } from "../../services/credentials.ts";
+import {
+  checkPassword,
+  readSessionToken,
+  revokeOtherSessions,
+} from "../auth.ts";
+import type { PasswordStore } from "../auth.ts";
+import { passwordProblem } from "../../util/password.ts";
+import { readJsonObject } from "./json_body.ts";
 
 function validateWebhookUrl(value: unknown): string | undefined {
   if (typeof value !== "string" || !value.trim()) {
@@ -18,11 +26,40 @@ function validateWebhookUrl(value: unknown): string | undefined {
   return undefined;
 }
 
+async function changePassword(
+  request: Request,
+  passwords: PasswordStore,
+  ip: string,
+): Promise<Response> {
+  const body = await readJsonObject(request);
+  if (body instanceof Response) return body;
+  const next = typeof body.newPassword === "string" ? body.newPassword : "";
+  const problem = passwordProblem(next);
+  if (problem) return errorResponse(422, "weak_password", problem);
+  const current = String(body.currentPassword ?? "");
+  if (!(await checkPassword(current, passwords, ip))) {
+    return errorResponse(
+      403,
+      "wrong_password",
+      "the current password is wrong",
+    );
+  }
+  await passwords.set(next);
+  const token = readSessionToken(request);
+  if (token) await revokeOtherSessions(token);
+  return Response.json({ ok: true });
+}
+
 export async function handleSettingsRoute(
   request: Request,
   url: URL,
   webhookUrl: string,
+  passwords: PasswordStore,
+  ip: string,
 ): Promise<Response> {
+  if (url.pathname === "/api/settings/password" && request.method === "POST") {
+    return await changePassword(request, passwords, ip);
+  }
   if (url.pathname === "/api/settings" && request.method === "GET") {
     const config = readConfig();
     return Response.json({

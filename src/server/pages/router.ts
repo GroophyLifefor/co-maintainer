@@ -11,7 +11,7 @@ import {
   sessionCookieHeader,
   verifySession,
 } from "../auth.ts";
-import type { AuthMethods } from "../auth.ts";
+import type { AuthMethods, PasswordStore } from "../auth.ts";
 import { githubAuthorizeUrl, githubLoginFromCode } from "../../github/oauth.ts";
 import { handleClient, handleLogo, handleStyles } from "../assets.ts";
 import { readConfig } from "../../config.ts";
@@ -47,7 +47,7 @@ import { getLogsSince } from "../../services/jobs.ts";
 import { listInstallationsWithRepos } from "../../github/app.ts";
 
 export type PageDeps = {
-  password: string;
+  passwordStore: PasswordStore;
   webhookUrl?: string;
   secureCookie?: boolean;
   githubApp?: { appId: string; privateKeyPem: string };
@@ -366,7 +366,7 @@ async function handleLoginForm(
       showGithub: auth.github,
     });
   }
-  const result = await login(password, deps.password, ip);
+  const result = await login(password, deps.passwordStore, ip);
   if (!result) {
     return renderLogin({
       next,

@@ -1,8 +1,10 @@
 import {
+  ensureDashboardPassword,
   platformWarning,
   resolveAuthMethods,
   resolveWebhookUrl,
 } from "./serve.ts";
+import { memoryPasswordStore } from "../../server/auth.ts";
 import { deleteEnv, getEnv, setEnv } from "../../testing/runtime.ts";
 import { test } from "node:test";
 
@@ -121,5 +123,65 @@ test("resolveWebhookUrl defaults to localhost", () => {
   } finally {
     if (original === undefined) deleteEnv("CM_WEBHOOK_URL");
     else setEnv("CM_WEBHOOK_URL", original);
+  }
+});
+
+test("ensureDashboardPassword generates one on a first start and keeps it after", async () => {
+  const store = memoryPasswordStore("");
+  const generated = await ensureDashboardPassword([], false, store);
+  if (!generated || !(await store.verify(generated))) {
+    throw new Error("the generated password was not stored");
+  }
+  const again = await ensureDashboardPassword([], true, store);
+  if (again !== undefined || !(await store.verify(generated))) {
+    throw new Error("a restart replaced the stored password");
+  }
+});
+
+test("ensureDashboardPassword lets --password replace the stored one", async () => {
+  const store = memoryPasswordStore("old-password");
+  const generated = await ensureDashboardPassword(
+    ["--password=new-password"],
+    true,
+    store,
+  );
+  if (generated !== undefined) throw new Error("printed a generated password");
+  if (!(await store.verify("new-password"))) {
+    throw new Error("the flag did not replace the password");
+  }
+  if (await store.verify("old-password")) {
+    throw new Error("the old password still works");
+  }
+});
+
+test("ensureDashboardPassword rejects a --password the dashboard would refuse", async () => {
+  const store = memoryPasswordStore("old-password");
+  let message = "";
+  try {
+    await ensureDashboardPassword(["--password=short"], true, store);
+  } catch (error) {
+    message = error instanceof Error ? error.message : String(error);
+  }
+  if (!message.startsWith("--password:")) {
+    throw new Error(`expected a --password error, got: ${message}`);
+  }
+  if (!(await store.verify("old-password"))) {
+    throw new Error("a rejected flag replaced the stored password");
+  }
+});
+
+test("ensureDashboardPassword treats an empty --password= as an invalid value", async () => {
+  const store = memoryPasswordStore("old-password");
+  let message = "";
+  try {
+    await ensureDashboardPassword(["--password="], true, store);
+  } catch (error) {
+    message = error instanceof Error ? error.message : String(error);
+  }
+  if (!message.startsWith("--password:")) {
+    throw new Error(`expected a --password error, got: ${message}`);
+  }
+  if (!(await store.verify("old-password"))) {
+    throw new Error("an empty flag replaced the stored password");
   }
 });

@@ -57,6 +57,8 @@ export type UserConfig = {
    * `--enable-auth` flag on the `serve` command overrides these per run. */
   passwordAuthDisabled?: boolean;
   githubAuthEnabled?: boolean;
+  /** scrypt hash of the dashboard password, never the password itself. */
+  dashboardPasswordHash?: string;
   defaults?: {
     maxCommits?: number;
     maxPrMonths?: number;

@@ -45,3 +45,9 @@ export function deleteExpiredSessions(): void {
     .prepare(`DELETE FROM sessions WHERE expires_at <= ?`)
     .run(nowIso());
 }
+
+export function deleteOtherSessions(keepTokenHash: string): void {
+  getAppDb()
+    .prepare(`DELETE FROM sessions WHERE token_hash != ?`)
+    .run(keepTokenHash);
+}

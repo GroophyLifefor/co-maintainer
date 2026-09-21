@@ -10,7 +10,8 @@ import {
   sessionCookieHeader,
   verifySession,
 } from "./auth.ts";
-import type { AuthMethods } from "./auth.ts";
+import { memoryPasswordStore } from "./auth.ts";
+import type { AuthMethods, PasswordStore } from "./auth.ts";
 import { readConfig } from "../config.ts";
 import { listJobs } from "../store/jobs.ts";
 import { handleJobsRoute } from "./api/jobs.ts";
@@ -24,10 +25,11 @@ import { handleRemoteRoute } from "../remote/server/routes.ts";
 import { handleWebhookRequest } from "./webhook/index.ts";
 import { handlePageRequest } from "./pages/router.ts";
 
-/** `password` is the dashboard password `serve` generates or takes via
- * `--password`. */
+/** `password` seeds an in-memory store. `serve` passes `passwordStore` so the
+ * password lives in config.json instead. */
 export type AppDeps = {
   password: string;
+  passwordStore?: PasswordStore;
   webhookUrl?: string;
   secureCookie?: boolean;
   inject500?: boolean;
@@ -67,6 +69,7 @@ async function requireSession(
 async function handleLogin(
   request: Request,
   deps: AppDeps,
+  passwords: PasswordStore,
   ip: string,
 ): Promise<Response> {
   if (deps.auth?.password === false) {
@@ -82,7 +85,7 @@ async function handleLogin(
   } catch {
     return errorResponse(400, "bad_request", "expected a JSON body");
   }
-  const result = await login(String(body.password ?? ""), deps.password, ip);
+  const result = await login(String(body.password ?? ""), passwords, ip);
   if (!result) return errorResponse(401, "unauthorized", "wrong password");
   return Response.json(result, {
     headers: {
@@ -136,6 +139,7 @@ function liveGithubConfig() {
 }
 
 export function createApp(deps: AppDeps): App {
+  const passwords = deps.passwordStore ?? memoryPasswordStore(deps.password);
   return {
     async fetch(request: Request, remoteAddr = "unknown"): Promise<Response> {
       const url = new URL(request.url);
@@ -154,7 +158,7 @@ export function createApp(deps: AppDeps): App {
 
       const page = await handlePageRequest(
         request,
-        { ...deps, githubApp },
+        { ...deps, githubApp, passwordStore: passwords },
         remoteAddr,
       );
       if (page) return page;
@@ -173,7 +177,7 @@ export function createApp(deps: AppDeps): App {
         }
 
         if (url.pathname === "/api/login" && request.method === "POST") {
-          return await handleLogin(request, deps, remoteAddr);
+          return await handleLogin(request, deps, passwords, remoteAddr);
         }
 
         const session = await requireSession(request);
@@ -204,7 +208,13 @@ export function createApp(deps: AppDeps): App {
           return await handleInstallationsRoute(request, githubApp);
         }
         if (url.pathname.startsWith("/api/settings")) {
-          return await handleSettingsRoute(request, url, deps.webhookUrl ?? "");
+          return await handleSettingsRoute(
+            request,
+            url,
+            deps.webhookUrl ?? "",
+            passwords,
+            remoteAddr,
+          );
         }
         if (url.pathname.startsWith("/api/activity")) {
           return handleActivityRoute(request, url);
