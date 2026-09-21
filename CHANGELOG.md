@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.7] - 2026-09-21
+
+### Added
+
+- **`--debug` prints the GitHub quota** — While `gh` requests are running, debug mode prints the core and search remaining quota every two minutes (`github quota · core 4120/5000 · search 28/30 · reset 21:58`). The line is a log line, so `review --json` stays intact, and the timer stops once the `gh` calls stop.
+
+### Changed
+
+- **A primary GitHub rate limit waits instead of failing** — When the remaining quota is 0, `githubFetch` (a PAT or the GitHub App) and the `gh` client sleep until the reset time, then retry the same request. If the reset is more than 30 minutes away they wake and try again anyway, and a reset header that keeps moving forward stops the wait after two hours. Calls that hit the limit together share one sleep. `gh` reads `gh api rate_limit` to decide: `search/` uses the search bucket, everything else uses core, and a failure that still has remaining quota is thrown as before. A secondary limit is unchanged and still retries in place up to three times on `retry-after`.
+
 ## [0.4.6] - 2026-09-21
 
 ### Added

@@ -63,7 +63,7 @@ export function clientFor(options: Options): GitHubClient {
   if (options.auth === "pat") {
     return new PatClient(options.githubPat ?? "");
   }
-  return new GhClient();
+  return new GhClient(options.debug);
 }
 
 function optionsForState(
