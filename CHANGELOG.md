@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.5] - 2026-09-21
+
+### Added
+
+- **Docker image** — The repository now has a `Dockerfile`, and every release publishes `ghcr.io/groophylifefor/co-maintainer` tagged with the version (plus `latest` for stable releases). The image runs `serve --port=5000` as a non-root user on Node.js 26, bundles `git` and the codegraph version this release expects, and keeps all state in a `/data` volume. Its entrypoint clears a stale `app.db.lock`, because a container restarts with small PIDs that can match the PID a killed run left behind. The publish workflow builds and pushes the image after the npm publish and skips a version that is already on ghcr.io.
+
 ## [0.4.4] - 2026-09-21
 
 ### Added

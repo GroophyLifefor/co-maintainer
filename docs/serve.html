@@ -221,6 +221,34 @@ when the repo is active and rules allow it. Enable <strong>Issue comments</stron
 <strong>Issues: write</strong> on the App if you want <code>@co-maintainer</code> conversation replies.</p>
 <p>Manual PR review from the UI when GitHub cannot reach your host:
 <a href="dashboard.html#routes">Dashboard: Pull requests</a>.</p>
+<h2 id="run-with-docker">Run with Docker</h2>
+<p>Each release is also published as an image at
+<code>ghcr.io/groophylifefor/co-maintainer</code>, tagged with the version and, for stable
+releases, <code>latest</code>. It bundles Node.js, <code>git</code>, and the codegraph binary that
+reviews use.</p>
+<pre class="shell-block"><code><span class="sh-arg">docker</span> <span class="sh-arg">run</span> <span class="sh-arg">-d</span> <span class="sh-flag">--name</span> <span class="sh-arg">co-maintainer</span> <span class="sh-arg">-p</span> <span class="sh-arg">5000:5000</span> <span class="sh-arg">\</span>
+  -v co-maintainer-data:/data \
+  -e CM_WEBHOOK_URL=https://example.com/github/webhook \
+  ghcr.io/groophylifefor/co-maintainer:latest
+
+docker logs co-maintainer
+</code></pre>
+<p>The first start prints the dashboard password in the logs. To choose it yourself,
+set it on the volume before the first start:</p>
+<pre class="shell-block"><code><span class="sh-arg">docker</span> <span class="sh-arg">run</span> <span class="sh-flag">--rm</span> <span class="sh-arg">-v</span> <span class="sh-arg">co-maintainer-data:/data</span> <span class="sh-arg">\</span>
+  <span class="sh-arg">ghcr.io/groophylifefor/co-maintainer:latest</span> <span class="sh-arg">set</span> <span class="sh-flag">--password=your-dashboard-secret</span>
+</code></pre>
+<ul>
+<li>Everything lives in the <code>/data</code> volume: <code>config.json</code>, <code>app.db</code>, generated
+guides, and repository clones. Keep it to survive upgrades.</li>
+<li>The container listens on port <code>5000</code> and runs as the non-root <code>node</code> user
+(uid 1000). A bind mounted host folder must be writable by that user.</li>
+<li>The image runs <code>serve --port=5000</code> by default. Any other command works too,
+for example <code>... set --token=...</code>. The health check assumes port <code>5000</code>.</li>
+<li>Run one container per volume. Only one <code>serve</code> may write to an <code>app.db</code>.</li>
+<li>Upgrade by pulling the new tag and recreating the container with the same
+volume. Queued jobs that were interrupted are picked up again on start.</li>
+</ul>
 <h2 id="updating">Updating</h2>
 <p>Forward-only migrations: do not install an older CLI after a newer one has
 opened <code>app.db</code>.</p>
@@ -238,7 +266,7 @@ running. Same steps are listed on <a href="dashboard.html#updating">Dashboard: U
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#what-it-does">What it does</a></li><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#sign-in-to-the-dashboard">Sign in to the dashboard</a></li><li><a href="#webhook-url">Webhook URL</a></li><li><a href="#updating">Updating</a></li></ul></nav>
+      <ul><li><a href="#what-it-does">What it does</a></li><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#sign-in-to-the-dashboard">Sign in to the dashboard</a></li><li><a href="#webhook-url">Webhook URL</a></li><li><a href="#run-with-docker">Run with Docker</a></li><li><a href="#updating">Updating</a></li></ul></nav>
     </div>
   </div>
   <script src="assets/docs.js"></script>

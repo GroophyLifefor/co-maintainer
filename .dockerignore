@@ -1,0 +1,15 @@
+.git
+.github
+.env
+.cache
+node_modules
+dist
+docs
+benchmark
+z_flow
+repos
+*.tgz
+*.md
+!README.md
+Dockerfile
+.dockerignore
