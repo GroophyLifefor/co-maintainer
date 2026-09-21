@@ -53,6 +53,8 @@ Values from `set`, `--env=PATH`, or flags are not asked again.
 | `--max-commits=N` | Limit commits scanned on the default branch |
 | `--max-pull-request-change-lines=N` | Skip oversized PR diffs |
 | `--max-comment=N` | Cap discussion comments kept per pull request |
+| `--only-request-changed-pr` | Keep only pull requests with at least one `CHANGES_REQUESTED` review |
+| `--pr-state=open,closed,merged` | Keep a comma-separated subset of `open`, `closed`, and `merged` |
 | `--gh-concurrent=N` | Parallel GitHub fetches (default `1`) |
 | `--ai-concurrent=N` | Parallel AI jobs (default `3`) |
 | `--debug` | Verbose logs on stderr |
@@ -61,6 +63,19 @@ Values from `set`, `--env=PATH`, or flags are not asked again.
 **Include flags:** If you pass **any** `--include-*` on the command line, only
 the flags you list are enabled. With no `--include-*` flags, all sources default
 to on (unless a prior `init` stored different choices in config for this repo).
+
+**Pull request filters:** `--only-request-changed-pr` applies inside the
+`--max-pr-months` window. A dismissed review does not count. Dropped pull
+requests skip comment and diff downloads. The run logs
+`only request-changed pr · kept N · dropped N`. Off by default.
+`--pr-state` takes `open`, `closed`, and `merged`, separated by commas.
+`closed` means closed and not merged. Omit it to keep every state. The listing
+cache is stored per state set, so a different set is not filled from the
+previous listing.
+
+Both are saved for the repo. A later [`remake`](remake.md) without the flag
+keeps the saved choice. `--only-request-changed-pr` does not turn itself off.
+To collect every state again, pass `--pr-state=open,closed,merged`.
 
 Limits and include defaults can also come from [per-repo config](configuration.md#per-repo-memory) after the first successful run.
 

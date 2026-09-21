@@ -182,6 +182,14 @@ Values from <code>set</code>, <code>--env=PATH</code>, or flags are not asked ag
 <td>Cap discussion comments kept per pull request</td>
 </tr>
 <tr>
+<td><code>--only-request-changed-pr</code></td>
+<td>Keep only pull requests with at least one <code>CHANGES_REQUESTED</code> review</td>
+</tr>
+<tr>
+<td><code>--pr-state=open,closed,merged</code></td>
+<td>Keep a comma-separated subset of <code>open</code>, <code>closed</code>, and <code>merged</code></td>
+</tr>
+<tr>
 <td><code>--gh-concurrent=N</code></td>
 <td>Parallel GitHub fetches (default <code>1</code>)</td>
 </tr>
@@ -201,6 +209,17 @@ Values from <code>set</code>, <code>--env=PATH</code>, or flags are not asked ag
 <p><strong>Include flags:</strong> If you pass <strong>any</strong> <code>--include-*</code> on the command line, only
 the flags you list are enabled. With no <code>--include-*</code> flags, all sources default
 to on (unless a prior <code>init</code> stored different choices in config for this repo).</p>
+<p><strong>Pull request filters:</strong> <code>--only-request-changed-pr</code> applies inside the
+<code>--max-pr-months</code> window. A dismissed review does not count. Dropped pull
+requests skip comment and diff downloads. The run logs
+<code>only request-changed pr · kept N · dropped N</code>. Off by default.
+<code>--pr-state</code> takes <code>open</code>, <code>closed</code>, and <code>merged</code>, separated by commas.
+<code>closed</code> means closed and not merged. Omit it to keep every state. The listing
+cache is stored per state set, so a different set is not filled from the
+previous listing.</p>
+<p>Both are saved for the repo. A later <a href="remake.html"><code>remake</code></a> without the flag
+keeps the saved choice. <code>--only-request-changed-pr</code> does not turn itself off.
+To collect every state again, pass <code>--pr-state=open,closed,merged</code>.</p>
 <p>Limits and include defaults can also come from <a href="configuration.html#per-repo-memory">per-repo config</a> after the first successful run.</p>
 <h2 id="what-it-writes">What it writes</h2>
 <p>Under <code>&lt;config dir&gt;/repos/owner/repo/</code> (see <a href="caching.html">Caching</a>):</p>

@@ -246,9 +246,15 @@ is allowed again. Match <code>--unset=</code> to the field name or the flag name
 <td><code>include-*</code> flags</td>
 <td></td>
 </tr>
+<tr>
+<td><code>only-request-changed-pr</code>, <code>pr-state</code></td>
+<td></td>
+</tr>
 </tbody></table>
 <p>A plain <code>co-maintainer remake owner/repo</code> reuses those values. Pass new flags
-on <code>remake</code> or run <code>init</code> again to change includes or limits permanently.</p>
+on <code>remake</code> or run <code>init</code> again to change includes, limits, or pull request
+filters permanently. <code>--only-request-changed-pr</code> stays on once saved. To
+collect every pull request state again, pass <code>--pr-state=open,closed,merged</code>.</p>
 <p>Guide files (<code>SKILL.md</code>, <code>CODEBASE.md</code>, review guides) live under
 <code>&lt;config&gt;/co-maintainer/repos/&lt;slug&gt;/</code>, not in your git clone. See
 <a href="caching.html#generated-guides">Caching</a>.</p>

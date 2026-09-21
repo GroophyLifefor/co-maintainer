@@ -385,6 +385,7 @@ export async function runInitOrRemake(options: Options): Promise<void> {
       includeCommitHistory: options.includeCommitHistory,
       includeHowRepoWorks: options.includeHowRepoWorks,
       onlyRequestChangedPr: options.onlyRequestChangedPr,
+      prState: options.prState,
     });
   });
   log(
@@ -457,6 +458,7 @@ export function optionsFromConfig(
     includeCommitHistory: repoConfig.includeCommitHistory ?? true,
     includeHowRepoWorks: repoConfig.includeHowRepoWorks ?? true,
     onlyRequestChangedPr: repoConfig.onlyRequestChangedPr === true,
+    prState: repoConfig.prState,
     maxCommits: repoConfig.maxCommits ?? config.defaults?.maxCommits,
     maxPrMonths: repoConfig.maxPrMonths ?? config.defaults?.maxPrMonths,
     maxPullRequestChangeLines:

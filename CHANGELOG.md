@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.10] - 2026-09-21
+
+### Added
+
+- **`--pr-state=open,closed,merged`** — `init` and `remake` can keep a comma-separated subset of pull request states. `closed` is closed and not merged. Omit the flag to keep every state. The choice is saved for the repo, so a later `remake` without the flag keeps it; pass `--pr-state=open,closed,merged` to collect every state again. The listing cache is stored per state set, so a run with a different set does not reuse the previous listing. The listing log names the set (`pull request listing · merged · concurrency=…`).
+
+### Changed
+
+- **Init, remake, and per-repo config docs** — [`init`](docs/init.html), [`remake`](docs/remake.html), and [per-repo memory](docs/configuration.html#per-repo-memory) now document `--only-request-changed-pr` and `--pr-state`, including that a saved request-changed filter stays on.
+
 ## [0.4.9] - 2026-09-21
 
 ### Changed

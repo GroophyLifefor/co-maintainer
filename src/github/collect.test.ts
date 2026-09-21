@@ -439,3 +439,103 @@ test("pull request selection is unchanged when --only-request-changed-pr is off"
     await cacheDeletePrefix("pr-listing", repo);
   }
 });
+
+test("--pr-state filters the listing and does not reuse a different state's cache", async () => {
+  const repo = `fixture/state-${crypto.randomUUID()}`;
+  const calls: string[] = [];
+  const pulls = [
+    {
+      number: 1,
+      state: "open",
+      updated_at: "1",
+      head: { sha: "h1" },
+      additions: 1,
+      deletions: 0,
+      labels: [],
+    },
+    {
+      number: 2,
+      state: "closed",
+      merged_at: "2020-01-01T00:00:00Z",
+      updated_at: "1",
+      head: { sha: "h2" },
+      additions: 1,
+      deletions: 0,
+      labels: [],
+    },
+    {
+      number: 3,
+      state: "closed",
+      updated_at: "1",
+      head: { sha: "h3" },
+      additions: 1,
+      deletions: 0,
+      labels: [],
+    },
+  ];
+  const client: GitHubClient = {
+    async request<T>(endpoint: string): Promise<T> {
+      if (endpoint === `repos/${repo}`) return { default_branch: "main" } as T;
+      if (!endpoint.includes("/pulls?")) {
+        throw new Error(`unexpected request endpoint: ${endpoint}`);
+      }
+      calls.push(endpoint);
+      const page = Number(/[?&]page=(\d+)/.exec(endpoint)?.[1] ?? 1);
+      if (page > 1) return [] as T;
+      const query = new URLSearchParams(endpoint.split("?")[1]).get("state");
+      const items =
+        query === "open"
+          ? pulls.filter((pr) => pr.state === "open")
+          : query === "closed"
+            ? pulls.filter((pr) => pr.state === "closed")
+            : pulls;
+      return items as T;
+    },
+    async pages<T>(endpoint: string): Promise<T[]> {
+      calls.push(endpoint);
+      if (endpoint.includes("/reviews")) return [] as T[];
+      if (endpoint.includes("/comments")) return [] as T[];
+      if (endpoint.includes("/files")) return [] as T[];
+      throw new Error(`unexpected pages endpoint: ${endpoint}`);
+    },
+  };
+  const base = {
+    repo,
+    includeCodebase: false,
+    includePullRequests: true,
+    includePullRequestChanges: false,
+  };
+  try {
+    const merged = await collectSource(
+      client,
+      testOptions({ ...base, prState: ["merged"] }),
+    );
+    if (merged.pullRequests.map((pr) => pr.number).join(",") !== "2") {
+      throw new Error(
+        `expected merged #2, got ${merged.pullRequests.map((pr) => pr.number).join(",")}`,
+      );
+    }
+    if (calls.some((endpoint) => /\/pulls\/[13]\//.test(endpoint))) {
+      throw new Error(
+        `non-merged pull request was fetched: ${calls.join(" ")}`,
+      );
+    }
+    const lines: string[] = [];
+    const opened = await withLogSink(
+      (_phase, message) => lines.push(message),
+      () => collectSource(client, testOptions({ ...base, prState: ["open"] })),
+    );
+    if (opened.pullRequests.map((pr) => pr.number).join(",") !== "1") {
+      throw new Error(
+        `expected open #1, got ${opened.pullRequests.map((pr) => pr.number).join(",")}`,
+      );
+    }
+    if (lines.some((line) => line.includes("reused"))) {
+      throw new Error(
+        `open listing reused the merged cache: ${lines.join(" | ")}`,
+      );
+    }
+  } finally {
+    await cacheDeletePrefix("pr-listing", repo);
+  }
+});

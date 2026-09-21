@@ -29,6 +29,7 @@ export type RepoConfig = {
   includeCommitHistory?: boolean;
   includeHowRepoWorks?: boolean;
   onlyRequestChangedPr?: boolean;
+  prState?: ("open" | "closed" | "merged")[];
   /** Five field cron in UTC, checked by `serve` to queue a remake. */
   remakeCron?: string;
 };

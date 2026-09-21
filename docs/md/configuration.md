@@ -98,9 +98,12 @@ After each successful [`init`](init.md) or [`remake`](remake.md),
 | `auth`, `ai`, models | API token |
 | `max-*` limits | GitHub PAT (global only) |
 | `include-*` flags | |
+| `only-request-changed-pr`, `pr-state` | |
 
 A plain `co-maintainer remake owner/repo` reuses those values. Pass new flags
-on `remake` or run `init` again to change includes or limits permanently.
+on `remake` or run `init` again to change includes, limits, or pull request
+filters permanently. `--only-request-changed-pr` stays on once saved. To
+collect every pull request state again, pass `--pr-state=open,closed,merged`.
 
 Guide files (`SKILL.md`, `CODEBASE.md`, review guides) live under
 `<config>/co-maintainer/repos/<slug>/`, not in your git clone. See

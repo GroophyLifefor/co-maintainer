@@ -38,6 +38,8 @@ export type Options = {
   /** Keep only pull requests in the window that have at least one
    * `CHANGES_REQUESTED` review. Off by default, so the window is unchanged. */
   onlyRequestChangedPr: boolean;
+  /** Empty or omitted means every state. `closed` is closed and not merged. */
+  prState?: ("open" | "closed" | "merged")[];
   maxCommits?: number;
   maxPrMonths?: number;
   maxPullRequestChangeLines?: number;

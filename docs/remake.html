@@ -185,6 +185,14 @@ API token again if it is not in config or env.</p>
 <td>Cap discussion comments kept per pull request</td>
 </tr>
 <tr>
+<td><code>--only-request-changed-pr</code></td>
+<td>Keep only pull requests with at least one <code>CHANGES_REQUESTED</code> review</td>
+</tr>
+<tr>
+<td><code>--pr-state=open,closed,merged</code></td>
+<td>Keep a comma-separated subset of <code>open</code>, <code>closed</code>, and <code>merged</code></td>
+</tr>
+<tr>
 <td><code>--gh-concurrent=N</code></td>
 <td>Parallel GitHub fetches (default <code>1</code>)</td>
 </tr>
@@ -201,13 +209,24 @@ API token again if it is not in config or env.</p>
 <td>Print timing per phase</td>
 </tr>
 </tbody></table>
-<p><strong>Defaults on <code>remake</code>:</strong> With no flags, auth, models, <code>include-*</code>, and <code>max-*</code>
-usually come from <a href="configuration.html#per-repo-memory">per-repo config</a> written
-by the last <code>init</code> or <code>remake</code>. Omitted <code>--max-*</code> values are also filled from
-the cached run state for that repo.</p>
+<p><strong>Defaults on <code>remake</code>:</strong> With no flags, auth, models, <code>include-*</code>, <code>max-*</code>,
+<code>--only-request-changed-pr</code>, and <code>--pr-state</code> usually come from
+<a href="configuration.html#per-repo-memory">per-repo config</a> written by the last <code>init</code>
+or <code>remake</code>. Omitted <code>--max-*</code> values are also filled from the cached run
+state for that repo.</p>
 <p><strong>Include flags:</strong> If you pass <strong>any</strong> <code>--include-*</code> on the command line, only
 the flags you list are enabled. With no <code>--include-*</code> flags, the saved per-repo
 choices apply.</p>
+<p><strong>Pull request filters:</strong> <code>--only-request-changed-pr</code> applies inside the
+<code>--max-pr-months</code> window. A dismissed review does not count. Dropped pull
+requests skip comment and diff downloads. The run logs
+<code>only request-changed pr · kept N · dropped N</code>. Off until a run saves it.
+<code>--pr-state</code> takes <code>open</code>, <code>closed</code>, and <code>merged</code>, separated by commas.
+<code>closed</code> means closed and not merged. With no flag and no saved set, every
+state is kept. The listing cache is stored per state set, so a different set
+is not filled from the previous listing. <code>--only-request-changed-pr</code> does not
+turn itself off. To collect every state again, pass
+<code>--pr-state=open,closed,merged</code>.</p>
 <h2 id="what-gets-reused">What gets reused</h2>
 <ul>
 <li>Unchanged files on the default branch (tree SHA in cache)</li>

@@ -57,19 +57,33 @@ On the [dashboard](dashboard.md), **Remake** runs the same job as this command.
 | `--max-commits=N` | Limit commits scanned on the default branch |
 | `--max-pull-request-change-lines=N` | Skip oversized PR diffs |
 | `--max-comment=N` | Cap discussion comments kept per pull request |
+| `--only-request-changed-pr` | Keep only pull requests with at least one `CHANGES_REQUESTED` review |
+| `--pr-state=open,closed,merged` | Keep a comma-separated subset of `open`, `closed`, and `merged` |
 | `--gh-concurrent=N` | Parallel GitHub fetches (default `1`) |
 | `--ai-concurrent=N` | Parallel AI jobs (default `3`) |
 | `--debug` | Verbose logs on stderr |
 | `--log-time` | Print timing per phase |
 
-**Defaults on `remake`:** With no flags, auth, models, `include-*`, and `max-*`
-usually come from [per-repo config](configuration.md#per-repo-memory) written
-by the last `init` or `remake`. Omitted `--max-*` values are also filled from
-the cached run state for that repo.
+**Defaults on `remake`:** With no flags, auth, models, `include-*`, `max-*`,
+`--only-request-changed-pr`, and `--pr-state` usually come from
+[per-repo config](configuration.md#per-repo-memory) written by the last `init`
+or `remake`. Omitted `--max-*` values are also filled from the cached run
+state for that repo.
 
 **Include flags:** If you pass **any** `--include-*` on the command line, only
 the flags you list are enabled. With no `--include-*` flags, the saved per-repo
 choices apply.
+
+**Pull request filters:** `--only-request-changed-pr` applies inside the
+`--max-pr-months` window. A dismissed review does not count. Dropped pull
+requests skip comment and diff downloads. The run logs
+`only request-changed pr · kept N · dropped N`. Off until a run saves it.
+`--pr-state` takes `open`, `closed`, and `merged`, separated by commas.
+`closed` means closed and not merged. With no flag and no saved set, every
+state is kept. The listing cache is stored per state set, so a different set
+is not filled from the previous listing. `--only-request-changed-pr` does not
+turn itself off. To collect every state again, pass
+`--pr-state=open,closed,merged`.
 
 ## What gets reused
 

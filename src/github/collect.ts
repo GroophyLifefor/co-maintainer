@@ -37,7 +37,38 @@ function listingCovers(cachedMonths: number, current?: number): boolean {
   return cachedMonths >= current;
 }
 
-type CachedListing = { maxPrMonths: number; items: Json[] };
+function stateKey(states: Options["prState"]): string {
+  if (!states || states.length === 0) return "";
+  return [...states].sort().join(",");
+}
+
+/** `closed` is closed and not merged. GitHub's list has no merged state. */
+function matchesPrState(pr: Json, states: Options["prState"]): boolean {
+  if (!states || states.length === 0) return true;
+  const merged = Boolean(pr.merged_at);
+  const state = String(pr.state ?? "");
+  return states.some((wanted) => {
+    if (wanted === "merged") return merged;
+    if (wanted === "open") return state === "open";
+    return state === "closed" && !merged;
+  });
+}
+
+function listQueryState(states: Options["prState"]): "open" | "closed" | "all" {
+  if (!states || states.length === 0) return "all";
+  const wantsOpen = states.includes("open");
+  const wantsClosed = states.includes("closed") || states.includes("merged");
+  if (wantsOpen && wantsClosed) return "all";
+  if (wantsOpen) return "open";
+  return "closed";
+}
+
+type CachedListing = {
+  maxPrMonths: number;
+  /** Empty means every state. Missing on older caches, which listed everything. */
+  states?: string;
+  items: Json[];
+};
 
 async function loadListing(repo: string): Promise<CachedListing | undefined> {
   const raw = await cacheGet("pr-listing", repo);
@@ -50,12 +81,17 @@ async function loadListing(repo: string): Promise<CachedListing | undefined> {
 async function saveListing(
   repo: string,
   maxPrMonths: number | undefined,
+  states: Options["prState"],
   items: Json[],
 ): Promise<void> {
   await cacheSet(
     "pr-listing",
     repo,
-    JSON.stringify({ maxPrMonths: maxPrMonths ?? 0, items }),
+    JSON.stringify({
+      maxPrMonths: maxPrMonths ?? 0,
+      states: stateKey(states),
+      items,
+    }),
   );
 }
 
@@ -67,18 +103,20 @@ async function listPullRequestPages(
   const cached = await loadListing(options.repo);
   const canCatchUp =
     cached !== undefined &&
-    listingCovers(cached.maxPrMonths, options.maxPrMonths);
+    listingCovers(cached.maxPrMonths, options.maxPrMonths) &&
+    (cached.states ?? "") === stateKey(options.prState);
   const cachedByNumber = new Map(
     (cached?.items ?? []).map((pr) => [Number(pr.number), pr]),
   );
   const selected: Json[] = [];
   const seen = new Set<number>();
   const concurrency = Math.max(1, options.ghConcurrent);
-  log("fetch", `pull request listing · concurrency=${concurrency}`);
+  const states = stateKey(options.prState) || "all";
+  log("fetch", `pull request listing · ${states} · concurrency=${concurrency}`);
 
   const fetchPage = async (page: number): Promise<Json[]> => {
     const pageItems = await client.request<Json[]>(
-      `repos/${options.repo}/pulls?state=all&sort=updated&direction=desc&per_page=100&page=${page}`,
+      `repos/${options.repo}/pulls?state=${listQueryState(options.prState)}&sort=updated&direction=desc&per_page=100&page=${page}`,
     );
     return Array.isArray(pageItems) ? pageItems : [];
   };
@@ -99,6 +137,7 @@ async function listPullRequestPages(
         reason = "window reached";
         break;
       }
+      if (!matchesPrState(pr, options.prState)) continue;
       const number = Number(pr.number);
       selected.push(pr);
       seen.add(number);
@@ -141,6 +180,7 @@ async function listPullRequestPages(
       if (!withinPrWindow(String(pr.updated_at ?? ""), options.maxPrMonths)) {
         continue;
       }
+      if (!matchesPrState(pr, options.prState)) continue;
       selected.push(pr);
       seen.add(number);
       reused++;
@@ -153,7 +193,12 @@ async function listPullRequestPages(
     }
   }
 
-  await saveListing(options.repo, options.maxPrMonths, selected);
+  await saveListing(
+    options.repo,
+    options.maxPrMonths,
+    options.prState,
+    selected,
+  );
   return selected;
 }
 

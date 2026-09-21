@@ -81,6 +81,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
       "         --max-commits=N --max-pr-months=N --max-pull-request-change-lines=N --max-comment=N",
     );
     console.log("         --only-request-changed-pr");
+    console.log("         --pr-state=open,closed,merged");
     console.log(
       "         --auth=gh|pat --github-pat=... --ai=none|openrouter|hetzner --token=... --low-model=... --high-model=...",
     );
@@ -148,6 +149,28 @@ export async function parseArgs(args: string[]): Promise<Options> {
   };
   const text = (name: string): string | undefined =>
     rest.find((item) => item.startsWith(`--${name}=`))?.slice(name.length + 3);
+  const prStateOption = (
+    args: string[],
+    saved: ("open" | "closed" | "merged")[] | undefined,
+  ): ("open" | "closed" | "merged")[] | undefined => {
+    const prefix = "--pr-state=";
+    const raw = args
+      .find((arg) => arg.startsWith(prefix))
+      ?.slice(prefix.length);
+    if (raw === undefined) return saved && saved.length > 0 ? saved : undefined;
+    const allowed = ["open", "closed", "merged"] as const;
+    const parts = raw
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (
+      parts.length === 0 ||
+      parts.some((part) => !allowed.includes(part as (typeof allowed)[number]))
+    ) {
+      die("pr-state must be a comma-separated list of: open, closed, merged");
+    }
+    return [...new Set(parts)] as ("open" | "closed" | "merged")[];
+  };
   const choice = <T extends string>(
     name: string,
     allowed: T[],
@@ -172,6 +195,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
         "max-pr-months",
         "max-pull-request-change-lines",
         "max-comment",
+        "pr-state",
         "improve-matrix",
         "env",
         "gh-concurrent",
@@ -311,6 +335,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
     onlyRequestChangedPr:
       rest.includes("--only-request-changed-pr") ||
       repoConfig.onlyRequestChangedPr === true,
+    prState: prStateOption(rest, repoConfig.prState),
     maxCommits:
       value("max-commits") ?? repoConfig.maxCommits ?? configDefault.maxCommits,
     maxPrMonths:
