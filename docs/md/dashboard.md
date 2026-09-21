@@ -23,7 +23,7 @@ flowchart TD
 | ---- | ----------- |
 | First-time server setup | **Get started** on home or `/setup`, then **Settings** |
 | Onboard a repo | **Add repository**, wait on **Activity** |
-| Refresh guides after `main` moves | Repo **Overview** or **Settings** (Remake) |
+| Refresh guides after `main` moves | Repo **Overview** or **Settings** (Remake), or a cron schedule in repo **Settings** ([Scheduled remake](remake.md#scheduled-remake)) |
 | Team laptops without local init | **Settings** remote tokens, repo **Remote** tab |
 | Debug a failed job | **Activity** job detail |
 

@@ -1,6 +1,25 @@
 import { html, layout, repoNav, skSlot, text } from "./layout.ts";
 import type { RepoRow } from "../../store/rows.ts";
 import type { RepoConfig } from "../../config.ts";
+import { parseRemakeCron } from "../../services/remake_cron.ts";
+import { nextCronRun } from "../../util/cron.ts";
+
+function cronHint(repo: RepoRow, expression: string | undefined): string {
+  const notBuilt = repo.knowledge_built_at
+    ? ""
+    : " A schedule only runs after the first setup has finished.";
+  if (!expression) {
+    return `Leave blank to turn it off. For example, 0 3 * * 1 runs every Monday at 03:00.${notBuilt}`;
+  }
+  try {
+    const next = nextCronRun(parseRemakeCron(expression), new Date());
+    if (!next) return `This schedule has no run in the next year.${notBuilt}`;
+    return `Next run ${next.toISOString().slice(0, 16).replace("T", " ")} UTC.${notBuilt}`;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    return `This schedule is ignored, ${reason}.${notBuilt}`;
+  }
+}
 
 export function renderRepoSettings(
   username: string,
@@ -85,6 +104,17 @@ export function renderRepoSettings(
     </div>
     <div class="card" data-async>
       ${skSlot()}
+      <div class="hd"><h2>Scheduled remake</h2></div>
+      <div class="bd">
+        <p class="muted" style="margin:0 0 18px">Rebuild the knowledge for this repository on a schedule. Times are UTC and a remake runs at most once an hour.</p>
+        <div class="field wide"><label>Cron schedule</label>
+          <input id="cron" placeholder="0 3 * * 1" value="${text(config.remakeCron ?? "")}">
+          <div class="hint">${text(cronHint(repo, config.remakeCron))}</div></div>
+      </div>
+      <div class="ft"><button class="primary" id="save-cron">Save</button></div>
+    </div>
+    <div class="card" data-async>
+      ${skSlot()}
       <div class="hd"><h2>Remove</h2></div>
       <div class="bd" style="display:flex;align-items:center;gap:16px">
         <div class="txt">Stop reviewing this repository. Review history is kept.</div>
@@ -128,6 +158,9 @@ document.getElementById("save-init").addEventListener("click", function() {
     maxPullRequestChangeLines: num("lines"),
     maxComments: num("comments")
   });
+});
+document.getElementById("save-cron").addEventListener("click", function() {
+  save(this, { remakeCron: document.getElementById("cron").value.trim() });
 });
 document.getElementById("remove").addEventListener("click", function() {
   if (!confirm("Stop reviewing this repository?")) return;

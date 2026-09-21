@@ -1,6 +1,6 @@
 import { createApp } from "../app.ts";
 import { closeAppDb, openAppDb } from "../../store/app_db.ts";
-import { writeUserConfig } from "../../config.ts";
+import { readConfig, writeUserConfig } from "../../config.ts";
 import { registerHandler } from "../../services/jobs.ts";
 import { getRepo } from "../../store/repos.ts";
 import {
@@ -138,6 +138,66 @@ test("PATCH /api/repos stores reviewScope", async () => {
     }
     if (getRepo("acme/widgets")?.review_scope !== "incremental") {
       throw new Error("review_scope did not stick");
+    }
+  });
+});
+
+async function patchRepo(
+  authed: Awaited<ReturnType<typeof loggedInApp>>,
+  body: unknown,
+) {
+  return await authed("/api/repos/acme/widgets", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+test("PATCH /api/repos saves a remake schedule and clears it again", async () => {
+  await withTempEnv(async () => {
+    const authed = await loggedInApp();
+    await authed("/api/repos", {
+      method: "POST",
+      body: JSON.stringify({ repo: "acme/widgets" }),
+    });
+    const saved = await patchRepo(authed, { remakeCron: " 30 4 * * 1 " });
+    if (saved.status !== 200) throw new Error(`status ${saved.status}`);
+    if (readConfig().repos?.["acme/widgets"]?.remakeCron !== "30 4 * * 1") {
+      throw new Error("the schedule was not stored trimmed");
+    }
+    await patchRepo(authed, { autoReview: false });
+    if (!readConfig().repos?.["acme/widgets"]?.remakeCron) {
+      throw new Error("an unrelated save cleared the schedule");
+    }
+    const cleared = await patchRepo(authed, { remakeCron: null });
+    if (cleared.status !== 200) throw new Error(`status ${cleared.status}`);
+    if (readConfig().repos?.["acme/widgets"]?.remakeCron !== undefined) {
+      throw new Error("the schedule was not cleared");
+    }
+  });
+});
+
+test("PATCH /api/repos rejects a bad schedule without applying anything", async () => {
+  await withTempEnv(async () => {
+    const authed = await loggedInApp();
+    await authed("/api/repos", {
+      method: "POST",
+      body: JSON.stringify({ repo: "acme/widgets" }),
+    });
+    for (const remakeCron of ["nonsense", "* * * * *", 5]) {
+      const response = await patchRepo(authed, {
+        remakeCron,
+        reviewScope: "incremental",
+      });
+      if (response.status !== 422) {
+        throw new Error(`${remakeCron}: status ${response.status}`);
+      }
+      const body = await response.json();
+      if (body.error?.code !== "invalid_cron") {
+        throw new Error(`unexpected error ${JSON.stringify(body)}`);
+      }
+    }
+    if (getRepo("acme/widgets")?.review_scope === "incremental") {
+      throw new Error("a rejected request still changed the repo");
     }
   });
 });
