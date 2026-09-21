@@ -1,7 +1,10 @@
 # co-maintainer
 
-[![NPM Version](https://img.shields.io/npm/v/co-maintainer)](https://www.npmjs.com/package/co-maintainer) [![](https://img.shields.io/badge/blog-co_maintainer_an_imiator_of_yours-blue)](https://muratkirazkaya.com/blogs/co-maintainer-an-imitator-of-yours)
+[![NPM Version](https://img.shields.io/npm/v/co-maintainer)](https://www.npmjs.com/package/co-maintainer) [![](https://img.shields.io/badge/blog-co_maintainer_an_imitator_of_yours-blue)](https://muratkirazkaya.com/blogs/co-maintainer-an-imitator-of-yours)
 
+[Website](https://groophylifefor.github.io/co-maintainer/) ·
+[Docs](https://groophylifefor.github.io/co-maintainer/getting-started.html) ·
+[Cloud](https://dashboard.cm.ordu.dev/) (hosted, free, early access, invite only for now)
 
 `co-maintainer` analyzes a GitHub repository and writes repository-specific
 `SKILL.md` guidance that helps developers contribute changes more reliably.
@@ -19,23 +22,7 @@ npm install -g co-maintainer
 
 Requires Node.js 24 or newer.
 
-> **Migrating from JSR:** co-maintainer used to be published as
-> `jsr:@murat/co-maintainer` for Deno. JSR is deprecated and no longer updated;
-> install the npm package instead.
-
-On a Linux VPS, persist npm's global bin directory if the installer prints a
-PATH notice:
-
-```sh
-grep -qxF 'export PATH="$(npm prefix -g)/bin:$PATH"' ~/.bashrc || printf '\nexport PATH="$(npm prefix -g)/bin:$PATH"\n' >> ~/.bashrc
-source ~/.bashrc
-```
-
 ## Usage
-
-```sh
-co-maintainer probe owner/repo --auth=gh
-```
 
 ```sh
 co-maintainer probe owner/repo --auth=gh
@@ -55,24 +42,25 @@ co-maintainer review --json       # machine-readable stdout; logs on stderr
 npm run review-local-e2e        # fake-AI local loop (developers, from repo root)
 ```
 
-Documentation: [Getting started](docs/getting-started.html) (install → first
-review), [full docs site](docs/index.html), sources in [`docs/md/`](docs/md/).
+Documentation: [Getting started](https://groophylifefor.github.io/co-maintainer/getting-started.html)
+(install → first review), [full docs site](https://groophylifefor.github.io/co-maintainer/),
+sources in [`docs/md/`](docs/md/).
 
 Use `co-maintainer help`, `co-maintainer -h`, or `co-maintainer --help` for the
 full CLI help.
 
 ## Compared to other tools
 
-co-maintainer is a newly tool so not compared a lot of other tools. But did
-benchmarks with [OCR](https://open-codereview.ai/). Although I cannot offer any
-guarantees because I am working with very small datasets, but it shows promise.
+co-maintainer is a new tool, so it has not been compared with many others yet.
+It was benchmarked against [OCR](https://open-codereview.ai/). I cannot offer any
+guarantees because the datasets are very small, but it shows promise.
 
 In core_v2 benchmarks:
 
 - **2-3x better results** than OCR
 - **2-8x faster** than OCR
 - **70-200x fewer tokens** than OCR
-- **60-270x cheaper** than
+- **60-270x cheaper** than OCR
 
 ```mermaid
 xychart-beta
