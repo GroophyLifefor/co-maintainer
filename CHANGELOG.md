@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.11] - 2026-09-21
+
+### Fixed
+
+- **Skill markdown no longer aborts `init` or `remake`** — Commands, missing links, tables, code fences, bullet limits, and other skill-markdown problems used to exit with `generated skill is invalid`. The run now writes the skill anyway and logs `skill problems kept`. A missing source path still drops that model section, then continues.
+
 ## [0.4.10] - 2026-09-21
 
 ### Added

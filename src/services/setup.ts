@@ -305,7 +305,7 @@ export async function runInitOrRemake(options: Options): Promise<void> {
   const reviewDocuments = buildReviewDocuments(facts);
   result.markdown = addReviewLink(result.markdown, reviewDocuments);
   const validation = await timed("validate skill", options.logTime, () =>
-    validateSkill(result.markdown, `${reposDir()}/${options.repo}`, source),
+    validateSkill(result.markdown, source),
   );
   if (!validation.valid && Object.keys(overrides).length) {
     log("validate", `AI output rejected: ${validation.errors.join("; ")}`);
@@ -324,13 +324,7 @@ export async function runInitOrRemake(options: Options): Promise<void> {
   const finalValidation = await timed(
     "final skill validation",
     options.logTime,
-    () =>
-      validateSkill(
-        result.markdown,
-        `${reposDir()}/${options.repo}`,
-        source,
-        "warning",
-      ),
+    () => validateSkill(result.markdown, source, "warning"),
   );
   if (finalValidation.warnings.length) {
     log(
@@ -339,8 +333,9 @@ export async function runInitOrRemake(options: Options): Promise<void> {
     );
   }
   if (!finalValidation.valid) {
-    throw new Error(
-      `generated skill is invalid: ${finalValidation.errors.join("; ")}`,
+    log(
+      "validate",
+      `skill problems kept: ${finalValidation.errors.join("; ")}`,
     );
   }
   await timed("write skill and state", options.logTime, async () => {

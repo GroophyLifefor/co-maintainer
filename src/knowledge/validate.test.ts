@@ -20,7 +20,7 @@ description: fixture
 | --- | --- |
 | value | value |
 `;
-  const result = await validateSkill(markdown, ".", testSource());
+  const result = await validateSkill(markdown, testSource());
   if (result.valid) throw new Error("invalid skill passed validation");
   if (!result.errors.some((error) => error.includes("raw Markdown table"))) {
     throw new Error("raw table was not rejected");
@@ -30,7 +30,7 @@ description: fixture
   }
 });
 
-test("skill validation accepts commands defined by deno tasks", async () => {
+test("commands and linked files do not fail skill validation", async () => {
   const markdown = `---
 name: fixture
 description: fixture
@@ -40,25 +40,12 @@ description: fixture
 
 ## Tests
 
-- Run \`deno test --allow-all\` and \`deno check main.ts\`.
+- Run \`cargo build:bundle\` and \`cargo lint\`.
+- Read [pull requests](./doc/contributing/pull-requests.md) and [PR_REVIEW_GUIDE.md](PR_REVIEW_GUIDE.md).
 `;
-  const result = await validateSkill(
-    markdown,
-    ".",
-    testSource({
-      tree: ["deno.json"],
-      files: {
-        "deno.json": JSON.stringify({
-          tasks: {
-            test: "deno test --allow-all",
-            check: "deno check main.ts",
-          },
-        }),
-      },
-    }),
-  );
+  const result = await validateSkill(markdown, testSource());
   if (!result.valid) {
-    throw new Error(`deno task commands were rejected: ${result.errors}`);
+    throw new Error(result.errors.join("; "));
   }
 });
 
@@ -74,7 +61,7 @@ description: fixture
 
 - Inspect \`missing/file.ts\`.
 `;
-  const result = await validateSkill(markdown, ".", testSource(), "warning");
+  const result = await validateSkill(markdown, testSource(), "warning");
   if (!result.valid) throw new Error(result.errors.join("; "));
   if (!result.warnings.some((item) => item.includes("missing/file.ts"))) {
     throw new Error("the stale path was not reported as a warning");

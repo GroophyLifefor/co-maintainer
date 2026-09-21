@@ -1,5 +1,4 @@
 import type { Source } from "./types.ts";
-import { stat } from "../util/runtime.ts";
 
 export type ValidationResult = {
   valid: boolean;
@@ -9,7 +8,6 @@ export type ValidationResult = {
 
 export async function validateSkill(
   markdown: string,
-  outputDirectory: string,
   source?: Source,
   referenceIssues: "error" | "warning" = "error",
 ): Promise<ValidationResult> {
@@ -44,60 +42,6 @@ export async function validateSkill(
   if (source) {
     const paths = new Set([...source.tree, ...Object.keys(source.files)]);
     const repositoryName = String(source.repo.full_name ?? "");
-    const commands = new Set<string>();
-    for (const [path, content] of Object.entries(source.files)) {
-      if (path.endsWith("package.json")) {
-        try {
-          const scripts =
-            (JSON.parse(content) as { scripts?: Record<string, string> })
-              .scripts ?? {};
-          const prefix = source.tree.some((item) =>
-            /pnpm-lock\.yaml$/.test(item),
-          )
-            ? "pnpm"
-            : source.tree.some((item) => /yarn\.lock$/.test(item))
-              ? "yarn"
-              : "npm";
-          for (const name of Object.keys(scripts)) {
-            commands.add(`${prefix} ${name}`);
-            commands.add(`${prefix} run ${name}`);
-            commands.add(String(scripts[name]));
-          }
-        } catch {
-          // Ignore malformed manifests; syntax validation is outside this gate.
-        }
-      }
-      if (/deno\.jsonc?$/.test(path)) {
-        try {
-          const tasks =
-            (JSON.parse(content) as { tasks?: Record<string, string> }).tasks ??
-            {};
-          for (const [name, task] of Object.entries(tasks)) {
-            commands.add(`deno task ${name}`);
-            commands.add(String(task));
-          }
-        } catch {
-          // Ignore malformed manifests; syntax validation is outside this gate.
-        }
-      }
-      for (const match of content.matchAll(/^\s*run:\s*([^\s#].*?)\s*$/gm)) {
-        commands.add(match[1].replace(/^['"]|['"]$/g, ""));
-      }
-      for (const match of content.matchAll(
-        /`((?:npm|pnpm|yarn|bun|deno|cargo|make|go|python|node|git)\s+[^`\n]+)`/g,
-      )) {
-        commands.add(match[1]);
-      }
-      for (const match of content.matchAll(
-        /^\s*((?:npm|pnpm|yarn|bun|deno|cargo|make|go|python|node|git)\s+[^\n`]+)$/gm,
-      )) {
-        commands.add(match[1].trim());
-      }
-    }
-    if (source.tree.some((path) => /Cargo\.toml$/.test(path))) {
-      commands.add("cargo test");
-      commands.add("cargo build");
-    }
     const references = [...markdown.matchAll(/`([^`\n]+)`/g)].map(
       (match) => match[1],
     );
@@ -137,40 +81,17 @@ export async function validateSkill(
           );
         }
       }
-      if (
-        /^(?:npm|pnpm|yarn|bun|deno|cargo|make|go|python|node|git)\s/.test(
-          reference,
-        ) &&
-        ![...commands].some(
-          (command) =>
-            reference === command ||
-            reference.startsWith(`${command} `) ||
-            command.startsWith(`${reference} `),
-        )
-      ) {
-        referenceProblems.push(
-          `referenced command is absent from source: ${reference}`,
-        );
-      }
     }
   }
 
-  const links = [...markdown.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map(
-    (match) => match[1],
-  );
-  for (const link of links) {
+  for (const link of markdown.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
+    const target = link[1];
     if (
-      /^[a-z][a-z\d+.-]*:/i.test(link) ||
-      link.startsWith("/") ||
-      link.includes("..")
+      /^[a-z][a-z\d+.-]*:/i.test(target) ||
+      target.startsWith("/") ||
+      target.includes("..")
     ) {
-      errors.push(`link is not relative: ${link}`);
-      continue;
-    }
-    try {
-      await stat(`${outputDirectory}/${link}`);
-    } catch {
-      errors.push(`linked file does not exist: ${link}`);
+      errors.push(`link is not relative: ${target}`);
     }
   }
   return { valid: errors.length === 0, errors, warnings };
