@@ -68,6 +68,7 @@ starts keep it.
 | `--webhook-url=...` | Public webhook URL GitHub should use (also `CM_WEBHOOK_URL` or saved in Settings) |
 | `--disable-auth=password` | Turn off password sign-in for this run |
 | `--enable-auth=github` | Turn on GitHub OAuth sign-in for this run |
+| `--trust-proxy` | Trust `x-forwarded-for` and `x-forwarded-proto` from a reverse proxy in front (also `CM_TRUST_PROXY=1`, see [Behind a reverse proxy](#behind-a-reverse-proxy)) |
 | `--inject-500` | Every mutating `/api/*` call returns 500 (failure UI testing, also `CM_INJECT_500=1`) |
 
 Per-run `--disable-auth` / `--enable-auth` override values from `co-maintainer
@@ -119,6 +120,22 @@ when the repo is active and rules allow it. Enable **Issue comments** and
 
 Manual PR review from the UI when GitHub cannot reach your host:
 [Dashboard: Pull requests](dashboard.md#routes).
+
+## Behind a reverse proxy
+
+Put `serve` behind nginx, Traefik, Caddy, or a load balancer and start it with
+`--trust-proxy` (or `CM_TRUST_PROXY=1`). Two things change:
+
+- **Client address.** Sign-in lockout counts failed attempts per address. Without
+  the flag every visitor arrives from the proxy's address, so five wrong guesses
+  from anyone lock the owner out. With it, `serve` uses the last address in
+  `x-forwarded-for`, the one your proxy appended, and ignores anything a visitor
+  put to its left. A value that is not an IP address is ignored.
+- **Secure cookies.** When the last `x-forwarded-proto` is `https`, the session
+  cookie is sent with the `Secure` flag.
+
+Only turn this on when a proxy you control sits in front and sets both headers.
+Without one, a visitor could send the headers themselves.
 
 ## Run with Docker
 

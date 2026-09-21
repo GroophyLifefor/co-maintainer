@@ -181,6 +181,10 @@ starts keep it.</p>
 <td>Turn on GitHub OAuth sign-in for this run</td>
 </tr>
 <tr>
+<td><code>--trust-proxy</code></td>
+<td>Trust <code>x-forwarded-for</code> and <code>x-forwarded-proto</code> from a reverse proxy in front (also <code>CM_TRUST_PROXY=1</code>, see <a href="#behind-a-reverse-proxy">Behind a reverse proxy</a>)</td>
+</tr>
+<tr>
 <td><code>--inject-500</code></td>
 <td>Every mutating <code>/api/*</code> call returns 500 (failure UI testing, also <code>CM_INJECT_500=1</code>)</td>
 </tr>
@@ -221,6 +225,20 @@ when the repo is active and rules allow it. Enable <strong>Issue comments</stron
 <strong>Issues: write</strong> on the App if you want <code>@co-maintainer</code> conversation replies.</p>
 <p>Manual PR review from the UI when GitHub cannot reach your host:
 <a href="dashboard.html#routes">Dashboard: Pull requests</a>.</p>
+<h2 id="behind-a-reverse-proxy">Behind a reverse proxy</h2>
+<p>Put <code>serve</code> behind nginx, Traefik, Caddy, or a load balancer and start it with
+<code>--trust-proxy</code> (or <code>CM_TRUST_PROXY=1</code>). Two things change:</p>
+<ul>
+<li><strong>Client address.</strong> Sign-in lockout counts failed attempts per address. Without
+the flag every visitor arrives from the proxy&#39;s address, so five wrong guesses
+from anyone lock the owner out. With it, <code>serve</code> uses the last address in
+<code>x-forwarded-for</code>, the one your proxy appended, and ignores anything a visitor
+put to its left. A value that is not an IP address is ignored.</li>
+<li><strong>Secure cookies.</strong> When the last <code>x-forwarded-proto</code> is <code>https</code>, the session
+cookie is sent with the <code>Secure</code> flag.</li>
+</ul>
+<p>Only turn this on when a proxy you control sits in front and sets both headers.
+Without one, a visitor could send the headers themselves.</p>
 <h2 id="run-with-docker">Run with Docker</h2>
 <p>Each release is also published as an image at
 <code>ghcr.io/groophylifefor/co-maintainer</code>, tagged with the version and, for stable
@@ -266,7 +284,7 @@ running. Same steps are listed on <a href="dashboard.html#updating">Dashboard: U
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#what-it-does">What it does</a></li><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#sign-in-to-the-dashboard">Sign in to the dashboard</a></li><li><a href="#webhook-url">Webhook URL</a></li><li><a href="#run-with-docker">Run with Docker</a></li><li><a href="#updating">Updating</a></li></ul></nav>
+      <ul><li><a href="#what-it-does">What it does</a></li><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#sign-in-to-the-dashboard">Sign in to the dashboard</a></li><li><a href="#webhook-url">Webhook URL</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li><li><a href="#run-with-docker">Run with Docker</a></li><li><a href="#updating">Updating</a></li></ul></nav>
     </div>
   </div>
   <script src="assets/docs.js"></script>

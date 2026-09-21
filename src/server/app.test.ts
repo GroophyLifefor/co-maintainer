@@ -306,3 +306,121 @@ test("inject500 returns 500 on mutating api except login", async () => {
     }
   });
 });
+
+async function failFiveTimes(
+  app: ReturnType<typeof createApp>,
+  socket: string,
+  forwardedFor: (attempt: number) => string | undefined,
+): Promise<void> {
+  for (let i = 0; i < 5; i++) {
+    const headers: Record<string, string> = withCsrf();
+    const forwarded = forwardedFor(i);
+    if (forwarded) headers["x-forwarded-for"] = forwarded;
+    const response = await app.fetch(
+      postJson("/api/login", { password: "nope" }, headers),
+      socket,
+    );
+    if (response.status !== 401) throw new Error(`status ${response.status}`);
+  }
+}
+
+function loginFrom(
+  app: ReturnType<typeof createApp>,
+  socket: string,
+  forwardedFor?: string,
+) {
+  const headers: Record<string, string> = withCsrf();
+  if (forwardedFor) headers["x-forwarded-for"] = forwardedFor;
+  return app.fetch(
+    postJson("/api/login", { password: PASSWORD }, headers),
+    socket,
+  );
+}
+
+test("behind a trusted proxy the lockout follows the visitor, not the proxy", async () => {
+  await withTempDb(async () => {
+    const app = createApp({ password: PASSWORD, trustProxy: true });
+    await failFiveTimes(app, "10.9.0.1", () => "198.51.100.10");
+    if ((await loginFrom(app, "10.9.0.1", "198.51.100.10")).status !== 401) {
+      throw new Error("the attacking visitor was not locked out");
+    }
+    const other = await loginFrom(app, "10.9.0.1", "198.51.100.11");
+    if (other.status !== 200) {
+      throw new Error(`another visitor behind the proxy got ${other.status}`);
+    }
+  });
+});
+
+test("a visitor cannot dodge the lockout by forging the left of x-forwarded-for", async () => {
+  await withTempDb(async () => {
+    const app = createApp({ password: PASSWORD, trustProxy: true });
+    await failFiveTimes(app, "10.9.0.2", (i) => `192.0.2.${i}, 198.51.100.20`);
+    const locked = await loginFrom(
+      app,
+      "10.9.0.2",
+      "192.0.2.99, 198.51.100.20",
+    );
+    if (locked.status !== 401) {
+      throw new Error(
+        `forged left entries reset the lockout: ${locked.status}`,
+      );
+    }
+  });
+});
+
+test("without trustProxy x-forwarded-for is ignored", async () => {
+  await withTempDb(async () => {
+    const app = createApp({ password: PASSWORD });
+    await failFiveTimes(app, "198.51.100.30", (i) => `192.0.2.${i}`);
+    const locked = await loginFrom(app, "198.51.100.30", "192.0.2.200");
+    if (locked.status !== 401) {
+      throw new Error(`a spoofed header escaped the lockout: ${locked.status}`);
+    }
+  });
+});
+
+test("an unusable x-forwarded-for falls back to the socket address", async () => {
+  await withTempDb(async () => {
+    const app = createApp({ password: PASSWORD, trustProxy: true });
+    await failFiveTimes(app, "198.51.100.40", () => "not-an-address");
+    const locked = await loginFrom(app, "198.51.100.40", "not-an-address");
+    if (locked.status !== 401) throw new Error(`status ${locked.status}`);
+  });
+});
+
+test("the session cookie is Secure only when a trusted proxy says https", async () => {
+  await withTempDb(async () => {
+    const cookieFor = async (
+      deps: Parameters<typeof createApp>[0],
+      proto?: string,
+    ) => {
+      const headers: Record<string, string> = withCsrf();
+      if (proto) headers["x-forwarded-proto"] = proto;
+      const response = await createApp(deps).fetch(
+        postJson("/api/login", { password: PASSWORD }, headers),
+        `198.51.100.${Math.floor(Math.random() * 200) + 50}`,
+      );
+      return response.headers.get("set-cookie") ?? "";
+    };
+    const trusted = { password: PASSWORD, trustProxy: true };
+    if (!(await cookieFor(trusted, "https")).includes("Secure")) {
+      throw new Error("no Secure flag behind an https proxy");
+    }
+    if (!(await cookieFor(trusted, "http, https")).includes("Secure")) {
+      throw new Error("the last hop was not honored");
+    }
+    if ((await cookieFor(trusted, "http")).includes("Secure")) {
+      throw new Error("Secure was set for plain http");
+    }
+    if ((await cookieFor(trusted)).includes("Secure")) {
+      throw new Error("Secure was set with no forwarded scheme");
+    }
+    if ((await cookieFor({ password: PASSWORD }, "https")).includes("Secure")) {
+      throw new Error("an untrusted header set the Secure flag");
+    }
+    const forced = { password: PASSWORD, secureCookie: true };
+    if (!(await cookieFor(forced)).includes("Secure")) {
+      throw new Error("secureCookie did not force the flag");
+    }
+  });
+});
