@@ -36,6 +36,13 @@ export function startHeartbeat(phase: string | (() => string)): () => void {
       `still running ${label()} · ${Math.round((Date.now() - started) / 1000)}s elapsed`,
     );
   }, 15_000);
+  // Never keep the process alive on its own (CORE-11). A long operation holds
+  // the loop open through its own pending async work (a fetch, a child), so the
+  // heartbeat still fires; but once that work is gone the timer must not be the
+  // reason the process cannot drain and apply its exit code. Every call site
+  // used to clear this by hand on the success path only, so any thrown error
+  // leaked it and the CLI hung instead of exiting.
+  timer.unref();
   return () => clearInterval(timer);
 }
 

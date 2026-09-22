@@ -35,3 +35,16 @@ export class CliError extends Error {
 export function die(message: string, code = "usage"): never {
   throw new CliError(code, message, undefined, EXIT_USAGE);
 }
+
+/** Ends the CLI with `code`, letting the event loop drain first.
+ *
+ * `process.exit` while undici's fetch connection pool is still open asserts in
+ * libuv on Windows (`Assertion failed: !(handle->flags & UV_HANDLE_CLOSING),
+ * file src\win\async.c, line 94`) and the process dies with 0xC0000409 instead
+ * of the intended code. Every provider and remote call uses fetch, so this is
+ * reachable from any error path after a request. Setting `exitCode` and letting
+ * the loop empty is what the probe confirms is crash-free and immediate (the
+ * undici pool does not keep the process alive). CORE-11. */
+export function exitWith(code: number): void {
+  process.exitCode = code;
+}

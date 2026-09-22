@@ -1,7 +1,7 @@
 import { VERSION } from "../version.ts";
 import type { ReviewCliArgs } from "../cli/review_args.ts";
 import { printLocalReview } from "../cli/review_output.ts";
-import { CliError, EXIT_USAGE } from "../cli/error.ts";
+import { CliError, EXIT_USAGE, exitWith } from "../cli/error.ts";
 import {
   formatHumanJsonFindings,
   type JsonReviewFinding,
@@ -148,7 +148,7 @@ export async function runRemoteReview(
       } else {
         console.log("No changes to review.");
       }
-      process.exit(0);
+      exitWith(0);
     }
 
     const handshake = await remoteFetch(host, token, "/api/remote/handshake", {
@@ -302,7 +302,7 @@ export async function runRemoteReview(
           );
         }
         const findings = (payload.result.findings ?? []) as JsonReviewFinding[];
-        process.exit(reviewExitCodeFromJsonFindings(findings));
+        exitWith(reviewExitCodeFromJsonFindings(findings));
       }
       if (payload.status === "failed" || payload.status === "canceled") {
         die(

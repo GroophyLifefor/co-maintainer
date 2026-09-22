@@ -48,7 +48,7 @@ import {
   headSha,
   ReviewCliError,
 } from "./git_ops.ts";
-import { EXIT_RUNTIME } from "../cli/error.ts";
+import { EXIT_RUNTIME, exitWith } from "../cli/error.ts";
 import {
   buildLocalRevision,
   mergeBase,
@@ -77,7 +77,7 @@ function storedFindings(resolved: ResolvedFinding[]): StoredFinding[] {
     }));
 }
 
-function fail(error: ReviewCliError, json: boolean): never {
+function fail(error: ReviewCliError, json: boolean): void {
   if (json) {
     console.log(
       JSON.stringify({
@@ -91,10 +91,9 @@ function fail(error: ReviewCliError, json: boolean): never {
     console.error(error.message);
     if (error.hint) console.error(`Hint: ${error.hint}`);
   }
-  // `process.exit`, not `exitCode`, for now: a full drain would need the open
-  // handle cleanup CORE-11 owns, and returning early currently leaves child
-  // processes alive. CORE-11 flips this.
-  process.exit(error.exitCode);
+  // Set the exit code and return; `process.exit` here would assert in libuv on
+  // Windows whenever a fetch pool is open (CORE-11).
+  exitWith(error.exitCode);
 }
 
 function installInterruptCleanup(
@@ -116,7 +115,7 @@ function installInterruptCleanup(
         }),
       );
     }
-    process.exit(EXIT_RUNTIME);
+    exitWith(EXIT_RUNTIME);
   };
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     try {
@@ -221,7 +220,7 @@ export async function runLocalReview(
         } else {
           console.log("No changes to review.");
         }
-        process.exit(0);
+        exitWith(0);
       }
 
       const subjectId = localSubjectId(repo, root, branch);
@@ -290,10 +289,12 @@ export async function runLocalReview(
           ),
         );
       } finally {
+        // Stopping the heartbeat on the error path too, otherwise the interval
+        // keeps the event loop alive and a post-fetch exit never lands (CORE-11).
+        stopHeartbeat();
         await lock?.release();
         lock = null;
       }
-      stopHeartbeat();
       const codegraphState = codegraphPrep.state;
 
       const visiblePaths = new Set(response.visiblePaths);
@@ -387,9 +388,12 @@ export async function runLocalReview(
             "\n",
         );
       }
-      process.exit(reviewExitCodeFromResolved(allResolved));
+      exitWith(reviewExitCodeFromResolved(allResolved));
     } catch (error) {
-      if (error instanceof ReviewCliError) fail(error, json);
+      if (error instanceof ReviewCliError) {
+        fail(error, json);
+        return;
+      }
       throw error;
     } finally {
       clearInterrupt();

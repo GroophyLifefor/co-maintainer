@@ -7,7 +7,7 @@ import { runProbe } from "./commands/probe.ts";
 import { runReviewFromCli } from "./commands/review.ts";
 import { runInitOrRemake } from "../services/setup.ts";
 import { VERSION } from "../version.ts";
-import { CliError, EXIT_RUNTIME } from "./error.ts";
+import { CliError, EXIT_RUNTIME, exitWith } from "./error.ts";
 
 export async function run(args: string[]): Promise<void> {
   if (args[0] === "-v" || args[0] === "--version") {
@@ -60,5 +60,5 @@ export function reportCliError(error: unknown): void {
     console.error(`[error] ${cli.message}`);
     if (cli.hint) console.error(`Hint: ${cli.hint}`);
   }
-  process.exit(cli.exitCode);
+  exitWith(cli.exitCode);
 }

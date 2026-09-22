@@ -39,23 +39,18 @@ test("error: die throws a usage CliError with a code and no hint", () => {
 });
 
 test("error: an unclassified throw is a runtime failure", () => {
-  const previous = process.exit;
-  let code: number | undefined;
-  process.exit = ((value?: number) => {
-    code = value ?? 0;
-    throw new Error("sentinel");
-  }) as typeof process.exit;
+  const previousCode = process.exitCode;
   const error = console.error;
   const lines: string[] = [];
   console.error = (...parts: unknown[]) => lines.push(parts.join(" "));
   try {
+    process.exitCode = undefined;
     reportCliError(new Error("fetch failed"));
-  } catch {
-    // the stand-in exit throws to unwind
   } finally {
-    process.exit = previous;
     console.error = error;
   }
+  const code = process.exitCode;
+  process.exitCode = previousCode;
   if (code !== EXIT_RUNTIME) throw new Error(`exit ${code}`);
   if (!lines.join("\n").includes("[error] fetch failed")) {
     throw new Error(`output: ${lines.join("\n")}`);
@@ -63,16 +58,12 @@ test("error: an unclassified throw is a runtime failure", () => {
 });
 
 test("error: a hint prints on its own line as `Hint: ...`", () => {
-  const previous = process.exit;
-  let code: number | undefined;
-  process.exit = ((value?: number) => {
-    code = value ?? 0;
-    throw new Error("sentinel");
-  }) as typeof process.exit;
+  const previousCode = process.exitCode;
   const error = console.error;
   const lines: string[] = [];
   console.error = (...parts: unknown[]) => lines.push(parts.join(" "));
   try {
+    process.exitCode = undefined;
     reportCliError(
       new CliError(
         "remote_not_configured",
@@ -80,12 +71,11 @@ test("error: a hint prints on its own line as `Hint: ...`", () => {
         "co-maintainer set --remote-host=... --remote-token=...",
       ),
     );
-  } catch {
-    // unwind
   } finally {
-    process.exit = previous;
     console.error = error;
   }
+  const code = process.exitCode;
+  process.exitCode = previousCode;
   if (code !== EXIT_USAGE) throw new Error(`exit ${code}`);
   const text = lines.join("\n");
   if (!text.startsWith("[error] Remote review is not configured.")) {
