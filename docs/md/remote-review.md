@@ -18,7 +18,7 @@ Overview: [`review`](review.md). Requires [`serve`](serve.md) and the
 | Server running `co-maintainer serve` | Hosts remote review API and shared repo context |
 | Repo added on the dashboard with **init** / **sync** | Guides live on the server for everyone |
 | **Settings → Remote review** token (`cmr_…`) | Bearer auth for the CLI |
-| `co-maintainer set --remote-host=... --remote-token=...` on the laptop | CLI knows where to connect |
+| `co-maintainer set --remote-host=... --remote-token=...` on the laptop | CLI knows where to connect (or pass `--remote-host=` / `--remote-token=` for one run) |
 | Git clone with the same diff you would use for local review | Command is still `review --remote` with no PR number |
 
 You do **not** need a local `init` / `sync` for that repo if the server
@@ -33,6 +33,8 @@ co-maintainer set --remote-host=https://your-server --remote-token=cmr_...
 cd your/clone
 co-maintainer review --remote
 co-maintainer review --remote --json --disable-codegraph
+# One-off, without saving host and token to the config:
+co-maintainer review --remote --remote-host=https://your-server --remote-token=cmr_...
 ```
 
 ## Parameters
@@ -48,6 +50,8 @@ Same as [local review](local-review.md) for diff and output flags:
 | `--to-branch=<name>` | Diff base branch |
 | `--branch=<name>` | Branch when HEAD is detached |
 | `--repo=owner/repo` | Override remote detection |
+| `--remote-host=<url>` | Override the configured host for this run (needs `--remote`) |
+| `--remote-token=<token>` | Override the configured token for this run (needs `--remote`) |
 | `--debug` | Verbose stderr |
 | `--log-time` | Phase timings |
 

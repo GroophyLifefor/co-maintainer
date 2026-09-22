@@ -138,8 +138,8 @@ test("error: `review --remote` unconfigured exits 2 with the setup hint", async 
       throw new Error(`json exitCode: ${body.exitCode}`);
     }
     if (
-      body.error.hint !==
-      "co-maintainer set --remote-host=... --remote-token=..."
+      !body.error.hint?.includes("co-maintainer config set remote-host") ||
+      !body.error.hint?.includes("config set remote-token")
     ) {
       throw new Error(`hint: ${body.error.hint}`);
     }

@@ -343,6 +343,18 @@ export const COMMANDS: CommandSpec[] = [
               "Send the diff to the configured remote server instead of reviewing locally.",
           },
           {
+            name: "remote-host",
+            value: "URL",
+            description:
+              "Override the configured remote host for this run (needs --remote).",
+          },
+          {
+            name: "remote-token",
+            value: "TOKEN",
+            description:
+              "Override the configured remote token for this run (needs --remote).",
+          },
+          {
             name: "sync-before-review",
             description: "Rebuild the guides before reviewing.",
           },
@@ -369,6 +381,7 @@ export const COMMANDS: CommandSpec[] = [
       "co-maintainer review owner/repo 42 --json",
       "co-maintainer review --json --disable-codegraph",
       "co-maintainer review --remote --json",
+      "co-maintainer review --remote --remote-host=https://review.example.com --remote-token=cmr_...",
     ],
   },
   {

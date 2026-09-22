@@ -90,7 +90,7 @@ still run on the laptop and return results through the tool bridge.</p>
 </tr>
 <tr>
 <td><code>co-maintainer set --remote-host=... --remote-token=...</code> on the laptop</td>
-<td>CLI knows where to connect</td>
+<td>CLI knows where to connect (or pass <code>--remote-host=</code> / <code>--remote-token=</code> for one run)</td>
 </tr>
 <tr>
 <td>Git clone with the same diff you would use for local review</td>
@@ -105,6 +105,8 @@ already has it.</p>
 cd your/clone
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-flag">--remote</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-flag">--remote</span> <span class="sh-flag">--json</span> <span class="sh-flag">--disable-codegraph</span>
+<span class="sh-comment"># One-off, without saving host and token to the config:</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-flag">--remote</span> <span class="sh-flag">--remote-host=https://your-server</span> <span class="sh-flag">--remote-token=cmr_...</span>
 </code></pre>
 <h2 id="parameters">Parameters</h2>
 <p>Same as <a href="local-review.html">local review</a> for diff and output flags:</p>
@@ -142,6 +144,14 @@ cd your/clone
 <tr>
 <td><code>--repo=owner/repo</code></td>
 <td>Override remote detection</td>
+</tr>
+<tr>
+<td><code>--remote-host=&lt;url&gt;</code></td>
+<td>Override the configured host for this run (needs <code>--remote</code>)</td>
+</tr>
+<tr>
+<td><code>--remote-token=&lt;token&gt;</code></td>
+<td>Override the configured token for this run (needs <code>--remote</code>)</td>
 </tr>
 <tr>
 <td><code>--debug</code></td>

@@ -14,6 +14,10 @@ type ReviewFlags = {
   branch?: string;
   repoOverride?: string;
   remakeBeforeReview: boolean;
+  /** `--remote-host` override for this run only (CORE-25). */
+  remoteHost?: string;
+  /** `--remote-token` override for this run only (CORE-25). */
+  remoteToken?: string;
 };
 
 export type ReviewCliArgs =
@@ -31,6 +35,8 @@ function reviewFlags(rest: string[]): {
   branch?: string;
   repoOverride?: string;
   remakeBeforeReview: boolean;
+  remoteHost?: string;
+  remoteToken?: string;
 } {
   const text = (name: string) =>
     rest.find((item) => item.startsWith(`--${name}=`))?.slice(name.length + 3);
@@ -57,6 +63,8 @@ function reviewFlags(rest: string[]): {
     branch: text("branch"),
     repoOverride: text("repo"),
     remakeBeforeReview: syncBeforeReview,
+    remoteHost: text("remote-host"),
+    remoteToken: text("remote-token"),
   };
 }
 
@@ -77,7 +85,9 @@ export function filterReviewConfigArgs(raw: string[]): string[] {
     if (
       arg.startsWith("--to-branch=") ||
       arg.startsWith("--branch=") ||
-      arg.startsWith("--repo=")
+      arg.startsWith("--repo=") ||
+      arg.startsWith("--remote-host=") ||
+      arg.startsWith("--remote-token=")
     ) {
       return false;
     }
@@ -89,6 +99,11 @@ export function filterReviewConfigArgs(raw: string[]): string[] {
 export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
   const positional = args.filter((a) => !a.startsWith("--"));
   const flags = reviewFlags(args);
+  // `--remote-host` / `--remote-token` only mean something together with
+  // `--remote`; silently dropping them is exactly the F33 surprise (CORE-25).
+  if ((flags.remoteHost || flags.remoteToken) && !flags.remote) {
+    die("--remote-host and --remote-token require --remote");
+  }
   // `--json` must never prompt (plan §8.7). `parseArgs` only receives the
   // filtered args, and `--json` is stripped before it sees them, so the flag
   // has to be applied here rather than after the parse returns.
@@ -98,6 +113,9 @@ export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
     /^[^/]+\/[^/]+$/.test(positional[0]!) &&
     /^\d+$/.test(positional[1]!);
   if (isPr) {
+    if (flags.remoteHost || flags.remoteToken) {
+      die("--remote-host is only for remote review without a PR number");
+    }
     const options = await parseArgs([
       "review",
       positional[0],

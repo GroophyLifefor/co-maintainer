@@ -64,7 +64,7 @@ function baseUrl(host: string): string {
     die(
       "remote_not_configured",
       "remoteHost must be an absolute http(s) URL.",
-      "co-maintainer set --remote-host=https://your-server",
+      "co-maintainer config set remote-host https://your-server",
     );
   }
   return trimmed;
@@ -114,13 +114,17 @@ export async function runRemoteReview(
   cli: ReviewCliArgs & { mode: "remote" },
 ): Promise<void> {
   const config = readConfig();
-  const host = config.remoteHost;
-  const token = config.remoteToken;
+  // Inline flags win over the saved config for this run only (CORE-25), so a
+  // one-off review does not have to be written to disk first.
+  const host = cli.remoteHost ?? config.remoteHost;
+  const token = cli.remoteToken ?? config.remoteToken;
   if (!host || !token) {
     die(
       "remote_not_configured",
       "Remote review is not configured.",
-      "co-maintainer set --remote-host=... --remote-token=...",
+      "co-maintainer config set remote-host https://your-server " +
+        "&& co-maintainer config set remote-token <token> " +
+        "(or pass --remote-host=... --remote-token=... for one run)",
     );
   }
 
@@ -324,6 +328,10 @@ export async function runRemoteReview(
         }
         const findings = (payload.result.findings ?? []) as JsonReviewFinding[];
         exitWith(reviewExitCodeFromJsonFindings(findings));
+        // `done` is terminal. Without this return the loop polls `sync` again
+        // and, since the server keeps reporting the same finished job, the
+        // client reprints the result and re-requests forever (CORE-25).
+        return;
       }
       if (payload.status === "failed" || payload.status === "canceled") {
         die(
