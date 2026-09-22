@@ -2,22 +2,22 @@
   "name": "co-maintainer",
   "version": "0.4.13",
   "description": "Analyzes a GitHub repository and writes repository-specific contribution guidance.",
+  "keywords": [
+    "ai",
+    "code-review",
+    "github",
+    "maintainer",
+    "pull-request"
+  ],
+  "homepage": "https://github.com/GroophyLifefor/co-maintainer#readme",
+  "bugs": {
+    "url": "https://github.com/GroophyLifefor/co-maintainer/issues"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/GroophyLifefor/co-maintainer"
   },
-  "homepage": "https://github.com/GroophyLifefor/co-maintainer#readme",
-  "bugs": {
-    "url": "https://github.com/GroophyLifefor/co-maintainer/issues"
-  },
-  "keywords": [
-    "github",
-    "pull-request",
-    "code-review",
-    "maintainer",
-    "ai"
-  ],
   "bin": {
     "co-maintainer": "dist/main.js"
   },
@@ -52,7 +52,8 @@
     "swe-prbench-prepare": "node benchmark/swe-prbench/prepare_dataset.ts",
     "e2e": "node scripts/e2e.ts",
     "review-local-e2e": "node scripts/review_local_e2e.ts",
-    "docs:build": "node scripts/build_docs.ts"
+    "docs:build": "node scripts/build_docs.ts",
+    "pack:smoke": "node scripts/pack_smoke.ts"
   },
   "dependencies": {
     "marked": "^15.0.7"

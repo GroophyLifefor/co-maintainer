@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - dx/**
+
+# A force-push to the same branch makes the previous run moot, so cancel it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
+    # The Windows runner is the slow one. Anything past this is a hang, not a
+    # slow test, and the plan budgets it under twenty minutes.
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run lint
+      - run: npm run fmt:check
+      - name: Test
+        run: npm test
+        env:
+          # Tests must never reach a real AI provider.
+          CM_FAKE_AI: "1"
+      - run: npm run build
+      - name: Package smoke
+        run: npm run pack:smoke
