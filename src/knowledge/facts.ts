@@ -514,15 +514,17 @@ export function extractFacts(source: Source, options: Options): Fact[] {
         reviewText.match(new RegExp(`\\b${term}\\w*\\b`, "g")) ?? []
       ).length;
       if (count >= 2) {
-        add(
-          facts,
-          fact(
+        add(facts, {
+          ...fact(
             "review-bar",
             instruction,
             `review discussion (${count} mentions)`,
             count,
           ),
-        );
+          // A rule mined from discussion across several pull requests is
+          // repository policy, not one request's narrative (CORE-32).
+          origin: "repository",
+        });
       }
     }
     if (source.pullRequests.some((pr) => pr.additions + pr.deletions > 1000)) {

@@ -1,6 +1,7 @@
 import { AiBatch } from "../ai/batch.ts";
 import type { AiValidator, SkippedUnit } from "../ai/batch.ts";
-import { sectionTitles } from "./sections.ts";
+import { isPullRequestFact } from "./guide.ts";
+import { sectionAllowsPrFacts, sectionTitles } from "./sections.ts";
 import type { AiProvider, AiRequest, AiResponse, Options } from "../types.ts";
 import type { Fact, PullRequest, Source } from "./types.ts";
 
@@ -51,6 +52,7 @@ function factsFromResponse(
   text: string,
   evidence: string,
   defaultScope: Fact["scope"],
+  origin: Fact["origin"],
 ): Fact[] {
   const parsed = parseJson(text);
   if (!Array.isArray(parsed)) {
@@ -84,6 +86,7 @@ function factsFromResponse(
         scope,
         confidence,
         status: "active",
+        origin,
       },
     ];
   });
@@ -177,7 +180,7 @@ function validateFacts(
   defaultScope: Fact["scope"],
 ): string | null {
   try {
-    factsFromResponse(response.text, evidence, defaultScope);
+    factsFromResponse(response.text, evidence, defaultScope, "repository");
     return null;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -240,26 +243,34 @@ function sectionGoal(key: string): string {
 }
 
 function synthesisFacts(facts: Fact[], key: string): Fact[] {
-  return facts
-    .filter((item) => item.sectionKey === key)
-    .sort(
-      (a, b) =>
-        (b.status === "active" ? 1 : 0) - (a.status === "active" ? 1 : 0) ||
-        ({
-          current: 3,
-          "repeated-history": 2,
-          "historical-example": 1,
-        }[b.scope] ?? 0) -
+  return (
+    facts
+      // A section that states repository policy never learns from a single pull
+      // request's narrative; only `review-bar` may (CORE-32 / F26b).
+      .filter(
+        (item) =>
+          item.sectionKey === key &&
+          (sectionAllowsPrFacts(key) || !isPullRequestFact(item)),
+      )
+      .sort(
+        (a, b) =>
+          (b.status === "active" ? 1 : 0) - (a.status === "active" ? 1 : 0) ||
           ({
             current: 3,
             "repeated-history": 2,
             "historical-example": 1,
-          }[a.scope] ?? 0) ||
-        b.weight - a.weight ||
-        b.evidence.length - a.evidence.length ||
-        a.claim.localeCompare(b.claim),
-    )
-    .slice(0, 20);
+          }[b.scope] ?? 0) -
+            ({
+              current: 3,
+              "repeated-history": 2,
+              "historical-example": 1,
+            }[a.scope] ?? 0) ||
+          b.weight - a.weight ||
+          b.evidence.length - a.evidence.length ||
+          a.claim.localeCompare(b.claim),
+      )
+      .slice(0, 20)
+  );
 }
 
 export type SkippedUnits = SkippedUnit[];
@@ -366,6 +377,9 @@ ${files}`,
           response.text,
           evidence[index],
           scopes[index] ?? "historical-example",
+          evidence[index] === "repository files"
+            ? "repository"
+            : "pull-request",
         ).filter(
           (item) =>
             !hasUnsupportedIdentifier(item.claim, source) &&
@@ -456,6 +470,10 @@ export async function synthesizeSections(
   for (const key of [...new Set(facts.map((item) => item.sectionKey))]) {
     if (onlySections && !onlySections.has(key)) continue;
     const relevant = synthesisFacts(facts, key);
+    // A section whose only facts came from a single pull request has no
+    // repository policy to synthesize, so it is left to the deterministic
+    // renderer instead of asking the model for an empty answer (CORE-32).
+    if (!relevant.length) continue;
     keys.push(key);
     requests.push({
       job: "synth_section",

@@ -14,7 +14,7 @@ import { extractFacts } from "../knowledge/facts.ts";
 import { buildReviewDocuments, reviewSignalCount } from "../knowledge/guide.ts";
 import {
   assembleSkill,
-  extractSections,
+  codebaseBody,
   factSectionHashes,
 } from "../knowledge/skill.ts";
 import { validateSkill } from "../knowledge/validate.ts";
@@ -28,7 +28,7 @@ import { closeAppDb, isAppDbOpen, openAppDb } from "../store/app_db.ts";
 import { getRepo, markKnowledgeBuilt } from "../store/repos.ts";
 import { nowIso } from "../util/time.ts";
 import type { AiResponse, GitHubClient, Options } from "../types.ts";
-import type { Source, State } from "../knowledge/types.ts";
+import type { Fact, Source, State } from "../knowledge/types.ts";
 import type { LogFn } from "./jobs.ts";
 import type { JobRow } from "../store/rows.ts";
 import { mkdir, readTextFile, remove } from "../util/runtime.ts";
@@ -144,17 +144,16 @@ async function writeReviewDocuments(
 /** Splits the codebase-description sections (layout/style/tests/devloop) out
  * of the assembled skill into their own file, so `review` can check a pull
  * request against how this repository's code actually looks, not just the
- * review-bar checklist mined from past PR comments. */
+ * review-bar checklist mined from past PR comments. The skill links to this
+ * file rather than repeating it (CORE-32 / F26c), so its body is built from
+ * the facts instead of being scraped back out of the skill. */
 async function writeCodebaseDocument(
   repo: string,
-  skillMarkdown: string,
+  facts: Fact[],
+  overrides: Record<string, string> = {},
 ): Promise<void> {
   const path = `${reposDir()}/${repo}/CODEBASE.md`;
-  const sections = extractSections(skillMarkdown);
-  const body = ["layout", "style", "tests", "devloop"]
-    .map((key) => sections[key])
-    .filter(Boolean)
-    .join("\n\n");
+  const body = codebaseBody(facts, overrides);
   if (!body) {
     await remove(path).catch(() => {});
     return;
@@ -372,7 +371,7 @@ async function initOrRemake(options: Options): Promise<void> {
     const { writeTextFileAtomic } = await import("../util/atomic.ts");
     await withKnowledgeLock(options.repo, async () => {
       await writeTextFileAtomic(path, result.markdown);
-      await writeCodebaseDocument(options.repo, result.markdown);
+      await writeCodebaseDocument(options.repo, facts, overrides);
       await writeReviewDocuments(
         options.repo,
         reviewDocuments,

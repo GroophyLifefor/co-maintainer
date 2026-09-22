@@ -227,6 +227,13 @@ To collect every state again, pass <code>--pr-state=open,closed,merged</code>.</
 <li><code>SKILL.md</code> and <code>CODEBASE.md</code></li>
 <li><code>PR_REVIEW_GUIDE.md</code> and related review guides when PR sources were included</li>
 </ul>
+<p><code>SKILL.md</code> holds the contribution guidance and links to <code>CODEBASE.md</code> for the
+codebase sections (layout, style, tests, development and debugging), so the same
+text is not repeated in both files and paid for twice in a review prompt.
+<code>CODEBASE.md</code> is where that text actually lives.</p>
+<p>Findings read out of a single pull request stay out of the guidance sections: a
+request under review describes that request, not how the repository works. Only
+the review-bar checklist, built from repeated review signals, learns from them.</p>
 <p>The two review guides need at least three selected review signals, drawn from
 PR discussions and merged-PR feedback. A repository with fewer keeps only
 <code>SKILL.md</code> and <code>CODEBASE.md</code>. When that happens <code>init</code> says why on one line:</p>

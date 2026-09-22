@@ -86,6 +86,15 @@ Under `<config dir>/repos/owner/repo/` (see [Caching](caching.md)):
 - `SKILL.md` and `CODEBASE.md`
 - `PR_REVIEW_GUIDE.md` and related review guides when PR sources were included
 
+`SKILL.md` holds the contribution guidance and links to `CODEBASE.md` for the
+codebase sections (layout, style, tests, development and debugging), so the same
+text is not repeated in both files and paid for twice in a review prompt.
+`CODEBASE.md` is where that text actually lives.
+
+Findings read out of a single pull request stay out of the guidance sections: a
+request under review describes that request, not how the repository works. Only
+the review-bar checklist, built from repeated review signals, learns from them.
+
 The two review guides need at least three selected review signals, drawn from
 PR discussions and merged-PR feedback. A repository with fewer keeps only
 `SKILL.md` and `CODEBASE.md`. When that happens `init` says why on one line:

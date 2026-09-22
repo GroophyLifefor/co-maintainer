@@ -5,8 +5,24 @@ export type ReviewDocuments = {
   detailed?: string;
 };
 
-function reviewFacts(facts: Fact[]): Fact[] {
+/** A fact read out of a single pull request describes that request, not the
+ * repository. `origin` is absent on facts written before the field existed, so
+ * those count as repository policy (CORE-32 / F26b). */
+export function isPullRequestFact(item: Fact): boolean {
+  return item.origin === "pull-request";
+}
+
+function dedupe(items: Fact[]): Fact[] {
   const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = item.claim.toLowerCase().replace(/\W+/g, " ").trim();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function reviewBarFacts(facts: Fact[]): Fact[] {
   return facts
     .filter(
       (item) =>
@@ -17,13 +33,21 @@ function reviewFacts(facts: Fact[]): Fact[] {
             evidence.startsWith("review discussion"),
         ),
     )
-    .sort((a, b) => b.weight - a.weight || a.claim.localeCompare(b.claim))
-    .filter((item) => {
-      const key = item.claim.toLowerCase().replace(/\W+/g, " ").trim();
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    .sort((a, b) => b.weight - a.weight || a.claim.localeCompare(b.claim));
+}
+
+/** The short guide's checklist: every recurring review signal, including the
+ * ones mined from pull requests (CORE-32 keeps this file's PR source). */
+function reviewFacts(facts: Fact[]): Fact[] {
+  return dedupe(reviewBarFacts(facts));
+}
+
+/** The detailed guide's checklist: only expectations backed by repository-wide
+ * evidence, never a single pull request's narrative (CORE-32). */
+function detailedFacts(facts: Fact[]): Fact[] {
+  return dedupe(
+    reviewBarFacts(facts).filter((item) => !isPullRequestFact(item)),
+  );
 }
 
 function detailedDocument(facts: Fact[]): string {
@@ -73,7 +97,7 @@ export function buildReviewDocuments(
   const selected = reviewFacts(facts);
   if (selected.length <= 2) return undefined;
 
-  const detailed = detailedDocument(selected.slice(0, 120));
+  const detailed = detailedDocument(detailedFacts(facts).slice(0, 120));
   const detailedLines = detailed.trimEnd().split("\n").length;
   if (detailedLines <= 100) {
     return {

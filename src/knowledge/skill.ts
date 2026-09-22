@@ -1,5 +1,11 @@
 import type { Fact } from "./types.ts";
-import { sectionKeys, sectionTitles } from "./sections.ts";
+import { isPullRequestFact } from "./guide.ts";
+import {
+  codebaseSectionKeys,
+  sectionAllowsPrFacts,
+  sectionKeys,
+  sectionTitles,
+} from "./sections.ts";
 
 function sectionFacts(facts: Fact[], key: string): Fact[] {
   return facts
@@ -7,10 +13,58 @@ function sectionFacts(facts: Fact[], key: string): Fact[] {
     .sort((a, b) => b.weight - a.weight);
 }
 
+/** Facts a section may state. A fact read out of a single pull request is that
+ * request's narrative, not a rule, so only `review-bar` may use it (CORE-32 /
+ * F26b). Facts written before `origin` existed count as repository policy. */
+function usableFacts(facts: Fact[], key: string): Fact[] {
+  const items = sectionFacts(facts, key);
+  return sectionAllowsPrFacts(key)
+    ? items
+    : items.filter((item) => !isPullRequestFact(item));
+}
+
+/** The link that stands in for a codebase section's text. */
+function isCodebaseLink(section: string): boolean {
+  return section.includes("[CODEBASE.md](CODEBASE.md)");
+}
+
 function render(key: string, facts: Fact[]): string {
-  const items = sectionFacts(facts, key).slice(0, 6);
+  if (codebaseSectionKeys.has(key)) {
+    return `## ${sectionTitles[key] ?? key}\n\nSee [CODEBASE.md](CODEBASE.md).`;
+  }
+  const items = usableFacts(facts, key).slice(0, 6);
   if (!items.length) return "";
   return `## ${sectionTitles[key] ?? key}\n\n${items.map((item) => `- ${item.claim}`).join("\n")}`;
+}
+
+function codebaseSectionText(
+  key: string,
+  facts: Fact[],
+  overrides: Record<string, string>,
+): string {
+  const override = overrides[key]?.trim();
+  if (override && hasBullets(override) && !isCodebaseLink(override)) {
+    return cleanSection(override);
+  }
+  const items = usableFacts(facts, key).slice(0, 6);
+  if (!items.length) return "";
+  return `## ${sectionTitles[key] ?? key}\n\n${items
+    .map((item) => `- ${item.claim}`)
+    .join("\n")}`;
+}
+
+/** The full text of the sections that live in `CODEBASE.md`. The skill itself
+ * only links to that file, so this is the single place the codebase guidance is
+ * written out: the synthesized override when there is one, otherwise the
+ * rendered facts (CORE-32 / F26c). */
+export function codebaseBody(
+  facts: Fact[],
+  overrides: Record<string, string> = {},
+): string {
+  return [...codebaseSectionKeys]
+    .map((key) => codebaseSectionText(key, facts, overrides))
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 function cleanSection(value: string): string {
@@ -54,24 +108,28 @@ async function hash(value: string): Promise<string> {
     .join("");
 }
 
+/** The fields that decide a section's text. `origin` is included so a fact
+ * moving from PR narrative to repository policy (or the reverse) counts as a
+ * change rather than reusing a section built under the old rule (CORE-32). */
+function hashInput(item: Fact): unknown[] {
+  return [
+    item.id,
+    item.claim,
+    item.weight,
+    item.scope,
+    item.confidence,
+    item.status,
+    item.origin ?? "repository",
+  ];
+}
+
 export async function factSectionHashes(
   facts: Fact[],
 ): Promise<Record<string, string>> {
   const hashes: Record<string, string> = {};
   for (const key of new Set(facts.map((item) => item.sectionKey))) {
     const relevant = sectionFacts(facts, key);
-    hashes[key] = await hash(
-      JSON.stringify(
-        relevant.map((item) => [
-          item.id,
-          item.claim,
-          item.weight,
-          item.scope,
-          item.confidence,
-          item.status,
-        ]),
-      ),
-    );
+    hashes[key] = await hash(JSON.stringify(relevant.map(hashInput)));
   }
   return hashes;
 }
@@ -99,32 +157,30 @@ export async function assembleSkill(
     const content = render(key, facts);
     if (!content) continue;
     const relevant = sectionFacts(facts, key);
-    const sectionHash = await hash(
-      JSON.stringify(
-        relevant.map((item) => [
-          item.id,
-          item.claim,
-          item.weight,
-          item.scope,
-          item.confidence,
-          item.status,
-        ]),
-      ),
-    );
+    const sectionHash = await hash(JSON.stringify(relevant.map(hashInput)));
     hashes[key] = sectionHash;
     const canonicalHeading = `## ${sectionTitles[key] ?? key}`;
-    const hasOverride = Object.hasOwn(overrides, key);
+    // The codebase sections hold a link, not text, so the skill never takes a
+    // synthesized override for them; the override goes to CODEBASE.md instead.
+    const hasOverride =
+      Object.hasOwn(overrides, key) && !codebaseSectionKeys.has(key);
     if (
       !hasOverride &&
       previousMarkdown &&
       previousHashes[key] === sectionHash &&
-      previous[key]?.startsWith(canonicalHeading)
+      previous[key]?.startsWith(canonicalHeading) &&
+      // A section whose shape changed (the codebase sections now carry a link
+      // instead of the text) is rewritten rather than kept because its facts
+      // happen to be unchanged.
+      isCodebaseLink(content) === isCodebaseLink(previous[key])
     ) {
       sections[key] = cleanSection(previous[key]);
       continue;
     }
     const section = hasOverride ? overrides[key] : content;
-    if (!hasBullets(section)) continue;
+    // A codebase section is a link, not a bullet list, so it is kept even
+    // though it has no bullets; a text section without bullets is dropped.
+    if (!isCodebaseLink(section) && !hasBullets(section)) continue;
     sections[key] = section;
     changed.push(key);
   }
