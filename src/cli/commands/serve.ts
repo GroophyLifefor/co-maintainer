@@ -24,16 +24,13 @@ import { startRemoteWatchdog } from "../../remote/server/sessions.ts";
 import { passwordProblem } from "../../util/password.ts";
 import { serveHttp } from "../../server/http.ts";
 import { currentPlatform, getEnv, type Platform } from "../../util/runtime.ts";
+import { die } from "../error.ts";
 
 /** `undefined` on Linux, otherwise one line naming the platform (a pure
  * function so it is testable without actually being off Linux). */
 export function platformWarning(os: Platform): string | undefined {
   if (os === "linux") return undefined;
   return `running on ${os}. Linux (WSL included) is the recommended platform for serve — see PLAN.md Decision 5.`;
-}
-
-function die(message: string): never {
-  throw new Error(message);
 }
 
 function generatePassword(): string {

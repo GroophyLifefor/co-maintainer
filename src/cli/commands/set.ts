@@ -1,10 +1,7 @@
 import { writeUserConfig } from "../../config.ts";
 import { hashPassword, passwordProblem } from "../../util/password.ts";
 import { readTextFile } from "../../util/runtime.ts";
-
-function die(message: string): never {
-  throw new Error(message);
-}
+import { die } from "../error.ts";
 
 function text(args: string[], name: string): string | undefined {
   return args

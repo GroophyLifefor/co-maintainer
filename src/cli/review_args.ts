@@ -1,4 +1,5 @@
 import { parseArgs, setCliInteractive } from "./args.ts";
+import { die } from "./error.ts";
 import type { Options } from "../types.ts";
 
 export type ReviewMode = "local" | "remote" | "pr";
@@ -19,10 +20,6 @@ export type ReviewCliArgs =
   | ({ mode: "pr"; options: Options } & ReviewFlags)
   | ({ mode: "local"; rawArgs: string[] } & ReviewFlags)
   | ({ mode: "remote"; rawArgs: string[] } & ReviewFlags);
-
-function die(message: string): never {
-  throw new Error(message);
-}
 
 function reviewFlags(rest: string[]): {
   json: boolean;

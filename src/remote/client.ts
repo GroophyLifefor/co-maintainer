@@ -1,6 +1,7 @@
 import { VERSION } from "../version.ts";
 import type { ReviewCliArgs } from "../cli/review_args.ts";
 import { printLocalReview } from "../cli/review_output.ts";
+import { CliError, EXIT_USAGE } from "../cli/error.ts";
 import {
   formatHumanJsonFindings,
   type JsonReviewFinding,
@@ -20,7 +21,6 @@ import {
   currentBranch,
   detectRemoteRepo,
   gitRoot,
-  ReviewCliError,
 } from "../local/git_ops.ts";
 import {
   buildLocalRevision,
@@ -48,9 +48,9 @@ function die(
   code: string,
   message: string,
   hint?: string,
-  exitCode = 2,
+  exitCode = EXIT_USAGE,
 ): never {
-  throw new ReviewCliError(code, message, hint, exitCode);
+  throw new CliError(code, message, hint, exitCode);
 }
 
 function baseUrl(host: string): string {

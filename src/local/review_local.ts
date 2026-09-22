@@ -28,7 +28,6 @@ import {
   type StoredFinding,
 } from "../review/carry_over.ts";
 import { revisionHash } from "../review/revision.ts";
-import type { ParsedFinding } from "../pr/findings.ts";
 import { parseFindings } from "../pr/findings.ts";
 import { type ReviewExtras, reviewWorkspaceRevision } from "../pr/reviewer.ts";
 import { runCommand } from "../pr/checkout.ts";
@@ -49,6 +48,7 @@ import {
   headSha,
   ReviewCliError,
 } from "./git_ops.ts";
+import { EXIT_RUNTIME } from "../cli/error.ts";
 import {
   buildLocalRevision,
   mergeBase,
@@ -91,6 +91,9 @@ function fail(error: ReviewCliError, json: boolean): never {
     console.error(error.message);
     if (error.hint) console.error(`Hint: ${error.hint}`);
   }
+  // `process.exit`, not `exitCode`, for now: a full drain would need the open
+  // handle cleanup CORE-11 owns, and returning early currently leaves child
+  // processes alive. CORE-11 flips this.
   process.exit(error.exitCode);
 }
 
@@ -109,11 +112,11 @@ function installInterruptCleanup(
             code: "aborted",
             message: "Review canceled.",
           },
-          exitCode: 3,
+          exitCode: EXIT_RUNTIME,
         }),
       );
     }
-    process.exit(3);
+    process.exit(EXIT_RUNTIME);
   };
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     try {

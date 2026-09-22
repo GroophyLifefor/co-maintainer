@@ -2,10 +2,7 @@ import type { Options } from "../types.ts";
 import { prepareConfig } from "../config.ts";
 import { getEnv } from "../util/runtime.ts";
 import { askLine } from "./prompt.ts";
-
-function die(message: string): never {
-  throw new Error(message);
-}
+import { die } from "./error.ts";
 
 function numberOption(value: string, name: string): number {
   const number = Number(value);
