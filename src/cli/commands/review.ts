@@ -20,6 +20,7 @@ import {
 } from "../review_result.ts";
 import { parseFindings } from "../../pr/findings.ts";
 import { exitWith } from "../error.ts";
+import { printRunSummary, summaryFromMetrics } from "../../util/run_summary.ts";
 
 export async function runReviewFromCli(args: string[]): Promise<void> {
   const parsed = await parseReviewArgs(args);
@@ -108,6 +109,9 @@ async function runReviewPr(
         printLocalReview(
           `co-maintainer review · ${options.repo} · PR #${options.prNumber}`,
           result.text,
+        );
+        printRunSummary(
+          summaryFromMetrics(aiMetrics, performance.now() - operationStarted),
         );
         if (options.logTime) {
           log(

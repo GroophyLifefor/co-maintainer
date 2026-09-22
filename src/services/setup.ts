@@ -18,6 +18,7 @@ import { readConfig, reposDir, writeRepoConfig } from "../config.ts";
 import { readState, writeState } from "../store/skill_state.ts";
 import { cacheSet } from "../store/cache_db.ts";
 import { log, timed, withLogSink } from "../util/log.ts";
+import { printRunSummary, summaryFromMetrics } from "../util/run_summary.ts";
 import { enqueue, registerHandler } from "./jobs.ts";
 import { closeAppDb, isAppDbOpen, openAppDb } from "../store/app_db.ts";
 import { getRepo, markKnowledgeBuilt } from "../store/repos.ts";
@@ -406,6 +407,9 @@ async function initOrRemake(options: Options): Promise<void> {
   log(
     "done",
     `${facts.length} facts · ${source.pullRequests.length} pull requests · ${source.commits.length} commits`,
+  );
+  printRunSummary(
+    summaryFromMetrics(aiMetrics, performance.now() - operationStarted),
   );
   if (options.logTime) {
     log(

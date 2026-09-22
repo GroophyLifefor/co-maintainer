@@ -88,3 +88,14 @@ Under `<config dir>/repos/owner/repo/` (see [Caching](caching.md)):
 
 Evidence and AI job results go into `cache.db` for faster [`sync`](sync.md).
 After `init` succeeds, run [`review`](review.md) on a PR or local changes.
+
+## What it reports
+
+The last line on stderr is the run's cost and time:
+
+    Done in 21.0s · 3,125 in, 1,308 out tokens · $0.0016
+
+When the provider does not report a price the dollar field is `cost unknown`,
+and a cache-hit [`sync`](sync.md) that made no AI call still prints the line
+with `0 in, 0 out tokens`. stdout is unchanged, so `--json` and piped output
+stay clean. [`review`](review.md) prints the same line.

@@ -33,6 +33,7 @@ import {
   resolveBaseRef,
 } from "../local/git_revision.ts";
 import { withCliLogsToStderr } from "../util/log.ts";
+import { printRunSummary, summaryFromMetrics } from "../util/run_summary.ts";
 import { setCliInteractive } from "../cli/args.ts";
 import {
   MIN_SERVER_SCHEMA,
@@ -130,6 +131,7 @@ export async function runRemoteReview(
 
   setCliInteractive(!cli.json);
   await withCliLogsToStderr(async () => {
+    const reviewStarted = performance.now();
     const root = await gitRoot(process.cwd());
     await assertGitQuiet(root);
     const repo = await detectRemoteRepo(root, cli.repoOverride);
@@ -325,6 +327,24 @@ export async function runRemoteReview(
             `co-maintainer review · ${repo} · ${branch} (remote)\n${summaryLine}`,
             formatHumanJsonFindings(findings),
           );
+          const usage = payload.result.usage as
+            | { tokensIn?: number; tokensOut?: number; costUsd?: number | null }
+            | undefined;
+          if (usage) {
+            printRunSummary(
+              summaryFromMetrics(
+                {
+                  calls: 0,
+                  tokensIn: usage.tokensIn ?? 0,
+                  tokensOut: usage.tokensOut ?? 0,
+                  cost: usage.costUsd ?? 0,
+                  costKnown:
+                    usage.costUsd !== null && usage.costUsd !== undefined,
+                },
+                performance.now() - reviewStarted,
+              ),
+            );
+          }
         }
         const findings = (payload.result.findings ?? []) as JsonReviewFinding[];
         exitWith(reviewExitCodeFromJsonFindings(findings));

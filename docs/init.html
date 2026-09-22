@@ -229,6 +229,14 @@ To collect every state again, pass <code>--pr-state=open,closed,merged</code>.</
 </ul>
 <p>Evidence and AI job results go into <code>cache.db</code> for faster <a href="sync.html"><code>sync</code></a>.
 After <code>init</code> succeeds, run <a href="review.html"><code>review</code></a> on a PR or local changes.</p>
+<h2 id="what-it-reports">What it reports</h2>
+<p>The last line on stderr is the run&#39;s cost and time:</p>
+<pre><code>Done in 21.0s · 3,125 in, 1,308 out tokens · $0.0016
+</code></pre>
+<p>When the provider does not report a price the dollar field is <code>cost unknown</code>,
+and a cache-hit <a href="sync.html"><code>sync</code></a> that made no AI call still prints the line
+with <code>0 in, 0 out tokens</code>. stdout is unchanged, so <code>--json</code> and piped output
+stay clean. <a href="review.html"><code>review</code></a> prints the same line.</p>
 </article>
         <footer class="doc-footer">
           <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/init.md">Edit this page</a> on GitHub
@@ -236,7 +244,7 @@ After <code>init</code> succeeds, run <a href="review.html"><code>review</code><
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#what-it-writes">What it writes</a></li></ul></nav>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#what-it-writes">What it writes</a></li><li><a href="#what-it-reports">What it reports</a></li></ul></nav>
     </div>
   </div>
   <script src="assets/docs.js"></script>

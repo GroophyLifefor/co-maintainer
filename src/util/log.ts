@@ -27,6 +27,12 @@ export function log(phase: string, message: string): void {
   else console.log(`[${phase}] ${message}`);
 }
 
+/** True inside a dashboard job (one wrapped with `withLogSink`), where a
+ * diagnostic line belongs in the job log rather than the server's terminal. */
+export function hasLogSink(): boolean {
+  return sinkStorage.getStore() !== undefined;
+}
+
 export function startHeartbeat(phase: string | (() => string)): () => void {
   const started = Date.now();
   const label = () => (typeof phase === "function" ? phase() : phase);

@@ -37,6 +37,7 @@ import {
   timed,
   withCliLogsToStderr,
 } from "../util/log.ts";
+import { printRunSummary, summaryFromMetrics } from "../util/run_summary.ts";
 import { setCliInteractive } from "../cli/args.ts";
 import { prepareLocalCodegraph } from "./codegraph_prepare.ts";
 import { acquireLocalReviewLock, type LocalReviewLock } from "./review_lock.ts";
@@ -386,6 +387,9 @@ export async function runLocalReview(
               warnings,
             ) +
             "\n",
+        );
+        printRunSummary(
+          summaryFromMetrics(aiMetrics, performance.now() - started),
         );
       }
       exitWith(reviewExitCodeFromResolved(allResolved));
