@@ -62,8 +62,9 @@
         <article class="markdown prose"><h1><code>probe</code></h1>
 <p>Read-only research on a GitHub repository. <code>probe</code> samples pull requests and
 commit history, then prints a recommended <code>co-maintainer init</code> command with
-sensible <code>--include-*</code> and <code>--max-*</code> flags. It does not call the AI and does
-not write skill files.</p>
+sensible <code>--include-*</code> and <code>--max-*</code> flags, plus an <strong>estimate</strong> of what that
+command will cost in time and tokens. It does not call the AI and does not
+write guide files.</p>
 <h2 id="before-you-run">Before you run</h2>
 <table>
 <thead>
@@ -93,9 +94,11 @@ not write skill files.</p>
 <h2 id="usage">Usage</h2>
 <pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--auth=gh</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">probe</span> <span class="sh-arg">owner/repo</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">probe</span>              <span class="sh-comment"># repo from the git remote of the current directory</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">probe</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--run</span>   <span class="sh-comment"># probe, then run the recommended init</span>
 </code></pre>
 <p>Output is a <strong>recommended</strong> block: a full <code>co-maintainer init ...</code> line
-you can copy. </p>
+you can copy, followed by an <strong>estimate</strong> and a <strong>next</strong> block.</p>
 <h2 id="parameters">Parameters</h2>
 <table>
 <thead>
@@ -106,7 +109,7 @@ you can copy. </p>
 </thead>
 <tbody><tr>
 <td><code>owner/repo</code></td>
-<td>Repository to research (required)</td>
+<td>Repository to research (optional, read from the git remote when omitted)</td>
 </tr>
 <tr>
 <td><code>--auth=gh</code></td>
@@ -129,6 +132,10 @@ you can copy. </p>
 <td>Parallel GitHub requests while sampling PR details (default <code>1</code>, minimum <code>1</code>)</td>
 </tr>
 <tr>
+<td><code>--run</code></td>
+<td>After printing the plan, run the recommended <code>init</code> in the same process</td>
+</tr>
+<tr>
 <td><code>--debug</code></td>
 <td>Verbose logs on stderr</td>
 </tr>
@@ -139,6 +146,23 @@ you can copy. </p>
 </tbody></table>
 <p><code>probe</code> ignores <code>--include-*</code>, <code>--max-*</code>, and AI flags. Those appear on the
 <strong>recommended <code>init</code> command</strong> in the output when the analysis suggests them.</p>
+<h2 id="the-estimate">The estimate</h2>
+<p>The <code>estimate</code> block says how many AI jobs the recommended <code>init</code> would queue
+(<code>extract</code> and <code>synth</code>), a token range, a time range, and a dollar range. It
+is a <strong>planning estimate, not a bill</strong>:</p>
+<ul>
+<li>Job counts come from the same inputs the real run uses, so the shape is
+exact.</li>
+<li>Dollars need a price for both <code>--low-model</code> and <code>--high-model</code>. They come
+from OpenRouter&#39;s public <code>/api/v1/models</code>, cached for 24 hours. With no
+price there is no dollar line rather than a guessed one.</li>
+<li>Time and per-job tokens come from this repository&#39;s own recorded jobs when
+four or more exist, and from the cm-dx-lab calibration otherwise. The line
+says which one it used.</li>
+</ul>
+<p><code>--run</code> runs the recommended <code>init</code> in the same process after printing the
+plan, which is the &quot;look then do&quot; step in one command. It is the same code
+path the dashboard uses, not a re-spawn.</p>
 <h2 id="what-it-looks-at">What it looks at</h2>
 <ul>
 <li>Repository metadata and latest release (if any)</li>
@@ -155,7 +179,7 @@ is huge and you want a cheaper <code>init</code>. Next step: <a href="init.html"
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#what-it-looks-at">What it looks at</a></li></ul></nav>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#the-estimate">The estimate</a></li><li><a href="#what-it-looks-at">What it looks at</a></li></ul></nav>
     </div>
   </div>
   <script src="assets/docs.js"></script>

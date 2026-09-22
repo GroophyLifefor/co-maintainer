@@ -103,12 +103,12 @@ co-maintainer config path --all            # config, repos, and cache directorie
 
 `list` prints where each value came from: `env` (an environment variable
 overrides the file at run time), `file`, or nothing for an unset key. Secrets
-are masked — twelve characters or more keep their last four, shorter ones show
+are masked: twelve characters or more keep their last four, shorter ones show
 only `••••`, and the dashboard password reports `set` or `not set` rather than
 its hash. `get` prints the real value, so treat its output as a secret.
 
 Keys are the `UserConfig` field names in kebab-case (`high-model`,
-`remote-host`, `review-blocking`); camelCase is accepted too. A name that is
+`remote-host`, `review-blocking`), and camelCase is accepted too. A name that is
 not a config key is refused with exit code 2.
 
 ### Unset

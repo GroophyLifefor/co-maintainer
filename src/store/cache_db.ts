@@ -2,12 +2,18 @@ import { Database } from "./sqlite.ts";
 import { cacheDbPath, getCacheDir } from "../config.ts";
 import { mkdirSync } from "../util/runtime.ts";
 
-let initialized = false;
+/** Paths whose schema this process has already created. Keyed by path rather
+ * than a single boolean: `cacheDbPath()` reads the environment at call time
+ * and tests point it at a temp directory, so a process-level flag would skip
+ * `CREATE TABLE` for the second path and every query would then fail with
+ * `no such table: cache`. */
+const initialized = new Set<string>();
 
 function openDatabase(): Database {
   mkdirSync(`${getCacheDir()}/co-maintainer`, { recursive: true });
-  const db = new Database(cacheDbPath());
-  if (!initialized) {
+  const path = cacheDbPath();
+  const db = new Database(path);
+  if (!initialized.has(path)) {
     db.exec(`
       CREATE TABLE IF NOT EXISTS cache (
         namespace TEXT NOT NULL,
@@ -17,7 +23,7 @@ function openDatabase(): Database {
         PRIMARY KEY (namespace, cache_key)
       )
     `);
-    initialized = true;
+    initialized.add(path);
   }
   return db;
 }
@@ -81,6 +87,28 @@ export async function cacheDeletePrefix(
     db.prepare(
       "DELETE FROM cache WHERE namespace = ? AND cache_key LIKE ?",
     ).run(namespace, `${prefix}%`);
+  } finally {
+    db.close();
+  }
+}
+
+/** Every value under `namespace` whose key starts with `prefix`, newest first.
+ * `recordAiCost` keys each job `${repo}:${uuid}`, so the probe estimate reads
+ * a repository's own job history without a second index to keep in sync. */
+export async function cacheValues(
+  namespace: string,
+  prefix: string,
+): Promise<string[]> {
+  const db = openDatabase();
+  try {
+    return db
+      .prepare<{ value: string }>(
+        `SELECT value FROM cache
+         WHERE namespace = ? AND cache_key LIKE ?
+         ORDER BY updated_at DESC`,
+      )
+      .all(namespace, `${prefix}%`)
+      .map((row) => row.value);
   } finally {
     db.close();
   }

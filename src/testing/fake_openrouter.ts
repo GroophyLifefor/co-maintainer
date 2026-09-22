@@ -75,9 +75,15 @@ function reply(mode: FakeOpenRouterMode): { status: number; body: string } {
   }
 }
 
-/** The models `config set` can verify against. The plainer names are what the
- * config tests save, so a `set --high-model=high/model` is accepted. */
-const MODEL_IDS = ["fake/model", "low/model", "high/model", "vendor/other"];
+/** The models `config set` can verify against, with the prices the probe
+ * estimate reads. The plainer names are what the config tests save, so a
+ * `set --high-model=high/model` is accepted. */
+const MODELS: { id: string; prompt: string; completion: string }[] = [
+  { id: "fake/model", prompt: "0.0000005", completion: "0.0000015" },
+  { id: "low/model", prompt: "0.0000002", completion: "0.0000006" },
+  { id: "high/model", prompt: "0.000003", completion: "0.000009" },
+  { id: "vendor/other", prompt: "0.000001", completion: "0.000002" },
+];
 
 /** Answers the `/key` and `/models` calls `config set` makes before writing
  * (CORE-22). A POST to the chat endpoint keeps using {@link reply}. */
@@ -90,11 +96,18 @@ function verifyReply(
   if (path.endsWith("/key")) {
     return { status: 200, body: JSON.stringify({ data: { label: "fake" } }) };
   }
-  const ids =
-    mode === "unknown-model" ? ["fake/model", "vendor/other"] : MODEL_IDS;
+  const rows =
+    mode === "unknown-model"
+      ? MODELS.filter((model) => model.id !== "high/model")
+      : MODELS;
   return {
     status: 200,
-    body: JSON.stringify({ data: ids.map((id) => ({ id })) }),
+    body: JSON.stringify({
+      data: rows.map((model) => ({
+        id: model.id,
+        pricing: { prompt: model.prompt, completion: model.completion },
+      })),
+    }),
   };
 }
 

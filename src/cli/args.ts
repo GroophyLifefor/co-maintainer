@@ -3,6 +3,7 @@ import { prepareConfig } from "../config.ts";
 import { getEnv } from "../util/runtime.ts";
 import { askLine } from "./prompt.ts";
 import { die } from "./error.ts";
+import { detectRemoteRepo } from "../local/git_ops.ts";
 import {
   renderCommandHelp,
   renderGlobalHelp,
@@ -74,7 +75,13 @@ export async function parseArgs(args: string[]): Promise<Options> {
     console.log(renderCommandHelp(command) ?? renderGlobalHelp());
     process.exit(0);
   }
-  if (!repo || !/^[^/]+\/[^/]+$/.test(repo)) {
+  // `probe` (and only probe, for now) may omit the repo and let the current
+  // directory's git remote name it (CORE-24).
+  let repoName = repo;
+  if ((!repoName || repoName.startsWith("-")) && command === "probe") {
+    repoName = await detectRemoteRepo(process.cwd());
+  }
+  if (!repoName || !/^[^/]+\/[^/]+$/.test(repoName)) {
     die("Repository must look like owner/repo");
   }
 
@@ -83,7 +90,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
   const configDefault = config.defaults ?? {};
   // Remembered from a prior `init`/`remake` on this exact repo — never a
   // secret, so it can safely fill in everything except the API token.
-  const repoConfig = config.repos?.[repo] ?? {};
+  const repoConfig = config.repos?.[repoName] ?? {};
 
   let prNumber: number | undefined;
   if (command === "review") {
@@ -187,6 +194,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
       arg === "--log-time" ||
       arg === "--review-upstream" ||
       arg === "--disable-codegraph" ||
+      arg === "--run" ||
       arg === "--only-request-changed-pr"
     )
       continue;
@@ -283,11 +291,12 @@ export async function parseArgs(args: string[]): Promise<Options> {
 
   return {
     command: command === "sync" ? "remake" : (command as Options["command"]),
-    repo,
+    repo: repoName,
     prNumber,
     debug: rest.includes("--debug"),
     logTime: rest.includes("--log-time"),
     reviewUpstream: rest.includes("--review-upstream"),
+    run: rest.includes("--run"),
     useCodegraph:
       command === "review" ? !rest.includes("--disable-codegraph") : false,
     envPath,

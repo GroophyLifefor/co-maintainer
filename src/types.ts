@@ -44,6 +44,9 @@ export type Options = {
   maxPrMonths?: number;
   maxPullRequestChangeLines?: number;
   maxComments?: number;
+  /** `probe --run`: after printing the plan, run the recommended init in the
+   * same process (CORE-24). */
+  run?: boolean;
 };
 
 export type GitHubClient = {

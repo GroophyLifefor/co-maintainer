@@ -162,9 +162,22 @@ export function analyzeProbe(
       `${usefulCommits} non-merge commits contain enough signal to analyze commit conventions.`,
     );
   } else if (commits.length) {
-    reasons.push(
-      "Commit history is mostly merge/noise commits, so it is not recommended as a source.",
-    );
+    // Only claim the history is noise when the useful-commit ratio actually
+    // supports it. With `commits: 8 · useful: 5` the ratio is above a half,
+    // and the old unconditional sentence contradicted the numbers beside it
+    // (CORE-24).
+    const usefulRatio = usefulCommits / commits.length;
+    if (usefulRatio < 0.5) {
+      reasons.push(
+        "Commit history is mostly merge/noise commits, so it is not recommended as a source.",
+      );
+    } else {
+      reasons.push(
+        `Commit history is short (${commits.length} ${
+          commits.length === 1 ? "commit" : "commits"
+        }), so it is not recommended as a source yet.`,
+      );
+    }
   }
   if (maxChangeLines) {
     reasons.push(

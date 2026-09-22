@@ -145,6 +145,11 @@ URL, dashboard auth defaults, and CLI remote-review targets.</p>
 <td>CLI AI calls (OpenRouter/Hetzner)</td>
 </tr>
 <tr>
+<td><code>--ai-key=...</code></td>
+<td><code>token</code></td>
+<td>An alias for <code>--token</code>, named for what it is</td>
+</tr>
+<tr>
 <td><code>--ai=none|openrouter|hetzner</code></td>
 <td><code>ai</code></td>
 <td>CLI and dashboard jobs</td>
@@ -214,8 +219,38 @@ URL, dashboard auth defaults, and CLI remote-review targets.</p>
 <td><code>remoteToken</code></td>
 <td><code>review --remote</code></td>
 </tr>
+<tr>
+<td><code>--review-blocking=model|severity</code></td>
+<td><code>reviewBlocking</code></td>
+<td>Whether a review&#39;s own severity decides a blocking finding</td>
+</tr>
 </tbody></table>
+<h3 id="verification-before-saving">Verification before saving</h3>
+<p>When the provider is OpenRouter, <code>set</code> checks the key against
+<code>/api/v1/key</code> and, if a model is given, that <code>/api/v1/models</code> lists it. A bad
+key or unknown model is refused with exit code 2 and <strong>nothing is written</strong>. A
+network failure only warns (<code>saved anyway</code>), because that is not a typo. Pass
+<code>--no-verify</code> to skip the check, for example in CI with an offline key.</p>
 <p>OAuth setup steps: <a href="serve.html#sign-in-to-the-dashboard"><code>serve</code>: Sign in</a>.</p>
+<h2 id="co-maintainer-config"><code>co-maintainer config</code></h2>
+<p>Reads and edits the same <code>config.json</code> without opening the file. <code>set</code> is the
+short form of <code>config set</code>, and its output and flags are unchanged.</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">list</span>                  <span class="sh-comment"># key, value, and source per row</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">get</span> <span class="sh-arg">high-model</span>        <span class="sh-comment"># one raw value, no label</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">set</span> <span class="sh-arg">remote-host</span> <span class="sh-arg">https://review.example.com</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">set</span> <span class="sh-flag">--remote-token=cmr_...</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">unset</span> <span class="sh-arg">remote-token</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">path</span>                  <span class="sh-comment"># the config file</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">path</span> <span class="sh-flag">--all</span>            <span class="sh-comment"># config, repos, and cache directories</span>
+</code></pre>
+<p><code>list</code> prints where each value came from: <code>env</code> (an environment variable
+overrides the file at run time), <code>file</code>, or nothing for an unset key. Secrets
+are masked: twelve characters or more keep their last four, shorter ones show
+only <code>••••</code>, and the dashboard password reports <code>set</code> or <code>not set</code> rather than
+its hash. <code>get</code> prints the real value, so treat its output as a secret.</p>
+<p>Keys are the <code>UserConfig</code> field names in kebab-case (<code>high-model</code>,
+<code>remote-host</code>, <code>review-blocking</code>), and camelCase is accepted too. A name that is
+not a config key is refused with exit code 2.</p>
 <h3 id="unset">Unset</h3>
 <pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--unset=token</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--unset=github-webhook-secret</span>
@@ -309,7 +344,7 @@ GitHub.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#precedence">Precedence</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#per-repo-memory">Per-repo memory</a></li><li><a href="#secrets-on-disk">Secrets on disk</a></li><li><a href="#path-overrides">Path overrides</a></li></ul></nav>
+      <ul><li><a href="#precedence">Precedence</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#per-repo-memory">Per-repo memory</a></li><li><a href="#secrets-on-disk">Secrets on disk</a></li><li><a href="#path-overrides">Path overrides</a></li></ul></nav>
     </div>
   </div>
   <script src="assets/docs.js"></script>

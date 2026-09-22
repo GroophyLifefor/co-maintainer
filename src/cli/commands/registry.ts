@@ -121,10 +121,20 @@ export const COMMANDS: CommandSpec[] = [
           },
         ],
       },
+      {
+        title: "After the plan",
+        flags: [
+          {
+            name: "run",
+            description: "Run the recommended init in this same process.",
+          },
+        ],
+      },
       OUTPUT_FLAGS,
     ],
     examples: [
       "co-maintainer probe owner/repo",
+      "co-maintainer probe owner/repo --run",
       "co-maintainer probe owner/repo --log-time",
     ],
   },
