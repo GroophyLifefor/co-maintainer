@@ -4,6 +4,7 @@ import { parseArgs } from "./args.ts";
 import { runServe } from "./commands/serve.ts";
 import { runSet } from "./commands/set.ts";
 import { runConfig } from "./commands/config.ts";
+import { runView } from "./commands/view.ts";
 import { runProbe } from "./commands/probe.ts";
 import { runReviewFromCli } from "./commands/review.ts";
 import { runInitOrRemake } from "../services/setup.ts";
@@ -66,6 +67,10 @@ export async function run(args: string[]): Promise<void> {
   }
   if (args[0] === "config") {
     await runConfig(args.slice(1));
+    return;
+  }
+  if (args[0] === "view") {
+    await runView(args.slice(1));
     return;
   }
   if (args[0] === "serve") {

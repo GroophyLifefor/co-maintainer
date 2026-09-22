@@ -391,6 +391,35 @@ export const COMMANDS: CommandSpec[] = [
     ],
   },
   {
+    name: "view",
+    summary: "Print the guides co-maintainer generated for a repository.",
+    usage: [
+      "co-maintainer view [owner/repo] [guide]",
+      "co-maintainer view [owner/repo] --list",
+      "co-maintainer view [owner/repo] --path",
+    ],
+    groups: [
+      {
+        title: "Guides",
+        flags: [
+          {
+            name: "list",
+            description: "List the guide files with their size and build date.",
+          },
+          {
+            name: "path",
+            description: "Print the directory the guides live in.",
+          },
+        ],
+      },
+    ],
+    examples: [
+      "co-maintainer view",
+      "co-maintainer view owner/repo review-guide",
+      "co-maintainer view owner/repo --list",
+    ],
+  },
+  {
     name: "set",
     summary: "Persist defaults and secrets to the user config file.",
     usage: ["co-maintainer set [options]"],
