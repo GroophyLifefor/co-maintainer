@@ -55,6 +55,7 @@
     "docs:build": "node scripts/build_docs.ts",
     "pack:smoke": "node scripts/pack_smoke.ts",
     "downgrade:check": "node scripts/downgrade_check.ts",
+    "dx:scenario": "node scripts/dx_scenario.ts",
     "dashboard:smoke": "node scripts/dashboard_smoke.ts"
   },
   "dependencies": {
