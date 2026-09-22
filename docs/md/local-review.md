@@ -12,7 +12,7 @@ Overview: [`review`](review.md).
 | ----- | --- |
 | Run from the repo root (or a subdirectory with a git root) | Review needs a working tree |
 | `origin` or `upstream` points at GitHub (or use `--repo=owner/repo`) | Maps the clone to guides for that repo |
-| [`init`](init.md) / [`remake`](remake.md) for that `owner/repo` | `SKILL.md` and review guides on disk |
+| [`init`](init.md) / [`sync`](sync.md) for that `owner/repo` | `SKILL.md` and review guides on disk |
 | OpenRouter key in `set`, `--token=`, or `--env=PATH` | Local review uses your provider |
 | Clean enough git state | Conflicts or broken git state can fail collection |
 
@@ -23,7 +23,7 @@ cd your/clone
 co-maintainer review
 co-maintainer review --json
 co-maintainer review --fresh
-co-maintainer review --to-branch=main --remake-before-review
+co-maintainer review --to-branch=main --sync-before-review
 ```
 
 ## Parameters
@@ -37,7 +37,7 @@ co-maintainer review --to-branch=main --remake-before-review
 | `--to-branch=<name>` | Base branch for the diff (default: remote default branch) |
 | `--branch=<name>` | Branch name when HEAD is detached |
 | `--repo=owner/repo` | Override GitHub remote detection |
-| `--remake-before-review` | Run [`remake`](remake.md) before reviewing (requires `gh`) |
+| `--sync-before-review` | Run [`sync`](sync.md) before reviewing (requires `gh`) |
 | `--debug` | Verbose logs on stderr |
 | `--log-time` | Print timing per phase |
 

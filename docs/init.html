@@ -28,7 +28,7 @@
           <li><a href="getting-started.html">Quickstart</a></li>
           <li><a href="probe.html">Probe</a></li>
           <li><a href="init.html" class="active">Init</a></li>
-          <li><a href="remake.html">Remake</a></li>
+          <li><a href="sync.html">Sync</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -217,7 +217,7 @@ requests skip comment and diff downloads. The run logs
 <code>closed</code> means closed and not merged. Omit it to keep every state. The listing
 cache is stored per state set, so a different set is not filled from the
 previous listing.</p>
-<p>Both are saved for the repo. A later <a href="remake.html"><code>remake</code></a> without the flag
+<p>Both are saved for the repo. A later <a href="sync.html"><code>sync</code></a> without the flag
 keeps the saved choice. <code>--only-request-changed-pr</code> does not turn itself off.
 To collect every state again, pass <code>--pr-state=open,closed,merged</code>.</p>
 <p>Limits and include defaults can also come from <a href="configuration.html#per-repo-memory">per-repo config</a> after the first successful run.</p>
@@ -227,7 +227,7 @@ To collect every state again, pass <code>--pr-state=open,closed,merged</code>.</
 <li><code>SKILL.md</code> and <code>CODEBASE.md</code></li>
 <li><code>PR_REVIEW_GUIDE.md</code> and related review guides when PR sources were included</li>
 </ul>
-<p>Evidence and AI job results go into <code>cache.db</code> for faster <a href="remake.html"><code>remake</code></a>.
+<p>Evidence and AI job results go into <code>cache.db</code> for faster <a href="sync.html"><code>sync</code></a>.
 After <code>init</code> succeeds, run <a href="review.html"><code>review</code></a> on a PR or local changes.</p>
 </article>
         <footer class="doc-footer">

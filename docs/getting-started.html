@@ -28,7 +28,7 @@
           <li><a href="getting-started.html" class="active">Quickstart</a></li>
           <li><a href="probe.html">Probe</a></li>
           <li><a href="init.html">Init</a></li>
-          <li><a href="remake.html">Remake</a></li>
+          <li><a href="sync.html">Sync</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -70,7 +70,7 @@ reviews a PR or local diff. Start with the CLI. <a href="serve.html"><code>serve
   auth --> probe[probe]
   probe --> init[init]
   init --> review[review]
-  init --> remake["remake <br/>(to keep your context up to date)"]</div></div>
+  init --> sync["sync <br/>(to keep your context up to date)"]</div></div>
 </figure>
 
 
@@ -109,12 +109,12 @@ reviews a PR or local diff. Start with the CLI. <a href="serve.html"><code>serve
       No GitHub App
     Self-hosted server
       serve and dashboard
-      init and remake per repo
+      init and sync per repo
       GitHub App webhooks
       auto PR reviews
     Remote review
       Shared init on serve
-      no per-dev init/remake
+      no per-dev init/sync
       review --remote from clone
       codegraph stays local</div></div>
 </figure>
@@ -124,7 +124,7 @@ reviews a PR or local diff. Start with the CLI. <a href="serve.html"><code>serve
 <h3 id="how-each-path-runs">How each path runs</h3>
 <figure class="mermaid-figure">
 <div class="mermaid-viewport"><div class="mermaid">flowchart TB
-  guides(["Guides from init / remake"])
+  guides(["Guides from init / sync"])
 
   guides --> cli
   guides --> hosted
@@ -151,7 +151,7 @@ reviews a PR or local diff. Start with the CLI. <a href="serve.html"><code>serve
 
   subgraph remote["Remote hybrid"]
     direction TB
-    R1["Server holds shared guides from init/remake"]
+    R1["Server holds shared guides from init/sync"]
     R2["Laptop: review --remote"]
     R3["CLI uploads diff, polls job"]
     R4["codegraph on laptop if enabled"]
@@ -190,7 +190,7 @@ reviews a PR or local diff. Start with the CLI. <a href="serve.html"><code>serve
 <td><a href="dashboard.html">dashboard</a></td>
 </tr>
 <tr>
-<td>Review a local diff without every developer running init/remake</td>
+<td>Review a local diff without every developer running init/sync</td>
 <td>Laptop + server</td>
 <td><code>set --remote-host</code> then <code>review --remote</code></td>
 <td><a href="remote-review.html">remote-review</a></td>
@@ -198,8 +198,8 @@ reviews a PR or local diff. Start with the CLI. <a href="serve.html"><code>serve
 <tr>
 <td>Refresh guides after main moves</td>
 <td>Same place as <code>init</code></td>
-<td><code>remake owner/repo</code></td>
-<td><a href="remake.html">remake</a></td>
+<td><code>sync owner/repo</code></td>
+<td><a href="sync.html">sync</a></td>
 </tr>
 </tbody></table>
 <p>Guides and cache paths: <a href="caching.html">Caching</a>. Flags and <code>co-maintainer set</code>:

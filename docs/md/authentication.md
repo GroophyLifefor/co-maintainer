@@ -8,7 +8,7 @@ GitHub App are separate mechanisms.
 
 ```mermaid
 flowchart LR
-  subgraph cli["CLI probe init remake"]
+  subgraph cli["CLI probe init sync"]
     ghcli["--auth=gh via gh"]
     pat["--auth=pat via token"]
   end
@@ -28,7 +28,7 @@ flowchart LR
 
 | Surface | GitHub identity | Configure |
 | ------- | ----------------- | --------- |
-| `probe`, `init`, `remake` | `gh` or PAT | [Configuration](configuration.md), flags, `--env` |
+| `probe`, `init`, `sync` | `gh` or PAT | [Configuration](configuration.md), flags, `--env` |
 | `review` (local / remote diff) | Same as above for mapping the clone to `owner/repo` | [Local review](local-review.md) |
 | `review owner/repo N` (PR) | **`gh` only** | `gh auth login` |
 | `serve` webhooks and PR posts | **GitHub App** | `set --github-app-id` + private key |

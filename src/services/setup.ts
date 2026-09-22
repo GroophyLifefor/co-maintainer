@@ -181,7 +181,7 @@ async function initOrRemake(options: Options): Promise<void> {
   const previous = await readState(options.repo);
   if (options.command === "remake" && !previous) {
     throw new Error(
-      "remake requires a previous init or remake for this repository",
+      "sync requires a previous init or sync for this repository",
     );
   }
   if (options.command === "remake" && previous) {
@@ -375,7 +375,7 @@ async function initOrRemake(options: Options): Promise<void> {
       },
       updatedAt: new Date().toISOString(),
     });
-    // Remember everything but the token, so `remake owner/repo` alone
+    // Remember everything but the token, so `sync owner/repo` alone
     // (no flags, no prompts) reuses what this run resolved.
     await writeRepoConfig(options.repo, {
       auth: options.auth,
@@ -416,7 +416,7 @@ async function initOrRemake(options: Options): Promise<void> {
     );
     log(
       "time",
-      `total init/remake · ${((performance.now() - operationStarted) / 1000).toFixed(2)}s`,
+      `total init/sync · ${((performance.now() - operationStarted) / 1000).toFixed(2)}s`,
     );
   }
 }

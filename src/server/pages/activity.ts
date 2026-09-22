@@ -28,9 +28,9 @@ function skipReason(reason: string | null): string {
   }
 }
 
-function jobLabel(job: JobRow): string {
+export function jobLabel(job: JobRow): string {
   if (job.type === "init") return "Set up repository";
-  if (job.type === "remake") return "Updated knowledge";
+  if (job.type === "remake") return "Synced knowledge";
   if (job.type === "review") {
     return job.pr_number ? `Review #${job.pr_number}` : "Review";
   }

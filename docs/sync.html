@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>remake · co-maintainer docs</title>
+  <title>sync · co-maintainer docs</title>
   <link rel="stylesheet" href="assets/site.css">
   <link rel="icon" href="assets/logo.png">
 </head>
@@ -28,7 +28,7 @@
           <li><a href="getting-started.html">Quickstart</a></li>
           <li><a href="probe.html">Probe</a></li>
           <li><a href="init.html">Init</a></li>
-          <li><a href="remake.html" class="active">Remake</a></li>
+          <li><a href="sync.html" class="active">Sync</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -59,11 +59,15 @@
     </aside>
     <div class="content-column">
       <main class="doc-main">
-        <article class="markdown prose"><h1><code>remake</code></h1>
+        <article class="markdown prose"><h1><code>sync</code></h1>
 <p>Refresh repository knowledge after the default branch or pull requests move on.
-<code>remake</code> re-fetches GitHub data, reuses unchanged evidence from
+<code>sync</code> re-fetches GitHub data, reuses unchanged evidence from
 <a href="caching.html">cache</a>, and regenerates <code>SKILL.md</code> and review guides. It costs
 less time and API usage than a full <a href="init.html"><code>init</code></a> when little changed.</p>
+<blockquote>
+<p>Earlier releases called this command <code>sync</code>. That spelling still runs the
+same job, but it is no longer shown in help.</p>
+</blockquote>
 <h2 id="before-you-run">Before you run</h2>
 <table>
 <thead>
@@ -73,8 +77,8 @@ less time and API usage than a full <a href="init.html"><code>init</code></a> wh
 </tr>
 </thead>
 <tbody><tr>
-<td>A successful <a href="init.html"><code>init</code></a> or <code>remake</code> for this <code>owner/repo</code></td>
-<td>Without cached state, <code>remake</code> refuses to start</td>
+<td>A successful <a href="init.html"><code>init</code></a> or <code>sync</code> for this <code>owner/repo</code></td>
+<td>Without cached state, <code>sync</code> refuses to start</td>
 </tr>
 <tr>
 <td><a href="authentication.html">GitHub auth</a></td>
@@ -91,19 +95,19 @@ less time and API usage than a full <a href="init.html"><code>init</code></a> wh
 </tbody></table>
 <p>If the repo was never initialized, run <a href="init.html"><code>init</code></a> (or <a href="probe.html"><code>probe</code></a>
 first for limits). To change <code>--include-*</code> or limits permanently, pass flags on
-<code>remake</code> or run <a href="init.html"><code>init</code></a> again with the new options.</p>
+<code>sync</code> or run <a href="init.html"><code>init</code></a> again with the new options.</p>
 <h2 id="usage">Usage</h2>
 <pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--auth=gh</span> <span class="sh-flag">--ai=openrouter</span> <span class="sh-flag">--token=YOUR_KEY</span> <span class="sh-arg">\</span>
   <span class="sh-flag">--low-model=openai/gpt-oss-120b</span> <span class="sh-flag">--high-model=openai/gpt-5.6-luna</span>
 
-<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">remake</span> <span class="sh-arg">owner/repo</span>
-<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">remake</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--env=./.env</span> <span class="sh-flag">--log-time</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">sync</span> <span class="sh-arg">owner/repo</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">sync</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--env=./.env</span> <span class="sh-flag">--log-time</span>
 </code></pre>
-<p>After the first <a href="init.html"><code>init</code></a>, a plain <code>co-maintainer remake owner/repo</code> is
+<p>After the first <a href="init.html"><code>init</code></a>, a plain <code>co-maintainer sync owner/repo</code> is
 enough: auth, models, limits, and <code>include-*</code> choices are read from
 <a href="configuration.html#per-repo-memory">per-repo config</a>. You only need to supply the
 API token again if it is not in config or env.</p>
-<p>On the <a href="dashboard.html">dashboard</a>, <strong>Remake</strong> runs the same job as this command.</p>
+<p>On the <a href="dashboard.html">dashboard</a>, <strong>Sync now</strong> runs the same job as this command.</p>
 <h2 id="parameters">Parameters</h2>
 <table>
 <thead>
@@ -209,10 +213,10 @@ API token again if it is not in config or env.</p>
 <td>Print timing per phase</td>
 </tr>
 </tbody></table>
-<p><strong>Defaults on <code>remake</code>:</strong> With no flags, auth, models, <code>include-*</code>, <code>max-*</code>,
+<p><strong>Defaults on <code>sync</code>:</strong> With no flags, auth, models, <code>include-*</code>, <code>max-*</code>,
 <code>--only-request-changed-pr</code>, and <code>--pr-state</code> usually come from
 <a href="configuration.html#per-repo-memory">per-repo config</a> written by the last <code>init</code>
-or <code>remake</code>. Omitted <code>--max-*</code> values are also filled from the cached run
+or <code>sync</code>. Omitted <code>--max-*</code> values are also filled from the cached run
 state for that repo.</p>
 <p><strong>Include flags:</strong> If you pass <strong>any</strong> <code>--include-*</code> on the command line, only
 the flags you list are enabled. With no <code>--include-*</code> flags, the saved per-repo
@@ -237,9 +241,9 @@ turn itself off. To collect every state again, pass
 <p>Changed evidence invalidates only the facts and skill sections that depend on
 it. Outputs still land under <code>&lt;config dir&gt;/repos/owner/repo/</code> (see
 <a href="caching.html">Caching</a>).</p>
-<h2 id="scheduled-remake">Scheduled remake</h2>
-<p>A <a href="serve.html"><code>serve</code></a> instance can run <code>remake</code> for you. Open a repository in the
-dashboard, go to <strong>Settings</strong>, and fill <strong>Scheduled remake</strong> with a five field
+<h2 id="scheduled-sync">Scheduled sync</h2>
+<p>A <a href="serve.html"><code>serve</code></a> instance can run <code>sync</code> for you. Open a repository in the
+dashboard, go to <strong>Settings</strong>, and fill <strong>Scheduled sync</strong> with a five field
 cron expression (minute, hour, day of month, month, day of week). Leave it blank
 to turn it off.</p>
 <table>
@@ -265,28 +269,29 @@ to turn it off.</p>
 <ul>
 <li>Times are UTC.</li>
 <li>The minute field takes a single value, so a schedule fires at most once an
-hour. A remake spends model tokens, and this keeps a typo from burning them.</li>
+hour. A sync spends model tokens, and this keeps a typo from burning them.</li>
 <li>As in classic cron, a day field that starts with <code>*</code> counts as unrestricted, so
 both day fields must match. <code>0 0 */2 * 1</code> runs only on Mondays that fall on an
 odd day of the month. When neither day field has a <code>*</code>, either one matching is
 enough.</li>
 <li>A repository is skipped while its first setup is unfinished or while another
-setup or remake for it is queued or running.</li>
+setup or sync for it is queued or running.</li>
 <li>A minute the server was down for is not made up. The next matching minute runs.</li>
 <li>The scheduler lives inside <code>serve</code>, so nothing runs while <code>serve</code> is stopped.</li>
 </ul>
 <p>The schedule is stored per repository as <code>remakeCron</code> in
-<a href="configuration.html#per-repo-memory"><code>config.json</code></a>.</p>
+<a href="configuration.html#per-repo-memory"><code>config.json</code></a>. The key keeps its original
+name so existing config files keep working.</p>
 <p>Next: <a href="review.html"><code>review</code></a>. For a one-off refresh before a local review, see
-<code>--remake-before-review</code> in <a href="local-review.html">local review</a>.</p>
+<code>--sync-before-review</code> in <a href="local-review.html">local review</a>.</p>
 </article>
         <footer class="doc-footer">
-          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/remake.md">Edit this page</a> on GitHub
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/sync.md">Edit this page</a> on GitHub
         </footer>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#what-gets-reused">What gets reused</a></li><li><a href="#scheduled-remake">Scheduled remake</a></li></ul></nav>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#what-gets-reused">What gets reused</a></li><li><a href="#scheduled-sync">Scheduled sync</a></li></ul></nav>
     </div>
   </div>
   <script src="assets/docs.js"></script>

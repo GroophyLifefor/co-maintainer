@@ -137,7 +137,7 @@ Leave blank to keep the current key"></textarea></div>
           <input id="max-jobs" value="${text(
             config.maxConcurrentJobs ?? "",
           )}" placeholder="No limit">
-          <div class="hint">Cap how many background jobs run at once across init, remake, and review. Leave blank for no limit.</div></div>
+          <div class="hint">Cap how many background jobs run at once across init, sync, and review. Leave blank for no limit.</div></div>
         <div class="two" style="max-width:none;margin-top:16px">
           <div class="field"><label>Remote sync timeout (seconds)</label>
             <input id="remote-timeout" value="${text(

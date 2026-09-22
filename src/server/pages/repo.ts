@@ -29,7 +29,7 @@ export function renderRepo(
           drift.commits_since,
           MAX_COMMITS_COUNTED,
         )} commits, ${capped(drift.files_changed, COMPARE_FILE_CAP)} files changed.</div>
-      <button class="btn primary" id="remake">Update now</button>
+      <button class="btn primary" id="remake">Sync now</button>
     </div>`
       : "";
   const pulls =

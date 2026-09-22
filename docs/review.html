@@ -28,7 +28,7 @@
           <li><a href="getting-started.html">Quickstart</a></li>
           <li><a href="probe.html">Probe</a></li>
           <li><a href="init.html">Init</a></li>
-          <li><a href="remake.html">Remake</a></li>
+          <li><a href="sync.html">Sync</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -60,7 +60,7 @@
     <div class="content-column">
       <main class="doc-main">
         <article class="markdown prose"><h1>Review</h1>
-<p>AI code review using guides from <a href="init.html"><code>init</code></a> / <a href="remake.html"><code>remake</code></a>.
+<p>AI code review using guides from <a href="init.html"><code>init</code></a> / <a href="sync.html"><code>sync</code></a>.
 Progress and diagnostics go to <strong>stderr</strong>. The result goes to <strong>stdout</strong> (human
 text or JSON with <code>--json</code>).</p>
 <p>This page helps you <strong>pick a mode</strong>. Commands, flags, and checklists live on the
@@ -95,7 +95,7 @@ linked pages below.</p>
 <td>OpenRouter on your machine, guides on disk</td>
 </tr>
 <tr>
-<td>Same as local review, but the repo is already inited on <a href="serve.html"><code>serve</code></a> and you skip per-laptop init/remake</td>
+<td>Same as local review, but the repo is already inited on <a href="serve.html"><code>serve</code></a> and you skip per-laptop init/sync</td>
 <td><a href="remote-review.html">Remote review</a></td>
 <td>Shared context on the server, diff from your clone</td>
 </tr>
@@ -108,13 +108,13 @@ linked pages below.</p>
 <p>PR review and remote review <strong>do not combine</strong>: <code>--remote</code> is only for a local
 diff with no PR positional arguments.</p>
 <h2 id="how-the-three-modes-differ">How the three modes differ</h2>
-<p>Same underlying guides from <code>init</code> / <code>remake</code>, different <strong>subject</strong> (what gets
+<p>Same underlying guides from <code>init</code> / <code>sync</code>, different <strong>subject</strong> (what gets
 reviewed) and <strong>who keeps that context up to date</strong>.</p>
 <figure class="mermaid-figure">
 <div class="mermaid-viewport"><div class="mermaid">flowchart TB
   subgraph context["Guide context"]
-    disk["Per laptop: init / remake"]
-    shared["Per repo on serve: init / remake once"]
+    disk["Per laptop: init / sync"]
+    shared["Per repo on serve: init / sync once"]
   end
 
   subgraph subject["What gets reviewed"]
@@ -150,7 +150,7 @@ reviewed) and <strong>who keeps that context up to date</strong>.</p>
 <td>Pre-push using the team&#39;s shared server context</td>
 </tr>
 <tr>
-<td>Who runs init/remake</td>
+<td>Who runs init/sync</td>
 <td>You on the laptop</td>
 <td>You on the laptop</td>
 <td>Ops on the server (you usually do not)</td>
@@ -218,7 +218,7 @@ metadata and <code>codegraph</code> state. Errors with <code>--json</code> are J
 </tr>
 </thead>
 <tbody><tr>
-<td><a href="init.html"><code>init</code></a> or <a href="remake.html"><code>remake</code></a> on your laptop</td>
+<td><a href="init.html"><code>init</code></a> or <a href="sync.html"><code>sync</code></a> on your laptop</td>
 <td>Required for local and PR review</td>
 </tr>
 <tr>

@@ -2,7 +2,7 @@
 
 Global defaults live in `config.json` under the platform config directory.
 [`co-maintainer set`](configuration.md#set) writes that file. [`init`](init.md) /
-[`remake`](remake.md) also record **per-repo** choices there (not API tokens).
+[`sync`](sync.md) also record **per-repo** choices there (not API tokens).
 Generated guides sit under `repos/` in the same tree. Full paths:
 [Caching](caching.md#on-disk-layout).
 
@@ -11,7 +11,7 @@ URL, dashboard auth defaults, and CLI remote-review targets.
 
 ## Precedence
 
-For CLI commands (`probe`, `init`, `remake`, `review`):
+For CLI commands (`probe`, `init`, `sync`, `review`):
 
 ```mermaid
 flowchart BT
@@ -35,7 +35,7 @@ flowchart BT
 | Highest | `--token=`, `--auth=pat`, `--max-commits=500` on the command |
 | Env file | Only when you pass `--env=./.env` (sets vars if not already set) |
 | Environment | `GITHUB_TOKEN`, `OPENROUTER_API_KEY`, `CO_MAINTAINER_AUTH`, model env vars |
-| Per-repo | `repos["owner/repo"]` after a successful init/remake |
+| Per-repo | `repos["owner/repo"]` after a successful init/sync |
 | Global | `set` defaults in `config.json` |
 | Lowest | Prompts when a required value is still missing |
 
@@ -90,7 +90,7 @@ is allowed again. Match `--unset=` to the field name or the flag name (see
 
 ## Per-repo memory
 
-After each successful [`init`](init.md) or [`remake`](remake.md),
+After each successful [`init`](init.md) or [`sync`](sync.md),
 `config.json` gains `repos["owner/repo"]` with:
 
 | Stored | Not stored |
@@ -100,8 +100,8 @@ After each successful [`init`](init.md) or [`remake`](remake.md),
 | `include-*` flags | |
 | `only-request-changed-pr`, `pr-state` | |
 
-A plain `co-maintainer remake owner/repo` reuses those values. Pass new flags
-on `remake` or run `init` again to change includes, limits, or pull request
+A plain `co-maintainer sync owner/repo` reuses those values. Pass new flags
+on `sync` or run `init` again to change includes, limits, or pull request
 filters permanently. `--only-request-changed-pr` stays on once saved. To
 collect every pull request state again, pass `--pr-state=open,closed,merged`.
 

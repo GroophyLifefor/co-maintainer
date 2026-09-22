@@ -11,7 +11,7 @@ present).
 
 | Check | Why |
 | ----- | --- |
-| [`init`](init.md) / [`remake`](remake.md) for `owner/repo` | Guides on disk for that repo |
+| [`init`](init.md) / [`sync`](sync.md) for `owner/repo` | Guides on disk for that repo |
 | `gh auth login` | PR review supports **`--auth=gh` only** |
 | Read access to the PR | Private repos need a logged-in `gh` user |
 
@@ -37,7 +37,7 @@ co-maintainer review owner/repo 123 --disable-codegraph --debug
 | `--log-time` | Print timing per phase |
 
 **Not supported for PR review:** `--remote`, `--fresh`, `--to-branch`,
-`--branch`, `--repo=`, `--remake-before-review`. Use
+`--branch`, `--repo=`, `--sync-before-review`. Use
 [local review](local-review.md) for working-tree changes or
 [remote review](remote-review.md) for a local diff against shared server context.
 

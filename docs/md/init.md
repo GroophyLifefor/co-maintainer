@@ -73,7 +73,7 @@ requests skip comment and diff downloads. The run logs
 cache is stored per state set, so a different set is not filled from the
 previous listing.
 
-Both are saved for the repo. A later [`remake`](remake.md) without the flag
+Both are saved for the repo. A later [`sync`](sync.md) without the flag
 keeps the saved choice. `--only-request-changed-pr` does not turn itself off.
 To collect every state again, pass `--pr-state=open,closed,merged`.
 
@@ -86,5 +86,5 @@ Under `<config dir>/repos/owner/repo/` (see [Caching](caching.md)):
 - `SKILL.md` and `CODEBASE.md`
 - `PR_REVIEW_GUIDE.md` and related review guides when PR sources were included
 
-Evidence and AI job results go into `cache.db` for faster [`remake`](remake.md).
+Evidence and AI job results go into `cache.db` for faster [`sync`](sync.md).
 After `init` succeeds, run [`review`](review.md) on a PR or local changes.

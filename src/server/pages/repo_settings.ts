@@ -104,9 +104,9 @@ export function renderRepoSettings(
     </div>
     <div class="card" data-async>
       ${skSlot()}
-      <div class="hd"><h2>Scheduled remake</h2></div>
+      <div class="hd"><h2>Scheduled sync</h2></div>
       <div class="bd">
-        <p class="muted" style="margin:0 0 18px">Rebuild the knowledge for this repository on a schedule. Times are UTC and a remake runs at most once an hour.</p>
+        <p class="muted" style="margin:0 0 18px">Rebuild the knowledge for this repository on a schedule. Times are UTC and a sync runs at most once an hour.</p>
         <div class="field wide"><label>Cron schedule</label>
           <input id="cron" placeholder="0 3 * * 1" value="${text(config.remakeCron ?? "")}">
           <div class="hint">${text(cronHint(repo, config.remakeCron))}</div></div>

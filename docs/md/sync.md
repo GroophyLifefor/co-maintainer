@@ -1,22 +1,25 @@
-# `remake`
+# `sync`
 
 Refresh repository knowledge after the default branch or pull requests move on.
-`remake` re-fetches GitHub data, reuses unchanged evidence from
+`sync` re-fetches GitHub data, reuses unchanged evidence from
 [cache](caching.md), and regenerates `SKILL.md` and review guides. It costs
 less time and API usage than a full [`init`](init.md) when little changed.
+
+> Earlier releases called this command `sync`. That spelling still runs the
+> same job, but it is no longer shown in help.
 
 ## Before you run
 
 | Check | Why |
 | ----- | --- |
-| A successful [`init`](init.md) or `remake` for this `owner/repo` | Without cached state, `remake` refuses to start |
+| A successful [`init`](init.md) or `sync` for this `owner/repo` | Without cached state, `sync` refuses to start |
 | [GitHub auth](authentication.md) | Reads the repo through `gh` or a PAT |
 | [AI provider](configuration.md) | Token via `set`, `--token=`, or `--env=PATH` |
 | A reason to refresh | New merges on `main`, outdated guides, or review quality drift |
 
 If the repo was never initialized, run [`init`](init.md) (or [`probe`](probe.md)
 first for limits). To change `--include-*` or limits permanently, pass flags on
-`remake` or run [`init`](init.md) again with the new options.
+`sync` or run [`init`](init.md) again with the new options.
 
 ## Usage
 
@@ -24,16 +27,16 @@ first for limits). To change `--include-*` or limits permanently, pass flags on
 co-maintainer set --auth=gh --ai=openrouter --token=YOUR_KEY \
   --low-model=openai/gpt-oss-120b --high-model=openai/gpt-5.6-luna
 
-co-maintainer remake owner/repo
-co-maintainer remake owner/repo --env=./.env --log-time
+co-maintainer sync owner/repo
+co-maintainer sync owner/repo --env=./.env --log-time
 ```
 
-After the first [`init`](init.md), a plain `co-maintainer remake owner/repo` is
+After the first [`init`](init.md), a plain `co-maintainer sync owner/repo` is
 enough: auth, models, limits, and `include-*` choices are read from
 [per-repo config](configuration.md#per-repo-memory). You only need to supply the
 API token again if it is not in config or env.
 
-On the [dashboard](dashboard.md), **Remake** runs the same job as this command.
+On the [dashboard](dashboard.md), **Sync now** runs the same job as this command.
 
 ## Parameters
 
@@ -64,10 +67,10 @@ On the [dashboard](dashboard.md), **Remake** runs the same job as this command.
 | `--debug` | Verbose logs on stderr |
 | `--log-time` | Print timing per phase |
 
-**Defaults on `remake`:** With no flags, auth, models, `include-*`, `max-*`,
+**Defaults on `sync`:** With no flags, auth, models, `include-*`, `max-*`,
 `--only-request-changed-pr`, and `--pr-state` usually come from
 [per-repo config](configuration.md#per-repo-memory) written by the last `init`
-or `remake`. Omitted `--max-*` values are also filled from the cached run
+or `sync`. Omitted `--max-*` values are also filled from the cached run
 state for that repo.
 
 **Include flags:** If you pass **any** `--include-*` on the command line, only
@@ -96,10 +99,10 @@ Changed evidence invalidates only the facts and skill sections that depend on
 it. Outputs still land under `<config dir>/repos/owner/repo/` (see
 [Caching](caching.md)).
 
-## Scheduled remake
+## Scheduled sync
 
-A [`serve`](serve.md) instance can run `remake` for you. Open a repository in the
-dashboard, go to **Settings**, and fill **Scheduled remake** with a five field
+A [`serve`](serve.md) instance can run `sync` for you. Open a repository in the
+dashboard, go to **Settings**, and fill **Scheduled sync** with a five field
 cron expression (minute, hour, day of month, month, day of week). Leave it blank
 to turn it off.
 
@@ -111,18 +114,19 @@ to turn it off.
 
 - Times are UTC.
 - The minute field takes a single value, so a schedule fires at most once an
-  hour. A remake spends model tokens, and this keeps a typo from burning them.
+  hour. A sync spends model tokens, and this keeps a typo from burning them.
 - As in classic cron, a day field that starts with `*` counts as unrestricted, so
   both day fields must match. `0 0 */2 * 1` runs only on Mondays that fall on an
   odd day of the month. When neither day field has a `*`, either one matching is
   enough.
 - A repository is skipped while its first setup is unfinished or while another
-  setup or remake for it is queued or running.
+  setup or sync for it is queued or running.
 - A minute the server was down for is not made up. The next matching minute runs.
 - The scheduler lives inside `serve`, so nothing runs while `serve` is stopped.
 
 The schedule is stored per repository as `remakeCron` in
-[`config.json`](configuration.md#per-repo-memory).
+[`config.json`](configuration.md#per-repo-memory). The key keeps its original
+name so existing config files keep working.
 
 Next: [`review`](review.md). For a one-off refresh before a local review, see
-`--remake-before-review` in [local review](local-review.md).
+`--sync-before-review` in [local review](local-review.md).

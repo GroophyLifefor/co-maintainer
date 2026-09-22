@@ -159,10 +159,14 @@ export const COMMANDS: CommandSpec[] = [
     ],
   },
   {
-    name: "remake",
-    hidden: true,
+    name: "sync",
+    // `remake` is the 0.4.13 spelling. It still runs the same handler but is
+    // not advertised, so nothing the user reads says "remake" (CORE-21).
+    aliases: ["remake"],
     summary: "Rebuild the review guides for a repository that already has them.",
-    usage: ["co-maintainer remake owner/repo [options]"],
+    usage: [
+      "co-maintainer sync owner/repo [options]",
+    ],
     groups: [
       {
         title: "Sources",
@@ -187,7 +191,7 @@ export const COMMANDS: CommandSpec[] = [
       GITHUB_FLAGS,
       OUTPUT_FLAGS,
     ],
-    examples: ["co-maintainer remake owner/repo --include-codebase"],
+    examples: ["co-maintainer sync owner/repo --include-codebase"],
   },
   {
     name: "review",
@@ -210,7 +214,7 @@ export const COMMANDS: CommandSpec[] = [
         title: "Local only",
         flags: [
           { name: "remote", description: "Send the diff to the configured remote server instead of reviewing locally." },
-          { name: "remake-before-review", description: "Rebuild the guides before reviewing." },
+          { name: "sync-before-review", description: "Rebuild the guides before reviewing." },
         ],
       },
       {
@@ -307,8 +311,7 @@ export function findCommand(name: string): CommandSpec | undefined {
 }
 
 /** Commands listed in the global help. A hidden alias or command is resolvable
- * but invisible, which is how `remake` stays working while `sync` waits for
- * CORE-21. */
+ * but invisible. */
 export function visibleCommands(): CommandSpec[] {
   return COMMANDS.filter((command) => !command.hidden);
 }

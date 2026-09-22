@@ -18,7 +18,7 @@ function numberOption(value: string, name: string): number {
   return number;
 }
 
-const commands = ["probe", "init", "remake", "review"] as const;
+const commands = ["probe", "init", "sync", "remake", "review"] as const;
 export const defaultLowModel = "openai/gpt-oss-120b";
 const defaultHighModel = "openai/gpt-5.6-luna";
 
@@ -282,7 +282,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
   }
 
   return {
-    command: command as Options["command"],
+    command: command === "sync" ? "remake" : (command as Options["command"]),
     repo,
     prNumber,
     debug: rest.includes("--debug"),

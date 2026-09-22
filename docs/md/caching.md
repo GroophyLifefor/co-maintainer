@@ -48,7 +48,7 @@ using server-side init).
 
 | File / folder | Purpose |
 | ------------- | ------- |
-| `cache.db` | SQLite evidence and AI job cache for init/remake |
+| `cache.db` | SQLite evidence and AI job cache for init/sync |
 | `app.db` | SQLite state for [`serve`](serve.md) (repos, jobs, reviews) |
 | `clones/` | Disposable bare clones for server jobs |
 | `wt/` | Short-lived worktrees per PR on the server |
@@ -58,7 +58,7 @@ Override: `CM_APP_DB`, `CM_CLONES_DIR`, `CM_TOOLS_DIR` (see [Overrides](#overrid
 
 ## `cache.db` (CLI)
 
-Used by [`init`](init.md) and [`remake`](remake.md):
+Used by [`init`](init.md) and [`sync`](sync.md):
 
 | Kind of data | Cache key idea |
 | ------------ | -------------- |
@@ -68,7 +68,7 @@ Used by [`init`](init.md) and [`remake`](remake.md):
 | PR diffs | PR number + head SHA |
 | AI synthesis jobs | Input hash + model profile |
 
-[`remake`](remake.md) reuses unchanged rows so a moving default branch costs
+[`sync`](sync.md) reuses unchanged rows so a moving default branch costs
 less than a full [`init`](init.md). Delete `cache.db` only if you want a cold
 rebuild (you still need repo config or flags for limits).
 
@@ -111,7 +111,7 @@ remote review should read guides the server built.
 
 | Goal | Action |
 | ---- | ------ |
-| Main moved, guides stale | [`remake`](remake.md) or dashboard **Remake** |
-| Change include flags or limits | `remake`/`init` with new flags (updates config + guides) |
+| Main moved, guides stale | [`sync`](sync.md) or dashboard **Sync** |
+| Change include flags or limits | `sync`/`init` with new flags (updates config + guides) |
 | Wipe server state | Stop `serve`, backup, remove `app.db` (destructive) |
 | Wipe CLI evidence only | Remove `cache.db` (guides in `repos/` may remain) |

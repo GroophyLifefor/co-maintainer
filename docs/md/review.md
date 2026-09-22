@@ -1,6 +1,6 @@
 # Review
 
-AI code review using guides from [`init`](init.md) / [`remake`](remake.md).
+AI code review using guides from [`init`](init.md) / [`sync`](sync.md).
 Progress and diagnostics go to **stderr**. The result goes to **stdout** (human
 text or JSON with `--json`).
 
@@ -27,7 +27,7 @@ flowchart TD
 | If this sounds like you | Mode | Read next |
 | ----------------------- | ---- | --------- |
 | You are in a clone and want feedback on your branch or working tree before you open a PR | [Local review](local-review.md) | OpenRouter on your machine, guides on disk |
-| Same as local review, but the repo is already inited on [`serve`](serve.md) and you skip per-laptop init/remake | [Remote review](remote-review.md) | Shared context on the server, diff from your clone |
+| Same as local review, but the repo is already inited on [`serve`](serve.md) and you skip per-laptop init/sync | [Remote review](remote-review.md) | Shared context on the server, diff from your clone |
 | You have a PR number and do not need to check out that branch locally | [PR review](local-pr-review.md) | `gh` only, guides on disk, AI on your machine |
 
 PR review and remote review **do not combine**: `--remote` is only for a local
@@ -35,14 +35,14 @@ diff with no PR positional arguments.
 
 ## How the three modes differ
 
-Same underlying guides from `init` / `remake`, different **subject** (what gets
+Same underlying guides from `init` / `sync`, different **subject** (what gets
 reviewed) and **who keeps that context up to date**.
 
 ```mermaid
 flowchart TB
   subgraph context["Guide context"]
-    disk["Per laptop: init / remake"]
-    shared["Per repo on serve: init / remake once"]
+    disk["Per laptop: init / sync"]
+    shared["Per repo on serve: init / sync once"]
   end
 
   subgraph subject["What gets reviewed"]
@@ -63,7 +63,7 @@ flowchart TB
 | | Local review | PR review | Remote review |
 | --- | --- | --- | --- |
 | Typical moment | Pre-push in your clone, you own local guides | Open PR by number, you own local guides | Pre-push using the team's shared server context |
-| Who runs init/remake | You on the laptop | You on the laptop | Ops on the server (you usually do not) |
+| Who runs init/sync | You on the laptop | You on the laptop | Ops on the server (you usually do not) |
 | Guides at review time | Laptop cache | Laptop cache | Server dashboard repo |
 | Extra setup | OpenRouter | `gh auth login` | `serve`, token, `set --remote-host` |
 | Deep dive | [local-review](local-review.md) | [local-pr-review](local-pr-review.md) | [remote-review](remote-review.md) |
@@ -95,6 +95,6 @@ Flag details per mode: [Local review](local-review.md), [Remote review](remote-r
 
 | Check | Why |
 | ----- | --- |
-| [`init`](init.md) or [`remake`](remake.md) on your laptop | Required for local and PR review |
+| [`init`](init.md) or [`sync`](sync.md) on your laptop | Required for local and PR review |
 | [OpenRouter](configuration.md) for local and PR review | AI runs on your machine |
 | [Remote setup](remote-review.md) for `--remote` | Host, token, repo already inited on the server |

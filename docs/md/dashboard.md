@@ -1,7 +1,7 @@
 # Dashboard
 
 Web UI started by [`serve`](serve.md). Use it to finish setup, add repositories,
-run [`init`](init.md) / [`remake`](remake.md), tune auto-review, watch jobs, and
+run [`init`](init.md) / [`sync`](sync.md), tune auto-review, watch jobs, and
 manage [remote review](remote-review.md) tokens. Webhooks and the job worker run
 in the same process as the UI.
 
@@ -23,7 +23,7 @@ flowchart TD
 | ---- | ----------- |
 | First-time server setup | **Get started** on home or `/setup`, then **Settings** |
 | Onboard a repo | **Add repository**, wait on **Activity** |
-| Refresh guides after `main` moves | Repo **Overview** or **Settings** (Remake), or a cron schedule in repo **Settings** ([Scheduled remake](remake.md#scheduled-remake)) |
+| Refresh guides after `main` moves | Repo **Overview** or **Settings** (Sync), or a cron schedule in repo **Settings** ([Scheduled sync](sync.md#scheduled-sync)) |
 | Team laptops without local init | **Settings** remote tokens, repo **Remote** tab |
 | Debug a failed job | **Activity** job detail |
 
@@ -71,7 +71,7 @@ Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
 | `/repos/:owner/:repo/pulls` | PR list by number, manual **Review** when webhooks fail |
 | `/repos/:owner/:repo/pulls/:n` | Findings and cost for one PR |
 | `/repos/:owner/:repo/remote` | Remote CLI reviews for this repo (last 30 days) |
-| `/repos/:owner/:repo/knowledge` | Generated guides, **Remake** |
+| `/repos/:owner/:repo/knowledge` | Generated guides, **Sync** |
 | `/repos/:owner/:repo/settings` | Auto-review, skip rules, scope, remove repo |
 | `/activity` | Live and recent jobs (refreshes about every 5 seconds) |
 | `/activity/:id` | Single job log |
@@ -89,7 +89,7 @@ Single page with sections (anchor links in the sidebar):
 | Section | What you configure |
 | ------- | ------------------ |
 | Models and API key | Provider, token, low/high models for server jobs |
-| GitHub | `gh` or PAT for init/remake and server-side Git reads |
+| GitHub | `gh` or PAT for init/sync and server-side Git reads |
 | Defaults | Auth and include/limit defaults for new work |
 | Server | Webhook URL shown to GitHub, queue and timeout knobs |
 | Remote review | `cmr_…` tokens, per-token concurrency, sync timeout |

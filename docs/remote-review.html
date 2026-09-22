@@ -28,7 +28,7 @@
           <li><a href="getting-started.html">Quickstart</a></li>
           <li><a href="probe.html">Probe</a></li>
           <li><a href="init.html">Init</a></li>
-          <li><a href="remake.html">Remake</a></li>
+          <li><a href="sync.html">Sync</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -61,7 +61,7 @@
       <main class="doc-main">
         <article class="markdown prose"><h1>Remote review</h1>
 <p>Same <strong>local git diff</strong> as <a href="local-review.html">local review</a>, but <strong>review guides
-come from the server</strong>. The team runs <a href="init.html"><code>init</code></a> / <a href="remake.html"><code>remake</code></a>
+come from the server</strong>. The team runs <a href="init.html"><code>init</code></a> / <a href="sync.html"><code>sync</code></a>
 once on <a href="serve.html"><code>serve</code></a>. Developers clone, set host and token, and run
 <code>review --remote</code> without maintaining their own guide cache.</p>
 <p>The model runs on the server as part of that path. Codegraph tools (when enabled)
@@ -81,7 +81,7 @@ still run on the laptop and return results through the tool bridge.</p>
 <td>Hosts remote review API and shared repo context</td>
 </tr>
 <tr>
-<td>Repo added on the dashboard with <strong>init</strong> / <strong>remake</strong></td>
+<td>Repo added on the dashboard with <strong>init</strong> / <strong>sync</strong></td>
 <td>Guides live on the server for everyone</td>
 </tr>
 <tr>
@@ -97,7 +97,7 @@ still run on the laptop and return results through the tool bridge.</p>
 <td>Command is still <code>review --remote</code> with no PR number</td>
 </tr>
 </tbody></table>
-<p>You do <strong>not</strong> need a local <code>init</code> / <code>remake</code> for that repo if the server
+<p>You do <strong>not</strong> need a local <code>init</code> / <code>sync</code> for that repo if the server
 already has it.</p>
 <p>PR review (<code>owner/repo</code> + number) <strong>cannot</strong> use <code>--remote</code>.</p>
 <h2 id="usage">Usage</h2>
@@ -152,8 +152,8 @@ cd your/clone
 <td>Phase timings</td>
 </tr>
 </tbody></table>
-<p>Not supported with <code>--remote</code>: <code>--remake-before-review</code> (run
-<a href="remake.html"><code>remake</code></a> on the server instead).</p>
+<p>Not supported with <code>--remote</code>: <code>--sync-before-review</code> (run
+<a href="sync.html"><code>sync</code></a> on the server instead).</p>
 <h2 id="limits">Limits</h2>
 <ul>
 <li>Submit body size is capped (handshake <code>limits.maxBodyBytes</code>).</li>

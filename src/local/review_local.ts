@@ -171,7 +171,7 @@ export async function runLocalReview(
         if (options.auth !== "gh") {
           throw new ReviewCliError(
             "usage",
-            "Remake before review requires GitHub CLI authentication (`--auth=gh`).",
+            "Sync before review requires GitHub CLI authentication (`--auth=gh`).",
           );
         }
         await runInitOrRemake({ ...options, command: "remake" });

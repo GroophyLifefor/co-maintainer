@@ -1,7 +1,7 @@
 # Remote review
 
 Same **local git diff** as [local review](local-review.md), but **review guides
-come from the server**. The team runs [`init`](init.md) / [`remake`](remake.md)
+come from the server**. The team runs [`init`](init.md) / [`sync`](sync.md)
 once on [`serve`](serve.md). Developers clone, set host and token, and run
 `review --remote` without maintaining their own guide cache.
 
@@ -16,12 +16,12 @@ Overview: [`review`](review.md). Requires [`serve`](serve.md) and the
 | Check | Why |
 | ----- | --- |
 | Server running `co-maintainer serve` | Hosts remote review API and shared repo context |
-| Repo added on the dashboard with **init** / **remake** | Guides live on the server for everyone |
+| Repo added on the dashboard with **init** / **sync** | Guides live on the server for everyone |
 | **Settings → Remote review** token (`cmr_…`) | Bearer auth for the CLI |
 | `co-maintainer set --remote-host=... --remote-token=...` on the laptop | CLI knows where to connect |
 | Git clone with the same diff you would use for local review | Command is still `review --remote` with no PR number |
 
-You do **not** need a local `init` / `remake` for that repo if the server
+You do **not** need a local `init` / `sync` for that repo if the server
 already has it.
 
 PR review (`owner/repo` + number) **cannot** use `--remote`.
@@ -51,8 +51,8 @@ Same as [local review](local-review.md) for diff and output flags:
 | `--debug` | Verbose stderr |
 | `--log-time` | Phase timings |
 
-Not supported with `--remote`: `--remake-before-review` (run
-[`remake`](remake.md) on the server instead).
+Not supported with `--remote`: `--sync-before-review` (run
+[`sync`](sync.md) on the server instead).
 
 ## Limits
 

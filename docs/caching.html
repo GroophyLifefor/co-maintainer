@@ -28,7 +28,7 @@
           <li><a href="getting-started.html">Quickstart</a></li>
           <li><a href="probe.html">Probe</a></li>
           <li><a href="init.html">Init</a></li>
-          <li><a href="remake.html">Remake</a></li>
+          <li><a href="sync.html">Sync</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -151,7 +151,7 @@ using server-side init).</p>
 </thead>
 <tbody><tr>
 <td><code>cache.db</code></td>
-<td>SQLite evidence and AI job cache for init/remake</td>
+<td>SQLite evidence and AI job cache for init/sync</td>
 </tr>
 <tr>
 <td><code>app.db</code></td>
@@ -172,7 +172,7 @@ using server-side init).</p>
 </tbody></table>
 <p>Override: <code>CM_APP_DB</code>, <code>CM_CLONES_DIR</code>, <code>CM_TOOLS_DIR</code> (see <a href="#overrides">Overrides</a>).</p>
 <h2 id="cachedb-cli"><code>cache.db</code> (CLI)</h2>
-<p>Used by <a href="init.html"><code>init</code></a> and <a href="remake.html"><code>remake</code></a>:</p>
+<p>Used by <a href="init.html"><code>init</code></a> and <a href="sync.html"><code>sync</code></a>:</p>
 <table>
 <thead>
 <tr>
@@ -201,7 +201,7 @@ using server-side init).</p>
 <td>Input hash + model profile</td>
 </tr>
 </tbody></table>
-<p><a href="remake.html"><code>remake</code></a> reuses unchanged rows so a moving default branch costs
+<p><a href="sync.html"><code>sync</code></a> reuses unchanged rows so a moving default branch costs
 less than a full <a href="init.html"><code>init</code></a>. Delete <code>cache.db</code> only if you want a cold
 rebuild (you still need repo config or flags for limits).</p>
 <h2 id="appdb-serve"><code>app.db</code> (<code>serve</code>)</h2>
@@ -261,11 +261,11 @@ remote review should read guides the server built.</p>
 </thead>
 <tbody><tr>
 <td>Main moved, guides stale</td>
-<td><a href="remake.html"><code>remake</code></a> or dashboard <strong>Remake</strong></td>
+<td><a href="sync.html"><code>sync</code></a> or dashboard <strong>Sync</strong></td>
 </tr>
 <tr>
 <td>Change include flags or limits</td>
-<td><code>remake</code>/<code>init</code> with new flags (updates config + guides)</td>
+<td><code>sync</code>/<code>init</code> with new flags (updates config + guides)</td>
 </tr>
 <tr>
 <td>Wipe server state</td>

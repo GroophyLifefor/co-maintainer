@@ -34,15 +34,17 @@ function reviewFlags(rest: string[]): {
 } {
   const text = (name: string) =>
     rest.find((item) => item.startsWith(`--${name}=`))?.slice(name.length + 3);
+  // `--remake-before-review` is the 0.4.13 spelling; both names mean the same
+  // thing, and only the new one is documented (CORE-21).
+  const syncBeforeReview = rest.some(
+    (arg) => arg === "--sync-before-review" || arg === "--remake-before-review",
+  );
   for (const arg of rest) {
     if (arg === "--codegraph") {
       die("Unknown option: --codegraph");
     }
-    if (
-      arg === "--remote" &&
-      rest.some((r) => r === "--remake-before-review")
-    ) {
-      die("--remake-before-review cannot be used with --remote");
+    if (arg === "--remote" && syncBeforeReview) {
+      die("--sync-before-review cannot be used with --remote");
     }
   }
   return {
@@ -54,7 +56,7 @@ function reviewFlags(rest: string[]): {
     toBranch: text("to-branch"),
     branch: text("branch"),
     repoOverride: text("repo"),
-    remakeBeforeReview: rest.includes("--remake-before-review"),
+    remakeBeforeReview: syncBeforeReview,
   };
 }
 
@@ -65,6 +67,7 @@ const LOCAL_ONLY_FLAGS = new Set([
   "--allow-tool-install",
   "--fresh",
   "--remake-before-review",
+  "--sync-before-review",
 ]);
 
 /** Strip local-only flags before `parseArgs` for PR-style options. */
@@ -104,7 +107,7 @@ export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
     if (flags.remote)
       die("--remote is only for local review without a PR number");
     if (flags.remakeBeforeReview) {
-      die("--remake-before-review is not supported for PR review");
+      die("--sync-before-review is not supported for PR review");
     }
     return {
       mode: "pr",

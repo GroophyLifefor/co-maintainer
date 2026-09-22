@@ -398,13 +398,13 @@ export const REVIEW_MODE_CASES: ReviewModeCase[] = [
       "--remake-before-review",
     ],
     mode: "pr",
-    error: "--remake-before-review is not supported for PR review",
+    error: "--sync-before-review is not supported for PR review",
   },
   {
     name: "--remote with --remake-before-review is refused",
     args: ["--remote", "--remake-before-review"],
     mode: "remote",
-    error: "--remake-before-review cannot be used with --remote",
+    error: "--sync-before-review cannot be used with --remote",
   },
 ];
 

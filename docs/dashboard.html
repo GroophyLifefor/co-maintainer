@@ -28,7 +28,7 @@
           <li><a href="getting-started.html">Quickstart</a></li>
           <li><a href="probe.html">Probe</a></li>
           <li><a href="init.html">Init</a></li>
-          <li><a href="remake.html">Remake</a></li>
+          <li><a href="sync.html">Sync</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -61,7 +61,7 @@
       <main class="doc-main">
         <article class="markdown prose"><h1>Dashboard</h1>
 <p>Web UI started by <a href="serve.html"><code>serve</code></a>. Use it to finish setup, add repositories,
-run <a href="init.html"><code>init</code></a> / <a href="remake.html"><code>remake</code></a>, tune auto-review, watch jobs, and
+run <a href="init.html"><code>init</code></a> / <a href="sync.html"><code>sync</code></a>, tune auto-review, watch jobs, and
 manage <a href="remote-review.html">remote review</a> tokens. Webhooks and the job worker run
 in the same process as the UI.</p>
 <h2 id="what-it-is-for">What it is for</h2>
@@ -96,7 +96,7 @@ in the same process as the UI.</p>
 </tr>
 <tr>
 <td>Refresh guides after <code>main</code> moves</td>
-<td>Repo <strong>Overview</strong> or <strong>Settings</strong> (Remake), or a cron schedule in repo <strong>Settings</strong> (<a href="remake.html#scheduled-remake">Scheduled remake</a>)</td>
+<td>Repo <strong>Overview</strong> or <strong>Settings</strong> (Sync), or a cron schedule in repo <strong>Settings</strong> (<a href="sync.html#scheduled-sync">Scheduled sync</a>)</td>
 </tr>
 <tr>
 <td>Team laptops without local init</td>
@@ -187,7 +187,7 @@ have no repositories yet. You can skip it and configure the same items under
 </tr>
 <tr>
 <td><code>/repos/:owner/:repo/knowledge</code></td>
-<td>Generated guides, <strong>Remake</strong></td>
+<td>Generated guides, <strong>Sync</strong></td>
 </tr>
 <tr>
 <td><code>/repos/:owner/:repo/settings</code></td>
@@ -227,7 +227,7 @@ have no repositories yet. You can skip it and configure the same items under
 </tr>
 <tr>
 <td>GitHub</td>
-<td><code>gh</code> or PAT for init/remake and server-side Git reads</td>
+<td><code>gh</code> or PAT for init/sync and server-side Git reads</td>
 </tr>
 <tr>
 <td>Defaults</td>

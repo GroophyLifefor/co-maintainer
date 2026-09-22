@@ -12,7 +12,7 @@ flowchart LR
   auth --> probe[probe]
   probe --> init[init]
   init --> review[review]
-  init --> remake["remake <br/>(to keep your context up to date)"]
+  init --> sync["sync <br/>(to keep your context up to date)"]
 ```
 
 **Need:** [Node.js 24+](https://nodejs.org/), a repo you can read, `gh auth login`, an
@@ -68,12 +68,12 @@ mindmap
       No GitHub App
     Self-hosted server
       serve and dashboard
-      init and remake per repo
+      init and sync per repo
       GitHub App webhooks
       auto PR reviews
     Remote review
       Shared init on serve
-      no per-dev init/remake
+      no per-dev init/sync
       review --remote from clone
       codegraph stays local
 ```
@@ -82,7 +82,7 @@ mindmap
 
 ```mermaid
 flowchart TB
-  guides(["Guides from init / remake"])
+  guides(["Guides from init / sync"])
 
   guides --> cli
   guides --> hosted
@@ -109,7 +109,7 @@ flowchart TB
 
   subgraph remote["Remote hybrid"]
     direction TB
-    R1["Server holds shared guides from init/remake"]
+    R1["Server holds shared guides from init/sync"]
     R2["Laptop: review --remote"]
     R3["CLI uploads diff, polls job"]
     R4["codegraph on laptop if enabled"]
@@ -123,8 +123,8 @@ flowchart TB
 | Try a PR or local branch quickly | Your machine | `review` or `review owner/repo 123` | [local-review](local-review.md) · [PR review](local-pr-review.md) |
 | Team-wide PR reviews without everyone running the CLI | Your server + GitHub App | `set` App credentials, then `serve` | [serve](serve.md) |
 | Operate repos, tokens, concurrency | Browser on the server | Dashboard after `serve` | [dashboard](dashboard.md) |
-| Review a local diff without every developer running init/remake | Laptop + server | `set --remote-host` then `review --remote` | [remote-review](remote-review.md) |
-| Refresh guides after main moves | Same place as `init` | `remake owner/repo` | [remake](remake.md) |
+| Review a local diff without every developer running init/sync | Laptop + server | `set --remote-host` then `review --remote` | [remote-review](remote-review.md) |
+| Refresh guides after main moves | Same place as `init` | `sync owner/repo` | [sync](sync.md) |
 
 Guides and cache paths: [Caching](caching.md). Flags and `co-maintainer set`:
 [Configuration](configuration.md).

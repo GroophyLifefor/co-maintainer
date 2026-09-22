@@ -43,6 +43,7 @@
     "probe": "node main.ts probe",
     "init": "node main.ts init",
     "remake": "node main.ts remake",
+    "sync": "node main.ts sync",
     "review": "node main.ts review",
     "serve": "node main.ts serve",
     "bench": "node benchmark/core_v2/run.ts",

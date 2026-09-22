@@ -28,7 +28,7 @@
           <li><a href="getting-started.html">Quickstart</a></li>
           <li><a href="probe.html">Probe</a></li>
           <li><a href="init.html">Init</a></li>
-          <li><a href="remake.html">Remake</a></li>
+          <li><a href="sync.html">Sync</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -62,13 +62,13 @@
         <article class="markdown prose"><h1>Configuration</h1>
 <p>Global defaults live in <code>config.json</code> under the platform config directory.
 <a href="configuration.html#set"><code>co-maintainer set</code></a> writes that file. <a href="init.html"><code>init</code></a> /
-<a href="remake.html"><code>remake</code></a> also record <strong>per-repo</strong> choices there (not API tokens).
+<a href="sync.html"><code>sync</code></a> also record <strong>per-repo</strong> choices there (not API tokens).
 Generated guides sit under <code>repos/</code> in the same tree. Full paths:
 <a href="caching.html#on-disk-layout">Caching</a>.</p>
 <p><a href="serve.html"><code>serve</code></a> reads the same <code>config.json</code> for the GitHub App, webhook
 URL, dashboard auth defaults, and CLI remote-review targets.</p>
 <h2 id="precedence">Precedence</h2>
-<p>For CLI commands (<code>probe</code>, <code>init</code>, <code>remake</code>, <code>review</code>):</p>
+<p>For CLI commands (<code>probe</code>, <code>init</code>, <code>sync</code>, <code>review</code>):</p>
 <figure class="mermaid-figure">
 <div class="mermaid-viewport"><div class="mermaid">flowchart BT
   flags["Command-line flags"]
@@ -109,7 +109,7 @@ URL, dashboard auth defaults, and CLI remote-review targets.</p>
 </tr>
 <tr>
 <td>Per-repo</td>
-<td><code>repos[&quot;owner/repo&quot;]</code> after a successful init/remake</td>
+<td><code>repos[&quot;owner/repo&quot;]</code> after a successful init/sync</td>
 </tr>
 <tr>
 <td>Global</td>
@@ -225,7 +225,7 @@ URL, dashboard auth defaults, and CLI remote-review targets.</p>
 is allowed again. Match <code>--unset=</code> to the field name or the flag name (see
 <code>co-maintainer set --help</code>).</p>
 <h2 id="per-repo-memory">Per-repo memory</h2>
-<p>After each successful <a href="init.html"><code>init</code></a> or <a href="remake.html"><code>remake</code></a>,
+<p>After each successful <a href="init.html"><code>init</code></a> or <a href="sync.html"><code>sync</code></a>,
 <code>config.json</code> gains <code>repos[&quot;owner/repo&quot;]</code> with:</p>
 <table>
 <thead>
@@ -251,8 +251,8 @@ is allowed again. Match <code>--unset=</code> to the field name or the flag name
 <td></td>
 </tr>
 </tbody></table>
-<p>A plain <code>co-maintainer remake owner/repo</code> reuses those values. Pass new flags
-on <code>remake</code> or run <code>init</code> again to change includes, limits, or pull request
+<p>A plain <code>co-maintainer sync owner/repo</code> reuses those values. Pass new flags
+on <code>sync</code> or run <code>init</code> again to change includes, limits, or pull request
 filters permanently. <code>--only-request-changed-pr</code> stays on once saved. To
 collect every pull request state again, pass <code>--pr-state=open,closed,merged</code>.</p>
 <p>Guide files (<code>SKILL.md</code>, <code>CODEBASE.md</code>, review guides) live under

@@ -562,7 +562,7 @@ test("activity lists a job as a link and the job page shows the error", async ()
     });
     setJobStatus("job-fail", "failed", {
       error:
-        "Error: remake requires a previous init or remake for this repository",
+        "Error: sync requires a previous init or sync for this repository",
     });
     const app = createApp({ password: PASSWORD });
     const cookie = await cookieSession(app);
@@ -595,10 +595,10 @@ test("activity lists a job as a link and the job page shows the error", async ()
     );
     if (job.status !== 200) throw new Error(`job page ${job.status}`);
     const html = await job.text();
-    if (!html.includes("Updated knowledge")) {
+    if (!html.includes("Synced knowledge")) {
       throw new Error("job page missed the label");
     }
-    if (!html.includes("remake requires a previous init")) {
+    if (!html.includes("sync requires a previous init")) {
       throw new Error("job page missed the error");
     }
     if (!html.includes("Retry")) throw new Error("job page missed Retry");

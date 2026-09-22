@@ -20,7 +20,7 @@ const NAV: NavSection[] = [
       { slug: "getting-started", label: "Quickstart" },
       { slug: "probe", label: "Probe" },
       { slug: "init", label: "Init" },
-      { slug: "remake", label: "Remake" },
+      { slug: "sync", label: "Sync" },
     ],
   },
   {

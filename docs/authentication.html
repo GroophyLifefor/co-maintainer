@@ -28,7 +28,7 @@
           <li><a href="getting-started.html">Quickstart</a></li>
           <li><a href="probe.html">Probe</a></li>
           <li><a href="init.html">Init</a></li>
-          <li><a href="remake.html">Remake</a></li>
+          <li><a href="sync.html">Sync</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -66,7 +66,7 @@ GitHub App are separate mechanisms.</p>
 <h2 id="at-a-glance">At a glance</h2>
 <figure class="mermaid-figure">
 <div class="mermaid-viewport"><div class="mermaid">flowchart LR
-  subgraph cli["CLI probe init remake"]
+  subgraph cli["CLI probe init sync"]
     ghcli["--auth=gh via gh"]
     pat["--auth=pat via token"]
   end
@@ -95,7 +95,7 @@ GitHub App are separate mechanisms.</p>
 </tr>
 </thead>
 <tbody><tr>
-<td><code>probe</code>, <code>init</code>, <code>remake</code></td>
+<td><code>probe</code>, <code>init</code>, <code>sync</code></td>
 <td><code>gh</code> or PAT</td>
 <td><a href="configuration.html">Configuration</a>, flags, <code>--env</code></td>
 </tr>

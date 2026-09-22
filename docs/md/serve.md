@@ -24,7 +24,7 @@ flowchart LR
 | Piece | Role |
 | ----- | ---- |
 | `POST /github/webhook` | PR and conversation events enqueue work |
-| Dashboard at `/` | Per-repo init/remake, settings, activity, credentials |
+| Dashboard at `/` | Per-repo init/sync, settings, activity, credentials |
 | Job worker | Auto PR reviews, setup jobs, conversation replies |
 | Remote review | Shared repo context for laptops without local init |
 

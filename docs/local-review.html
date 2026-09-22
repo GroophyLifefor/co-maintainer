@@ -28,7 +28,7 @@
           <li><a href="getting-started.html">Quickstart</a></li>
           <li><a href="probe.html">Probe</a></li>
           <li><a href="init.html">Init</a></li>
-          <li><a href="remake.html">Remake</a></li>
+          <li><a href="sync.html">Sync</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -81,7 +81,7 @@ base branch. AI and guides run on <strong>your machine</strong> (OpenRouter via
 <td>Maps the clone to guides for that repo</td>
 </tr>
 <tr>
-<td><a href="init.html"><code>init</code></a> / <a href="remake.html"><code>remake</code></a> for that <code>owner/repo</code></td>
+<td><a href="init.html"><code>init</code></a> / <a href="sync.html"><code>sync</code></a> for that <code>owner/repo</code></td>
 <td><code>SKILL.md</code> and review guides on disk</td>
 </tr>
 <tr>
@@ -98,7 +98,7 @@ base branch. AI and guides run on <strong>your machine</strong> (OpenRouter via
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-flag">--json</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-flag">--fresh</span>
-<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-flag">--to-branch=main</span> <span class="sh-flag">--remake-before-review</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-flag">--to-branch=main</span> <span class="sh-flag">--sync-before-review</span>
 </code></pre>
 <h2 id="parameters">Parameters</h2>
 <table>
@@ -137,8 +137,8 @@ base branch. AI and guides run on <strong>your machine</strong> (OpenRouter via
 <td>Override GitHub remote detection</td>
 </tr>
 <tr>
-<td><code>--remake-before-review</code></td>
-<td>Run <a href="remake.html"><code>remake</code></a> before reviewing (requires <code>gh</code>)</td>
+<td><code>--sync-before-review</code></td>
+<td>Run <a href="sync.html"><code>sync</code></a> before reviewing (requires <code>gh</code>)</td>
 </tr>
 <tr>
 <td><code>--debug</code></td>
