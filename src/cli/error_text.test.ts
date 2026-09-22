@@ -51,7 +51,11 @@ function assertMessage(
 
 test("error text: OpenRouter 401 tells the user how to replace the key", () => {
   assertMessage(
-    openRouterError("m", 401, JSON.stringify({ error: { message: "User not found." } })),
+    openRouterError(
+      "m",
+      401,
+      JSON.stringify({ error: { message: "User not found." } }),
+    ),
     {
       message: /OpenRouter rejected the API key/,
       hint: /co-maintainer set --token/,
@@ -92,9 +96,12 @@ test("error text: OpenRouter never leaks the raw body (user_id included)", () =>
 });
 
 test("error text: a network failure names the host and the cause code", () => {
-  const error = networkFailure("https://openrouter.ai/api/v1/chat/completions", {
-    cause: { code: "ENOTFOUND" },
-  });
+  const error = networkFailure(
+    "https://openrouter.ai/api/v1/chat/completions",
+    {
+      cause: { code: "ENOTFOUND" },
+    },
+  );
   if (!/Could not reach openrouter\.ai: ENOTFOUND/.test(error.message)) {
     throw new Error(`message was "${error.message}"`);
   }
@@ -134,7 +141,11 @@ test("error text: a 404 names owner/repo and exits 2", async () => {
       ghMode: "notfound",
     });
     const output = `${result.stdout}${result.stderr}`;
-    if (!/fixture\/repo was not found, or your GitHub account cannot read it/.test(output)) {
+    if (
+      !/fixture\/repo was not found, or your GitHub account cannot read it/.test(
+        output,
+      )
+    ) {
       throw new Error(`the 404 message is wrong:\n${output}`);
     }
     if (/gh api failed/.test(output)) {
@@ -158,7 +169,9 @@ test("error text: gh with an empty stderr still says what failed", async () => {
     const output = `${result.stdout}${result.stderr}`;
     // Before CORE-12 this collapsed to just the endpoint with no explanation.
     if (/\[error\] repos\/fixture\/repo\s*$/.test(output)) {
-      throw new Error(`the empty-stderr message is just the endpoint:\n${output}`);
+      throw new Error(
+        `the empty-stderr message is just the endpoint:\n${output}`,
+      );
     }
     if (!/repos\/fixture\/repo/.test(output)) {
       throw new Error(`the endpoint is not named:\n${output}`);
@@ -173,7 +186,11 @@ test("error text: a rejected remote token points at the dashboard", async () => 
   // the wire and the message is built where the response is read.
   const server = createServer((_request, response) => {
     response.writeHead(401, { "content-type": "application/json" });
-    response.end(JSON.stringify({ error: { code: "token_invalid", message: "invalid or missing token" } }));
+    response.end(
+      JSON.stringify({
+        error: { code: "token_invalid", message: "invalid or missing token" },
+      }),
+    );
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -210,7 +227,9 @@ test("error text: a rejected remote token points at the dashboard", async () => 
         stderr: "piped",
       }).output();
       if (!result.success) {
-        throw new Error(`git ${args.join(" ")}: ${new TextDecoder().decode(result.stderr)}`);
+        throw new Error(
+          `git ${args.join(" ")}: ${new TextDecoder().decode(result.stderr)}`,
+        );
       }
     };
     await git(["init"]);
@@ -220,7 +239,12 @@ test("error text: a rejected remote token points at the dashboard", async () => 
     await git(["add", "x.ts"]);
     await git(["commit", "-m", "init"]);
     await git(["branch", "-M", "main"]);
-    await git(["remote", "add", "origin", "https://github.com/e2e-exit/remote.git"]);
+    await git([
+      "remote",
+      "add",
+      "origin",
+      "https://github.com/e2e-exit/remote.git",
+    ]);
     await git(["update-ref", "refs/remotes/origin/main", "HEAD"]);
     await writeTextFile(`${worktree}/x.ts`, "export const y = 1\n");
     await git(["commit", "-am", "change"]);

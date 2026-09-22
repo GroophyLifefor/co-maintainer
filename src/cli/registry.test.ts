@@ -80,13 +80,19 @@ test("registry: closest only suggests within the distance limit", () => {
 });
 
 test("registry: did-you-mean for commands and flags", () => {
-  if (unknownCommandMessage("prob") !== "Unknown command: prob. Did you mean probe?") {
+  if (
+    unknownCommandMessage("prob") !==
+    "Unknown command: prob. Did you mean probe?"
+  ) {
     throw new Error(`command suggestion: ${unknownCommandMessage("prob")}`);
   }
   if (/Did you mean/.test(unknownCommandMessage("zzzz"))) {
     throw new Error("a far command should get no suggestion");
   }
-  if (unknownOptionMessage("--jsno") !== "Unknown option: --jsno. Did you mean --json?") {
+  if (
+    unknownOptionMessage("--jsno") !==
+    "Unknown option: --jsno. Did you mean --json?"
+  ) {
     throw new Error(`flag suggestion: ${unknownOptionMessage("--jsno")}`);
   }
   if (/Did you mean/.test(unknownOptionMessage("--totally-unrelated"))) {
@@ -109,7 +115,9 @@ test("registry: every visible command documents its usage and has no dupes", () 
     }
     for (const group of command.groups) {
       if (group.flags.length === 0) {
-        throw new Error(`${command.name} has an empty flag group ${group.title}`);
+        throw new Error(
+          `${command.name} has an empty flag group ${group.title}`,
+        );
       }
       for (const flag of group.flags) {
         if (flag.name.includes("=") || flag.name.startsWith("-")) {
@@ -153,7 +161,11 @@ test("registry: the init help groups flags the way the plan asks", () => {
     }
   }
   // Flags the DX research said were undocumented or missing.
-  for (const flag of ["--pr-state", "--only-request-changed-pr", "--include-codebase"]) {
+  for (const flag of [
+    "--pr-state",
+    "--only-request-changed-pr",
+    "--include-codebase",
+  ]) {
     if (!help.includes(flag)) throw new Error(`init help omits ${flag}`);
   }
 });
@@ -174,7 +186,9 @@ test("help: `help <command>` prints that command and exits 0", async () => {
       throw new Error(`help ${name} exited ${result.exitCode}`);
     }
     if (!result.stdout.includes(`co-maintainer ${name}`)) {
-      throw new Error(`help ${name} did not print its own help:\n${result.stdout}`);
+      throw new Error(
+        `help ${name} did not print its own help:\n${result.stdout}`,
+      );
     }
   }
 });
@@ -184,10 +198,14 @@ test("help: `<command> --help` and `<command> -h` both exit 0", async () => {
     for (const flag of ["--help", "-h"]) {
       const result = await capture([name, flag]);
       if (result.exitCode !== 0) {
-        throw new Error(`${name} ${flag} exited ${result.exitCode}: ${result.stderr}`);
+        throw new Error(
+          `${name} ${flag} exited ${result.exitCode}: ${result.stderr}`,
+        );
       }
       if (!result.stdout.includes(`co-maintainer ${name}`)) {
-        throw new Error(`${name} ${flag} printed the wrong help:\n${result.stdout}`);
+        throw new Error(
+          `${name} ${flag} printed the wrong help:\n${result.stdout}`,
+        );
       }
     }
   }
@@ -201,7 +219,9 @@ test("help: `serve --help` prints help and never starts a server", async () => {
   // Before CORE-20 this failed with `--port is required`, meaning the help call
   // fell through into the handler.
   if (/--port is required/.test(result.stderr)) {
-    throw new Error(`serve --help fell through to the handler:\n${result.stderr}`);
+    throw new Error(
+      `serve --help fell through to the handler:\n${result.stderr}`,
+    );
   }
   if (/\[serve\] listening/.test(result.stdout)) {
     throw new Error("serve --help actually started the server");

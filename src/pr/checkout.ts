@@ -76,9 +76,9 @@ async function cloneInto(repo: string, dir: string, run: Run): Promise<string> {
         .map((line) => line.trim())
         .find((line) => line.length > 0) ?? "";
     throw new Error(
-      `git clone failed (exit ${result.code}) for ${repo}, so this review has no `
-        + `repository scope and falls back to the diff only`
-        + (firstLine ? `: ${firstLine}` : ""),
+      `git clone failed (exit ${result.code}) for ${repo}, so this review has no ` +
+        `repository scope and falls back to the diff only` +
+        (firstLine ? `: ${firstLine}` : ""),
     );
   }
   log(

@@ -59,7 +59,10 @@ async function runReviewPr(
       if (options.auth !== "gh") {
         throw new Error("review supports gh authentication only");
       }
-      log("review", `reading PR #${options.prNumber} in ${options.repo} via gh`);
+      log(
+        "review",
+        `reading PR #${options.prNumber} in ${options.repo} via gh`,
+      );
       const result = await timed(
         "review GitHub collection and AI",
         options.logTime,

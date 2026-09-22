@@ -70,6 +70,9 @@ export type UserConfig = {
   };
   /** Cap on jobs running at once across all types. Unset means no limit. */
   maxConcurrentJobs?: number;
+  /** What a review uses to decide a blocking finding (CORE-41). `model` lets
+   * the model's own severity decide, `severity` uses a fixed threshold. */
+  reviewBlocking?: "model" | "severity";
   /** Remote review CLI target (`co-maintainer set`). */
   remoteHost?: string;
   /** Bearer token for `/api/remote/*`; only written by `set`. */

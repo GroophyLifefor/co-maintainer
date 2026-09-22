@@ -59,6 +59,7 @@ co-maintainer set --remote-host=https://your-server --remote-token=cmr_...
 | Flag | Written to | Used by |
 | ------ | ---------- | ------- |
 | `--token=...` | `token` | CLI AI calls (OpenRouter/Hetzner) |
+| `--ai-key=...` | `token` | An alias for `--token`, named for what it is |
 | `--ai=none\|openrouter\|hetzner` | `ai` | CLI and dashboard jobs |
 | `--low-model=...` / `--high-model=...` | `lowModel`, `highModel` | CLI and dashboard jobs |
 | `--auth=gh\|pat` | `auth` | CLI GitHub reads |
@@ -73,8 +74,42 @@ co-maintainer set --remote-host=https://your-server --remote-token=cmr_...
 | `--enable-auth=github` | `githubAuthEnabled` | Default for `serve` |
 | `--remote-host=...` | `remoteHost` | `review --remote` |
 | `--remote-token=...` | `remoteToken` | `review --remote` |
+| `--review-blocking=model\|severity` | `reviewBlocking` | Whether a review's own severity decides a blocking finding |
+
+### Verification before saving
+
+When the provider is OpenRouter, `set` checks the key against
+`/api/v1/key` and, if a model is given, that `/api/v1/models` lists it. A bad
+key or unknown model is refused with exit code 2 and **nothing is written**. A
+network failure only warns (`saved anyway`), because that is not a typo. Pass
+`--no-verify` to skip the check, for example in CI with an offline key.
 
 OAuth setup steps: [`serve`: Sign in](serve.md#sign-in-to-the-dashboard).
+
+## `co-maintainer config`
+
+Reads and edits the same `config.json` without opening the file. `set` is the
+short form of `config set`, and its output and flags are unchanged.
+
+```sh
+co-maintainer config list                  # key, value, and source per row
+co-maintainer config get high-model        # one raw value, no label
+co-maintainer config set remote-host https://review.example.com
+co-maintainer config set --remote-token=cmr_...
+co-maintainer config unset remote-token
+co-maintainer config path                  # the config file
+co-maintainer config path --all            # config, repos, and cache directories
+```
+
+`list` prints where each value came from: `env` (an environment variable
+overrides the file at run time), `file`, or nothing for an unset key. Secrets
+are masked — twelve characters or more keep their last four, shorter ones show
+only `••••`, and the dashboard password reports `set` or `not set` rather than
+its hash. `get` prints the real value, so treat its output as a secret.
+
+Keys are the `UserConfig` field names in kebab-case (`high-model`,
+`remote-host`, `review-blocking`); camelCase is accepted too. A name that is
+not a config key is refused with exit code 2.
 
 ### Unset
 

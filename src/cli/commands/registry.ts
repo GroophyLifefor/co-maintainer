@@ -38,7 +38,10 @@ export type CommandSpec = {
 const OUTPUT_FLAGS: FlagGroup = {
   title: "Output and diagnostics",
   flags: [
-    { name: "json", description: "Print machine-readable JSON instead of prose." },
+    {
+      name: "json",
+      description: "Print machine-readable JSON instead of prose.",
+    },
     { name: "debug", description: "Print the underlying gh and HTTP calls." },
     { name: "log-time", description: "Print how long each phase took." },
   ],
@@ -54,6 +57,11 @@ const AI_FLAGS: FlagGroup = {
       description: "Which provider writes the review.",
     },
     { name: "token", value: "KEY", description: "The provider API key." },
+    {
+      name: "ai-key",
+      value: "KEY",
+      description: "The same key as --token, named for what it is.",
+    },
     {
       name: "low-model",
       value: "ID",
@@ -78,7 +86,11 @@ const GITHUB_FLAGS: FlagGroup = {
       default: "gh",
       description: "Use the gh CLI or a personal access token.",
     },
-    { name: "github-pat", value: "TOKEN", description: "The token when --auth=pat." },
+    {
+      name: "github-pat",
+      value: "TOKEN",
+      description: "The token when --auth=pat.",
+    },
   ],
 };
 
@@ -86,17 +98,27 @@ export const COMMANDS: CommandSpec[] = [
   {
     name: "probe",
     summary: "Inspect a repository and recommend the init flags for it.",
-    usage: [
-      "co-maintainer probe owner/repo [options]",
-    ],
+    usage: ["co-maintainer probe owner/repo [options]"],
     groups: [
       GITHUB_FLAGS,
       {
         title: "Limits",
         flags: [
-          { name: "max-pull-request-change-lines", value: "N", description: "Cap the diff size sampled." },
-          { name: "max-pr-months", value: "N", description: "Cap how far back pull requests are read." },
-          { name: "max-commits", value: "N", description: "Cap how many commits are read." },
+          {
+            name: "max-pull-request-change-lines",
+            value: "N",
+            description: "Cap the diff size sampled.",
+          },
+          {
+            name: "max-pr-months",
+            value: "N",
+            description: "Cap how far back pull requests are read.",
+          },
+          {
+            name: "max-commits",
+            value: "N",
+            description: "Cap how many commits are read.",
+          },
         ],
       },
       OUTPUT_FLAGS,
@@ -115,19 +137,50 @@ export const COMMANDS: CommandSpec[] = [
         title: "Sources",
         flags: [
           { name: "include-codebase", description: "Read the source tree." },
-          { name: "include-pull-requests", description: "Read pull request history." },
-          { name: "include-pull-request-changes", description: "Read the diffs of those pull requests." },
-          { name: "include-commit-history", description: "Read commit history." },
-          { name: "include-how-repo-works", description: "Read the docs and layout." },
+          {
+            name: "include-pull-requests",
+            description: "Read pull request history.",
+          },
+          {
+            name: "include-pull-request-changes",
+            description: "Read the diffs of those pull requests.",
+          },
+          {
+            name: "include-commit-history",
+            description: "Read commit history.",
+          },
+          {
+            name: "include-how-repo-works",
+            description: "Read the docs and layout.",
+          },
         ],
       },
       {
         title: "Limits",
         flags: [
-          { name: "max-commits", value: "N", default: "all", description: "Cap how many commits are read." },
-          { name: "max-pr-months", value: "N", default: "all", description: "Cap how far back pull requests are read." },
-          { name: "max-pull-request-change-lines", value: "N", default: "all", description: "Cap the diff size read." },
-          { name: "max-comment", value: "N", description: "Cap the comments read per pull request." },
+          {
+            name: "max-commits",
+            value: "N",
+            default: "all",
+            description: "Cap how many commits are read.",
+          },
+          {
+            name: "max-pr-months",
+            value: "N",
+            default: "all",
+            description: "Cap how far back pull requests are read.",
+          },
+          {
+            name: "max-pull-request-change-lines",
+            value: "N",
+            default: "all",
+            description: "Cap the diff size read.",
+          },
+          {
+            name: "max-comment",
+            value: "N",
+            description: "Cap the comments read per pull request.",
+          },
         ],
       },
       {
@@ -138,7 +191,11 @@ export const COMMANDS: CommandSpec[] = [
             value: "open,closed,merged",
             description: "Which pull request states to read.",
           },
-          { name: "only-request-changed-pr", description: "Read only the pull requests that changed the requested files." },
+          {
+            name: "only-request-changed-pr",
+            description:
+              "Read only the pull requests that changed the requested files.",
+          },
         ],
       },
       AI_FLAGS,
@@ -147,9 +204,24 @@ export const COMMANDS: CommandSpec[] = [
       {
         title: "Performance",
         flags: [
-          { name: "gh-concurrent", value: "N", default: "1", description: "Concurrent gh calls." },
-          { name: "ai-concurrent", value: "N", default: "3", description: "Concurrent AI calls." },
-          { name: "improve-matrix", value: "N", default: "1", description: "How many improvement passes to run." },
+          {
+            name: "gh-concurrent",
+            value: "N",
+            default: "1",
+            description: "Concurrent gh calls.",
+          },
+          {
+            name: "ai-concurrent",
+            value: "N",
+            default: "3",
+            description: "Concurrent AI calls.",
+          },
+          {
+            name: "improve-matrix",
+            value: "N",
+            default: "1",
+            description: "How many improvement passes to run.",
+          },
         ],
       },
     ],
@@ -163,28 +235,55 @@ export const COMMANDS: CommandSpec[] = [
     // `remake` is the 0.4.13 spelling. It still runs the same handler but is
     // not advertised, so nothing the user reads says "remake" (CORE-21).
     aliases: ["remake"],
-    summary: "Rebuild the review guides for a repository that already has them.",
-    usage: [
-      "co-maintainer sync owner/repo [options]",
-    ],
+    summary:
+      "Rebuild the review guides for a repository that already has them.",
+    usage: ["co-maintainer sync owner/repo [options]"],
     groups: [
       {
         title: "Sources",
         flags: [
           { name: "include-codebase", description: "Read the source tree." },
-          { name: "include-pull-requests", description: "Read pull request history." },
-          { name: "include-pull-request-changes", description: "Read the diffs of those pull requests." },
-          { name: "include-commit-history", description: "Read commit history." },
-          { name: "include-how-repo-works", description: "Read the docs and layout." },
+          {
+            name: "include-pull-requests",
+            description: "Read pull request history.",
+          },
+          {
+            name: "include-pull-request-changes",
+            description: "Read the diffs of those pull requests.",
+          },
+          {
+            name: "include-commit-history",
+            description: "Read commit history.",
+          },
+          {
+            name: "include-how-repo-works",
+            description: "Read the docs and layout.",
+          },
         ],
       },
       {
         title: "Limits",
         flags: [
-          { name: "max-commits", value: "N", description: "Cap how many commits are read." },
-          { name: "max-pr-months", value: "N", description: "Cap how far back pull requests are read." },
-          { name: "max-pull-request-change-lines", value: "N", description: "Cap the diff size read." },
-          { name: "max-comment", value: "N", description: "Cap the comments read per pull request." },
+          {
+            name: "max-commits",
+            value: "N",
+            description: "Cap how many commits are read.",
+          },
+          {
+            name: "max-pr-months",
+            value: "N",
+            description: "Cap how far back pull requests are read.",
+          },
+          {
+            name: "max-pull-request-change-lines",
+            value: "N",
+            description: "Cap the diff size read.",
+          },
+          {
+            name: "max-comment",
+            value: "N",
+            description: "Cap the comments read per pull request.",
+          },
         ],
       },
       AI_FLAGS,
@@ -204,24 +303,52 @@ export const COMMANDS: CommandSpec[] = [
       {
         title: "Target",
         flags: [
-          { name: "repo", value: "owner/repo", description: "The repository the local changes belong to." },
-          { name: "branch", value: "NAME", description: "The branch the local changes are on." },
-          { name: "to-branch", value: "NAME", description: "Compare the local changes against this branch." },
-          { name: "fresh", description: "Ignore the previous review and start over." },
+          {
+            name: "repo",
+            value: "owner/repo",
+            description: "The repository the local changes belong to.",
+          },
+          {
+            name: "branch",
+            value: "NAME",
+            description: "The branch the local changes are on.",
+          },
+          {
+            name: "to-branch",
+            value: "NAME",
+            description: "Compare the local changes against this branch.",
+          },
+          {
+            name: "fresh",
+            description: "Ignore the previous review and start over.",
+          },
         ],
       },
       {
         title: "Local only",
         flags: [
-          { name: "remote", description: "Send the diff to the configured remote server instead of reviewing locally." },
-          { name: "sync-before-review", description: "Rebuild the guides before reviewing." },
+          {
+            name: "remote",
+            description:
+              "Send the diff to the configured remote server instead of reviewing locally.",
+          },
+          {
+            name: "sync-before-review",
+            description: "Rebuild the guides before reviewing.",
+          },
         ],
       },
       {
         title: "Codegraph",
         flags: [
-          { name: "disable-codegraph", description: "Skip the codegraph index." },
-          { name: "allow-tool-install", description: "Install codegraph if it is missing." },
+          {
+            name: "disable-codegraph",
+            description: "Skip the codegraph index.",
+          },
+          {
+            name: "allow-tool-install",
+            description: "Install codegraph if it is missing.",
+          },
         ],
       },
       AI_FLAGS,
@@ -235,6 +362,35 @@ export const COMMANDS: CommandSpec[] = [
     ],
   },
   {
+    name: "config",
+    summary: "Read and edit the user config without opening the file.",
+    usage: [
+      "co-maintainer config list",
+      "co-maintainer config get <key>",
+      "co-maintainer config set <key> <value>",
+      "co-maintainer config unset <key>",
+      "co-maintainer config path [--all]",
+    ],
+    groups: [
+      {
+        title: "Subcommands",
+        flags: [
+          {
+            name: "all",
+            description:
+              "With `path`, also print the repos and cache directories.",
+          },
+        ],
+      },
+    ],
+    examples: [
+      "co-maintainer config list",
+      "co-maintainer config get high-model",
+      "co-maintainer config set remote-host https://review.example.com",
+      "co-maintainer config path --all",
+    ],
+  },
+  {
     name: "set",
     summary: "Persist defaults and secrets to the user config file.",
     usage: ["co-maintainer set [options]"],
@@ -244,24 +400,87 @@ export const COMMANDS: CommandSpec[] = [
       {
         title: "Server",
         flags: [
-          { name: "github-app-id", value: "ID", description: "The GitHub App id." },
-          { name: "github-app-private-key", value: "PEM", description: "The GitHub App private key." },
-          { name: "github-app-private-key-file", value: "PATH", description: "Read the private key from a file." },
-          { name: "github-webhook-secret", value: "SECRET", description: "The webhook HMAC secret." },
-          { name: "github-oauth-client-id", value: "ID", description: "The GitHub OAuth app client id." },
-          { name: "github-oauth-client-secret", value: "SECRET", description: "The GitHub OAuth app client secret." },
-          { name: "github-oauth-allowed-user", value: "LOGIN", description: "The only GitHub user allowed to sign in." },
-          { name: "remote-host", value: "URL", description: "The remote review server." },
-          { name: "remote-token", value: "TOKEN", description: "The remote review token." },
-          { name: "password", value: "TEXT", description: "Replace the dashboard password." },
-          { name: "disable-auth", value: "password", description: "Turn the dashboard password off." },
-          { name: "enable-auth", value: "github", description: "Turn GitHub sign-in on." },
-          { name: "unset", value: "NAME", description: "Remove a stored value." },
+          {
+            name: "github-app-id",
+            value: "ID",
+            description: "The GitHub App id.",
+          },
+          {
+            name: "github-app-private-key",
+            value: "PEM",
+            description: "The GitHub App private key.",
+          },
+          {
+            name: "github-app-private-key-file",
+            value: "PATH",
+            description: "Read the private key from a file.",
+          },
+          {
+            name: "github-webhook-secret",
+            value: "SECRET",
+            description: "The webhook HMAC secret.",
+          },
+          {
+            name: "github-oauth-client-id",
+            value: "ID",
+            description: "The GitHub OAuth app client id.",
+          },
+          {
+            name: "github-oauth-client-secret",
+            value: "SECRET",
+            description: "The GitHub OAuth app client secret.",
+          },
+          {
+            name: "github-oauth-allowed-user",
+            value: "LOGIN",
+            description: "The only GitHub user allowed to sign in.",
+          },
+          {
+            name: "remote-host",
+            value: "URL",
+            description: "The remote review server.",
+          },
+          {
+            name: "remote-token",
+            value: "TOKEN",
+            description: "The remote review token.",
+          },
+          {
+            name: "review-blocking",
+            value: "model|severity",
+            default: "model",
+            description: "How a review decides a blocking finding.",
+          },
+          {
+            name: "password",
+            value: "TEXT",
+            description: "Replace the dashboard password.",
+          },
+          {
+            name: "disable-auth",
+            value: "password",
+            description: "Turn the dashboard password off.",
+          },
+          {
+            name: "enable-auth",
+            value: "github",
+            description: "Turn GitHub sign-in on.",
+          },
+          {
+            name: "no-verify",
+            description: "Do not check the key and model against OpenRouter.",
+          },
+          {
+            name: "unset",
+            value: "NAME",
+            description: "Remove a stored value.",
+          },
         ],
       },
     ],
     examples: [
-      "co-maintainer set --ai=openrouter --token=... --low-model=... --high-model=...",
+      "co-maintainer set --ai=openrouter --ai-key=... --low-model=... --high-model=...",
+      "co-maintainer set --remote-host=https://review.example.com --remote-token=...",
       "co-maintainer set --unset=token",
     ],
   },
@@ -273,13 +492,39 @@ export const COMMANDS: CommandSpec[] = [
       {
         title: "Server",
         flags: [
-          { name: "port", value: "N", description: "The port to listen on. Required." },
-          { name: "webhook-url", value: "URL", description: "The public webhook URL. Defaults to localhost." },
-          { name: "password", value: "TEXT", description: "Set the dashboard password on first start." },
-          { name: "disable-auth", value: "password", description: "Turn the dashboard password off." },
-          { name: "enable-auth", value: "github", description: "Turn GitHub sign-in on." },
-          { name: "trust-proxy", description: "Trust x-forwarded-for and x-forwarded-proto." },
-          { name: "inject-500", description: "Return 500 for mutating requests. Debugging only." },
+          {
+            name: "port",
+            value: "N",
+            description: "The port to listen on. Required.",
+          },
+          {
+            name: "webhook-url",
+            value: "URL",
+            description: "The public webhook URL. Defaults to localhost.",
+          },
+          {
+            name: "password",
+            value: "TEXT",
+            description: "Set the dashboard password on first start.",
+          },
+          {
+            name: "disable-auth",
+            value: "password",
+            description: "Turn the dashboard password off.",
+          },
+          {
+            name: "enable-auth",
+            value: "github",
+            description: "Turn GitHub sign-in on.",
+          },
+          {
+            name: "trust-proxy",
+            description: "Trust x-forwarded-for and x-forwarded-proto.",
+          },
+          {
+            name: "inject-500",
+            description: "Return 500 for mutating requests. Debugging only.",
+          },
         ],
       },
       OUTPUT_FLAGS,
@@ -340,7 +585,11 @@ export function levenshtein(a: string, b: string): number {
 
 /** The closest candidate within `maxDistance`, or undefined. Ties keep the
  * first candidate, which is the declaration order in `COMMANDS`. */
-export function closest(input: string, candidates: string[], maxDistance = 2): string | undefined {
+export function closest(
+  input: string,
+  candidates: string[],
+  maxDistance = 2,
+): string | undefined {
   let best: string | undefined;
   let bestDistance = maxDistance + 1;
   for (const candidate of candidates) {
@@ -380,7 +629,8 @@ function renderFlags(groups: FlagGroup[], lines: string[]): void {
     lines.push(`${group.title}:`);
     for (const flag of group.flags) {
       const head = `  --${flag.name}${flag.value ? `=${flag.value}` : ""}`;
-      const meta = flag.default !== undefined ? ` (default: ${flag.default})` : "";
+      const meta =
+        flag.default !== undefined ? ` (default: ${flag.default})` : "";
       lines.push(`${head.padEnd(42)}${flag.description}${meta}`);
     }
   }
@@ -442,7 +692,9 @@ export function registryToMarkdown(): string {
       lines.push("| Flag | Default | Description |");
       lines.push("|---|---|---|");
       for (const flag of group.flags) {
-        const flagCell = flag.value ? `--${flag.name}=${flag.value}` : `--${flag.name}`;
+        const flagCell = flag.value
+          ? `--${flag.name}=${flag.value}`
+          : `--${flag.name}`;
         lines.push(
           `| \`${flagCell}\` | ${flag.default ?? ""} | ${flag.description} |`,
         );

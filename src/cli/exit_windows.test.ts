@@ -82,7 +82,9 @@ async function git(cwd: string, args: string[]): Promise<void> {
     stderr: "piped",
   }).output();
   if (!result.success) {
-    throw new Error(`git ${args.join(" ")}: ${new TextDecoder().decode(result.stderr)}`);
+    throw new Error(
+      `git ${args.join(" ")}: ${new TextDecoder().decode(result.stderr)}`,
+    );
   }
 }
 
@@ -98,7 +100,12 @@ async function makeWorktree(root: string, repo: string): Promise<string> {
   await git(worktree, ["add", "x.ts"]);
   await git(worktree, ["commit", "-m", "init"]);
   await git(worktree, ["branch", "-M", "main"]);
-  await git(worktree, ["remote", "add", "origin", `https://github.com/${repo}.git`]);
+  await git(worktree, [
+    "remote",
+    "add",
+    "origin",
+    `https://github.com/${repo}.git`,
+  ]);
   await git(worktree, ["update-ref", "refs/remotes/origin/main", "HEAD"]);
   await writeTextFile(`${worktree}/x.ts`, "export const y = 1\n");
   await git(worktree, ["add", "x.ts"]);
@@ -116,7 +123,10 @@ test("exit: a failing provider after a real fetch exits 3 without aborting", asy
     const repo = "e2e-exit/provider";
     const repoDir = `${root}/repos/${repo}`;
     await mkdir(repoDir, { recursive: true });
-    await writeTextFile(`${repoDir}/PR_REVIEW_GUIDE.md`, "# Review guide\n\nBe terse.\n");
+    await writeTextFile(
+      `${repoDir}/PR_REVIEW_GUIDE.md`,
+      "# Review guide\n\nBe terse.\n",
+    );
     const configPath = `${root}/config.json`;
     await writeTextFile(
       configPath,

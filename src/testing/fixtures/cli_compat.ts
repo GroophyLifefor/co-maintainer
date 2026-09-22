@@ -417,6 +417,10 @@ export const SET_CASES: SetCase[] = [
       "--token=tok",
       "--low-model=low/model",
       "--high-model=high/model",
+      // The fixture key and model are not real, and `set` verifies them against
+      // OpenRouter before writing (CORE-22). Offline compat runs skip that
+      // check; the verification path has its own test in config.test.ts.
+      "--no-verify",
     ],
     config: {
       ai: "openrouter",
@@ -453,7 +457,7 @@ export const SET_CASES: SetCase[] = [
   },
   {
     name: "set --unset clears a value that a previous run wrote",
-    args: ["--token=tok", "--ai=openrouter"],
+    args: ["--token=tok", "--ai=openrouter", "--no-verify"],
     config: { token: "tok", ai: "openrouter" },
     thenArgs: ["--unset=token"],
     thenConfig: { ai: "openrouter" },

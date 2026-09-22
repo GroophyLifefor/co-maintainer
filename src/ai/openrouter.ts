@@ -1,7 +1,12 @@
 import { chatBody, parseChatResponse } from "./provider.ts";
 import type { AiProvider, AiRequest, AiResponse, Json } from "../types.ts";
 import { getEnv } from "../util/runtime.ts";
-import { CliError, EXIT_RUNTIME, EXIT_USAGE, networkFailure } from "../cli/error.ts";
+import {
+  CliError,
+  EXIT_RUNTIME,
+  EXIT_USAGE,
+  networkFailure,
+} from "../cli/error.ts";
 
 /** Provider failures as actionable text (CORE-12, F24/F28). A 401 and a 400 for
  * an unknown model are preconditions the user can fix, so they are usage

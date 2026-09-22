@@ -1,7 +1,12 @@
 import { VERSION } from "../version.ts";
 import type { ReviewCliArgs } from "../cli/review_args.ts";
 import { printLocalReview } from "../cli/review_output.ts";
-import { CliError, EXIT_USAGE, exitWith, networkFailure } from "../cli/error.ts";
+import {
+  CliError,
+  EXIT_USAGE,
+  exitWith,
+  networkFailure,
+} from "../cli/error.ts";
 import {
   formatHumanJsonFindings,
   type JsonReviewFinding,

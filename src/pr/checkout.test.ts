@@ -30,7 +30,9 @@ test("ensureClone clones exactly once under concurrent callers", async () => {
       cloneInvocations++;
       // CORE-11: `-c core.longpaths=true` has to precede the clone subcommand.
       if (args[0] !== "-c" || args[1] !== "core.longpaths=true") {
-        throw new Error(`longpaths is not in effect for the clone: ${args.join(" ")}`);
+        throw new Error(
+          `longpaths is not in effect for the clone: ${args.join(" ")}`,
+        );
       }
       // Held open until every caller has had a chance to race in, so a real
       // race would actually manifest rather than finishing before the other
@@ -74,8 +76,8 @@ test("ensureClone reports a clone failure as one actionable line", async () => {
         code: 128,
         stdout: "",
         stderr:
-          "Cloning into 'x'...\nfatal: could not read Username for 'https://github.com'\n"
-          + "extra explanatory noise that should not reach the user\n",
+          "Cloning into 'x'...\nfatal: could not read Username for 'https://github.com'\n" +
+          "extra explanatory noise that should not reach the user\n",
       };
     }
     return { code: 0, stdout: "", stderr: "" };
@@ -92,7 +94,9 @@ test("ensureClone reports a clone failure as one actionable line", async () => {
 
   if (message === "") throw new Error("a failed clone did not throw");
   if (message.includes("\n")) {
-    throw new Error(`the message is multi-line, so raw git leaked:\n${message}`);
+    throw new Error(
+      `the message is multi-line, so raw git leaked:\n${message}`,
+    );
   }
   if (!message.includes("exit 128")) {
     throw new Error(`the exit code is missing: ${message}`);

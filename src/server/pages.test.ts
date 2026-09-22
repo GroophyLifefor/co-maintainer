@@ -561,8 +561,7 @@ test("activity lists a job as a link and the job page shows the error", async ()
       repo: "acme/widgets",
     });
     setJobStatus("job-fail", "failed", {
-      error:
-        "Error: sync requires a previous init or sync for this repository",
+      error: "Error: sync requires a previous init or sync for this repository",
     });
     const app = createApp({ password: PASSWORD });
     const cookie = await cookieSession(app);

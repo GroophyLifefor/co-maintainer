@@ -346,9 +346,12 @@ for (const testCase of SET_CASES) {
           "after then",
         );
       }
-      if (testCase.stdout && result.stdout.trim() !== testCase.stdout) {
+      if (
+        testCase.stdout &&
+        stripSavedLine(result.stdout) !== testCase.stdout
+      ) {
         throw new Error(
-          `stdout: expected ${JSON.stringify(testCase.stdout)}, got ${JSON.stringify(result.stdout.trim())}`,
+          `stdout: expected ${JSON.stringify(testCase.stdout)}, got ${JSON.stringify(stripSavedLine(result.stdout))}`,
         );
       }
       if (testCase.contains && !result.stdout.includes(testCase.contains)) {
@@ -356,8 +359,27 @@ for (const testCase of SET_CASES) {
           `stdout missing ${JSON.stringify(testCase.contains)}: ${JSON.stringify(result.stdout)}`,
         );
       }
+      // A run that actually wrote keys writes the file it is named after, so
+      // the banner is part of the contract (CORE-22). The usage case makes
+      // no change and is exempt.
+      const wroteKeys = Object.keys(testCase.config).length > 0;
+      if (wroteKeys && !result.stdout.includes("Saved to ")) {
+        throw new Error(
+          `stdout missing the "Saved to <path>" line: ${JSON.stringify(result.stdout)}`,
+        );
+      }
     });
   });
+}
+
+/** Drops the `Saved to <path>` line, which names a temp directory that changes
+ * per run (CORE-22). The line's presence is asserted separately. */
+function stripSavedLine(stdout: string): string {
+  return stdout
+    .split("\n")
+    .filter((line) => !line.startsWith("Saved to "))
+    .join("\n")
+    .trim();
 }
 
 for (const testCase of HELP_CASES) {

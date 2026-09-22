@@ -17,7 +17,8 @@ export type FakeOpenRouterMode =
   | "rate-limited"
   | "timeout"
   | "bad-json"
-  | "server-error";
+  | "server-error"
+  | "unknown-model";
 
 export type FakeOpenRouter = {
   url: string;
@@ -68,9 +69,33 @@ function reply(mode: FakeOpenRouterMode): { status: number; body: string } {
       return { status: 200, body: "not json at all" };
     case "success":
     case "timeout":
+    case "unknown-model":
     default:
       return { status: 200, body: JSON.stringify(CHAT_RESPONSE) };
   }
+}
+
+/** The models `config set` can verify against. The plainer names are what the
+ * config tests save, so a `set --high-model=high/model` is accepted. */
+const MODEL_IDS = ["fake/model", "low/model", "high/model", "vendor/other"];
+
+/** Answers the `/key` and `/models` calls `config set` makes before writing
+ * (CORE-22). A POST to the chat endpoint keeps using {@link reply}. */
+function verifyReply(
+  path: string,
+  mode: FakeOpenRouterMode,
+): { status: number; body: string } {
+  if (mode === "unauthorized") return reply("unauthorized");
+  if (mode === "timeout") return reply("success");
+  if (path.endsWith("/key")) {
+    return { status: 200, body: JSON.stringify({ data: { label: "fake" } }) };
+  }
+  const ids =
+    mode === "unknown-model" ? ["fake/model", "vendor/other"] : MODEL_IDS;
+  return {
+    status: 200,
+    body: JSON.stringify({ data: ids.map((id) => ({ id })) }),
+  };
 }
 
 /** Starts the server on an ephemeral port and resolves once it is listening. */
@@ -89,7 +114,11 @@ export function startFakeOpenRouter(
         requests.push({ __unparsed: raw });
       }
       if (mode === "timeout") return; // Leave the request hanging.
-      const { status, body } = reply(mode);
+      // The verification calls are GETs to `/key` and `/models`; everything
+      // else is the chat completion the review sends.
+      const path = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
+      const { status, body } =
+        request.method === "GET" ? verifyReply(path, mode) : reply(mode);
       response.writeHead(status, { "content-type": "application/json" });
       response.end(body);
     });
