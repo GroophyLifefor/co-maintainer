@@ -1,7 +1,7 @@
 import { VERSION } from "../version.ts";
 import type { ReviewCliArgs } from "../cli/review_args.ts";
 import { printLocalReview } from "../cli/review_output.ts";
-import { CliError, EXIT_USAGE, exitWith } from "../cli/error.ts";
+import { CliError, EXIT_USAGE, exitWith, networkFailure } from "../cli/error.ts";
 import {
   formatHumanJsonFindings,
   type JsonReviewFinding,
@@ -77,7 +77,23 @@ async function remoteFetch(
   if (init.body && !headers.has("content-type")) {
     headers.set("content-type", "application/json");
   }
-  return await fetch(url, { ...init, headers });
+  try {
+    const response = await fetch(url, { ...init, headers });
+    // The server's 401 text is `invalid or missing token`, which does not say
+    // where the token comes from or how to get another one (CORE-12).
+    if (response.status === 401 || response.status === 403) {
+      die(
+        "remote_token_rejected",
+        `The server at ${baseUrl(host)} rejected the remote review token.`,
+        "Create one in its dashboard under Settings, Remote review tokens.",
+        EXIT_USAGE,
+      );
+    }
+    return response;
+  } catch (error) {
+    if (error instanceof CliError) throw error;
+    throw networkFailure(url, error);
+  }
 }
 
 async function readApiError(response: Response): Promise<string> {

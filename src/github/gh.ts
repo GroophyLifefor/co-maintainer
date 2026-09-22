@@ -7,6 +7,7 @@ import {
 } from "./client.ts";
 import type { GitHubClient } from "../types.ts";
 import { log } from "../util/log.ts";
+import { CliError, EXIT_RUNTIME, EXIT_USAGE } from "../cli/error.ts";
 import {
   commandOutput,
   commandWithInput,
@@ -32,6 +33,50 @@ function ghSpawn(): { command: string; prefix: string[] } {
 type QuotaRow = { limit?: number; remaining?: number; reset?: number };
 type QuotaBody = { resources?: { core?: QuotaRow; search?: QuotaRow } };
 type Bucket = { remaining: number; resetAt: Date };
+
+/** Turns a failed `gh api` call into a message that says what broke, why, and
+ * what to do next (CORE-12, F09/F24/F28). The four shapes the DX research hit:
+ * `gh` missing from PATH, the repo missing or unreadable, an empty stderr, and
+ * everything else. The first line is the only part a human reads, so it always
+ * names the situation; the raw gh text moves to the hint so it stays available
+ * without drowning the message. */
+function ghFailure(endpoint: string, stderr: string): CliError {
+  if (/ENOENT|command not found|not recognized/i.test(stderr)) {
+    return new CliError(
+      "gh_not_installed",
+      "GitHub CLI (gh) was not found.",
+      "Install it from https://cli.github.com or use --auth=pat.",
+      EXIT_USAGE,
+    );
+  }
+  if (/HTTP 404|Not Found/i.test(stderr)) {
+    // The endpoint is `repos/owner/repo/...`; the user thinks in `owner/repo`.
+    const match = endpoint.match(/^repos\/([^/]+)\/([^/]+)/);
+    const subject = match ? `${match[1]}/${match[2]}` : endpoint;
+    return new CliError(
+      "repo_not_found",
+      `${subject} was not found, or your GitHub account cannot read it.`,
+      "Check the name and run gh auth status.",
+      EXIT_USAGE,
+    );
+  }
+  // An empty stderr used to collapse to just the endpoint, which told the user
+  // nothing about what happened.
+  if (stderr.length === 0) {
+    return new CliError(
+      "gh_failed",
+      `gh exited without an error message while reading ${endpoint}.`,
+      "Run gh auth status and try again with --debug.",
+      EXIT_RUNTIME,
+    );
+  }
+  return new CliError(
+    "gh_failed",
+    `gh could not read ${endpoint}.`,
+    `gh said: ${stderr}`,
+    EXIT_RUNTIME,
+  );
+}
 
 let lastCallAt = 0;
 let pulse: ReturnType<typeof setInterval> | undefined;
@@ -191,7 +236,23 @@ export class GhClient implements GitHubClient {
     const started = Date.now();
     let spun = false;
     for (;;) {
-      const result = await run();
+      // A missing `gh` binary rejects the spawn instead of returning a failed
+      // result, so the ENOENT case has to be caught here too (CORE-12).
+      let result: CommandOutput;
+      try {
+        result = await run();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (/ENOENT/i.test(message)) {
+          throw new CliError(
+            "gh_not_installed",
+            "GitHub CLI (gh) was not found.",
+            "Install it from https://cli.github.com or use --auth=pat.",
+            EXIT_USAGE,
+          );
+        }
+        throw error;
+      }
       if (result.success) {
         try {
           return JSON.parse(new TextDecoder().decode(result.stdout)) as T;
@@ -204,7 +265,7 @@ export class GhClient implements GitHubClient {
       const limited = bucket
         ? bucket.remaining === 0
         : /rate limit/i.test(error);
-      if (!limited) throw new Error(`gh api failed: ${error || endpoint}`);
+      if (!limited) throw ghFailure(endpoint, error);
       const resetAt =
         bucket?.resetAt ?? new Date(Date.now() + RATE_LIMIT_PROBE_MS);
       const delay = probeDelay(resetAt, Date.now());

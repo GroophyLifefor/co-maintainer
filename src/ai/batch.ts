@@ -1,6 +1,7 @@
 import { cacheGet, cacheSet } from "../store/cache_db.ts";
 import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
 import { isNotFound, readTextFile } from "../util/runtime.ts";
+import { formatError } from "../cli/error.ts";
 
 type JobRecord = {
   status: "done" | "quarantine";
@@ -108,12 +109,12 @@ export class AiBatch {
         } catch (error) {
           this.records[item.id] = {
             status: "quarantine",
-            error: String(error),
+            error: formatError(error),
             updatedAt: new Date().toISOString(),
           };
           await this.persist();
           console.log(
-            `[ai] quarantined ${item.request.job} ${item.id.slice(0, 8)}: ${String(error)}`,
+            `[ai] quarantined ${item.request.job} ${item.id.slice(0, 8)}: ${formatError(error)}`,
           );
         } finally {
           clearInterval(heartbeat);

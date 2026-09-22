@@ -16,7 +16,8 @@ export type FakeOpenRouterMode =
   | "unauthorized"
   | "rate-limited"
   | "timeout"
-  | "bad-json";
+  | "bad-json"
+  | "server-error";
 
 export type FakeOpenRouter = {
   url: string;
@@ -55,6 +56,13 @@ function reply(mode: FakeOpenRouterMode): { status: number; body: string } {
       return {
         status: 429,
         body: JSON.stringify({ error: { message: "Rate limit exceeded" } }),
+      };
+    case "server-error":
+      // A 5xx is a runtime failure the CLI cannot fix, so it must reach the top
+      // level and exit 3 (CORE-11/CORE-12).
+      return {
+        status: 500,
+        body: JSON.stringify({ error: { message: "internal error" } }),
       };
     case "bad-json":
       return { status: 200, body: "not json at all" };

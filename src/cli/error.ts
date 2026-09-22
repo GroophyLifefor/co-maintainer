@@ -48,3 +48,32 @@ export function die(message: string, code = "usage"): never {
 export function exitWith(code: number): void {
   process.exitCode = code;
 }
+
+/** Renders an error the way the CLI prints it: the message, then `Hint: ...`
+ * when there is one. Used where an error becomes a log line rather than the
+ * top-level exit (CORE-12), so a hint is not lost just because the failure was
+ * quarantined. */
+export function formatError(error: unknown): string {
+  if (error instanceof CliError) {
+    return error.hint ? `${error.message} Hint: ${error.hint}` : error.message;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+/** A failed `fetch` as a message that names the host and the cause (CORE-12).
+ * Node's own text is only `fetch failed`, which says neither. */
+export function networkFailure(url: string, error: unknown): CliError {
+  const code = (error as { cause?: { code?: string } }).cause?.code;
+  let host = url;
+  try {
+    host = new URL(url).host;
+  } catch {
+    // Keep the raw value when it does not parse.
+  }
+  return new CliError(
+    "network_failed",
+    `Could not reach ${host}${code ? `: ${code}` : "."}`,
+    undefined,
+    EXIT_RUNTIME,
+  );
+}

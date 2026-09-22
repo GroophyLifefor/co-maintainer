@@ -107,7 +107,10 @@ async function makeWorktree(root: string, repo: string): Promise<string> {
 }
 
 test("exit: a failing provider after a real fetch exits 3 without aborting", async () => {
-  const server = await startFakeOpenRouter("unauthorized");
+  // A 5xx, not a 401: since CORE-12 a 401 is a usage error (exit 2). The crash
+  // path is any failure that reaches the top level after a real fetch, so the
+  // runtime failure is the honest reproduction.
+  const server = await startFakeOpenRouter("server-error");
   const root = await makeTempDir({ prefix: "cm-exit-fetch-" });
   try {
     const repo = "e2e-exit/provider";
@@ -149,7 +152,7 @@ test("exit: a failing provider after a real fetch exits 3 without aborting", asy
         `the CLI never reached the server, so no socket was opened:\n${result.stderr}`,
       );
     }
-    // The 401 is a runtime failure and the local review does not quarantine it,
+    // The 500 is a runtime failure and the local review does not quarantine it,
     // so it must reach the top level and become exit 3.
     if (result.code !== 3) {
       throw new Error(

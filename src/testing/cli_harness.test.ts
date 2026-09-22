@@ -49,8 +49,14 @@ test("harness: gh 404 mode fails the run without leaking a raw crash", async () 
     if (result.code === 0) {
       throw new Error(`expected a non-zero exit, got 0:\n${result.stdout}`);
     }
-    if (!result.stderr.includes("Not Found")) {
-      throw new Error(`stderr did not surface the 404:\n${result.stderr}`);
+    // CORE-12: the raw `gh: Not Found (HTTP 404)` is replaced by a sentence
+    // naming the repo and a hint, so assert on that instead of the gh text.
+    const output = `${result.stdout}${result.stderr}`;
+    if (!/fixture\/repo was not found/.test(output)) {
+      throw new Error(`the 404 did not name the repo:\n${output}`);
+    }
+    if (!/gh auth status/.test(output)) {
+      throw new Error(`the 404 lost its hint:\n${output}`);
     }
   } finally {
     await harness.cleanup();
@@ -159,10 +165,13 @@ test("harness: a 401 from OpenRouter is surfaced, and 0.4.13 swallows it", async
     // reports success and writes a skill from the surviving facts. That gap is
     // recorded for the later error-handling tasks; this harness only has to
     // prove the 401 reached the CLI and is diagnosable from its output.
-    if (!`${result.stdout}${result.stderr}`.includes("401")) {
-      throw new Error(
-        `the 401 was not surfaced anywhere:\n${result.stdout}\n${result.stderr}`,
-      );
+    // CORE-12: the diagnosis is now a sentence, not the numeric status.
+    const output = `${result.stdout}${result.stderr}`;
+    if (!/OpenRouter rejected the API key/.test(output)) {
+      throw new Error(`the 401 was not surfaced anywhere:\n${output}`);
+    }
+    if (!/co-maintainer set --token/.test(output)) {
+      throw new Error(`the 401 lost its hint:\n${output}`);
     }
     if (server.requests.length === 0) {
       throw new Error("the CLI never called the fake OpenRouter");

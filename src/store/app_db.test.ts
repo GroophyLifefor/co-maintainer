@@ -123,8 +123,18 @@ test("a second serve process refuses to start while the first holds the lock", a
       await openAppDb();
     } catch (error) {
       threw = true;
-      if (!String(error).includes("already running")) {
-        throw new Error("refusal did not explain why");
+      // CORE-12: the message names the pid and the hint offers the next step;
+      // `String(error)` only carries the message, so read both fields.
+      const message = (error as { message?: string }).message ?? String(error);
+      const hint = (error as { hint?: string }).hint ?? "";
+      if (!message.includes(String(process.pid))) {
+        throw new Error(`refusal did not name the pid: ${message}`);
+      }
+      if (!message.includes("is using this data directory")) {
+        throw new Error(`refusal did not explain what holds it: ${message}`);
+      }
+      if (!hint.includes("Stop it, or run sync from its dashboard")) {
+        throw new Error(`refusal did not offer the next step: ${hint}`);
       }
     }
     if (!threw) throw new Error("a held lock did not refuse the second open");
