@@ -47,9 +47,10 @@ export type SetCase = {
   /** Subset of the written config the case pins down after `args` runs. */
   config: Record<string, unknown>;
   /** Optional second invocation against the same config file, so two-step
-   * flows such as set-then-unset can be pinned down. */
-  then?: string[];
-  /** Subset of the config after `then` runs, when `then` is present. */
+   * flows such as set-then-unset can be pinned down. Not named `then`: a
+   * `then` property makes the object thenable and `await` would call it. */
+  thenArgs?: string[];
+  /** Subset of the config after `thenArgs` runs, when it is present. */
   thenConfig?: Record<string, unknown>;
   /** Exact `[set] updated: ...` line, or a substring match via `contains`. */
   stdout?: string;
@@ -454,7 +455,7 @@ export const SET_CASES: SetCase[] = [
     name: "set --unset clears a value that a previous run wrote",
     args: ["--token=tok", "--ai=openrouter"],
     config: { token: "tok", ai: "openrouter" },
-    then: ["--unset=token"],
+    thenArgs: ["--unset=token"],
     thenConfig: { ai: "openrouter" },
     contains: "[set] updated:",
   },

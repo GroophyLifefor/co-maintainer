@@ -10,10 +10,24 @@ import { log } from "../util/log.ts";
 import {
   commandOutput,
   commandWithInput,
+  getEnv,
   type CommandOutput,
 } from "../util/runtime.ts";
 
 const PULSE_MS = 120_000;
+
+/** Test seam: `CM_GH_BIN` replaces the `gh` command and `CM_GH_SCRIPT` (if
+ * set) is prepended as its first argument, so a fake can be run as
+ * `<bin> <script> api …` with no shell. Unset means the real `gh` on PATH, so
+ * production behaviour is unchanged. Spawning without a shell matters: a shell
+ * concatenates arguments unescaped, so an endpoint's `?`, `&` and `=` would be
+ * reinterpreted by cmd.exe on Windows. */
+function ghSpawn(): { command: string; prefix: string[] } {
+  const bin = getEnv("CM_GH_BIN");
+  if (!bin) return { command: "gh", prefix: [] };
+  const script = getEnv("CM_GH_SCRIPT");
+  return { command: bin, prefix: script ? [script] : [] };
+}
 
 type QuotaRow = { limit?: number; remaining?: number; reset?: number };
 type QuotaBody = { resources?: { core?: QuotaRow; search?: QuotaRow } };
@@ -43,8 +57,9 @@ export function quotaLine(body: QuotaBody): string {
 
 async function printQuota(): Promise<void> {
   try {
-    const result = await commandOutput("gh", {
-      args: ["api", "rate_limit"],
+    const { command, prefix } = ghSpawn();
+    const result = await commandOutput(command, {
+      args: [...prefix, "api", "rate_limit"],
       stdout: "piped",
       stderr: "piped",
     });
@@ -84,8 +99,9 @@ function noteGhCall(debug: boolean): void {
 
 async function readLimit(endpoint: string): Promise<Bucket | undefined> {
   try {
-    const result = await commandOutput("gh", {
-      args: ["api", "rate_limit"],
+    const { command, prefix } = ghSpawn();
+    const result = await commandOutput(command, {
+      args: [...prefix, "api", "rate_limit"],
       stdout: "piped",
       stderr: "piped",
     });
@@ -117,13 +133,14 @@ export class GhClient implements GitHubClient {
   }
 
   request<T>(endpoint: string): Promise<T> {
-    return this.call(endpoint, () =>
-      commandOutput("gh", {
-        args: ["api", endpoint],
+    return this.call(endpoint, () => {
+      const { command, prefix } = ghSpawn();
+      return commandOutput(command, {
+        args: [...prefix, "api", endpoint],
         stdout: "piped",
         stderr: "piped",
-      }),
-    );
+      });
+    });
   }
 
   write<T>(endpoint: string, body: unknown): Promise<T> {
@@ -151,18 +168,19 @@ export class GhClient implements GitHubClient {
     method: "POST" | "PATCH",
     body: unknown,
   ): Promise<T> {
-    return this.call(endpoint, () =>
-      commandWithInput(
-        "gh",
+    return this.call(endpoint, () => {
+      const { command, prefix } = ghSpawn();
+      return commandWithInput(
+        command,
         {
-          args: ["api", "-X", method, endpoint, "--input", "-"],
+          args: [...prefix, "api", "-X", method, endpoint, "--input", "-"],
           stdin: "piped",
           stdout: "piped",
           stderr: "piped",
         },
         JSON.stringify(body),
-      ),
-    );
+      );
+    });
   }
 
   private async call<T>(

@@ -317,7 +317,7 @@ for (const testCase of SET_CASES) {
     await withEnv(async () => {
       const result = await runSetSteps([
         testCase.args,
-        ...(testCase.then ? [testCase.then] : []),
+        ...(testCase.thenArgs ? [testCase.thenArgs] : []),
       ]);
       if (testCase.error) {
         if (!result.error?.includes(testCase.error)) {

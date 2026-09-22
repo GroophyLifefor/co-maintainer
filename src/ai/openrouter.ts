@@ -1,9 +1,15 @@
 import { chatBody, parseChatResponse } from "./provider.ts";
 import type { AiProvider, AiRequest, AiResponse, Json } from "../types.ts";
+import { getEnv } from "../util/runtime.ts";
 
 export class OpenRouterProvider implements AiProvider {
   readonly supportsTools = true;
-  private readonly endpoint = "https://openrouter.ai/api/v1/chat/completions";
+  /** `CM_OPENROUTER_URL` points the provider at a local fake in tests. It is
+   * only a default override: with the env unset the real endpoint is used, so
+   * nothing changes for users. */
+  private readonly endpoint =
+    getEnv("CM_OPENROUTER_URL") ??
+    "https://openrouter.ai/api/v1/chat/completions";
   private readonly apiKey: string;
   private readonly model: string;
 
