@@ -152,7 +152,11 @@ test("exit: a failing provider after a real fetch exits 3 without aborting", asy
         CM_OPENROUTER_URL: server.url,
         CM_GH_BIN: fakeGhBin().command,
         CM_GH_SCRIPT: fakeGhBin().script,
-        // no CM_FAKE_AI: the real provider has to open a socket
+        // The real provider has to open a socket. `undefined` deletes the
+        // name from the child, so this holds even when the suite runs under a
+        // parent that exported a fake-AI switch (CI sets `CM_FAKE_AI=1`).
+        CM_FAKE_AI: undefined,
+        CM_FAKE_REVIEW_FILE: undefined,
       },
       worktree,
     );
