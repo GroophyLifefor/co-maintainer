@@ -2,7 +2,11 @@
  * directly; it used to re-spawn the CLI as a subprocess, a second
  * execution path with its own failure modes. */
 import { createAiProvider } from "../ai/provider.ts";
-import { enrichFacts, synthesizeSections } from "../knowledge/synthesis.ts";
+import {
+  enrichFactsWithReport,
+  synthesizeSections,
+} from "../knowledge/synthesis.ts";
+import type { SkippedUnit } from "../ai/batch.ts";
 import { collectSource } from "../github/collect.ts";
 import { GhClient } from "../github/gh.ts";
 import { PatClient } from "../github/pat.ts";
@@ -251,6 +255,7 @@ async function initOrRemake(options: Options): Promise<void> {
     );
   }
   let overrides: Record<string, string> = {};
+  const skipped: SkippedUnit[] = [];
   if (lowAi) {
     log("ai", "starting extract_unit jobs");
     const usage = async (job: string, response: AiResponse) => {
@@ -262,9 +267,11 @@ async function initOrRemake(options: Options): Promise<void> {
       else aiMetrics.cost += response.cost;
       await recordAiCost(options.repo, job, response);
     };
-    facts = await timed("extract_unit AI", options.logTime, () =>
-      enrichFacts(lowAi, options.repo, facts, source, options, usage),
+    const enriched = await timed("extract_unit AI", options.logTime, () =>
+      enrichFactsWithReport(lowAi, options.repo, facts, source, options, usage),
     );
+    facts = enriched.facts;
+    skipped.push(...enriched.skipped);
     log("ai", `extract_unit complete · ${facts.length} facts`);
     const hashes = await factSectionHashes(facts);
     const synthesisChanged =
@@ -287,7 +294,7 @@ async function initOrRemake(options: Options): Promise<void> {
       }`,
     );
     if (highAi) {
-      overrides = await timed("synth_section AI", options.logTime, () =>
+      const synth = await timed("synth_section AI", options.logTime, () =>
         synthesizeSections(
           highAi,
           options.repo,
@@ -300,6 +307,8 @@ async function initOrRemake(options: Options): Promise<void> {
           dirtySections,
         ),
       );
+      overrides = synth.overrides;
+      skipped.push(...synth.skipped);
     }
     log(
       "ai",
@@ -408,6 +417,17 @@ async function initOrRemake(options: Options): Promise<void> {
     "done",
     `${facts.length} facts · ${source.pullRequests.length} pull requests · ${source.commits.length} commits`,
   );
+  if (skipped.length) {
+    // F04: a skipped unit used to vanish into a log line and recur as a "cache
+    // hit" forever. Say it in the final line instead, in the plan's shape:
+    // `1 unit skipped (PR #3: output was not JSON)`.
+    const parts = skipped.map((unit) => unit.reason);
+    const line =
+      skipped.length === 1
+        ? `1 unit skipped (${parts[0]})`
+        : `${skipped.length} units skipped (${parts.join("; ")})`;
+    log("done", line);
+  }
   printRunSummary(
     summaryFromMetrics(aiMetrics, performance.now() - operationStarted),
   );

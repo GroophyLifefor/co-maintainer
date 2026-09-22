@@ -62,7 +62,7 @@ test("invalid synthesis output is omitted instead of copied", async () => {
   const repo = `fixture-invalid-${crypto.randomUUID()}`;
   const provider = new SynthesisProvider(false);
   try {
-    const overrides = await synthesizeSections(
+    const overridesResult = await synthesizeSections(
       provider,
       repo,
       [testFact("Run tests before review.", "current", "workflow")],
@@ -71,8 +71,14 @@ test("invalid synthesis output is omitted instead of copied", async () => {
       "fixture",
       3,
     );
-    if (overrides.tests !== "") {
-      throw new Error("invalid synthesis output was accepted");
+    if (overridesResult.overrides.tests) {
+      throw new Error(
+        `invalid synthesis output was accepted: ${JSON.stringify(overridesResult)}`,
+      );
+    }
+    // An output that never validates is skipped, not cached (CORE-30).
+    if (overridesResult.skipped.length !== 1) {
+      throw new Error(`skipped: ${JSON.stringify(overridesResult.skipped)}`);
     }
   } finally {
     await cacheDeletePrefix("ai-jobs", `${repo}:`);

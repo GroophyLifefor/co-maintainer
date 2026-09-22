@@ -13,6 +13,18 @@ type JobRecord = {
 type JobCache = Record<string, JobRecord>;
 type UsageSink = (job: string, response: AiResponse) => Promise<void>;
 
+/** Returns `null` when a response is usable, or a short reason when it is not.
+ * `synthesis.ts` supplies one that parses the model text, because a syntactically
+ * fine HTTP response can still be unparseable output, and caching that is what
+ * poisoned every later `sync` (CORE-30 / F04). */
+export type AiValidator = (
+  request: AiRequest,
+  response: AiResponse,
+) => string | null;
+
+/** A unit whose output never parsed, kept so the run can say what it dropped. */
+export type SkippedUnit = { index: number; job: string; reason: string };
+
 async function digest(value: string): Promise<string> {
   const bytes = await crypto.subtle.digest(
     "SHA-256",
@@ -31,17 +43,26 @@ export class AiBatch {
   private readonly repo: string;
   private readonly concurrency: number;
   private readonly profile: string;
+  private readonly validate?: AiValidator;
+  private readonly skipped: SkippedUnit[] = [];
 
   constructor(
     provider: AiProvider,
     repo: string,
     concurrency: number,
     profile: string,
+    validate?: AiValidator,
   ) {
     this.provider = provider;
     this.repo = repo;
     this.concurrency = concurrency;
     this.profile = profile;
+    this.validate = validate;
+  }
+
+  /** Units whose output did not parse this run (or on re-try), in request order. */
+  skippedUnits(): SkippedUnit[] {
+    return [...this.skipped];
   }
 
   async run(
@@ -65,8 +86,21 @@ export class AiBatch {
       );
       const cached = this.records[id];
       if (cached?.status === "done" && cached.response) {
-        results[index] = cached.response;
-        console.log(`[ai] cache hit ${request.job} ${id.slice(0, 8)}`);
+        // A `done` record from 0.4.x can hold output that never parsed. Treat
+        // that as a miss and delete it so the retry below replaces it; the
+        // corrupted record heals on its own the next time its unit runs.
+        const reason = this.validate?.(request, cached.response) ?? null;
+        if (reason === null) {
+          results[index] = cached.response;
+          console.log(`[ai] cache hit ${request.job} ${id.slice(0, 8)}`);
+        } else {
+          delete this.records[id];
+          await this.persist();
+          console.log(
+            `[ai] dropped unusable cache record ${request.job} ${id.slice(0, 8)}: ${reason}`,
+          );
+          pending.push({ index, id, request });
+        }
       } else if (cached?.status === "quarantine") {
         console.log(
           `[ai] quarantined job skipped: ${request.job} ${id.slice(0, 8)}`,
@@ -92,30 +126,7 @@ export class AiBatch {
           );
         }, 15_000);
         try {
-          const response = await this.provider.complete(item.request);
-          this.records[item.id] = {
-            status: "done",
-            response,
-            updatedAt: new Date().toISOString(),
-          };
-          results[item.index] = response;
-          await this.persist();
-          if (usage) await usage(item.request.job, response);
-          console.log(
-            `[ai] done ${item.request.job} ${item.id.slice(0, 8)} · ${Math.round(
-              (Date.now() - startedAt) / 1000,
-            )}s`,
-          );
-        } catch (error) {
-          this.records[item.id] = {
-            status: "quarantine",
-            error: formatError(error),
-            updatedAt: new Date().toISOString(),
-          };
-          await this.persist();
-          console.log(
-            `[ai] quarantined ${item.request.job} ${item.id.slice(0, 8)}: ${formatError(error)}`,
-          );
+          await this.completeUnit(item, results, usage, startedAt);
         } finally {
           clearInterval(heartbeat);
         }
@@ -129,6 +140,73 @@ export class AiBatch {
     );
     await this.saveChain;
     return results;
+  }
+
+  /** Runs one unit, caching its response only when the validator accepts it.
+   * A rejected response is retried once; a second rejection is recorded as
+   * skipped and never cached, so the next `sync` retries it rather than
+   * replaying the same unusable output (CORE-30 / F04). */
+  private async completeUnit(
+    item: { index: number; id: string; request: AiRequest },
+    results: (AiResponse | undefined)[],
+    usage: UsageSink | undefined,
+    startedAt: number,
+  ): Promise<void> {
+    for (const attempt of [1, 2]) {
+      try {
+        const response = await this.provider.complete(item.request);
+        const reason = this.validate?.(item.request, response) ?? null;
+        if (reason !== null) {
+          if (attempt === 2) {
+            this.markSkipped(item, reason);
+            return;
+          }
+          console.log(
+            `[ai] retrying ${item.request.job} ${item.id.slice(0, 8)}: ${reason}`,
+          );
+          continue;
+        }
+        this.records[item.id] = {
+          status: "done",
+          response,
+          updatedAt: new Date().toISOString(),
+        };
+        results[item.index] = response;
+        await this.persist();
+        if (usage) await usage(item.request.job, response);
+        console.log(
+          `[ai] ${attempt === 1 ? "done" : "retried"} ${item.request.job} ${item.id.slice(0, 8)} · ${Math.round(
+            (Date.now() - startedAt) / 1000,
+          )}s`,
+        );
+        return;
+      } catch (error) {
+        this.records[item.id] = {
+          status: "quarantine",
+          error: formatError(error),
+          updatedAt: new Date().toISOString(),
+        };
+        await this.persist();
+        console.log(
+          `[ai] quarantined ${item.request.job} ${item.id.slice(0, 8)}: ${formatError(error)}`,
+        );
+        return;
+      }
+    }
+  }
+
+  /** Records a unit as skipped: no cache write, so it stays retried and its
+   * absence is never mistaken for a deliberate empty result. */
+  private markSkipped(
+    item: { index: number; request: AiRequest },
+    reason: string,
+  ): void {
+    this.skipped.push({
+      index: item.index,
+      job: item.request.job,
+      reason,
+    });
+    console.log(`[ai] skipped ${item.request.job} ${item.index}: ${reason}`);
   }
 
   private async load(): Promise<void> {

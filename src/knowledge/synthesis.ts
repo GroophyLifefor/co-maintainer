@@ -1,4 +1,5 @@
 import { AiBatch } from "../ai/batch.ts";
+import type { AiValidator, SkippedUnit } from "../ai/batch.ts";
 import { sectionTitles } from "./sections.ts";
 import type { AiProvider, AiRequest, AiResponse, Options } from "../types.ts";
 import type { Fact, PullRequest, Source } from "./types.ts";
@@ -156,13 +157,43 @@ function queueFor(
   ai: Options["ai"],
   model: string,
   concurrency: number,
+  validate?: AiValidator,
 ): AiBatch {
   return new AiBatch(
     provider,
     repo,
     Math.max(1, concurrency),
     `${ai}:v2:${model}`,
+    validate,
   );
+}
+
+/** `factsFromResponse` as a validator: `null` when the text parses into facts,
+ * otherwise the parse error's message. Used so an unparseable response is never
+ * cached (CORE-30). */
+function validateFacts(
+  response: AiResponse,
+  evidence: string,
+  defaultScope: Fact["scope"],
+): string | null {
+  try {
+    factsFromResponse(response.text, evidence, defaultScope);
+    return null;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return `${evidence}: ${message}`;
+  }
+}
+
+/** `validSection` as a validator: `null` when the section body is usable,
+ * otherwise a short reason. A section that is empty or malformed is retried
+ * once and then left uncached, so a later `sync` does not replay it. */
+function validateSection(response: AiResponse, key: string): string | null {
+  const section = cleanSection(response.text, key);
+  if (!validSection(section, key)) {
+    return "synthesis output is not a valid section";
+  }
+  return null;
 }
 
 function extractRequest(prompt: string, maxTokens: number): AiRequest {
@@ -231,6 +262,9 @@ function synthesisFacts(facts: Fact[], key: string): Fact[] {
     .slice(0, 20);
 }
 
+export type SkippedUnits = SkippedUnit[];
+export type SynthesisResult = Record<string, string>;
+
 export async function extractAiFacts(
   provider: AiProvider,
   repo: string,
@@ -238,6 +272,18 @@ export async function extractAiFacts(
   options: Options,
   usage?: UsageSink,
 ): Promise<Fact[]> {
+  return (
+    await extractAiFactsWithReport(provider, repo, source, options, usage)
+  ).facts;
+}
+
+export async function extractAiFactsWithReport(
+  provider: AiProvider,
+  repo: string,
+  source: Source,
+  options: Options,
+  usage?: UsageSink,
+): Promise<{ facts: Fact[]; skipped: SkippedUnit[] }> {
   const requests: AiRequest[] = [];
   const evidence: string[] = [];
   const scopes: Fact["scope"][] = [];
@@ -298,6 +344,16 @@ ${files}`,
     options.ai,
     options.lowModel ?? "",
     options.aiConcurrent,
+    // Each request carries different evidence, so the validator looks the
+    // request up by identity to find which evidence it belongs to.
+    (request, response) => {
+      const at = requests.indexOf(request);
+      return validateFacts(
+        response,
+        evidence[at] ?? "repository files",
+        scopes[at] ?? "historical-example",
+      );
+    },
   );
   const responses = await queue.run(requests, usage);
   const facts: Fact[] = [];
@@ -330,7 +386,27 @@ ${files}`,
       console.log(`[ai] extract units ${index + 1}/${responses.length}`);
     }
   }
-  return facts;
+  return { facts, skipped: queue.skippedUnits() };
+}
+
+/** Same as {@link extractAiFacts}, but also reports what the batch skipped so
+ * the caller can put it in the final `[done]` line (CORE-30). */
+export async function enrichFactsWithReport(
+  provider: AiProvider,
+  repo: string,
+  base: Fact[],
+  source: Source,
+  options: Options,
+  usage?: UsageSink,
+): Promise<{ facts: Fact[]; skipped: SkippedUnit[] }> {
+  const { facts, skipped } = await extractAiFactsWithReport(
+    provider,
+    repo,
+    source,
+    options,
+    usage,
+  );
+  return { facts: mergeFacts(base, facts), skipped };
 }
 
 function mergeFacts(base: Fact[], extra: Fact[]): Fact[] {
@@ -374,7 +450,7 @@ export async function synthesizeSections(
   concurrency: number,
   usage?: UsageSink,
   onlySections?: Set<string>,
-): Promise<Record<string, string>> {
+): Promise<{ overrides: Record<string, string>; skipped: SkippedUnit[] }> {
   const requests: AiRequest[] = [];
   const keys: string[] = [];
   for (const key of [...new Set(facts.map((item) => item.sectionKey))]) {
@@ -423,12 +499,18 @@ ${JSON.stringify(relevant)}`,
     ai,
     model,
     ai === "hetzner" ? 1 : concurrency,
+    (request, response) =>
+      validateSection(response, keys[requests.indexOf(request)] ?? ""),
   );
   const responses = await queue.run(requests, usage);
+  // A section that the batch skipped has no response, and a unit that failed
+  // validation never produces one: omit those keys entirely rather than
+  // passing an empty string, so `assembleSkill` keeps its own content for them
+  // (an empty string is a *present* override and would blank the section).
   const overrides: Record<string, string> = {};
   responses.forEach((response, index) => {
     const section = response ? cleanSection(response.text, keys[index]) : "";
-    overrides[keys[index]] = validSection(section, keys[index]) ? section : "";
+    if (validSection(section, keys[index])) overrides[keys[index]] = section;
   });
-  return overrides;
+  return { overrides, skipped: queue.skippedUnits() };
 }

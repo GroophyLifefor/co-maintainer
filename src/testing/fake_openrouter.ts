@@ -18,7 +18,11 @@ export type FakeOpenRouterMode =
   | "timeout"
   | "bad-json"
   | "server-error"
-  | "unknown-model";
+  | "unknown-model"
+  /** Answers the first `flakyJsonFailures` chat calls with a non-JSON body,
+   * then succeeds. Models a one-off model miss so CORE-30's retry can be
+   * exercised end to end. Set the count with `flakyJsonFailures`. */
+  | "flaky-json";
 
 export type FakeOpenRouter = {
   url: string;
@@ -40,6 +44,35 @@ const CHAT_RESPONSE = {
   ],
   usage: { prompt_tokens: 10, completion_tokens: 5, cost: 0 },
 };
+
+/** A chat completion body carrying `content`. Used when a test needs control
+ * over what the model "said" (e.g. CORE-30's unparseable-output cases). */
+function chatReply(content: string): { status: number; body: string } {
+  const body = {
+    ...CHAT_RESPONSE,
+    choices: [
+      {
+        finish_reason: "stop",
+        message: { role: "assistant", content },
+      },
+    ],
+  };
+  return { status: 200, body: JSON.stringify(body) };
+}
+
+/** The prompt text of a chat request: system and user messages joined, used to
+ * tell an extraction request from a section request so a test can answer each
+ * with the shape its parser expects. */
+export function promptOf(body: Record<string, unknown>): string {
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  return messages
+    .map((message) =>
+      message && typeof message === "object" && "content" in message
+        ? String((message as { content: unknown }).content)
+        : "",
+    )
+    .join("\n");
+}
 
 function reply(mode: FakeOpenRouterMode): { status: number; body: string } {
   switch (mode) {
@@ -70,6 +103,7 @@ function reply(mode: FakeOpenRouterMode): { status: number; body: string } {
     case "success":
     case "timeout":
     case "unknown-model":
+    case "flaky-json":
     default:
       return { status: 200, body: JSON.stringify(CHAT_RESPONSE) };
   }
@@ -111,18 +145,30 @@ function verifyReply(
   };
 }
 
-/** Starts the server on an ephemeral port and resolves once it is listening. */
+/** Starts the server on an ephemeral port and resolves once it is listening.
+ * `flakyJsonFailures` controls how many of the first chat calls fail validation
+ * before `flaky-json` starts succeeding. `chatContent` maps a request's prompt
+ * text to what the model "says", so a test can answer extraction and section
+ * requests with the shape each parser expects. */
 export function startFakeOpenRouter(
   mode: FakeOpenRouterMode = "success",
+  options: {
+    flakyJsonFailures?: number;
+    chatContent?: (prompt: string) => string;
+  } = {},
 ): Promise<FakeOpenRouter> {
+  const flakyJsonFailures = options.flakyJsonFailures ?? 1;
   const requests: Record<string, unknown>[] = [];
+  let chatCalls = 0;
   const server: Server = createServer((request, response) => {
     const chunks: Buffer[] = [];
     request.on("data", (chunk: Buffer) => chunks.push(chunk));
     request.on("end", () => {
       const raw = Buffer.concat(chunks).toString();
+      let parsed: Record<string, unknown> | undefined;
       try {
-        requests.push(JSON.parse(raw) as Record<string, unknown>);
+        parsed = JSON.parse(raw) as Record<string, unknown>;
+        requests.push(parsed);
       } catch {
         requests.push({ __unparsed: raw });
       }
@@ -130,8 +176,22 @@ export function startFakeOpenRouter(
       // The verification calls are GETs to `/key` and `/models`; everything
       // else is the chat completion the review sends.
       const path = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
+      let failed = false;
+      if (mode === "flaky-json" && request.method !== "GET") {
+        chatCalls++;
+        failed = chatCalls <= flakyJsonFailures;
+      }
       const { status, body } =
-        request.method === "GET" ? verifyReply(path, mode) : reply(mode);
+        request.method === "GET"
+          ? verifyReply(path, mode)
+          : failed
+            ? // A valid HTTP response wrapping text the parser cannot use:
+              // exactly the F04 shape, where the failure is in the model's
+              // answer rather than the transport.
+              chatReply("I could not find anything useful.")
+            : options.chatContent === undefined
+              ? reply(mode)
+              : chatReply(options.chatContent(parsed ? promptOf(parsed) : ""));
       response.writeHead(status, { "content-type": "application/json" });
       response.end(body);
     });
