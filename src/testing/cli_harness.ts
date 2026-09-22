@@ -72,6 +72,11 @@ export async function createCliHarness(): Promise<CliHarness> {
     const configPath = options.configPath ?? `${home}/config/config.json`;
     const reposDir = options.reposDir ?? `${home}/repos`;
     const ghLog = `${home}/gh-calls.log`;
+    // `writeConfig` creates the directory it resolves from the platform
+    // (`APPDATA` on Windows, `XDG_CONFIG_HOME` elsewhere), which is not
+    // necessarily the directory of an explicit `CM_CONFIG_PATH`. Without this
+    // the first write into a fresh harness home fails with ENOENT.
+    await mkdir(dirname(configPath), { recursive: true });
     const env: Record<string, string | undefined> = {
       ...envToObject(),
       CM_CONFIG_PATH: configPath,

@@ -52,3 +52,21 @@ jobs:
       - name: Dashboard smoke
         if: runner.os == 'Linux'
         run: npm run dashboard:smoke
+
+  # Its own job on Linux only: `npx` and the fake `gh` both need a POSIX
+  # spawn, and it downloads the published 0.4.13, so it must not slow the
+  # matrix above.
+  downgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - name: Downgrade check
+        run: npm run downgrade:check

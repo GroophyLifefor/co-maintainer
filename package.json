@@ -54,6 +54,7 @@
     "review-local-e2e": "node scripts/review_local_e2e.ts",
     "docs:build": "node scripts/build_docs.ts",
     "pack:smoke": "node scripts/pack_smoke.ts",
+    "downgrade:check": "node scripts/downgrade_check.ts",
     "dashboard:smoke": "node scripts/dashboard_smoke.ts"
   },
   "dependencies": {
