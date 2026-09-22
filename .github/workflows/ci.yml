@@ -30,6 +30,11 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci
+        env:
+          # Only the Linux job runs the browser smoke, and it installs its own
+          # Chromium explicitly. Skip the postinstall download so the Windows
+          # job does not pay for a browser it never launches.
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
       - run: npm run check
       - run: npm run lint
       - run: npm run fmt:check
@@ -41,3 +46,9 @@ jobs:
       - run: npm run build
       - name: Package smoke
         run: npm run pack:smoke
+      - name: Dashboard browser smoke
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - name: Dashboard smoke
+        if: runner.os == 'Linux'
+        run: npm run dashboard:smoke
