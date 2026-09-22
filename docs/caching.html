@@ -171,6 +171,17 @@ using server-side init).</p>
 </tr>
 </tbody></table>
 <p>Override: <code>CM_APP_DB</code>, <code>CM_CLONES_DIR</code>, <code>CM_TOOLS_DIR</code> (see <a href="#overrides">Overrides</a>).</p>
+<h3 id="tools-directory">Tools directory</h3>
+<p><code>tools/</code> holds helper binaries downloaded by co-maintainer, each pinned by
+version so an upgrade never overwrites a working install:</p>
+<pre><code>tools/codegraph/1.6.0/node_modules/.bin/codegraph
+</code></pre>
+<p>Codegraph is the only tool for now. It is not on your <code>PATH</code>, and the CLI runs
+the binary by absolute path. On the first local review that needs it,
+co-maintainer asks before installing and names the version, source, approximate
+size and this directory. Non-interactive runs (closed stdin, piped output, or
+<code>CI</code>) skip the question and review without it. See
+<a href="local-review.html#codegraph">Local review: Codegraph</a>.</p>
 <h2 id="cachedb-cli"><code>cache.db</code> (CLI)</h2>
 <p>Used by <a href="init.html"><code>init</code></a> and <a href="sync.html"><code>sync</code></a>:</p>
 <table>

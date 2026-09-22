@@ -40,6 +40,7 @@ import {
 import { printRunSummary, summaryFromMetrics } from "../util/run_summary.ts";
 import { setCliInteractive } from "../cli/args.ts";
 import { prepareLocalCodegraph } from "./codegraph_prepare.ts";
+import { canPrompt } from "../tools/codegraph.ts";
 import { acquireLocalReviewLock, type LocalReviewLock } from "./review_lock.ts";
 import {
   assertGitQuiet,
@@ -263,7 +264,9 @@ export async function runLocalReview(
         gitRoot: root,
         enabled: options.useCodegraph === true,
         allowInstall: cli.allowToolInstall,
-        interactive: !json,
+        // `--json` output must stay machine-readable, so never prompt then;
+        // `canPrompt` adds the TTY and CI checks (F01).
+        interactive: !json && canPrompt(),
       });
       extras.prepareCodegraphTools = () => Promise.resolve(codegraphPrep.tools);
       const stopHeartbeat = startHeartbeat("reviewing local changes");

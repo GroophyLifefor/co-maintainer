@@ -56,6 +56,22 @@ using server-side init).
 
 Override: `CM_APP_DB`, `CM_CLONES_DIR`, `CM_TOOLS_DIR` (see [Overrides](#overrides)).
 
+### Tools directory
+
+`tools/` holds helper binaries downloaded by co-maintainer, each pinned by
+version so an upgrade never overwrites a working install:
+
+```
+tools/codegraph/1.6.0/node_modules/.bin/codegraph
+```
+
+Codegraph is the only tool for now. It is not on your `PATH`, and the CLI runs
+the binary by absolute path. On the first local review that needs it,
+co-maintainer asks before installing and names the version, source, approximate
+size and this directory. Non-interactive runs (closed stdin, piped output, or
+`CI`) skip the question and review without it. See
+[Local review: Codegraph](local-review.md#codegraph).
+
 ## `cache.db` (CLI)
 
 Used by [`init`](init.md) and [`sync`](sync.md):

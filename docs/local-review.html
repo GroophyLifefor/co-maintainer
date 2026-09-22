@@ -151,6 +151,23 @@ base branch. AI and guides run on <strong>your machine</strong> (OpenRouter via
 </tbody></table>
 <p>Do not pass <code>owner/repo</code> or a PR number. That selects <a href="local-pr-review.html">PR review</a>
 instead.</p>
+<h2 id="codegraph">Codegraph</h2>
+<p>Local review uses codegraph to follow calls between files. On the first run the
+pinned build is usually missing, and co-maintainer asks before installing it (see
+<a href="caching.html">Caching</a> for the per-version tools directory). The question names
+the package, where it comes from, what it is for, the approximate download size,
+and the exact install directory:</p>
+<pre><code>co-maintainer uses codegraph 1.6.0 (@colbymchenry/codegraph from npm, ~250 MB) to follow calls between files while reviewing.
+Install it into &lt;tools dir&gt;/codegraph/1.6.0 (your global PATH is not touched)? [y/N]
+</code></pre>
+<p>The question is only asked when <strong>both</strong> stdin and stdout are a terminal and
+<code>CI</code> is unset. With a closed stdin (<code>&lt;/dev/null</code>), a piped output, or <code>CI=1</code>, it
+is skipped and review continues without codegraph, printing one line:</p>
+<pre><code>[codegraph] codegraph 1.6.0 is not installed, reviewing without it. Pass --allow-tool-install to install it, or --disable-codegraph to skip this notice.
+</code></pre>
+<p>Pass <code>--allow-tool-install</code> to install without a prompt, or
+<code>--disable-codegraph</code> to skip the check entirely. Neither CI jobs nor pipelines
+can hang on the question.</p>
 <h2 id="carry-over">Carry-over</h2>
 <p>Repeated <code>co-maintainer review</code> on the same repo root and branch reuses prior
 findings (closed / still open / new) via <a href="caching.html">cache</a>. Use <code>--fresh</code> to
@@ -167,7 +184,7 @@ start clean. If the cache cannot be read or written, review continues with a
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#carry-over">Carry-over</a></li><li><a href="#developers">Developers</a></li></ul></nav>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#codegraph">Codegraph</a></li><li><a href="#carry-over">Carry-over</a></li><li><a href="#developers">Developers</a></li></ul></nav>
     </div>
   </div>
   <script src="assets/docs.js"></script>

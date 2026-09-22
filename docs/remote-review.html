@@ -129,39 +129,17 @@ cd your/clone
 <td><code>--allow-tool-install</code></td>
 <td>Allow codegraph install without a prompt</td>
 </tr>
-<tr>
-<td><code>--fresh</code></td>
-<td>No carry-over from a prior remote run</td>
-</tr>
-<tr>
-<td><code>--to-branch=&lt;name&gt;</code></td>
-<td>Diff base branch</td>
-</tr>
-<tr>
-<td><code>--branch=&lt;name&gt;</code></td>
-<td>Branch when HEAD is detached</td>
-</tr>
-<tr>
-<td><code>--repo=owner/repo</code></td>
-<td>Override remote detection</td>
-</tr>
-<tr>
-<td><code>--remote-host=&lt;url&gt;</code></td>
-<td>Override the configured host for this run (needs <code>--remote</code>)</td>
-</tr>
-<tr>
-<td><code>--remote-token=&lt;token&gt;</code></td>
-<td>Override the configured token for this run (needs <code>--remote</code>)</td>
-</tr>
-<tr>
-<td><code>--debug</code></td>
-<td>Verbose stderr</td>
-</tr>
-<tr>
-<td><code>--log-time</code></td>
-<td>Phase timings</td>
-</tr>
 </tbody></table>
+<p>The codegraph question, and the conditions under which co-maintainer skips it,
+are the same as <a href="local-review.html#codegraph">local review</a>.
+| <code>--fresh</code> | No carry-over from a prior remote run |
+| <code>--to-branch=&lt;name&gt;</code> | Diff base branch |
+| <code>--branch=&lt;name&gt;</code> | Branch when HEAD is detached |
+| <code>--repo=owner/repo</code> | Override remote detection |
+| <code>--remote-host=&lt;url&gt;</code> | Override the configured host for this run (needs <code>--remote</code>) |
+| <code>--remote-token=&lt;token&gt;</code> | Override the configured token for this run (needs <code>--remote</code>) |
+| <code>--debug</code> | Verbose stderr |
+| <code>--log-time</code> | Phase timings |</p>
 <p>Not supported with <code>--remote</code>: <code>--sync-before-review</code> (run
 <a href="sync.html"><code>sync</code></a> on the server instead).</p>
 <h2 id="limits">Limits</h2>

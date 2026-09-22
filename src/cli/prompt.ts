@@ -5,15 +5,31 @@
  * referenced, which would hang a non-interactive pipeline. */
 import { createInterface } from "node:readline/promises";
 
+/** Asks one question and always settles.
+ *
+ * `rl.question` never settles when stdin reaches EOF before an answer, which
+ * is the F01 hang: `co-maintainer review </dev/null` awaited the answer
+ * forever, printed `Warning: Detected unsettled top-level await`, and exited
+ * 13. Racing the question against `close`/`end` and treating those as "no
+ * answer" keeps the caller's fallback path alive instead. */
 async function ask(question: string): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
-    return (await rl.question(question)).trim();
-  } catch {
-    // `question` rejects when stdin closes mid-prompt (Ctrl-D, a detached
-    // pipeline, a killed parent). Treat that as "no answer" so the caller's
-    // own fallback/required validation runs instead of an uncaught rejection.
-    return "";
+    return (
+      await new Promise<string>((resolve) => {
+        let settled = false;
+        const done = (value: string): void => {
+          if (settled) return;
+          settled = true;
+          resolve(value);
+        };
+        // `question` rejects when stdin closes mid-prompt (Ctrl-D, a detached
+        // pipeline, a killed parent); treat that as "no answer" too.
+        void rl.question(question).then(done, () => done(""));
+        rl.once("close", () => done(""));
+        process.stdin.once("end", () => done(""));
+      })
+    ).trim();
   } finally {
     rl.close();
   }

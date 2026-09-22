@@ -44,6 +44,31 @@ co-maintainer review --to-branch=main --sync-before-review
 Do not pass `owner/repo` or a PR number. That selects [PR review](local-pr-review.md)
 instead.
 
+## Codegraph
+
+Local review uses codegraph to follow calls between files. On the first run the
+pinned build is usually missing, and co-maintainer asks before installing it (see
+[Caching](caching.md) for the per-version tools directory). The question names
+the package, where it comes from, what it is for, the approximate download size,
+and the exact install directory:
+
+```
+co-maintainer uses codegraph 1.6.0 (@colbymchenry/codegraph from npm, ~250 MB) to follow calls between files while reviewing.
+Install it into <tools dir>/codegraph/1.6.0 (your global PATH is not touched)? [y/N]
+```
+
+The question is only asked when **both** stdin and stdout are a terminal and
+`CI` is unset. With a closed stdin (`</dev/null`), a piped output, or `CI=1`, it
+is skipped and review continues without codegraph, printing one line:
+
+```
+[codegraph] codegraph 1.6.0 is not installed, reviewing without it. Pass --allow-tool-install to install it, or --disable-codegraph to skip this notice.
+```
+
+Pass `--allow-tool-install` to install without a prompt, or
+`--disable-codegraph` to skip the check entirely. Neither CI jobs nor pipelines
+can hang on the question.
+
 ## Carry-over
 
 Repeated `co-maintainer review` on the same repo root and branch reuses prior

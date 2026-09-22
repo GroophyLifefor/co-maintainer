@@ -14,6 +14,7 @@ import {
 } from "../cli/review_result.ts";
 import { readConfig, writeUserConfig } from "../config.ts";
 import { prepareLocalCodegraph } from "../local/codegraph_prepare.ts";
+import { canPrompt } from "../tools/codegraph.ts";
 import {
   runRemoteToolCalls,
   toolHandlerMap,
@@ -223,7 +224,8 @@ export async function runRemoteReview(
       gitRoot: root,
       enabled: !cli.disableCodegraph,
       allowInstall: cli.allowToolInstall,
-      interactive: !cli.json,
+      // `--json` must stay machine-readable; `canPrompt` adds TTY and CI (F01).
+      interactive: !cli.json && canPrompt(),
     });
     const localTools = toolHandlerMap(codegraphPrep.tools);
     const capabilityTools = [...localTools.keys()]

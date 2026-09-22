@@ -1,12 +1,15 @@
 import {
   binaryPath,
+  canPrompt,
   CODEGRAPH_VERSION,
   type CommandResult,
   detect,
   ensureCodegraph,
   ensureCodegraphForReview,
   installCommand,
+  installPrompt,
   parseVersion,
+  skippedNotice,
   versionDir,
 } from "./codegraph.ts";
 import {
@@ -67,6 +70,50 @@ test("detect reports missing when the binary is not there", async () => {
     Promise.resolve(ok(0, CODEGRAPH_VERSION)),
   );
   same(present.state, "missing", "state");
+});
+
+test("canPrompt needs both streams on a TTY and no CI", () => {
+  const tty = { stdin: { isTTY: true }, stdout: { isTTY: true } };
+  // The regression that caused F01: a closed stdin is not a TTY, so no prompt.
+  same(
+    canPrompt({ ...tty, stdin: { isTTY: false } }, {}),
+    false,
+    "no stdin tty",
+  );
+  same(canPrompt(tty, { CI: "1" }), false, "CI set");
+  same(canPrompt(tty, { CI: "" }), true, "empty CI is unset");
+  // A piped stdout would print the question where nobody reads it.
+  same(
+    canPrompt({ ...tty, stdout: { isTTY: false } }, {}),
+    false,
+    "no stdout tty",
+  );
+  same(canPrompt(tty, {}), true, "interactive terminal");
+});
+
+test("skippedNotice names both flags so a CI log explains itself", () => {
+  const notice = skippedNotice();
+  if (!notice.includes("reviewing without it")) {
+    throw new Error(notice);
+  }
+  if (!notice.includes("--allow-tool-install")) throw new Error(notice);
+  if (!notice.includes("--disable-codegraph")) throw new Error(notice);
+});
+
+test("installPrompt says what, where from, what for, and how big", () => {
+  const prompt = installPrompt("1.6.0", ROOT);
+  if (!prompt.includes("@colbymchenry/codegraph")) {
+    throw new Error(`package missing: ${prompt}`);
+  }
+  if (!prompt.includes("1.6.0")) throw new Error(`version missing: ${prompt}`);
+  if (!prompt.includes("npm")) throw new Error(`source missing: ${prompt}`);
+  if (!prompt.includes("MB")) throw new Error(`size missing: ${prompt}`);
+  if (!prompt.includes("calls between files")) {
+    throw new Error(`purpose missing: ${prompt}`);
+  }
+  if (!prompt.includes(`${ROOT}/codegraph/1.6.0`)) {
+    throw new Error(`target directory missing: ${prompt}`);
+  }
 });
 
 test("ensureCodegraph returns the path when the pinned version is present", async () => {

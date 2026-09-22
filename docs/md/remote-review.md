@@ -46,6 +46,9 @@ Same as [local review](local-review.md) for diff and output flags:
 | `--json` | JSON on stdout |
 | `--disable-codegraph` | Skip local codegraph |
 | `--allow-tool-install` | Allow codegraph install without a prompt |
+
+The codegraph question, and the conditions under which co-maintainer skips it,
+are the same as [local review](local-review.md#codegraph).
 | `--fresh` | No carry-over from a prior remote run |
 | `--to-branch=<name>` | Diff base branch |
 | `--branch=<name>` | Branch when HEAD is detached |

@@ -227,6 +227,14 @@ To collect every state again, pass <code>--pr-state=open,closed,merged</code>.</
 <li><code>SKILL.md</code> and <code>CODEBASE.md</code></li>
 <li><code>PR_REVIEW_GUIDE.md</code> and related review guides when PR sources were included</li>
 </ul>
+<p>The two review guides need at least three selected review signals, drawn from
+PR discussions and merged-PR feedback. A repository with fewer keeps only
+<code>SKILL.md</code> and <code>CODEBASE.md</code>. When that happens <code>init</code> says why on one line:</p>
+<pre><code>[write] PR_REVIEW_GUIDE.md skipped: found 1 review signals, needs at least 3
+</code></pre>
+<p>The count is what <code>init</code> saw, so adding PR sources or another review signal and
+running <a href="sync.html"><code>sync</code></a> can push a repository over the threshold. The
+threshold itself does not change.</p>
 <p>Evidence and AI job results go into <code>cache.db</code> for faster <a href="sync.html"><code>sync</code></a>.
 After <code>init</code> succeeds, run <a href="review.html"><code>review</code></a> on a PR or local changes.</p>
 <h2 id="what-it-reports">What it reports</h2>
