@@ -86,6 +86,16 @@ Under `<config dir>/repos/owner/repo/` (see [Caching](caching.md)):
 - `SKILL.md` and `CODEBASE.md`
 - `PR_REVIEW_GUIDE.md` and related review guides when PR sources were included
 
+The two review guides need at least three selected review signals, drawn from
+PR discussions and merged-PR feedback. A repository with fewer keeps only
+`SKILL.md` and `CODEBASE.md`. When that happens `init` says why on one line:
+
+    [write] PR_REVIEW_GUIDE.md skipped: found 1 review signals, needs at least 3
+
+The count is what `init` saw, so adding PR sources or another review signal and
+running [`sync`](sync.md) can push a repository over the threshold. The
+threshold itself does not change.
+
 Evidence and AI job results go into `cache.db` for faster [`sync`](sync.md).
 After `init` succeeds, run [`review`](review.md) on a PR or local changes.
 

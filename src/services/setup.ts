@@ -11,7 +11,7 @@ import { collectSource } from "../github/collect.ts";
 import { GhClient } from "../github/gh.ts";
 import { PatClient } from "../github/pat.ts";
 import { extractFacts } from "../knowledge/facts.ts";
-import { buildReviewDocuments } from "../knowledge/guide.ts";
+import { buildReviewDocuments, reviewSignalCount } from "../knowledge/guide.ts";
 import {
   assembleSkill,
   extractSections,
@@ -113,9 +113,16 @@ async function skillPath(repo: string): Promise<string> {
 async function writeReviewDocuments(
   repo: string,
   documents: ReturnType<typeof buildReviewDocuments>,
+  signalCount: number,
 ): Promise<void> {
   const directory = `${reposDir()}/${repo}`;
   if (!documents) {
+    // F05: this used to delete the files without a word. The plan's rule is
+    // "says why the third file is missing": keep it to one line.
+    log(
+      "write",
+      `PR_REVIEW_GUIDE.md skipped: found ${signalCount} review signals, needs at least 3`,
+    );
     await Promise.all([
       remove(`${directory}/PR_REVIEW_GUIDE.md`).catch(() => {}),
       remove(`${directory}/PR_REVIEW_DETAILED_GUIDE.md`).catch(() => {}),
@@ -366,7 +373,11 @@ async function initOrRemake(options: Options): Promise<void> {
     await withKnowledgeLock(options.repo, async () => {
       await writeTextFileAtomic(path, result.markdown);
       await writeCodebaseDocument(options.repo, result.markdown);
-      await writeReviewDocuments(options.repo, reviewDocuments);
+      await writeReviewDocuments(
+        options.repo,
+        reviewDocuments,
+        reviewSignalCount(facts),
+      );
       const head = source.commits[0] as { sha?: string } | undefined;
       const baseSha = head?.sha ? String(head.sha) : new Date().toISOString();
       markKnowledgeBuilt(options.repo, baseSha);

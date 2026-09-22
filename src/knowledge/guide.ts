@@ -60,6 +60,13 @@ ${bullets.join("\n")}
 `;
 }
 
+/** The selected review signals, before the `>2` threshold is applied. Exported
+ * so `init` can tell the user how far short of the threshold a repository is
+ * (CORE-31), rather than silently skipping the two guide files. */
+export function reviewSignalCount(facts: Fact[]): number {
+  return reviewFacts(facts).length;
+}
+
 export function buildReviewDocuments(
   facts: Fact[],
 ): ReviewDocuments | undefined {
