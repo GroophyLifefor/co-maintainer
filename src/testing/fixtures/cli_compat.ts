@@ -292,7 +292,7 @@ export const PARSE_CASES: ParseCase[] = [
   {
     name: "unknown command is rejected",
     args: ["prob", "owner/repo"],
-    expect: { error: "Unknown command: prob" },
+    expect: { error: "Unknown command: prob. Did you mean probe?" },
   },
   {
     name: "unknown option is rejected",
@@ -463,7 +463,7 @@ export const SET_CASES: SetCase[] = [
     name: "set with no arguments prints usage instead of failing",
     args: [],
     config: {},
-    contains: "Usage: co-maintainer set",
+    contains: "co-maintainer set [options]",
   },
   {
     name: "set refuses an unknown option",
@@ -491,29 +491,25 @@ export const HELP_CASES: HelpCase[] = [
     name: "no arguments prints usage and exits 0",
     args: [],
     exitCode: 0,
-    firstLine:
-      "Usage: co-maintainer <probe|init|remake|review> owner/repo [options]",
+    firstLine: "Usage: co-maintainer <command> owner/repo [options]",
   },
   {
     name: "help prints usage and exits 0",
     args: ["help"],
     exitCode: 0,
-    firstLine:
-      "Usage: co-maintainer <probe|init|remake|review> owner/repo [options]",
+    firstLine: "Usage: co-maintainer <command> owner/repo [options]",
   },
   {
     name: "--help prints usage and exits 0",
     args: ["--help"],
     exitCode: 0,
-    firstLine:
-      "Usage: co-maintainer <probe|init|remake|review> owner/repo [options]",
+    firstLine: "Usage: co-maintainer <command> owner/repo [options]",
   },
   {
     name: "-h prints usage and exits 0",
     args: ["-h"],
     exitCode: 0,
-    firstLine:
-      "Usage: co-maintainer <probe|init|remake|review> owner/repo [options]",
+    firstLine: "Usage: co-maintainer <command> owner/repo [options]",
   },
   {
     name: "--version prints the version and exits 0",

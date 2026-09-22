@@ -8,9 +8,54 @@ import { runReviewFromCli } from "./commands/review.ts";
 import { runInitOrRemake } from "../services/setup.ts";
 import { VERSION } from "../version.ts";
 import { CliError, EXIT_RUNTIME, exitWith } from "./error.ts";
+import {
+  findCommand,
+  renderCommandHelp,
+  renderGlobalHelp,
+  unknownCommandMessage,
+} from "./commands/registry.ts";
+
+/** Every command's help is rendered from the registry, so a new flag cannot
+ * drift out of it. `help <command>`, `<command> --help` and `<command> -h` all
+ * land here and all exit 0 (CORE-20). */
+function printHelpFor(name: string): void {
+  const help = renderCommandHelp(name);
+  console.log(help ?? renderGlobalHelp());
+  exitWith(0);
+}
+
+/** True when the help was printed and `run` should stop. */
+function handleHelp(args: string[]): boolean {
+  const first = args[0];
+  if (first === "help") {
+    const target = args.find((arg) => !arg.startsWith("-") && arg !== "help");
+    if (target) printHelpFor(target);
+    else {
+      console.log(renderGlobalHelp());
+      exitWith(0);
+    }
+    return true;
+  }
+  if (first === "--help" || first === "-h") {
+    console.log(renderGlobalHelp());
+    exitWith(0);
+    return true;
+  }
+  // `<command> --help` without a repo: `serve --help` and `set --help` must not
+  // reach their handlers, which would start a server or demand a flag (CORE-20).
+  if (first && (args.includes("--help") || args.includes("-h"))) {
+    const spec = findCommand(first);
+    if (spec) {
+      printHelpFor(first);
+      return true;
+    }
+  }
+  return false;
+}
 
 export async function run(args: string[]): Promise<void> {
-  if (args[0] === "-v" || args[0] === "--version") {
+  if (handleHelp(args)) return;
+  if (args[0] === "-v" || args[0] === "--version" || args[0] === "version") {
     console.log(VERSION);
     return;
   }
@@ -25,6 +70,11 @@ export async function run(args: string[]): Promise<void> {
   if (args[0] === "review") {
     await runReviewFromCli(args.slice(1));
     return;
+  }
+  // An unknown command is a usage error with a suggestion, and it must resolve
+  // through the registry so hidden aliases still work (CORE-20).
+  if (args[0] && !args[0].startsWith("-") && !findCommand(args[0])) {
+    throw new CliError("usage", unknownCommandMessage(args[0]));
   }
   const options = await parseArgs(args);
   if (options.command === "probe") await runProbe(options);

@@ -378,8 +378,11 @@ for (const testCase of HELP_CASES) {
           `first line: expected ${JSON.stringify(firstLine)}, got ${JSON.stringify(output.split("\n")[0])}`,
         );
       }
-      if (!isVersion && !output.includes("co-maintainer serve --port=N")) {
-        throw new Error("usage output is missing the serve line");
+      if (!isVersion && !output.includes("serve")) {
+        throw new Error("usage output is missing the serve command");
+      }
+      if (!isVersion && !output.includes("probe")) {
+        throw new Error("usage output is missing the probe command");
       }
     });
   });

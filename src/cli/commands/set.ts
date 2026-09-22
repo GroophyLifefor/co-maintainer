@@ -2,6 +2,7 @@ import { writeUserConfig } from "../../config.ts";
 import { hashPassword, passwordProblem } from "../../util/password.ts";
 import { readTextFile } from "../../util/runtime.ts";
 import { die } from "../error.ts";
+import { renderCommandHelp, renderGlobalHelp } from "./registry.ts";
 
 function text(args: string[], name: string): string | undefined {
   return args
@@ -27,22 +28,7 @@ const secretFields = new Set([
  * docs/md/configuration.md for the tradeoff. */
 export async function runSet(args: string[]): Promise<void> {
   if (args.includes("--help") || args.includes("-h") || args.length === 0) {
-    console.log(
-      "Usage: co-maintainer set --token=... --ai=none|openrouter|hetzner --low-model=... --high-model=... --auth=gh|pat --github-pat=...",
-    );
-    console.log(
-      "                        --github-app-id=... --github-app-private-key=... | --github-app-private-key-file=path",
-    );
-    console.log("                        --github-webhook-secret=...");
-    console.log(
-      "                        --github-oauth-client-id=... --github-oauth-client-secret=... --github-oauth-allowed-user=...",
-    );
-    console.log(
-      "                        --password=... --disable-auth=password --enable-auth=github",
-    );
-    console.log(
-      "Writes to the user config file; unset an entry with --unset=name (e.g. --unset=token).",
-    );
+    console.log(renderCommandHelp("set") ?? renderGlobalHelp());
     return;
   }
   const known = [

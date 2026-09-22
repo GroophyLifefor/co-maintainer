@@ -3,6 +3,12 @@ import { prepareConfig } from "../config.ts";
 import { getEnv } from "../util/runtime.ts";
 import { askLine } from "./prompt.ts";
 import { die } from "./error.ts";
+import {
+  renderCommandHelp,
+  renderGlobalHelp,
+  unknownCommandMessage,
+  unknownOptionMessage,
+} from "./commands/registry.ts";
 
 function numberOption(value: string, name: string): number {
   const number = Number(value);
@@ -54,47 +60,18 @@ export async function parseArgs(args: string[]): Promise<Options> {
     repo === "--help" ||
     repo === "-h"
   ) {
-    console.log(
-      "Usage: co-maintainer <probe|init|remake|review> owner/repo [options]",
-    );
-    console.log("       co-maintainer review [options]");
-    console.log("       co-maintainer review owner/repo PR_NUMBER [options]");
-    console.log(
-      "       co-maintainer set --token=... --ai=... --low-model=... --high-model=... --auth=...",
-    );
-    console.log("       co-maintainer serve --port=N");
-    console.log("       co-maintainer -v | --version");
-    console.log(
-      "         --webhook-url=https://host/github/webhook [or CM_WEBHOOK_URL]",
-    );
-    console.log(
-      "         --env=PATH --debug --log-time --gh-concurrent=N --ai-concurrent=N",
-    );
-    console.log(
-      "Options: --include-codebase --include-pull-requests --include-pull-request-changes",
-    );
-    console.log("         --include-commit-history --include-how-repo-works");
-    console.log(
-      "         --max-commits=N --max-pr-months=N --max-pull-request-change-lines=N --max-comment=N",
-    );
-    console.log("         --only-request-changed-pr");
-    console.log("         --pr-state=open,closed,merged");
-    console.log(
-      "         --auth=gh|pat --github-pat=... --ai=none|openrouter|hetzner --token=... --low-model=... --high-model=...",
-    );
+    console.log(renderGlobalHelp());
     process.exit(0);
   }
   if (!commands.includes(command as (typeof commands)[number])) {
-    die(`Unknown command: ${command}`);
+    die(unknownCommandMessage(command));
   }
   if (rest.includes("--help") || rest.includes("-h")) {
-    console.log(`Usage: co-maintainer ${command} ...`);
-    console.log("Run co-maintainer --help for all options.");
+    console.log(renderCommandHelp(command) ?? renderGlobalHelp());
     process.exit(0);
   }
   if (repo === "--help" || repo === "-h") {
-    console.log(`Usage: co-maintainer ${command} ...`);
-    console.log("Run co-maintainer --help for all options.");
+    console.log(renderCommandHelp(command) ?? renderGlobalHelp());
     process.exit(0);
   }
   if (!repo || !/^[^/]+\/[^/]+$/.test(repo)) {
@@ -213,7 +190,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
       arg === "--only-request-changed-pr"
     )
       continue;
-    if (arg.startsWith("--") && !known) die(`Unknown option: ${arg}`);
+    if (arg.startsWith("--") && !known) die(unknownOptionMessage(arg));
   }
 
   const explicitAi = rest.some((arg) => arg.startsWith("--ai="));
