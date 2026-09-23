@@ -66,6 +66,9 @@ export type PageDeps = {
   /** Behind a reverse proxy this process trusts, absolute URLs are built
    * from `x-forwarded-host` and `x-forwarded-proto`. */
   trustProxy?: boolean;
+  /** `CM_LOGIN_HINT`, shown on the sign-in page in place of the default
+   * "printed when serve started" line. */
+  loginHint?: string;
 };
 
 const REPO =
@@ -109,6 +112,7 @@ export async function handlePageRequest(
       error: url.searchParams.get("error") ?? undefined,
       showPassword: auth.password,
       showGithub: auth.github,
+      hint: deps.loginHint,
     });
   }
 
@@ -540,6 +544,7 @@ async function handleLoginForm(
       error: "Password sign-in is disabled.",
       showPassword: auth.password,
       showGithub: auth.github,
+      hint: deps.loginHint,
     });
   }
   const result = await login(password, deps.passwordStore, ip);
@@ -549,6 +554,7 @@ async function handleLoginForm(
       error: "Wrong password.",
       showPassword: auth.password,
       showGithub: auth.github,
+      hint: deps.loginHint,
     });
   }
   return new Response(null, {

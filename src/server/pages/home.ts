@@ -6,6 +6,10 @@ export function renderLogin(opts: {
   error?: string;
   showPassword: boolean;
   showGithub: boolean;
+  /** `CM_LOGIN_HINT`, for a deployment that hands out its own password (the
+   * Cloud image seeds one), so this page can point at it instead of the
+   * generic "printed when serve started". Falls back to the default line. */
+  hint?: string;
 }): Response {
   const err = opts.error
     ? `<p class="notice bad"><span class="txt">${text(opts.error)}</span></p>`
@@ -28,7 +32,8 @@ export function renderLogin(opts: {
       ? `<p class="muted" style="text-align:center;margin:16px 0">or</p>`
       : "";
   const lead = opts.showPassword
-    ? "Use the dashboard password printed when serve started."
+    ? opts.hint?.trim() ||
+      "Use the dashboard password printed when serve started."
     : "Sign in with your GitHub account.";
   return html(
     layout({

@@ -70,6 +70,7 @@ starts keep it.
 | `--enable-auth=github` | Turn on GitHub OAuth sign-in for this run |
 | `--trust-proxy` | Trust `x-forwarded-for` and `x-forwarded-proto` from a reverse proxy in front (also `CM_TRUST_PROXY=1`, see [Behind a reverse proxy](#behind-a-reverse-proxy)) |
 | `--inject-500` | Every mutating `/api/*` call returns 500 (failure UI testing, also `CM_INJECT_500=1`) |
+| `CM_LOGIN_HINT` | Text shown on the sign-in page instead of the default "printed when `serve` started" line. Useful when a deployment hands out its own password, as the Cloud image does. Escaped as plain text |
 
 Per-run `--disable-auth` / `--enable-auth` override values from `co-maintainer
 set`. At least one sign-in method must stay enabled.
@@ -103,6 +104,11 @@ OAuth client (no separate OAuth App).
 
 OAuth and auth toggles can also be changed later in dashboard **Settings**. UI
 routes and failure behavior: [Dashboard](dashboard.md).
+
+The sign-in page says "Use the dashboard password printed when serve started."
+Set `CM_LOGIN_HINT` to replace that line with your own text, for example a
+pointer to the password your deployment already gave the user. It is shown as
+plain text and escaped, so it cannot inject markup.
 
 ## Create the App from the dashboard
 

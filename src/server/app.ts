@@ -36,6 +36,9 @@ export type AppDeps = {
   /** Behind a reverse proxy this process trusts, the client address and the
    * scheme come from `x-forwarded-for` and `x-forwarded-proto`. */
   trustProxy?: boolean;
+  /** `CM_LOGIN_HINT`, shown on the sign-in page in place of the default
+   * "printed when serve started" line. */
+  loginHint?: string;
   inject500?: boolean;
   /** Defaults to password-only when omitted, matching every caller that
    * pre-dates GitHub sign-in. */

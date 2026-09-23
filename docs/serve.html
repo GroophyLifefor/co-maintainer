@@ -188,6 +188,10 @@ starts keep it.</p>
 <td><code>--inject-500</code></td>
 <td>Every mutating <code>/api/*</code> call returns 500 (failure UI testing, also <code>CM_INJECT_500=1</code>)</td>
 </tr>
+<tr>
+<td><code>CM_LOGIN_HINT</code></td>
+<td>Text shown on the sign-in page instead of the default &quot;printed when <code>serve</code> started&quot; line. Useful when a deployment hands out its own password, as the Cloud image does. Escaped as plain text</td>
+</tr>
 </tbody></table>
 <p>Per-run <code>--disable-auth</code> / <code>--enable-auth</code> override values from <code>co-maintainer set</code>. At least one sign-in method must stay enabled.</p>
 <p>Persistent App, webhook, OAuth, and webhook URL fields: <a href="configuration.html">Configuration</a>
@@ -214,6 +218,10 @@ OAuth client (no separate OAuth App).</p>
 </ol>
 <p>OAuth and auth toggles can also be changed later in dashboard <strong>Settings</strong>. UI
 routes and failure behavior: <a href="dashboard.html">Dashboard</a>.</p>
+<p>The sign-in page says &quot;Use the dashboard password printed when serve started.&quot;
+Set <code>CM_LOGIN_HINT</code> to replace that line with your own text, for example a
+pointer to the password your deployment already gave the user. It is shown as
+plain text and escaped, so it cannot inject markup.</p>
 <h2 id="create-the-app-from-the-dashboard">Create the App from the dashboard</h2>
 <p>Creating an App by hand means copying a private key, a webhook secret, and OAuth
 credentials between GitHub and the dashboard, and the webhook secret is easy to

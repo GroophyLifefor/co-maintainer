@@ -189,6 +189,48 @@ test("GET / without a session redirects to login", async () => {
   });
 });
 
+test("CM_LOGIN_HINT replaces the default sign-in line, escaped", async () => {
+  await withEnv(async () => {
+    // No hint: the default line stays.
+    const plain = createApp({ password: PASSWORD });
+    const defaultHtml = await (
+      await plain.fetch(new Request("http://localhost/login"))
+    ).text();
+    if (!defaultHtml.includes("printed when serve started")) {
+      throw new Error("the default sign-in hint disappeared");
+    }
+    // A hint from the environment wins, and its angle brackets are escaped.
+    const hinted = createApp({
+      password: PASSWORD,
+      loginHint: "Use the password from <your> cloud dashboard.",
+    });
+    const hintedHtml = await (
+      await hinted.fetch(new Request("http://localhost/login"))
+    ).text();
+    if (
+      !hintedHtml.includes(
+        "Use the password from &lt;your&gt; cloud dashboard.",
+      )
+    ) {
+      throw new Error("the login hint was not shown and escaped");
+    }
+    if (hintedHtml.includes("<your>")) {
+      throw new Error("the login hint was injected without escaping");
+    }
+    if (hintedHtml.includes("printed when serve started")) {
+      throw new Error("the default line leaked through the hint");
+    }
+    // Too-short or blank hints fall back rather than leaving the page bare.
+    const blank = createApp({ password: PASSWORD, loginHint: "   " });
+    const blankHtml = await (
+      await blank.fetch(new Request("http://localhost/login"))
+    ).text();
+    if (!blankHtml.includes("printed when serve started")) {
+      throw new Error("a blank hint did not fall back to the default");
+    }
+  });
+});
+
 test("each page renders 200 with empty data", async () => {
   await withEnv(async () => {
     const app = createApp({

@@ -257,6 +257,7 @@ export async function runServe(args: string[]): Promise<void> {
     trustProxy,
     auth,
     githubOAuth,
+    loginHint: getEnv("CM_LOGIN_HINT"),
   });
   const server = serveHttp(
     (req, remoteAddr) => app.fetch(req, remoteAddr),
