@@ -1,4 +1,5 @@
 import { empty, html, layout, skSlot, text, when } from "./layout.ts";
+import type { SetupItem } from "../../services/setup_checklist.ts";
 
 export function renderLogin(opts: {
   next: string;
@@ -57,12 +58,40 @@ export function renderHome(
     reviews: string;
     cost: string;
   }[],
+  checklist: SetupItem[],
 ): Response {
   const autoCount = rows.filter((row) => row.autoOn).length;
   const lead =
     rows.length === 0
       ? "No repositories yet. Add one to start."
       : `${rows.length} repositories · ${autoCount} reviewing pull requests automatically`;
+  const remaining = checklist.filter((item) => !item.done);
+  // The card is hidden entirely once everything is done, so a finished
+  // install is not told to "finish" anything.
+  const setupCard =
+    remaining.length === 0
+      ? ""
+      : `<div class="card" id="finish-setup">
+    <div class="hd"><h2>Finish setup</h2>
+      <span class="muted" style="margin-left:auto">${checklist.length - remaining.length}/${
+        checklist.length
+      } done</span></div>
+    <div class="bd">
+      <ul class="steps">
+        ${checklist
+          .map(
+            (item, index) =>
+              `<li class="${item.done ? "done" : ""}">
+          <span class="n">${item.done ? "✓" : index + 1}</span>
+          <div class="body"><b>${text(item.title)}</b>
+            <span class="muted">${text(item.detail)}</span></div>
+          <a class="btn sm" href="${item.href}">${text(item.linkLabel)}</a>
+        </li>`,
+          )
+          .join("")}
+      </ul>
+    </div>
+  </div>`;
   const body =
     rows.length === 0
       ? empty(
@@ -115,6 +144,7 @@ export function renderHome(
       rows.length === 0 ? `<a class="btn" href="/setup">Get started</a>` : ""
     }<a class="btn primary" href="/repos/new">Add repository</a></div>
   </div>
+  ${setupCard}
   ${body}
 </div>
 <script>

@@ -79,10 +79,17 @@ Sessions use an `HttpOnly`, `SameSite=Lax` cookie (`Secure` on HTTPS).
 Onboarding checklist: models and API key, GitHub access, GitHub App. Each step
 links to **Settings** to fix gaps.
 
+The home page carries the same idea as a **Finish setup** card until an install
+is complete: models and API key, GitHub App, webhook reachable (see
+[Webhook reachability](#webhook-reachability)), first repository, first review,
+and CLI connected (a remote token exists). Each row links to the settings card
+that fixes it, the header shows how many are done, and the card disappears once
+all six are. A fresh install therefore says what to do next on its landing
+page, not only on `/setup`.
+
 This page is **not** in the top bar. After sign-in, open
-`http://<host>:<port>/setup` or click **Get started** on the home page when you
-have no repositories yet. You can skip it and configure the same items under
-**Settings** at any time.
+`http://<host>:<port>/setup`, or use the **Finish setup** card on the home page.
+You can skip it and configure the same items under **Settings** at any time.
 
 ## Routes
 
@@ -90,7 +97,7 @@ Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
 
 | Path | Purpose |
 | ---- | ------- |
-| `/` | Repository list, **Get started** (when empty), **Add repository**, auto-review toggles |
+| `/` | Repository list, **Finish setup** checklist until complete, **Add repository**, auto-review toggles |
 | `/setup` | Same checklist as above (direct URL) |
 | `/repos/new` | Pick an App-installed repo, **Preview** the plan, then confirm to start **init** |
 | `/repos/:owner/:repo` | Overview, 30-day stats, drift **Update now**, recent PRs, webhook reachability and last delivery |

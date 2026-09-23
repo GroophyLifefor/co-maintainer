@@ -237,6 +237,101 @@ test("each page renders 200 with empty data", async () => {
   });
 });
 
+test("the home page lists the remaining setup steps", async () => {
+  await withEnv(async () => {
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(new Request("http://localhost/", { headers: { cookie } }))
+    ).text();
+    if (!html.includes('id="finish-setup"')) {
+      throw new Error("a fresh install has no Finish setup card");
+    }
+    for (const title of [
+      "Models and API key",
+      "GitHub App",
+      "Webhook reachable",
+      "First repository",
+      "First review",
+      "CLI connected",
+    ]) {
+      if (!html.includes(title)) throw new Error(`missing step: ${title}`);
+    }
+    // Every step links somewhere actionable.
+    if (!html.includes("/settings#ai") || !html.includes("/settings#remote")) {
+      throw new Error("a step does not link to its settings card");
+    }
+    if (!html.includes("0/6 done")) {
+      throw new Error("the done counter is wrong for a fresh install");
+    }
+  });
+});
+
+test("the Finish setup card disappears once everything is done", async () => {
+  await withEnv(async () => {
+    seed();
+    await writeUserConfig({
+      auth: "gh",
+      ai: "openrouter",
+      token: "sk-or-x",
+      lowModel: "low/model",
+      highModel: "high/model",
+      githubAppId: "4900449",
+      githubAppPrivateKey: "PEM",
+    });
+    const app = createApp({
+      password: PASSWORD,
+      webhookUrl: "https://example.com/github/webhook",
+    });
+    const cookie = await cookieSession(app);
+    // A remote token satisfies the CLI step.
+    await app.fetch(
+      new Request("http://localhost/api/remote-tokens", {
+        method: "POST",
+        headers: {
+          cookie,
+          "content-type": "application/json",
+          "x-requested-with": "co-maintainer",
+        },
+        body: JSON.stringify({ name: "laptop" }),
+      }),
+    );
+    // `seed` already recorded a delivery and a review, and the repo is active.
+    const html = await (
+      await app.fetch(new Request("http://localhost/", { headers: { cookie } }))
+    ).text();
+    if (html.includes('id="finish-setup"')) {
+      throw new Error("the card stayed after everything was done");
+    }
+  });
+});
+
+test("the Finish setup card names an unreachable webhook", async () => {
+  await withEnv(async () => {
+    seed();
+    await writeUserConfig({
+      auth: "gh",
+      ai: "openrouter",
+      token: "sk-or-x",
+      lowModel: "low/model",
+      highModel: "high/model",
+      githubAppId: "4900449",
+      githubAppPrivateKey: "PEM",
+    });
+    const app = createApp({
+      password: PASSWORD,
+      webhookUrl: "http://localhost:5000/github/webhook",
+    });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(new Request("http://localhost/", { headers: { cookie } }))
+    ).text();
+    if (!html.includes("GitHub cannot reach")) {
+      throw new Error("the checklist did not flag the localhost webhook");
+    }
+  });
+});
+
 test("each page renders 200 with seeded data", async () => {
   await withEnv(async () => {
     seed();

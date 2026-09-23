@@ -46,6 +46,7 @@ import { getJob } from "../../store/jobs.ts";
 import { getLogsSince } from "../../services/jobs.ts";
 import { listInstallationsWithRepos, listOpenPulls } from "../../github/app.ts";
 import type { OpenPull } from "../../github/app.ts";
+import { setupChecklist } from "../../services/setup_checklist.ts";
 
 export type PageDeps = {
   passwordStore: PasswordStore;
@@ -159,7 +160,12 @@ export async function handlePageRequest(
   const username = session.username;
   try {
     if (url.pathname === "/" && request.method === "GET") {
-      return renderHome(username, listReposForHome().map(toHomeRow));
+      const config = readConfig();
+      return renderHome(
+        username,
+        listReposForHome().map(toHomeRow),
+        setupChecklist(config.webhookUrl || deps.webhookUrl || ""),
+      );
     }
     if (url.pathname === "/setup" && request.method === "GET") {
       const config = readConfig();

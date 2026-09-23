@@ -35,7 +35,7 @@ export function renderSettings(
   <div>
     <div class="pagehead"><div><h1>Settings</h1>
       <p class="lead">Used by every repository unless it overrides them.</p></div></div>
-    <div class="card" data-async>
+    <div class="card" id="ai" data-async>
       ${skSlot()}
       <div class="hd"><h2>Models and API key</h2>
         <span class="st ${aiOk ? "ok" : "warn"}" style="margin-left:auto">${

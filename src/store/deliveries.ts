@@ -58,3 +58,14 @@ export function lastDeliveryForRepo(repo: string): DeliveryRow | undefined {
     )
     .get(repo);
 }
+
+/** The newest delivery of any kind, for the setup checklist's webhook step:
+ * it answers "has GitHub ever reached this server" rather than "for which
+ * repo". */
+export function lastDelivery(): DeliveryRow | undefined {
+  return getAppDb()
+    .prepare<DeliveryRow>(
+      `SELECT * FROM deliveries ORDER BY received_at DESC LIMIT 1`,
+    )
+    .get();
+}

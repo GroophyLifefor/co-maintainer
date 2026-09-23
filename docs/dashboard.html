@@ -167,10 +167,16 @@ OAuth setup lives on <a href="serve.html#sign-in-to-the-dashboard"><code>serve</
 <h2 id="get-started-setup">Get started (<code>/setup</code>)</h2>
 <p>Onboarding checklist: models and API key, GitHub access, GitHub App. Each step
 links to <strong>Settings</strong> to fix gaps.</p>
+<p>The home page carries the same idea as a <strong>Finish setup</strong> card until an install
+is complete: models and API key, GitHub App, webhook reachable (see
+<a href="#webhook-reachability">Webhook reachability</a>), first repository, first review,
+and CLI connected (a remote token exists). Each row links to the settings card
+that fixes it, the header shows how many are done, and the card disappears once
+all six are. A fresh install therefore says what to do next on its landing
+page, not only on <code>/setup</code>.</p>
 <p>This page is <strong>not</strong> in the top bar. After sign-in, open
-<code>http://&lt;host&gt;:&lt;port&gt;/setup</code> or click <strong>Get started</strong> on the home page when you
-have no repositories yet. You can skip it and configure the same items under
-<strong>Settings</strong> at any time.</p>
+<code>http://&lt;host&gt;:&lt;port&gt;/setup</code>, or use the <strong>Finish setup</strong> card on the home page.
+You can skip it and configure the same items under <strong>Settings</strong> at any time.</p>
 <h2 id="routes">Routes</h2>
 <p>Top bar: <strong>Activity</strong>, <strong>Usage</strong> (<code>/analytics</code>), <strong>Settings</strong>, signed-in user.</p>
 <table>
@@ -182,7 +188,7 @@ have no repositories yet. You can skip it and configure the same items under
 </thead>
 <tbody><tr>
 <td><code>/</code></td>
-<td>Repository list, <strong>Get started</strong> (when empty), <strong>Add repository</strong>, auto-review toggles</td>
+<td>Repository list, <strong>Finish setup</strong> checklist until complete, <strong>Add repository</strong>, auto-review toggles</td>
 </tr>
 <tr>
 <td><code>/setup</code></td>
