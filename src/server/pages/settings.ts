@@ -56,12 +56,12 @@ export function renderSettings(
           <input id="token" type="password" placeholder="Leave blank to keep the current key">
           <div class="hint">${config.token ? "A key is saved" : "No key saved"}</div></div>
         <div class="two" style="max-width:none">
-          <div class="field"><label>Main model</label>
+          <div class="field"><label>High model</label>
             <input id="high" value="${text(config.highModel ?? "")}">
-            <div class="hint">Writes reviews</div></div>
-          <div class="field"><label>Cheap model</label>
+            <div class="hint">Writes reviews and synthesizes the guides</div></div>
+          <div class="field"><label>Low model</label>
             <input id="low" value="${text(config.lowModel ?? "")}">
-            <div class="hint">Reads history when setting up a repository</div></div>
+            <div class="hint">Extracts facts from history during init and sync</div></div>
         </div>
       </div>
       <div class="ft"><button class="primary" id="save-ai">Save</button></div>

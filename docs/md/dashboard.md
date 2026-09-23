@@ -114,7 +114,7 @@ Single page with sections (anchor links in the sidebar):
 
 | Section | What you configure |
 | ------- | ------------------ |
-| Models and API key | Provider, token, low/high models for server jobs |
+| Models and API key | Provider, token, high model (reviews and synthesis), low model (history extraction) |
 | GitHub | `gh` or PAT for init/sync and server-side Git reads |
 | Defaults | Auth and include/limit defaults for new work |
 | Server | Webhook URL shown to GitHub, queue and timeout knobs |

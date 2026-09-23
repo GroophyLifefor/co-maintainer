@@ -651,6 +651,31 @@ test("the pulls tab explains itself when the App is not configured", async () =>
   });
 });
 
+test("the settings page uses the CLI's high/low model language", async () => {
+  await withEnv(async () => {
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(
+        new Request("http://localhost/settings", { headers: { cookie } }),
+      )
+    ).text();
+    if (!html.includes("High model") || !html.includes("Low model")) {
+      throw new Error("settings does not use high/low model labels");
+    }
+    if (html.includes("Main model") || html.includes("Cheap model")) {
+      throw new Error("settings still uses the old model labels");
+    }
+    // The high model also synthesizes the guides, not only proves reviews.
+    if (!html.includes("synthesizes the guides")) {
+      throw new Error("the high-model hint does not mention synthesis");
+    }
+    if (!html.includes("Extracts facts from history")) {
+      throw new Error("the low-model hint does not describe extraction");
+    }
+  });
+});
+
 test("the add-repo page previews before it can start init", async () => {
   await withEnv(async () => {
     const app = createApp({ password: PASSWORD });
