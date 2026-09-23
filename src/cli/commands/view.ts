@@ -217,7 +217,7 @@ export async function runView(args: string[]): Promise<void> {
       arg.startsWith("--") &&
       !["--list", "--path", "--remote", "--help", "-h"].includes(arg)
     ) {
-      throw new CliError("usage", unknownOptionMessage(arg));
+      throw new CliError("usage", unknownOptionMessage(arg, "view"));
     }
   }
   // The directory belongs to this machine, so it cannot answer for a server.

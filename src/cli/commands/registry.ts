@@ -674,12 +674,20 @@ export function unknownCommandMessage(input: string): string {
     : `Unknown command: ${input}`;
 }
 
-/** `--jsno` becomes `Unknown option: --jsno. Did you mean --json?`. */
-export function unknownOptionMessage(input: string): string {
+/** `--jsno` becomes `Unknown option: --jsno. Did you mean --json?`.
+ *
+ * When `command` is given the suggestion is drawn only from that command's own
+ * flags, so `review --review-blocking` cannot suggest a flag only `set` takes
+ * (N01, found in the beta run). Without a command the whole surface is fair
+ * game, which is all `view` and generic parsers need. */
+export function unknownOptionMessage(input: string, command?: string): string {
   const flag = input.replace(/^--?/, "").split("=")[0] ?? "";
-  const candidates = COMMANDS.flatMap((command) =>
-    command.groups.flatMap((group) => group.flags.map((spec) => spec.name)),
-  );
+  const scoped = command === undefined ? undefined : findCommand(command);
+  const candidates = scoped
+    ? scoped.groups.flatMap((group) => group.flags.map((spec) => spec.name))
+    : COMMANDS.flatMap((command) =>
+        command.groups.flatMap((group) => group.flags.map((spec) => spec.name)),
+      );
   const suggestion = closest(flag, [...new Set(candidates)]);
   return suggestion
     ? `Unknown option: ${input}. Did you mean --${suggestion}?`

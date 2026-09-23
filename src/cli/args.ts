@@ -202,7 +202,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
       arg === "--only-request-changed-pr"
     )
       continue;
-    if (arg.startsWith("--") && !known) die(unknownOptionMessage(arg));
+    if (arg.startsWith("--") && !known) die(unknownOptionMessage(arg, command));
   }
 
   const explicitAi = rest.some((arg) => arg.startsWith("--ai="));

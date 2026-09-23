@@ -100,6 +100,24 @@ test("registry: did-you-mean for commands and flags", () => {
   }
 });
 
+test("registry: a scoped flag suggestion never offers another command's flag", () => {
+  // N01, found in the 0.5.0-beta.1 run: `review --review-blocking=severity`
+  // suggested `--review-blocking`, which only `set` takes, so the user hit the
+  // same wall twice. A scoped suggestion has to stay inside the command.
+  const scoped = unknownOptionMessage("--review-blocking=severity", "review");
+  if (/Did you mean/.test(scoped)) {
+    throw new Error(`review suggested its own non-flag: ${scoped}`);
+  }
+  // The unscoped call keeps the old reach, which `set` itself still needs.
+  if (
+    !/Did you mean --review-blocking\?/.test(
+      unknownOptionMessage("--review-blocking=model", "set"),
+    )
+  ) {
+    throw new Error("set lost its own flag suggestion");
+  }
+});
+
 test("registry: every visible command documents its usage and has no dupes", () => {
   const names = new Set<string>();
   for (const command of visibleCommands()) {
