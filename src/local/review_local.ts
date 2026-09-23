@@ -20,6 +20,7 @@ import { loadGuides } from "../review/guides.ts";
 import {
   buildCarryPromptSection,
   classifyCarryItems,
+  guideRebuiltSince,
   incrementalDiffPaths,
   parsePreviousVerdicts,
   resolveCarryOutcomes,
@@ -235,7 +236,18 @@ export async function runLocalReview(
             "Could not read the local carry-over cache; continuing without prior findings.",
         });
       }
-      const previous = carryLoad.data;
+      let previous = carryLoad.data;
+      // A guide rebuilt after the last review judged its findings under rules
+      // that no longer exist. Rather than let those stale findings mask new
+      // ones, start fresh automatically (CORE-42 / F03) — the same effect as
+      // `--fresh`, without making the user remember the flag.
+      if (
+        previous &&
+        guideRebuiltSince(previous.guideBuiltAt, guides.guideBuiltAt)
+      ) {
+        await clearLocalCarry(repo, root, branch).catch(() => {});
+        previous = null;
+      }
       let carryPrevious: CarryPrevious | null = null;
       let carryItems: ReturnType<typeof classifyCarryItems> = [];
       const extras: ReviewExtras = {};

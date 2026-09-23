@@ -76,6 +76,15 @@ findings (closed / still open / new) via [cache](caching.md). Use `--fresh` to
 start clean. If the cache cannot be read or written, review continues with a
 `carry_over_unavailable` warning.
 
+Carry-over never replaces the review. Every run scans the whole diff for new
+violations **and** re-checks the previous findings; a finding that is still open
+is reported as such rather than suppressing a new one nearby.
+
+When a guide is rebuilt (`init` / `sync`) after your last review on this branch,
+that review's verdicts were made against rules that no longer exist. The next
+review therefore starts fresh on its own — no `--fresh` needed — so a stale
+finding cannot hide a violation the new guide would catch.
+
 ## Developers
 
 ```sh

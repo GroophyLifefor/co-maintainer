@@ -18,6 +18,7 @@ import {
   type CarryItem,
   type CarryPrevious,
   classifyCarryItems,
+  guideRebuiltSince,
   incrementalDiffPaths,
   parsePreviousVerdicts,
   resolveCarryOutcomes,
@@ -787,7 +788,17 @@ async function runReviewJobCore(
   let carryItems: CarryItem[] = [];
   let carryPrevious: CarryPrevious | null = null;
   const extras: { carryPrompt?: string; unchangedPaths?: string[] } = {};
-  if (subjectRevision) {
+  // A guide rebuilt after the previous review invalidates that review's
+  // verdicts and its "unchanged" suppression (CORE-42 / F03). Treat the run as
+  // if it had started fresh: carry-over off, every changed file back in scope,
+  // so a stale finding can never mask a new one.
+  const guideRebuilt =
+    subjectRevision !== undefined &&
+    guideRebuiltSince(
+      subjectRevision.guide_built_at,
+      guidesBefore.guideBuiltAt,
+    );
+  if (subjectRevision && !guideRebuilt) {
     const prevFiles = parseRevisionFiles(subjectRevision);
     const { unchanged } = incrementalDiffPaths(revision, prevFiles);
     extras.unchangedPaths = scope === "incremental" ? unchanged : undefined;
