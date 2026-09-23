@@ -92,7 +92,7 @@ Single page with sections (anchor links in the sidebar):
 | GitHub | `gh` or PAT for init/sync and server-side Git reads |
 | Defaults | Auth and include/limit defaults for new work |
 | Server | Webhook URL shown to GitHub, queue and timeout knobs |
-| Remote review | `cmr_…` tokens, per-token concurrency, sync timeout |
+| Remote review | `cmr_…` tokens (secret shown once, with copy), per-token concurrency, sync timeout |
 | Access | Password vs GitHub sign-in toggles (mirrors `serve` flags) |
 | Password | Change the dashboard password and sign out other sessions |
 | About | Version and source link |

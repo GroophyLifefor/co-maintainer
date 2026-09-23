@@ -331,8 +331,6 @@ export async function runLocalReview(
             visiblePaths,
             parsePreviousVerdicts(response.text),
             parsed,
-            response.guideBuiltAt,
-            carryPrevious,
           )
         : resolvedFromFirstReview(parsed, filesByPath);
       const findingsToStore = storedFindings(allResolved);

@@ -8,9 +8,10 @@
  * uncaught page error fails the run — the dashboard's inline scripts only
  * misbehave in a browser, which no `node:test` can see.
  *
- * The two defects below are known, owned by CORE-70, and recorded rather than
- * ignored: this script keeps proving they exist until CORE-70 removes the
- * marks. Everything else must be clean.
+ * The `bindToggle` and `loadRemoteTokens` crashes that CORE-70 owned are gone
+ * from the marks below: the helper is inlined into `<head>` ahead of every
+ * page script, and the token list waits for `DOMContentLoaded`. Everything
+ * here must be clean now.
  *
  * CI runs this only on the ubuntu job (`npx playwright install --with-deps
  * chromium`); the Windows test job does not pay for a browser.
@@ -63,22 +64,6 @@ type Issue = {
   kind: "console" | "pageerror" | "text";
   text: string;
 };
-
-/** The `bindToggle is not defined` crash: `/` and the repo overview run their
- * inline script before `/client.js` has defined the helper. Owned by CORE-70. */
-function isKnownBindToggle(issue: Issue): boolean {
-  return (
-    issue.kind === "pageerror" &&
-    issue.text.includes("bindToggle is not defined")
-  );
-}
-
-/** The settings token list prints this instead of loading, because
- * `loadRemoteTokens()` also runs before `api` exists and falls into its catch.
- * Owned by CORE-70. */
-function isKnownTokenList(issue: Issue): boolean {
-  return issue.kind === "text" && issue.text.includes("Could not load tokens.");
-}
 
 /** A free port for `serve`, so parallel runs and a busy machine never collide. */
 function freePort(): Promise<number> {
@@ -341,6 +326,25 @@ try {
       }
       console.log(`visited ${path}`);
     }
+
+    // The token secret panel only exists after a real create, so drive the
+    // button the same way an operator would and assert the panel appears.
+    await page.goto(`${base}/settings`, { waitUntil: "load" });
+    const tokenName = `smoke-${Date.now()}`;
+    await page.fill("#remote-token-name", tokenName);
+    await page.click("#create-remote-token");
+    await page.waitForSelector("#remote-token-secret:not([hidden])", {
+      timeout: 10_000,
+    });
+    const secret =
+      (await page.locator("#remote-token-secret").textContent()) ?? "";
+    if (!secret.includes("cmr_")) {
+      throw new Error("the secret panel did not show a token");
+    }
+    if (!secret.includes("is not shown again")) {
+      throw new Error("the secret panel is missing its warning");
+    }
+    console.log("token secret panel shown");
   } finally {
     await browser.close();
   }
@@ -354,23 +358,7 @@ try {
       return true;
     });
   };
-  const known = dedupe(
-    issues.filter(
-      (issue) => isKnownBindToggle(issue) || isKnownTokenList(issue),
-    ),
-  );
-  const unexpected = dedupe(
-    issues.filter(
-      (issue) => !isKnownBindToggle(issue) && !isKnownTokenList(issue),
-    ),
-  );
-
-  if (known.length > 0) {
-    const list = known.map((issue) => `${issue.path}: ${issue.text}`);
-    console.log(
-      `known defects seen (CORE-70 removes these marks):\n  ${list.join("\n  ")}`,
-    );
-  }
+  const unexpected = dedupe(issues);
 
   if (unexpected.length > 0) {
     const list = unexpected.map(

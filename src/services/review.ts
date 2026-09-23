@@ -868,8 +868,6 @@ async function runReviewJobCore(
       visiblePaths,
       verdicts,
       parsed,
-      guideBuiltAt,
-      carryPrevious,
     );
     totalFindings = resolved.length;
     for (const row of resolved) {

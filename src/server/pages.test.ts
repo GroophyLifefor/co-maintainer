@@ -424,12 +424,77 @@ test("GET /client.js is the fetch wrapper with toast and retry", async () => {
     'addEventListener("error"',
     "unhandledrejection",
     "bindToggle",
-    "pollActivity",
+    'getElementById("activity-root")',
     "5000",
   ]) {
     if (!js.includes(needle)) throw new Error(`client.js missed ${needle}`);
   }
   if (js.includes("alert(")) throw new Error("client.js still alerts");
+});
+
+test("every page carries the helper before its own scripts", async () => {
+  await withEnv(async () => {
+    seed();
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const paths = ["/", "/repos/new", "/settings", "/repos/acme/widgets"];
+    for (const path of paths) {
+      const html = await (
+        await app.fetch(
+          new Request(`http://localhost${path}`, { headers: { cookie } }),
+        )
+      ).text();
+      // `bindToggle` and `api` are called from page scripts; if the helper
+      // lands after `<body>` those calls hit an undefined name.
+      const head = html.slice(0, html.indexOf("</head>"));
+      if (!head.includes("function bindToggle")) {
+        throw new Error(`${path} did not inline the helper in <head>`);
+      }
+      if (head.includes("/client.js")) {
+        throw new Error(`${path} still loads the helper as a body script`);
+      }
+    }
+  });
+});
+
+test("the token secret panel replaces the browser prompt", async () => {
+  await withEnv(async () => {
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(
+        new Request("http://localhost/settings", { headers: { cookie } }),
+      )
+    ).text();
+    if (!html.includes('id="remote-token-secret"')) {
+      throw new Error("settings missed the secret panel");
+    }
+    if (html.includes('prompt("Copy this token')) {
+      throw new Error("settings still prompts for the token");
+    }
+  });
+});
+
+test("the client catches only once the page is parsed", async () => {
+  // The helper is inlined into `<head>`, so its wiring and the activity poll
+  // must not run at parse time: `pollActivity` reads `activity-root`, which
+  // the body has not printed yet.
+  const app = createApp({ password: PASSWORD });
+  const js = await (
+    await app.fetch(new Request("http://localhost/client.js"))
+  ).text();
+  const firstListener = js.indexOf('addEventListener("DOMContentLoaded"');
+  const errorListener = js.indexOf('addEventListener("error"');
+  const activityLookup = js.indexOf('getElementById("activity-root")');
+  if (firstListener < 0 || errorListener < 0 || activityLookup < 0) {
+    throw new Error("client.js lost its wiring or the activity poll");
+  }
+  if (errorListener < firstListener || activityLookup < firstListener) {
+    throw new Error("client.js runs at parse time instead of on load");
+  }
+  if (/\(function pollActivity\(\)/.test(js)) {
+    throw new Error("client.js still uses the self-invoking poll wrapper");
+  }
 });
 
 test("mutating pages ship a skeleton and a failure path", async () => {
@@ -464,8 +529,11 @@ test("mutating pages ship a skeleton and a failure path", async () => {
           new Request(`http://localhost${path}`, { headers: { cookie } }),
         )
       ).text();
-      if (!html.includes('id="toasts"') || !html.includes("/client.js")) {
-        throw new Error(`${path} missed the toast host`);
+      if (
+        !html.includes('id="toasts"') ||
+        !html.includes("function bindToggle")
+      ) {
+        throw new Error(`${path} missed the toast host or the inlined helper`);
       }
       if (
         !html.includes('src="/logo.png"') ||

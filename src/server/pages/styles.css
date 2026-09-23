@@ -624,6 +624,30 @@ tbody tr {
   flex: 1;
 }
 
+.secret {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  background: #fffbea;
+  border: 1px solid #ecd9a0;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.secret b {
+  display: block;
+  margin-bottom: 8px;
+}
+.secret-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.secret-row code {
+  flex: 1;
+  min-width: 220px;
+  word-break: break-all;
+}
+
 .sk-slot {
   display: none;
   padding: 18px;

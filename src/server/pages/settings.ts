@@ -160,6 +160,7 @@ Leave blank to keep the current key"></textarea></div>
       <div class="hd"><h2>Remote review tokens</h2></div>
       <div class="bd">
         <p class="muted" style="margin:0 0 16px">Bearer tokens for <code>co-maintainer review --remote</code>. The secret is shown once when created.</p>
+        <div id="remote-token-secret" class="secret" hidden></div>
         <div id="remote-token-list" class="muted">Loading…</div>
         <div class="two" style="max-width:none;margin-top:16px">
           <div class="field"><label>New token name</label>
@@ -358,6 +359,42 @@ async function loadRemoteTokens() {
   }
 }
 function cardFor(btn) { return btn.closest("[data-async]"); }
+function showSecret(token) {
+  var box = document.getElementById("remote-token-secret");
+  box.hidden = false;
+  box.replaceChildren();
+  var title = document.createElement("b");
+  title.textContent = "Copy this token now. It is not shown again.";
+  var row = document.createElement("div");
+  row.className = "secret-row";
+  var code = document.createElement("code");
+  code.textContent = token;
+  var copy = document.createElement("button");
+  copy.type = "button";
+  copy.className = "btn sm";
+  copy.textContent = "Copy";
+  copy.addEventListener("click", async function() {
+    try {
+      await navigator.clipboard.writeText(token);
+      copy.textContent = "Copied";
+    } catch (err) {
+      toast("Copy failed. Select the token and copy it by hand.");
+    }
+  });
+  var dismiss = document.createElement("button");
+  dismiss.type = "button";
+  dismiss.className = "btn sm";
+  dismiss.textContent = "I have saved it";
+  dismiss.addEventListener("click", function() {
+    box.hidden = true;
+    box.replaceChildren();
+  });
+  row.appendChild(code);
+  row.appendChild(copy);
+  row.appendChild(dismiss);
+  box.appendChild(title);
+  box.appendChild(row);
+}
 loadRemoteTokens();
 document.getElementById("create-remote-token").addEventListener("click", function() {
   var name = document.getElementById("remote-token-name").value.trim();
@@ -367,7 +404,7 @@ document.getElementById("create-remote-token").addEventListener("click", functio
   }
   run(this, this.closest("[data-async]"), async function() {
     var created = await api("POST", "/api/remote-tokens", { name: name });
-    prompt("Copy this token now — it will not be shown again:", created.token);
+    showSecret(created.token);
     document.getElementById("remote-token-name").value = "";
     await loadRemoteTokens();
   });

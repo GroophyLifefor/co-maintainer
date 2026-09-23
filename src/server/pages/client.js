@@ -117,39 +117,45 @@ function bindToggle(btn, url, field) {
   });
 }
 
-addEventListener("error", function (ev) {
-  toast((ev.error && ev.error.message) || "Something broke");
-});
-addEventListener("unhandledrejection", function (ev) {
-  toast((ev.reason && ev.reason.message) || "Something broke");
-});
+// The helper is inlined into `<head>` by `layout.ts`, before any page script
+// runs, so this is the one place that can close over both `toast()` and
+// `bindToggle` without depending on point-in-time globals.
+document.addEventListener("DOMContentLoaded", function () {
+  // Client errors bubble to `window` from `document`.
+  addEventListener("error", function (ev) {
+    toast((ev.error && ev.error.message) || "Something broke");
+  });
+  addEventListener("unhandledrejection", function (ev) {
+    toast((ev.reason && ev.reason.message) || "Something broke");
+  });
 
-document.addEventListener("click", function (ev) {
-  const btn =
-    ev.target && ev.target.closest
-      ? ev.target.closest("[data-cancel], [data-post]")
-      : null;
-  if (!btn) return;
-  ev.preventDefault();
-  if (btn.hasAttribute("data-cancel")) {
+  document.addEventListener("click", function (ev) {
+    const btn =
+      ev.target && ev.target.closest
+        ? ev.target.closest("[data-cancel], [data-post]")
+        : null;
+    if (!btn) return;
+    ev.preventDefault();
+    if (btn.hasAttribute("data-cancel")) {
+      postAndGo(
+        "/api/jobs/" + btn.getAttribute("data-cancel") + "/cancel",
+        {},
+        "/activity",
+        btn,
+      );
+      return;
+    }
+    const body = btn.getAttribute("data-body");
     postAndGo(
-      "/api/jobs/" + btn.getAttribute("data-cancel") + "/cancel",
-      {},
+      btn.getAttribute("data-post"),
+      body ? JSON.parse(body) : {},
       "/activity",
       btn,
     );
-    return;
-  }
-  const body = btn.getAttribute("data-body");
-  postAndGo(
-    btn.getAttribute("data-post"),
-    body ? JSON.parse(body) : {},
-    "/activity",
-    btn,
-  );
-});
+  });
 
-(function pollActivity() {
+  // Reads `activity-root` at call time, so it has to wait for the body even
+  // though this file itself is already parsed.
   if (!document.getElementById("activity-root")) return;
   setInterval(async function () {
     if (document.hidden) return;
@@ -172,4 +178,4 @@ document.addEventListener("click", function (ev) {
       // a failed poll just waits for the next tick
     }
   }, 5000);
-})();
+});

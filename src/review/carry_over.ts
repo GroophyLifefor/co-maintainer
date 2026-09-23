@@ -3,7 +3,6 @@ import { spansOverlap } from "../pr/rounds.ts";
 import { rightLines } from "../pr/hunks.ts";
 import {
   normalizeAnchor,
-  normalizeBody,
   normalizePath,
   revisionFilesEquivalent,
   resolvePathAfterRename,
@@ -190,7 +189,6 @@ export function classifyCarryItems(
           (f) => normalizePath(f.path) === normalizePath(finding.path!),
         )
       : undefined;
-    const prevPatch = prevFile?.patch ?? "";
     const sameBody = Boolean(
       prevFile && file && revisionFilesEquivalent(prevFile, file),
     );
@@ -359,8 +357,6 @@ export function resolveCarryOutcomes(
   visiblePaths: Set<string>,
   verdicts: PreviousVerdict[],
   parsedNew: ParsedFinding[],
-  currentGuideBuiltAt: string | null,
-  previous: CarryPrevious,
 ): ResolvedFinding[] {
   const verdictByPromptId = new Map(verdicts.map((v) => [v.id, v]));
   const promptIds = new Map<string, string>();

@@ -1,5 +1,6 @@
 import { safeCopy } from "../../util/redact.ts";
 import { relativeTime } from "../../util/time.ts";
+import { client } from "./client.ts";
 
 export function escapeHtml(value: unknown): string {
   return String(value ?? "").replace(
@@ -234,14 +235,13 @@ export function layout(opts: {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <title>${text(
     opts.title,
-  )}</title><link rel="stylesheet" href="/styles.css"><link rel="icon" href="/logo.png" type="image/png"></head><body>
+  )}</title><link rel="stylesheet" href="/styles.css"><link rel="icon" href="/logo.png" type="image/png"><script>${client}</script></head><body>
 <div class="top"><div class="in">
   <a class="logo" href="/"><img src="/logo.png" alt="">co-maintainer</a>
   ${right}
 </div></div>
 ${opts.body}
 <div id="toasts"></div>
-<script src="/client.js"></script>
 </body></html>`;
 }
 
