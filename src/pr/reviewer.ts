@@ -234,7 +234,11 @@ export async function reviewPullRequest(
   progress?: ProgressSink,
   extras?: ReviewExtras,
 ): Promise<
-  AiResponse & { visiblePaths: string[]; guideBuiltAt: string | null }
+  AiResponse & {
+    visiblePaths: string[];
+    guideBuiltAt: string | null;
+    codegraphState: "used" | "disabled" | "unavailable";
+  }
 > {
   if (!options.prNumber) throw new Error("review requires a PR number");
   const number = options.prNumber;
@@ -616,6 +620,11 @@ ${reviewText}`,
 ${reviewText}`,
     visiblePaths,
     guideBuiltAt: guides.guideBuiltAt,
+    codegraphState: !options.useCodegraph
+      ? "disabled"
+      : codegraphTools.length > 0
+        ? "used"
+        : "unavailable",
   };
 }
 

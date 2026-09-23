@@ -174,7 +174,69 @@ export function reviewExitCodeFromResolved(
   return summaryCounts(findings, mode).blocking > 0 ? 1 : 0;
 }
 
-function locationLabel(row: ResolvedFinding): string {
+/** One finding as the human renderer prints it. Local, PR and remote reviews
+ * all normalize into this shape before printing, so the three modes cannot
+ * drift into different products (CORE-43 / F21, F22). */
+export type HumanFinding = {
+  state: "new" | "open" | "closed";
+  severity: string;
+  blocking: boolean;
+  path: string | null;
+  lineFrom: number | null;
+  lineTo: number | null;
+  title: string;
+  body: string;
+  suggestion: { lineFrom: number; lineTo: number; text: string } | null;
+};
+
+/** Local and PR findings: blocking is decided here from the configured rule,
+ * exactly as the exit code decides it (CORE-41). */
+export function humanFindingsFromResolved(
+  findings: ResolvedFinding[],
+  mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
+): HumanFinding[] {
+  return findings.map((row) => {
+    const suggestion = readSuggestion(row.bodyMd);
+    return {
+      state: row.state,
+      severity: row.severity,
+      blocking: isBlockingFinding(row.title, row.severity, mode),
+      path: row.path,
+      lineFrom: row.lineFrom,
+      lineTo: row.lineTo,
+      title: humanCopy(row.title),
+      body: humanCopy(stripSuggestion(row.bodyMd)).trim(),
+      suggestion: suggestion
+        ? {
+            lineFrom: suggestion.from,
+            lineTo: suggestion.to,
+            text: suggestion.code,
+          }
+        : null,
+    };
+  });
+}
+
+/** Remote findings already carry the server's blocking decision, so the label
+ * uses that field rather than re-deriving the rule on a client that may not
+ * share the server's config (CORE-41). */
+export function humanFindingsFromJson(
+  findings: JsonReviewFinding[],
+): HumanFinding[] {
+  return findings.map((row) => ({
+    state: row.state,
+    severity: row.severity,
+    blocking: row.blocking,
+    path: row.path,
+    lineFrom: row.lineFrom,
+    lineTo: row.lineTo,
+    title: row.title,
+    body: row.body.trim(),
+    suggestion: row.suggestion,
+  }));
+}
+
+function humanLocation(row: HumanFinding): string {
   if (!row.path) return row.title;
   const from = row.lineFrom ?? 0;
   const to = row.lineTo ?? from;
@@ -182,54 +244,74 @@ function locationLabel(row: ResolvedFinding): string {
   return `${row.path}:${span}`;
 }
 
-function shortTitle(row: ResolvedFinding): string {
-  const title = humanCopy(row.title);
-  const dash = title.indexOf(" — ");
-  return dash === -1
-    ? title
-    : title
-        .slice(dash + 3)
-        .replace(/^`|`$/g, "")
-        .trim();
+/** The finding heading, as the shared header prints it. A parsed heading is
+ * `[P2 · non-blocking] \`path\` — \`symbol\``; the label and the location are
+ * already printed beside it, so only the symbol survives. A heading with no
+ * symbol leaves nothing: printing the label or the path again would repeat
+ * what the line already says (CORE-43). */
+function humanShortTitle(row: HumanFinding): string {
+  const withoutLabel = row.title.replace(/^\[P\d\s*·\s*[^\]]*\]\s*/, "");
+  const dash = withoutLabel.indexOf(" — ");
+  const tail = dash === -1 ? withoutLabel : withoutLabel.slice(dash + 3);
+  const clean = tail.replace(/^`|`$/g, "").trim();
+  return clean === "" || clean === row.path ? "" : clean;
 }
 
-function impactLabel(
-  row: ResolvedFinding,
-  mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
-): string {
-  const blocking = isBlockingFinding(row.title, row.severity, mode);
-  return `[${row.severity} · ${blocking ? "blocking" : "non-blocking"}]`;
+function sortHumanFindings(rows: HumanFinding[]): HumanFinding[] {
+  const stateOrder = { new: 0, open: 1, closed: 2 };
+  return [...rows].sort((a, b) => {
+    const ds = stateOrder[a.state] - stateOrder[b.state];
+    if (ds !== 0) return ds;
+    const sa = SEVERITY_RANK[a.severity] ?? 9;
+    const sb = SEVERITY_RANK[b.severity] ?? 9;
+    if (sa !== sb) return sa - sb;
+    const pa = a.path ?? "";
+    const pb = b.path ?? "";
+    if (pa !== pb) return pa.localeCompare(pb);
+    return (a.lineFrom ?? 0) - (b.lineFrom ?? 0);
+  });
 }
 
-/** Plan §9.1 human-readable local review output. */
-export function formatHumanLocalReview(
-  header: string,
-  revision: Revision,
-  guideBuiltAt: string | null,
-  codegraphState: "used" | "disabled" | "unavailable",
-  findings: ResolvedFinding[],
-  warnings: ReviewWarning[],
-  mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
-): string {
-  const stats = revisionStats(revision);
-  const guideBit = guideBuiltAt
-    ? `guide ${guideBuiltAt.slice(0, 10)}`
+export type HumanReviewInput = {
+  /** Header line: repo, subject and mode. */
+  title: string;
+  /** Optional `N files · +a −b` fragment, present for a local review. */
+  stats?: string;
+  guideBuiltAt: string | null;
+  /** `null` when the run cannot say (a server older than 0.5.0 sends no
+   * codegraph block). A wrong "used" is what F23 was about, so unknown is
+   * reported as unknown rather than guessed. */
+  codegraphState: "used" | "disabled" | "unavailable" | null;
+  findings: HumanFinding[];
+  warnings?: ReviewWarning[];
+};
+
+/** The single human-readable review format (CORE-43 / F21, F22, F23). Local,
+ * PR and remote reviews print this: a header naming the guide build date and
+ * the codegraph state, the findings grouped by state, then one summary line.
+ *
+ * The severity legend and the "ask for more detail" sentence are deliberately
+ * absent: a terminal has nobody to ask, and the legend is fixed noise. Both
+ * stay in the GitHub comment, which is a different reader. */
+export function formatHumanReview(input: HumanReviewInput): string {
+  const guideBit = input.guideBuiltAt
+    ? `guide built ${input.guideBuiltAt.slice(0, 10)}`
     : "guide unknown";
   const cgBit =
-    codegraphState === "used"
+    input.codegraphState === "used"
       ? "codegraph used"
-      : codegraphState === "disabled"
+      : input.codegraphState === "disabled"
         ? "codegraph disabled"
-        : "codegraph unavailable";
-  const lines: string[] = [
-    header,
-    `${stats.files} files · +${stats.additions} −${stats.deletions} · ${guideBit} · ${cgBit}`,
-    "",
-  ];
-  const sorted = sortResolvedFindings(findings);
+        : input.codegraphState === "unavailable"
+          ? "codegraph unavailable"
+          : "codegraph unknown";
+  const meta = [input.stats, guideBit, cgBit].filter(Boolean).join(" · ");
+  const lines: string[] = [input.title, meta, ""];
+
+  const sorted = sortHumanFindings(input.findings);
   const groups: Array<{
     label: string;
-    state: ResolvedFinding["state"];
+    state: HumanFinding["state"];
     bullet: string;
   }> = [
     { label: "Closed", state: "closed", bullet: "✓" },
@@ -243,29 +325,29 @@ export function formatHumanLocalReview(
     any = true;
     lines.push(`${group.label} (${rows.length})`);
     for (const row of rows) {
-      const loc = locationLabel(row);
-      const head = `${group.bullet} ${loc}  ${impactLabel(row, mode)} ${shortTitle(row)}`;
+      const loc = humanLocation(row);
+      const label = `[${row.severity} · ${
+        row.blocking ? "blocking" : "non-blocking"
+      }]`;
+      const short = humanShortTitle(row);
+      const head = `${group.bullet} ${loc}  ${label}${
+        short ? ` \`${short}\`` : ""
+      }`;
       lines.push(`  ${head}`);
-      if (row.state !== "closed") {
-        const body = humanCopy(stripSuggestion(row.bodyMd)).trim();
-        if (body) {
-          for (const part of body.split("\n")) {
-            lines.push(`    ${part}`);
-          }
-          const suggestion = readSuggestion(row.bodyMd);
-          if (suggestion && row.path) {
-            lines.push(
-              `    Suggested replacement for ${row.path}:${suggestion.from}${
-                suggestion.to !== suggestion.from ? `-${suggestion.to}` : ""
-              }`,
-            );
-            lines.push("    ```");
-            for (const part of suggestion.code.split("\n")) {
-              lines.push(`    ${part}`);
-            }
-            lines.push("    ```");
-          }
-        }
+      if (row.state === "closed") continue;
+      if (row.body) {
+        for (const part of row.body.split("\n")) lines.push(`    ${part}`);
+      }
+      if (row.suggestion && row.path) {
+        const { lineFrom, lineTo, text } = row.suggestion;
+        lines.push(
+          `    Suggested replacement for ${row.path}:${lineFrom}${
+            lineTo !== lineFrom ? `-${lineTo}` : ""
+          }`,
+        );
+        lines.push("    ```");
+        for (const part of text.split("\n")) lines.push(`    ${part}`);
+        lines.push("    ```");
       }
     }
     lines.push("");
@@ -274,63 +356,43 @@ export function formatHumanLocalReview(
     lines.push("No actionable findings.");
     lines.push("");
   }
-  const counts = summaryCounts(findings, mode);
+  const counts = {
+    new: sorted.filter((f) => f.state === "new").length,
+    open: sorted.filter((f) => f.state === "open").length,
+    closed: sorted.filter((f) => f.state === "closed").length,
+    blocking: sorted.filter(
+      (f) => (f.state === "new" || f.state === "open") && f.blocking,
+    ).length,
+  };
   lines.push(
     `Summary: ${counts.new} new · ${counts.open} open · ${counts.closed} closed · ${counts.blocking} blocking`,
   );
-  if (warnings.length) {
+  if (input.warnings?.length) {
     lines.push("Warnings:");
-    for (const w of warnings) lines.push(`  - ${w.message}`);
+    for (const w of input.warnings) lines.push(`  - ${w.message}`);
   }
   return lines.join("\n");
 }
 
-/** Human-readable findings block for remote sync JSON (same shape as
- * `toJsonFinding`). The server already decided each finding's `blocking` under
- * its own configured rule, so the label uses that field instead of re-deriving
- * the rule here: a client with a different config would otherwise print a
- * label that disagrees with the exit code (CORE-41). */
-export function formatHumanJsonFindings(findings: JsonReviewFinding[]): string {
-  if (findings.length === 0) {
-    return "## Findings\n\nNo actionable findings.";
-  }
-  const lines: string[] = ["## Findings", ""];
-  const sorted = [...findings].sort(
-    (a, b) =>
-      (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9),
-  );
-  for (const row of sorted) {
-    const impact = `[${row.severity} · ${row.blocking ? "blocking" : "non-blocking"}]`;
-    let prefix = "";
-    if (row.path) {
-      const from = row.lineFrom ?? 0;
-      const to = row.lineTo ?? from;
-      const span = from === to ? `${from}` : `${from}-${to}`;
-      prefix = `${row.path}:${span}  `;
-    }
-    lines.push(`- ${prefix}${impact} ${row.title}`);
-    const body = row.body.trim();
-    if (body) {
-      for (const part of body.split("\n")) {
-        lines.push(`  ${part}`);
-      }
-    }
-    if (row.suggestion && row.path) {
-      const { lineFrom, lineTo, text } = row.suggestion;
-      lines.push(
-        `  Suggested replacement for ${row.path}:${lineFrom}${
-          lineTo !== lineFrom ? `-${lineTo}` : ""
-        }`,
-      );
-      lines.push("  ```");
-      for (const part of text.split("\n")) {
-        lines.push(`  ${part}`);
-      }
-      lines.push("  ```");
-    }
-    lines.push("");
-  }
-  return lines.join("\n").trimEnd();
+/** Local review output: the shared format plus the working-tree file stats. */
+export function formatHumanLocalReview(
+  header: string,
+  revision: Revision,
+  guideBuiltAt: string | null,
+  codegraphState: "used" | "disabled" | "unavailable",
+  findings: ResolvedFinding[],
+  warnings: ReviewWarning[],
+  mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
+): string {
+  const stats = revisionStats(revision);
+  return formatHumanReview({
+    title: header,
+    stats: `${stats.files} files · +${stats.additions} −${stats.deletions}`,
+    guideBuiltAt,
+    codegraphState,
+    findings: humanFindingsFromResolved(findings, mode),
+    warnings,
+  });
 }
 
 /** The exit code for a remote review (CORE-41). The server already decided

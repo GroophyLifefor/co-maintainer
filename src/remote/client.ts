@@ -1,6 +1,5 @@
 import { VERSION } from "../version.ts";
 import type { ReviewCliArgs } from "../cli/review_args.ts";
-import { printLocalReview } from "../cli/review_output.ts";
 import {
   CliError,
   EXIT_USAGE,
@@ -8,7 +7,8 @@ import {
   networkFailure,
 } from "../cli/error.ts";
 import {
-  formatHumanJsonFindings,
+  formatHumanReview,
+  humanFindingsFromJson,
   type JsonReviewFinding,
   reviewExitCodeFromJsonFindings,
 } from "../cli/review_result.ts";
@@ -314,20 +314,21 @@ export async function runRemoteReview(
         } else {
           const findings = (payload.result.findings ??
             []) as JsonReviewFinding[];
-          const summary = payload.result.summary as
-            | {
-                new?: number;
-                open?: number;
-                closed?: number;
-                blocking?: number;
-              }
+          const resultGuide = payload.result.guide as
+            | { builtAt?: string | null }
             | undefined;
-          const summaryLine = summary
-            ? `${summary.new ?? 0} new · ${summary.open ?? 0} open · ${summary.closed ?? 0} closed · ${summary.blocking ?? 0} blocking`
-            : "";
-          printLocalReview(
-            `co-maintainer review · ${repo} · ${branch} (remote)\n${summaryLine}`,
-            formatHumanJsonFindings(findings),
+          const resultCodegraph = payload.result.codegraph as
+            | { state?: "used" | "disabled" | "unavailable" }
+            | undefined;
+          console.log(
+            "\n" +
+              formatHumanReview({
+                title: `co-maintainer review · ${repo} · ${branch} (remote)`,
+                guideBuiltAt: resultGuide?.builtAt ?? null,
+                codegraphState: resultCodegraph?.state ?? null,
+                findings: humanFindingsFromJson(findings),
+              }) +
+              "\n",
           );
           const usage = payload.result.usage as
             | { tokensIn?: number; tokensOut?: number; costUsd?: number | null }

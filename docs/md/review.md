@@ -114,6 +114,40 @@ metadata and `codegraph` state. Errors with `--json` are JSON on stdout as well.
 Flag details per mode: [Local review](local-review.md), [Remote review](remote-review.md),
 [PR review](local-pr-review.md).
 
+## Human output
+
+Without `--json`, all three modes print the **same** format. Only the header
+names the mode, because the subject differs:
+
+```
+co-maintainer review · owner/repo · my-branch
+4 files · +12 −3 · guide built 2026-09-15 · codegraph used
+
+New (1)
+  • src/app.ts:16-18  [P1 · blocking] the gate ignores its threshold
+    A violation exactly at the threshold passes.
+
+Still open (1)
+  • src/util.ts:4  [P2 · non-blocking] the helper ignores its argument
+
+Closed (1)
+  ✓ src/old.ts:9  [P2 · non-blocking] the dead branch
+
+Summary: 1 new · 1 open · 1 closed · 2 blocking
+```
+
+Findings are grouped `Closed`, `Still open`, `New`, each labeled with the same
+`blocking` decision the exit code uses. The header names the real guide build
+date (`guide unknown` only when no guide timestamp can be read) and the state
+the run actually reached: `codegraph used`, `codegraph disabled`, or
+`codegraph unavailable` — the last one when codegraph was requested but could
+not be prepared, which is also what `--json` reports.
+
+The severity legend and the "If you'd like me to explain it in more detail,
+please ask." sentence are **not** in terminal output: a terminal has nobody to
+ask, and the legend is fixed noise. Both stay in the GitHub review comment,
+which is a different reader.
+
 ## How findings are produced
 
 The model is asked for a JSON object, not for prose. For each finding it returns

@@ -12,7 +12,7 @@ import {
 import type { Options } from "../../types.ts";
 import { runLocalReview } from "../../local/review_local.ts";
 import { runRemoteReview } from "../../remote/client.ts";
-import { printLocalReview, reviewExitCode } from "../review_output.ts";
+import { reviewExitCode } from "../review_output.ts";
 import {
   buildPrReviewJson,
   resolvedFromFirstReview,
@@ -21,6 +21,10 @@ import {
 import { parseFindings } from "../../pr/findings.ts";
 import { exitWith } from "../error.ts";
 import { printRunSummary, summaryFromMetrics } from "../../util/run_summary.ts";
+import {
+  formatHumanReview,
+  humanFindingsFromResolved,
+} from "../review_result.ts";
 
 export async function runReviewFromCli(args: string[]): Promise<void> {
   const parsed = await parseReviewArgs(args);
@@ -87,8 +91,11 @@ async function runReviewPr(
         tokensOut: aiMetrics.tokensOut,
         costUsd: aiMetrics.costKnown ? aiMetrics.cost : null,
       };
-      const codegraphState = options.useCodegraph ? "used" : "disabled";
-      const findings = resolvedFromFirstReview(
+      // The engine reports the codegraph state it actually reached, instead of
+      // the old `useCodegraph ? "used" : "disabled"` that claimed "used" while
+      // stderr said codegraph was missing (CORE-43 / F23).
+      const codegraphState = result.codegraphState;
+      const resolved = resolvedFromFirstReview(
         parseFindings(result.text),
         new Map(),
       );
@@ -107,9 +114,19 @@ async function runReviewPr(
           }),
         );
       } else {
-        printLocalReview(
-          `co-maintainer review · ${options.repo} · PR #${options.prNumber}`,
-          result.text,
+        // One presentation layer for local, PR and remote reviews (CORE-43).
+        console.log(
+          "\n" +
+            formatHumanReview({
+              title: `co-maintainer review · ${options.repo} · PR #${options.prNumber}`,
+              guideBuiltAt: result.guideBuiltAt,
+              codegraphState,
+              findings: humanFindingsFromResolved(
+                resolved,
+                options.reviewBlocking,
+              ),
+            }) +
+            "\n",
         );
         printRunSummary(
           summaryFromMetrics(aiMetrics, performance.now() - operationStarted),
@@ -128,7 +145,7 @@ async function runReviewPr(
       }
       exitWith(
         cli.json
-          ? reviewExitCodeFromResolved(findings, options.reviewBlocking)
+          ? reviewExitCodeFromResolved(resolved, options.reviewBlocking)
           : reviewExitCode(result.text, options.reviewBlocking),
       );
     } finally {

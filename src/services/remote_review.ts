@@ -322,6 +322,7 @@ export function registerRemoteReviewHandler(): void {
           },
           revision: revisionStats(revision),
           guide: { builtAt: result.guideBuiltAt },
+          codegraph: { state: result.codegraphState },
           summary: summaryCounts(findings, blockingMode),
           findings: findings.map((row) => toJsonFinding(row, blockingMode)),
           usage: {

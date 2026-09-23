@@ -17,7 +17,11 @@ export async function runReviewEngine(
   progress?: ProgressSink,
   extras?: ReviewExtras,
 ): Promise<
-  AiResponse & { visiblePaths: string[]; guideBuiltAt: string | null }
+  AiResponse & {
+    visiblePaths: string[];
+    guideBuiltAt: string | null;
+    codegraphState: "used" | "disabled" | "unavailable";
+  }
 > {
   return reviewPullRequest(
     client,
