@@ -13,6 +13,7 @@
  */
 import { marked } from "marked";
 import { pathToFileURL } from "node:url";
+import { registryToMarkdown } from "../src/cli/commands/registry.ts";
 import { logo } from "../src/server/logo.ts";
 import {
   mkdir,
@@ -33,6 +34,16 @@ export const CNAME = "co-maintainer.com";
 
 type NavItem = { slug: string; label: string };
 type NavSection = { title: string; items: NavItem[] };
+/** A heading the search index and the on-page table of contents both use. */
+export type Heading = { id: string; text: string; level: number };
+/** One searchable row: a page, or a section of a page. */
+export type SearchEntry = {
+  slug: string;
+  label: string;
+  section: string;
+  heading: string;
+  hash: string;
+};
 
 /** Sidebar groups. Add pages here. Top bar stays minimal. */
 const NAV: NavSection[] = [
@@ -43,6 +54,7 @@ const NAV: NavSection[] = [
       { slug: "probe", label: "Probe" },
       { slug: "init", label: "Init" },
       { slug: "sync", label: "Sync" },
+      { slug: "view", label: "View guides" },
     ],
   },
   {
@@ -59,19 +71,79 @@ const NAV: NavSection[] = [
     items: [
       { slug: "serve", label: "Serve" },
       { slug: "dashboard", label: "Dashboard" },
+      { slug: "github-app", label: "GitHub App" },
     ],
+  },
+  {
+    title: "Cloud",
+    items: [{ slug: "cloud", label: "Cloud" }],
   },
   {
     title: "Reference",
     items: [
+      { slug: "commands", label: "Commands" },
       { slug: "configuration", label: "Configuration" },
       { slug: "authentication", label: "Authentication" },
       { slug: "caching", label: "Caching" },
+      { slug: "cost", label: "Cost" },
+      { slug: "privacy", label: "Data and privacy" },
+      { slug: "troubleshooting", label: "Troubleshooting" },
     ],
   },
 ];
 
 const ALL_PAGES: NavItem[] = NAV.flatMap((s) => s.items);
+
+/** Which sidebar group and label a slug belongs to, for the search index. */
+const SECTION_OF = new Map<string, string>();
+const LABEL_OF = new Map<string, string>();
+for (const section of NAV) {
+  for (const item of section.items) {
+    SECTION_OF.set(item.slug, section.title);
+    LABEL_OF.set(item.slug, item.label);
+  }
+}
+
+/** The client-side search index: one row per page, plus one per section, so a
+ * query can land on a heading instead of only a whole page. */
+export function searchEntriesFor(
+  slug: string,
+  headings: readonly Heading[],
+): SearchEntry[] {
+  const label = LABEL_OF.get(slug) ?? slug;
+  const section = SECTION_OF.get(slug) ?? "";
+  const entries: SearchEntry[] = [
+    { slug, label, section, heading: "", hash: "" },
+  ];
+  for (const heading of headings) {
+    entries.push({
+      slug,
+      label,
+      section,
+      heading: heading.text,
+      hash: heading.id,
+    });
+  }
+  return entries;
+}
+
+export function searchJson(entries: readonly SearchEntry[]): string {
+  return `${JSON.stringify(entries)}\n`;
+}
+
+/** The `commands.md` page, generated from the command registry (CORE-81). */
+export function commandsMarkdown(): string {
+  return `# Commands
+
+Reference for every visible command. This page is generated from the command
+registry in the source, so it always matches \`co-maintainer help\` and
+\`co-maintainer help <command>\`.
+
+${registryToMarkdown()}
+See [Configuration](configuration.md) for the \`config.json\` keys, and
+[Troubleshooting](troubleshooting.md) for a failing command.
+`;
+}
 
 /** The old flat addresses, and where each one points now. `remake` was the
  * name this page had before CORE-21, and its address must keep resolving. */
@@ -289,32 +361,57 @@ function fixMdSourceLinks(md: string): string {
   );
 }
 
-function buildToc(bodyHtml: string): { html: string; toc: string } {
-  const headings: { id: string; text: string }[] = [];
+/** A heading's plain text: tags dropped and the entities marked emits decoded,
+ * so `&#39;` and `&amp;` do not leak into an id or the table of contents. */
+function headingText(raw: string): string {
+  return raw
+    .replace(/<[^>]+>/g, "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function headingId(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function buildToc(bodyHtml: string): {
+  html: string;
+  toc: string;
+  headings: Heading[];
+} {
+  const headings: Heading[] = [];
   const withIds = bodyHtml.replace(
     /<h([23])>([\s\S]*?)<\/h\1>/g,
     (_m, level: string, raw: string) => {
-      const text = raw.replace(/<[^>]+>/g, "").trim();
-      const id = text
-        .toLowerCase()
-        .replace(/[^\w\s-]/g, "")
-        .replace(/\s+/g, "-");
-      if (level === "2" && id) headings.push({ id, text });
+      const text = headingText(raw);
+      const id = headingId(text);
+      if (id) headings.push({ id, text, level: Number(level) });
       return `<h${level} id="${esc(id)}">${raw}</h${level}>`;
     },
   );
-  if (headings.length < 2) {
-    return { html: withIds, toc: "" };
+  const tocHeadings = headings.filter((h) => h.level === 2);
+  if (tocHeadings.length < 2) {
+    return { html: withIds, toc: "", headings };
   }
   const toc =
     `<nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
       <ul>` +
-    headings
+    tocHeadings
       .map((h) => `<li><a href="#${esc(h.id)}">${esc(h.text)}</a></li>`)
       .join("") +
     `</ul></nav>`;
-  return { html: withIds, toc };
+  return { html: withIds, toc, headings };
 }
 
 function siteBrandLink(): string {
@@ -353,6 +450,13 @@ function sidebarHtml(activeSlug: string): string {
   }).join("\n        ");
   return `<aside class="sidebar" id="sidebar">
       <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
         ${blocks}
       </div>
     </aside>`;
@@ -456,6 +560,12 @@ export async function buildDocs(options: BuildOptions = {}): Promise<void> {
   await writeFile(new URL(".nojekyll", out), new Uint8Array());
   await writeTextFile(new URL("CNAME", out), `${CNAME}\n`);
 
+  // The command reference is generated from the registry, so a flag that
+  // changes in the code cannot drift out of the docs.
+  await writeTextFile(new URL("commands.md", MD_DIR), commandsMarkdown());
+  log("wrote md/commands.md");
+
+  const searchEntries: SearchEntry[] = [];
   for (const { slug } of ALL_PAGES) {
     const mdPath = new URL(`${slug}.md`, MD_DIR);
     let md = await readTextFile(mdPath);
@@ -468,13 +578,24 @@ export async function buildDocs(options: BuildOptions = {}): Promise<void> {
       mermaidBlocks(rewriteMdLinks(String(raw))),
       slots,
     );
-    const { html: body, toc } = buildToc(highlightShellBlocks(withMermaid));
+    const {
+      html: body,
+      toc,
+      headings,
+    } = buildToc(highlightShellBlocks(withMermaid));
+    searchEntries.push(...searchEntriesFor(slug, headings));
     const titleMatch = md.match(/^#\s+`?([^`\n]+)`?/);
     const title = titleMatch?.[1]?.trim() ?? slug;
     const html = docPageShell(title, body, toc, slug, description);
     await writeTextFile(new URL(`${slug}.html`, pagesDir), html);
     log(`wrote docs/${slug}.html`);
   }
+
+  await writeTextFile(
+    new URL("search-index.json", pagesDir),
+    searchJson(searchEntries),
+  );
+  log("wrote docs/search-index.json");
 
   for (const { from, to } of LEGACY_REDIRECTS) {
     await writeTextFile(new URL(`${from}.html`, out), redirectStub(from, to));

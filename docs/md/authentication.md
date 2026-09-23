@@ -72,7 +72,7 @@ The App is **not** the same as CLI `gh` auth:
   ([`serve`: Create the App from the dashboard](serve.md#create-the-app-from-the-dashboard)).
 - Optional `--github-webhook-secret=` verifies inbound webhooks.
 
-See [Configuration](configuration.md#set) and [`serve`](serve.md).
+See [Configuration](configuration.md#co-maintainer-set) and [`serve`](serve.md).
 
 ## Dashboard sign-in
 
@@ -90,4 +90,4 @@ Setup: [`serve`: Sign in](serve.md#sign-in-to-the-dashboard).
 | Webhook works but no review posted | Finish dashboard **Setup**, repo **init**, auto-review on |
 | Settings save returns 422 | Token or App key missing GitHub scopes |
 
-First-time CLI path: [Getting started](getting-started.md#2-save-defaults).
+First-time CLI path: [Getting started](getting-started.md#2-save-defaults-once).

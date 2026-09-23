@@ -24,6 +24,13 @@
   <div class="layout-body">
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
         <div class="nav-section">
           <p class="nav-section-title">Getting started</p>
           <ul class="nav-list">
@@ -31,6 +38,7 @@
           <li><a href="probe.html">Probe</a></li>
           <li><a href="init.html">Init</a></li>
           <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -47,14 +55,25 @@
           <ul class="nav-list">
           <li><a href="serve.html">Serve</a></li>
           <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
           </ul>
         </div>
         <div class="nav-section">
           <p class="nav-section-title">Reference</p>
           <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
           <li><a href="configuration.html">Configuration</a></li>
           <li><a href="authentication.html">Authentication</a></li>
           <li><a href="caching.html">Caching</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="privacy.html">Data and privacy</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
           </ul>
         </div>
       </div>
@@ -90,18 +109,32 @@ reviews a PR or local diff. Start with the CLI. <a href="serve.html"><code>serve
 </code></pre>
 <p><a href="configuration.html">Configuration</a></p>
 <h2 id="3-one-repo">3. One repo</h2>
-<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">probe</span> <span class="sh-arg">owner/repo</span> 
-<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">init</span> <span class="sh-arg">owner/repo</span> <span class="sh-arg">...args</span> 
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">probe</span> <span class="sh-arg">owner/repo</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">init</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--auth=gh</span> <span class="sh-flag">--ai=openrouter</span> <span class="sh-arg">\</span>
+  <span class="sh-flag">--low-model=openai/gpt-oss-120b</span> <span class="sh-flag">--high-model=openai/gpt-5.6-luna</span> <span class="sh-arg">\</span>
+  <span class="sh-flag">--include-codebase</span> <span class="sh-flag">--include-pull-requests</span> <span class="sh-flag">--include-pull-request-changes</span> <span class="sh-arg">\</span>
+  <span class="sh-flag">--include-commit-history</span> <span class="sh-flag">--include-how-repo-works</span>
 </code></pre>
-<p><a href="init.html"><code>init</code></a> takes time and API cost. Prefer the <a href="init.html"><code>init</code></a> line from <a href="probe.html"><code>probe</code></a> output.</p>
+<p>Run <a href="probe.html"><code>probe</code></a> first and copy the <code>init</code> line it prints. That line is
+bounded to this repository, and it comes with a cost and time estimate. <a href="init.html"><code>init</code></a>
+takes time and API cost, so prefer the printed line over guessing flags.</p>
+<p><code>--improve-matrix=N</code> is the rework pass count: <code>1</code> is the default, and each step
+up adds another audit pass over the same diff and raises the output budget, so
+it costs more. Use <code>2</code> when a repository needs a sharper guide and the budget
+allows it. See <a href="review.html#depth-improve-matrix">Review: Depth</a> and <a href="cost.html">Cost</a>.</p>
+<p><code>init</code> writes <code>SKILL.md</code>, <code>CODEBASE.md</code>, and the review guides under the config
+directory. <code>codegraph</code> is an optional local index that lets the review ask
+structural questions such as who calls a symbol. It is free and stays on your
+machine. See <a href="caching.html">Caching</a> for where everything is written.</p>
 <h2 id="4-review">4. Review</h2>
 <pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span>   <span class="sh-comment"># local changes</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-arg">owner/repo</span> <span class="sh-arg">123</span>   <span class="sh-comment"># pull request</span>
 </code></pre>
 <p><a href="local-review.html">Local review</a> · <a href="local-pr-review.html">PR review</a></p>
 <h2 id="ways-to-use-it-after-init">Ways to use it (after <code>init</code>)</h2>
-<p>Same repo guides can power three different setups. You can mix them over time
-(for example CLI on your laptop plus <code>serve</code> for the team).</p>
+<p>The same repo guides can power three different setups. You can mix them over
+time (for example CLI on your laptop plus <code>serve</code> for the team), and a hosted
+instance is a managed version of the same server. See <a href="cloud.html">Cloud</a>.</p>
 <figure class="mermaid-figure">
 <div class="mermaid-viewport"><div class="mermaid">mindmap
   root((co-maintainer))
@@ -206,9 +239,26 @@ reviews a PR or local diff. Start with the CLI. <a href="serve.html"><code>serve
 </tbody></table>
 <p>Guides and cache paths: <a href="caching.html">Caching</a>. Flags and <code>co-maintainer set</code>:
 <a href="configuration.html">Configuration</a>.</p>
+<h2 id="cli-guides-and-dashboard-guides-are-separate">CLI guides and dashboard guides are separate</h2>
+<p>A CLI <code>init</code> writes guides on the machine that ran it. A dashboard server keeps
+its own guides for the repositories it was given. The two do not share a folder,
+and one does not update the other. To use the server&#39;s copy from a laptop, run
+<code>review --remote</code>. To read what the server holds, run
+<code>view owner/repo --remote</code>. See <a href="remote-review.html">Remote review</a>.</p>
+<p>Adding a repository to the dashboard needs the GitHub App, because the server
+reads the repository on its own and receives webhooks. A CLI-only setup never
+needs the App. See <a href="github-app.html">GitHub App</a> and
+<a href="dashboard.html#adding-a-repository">Dashboard: Adding a repository</a>.</p>
 <h2 id="if-something-breaks">If something breaks</h2>
-<p>Run <code>probe</code> only after install. Run <code>init</code> before <code>review</code>. co-maintainer does
-not run <code>gh auth login</code> for you. Use <code>--debug</code> on failures.</p>
+<p>Every failure has an exit code and a message that names the fix. Start with
+<a href="troubleshooting.html">Troubleshooting</a>, which maps each code and message to a
+cause. The short version:</p>
+<ul>
+<li>Run <code>probe</code> only after install.</li>
+<li>Run <code>init</code> before <code>review</code>.</li>
+<li>co-maintainer does not run <code>gh auth login</code> for you.</li>
+<li>Use <code>--debug</code> on failures.</li>
+</ul>
 </article>
         <footer class="doc-footer">
           <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/getting-started.md">Edit this page</a> on GitHub
@@ -216,7 +266,7 @@ not run <code>gh auth login</code> for you. Use <code>--debug</code> on failures
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#overview">Overview</a></li><li><a href="#1-install">1. Install</a></li><li><a href="#2-save-defaults-once">2. Save defaults (once)</a></li><li><a href="#3-one-repo">3. One repo</a></li><li><a href="#4-review">4. Review</a></li><li><a href="#ways-to-use-it-after-init">Ways to use it (after init)</a></li><li><a href="#if-something-breaks">If something breaks</a></li></ul></nav>
+      <ul><li><a href="#overview">Overview</a></li><li><a href="#1-install">1. Install</a></li><li><a href="#2-save-defaults-once">2. Save defaults (once)</a></li><li><a href="#3-one-repo">3. One repo</a></li><li><a href="#4-review">4. Review</a></li><li><a href="#ways-to-use-it-after-init">Ways to use it (after init)</a></li><li><a href="#cli-guides-and-dashboard-guides-are-separate">CLI guides and dashboard guides are separate</a></li><li><a href="#if-something-breaks">If something breaks</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

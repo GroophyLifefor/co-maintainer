@@ -230,7 +230,8 @@ export const COMMANDS: CommandSpec[] = [
             name: "improve-matrix",
             value: "N",
             default: "1",
-            description: "How many improvement passes to run.",
+            description:
+              "How many improvement passes to run. Capped at 4, and each pass costs more.",
           },
         ],
       },

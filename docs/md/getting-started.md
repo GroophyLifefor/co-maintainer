@@ -39,11 +39,26 @@ co-maintainer set --auth=gh --ai=openrouter --token=YOUR_OPENROUTER_KEY --low-mo
 ## 3. One repo
 
 ```sh
-co-maintainer probe owner/repo 
-co-maintainer init owner/repo ...args 
+co-maintainer probe owner/repo
+co-maintainer init owner/repo --auth=gh --ai=openrouter \
+  --low-model=openai/gpt-oss-120b --high-model=openai/gpt-5.6-luna \
+  --include-codebase --include-pull-requests --include-pull-request-changes \
+  --include-commit-history --include-how-repo-works
 ```
 
-[`init`](init.md) takes time and API cost. Prefer the [`init`](init.md) line from [`probe`](probe.md) output.
+Run [`probe`](probe.md) first and copy the `init` line it prints. That line is
+bounded to this repository, and it comes with a cost and time estimate. [`init`](init.md)
+takes time and API cost, so prefer the printed line over guessing flags.
+
+`--improve-matrix=N` is the rework pass count: `1` is the default, and each step
+up adds another audit pass over the same diff and raises the output budget, so
+it costs more. Use `2` when a repository needs a sharper guide and the budget
+allows it. See [Review: Depth](review.md#depth-improve-matrix) and [Cost](cost.md).
+
+`init` writes `SKILL.md`, `CODEBASE.md`, and the review guides under the config
+directory. `codegraph` is an optional local index that lets the review ask
+structural questions such as who calls a symbol. It is free and stays on your
+machine. See [Caching](caching.md) for where everything is written.
 
 ## 4. Review
 
@@ -56,8 +71,9 @@ co-maintainer review owner/repo 123   # pull request
 
 ## Ways to use it (after `init`)
 
-Same repo guides can power three different setups. You can mix them over time
-(for example CLI on your laptop plus `serve` for the team).
+The same repo guides can power three different setups. You can mix them over
+time (for example CLI on your laptop plus `serve` for the team), and a hosted
+instance is a managed version of the same server. See [Cloud](cloud.md).
 
 ```mermaid
 mindmap
@@ -129,7 +145,26 @@ flowchart TB
 Guides and cache paths: [Caching](caching.md). Flags and `co-maintainer set`:
 [Configuration](configuration.md).
 
+## CLI guides and dashboard guides are separate
+
+A CLI `init` writes guides on the machine that ran it. A dashboard server keeps
+its own guides for the repositories it was given. The two do not share a folder,
+and one does not update the other. To use the server's copy from a laptop, run
+`review --remote`. To read what the server holds, run
+`view owner/repo --remote`. See [Remote review](remote-review.md).
+
+Adding a repository to the dashboard needs the GitHub App, because the server
+reads the repository on its own and receives webhooks. A CLI-only setup never
+needs the App. See [GitHub App](github-app.md) and
+[Dashboard: Adding a repository](dashboard.md#adding-a-repository).
+
 ## If something breaks
 
-Run `probe` only after install. Run `init` before `review`. co-maintainer does
-not run `gh auth login` for you. Use `--debug` on failures.
+Every failure has an exit code and a message that names the fix. Start with
+[Troubleshooting](troubleshooting.md), which maps each code and message to a
+cause. The short version:
+
+- Run `probe` only after install.
+- Run `init` before `review`.
+- co-maintainer does not run `gh auth login` for you.
+- Use `--debug` on failures.

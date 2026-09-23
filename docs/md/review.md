@@ -72,6 +72,16 @@ Team-wide **automatic** PR reviews on webhooks are not a fourth `review` mode.
 They go through [`serve`](serve.md) and the GitHub App. Use PR review when **you**
 run the CLI against one PR.
 
+## Depth: `--improve-matrix`
+
+Reviews share one depth control, `--improve-matrix=N`. `1` is the default. Each
+step up adds another pass that audits the draft against the complete diff and the
+guides, and raises the output budget so a longer answer fits. The pass preserves
+valid findings, corrects inaccurate ones, removes duplicates, and adds what the
+first pass missed. More passes cost more tokens and take longer. `2` is a
+reasonable step up when a change is high risk or the repository is large. The
+value is capped at `4`. See [Cost](cost.md) for what a pass costs.
+
 ## Exit codes
 
 | Code | Meaning |

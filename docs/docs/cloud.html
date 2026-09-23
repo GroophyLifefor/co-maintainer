@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cloud · co-maintainer docs</title>
+  <meta name="description" content="The hosted service at cloud.co-maintainer.com runs serve for you, so your team gets shared repository context without operating a server. This page...">
+  <link rel="canonical" href="https://co-maintainer.com/docs/cloud.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html" class="active">Cloud</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="privacy.html">Data and privacy</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>Cloud</h1>
+<p>The hosted service at <code>cloud.co-maintainer.com</code> runs <a href="serve.html"><code>serve</code></a> for
+you, so your team gets shared repository context without operating a server.
+This page explains how it relates to the CLI and the self-hosted setup.</p>
+<p>Self-hosting stays supported. Cloud is the same binary with the same database
+and the same remote review API, only managed for you.</p>
+<h2 id="what-cloud-gives-you">What cloud gives you</h2>
+<table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Managed <code>serve</code></td>
+<td>The <a href="dashboard.html">dashboard</a>, the job worker, and the webhook receiver</td>
+</tr>
+<tr>
+<td>Per-team instances</td>
+<td>Each team gets its own instance and host name</td>
+</tr>
+<tr>
+<td>Repository context</td>
+<td><a href="init.html"><code>init</code></a> and <a href="sync.html"><code>sync</code></a> run on the instance, not on every laptop</td>
+</tr>
+<tr>
+<td>Remote review</td>
+<td>Developers keep using <code>review --remote</code> against the instance</td>
+</tr>
+<tr>
+<td>GitHub App</td>
+<td>Created from the dashboard, the same flow as self-hosted</td>
+</tr>
+</tbody></table>
+<h2 id="connecting-the-cli">Connecting the CLI</h2>
+<p>The connection is identical to a self-hosted server: a host and a <code>cmr_</code> token.</p>
+<ol>
+<li>Sign in to your instance and open <strong>Settings</strong>, <strong>Remote review</strong>.</li>
+<li>Create a token and copy it once.</li>
+<li>On the laptop:</li>
+</ol>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--remote-host=https://&lt;your-instance&gt;</span> <span class="sh-flag">--remote-token=cmr_...</span>
+cd your/clone
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-flag">--remote</span>
+</code></pre>
+<p>The CLI needs no local <code>init</code> for that repository, because the guides live on
+the instance. See <a href="remote-review.html">Remote review</a> for the full flag list and
+the codegraph behavior, and <a href="authentication.html">Authentication</a> for how the
+token fits with the other credentials.</p>
+<p>You can read the exact guides your review will use before running it:</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--remote</span>
+</code></pre>
+<h2 id="putting-a-repository-on-the-instance">Putting a repository on the instance</h2>
+<p>Open the dashboard, choose <strong>Add repository</strong>, and confirm the plan. This is the
+same flow as self-hosted, including the read-only probe and the cost estimate.
+The dashboard needs the GitHub App installed on the repository, which the
+<strong>Create GitHub App</strong> button sets up for you.</p>
+<h2 id="mixing-cloud-with-local-cli">Mixing cloud with local CLI</h2>
+<p>A team can keep using the CLI for local and PR review while cloud holds the
+shared context. The two do not conflict:</p>
+<table>
+<thead>
+<tr>
+<th>If you want</th>
+<th>Run it</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Feedback on your working tree, before a push</td>
+<td><code>review</code> with local guides</td>
+</tr>
+<tr>
+<td>Feedback using the team&#39;s shared context</td>
+<td><code>review --remote</code> against the instance</td>
+</tr>
+<tr>
+<td>A PR reviewed automatically</td>
+<td>The GitHub App on the instance</td>
+</tr>
+<tr>
+<td>A repository onboarded once for everyone</td>
+<td>Dashboard <strong>Add repository</strong></td>
+</tr>
+</tbody></table>
+<h2 id="support-and-status">Support and status</h2>
+<p>The instance list, uptime, and any incident notes are published by the
+co-maintainer maintainers. For a self-hosted deployment, the same pages under
+<a href="serve.html">Serve</a> and the <a href="dashboard.html">Dashboard</a> apply.</p>
+<p>If a remote review fails, <a href="troubleshooting.html">Troubleshooting</a> lists the token
+and connectivity messages, and <a href="privacy.html">Data and privacy</a> says what the
+instance stores.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/cloud.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#what-cloud-gives-you">What cloud gives you</a></li><li><a href="#connecting-the-cli">Connecting the CLI</a></li><li><a href="#putting-a-repository-on-the-instance">Putting a repository on the instance</a></li><li><a href="#mixing-cloud-with-local-cli">Mixing cloud with local CLI</a></li><li><a href="#support-and-status">Support and status</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

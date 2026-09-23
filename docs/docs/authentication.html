@@ -24,6 +24,13 @@
   <div class="layout-body">
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
         <div class="nav-section">
           <p class="nav-section-title">Getting started</p>
           <ul class="nav-list">
@@ -31,6 +38,7 @@
           <li><a href="probe.html">Probe</a></li>
           <li><a href="init.html">Init</a></li>
           <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -47,14 +55,25 @@
           <ul class="nav-list">
           <li><a href="serve.html">Serve</a></li>
           <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
           </ul>
         </div>
         <div class="nav-section">
           <p class="nav-section-title">Reference</p>
           <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
           <li><a href="configuration.html">Configuration</a></li>
           <li><a href="authentication.html" class="active">Authentication</a></li>
           <li><a href="caching.html">Caching</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="privacy.html">Data and privacy</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
           </ul>
         </div>
       </div>
@@ -122,7 +141,7 @@ GitHub App are separate mechanisms.</p>
 <td><a href="serve.html#sign-in-to-the-dashboard"><code>serve</code></a></td>
 </tr>
 </tbody></table>
-<h2 id="cli---authgh-default">CLI: <code>--auth=gh</code> (default)</h2>
+<h2 id="cli-authgh-default">CLI: <code>--auth=gh</code> (default)</h2>
 <pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--auth=gh</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">probe</span> <span class="sh-arg">owner/repo</span>
 </code></pre>
@@ -133,7 +152,7 @@ can reach GitHub.</li>
 <li>Required for <strong>PR review</strong> (<code>co-maintainer review owner/repo 123</code>).</li>
 </ul>
 <p>Check access: <code>gh auth status</code>.</p>
-<h2 id="cli---authpat">CLI: <code>--auth=pat</code></h2>
+<h2 id="cli-authpat">CLI: <code>--auth=pat</code></h2>
 <pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">init</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--auth=pat</span> <span class="sh-flag">--env=./.env</span>
 </code></pre>
 <ul>
@@ -153,7 +172,7 @@ created for you from dashboard <strong>Settings</strong> with <strong>Create Git
 (<a href="serve.html#create-the-app-from-the-dashboard"><code>serve</code>: Create the App from the dashboard</a>).</li>
 <li>Optional <code>--github-webhook-secret=</code> verifies inbound webhooks.</li>
 </ul>
-<p>See <a href="configuration.html#set">Configuration</a> and <a href="serve.html"><code>serve</code></a>.</p>
+<p>See <a href="configuration.html#co-maintainer-set">Configuration</a> and <a href="serve.html"><code>serve</code></a>.</p>
 <h2 id="dashboard-sign-in">Dashboard sign-in</h2>
 <p>Signing into the web UI does <strong>not</strong> replace CLI GitHub auth or the App.
 It only gates access to the dashboard and Settings.</p>
@@ -183,7 +202,7 @@ It only gates access to the dashboard and Settings.</p>
 <td>Token or App key missing GitHub scopes</td>
 </tr>
 </tbody></table>
-<p>First-time CLI path: <a href="getting-started.html#2-save-defaults">Getting started</a>.</p>
+<p>First-time CLI path: <a href="getting-started.html#2-save-defaults-once">Getting started</a>.</p>
 </article>
         <footer class="doc-footer">
           <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/authentication.md">Edit this page</a> on GitHub
@@ -191,7 +210,7 @@ It only gates access to the dashboard and Settings.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#at-a-glance">At a glance</a></li><li><a href="#cli---authgh-default">CLI: --auth=gh (default)</a></li><li><a href="#cli---authpat">CLI: --auth=pat</a></li><li><a href="#github-app-serve">GitHub App (serve)</a></li><li><a href="#dashboard-sign-in">Dashboard sign-in</a></li><li><a href="#troubleshooting">Troubleshooting</a></li></ul></nav>
+      <ul><li><a href="#at-a-glance">At a glance</a></li><li><a href="#cli-authgh-default">CLI: --auth=gh (default)</a></li><li><a href="#cli-authpat">CLI: --auth=pat</a></li><li><a href="#github-app-serve">GitHub App (serve)</a></li><li><a href="#dashboard-sign-in">Dashboard sign-in</a></li><li><a href="#troubleshooting">Troubleshooting</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

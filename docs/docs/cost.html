@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cost · co-maintainer docs</title>
+  <meta name="description" content="init and sync spend model tokens, and so does every review. probe is read-only and costs nothing. This page explains what a run costs and how to estimate...">
+  <link rel="canonical" href="https://co-maintainer.com/docs/cost.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          <li><a href="cost.html" class="active">Cost</a></li>
+          <li><a href="privacy.html">Data and privacy</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>Cost</h1>
+<p><code>init</code> and <code>sync</code> spend model tokens, and so does every review. <code>probe</code> is
+read-only and costs nothing. This page explains what a run costs and how to
+estimate it before you start.</p>
+<h2 id="what-costs-money">What costs money</h2>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Spends tokens</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>probe</code></td>
+<td>No</td>
+<td>Reads the repository through <code>gh</code> only</td>
+</tr>
+<tr>
+<td><code>init</code></td>
+<td>Yes</td>
+<td>Extraction and synthesis jobs over code, pull requests, and history</td>
+</tr>
+<tr>
+<td><code>sync</code></td>
+<td>Yes, but less</td>
+<td>Reuses unchanged evidence from <a href="caching.html">cache</a>, so only changed inputs rebuild</td>
+</tr>
+<tr>
+<td>Large-file diff summary</td>
+<td>Yes, small</td>
+<td>A diff over 500 changed lines is summarized with the low model instead of being sent whole</td>
+</tr>
+<tr>
+<td>Local and PR <code>review</code></td>
+<td>Yes</td>
+<td>Runs on your OpenRouter or Hetzner key</td>
+</tr>
+<tr>
+<td>Remote <code>review</code></td>
+<td>On the server</td>
+<td>The server&#39;s key pays, not the laptop&#39;s</td>
+</tr>
+<tr>
+<td>GitHub App auto-review</td>
+<td>On the server</td>
+<td>Same as remote</td>
+</tr>
+</tbody></table>
+<p><code>gh</code> reads cost nothing beyond the API rate limit. Codegraph runs locally and is
+free.</p>
+<h2 id="estimate-before-you-init">Estimate before you init</h2>
+<p>Run <a href="probe.html"><code>probe</code></a> first. Its <code>estimate</code> block names the job count, a token
+range, a time range, and a dollar range, and says which basis it used:</p>
+<ul>
+<li><strong>This repository&#39;s own recorded jobs</strong>, when at least four prior jobs exist
+for it. This is the closest to what the run will do.</li>
+<li><strong>The calibration</strong>, otherwise, taken from the maintainers&#39; reference runs.</li>
+</ul>
+<p>If the provider&#39;s price list cannot be reached, the dollar line is omitted and
+the estimate says it is unavailable, rather than printing a made-up number. The
+line always ends with <code>an estimate, not a bill</code>.</p>
+<p>The dashboard shows the same estimate when you add a repository, and nothing
+starts until you confirm.</p>
+<h2 id="where-to-watch-the-real-number">Where to watch the real number</h2>
+<p>Every run prints one summary line to stderr when it finishes:</p>
+<pre><code>Done in 21.0s · 3,125 in, 1,308 out tokens · $0.0016
+</code></pre>
+<p>The same numbers appear in <code>--json</code> under <code>usage</code>, and the dashboard records
+cost per job on the Activity page and per repository on Usage. When a price list
+is unavailable the line reads <code>cost unknown</code> rather than a false zero.</p>
+<h2 id="keeping-the-cost-down">Keeping the cost down</h2>
+<table>
+<thead>
+<tr>
+<th>Lever</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--max-pr-months</code>, <code>--max-commits</code>, <code>--max-pull-request-change-lines</code></td>
+<td>Fewer inputs means fewer extraction jobs</td>
+</tr>
+<tr>
+<td><code>--only-request-changed-pr</code></td>
+<td>Keeps only pull requests with a <code>CHANGES_REQUESTED</code> review</td>
+</tr>
+<tr>
+<td><code>--improve-matrix=1</code></td>
+<td>The default. A higher value adds improvement passes, each another full call</td>
+</tr>
+<tr>
+<td><code>sync</code> instead of <code>init</code></td>
+<td>Reuses unchanged rows, so a moving default branch costs less</td>
+</tr>
+<tr>
+<td>Low model for extraction</td>
+<td><code>--low-model</code> does the history work. The high model handles synthesis and review</td>
+</tr>
+<tr>
+<td><code>--disable-codegraph</code></td>
+<td>Does not change token cost, but shortens the run</td>
+</tr>
+</tbody></table>
+<p><code>--log-time</code> prints the time each phase took, which is useful when a run feels
+slower than its estimate. See <a href="sync.html"><code>sync</code></a> and <a href="init.html"><code>init</code></a> for the
+full flag list.</p>
+<h2 id="what-is-not-metered">What is not metered</h2>
+<ul>
+<li>Local <code>gh</code> and <code>git</code> reads.</li>
+<li>Codegraph indexing and tool calls.</li>
+<li>Serving the dashboard and the webhook receiver.</li>
+<li>Reading guides with <a href="configuration.html"><code>view</code></a> or <code>view --remote</code>.</li>
+</ul>
+<p>Next: <a href="privacy.html">Data and privacy</a> for where the keys and the generated files
+live.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/cost.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#what-costs-money">What costs money</a></li><li><a href="#estimate-before-you-init">Estimate before you init</a></li><li><a href="#where-to-watch-the-real-number">Where to watch the real number</a></li><li><a href="#keeping-the-cost-down">Keeping the cost down</a></li><li><a href="#what-is-not-metered">What is not metered</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

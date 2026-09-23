@@ -23,6 +23,7 @@ import {
 import {
   buildDocs,
   CNAME,
+  commandsMarkdown,
   LEGACY_REDIRECTS,
   SITE_ORIGIN,
   sitemapXml,
@@ -70,7 +71,9 @@ async function htmlFiles(dir: string): Promise<string[]> {
 }
 
 /** Internal links with no file behind them, for a set of pages read from
- * `root`. Assets are served from the same tree, so they must resolve too. */
+ * `root`. Assets are served from the same tree, so they must resolve too. A
+ * `page.html#anchor` is checked against the anchor's `id` in that page, so a
+ * renamed heading cannot leave a silent dead link behind. */
 async function deadLinks(
   root: string,
   files: readonly string[],
@@ -87,10 +90,18 @@ async function deadLinks(
       ) {
         continue;
       }
-      const [path] = href.split("#");
+      const [path, hash] = href.split("#");
       if (path === "") continue;
-      if (!existsSync(join(dirname(file), path))) {
+      const target = join(dirname(file), path);
+      if (!existsSync(target)) {
         missing.push(`${relative(root, file)} -> ${href}`);
+        continue;
+      }
+      if (hash && path.endsWith(".html")) {
+        const targetHtml = await readTextFile(target);
+        if (!targetHtml.includes(`id="${hash}"`)) {
+          missing.push(`${relative(root, file)} -> ${href} (no such anchor)`);
+        }
       }
     }
   }
@@ -101,8 +112,8 @@ test("every page is written under docs/ with a description and canonical", async
   const outDir = await buildInto();
   try {
     const pages = await htmlFiles(join(outDir, "docs"));
-    if (pages.length !== 13) {
-      throw new Error(`expected 13 doc pages, found ${pages.length}`);
+    if (pages.length !== 20) {
+      throw new Error(`expected 20 doc pages, found ${pages.length}`);
     }
     for (const page of pages) {
       const html = await readTextFile(page);
@@ -212,5 +223,124 @@ test("sitemapXml lists the landing page first, then every slug", () => {
   const second = xml.indexOf(`${SITE_ORIGIN}/docs/a.html`);
   if (first < 0 || second < 0 || first > second) {
     throw new Error(`sitemap order is wrong:\n${xml}`);
+  }
+});
+
+test("the search index covers every page and is well formed", async () => {
+  const outDir = await buildInto();
+  try {
+    const indexPath = join(outDir, "docs", "search-index.json");
+    if (!existsSync(indexPath)) {
+      throw new Error("docs/search-index.json is missing");
+    }
+    const raw = await readTextFile(indexPath);
+    const entries = JSON.parse(raw) as Array<{
+      slug: string;
+      label: string;
+      section: string;
+      heading: string;
+      hash: string;
+    }>;
+    if (!Array.isArray(entries) || entries.length < 20) {
+      throw new Error(`search index has too few rows: ${entries.length}`);
+    }
+    const slugs = new Set(entries.map((e) => e.slug));
+    for (const slug of slugs) {
+      const page = join(outDir, "docs", `${slug}.html`);
+      if (!existsSync(page)) {
+        throw new Error(`search index names ${slug}, but the page is missing`);
+      }
+      const html = await readTextFile(page);
+      if (!html.includes('id="doc-search"')) {
+        throw new Error(`${slug}.html has no search box in the sidebar`);
+      }
+    }
+    // A section row carries a heading and an anchor the page really has.
+    const withHeading = entries.find((e) => e.heading !== "" && e.hash !== "");
+    if (!withHeading) {
+      throw new Error("search index has no section rows");
+    }
+    const html = await readTextFile(
+      join(outDir, "docs", `${withHeading.slug}.html`),
+    );
+    if (!html.includes(`id="${withHeading.hash}"`)) {
+      throw new Error(
+        `search index anchor #${withHeading.hash} is not in ${withHeading.slug}.html`,
+      );
+    }
+  } finally {
+    await remove(outDir, { recursive: true });
+  }
+});
+
+test("the new reference pages are in the navigation and the index", async () => {
+  const outDir = await buildInto();
+  try {
+    const required = [
+      "troubleshooting",
+      "cost",
+      "privacy",
+      "cloud",
+      "github-app",
+      "view",
+    ];
+    for (const slug of required) {
+      const page = join(outDir, "docs", `${slug}.html`);
+      if (!existsSync(page)) throw new Error(`docs/${slug}.html is missing`);
+      const stub = join(outDir, `${slug}.html`);
+      if (!existsSync(stub)) {
+        throw new Error(`the old flat ${slug}.html is missing`);
+      }
+    }
+    const commands = await readTextFile(join(outDir, "docs", "commands.html"));
+    if (!commands.includes("co-maintainer probe")) {
+      throw new Error("the commands page does not carry the registry output");
+    }
+  } finally {
+    await remove(outDir, { recursive: true });
+  }
+});
+
+test("sidebar groups the pages into the planned sections", async () => {
+  const outDir = await buildInto();
+  try {
+    const html = await readTextFile(join(outDir, "docs", "cost.html"));
+    for (const title of [
+      "Getting started",
+      "Review",
+      "Self-hosted",
+      "Cloud",
+      "Reference",
+    ]) {
+      if (!html.includes(`>${title}</p>`)) {
+        throw new Error(`the sidebar has no "${title}" group`);
+      }
+    }
+  } finally {
+    await remove(outDir, { recursive: true });
+  }
+});
+
+test("the commands page is generated from the command registry", async () => {
+  const outDir = await buildInto();
+  try {
+    const generated = await readTextFile(join(docsRoot, "md", "commands.md"));
+    if (generated !== commandsMarkdown()) {
+      throw new Error(
+        "docs/md/commands.md does not match the registry. Run npm run docs:build.",
+      );
+    }
+    const html = await readTextFile(join(outDir, "docs", "commands.html"));
+    for (const command of ["probe", "init", "sync", "review", "serve"]) {
+      if (!html.includes(`co-maintainer ${command}`)) {
+        throw new Error(`the commands page omits ${command}`);
+      }
+    }
+    // The hidden alias must not leak into the reference.
+    if (/>co-maintainer remake</.test(html)) {
+      throw new Error("the commands page documents the hidden remake alias");
+    }
+  } finally {
+    await remove(outDir, { recursive: true });
   }
 });

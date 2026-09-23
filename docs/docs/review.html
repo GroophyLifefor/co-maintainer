@@ -24,6 +24,13 @@
   <div class="layout-body">
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
         <div class="nav-section">
           <p class="nav-section-title">Getting started</p>
           <ul class="nav-list">
@@ -31,6 +38,7 @@
           <li><a href="probe.html">Probe</a></li>
           <li><a href="init.html">Init</a></li>
           <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -47,14 +55,25 @@
           <ul class="nav-list">
           <li><a href="serve.html">Serve</a></li>
           <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
           </ul>
         </div>
         <div class="nav-section">
           <p class="nav-section-title">Reference</p>
           <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
           <li><a href="configuration.html">Configuration</a></li>
           <li><a href="authentication.html">Authentication</a></li>
           <li><a href="caching.html">Caching</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="privacy.html">Data and privacy</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
           </ul>
         </div>
       </div>
@@ -179,6 +198,14 @@ reviewed) and <strong>who keeps that context up to date</strong>.</p>
 <p>Team-wide <strong>automatic</strong> PR reviews on webhooks are not a fourth <code>review</code> mode.
 They go through <a href="serve.html"><code>serve</code></a> and the GitHub App. Use PR review when <strong>you</strong>
 run the CLI against one PR.</p>
+<h2 id="depth-improve-matrix">Depth: <code>--improve-matrix</code></h2>
+<p>Reviews share one depth control, <code>--improve-matrix=N</code>. <code>1</code> is the default. Each
+step up adds another pass that audits the draft against the complete diff and the
+guides, and raises the output budget so a longer answer fits. The pass preserves
+valid findings, corrects inaccurate ones, removes duplicates, and adds what the
+first pass missed. More passes cost more tokens and take longer. <code>2</code> is a
+reasonable step up when a change is high risk or the repository is large. The
+value is capped at <code>4</code>. See <a href="cost.html">Cost</a> for what a pass costs.</p>
 <h2 id="exit-codes">Exit codes</h2>
 <table>
 <thead>
@@ -309,7 +336,7 @@ disagree.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#which-mode-should-i-use">Which mode should I use?</a></li><li><a href="#how-the-three-modes-differ">How the three modes differ</a></li><li><a href="#exit-codes">Exit codes</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#human-output">Human output</a></li><li><a href="#how-findings-are-produced">How findings are produced</a></li><li><a href="#before-any-review">Before any review</a></li></ul></nav>
+      <ul><li><a href="#which-mode-should-i-use">Which mode should I use?</a></li><li><a href="#how-the-three-modes-differ">How the three modes differ</a></li><li><a href="#depth-improve-matrix">Depth: --improve-matrix</a></li><li><a href="#exit-codes">Exit codes</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#human-output">Human output</a></li><li><a href="#how-findings-are-produced">How findings are produced</a></li><li><a href="#before-any-review">Before any review</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

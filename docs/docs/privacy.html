@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Data and privacy · co-maintainer docs</title>
+  <meta name="description" content="co-maintainer runs on your machine or your own server. This page says exactly what it stores, where, and what leaves the machine.">
+  <link rel="canonical" href="https://co-maintainer.com/docs/privacy.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="privacy.html" class="active">Data and privacy</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>Data and privacy</h1>
+<p>co-maintainer runs on your machine or your own server. This page says exactly
+what it stores, where, and what leaves the machine.</p>
+<h2 id="what-leaves-your-machine">What leaves your machine</h2>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Sent to</th>
+<th>What</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>probe</code>, <code>init</code>, <code>sync</code></td>
+<td>GitHub</td>
+<td>API reads through <code>gh</code> or a PAT</td>
+</tr>
+<tr>
+<td><code>init</code>, <code>sync</code>, <code>review</code></td>
+<td>Your AI provider (OpenRouter or Hetzner)</td>
+<td>The prompts: sampled code, pull request text, diffs, and guides</td>
+</tr>
+<tr>
+<td>Remote <code>review</code></td>
+<td>Your <code>serve</code> instance</td>
+<td>The git diff, plus codegraph tool requests and results</td>
+</tr>
+<tr>
+<td>GitHub App review</td>
+<td>GitHub</td>
+<td>The review comment, the check run, and the inline comments</td>
+</tr>
+</tbody></table>
+<p>Nothing is sent to the co-maintainer maintainers. There is no telemetry, no
+analytics endpoint, and no call home. The only outbound hosts are the ones you
+configured, plus the provider&#39;s price list when <code>probe</code> prices an estimate.</p>
+<p><code>review --remote</code> prints a one-time notice per host the first time it connects,
+so it is clear where the diff is going.</p>
+<h2 id="what-is-stored-and-where">What is stored, and where</h2>
+<p>Everything lives under the config and cache directories. Nothing is written into
+your git clone. <a href="caching.html">Caching</a> has the full layout and the OS paths.</p>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Location</th>
+<th>Contains secrets</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>config.json</code></td>
+<td>Config directory</td>
+<td>Yes. Tokens, PATs, App private key, webhook and OAuth secrets, a scrypt password hash. Plain text, chmod <code>0600</code> where supported</td>
+</tr>
+<tr>
+<td><code>repos/&lt;slug&gt;/</code></td>
+<td>Config directory</td>
+<td>No. The generated guides: <code>SKILL.md</code>, <code>CODEBASE.md</code>, review guides</td>
+</tr>
+<tr>
+<td><code>cache.db</code></td>
+<td>Cache directory</td>
+<td>No. Evidence and AI job cache. It does hold sampled code and PR text from your repository</td>
+</tr>
+<tr>
+<td><code>app.db</code></td>
+<td>Cache directory</td>
+<td>No. Server state: repos, jobs, reviews, token hashes, webhook dedup</td>
+</tr>
+<tr>
+<td><code>clones/</code>, <code>wt/</code></td>
+<td>Cache directory</td>
+<td>No. Disposable bare clones and per-PR worktrees on a <code>serve</code> host</td>
+</tr>
+<tr>
+<td><code>tools/</code></td>
+<td>Cache directory</td>
+<td>No. Pinned helper binaries such as codegraph</td>
+</tr>
+</tbody></table>
+<p>Remote review tokens (<code>cmr_</code>) are stored as hashes in <code>app.db</code>, never in plain
+text. The dashboard shows a new token once, at creation, and cannot show it
+again.</p>
+<h2 id="secret-handling">Secret handling</h2>
+<ul>
+<li><code>config.json</code> is the one file that holds plain-text secrets. On a shared or CI
+machine, prefer <code>--env=PATH</code> or command-line flags and keep the file out of
+version control. See <a href="configuration.html#secrets-on-disk">Configuration: Secrets on disk</a>.</li>
+<li><code>--github-app-private-key-path</code> stores only the <strong>path</strong> to the App key, so the
+secret stays on disk and never enters <code>config.json</code>. See
+<a href="configuration.html#app-private-key-inline-file-contents-or-path">Configuration: App private key</a>.</li>
+<li><code>co-maintainer config list</code> masks secrets. <code>config get</code> prints the real value,
+so treat its output as a secret.</li>
+<li>A review never prints a token. The CLI redacts known secret shapes from provider
+text before it is shown.</li>
+</ul>
+<h2 id="what-a-review-sends-to-the-model">What a review sends to the model</h2>
+<p>The prompt contains the diff, the review guides, the codebase conventions, the
+pull request title and body, and any existing review comments. It does not
+contain your API keys, your <code>config.json</code>, or your GitHub credentials. Codegraph
+results, when a tool is used, are added as text.</p>
+<h2 id="deleting-data">Deleting data</h2>
+<table>
+<thead>
+<tr>
+<th>Goal</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Remove generated guides</td>
+<td>Delete <code>repos/&lt;slug&gt;/</code> under the config directory</td>
+</tr>
+<tr>
+<td>Remove the CLI evidence cache</td>
+<td>Delete <code>cache.db</code>. Guides may remain</td>
+</tr>
+<tr>
+<td>Wipe the server</td>
+<td>Stop <code>serve</code>, back up, then remove <code>app.db</code> (destructive)</td>
+</tr>
+<tr>
+<td>Stop all data at rest</td>
+<td>Uninstall the package and remove the config and cache directories</td>
+</tr>
+</tbody></table>
+<p>Back up <code>app.db</code> and <code>config.json</code> before a major upgrade. See
+<a href="dashboard.html#updating">Dashboard: Updating</a>.</p>
+<p>Next: <a href="cloud.html">Cloud</a> for running this on a shared host.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/privacy.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#what-leaves-your-machine">What leaves your machine</a></li><li><a href="#what-is-stored-and-where">What is stored, and where</a></li><li><a href="#secret-handling">Secret handling</a></li><li><a href="#what-a-review-sends-to-the-model">What a review sends to the model</a></li><li><a href="#deleting-data">Deleting data</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

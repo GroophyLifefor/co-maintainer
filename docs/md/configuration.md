@@ -1,7 +1,7 @@
 # Configuration
 
 Global defaults live in `config.json` under the platform config directory.
-[`co-maintainer set`](configuration.md#set) writes that file. [`init`](init.md) /
+[`co-maintainer set`](configuration.md#co-maintainer-set) writes that file. [`init`](init.md) /
 [`sync`](sync.md) also record **per-repo** choices there (not API tokens).
 Generated guides sit under `repos/` in the same tree. Full paths:
 [Caching](caching.md#on-disk-layout).
@@ -128,6 +128,40 @@ its hash. `get` prints the real value, so treat its output as a secret.
 Keys are the `UserConfig` field names in kebab-case (`high-model`,
 `remote-host`, `review-blocking`), and camelCase is accepted too. A name that is
 not a config key is refused with exit code 2.
+
+### Config keys
+
+Every key `config.json` can hold. The mask column says whether `config list`
+hides the value.
+
+| Key | Type | Source | Masked |
+| --- | ---- | ------ | ------ |
+| `auth` | `gh` or `pat` | `set` flag | no |
+| `ai` | `none`, `openrouter`, or `hetzner` | `set` flag | no |
+| `low-model` | string | `set` flag | no |
+| `high-model` | string | `set` flag | no |
+| `token` | string | `--token` or `--ai-key` | yes |
+| `github-pat` | string | `--github-pat` | yes |
+| `github-app-id` | string | `--github-app-id` | no |
+| `github-app-private-key` | PEM string | `--github-app-private-key`, `--github-app-private-key-file` | yes |
+| `github-app-private-key-path` | path string | `--github-app-private-key-path` | yes |
+| `github-webhook-secret` | string | `--github-webhook-secret` | yes |
+| `webhook-url` | URL string | Settings, Server | no |
+| `github-oauth-client-id` | string | `--github-oauth-client-id` | no |
+| `github-oauth-client-secret` | string | `--github-oauth-client-secret` | yes |
+| `github-oauth-allowed-user` | string | `--github-oauth-allowed-user` | no |
+| `password-auth-disabled` | boolean | `--disable-auth=password`, `--enable-auth=password` | no |
+| `github-auth-enabled` | boolean | `--enable-auth=github`, `--disable-auth=github` | no |
+| `dashboard-password-hash` | scrypt hash | `--password` | reported as `set` or `not set` |
+| `defaults` | object | `init` / `sync` limits | no |
+| `max-concurrent-jobs` | number | Settings, or the field directly | no |
+| `review-blocking` | `model` or `severity` | `--review-blocking` | no |
+| `remote-host` | URL string | `--remote-host` | no |
+| `remote-token` | string | `--remote-token` | yes |
+| `repos` | object | Written by `init` and `sync` | no |
+
+`config get` prints the real value even for a masked key, so treat its output as
+a secret.
 
 ### Unset
 

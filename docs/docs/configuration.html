@@ -24,6 +24,13 @@
   <div class="layout-body">
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
         <div class="nav-section">
           <p class="nav-section-title">Getting started</p>
           <ul class="nav-list">
@@ -31,6 +38,7 @@
           <li><a href="probe.html">Probe</a></li>
           <li><a href="init.html">Init</a></li>
           <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -47,14 +55,25 @@
           <ul class="nav-list">
           <li><a href="serve.html">Serve</a></li>
           <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
           </ul>
         </div>
         <div class="nav-section">
           <p class="nav-section-title">Reference</p>
           <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
           <li><a href="configuration.html" class="active">Configuration</a></li>
           <li><a href="authentication.html">Authentication</a></li>
           <li><a href="caching.html">Caching</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="privacy.html">Data and privacy</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
           </ul>
         </div>
       </div>
@@ -63,7 +82,7 @@
       <main class="doc-main">
         <article class="markdown prose"><h1>Configuration</h1>
 <p>Global defaults live in <code>config.json</code> under the platform config directory.
-<a href="configuration.html#set"><code>co-maintainer set</code></a> writes that file. <a href="init.html"><code>init</code></a> /
+<a href="configuration.html#co-maintainer-set"><code>co-maintainer set</code></a> writes that file. <a href="init.html"><code>init</code></a> /
 <a href="sync.html"><code>sync</code></a> also record <strong>per-repo</strong> choices there (not API tokens).
 Generated guides sit under <code>repos/</code> in the same tree. Full paths:
 <a href="caching.html#on-disk-layout">Caching</a>.</p>
@@ -273,6 +292,159 @@ its hash. <code>get</code> prints the real value, so treat its output as a secre
 <p>Keys are the <code>UserConfig</code> field names in kebab-case (<code>high-model</code>,
 <code>remote-host</code>, <code>review-blocking</code>), and camelCase is accepted too. A name that is
 not a config key is refused with exit code 2.</p>
+<h3 id="config-keys">Config keys</h3>
+<p>Every key <code>config.json</code> can hold. The mask column says whether <code>config list</code>
+hides the value.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Source</th>
+<th>Masked</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>auth</code></td>
+<td><code>gh</code> or <code>pat</code></td>
+<td><code>set</code> flag</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>ai</code></td>
+<td><code>none</code>, <code>openrouter</code>, or <code>hetzner</code></td>
+<td><code>set</code> flag</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>low-model</code></td>
+<td>string</td>
+<td><code>set</code> flag</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>high-model</code></td>
+<td>string</td>
+<td><code>set</code> flag</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>token</code></td>
+<td>string</td>
+<td><code>--token</code> or <code>--ai-key</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>github-pat</code></td>
+<td>string</td>
+<td><code>--github-pat</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>github-app-id</code></td>
+<td>string</td>
+<td><code>--github-app-id</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>github-app-private-key</code></td>
+<td>PEM string</td>
+<td><code>--github-app-private-key</code>, <code>--github-app-private-key-file</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>github-app-private-key-path</code></td>
+<td>path string</td>
+<td><code>--github-app-private-key-path</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>github-webhook-secret</code></td>
+<td>string</td>
+<td><code>--github-webhook-secret</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>webhook-url</code></td>
+<td>URL string</td>
+<td>Settings, Server</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>github-oauth-client-id</code></td>
+<td>string</td>
+<td><code>--github-oauth-client-id</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>github-oauth-client-secret</code></td>
+<td>string</td>
+<td><code>--github-oauth-client-secret</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>github-oauth-allowed-user</code></td>
+<td>string</td>
+<td><code>--github-oauth-allowed-user</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>password-auth-disabled</code></td>
+<td>boolean</td>
+<td><code>--disable-auth=password</code>, <code>--enable-auth=password</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>github-auth-enabled</code></td>
+<td>boolean</td>
+<td><code>--enable-auth=github</code>, <code>--disable-auth=github</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>dashboard-password-hash</code></td>
+<td>scrypt hash</td>
+<td><code>--password</code></td>
+<td>reported as <code>set</code> or <code>not set</code></td>
+</tr>
+<tr>
+<td><code>defaults</code></td>
+<td>object</td>
+<td><code>init</code> / <code>sync</code> limits</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>max-concurrent-jobs</code></td>
+<td>number</td>
+<td>Settings, or the field directly</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>review-blocking</code></td>
+<td><code>model</code> or <code>severity</code></td>
+<td><code>--review-blocking</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>remote-host</code></td>
+<td>URL string</td>
+<td><code>--remote-host</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>remote-token</code></td>
+<td>string</td>
+<td><code>--remote-token</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>repos</code></td>
+<td>object</td>
+<td>Written by <code>init</code> and <code>sync</code></td>
+<td>no</td>
+</tr>
+</tbody></table>
+<p><code>config get</code> prints the real value even for a masked key, so treat its output as
+a secret.</p>
 <h3 id="unset">Unset</h3>
 <pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--unset=token</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--unset=github-webhook-secret</span>

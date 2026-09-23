@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>view · co-maintainer docs</title>
+  <meta name="description" content="Print the guides co-maintainer generated for a repository. This is the way to see exactly what a review will be judged against, without starting a review.">
+  <link rel="canonical" href="https://co-maintainer.com/docs/view.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html" class="active">View guides</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="privacy.html">Data and privacy</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1><code>view</code></h1>
+<p>Print the guides co-maintainer generated for a repository. This is the way to
+see exactly what a review will be judged against, without starting a review.</p>
+<p>The guides are the output of <a href="init.html"><code>init</code></a> / <a href="sync.html"><code>sync</code></a>:
+<code>SKILL.md</code>, <code>CODEBASE.md</code>, and the review guides. They live under the config
+directory, not in your clone. See <a href="caching.html#generated-guides">Caching: Generated guides</a>.</p>
+<h2 id="usage">Usage</h2>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span>                                  <span class="sh-comment"># every guide for the detected repo</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span>                       <span class="sh-comment"># every guide, with headers</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span> <span class="sh-arg">review-guide</span>          <span class="sh-comment"># one guide, raw</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--list</span>                <span class="sh-comment"># file, size, build date</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--path</span>                <span class="sh-comment"># the directory they live in</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--remote</span>              <span class="sh-comment"># read from the review server</span>
+</code></pre>
+<p>With no repository argument, the name is detected from the <code>git</code> remote in the
+current directory.</p>
+<h2 id="what-it-prints">What it prints</h2>
+<p>With no guide named, every guide is printed in reading order, each under an
+<code>== SKILL.md · built 2026-09-22 ==</code> style header. Naming one guide prints that
+file raw, with no header, so the output can be redirected straight to a file:</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span> <span class="sh-arg">review-guide</span> <span class="sh-arg">&gt;</span> <span class="sh-arg">PR_REVIEW_GUIDE.md</span>
+</code></pre>
+<p>A guide name is matched case-insensitively as either the page name
+(<code>review-guide</code>) or the file or body name. <code>--list</code> lists every file in the
+folder, including any file co-maintainer did not write, with its size and date.</p>
+<h2 id="reading-from-the-server">Reading from the server</h2>
+<p><code>--remote</code> reads the copies a configured <a href="serve.html"><code>serve</code></a> instance holds,
+using the same remote token as <a href="remote-review.html"><code>review --remote</code></a>. The output
+format is identical, only the source differs. This is how you check what the
+team&#39;s shared context says without downloading anything.</p>
+<p><code>--path</code> is local-only and is refused with <code>--remote</code>, because the directory
+belongs to the machine you are on. A rejected token prints the same Settings
+hint that <code>review --remote</code> prints.</p>
+<h2 id="before-you-run">Before you run</h2>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>A successful <a href="init.html"><code>init</code></a> or <a href="sync.html"><code>sync</code></a> for the repo</td>
+<td>Without guides there is nothing to print</td>
+</tr>
+<tr>
+<td>For <code>--remote</code>: a host and token</td>
+<td>See <a href="remote-review.html">Remote review</a></td>
+</tr>
+</tbody></table>
+<p>If no guides exist, <code>view</code> exits with code <code>2</code> and suggests
+<code>co-maintainer probe owner/repo</code>.</p>
+<h2 id="related">Related</h2>
+<ul>
+<li><a href="init.html"><code>init</code></a> and <a href="sync.html"><code>sync</code></a> build and refresh the guides.</li>
+<li><a href="caching.html">Caching</a> shows where they are stored.</li>
+<li><a href="configuration.html">Configuration</a> lists the flags for each command.</li>
+</ul>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/view.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#usage">Usage</a></li><li><a href="#what-it-prints">What it prints</a></li><li><a href="#reading-from-the-server">Reading from the server</a></li><li><a href="#before-you-run">Before you run</a></li><li><a href="#related">Related</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

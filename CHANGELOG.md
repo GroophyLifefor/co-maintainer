@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dashboard: webhook reachability (CORE-71).** The repo overview warns when the webhook URL is unreachable from GitHub, and shows the last delivery.
 - **`view --remote` (CORE-44).** Read a repository's guides from a remote `serve` over `GET /api/remote/guides`.
 - **Documentation on `co-maintainer.com` (CORE-80).** Every page now lives under `co-maintainer.com/docs/`, and the root is the landing page. Each page carries a meta description, a canonical link to the site origin, and the site ships a `CNAME`, a `sitemap.xml`, and a redirect stub at every old flat address (`remake.html` included). The docs build runs in CI, so a dead internal link or a missing redirect fails a pull request.
+- **New documentation pages and search (CORE-81).** The site gains Troubleshooting (every exit code and message, with the fix), Cost (what spends tokens and how `probe` estimates it before you start), Data and privacy (what is stored and where), Cloud (the hosted service and how `review --remote` connects to it), GitHub App (the manifest flow plus a permissions and events table), View guides, and a Commands reference generated from the command registry. The sidebar is grouped into Getting started, Review, Self-hosted, Cloud, and Reference, and a client-side search over a generated `search-index.json` finds a page or a heading. Links are checked down to the anchor, so a renamed heading cannot leave a dead link.
 
 ### Changed
 
