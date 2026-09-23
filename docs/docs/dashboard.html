@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard · co-maintainer docs</title>
+  <meta name="description" content="Web UI started by serve. Use it to finish setup, add repositories, run init / sync, tune auto-review, watch jobs, and manage remote review tokens....">
+  <link rel="canonical" href="https://co-maintainer.com/docs/dashboard.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html" class="active">Dashboard</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>Dashboard</h1>
+<p>Web UI started by <a href="serve.html"><code>serve</code></a>. Use it to finish setup, add repositories,
+run <a href="init.html"><code>init</code></a> / <a href="sync.html"><code>sync</code></a>, tune auto-review, watch jobs, and
+manage <a href="remote-review.html">remote review</a> tokens. Webhooks and the job worker run
+in the same process as the UI.</p>
+<h2 id="what-it-is-for">What it is for</h2>
+<figure class="mermaid-figure">
+<div class="mermaid-viewport"><div class="mermaid">flowchart TD
+  login[Sign in] --> setup["Get started (/setup)"]
+  setup --> add[/repos/new/]
+  add --> init[Init job on Activity]
+  init --> ready[Repo overview]
+  ready --> auto[Repo settings: auto-review]
+  ready --> pr[Pull requests: manual review]
+  ready --> tok[Settings: remote tokens]
+  tok --> remote[Developers: review --remote]</div></div>
+</figure>
+
+
+
+<table>
+<thead>
+<tr>
+<th>Goal</th>
+<th>Where to go</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>First-time server setup</td>
+<td><strong>Get started</strong> on home or <code>/setup</code>, then <strong>Settings</strong></td>
+</tr>
+<tr>
+<td>Onboard a repo</td>
+<td><strong>Add repository</strong>, wait on <strong>Activity</strong></td>
+</tr>
+<tr>
+<td>Refresh guides after <code>main</code> moves</td>
+<td>Repo <strong>Overview</strong> or <strong>Settings</strong> (Sync), or a cron schedule in repo <strong>Settings</strong> (<a href="sync.html#scheduled-sync">Scheduled sync</a>)</td>
+</tr>
+<tr>
+<td>Team laptops without local init</td>
+<td><strong>Settings</strong> remote tokens, repo <strong>Remote</strong> tab</td>
+</tr>
+<tr>
+<td>Debug a failed job</td>
+<td><strong>Activity</strong> job detail</td>
+</tr>
+</tbody></table>
+<h2 id="before-you-open">Before you open</h2>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="serve.html"><code>serve</code></a> is running</td>
+<td>Dashboard is not a separate install</td>
+</tr>
+<tr>
+<td>Dashboard URL from startup log</td>
+<td>Default <code>http://localhost:&lt;port&gt;/</code></td>
+</tr>
+<tr>
+<td>Password or GitHub sign-in</td>
+<td>See <a href="#sign-in">Sign in</a> and <a href="serve.html#sign-in-to-the-dashboard"><code>serve</code>: Sign in</a></td>
+</tr>
+<tr>
+<td>Browser on a host that can reach the server</td>
+<td>Same network or VPN as production</td>
+</tr>
+<tr>
+<td>A webhook URL GitHub can reach</td>
+<td>The repo <strong>Overview</strong> warns when it cannot</td>
+</tr>
+</tbody></table>
+<p><code>/dashboard</code> redirects to <code>/</code>.</p>
+<h2 id="webhook-reachability">Webhook reachability</h2>
+<p>A fresh <code>serve</code> defaults to <code>http://localhost:&lt;port&gt;/github/webhook</code>, which
+GitHub cannot route to, so automatic reviews silently never arrive. Every repo
+<strong>Overview</strong> states this: a bad-address notice when the configured webhook URL
+host is loopback, <code>0.0.0.0</code>, or a private range, and a &quot;No webhook delivery
+yet&quot; notice when nothing has been received. Both name the current URL and link
+to <strong>Settings</strong>.</p>
+<p>Once a delivery has arrived, the page shows <strong>Last webhook delivery</strong> instead.
+The check only inspects the host. A single-label internal name and any public
+host pass, and <code>serve</code> and <code>set</code> still accept every URL they did before.</p>
+<h2 id="adding-a-repository">Adding a repository</h2>
+<p><strong>Add repository</strong> runs the same read-only probe the CLI runs, server side,
+then shows the recommended <code>init</code> command with an estimated job count, token
+range, time and cost. Nothing is written until <strong>Add and start init</strong> is
+pressed, and that confirmation stores the plan&#39;s flags, limits and sources for
+the repo before the init job is queued, so the run matches what was approved.</p>
+<p>The estimate says whether it used this repository&#39;s recorded jobs or the
+cm-dx-lab calibration, and whether it priced dollars from OpenRouter. See
+<a href="probe.html"><code>probe</code></a> for how the recommendation is derived.</p>
+<h2 id="sign-in">Sign in</h2>
+<p>Open <code>http://&lt;host&gt;:&lt;port&gt;/</code>.</p>
+<ul>
+<li><strong>Password</strong>: printed once on the first <code>serve</code> start, or set with <code>--password=...</code>. Change it in <strong>Settings</strong>.</li>
+<li><strong>GitHub</strong> (optional): <strong>Continue with GitHub</strong> for the one allowed user.
+OAuth setup lives on <a href="serve.html#sign-in-to-the-dashboard"><code>serve</code></a>.</li>
+</ul>
+<p>Sessions use an <code>HttpOnly</code>, <code>SameSite=Lax</code> cookie (<code>Secure</code> on HTTPS).</p>
+<h2 id="get-started-setup">Get started (<code>/setup</code>)</h2>
+<p>Onboarding checklist: models and API key, GitHub access, GitHub App. Each step
+links to <strong>Settings</strong> to fix gaps.</p>
+<p>The home page carries the same idea as a <strong>Finish setup</strong> card until an install
+is complete: models and API key, GitHub App, webhook reachable (see
+<a href="#webhook-reachability">Webhook reachability</a>), first repository, first review,
+and CLI connected (a remote token exists). Each row links to the settings card
+that fixes it, the header shows how many are done, and the card disappears once
+all six are. A fresh install therefore says what to do next on its landing
+page, not only on <code>/setup</code>.</p>
+<p>This page is <strong>not</strong> in the top bar. After sign-in, open
+<code>http://&lt;host&gt;:&lt;port&gt;/setup</code>, or use the <strong>Finish setup</strong> card on the home page.
+You can skip it and configure the same items under <strong>Settings</strong> at any time.</p>
+<h2 id="routes">Routes</h2>
+<p>Top bar: <strong>Activity</strong>, <strong>Usage</strong> (<code>/analytics</code>), <strong>Settings</strong>, signed-in user.</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/</code></td>
+<td>Repository list, <strong>Finish setup</strong> checklist until complete, <strong>Add repository</strong>, auto-review toggles</td>
+</tr>
+<tr>
+<td><code>/setup</code></td>
+<td>Same checklist as above (direct URL)</td>
+</tr>
+<tr>
+<td><code>/repos/new</code></td>
+<td>Pick an App-installed repo, <strong>Preview</strong> the plan, then confirm to start <strong>init</strong></td>
+</tr>
+<tr>
+<td><code>/repos/:owner/:repo</code></td>
+<td>Overview, 30-day stats, drift <strong>Update now</strong>, recent PRs, webhook reachability and last delivery</td>
+</tr>
+<tr>
+<td><code>/repos/:owner/:repo/pulls</code></td>
+<td>Open PR list with a <strong>Review</strong> button each, paged review history, manual <strong>Review</strong> by number when webhooks fail</td>
+</tr>
+<tr>
+<td><code>/repos/:owner/:repo/pulls/:n</code></td>
+<td>Findings and cost for one PR</td>
+</tr>
+<tr>
+<td><code>/repos/:owner/:repo/remote</code></td>
+<td>Remote CLI reviews for this repo (last 30 days)</td>
+</tr>
+<tr>
+<td><code>/repos/:owner/:repo/knowledge</code></td>
+<td>Generated guides, <strong>Sync</strong></td>
+</tr>
+<tr>
+<td><code>/repos/:owner/:repo/settings</code></td>
+<td>Auto-review, skip rules, scope, remove repo</td>
+</tr>
+<tr>
+<td><code>/activity</code></td>
+<td>Live and recent jobs (refreshes about every 5 seconds)</td>
+</tr>
+<tr>
+<td><code>/activity/:id</code></td>
+<td>Single job log</td>
+</tr>
+<tr>
+<td><code>/analytics</code></td>
+<td>Usage for 7, 30, or 90 days</td>
+</tr>
+<tr>
+<td><code>/settings</code></td>
+<td>Global models, GitHub, App (<strong>Create GitHub App</strong>), webhook URL, remote limits and tokens</td>
+</tr>
+</tbody></table>
+<p>Per-repo sidebar: <strong>Overview</strong>, <strong>Pull requests</strong>, <strong>Remote</strong>, <strong>Knowledge</strong>, <strong>Settings</strong>.</p>
+<p>PR titles are not stored in <code>app.db</code>, so lists show <code>#number</code> only.</p>
+<h2 id="settings-global">Settings (global)</h2>
+<p>Single page with sections (anchor links in the sidebar):</p>
+<table>
+<thead>
+<tr>
+<th>Section</th>
+<th>What you configure</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Models and API key</td>
+<td>Provider, token, high model (reviews and synthesis), low model (history extraction)</td>
+</tr>
+<tr>
+<td>GitHub</td>
+<td><code>gh</code> or PAT for init/sync and server-side Git reads</td>
+</tr>
+<tr>
+<td>Defaults</td>
+<td>Auth and include/limit defaults for new work</td>
+</tr>
+<tr>
+<td>Server</td>
+<td>Webhook URL shown to GitHub, queue and timeout knobs</td>
+</tr>
+<tr>
+<td>Remote review</td>
+<td><code>cmr_…</code> tokens (secret shown once, with copy), per-token concurrency, sync timeout</td>
+</tr>
+<tr>
+<td>Access</td>
+<td>Password vs GitHub sign-in toggles (mirrors <code>serve</code> flags)</td>
+</tr>
+<tr>
+<td>Password</td>
+<td>Change the dashboard password and sign out other sessions</td>
+</tr>
+<tr>
+<td>About</td>
+<td>Version and source link</td>
+</tr>
+</tbody></table>
+<p>Saving PAT, App key, or OAuth values is validated against GitHub first. Bad
+scopes return <strong>422</strong> and nothing is stored.</p>
+<h2 id="ui-behavior">UI behavior</h2>
+<ul>
+<li>Failed API calls show a toast and <strong>Retry</strong>.</li>
+<li>Toggles roll back if save fails.</li>
+<li><a href="serve.html#parameters"><code>serve --inject-500</code></a> (or <code>CM_INJECT_500=1</code>) forces mutating
+<code>/api/*</code> calls except login to fail, for testing error UI.</li>
+</ul>
+<h2 id="linux">Linux</h2>
+<p>Linux (WSL included) is the recommended platform for <a href="serve.html"><code>serve</code></a> and the
+dashboard:</p>
+<ul>
+<li>SQLite FFI, advisory locks, and POSIX signals behave more predictably.</li>
+<li>Windows is supported but treated as unstable.</li>
+<li><code>serve</code> logs a one-line warning when not on Linux.</li>
+</ul>
+<h2 id="updating">Updating</h2>
+<p>Forward-only <code>app.db</code> migrations. Do not downgrade the CLI after a newer version
+has run.</p>
+<ol>
+<li>Stop <code>serve</code>.</li>
+<li><code>npm install -g co-maintainer@latest</code></li>
+<li>Start <code>serve</code> again with the same data directory.</li>
+</ol>
+<p>Restart after upgrading. Details also on <a href="serve.html#updating"><code>serve</code>: Updating</a>.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/dashboard.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#what-it-is-for">What it is for</a></li><li><a href="#before-you-open">Before you open</a></li><li><a href="#webhook-reachability">Webhook reachability</a></li><li><a href="#adding-a-repository">Adding a repository</a></li><li><a href="#sign-in">Sign in</a></li><li><a href="#get-started-setup">Get started (/setup)</a></li><li><a href="#routes">Routes</a></li><li><a href="#settings-global">Settings (global)</a></li><li><a href="#ui-behavior">UI behavior</a></li><li><a href="#linux">Linux</a></li><li><a href="#updating">Updating</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

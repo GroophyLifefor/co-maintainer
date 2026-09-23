@@ -1,13 +1,35 @@
 /**
  * Build static HTML docs under docs/ from docs/md/*.md
  * Run: npm run docs:build
+ *
+ * Layout for co-maintainer.com (CORE-80 / D04, D05):
+ *   docs/index.html          the landing page (hand written, not built here)
+ *   docs/docs/<slug>.html    one page per docs/md/<slug>.md
+ *   docs/<slug>.html         a redirect stub for the old flat address
+ *   docs/CNAME               the custom domain
+ *   docs/sitemap.xml         every page under the apex domain
+ *
+ * Assets stay at docs/assets/, so a doc page reaches them through `../`.
  */
 import { marked } from "marked";
+import { pathToFileURL } from "node:url";
 import { logo } from "../src/server/logo.ts";
-import { mkdir, readTextFile, stat, writeFile } from "../src/util/runtime.ts";
+import {
+  mkdir,
+  readTextFile,
+  stat,
+  writeFile,
+  writeTextFile,
+} from "../src/util/runtime.ts";
 
-const ROOT = new URL("../docs/", import.meta.url);
-const MD_DIR = new URL("md/", ROOT);
+const DEFAULT_OUT = new URL("../docs/", import.meta.url);
+const MD_DIR = new URL("md/", DEFAULT_OUT);
+
+/** The public origin. Canonical links and the sitemap use it. */
+export const SITE_ORIGIN = "https://co-maintainer.com";
+
+/** The custom domain GitHub Pages serves the site from. */
+export const CNAME = "co-maintainer.com";
 
 type NavItem = { slug: string; label: string };
 type NavSection = { title: string; items: NavItem[] };
@@ -51,12 +73,24 @@ const NAV: NavSection[] = [
 
 const ALL_PAGES: NavItem[] = NAV.flatMap((s) => s.items);
 
+/** The old flat addresses, and where each one points now. `remake` was the
+ * name this page had before CORE-21, and its address must keep resolving. */
+export const LEGACY_REDIRECTS: ReadonlyArray<{ from: string; to: string }> = [
+  ...ALL_PAGES.map(({ slug }) => ({ from: slug, to: slug })),
+  { from: "remake", to: "sync" },
+];
+
 const GITHUB_REPO = "https://github.com/GroophyLifefor/co-maintainer";
 const DOCS_EDIT_BRANCH = "main";
 
+/** A doc page reaches the shared assets through this prefix. */
+const ASSET_PREFIX = "../assets/";
+/** A doc page reaches the landing page through this prefix. */
+const HOME_HREF = "../index.html";
+
 marked.setOptions({ gfm: true });
 
-function esc(text: string): string {
+export function esc(text: string): string {
   return text.replace(
     /[&<>"']/g,
     (c) =>
@@ -66,8 +100,37 @@ function esc(text: string): string {
   );
 }
 
+/** The first real paragraph of a page, as a plain sentence for `<meta
+ * description>`. Markdown is stripped so the tag reads as prose, and the text
+ * is cut at a word boundary near 155 characters, the length search engines
+ * show. */
+export function pageDescription(md: string): string {
+  const withoutFences = md.replace(/```[\s\S]*?```/g, "");
+  for (const block of withoutFences.split(/\r?\n\s*\r?\n/)) {
+    const paragraph = block.trim();
+    if (paragraph === "" || /^#{1,6}\s/.test(paragraph)) continue;
+    if (/^[|>-]/.test(paragraph)) continue;
+    const plain = paragraph
+      .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/[*_]{1,2}([^*_]+)[*_]{1,2}/g, "$1")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (plain === "") continue;
+    if (plain.length <= 155) return plain;
+    const cut = plain.slice(0, 155);
+    const lastSpace = cut.lastIndexOf(" ");
+    return `${(lastSpace > 80 ? cut.slice(0, lastSpace) : cut).trimEnd()}...`;
+  }
+  return "co-maintainer documentation.";
+}
+
 /** Markdown ```mermaid fences become placeholders, then figures after marked (blank lines break raw HTML). */
-function extractMermaidFences(md: string): { md: string; slots: string[] } {
+export function extractMermaidFences(md: string): {
+  md: string;
+  slots: string[];
+} {
   const slots: string[] = [];
   const stripped = md.replace(
     /```mermaid(?:[ \t]+zoom)?[ \t]*\r?\n([\s\S]*?)```/g,
@@ -123,8 +186,12 @@ function mermaidBlocks(html: string): string {
 const MERMAID_CDN =
   "https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.min.js";
 
-/** One-time vendor file so docs work without a CDN at view time. */
-async function ensureMermaidBundle(assetsDir: URL): Promise<void> {
+/** One-time vendor file so docs work without a CDN at view time. `fetch` is
+ * off in a test build, which must not reach the network. */
+async function ensureMermaidBundle(
+  assetsDir: URL,
+  download: boolean,
+): Promise<void> {
   const out = new URL("mermaid.min.js", assetsDir);
   try {
     await stat(out);
@@ -132,6 +199,7 @@ async function ensureMermaidBundle(assetsDir: URL): Promise<void> {
   } catch {
     /* download below */
   }
+  if (!download) return;
   const resp = await fetch(MERMAID_CDN);
   if (!resp.ok) {
     throw new Error(`Failed to download mermaid: HTTP ${resp.status}`);
@@ -200,7 +268,7 @@ function rewriteMdLinks(html: string): string {
 }
 
 /** Docs prose must not use em dashes or semicolons (code fences excluded). */
-function lintDocMd(md: string, name: string): void {
+export function lintDocMd(md: string, name: string): void {
   const prose = md.replace(/```[\s\S]*?```/g, "");
   if (/—/.test(prose)) {
     throw new Error(`${name}: em dash is not allowed in docs`);
@@ -250,7 +318,7 @@ function buildToc(bodyHtml: string): { html: string; toc: string } {
 }
 
 function siteBrandLink(): string {
-  return `<a class="brand site-brand" href="index.html"><img src="assets/logo.png" alt="" width="32" height="32">co-maintainer</a>`;
+  return `<a class="brand site-brand" href="${HOME_HREF}"><img src="${ASSET_PREFIX}logo.png" alt="" width="32" height="32">co-maintainer</a>`;
 }
 
 function topBar(active: "home" | "docs"): string {
@@ -290,20 +358,24 @@ function sidebarHtml(activeSlug: string): string {
     </aside>`;
 }
 
-function docPageShell(
+export function docPageShell(
   title: string,
   bodyHtml: string,
   toc: string,
   activeSlug: string,
+  description: string,
 ): string {
+  const canonical = `${SITE_ORIGIN}/docs/${activeSlug}.html`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${esc(title)} · co-maintainer docs</title>
-  <link rel="stylesheet" href="assets/site.css">
-  <link rel="icon" href="assets/logo.png">
+  <meta name="description" content="${esc(description)}">
+  <link rel="canonical" href="${canonical}">
+  <link rel="stylesheet" href="${ASSET_PREFIX}site.css">
+  <link rel="icon" href="${ASSET_PREFIX}logo.png">
 </head>
 <body class="layout-doc">
   ${topBar("docs")}
@@ -319,25 +391,77 @@ function docPageShell(
       ${toc}
     </div>
   </div>
-  <script src="assets/docs.js"></script>
-  <script src="assets/mermaid.min.js"></script>
-  <script src="assets/mermaid-init.js"></script>
+  <script src="${ASSET_PREFIX}docs.js"></script>
+  <script src="${ASSET_PREFIX}mermaid.min.js"></script>
+  <script src="${ASSET_PREFIX}mermaid-init.js"></script>
 </body>
 </html>`;
 }
 
-async function main(): Promise<void> {
-  const assetsDir = new URL("assets/", ROOT);
+/** The redirect stub that now lives at an old flat address. It carries a meta
+ * refresh for people, a canonical link for crawlers, and a visible link so a
+ * reader without either still finds the page. */
+export function redirectStub(from: string, to: string): string {
+  const target = `docs/${to}.html`;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Moved · co-maintainer docs</title>
+  <meta name="robots" content="noindex">
+  <meta http-equiv="refresh" content="0; url=${target}">
+  <link rel="canonical" href="${SITE_ORIGIN}/${target}">
+</head>
+<body>
+  <p>This page moved to <a href="${target}">${target}</a>.</p>
+</body>
+</html>`;
+}
+
+/** Every indexable address, for sitemap.xml. */
+export function sitemapXml(slugs: readonly string[]): string {
+  const urls = [`${SITE_ORIGIN}/`];
+  for (const slug of slugs) urls.push(`${SITE_ORIGIN}/docs/${slug}.html`);
+  const entries = urls.map((url) => `  <url><loc>${esc(url)}</loc></url>`);
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${entries.join("\n")}
+</urlset>
+`;
+}
+
+export type BuildOptions = {
+  /** Where the site is written. Defaults to the repository `docs/` folder. */
+  outDir?: URL;
+  /** Download the vendored Mermaid bundle when it is missing. A test build
+   * passes false so it never reaches the network. */
+  fetchAssets?: boolean;
+  /** Suppress the per-page progress line. */
+  quiet?: boolean;
+};
+
+/** Builds every page, stub, and the sitemap into `outDir`. */
+export async function buildDocs(options: BuildOptions = {}): Promise<void> {
+  const out = options.outDir ?? DEFAULT_OUT;
+  const downloadAssets = options.fetchAssets ?? true;
+  const log = options.quiet ? () => {} : (line: string) => console.log(line);
+
+  const assetsDir = new URL("assets/", out);
+  const pagesDir = new URL("docs/", out);
   await mkdir(assetsDir, { recursive: true });
-  await ensureMermaidBundle(assetsDir);
+  await mkdir(pagesDir, { recursive: true });
+  await ensureMermaidBundle(assetsDir, downloadAssets);
   await writeFile(new URL("logo.png", assetsDir), logo);
-  await writeFile(new URL(".nojekyll", ROOT), new Uint8Array());
+  await writeFile(new URL(".nojekyll", out), new Uint8Array());
+  await writeTextFile(new URL("CNAME", out), `${CNAME}\n`);
 
   for (const { slug } of ALL_PAGES) {
     const mdPath = new URL(`${slug}.md`, MD_DIR);
     let md = await readTextFile(mdPath);
     lintDocMd(md, `${slug}.md`);
     md = fixMdSourceLinks(md);
+    const description = pageDescription(md);
     const { md: mdNoMermaid, slots } = extractMermaidFences(md);
     const raw = await marked.parse(mdNoMermaid);
     const withMermaid = injectMermaidSlots(
@@ -347,13 +471,27 @@ async function main(): Promise<void> {
     const { html: body, toc } = buildToc(highlightShellBlocks(withMermaid));
     const titleMatch = md.match(/^#\s+`?([^`\n]+)`?/);
     const title = titleMatch?.[1]?.trim() ?? slug;
-    const html = docPageShell(title, body, toc, slug);
-    await writeFile(
-      new URL(`${slug}.html`, ROOT),
-      new TextEncoder().encode(html),
-    );
-    console.log(`wrote ${slug}.html`);
+    const html = docPageShell(title, body, toc, slug, description);
+    await writeTextFile(new URL(`${slug}.html`, pagesDir), html);
+    log(`wrote docs/${slug}.html`);
   }
+
+  for (const { from, to } of LEGACY_REDIRECTS) {
+    await writeTextFile(new URL(`${from}.html`, out), redirectStub(from, to));
+    log(`wrote ${from}.html (redirect to docs/${to}.html)`);
+  }
+
+  await writeTextFile(
+    new URL("sitemap.xml", out),
+    sitemapXml(ALL_PAGES.map(({ slug }) => slug)),
+  );
+  log("wrote sitemap.xml");
 }
 
-await main();
+const invokedDirectly =
+  process.argv[1] !== undefined &&
+  import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (invokedDirectly) {
+  await buildDocs();
+}

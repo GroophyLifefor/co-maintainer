@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Review · co-maintainer docs</title>
+  <meta name="description" content="AI code review using guides from init / sync. Progress and diagnostics go to stderr. The result goes to stdout (human text or JSON with --json).">
+  <link rel="canonical" href="https://co-maintainer.com/docs/review.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html" class="active">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>Review</h1>
+<p>AI code review using guides from <a href="init.html"><code>init</code></a> / <a href="sync.html"><code>sync</code></a>.
+Progress and diagnostics go to <strong>stderr</strong>. The result goes to <strong>stdout</strong> (human
+text or JSON with <code>--json</code>).</p>
+<p>This page helps you <strong>pick a mode</strong>. Commands, flags, and checklists live on the
+linked pages below.</p>
+<h2 id="which-mode-should-i-use">Which mode should I use?</h2>
+<p>Start with what you are trying to review, not the flag name.</p>
+<figure class="mermaid-figure">
+<div class="mermaid-viewport"><div class="mermaid">flowchart TD
+  start([What are you reviewing?])
+  start --> q1{GitHub pull request<br/>by number?}
+  q1 -->|yes| pr[PR review]
+  q1 -->|no| q2{Uncommitted or local<br/>commits in a clone?}
+  q2 -->|not yet| clone[Clone the repo and make your changes]
+  q2 -->|yes| q3{Use shared guides<br/>on serve?}
+  q3 -->|no, init locally| local[Local review]
+  q3 -->|yes, team context| remote[Remote review]</div></div>
+</figure>
+
+
+
+<table>
+<thead>
+<tr>
+<th>If this sounds like you</th>
+<th>Mode</th>
+<th>Read next</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>You are in a clone and want feedback on your branch or working tree before you open a PR</td>
+<td><a href="local-review.html">Local review</a></td>
+<td>OpenRouter on your machine, guides on disk</td>
+</tr>
+<tr>
+<td>Same as local review, but the repo is already inited on <a href="serve.html"><code>serve</code></a> and you skip per-laptop init/sync</td>
+<td><a href="remote-review.html">Remote review</a></td>
+<td>Shared context on the server, diff from your clone</td>
+</tr>
+<tr>
+<td>You have a PR number and do not need to check out that branch locally</td>
+<td><a href="local-pr-review.html">PR review</a></td>
+<td><code>gh</code> only, guides on disk, AI on your machine</td>
+</tr>
+</tbody></table>
+<p>PR review and remote review <strong>do not combine</strong>: <code>--remote</code> is only for a local
+diff with no PR positional arguments.</p>
+<h2 id="how-the-three-modes-differ">How the three modes differ</h2>
+<p>Same underlying guides from <code>init</code> / <code>sync</code>, different <strong>subject</strong> (what gets
+reviewed) and <strong>who keeps that context up to date</strong>.</p>
+<figure class="mermaid-figure">
+<div class="mermaid-viewport"><div class="mermaid">flowchart TB
+  subgraph context["Guide context"]
+    disk["Per laptop: init / sync"]
+    shared["Per repo on serve: init / sync once"]
+  end
+
+  subgraph subject["What gets reviewed"]
+    direction LR
+    diff["Git diff in your clone"]
+    pr["PR metadata and patch via gh"]
+  end
+
+  diff --> localN["Local review"]
+  diff --> remoteN["Remote review"]
+  pr --> prN["PR review"]
+
+  disk --> localN
+  disk --> prN
+  shared --> remoteN</div></div>
+</figure>
+
+
+
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Local review</th>
+<th>PR review</th>
+<th>Remote review</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Typical moment</td>
+<td>Pre-push in your clone, you own local guides</td>
+<td>Open PR by number, you own local guides</td>
+<td>Pre-push using the team&#39;s shared server context</td>
+</tr>
+<tr>
+<td>Who runs init/sync</td>
+<td>You on the laptop</td>
+<td>You on the laptop</td>
+<td>Ops on the server (you usually do not)</td>
+</tr>
+<tr>
+<td>Guides at review time</td>
+<td>Laptop cache</td>
+<td>Laptop cache</td>
+<td>Server dashboard repo</td>
+</tr>
+<tr>
+<td>Extra setup</td>
+<td>OpenRouter</td>
+<td><code>gh auth login</code></td>
+<td><code>serve</code>, token, <code>set --remote-host</code></td>
+</tr>
+<tr>
+<td>Deep dive</td>
+<td><a href="local-review.html">local-review</a></td>
+<td><a href="local-pr-review.html">local-pr-review</a></td>
+<td><a href="remote-review.html">remote-review</a></td>
+</tr>
+</tbody></table>
+<p>Team-wide <strong>automatic</strong> PR reviews on webhooks are not a fourth <code>review</code> mode.
+They go through <a href="serve.html"><code>serve</code></a> and the GitHub App. Use PR review when <strong>you</strong>
+run the CLI against one PR.</p>
+<h2 id="exit-codes">Exit codes</h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>Review finished, no open blocking findings</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Review finished, at least one blocking finding</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Usage or precondition error (init missing, not a git repo, etc.)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Runtime failure or abort</td>
+</tr>
+</tbody></table>
+<h3 id="what-counts-as-blocking">What counts as blocking</h3>
+<p><code>reviewBlocking</code> in <code>config.json</code> decides it, and the same rule is used by
+local, PR, remote and the automatic GitHub App reviews.</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>A finding blocks when</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>model</code> (default)</td>
+<td>The model says so. A P0 always blocks, even if the model labeled it otherwise.</td>
+</tr>
+<tr>
+<td><code>severity</code></td>
+<td>Its severity is P0 or P1. P2 and P3 never block, whatever the model said.</td>
+</tr>
+</tbody></table>
+<p>The default keeps the 0.4.13 behavior. <code>severity</code> exists because the model&#39;s
+own label can move between two reviews of the same code, which flipped the exit
+code for the same finding. With <code>severity</code> the same finding set always yields
+the same exit code, the same <code>blocking</code> count in <code>--json</code>, and the same GitHub
+review type.</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">set</span> <span class="sh-flag">--review-blocking=severity</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">set</span> <span class="sh-flag">--review-blocking=model</span>      <span class="sh-comment"># back to the default</span>
+</code></pre>
+<p><code>CO_MAINTAINER_REVIEW_BLOCKING</code> overrides it for one environment.</p>
+<h2 id="json-output">JSON output</h2>
+<p>With <code>--json</code>, stdout is a single JSON object (<code>schemaVersion</code> <code>1</code>). Fields
+include <code>mode</code> (<code>local</code>, <code>remote</code>, or <code>pr</code>), <code>subject</code>, <code>summary</code>, <code>findings[]</code>,
+<code>warnings[]</code>, <code>usage</code>, and <code>durationMs</code>. Local and remote runs also include diff
+metadata and <code>codegraph</code> state. Errors with <code>--json</code> are JSON on stdout as well.</p>
+<p>Flag details per mode: <a href="local-review.html">Local review</a>, <a href="remote-review.html">Remote review</a>,
+<a href="local-pr-review.html">PR review</a>.</p>
+<h2 id="human-output">Human output</h2>
+<p>Without <code>--json</code>, all three modes print the <strong>same</strong> format. Only the header
+names the mode, because the subject differs:</p>
+<pre><code>co-maintainer review · owner/repo · my-branch
+4 files · +12 −3 · guide built 2026-09-15 · codegraph used
+
+New (1)
+  • src/app.ts:16-18  [P1 · blocking] the gate ignores its threshold
+    A violation exactly at the threshold passes.
+
+Still open (1)
+  • src/util.ts:4  [P2 · non-blocking] the helper ignores its argument
+
+Closed (1)
+  ✓ src/old.ts:9  [P2 · non-blocking] the dead branch
+
+Summary: 1 new · 1 open · 1 closed · 2 blocking
+</code></pre>
+<p>Findings are grouped <code>Closed</code>, <code>Still open</code>, <code>New</code>, each labeled with the same
+<code>blocking</code> decision the exit code uses. The header names the real guide build
+date (<code>guide unknown</code> only when no guide timestamp can be read) and the state
+the run actually reached: <code>codegraph used</code>, <code>codegraph disabled</code>, or
+<code>codegraph unavailable</code>: the last one when codegraph was requested but could
+not be prepared, which is also what <code>--json</code> reports.</p>
+<p>The severity legend and the &quot;If you&#39;d like me to explain it in more detail,
+please ask.&quot; sentence are <strong>not</strong> in terminal output: a terminal has nobody to
+ask, and the legend is fixed noise. Both stay in the GitHub review comment,
+which is a different reader.</p>
+<h2 id="how-findings-are-produced">How findings are produced</h2>
+<p>The model is asked for a JSON object, not for prose. For each finding it returns
+the severity, whether it blocks, the path and line span, the symbol, a title, the
+explanation, and an optional replacement. <code>co-maintainer</code> renders the Markdown
+from that object, so a finding&#39;s boundaries are never guessed from the model&#39;s
+wording. The JSON schema is sent as OpenRouter&#39;s <code>response_format</code> when the
+provider accepts it. A provider that rejects the combination gets one request
+without the schema, and the prompt also asks for a fenced JSON block.</p>
+<p>If the answer is not usable JSON, the request is retried once and then, if it
+still fails, the older Markdown parser reads it. That parser accepts the em
+dash or <code>:</code> as the heading separator, so answers written before this change (and
+carry-over records saved by <code>0.4.13</code>) keep working. The <code>--json</code> output and the
+human output are both built from the same parsed findings, so they can never
+disagree.</p>
+<h2 id="before-any-review">Before any review</h2>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="init.html"><code>init</code></a> or <a href="sync.html"><code>sync</code></a> on your laptop</td>
+<td>Required for local and PR review</td>
+</tr>
+<tr>
+<td><a href="configuration.html">OpenRouter</a> for local and PR review</td>
+<td>AI runs on your machine</td>
+</tr>
+<tr>
+<td><a href="remote-review.html">Remote setup</a> for <code>--remote</code></td>
+<td>Host, token, repo already inited on the server</td>
+</tr>
+</tbody></table>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/review.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#which-mode-should-i-use">Which mode should I use?</a></li><li><a href="#how-the-three-modes-differ">How the three modes differ</a></li><li><a href="#exit-codes">Exit codes</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#human-output">Human output</a></li><li><a href="#how-findings-are-produced">How findings are produced</a></li><li><a href="#before-any-review">Before any review</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

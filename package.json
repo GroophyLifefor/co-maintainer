@@ -34,7 +34,7 @@
     "build": "npm run assets:embed && tsc -p tsconfig.build.json",
     "assets:embed": "node scripts/embed_assets.mjs",
     "prepack": "npm run build",
-    "test": "node --test \"src/**/*.test.ts\" \"benchmark/**/*.test.ts\"",
+    "test": "node --test \"src/**/*.test.ts\" \"scripts/**/*.test.ts\" \"benchmark/**/*.test.ts\"",
     "check": "tsc --noEmit",
     "lint": "oxlint",
     "fmt": "oxfmt --write .",

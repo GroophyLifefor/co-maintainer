@@ -1,0 +1,216 @@
+/** The doc site layout (CORE-80 / D04, D05).
+ *
+ * co-maintainer.com is one origin. The landing page stays at the root and the
+ * pages move under `/docs/`, so the site has a single identity and the old flat
+ * addresses keep working through a redirect stub. This builds the site into a
+ * temp directory and checks what a broken build would break silently: every
+ * page carries a description and a canonical link, every old address is a stub
+ * that points at the new one, and no internal link in the built HTML is dead.
+ */
+import { test } from "node:test";
+import { basename, dirname, join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
+import {
+  makeTempDir,
+  mkdir,
+  readDir,
+  readFile,
+  readTextFile,
+  remove,
+  writeFile,
+} from "../src/util/runtime.ts";
+import {
+  buildDocs,
+  CNAME,
+  LEGACY_REDIRECTS,
+  SITE_ORIGIN,
+  sitemapXml,
+} from "./build_docs.ts";
+
+const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const docsRoot = join(projectRoot, "docs");
+
+/** Copies the hand-maintained files the build does not regenerate, so a temp
+ * build is the same shape as the deployed tree. */
+async function copyStatic(from: string, to: string): Promise<void> {
+  await mkdir(to, { recursive: true });
+  for await (const entry of readDir(from)) {
+    const source = join(from, entry.name);
+    const target = join(to, entry.name);
+    if (entry.isDirectory) await copyStatic(source, target);
+    else if (entry.isFile) await writeFile(target, await readFile(source));
+  }
+}
+
+async function buildInto(): Promise<string> {
+  const outDir = await makeTempDir({ prefix: "cm-docs-" });
+  await writeFile(
+    join(outDir, "index.html"),
+    await readFile(join(docsRoot, "index.html")),
+  );
+  await copyStatic(join(docsRoot, "assets"), join(outDir, "assets"));
+  await buildDocs({
+    outDir: new URL(`file://${outDir.replaceAll("\\", "/")}/`),
+    fetchAssets: false,
+    quiet: true,
+  });
+  return outDir;
+}
+
+/** Every `.html` under a directory. */
+async function htmlFiles(dir: string): Promise<string[]> {
+  const found: string[] = [];
+  for await (const entry of readDir(dir)) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory) found.push(...(await htmlFiles(path)));
+    else if (entry.isFile && entry.name.endsWith(".html")) found.push(path);
+  }
+  return found;
+}
+
+/** Internal links with no file behind them, for a set of pages read from
+ * `root`. Assets are served from the same tree, so they must resolve too. */
+async function deadLinks(
+  root: string,
+  files: readonly string[],
+): Promise<string[]> {
+  const missing: string[] = [];
+  for (const file of files) {
+    const html = await readTextFile(file);
+    for (const match of html.matchAll(/href="([^"]+)"/g)) {
+      const href = match[1];
+      if (
+        href.startsWith("http") ||
+        href.startsWith("#") ||
+        href.startsWith("mailto:")
+      ) {
+        continue;
+      }
+      const [path] = href.split("#");
+      if (path === "") continue;
+      if (!existsSync(join(dirname(file), path))) {
+        missing.push(`${relative(root, file)} -> ${href}`);
+      }
+    }
+  }
+  return missing;
+}
+
+test("every page is written under docs/ with a description and canonical", async () => {
+  const outDir = await buildInto();
+  try {
+    const pages = await htmlFiles(join(outDir, "docs"));
+    if (pages.length !== 13) {
+      throw new Error(`expected 13 doc pages, found ${pages.length}`);
+    }
+    for (const page of pages) {
+      const html = await readTextFile(page);
+      if (!html.includes('name="description"')) {
+        throw new Error(`${page} has no meta description`);
+      }
+      const slug = basename(page).replace(".html", "");
+      const canonical = `${SITE_ORIGIN}/docs/${slug}.html`;
+      if (!html.includes('rel="canonical"')) {
+        throw new Error(`${page} has no canonical link`);
+      }
+      if (!html.includes(canonical)) {
+        throw new Error(`${page} canonical is not ${canonical}`);
+      }
+      if (!html.includes('href="../assets/site.css"')) {
+        throw new Error(`${page} does not reach the shared assets`);
+      }
+    }
+  } finally {
+    await remove(outDir, { recursive: true });
+  }
+});
+
+test("CNAME and sitemap are written", async () => {
+  const outDir = await buildInto();
+  try {
+    const cname = await readTextFile(join(outDir, "CNAME"));
+    if (cname.trim() !== CNAME) {
+      throw new Error(`CNAME was "${cname.trim()}", wanted ${CNAME}`);
+    }
+    const sitemap = await readTextFile(join(outDir, "sitemap.xml"));
+    if (!sitemap.includes(`${SITE_ORIGIN}/`)) {
+      throw new Error("sitemap does not list the landing page");
+    }
+    if (!sitemap.includes(`${SITE_ORIGIN}/docs/getting-started.html`)) {
+      throw new Error("sitemap does not list a doc page");
+    }
+  } finally {
+    await remove(outDir, { recursive: true });
+  }
+});
+
+test("every old flat address redirects to its new page", async () => {
+  const outDir = await buildInto();
+  try {
+    for (const { from, to } of LEGACY_REDIRECTS) {
+      const stubPath = join(outDir, `${from}.html`);
+      if (!existsSync(stubPath)) {
+        throw new Error(`no redirect stub for ${from}.html`);
+      }
+      const html = await readTextFile(stubPath);
+      if (!html.includes(`url=docs/${to}.html`)) {
+        throw new Error(`${from}.html does not refresh to docs/${to}.html`);
+      }
+      if (!html.includes(`${SITE_ORIGIN}/docs/${to}.html`)) {
+        throw new Error(`${from}.html has no canonical to docs/${to}.html`);
+      }
+      if (!html.includes(`href="docs/${to}.html"`)) {
+        throw new Error(`${from}.html has no visible link to docs/${to}.html`);
+      }
+    }
+    // The old name of the sync page keeps resolving.
+    const remake = await readTextFile(join(outDir, "remake.html"));
+    if (!remake.includes("url=docs/sync.html")) {
+      throw new Error("remake.html does not point at the sync page");
+    }
+  } finally {
+    await remove(outDir, { recursive: true });
+  }
+});
+
+test("no internal link in the built site is dead", async () => {
+  const outDir = await buildInto();
+  try {
+    // The temp build holds the landing page, the assets, every doc page, and
+    // every stub, so all internal links resolve inside it.
+    const files = await htmlFiles(outDir);
+    const missing = await deadLinks(outDir, files);
+    if (missing.length > 0) {
+      throw new Error(`dead internal links:\n${missing.join("\n")}`);
+    }
+  } finally {
+    await remove(outDir, { recursive: true });
+  }
+});
+
+test("the repository docs/ tree is the built layout, not the flat one", async () => {
+  // The build overwrites a flat page with a stub, so a stale build is visible:
+  // the new directory must exist, and the old address must be a refresh stub.
+  const page = join(docsRoot, "docs", "getting-started.html");
+  if (!existsSync(page)) {
+    throw new Error("docs/docs/getting-started.html is missing");
+  }
+  const stub = join(docsRoot, "getting-started.html");
+  if (!existsSync(stub)) {
+    throw new Error("the old flat getting-started.html is missing");
+  }
+  const html = await readTextFile(stub);
+  if (!html.includes('http-equiv="refresh"')) {
+    throw new Error("the flat getting-started.html is a full page");
+  }
+});
+
+test("sitemapXml lists the landing page first, then every slug", () => {
+  const xml = sitemapXml(["a", "b"]);
+  const first = xml.indexOf(`${SITE_ORIGIN}/`);
+  const second = xml.indexOf(`${SITE_ORIGIN}/docs/a.html`);
+  if (first < 0 || second < 0 || first > second) {
+    throw new Error(`sitemap order is wrong:\n${xml}`);
+  }
+});

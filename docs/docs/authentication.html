@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Authentication · co-maintainer docs</title>
+  <meta name="description" content="How co-maintainer reads and writes GitHub depends on which surface you use. This page is about CLI and server repo access. Dashboard login and the GitHub...">
+  <link rel="canonical" href="https://co-maintainer.com/docs/authentication.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="authentication.html" class="active">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>Authentication</h1>
+<p>How co-maintainer <strong>reads and writes GitHub</strong> depends on which surface you use.
+This page is about <strong>CLI and server repo access</strong>. Dashboard login and the
+GitHub App are separate mechanisms.</p>
+<h2 id="at-a-glance">At a glance</h2>
+<figure class="mermaid-figure">
+<div class="mermaid-viewport"><div class="mermaid">flowchart LR
+  subgraph cli["CLI probe init sync"]
+    ghcli["--auth=gh via gh"]
+    pat["--auth=pat via token"]
+  end
+  subgraph reviewcli["CLI review"]
+    rgh["PR: gh only"]
+    rlocal["Local: gh or pat for repo id"]
+  end
+  subgraph server["serve"]
+    app["GitHub App installation token"]
+    dash["Dashboard password or GitHub OAuth"]
+  end
+  ghcli --> github[(GitHub API)]
+  pat --> github
+  rgh --> github
+  app --> github</div></div>
+</figure>
+
+
+
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>GitHub identity</th>
+<th>Configure</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>probe</code>, <code>init</code>, <code>sync</code></td>
+<td><code>gh</code> or PAT</td>
+<td><a href="configuration.html">Configuration</a>, flags, <code>--env</code></td>
+</tr>
+<tr>
+<td><code>review</code> (local / remote diff)</td>
+<td>Same as above for mapping the clone to <code>owner/repo</code></td>
+<td><a href="local-review.html">Local review</a></td>
+</tr>
+<tr>
+<td><code>review owner/repo N</code> (PR)</td>
+<td><strong><code>gh</code> only</strong></td>
+<td><code>gh auth login</code></td>
+</tr>
+<tr>
+<td><code>serve</code> webhooks and PR posts</td>
+<td><strong>GitHub App</strong></td>
+<td><code>set --github-app-id</code> + private key</td>
+</tr>
+<tr>
+<td>Dashboard browser session</td>
+<td>Password and/or GitHub OAuth user</td>
+<td><a href="serve.html#sign-in-to-the-dashboard"><code>serve</code></a></td>
+</tr>
+</tbody></table>
+<h2 id="cli---authgh-default">CLI: <code>--auth=gh</code> (default)</h2>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--auth=gh</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">probe</span> <span class="sh-arg">owner/repo</span>
+</code></pre>
+<ul>
+<li>Uses the installed <a href="https://cli.github.com/">GitHub CLI</a>.</li>
+<li>You must run <code>gh auth login</code> yourself. co-maintainer only checks that <code>gh</code>
+can reach GitHub.</li>
+<li>Required for <strong>PR review</strong> (<code>co-maintainer review owner/repo 123</code>).</li>
+</ul>
+<p>Check access: <code>gh auth status</code>.</p>
+<h2 id="cli---authpat">CLI: <code>--auth=pat</code></h2>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">init</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--auth=pat</span> <span class="sh-flag">--env=./.env</span>
+</code></pre>
+<ul>
+<li>Uses a personal access token from <code>--github-pat=...</code>, <code>GITHUB_TOKEN</code> /
+<code>GH_TOKEN</code>, or <code>set --github-pat=...</code>.</li>
+<li>Useful when <code>gh</code> is not installed or CI has no interactive <code>gh</code> login.</li>
+<li>Not used for PR review (that path always calls <code>gh</code>).</li>
+</ul>
+<p>Token needs read access to the repositories you analyze. Private repos need
+scopes your org allows.</p>
+<h2 id="github-app-serve">GitHub App (<code>serve</code>)</h2>
+<p>The App is <strong>not</strong> the same as CLI <code>gh</code> auth:</p>
+<ul>
+<li>Installed on orgs/repos for webhooks and posting PR reviews.</li>
+<li>Configured with <code>co-maintainer set --github-app-id=...</code> and a private key, or
+created for you from dashboard <strong>Settings</strong> with <strong>Create GitHub App</strong>
+(<a href="serve.html#create-the-app-from-the-dashboard"><code>serve</code>: Create the App from the dashboard</a>).</li>
+<li>Optional <code>--github-webhook-secret=</code> verifies inbound webhooks.</li>
+</ul>
+<p>See <a href="configuration.html#set">Configuration</a> and <a href="serve.html"><code>serve</code></a>.</p>
+<h2 id="dashboard-sign-in">Dashboard sign-in</h2>
+<p>Signing into the web UI does <strong>not</strong> replace CLI GitHub auth or the App.
+It only gates access to the dashboard and Settings.</p>
+<p>Setup: <a href="serve.html#sign-in-to-the-dashboard"><code>serve</code>: Sign in</a>.</p>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Likely fix</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>probe</code> / <code>init</code> cannot see a private repo</td>
+<td><code>gh auth login</code> or PAT with repo scope</td>
+</tr>
+<tr>
+<td>PR review says gh only</td>
+<td>Run <code>gh auth login</code>, drop <code>--auth=pat</code> for that command</td>
+</tr>
+<tr>
+<td>Webhook works but no review posted</td>
+<td>Finish dashboard <strong>Setup</strong>, repo <strong>init</strong>, auto-review on</td>
+</tr>
+<tr>
+<td>Settings save returns 422</td>
+<td>Token or App key missing GitHub scopes</td>
+</tr>
+</tbody></table>
+<p>First-time CLI path: <a href="getting-started.html#2-save-defaults">Getting started</a>.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/authentication.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#at-a-glance">At a glance</a></li><li><a href="#cli---authgh-default">CLI: --auth=gh (default)</a></li><li><a href="#cli---authpat">CLI: --auth=pat</a></li><li><a href="#github-app-serve">GitHub App (serve)</a></li><li><a href="#dashboard-sign-in">Dashboard sign-in</a></li><li><a href="#troubleshooting">Troubleshooting</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

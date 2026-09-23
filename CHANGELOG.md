@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dashboard: open pull requests (CORE-72).** The Pull requests tab lists open, non-draft PRs with a **Review** button each.
 - **Dashboard: webhook reachability (CORE-71).** The repo overview warns when the webhook URL is unreachable from GitHub, and shows the last delivery.
 - **`view --remote` (CORE-44).** Read a repository's guides from a remote `serve` over `GET /api/remote/guides`.
+- **Documentation on `co-maintainer.com` (CORE-80).** Every page now lives under `co-maintainer.com/docs/`, and the root is the landing page. Each page carries a meta description, a canonical link to the site origin, and the site ships a `CNAME`, a `sitemap.xml`, and a redirect stub at every old flat address (`remake.html` included). The docs build runs in CI, so a dead internal link or a missing redirect fails a pull request.
 
 ### Changed
 

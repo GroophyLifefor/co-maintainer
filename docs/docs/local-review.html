@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local review · co-maintainer docs</title>
+  <meta name="description" content="Review staged, unstaged, and untracked files in your git clone against a base branch. AI and guides run on your machine (OpenRouter via configuration).">
+  <link rel="canonical" href="https://co-maintainer.com/docs/local-review.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html" class="active">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>Local review</h1>
+<p>Review <strong>staged, unstaged, and untracked</strong> files in your git clone against a
+base branch. AI and guides run on <strong>your machine</strong> (OpenRouter via
+<a href="configuration.html">configuration</a>).</p>
+<p>Overview: <a href="review.html"><code>review</code></a>.</p>
+<h2 id="before-you-run">Before you run</h2>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Run from the repo root (or a subdirectory with a git root)</td>
+<td>Review needs a working tree</td>
+</tr>
+<tr>
+<td><code>origin</code> or <code>upstream</code> points at GitHub (or use <code>--repo=owner/repo</code>)</td>
+<td>Maps the clone to guides for that repo</td>
+</tr>
+<tr>
+<td><a href="init.html"><code>init</code></a> / <a href="sync.html"><code>sync</code></a> for that <code>owner/repo</code></td>
+<td><code>SKILL.md</code> and review guides on disk</td>
+</tr>
+<tr>
+<td>OpenRouter key in <code>set</code>, <code>--token=</code>, or <code>--env=PATH</code></td>
+<td>Local review uses your provider</td>
+</tr>
+<tr>
+<td>Clean enough git state</td>
+<td>Conflicts or broken git state can fail collection</td>
+</tr>
+</tbody></table>
+<h2 id="usage">Usage</h2>
+<pre class="shell-block"><code>cd your/clone
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-flag">--json</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-flag">--fresh</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-flag">--to-branch=main</span> <span class="sh-flag">--sync-before-review</span>
+</code></pre>
+<h2 id="parameters">Parameters</h2>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--json</code></td>
+<td>One JSON document on stdout, no prompts</td>
+</tr>
+<tr>
+<td><code>--disable-codegraph</code></td>
+<td>Skip codegraph tools (default is on)</td>
+</tr>
+<tr>
+<td><code>--allow-tool-install</code></td>
+<td>Install pinned codegraph without a prompt when missing</td>
+</tr>
+<tr>
+<td><code>--fresh</code></td>
+<td>Ignore carry-over from the previous local review on this branch</td>
+</tr>
+<tr>
+<td><code>--to-branch=&lt;name&gt;</code></td>
+<td>Base branch for the diff (default: remote default branch)</td>
+</tr>
+<tr>
+<td><code>--branch=&lt;name&gt;</code></td>
+<td>Branch name when HEAD is detached</td>
+</tr>
+<tr>
+<td><code>--repo=owner/repo</code></td>
+<td>Override GitHub remote detection</td>
+</tr>
+<tr>
+<td><code>--sync-before-review</code></td>
+<td>Run <a href="sync.html"><code>sync</code></a> before reviewing (requires <code>gh</code>)</td>
+</tr>
+<tr>
+<td><code>--debug</code></td>
+<td>Verbose logs on stderr</td>
+</tr>
+<tr>
+<td><code>--log-time</code></td>
+<td>Print timing per phase</td>
+</tr>
+</tbody></table>
+<p>Do not pass <code>owner/repo</code> or a PR number. That selects <a href="local-pr-review.html">PR review</a>
+instead.</p>
+<h2 id="codegraph">Codegraph</h2>
+<p>Local review uses codegraph to follow calls between files. On the first run the
+pinned build is usually missing, and co-maintainer asks before installing it (see
+<a href="caching.html">Caching</a> for the per-version tools directory). The question names
+the package, where it comes from, what it is for, the approximate download size,
+and the exact install directory:</p>
+<pre><code>co-maintainer uses codegraph 1.6.0 (@colbymchenry/codegraph from npm, ~250 MB) to follow calls between files while reviewing.
+Install it into &lt;tools dir&gt;/codegraph/1.6.0 (your global PATH is not touched)? [y/N]
+</code></pre>
+<p>The question is only asked when <strong>both</strong> stdin and stdout are a terminal and
+<code>CI</code> is unset. With a closed stdin (<code>&lt;/dev/null</code>), a piped output, or <code>CI=1</code>, it
+is skipped and review continues without codegraph, printing one line:</p>
+<pre><code>[codegraph] codegraph 1.6.0 is not installed, reviewing without it. Pass --allow-tool-install to install it, or --disable-codegraph to skip this notice.
+</code></pre>
+<p>Pass <code>--allow-tool-install</code> to install without a prompt, or
+<code>--disable-codegraph</code> to skip the check entirely. Neither CI jobs nor pipelines
+can hang on the question.</p>
+<h2 id="carry-over">Carry-over</h2>
+<p>Repeated <code>co-maintainer review</code> on the same repo root and branch reuses prior
+findings (closed / still open / new) via <a href="caching.html">cache</a>. Use <code>--fresh</code> to
+start clean. If the cache cannot be read or written, review continues with a
+<code>carry_over_unavailable</code> warning.</p>
+<p>Carry-over never replaces the review. Every run scans the whole diff for new
+violations <strong>and</strong> re-checks the previous findings. A finding that is still open
+is reported as such rather than suppressing a new one nearby.</p>
+<p>When a guide is rebuilt (<code>init</code> / <code>sync</code>) after your last review on this branch,
+that review&#39;s verdicts were made against rules that no longer exist. The next
+review therefore starts fresh on its own (no <code>--fresh</code> needed), so a stale
+finding cannot hide a violation the new guide would catch.</p>
+<h2 id="developers">Developers</h2>
+<pre class="shell-block"><code>npm run review-local-e2e
+</code></pre>
+<p>Temporary worktree, <code>CM_FAKE_AI=1</code>, optional <code>CM_FAKE_REVIEW_FILE</code>.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/local-review.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#codegraph">Codegraph</a></li><li><a href="#carry-over">Carry-over</a></li><li><a href="#developers">Developers</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

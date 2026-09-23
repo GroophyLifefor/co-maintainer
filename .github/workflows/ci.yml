@@ -38,6 +38,8 @@ jobs:
       - run: npm run check
       - run: npm run lint
       - run: npm run fmt:check
+      - name: Docs build
+        run: npm run docs:build
       - name: Test
         run: npm test
         env:
