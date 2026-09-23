@@ -233,7 +233,7 @@ export async function runLocalReview(
         warnings.push({
           code: "carry_over_unavailable",
           message:
-            "Could not read the local carry-over cache; continuing without prior findings.",
+            "Could not read the local carry-over cache. Continuing without prior findings.",
         });
       }
       let previous = carryLoad.data;

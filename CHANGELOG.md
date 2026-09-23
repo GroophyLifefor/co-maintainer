@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Dashboard: high and low model labels (CORE-74).** "Main model" and "Cheap model" now read "High model" and "Low model", matching the CLI, with hints naming their real jobs.
 - **Windows platform warning (CORE-78).** `serve` no longer points at an internal document. It says Linux (WSL included) is recommended and links to the public troubleshooting page.
+- **No em dash or semicolon in product text (CORE-83).** User-visible copy, the dashboard, the AI prompts that shape a finding, and new changelog entries now use a colon or a comma where an em dash used to sit, and full stops where a semicolon did. The finding heading is `[P2 · non-blocking] \`path\`: \`symbol\``. Comments posted before 0.5.0 still parse, so carry-over keeps working.
 
 ### Fixed
 

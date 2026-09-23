@@ -718,7 +718,7 @@ export function renderCommandHelp(name: string): string | undefined {
   const command = findCommand(name);
   if (!command) return undefined;
   const lines: string[] = [];
-  lines.push(`co-maintainer ${command.name} — ${command.summary}`);
+  lines.push(`co-maintainer ${command.name}: ${command.summary}`);
   lines.push("");
   lines.push("Usage:");
   for (const usage of command.usage) lines.push(`  ${usage}`);

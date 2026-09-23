@@ -104,7 +104,7 @@ export async function openAppDb(): Promise<Database> {
 }
 
 export function getAppDb(): Database {
-  if (!db) throw new Error("app.db is not open; call openAppDb() first");
+  if (!db) throw new Error("app.db is not open. Call openAppDb() first");
   return db;
 }
 

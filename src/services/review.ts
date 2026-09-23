@@ -66,6 +66,10 @@ const ACCESS_DENIED_BODY =
   "The App does not have access to review this pull request.";
 
 export function humanCopy(text: string): string {
+  // The semicolon is prose and always goes. The em dash is left alone here:
+  // this function also sanitizes a finding title, and a title posted before
+  // 0.5.0 uses ` — ` as its path/symbol separator, which the legacy heading
+  // reader still needs (CORE-83 keeps that one allowlisted exception).
   return outsideCode(redact(text), (prose) => prose.replaceAll(";", "."));
 }
 

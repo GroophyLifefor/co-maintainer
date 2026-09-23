@@ -13,7 +13,7 @@ export async function handleInstallationsRoute(
     return errorResponse(
       422,
       "app_not_configured",
-      "GitHub App is not configured; run: co-maintainer set --github-app-id=... --github-app-private-key=...",
+      "GitHub App is not configured. Run: co-maintainer set --github-app-id=... --github-app-private-key=...",
     );
   }
   const installations = await listInstallationsWithRepos(

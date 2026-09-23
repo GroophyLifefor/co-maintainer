@@ -228,7 +228,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
     config.githubPat;
   if (auth === "pat" && !githubPat) {
     die(
-      "--auth=pat requires a GitHub token; pass --github-pat=..., set GITHUB_TOKEN/GH_TOKEN, " +
+      "--auth=pat requires a GitHub token. Pass --github-pat=..., set GITHUB_TOKEN/GH_TOKEN, " +
         "or run: co-maintainer set --github-pat=...",
     );
   }

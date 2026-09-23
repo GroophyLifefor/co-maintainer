@@ -309,7 +309,7 @@ export const PARSE_CASES: ParseCase[] = [
     args: ["init", "owner/repo", "--ai=none", "--auth=pat"],
     expect: {
       error:
-        "--auth=pat requires a GitHub token; pass --github-pat=..., set GITHUB_TOKEN/GH_TOKEN, or run: co-maintainer set --github-pat=...",
+        "--auth=pat requires a GitHub token. Pass --github-pat=..., set GITHUB_TOKEN/GH_TOKEN, or run: co-maintainer set --github-pat=...",
     },
   },
   {

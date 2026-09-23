@@ -41,7 +41,7 @@ const projectRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 /** Text that must never reach a terminal (F21). */
 const TERMINAL_NOISE = [
   "If you'd like me to explain it in more detail, please ask.",
-  "P0 — Critical",
+  "P0: Critical",
 ];
 
 function assertCleanHeader(output: string, mode: string): void {

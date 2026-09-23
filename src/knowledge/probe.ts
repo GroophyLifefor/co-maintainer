@@ -150,7 +150,7 @@ export function analyzeProbe(
             0,
             10,
           )} is recent; use the last ${maxPrMonths} months to prioritize the current contribution and release process.`
-        : `The last ${maxPrMonths} months cover at least 85% of pull requests; older history is a minority.`,
+        : `The last ${maxPrMonths} months cover at least 85% of pull requests. Older history is a minority.`,
     );
   } else if (pulls.length) {
     reasons.push(
@@ -181,7 +181,7 @@ export function analyzeProbe(
   }
   if (maxChangeLines) {
     reasons.push(
-      `The sampled diff p90 is ${p90Diff} lines; the cap keeps the largest outliers out while retaining about 90% of sampled diffs.`,
+      `The sampled diff p90 is ${p90Diff} lines. The cap keeps the largest outliers out while retaining about 90% of sampled diffs.`,
     );
   }
 

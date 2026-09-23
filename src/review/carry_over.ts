@@ -291,10 +291,10 @@ export function buildCarryPromptSection(
   }
   if (verify.length === 0 && unchanged.length === 0) return "";
   const lines = [
-    "PREVIOUS FINDINGS — this run has two separate jobs:",
+    "PREVIOUS FINDINGS (this run has two separate jobs):",
     "1. Scan the DIFF from scratch for every actionable violation under the",
     "   current review guide, exactly as a first review would. Do not let the",
-    "   list below shorten or replace that scan; a changed file can contain a",
+    "   list below shorten or replace that scan. A changed file can contain a",
     "   new finding even when a previous finding already covers its location.",
     "2. For each entry under VERIFY, decide whether the code in the DIFF still",
     "   has that problem. Report every decision in a final section headed",

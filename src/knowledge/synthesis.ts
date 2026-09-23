@@ -230,12 +230,12 @@ function validSection(text: string, key: string): boolean {
 function sectionGoal(key: string): string {
   const goals: Record<string, string> = {
     layout:
-      "Describe module responsibilities and important dependency or change-impact paths; do not list routine public symbols.",
+      "Describe module responsibilities and important dependency or change-impact paths. Do not list routine public symbols.",
     tests:
       "State which verification is required after a behavior change and the dependency/setup that makes it meaningful.",
     devloop:
       "Give local build, debugging, or change-impact guidance that is not already stated in Shipping.",
-    ship: "Give one concise release/CI checklist; merge overlapping workflow, artifact, and release-gate facts.",
+    ship: "Give one concise release/CI checklist. Merge overlapping workflow, artifact, and release-gate facts.",
     style:
       "Keep only repository-specific, evidenced conventions. Return only the heading when none are actionable.",
   };

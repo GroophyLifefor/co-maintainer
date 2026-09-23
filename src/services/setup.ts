@@ -474,7 +474,7 @@ export function optionsFromConfig(
   const highModel = repoConfig.highModel ?? config.highModel;
   if (ai !== "none" && (!config.token || !lowModel || !highModel)) {
     throw new Error(
-      "AI is enabled but token/low-model/high-model are not fully configured; run: " +
+      "AI is enabled but token/low-model/high-model are not fully configured. Run: " +
         "co-maintainer set --token=... --low-model=... --high-model=...",
     );
   }

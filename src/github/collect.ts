@@ -412,7 +412,7 @@ async function pullRequests(
       } catch (error) {
         log(
           "fetch",
-          `PR #${number} detail unavailable; diff skipped: ${String(error)}`,
+          `PR #${number} detail unavailable. Diff skipped: ${String(error)}`,
         );
       }
     }

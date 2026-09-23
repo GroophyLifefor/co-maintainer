@@ -97,7 +97,7 @@ export function resolveAuthMethods(
   const github = enableAuth ? true : Boolean(config.githubAuthEnabled);
   if (!password && !github) {
     die(
-      "at least one sign-in method is required; drop --disable-auth=password or pass --enable-auth=github",
+      "at least one sign-in method is required. Drop --disable-auth=password or pass --enable-auth=github",
     );
   }
   return { password, github };
@@ -188,7 +188,7 @@ export async function runServe(args: string[]): Promise<void> {
       !config.githubOAuthAllowedUser
     ) {
       die(
-        "GitHub sign-in requires OAuth credentials; run:\n" +
+        "GitHub sign-in requires OAuth credentials. Run:\n" +
           "  co-maintainer set --github-oauth-client-id=... --github-oauth-client-secret=... --github-oauth-allowed-user=...",
       );
     }

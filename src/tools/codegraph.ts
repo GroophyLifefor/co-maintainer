@@ -214,7 +214,7 @@ export async function ensureCodegraph(
     // user's "no" was silently ignored. Await it before deciding.
     const approved = await confirm(installPrompt(CODEGRAPH_VERSION, root));
     if (!approved) {
-      log("[codegraph] declined; nothing was installed");
+      log("[codegraph] declined. Nothing was installed");
       exit(1);
     }
   }

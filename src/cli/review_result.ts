@@ -245,15 +245,18 @@ function humanLocation(row: HumanFinding): string {
 }
 
 /** The finding heading, as the shared header prints it. A parsed heading is
- * `[P2 · non-blocking] \`path\` — \`symbol\``; the label and the location are
- * already printed beside it, so only the symbol survives. A heading with no
- * symbol leaves nothing: printing the label or the path again would repeat
- * what the line already says (CORE-43). */
+ * `[P2 · non-blocking] \`path\`: \`symbol\``. The label and the location are
+ * already printed beside it, so only the symbol survives. An older heading
+ * that used an em dash is still accepted, so comments posted before 0.5.0
+ * stay readable. A heading with no symbol leaves nothing: printing the label
+ * or the path again would repeat what the line already says (CORE-43). */
 function humanShortTitle(row: HumanFinding): string {
   const withoutLabel = row.title.replace(/^\[P\d\s*·\s*[^\]]*\]\s*/, "");
   const dash = withoutLabel.indexOf(" — ");
   const tail = dash === -1 ? withoutLabel : withoutLabel.slice(dash + 3);
-  const clean = tail.replace(/^`|`$/g, "").trim();
+  const colon = tail.indexOf(": ");
+  const symbol = colon === -1 ? tail : tail.slice(colon + 2);
+  const clean = symbol.replace(/^`|`$/g, "").trim();
   return clean === "" || clean === row.path ? "" : clean;
 }
 

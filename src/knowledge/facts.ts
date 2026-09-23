@@ -464,7 +464,7 @@ export function extractFacts(source: Source, options: Options): Fact[] {
       facts,
       fact(
         "process",
-        `${merged}/${source.pullRequests.length} selected pull requests are merged; keep work mergeable before requesting review.`,
+        `${merged}/${source.pullRequests.length} selected pull requests are merged. Keep work mergeable before requesting review.`,
         "pull request metadata",
         2,
       ),
@@ -491,7 +491,7 @@ export function extractFacts(source: Source, options: Options): Fact[] {
         facts,
         fact(
           "title-body",
-          "Most selected pull requests contain a substantive description; explain purpose, scope, and verification before requesting review.",
+          "Most selected pull requests contain a substantive description. Explain purpose, scope, and verification before requesting review.",
           "pull request descriptions",
           3,
         ),

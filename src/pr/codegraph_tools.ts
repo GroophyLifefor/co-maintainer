@@ -202,7 +202,7 @@ export function codegraphTools(
               file: {
                 type: "string",
                 description:
-                  "A file path — reads the file's symbol map instead of a single symbol.",
+                  "A file path. Reads the file's symbol map instead of a single symbol.",
               },
               symbolsOnly: {
                 type: "boolean",
@@ -378,7 +378,7 @@ export function codegraphTools(
         function: {
           name: "codegraph-impact",
           description:
-            "Analyze what else in the codebase is affected by changing a specific symbol — its blast radius.",
+            "Analyze what else in the codebase is affected by changing a specific symbol, meaning its blast radius.",
           parameters: {
             type: "object",
             properties: {
@@ -415,7 +415,7 @@ export function codegraphTools(
         function: {
           name: "codegraph-affected",
           description:
-            "Find test files affected by one or more changed source files — the direct way to check whether a change is covered by any test, instead of guessing from the diff.",
+            "Find test files affected by one or more changed source files. This is the direct way to check whether a change is covered by any test, instead of guessing from the diff.",
           parameters: {
             type: "object",
             properties: {

@@ -155,7 +155,7 @@ function findingMarkdown(raw: JsonFinding): string | undefined {
   const suggestion = asSource(raw.suggestion);
 
   const lines = [
-    `### [${level} · ${impact}] \`${path}\`${symbol ? ` — \`${symbol}\`` : ""}`,
+    `### [${level} · ${impact}] \`${path}\`${symbol ? `: \`${symbol}\`` : ""}`,
     `Location: \`${path}:${span}\``,
     "",
     asText(raw.body),

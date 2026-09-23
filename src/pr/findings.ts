@@ -69,7 +69,7 @@ function newFinding(header: string, block: string): ParsedFinding | undefined {
     // it, and may omit the symbol entirely.
     path: at.path || path,
     heading: symbol
-      ? `[${severity} · ${impact}] \`${path}\` — \`${symbol}\``
+      ? `[${severity} · ${impact}] \`${path}\`: \`${symbol}\``
       : `[${severity} · ${impact}] \`${path}\``,
     excerpt,
     severity,

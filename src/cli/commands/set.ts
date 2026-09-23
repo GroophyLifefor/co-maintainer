@@ -189,7 +189,7 @@ export async function runSet(args: string[]): Promise<void> {
 
   if (Object.keys(patch).length === 0) {
     die(
-      "Nothing to set; pass --token= (or --ai-key=), --ai=, --low-model=, --high-model=, --auth=, --github-pat=, " +
+      "Nothing to set. Pass --token= (or --ai-key=), --ai=, --low-model=, --high-model=, --auth=, --github-pat=, " +
         "--github-app-id=, --github-app-private-key(-file|-path)=, --github-webhook-secret=, " +
         "--github-oauth-client-id=, --github-oauth-client-secret=, --github-oauth-allowed-user=, " +
         "--remote-host=, --remote-token=, --review-blocking=model|severity, " +
