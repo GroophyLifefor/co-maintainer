@@ -82,7 +82,7 @@ Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
 | `/setup` | Same checklist as above (direct URL) |
 | `/repos/new` | Pick an App-installed repo and start **init** |
 | `/repos/:owner/:repo` | Overview, 30-day stats, drift **Update now**, recent PRs, webhook reachability and last delivery |
-| `/repos/:owner/:repo/pulls` | PR list by number, manual **Review** when webhooks fail |
+| `/repos/:owner/:repo/pulls` | Open PR list with a **Review** button each, paged review history, manual **Review** by number when webhooks fail |
 | `/repos/:owner/:repo/pulls/:n` | Findings and cost for one PR |
 | `/repos/:owner/:repo/remote` | Remote CLI reviews for this repo (last 30 days) |
 | `/repos/:owner/:repo/knowledge` | Generated guides, **Sync** |

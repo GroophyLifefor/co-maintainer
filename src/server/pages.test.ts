@@ -8,6 +8,7 @@ import { insertFinding } from "../store/findings.ts";
 import { insertJob, setJobStatus } from "../store/jobs.ts";
 import { upsertDrift } from "../store/drift.ts";
 import { recordDelivery } from "../store/deliveries.ts";
+import { TEST_PKCS1_PEM } from "../testing/fixtures/rsa_key.ts";
 import {
   deleteEnv,
   getEnv,
@@ -557,6 +558,95 @@ test("a repo with no deliveries says so instead of staying silent", async () => 
     }
     if (!html.includes("the last webhook delivery is never")) {
       throw new Error("the empty state omitted the never reading");
+    }
+  });
+});
+
+test("the pulls tab lists open pull requests and starts a review from one", async () => {
+  await withEnv(async () => {
+    activateRepo("acme/widgets", 9);
+    await writeUserConfig({
+      githubAppId: "4900449",
+      githubAppPrivateKey: TEST_PKCS1_PEM,
+    });
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/app/installations")) {
+        return Response.json([
+          {
+            id: 7,
+            account: { login: "acme", type: "Organization" },
+            suspended_at: null,
+          },
+        ]);
+      }
+      if (url.includes("/access_tokens")) {
+        return Response.json({
+          token: "ghs_x",
+          expires_at: new Date(Date.now() + 3600_000).toISOString(),
+        });
+      }
+      if (url.includes("/installation/repositories")) {
+        return Response.json({
+          repositories: [{ full_name: "acme/widgets", private: false }],
+        });
+      }
+      if (url.includes("/repos/acme/widgets/pulls")) {
+        return Response.json([
+          {
+            number: 12,
+            title: "Tidy the helper",
+            draft: false,
+            user: { login: "octocat" },
+            head: { ref: "fix/helper" },
+            updated_at: "2026-09-22T10:00:00Z",
+          },
+        ]);
+      }
+      throw new Error(`unexpected request: ${url}`);
+    }) as typeof fetch;
+    try {
+      const app = createApp({ password: PASSWORD });
+      const cookie = await cookieSession(app);
+      const html = await (
+        await app.fetch(
+          new Request("http://localhost/repos/acme/widgets/pulls", {
+            headers: { cookie },
+          }),
+        )
+      ).text();
+      if (!html.includes('data-review-pr="12"')) {
+        throw new Error(
+          "the open pull request was not listed with a review button",
+        );
+      }
+      if (!html.includes("Tidy the helper") || !html.includes("fix/helper")) {
+        throw new Error("the open pull request row is missing its fields");
+      }
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});
+
+test("the pulls tab explains itself when the App is not configured", async () => {
+  await withEnv(async () => {
+    activateRepo("acme/widgets", 9);
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(
+        new Request("http://localhost/repos/acme/widgets/pulls", {
+          headers: { cookie },
+        }),
+      )
+    ).text();
+    if (!html.includes("Configure the GitHub App to list open pull requests")) {
+      throw new Error("the unconfigured state stayed silent");
+    }
+    if (!html.includes('id="manual-review"')) {
+      throw new Error("the by-number form disappeared");
     }
   });
 });

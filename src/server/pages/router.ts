@@ -44,7 +44,8 @@ import { renderSettings } from "./settings.ts";
 import { getRepo } from "../../store/repos.ts";
 import { getJob } from "../../store/jobs.ts";
 import { getLogsSince } from "../../services/jobs.ts";
-import { listInstallationsWithRepos } from "../../github/app.ts";
+import { listInstallationsWithRepos, listOpenPulls } from "../../github/app.ts";
+import type { OpenPull } from "../../github/app.ts";
 
 export type PageDeps = {
   passwordStore: PasswordStore;
@@ -224,6 +225,7 @@ export async function handlePageRequest(
           username,
           fullName,
           repoPulls(fullName, page, 20),
+          await openPullsFor(fullName, deps.githubApp),
         );
       }
       if (sub === "remote") {
@@ -343,6 +345,30 @@ function isPagePath(pathname: string): boolean {
     pathname === "/repos/new" ||
     pathname.startsWith("/repos/")
   );
+}
+
+/** Open pull requests for the Pull requests tab, or `undefined` when the App
+ * is not configured or cannot see the repo. A GitHub failure degrades to
+ * `undefined` (the tab still works by number) rather than blanking the page. */
+async function openPullsFor(
+  fullName: string,
+  githubApp: PageDeps["githubApp"],
+): Promise<{ pulls: OpenPull[] | undefined; appConfigured: boolean }> {
+  if (!githubApp) return { pulls: undefined, appConfigured: false };
+  try {
+    const pulls = await listOpenPulls(
+      githubApp.appId,
+      githubApp.privateKeyPem,
+      fullName,
+    );
+    return { pulls, appConfigured: true };
+  } catch (error) {
+    console.error(
+      "[dashboard] Could not list open pull requests:",
+      error instanceof Error ? (error.stack ?? error.message) : String(error),
+    );
+    return { pulls: undefined, appConfigured: true };
+  }
 }
 
 async function sessionOf(request: Request) {
