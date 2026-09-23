@@ -60,6 +60,19 @@ function chatReply(content: string): { status: number; body: string } {
   return { status: 200, body: JSON.stringify(body) };
 }
 
+/** What a schema-aware model answers a review with (CORE-40): the JSON object
+ * the `response_format` asks for. A clean review is `{"findings":[]}`, which
+ * renders as `No actionable findings.` — the same shape the Markdown path
+ * produced, so downstream tests need no change. */
+const REVIEW_JSON = JSON.stringify({ findings: [] });
+
+/** True when the request asked for the findings JSON schema. The CLI only sets
+ * `response_format` for a review, so this is how the fake tells a review call
+ * from an extraction or section call without looking at the prompt. */
+function wantsFindingsJson(body: Record<string, unknown> | undefined): boolean {
+  return body?.response_format !== undefined;
+}
+
 /** The prompt text of a chat request: system and user messages joined, used to
  * tell an extraction request from a section request so a test can answer each
  * with the shape its parser expects. */
@@ -155,9 +168,14 @@ export function startFakeOpenRouter(
   options: {
     flakyJsonFailures?: number;
     chatContent?: (prompt: string) => string;
+    /** The findings JSON object a review call answers with (CORE-40), as a
+     * string. Defaults to a clean review. Set it to check that the CLI renders
+     * real findings from the structured path end to end. */
+    reviewJson?: string;
   } = {},
 ): Promise<FakeOpenRouter> {
   const flakyJsonFailures = options.flakyJsonFailures ?? 1;
+  const reviewJson = options.reviewJson ?? REVIEW_JSON;
   const requests: Record<string, unknown>[] = [];
   let chatCalls = 0;
   const server: Server = createServer((request, response) => {
@@ -181,6 +199,15 @@ export function startFakeOpenRouter(
         chatCalls++;
         failed = chatCalls <= flakyJsonFailures;
       }
+      // A review asks for the findings schema. Answer it with that shape only
+      // when the mode itself would succeed; an error mode must still surface
+      // its status so the error paths stay testable (CORE-40). Everything that
+      // is not a review keeps the mode's canned reply.
+      const base = reply(mode);
+      const isReview =
+        wantsFindingsJson(parsed) &&
+        base.status === 200 &&
+        options.chatContent === undefined;
       const { status, body } =
         request.method === "GET"
           ? verifyReply(path, mode)
@@ -189,9 +216,13 @@ export function startFakeOpenRouter(
               // exactly the F04 shape, where the failure is in the model's
               // answer rather than the transport.
               chatReply("I could not find anything useful.")
-            : options.chatContent === undefined
-              ? reply(mode)
-              : chatReply(options.chatContent(parsed ? promptOf(parsed) : ""));
+            : isReview
+              ? chatReply(reviewJson)
+              : options.chatContent === undefined
+                ? base
+                : chatReply(
+                    options.chatContent(parsed ? promptOf(parsed) : ""),
+                  );
       response.writeHead(status, { "content-type": "application/json" });
       response.end(body);
     });

@@ -66,10 +66,11 @@ export class OpenRouterProvider implements AiProvider {
     this.model = model;
   }
 
-  async complete(request: AiRequest): Promise<AiResponse> {
-    let response: Response;
+  /** One POST. Returns the raw response so `complete` can decide whether the
+   * failure is worth a retry without the schema. */
+  private async post(body: Json): Promise<Response> {
     try {
-      response = await fetch(this.endpoint, {
+      return await fetch(this.endpoint, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
@@ -77,11 +78,38 @@ export class OpenRouterProvider implements AiProvider {
           "HTTP-Referer": "https://github.com/GroophyLifefor/co-maintainer",
           "X-Title": "co-maintainer",
         },
-        body: JSON.stringify(chatBody(this.model, request)),
+        body: JSON.stringify(body),
       });
     } catch (error) {
       // `fetch failed` alone names neither the host nor the cause (CORE-12).
       throw networkFailure(this.endpoint, error);
+    }
+  }
+
+  async complete(request: AiRequest): Promise<AiResponse> {
+    let response = await this.post(chatBody(this.model, request));
+    // A provider may refuse `response_format` next to `tools`. The schema is
+    // only a hint — the prompt also asks for a fenced JSON block — so one
+    // retry without it is better than failing the review (CORE-40).
+    if (response.status === 400 && request.responseFormat) {
+      const detail = await response.text();
+      if (/response_format|json_schema|structured/i.test(detail)) {
+        const { responseFormat: _dropped, ...withoutSchema } = request;
+        response = await this.post(chatBody(this.model, withoutSchema));
+        if (response.ok) {
+          return parseChatResponse(
+            (await response.json()) as Json,
+            "openrouter",
+            this.model,
+          );
+        }
+        throw openRouterError(
+          this.model,
+          response.status,
+          await response.text(),
+        );
+      }
+      throw openRouterError(this.model, response.status, detail);
     }
     if (!response.ok) {
       throw openRouterError(this.model, response.status, await response.text());

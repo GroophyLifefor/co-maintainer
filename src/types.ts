@@ -89,6 +89,10 @@ export type AiRequest = {
   tools?: Json[];
   maxTokens: number;
   job: string;
+  /** A JSON schema the response must satisfy, sent as OpenRouter's
+   * `response_format`. Providers without structured output ignore it, so the
+   * model is also asked for a fenced JSON block in the prompt (CORE-40). */
+  responseFormat?: Json;
   // The full scale OpenRouter exposes for models that support it (see a
   // model's `reasoning.supported_efforts`), highest first. Not every model
   // supports every level — "max"/"xhigh" are newer additions some models

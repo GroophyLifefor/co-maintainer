@@ -91,6 +91,22 @@ metadata and `codegraph` state. Errors with `--json` are JSON on stdout as well.
 Flag details per mode: [Local review](local-review.md), [Remote review](remote-review.md),
 [PR review](local-pr-review.md).
 
+## How findings are produced
+
+The model is asked for a JSON object, not for prose. For each finding it returns
+the severity, whether it blocks, the path and line span, the symbol, a title, the
+explanation, and an optional replacement. `co-maintainer` renders the Markdown
+from that object, so a finding's boundaries are never guessed from the model's
+wording. The JSON schema is sent as OpenRouter's `response_format` when the
+provider accepts it; a provider that rejects the combination gets one request
+without the schema, and the prompt also asks for a fenced JSON block.
+
+If the answer is not usable JSON, the request is retried once and then, if it
+still fails, the older Markdown parser reads it. That parser accepts `—` or `:`
+as the heading separator, so answers written before this change (and carry-over
+records saved by `0.4.13`) keep working. The `--json` output and the human output
+are both built from the same parsed findings, so they can never disagree.
+
 ## Before any review
 
 | Check | Why |

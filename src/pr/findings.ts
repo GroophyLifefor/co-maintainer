@@ -15,8 +15,15 @@ export type ParsedFinding = Span & {
 
 const FILE_LINE =
   /(?<path>(?:[\w.-]+\/)*[\w.-]+\.[A-Za-z0-9]+):(?<from>\d+)(?:-(?<to>\d+))?/g;
+/** The finding heading: `[P2 · non-blocking] \`path\` — \`symbol\``. The model
+ * sometimes writes `:` where the prompt asked for the em dash, and sometimes
+ * leaves the symbol off. Both are accepted: an unrecognised heading used to
+ * send every finding down the fallback path, which is what produced the
+ * truncated and shifted output in F02. The separator may also sit directly
+ * against the path (`\`src/a.ts\`: \`helper()\``), which is how the model
+ * usually writes the colon form. */
 const NEW_HEADING =
-  /^\[(?<severity>P[0-3])\s*·\s*(?<impact>blocking|non-blocking)\]\s+(?<path>.+?)\s+—\s+(?<symbol>.+)$/;
+  /^\[(?<severity>P[0-3])\s*·\s*(?<impact>blocking|non-blocking)\]\s+(?<path>.+?)(?:\s*(?:—|:)\s*(?<symbol>.+))?$/;
 
 function uncode(value: string): string {
   return value.trim().replace(/^`|`$/g, "").trim();
@@ -51,19 +58,23 @@ function newFinding(header: string, block: string): ParsedFinding | undefined {
   const at = location(block);
   if (!at) return undefined;
   const path = uncode(meta.groups.path);
-  const symbol = uncode(meta.groups.symbol);
+  const symbol = uncode(meta.groups.symbol ?? "");
   const severity = meta.groups.severity;
   const impact = meta.groups.impact;
   const excerpt = bodyWithoutLocation(block);
   const summary = excerpt.split(/\r?\n/).find((line) => line.trim()) ?? "";
   return {
     ...at,
-    path,
-    heading: `[${severity} · ${impact}] \`${path}\` — \`${symbol}\``,
+    // The Location line is authoritative for the path; the heading only names
+    // it, and may omit the symbol entirely.
+    path: at.path || path,
+    heading: symbol
+      ? `[${severity} · ${impact}] \`${path}\` — \`${symbol}\``
+      : `[${severity} · ${impact}] \`${path}\``,
     excerpt,
     severity,
     blocking: impact === "blocking",
-    symbol,
+    symbol: symbol || undefined,
     summary,
   };
 }
