@@ -7,7 +7,17 @@ name: Publish beta image
 #
 # It refuses a stable version on purpose: the image path through `publish.yml`
 # owns `latest`, and letting this workflow touch a stable tag would race it.
+#
+# The trigger is a tag push, not `workflow_dispatch`, because GitHub only lists
+# and dispatches a `workflow_dispatch` workflow that exists on the default
+# branch. The beta branch is not the default branch, so a dispatch version never
+# appeared in the Actions tab. A `push` on a tag runs from the pushed tag's own
+# tree, which is exactly the prerelease commit. `workflow_dispatch` stays for
+# the day this file reaches `main`.
 on:
+  push:
+    tags:
+      - "v*-*" # prerelease tags, e.g. v0.5.0-beta.1. Stable tags stay on publish.yml.
   workflow_dispatch:
     inputs:
       ref:
@@ -27,7 +37,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
+          # On a tag push `inputs.ref` is empty, so fall back to the pushed ref.
+          ref: ${{ inputs.ref || github.ref }}
       - name: Require a prerelease version
         id: image
         run: |
