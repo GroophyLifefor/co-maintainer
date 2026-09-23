@@ -128,6 +128,7 @@ URL, dashboard auth defaults, and CLI remote-review targets.</p>
   <span class="sh-flag">--low-model=openai/gpt-oss-120b</span> <span class="sh-flag">--high-model=openai/gpt-5.6-luna</span>
 
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-app-id=...</span> <span class="sh-flag">--github-app-private-key-file=./app.pem</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-app-id=...</span> <span class="sh-flag">--github-app-private-key-path=./app.pem</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--remote-host=https://your-server</span> <span class="sh-flag">--remote-token=cmr_...</span>
 </code></pre>
 <h3 id="set-flags"><code>set</code> flags</h3>
@@ -181,7 +182,12 @@ URL, dashboard auth defaults, and CLI remote-review targets.</p>
 </tr>
 <tr>
 <td><code>--github-app-private-key-file=path</code></td>
-<td>same as inline key</td>
+<td><code>githubAppPrivateKey</code> (contents)</td>
+<td><code>serve</code></td>
+</tr>
+<tr>
+<td><code>--github-app-private-key-path=path</code></td>
+<td><code>githubAppPrivateKeyPath</code> (path only)</td>
 <td><code>serve</code></td>
 </tr>
 <tr>
@@ -225,6 +231,20 @@ URL, dashboard auth defaults, and CLI remote-review targets.</p>
 <td>Whether a review&#39;s own severity decides a blocking finding</td>
 </tr>
 </tbody></table>
+<h3 id="app-private-key-inline-file-contents-or-path">App private key: inline, file contents, or path</h3>
+<p>Three flags set the GitHub App private key, and they differ in what lands in
+<code>config.json</code>:</p>
+<ul>
+<li><code>--github-app-private-key=PEM</code> writes the key itself.</li>
+<li><code>--github-app-private-key-file=path</code> reads the file and writes its
+<strong>contents</strong>. If the file later moves or is deleted, the App keeps working.</li>
+<li><code>--github-app-private-key-path=path</code> writes only the <strong>path</strong>. The key stays
+on disk and is read at startup, so the secret never enters <code>config.json</code>. If
+the file is missing or unreadable, <code>serve</code> warns at startup that the App will
+not work.</li>
+</ul>
+<p>An inline key wins if both an inline key and a path are ever present. <code>set</code>
+clears the other form when you pass one, so the choice is unambiguous.</p>
 <h3 id="verification-before-saving">Verification before saving</h3>
 <p>When the provider is OpenRouter, <code>set</code> checks the key against
 <code>/api/v1/key</code> and, if a model is given, that <code>/api/v1/models</code> lists it. A bad

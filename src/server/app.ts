@@ -13,7 +13,7 @@ import {
 import { memoryPasswordStore } from "./auth.ts";
 import { clientAddress, forwardedHttps } from "./proxy_headers.ts";
 import type { AuthMethods, PasswordStore } from "./auth.ts";
-import { readConfig } from "../config.ts";
+import { readConfig, resolveAppPrivateKey } from "../config.ts";
 import { listJobs } from "../store/jobs.ts";
 import { handleJobsRoute } from "./api/jobs.ts";
 import { handleReposRoute } from "./api/repos.ts";
@@ -56,7 +56,7 @@ function setupStatus() {
   const github = Boolean(
     config.auth === "gh" || (config.auth === "pat" && config.githubPat),
   );
-  const app = Boolean(config.githubAppId && config.githubAppPrivateKey);
+  const app = Boolean(config.githubAppId && resolveAppPrivateKey(config));
   const missing = [
     !ai && "ai",
     !github && "github",
@@ -133,12 +133,13 @@ function health(): Response {
  * without restarting `serve`. */
 function liveGithubConfig() {
   const config = readConfig();
+  const privateKeyPem = resolveAppPrivateKey(config);
   return {
     githubApp:
-      config.githubAppId && config.githubAppPrivateKey
+      config.githubAppId && privateKeyPem
         ? {
             appId: config.githubAppId,
-            privateKeyPem: config.githubAppPrivateKey,
+            privateKeyPem,
           }
         : undefined,
     webhookSecret: config.githubWebhookSecret,

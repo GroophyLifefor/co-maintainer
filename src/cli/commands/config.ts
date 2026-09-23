@@ -151,6 +151,7 @@ export const KNOWN_FIELDS = [
   "githubPat",
   "githubAppId",
   "githubAppPrivateKey",
+  "githubAppPrivateKeyPath",
   "githubWebhookSecret",
   "webhookUrl",
   "githubOAuthClientId",

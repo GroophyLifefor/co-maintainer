@@ -1,5 +1,9 @@
 import { errorResponse } from "../errors.ts";
-import { readConfig, writeUserConfig } from "../../config.ts";
+import {
+  readConfig,
+  resolveAppPrivateKey,
+  writeUserConfig,
+} from "../../config.ts";
 import type { UserConfig } from "../../config.ts";
 import { testAppAccess, testGithubAccess } from "../../services/credentials.ts";
 import {
@@ -246,7 +250,7 @@ export async function handleSettingsRoute(
     if (touchingApp) {
       const app = await testAppAccess({
         appId: merged.githubAppId ?? "",
-        privateKeyPem: merged.githubAppPrivateKey ?? "",
+        privateKeyPem: resolveAppPrivateKey(merged) ?? "",
       });
       if (!app.ok) {
         return errorResponse(422, "app_access", app.message);
@@ -264,7 +268,7 @@ export async function handleSettingsRoute(
     });
     const app = await testAppAccess({
       appId: config.githubAppId ?? "",
-      privateKeyPem: config.githubAppPrivateKey ?? "",
+      privateKeyPem: resolveAppPrivateKey(config) ?? "",
     });
     return Response.json({
       ai: { ok: Boolean(config.ai && config.ai !== "none" && config.token) },

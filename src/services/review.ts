@@ -33,7 +33,7 @@ import {
 } from "../review/blocking.ts";
 import { matchRepeat } from "../pr/rounds.ts";
 import type { Snapshot } from "../pr/snapshot.ts";
-import { readConfig } from "../config.ts";
+import { readConfig, resolveAppPrivateKey } from "../config.ts";
 import { outsideCode, redact } from "../util/redact.ts";
 import { getRepo, setInstallationId } from "../store/repos.ts";
 import {
@@ -251,14 +251,11 @@ export function aiFor(options: Options): AiProvider {
 
 export function clientFor(installationId: number): GitHubClient {
   const config = readConfig();
-  if (!config.githubAppId || !config.githubAppPrivateKey) {
+  const privateKeyPem = resolveAppPrivateKey(config);
+  if (!config.githubAppId || !privateKeyPem) {
     throw new Error("review jobs need the GitHub App configured");
   }
-  return new AppClient(
-    config.githubAppId,
-    config.githubAppPrivateKey,
-    installationId,
-  );
+  return new AppClient(config.githubAppId, privateKeyPem, installationId);
 }
 
 export async function resolveInstallationId(
@@ -267,10 +264,11 @@ export async function resolveInstallationId(
   const current = getRepo(fullName)?.installation_id;
   if (current) return current;
   const config = readConfig();
-  if (!config.githubAppId || !config.githubAppPrivateKey) return undefined;
+  const privateKeyPem = resolveAppPrivateKey(config);
+  if (!config.githubAppId || !privateKeyPem) return undefined;
   const installationId = await findInstallationForRepo(
     config.githubAppId,
-    config.githubAppPrivateKey,
+    privateKeyPem,
     fullName,
   );
   if (installationId !== undefined) setInstallationId(fullName, installationId);

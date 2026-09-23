@@ -51,6 +51,7 @@ co-maintainer set --auth=gh --ai=openrouter --token=YOUR_KEY \
   --low-model=openai/gpt-oss-120b --high-model=openai/gpt-5.6-luna
 
 co-maintainer set --github-app-id=... --github-app-private-key-file=./app.pem
+co-maintainer set --github-app-id=... --github-app-private-key-path=./app.pem
 co-maintainer set --remote-host=https://your-server --remote-token=cmr_...
 ```
 
@@ -66,7 +67,8 @@ co-maintainer set --remote-host=https://your-server --remote-token=cmr_...
 | `--github-pat=...` | `githubPat` | CLI when `--auth=pat` |
 | `--github-app-id=...` | `githubAppId` | `serve` |
 | `--github-app-private-key=...` | `githubAppPrivateKey` | `serve` |
-| `--github-app-private-key-file=path` | same as inline key | `serve` |
+| `--github-app-private-key-file=path` | `githubAppPrivateKey` (contents) | `serve` |
+| `--github-app-private-key-path=path` | `githubAppPrivateKeyPath` (path only) | `serve` |
 | `--github-webhook-secret=...` | `githubWebhookSecret` | `serve` webhook HMAC |
 | `--github-oauth-client-id=...` etc. | OAuth fields | Dashboard GitHub sign-in |
 | `--password=...` | `dashboardPasswordHash` (stored as a hash) | Dashboard password sign-in |
@@ -75,6 +77,23 @@ co-maintainer set --remote-host=https://your-server --remote-token=cmr_...
 | `--remote-host=...` | `remoteHost` | `review --remote` |
 | `--remote-token=...` | `remoteToken` | `review --remote` |
 | `--review-blocking=model\|severity` | `reviewBlocking` | Whether a review's own severity decides a blocking finding |
+
+### App private key: inline, file contents, or path
+
+Three flags set the GitHub App private key, and they differ in what lands in
+`config.json`:
+
+- `--github-app-private-key=PEM` writes the key itself.
+- `--github-app-private-key-file=path` reads the file and writes its
+  **contents**. If the file later moves or is deleted, the App keeps working.
+- `--github-app-private-key-path=path` writes only the **path**. The key stays
+  on disk and is read at startup, so the secret never enters `config.json`. If
+  the file is missing or unreadable, `serve` warns at startup that the App will
+  not work.
+
+An inline key wins if both an inline key and a path are ever present. `set`
+clears the other form when you pass one, so the choice is unambiguous.
+
 ### Verification before saving
 
 When the provider is OpenRouter, `set` checks the key against

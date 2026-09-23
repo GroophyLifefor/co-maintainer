@@ -28,7 +28,11 @@ import {
   statsForRange,
 } from "../../services/dashboard.ts";
 import { escapeHtml, html, money } from "./layout.ts";
-import { readConfig, writeUserConfig } from "../../config.ts";
+import {
+  readConfig,
+  resolveAppPrivateKey,
+  writeUserConfig,
+} from "../../config.ts";
 import type { UserConfig } from "../../config.ts";
 import {
   appNameProblem,
@@ -189,7 +193,7 @@ export async function handlePageRequest(
         github: Boolean(
           config.auth === "gh" || (config.auth === "pat" && config.githubPat),
         ),
-        app: Boolean(config.githubAppId && config.githubAppPrivateKey),
+        app: Boolean(config.githubAppId && resolveAppPrivateKey(config)),
       });
     }
     if (url.pathname === "/repos/new" && request.method === "GET") {

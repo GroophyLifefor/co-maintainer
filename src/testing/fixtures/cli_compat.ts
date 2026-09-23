@@ -447,6 +447,15 @@ export const SET_CASES: SetCase[] = [
     contains: "[set] updated:",
   },
   {
+    name: "set stores the App key path without touching the file",
+    args: ["--github-app-id=123", "--github-app-private-key-path=./app.pem"],
+    config: {
+      githubAppId: "123",
+      githubAppPrivateKeyPath: "./app.pem",
+    },
+    contains: "githubAppPrivateKeyPath=./app.pem",
+  },
+  {
     name: "set stores the remote review target",
     args: ["--remote-host=https://example.test", "--remote-token=rtok"],
     config: {
@@ -486,7 +495,7 @@ export const SET_CASES: SetCase[] = [
     args: ["--github-app-private-key=A", "--github-app-private-key-file=x"],
     config: {},
     error:
-      "Pass only one of --github-app-private-key or --github-app-private-key-file",
+      "Pass only one of --github-app-private-key, --github-app-private-key-file, or --github-app-private-key-path",
   },
 ];
 

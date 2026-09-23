@@ -142,12 +142,20 @@ CLI-only users can ignore <code>serve</code> until they need shared context or a
 </tbody></table>
 <h2 id="usage">Usage</h2>
 <pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-app-id=...</span> <span class="sh-flag">--github-app-private-key-file=./app.pem</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-app-id=...</span> <span class="sh-flag">--github-app-private-key-path=./app.pem</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-webhook-secret=...</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">serve</span> <span class="sh-flag">--port=5000</span>
 
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">serve</span> <span class="sh-flag">--port=5000</span> <span class="sh-flag">--password=your-dashboard-secret</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">serve</span> <span class="sh-flag">--port=5000</span> <span class="sh-flag">--webhook-url=https://example.com/github/webhook</span>
 </code></pre>
+<p><code>--github-app-private-key-file</code> copies the key into <code>config.json</code>.
+<code>--github-app-private-key-path</code> stores only the path, so the key stays on disk
+and is read at startup. If that file is missing, <code>serve</code> warns and continues.
+See <a href="configuration.html#app-private-key-inline-file-contents-or-path">Configuration: App private key</a>.</p>
+<p>On non-Linux platforms, <code>serve</code> logs a one-line warning that Linux (WSL
+included) is recommended, with a link to
+<a href="https://co-maintainer.com/docs/troubleshooting.html">docs</a>. Nothing is blocked.</p>
 <p>At startup, <code>serve</code> prints <code>app.db</code> path, dashboard URL, and webhook URL. On the
 first start with password auth on it also generates a dashboard password and
 prints it once. The password is stored in <code>config.json</code> as a hash, so later
@@ -314,15 +322,25 @@ set it on the volume before the first start:</p>
   <span class="sh-arg">ghcr.io/groophylifefor/co-maintainer:latest</span> <span class="sh-arg">set</span> <span class="sh-flag">--password=your-dashboard-secret</span>
 </code></pre>
 <ul>
-<li>Everything lives in the <code>/data</code> volume: <code>config.json</code>, <code>app.db</code>, generated
-guides, and repository clones. Keep it to survive upgrades.</li>
-<li>The container listens on port <code>5000</code> and runs as the non-root <code>node</code> user
-(uid 1000). A bind mounted host folder must be writable by that user.</li>
-<li>The image runs <code>serve --port=5000</code> by default. Any other command works too,
-for example <code>... set --token=...</code>. The health check assumes port <code>5000</code>.</li>
-<li>Run one container per volume. Only one <code>serve</code> may write to an <code>app.db</code>.</li>
-<li>Upgrade by pulling the new tag and recreating the container with the same
-volume. Queued jobs that were interrupted are picked up again on start.</li>
+<li><p>Everything lives in the <code>/data</code> volume: <code>config.json</code>, <code>app.db</code>, generated
+guides, and repository clones. Keep it to survive upgrades.</p>
+</li>
+<li><p>The container listens on port <code>5000</code> and runs as the non-root <code>node</code> user
+(uid 1000). A bind mounted host folder must be writable by that user.</p>
+</li>
+<li><p>The image runs <code>serve --port=5000</code> by default. Any other command works too,
+for example <code>... set --token=...</code>. The health check assumes port <code>5000</code>.</p>
+</li>
+<li><p>Run one container per volume. Only one <code>serve</code> may write to an <code>app.db</code>.</p>
+</li>
+<li><p>Upgrade by pulling the new tag and recreating the container with the same
+volume. Queued jobs that were interrupted are picked up again on start.</p>
+</li>
+<li><p><strong>Inline, file, and path.</strong> <code>set</code> writes the App private key three ways:
+inline, as file contents, or as a path. The path form keeps the key out of
+<code>config.json</code>, and a missing file is warned about at startup. See
+<a href="configuration.html#app-private-key-inline-file-contents-or-path">Configuration: App private key</a>.</p>
+</li>
 </ul>
 <h2 id="updating">Updating</h2>
 <p>Forward-only migrations: do not install an older CLI after a newer one has

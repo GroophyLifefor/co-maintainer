@@ -1,4 +1,10 @@
-import { getCacheDir, getConfigDir, loadEnvFile } from "./config.ts";
+import {
+  appPrivateKeyFileMissing,
+  getCacheDir,
+  getConfigDir,
+  loadEnvFile,
+  resolveAppPrivateKey,
+} from "./config.ts";
 import {
   deleteEnv,
   getEnv,
@@ -140,6 +146,73 @@ test("loadEnvFile strips surrounding quotes and ignores blank lines", async () =
   } finally {
     deleteEnv("CM_TEST_LOAD_Q");
     if (q !== undefined) setEnv("CM_TEST_LOAD_Q", q);
+    await removePath(dir, { recursive: true });
+  }
+});
+
+test("resolveAppPrivateKey reads an inline key, then the path, never both", async () => {
+  const dir = tempDirSync();
+  const path = `${dir}/app.pem`;
+  await writeTextFile(path, "PEM-FROM-FILE\n");
+  try {
+    // Inline wins when both are somehow present.
+    const inline = resolveAppPrivateKey({
+      githubAppPrivateKey: "PEM-INLINE",
+      githubAppPrivateKeyPath: path,
+    });
+    if (inline !== "PEM-INLINE") {
+      throw new Error(`inline key did not win: ${inline}`);
+    }
+    // The path is read from disk and is not copied into config.
+    const fromPath = resolveAppPrivateKey({
+      githubAppPrivateKeyPath: path,
+    });
+    if (fromPath !== "PEM-FROM-FILE\n") {
+      throw new Error(`path was not read: ${fromPath}`);
+    }
+    // Neither set: unconfigured rather than an error.
+    if (resolveAppPrivateKey({}) !== undefined) {
+      throw new Error("an empty config produced a key");
+    }
+    // A path that no longer exists reads as unconfigured.
+    if (
+      resolveAppPrivateKey({ githubAppPrivateKeyPath: `${dir}/gone.pem` }) !==
+      undefined
+    ) {
+      throw new Error("a missing key file produced a key");
+    }
+  } finally {
+    await removePath(dir, { recursive: true });
+  }
+});
+
+test("appPrivateKeyFileMissing flags only a configured path with no file", async () => {
+  const dir = tempDirSync();
+  const path = `${dir}/app.pem`;
+  await writeTextFile(path, "PEM\n");
+  try {
+    if (appPrivateKeyFileMissing({ githubAppPrivateKeyPath: path })) {
+      throw new Error("an existing key file was flagged missing");
+    }
+    if (
+      !appPrivateKeyFileMissing({ githubAppPrivateKeyPath: `${dir}/gone.pem` })
+    ) {
+      throw new Error("a missing key file was not flagged");
+    }
+    // An inline key needs no file, even beside a stale path.
+    if (
+      appPrivateKeyFileMissing({
+        githubAppPrivateKey: "PEM-INLINE",
+        githubAppPrivateKeyPath: `${dir}/gone.pem`,
+      })
+    ) {
+      throw new Error("an inline key was flagged as a missing file");
+    }
+    // Nothing configured: not a missing file, just unconfigured.
+    if (appPrivateKeyFileMissing({})) {
+      throw new Error("an empty config was flagged as a missing file");
+    }
+  } finally {
     await removePath(dir, { recursive: true });
   }
 });

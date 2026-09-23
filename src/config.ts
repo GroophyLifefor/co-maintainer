@@ -49,6 +49,9 @@ export type UserConfig = {
    * written by `set`. `githubWebhookSecret` is optional. */
   githubAppId?: string;
   githubAppPrivateKey?: string;
+  /** Path to the App private key file, kept as a path so the key is never
+   * copied into config.json. An inline `githubAppPrivateKey` wins over it. */
+  githubAppPrivateKeyPath?: string;
   githubWebhookSecret?: string;
   webhookUrl?: string;
   /** "Sign in with GitHub" for the dashboard, reusing the App's own OAuth
@@ -202,6 +205,39 @@ export function readConfig(): UserConfig {
   } catch (error) {
     if (isNotFound(error)) return {};
     throw new Error(`Could not read config ${configPath()}: ${String(error)}`);
+  }
+}
+
+/** The App private key to sign with. An inline `githubAppPrivateKey` wins,
+ * then the file named by `githubAppPrivateKeyPath`. Reading the file here
+ * instead of copying it into config.json keeps a key on disk in one place.
+ * `undefined` when neither is set or the named file cannot be read, which is
+ * the same as "App not configured" to every caller. */
+export function resolveAppPrivateKey(
+  config: Pick<UserConfig, "githubAppPrivateKey" | "githubAppPrivateKeyPath">,
+): string | undefined {
+  if (config.githubAppPrivateKey) return config.githubAppPrivateKey;
+  if (!config.githubAppPrivateKeyPath) return undefined;
+  try {
+    return readTextFileSync(config.githubAppPrivateKeyPath);
+  } catch {
+    return undefined;
+  }
+}
+
+/** `true` when a path is configured but the file is missing or unreadable,
+ * so `serve` can warn at startup instead of looking silently unconfigured. */
+export function appPrivateKeyFileMissing(
+  config: Pick<UserConfig, "githubAppPrivateKey" | "githubAppPrivateKeyPath">,
+): boolean {
+  if (config.githubAppPrivateKey || !config.githubAppPrivateKeyPath) {
+    return false;
+  }
+  try {
+    readTextFileSync(config.githubAppPrivateKeyPath);
+    return false;
+  } catch {
+    return true;
   }
 }
 

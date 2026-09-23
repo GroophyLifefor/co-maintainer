@@ -47,12 +47,22 @@ CLI-only users can ignore `serve` until they need shared context or automation.
 
 ```sh
 co-maintainer set --github-app-id=... --github-app-private-key-file=./app.pem
+co-maintainer set --github-app-id=... --github-app-private-key-path=./app.pem
 co-maintainer set --github-webhook-secret=...
 co-maintainer serve --port=5000
 
 co-maintainer serve --port=5000 --password=your-dashboard-secret
 co-maintainer serve --port=5000 --webhook-url=https://example.com/github/webhook
 ```
+
+`--github-app-private-key-file` copies the key into `config.json`.
+`--github-app-private-key-path` stores only the path, so the key stays on disk
+and is read at startup. If that file is missing, `serve` warns and continues.
+See [Configuration: App private key](configuration.md#app-private-key-inline-file-contents-or-path).
+
+On non-Linux platforms, `serve` logs a one-line warning that Linux (WSL
+included) is recommended, with a link to
+[docs](https://co-maintainer.com/docs/troubleshooting.html). Nothing is blocked.
 
 At startup, `serve` prints `app.db` path, dashboard URL, and webhook URL. On the
 first start with password auth on it also generates a dashboard password and
@@ -209,6 +219,11 @@ docker run --rm -v co-maintainer-data:/data \
 - Run one container per volume. Only one `serve` may write to an `app.db`.
 - Upgrade by pulling the new tag and recreating the container with the same
   volume. Queued jobs that were interrupted are picked up again on start.
+
+- **Inline, file, and path.** `set` writes the App private key three ways:
+  inline, as file contents, or as a path. The path form keeps the key out of
+  `config.json`, and a missing file is warned about at startup. See
+  [Configuration: App private key](configuration.md#app-private-key-inline-file-contents-or-path).
 
 ## Updating
 

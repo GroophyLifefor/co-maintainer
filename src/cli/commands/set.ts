@@ -23,7 +23,8 @@ const secretFields = new Set([
 
 /** `co-maintainer set --token=... --ai=... --low-model=... --high-model=...
  * --auth=... --github-app-id=... --github-app-private-key=... (or
- * --github-app-private-key-file=path) --github-webhook-secret=...` —
+ * --github-app-private-key-file=path or --github-app-private-key-path=path)
+ * --github-webhook-secret=...` —
  * persists global defaults, including secrets, to config.json so every
  * other command can skip both the flag and the interactive prompt. See
  * docs/md/configuration.md for the tradeoff. */
@@ -43,6 +44,7 @@ export async function runSet(args: string[]): Promise<void> {
     "github-app-id",
     "github-app-private-key",
     "github-app-private-key-file",
+    "github-app-private-key-path",
     "github-webhook-secret",
     "github-oauth-client-id",
     "github-oauth-client-secret",
@@ -74,12 +76,14 @@ export async function runSet(args: string[]): Promise<void> {
   if (auth && !["gh", "pat"].includes(auth)) {
     die("--auth must be one of: gh, pat");
   }
-  if (
-    text(args, "github-app-private-key") &&
-    text(args, "github-app-private-key-file")
-  ) {
+  const providedKeySources = [
+    text(args, "github-app-private-key"),
+    text(args, "github-app-private-key-file"),
+    text(args, "github-app-private-key-path"),
+  ].filter((value) => value !== undefined);
+  if (providedKeySources.length > 1) {
     die(
-      "Pass only one of --github-app-private-key or --github-app-private-key-file",
+      "Pass only one of --github-app-private-key, --github-app-private-key-file, or --github-app-private-key-path",
     );
   }
 
@@ -93,6 +97,7 @@ export async function runSet(args: string[]): Promise<void> {
     "github-pat": "githubPat",
     "github-app-id": "githubAppId",
     "github-app-private-key": "githubAppPrivateKey",
+    "github-app-private-key-path": "githubAppPrivateKeyPath",
     "github-webhook-secret": "githubWebhookSecret",
     "github-oauth-client-id": "githubOAuthClientId",
     "github-oauth-client-secret": "githubOAuthClientSecret",
@@ -137,6 +142,16 @@ export async function runSet(args: string[]): Promise<void> {
       die(`Could not read ${privateKeyFile}: ${String(error)}`);
     }
   }
+  // The path form keeps the key on disk: only the location is stored, and it
+  // is read at startup. Passing one of the other two forms also clears a
+  // previously saved path so the inline key or file wins unambiguously.
+  const privateKeyPath = text(args, "github-app-private-key-path");
+  if (privateKeyPath) {
+    patch.githubAppPrivateKeyPath = privateKeyPath;
+    patch.githubAppPrivateKey = undefined;
+  } else if (githubAppPrivateKey || privateKeyFile) {
+    patch.githubAppPrivateKeyPath = undefined;
+  }
   const oauthClientId = text(args, "github-oauth-client-id");
   if (oauthClientId) patch.githubOAuthClientId = oauthClientId;
   const oauthClientSecret = text(args, "github-oauth-client-secret");
@@ -175,7 +190,7 @@ export async function runSet(args: string[]): Promise<void> {
   if (Object.keys(patch).length === 0) {
     die(
       "Nothing to set; pass --token= (or --ai-key=), --ai=, --low-model=, --high-model=, --auth=, --github-pat=, " +
-        "--github-app-id=, --github-app-private-key(-file)=, --github-webhook-secret=, " +
+        "--github-app-id=, --github-app-private-key(-file|-path)=, --github-webhook-secret=, " +
         "--github-oauth-client-id=, --github-oauth-client-secret=, --github-oauth-allowed-user=, " +
         "--remote-host=, --remote-token=, --review-blocking=model|severity, " +
         "--password=, --disable-auth=password, --enable-auth=github, or --unset=name",

@@ -5,6 +5,28 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Dashboard: Create GitHub App (CORE-76).** The GitHub App card can create the App for you instead of copying a private key, a webhook secret, and OAuth credentials by hand. Set a public webhook address, pick a name (default `co-maintainer-<host>`), and GitHub confirms the permissions and events the code actually uses. GitHub redirects back and `serve` writes the App ID, private key, webhook secret, and OAuth credentials into `config.json`. On an unreachable webhook address the button says why. The manual fields stay.
+- **`--github-app-private-key-path=path` (CORE-78).** Store only the path to the App private key, never its contents, so the key stays on disk and is read at startup. `serve` warns when the file is missing. `--github-app-private-key` and `--github-app-private-key-file` keep their existing behavior.
+- **`CM_LOGIN_HINT` (CORE-77).** Replace the sign-in page's default "printed when serve started" line with your own text, escaped as plain text. For a deployment that hands out its own password.
+- **Dashboard: setup checklist (CORE-75).** The home page shows a **Finish setup** card until an install is complete, with a link to the settings card that fixes each gap.
+- **Dashboard: preview before adding a repository (CORE-73).** Add a repo now probes, shows the recommendation and estimated cost, and waits for confirmation before starting `init`.
+- **Dashboard: open pull requests (CORE-72).** The Pull requests tab lists open, non-draft PRs with a **Review** button each.
+- **Dashboard: webhook reachability (CORE-71).** The repo overview warns when the webhook URL is unreachable from GitHub, and shows the last delivery.
+- **`view --remote` (CORE-44).** Read a repository's guides from a remote `serve` over `GET /api/remote/guides`.
+
+### Changed
+
+- **Dashboard: high and low model labels (CORE-74).** "Main model" and "Cheap model" now read "High model" and "Low model", matching the CLI, with hints naming their real jobs.
+- **Windows platform warning (CORE-78).** `serve` no longer points at an internal document. It says Linux (WSL included) is recommended and links to the public troubleshooting page.
+
+### Fixed
+
+- **Dashboard scripts and token secret (CORE-70).** The dashboard helper runs after the page is parsed, so `bindToggle` and the activity poll no longer throw at load time. The remote token secret is shown in an in-page panel with a copy button instead of a browser `prompt()`.
+
 ## [0.4.13] - 2026-09-22
 
 ### Fixed

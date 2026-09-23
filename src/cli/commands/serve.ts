@@ -1,4 +1,8 @@
-import { readConfig } from "../../config.ts";
+import {
+  readConfig,
+  resolveAppPrivateKey,
+  appPrivateKeyFileMissing,
+} from "../../config.ts";
 import type { UserConfig } from "../../config.ts";
 import { appDbPath, closeAppDb, openAppDb } from "../../store/app_db.ts";
 import { createApp } from "../../server/app.ts";
@@ -26,11 +30,13 @@ import { serveHttp } from "../../server/http.ts";
 import { currentPlatform, getEnv, type Platform } from "../../util/runtime.ts";
 import { die } from "../error.ts";
 
-/** `undefined` on Linux, otherwise one line naming the platform (a pure
- * function so it is testable without actually being off Linux). */
+/** `undefined` on Linux, otherwise one line naming the platform. The
+ * recommendation is spelled out rather than pointing at an internal
+ * document, so the message stands on its own and links to the public
+ * troubleshooting page for the details. */
 export function platformWarning(os: Platform): string | undefined {
   if (os === "linux") return undefined;
-  return `running on ${os}. Linux (WSL included) is the recommended platform for serve — see PLAN.md Decision 5.`;
+  return `running on ${os}. Linux (WSL included) is the recommended platform for serve. See https://co-maintainer.com/docs/troubleshooting.html`;
 }
 
 function generatePassword(): string {
@@ -160,9 +166,14 @@ export async function runServe(args: string[]): Promise<void> {
 
   const config = readConfig();
   const webhookUrl = resolveWebhookUrl(args, port, config.webhookUrl);
-  if (!config.githubAppId || !config.githubAppPrivateKey) {
+  if (!config.githubAppId || !resolveAppPrivateKey(config)) {
     console.log(
       "[serve] GitHub App is not configured yet. Add it in the dashboard settings or with co-maintainer set.",
+    );
+  }
+  if (appPrivateKeyFileMissing(config)) {
+    console.log(
+      `[serve] warning: the GitHub App private key file listed in config.json cannot be read (${config.githubAppPrivateKeyPath}). The App will not work until it is restored or replaced.`,
     );
   }
 

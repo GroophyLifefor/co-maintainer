@@ -474,6 +474,11 @@ export const COMMANDS: CommandSpec[] = [
             description: "Read the private key from a file.",
           },
           {
+            name: "github-app-private-key-path",
+            value: "PATH",
+            description: "Store the key's path only, never its contents.",
+          },
+          {
             name: "github-webhook-secret",
             value: "SECRET",
             description: "The webhook HMAC secret.",

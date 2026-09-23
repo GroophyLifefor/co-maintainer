@@ -1,5 +1,6 @@
 import { html, layout, skSlot, text } from "./layout.ts";
 import type { UserConfig } from "../../config.ts";
+import { resolveAppPrivateKey } from "../../config.ts";
 import { VERSION } from "../../version.ts";
 import {
   defaultAppName,
@@ -18,7 +19,7 @@ export function renderSettings(
   const ghOk = Boolean(
     config.auth === "gh" || (config.auth === "pat" && config.githubPat),
   );
-  const appOk = Boolean(config.githubAppId && config.githubAppPrivateKey);
+  const appOk = Boolean(config.githubAppId && resolveAppPrivateKey(config));
   let host = "localhost";
   try {
     host = new URL(baseUrl).hostname || host;

@@ -3,7 +3,7 @@
  * Each item is derived from state that already exists, so the card reflects
  * what serve can actually do rather than a parallel bookkeeping of it. The
  * webhook item reuses CORE-71's reachability check. */
-import { readConfig } from "../config.ts";
+import { readConfig, resolveAppPrivateKey } from "../config.ts";
 import { countReviews } from "../store/reviews.ts";
 import { listRemoteTokens } from "../store/remote_tokens.ts";
 import { listActiveRepos } from "../store/repos.ts";
@@ -23,7 +23,7 @@ export type SetupItem = {
 export function setupChecklist(webhookUrl: string): SetupItem[] {
   const config = readConfig();
   const aiDone = Boolean(config.ai && config.ai !== "none" && config.token);
-  const appDone = Boolean(config.githubAppId && config.githubAppPrivateKey);
+  const appDone = Boolean(config.githubAppId && resolveAppPrivateKey(config));
   const repoCount = listActiveRepos().length;
   const reviewCount = countReviews();
   const tokenCount = listRemoteTokens().length;
