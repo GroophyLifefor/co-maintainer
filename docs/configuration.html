@@ -292,7 +292,9 @@ filters permanently. <code>--only-request-changed-pr</code> stays on once saved.
 collect every pull request state again, pass <code>--pr-state=open,closed,merged</code>.</p>
 <p>Guide files (<code>SKILL.md</code>, <code>CODEBASE.md</code>, review guides) live under
 <code>&lt;config&gt;/co-maintainer/repos/&lt;slug&gt;/</code>, not in your git clone. See
-<a href="caching.html#generated-guides">Caching</a>.</p>
+<a href="caching.html#generated-guides">Caching</a>. <code>co-maintainer view</code> prints them
+locally, and <code>view --remote</code> prints the copies a configured review server holds
+(see <a href="remote-review.html#reading-the-servers-guides">Remote review</a>).</p>
 <h2 id="secrets-on-disk">Secrets on disk</h2>
 <p><code>config.json</code> may contain tokens, PATs, App private keys, and webhook/OAuth
 secrets in <strong>plain text</strong>. The file is chmod <code>0600</code> where supported (not on

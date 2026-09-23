@@ -61,6 +61,24 @@ are the same as [local review](local-review.md#codegraph).
 Not supported with `--remote`: `--sync-before-review` (run
 [`sync`](sync.md) on the server instead).
 
+## Reading the server's guides
+
+The same token that authorizes a review also reads the guides the server holds,
+so you can inspect what your review will be judged against without downloading
+anything:
+
+```sh
+co-maintainer view owner/repo --remote            # every guide, with headers
+co-maintainer view owner/repo review-guide --remote   # one guide, raw
+co-maintainer view owner/repo --list --remote     # file, size, build date
+```
+
+The output is the same format as a local `co-maintainer view`, with the same
+`--list`, single-guide and header behavior. Only the source differs. `--path`
+is local-only and is refused with `--remote`, because the directory belongs to
+the machine you are on. A rejected token prints the same Settings hint
+`review --remote` prints.
+
 ## Limits
 
 - Submit body size is capped (handshake `limits.maxBodyBytes`).

@@ -1,17 +1,13 @@
 import { VERSION } from "../version.ts";
 import type { ReviewCliArgs } from "../cli/review_args.ts";
-import {
-  CliError,
-  EXIT_USAGE,
-  exitWith,
-  networkFailure,
-} from "../cli/error.ts";
+import { CliError, EXIT_USAGE, exitWith } from "../cli/error.ts";
 import {
   formatHumanReview,
   humanFindingsFromJson,
   type JsonReviewFinding,
   reviewExitCodeFromJsonFindings,
 } from "../cli/review_result.ts";
+import { baseUrl, die, readApiError, remoteFetch } from "./http.ts";
 import { readConfig, writeUserConfig } from "../config.ts";
 import { prepareLocalCodegraph } from "../local/codegraph_prepare.ts";
 import { canPrompt } from "../tools/codegraph.ts";
@@ -50,67 +46,6 @@ type HandshakeResponse = {
   sync: { intervalSeconds: number; timeoutSeconds: number };
   limits: { maxBodyBytes: number };
 };
-
-function die(
-  code: string,
-  message: string,
-  hint?: string,
-  exitCode = EXIT_USAGE,
-): never {
-  throw new CliError(code, message, hint, exitCode);
-}
-
-function baseUrl(host: string): string {
-  const trimmed = host.trim().replace(/\/+$/, "");
-  if (!/^https?:\/\//i.test(trimmed)) {
-    die(
-      "remote_not_configured",
-      "remoteHost must be an absolute http(s) URL.",
-      "co-maintainer config set remote-host https://your-server",
-    );
-  }
-  return trimmed;
-}
-
-async function remoteFetch(
-  host: string,
-  token: string,
-  path: string,
-  init: RequestInit,
-): Promise<Response> {
-  const url = `${baseUrl(host)}${path}`;
-  const headers = new Headers(init.headers);
-  headers.set("authorization", `Bearer ${token}`);
-  if (init.body && !headers.has("content-type")) {
-    headers.set("content-type", "application/json");
-  }
-  try {
-    const response = await fetch(url, { ...init, headers });
-    // The server's 401 text is `invalid or missing token`, which does not say
-    // where the token comes from or how to get another one (CORE-12).
-    if (response.status === 401 || response.status === 403) {
-      die(
-        "remote_token_rejected",
-        `The server at ${baseUrl(host)} rejected the remote review token.`,
-        "Create one in its dashboard under Settings, Remote review tokens.",
-        EXIT_USAGE,
-      );
-    }
-    return response;
-  } catch (error) {
-    if (error instanceof CliError) throw error;
-    throw networkFailure(url, error);
-  }
-}
-
-async function readApiError(response: Response): Promise<string> {
-  try {
-    const body = await response.json();
-    return String(body.error?.message ?? response.statusText);
-  } catch {
-    return response.statusText;
-  }
-}
 
 export async function runRemoteReview(
   cli: ReviewCliArgs & { mode: "remote" },

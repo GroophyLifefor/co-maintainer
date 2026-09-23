@@ -142,6 +142,19 @@ are the same as <a href="local-review.html#codegraph">local review</a>.
 | <code>--log-time</code> | Phase timings |</p>
 <p>Not supported with <code>--remote</code>: <code>--sync-before-review</code> (run
 <a href="sync.html"><code>sync</code></a> on the server instead).</p>
+<h2 id="reading-the-server39s-guides">Reading the server&#39;s guides</h2>
+<p>The same token that authorizes a review also reads the guides the server holds,
+so you can inspect what your review will be judged against without downloading
+anything:</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--remote</span>            <span class="sh-comment"># every guide, with headers</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span> <span class="sh-arg">review-guide</span> <span class="sh-flag">--remote</span>   <span class="sh-comment"># one guide, raw</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--list</span> <span class="sh-flag">--remote</span>     <span class="sh-comment"># file, size, build date</span>
+</code></pre>
+<p>The output is the same format as a local <code>co-maintainer view</code>, with the same
+<code>--list</code>, single-guide and header behavior. Only the source differs. <code>--path</code>
+is local-only and is refused with <code>--remote</code>, because the directory belongs to
+the machine you are on. A rejected token prints the same Settings hint
+<code>review --remote</code> prints.</p>
 <h2 id="limits">Limits</h2>
 <ul>
 <li>Submit body size is capped (handshake <code>limits.maxBodyBytes</code>).</li>
@@ -161,7 +174,7 @@ are the same as <a href="local-review.html#codegraph">local review</a>.
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#limits">Limits</a></li><li><a href="#security">Security</a></li></ul></nav>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#reading-the-server39s-guides">Reading the server&amp;#39;s guides</a></li><li><a href="#limits">Limits</a></li><li><a href="#security">Security</a></li></ul></nav>
     </div>
   </div>
   <script src="assets/docs.js"></script>

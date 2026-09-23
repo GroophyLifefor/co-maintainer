@@ -141,7 +141,9 @@ collect every pull request state again, pass `--pr-state=open,closed,merged`.
 
 Guide files (`SKILL.md`, `CODEBASE.md`, review guides) live under
 `<config>/co-maintainer/repos/<slug>/`, not in your git clone. See
-[Caching](caching.md#generated-guides).
+[Caching](caching.md#generated-guides). `co-maintainer view` prints them
+locally, and `view --remote` prints the copies a configured review server holds
+(see [Remote review](remote-review.md#reading-the-servers-guides)).
 
 ## Secrets on disk
 

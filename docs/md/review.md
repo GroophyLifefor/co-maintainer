@@ -93,7 +93,7 @@ local, PR, remote and the automatic GitHub App reviews.
 
 The default keeps the 0.4.13 behavior. `severity` exists because the model's
 own label can move between two reviews of the same code, which flipped the exit
-code for the same finding; with `severity` the same finding set always yields
+code for the same finding. With `severity` the same finding set always yields
 the same exit code, the same `blocking` count in `--json`, and the same GitHub
 review type.
 
@@ -140,7 +140,7 @@ Findings are grouped `Closed`, `Still open`, `New`, each labeled with the same
 `blocking` decision the exit code uses. The header names the real guide build
 date (`guide unknown` only when no guide timestamp can be read) and the state
 the run actually reached: `codegraph used`, `codegraph disabled`, or
-`codegraph unavailable` — the last one when codegraph was requested but could
+`codegraph unavailable`: the last one when codegraph was requested but could
 not be prepared, which is also what `--json` reports.
 
 The severity legend and the "If you'd like me to explain it in more detail,
@@ -155,14 +155,15 @@ the severity, whether it blocks, the path and line span, the symbol, a title, th
 explanation, and an optional replacement. `co-maintainer` renders the Markdown
 from that object, so a finding's boundaries are never guessed from the model's
 wording. The JSON schema is sent as OpenRouter's `response_format` when the
-provider accepts it; a provider that rejects the combination gets one request
+provider accepts it. A provider that rejects the combination gets one request
 without the schema, and the prompt also asks for a fenced JSON block.
 
 If the answer is not usable JSON, the request is retried once and then, if it
-still fails, the older Markdown parser reads it. That parser accepts `—` or `:`
-as the heading separator, so answers written before this change (and carry-over
-records saved by `0.4.13`) keep working. The `--json` output and the human output
-are both built from the same parsed findings, so they can never disagree.
+still fails, the older Markdown parser reads it. That parser accepts the em
+dash or `:` as the heading separator, so answers written before this change (and
+carry-over records saved by `0.4.13`) keep working. The `--json` output and the
+human output are both built from the same parsed findings, so they can never
+disagree.
 
 ## Before any review
 

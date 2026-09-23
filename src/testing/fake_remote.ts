@@ -27,6 +27,15 @@ export type FakeRemoteOptions = {
   repo?: string;
   /** `sync` responses in order. The last one repeats if the client asks again. */
   sync?: unknown[];
+  /** The guides `GET /api/remote/guides` answers with (CORE-44). */
+  guides?: {
+    repo?: { fullName?: string };
+    guideBuiltAt?: string | null;
+    guides?: unknown[];
+  };
+  /** Answers every request with this status and the server's error shape, so
+   * the client's rejection handling can be exercised (CORE-44). */
+  refuse?: number;
 };
 
 const SYNC_DONE = {
@@ -72,6 +81,16 @@ export async function startFakeRemote(
           res.writeHead(status, { "content-type": "application/json" });
           res.end(JSON.stringify(payload));
         };
+        if (options.refuse !== undefined) {
+          send(options.refuse, {
+            error: {
+              code: "token_invalid",
+              message: "invalid or missing token",
+              requestId: "fake",
+            },
+          });
+          return;
+        }
         if (req.url === "/api/remote/handshake") {
           send(200, {
             schemaVersion: 1,
@@ -88,6 +107,16 @@ export async function startFakeRemote(
         }
         if (req.url === "/api/remote/reviews") {
           send(202, { schemaVersion: 1, jobId: "job_1", reviewId: "rev_1" });
+          return;
+        }
+        if ((req.url ?? "").startsWith("/api/remote/guides")) {
+          send(200, {
+            schemaVersion: 1,
+            repo: { fullName: options.repo ?? "owner/repo" },
+            guideBuiltAt: null,
+            guides: [],
+            ...options.guides,
+          });
           return;
         }
         if (/^\/api\/remote\/reviews\/[^/]+\/sync$/.test(req.url ?? "")) {

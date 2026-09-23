@@ -433,6 +433,11 @@ export const COMMANDS: CommandSpec[] = [
             name: "path",
             description: "Print the directory the guides live in.",
           },
+          {
+            name: "remote",
+            description:
+              "Read the guides from the configured remote review server instead.",
+          },
         ],
       },
     ],
@@ -440,6 +445,7 @@ export const COMMANDS: CommandSpec[] = [
       "co-maintainer view",
       "co-maintainer view owner/repo review-guide",
       "co-maintainer view owner/repo --list",
+      "co-maintainer view owner/repo --remote",
     ],
   },
   {

@@ -173,6 +173,13 @@ can hang on the question.</p>
 findings (closed / still open / new) via <a href="caching.html">cache</a>. Use <code>--fresh</code> to
 start clean. If the cache cannot be read or written, review continues with a
 <code>carry_over_unavailable</code> warning.</p>
+<p>Carry-over never replaces the review. Every run scans the whole diff for new
+violations <strong>and</strong> re-checks the previous findings. A finding that is still open
+is reported as such rather than suppressing a new one nearby.</p>
+<p>When a guide is rebuilt (<code>init</code> / <code>sync</code>) after your last review on this branch,
+that review&#39;s verdicts were made against rules that no longer exist. The next
+review therefore starts fresh on its own (no <code>--fresh</code> needed), so a stale
+finding cannot hide a violation the new guide would catch.</p>
 <h2 id="developers">Developers</h2>
 <pre class="shell-block"><code>npm run review-local-e2e
 </code></pre>

@@ -202,6 +202,34 @@ run the CLI against one PR.</p>
 <td>Runtime failure or abort</td>
 </tr>
 </tbody></table>
+<h3 id="what-counts-as-blocking">What counts as blocking</h3>
+<p><code>reviewBlocking</code> in <code>config.json</code> decides it, and the same rule is used by
+local, PR, remote and the automatic GitHub App reviews.</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>A finding blocks when</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>model</code> (default)</td>
+<td>The model says so. A P0 always blocks, even if the model labeled it otherwise.</td>
+</tr>
+<tr>
+<td><code>severity</code></td>
+<td>Its severity is P0 or P1. P2 and P3 never block, whatever the model said.</td>
+</tr>
+</tbody></table>
+<p>The default keeps the 0.4.13 behavior. <code>severity</code> exists because the model&#39;s
+own label can move between two reviews of the same code, which flipped the exit
+code for the same finding. With <code>severity</code> the same finding set always yields
+the same exit code, the same <code>blocking</code> count in <code>--json</code>, and the same GitHub
+review type.</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">set</span> <span class="sh-flag">--review-blocking=severity</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">set</span> <span class="sh-flag">--review-blocking=model</span>      <span class="sh-comment"># back to the default</span>
+</code></pre>
+<p><code>CO_MAINTAINER_REVIEW_BLOCKING</code> overrides it for one environment.</p>
 <h2 id="json-output">JSON output</h2>
 <p>With <code>--json</code>, stdout is a single JSON object (<code>schemaVersion</code> <code>1</code>). Fields
 include <code>mode</code> (<code>local</code>, <code>remote</code>, or <code>pr</code>), <code>subject</code>, <code>summary</code>, <code>findings[]</code>,
@@ -209,6 +237,48 @@ include <code>mode</code> (<code>local</code>, <code>remote</code>, or <code>pr<
 metadata and <code>codegraph</code> state. Errors with <code>--json</code> are JSON on stdout as well.</p>
 <p>Flag details per mode: <a href="local-review.html">Local review</a>, <a href="remote-review.html">Remote review</a>,
 <a href="local-pr-review.html">PR review</a>.</p>
+<h2 id="human-output">Human output</h2>
+<p>Without <code>--json</code>, all three modes print the <strong>same</strong> format. Only the header
+names the mode, because the subject differs:</p>
+<pre><code>co-maintainer review · owner/repo · my-branch
+4 files · +12 −3 · guide built 2026-09-15 · codegraph used
+
+New (1)
+  • src/app.ts:16-18  [P1 · blocking] the gate ignores its threshold
+    A violation exactly at the threshold passes.
+
+Still open (1)
+  • src/util.ts:4  [P2 · non-blocking] the helper ignores its argument
+
+Closed (1)
+  ✓ src/old.ts:9  [P2 · non-blocking] the dead branch
+
+Summary: 1 new · 1 open · 1 closed · 2 blocking
+</code></pre>
+<p>Findings are grouped <code>Closed</code>, <code>Still open</code>, <code>New</code>, each labeled with the same
+<code>blocking</code> decision the exit code uses. The header names the real guide build
+date (<code>guide unknown</code> only when no guide timestamp can be read) and the state
+the run actually reached: <code>codegraph used</code>, <code>codegraph disabled</code>, or
+<code>codegraph unavailable</code>: the last one when codegraph was requested but could
+not be prepared, which is also what <code>--json</code> reports.</p>
+<p>The severity legend and the &quot;If you&#39;d like me to explain it in more detail,
+please ask.&quot; sentence are <strong>not</strong> in terminal output: a terminal has nobody to
+ask, and the legend is fixed noise. Both stay in the GitHub review comment,
+which is a different reader.</p>
+<h2 id="how-findings-are-produced">How findings are produced</h2>
+<p>The model is asked for a JSON object, not for prose. For each finding it returns
+the severity, whether it blocks, the path and line span, the symbol, a title, the
+explanation, and an optional replacement. <code>co-maintainer</code> renders the Markdown
+from that object, so a finding&#39;s boundaries are never guessed from the model&#39;s
+wording. The JSON schema is sent as OpenRouter&#39;s <code>response_format</code> when the
+provider accepts it. A provider that rejects the combination gets one request
+without the schema, and the prompt also asks for a fenced JSON block.</p>
+<p>If the answer is not usable JSON, the request is retried once and then, if it
+still fails, the older Markdown parser reads it. That parser accepts the em
+dash or <code>:</code> as the heading separator, so answers written before this change (and
+carry-over records saved by <code>0.4.13</code>) keep working. The <code>--json</code> output and the
+human output are both built from the same parsed findings, so they can never
+disagree.</p>
 <h2 id="before-any-review">Before any review</h2>
 <table>
 <thead>
@@ -237,7 +307,7 @@ metadata and <code>codegraph</code> state. Errors with <code>--json</code> are J
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#which-mode-should-i-use">Which mode should I use?</a></li><li><a href="#how-the-three-modes-differ">How the three modes differ</a></li><li><a href="#exit-codes">Exit codes</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#before-any-review">Before any review</a></li></ul></nav>
+      <ul><li><a href="#which-mode-should-i-use">Which mode should I use?</a></li><li><a href="#how-the-three-modes-differ">How the three modes differ</a></li><li><a href="#exit-codes">Exit codes</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#human-output">Human output</a></li><li><a href="#how-findings-are-produced">How findings are produced</a></li><li><a href="#before-any-review">Before any review</a></li></ul></nav>
     </div>
   </div>
   <script src="assets/docs.js"></script>
