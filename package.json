@@ -1,7 +1,7 @@
 {
   "name": "co-maintainer",
   "version": "0.4.13",
-  "description": "Analyzes a GitHub repository and writes repository-specific contribution guidance.",
+  "description": "An imitator of yours, A PR review tool like co-maintainer.",
   "keywords": [
     "ai",
     "code-review",
@@ -9,7 +9,7 @@
     "maintainer",
     "pull-request"
   ],
-  "homepage": "https://github.com/GroophyLifefor/co-maintainer#readme",
+  "homepage": "https://co-maintainer.com",
   "bugs": {
     "url": "https://github.com/GroophyLifefor/co-maintainer/issues"
   },
