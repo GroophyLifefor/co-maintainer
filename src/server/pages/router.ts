@@ -14,7 +14,6 @@ import {
 import type { AuthMethods, PasswordStore } from "../auth.ts";
 import { githubAuthorizeUrl, githubLoginFromCode } from "../../github/oauth.ts";
 import { handleClient, handleLogo, handleStyles } from "../assets.ts";
-import { readConfig } from "../../config.ts";
 import {
   activityFeed,
   listReposForHome,
@@ -28,7 +27,16 @@ import {
   skippedDeliveries,
   statsForRange,
 } from "../../services/dashboard.ts";
-import { money } from "./layout.ts";
+import { escapeHtml, html, money } from "./layout.ts";
+import { readConfig, writeUserConfig } from "../../config.ts";
+import type { UserConfig } from "../../config.ts";
+import {
+  appNameProblem,
+  beginManifestState,
+  buildAppManifest,
+  consumeManifestState,
+  convertManifest,
+} from "../../github/app_manifest.ts";
 import { renderHome, renderLogin } from "./home.ts";
 import { renderSetup } from "./setup.ts";
 import { renderAddRepo } from "./add_repo.ts";
@@ -55,6 +63,9 @@ export type PageDeps = {
   githubApp?: { appId: string; privateKeyPem: string };
   auth?: AuthMethods;
   githubOAuth?: { clientId: string; clientSecret: string; allowedUser: string };
+  /** Behind a reverse proxy this process trusts, absolute URLs are built
+   * from `x-forwarded-host` and `x-forwarded-proto`. */
+  trustProxy?: boolean;
 };
 
 const REPO =
@@ -180,6 +191,15 @@ export async function handlePageRequest(
     if (url.pathname === "/repos/new" && request.method === "GET") {
       return renderAddRepo(username, await repoPicker(deps.githubApp));
     }
+    if (url.pathname === "/github/app-manifest" && request.method === "POST") {
+      return await beginAppManifest(request, url, deps);
+    }
+    if (
+      url.pathname === "/github/app-manifest/callback" &&
+      request.method === "GET"
+    ) {
+      return await finishAppManifest(request, url);
+    }
     if (url.pathname === "/activity" && request.method === "GET") {
       const page = Number(url.searchParams.get("page") ?? 1);
       return renderActivity(
@@ -205,6 +225,7 @@ export async function handlePageRequest(
         username,
         config,
         config.webhookUrl || deps.webhookUrl || "",
+        requestBaseUrl(request, url, Boolean(deps.trustProxy)),
       );
     }
 
@@ -386,6 +407,122 @@ async function sessionOf(request: Request) {
 function safeNext(value: string | null): string {
   if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";
   return value;
+}
+
+/** The externally visible origin. Behind a trusted proxy the browser reached
+ * `x-forwarded-host`/`-proto`, which is what GitHub must be told for the
+ * callback and webhook URLs. Without the flag, `new URL(request.url).origin`
+ * is the socket's own view and a spoofed header is ignored. */
+function requestBaseUrl(
+  request: Request,
+  url: URL,
+  trustProxy: boolean,
+): string {
+  if (!trustProxy) return url.origin;
+  const last = (name: string) =>
+    request.headers.get(name)?.split(",").pop()?.trim();
+  const host = last("x-forwarded-host");
+  if (!host) return url.origin;
+  const proto = last("x-forwarded-proto");
+  const scheme =
+    proto === "https" || proto === "http"
+      ? proto
+      : url.protocol.replace(":", "");
+  return `${scheme}://${host}`;
+}
+
+/** Step one of the App manifest flow: build the manifest from the posted
+ * name and auto-submit it to GitHub. The `state` is kept server-side (ten
+ * minutes, single use) so a forged callback cannot write credentials. */
+async function beginAppManifest(
+  request: Request,
+  url: URL,
+  deps: PageDeps,
+): Promise<Response> {
+  let name = "";
+  try {
+    const form = await request.formData();
+    name = String(form.get("name") ?? "");
+  } catch {
+    return new Response("Expected a form post.", { status: 400 });
+  }
+  const problem = appNameProblem(name);
+  if (problem) return new Response(problem, { status: 422 });
+  const config = readConfig();
+  const baseUrl = requestBaseUrl(request, url, Boolean(deps.trustProxy));
+  const webhookUrl = config.webhookUrl || deps.webhookUrl || "";
+  const manifest = buildAppManifest({ name, baseUrl, webhookUrl });
+  const state = beginManifestState();
+  return html(`<!doctype html><html lang="en"><head><meta charset="utf-8">
+<title>Creating the GitHub App · co-maintainer</title></head>
+<body>
+<form id="manifest" action="https://github.com/settings/apps/new?state=${escapeHtml(
+    state,
+  )}" method="post">
+<input type="hidden" name="manifest" value="${escapeHtml(
+    JSON.stringify(manifest).replace(/</g, "\\u003c"),
+  )}">
+<noscript><button type="submit">Continue to GitHub</button></noscript>
+</form>
+<p>Taking you to GitHub to create the App.</p>
+<script>document.getElementById("manifest").submit();</script>
+</body></html>`);
+}
+
+/** Step three, after GitHub redirects back with a one-time `code`. The code
+ * is converted into real credentials and written to the config keys the
+ * manual fields already use, then the browser is sent to the install page. */
+async function finishAppManifest(
+  request: Request,
+  url: URL,
+): Promise<Response> {
+  const state = url.searchParams.get("state") ?? "";
+  if (!consumeManifestState(state)) {
+    return new Response(
+      "This App creation link is no longer valid. Start again from Settings.",
+      { status: 400 },
+    );
+  }
+  const code = url.searchParams.get("code") ?? "";
+  if (!code) {
+    return new Response("GitHub did not return a manifest code.", {
+      status: 400,
+    });
+  }
+  const config = readConfig();
+  let conversion: Awaited<ReturnType<typeof convertManifest>>;
+  try {
+    conversion = await convertManifest(code);
+  } catch (error) {
+    console.error(
+      "[dashboard] GitHub App manifest conversion failed:",
+      error instanceof Error ? (error.stack ?? error.message) : String(error),
+    );
+    return new Response(
+      "Could not create the GitHub App. Try again from Settings.",
+      { status: 502 },
+    );
+  }
+  const patch: Partial<UserConfig> = {
+    githubAppId: conversion.appId,
+    githubAppPrivateKey: conversion.pem,
+  };
+  if (conversion.webhookSecret) {
+    patch.githubWebhookSecret = conversion.webhookSecret;
+  }
+  if (conversion.clientId && !config.githubOAuthClientId) {
+    patch.githubOAuthClientId = conversion.clientId;
+  }
+  if (conversion.clientSecret && !config.githubOAuthClientSecret) {
+    patch.githubOAuthClientSecret = conversion.clientSecret;
+  }
+  await writeUserConfig(patch);
+  const installUrl = conversion.slug
+    ? `https://github.com/apps/${encodeURIComponent(
+        conversion.slug,
+      )}/installations/new`
+    : "https://github.com/settings/apps";
+  return Response.redirect(installUrl, 303);
 }
 
 async function handleLoginForm(

@@ -1,7 +1,7 @@
 import { createApp } from "./app.ts";
 import { markdown, money } from "./pages/layout.ts";
 import { closeAppDb, openAppDb } from "../store/app_db.ts";
-import { writeUserConfig } from "../config.ts";
+import { readConfig, writeUserConfig } from "../config.ts";
 import { activateRepo, markKnowledgeBuilt } from "../store/repos.ts";
 import { insertReview, setReviewStatus } from "../store/reviews.ts";
 import { insertFinding } from "../store/findings.ts";
@@ -994,6 +994,267 @@ test("activity lists a job as a link and the job page shows the error", async ()
     }
     if (!html.includes("Retry")) throw new Error("job page missed Retry");
     assertCleanCopy(html, "/activity/job-fail");
+  });
+});
+
+test("the settings page offers to create the App, or says why it cannot", async () => {
+  await withEnv(async () => {
+    // A public webhook address: the button is live and the name defaults
+    // from the host.
+    await writeUserConfig({
+      webhookUrl: "https://cm.example.com/github/webhook",
+    });
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(
+        new Request("http://cm.example.com/settings", { headers: { cookie } }),
+      )
+    ).text();
+    if (!html.includes('id="create-app"')) {
+      throw new Error("settings has no Create GitHub App button");
+    }
+    if (!html.includes('id="app-name"')) {
+      throw new Error("settings has no editable App name");
+    }
+    if (!html.includes("co-maintainer-cm-example-com")) {
+      throw new Error("the App name did not default from the host");
+    }
+    if (!html.includes("fills App ID, private key, webhook secret")) {
+      throw new Error("the button does not explain the manifest flow");
+    }
+    if (html.includes("Set a public webhook address first")) {
+      throw new Error("a public webhook address was still blocked");
+    }
+  });
+});
+
+test("the settings page explains an unreachable webhook instead of offering the button", async () => {
+  await withEnv(async () => {
+    // No stored webhook URL: `serve` defaults to localhost, which GitHub
+    // cannot reach, so the button must say why rather than fail later.
+    const app = createApp({
+      password: PASSWORD,
+      webhookUrl: "http://localhost:5000/github/webhook",
+    });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(
+        new Request("http://localhost/settings", { headers: { cookie } }),
+      )
+    ).text();
+    if (!html.includes("Set a public webhook address first")) {
+      throw new Error("the unreachable webhook was not explained");
+    }
+    if (!html.includes("localhost only resolves on the machine")) {
+      throw new Error("the reason did not name localhost");
+    }
+  });
+});
+
+test("the manifest flow posts to GitHub with a server-held state", async () => {
+  await withEnv(async () => {
+    await writeUserConfig({
+      webhookUrl: "https://cm.example.com/github/webhook",
+    });
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const response = await app.fetch(
+      new Request("http://cm.example.com/github/app-manifest", {
+        method: "POST",
+        headers: {
+          cookie,
+          "content-type": "application/x-www-form-urlencoded",
+        },
+        body: "name=co-maintainer-cm",
+        redirect: "manual",
+      }),
+    );
+    if (response.status !== 200) {
+      throw new Error(`manifest page status ${response.status}`);
+    }
+    const html = await response.text();
+    if (!html.includes("https://github.com/settings/apps/new?state=")) {
+      throw new Error("the auto-submit form does not target GitHub");
+    }
+    if (!html.includes("github/app-manifest/callback")) {
+      throw new Error("the manifest did not set its redirect_url");
+    }
+    if (!html.includes("auth/github/callback")) {
+      throw new Error("the manifest did not set its callback_urls");
+    }
+    if (!html.includes("pull_requests")) {
+      throw new Error("the manifest is missing its permissions");
+    }
+    if (!html.includes("pull_request_review_comment")) {
+      throw new Error("the manifest is missing its events");
+    }
+    // The state belongs on the server, not in a hidden field the browser
+    // could rewrite.
+    if (/name="state"/.test(html)) {
+      throw new Error("the state was posted through the browser");
+    }
+  });
+});
+
+test("the manifest refuses a name GitHub would reject", async () => {
+  await withEnv(async () => {
+    await writeUserConfig({
+      webhookUrl: "https://cm.example.com/github/webhook",
+    });
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const response = await app.fetch(
+      new Request("http://cm.example.com/github/app-manifest", {
+        method: "POST",
+        headers: {
+          cookie,
+          "content-type": "application/x-www-form-urlencoded",
+        },
+        body: "name=bad%20name",
+        redirect: "manual",
+      }),
+    );
+    if (response.status !== 422) {
+      throw new Error(`bad name status ${response.status}, want 422`);
+    }
+  });
+});
+
+test("a forged or expired manifest callback writes nothing", async () => {
+  await withEnv(async () => {
+    await writeUserConfig({
+      webhookUrl: "https://cm.example.com/github/webhook",
+    });
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const response = await app.fetch(
+      new Request(
+        "http://cm.example.com/github/app-manifest/callback?state=forged&code=abc",
+        { headers: { cookie }, redirect: "manual" },
+      ),
+    );
+    if (response.status !== 400) {
+      throw new Error(`forged state status ${response.status}, want 400`);
+    }
+    const config = readConfig();
+    if (config.githubAppId || config.githubAppPrivateKey) {
+      throw new Error("a forged callback wrote App credentials");
+    }
+  });
+});
+
+test("the manifest callback converts the code and stores the credentials", async () => {
+  await withEnv(async () => {
+    await writeUserConfig({
+      webhookUrl: "https://cm.example.com/github/webhook",
+    });
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    // Start the flow to get a real state, then replay it against the callback.
+    const started = await app.fetch(
+      new Request("http://cm.example.com/github/app-manifest", {
+        method: "POST",
+        headers: {
+          cookie,
+          "content-type": "application/x-www-form-urlencoded",
+        },
+        body: "name=co-maintainer-cm",
+      }),
+    );
+    const state = /state=([a-f0-9]+)"/.exec(await started.text())?.[1];
+    if (!state) throw new Error("no state was issued");
+    const original = globalThis.fetch;
+    let converted = "";
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      const url = String(input);
+      if (!url.includes("/app-manifests/abc123/conversions")) {
+        throw new Error(`unexpected request: ${url}`);
+      }
+      converted = url;
+      return Response.json({
+        id: 4900449,
+        slug: "co-maintainer-cm",
+        pem: "-----BEGIN RSA PRIVATE KEY-----\nx\n-----END RSA PRIVATE KEY-----\n",
+        webhook_secret: "whsec_x",
+        client_id: "Iv1.abc",
+        client_secret: "secret_x",
+      });
+    }) as typeof fetch;
+    try {
+      const response = await app.fetch(
+        new Request(
+          `http://cm.example.com/github/app-manifest/callback?state=${state}&code=abc123`,
+          { headers: { cookie }, redirect: "manual" },
+        ),
+      );
+      if (response.status !== 303) {
+        throw new Error(`callback status ${response.status}`);
+      }
+      const location = response.headers.get("location") ?? "";
+      if (!location.includes("/installations/new")) {
+        throw new Error(
+          `callback did not send to the install page: ${location}`,
+        );
+      }
+      if (!converted.includes("abc123")) {
+        throw new Error("the code was not sent to GitHub");
+      }
+    } finally {
+      globalThis.fetch = original;
+    }
+    const config = readConfig();
+    if (config.githubAppId !== "4900449") {
+      throw new Error(`App ID not stored: ${config.githubAppId}`);
+    }
+    if (!config.githubAppPrivateKey?.includes("BEGIN RSA PRIVATE KEY")) {
+      throw new Error("private key not stored");
+    }
+    if (config.githubWebhookSecret !== "whsec_x") {
+      throw new Error("webhook secret not stored");
+    }
+    if (config.githubOAuthClientId !== "Iv1.abc") {
+      throw new Error("OAuth client id not stored");
+    }
+    if (config.githubOAuthClientSecret !== "secret_x") {
+      throw new Error("OAuth client secret not stored");
+    }
+    // The state is single use: a replay must be refused.
+    const replay = await app.fetch(
+      new Request(
+        `http://cm.example.com/github/app-manifest/callback?state=${state}&code=abc123`,
+        { headers: { cookie }, redirect: "manual" },
+      ),
+    );
+    if (replay.status !== 400) {
+      throw new Error(`replayed callback status ${replay.status}`);
+    }
+  });
+});
+
+test("the App manifest callback URL follows the trusted proxy host", async () => {
+  await withEnv(async () => {
+    await writeUserConfig({
+      webhookUrl: "https://cm.example.com/github/webhook",
+    });
+    const app = createApp({ password: PASSWORD, trustProxy: true });
+    const cookie = await cookieSession(app);
+    const response = await app.fetch(
+      new Request("http://127.0.0.1:5000/github/app-manifest", {
+        method: "POST",
+        headers: {
+          cookie,
+          "content-type": "application/x-www-form-urlencoded",
+          "x-forwarded-host": "cm.example.com",
+          "x-forwarded-proto": "https",
+        },
+        body: "name=co-maintainer-cm",
+      }),
+    );
+    const html = await response.text();
+    if (!html.includes("https://cm.example.com/github/app-manifest/callback")) {
+      throw new Error("the manifest ignored the forwarded host");
+    }
   });
 });
 

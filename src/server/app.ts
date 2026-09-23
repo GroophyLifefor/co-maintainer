@@ -171,7 +171,13 @@ export function createApp(deps: AppDeps): App {
 
       const page = await handlePageRequest(
         request,
-        { ...deps, githubApp, passwordStore: passwords, secureCookie },
+        {
+          ...deps,
+          githubApp,
+          passwordStore: passwords,
+          secureCookie,
+          trustProxy: deps.trustProxy,
+        },
         remoteAddr,
       );
       if (page) return page;

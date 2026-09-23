@@ -1,6 +1,10 @@
 import { html, layout, skSlot, text } from "./layout.ts";
 import type { UserConfig } from "../../config.ts";
 import { VERSION } from "../../version.ts";
+import {
+  defaultAppName,
+  manifestBlockedReason,
+} from "../../github/app_manifest.ts";
 
 const SOURCE_URL = "https://github.com/GroophyLifefor/co-maintainer";
 
@@ -8,12 +12,21 @@ export function renderSettings(
   username: string,
   config: UserConfig,
   webhookUrl: string,
+  baseUrl: string,
 ): Response {
   const aiOk = Boolean(config.ai && config.ai !== "none" && config.token);
   const ghOk = Boolean(
     config.auth === "gh" || (config.auth === "pat" && config.githubPat),
   );
   const appOk = Boolean(config.githubAppId && config.githubAppPrivateKey);
+  let host = "localhost";
+  try {
+    host = new URL(baseUrl).hostname || host;
+  } catch {
+    // baseUrl is built by the router from a valid Request URL; keep the
+    // fallback rather than blanking the default App name.
+  }
+  const manifestBlock = manifestBlockedReason(webhookUrl);
   return html(
     layout({
       title: "Settings · co-maintainer",
@@ -93,6 +106,19 @@ export function renderSettings(
         }</span></div>
       <div class="bd">
         <p class="muted" style="margin:0 0 16px">Needed to post reviews on pull requests.</p>
+        <div style="margin:0 0 16px">
+          <div class="two" style="max-width:none;margin:0 0 12px">
+            <div class="field"><label>App name</label>
+              <input id="app-name" value="${text(defaultAppName(host))}">
+              <div class="hint">Must be unique on GitHub. Editable.</div></div>
+          </div>
+          <button class="btn" id="create-app">Create GitHub App</button>
+          <div class="hint" style="margin:6px 0 0">${
+            manifestBlock
+              ? `${text(manifestBlock)}`
+              : "Opens GitHub, then fills App ID, private key, webhook secret, and OAuth below for you."
+          }</div>
+        </div>
         <div class="two" style="max-width:none">
           <div class="field"><label>App ID</label>
             <input id="app-id" value="${text(config.githubAppId ?? "")}"></div>
@@ -261,6 +287,25 @@ document.getElementById("save-app").addEventListener("click", function() {
     githubWebhookSecret: document.getElementById("hook-secret").value,
     webhookUrl: document.getElementById("webhook-url").value
   });
+});
+document.getElementById("create-app").addEventListener("click", function() {
+  var card = this.closest("[data-async]");
+  var name = document.getElementById("app-name").value.trim();
+  if (!name) {
+    fail(card, "Enter a name for the GitHub App.", function () {});
+    return;
+  }
+  var form = document.createElement("form");
+  form.method = "POST";
+  form.action = "/github/app-manifest";
+  form.style.display = "none";
+  var field = document.createElement("input");
+  field.type = "hidden";
+  field.name = "name";
+  field.value = name;
+  form.appendChild(field);
+  document.body.appendChild(form);
+  form.submit();
 });
 document.getElementById("save-access").addEventListener("click", function() {
   save(this, {

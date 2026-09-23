@@ -121,7 +121,7 @@ CLI-only users can ignore <code>serve</code> until they need shared context or a
 </tr>
 <tr>
 <td>GitHub App (optional at startup)</td>
-<td>Add it later in the dashboard <strong>Settings</strong>, or with <code>co-maintainer set</code> (<a href="configuration.html">Configuration</a>). Changes apply without a restart</td>
+<td>Add it later in the dashboard <strong>Settings</strong>, or with <code>co-maintainer set</code> (<a href="configuration.html">Configuration</a>). Changes apply without a restart. The dashboard can also create it for you (see <a href="#create-the-app-from-the-dashboard">Create the App from the dashboard</a>)</td>
 </tr>
 <tr>
 <td><code>--github-webhook-secret=</code> (recommended)</td>
@@ -214,6 +214,55 @@ OAuth client (no separate OAuth App).</p>
 </ol>
 <p>OAuth and auth toggles can also be changed later in dashboard <strong>Settings</strong>. UI
 routes and failure behavior: <a href="dashboard.html">Dashboard</a>.</p>
+<h2 id="create-the-app-from-the-dashboard">Create the App from the dashboard</h2>
+<p>Creating an App by hand means copying a private key, a webhook secret, and OAuth
+credentials between GitHub and the dashboard, and the webhook secret is easy to
+mismatch. The GitHub App card in <strong>Settings</strong> can create the App for you instead:</p>
+<ol>
+<li>Set a public <strong>Webhook address</strong> first. On <code>http://localhost:&lt;port&gt;...</code> the
+button explains that GitHub cannot reach it, so nothing silent happens.</li>
+<li>Pick an <strong>App name</strong>. It defaults to <code>co-maintainer-&lt;host&gt;</code> and must be unique
+on GitHub, which the field lets you change.</li>
+<li>Click <strong>Create GitHub App</strong>. The dashboard opens GitHub&#39;s manifest page, which
+asks you to confirm the permissions and events listed there.</li>
+</ol>
+<p>GitHub then redirects back, and <code>serve</code> writes the App ID, private key, webhook
+secret, and OAuth client ID and secret straight into <code>config.json</code>, the same keys
+the manual fields use. The browser lands on the App&#39;s install page, where you
+choose the repositories the App can see. The manual fields stay available for an
+App you created yourself.</p>
+<p>The manifest requests only what the code calls:</p>
+<table>
+<thead>
+<tr>
+<th>Permission</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>contents: read</code></td>
+<td>Read the review guide, file contents, and git trees</td>
+</tr>
+<tr>
+<td><code>pull_requests: write</code></td>
+<td>Read a pull request, post reviews and review comments</td>
+</tr>
+<tr>
+<td><code>issues: write</code></td>
+<td>Post and read issue comments</td>
+</tr>
+<tr>
+<td><code>checks: write</code></td>
+<td>Create and update the review check run</td>
+</tr>
+<tr>
+<td><code>metadata: read</code></td>
+<td>Required by every App</td>
+</tr>
+</tbody></table>
+<p>Events: <code>pull_request</code>, <code>pull_request_review</code>, <code>pull_request_review_comment</code>,
+<code>issue_comment</code>. GitHub delivers <code>installation</code> and <code>installation_repositories</code>
+without a subscription, so the manifest does not list them.</p>
 <h2 id="webhook-url">Webhook URL</h2>
 <p>Point the GitHub App webhook at:</p>
 <p><code>http://&lt;host&gt;:&lt;port&gt;/github/webhook</code></p>
@@ -284,7 +333,7 @@ running. Same steps are listed on <a href="dashboard.html#updating">Dashboard: U
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#what-it-does">What it does</a></li><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#sign-in-to-the-dashboard">Sign in to the dashboard</a></li><li><a href="#webhook-url">Webhook URL</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li><li><a href="#run-with-docker">Run with Docker</a></li><li><a href="#updating">Updating</a></li></ul></nav>
+      <ul><li><a href="#what-it-does">What it does</a></li><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#sign-in-to-the-dashboard">Sign in to the dashboard</a></li><li><a href="#create-the-app-from-the-dashboard">Create the App from the dashboard</a></li><li><a href="#webhook-url">Webhook URL</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li><li><a href="#run-with-docker">Run with Docker</a></li><li><a href="#updating">Updating</a></li></ul></nav>
     </div>
   </div>
   <script src="assets/docs.js"></script>

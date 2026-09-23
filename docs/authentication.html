@@ -146,7 +146,9 @@ scopes your org allows.</p>
 <p>The App is <strong>not</strong> the same as CLI <code>gh</code> auth:</p>
 <ul>
 <li>Installed on orgs/repos for webhooks and posting PR reviews.</li>
-<li>Configured with <code>co-maintainer set --github-app-id=...</code> and a private key.</li>
+<li>Configured with <code>co-maintainer set --github-app-id=...</code> and a private key, or
+created for you from dashboard <strong>Settings</strong> with <strong>Create GitHub App</strong>
+(<a href="serve.html#create-the-app-from-the-dashboard"><code>serve</code>: Create the App from the dashboard</a>).</li>
 <li>Optional <code>--github-webhook-secret=</code> verifies inbound webhooks.</li>
 </ul>
 <p>See <a href="configuration.html#set">Configuration</a> and <a href="serve.html"><code>serve</code></a>.</p>

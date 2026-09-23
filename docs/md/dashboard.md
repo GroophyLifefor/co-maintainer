@@ -109,7 +109,7 @@ Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
 | `/activity` | Live and recent jobs (refreshes about every 5 seconds) |
 | `/activity/:id` | Single job log |
 | `/analytics` | Usage for 7, 30, or 90 days |
-| `/settings` | Global models, GitHub, App, webhook URL, remote limits and tokens |
+| `/settings` | Global models, GitHub, App (**Create GitHub App**), webhook URL, remote limits and tokens |
 
 Per-repo sidebar: **Overview**, **Pull requests**, **Remote**, **Knowledge**, **Settings**.
 

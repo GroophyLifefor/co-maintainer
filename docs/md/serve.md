@@ -37,7 +37,7 @@ CLI-only users can ignore `serve` until they need shared context or automation.
 | Check | Why |
 | ----- | --- |
 | [Install](getting-started.md#1-install) `co-maintainer` | `serve` is a CLI command |
-| GitHub App (optional at startup) | Add it later in the dashboard **Settings**, or with `co-maintainer set` ([Configuration](configuration.md)). Changes apply without a restart |
+| GitHub App (optional at startup) | Add it later in the dashboard **Settings**, or with `co-maintainer set` ([Configuration](configuration.md)). Changes apply without a restart. The dashboard can also create it for you (see [Create the App from the dashboard](#create-the-app-from-the-dashboard)) |
 | `--github-webhook-secret=` (recommended) | Verifies webhook payloads |
 | AI and GitHub access via dashboard **Get started** (`/setup`) or **Settings** | Reviews need models and repo access (can finish after first boot) |
 | Public URL for webhooks (production) | GitHub must reach `POST .../github/webhook` |
@@ -103,6 +103,39 @@ OAuth client (no separate OAuth App).
 
 OAuth and auth toggles can also be changed later in dashboard **Settings**. UI
 routes and failure behavior: [Dashboard](dashboard.md).
+
+## Create the App from the dashboard
+
+Creating an App by hand means copying a private key, a webhook secret, and OAuth
+credentials between GitHub and the dashboard, and the webhook secret is easy to
+mismatch. The GitHub App card in **Settings** can create the App for you instead:
+
+1. Set a public **Webhook address** first. On `http://localhost:<port>...` the
+   button explains that GitHub cannot reach it, so nothing silent happens.
+2. Pick an **App name**. It defaults to `co-maintainer-<host>` and must be unique
+   on GitHub, which the field lets you change.
+3. Click **Create GitHub App**. The dashboard opens GitHub's manifest page, which
+   asks you to confirm the permissions and events listed there.
+
+GitHub then redirects back, and `serve` writes the App ID, private key, webhook
+secret, and OAuth client ID and secret straight into `config.json`, the same keys
+the manual fields use. The browser lands on the App's install page, where you
+choose the repositories the App can see. The manual fields stay available for an
+App you created yourself.
+
+The manifest requests only what the code calls:
+
+| Permission | Why |
+| ---------- | --- |
+| `contents: read` | Read the review guide, file contents, and git trees |
+| `pull_requests: write` | Read a pull request, post reviews and review comments |
+| `issues: write` | Post and read issue comments |
+| `checks: write` | Create and update the review check run |
+| `metadata: read` | Required by every App |
+
+Events: `pull_request`, `pull_request_review`, `pull_request_review_comment`,
+`issue_comment`. GitHub delivers `installation` and `installation_repositories`
+without a subscription, so the manifest does not list them.
 
 ## Webhook URL
 
