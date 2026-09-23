@@ -1,0 +1,2652 @@
+# co-maintainer
+
+> co-maintainer learns a GitHub repository from its code, pull requests, and history, then reviews pull requests and local changes against that knowledge.
+
+---
+
+Source: https://co-maintainer.com/docs/getting-started.md
+
+# Getting started
+
+co-maintainer learns a GitHub repo, writes review guides on your machine, then
+reviews a PR or local diff. Start with the CLI. [`serve`](serve.md) and
+[`remote-review`](remote-review.md) are optional later.
+
+## Overview
+
+```mermaid
+flowchart LR
+  install[Install CLI] --> auth[gh auth login]
+  auth --> probe[probe]
+  probe --> init[init]
+  init --> review[review]
+  init --> sync["sync <br/>(to keep your context up to date)"]
+```
+
+**Need:** [Node.js 24+](https://nodejs.org/), a repo you can read, `gh auth login`, an
+[OpenRouter](https://openrouter.ai/) key. Details: [Authentication](authentication.md).
+
+## 1. Install
+
+```sh
+npm install -g co-maintainer
+co-maintainer help
+co-maintainer --version
+```
+
+PATH issues or general install notes: [README install](https://github.com/GroophyLifefor/co-maintainer#installation).
+
+## 2. Save defaults (once)
+
+```sh
+co-maintainer set --auth=gh --ai=openrouter --token=YOUR_OPENROUTER_KEY --low-model=openai/gpt-oss-120b --high-model=openai/gpt-5.6-luna
+```
+
+[Configuration](configuration.md)
+
+## 3. One repo
+
+```sh
+co-maintainer probe owner/repo
+co-maintainer init owner/repo --auth=gh --ai=openrouter \
+  --low-model=openai/gpt-oss-120b --high-model=openai/gpt-5.6-luna \
+  --include-codebase --include-pull-requests --include-pull-request-changes \
+  --include-commit-history --include-how-repo-works
+```
+
+Run [`probe`](probe.md) first and copy the `init` line it prints. That line is
+bounded to this repository, and it comes with a cost and time estimate. [`init`](init.md)
+takes time and API cost, so prefer the printed line over guessing flags.
+
+`--improve-matrix=N` is the rework pass count: `1` is the default, and each step
+up adds another audit pass over the same diff and raises the output budget, so
+it costs more. Use `2` when a repository needs a sharper guide and the budget
+allows it. See [Review: Depth](review.md#depth-improve-matrix) and [Cost](cost.md).
+
+`init` writes `SKILL.md`, `CODEBASE.md`, and the review guides under the config
+directory. `codegraph` is an optional local index that lets the review ask
+structural questions such as who calls a symbol. It is free and stays on your
+machine. See [Caching](caching.md) for where everything is written.
+
+## 4. Review
+
+```sh
+co-maintainer review   # local changes
+co-maintainer review owner/repo 123   # pull request
+```
+
+[Local review](local-review.md) · [PR review](local-pr-review.md)
+
+## Ways to use it (after `init`)
+
+The same repo guides can power three different setups. You can mix them over
+time (for example CLI on your laptop plus `serve` for the team), and a hosted
+instance is a managed version of the same server. See [Cloud](cloud.md).
+
+```mermaid
+mindmap
+  root((co-maintainer))
+    CLI only
+      Local diff in a clone
+      PR via gh
+      No GitHub App
+    Self-hosted server
+      serve and dashboard
+      init and sync per repo
+      GitHub App webhooks
+      auto PR reviews
+    Remote review
+      Shared init on serve
+      no per-dev init/sync
+      review --remote from clone
+      codegraph stays local
+```
+
+### How each path runs
+
+```mermaid
+flowchart TB
+  guides(["Guides from init / sync"])
+
+  guides --> cli
+  guides --> hosted
+  guides --> remote
+
+  subgraph cli["CLI only"]
+    direction TB
+    L1["Laptop: co-maintainer review"]
+    L2["OpenRouter from your config"]
+    L3["Optional: review owner/repo 123"]
+    L1 --> L2
+    L1 -.-> L3
+  end
+
+  subgraph hosted["Self-hosted"]
+    direction TB
+    S1["Server: co-maintainer serve"]
+    S2["GitHub sends PR webhooks"]
+    S3["Queue job, post App review"]
+    S4["Dashboard for ops"]
+    S1 --> S2 --> S3
+    S1 --> S4
+  end
+
+  subgraph remote["Remote hybrid"]
+    direction TB
+    R1["Server holds shared guides from init/sync"]
+    R2["Laptop: review --remote"]
+    R3["CLI uploads diff, polls job"]
+    R4["codegraph on laptop if enabled"]
+    R1 --> R2 --> R3 --> R4
+    R4 -.-> R1
+  end
+```
+
+| You want | Where it runs | Typical entry | Read |
+| -------- | ------------- | ------------- | ---- |
+| Try a PR or local branch quickly | Your machine | `review` or `review owner/repo 123` | [local-review](local-review.md) · [PR review](local-pr-review.md) |
+| Team-wide PR reviews without everyone running the CLI | Your server + GitHub App | `set` App credentials, then `serve` | [serve](serve.md) |
+| Operate repos, tokens, concurrency | Browser on the server | Dashboard after `serve` | [dashboard](dashboard.md) |
+| Review a local diff without every developer running init/sync | Laptop + server | `set --remote-host` then `review --remote` | [remote-review](remote-review.md) |
+| Refresh guides after main moves | Same place as `init` | `sync owner/repo` | [sync](sync.md) |
+
+Guides and cache paths: [Caching](caching.md). Flags and `co-maintainer set`:
+[Configuration](configuration.md).
+
+## CLI guides and dashboard guides are separate
+
+A CLI `init` writes guides on the machine that ran it. A dashboard server keeps
+its own guides for the repositories it was given. The two do not share a folder,
+and one does not update the other. To use the server's copy from a laptop, run
+`review --remote`. To read what the server holds, run
+`view owner/repo --remote`. See [Remote review](remote-review.md).
+
+Adding a repository to the dashboard needs the GitHub App, because the server
+reads the repository on its own and receives webhooks. A CLI-only setup never
+needs the App. See [GitHub App](github-app.md) and
+[Dashboard: Adding a repository](dashboard.md#adding-a-repository).
+
+## If something breaks
+
+Every failure has an exit code and a message that names the fix. Start with
+[Troubleshooting](troubleshooting.md), which maps each code and message to a
+cause. The short version:
+
+- Run `probe` only after install.
+- Run `init` before `review`.
+- co-maintainer does not run `gh auth login` for you.
+- Use `--debug` on failures.
+
+---
+
+Source: https://co-maintainer.com/docs/probe.md
+
+# `probe`
+
+Read-only research on a GitHub repository. `probe` samples pull requests and
+commit history, then prints a recommended `co-maintainer init` command with
+sensible `--include-*` and `--max-*` flags, plus an **estimate** of what that
+command will cost in time and tokens. It does not call the AI and does not
+write guide files.
+
+## Before you run
+
+| Check | Why |
+| ----- | --- |
+| [Install](getting-started.md#1-install) `co-maintainer` | `probe` is a CLI command |
+| [GitHub auth](authentication.md) (`gh auth login` or a PAT) | `probe` only reads the repo via the API |
+| [Defaults](configuration.md) with `co-maintainer set` (optional) | Skips repeating `--auth=...` on every run |
+| Read access to `owner/repo` | Private repos need a token or `gh` login that can see them |
+
+If `probe` fails, fix GitHub access first (`gh auth status`), not co-maintainer.
+
+## Usage
+
+```sh
+co-maintainer set --auth=gh
+co-maintainer probe owner/repo
+co-maintainer probe              # repo from the git remote of the current directory
+co-maintainer probe owner/repo --run   # probe, then run the recommended init
+```
+
+Output is a **recommended** block: a full `co-maintainer init ...` line
+you can copy, followed by an **estimate** and a **next** block.
+
+## Parameters
+
+| Flag | Meaning |
+| ------ | ----- |
+| `owner/repo` | Repository to research (optional, read from the git remote when omitted) |
+| `--auth=gh` | Use the GitHub CLI (default when unset: `gh`, or value from `set` / config) |
+| `--auth=pat` | Use `GITHUB_TOKEN`, `GH_TOKEN`, `--github-pat=...`, or `set --github-pat=...` |
+| `--github-pat=...` | PAT for `--auth=pat` when not in env or config |
+| `--env=PATH` | Load env vars from a file (see [Configuration](configuration.md)) |
+| `--gh-concurrent=N` | Parallel GitHub requests while sampling PR details (default `1`, minimum `1`) |
+| `--run` | After printing the plan, run the recommended `init` in the same process |
+| `--debug` | Verbose logs on stderr |
+| `--log-time` | Print timing for each probe phase |
+
+`probe` ignores `--include-*`, `--max-*`, and AI flags. Those appear on the
+**recommended `init` command** in the output when the analysis suggests them.
+
+## The estimate
+
+The `estimate` block says how many AI jobs the recommended `init` would queue
+(`extract` and `synth`), a token range, a time range, and a dollar range. It
+is a **planning estimate, not a bill**:
+
+- Job counts come from the same inputs the real run uses, so the shape is
+  exact.
+- Dollars need a price for both `--low-model` and `--high-model`. They come
+  from OpenRouter's public `/api/v1/models`, cached for 24 hours. With no
+  price there is no dollar line rather than a guessed one.
+- Time and per-job tokens come from this repository's own recorded jobs when
+  four or more exist, and from the cm-dx-lab calibration otherwise. The line
+  says which one it used.
+
+`--run` runs the recommended `init` in the same process after printing the
+plan, which is the "look then do" step in one command. It is the same code
+path the dashboard uses, not a re-spawn.
+
+## What it looks at
+
+- Repository metadata and latest release (if any)
+- Pull request list (updated time, sampling across years)
+- A bounded sample of PR diffs for size and activity
+- Default-branch commit history
+
+Use the printed `init` line as-is for a first run, or tighten limits if the repo
+is huge and you want a cheaper `init`. Next step: [`init`](init.md).
+
+---
+
+Source: https://co-maintainer.com/docs/init.md
+
+# `init`
+
+First-time knowledge build for a GitHub repository. `init` fetches sources from
+GitHub, runs AI synthesis, and writes review guides under your co-maintainer
+config directory (not inside the git clone). Expect minutes of runtime and
+non-trivial API cost on large repos.
+
+## Before you run
+
+| Check | Why |
+| ----- | --- |
+| [Install](getting-started.md#1-install) `co-maintainer` | `init` is a CLI command |
+| [`probe`](probe.md) on the same `owner/repo` (recommended) | Gives a ready-made `init` line with limits and `--include-*` flags |
+| [GitHub auth](authentication.md) | Reads the repo through `gh` or a PAT |
+| [AI provider](configuration.md) | OpenRouter or Hetzner key and models via `co-maintainer set` or flags |
+
+Run [`probe`](probe.md) first when you are unsure which `--max-*` limits to use.
+
+## Usage
+
+```sh
+co-maintainer set --auth=gh --ai=openrouter --token=YOUR_KEY \
+  --low-model=openai/gpt-oss-120b --high-model=openai/gpt-5.6-luna
+
+co-maintainer probe owner/repo
+# copy the recommended init line from probe output, for example:
+co-maintainer init owner/repo --include-codebase --include-pull-requests \
+  --max-pr-months=12 --max-commits=500
+```
+
+If AI settings are missing, the CLI prompts for provider, API key, and models.
+Values from `set`, `--env=PATH`, or flags are not asked again.
+
+## Parameters
+
+| Flag | Meaning |
+| ------ | ----- |
+| `owner/repo` | Repository to analyze (required) |
+| `--auth=gh` | GitHub CLI (default, or from `set` / config) |
+| `--auth=pat` | Personal access token (see [Authentication](authentication.md)) |
+| `--github-pat=...` | PAT when not in env or config |
+| `--env=PATH` | Load env vars from a file |
+| `--ai=openrouter` | AI provider (`openrouter`, `hetzner`, or `none`) |
+| `--token=...` | Provider API key |
+| `--low-model=...` | Model for extraction steps |
+| `--high-model=...` | Model for synthesis steps |
+| `--include-codebase` | Include default-branch tree and files |
+| `--include-pull-requests` | Include PR metadata and discussions |
+| `--include-pull-request-changes` | Include PR diffs |
+| `--include-commit-history` | Include commit messages on the default branch |
+| `--include-how-repo-works` | Include issues / workflow signals when available |
+| `--max-pr-months=N` | Limit how far back PR history goes |
+| `--max-commits=N` | Limit commits scanned on the default branch |
+| `--max-pull-request-change-lines=N` | Skip oversized PR diffs |
+| `--max-comment=N` | Cap discussion comments kept per pull request |
+| `--only-request-changed-pr` | Keep only pull requests with at least one `CHANGES_REQUESTED` review |
+| `--pr-state=open,closed,merged` | Keep a comma-separated subset of `open`, `closed`, and `merged` |
+| `--gh-concurrent=N` | Parallel GitHub fetches (default `1`) |
+| `--ai-concurrent=N` | Parallel AI jobs (default `3`) |
+| `--debug` | Verbose logs on stderr |
+| `--log-time` | Print timing per phase |
+
+**Include flags:** If you pass **any** `--include-*` on the command line, only
+the flags you list are enabled. With no `--include-*` flags, all sources default
+to on (unless a prior `init` stored different choices in config for this repo).
+
+**Pull request filters:** `--only-request-changed-pr` applies inside the
+`--max-pr-months` window. A dismissed review does not count. Dropped pull
+requests skip comment and diff downloads. The run logs
+`only request-changed pr · kept N · dropped N`. Off by default.
+`--pr-state` takes `open`, `closed`, and `merged`, separated by commas.
+`closed` means closed and not merged. Omit it to keep every state. The listing
+cache is stored per state set, so a different set is not filled from the
+previous listing.
+
+Both are saved for the repo. A later [`sync`](sync.md) without the flag
+keeps the saved choice. `--only-request-changed-pr` does not turn itself off.
+To collect every state again, pass `--pr-state=open,closed,merged`.
+
+Limits and include defaults can also come from [per-repo config](configuration.md#per-repo-memory) after the first successful run.
+
+## What it writes
+
+Under `<config dir>/repos/owner/repo/` (see [Caching](caching.md)):
+
+- `SKILL.md` and `CODEBASE.md`
+- `PR_REVIEW_GUIDE.md` and related review guides when PR sources were included
+
+`SKILL.md` holds the contribution guidance and links to `CODEBASE.md` for the
+codebase sections (layout, style, tests, development and debugging), so the same
+text is not repeated in both files and paid for twice in a review prompt.
+`CODEBASE.md` is where that text actually lives.
+
+Findings read out of a single pull request stay out of the guidance sections: a
+request under review describes that request, not how the repository works. Only
+the review-bar checklist, built from repeated review signals, learns from them.
+
+The two review guides need at least three selected review signals, drawn from
+PR discussions and merged-PR feedback. A repository with fewer keeps only
+`SKILL.md` and `CODEBASE.md`. When that happens `init` says why on one line:
+
+    [write] PR_REVIEW_GUIDE.md skipped: found 1 review signals, needs at least 3
+
+The count is what `init` saw, so adding PR sources or another review signal and
+running [`sync`](sync.md) can push a repository over the threshold. The
+threshold itself does not change.
+
+Evidence and AI job results go into `cache.db` for faster [`sync`](sync.md).
+After `init` succeeds, run [`review`](review.md) on a PR or local changes.
+
+## What it reports
+
+The last line on stderr is the run's cost and time:
+
+    Done in 21.0s · 3,125 in, 1,308 out tokens · $0.0016
+
+When the provider does not report a price the dollar field is `cost unknown`,
+and a cache-hit [`sync`](sync.md) that made no AI call still prints the line
+with `0 in, 0 out tokens`. stdout is unchanged, so `--json` and piped output
+stay clean. [`review`](review.md) prints the same line.
+
+---
+
+Source: https://co-maintainer.com/docs/sync.md
+
+# `sync`
+
+Refresh repository knowledge after the default branch or pull requests move on.
+`sync` re-fetches GitHub data, reuses unchanged evidence from
+[cache](caching.md), and regenerates `SKILL.md` and review guides. It costs
+less time and API usage than a full [`init`](init.md) when little changed.
+
+> Earlier releases called this command `sync`. That spelling still runs the
+> same job, but it is no longer shown in help.
+
+## Before you run
+
+| Check | Why |
+| ----- | --- |
+| A successful [`init`](init.md) or `sync` for this `owner/repo` | Without cached state, `sync` refuses to start |
+| [GitHub auth](authentication.md) | Reads the repo through `gh` or a PAT |
+| [AI provider](configuration.md) | Token via `set`, `--token=`, or `--env=PATH` |
+| A reason to refresh | New merges on `main`, outdated guides, or review quality drift |
+
+If the repo was never initialized, run [`init`](init.md) (or [`probe`](probe.md)
+first for limits). To change `--include-*` or limits permanently, pass flags on
+`sync` or run [`init`](init.md) again with the new options.
+
+## Usage
+
+```sh
+co-maintainer set --auth=gh --ai=openrouter --token=YOUR_KEY \
+  --low-model=openai/gpt-oss-120b --high-model=openai/gpt-5.6-luna
+
+co-maintainer sync owner/repo
+co-maintainer sync owner/repo --env=./.env --log-time
+```
+
+After the first [`init`](init.md), a plain `co-maintainer sync owner/repo` is
+enough: auth, models, limits, and `include-*` choices are read from
+[per-repo config](configuration.md#per-repo-memory). You only need to supply the
+API token again if it is not in config or env.
+
+On the [dashboard](dashboard.md), **Sync now** runs the same job as this command.
+
+## Parameters
+
+| Flag | Meaning |
+| ------ | ----- |
+| `owner/repo` | Repository to refresh (required) |
+| `--auth=gh` | GitHub CLI (default, or from `set` / config) |
+| `--auth=pat` | Personal access token (see [Authentication](authentication.md)) |
+| `--github-pat=...` | PAT when not in env or config |
+| `--env=PATH` | Load env vars from a file |
+| `--ai=openrouter` | AI provider (`openrouter`, `hetzner`, or `none`) |
+| `--token=...` | Provider API key |
+| `--low-model=...` | Model for extraction steps |
+| `--high-model=...` | Model for synthesis steps |
+| `--include-codebase` | Include default-branch tree and files |
+| `--include-pull-requests` | Include PR metadata and discussions |
+| `--include-pull-request-changes` | Include PR diffs |
+| `--include-commit-history` | Include commit messages on the default branch |
+| `--include-how-repo-works` | Include issues / workflow signals when available |
+| `--max-pr-months=N` | Limit how far back PR history goes |
+| `--max-commits=N` | Limit commits scanned on the default branch |
+| `--max-pull-request-change-lines=N` | Skip oversized PR diffs |
+| `--max-comment=N` | Cap discussion comments kept per pull request |
+| `--only-request-changed-pr` | Keep only pull requests with at least one `CHANGES_REQUESTED` review |
+| `--pr-state=open,closed,merged` | Keep a comma-separated subset of `open`, `closed`, and `merged` |
+| `--gh-concurrent=N` | Parallel GitHub fetches (default `1`) |
+| `--ai-concurrent=N` | Parallel AI jobs (default `3`) |
+| `--debug` | Verbose logs on stderr |
+| `--log-time` | Print timing per phase |
+
+**Defaults on `sync`:** With no flags, auth, models, `include-*`, `max-*`,
+`--only-request-changed-pr`, and `--pr-state` usually come from
+[per-repo config](configuration.md#per-repo-memory) written by the last `init`
+or `sync`. Omitted `--max-*` values are also filled from the cached run
+state for that repo.
+
+**Include flags:** If you pass **any** `--include-*` on the command line, only
+the flags you list are enabled. With no `--include-*` flags, the saved per-repo
+choices apply.
+
+**Pull request filters:** `--only-request-changed-pr` applies inside the
+`--max-pr-months` window. A dismissed review does not count. Dropped pull
+requests skip comment and diff downloads. The run logs
+`only request-changed pr · kept N · dropped N`. Off until a run saves it.
+`--pr-state` takes `open`, `closed`, and `merged`, separated by commas.
+`closed` means closed and not merged. With no flag and no saved set, every
+state is kept. The listing cache is stored per state set, so a different set
+is not filled from the previous listing. `--only-request-changed-pr` does not
+turn itself off. To collect every state again, pass
+`--pr-state=open,closed,merged`.
+
+## What gets reused
+
+- Unchanged files on the default branch (tree SHA in cache)
+- Pull request listings and discussions when `updated_at` is unchanged
+- Diffs when the PR head SHA is unchanged
+- AI extraction and synthesis jobs when inputs and models match
+
+Changed evidence invalidates only the facts and skill sections that depend on
+it. Outputs still land under `<config dir>/repos/owner/repo/` (see
+[Caching](caching.md)).
+
+## Scheduled sync
+
+A [`serve`](serve.md) instance can run `sync` for you. Open a repository in the
+dashboard, go to **Settings**, and fill **Scheduled sync** with a five field
+cron expression (minute, hour, day of month, month, day of week). Leave it blank
+to turn it off.
+
+| Example | Runs |
+| ------- | ---- |
+| `0 3 * * 1` | Every Monday at 03:00 UTC |
+| `30 4 * * *` | Every day at 04:30 UTC |
+| `0 */6 * * *` | Every six hours, on the hour |
+
+- Times are UTC.
+- The minute field takes a single value, so a schedule fires at most once an
+  hour. A sync spends model tokens, and this keeps a typo from burning them.
+- As in classic cron, a day field that starts with `*` counts as unrestricted, so
+  both day fields must match. `0 0 */2 * 1` runs only on Mondays that fall on an
+  odd day of the month. When neither day field has a `*`, either one matching is
+  enough.
+- A repository is skipped while its first setup is unfinished or while another
+  setup or sync for it is queued or running.
+- A minute the server was down for is not made up. The next matching minute runs.
+- The scheduler lives inside `serve`, so nothing runs while `serve` is stopped.
+
+The schedule is stored per repository as `remakeCron` in
+[`config.json`](configuration.md#per-repo-memory). The key keeps its original
+name so existing config files keep working.
+
+Next: [`review`](review.md). For a one-off refresh before a local review, see
+`--sync-before-review` in [local review](local-review.md).
+
+---
+
+Source: https://co-maintainer.com/docs/view.md
+
+# `view`
+
+Print the guides co-maintainer generated for a repository. This is the way to
+see exactly what a review will be judged against, without starting a review.
+
+The guides are the output of [`init`](init.md) / [`sync`](sync.md):
+`SKILL.md`, `CODEBASE.md`, and the review guides. They live under the config
+directory, not in your clone. See [Caching: Generated guides](caching.md#generated-guides).
+
+## Usage
+
+```sh
+co-maintainer view                                  # every guide for the detected repo
+co-maintainer view owner/repo                       # every guide, with headers
+co-maintainer view owner/repo review-guide          # one guide, raw
+co-maintainer view owner/repo --list                # file, size, build date
+co-maintainer view owner/repo --path                # the directory they live in
+co-maintainer view owner/repo --remote              # read from the review server
+```
+
+With no repository argument, the name is detected from the `git` remote in the
+current directory.
+
+## What it prints
+
+With no guide named, every guide is printed in reading order, each under an
+`== SKILL.md · built 2026-09-22 ==` style header. Naming one guide prints that
+file raw, with no header, so the output can be redirected straight to a file:
+
+```sh
+co-maintainer view owner/repo review-guide > PR_REVIEW_GUIDE.md
+```
+
+A guide name is matched case-insensitively as either the page name
+(`review-guide`) or the file or body name. `--list` lists every file in the
+folder, including any file co-maintainer did not write, with its size and date.
+
+## Reading from the server
+
+`--remote` reads the copies a configured [`serve`](serve.md) instance holds,
+using the same remote token as [`review --remote`](remote-review.md). The output
+format is identical, only the source differs. This is how you check what the
+team's shared context says without downloading anything.
+
+`--path` is local-only and is refused with `--remote`, because the directory
+belongs to the machine you are on. A rejected token prints the same Settings
+hint that `review --remote` prints.
+
+## Before you run
+
+| Check | Why |
+| ----- | --- |
+| A successful [`init`](init.md) or [`sync`](sync.md) for the repo | Without guides there is nothing to print |
+| For `--remote`: a host and token | See [Remote review](remote-review.md) |
+
+If no guides exist, `view` exits with code `2` and suggests
+`co-maintainer probe owner/repo`.
+
+## Related
+
+- [`init`](init.md) and [`sync`](sync.md) build and refresh the guides.
+- [Caching](caching.md) shows where they are stored.
+- [Configuration](configuration.md) lists the flags for each command.
+
+---
+
+Source: https://co-maintainer.com/docs/review.md
+
+# Review
+
+AI code review using guides from [`init`](init.md) / [`sync`](sync.md).
+Progress and diagnostics go to **stderr**. The result goes to **stdout** (human
+text or JSON with `--json`).
+
+This page helps you **pick a mode**. Commands, flags, and checklists live on the
+linked pages below.
+
+## Which mode should I use?
+
+Start with what you are trying to review, not the flag name.
+
+```mermaid
+flowchart TD
+  start([What are you reviewing?])
+  start --> q1{GitHub pull request<br/>by number?}
+  q1 -->|yes| pr[PR review]
+  q1 -->|no| q2{Uncommitted or local<br/>commits in a clone?}
+  q2 -->|not yet| clone[Clone the repo and make your changes]
+  q2 -->|yes| q3{Use shared guides<br/>on serve?}
+  q3 -->|no, init locally| local[Local review]
+  q3 -->|yes, team context| remote[Remote review]
+
+```
+
+| If this sounds like you | Mode | Read next |
+| ----------------------- | ---- | --------- |
+| You are in a clone and want feedback on your branch or working tree before you open a PR | [Local review](local-review.md) | OpenRouter on your machine, guides on disk |
+| Same as local review, but the repo is already inited on [`serve`](serve.md) and you skip per-laptop init/sync | [Remote review](remote-review.md) | Shared context on the server, diff from your clone |
+| You have a PR number and do not need to check out that branch locally | [PR review](local-pr-review.md) | `gh` only, guides on disk, AI on your machine |
+
+PR review and remote review **do not combine**: `--remote` is only for a local
+diff with no PR positional arguments.
+
+## How the three modes differ
+
+Same underlying guides from `init` / `sync`, different **subject** (what gets
+reviewed) and **who keeps that context up to date**.
+
+```mermaid
+flowchart TB
+  subgraph context["Guide context"]
+    disk["Per laptop: init / sync"]
+    shared["Per repo on serve: init / sync once"]
+  end
+
+  subgraph subject["What gets reviewed"]
+    direction LR
+    diff["Git diff in your clone"]
+    pr["PR metadata and patch via gh"]
+  end
+
+  diff --> localN["Local review"]
+  diff --> remoteN["Remote review"]
+  pr --> prN["PR review"]
+
+  disk --> localN
+  disk --> prN
+  shared --> remoteN
+```
+
+| | Local review | PR review | Remote review |
+| --- | --- | --- | --- |
+| Typical moment | Pre-push in your clone, you own local guides | Open PR by number, you own local guides | Pre-push using the team's shared server context |
+| Who runs init/sync | You on the laptop | You on the laptop | Ops on the server (you usually do not) |
+| Guides at review time | Laptop cache | Laptop cache | Server dashboard repo |
+| Extra setup | OpenRouter | `gh auth login` | `serve`, token, `set --remote-host` |
+| Deep dive | [local-review](local-review.md) | [local-pr-review](local-pr-review.md) | [remote-review](remote-review.md) |
+
+Team-wide **automatic** PR reviews on webhooks are not a fourth `review` mode.
+They go through [`serve`](serve.md) and the GitHub App. Use PR review when **you**
+run the CLI against one PR.
+
+## Depth: `--improve-matrix`
+
+Reviews share one depth control, `--improve-matrix=N`. `1` is the default. Each
+step up adds another pass that audits the draft against the complete diff and the
+guides, and raises the output budget so a longer answer fits. The pass preserves
+valid findings, corrects inaccurate ones, removes duplicates, and adds what the
+first pass missed. More passes cost more tokens and take longer. `2` is a
+reasonable step up when a change is high risk or the repository is large. The
+value is capped at `4`. See [Cost](cost.md) for what a pass costs.
+
+## Exit codes
+
+| Code | Meaning |
+| ------ | ----- |
+| 0 | Review finished, no open blocking findings |
+| 1 | Review finished, at least one blocking finding |
+| 2 | Usage or precondition error (init missing, not a git repo, etc.) |
+| 3 | Runtime failure or abort |
+
+### What counts as blocking
+
+`reviewBlocking` in `config.json` decides it, and the same rule is used by
+local, PR, remote and the automatic GitHub App reviews.
+
+| Value | A finding blocks when |
+| ----- | ----- |
+| `model` (default) | The model says so. A P0 always blocks, even if the model labeled it otherwise. |
+| `severity` | Its severity is P0 or P1. P2 and P3 never block, whatever the model said. |
+
+The default keeps the 0.4.13 behavior. `severity` exists because the model's
+own label can move between two reviews of the same code, which flipped the exit
+code for the same finding. With `severity` the same finding set always yields
+the same exit code, the same `blocking` count in `--json`, and the same GitHub
+review type.
+
+```sh
+co-maintainer config set --review-blocking=severity
+co-maintainer config set --review-blocking=model      # back to the default
+```
+
+`CO_MAINTAINER_REVIEW_BLOCKING` overrides it for one environment.
+
+## JSON output
+
+With `--json`, stdout is a single JSON object (`schemaVersion` `1`). Fields
+include `mode` (`local`, `remote`, or `pr`), `subject`, `summary`, `findings[]`,
+`warnings[]`, `usage`, and `durationMs`. Local and remote runs also include diff
+metadata and `codegraph` state. Errors with `--json` are JSON on stdout as well.
+
+Flag details per mode: [Local review](local-review.md), [Remote review](remote-review.md),
+[PR review](local-pr-review.md).
+
+## Human output
+
+Without `--json`, all three modes print the **same** format. Only the header
+names the mode, because the subject differs:
+
+```
+co-maintainer review · owner/repo · my-branch
+4 files · +12 −3 · guide built 2026-09-15 · codegraph used
+
+New (1)
+  • src/app.ts:16-18  [P1 · blocking] the gate ignores its threshold
+    A violation exactly at the threshold passes.
+
+Still open (1)
+  • src/util.ts:4  [P2 · non-blocking] the helper ignores its argument
+
+Closed (1)
+  ✓ src/old.ts:9  [P2 · non-blocking] the dead branch
+
+Summary: 1 new · 1 open · 1 closed · 2 blocking
+```
+
+Findings are grouped `Closed`, `Still open`, `New`, each labeled with the same
+`blocking` decision the exit code uses. The header names the real guide build
+date (`guide unknown` only when no guide timestamp can be read) and the state
+the run actually reached: `codegraph used`, `codegraph disabled`, or
+`codegraph unavailable`: the last one when codegraph was requested but could
+not be prepared, which is also what `--json` reports.
+
+The severity legend and the "If you'd like me to explain it in more detail,
+please ask." sentence are **not** in terminal output: a terminal has nobody to
+ask, and the legend is fixed noise. Both stay in the GitHub review comment,
+which is a different reader.
+
+## How findings are produced
+
+The model is asked for a JSON object, not for prose. For each finding it returns
+the severity, whether it blocks, the path and line span, the symbol, a title, the
+explanation, and an optional replacement. `co-maintainer` renders the Markdown
+from that object, so a finding's boundaries are never guessed from the model's
+wording. The JSON schema is sent as OpenRouter's `response_format` when the
+provider accepts it. A provider that rejects the combination gets one request
+without the schema, and the prompt also asks for a fenced JSON block.
+
+If the answer is not usable JSON, the request is retried once and then, if it
+still fails, the older Markdown parser reads it. That parser accepts the em
+dash or `:` as the heading separator, so answers written before this change (and
+carry-over records saved by `0.4.13`) keep working. The `--json` output and the
+human output are both built from the same parsed findings, so they can never
+disagree.
+
+## Before any review
+
+| Check | Why |
+| ----- | --- |
+| [`init`](init.md) or [`sync`](sync.md) on your laptop | Required for local and PR review |
+| [OpenRouter](configuration.md) for local and PR review | AI runs on your machine |
+| [Remote setup](remote-review.md) for `--remote` | Host, token, repo already inited on the server |
+
+---
+
+Source: https://co-maintainer.com/docs/local-review.md
+
+# Local review
+
+Review **staged, unstaged, and untracked** files in your git clone against a
+base branch. AI and guides run on **your machine** (OpenRouter via
+[configuration](configuration.md)).
+
+Overview: [`review`](review.md).
+
+## Before you run
+
+| Check | Why |
+| ----- | --- |
+| Run from the repo root (or a subdirectory with a git root) | Review needs a working tree |
+| `origin` or `upstream` points at GitHub (or use `--repo=owner/repo`) | Maps the clone to guides for that repo |
+| [`init`](init.md) / [`sync`](sync.md) for that `owner/repo` | `SKILL.md` and review guides on disk |
+| OpenRouter key in `set`, `--token=`, or `--env=PATH` | Local review uses your provider |
+| Clean enough git state | Conflicts or broken git state can fail collection |
+
+## Usage
+
+```sh
+cd your/clone
+co-maintainer review
+co-maintainer review --json
+co-maintainer review --fresh
+co-maintainer review --to-branch=main --sync-before-review
+```
+
+## Parameters
+
+| Flag | Meaning |
+| ------ | ----- |
+| `--json` | One JSON document on stdout, no prompts |
+| `--disable-codegraph` | Skip codegraph tools (default is on) |
+| `--allow-tool-install` | Install pinned codegraph without a prompt when missing |
+| `--fresh` | Ignore carry-over from the previous local review on this branch |
+| `--to-branch=<name>` | Base branch for the diff (default: remote default branch) |
+| `--branch=<name>` | Branch name when HEAD is detached |
+| `--repo=owner/repo` | Override GitHub remote detection |
+| `--sync-before-review` | Run [`sync`](sync.md) before reviewing (requires `gh`) |
+| `--debug` | Verbose logs on stderr |
+| `--log-time` | Print timing per phase |
+
+Do not pass `owner/repo` or a PR number. That selects [PR review](local-pr-review.md)
+instead.
+
+## Codegraph
+
+Local review uses codegraph to follow calls between files. On the first run the
+pinned build is usually missing, and co-maintainer asks before installing it (see
+[Caching](caching.md) for the per-version tools directory). The question names
+the package, where it comes from, what it is for, the approximate download size,
+and the exact install directory:
+
+```
+co-maintainer uses codegraph 1.6.0 (@colbymchenry/codegraph from npm, ~250 MB) to follow calls between files while reviewing.
+Install it into <tools dir>/codegraph/1.6.0 (your global PATH is not touched)? [y/N]
+```
+
+The question is only asked when **both** stdin and stdout are a terminal and
+`CI` is unset. With a closed stdin (`</dev/null`), a piped output, or `CI=1`, it
+is skipped and review continues without codegraph, printing one line:
+
+```
+[codegraph] codegraph 1.6.0 is not installed, reviewing without it. Pass --allow-tool-install to install it, or --disable-codegraph to skip this notice.
+```
+
+Pass `--allow-tool-install` to install without a prompt, or
+`--disable-codegraph` to skip the check entirely. Neither CI jobs nor pipelines
+can hang on the question.
+
+## Carry-over
+
+Repeated `co-maintainer review` on the same repo root and branch reuses prior
+findings (closed / still open / new) via [cache](caching.md). Use `--fresh` to
+start clean. If the cache cannot be read or written, review continues with a
+`carry_over_unavailable` warning.
+
+Carry-over never replaces the review. Every run scans the whole diff for new
+violations **and** re-checks the previous findings. A finding that is still open
+is reported as such rather than suppressing a new one nearby.
+
+When a guide is rebuilt (`init` / `sync`) after your last review on this branch,
+that review's verdicts were made against rules that no longer exist. The next
+review therefore starts fresh on its own (no `--fresh` needed), so a stale
+finding cannot hide a violation the new guide would catch.
+
+## Developers
+
+```sh
+npm run review-local-e2e
+```
+
+Temporary worktree, `CM_FAKE_AI=1`, optional `CM_FAKE_REVIEW_FILE`.
+
+---
+
+Source: https://co-maintainer.com/docs/remote-review.md
+
+# Remote review
+
+Same **local git diff** as [local review](local-review.md), but **review guides
+come from the server**. The team runs [`init`](init.md) / [`sync`](sync.md)
+once on [`serve`](serve.md). Developers clone, set host and token, and run
+`review --remote` without maintaining their own guide cache.
+
+The model runs on the server as part of that path. Codegraph tools (when enabled)
+still run on the laptop and return results through the tool bridge.
+
+Overview: [`review`](review.md). Requires [`serve`](serve.md) and the
+[dashboard](dashboard.md).
+
+## Before you run
+
+| Check | Why |
+| ----- | --- |
+| Server running `co-maintainer serve` | Hosts remote review API and shared repo context |
+| Repo added on the dashboard with **init** / **sync** | Guides live on the server for everyone |
+| **Settings → Remote review** token (`cmr_…`) | Bearer auth for the CLI |
+| `co-maintainer set --remote-host=... --remote-token=...` on the laptop | CLI knows where to connect (or pass `--remote-host=` / `--remote-token=` for one run) |
+| Git clone with the same diff you would use for local review | Command is still `review --remote` with no PR number |
+
+You do **not** need a local `init` / `sync` for that repo if the server
+already has it.
+
+PR review (`owner/repo` + number) **cannot** use `--remote`.
+
+## Usage
+
+```sh
+co-maintainer set --remote-host=https://your-server --remote-token=cmr_...
+cd your/clone
+co-maintainer review --remote
+co-maintainer review --remote --json --disable-codegraph
+# One-off, without saving host and token to the config:
+co-maintainer review --remote --remote-host=https://your-server --remote-token=cmr_...
+```
+
+## Parameters
+
+Same as [local review](local-review.md) for diff and output flags:
+
+| Flag | Meaning |
+| ------ | ----- |
+| `--json` | JSON on stdout |
+| `--disable-codegraph` | Skip local codegraph |
+| `--allow-tool-install` | Allow codegraph install without a prompt |
+
+The codegraph question, and the conditions under which co-maintainer skips it,
+are the same as [local review](local-review.md#codegraph).
+| `--fresh` | No carry-over from a prior remote run |
+| `--to-branch=<name>` | Diff base branch |
+| `--branch=<name>` | Branch when HEAD is detached |
+| `--repo=owner/repo` | Override remote detection |
+| `--remote-host=<url>` | Override the configured host for this run (needs `--remote`) |
+| `--remote-token=<token>` | Override the configured token for this run (needs `--remote`) |
+| `--debug` | Verbose stderr |
+| `--log-time` | Phase timings |
+
+Not supported with `--remote`: `--sync-before-review` (run
+[`sync`](sync.md) on the server instead).
+
+## Reading the server's guides
+
+The same token that authorizes a review also reads the guides the server holds,
+so you can inspect what your review will be judged against without downloading
+anything:
+
+```sh
+co-maintainer view owner/repo --remote            # every guide, with headers
+co-maintainer view owner/repo review-guide --remote   # one guide, raw
+co-maintainer view owner/repo --list --remote     # file, size, build date
+```
+
+The output is the same format as a local `co-maintainer view`, with the same
+`--list`, single-guide and header behavior. Only the source differs. `--path`
+is local-only and is refused with `--remote`, because the directory belongs to
+the machine you are on. A rejected token prints the same Settings hint
+`review --remote` prints.
+
+## Limits
+
+- Submit body size is capped (handshake `limits.maxBodyBytes`).
+- Concurrent remote reviews per token and job queue limits in dashboard Settings.
+- If sync stops longer than `remoteSyncTimeoutSeconds`, the server cancels the job.
+
+## Security
+
+- Tokens are hashed at rest. Treat `cmr_…` like a password.
+- Deactivating or deleting a token cancels in-flight remote reviews for that token.
+- Only your **diff** leaves the machine. The CLI shows a one-time notice per host.
+
+---
+
+Source: https://co-maintainer.com/docs/local-pr-review.md
+
+# PR review
+
+Review an **open GitHub pull request** by number. The CLI uses **`gh`** to read
+the PR and runs the AI **on your machine** (OpenRouter).
+
+Overview: [`review`](review.md). This is not the same as
+[remote review](remote-review.md) (`--remote` is rejected when a PR number is
+present).
+
+## Before you run
+
+| Check | Why |
+| ----- | --- |
+| [`init`](init.md) / [`sync`](sync.md) for `owner/repo` | Guides on disk for that repo |
+| `gh auth login` | PR review supports **`--auth=gh` only** |
+| Read access to the PR | Private repos need a logged-in `gh` user |
+
+## Usage
+
+```sh
+co-maintainer review owner/repo 123
+co-maintainer review owner/repo 123 --json
+co-maintainer review owner/repo 123 --disable-codegraph --debug
+```
+
+## Parameters
+
+| Flag | Meaning |
+| ------ | ----- |
+| `owner/repo` | Repository (required positional) |
+| `123` | Pull request number (required positional) |
+| `--json` | One JSON document on stdout |
+| `--disable-codegraph` | Skip codegraph tools (default is on for CLI) |
+| `--allow-tool-install` | Install pinned codegraph without a prompt |
+| `--improve-matrix=N` | Scales review depth (see CLI help) |
+| `--debug` | Verbose logs on stderr |
+| `--log-time` | Print timing per phase |
+
+**Not supported for PR review:** `--remote`, `--fresh`, `--to-branch`,
+`--branch`, `--repo=`, `--sync-before-review`. Use
+[local review](local-review.md) for working-tree changes or
+[remote review](remote-review.md) for a local diff against shared server context.
+
+PR review indexes the checked-out repository with codegraph when it is already
+installed, but it never prompts to install it: a PR review runs unattended. The
+question and its rules are in [local review](local-review.md#codegraph).
+
+Auth and models follow [`configuration`](configuration.md) and `co-maintainer
+set` like other commands (`--auth=pat` is not used for PR review).
+
+---
+
+Source: https://co-maintainer.com/docs/serve.md
+
+# `serve`
+
+Long-running process for **self-hosted** co-maintainer: GitHub App webhooks,
+background review jobs, the [dashboard](dashboard.md), and the API used by
+[remote review](remote-review.md). One binary, one `app.db`, one config dir.
+
+Linux (WSL included) is the recommended platform. See
+[dashboard: Linux](dashboard.md#linux) for why.
+
+## What it does
+
+```mermaid
+flowchart LR
+  gh[GitHub App]
+  gh -->|POST webhook| serve[co-maintainer serve]
+  serve --> jobs[Review and reply jobs]
+  serve --> dash[Dashboard UI]
+  serve --> remote[Remote review API]
+  jobs -->|App token| gh
+  browser[Browser] --> dash
+  cli[CLI review --remote] --> remote
+```
+
+| Piece | Role |
+| ----- | ---- |
+| `POST /github/webhook` | PR and conversation events enqueue work |
+| Dashboard at `/` | Per-repo init/sync, settings, activity, credentials |
+| Job worker | Auto PR reviews, setup jobs, conversation replies |
+| Remote review | Shared repo context for laptops without local init |
+
+Team flow: configure the App once, run `serve`, add repos on the dashboard,
+then either webhooks review PRs or developers use [`review --remote`](remote-review.md).
+CLI-only users can ignore `serve` until they need shared context or automation.
+
+## Before you run
+
+| Check | Why |
+| ----- | --- |
+| [Install](getting-started.md#1-install) `co-maintainer` | `serve` is a CLI command |
+| GitHub App (optional at startup) | Add it later in the dashboard **Settings**, or with `co-maintainer set` ([Configuration](configuration.md)). Changes apply without a restart. The dashboard can also create it for you (see [Create the App from the dashboard](#create-the-app-from-the-dashboard)) |
+| `--github-webhook-secret=` (recommended) | Verifies webhook payloads |
+| AI and GitHub access via dashboard **Get started** (`/setup`) or **Settings** | Reviews need models and repo access (can finish after first boot) |
+| Public URL for webhooks (production) | GitHub must reach `POST .../github/webhook` |
+| Linux or WSL for production | Other platforms log a warning and continue |
+
+## Usage
+
+```sh
+co-maintainer set --github-app-id=... --github-app-private-key-file=./app.pem
+co-maintainer set --github-app-id=... --github-app-private-key-path=./app.pem
+co-maintainer set --github-webhook-secret=...
+co-maintainer serve --port=5000
+
+co-maintainer serve --port=5000 --password=your-dashboard-secret
+co-maintainer serve --port=5000 --webhook-url=https://example.com/github/webhook
+```
+
+`--github-app-private-key-file` copies the key into `config.json`.
+`--github-app-private-key-path` stores only the path, so the key stays on disk
+and is read at startup. If that file is missing, `serve` warns and continues.
+See [Configuration: App private key](configuration.md#app-private-key-inline-file-contents-or-path).
+
+On non-Linux platforms, `serve` logs a one-line warning that Linux (WSL
+included) is recommended, with a link to
+[docs](https://co-maintainer.com/docs/troubleshooting.html). Nothing is blocked.
+
+At startup, `serve` prints `app.db` path, dashboard URL, and webhook URL. On the
+first start with password auth on it also generates a dashboard password and
+prints it once. The password is stored in `config.json` as a hash, so later
+starts keep it.
+
+## Parameters
+
+| Flag | Meaning |
+| ------ | ----- |
+| `--port=N` | HTTP port (required, 1 to 65535) |
+| `--password=...` | Replace the stored dashboard password (a random one is generated on the first start if none exists) |
+| `--webhook-url=...` | Public webhook URL GitHub should use (also `CM_WEBHOOK_URL` or saved in Settings) |
+| `--disable-auth=password` | Turn off password sign-in for this run |
+| `--enable-auth=github` | Turn on GitHub OAuth sign-in for this run |
+| `--trust-proxy` | Trust `x-forwarded-for` and `x-forwarded-proto` from a reverse proxy in front (also `CM_TRUST_PROXY=1`, see [Behind a reverse proxy](#behind-a-reverse-proxy)) |
+| `--inject-500` | Every mutating `/api/*` call returns 500 (failure UI testing, also `CM_INJECT_500=1`) |
+| `CM_LOGIN_HINT` | Text shown on the sign-in page instead of the default "printed when `serve` started" line. Useful when a deployment hands out its own password, as the Cloud image does. Escaped as plain text |
+
+Per-run `--disable-auth` / `--enable-auth` override values from `co-maintainer
+set`. At least one sign-in method must stay enabled.
+
+Persistent App, webhook, OAuth, and webhook URL fields: [Configuration](configuration.md)
+and dashboard **Settings**.
+
+## Sign in to the dashboard
+
+**Password (default).** Copy the password from the `serve` console on first start,
+or set it with `--password=...` or `co-maintainer set --password=...`. Change it
+any time from **Settings**, which also signs out the other browser sessions.
+
+**GitHub sign-in (optional).** One allowed GitHub user can sign in with the App's
+OAuth client (no separate OAuth App).
+
+1. On the GitHub App settings page, set **Redirect URL** to
+   `http://<host>:<port>/auth/github/callback` (same host and port as `serve`).
+2. Copy client ID and client secret from that page.
+3. Save credentials and the allowed username:
+   ```sh
+   co-maintainer set --github-oauth-client-id=... \
+     --github-oauth-client-secret=... \
+     --github-oauth-allowed-user=your-github-username
+   ```
+4. Enable on the command line when needed:
+   ```sh
+   co-maintainer serve --port=5000 --enable-auth=github
+   co-maintainer serve --port=5000 --disable-auth=password --enable-auth=github
+   ```
+
+OAuth and auth toggles can also be changed later in dashboard **Settings**. UI
+routes and failure behavior: [Dashboard](dashboard.md).
+
+The sign-in page says "Use the dashboard password printed when serve started."
+Set `CM_LOGIN_HINT` to replace that line with your own text, for example a
+pointer to the password your deployment already gave the user. It is shown as
+plain text and escaped, so it cannot inject markup.
+
+## Create the App from the dashboard
+
+Creating an App by hand means copying a private key, a webhook secret, and OAuth
+credentials between GitHub and the dashboard, and the webhook secret is easy to
+mismatch. The GitHub App card in **Settings** can create the App for you instead:
+
+1. Set a public **Webhook address** first. On `http://localhost:<port>...` the
+   button explains that GitHub cannot reach it, so nothing silent happens.
+2. Pick an **App name**. It defaults to `co-maintainer-<host>` and must be unique
+   on GitHub, which the field lets you change.
+3. Click **Create GitHub App**. The dashboard opens GitHub's manifest page, which
+   asks you to confirm the permissions and events listed there.
+
+GitHub then redirects back, and `serve` writes the App ID, private key, webhook
+secret, and OAuth client ID and secret straight into `config.json`, the same keys
+the manual fields use. The browser lands on the App's install page, where you
+choose the repositories the App can see. The manual fields stay available for an
+App you created yourself.
+
+The manifest requests only what the code calls:
+
+| Permission | Why |
+| ---------- | --- |
+| `contents: read` | Read the review guide, file contents, and git trees |
+| `pull_requests: write` | Read a pull request, post reviews and review comments |
+| `issues: write` | Post and read issue comments |
+| `checks: write` | Create and update the review check run |
+| `metadata: read` | Required by every App |
+
+Events: `pull_request`, `pull_request_review`, `pull_request_review_comment`,
+`issue_comment`. GitHub delivers `installation` and `installation_repositories`
+without a subscription, so the manifest does not list them.
+
+## Webhook URL
+
+Point the GitHub App webhook at:
+
+`http://<host>:<port>/github/webhook`
+
+The dashboard **Settings** field, `--webhook-url=...`, `CM_WEBHOOK_URL`, or
+saved config override the default `http://localhost:<port>/github/webhook`.
+
+When a secret is configured, `serve` checks `x-hub-signature-256`. Duplicate
+delivery IDs are ignored. `pull_request` and review-comment events enqueue jobs
+when the repo is active and rules allow it. Enable **Issue comments** and
+**Issues: write** on the App if you want `@co-maintainer` conversation replies.
+
+Manual PR review from the UI when GitHub cannot reach your host:
+[Dashboard: Pull requests](dashboard.md#routes).
+
+## Behind a reverse proxy
+
+Put `serve` behind nginx, Traefik, Caddy, or a load balancer and start it with
+`--trust-proxy` (or `CM_TRUST_PROXY=1`). Two things change:
+
+- **Client address.** Sign-in lockout counts failed attempts per address. Without
+  the flag every visitor arrives from the proxy's address, so five wrong guesses
+  from anyone lock the owner out. With it, `serve` uses the last address in
+  `x-forwarded-for`, the one your proxy appended, and ignores anything a visitor
+  put to its left. A value that is not an IP address is ignored.
+- **Secure cookies.** When the last `x-forwarded-proto` is `https`, the session
+  cookie is sent with the `Secure` flag.
+
+Only turn this on when a proxy you control sits in front and sets both headers.
+Without one, a visitor could send the headers themselves.
+
+## Run with Docker
+
+Each release is also published as an image at
+`ghcr.io/groophylifefor/co-maintainer`, tagged with the version and, for stable
+releases, `latest`. It bundles Node.js, `git`, and the codegraph binary that
+reviews use.
+
+```sh
+docker run -d --name co-maintainer -p 5000:5000 \
+  -v co-maintainer-data:/data \
+  -e CM_WEBHOOK_URL=https://example.com/github/webhook \
+  ghcr.io/groophylifefor/co-maintainer:latest
+
+docker logs co-maintainer
+```
+
+The first start prints the dashboard password in the logs. To choose it yourself,
+set it on the volume before the first start:
+
+```sh
+docker run --rm -v co-maintainer-data:/data \
+  ghcr.io/groophylifefor/co-maintainer:latest set --password=your-dashboard-secret
+```
+
+- Everything lives in the `/data` volume: `config.json`, `app.db`, generated
+  guides, and repository clones. Keep it to survive upgrades.
+- The container listens on port `5000` and runs as the non-root `node` user
+  (uid 1000). A bind mounted host folder must be writable by that user.
+- The image runs `serve --port=5000` by default. Any other command works too,
+  for example `... set --token=...`. The health check assumes port `5000`.
+- Run one container per volume. Only one `serve` may write to an `app.db`.
+- Upgrade by pulling the new tag and recreating the container with the same
+  volume. Queued jobs that were interrupted are picked up again on start.
+
+- **Inline, file, and path.** `set` writes the App private key three ways:
+  inline, as file contents, or as a path. The path form keeps the key out of
+  `config.json`, and a missing file is warned about at startup. See
+  [Configuration: App private key](configuration.md#app-private-key-inline-file-contents-or-path).
+
+## Updating
+
+Forward-only migrations: do not install an older CLI after a newer one has
+opened `app.db`.
+
+1. Stop `serve`.
+2. `npm install -g co-maintainer@latest`
+3. Start `serve` again with the same data directory.
+
+Restart after upgrading. Do not reinstall while the old process is still
+running. Same steps are listed on [Dashboard: Updating](dashboard.md#updating).
+
+---
+
+Source: https://co-maintainer.com/docs/dashboard.md
+
+# Dashboard
+
+Web UI started by [`serve`](serve.md). Use it to finish setup, add repositories,
+run [`init`](init.md) / [`sync`](sync.md), tune auto-review, watch jobs, and
+manage [remote review](remote-review.md) tokens. Webhooks and the job worker run
+in the same process as the UI.
+
+## What it is for
+
+```mermaid
+flowchart TD
+  login[Sign in] --> setup["Get started (/setup)"]
+  setup --> add[/repos/new/]
+  add --> init[Init job on Activity]
+  init --> ready[Repo overview]
+  ready --> auto[Repo settings: auto-review]
+  ready --> pr[Pull requests: manual review]
+  ready --> tok[Settings: remote tokens]
+  tok --> remote[Developers: review --remote]
+```
+
+| Goal | Where to go |
+| ---- | ----------- |
+| First-time server setup | **Get started** on home or `/setup`, then **Settings** |
+| Onboard a repo | **Add repository**, wait on **Activity** |
+| Refresh guides after `main` moves | Repo **Overview** or **Settings** (Sync), or a cron schedule in repo **Settings** ([Scheduled sync](sync.md#scheduled-sync)) |
+| Team laptops without local init | **Settings** remote tokens, repo **Remote** tab |
+| Debug a failed job | **Activity** job detail |
+
+## Before you open
+
+| Check | Why |
+| ----- | --- |
+| [`serve`](serve.md) is running | Dashboard is not a separate install |
+| Dashboard URL from startup log | Default `http://localhost:<port>/` |
+| Password or GitHub sign-in | See [Sign in](#sign-in) and [`serve`: Sign in](serve.md#sign-in-to-the-dashboard) |
+| Browser on a host that can reach the server | Same network or VPN as production |
+| A webhook URL GitHub can reach | The repo **Overview** warns when it cannot |
+
+`/dashboard` redirects to `/`.
+
+## Webhook reachability
+
+A fresh `serve` defaults to `http://localhost:<port>/github/webhook`, which
+GitHub cannot route to, so automatic reviews silently never arrive. Every repo
+**Overview** states this: a bad-address notice when the configured webhook URL
+host is loopback, `0.0.0.0`, or a private range, and a "No webhook delivery
+yet" notice when nothing has been received. Both name the current URL and link
+to **Settings**.
+
+Once a delivery has arrived, the page shows **Last webhook delivery** instead.
+The check only inspects the host. A single-label internal name and any public
+host pass, and `serve` and `set` still accept every URL they did before.
+
+## Adding a repository
+
+**Add repository** runs the same read-only probe the CLI runs, server side,
+then shows the recommended `init` command with an estimated job count, token
+range, time and cost. Nothing is written until **Add and start init** is
+pressed, and that confirmation stores the plan's flags, limits and sources for
+the repo before the init job is queued, so the run matches what was approved.
+
+The estimate says whether it used this repository's recorded jobs or the
+cm-dx-lab calibration, and whether it priced dollars from OpenRouter. See
+[`probe`](probe.md) for how the recommendation is derived.
+
+## Sign in
+
+Open `http://<host>:<port>/`.
+
+- **Password**: printed once on the first `serve` start, or set with `--password=...`. Change it in **Settings**.
+- **GitHub** (optional): **Continue with GitHub** for the one allowed user.
+  OAuth setup lives on [`serve`](serve.md#sign-in-to-the-dashboard).
+
+Sessions use an `HttpOnly`, `SameSite=Lax` cookie (`Secure` on HTTPS).
+
+## Get started (`/setup`)
+
+Onboarding checklist: models and API key, GitHub access, GitHub App. Each step
+links to **Settings** to fix gaps.
+
+The home page carries the same idea as a **Finish setup** card until an install
+is complete: models and API key, GitHub App, webhook reachable (see
+[Webhook reachability](#webhook-reachability)), first repository, first review,
+and CLI connected (a remote token exists). Each row links to the settings card
+that fixes it, the header shows how many are done, and the card disappears once
+all six are. A fresh install therefore says what to do next on its landing
+page, not only on `/setup`.
+
+This page is **not** in the top bar. After sign-in, open
+`http://<host>:<port>/setup`, or use the **Finish setup** card on the home page.
+You can skip it and configure the same items under **Settings** at any time.
+
+## Routes
+
+Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
+
+| Path | Purpose |
+| ---- | ------- |
+| `/` | Repository list, **Finish setup** checklist until complete, **Add repository**, auto-review toggles |
+| `/setup` | Same checklist as above (direct URL) |
+| `/repos/new` | Pick an App-installed repo, **Preview** the plan, then confirm to start **init** |
+| `/repos/:owner/:repo` | Overview, 30-day stats, drift **Update now**, recent PRs, webhook reachability and last delivery |
+| `/repos/:owner/:repo/pulls` | Open PR list with a **Review** button each, paged review history, manual **Review** by number when webhooks fail |
+| `/repos/:owner/:repo/pulls/:n` | Findings and cost for one PR |
+| `/repos/:owner/:repo/remote` | Remote CLI reviews for this repo (last 30 days) |
+| `/repos/:owner/:repo/knowledge` | Generated guides, **Sync** |
+| `/repos/:owner/:repo/settings` | Auto-review, skip rules, scope, remove repo |
+| `/activity` | Live and recent jobs (refreshes about every 5 seconds) |
+| `/activity/:id` | Single job log |
+| `/analytics` | Usage for 7, 30, or 90 days |
+| `/settings` | Global models, GitHub, App (**Create GitHub App**), webhook URL, remote limits and tokens |
+
+Per-repo sidebar: **Overview**, **Pull requests**, **Remote**, **Knowledge**, **Settings**.
+
+PR titles are not stored in `app.db`, so lists show `#number` only.
+
+## Settings (global)
+
+Single page with sections (anchor links in the sidebar):
+
+| Section | What you configure |
+| ------- | ------------------ |
+| Models and API key | Provider, token, high model (reviews and synthesis), low model (history extraction) |
+| GitHub | `gh` or PAT for init/sync and server-side Git reads |
+| Defaults | Auth and include/limit defaults for new work |
+| Server | Webhook URL shown to GitHub, queue and timeout knobs |
+| Remote review | `cmr_…` tokens (secret shown once, with copy), per-token concurrency, sync timeout |
+| Access | Password vs GitHub sign-in toggles (mirrors `serve` flags) |
+| Password | Change the dashboard password and sign out other sessions |
+| About | Version and source link |
+
+Saving PAT, App key, or OAuth values is validated against GitHub first. Bad
+scopes return **422** and nothing is stored.
+
+## UI behavior
+
+- Failed API calls show a toast and **Retry**.
+- Toggles roll back if save fails.
+- [`serve --inject-500`](serve.md#parameters) (or `CM_INJECT_500=1`) forces mutating
+  `/api/*` calls except login to fail, for testing error UI.
+
+## Linux
+
+Linux (WSL included) is the recommended platform for [`serve`](serve.md) and the
+dashboard:
+
+- SQLite FFI, advisory locks, and POSIX signals behave more predictably.
+- Windows is supported but treated as unstable.
+- `serve` logs a one-line warning when not on Linux.
+
+## Updating
+
+Forward-only `app.db` migrations. Do not downgrade the CLI after a newer version
+has run.
+
+1. Stop `serve`.
+2. `npm install -g co-maintainer@latest`
+3. Start `serve` again with the same data directory.
+
+Restart after upgrading. Details also on [`serve`: Updating](serve.md#updating).
+
+---
+
+Source: https://co-maintainer.com/docs/github-app.md
+
+# GitHub App
+
+Automatic pull request reviews, webhooks, and the dashboard repositories all run
+through one GitHub App. The dashboard can create it for you, so the private key,
+webhook secret, and OAuth credentials are written straight into `config.json`
+instead of being copied between two screens.
+
+[`serve`](serve.md) runs the App. The App is **not** the same as CLI `gh` auth,
+which is only for reading a repository locally. See
+[Authentication](authentication.md) for the full picture.
+
+## Create it from the dashboard
+
+1. Start [`serve`](serve.md) and open the dashboard.
+2. Set a public webhook address under **Settings**, **Server**.
+3. In the GitHub App card, keep or edit the suggested name and press
+   **Create GitHub App**.
+4. GitHub shows the permissions and events listed below and asks you to confirm.
+5. GitHub redirects back, and `serve` writes the App ID, private key, webhook
+   secret, and OAuth client ID and secret into `config.json`.
+
+The suggested name is `co-maintainer-<host>`, shortened to fit GitHub's 34
+character cap. App names are globally unique, so GitHub rejects a duplicate and
+the field stays editable. The button is refused, with the reason, until the
+webhook address looks reachable from GitHub. See
+[Dashboard: Webhook reachability](dashboard.md#webhook-reachability).
+
+The creation is secured with a single-use server-side state that expires after
+ten minutes, so the callback cannot be replayed.
+
+## Install it on repositories
+
+Creating the App does not install it. In GitHub, install the App on the
+organization or account that owns your repositories, and choose which
+repositories it can reach. The dashboard's **Add repository** list shows only
+repositories the App can already see.
+
+## Permissions
+
+The manifest requests exactly the permissions the code uses, not a superset.
+
+| Permission | Access | Why |
+| ---------- | ------ | --- |
+| Contents | Read | Read a repository's files, trees, and `PR_REVIEW_GUIDE.md` |
+| Pull requests | Write | Read a pull request and post reviews and review comments |
+| Issues | Write | Post and read issue comments, which is how a conversation reply is delivered |
+| Checks | Write | Create and update the review check run |
+| Metadata | Read | Required by every GitHub App |
+
+No `administration`, no `actions`, and no `packages` access is requested.
+
+## Events
+
+| Event | Why it is subscribed |
+| ----- | -------------------- |
+| `pull_request` | Open, synchronize, and close decide whether a review runs |
+| `pull_request_review` | Tracks review state for the auto-review rules |
+| `pull_request_review_comment` | Delivers a reply in an existing review comment thread |
+| `issue_comment` | Delivers a reply in a pull request conversation |
+
+`installation` and `installation_repositories` are handled too, but they are
+**not** in the subscription list: GitHub delivers both to every App without a
+subscription, which is why the webhook handler accepts them.
+
+## Manual setup
+
+If you would rather create the App by hand, use the same values:
+
+```sh
+co-maintainer set --github-app-id=... --github-app-private-key-path=./app.pem
+co-maintainer set --github-webhook-secret=...
+co-maintainer set --github-oauth-client-id=... --github-oauth-client-secret=...
+co-maintainer set --github-oauth-allowed-user=your-github-login
+```
+
+Set the webhook URL to `https://<your-host>/github/webhook` and subscribe to the
+four events above. [Configuration](configuration.md#co-maintainer-set) lists every flag and the
+three ways to supply the private key. OAuth is optional and only gates the
+dashboard sign-in. See [`serve`: Sign in](serve.md#sign-in-to-the-dashboard).
+
+## Rotating and moving the key
+
+`--github-app-private-key-file` copies the key into `config.json`, so it keeps
+working if the file moves. `--github-app-private-key-path` stores only the path,
+so the secret never enters `config.json` and `serve` reads it at startup. If that
+file is missing, `serve` warns and continues. See
+[Configuration: App private key](configuration.md#app-private-key-inline-file-contents-or-path).
+
+If a new key is generated in GitHub, save it and run the `set` command again, or
+paste it into Settings. Credentials are read on every request, so the change
+applies without a restart.
+
+## Troubleshooting
+
+| Symptom | Fix |
+| ------- | --- |
+| **Create GitHub App** is refused | Set a public webhook address first |
+| App created but no review arrives | Install the App on the repository, turn on auto-review in repo **Settings**, and confirm the webhook delivered |
+| Settings save returns `422` | The key or token is missing a scope GitHub requires |
+| Webhook works but no review is posted | Check the Activity job log, then the AI key and models under **Settings** |
+
+Webhook reachability problems are shown on each repository's **Overview** tab.
+See [Dashboard: Webhook reachability](dashboard.md#webhook-reachability).
+
+---
+
+Source: https://co-maintainer.com/docs/cloud.md
+
+# Cloud
+
+The hosted service at `cloud.co-maintainer.com` runs [`serve`](serve.md) for
+you, so your team gets shared repository context without operating a server.
+This page explains how it relates to the CLI and the self-hosted setup.
+
+Self-hosting stays supported. Cloud is the same binary with the same database
+and the same remote review API, only managed for you.
+
+## What cloud gives you
+
+| Piece | Detail |
+| ----- | ------ |
+| Managed `serve` | The [dashboard](dashboard.md), the job worker, and the webhook receiver |
+| Per-team instances | Each team gets its own instance and host name |
+| Repository context | [`init`](init.md) and [`sync`](sync.md) run on the instance, not on every laptop |
+| Remote review | Developers keep using `review --remote` against the instance |
+| GitHub App | Created from the dashboard, the same flow as self-hosted |
+
+## Connecting the CLI
+
+The connection is identical to a self-hosted server: a host and a `cmr_` token.
+
+1. Sign in to your instance and open **Settings**, **Remote review**.
+2. Create a token and copy it once.
+3. On the laptop:
+
+```sh
+co-maintainer set --remote-host=https://<your-instance> --remote-token=cmr_...
+cd your/clone
+co-maintainer review --remote
+```
+
+The CLI needs no local `init` for that repository, because the guides live on
+the instance. See [Remote review](remote-review.md) for the full flag list and
+the codegraph behavior, and [Authentication](authentication.md) for how the
+token fits with the other credentials.
+
+You can read the exact guides your review will use before running it:
+
+```sh
+co-maintainer view owner/repo --remote
+```
+
+## Putting a repository on the instance
+
+Open the dashboard, choose **Add repository**, and confirm the plan. This is the
+same flow as self-hosted, including the read-only probe and the cost estimate.
+The dashboard needs the GitHub App installed on the repository, which the
+**Create GitHub App** button sets up for you.
+
+## Mixing cloud with local CLI
+
+A team can keep using the CLI for local and PR review while cloud holds the
+shared context. The two do not conflict:
+
+| If you want | Run it |
+| ----------- | ------ |
+| Feedback on your working tree, before a push | `review` with local guides |
+| Feedback using the team's shared context | `review --remote` against the instance |
+| A PR reviewed automatically | The GitHub App on the instance |
+| A repository onboarded once for everyone | Dashboard **Add repository** |
+
+## Support and status
+
+The instance list, uptime, and any incident notes are published by the
+co-maintainer maintainers. For a self-hosted deployment, the same pages under
+[Serve](serve.md) and the [Dashboard](dashboard.md) apply.
+
+If a remote review fails, [Troubleshooting](troubleshooting.md) lists the token
+and connectivity messages, and [Data and privacy](privacy.md) says what the
+instance stores.
+
+---
+
+Source: https://co-maintainer.com/docs/commands.md
+
+# Commands
+
+Reference for every visible command. This page is generated from the command
+registry in the source, so it always matches `co-maintainer help` and
+`co-maintainer help <command>`.
+
+## `co-maintainer probe`
+
+Inspect a repository and recommend the init flags for it.
+
+```
+co-maintainer probe owner/repo [options]
+```
+
+### GitHub access
+
+| Flag | Default | Description |
+|---|---|---|
+| `--auth=gh|pat` | gh | Use the gh CLI or a personal access token. |
+| `--github-pat=TOKEN` |  | The token when --auth=pat. |
+
+### Limits
+
+| Flag | Default | Description |
+|---|---|---|
+| `--max-pull-request-change-lines=N` |  | Cap the diff size sampled. |
+| `--max-pr-months=N` |  | Cap how far back pull requests are read. |
+| `--max-commits=N` |  | Cap how many commits are read. |
+
+### After the plan
+
+| Flag | Default | Description |
+|---|---|---|
+| `--run` |  | Run the recommended init in this same process. |
+
+### Output and diagnostics
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Print machine-readable JSON instead of prose. |
+| `--debug` |  | Print the underlying gh and HTTP calls. |
+| `--log-time` |  | Print how long each phase took. |
+
+## `co-maintainer init`
+
+Build the review guides for a repository for the first time.
+
+```
+co-maintainer init owner/repo [options]
+```
+
+### Sources
+
+| Flag | Default | Description |
+|---|---|---|
+| `--include-codebase` |  | Read the source tree. |
+| `--include-pull-requests` |  | Read pull request history. |
+| `--include-pull-request-changes` |  | Read the diffs of those pull requests. |
+| `--include-commit-history` |  | Read commit history. |
+| `--include-how-repo-works` |  | Read the docs and layout. |
+
+### Limits
+
+| Flag | Default | Description |
+|---|---|---|
+| `--max-commits=N` | all | Cap how many commits are read. |
+| `--max-pr-months=N` | all | Cap how far back pull requests are read. |
+| `--max-pull-request-change-lines=N` | all | Cap the diff size read. |
+| `--max-comment=N` |  | Cap the comments read per pull request. |
+
+### Pull request filter
+
+| Flag | Default | Description |
+|---|---|---|
+| `--pr-state=open,closed,merged` |  | Which pull request states to read. |
+| `--only-request-changed-pr` |  | Read only the pull requests that changed the requested files. |
+
+### AI
+
+| Flag | Default | Description |
+|---|---|---|
+| `--ai=none|openrouter|hetzner` | none | Which provider writes the review. |
+| `--token=KEY` |  | The provider API key. |
+| `--ai-key=KEY` |  | The same key as --token, named for what it is. |
+| `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
+| `--high-model=ID` | openai/gpt-5.6-luna | Model for the review itself. |
+
+### GitHub access
+
+| Flag | Default | Description |
+|---|---|---|
+| `--auth=gh|pat` | gh | Use the gh CLI or a personal access token. |
+| `--github-pat=TOKEN` |  | The token when --auth=pat. |
+
+### Output and diagnostics
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Print machine-readable JSON instead of prose. |
+| `--debug` |  | Print the underlying gh and HTTP calls. |
+| `--log-time` |  | Print how long each phase took. |
+
+### Performance
+
+| Flag | Default | Description |
+|---|---|---|
+| `--gh-concurrent=N` | 1 | Concurrent gh calls. |
+| `--ai-concurrent=N` | 3 | Concurrent AI calls. |
+| `--improve-matrix=N` | 1 | How many improvement passes to run. Capped at 4, and each pass costs more. |
+
+## `co-maintainer sync`
+
+Rebuild the review guides for a repository that already has them.
+
+```
+co-maintainer sync owner/repo [options]
+```
+
+### Sources
+
+| Flag | Default | Description |
+|---|---|---|
+| `--include-codebase` |  | Read the source tree. |
+| `--include-pull-requests` |  | Read pull request history. |
+| `--include-pull-request-changes` |  | Read the diffs of those pull requests. |
+| `--include-commit-history` |  | Read commit history. |
+| `--include-how-repo-works` |  | Read the docs and layout. |
+
+### Limits
+
+| Flag | Default | Description |
+|---|---|---|
+| `--max-commits=N` |  | Cap how many commits are read. |
+| `--max-pr-months=N` |  | Cap how far back pull requests are read. |
+| `--max-pull-request-change-lines=N` |  | Cap the diff size read. |
+| `--max-comment=N` |  | Cap the comments read per pull request. |
+
+### AI
+
+| Flag | Default | Description |
+|---|---|---|
+| `--ai=none|openrouter|hetzner` | none | Which provider writes the review. |
+| `--token=KEY` |  | The provider API key. |
+| `--ai-key=KEY` |  | The same key as --token, named for what it is. |
+| `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
+| `--high-model=ID` | openai/gpt-5.6-luna | Model for the review itself. |
+
+### GitHub access
+
+| Flag | Default | Description |
+|---|---|---|
+| `--auth=gh|pat` | gh | Use the gh CLI or a personal access token. |
+| `--github-pat=TOKEN` |  | The token when --auth=pat. |
+
+### Output and diagnostics
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Print machine-readable JSON instead of prose. |
+| `--debug` |  | Print the underlying gh and HTTP calls. |
+| `--log-time` |  | Print how long each phase took. |
+
+## `co-maintainer review`
+
+Review a pull request, or the local changes in this workspace.
+
+```
+co-maintainer review owner/repo PR_NUMBER [options]
+co-maintainer review [options]
+```
+
+### Target
+
+| Flag | Default | Description |
+|---|---|---|
+| `--repo=owner/repo` |  | The repository the local changes belong to. |
+| `--branch=NAME` |  | The branch the local changes are on. |
+| `--to-branch=NAME` |  | Compare the local changes against this branch. |
+| `--fresh` |  | Ignore the previous review and start over. |
+
+### Local only
+
+| Flag | Default | Description |
+|---|---|---|
+| `--remote` |  | Send the diff to the configured remote server instead of reviewing locally. |
+| `--remote-host=URL` |  | Override the configured remote host for this run (needs --remote). |
+| `--remote-token=TOKEN` |  | Override the configured remote token for this run (needs --remote). |
+| `--sync-before-review` |  | Rebuild the guides before reviewing. |
+
+### Codegraph
+
+| Flag | Default | Description |
+|---|---|---|
+| `--disable-codegraph` |  | Skip the codegraph index. |
+| `--allow-tool-install` |  | Install codegraph if it is missing. |
+
+### AI
+
+| Flag | Default | Description |
+|---|---|---|
+| `--ai=none|openrouter|hetzner` | none | Which provider writes the review. |
+| `--token=KEY` |  | The provider API key. |
+| `--ai-key=KEY` |  | The same key as --token, named for what it is. |
+| `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
+| `--high-model=ID` | openai/gpt-5.6-luna | Model for the review itself. |
+
+### GitHub access
+
+| Flag | Default | Description |
+|---|---|---|
+| `--auth=gh|pat` | gh | Use the gh CLI or a personal access token. |
+| `--github-pat=TOKEN` |  | The token when --auth=pat. |
+
+### Output and diagnostics
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Print machine-readable JSON instead of prose. |
+| `--debug` |  | Print the underlying gh and HTTP calls. |
+| `--log-time` |  | Print how long each phase took. |
+
+## `co-maintainer config`
+
+Read and edit the user config without opening the file.
+
+```
+co-maintainer config list
+co-maintainer config get <key>
+co-maintainer config set <key> <value>
+co-maintainer config unset <key>
+co-maintainer config path [--all]
+```
+
+### Subcommands
+
+| Flag | Default | Description |
+|---|---|---|
+| `--all` |  | With `path`, also print the repos and cache directories. |
+
+## `co-maintainer view`
+
+Print the guides co-maintainer generated for a repository.
+
+```
+co-maintainer view [owner/repo] [guide]
+co-maintainer view [owner/repo] --list
+co-maintainer view [owner/repo] --path
+```
+
+### Guides
+
+| Flag | Default | Description |
+|---|---|---|
+| `--list` |  | List the guide files with their size and build date. |
+| `--path` |  | Print the directory the guides live in. |
+| `--remote` |  | Read the guides from the configured remote review server instead. |
+
+## `co-maintainer set`
+
+Persist defaults and secrets to the user config file.
+
+```
+co-maintainer set [options]
+```
+
+### AI
+
+| Flag | Default | Description |
+|---|---|---|
+| `--ai=none|openrouter|hetzner` | none | Which provider writes the review. |
+| `--token=KEY` |  | The provider API key. |
+| `--ai-key=KEY` |  | The same key as --token, named for what it is. |
+| `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
+| `--high-model=ID` | openai/gpt-5.6-luna | Model for the review itself. |
+
+### GitHub access
+
+| Flag | Default | Description |
+|---|---|---|
+| `--auth=gh|pat` | gh | Use the gh CLI or a personal access token. |
+| `--github-pat=TOKEN` |  | The token when --auth=pat. |
+
+### Server
+
+| Flag | Default | Description |
+|---|---|---|
+| `--github-app-id=ID` |  | The GitHub App id. |
+| `--github-app-private-key=PEM` |  | The GitHub App private key. |
+| `--github-app-private-key-file=PATH` |  | Read the private key from a file. |
+| `--github-app-private-key-path=PATH` |  | Store the key's path only, never its contents. |
+| `--github-webhook-secret=SECRET` |  | The webhook HMAC secret. |
+| `--github-oauth-client-id=ID` |  | The GitHub OAuth app client id. |
+| `--github-oauth-client-secret=SECRET` |  | The GitHub OAuth app client secret. |
+| `--github-oauth-allowed-user=LOGIN` |  | The only GitHub user allowed to sign in. |
+| `--remote-host=URL` |  | The remote review server. |
+| `--remote-token=TOKEN` |  | The remote review token. |
+| `--review-blocking=model|severity` | model | How a review decides a blocking finding. |
+| `--password=TEXT` |  | Replace the dashboard password. |
+| `--disable-auth=password` |  | Turn the dashboard password off. |
+| `--enable-auth=github` |  | Turn GitHub sign-in on. |
+| `--no-verify` |  | Do not check the key and model against OpenRouter. |
+| `--unset=NAME` |  | Remove a stored value. |
+
+## `co-maintainer serve`
+
+Run the dashboard, the webhook and the job worker.
+
+```
+co-maintainer serve --port=N [options]
+```
+
+### Server
+
+| Flag | Default | Description |
+|---|---|---|
+| `--port=N` |  | The port to listen on. Required. |
+| `--webhook-url=URL` |  | The public webhook URL. Defaults to localhost. |
+| `--password=TEXT` |  | Set the dashboard password on first start. |
+| `--disable-auth=password` |  | Turn the dashboard password off. |
+| `--enable-auth=github` |  | Turn GitHub sign-in on. |
+| `--trust-proxy` |  | Trust x-forwarded-for and x-forwarded-proto. |
+| `--inject-500` |  | Return 500 for mutating requests. Debugging only. |
+
+### Output and diagnostics
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | Print machine-readable JSON instead of prose. |
+| `--debug` |  | Print the underlying gh and HTTP calls. |
+| `--log-time` |  | Print how long each phase took. |
+
+## `co-maintainer version`
+
+Print the version.
+
+```
+co-maintainer version
+```
+
+See [Configuration](configuration.md) for the `config.json` keys, and
+[Troubleshooting](troubleshooting.md) for a failing command.
+
+---
+
+Source: https://co-maintainer.com/docs/configuration.md
+
+# Configuration
+
+Global defaults live in `config.json` under the platform config directory.
+[`co-maintainer set`](configuration.md#co-maintainer-set) writes that file. [`init`](init.md) /
+[`sync`](sync.md) also record **per-repo** choices there (not API tokens).
+Generated guides sit under `repos/` in the same tree. Full paths:
+[Caching](caching.md#on-disk-layout).
+
+[`serve`](serve.md) reads the same `config.json` for the GitHub App, webhook
+URL, dashboard auth defaults, and CLI remote-review targets.
+
+## Precedence
+
+For CLI commands (`probe`, `init`, `sync`, `review`):
+
+```mermaid
+flowchart BT
+  flags["Command-line flags"]
+  envfile["--env=PATH file"]
+  env["Process env vars"]
+  repo["config.json repos owner/repo"]
+  global["config.json global"]
+  prompt["Interactive prompt"]
+
+  flags --> wins[Value used]
+  envfile --> env
+  env --> wins
+  repo --> wins
+  global --> wins
+  prompt --> wins
+```
+
+| Layer | Examples |
+| ----- | -------- |
+| Highest | `--token=`, `--auth=pat`, `--max-commits=500` on the command |
+| Env file | Only when you pass `--env=./.env` (sets vars if not already set) |
+| Environment | `GITHUB_TOKEN`, `OPENROUTER_API_KEY`, `CO_MAINTAINER_AUTH`, model env vars |
+| Per-repo | `repos["owner/repo"]` after a successful init/sync |
+| Global | `set` defaults in `config.json` |
+| Lowest | Prompts when a required value is still missing |
+
+API tokens are **never** stored per repo. They come from `--token=`, env, or
+`set --token=...` only.
+
+## `co-maintainer set`
+
+Persists global settings so later commands can skip flags and prompts.
+
+```sh
+co-maintainer set --auth=gh --ai=openrouter --token=YOUR_KEY \
+  --low-model=openai/gpt-oss-120b --high-model=openai/gpt-5.6-luna
+
+co-maintainer set --github-app-id=... --github-app-private-key-file=./app.pem
+co-maintainer set --github-app-id=... --github-app-private-key-path=./app.pem
+co-maintainer set --remote-host=https://your-server --remote-token=cmr_...
+```
+
+### `set` flags
+
+| Flag | Written to | Used by |
+| ------ | ---------- | ------- |
+| `--token=...` | `token` | CLI AI calls (OpenRouter/Hetzner) |
+| `--ai-key=...` | `token` | An alias for `--token`, named for what it is |
+| `--ai=none\|openrouter\|hetzner` | `ai` | CLI and dashboard jobs |
+| `--low-model=...` / `--high-model=...` | `lowModel`, `highModel` | CLI and dashboard jobs |
+| `--auth=gh\|pat` | `auth` | CLI GitHub reads |
+| `--github-pat=...` | `githubPat` | CLI when `--auth=pat` |
+| `--github-app-id=...` | `githubAppId` | `serve` |
+| `--github-app-private-key=...` | `githubAppPrivateKey` | `serve` |
+| `--github-app-private-key-file=path` | `githubAppPrivateKey` (contents) | `serve` |
+| `--github-app-private-key-path=path` | `githubAppPrivateKeyPath` (path only) | `serve` |
+| `--github-webhook-secret=...` | `githubWebhookSecret` | `serve` webhook HMAC |
+| `--github-oauth-client-id=...` etc. | OAuth fields | Dashboard GitHub sign-in |
+| `--password=...` | `dashboardPasswordHash` (stored as a hash) | Dashboard password sign-in |
+| `--disable-auth=password` | `passwordAuthDisabled` | Default for `serve` |
+| `--enable-auth=github` | `githubAuthEnabled` | Default for `serve` |
+| `--remote-host=...` | `remoteHost` | `review --remote` |
+| `--remote-token=...` | `remoteToken` | `review --remote` |
+| `--review-blocking=model\|severity` | `reviewBlocking` | Whether a review's own severity decides a blocking finding |
+
+### App private key: inline, file contents, or path
+
+Three flags set the GitHub App private key, and they differ in what lands in
+`config.json`:
+
+- `--github-app-private-key=PEM` writes the key itself.
+- `--github-app-private-key-file=path` reads the file and writes its
+  **contents**. If the file later moves or is deleted, the App keeps working.
+- `--github-app-private-key-path=path` writes only the **path**. The key stays
+  on disk and is read at startup, so the secret never enters `config.json`. If
+  the file is missing or unreadable, `serve` warns at startup that the App will
+  not work.
+
+An inline key wins if both an inline key and a path are ever present. `set`
+clears the other form when you pass one, so the choice is unambiguous.
+
+### Verification before saving
+
+When the provider is OpenRouter, `set` checks the key against
+`/api/v1/key` and, if a model is given, that `/api/v1/models` lists it. A bad
+key or unknown model is refused with exit code 2 and **nothing is written**. A
+network failure only warns (`saved anyway`), because that is not a typo. Pass
+`--no-verify` to skip the check, for example in CI with an offline key.
+
+OAuth setup steps: [`serve`: Sign in](serve.md#sign-in-to-the-dashboard).
+
+## `co-maintainer config`
+
+Reads and edits the same `config.json` without opening the file. `set` is the
+short form of `config set`, and its output and flags are unchanged.
+
+```sh
+co-maintainer config list                  # key, value, and source per row
+co-maintainer config get high-model        # one raw value, no label
+co-maintainer config set remote-host https://review.example.com
+co-maintainer config set --remote-token=cmr_...
+co-maintainer config unset remote-token
+co-maintainer config path                  # the config file
+co-maintainer config path --all            # config, repos, and cache directories
+```
+
+`list` prints where each value came from: `env` (an environment variable
+overrides the file at run time), `file`, or nothing for an unset key. Secrets
+are masked: twelve characters or more keep their last four, shorter ones show
+only `••••`, and the dashboard password reports `set` or `not set` rather than
+its hash. `get` prints the real value, so treat its output as a secret.
+
+Keys are the `UserConfig` field names in kebab-case (`high-model`,
+`remote-host`, `review-blocking`), and camelCase is accepted too. A name that is
+not a config key is refused with exit code 2.
+
+### Config keys
+
+Every key `config.json` can hold. The mask column says whether `config list`
+hides the value.
+
+| Key | Type | Source | Masked |
+| --- | ---- | ------ | ------ |
+| `auth` | `gh` or `pat` | `set` flag | no |
+| `ai` | `none`, `openrouter`, or `hetzner` | `set` flag | no |
+| `low-model` | string | `set` flag | no |
+| `high-model` | string | `set` flag | no |
+| `token` | string | `--token` or `--ai-key` | yes |
+| `github-pat` | string | `--github-pat` | yes |
+| `github-app-id` | string | `--github-app-id` | no |
+| `github-app-private-key` | PEM string | `--github-app-private-key`, `--github-app-private-key-file` | yes |
+| `github-app-private-key-path` | path string | `--github-app-private-key-path` | yes |
+| `github-webhook-secret` | string | `--github-webhook-secret` | yes |
+| `webhook-url` | URL string | Settings, Server | no |
+| `github-oauth-client-id` | string | `--github-oauth-client-id` | no |
+| `github-oauth-client-secret` | string | `--github-oauth-client-secret` | yes |
+| `github-oauth-allowed-user` | string | `--github-oauth-allowed-user` | no |
+| `password-auth-disabled` | boolean | `--disable-auth=password`, `--enable-auth=password` | no |
+| `github-auth-enabled` | boolean | `--enable-auth=github`, `--disable-auth=github` | no |
+| `dashboard-password-hash` | scrypt hash | `--password` | reported as `set` or `not set` |
+| `defaults` | object | `init` / `sync` limits | no |
+| `max-concurrent-jobs` | number | Settings, or the field directly | no |
+| `review-blocking` | `model` or `severity` | `--review-blocking` | no |
+| `remote-host` | URL string | `--remote-host` | no |
+| `remote-token` | string | `--remote-token` | yes |
+| `repos` | object | Written by `init` and `sync` | no |
+
+`config get` prints the real value even for a masked key, so treat its output as
+a secret.
+
+### Unset
+
+```sh
+co-maintainer set --unset=token
+co-maintainer set --unset=github-webhook-secret
+co-maintainer set --unset=disable-auth
+```
+
+`--unset=disable-auth` clears `passwordAuthDisabled` so the dashboard password
+is allowed again. Match `--unset=` to the field name or the flag name (see
+`co-maintainer set --help`).
+
+## Per-repo memory
+
+After each successful [`init`](init.md) or [`sync`](sync.md),
+`config.json` gains `repos["owner/repo"]` with:
+
+| Stored | Not stored |
+| ------ | ---------- |
+| `auth`, `ai`, models | API token |
+| `max-*` limits | GitHub PAT (global only) |
+| `include-*` flags | |
+| `only-request-changed-pr`, `pr-state` | |
+
+A plain `co-maintainer sync owner/repo` reuses those values. Pass new flags
+on `sync` or run `init` again to change includes, limits, or pull request
+filters permanently. `--only-request-changed-pr` stays on once saved. To
+collect every pull request state again, pass `--pr-state=open,closed,merged`.
+
+Guide files (`SKILL.md`, `CODEBASE.md`, review guides) live under
+`<config>/co-maintainer/repos/<slug>/`, not in your git clone. See
+[Caching](caching.md#generated-guides). `co-maintainer view` prints them
+locally, and `view --remote` prints the copies a configured review server holds
+(see [Remote review](remote-review.md#reading-the-servers-guides)).
+
+## Secrets on disk
+
+`config.json` may contain tokens, PATs, App private keys, and webhook/OAuth
+secrets in **plain text**. The file is chmod `0600` where supported (not on
+Windows).
+
+| Situation | Suggestion |
+| --------- | ---------- |
+| Personal laptop | `set` is fine |
+| Shared CI | Prefer `--env=PATH` or flags, avoid committing config |
+| `serve` host | Lock down the config directory like any secret store |
+
+Dashboard **Settings** can also save credentials after validating them with
+GitHub.
+
+## Path overrides
+
+| Variable | Effect |
+| -------- | ------ |
+| `CM_CONFIG_PATH` | Replace `config.json` location (tests) |
+| `CM_REPOS_DIR` | Replace generated guides root (must match `serve` for server init) |
+
+More cache and database paths: [Caching](caching.md#overrides).
+
+---
+
+Source: https://co-maintainer.com/docs/authentication.md
+
+# Authentication
+
+How co-maintainer **reads and writes GitHub** depends on which surface you use.
+This page is about **CLI and server repo access**. Dashboard login and the
+GitHub App are separate mechanisms.
+
+## At a glance
+
+```mermaid
+flowchart LR
+  subgraph cli["CLI probe init sync"]
+    ghcli["--auth=gh via gh"]
+    pat["--auth=pat via token"]
+  end
+  subgraph reviewcli["CLI review"]
+    rgh["PR: gh only"]
+    rlocal["Local: gh or pat for repo id"]
+  end
+  subgraph server["serve"]
+    app["GitHub App installation token"]
+    dash["Dashboard password or GitHub OAuth"]
+  end
+  ghcli --> github[(GitHub API)]
+  pat --> github
+  rgh --> github
+  app --> github
+```
+
+| Surface | GitHub identity | Configure |
+| ------- | ----------------- | --------- |
+| `probe`, `init`, `sync` | `gh` or PAT | [Configuration](configuration.md), flags, `--env` |
+| `review` (local / remote diff) | Same as above for mapping the clone to `owner/repo` | [Local review](local-review.md) |
+| `review owner/repo N` (PR) | **`gh` only** | `gh auth login` |
+| `serve` webhooks and PR posts | **GitHub App** | `set --github-app-id` + private key |
+| Dashboard browser session | Password and/or GitHub OAuth user | [`serve`](serve.md#sign-in-to-the-dashboard) |
+
+## CLI: `--auth=gh` (default)
+
+```sh
+co-maintainer set --auth=gh
+co-maintainer probe owner/repo
+```
+
+- Uses the installed [GitHub CLI](https://cli.github.com/).
+- You must run `gh auth login` yourself. co-maintainer only checks that `gh`
+  can reach GitHub.
+- Required for **PR review** (`co-maintainer review owner/repo 123`).
+
+Check access: `gh auth status`.
+
+## CLI: `--auth=pat`
+
+```sh
+co-maintainer init owner/repo --auth=pat --env=./.env
+```
+
+- Uses a personal access token from `--github-pat=...`, `GITHUB_TOKEN` /
+  `GH_TOKEN`, or `set --github-pat=...`.
+- Useful when `gh` is not installed or CI has no interactive `gh` login.
+- Not used for PR review (that path always calls `gh`).
+
+Token needs read access to the repositories you analyze. Private repos need
+scopes your org allows.
+
+## GitHub App (`serve`)
+
+The App is **not** the same as CLI `gh` auth:
+
+- Installed on orgs/repos for webhooks and posting PR reviews.
+- Configured with `co-maintainer set --github-app-id=...` and a private key, or
+  created for you from dashboard **Settings** with **Create GitHub App**
+  ([`serve`: Create the App from the dashboard](serve.md#create-the-app-from-the-dashboard)).
+- Optional `--github-webhook-secret=` verifies inbound webhooks.
+
+See [Configuration](configuration.md#co-maintainer-set) and [`serve`](serve.md).
+
+## Dashboard sign-in
+
+Signing into the web UI does **not** replace CLI GitHub auth or the App.
+It only gates access to the dashboard and Settings.
+
+Setup: [`serve`: Sign in](serve.md#sign-in-to-the-dashboard).
+
+## Troubleshooting
+
+| Symptom | Likely fix |
+| ------- | ---------- |
+| `probe` / `init` cannot see a private repo | `gh auth login` or PAT with repo scope |
+| PR review says gh only | Run `gh auth login`, drop `--auth=pat` for that command |
+| Webhook works but no review posted | Finish dashboard **Setup**, repo **init**, auto-review on |
+| Settings save returns 422 | Token or App key missing GitHub scopes |
+
+First-time CLI path: [Getting started](getting-started.md#2-save-defaults-once).
+
+---
+
+Source: https://co-maintainer.com/docs/caching.md
+
+# Caching
+
+co-maintainer keeps **config**, **generated guides**, **evidence caches**, and
+(optional) **server state** on disk outside your git clones. Nothing in this
+layout is meant to be edited by hand.
+
+## On disk layout
+
+```mermaid
+flowchart TB
+  config["Config directory"]
+  cache["Cache directory"]
+
+  config --> cfg["config.json"]
+  config --> guides["repos/ slug / SKILL.md guides"]
+
+  cache --> cdb["cache.db evidence AI jobs"]
+  cache --> appdb["app.db serve only"]
+  cache --> clones["clones/ bare repos"]
+  cache --> wt["wt/ PR worktrees"]
+  cache --> tools["tools/ codegraph pins"]
+```
+
+### Config directory
+
+| OS | Path |
+| -- | ---- |
+| Linux | `~/.config/co-maintainer/` |
+| macOS | `~/Library/Application Support/co-maintainer/` |
+| Windows | `%APPDATA%\co-maintainer\` |
+
+| File / folder | Purpose |
+| ------------- | ------- |
+| `config.json` | Global `set` values and `repos["owner/repo"]` memory |
+| `repos/<slug>/` | Generated guides for one GitHub repo (see below) |
+
+Override: `CM_CONFIG_PATH` points at a different `config.json`.
+Override guides root: `CM_REPOS_DIR` (must match on laptops and `serve` when
+using server-side init).
+
+### Cache directory
+
+| OS | Path |
+| -- | ---- |
+| Linux | `~/.cache/co-maintainer/` |
+| macOS | `~/Library/Caches/co-maintainer/` |
+| Windows | `%LOCALAPPDATA%\co-maintainer\` |
+
+| File / folder | Purpose |
+| ------------- | ------- |
+| `cache.db` | SQLite evidence and AI job cache for init/sync |
+| `app.db` | SQLite state for [`serve`](serve.md) (repos, jobs, reviews) |
+| `clones/` | Disposable bare clones for server jobs |
+| `wt/` | Short-lived worktrees per PR on the server |
+| `tools/` | Pinned helper binaries (for example codegraph), not on your PATH |
+
+Override: `CM_APP_DB`, `CM_CLONES_DIR`, `CM_TOOLS_DIR` (see [Overrides](#overrides)).
+
+### Tools directory
+
+`tools/` holds helper binaries downloaded by co-maintainer, each pinned by
+version so an upgrade never overwrites a working install:
+
+```
+tools/codegraph/1.6.0/node_modules/.bin/codegraph
+```
+
+Codegraph is the only tool for now. It is not on your `PATH`, and the CLI runs
+the binary by absolute path. On the first local review that needs it,
+co-maintainer asks before installing and names the version, source, approximate
+size and this directory. Non-interactive runs (closed stdin, piped output, or
+`CI`) skip the question and review without it. See
+[Local review: Codegraph](local-review.md#codegraph).
+
+## `cache.db` (CLI)
+
+Used by [`init`](init.md) and [`sync`](sync.md):
+
+| Kind of data | Cache key idea |
+| ------------ | -------------- |
+| Codebase files | Path + Git tree SHA |
+| PR list | Per repo, refreshed when `updated_at` moves |
+| PR discussions | PR number + update time |
+| PR diffs | PR number + head SHA |
+| AI synthesis jobs | Input hash + model profile |
+
+[`sync`](sync.md) reuses unchanged rows so a moving default branch costs
+less than a full [`init`](init.md). Delete `cache.db` only if you want a cold
+rebuild (you still need repo config or flags for limits).
+
+## `app.db` (`serve`)
+
+Lives beside `cache.db` under the cache directory unless `CM_APP_DB` is set.
+Holds dashboard data, job queue, webhook deduplication, remote review sessions,
+and review history. **Forward-only migrations** when upgrading co-maintainer.
+
+Back up `app.db` and `config.json` before major upgrades. See
+[Dashboard: Updating](dashboard.md#updating).
+
+## Generated guides
+
+Under `repos/<slug>/` (slug is a stable hash of `owner/repo`, not the literal
+name):
+
+- `SKILL.md`, `CODEBASE.md`
+- `PR_REVIEW_GUIDE.md` and related review guides when PR sources were included
+
+Evidence for all repos shares one `cache.db` at the cache root (see above).
+
+Paths are always under the config/cache roots so the CLI can run from any
+working directory. [Configuration: Per-repo memory](configuration.md#per-repo-memory).
+
+## Overrides
+
+| Variable | Overrides |
+| -------- | ----------- |
+| `CM_CONFIG_PATH` | `config.json` file path |
+| `CM_REPOS_DIR` | Directory containing per-repo guide folders |
+| `CM_APP_DB` | `serve` database file |
+| `CM_CLONES_DIR` | Server clone cache |
+| `CM_TOOLS_DIR` | Downloaded tool binaries |
+
+Use the same `CM_REPOS_DIR` on a `serve` host and on developer machines when
+remote review should read guides the server built.
+
+## When to refresh vs delete
+
+| Goal | Action |
+| ---- | ------ |
+| Main moved, guides stale | [`sync`](sync.md) or dashboard **Sync** |
+| Change include flags or limits | `sync`/`init` with new flags (updates config + guides) |
+| Wipe server state | Stop `serve`, backup, remove `app.db` (destructive) |
+| Wipe CLI evidence only | Remove `cache.db` (guides in `repos/` may remain) |
+
+---
+
+Source: https://co-maintainer.com/docs/cost.md
+
+# Cost
+
+`init` and `sync` spend model tokens, and so does every review. `probe` is
+read-only and costs nothing. This page explains what a run costs and how to
+estimate it before you start.
+
+## What costs money
+
+| Step | Spends tokens | Why |
+| ---- | ------------- | --- |
+| `probe` | No | Reads the repository through `gh` only |
+| `init` | Yes | Extraction and synthesis jobs over code, pull requests, and history |
+| `sync` | Yes, but less | Reuses unchanged evidence from [cache](caching.md), so only changed inputs rebuild |
+| Large-file diff summary | Yes, small | A diff over 500 changed lines is summarized with the low model instead of being sent whole |
+| Local and PR `review` | Yes | Runs on your OpenRouter or Hetzner key |
+| Remote `review` | On the server | The server's key pays, not the laptop's |
+| GitHub App auto-review | On the server | Same as remote |
+
+`gh` reads cost nothing beyond the API rate limit. Codegraph runs locally and is
+free.
+
+## Estimate before you init
+
+Run [`probe`](probe.md) first. Its `estimate` block names the job count, a token
+range, a time range, and a dollar range, and says which basis it used:
+
+- **This repository's own recorded jobs**, when at least four prior jobs exist
+  for it. This is the closest to what the run will do.
+- **The calibration**, otherwise, taken from the maintainers' reference runs.
+
+If the provider's price list cannot be reached, the dollar line is omitted and
+the estimate says it is unavailable, rather than printing a made-up number. The
+line always ends with `an estimate, not a bill`.
+
+The dashboard shows the same estimate when you add a repository, and nothing
+starts until you confirm.
+
+## Where to watch the real number
+
+Every run prints one summary line to stderr when it finishes:
+
+```
+Done in 21.0s · 3,125 in, 1,308 out tokens · $0.0016
+```
+
+The same numbers appear in `--json` under `usage`, and the dashboard records
+cost per job on the Activity page and per repository on Usage. When a price list
+is unavailable the line reads `cost unknown` rather than a false zero.
+
+## Keeping the cost down
+
+| Lever | Effect |
+| ----- | ------ |
+| `--max-pr-months`, `--max-commits`, `--max-pull-request-change-lines` | Fewer inputs means fewer extraction jobs |
+| `--only-request-changed-pr` | Keeps only pull requests with a `CHANGES_REQUESTED` review |
+| `--improve-matrix=1` | The default. A higher value adds improvement passes, each another full call |
+| `sync` instead of `init` | Reuses unchanged rows, so a moving default branch costs less |
+| Low model for extraction | `--low-model` does the history work. The high model handles synthesis and review |
+| `--disable-codegraph` | Does not change token cost, but shortens the run |
+
+`--log-time` prints the time each phase took, which is useful when a run feels
+slower than its estimate. See [`sync`](sync.md) and [`init`](init.md) for the
+full flag list.
+
+## What is not metered
+
+- Local `gh` and `git` reads.
+- Codegraph indexing and tool calls.
+- Serving the dashboard and the webhook receiver.
+- Reading guides with [`view`](configuration.md) or `view --remote`.
+
+Next: [Data and privacy](privacy.md) for where the keys and the generated files
+live.
+
+---
+
+Source: https://co-maintainer.com/docs/privacy.md
+
+# Data and privacy
+
+co-maintainer runs on your machine or your own server. This page says exactly
+what it stores, where, and what leaves the machine.
+
+## What leaves your machine
+
+| Surface | Sent to | What |
+| ------- | ------- | ---- |
+| `probe`, `init`, `sync` | GitHub | API reads through `gh` or a PAT |
+| `init`, `sync`, `review` | Your AI provider (OpenRouter or Hetzner) | The prompts: sampled code, pull request text, diffs, and guides |
+| Remote `review` | Your `serve` instance | The git diff, plus codegraph tool requests and results |
+| GitHub App review | GitHub | The review comment, the check run, and the inline comments |
+
+Nothing is sent to the co-maintainer maintainers. There is no telemetry, no
+analytics endpoint, and no call home. The only outbound hosts are the ones you
+configured, plus the provider's price list when `probe` prices an estimate.
+
+`review --remote` prints a one-time notice per host the first time it connects,
+so it is clear where the diff is going.
+
+## What is stored, and where
+
+Everything lives under the config and cache directories. Nothing is written into
+your git clone. [Caching](caching.md) has the full layout and the OS paths.
+
+| Item | Location | Contains secrets |
+| ---- | -------- | ---------------- |
+| `config.json` | Config directory | Yes. Tokens, PATs, App private key, webhook and OAuth secrets, a scrypt password hash. Plain text, chmod `0600` where supported |
+| `repos/<slug>/` | Config directory | No. The generated guides: `SKILL.md`, `CODEBASE.md`, review guides |
+| `cache.db` | Cache directory | No. Evidence and AI job cache. It does hold sampled code and PR text from your repository |
+| `app.db` | Cache directory | No. Server state: repos, jobs, reviews, token hashes, webhook dedup |
+| `clones/`, `wt/` | Cache directory | No. Disposable bare clones and per-PR worktrees on a `serve` host |
+| `tools/` | Cache directory | No. Pinned helper binaries such as codegraph |
+
+Remote review tokens (`cmr_`) are stored as hashes in `app.db`, never in plain
+text. The dashboard shows a new token once, at creation, and cannot show it
+again.
+
+## Secret handling
+
+- `config.json` is the one file that holds plain-text secrets. On a shared or CI
+  machine, prefer `--env=PATH` or command-line flags and keep the file out of
+  version control. See [Configuration: Secrets on disk](configuration.md#secrets-on-disk).
+- `--github-app-private-key-path` stores only the **path** to the App key, so the
+  secret stays on disk and never enters `config.json`. See
+  [Configuration: App private key](configuration.md#app-private-key-inline-file-contents-or-path).
+- `co-maintainer config list` masks secrets. `config get` prints the real value,
+  so treat its output as a secret.
+- A review never prints a token. The CLI redacts known secret shapes from provider
+  text before it is shown.
+
+## What a review sends to the model
+
+The prompt contains the diff, the review guides, the codebase conventions, the
+pull request title and body, and any existing review comments. It does not
+contain your API keys, your `config.json`, or your GitHub credentials. Codegraph
+results, when a tool is used, are added as text.
+
+## Deleting data
+
+| Goal | Action |
+| ---- | ------ |
+| Remove generated guides | Delete `repos/<slug>/` under the config directory |
+| Remove the CLI evidence cache | Delete `cache.db`. Guides may remain |
+| Wipe the server | Stop `serve`, back up, then remove `app.db` (destructive) |
+| Stop all data at rest | Uninstall the package and remove the config and cache directories |
+
+Back up `app.db` and `config.json` before a major upgrade. See
+[Dashboard: Updating](dashboard.md#updating).
+
+Next: [Cloud](cloud.md) for running this on a shared host.
+
+---
+
+Source: https://co-maintainer.com/docs/troubleshooting.md
+
+# Troubleshooting
+
+Every CLI failure exits with one of three codes and prints a message, and often
+a `Hint:` line, that says what broke and what to do next. This page lists the
+codes and the messages you are likely to see.
+
+See [Exit codes](review.md#exit-codes) for how a review's own findings choose
+between 0 and 1.
+
+## Exit codes
+
+| Code | Meaning | Typical cause |
+| ---- | ------- | ------------- |
+| 0 | Success. A review found no blocking finding. | |
+| 1 | Success, but a review found at least one blocking finding. | The `blocking` decision is [configurable](review.md#what-counts-as-blocking) |
+| 2 | Usage or precondition error. Nothing was started. | A bad flag, a missing prerequisite, a rejected token |
+| 3 | Runtime failure. The run started and could not finish. | A network or provider failure, an unexpected error |
+
+Anything the CLI does not classify is reported as a runtime failure (3), which
+is the safe default.
+
+## Usage and precondition errors (exit 2)
+
+| Message starts with | What happened | Fix |
+| ------------------- | ------------- | --- |
+| `GitHub CLI (gh) was not found` | `--auth=gh` needs the `gh` binary on `PATH` | Install it from [cli.github.com](https://cli.github.com/), or use `--auth=pat` |
+| `owner/repo was not found, or your GitHub account cannot read it` | The repository does not exist, or your identity cannot see it | Check the spelling, then `gh auth login` or a PAT with repo scope |
+| `--auth=pat requires a GitHub token` | `--auth=pat` with no token anywhere | Pass `--github-pat=...`, set `GITHUB_TOKEN` or `GH_TOKEN`, or `co-maintainer set --github-pat=...` |
+| `repos/owner/repo/PR_REVIEW_GUIDE.md was not found` | Review without guides | Run [`init`](init.md) for that repo, or [`sync`](sync.md) if it was inited before |
+| `Unknown command` / `Unknown option` | A typo in the command or flag | The message names the closest match. `co-maintainer help` lists every command |
+| `OpenRouter rejected the API key` | The provider refused the key with `401` | Replace it with `co-maintainer set --token=...` |
+| `does not know the model <name>` | The provider refused the model with `400` | Check the name at [openrouter.ai/models](https://openrouter.ai/models) |
+| `rejected the remote review token` | The server refused a `cmr_` token | Create a new one under Settings, Remote review, or the token was deactivated |
+| `Nothing to set` | `set` was called with no values | Pass at least one flag, for example `--token=...` |
+| `serve is already running` | Two `serve` processes share one `app.db` | Stop the other one, or point `CM_APP_DB` elsewhere |
+
+`init`, `sync`, and `review` also refuse to start when a required value is still
+missing and there is no terminal to prompt on. `--json` never prompts, so a
+missing value with no default becomes a `2` with a message naming the flag.
+
+## Runtime failures (exit 3)
+
+| Message starts with | What happened | Fix |
+| ------------------- | ------------- | --- |
+| `Could not reach <host>` | The network failed. The cause code follows the host | Check connectivity, proxy, or the host name. `ENOTFOUND` means DNS |
+| `OpenRouter returned an empty review` | The model produced no text | Usually a reasoning budget or a provider hiccup. Retry, or use a different high model |
+| `OpenRouter request failed` | The provider returned an unclassified error | The raw body is never printed. Retry, then check `--debug` for the call |
+| `AI response was not valid JSON` | The model ignored the JSON request twice | The older Markdown parser runs as a fallback. Retry if the result looks off |
+| `git diff failed` / `git <command> failed` | A git operation did not complete | Make sure the clone is healthy and no rebase or merge is in progress |
+| `app.db is not open` | A command that needs the server database did not open it | Report it: `init` and `sync` open it for the run, `serve` keeps it open |
+
+## Platform notes
+
+`serve` recommends Linux, WSL included. [Dashboard: Linux](dashboard.md#linux)
+explains why. Windows is supported but treated as less predictable, and `serve`
+logs a one-line warning that links to this page when it starts on another
+platform.
+
+For the GitHub App, [Authentication](authentication.md) covers how server access
+differs from CLI access. For cost questions, see [Cost](cost.md).

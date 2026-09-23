@@ -5,9 +5,13 @@
  * Layout for co-maintainer.com (CORE-80 / D04, D05):
  *   docs/index.html          the landing page (hand written, not built here)
  *   docs/docs/<slug>.html    one page per docs/md/<slug>.md
+ *   docs/docs/<slug>.md      the Markdown copy of that page (CORE-84)
+ *   docs/docs/search-index.json  the client-side search rows
  *   docs/<slug>.html         a redirect stub for the old flat address
  *   docs/CNAME               the custom domain
  *   docs/sitemap.xml         every page under the apex domain
+ *   docs/llms.txt            the llmstxt.org index (CORE-84)
+ *   docs/llms-full.txt       every page combined for a model (CORE-84)
  *
  * Assets stay at docs/assets/, so a doc page reaches them through `../`.
  */
@@ -129,6 +133,43 @@ export function searchEntriesFor(
 
 export function searchJson(entries: readonly SearchEntry[]): string {
   return `${JSON.stringify(entries)}\n`;
+}
+
+/** The one-sentence summary at the top of `llms.txt` (CORE-84). */
+export const LLMS_SUMMARY =
+  "co-maintainer learns a GitHub repository from its code, pull requests, and history, then reviews pull requests and local changes against that knowledge.";
+
+/** `llms.txt` (llmstxt.org): the title, one summary line, and a link to the
+ * Markdown copy of every page, grouped the way the sidebar is. */
+export function llmsTxt(): string {
+  const lines = [`# co-maintainer`, "", `> ${LLMS_SUMMARY}`, ""];
+  for (const section of NAV) {
+    lines.push(`## ${section.title}`, "");
+    for (const { slug, label } of section.items) {
+      lines.push(`- [${label}](${SITE_ORIGIN}/docs/${slug}.md)`);
+    }
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+/** `llms-full.txt`: the same content as `llms.txt`, with every page's Markdown
+ * inlined below its link so a model can read the whole site in one request. */
+export function llmsFullTxt(
+  pages: ReadonlyArray<{ slug: string; md: string }>,
+): string {
+  const lines = [`# co-maintainer`, "", `> ${LLMS_SUMMARY}`, ""];
+  for (const { slug, md } of pages) {
+    lines.push(
+      `---`,
+      "",
+      `Source: ${SITE_ORIGIN}/docs/${slug}.md`,
+      "",
+      md.trim(),
+      "",
+    );
+  }
+  return lines.join("\n");
 }
 
 /** The `commands.md` page, generated from the command registry (CORE-81). */
@@ -566,11 +607,16 @@ export async function buildDocs(options: BuildOptions = {}): Promise<void> {
   log("wrote md/commands.md");
 
   const searchEntries: SearchEntry[] = [];
+  const builtPages: Array<{ slug: string; md: string }> = [];
   for (const { slug } of ALL_PAGES) {
     const mdPath = new URL(`${slug}.md`, MD_DIR);
     let md = await readTextFile(mdPath);
     lintDocMd(md, `${slug}.md`);
     md = fixMdSourceLinks(md);
+    // The `.md` copy sits beside the `.html`, so `/docs/<slug>.md` resolves on
+    // the deployed site and `llms.txt` can link straight to it (CORE-84).
+    await writeTextFile(new URL(`${slug}.md`, pagesDir), md);
+    builtPages.push({ slug, md });
     const description = pageDescription(md);
     const { md: mdNoMermaid, slots } = extractMermaidFences(md);
     const raw = await marked.parse(mdNoMermaid);
@@ -596,6 +642,12 @@ export async function buildDocs(options: BuildOptions = {}): Promise<void> {
     searchJson(searchEntries),
   );
   log("wrote docs/search-index.json");
+
+  // The model-readable copies (CORE-84): a short index and one combined file.
+  await writeTextFile(new URL("llms.txt", out), llmsTxt());
+  log("wrote llms.txt");
+  await writeTextFile(new URL("llms-full.txt", out), llmsFullTxt(builtPages));
+  log("wrote llms-full.txt");
 
   for (const { from, to } of LEGACY_REDIRECTS) {
     await writeTextFile(new URL(`${from}.html`, out), redirectStub(from, to));

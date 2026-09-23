@@ -25,6 +25,7 @@ import {
   CNAME,
   commandsMarkdown,
   LEGACY_REDIRECTS,
+  LLMS_SUMMARY,
   SITE_ORIGIN,
   sitemapXml,
 } from "./build_docs.ts";
@@ -339,6 +340,95 @@ test("the commands page is generated from the command registry", async () => {
     // The hidden alias must not leak into the reference.
     if (/>co-maintainer remake</.test(html)) {
       throw new Error("the commands page documents the hidden remake alias");
+    }
+  } finally {
+    await remove(outDir, { recursive: true });
+  }
+});
+
+test("llms.txt lists every page and llms-full.txt inlines them", async () => {
+  const outDir = await buildInto();
+  try {
+    const llms = await readTextFile(join(outDir, "llms.txt"));
+    if (!llms.startsWith("# co-maintainer")) {
+      throw new Error("llms.txt does not start with the title");
+    }
+    if (!llms.includes(`> ${LLMS_SUMMARY}`)) {
+      throw new Error("llms.txt has no summary line");
+    }
+    const slugs = [
+      "getting-started",
+      "probe",
+      "init",
+      "sync",
+      "view",
+      "review",
+      "local-review",
+      "remote-review",
+      "local-pr-review",
+      "serve",
+      "dashboard",
+      "github-app",
+      "cloud",
+      "commands",
+      "configuration",
+      "authentication",
+      "caching",
+      "cost",
+      "privacy",
+      "troubleshooting",
+    ];
+    for (const slug of slugs) {
+      if (!llms.includes(`(${SITE_ORIGIN}/docs/${slug}.md)`)) {
+        throw new Error(`llms.txt does not list ${slug}`);
+      }
+    }
+    // Every `.md` a model is pointed at must exist in the built site.
+    for (const match of llms.matchAll(/\((https:\/\/[^)]+\.md)\)/g)) {
+      const rel = match[1].replace(`${SITE_ORIGIN}/`, "");
+      if (!existsSync(join(outDir, ...rel.split("/")))) {
+        throw new Error(`llms.txt links ${rel}, but the file is missing`);
+      }
+    }
+    const full = await readTextFile(join(outDir, "llms-full.txt"));
+    if (!full.includes(`> ${LLMS_SUMMARY}`)) {
+      throw new Error("llms-full.txt has no summary line");
+    }
+    if ((full.match(/^Source: /gm) ?? []).length !== slugs.length) {
+      throw new Error("llms-full.txt does not inline every page");
+    }
+    // The inlined body is the real page, not a placeholder.
+    if (!full.includes("co-maintainer probe")) {
+      throw new Error("llms-full.txt does not carry the commands page body");
+    }
+  } finally {
+    await remove(outDir, { recursive: true });
+  }
+});
+
+test("each page has a .md copy beside its .html", async () => {
+  const outDir = await buildInto();
+  try {
+    const htmlPages = await htmlFiles(join(outDir, "docs"));
+    for (const page of htmlPages) {
+      const mdPath = page.replace(/\.html$/, ".md");
+      if (!existsSync(mdPath)) {
+        throw new Error(`${basename(page)} has no .md copy`);
+      }
+      const body = await readTextFile(mdPath);
+      if (!body.startsWith("# ")) {
+        throw new Error(`${basename(mdPath)} does not start with a heading`);
+      }
+      // A relative `.md` link in the copy resolves against the same folder,
+      // where every other page's copy also lives, so it must exist too.
+      for (const match of body.matchAll(/\]\(([^)#]+\.md)\)/g)) {
+        const target = match[1].replace(/^\.\//, "");
+        if (!existsSync(join(outDir, "docs", target))) {
+          throw new Error(
+            `${basename(mdPath)} links ${target}, which is missing`,
+          );
+        }
+      }
     }
   } finally {
     await remove(outDir, { recursive: true });
