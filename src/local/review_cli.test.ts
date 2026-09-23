@@ -60,37 +60,40 @@ test("review_cli: not_initialized without guides (E159)", async () => {
   await git(worktree, ["add", "x.ts"]);
   await git(worktree, ["commit", "-m", "change"]);
 
-  const result = await new Command(runtimeExecPath(), {
-    args: runtimeRunArgs(join(projectRoot, "main.ts"), [
-      "review",
-      "--json",
-      `--repo=${repo}`,
-      "--disable-codegraph",
-      "--token=fake",
-      "--high-model=fake/model",
-    ]),
-    // The child runs the entrypoint with its own cwd set to the temp worktree.
-    // `process.chdir` here would not reach it, and then the child would inspect
-    // whatever HEAD the CI checkout happens to be on (detached on a PR, which
-    // is the `detached_head` failure this test exists to avoid).
-    cwd: worktree,
-    env: {
-      ...envToObject(),
-      CM_CONFIG_PATH: configPath,
-      CM_REPOS_DIR: reposDir,
-      CM_FAKE_AI: "1",
-    },
-    stdout: "piped",
-    stderr: "piped",
-  }).output();
-  const body = JSON.parse(new TextDecoder().decode(result.stdout));
-  if (body.ok !== false || body.error?.code !== "not_initialized") {
-    throw new Error(JSON.stringify(body));
+  try {
+    const result = await new Command(runtimeExecPath(), {
+      args: runtimeRunArgs(join(projectRoot, "main.ts"), [
+        "review",
+        "--json",
+        `--repo=${repo}`,
+        "--disable-codegraph",
+        "--token=fake",
+        "--high-model=fake/model",
+      ]),
+      // The child runs the entrypoint with its own cwd set to the temp worktree.
+      // `process.chdir` here would not reach it, and then the child would inspect
+      // whatever HEAD the CI checkout happens to be on (detached on a PR, which
+      // is the `detached_head` failure this test exists to avoid).
+      cwd: worktree,
+      env: {
+        ...envToObject(),
+        CM_CONFIG_PATH: configPath,
+        CM_REPOS_DIR: reposDir,
+        CM_FAKE_AI: "1",
+      },
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    const body = JSON.parse(new TextDecoder().decode(result.stdout));
+    if (body.ok !== false || body.error?.code !== "not_initialized") {
+      throw new Error(JSON.stringify(body));
+    }
+    if (body.exitCode !== 2) {
+      throw new Error(`exitCode ${body.exitCode}`);
+    }
+  } finally {
+    await removePath(tmp, { recursive: true });
   }
-  if (body.exitCode !== 2) {
-    throw new Error(`exitCode ${body.exitCode}`);
-  }
-  await removePath(tmp, { recursive: true });
 });
 
 test("review_cli: remake-before-review requires gh auth (E160)", async () => {
@@ -131,33 +134,36 @@ test("review_cli: remake-before-review requires gh auth (E160)", async () => {
   await git(worktree, ["add", "x.ts"]);
   await git(worktree, ["commit", "-m", "change"]);
 
-  const result = await new Command(runtimeExecPath(), {
-    args: runtimeRunArgs(join(projectRoot, "main.ts"), [
-      "review",
-      "--json",
-      `--repo=${repo}`,
-      "--auth=pat",
-      "--github-pat=fake",
-      "--remake-before-review",
-      "--disable-codegraph",
-      "--token=fake",
-      "--high-model=fake/model",
-    ]),
-    // Same reason as the first test: the child's cwd carries the temp worktree,
-    // not this process's own HEAD.
-    cwd: worktree,
-    env: {
-      ...envToObject(),
-      CM_CONFIG_PATH: configPath,
-      CM_REPOS_DIR: reposDir,
-      CM_FAKE_AI: "1",
-    },
-    stdout: "piped",
-    stderr: "piped",
-  }).output();
-  const body = JSON.parse(new TextDecoder().decode(result.stdout));
-  if (body.ok !== false || body.error?.code !== "usage") {
-    throw new Error(JSON.stringify(body));
+  try {
+    const result = await new Command(runtimeExecPath(), {
+      args: runtimeRunArgs(join(projectRoot, "main.ts"), [
+        "review",
+        "--json",
+        `--repo=${repo}`,
+        "--auth=pat",
+        "--github-pat=fake",
+        "--remake-before-review",
+        "--disable-codegraph",
+        "--token=fake",
+        "--high-model=fake/model",
+      ]),
+      // Same reason as the first test: the child's cwd carries the temp
+      // worktree, not this process's own HEAD.
+      cwd: worktree,
+      env: {
+        ...envToObject(),
+        CM_CONFIG_PATH: configPath,
+        CM_REPOS_DIR: reposDir,
+        CM_FAKE_AI: "1",
+      },
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    const body = JSON.parse(new TextDecoder().decode(result.stdout));
+    if (body.ok !== false || body.error?.code !== "usage") {
+      throw new Error(JSON.stringify(body));
+    }
+  } finally {
+    await removePath(tmp, { recursive: true });
   }
-  await removePath(tmp, { recursive: true });
 });
