@@ -75,7 +75,6 @@ co-maintainer set --remote-host=https://your-server --remote-token=cmr_...
 | `--remote-host=...` | `remoteHost` | `review --remote` |
 | `--remote-token=...` | `remoteToken` | `review --remote` |
 | `--review-blocking=model\|severity` | `reviewBlocking` | Whether a review's own severity decides a blocking finding |
-
 ### Verification before saving
 
 When the provider is OpenRouter, `set` checks the key against

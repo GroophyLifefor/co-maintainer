@@ -47,6 +47,9 @@ export type Options = {
   /** `probe --run`: after printing the plan, run the recommended init in the
    * same process (CORE-24). */
   run?: boolean;
+  /** How a review decides a blocking finding (CORE-41). `model` keeps the
+   * 0.4.13 behavior, `severity` uses a fixed P0/P1 threshold. */
+  reviewBlocking?: "model" | "severity";
 };
 
 export type GitHubClient = {

@@ -54,6 +54,7 @@ export const ENV_BY_FIELD: Record<string, string[]> = {
   lowModel: ["OPENROUTER_LOW_MODEL", "HETZNER_LOW_MODEL", "LOW_MODEL"],
   highModel: ["OPENROUTER_HIGH_MODEL", "HETZNER_HIGH_MODEL", "HIGH_MODEL"],
   webhookUrl: ["CM_WEBHOOK_URL"],
+  reviewBlocking: ["CO_MAINTAINER_REVIEW_BLOCKING"],
 };
 
 /** Renders one field for people. A secret is masked; the password hash, which

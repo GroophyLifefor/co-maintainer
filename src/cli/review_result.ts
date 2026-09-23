@@ -4,6 +4,12 @@ import {
   anchorTextFromPatch,
   type ResolvedFinding,
 } from "../review/carry_over.ts";
+import {
+  DEFAULT_REVIEW_BLOCKING,
+  impactWord,
+  isBlocking,
+  type ReviewBlocking,
+} from "../review/blocking.ts";
 import type { Revision } from "../review/revision.ts";
 import { humanCopy } from "../services/review.ts";
 export type ReviewWarning = { code: string; message: string };
@@ -33,10 +39,12 @@ const SEVERITY_RANK: Record<string, number> = {
   P3: 3,
 };
 
-export function isBlockingFinding(title: string, severity: string): boolean {
-  if (/\[P0\b/i.test(title) || /^P0$/i.test(severity)) return true;
-  if (/\[P\d\s*·\s*blocking\]/i.test(title)) return true;
-  return false;
+export function isBlockingFinding(
+  title: string,
+  severity: string,
+  mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
+): boolean {
+  return isBlocking(mode, { severity, text: title });
 }
 
 export function resolvedFromFirstReview(
@@ -88,14 +96,17 @@ export function sortResolvedFindings(
   return [...findings].sort(compareFindings);
 }
 
-export function toJsonFinding(row: ResolvedFinding): JsonReviewFinding {
+export function toJsonFinding(
+  row: ResolvedFinding,
+  mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
+): JsonReviewFinding {
   const suggestion = readSuggestion(row.bodyMd);
   return {
     id: row.id,
     state: row.state,
     closeReason: row.closeReason ?? null,
     severity: row.severity,
-    blocking: isBlockingFinding(row.title, row.severity),
+    blocking: isBlockingFinding(row.title, row.severity, mode),
     path: row.path,
     lineFrom: row.lineFrom,
     lineTo: row.lineTo,
@@ -131,7 +142,10 @@ export function revisionStats(revision: Revision): {
   };
 }
 
-export function summaryCounts(findings: ResolvedFinding[]): {
+export function summaryCounts(
+  findings: ResolvedFinding[],
+  mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
+): {
   new: number;
   open: number;
   closed: number;
@@ -141,7 +155,7 @@ export function summaryCounts(findings: ResolvedFinding[]): {
   for (const row of findings) {
     if (
       (row.state === "new" || row.state === "open") &&
-      isBlockingFinding(row.title, row.severity)
+      isBlockingFinding(row.title, row.severity, mode)
     ) {
       blocking++;
     }
@@ -156,8 +170,9 @@ export function summaryCounts(findings: ResolvedFinding[]): {
 
 export function reviewExitCodeFromResolved(
   findings: ResolvedFinding[],
+  mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
 ): number {
-  return summaryCounts(findings).blocking > 0 ? 1 : 0;
+  return summaryCounts(findings, mode).blocking > 0 ? 1 : 0;
 }
 
 function locationLabel(row: ResolvedFinding): string {
@@ -179,8 +194,11 @@ function shortTitle(row: ResolvedFinding): string {
         .trim();
 }
 
-function impactLabel(row: ResolvedFinding): string {
-  const blocking = isBlockingFinding(row.title, row.severity);
+function impactLabel(
+  row: ResolvedFinding,
+  mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
+): string {
+  const blocking = isBlockingFinding(row.title, row.severity, mode);
   return `[${row.severity} · ${blocking ? "blocking" : "non-blocking"}]`;
 }
 
@@ -192,6 +210,7 @@ export function formatHumanLocalReview(
   codegraphState: "used" | "disabled" | "unavailable",
   findings: ResolvedFinding[],
   warnings: ReviewWarning[],
+  mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
 ): string {
   const stats = revisionStats(revision);
   const guideBit = guideBuiltAt
@@ -226,7 +245,7 @@ export function formatHumanLocalReview(
     lines.push(`${group.label} (${rows.length})`);
     for (const row of rows) {
       const loc = locationLabel(row);
-      const head = `${group.bullet} ${loc}  ${impactLabel(row)} ${shortTitle(row)}`;
+      const head = `${group.bullet} ${loc}  ${impactLabel(row, mode)} ${shortTitle(row)}`;
       lines.push(`  ${head}`);
       if (row.state !== "closed") {
         const body = humanCopy(stripSuggestion(row.bodyMd)).trim();
@@ -256,7 +275,7 @@ export function formatHumanLocalReview(
     lines.push("No actionable findings.");
     lines.push("");
   }
-  const counts = summaryCounts(findings);
+  const counts = summaryCounts(findings, mode);
   lines.push(
     `Summary: ${counts.new} new · ${counts.open} open · ${counts.closed} closed · ${counts.blocking} blocking`,
   );
@@ -268,7 +287,10 @@ export function formatHumanLocalReview(
 }
 
 /** Human-readable findings block for remote sync JSON (same shape as `toJsonFinding`). */
-export function formatHumanJsonFindings(findings: JsonReviewFinding[]): string {
+export function formatHumanJsonFindings(
+  findings: JsonReviewFinding[],
+  mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
+): string {
   if (findings.length === 0) {
     return "## Findings\n\nNo actionable findings.";
   }
@@ -278,8 +300,12 @@ export function formatHumanJsonFindings(findings: JsonReviewFinding[]): string {
       (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9),
   );
   for (const row of sorted) {
-    const blocking = row.blocking || isBlockingFinding(row.title, row.severity);
-    const impact = `[${row.severity} · ${blocking ? "blocking" : "non-blocking"}]`;
+    const input = {
+      severity: row.severity,
+      blocked: row.blocking,
+      text: row.title,
+    };
+    const impact = `[${row.severity} · ${impactWord(mode, input)}]`;
     let prefix = "";
     if (row.path) {
       const from = row.lineFrom ?? 0;
@@ -312,14 +338,14 @@ export function formatHumanJsonFindings(findings: JsonReviewFinding[]): string {
   return lines.join("\n").trimEnd();
 }
 
+/** The exit code for a remote review (CORE-41). The server already decided
+ * each finding's `blocking` under its own configured rule, so the client
+ * trusts that field instead of re-deriving the rule from a title: the client
+ * may not even have the same config as the server. */
 export function reviewExitCodeFromJsonFindings(
   findings: JsonReviewFinding[],
 ): number {
-  return findings.some(
-    (f) => f.blocking || isBlockingFinding(f.title, f.severity),
-  )
-    ? 1
-    : 0;
+  return findings.some((f) => f.blocking) ? 1 : 0;
 }
 
 export type LocalReviewJsonInput = {
@@ -334,6 +360,7 @@ export type LocalReviewJsonInput = {
   warnings: ReviewWarning[];
   usage: { tokensIn: number; tokensOut: number; costUsd: number | null };
   durationMs: number;
+  reviewBlocking?: ReviewBlocking;
 };
 
 export type PrReviewJsonInput = {
@@ -345,9 +372,11 @@ export type PrReviewJsonInput = {
   codegraphReason: string | null;
   usage: { tokensIn: number; tokensOut: number; costUsd: number | null };
   durationMs: number;
+  reviewBlocking?: ReviewBlocking;
 };
 
 export function buildPrReviewJson(input: PrReviewJsonInput): string {
+  const mode = input.reviewBlocking ?? DEFAULT_REVIEW_BLOCKING;
   const findings = resolvedFromFirstReview(
     parseFindings(input.markdown),
     new Map(),
@@ -363,8 +392,8 @@ export function buildPrReviewJson(input: PrReviewJsonInput): string {
       state: input.codegraphState,
       reason: input.codegraphReason,
     },
-    summary: summaryCounts(findings),
-    findings: sorted.map(toJsonFinding),
+    summary: summaryCounts(findings, mode),
+    findings: sorted.map((row) => toJsonFinding(row, mode)),
     warnings: [],
     usage: input.usage,
     durationMs: input.durationMs,
@@ -372,6 +401,7 @@ export function buildPrReviewJson(input: PrReviewJsonInput): string {
 }
 
 export function buildLocalReviewJson(input: LocalReviewJsonInput): string {
+  const mode = input.reviewBlocking ?? DEFAULT_REVIEW_BLOCKING;
   const sorted = sortResolvedFindings(input.findings);
   return JSON.stringify({
     schemaVersion: 1,
@@ -385,8 +415,8 @@ export function buildLocalReviewJson(input: LocalReviewJsonInput): string {
       state: input.codegraphState,
       reason: input.codegraphReason,
     },
-    summary: summaryCounts(input.findings),
-    findings: sorted.map(toJsonFinding),
+    summary: summaryCounts(input.findings, mode),
+    findings: sorted.map((row) => toJsonFinding(row, mode)),
     warnings: input.warnings,
     usage: input.usage,
     durationMs: input.durationMs,

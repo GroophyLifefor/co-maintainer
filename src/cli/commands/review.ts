@@ -103,6 +103,7 @@ async function runReviewPr(
             codegraphReason: null,
             usage,
             durationMs,
+            reviewBlocking: options.reviewBlocking,
           }),
         );
       } else {
@@ -127,8 +128,8 @@ async function runReviewPr(
       }
       exitWith(
         cli.json
-          ? reviewExitCodeFromResolved(findings)
-          : reviewExitCode(result.text),
+          ? reviewExitCodeFromResolved(findings, options.reviewBlocking)
+          : reviewExitCode(result.text, options.reviewBlocking),
       );
     } finally {
       // A heartbeat left running on the error path keeps the event loop alive

@@ -23,6 +23,7 @@ import {
   setRemoteSyncResult,
 } from "../remote/server/sessions.ts";
 import { readConfig } from "../config.ts";
+import { reviewBlockingFrom } from "../review/blocking.ts";
 import type { Options } from "../types.ts";
 import { withLogSink } from "../util/log.ts";
 import { cancel, registerHandler, type LogFn } from "./jobs.ts";
@@ -85,6 +86,7 @@ function reviewOptionsForRepo(repo: string, useCodegraph: boolean): Options {
     includeCommitHistory: true,
     includeHowRepoWorks: true,
     onlyRequestChangedPr: false,
+    reviewBlocking: reviewBlockingFrom(config.reviewBlocking),
   };
 }
 
@@ -299,6 +301,7 @@ export function registerRemoteReviewHandler(): void {
           resolvedFromFirstReview(parsed, filesByPath),
         );
         const durationMs = Math.round(performance.now() - started);
+        const blockingMode = reviewBlockingFrom(options.reviewBlocking);
 
         setRemoteSyncResult(job.id, {
           subject: {
@@ -308,8 +311,8 @@ export function registerRemoteReviewHandler(): void {
           },
           revision: revisionStats(revision),
           guide: { builtAt: result.guideBuiltAt },
-          summary: summaryCounts(findings),
-          findings: findings.map(toJsonFinding),
+          summary: summaryCounts(findings, blockingMode),
+          findings: findings.map((row) => toJsonFinding(row, blockingMode)),
           usage: {
             tokensIn,
             tokensOut,

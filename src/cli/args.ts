@@ -4,6 +4,7 @@ import { getEnv } from "../util/runtime.ts";
 import { askLine } from "./prompt.ts";
 import { die } from "./error.ts";
 import { detectRemoteRepo } from "../local/git_ops.ts";
+import { reviewBlockingFrom } from "../review/blocking.ts";
 import {
   renderCommandHelp,
   renderGlobalHelp,
@@ -91,6 +92,9 @@ export async function parseArgs(args: string[]): Promise<Options> {
   // Remembered from a prior `init`/`remake` on this exact repo — never a
   // secret, so it can safely fill in everything except the API token.
   const repoConfig = config.repos?.[repoName] ?? {};
+  const reviewBlocking = reviewBlockingFrom(
+    env("CO_MAINTAINER_REVIEW_BLOCKING") ?? config.reviewBlocking,
+  );
 
   let prNumber: number | undefined;
   if (command === "review") {
@@ -330,5 +334,6 @@ export async function parseArgs(args: string[]): Promise<Options> {
       repoConfig.maxPullRequestChangeLines ??
       configDefault.maxPullRequestChangeLines,
     maxComments: value("max-comment") ?? repoConfig.maxComments,
+    reviewBlocking,
   };
 }

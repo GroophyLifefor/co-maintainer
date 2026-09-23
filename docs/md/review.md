@@ -81,6 +81,29 @@ run the CLI against one PR.
 | 2 | Usage or precondition error (init missing, not a git repo, etc.) |
 | 3 | Runtime failure or abort |
 
+### What counts as blocking
+
+`reviewBlocking` in `config.json` decides it, and the same rule is used by
+local, PR, remote and the automatic GitHub App reviews.
+
+| Value | A finding blocks when |
+| ----- | ----- |
+| `model` (default) | The model says so. A P0 always blocks, even if the model labeled it otherwise. |
+| `severity` | Its severity is P0 or P1. P2 and P3 never block, whatever the model said. |
+
+The default keeps the 0.4.13 behavior. `severity` exists because the model's
+own label can move between two reviews of the same code, which flipped the exit
+code for the same finding; with `severity` the same finding set always yields
+the same exit code, the same `blocking` count in `--json`, and the same GitHub
+review type.
+
+```sh
+co-maintainer config set --review-blocking=severity
+co-maintainer config set --review-blocking=model      # back to the default
+```
+
+`CO_MAINTAINER_REVIEW_BLOCKING` overrides it for one environment.
+
 ## JSON output
 
 With `--json`, stdout is a single JSON object (`schemaVersion` `1`). Fields

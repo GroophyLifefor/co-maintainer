@@ -376,6 +376,7 @@ export async function runLocalReview(
             warnings,
             usage,
             durationMs,
+            reviewBlocking: options.reviewBlocking,
           }),
         );
       } else {
@@ -388,6 +389,7 @@ export async function runLocalReview(
               codegraphState,
               allResolved,
               warnings,
+              options.reviewBlocking,
             ) +
             "\n",
         );
@@ -395,7 +397,7 @@ export async function runLocalReview(
           summaryFromMetrics(aiMetrics, performance.now() - started),
         );
       }
-      exitWith(reviewExitCodeFromResolved(allResolved));
+      exitWith(reviewExitCodeFromResolved(allResolved, options.reviewBlocking));
     } catch (error) {
       if (error instanceof ReviewCliError) {
         fail(error, json);
