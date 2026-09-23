@@ -207,7 +207,14 @@ export async function handlePageRequest(
       const row = requireRepo(fullName);
       const sub = match[3];
       const pr = match[4] ? Number(match[4]) : undefined;
-      if (!sub) return renderRepo(username, repoOverview(fullName));
+      if (!sub) {
+        const config = readConfig();
+        return renderRepo(
+          username,
+          repoOverview(fullName),
+          config.webhookUrl || deps.webhookUrl || "",
+        );
+      }
       if (sub === "pulls" && pr) {
         return renderPr(username, fullName, prDetail(fullName, pr));
       }

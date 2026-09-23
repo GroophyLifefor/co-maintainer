@@ -131,8 +131,22 @@ in the same process as the UI.</p>
 <td>Browser on a host that can reach the server</td>
 <td>Same network or VPN as production</td>
 </tr>
+<tr>
+<td>A webhook URL GitHub can reach</td>
+<td>The repo <strong>Overview</strong> warns when it cannot</td>
+</tr>
 </tbody></table>
 <p><code>/dashboard</code> redirects to <code>/</code>.</p>
+<h2 id="webhook-reachability">Webhook reachability</h2>
+<p>A fresh <code>serve</code> defaults to <code>http://localhost:&lt;port&gt;/github/webhook</code>, which
+GitHub cannot route to, so automatic reviews silently never arrive. Every repo
+<strong>Overview</strong> states this: a bad-address notice when the configured webhook URL
+host is loopback, <code>0.0.0.0</code>, or a private range, and a &quot;No webhook delivery
+yet&quot; notice when nothing has been received. Both name the current URL and link
+to <strong>Settings</strong>.</p>
+<p>Once a delivery has arrived, the page shows <strong>Last webhook delivery</strong> instead.
+The check only inspects the host. A single-label internal name and any public
+host pass, and <code>serve</code> and <code>set</code> still accept every URL they did before.</p>
 <h2 id="sign-in">Sign in</h2>
 <p>Open <code>http://&lt;host&gt;:&lt;port&gt;/</code>.</p>
 <ul>
@@ -171,7 +185,7 @@ have no repositories yet. You can skip it and configure the same items under
 </tr>
 <tr>
 <td><code>/repos/:owner/:repo</code></td>
-<td>Overview, 30-day stats, drift <strong>Update now</strong>, recent PRs</td>
+<td>Overview, 30-day stats, drift <strong>Update now</strong>, recent PRs, webhook reachability and last delivery</td>
 </tr>
 <tr>
 <td><code>/repos/:owner/:repo/pulls</code></td>
@@ -287,7 +301,7 @@ has run.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#what-it-is-for">What it is for</a></li><li><a href="#before-you-open">Before you open</a></li><li><a href="#sign-in">Sign in</a></li><li><a href="#get-started-setup">Get started (/setup)</a></li><li><a href="#routes">Routes</a></li><li><a href="#settings-global">Settings (global)</a></li><li><a href="#ui-behavior">UI behavior</a></li><li><a href="#linux">Linux</a></li><li><a href="#updating">Updating</a></li></ul></nav>
+      <ul><li><a href="#what-it-is-for">What it is for</a></li><li><a href="#before-you-open">Before you open</a></li><li><a href="#webhook-reachability">Webhook reachability</a></li><li><a href="#sign-in">Sign in</a></li><li><a href="#get-started-setup">Get started (/setup)</a></li><li><a href="#routes">Routes</a></li><li><a href="#settings-global">Settings (global)</a></li><li><a href="#ui-behavior">UI behavior</a></li><li><a href="#linux">Linux</a></li><li><a href="#updating">Updating</a></li></ul></nav>
     </div>
   </div>
   <script src="assets/docs.js"></script>

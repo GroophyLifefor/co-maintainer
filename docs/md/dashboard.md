@@ -35,8 +35,22 @@ flowchart TD
 | Dashboard URL from startup log | Default `http://localhost:<port>/` |
 | Password or GitHub sign-in | See [Sign in](#sign-in) and [`serve`: Sign in](serve.md#sign-in-to-the-dashboard) |
 | Browser on a host that can reach the server | Same network or VPN as production |
+| A webhook URL GitHub can reach | The repo **Overview** warns when it cannot |
 
 `/dashboard` redirects to `/`.
+
+## Webhook reachability
+
+A fresh `serve` defaults to `http://localhost:<port>/github/webhook`, which
+GitHub cannot route to, so automatic reviews silently never arrive. Every repo
+**Overview** states this: a bad-address notice when the configured webhook URL
+host is loopback, `0.0.0.0`, or a private range, and a "No webhook delivery
+yet" notice when nothing has been received. Both name the current URL and link
+to **Settings**.
+
+Once a delivery has arrived, the page shows **Last webhook delivery** instead.
+The check only inspects the host. A single-label internal name and any public
+host pass, and `serve` and `set` still accept every URL they did before.
 
 ## Sign in
 
@@ -67,7 +81,7 @@ Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
 | `/` | Repository list, **Get started** (when empty), **Add repository**, auto-review toggles |
 | `/setup` | Same checklist as above (direct URL) |
 | `/repos/new` | Pick an App-installed repo and start **init** |
-| `/repos/:owner/:repo` | Overview, 30-day stats, drift **Update now**, recent PRs |
+| `/repos/:owner/:repo` | Overview, 30-day stats, drift **Update now**, recent PRs, webhook reachability and last delivery |
 | `/repos/:owner/:repo/pulls` | PR list by number, manual **Review** when webhooks fail |
 | `/repos/:owner/:repo/pulls/:n` | Findings and cost for one PR |
 | `/repos/:owner/:repo/remote` | Remote CLI reviews for this repo (last 30 days) |

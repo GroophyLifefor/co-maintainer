@@ -48,3 +48,13 @@ export function listSkipped(repo?: string): DeliveryRow[] {
   );
   return repo ? db.all(repo) : db.all();
 }
+
+/** The newest delivery for one repository, whatever its outcome, so a repo
+ * page can say when GitHub last reached it instead of showing nothing. */
+export function lastDeliveryForRepo(repo: string): DeliveryRow | undefined {
+  return getAppDb()
+    .prepare<DeliveryRow>(
+      `SELECT * FROM deliveries WHERE repo = ? ORDER BY received_at DESC LIMIT 1`,
+    )
+    .get(repo);
+}

@@ -475,6 +475,92 @@ test("the token secret panel replaces the browser prompt", async () => {
   });
 });
 
+test("the repo overview warns when GitHub cannot reach the webhook", async () => {
+  await withEnv(async () => {
+    seed();
+    await mkdirPath(`${getEnv("CM_REPOS_DIR")}/acme/widgets`, {
+      recursive: true,
+    });
+    await writeTextFile(
+      `${getEnv("CM_REPOS_DIR")}/acme/widgets/PR_REVIEW_GUIDE.md`,
+      "# guide\nKeep helpers honest.\n",
+    );
+    const local = createApp({
+      password: PASSWORD,
+      webhookUrl: "http://localhost:5000/github/webhook",
+    });
+    const localCookie = await cookieSession(local);
+    const localHtml = await (
+      await local.fetch(
+        new Request("http://localhost/repos/acme/widgets", {
+          headers: { cookie: localCookie },
+        }),
+      )
+    ).text();
+    if (
+      !localHtml.includes(
+        "GitHub cannot reach this address, so automatic reviews will not arrive.",
+      )
+    ) {
+      throw new Error("a localhost webhook did not warn");
+    }
+    if (!localHtml.includes("Last webhook delivery:")) {
+      throw new Error("the warning omitted the last delivery line");
+    }
+    const publicApp = createApp({
+      password: PASSWORD,
+      webhookUrl: "https://example.com/github/webhook",
+    });
+    const publicCookie = await cookieSession(publicApp);
+    const publicHtml = await (
+      await publicApp.fetch(
+        new Request("http://localhost/repos/acme/widgets", {
+          headers: { cookie: publicCookie },
+        }),
+      )
+    ).text();
+    if (publicHtml.includes("cannot reach this address")) {
+      throw new Error("a public webhook still warned");
+    }
+    // `seed` records one delivery for acme/widgets, so this is the "has
+    // arrived" reading rather than the empty state.
+    if (!publicHtml.includes("Last webhook delivery:")) {
+      throw new Error("a reached repo hid the delivery line");
+    }
+  });
+});
+
+test("a repo with no deliveries says so instead of staying silent", async () => {
+  await withEnv(async () => {
+    activateRepo("acme/widgets", 9);
+    await mkdirPath(`${getEnv("CM_REPOS_DIR")}/acme/widgets`, {
+      recursive: true,
+    });
+    await writeTextFile(
+      `${getEnv("CM_REPOS_DIR")}/acme/widgets/PR_REVIEW_GUIDE.md`,
+      "# guide\nKeep helpers honest.\n",
+    );
+    const app = createApp({
+      password: PASSWORD,
+      webhookUrl: "https://example.com/github/webhook",
+    });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(
+        new Request("http://localhost/repos/acme/widgets", {
+          headers: { cookie },
+        }),
+      )
+    ).text();
+    if (!html.includes("No webhook delivery yet.")) {
+      throw new Error("an empty delivery history stayed silent");
+    }
+    if (!html.includes("the last webhook delivery is never")) {
+      throw new Error("the empty state omitted the never reading");
+    }
+  });
+});
+
 test("the client catches only once the page is parsed", async () => {
   // The helper is inlined into `<head>`, so its wiring and the activity poll
   // must not run at parse time: `pollActivity` reads `activity-root`, which
