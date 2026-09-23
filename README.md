@@ -9,7 +9,7 @@
 An imitator of yours, A PR review tool like co-maintainer.
 
 It collects current code and workflows, selected pull requests and diffs, and
-default-branch commits. A low-cost model extracts evidence-bound observations; a
+default-branch commits. A low-cost model extracts evidence-bound observations. A
 higher-reasoning model turns them into concise contribution guidance for
 implementation, testing, review, and release decisions.
 

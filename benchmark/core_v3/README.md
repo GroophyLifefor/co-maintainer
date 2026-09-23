@@ -8,7 +8,7 @@ review comments. See `ledger.json` for the answer key and its
 `plan.md` for the full defect catalog and design rationale.
 
 Unlike `benchmark/core_v2` and `benchmark/swe-prbench`, every PR in the ledger
-is reviewed — including the 16 with no gold at all — so precision is measurable,
+is reviewed, including the 16 with no gold at all, so precision is measurable,
 not just recall. See `run.ts` for the two mechanical differences from the older
 runners.
 
@@ -41,7 +41,7 @@ numbers" wasn't formally in place for this pass.
 | Recall                          | 0.857                                      |
 | tp / fp / fn                    | 12 / 22 / 2                                |
 | fp breakdown                    | 6 from defective PRs + 16 from control PRs |
-| Control false positives (P0-P2) | 16 total — **1.00 per PR**                 |
+| Control false positives (P0-P2) | 16 total, **1.00 per PR**                  |
 | Control nice-to-haves (P3)      | 0                                          |
 | Total cost                      | $0.1340                                    |
 | Avg cost / PR                   | $0.0045                                    |
@@ -61,7 +61,7 @@ on that axis is actually pointing at.
 | `diff_local` | base review, no extra context needed        | 4   | 1   | **0.800** |
 | `file_local` | rest-of-file context                        | 1   | 1   | **0.500** |
 
-`file_local` and `diff_local` are supposed to be the _easiest_ axes — both
+`file_local` and `diff_local` are supposed to be the _easiest_ axes, both
 misses are worth reading in detail below rather than writing off as noise.
 
 ## Per-PR results
@@ -87,16 +87,16 @@ misses are worth reading in detail below rather than writing off as noise.
 
 Bold rows are the two misses (`fn=1`):
 
-- **PR 33 (D13):** missed the seeded defect _and_ raised one unrelated finding —
-  a clean miss, not a near-hit.
-- **PR 40 (D17):** returned "No actionable findings." — the divide-by-zero →
+- **PR 33 (D13):** missed the seeded defect _and_ raised one unrelated finding, a
+  clean miss, not a near-hit.
+- **PR 40 (D17):** returned "No actionable findings.", the divide-by-zero →
   `Infinity` → JSON `null` chain was not flagged at all.
 
 PR 47 and PR 49 found the real defect (`tp=1`) but also raised extra findings
 scored as `fp` under this benchmark's one-gold-per-PR design. PR 49's four
 extras (JSON-RPC notification handling, protocol version negotiation, a
 null-request crash, and a missing parse-error response) are plausible real
-critiques of a minimal hand-rolled MCP server, not obvious hallucinations — K1
+critiques of a minimal hand-rolled MCP server, not obvious hallucinations, K1
 already flags this class of ambiguity: a model finding something real that isn't
 in the ledger can't be told apart from a false positive by this scoring alone.
 
@@ -121,28 +121,28 @@ in the ledger can't be told apart from a false positive by this scoring alone.
 | 46     | 1                 | 0                 | 15.3s | 7094   | $0.0029 |
 | 50     | 0                 | 0                 | 53.2s | 11289  | $0.0073 |
 
-4 of 16 control PRs (21, 28, 39, 50 — 25%) came back genuinely clean. The rest
+4 of 16 control PRs (21, 28, 39, 50, 25%) came back genuinely clean. The rest
 average just over 1 severe finding, topping out at 2 on PRs 35, 41, 42, 45.
 
 ## What this run does and doesn't show
 
 - **Precision is the headline result, and control-PR noise dominates it.** 0.353
-  pooled across all 30 PRs; without the 16 control false positives it would be
+  pooled across all 30 PRs. Without the 16 control false positives it would be
   12/(12+6) = 0.667 from the defective PRs alone. Most of the fp on defective
   PRs came bundled with a correct `tp` too (PR 47/49), only PR 33 was a wrong
-  call with nothing right alongside it — the gap between "the model finds real
+  call with nothing right alongside it, the gap between "the model finds real
   bugs fine" and "the model also flags real code constantly" is the actual story
   this run tells.
 - **`file_local` and `diff_local` underperforming `repo_wide` is the interesting
-  finding**, not the reverse — this run's defect set doesn't support the story
+  finding**, not the reverse, this run's defect set doesn't support the story
   "the model needs codegraph to do well," it supports "the model sometimes
   misses close-range, obvious-looking bugs."
 - No ablation yet (`plan.md` §11.4: diff-only vs. +CODEBASE.md vs.
-  +PR_REVIEW_GUIDE.md vs. +codegraph) — this run used the full default context
+  +PR_REVIEW_GUIDE.md vs. +codegraph), this run used the full default context
   for every PR, so axis labels are unvalidated claims until that's run.
 - Every review's raw text and per-line findings are in
   `results/GroophyLifefor-heap-analysis-comaintainer/detail.json` and the 30
-  individual `.md` files next to it — nothing here is summarized away.
+  individual `.md` files next to it, nothing here is summarized away.
 
 ## Reproducing
 
@@ -156,17 +156,17 @@ npm run bench-core-v3 -- --repo=GroophyLifefor/heap-analysis \
 
 Requires the guide frozen at
 `%APPDATA%/co-maintainer/repos/GroophyLifefor/heap-analysis/`
-(`SKILL.md`/`CODEBASE.md`, see `guide_v1/` for the archived copy) — build it
+(`SKILL.md`/`CODEBASE.md`, see `guide_v1/` for the archived copy), build it
 once with `npm run init` per `plan.md` §11.1 before running this.
 
 ---
 
 ## Second pass: `z-ai/glm-5.3`-synthesized guide + `luna` review
 
-Same repo, same ledger, same reviewer model (`luna`) as the run above — only the
+Same repo, same ledger, same reviewer model (`luna`) as the run above, only the
 guide changed. `init` was re-run with `--high-model=z-ai/glm-5.3` (the model
 that drives `synth_section`, i.e. what actually writes `SKILL.md`/`CODEBASE.md`
-from extracted facts; `low-model` for `extract_unit` stayed
+from extracted facts. `low-model` for `extract_unit` stayed
 `deepseek/deepseek-v4-flash-0731`). Archived at `guide_v2/`.
 
 ### Run config
@@ -194,7 +194,7 @@ from extracted facts; `low-model` for `extract_unit` stayed
 | tp / fp / fn                    | 12 / 14 / 2                                |
 | fp breakdown                    | 3 from defective PRs + 11 from control PRs |
 | Failed reviews                  | 0 / 30                                     |
-| Control false positives (P0-P2) | 11 total — **0.69 per PR**                 |
+| Control false positives (P0-P2) | 11 total, **0.69 per PR**                  |
 | Control nice-to-haves (P3)      | 2                                          |
 | Total cost                      | $0.1210                                    |
 | Avg cost / PR                   | $0.0040                                    |
@@ -211,12 +211,12 @@ from extracted facts; `low-model` for `extract_unit` stayed
 | `diff_local` | 4   | 1   | **0.800** |
 | `file_local` | 1   | 1   | **0.500** |
 
-Identical to the first `luna` pass — same two misses (PR 33, PR 40), same axis
+Identical to the first `luna` pass, same two misses (PR 33, PR 40), same axis
 shape. The guide change moved precision, not recall.
 
 ### Per-PR results
 
-**Defective (14 PRs):** 13 of 14 came back with `fp=0` — every defective PR the
+**Defective (14 PRs):** 13 of 14 came back with `fp=0`, every defective PR the
 model got right, it got right _cleanly_ this time. Only PR 49 still over-flags
 (`fp=3`, down from 4 in the first `luna` pass).
 
@@ -270,17 +270,17 @@ model got right, it got right _cleanly_ this time. Only PR 49 still over-flags
 | Defective PRs with any fp | 3/14       | **1/14**             |
 | Total cost                | $0.134     | **$0.121**           |
 
-Same reviewer model, same ledger, same PRs — the only variable was which model
+Same reviewer model, same ledger, same PRs, the only variable was which model
 synthesized the guide. Precision moved almost entirely on the control side
 (fewer false alarms on clean code), recall didn't move at all (the two genuine
 misses, PR 33 and PR 40, recur identically in both passes). At `n=30` PRs this
-isn't a controlled ablation — no repeat runs to estimate variance — but the
+isn't a controlled ablation, no repeat runs to estimate variance, but the
 direction and size of the shift (11 fewer false positives, cost going _down_ not
 up) is large enough to be worth taking seriously rather than filing as noise.
 
 For comparison, `deepseek/deepseek-v4.1-flash` was also tried as the reviewer
 against both guides and was strictly worse on every axis that matters
-operationally — more expensive, slower, and unreliable (4-6 of 30 reviews failed
-outright with "the reasoning budget may have been exhausted") — see
+operationally, more expensive, slower, and unreliable (4-6 of 30 reviews failed
+outright with "the reasoning budget may have been exhausted"), see
 `results/GroophyLifefor-heap-analysis-comaintainer-deepseek-guide_v1.json` and
 `-deepseek-guide_v2.json` for the raw numbers.
