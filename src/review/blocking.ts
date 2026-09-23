@@ -59,12 +59,3 @@ export function isBlocking(
   if (finding.blocked === true) return true;
   return finding.text ? claimFromText(finding.text) === true : false;
 }
-
-/** The impact label a heading carries, kept in sync with the decision: a P1
- * the model called non-blocking reads `blocking` under `severity` mode. */
-export function impactWord(
-  mode: ReviewBlocking,
-  finding: BlockingInput,
-): "blocking" | "non-blocking" {
-  return isBlocking(mode, finding) ? "blocking" : "non-blocking";
-}

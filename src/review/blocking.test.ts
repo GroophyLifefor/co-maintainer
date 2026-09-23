@@ -10,7 +10,6 @@
 import { test } from "node:test";
 import {
   DEFAULT_REVIEW_BLOCKING,
-  impactWord,
   isBlocking,
   reviewBlockingFrom,
 } from "./blocking.ts";
@@ -114,14 +113,8 @@ test("the decision is stable for the same finding set", () => {
   }
 });
 
-test("impactWord agrees with isBlocking", () => {
-  const finding = {
-    severity: "P1",
-    blocked: false,
-    text: "[P1 · non-blocking] x",
-  };
-  // Under severity mode the heading must read `blocking`, because that is the
-  // decision the exit code used; a mismatched label is exactly F19.
-  must(impactWord("severity", finding) === "blocking", "severity P1");
-  must(impactWord("model", finding) === "non-blocking", "model P1");
+test("the mode is read from the config the same way everywhere", () => {
+  must(reviewBlockingFrom("severity") === "severity", "severity");
+  must(reviewBlockingFrom(undefined) === "model", "unset is the default");
+  must(reviewBlockingFrom("SECURITY") === "model", "a typo is the default");
 });

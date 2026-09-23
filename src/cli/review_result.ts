@@ -6,7 +6,6 @@ import {
 } from "../review/carry_over.ts";
 import {
   DEFAULT_REVIEW_BLOCKING,
-  impactWord,
   isBlocking,
   type ReviewBlocking,
 } from "../review/blocking.ts";
@@ -286,11 +285,12 @@ export function formatHumanLocalReview(
   return lines.join("\n");
 }
 
-/** Human-readable findings block for remote sync JSON (same shape as `toJsonFinding`). */
-export function formatHumanJsonFindings(
-  findings: JsonReviewFinding[],
-  mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
-): string {
+/** Human-readable findings block for remote sync JSON (same shape as
+ * `toJsonFinding`). The server already decided each finding's `blocking` under
+ * its own configured rule, so the label uses that field instead of re-deriving
+ * the rule here: a client with a different config would otherwise print a
+ * label that disagrees with the exit code (CORE-41). */
+export function formatHumanJsonFindings(findings: JsonReviewFinding[]): string {
   if (findings.length === 0) {
     return "## Findings\n\nNo actionable findings.";
   }
@@ -300,12 +300,7 @@ export function formatHumanJsonFindings(
       (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9),
   );
   for (const row of sorted) {
-    const input = {
-      severity: row.severity,
-      blocked: row.blocking,
-      text: row.title,
-    };
-    const impact = `[${row.severity} · ${impactWord(mode, input)}]`;
+    const impact = `[${row.severity} · ${row.blocking ? "blocking" : "non-blocking"}]`;
     let prefix = "";
     if (row.path) {
       const from = row.lineFrom ?? 0;
