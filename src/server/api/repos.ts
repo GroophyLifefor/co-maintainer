@@ -1,16 +1,21 @@
 import { errorResponse } from "../errors.ts";
-import { findInstallationForRepo } from "../../github/app.ts";
+import { AppClient, findInstallationForRepo } from "../../github/app.ts";
 import {
   activateRepo,
   deactivateRepo,
+  getRepo,
   listActiveRepos,
   updateRepoSettings,
 } from "../../store/repos.ts";
-import { writeRepoConfig } from "../../config.ts";
+import { readConfig, writeRepoConfig } from "../../config.ts";
 import type { RepoConfig } from "../../config.ts";
 import { parseRemakeCron } from "../../services/remake_cron.ts";
 import { enqueueSetup } from "../../services/setup.ts";
 import { enqueueManualReview } from "../../services/review.ts";
+import { probePlan, recommendationPatch } from "../../services/probe.ts";
+import { estimateInit, readJobHistory } from "../../ai/estimate.ts";
+import { loadPrices } from "../../ai/pricing.ts";
+import type { ModelPrice } from "../../ai/pricing.ts";
 import {
   prDetail,
   repoKnowledge,
@@ -32,8 +37,106 @@ export async function handleReposRoute(
     return Response.json({ items: listActiveRepos() });
   }
 
-  if (url.pathname === "/api/repos" && request.method === "POST") {
+  if (url.pathname === "/api/repos/preview" && request.method === "POST") {
+    if (!githubApp) {
+      return errorResponse(
+        422,
+        "no_github_app",
+        "Configure the GitHub App in Settings to preview a repository.",
+      );
+    }
     let body: { repo?: unknown };
+    try {
+      body = await request.json();
+    } catch {
+      return errorResponse(400, "bad_request", "expected a JSON body");
+    }
+    const repo = String(body.repo ?? "");
+    if (!/^[^/]+\/[^/]+$/.test(repo)) {
+      return errorResponse(
+        400,
+        "bad_request",
+        "repo must look like owner/repo",
+      );
+    }
+    let installationId: number | undefined;
+    try {
+      installationId = await findInstallationForRepo(
+        githubApp.appId,
+        githubApp.privateKeyPem,
+        repo,
+      );
+    } catch {
+      return errorResponse(
+        422,
+        "app_lookup_failed",
+        "Could not verify the GitHub App's repository access.",
+      );
+    }
+    if (installationId === undefined) {
+      return errorResponse(
+        422,
+        "app_access_denied",
+        `The GitHub App cannot access ${repo}.`,
+      );
+    }
+    if (getRepo(repo)?.active) {
+      return errorResponse(409, "already_added", `${repo} is already added.`);
+    }
+    const client = new AppClient(
+      githubApp.appId,
+      githubApp.privateKeyPem,
+      installationId,
+    );
+    try {
+      const plan = await probePlan(client, repo, {
+        ghConcurrent: 1,
+        log: () => {},
+      });
+      const config = readConfig();
+      const needsPrices =
+        config.ai === "openrouter" &&
+        Boolean(config.lowModel && config.highModel);
+      const [prices, history] = await Promise.all([
+        needsPrices
+          ? loadPrices()
+          : Promise.resolve({
+              prices: new Map<string, ModelPrice>(),
+              source: "unavailable" as const,
+            }),
+        readJobHistory(repo),
+      ]);
+      const estimate = estimateInit({
+        pullRequests: plan.analysis.includePullRequests
+          ? Number(plan.analysis.report.pullRequests ?? 0)
+          : 0,
+        includeCodebase: plan.analysis.includePullRequests,
+        lowModel: config.lowModel,
+        highModel: config.highModel,
+        prices: prices.prices,
+        history,
+      });
+      return Response.json({
+        repo,
+        command: plan.command,
+        recommendation: plan.recommendation,
+        patch: recommendationPatch(plan.recommendation),
+        reasons: plan.analysis.reasons,
+        report: plan.report,
+        estimate,
+        estimateBasis: estimate.basis,
+      });
+    } catch (error) {
+      return errorResponse(
+        422,
+        "probe_failed",
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  if (url.pathname === "/api/repos" && request.method === "POST") {
+    let body: { repo?: unknown; patch?: unknown };
     try {
       body = await request.json();
     } catch {
@@ -69,6 +172,16 @@ export async function handleReposRoute(
           `The GitHub App cannot access ${repo}.`,
         );
       }
+    }
+    // `patch` is the confirmed preview. It is optional so a caller that
+    // never opened the preview keeps the old behavior; when present it is
+    // written before `activateRepo` so the enqueued init reads it.
+    const patch =
+      body.patch && typeof body.patch === "object"
+        ? (body.patch as RepoConfig)
+        : undefined;
+    if (patch && Object.keys(patch).length > 0) {
+      await writeRepoConfig(repo, patch);
     }
     activateRepo(repo, installationId);
     try {

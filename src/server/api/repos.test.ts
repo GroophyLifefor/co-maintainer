@@ -3,6 +3,7 @@ import { closeAppDb, openAppDb } from "../../store/app_db.ts";
 import { readConfig, writeUserConfig } from "../../config.ts";
 import { registerHandler } from "../../services/jobs.ts";
 import { getRepo } from "../../store/repos.ts";
+import { TEST_PKCS1_PEM } from "../../testing/fixtures/rsa_key.ts";
 import {
   deleteEnv,
   getEnv,
@@ -102,6 +103,124 @@ test("POST /api/repos rejects a malformed repo name before touching anything", a
       body: JSON.stringify({ repo: "not-owner-slash-repo" }),
     });
     if (response.status !== 400) throw new Error(`status ${response.status}`);
+  });
+});
+
+/** Stubs the App-level GitHub calls the preview makes: one installation, the
+ * repo, a small pull request list, one detail each and a commit list. */
+function stubGithub(fn: () => Promise<void>): Promise<void> {
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = String(input);
+    if (url.includes("/app/installations")) {
+      return Response.json([
+        {
+          id: 7,
+          account: { login: "acme", type: "Organization" },
+          suspended_at: null,
+        },
+      ]);
+    }
+    if (url.includes("/access_tokens")) {
+      return Response.json({
+        token: "ghs_x",
+        expires_at: new Date(Date.now() + 3600_000).toISOString(),
+      });
+    }
+    if (url.includes("/installation/repositories")) {
+      return Response.json({
+        repositories: [{ full_name: "acme/widgets", private: false }],
+      });
+    }
+    if (url.match(/\/repos\/acme\/widgets\/pulls\?/)) {
+      return Response.json([
+        {
+          number: 1,
+          title: "First",
+          updated_at: "2026-01-02T00:00:00Z",
+          additions: 10,
+          deletions: 5,
+        },
+      ]);
+    }
+    if (url.match(/\/repos\/acme\/widgets\/pulls\/1$/)) {
+      return Response.json({ number: 1, additions: 10, deletions: 5 });
+    }
+    if (url.includes("/repos/acme/widgets/releases")) return Response.json([]);
+    if (url.includes("/repos/acme/widgets/commits")) return Response.json([]);
+    if (url.match(/\/repos\/acme\/widgets$/)) {
+      return Response.json({ default_branch: "main", has_issues: true });
+    }
+    throw new Error(`unexpected request: ${url}`);
+  }) as typeof fetch;
+  return fn().finally(() => {
+    globalThis.fetch = original;
+  });
+}
+
+test("POST /api/repos/preview returns a plan and does not add the repo", async () => {
+  await withTempEnv(async () => {
+    await writeUserConfig({
+      auth: "gh",
+      ai: "none",
+      githubAppId: "4900449",
+      githubAppPrivateKey: TEST_PKCS1_PEM,
+    });
+    const authed = await loggedInApp();
+    await stubGithub(async () => {
+      const response = await authed("/api/repos/preview", {
+        method: "POST",
+        body: JSON.stringify({ repo: "acme/widgets" }),
+      });
+      if (response.status !== 200) {
+        throw new Error(`status ${response.status}: ${await response.text()}`);
+      }
+      const body = await response.json();
+      if (!String(body.command).startsWith("co-maintainer init acme/widgets")) {
+        throw new Error(`unexpected command: ${body.command}`);
+      }
+      if (!body.patch || body.patch.includeCodebase !== true) {
+        throw new Error(`unexpected patch: ${JSON.stringify(body.patch)}`);
+      }
+      if (!body.estimate || typeof body.estimate.extract !== "number") {
+        throw new Error("the preview omitted the estimate");
+      }
+      if (getRepo("acme/widgets")) {
+        throw new Error("the preview added the repo");
+      }
+    });
+  });
+});
+
+test("POST /api/repos/preview refuses without a GitHub App", async () => {
+  await withTempEnv(async () => {
+    const authed = await loggedInApp();
+    const response = await authed("/api/repos/preview", {
+      method: "POST",
+      body: JSON.stringify({ repo: "acme/widgets" }),
+    });
+    if (response.status !== 422) throw new Error(`status ${response.status}`);
+  });
+});
+
+test("POST /api/repos with a patch stores the confirmed plan first", async () => {
+  await withTempEnv(async () => {
+    const authed = await loggedInApp();
+    const response = await authed("/api/repos", {
+      method: "POST",
+      body: JSON.stringify({
+        repo: "acme/widgets",
+        patch: { includeCommitHistory: false, maxPrMonths: 24 },
+      }),
+    });
+    if (response.status !== 200) {
+      throw new Error(`status ${response.status}: ${await response.text()}`);
+    }
+    const stored = readConfig().repos?.["acme/widgets"];
+    if (stored?.includeCommitHistory !== false || stored?.maxPrMonths !== 24) {
+      throw new Error(`the patch was not stored: ${JSON.stringify(stored)}`);
+    }
+    if (!getRepo("acme/widgets")) throw new Error("the repo was not added");
   });
 });
 

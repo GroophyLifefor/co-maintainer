@@ -52,6 +52,18 @@ Once a delivery has arrived, the page shows **Last webhook delivery** instead.
 The check only inspects the host. A single-label internal name and any public
 host pass, and `serve` and `set` still accept every URL they did before.
 
+## Adding a repository
+
+**Add repository** runs the same read-only probe the CLI runs, server side,
+then shows the recommended `init` command with an estimated job count, token
+range, time and cost. Nothing is written until **Add and start init** is
+pressed, and that confirmation stores the plan's flags, limits and sources for
+the repo before the init job is queued, so the run matches what was approved.
+
+The estimate says whether it used this repository's recorded jobs or the
+cm-dx-lab calibration, and whether it priced dollars from OpenRouter. See
+[`probe`](probe.md) for how the recommendation is derived.
+
 ## Sign in
 
 Open `http://<host>:<port>/`.
@@ -80,7 +92,7 @@ Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
 | ---- | ------- |
 | `/` | Repository list, **Get started** (when empty), **Add repository**, auto-review toggles |
 | `/setup` | Same checklist as above (direct URL) |
-| `/repos/new` | Pick an App-installed repo and start **init** |
+| `/repos/new` | Pick an App-installed repo, **Preview** the plan, then confirm to start **init** |
 | `/repos/:owner/:repo` | Overview, 30-day stats, drift **Update now**, recent PRs, webhook reachability and last delivery |
 | `/repos/:owner/:repo/pulls` | Open PR list with a **Review** button each, paged review history, manual **Review** by number when webhooks fail |
 | `/repos/:owner/:repo/pulls/:n` | Findings and cost for one PR |

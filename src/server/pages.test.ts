@@ -651,6 +651,34 @@ test("the pulls tab explains itself when the App is not configured", async () =>
   });
 });
 
+test("the add-repo page previews before it can start init", async () => {
+  await withEnv(async () => {
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(
+        new Request("http://localhost/repos/new", { headers: { cookie } }),
+      )
+    ).text();
+    if (!html.includes('id="preview"')) {
+      throw new Error("the page has no preview button");
+    }
+    if (!html.includes('id="plan"')) {
+      throw new Error("the page has no plan slot");
+    }
+    // The old one-click add is gone: no button posts straight to /api/repos.
+    if (html.includes('id="add"')) {
+      throw new Error("the page still adds without confirmation");
+    }
+    if (!html.includes("Add and start init")) {
+      throw new Error("the confirm action is missing");
+    }
+    if (!html.includes("/api/repos/preview")) {
+      throw new Error("the page does not call the preview endpoint");
+    }
+  });
+});
+
 test("the client catches only once the page is parsed", async () => {
   // The helper is inlined into `<head>`, so its wiring and the activity poll
   // must not run at parse time: `pollActivity` reads `activity-root`, which

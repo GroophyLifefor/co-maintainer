@@ -45,7 +45,7 @@ export function renderAddRepo(
   <div class="crumbs"><a href="/">Repositories</a> / Add</div>
   <div class="pagehead">
     <div><h1>Add repository</h1>
-      <p class="lead">Pick a repository this App can access.</p></div>
+      <p class="lead">Pick a repository this App can access. Nothing is read or written until you confirm the plan.</p></div>
   </div>
   ${notice}
   <div class="card" data-async>
@@ -56,18 +56,86 @@ export function renderAddRepo(
         <label>Repository</label>
         ${select}
       </div>
-      <button class="primary" id="add"${canAdd ? "" : " disabled"}>Add repository</button>
+      <button class="primary" id="preview"${canAdd ? "" : " disabled"}>Preview</button>
     </div>
+    <div id="plan" hidden></div>
   </div></div>
 </div>
 <script>
-document.getElementById("add").addEventListener("click", function() {
+var plan = null;
+function showPlan(data) {
+  plan = data;
+  var box = document.getElementById("plan");
+  box.hidden = false;
+  box.replaceChildren();
+  var heading = document.createElement("h2");
+  heading.textContent = "Plan for " + data.repo;
+  box.appendChild(heading);
+  var cmd = document.createElement("p");
+  cmd.className = "mono";
+  cmd.style.wordBreak = "break-all";
+  cmd.textContent = data.command;
+  box.appendChild(cmd);
+  var est = data.estimate;
+  var facts = document.createElement("p");
+  facts.className = "muted";
+  facts.textContent =
+    "AI jobs: " + est.extract + " extract + " + est.synth + " synth" +
+    ". Tokens: " + est.tokensIn[0].toLocaleString("en-US") + "-" +
+    est.tokensIn[1].toLocaleString("en-US") + " in, " +
+    est.tokensOut[0].toLocaleString("en-US") + "-" +
+    est.tokensOut[1].toLocaleString("en-US") + " out" +
+    ". Time: " + Math.round(est.seconds[0]) + "-" + Math.round(est.seconds[1]) + "s" +
+    (est.usd
+      ? ". Cost: $" + est.usd[0].toFixed(4) + "-$" + est.usd[1].toFixed(4)
+      : ". Cost: unknown") +
+    ". Basis: " + (est.estimateBasis === "history"
+      ? "this repository's recorded jobs"
+      : "the cm-dx-lab calibration") + ", an estimate, not a bill.";
+  box.appendChild(facts);
+  if (data.reasons && data.reasons.length) {
+    var ul = document.createElement("ul");
+    ul.className = "muted";
+    data.reasons.forEach(function(reason) {
+      var li = document.createElement("li");
+      li.textContent = reason;
+      ul.appendChild(li);
+    });
+    box.appendChild(ul);
+  }
+  var row = document.createElement("div");
+  row.style.display = "flex";
+  row.style.gap = "8px";
+  row.style.marginTop = "14px";
+  var confirm = document.createElement("button");
+  confirm.className = "primary";
+  confirm.id = "confirm";
+  confirm.textContent = "Add and start init";
+  var cancel = document.createElement("button");
+  cancel.className = "btn";
+  cancel.type = "button";
+  cancel.textContent = "Cancel";
+  cancel.addEventListener("click", function() {
+    plan = null;
+    box.hidden = true;
+    box.replaceChildren();
+  });
+  row.appendChild(confirm);
+  row.appendChild(cancel);
+  box.appendChild(row);
+  confirm.addEventListener("click", function() {
+    var repo = document.getElementById("repo").value.trim();
+    if (!repo || !plan) return;
+    postAndGo("/api/repos", { repo: repo, patch: plan.patch }, "/activity", confirm);
+  });
+}
+document.getElementById("preview").addEventListener("click", function() {
   var btn = this;
   var repo = document.getElementById("repo").value.trim();
   if (!repo) return;
   run(btn, btn.closest("[data-async]"), async function() {
-    await api("POST", "/api/repos", { repo: repo });
-    location.href = "/activity";
+    var data = await api("POST", "/api/repos/preview", { repo: repo });
+    showPlan(data);
   });
 });
 </script>`,

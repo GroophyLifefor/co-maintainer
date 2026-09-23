@@ -147,6 +147,15 @@ to <strong>Settings</strong>.</p>
 <p>Once a delivery has arrived, the page shows <strong>Last webhook delivery</strong> instead.
 The check only inspects the host. A single-label internal name and any public
 host pass, and <code>serve</code> and <code>set</code> still accept every URL they did before.</p>
+<h2 id="adding-a-repository">Adding a repository</h2>
+<p><strong>Add repository</strong> runs the same read-only probe the CLI runs, server side,
+then shows the recommended <code>init</code> command with an estimated job count, token
+range, time and cost. Nothing is written until <strong>Add and start init</strong> is
+pressed, and that confirmation stores the plan&#39;s flags, limits and sources for
+the repo before the init job is queued, so the run matches what was approved.</p>
+<p>The estimate says whether it used this repository&#39;s recorded jobs or the
+cm-dx-lab calibration, and whether it priced dollars from OpenRouter. See
+<a href="probe.html"><code>probe</code></a> for how the recommendation is derived.</p>
 <h2 id="sign-in">Sign in</h2>
 <p>Open <code>http://&lt;host&gt;:&lt;port&gt;/</code>.</p>
 <ul>
@@ -181,7 +190,7 @@ have no repositories yet. You can skip it and configure the same items under
 </tr>
 <tr>
 <td><code>/repos/new</code></td>
-<td>Pick an App-installed repo and start <strong>init</strong></td>
+<td>Pick an App-installed repo, <strong>Preview</strong> the plan, then confirm to start <strong>init</strong></td>
 </tr>
 <tr>
 <td><code>/repos/:owner/:repo</code></td>
@@ -301,7 +310,7 @@ has run.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#what-it-is-for">What it is for</a></li><li><a href="#before-you-open">Before you open</a></li><li><a href="#webhook-reachability">Webhook reachability</a></li><li><a href="#sign-in">Sign in</a></li><li><a href="#get-started-setup">Get started (/setup)</a></li><li><a href="#routes">Routes</a></li><li><a href="#settings-global">Settings (global)</a></li><li><a href="#ui-behavior">UI behavior</a></li><li><a href="#linux">Linux</a></li><li><a href="#updating">Updating</a></li></ul></nav>
+      <ul><li><a href="#what-it-is-for">What it is for</a></li><li><a href="#before-you-open">Before you open</a></li><li><a href="#webhook-reachability">Webhook reachability</a></li><li><a href="#adding-a-repository">Adding a repository</a></li><li><a href="#sign-in">Sign in</a></li><li><a href="#get-started-setup">Get started (/setup)</a></li><li><a href="#routes">Routes</a></li><li><a href="#settings-global">Settings (global)</a></li><li><a href="#ui-behavior">UI behavior</a></li><li><a href="#linux">Linux</a></li><li><a href="#updating">Updating</a></li></ul></nav>
     </div>
   </div>
   <script src="assets/docs.js"></script>
