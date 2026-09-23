@@ -98,9 +98,9 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 </tr>
 </thead>
 <tbody><tr>
-<td>`--auth=gh</td>
-<td>pat`</td>
+<td><code>--auth=gh|pat</code></td>
 <td>gh</td>
+<td>Use the gh CLI or a personal access token.</td>
 </tr>
 <tr>
 <td><code>--github-pat=TOKEN</code></td>
@@ -212,7 +212,7 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td>Read the docs and layout.</td>
 </tr>
 </tbody></table>
-<h3 id="limits">Limits</h3>
+<h3 id="limits-2">Limits</h3>
 <table>
 <thead>
 <tr>
@@ -272,9 +272,9 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 </tr>
 </thead>
 <tbody><tr>
-<td>`--ai=none</td>
-<td>openrouter</td>
-<td>hetzner`</td>
+<td><code>--ai=none|openrouter|hetzner</code></td>
+<td>none</td>
+<td>Which provider writes the review.</td>
 </tr>
 <tr>
 <td><code>--token=KEY</code></td>
@@ -297,7 +297,7 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td>Model for the review itself.</td>
 </tr>
 </tbody></table>
-<h3 id="github-access">GitHub access</h3>
+<h3 id="github-access-2">GitHub access</h3>
 <table>
 <thead>
 <tr>
@@ -307,9 +307,9 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 </tr>
 </thead>
 <tbody><tr>
-<td>`--auth=gh</td>
-<td>pat`</td>
+<td><code>--auth=gh|pat</code></td>
 <td>gh</td>
+<td>Use the gh CLI or a personal access token.</td>
 </tr>
 <tr>
 <td><code>--github-pat=TOKEN</code></td>
@@ -317,7 +317,7 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td>The token when --auth=pat.</td>
 </tr>
 </tbody></table>
-<h3 id="output-and-diagnostics">Output and diagnostics</h3>
+<h3 id="output-and-diagnostics-2">Output and diagnostics</h3>
 <table>
 <thead>
 <tr>
@@ -371,7 +371,7 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <p>Rebuild the review guides for a repository that already has them.</p>
 <pre><code>co-maintainer sync owner/repo [options]
 </code></pre>
-<h3 id="sources">Sources</h3>
+<h3 id="sources-2">Sources</h3>
 <table>
 <thead>
 <tr>
@@ -406,7 +406,7 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td>Read the docs and layout.</td>
 </tr>
 </tbody></table>
-<h3 id="limits">Limits</h3>
+<h3 id="limits-3">Limits</h3>
 <table>
 <thead>
 <tr>
@@ -436,7 +436,7 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td>Cap the comments read per pull request.</td>
 </tr>
 </tbody></table>
-<h3 id="ai">AI</h3>
+<h3 id="ai-2">AI</h3>
 <table>
 <thead>
 <tr>
@@ -446,9 +446,9 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 </tr>
 </thead>
 <tbody><tr>
-<td>`--ai=none</td>
-<td>openrouter</td>
-<td>hetzner`</td>
+<td><code>--ai=none|openrouter|hetzner</code></td>
+<td>none</td>
+<td>Which provider writes the review.</td>
 </tr>
 <tr>
 <td><code>--token=KEY</code></td>
@@ -471,7 +471,7 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td>Model for the review itself.</td>
 </tr>
 </tbody></table>
-<h3 id="github-access">GitHub access</h3>
+<h3 id="github-access-3">GitHub access</h3>
 <table>
 <thead>
 <tr>
@@ -481,9 +481,9 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 </tr>
 </thead>
 <tbody><tr>
-<td>`--auth=gh</td>
-<td>pat`</td>
+<td><code>--auth=gh|pat</code></td>
 <td>gh</td>
+<td>Use the gh CLI or a personal access token.</td>
 </tr>
 <tr>
 <td><code>--github-pat=TOKEN</code></td>
@@ -491,7 +491,7 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td>The token when --auth=pat.</td>
 </tr>
 </tbody></table>
-<h3 id="output-and-diagnostics">Output and diagnostics</h3>
+<h3 id="output-and-diagnostics-3">Output and diagnostics</h3>
 <table>
 <thead>
 <tr>
@@ -601,7 +601,7 @@ co-maintainer review [options]
 <td>Install codegraph if it is missing.</td>
 </tr>
 </tbody></table>
-<h3 id="ai">AI</h3>
+<h3 id="ai-3">AI</h3>
 <table>
 <thead>
 <tr>
@@ -611,9 +611,9 @@ co-maintainer review [options]
 </tr>
 </thead>
 <tbody><tr>
-<td>`--ai=none</td>
-<td>openrouter</td>
-<td>hetzner`</td>
+<td><code>--ai=none|openrouter|hetzner</code></td>
+<td>none</td>
+<td>Which provider writes the review.</td>
 </tr>
 <tr>
 <td><code>--token=KEY</code></td>
@@ -636,7 +636,7 @@ co-maintainer review [options]
 <td>Model for the review itself.</td>
 </tr>
 </tbody></table>
-<h3 id="github-access">GitHub access</h3>
+<h3 id="github-access-4">GitHub access</h3>
 <table>
 <thead>
 <tr>
@@ -646,9 +646,9 @@ co-maintainer review [options]
 </tr>
 </thead>
 <tbody><tr>
-<td>`--auth=gh</td>
-<td>pat`</td>
+<td><code>--auth=gh|pat</code></td>
 <td>gh</td>
+<td>Use the gh CLI or a personal access token.</td>
 </tr>
 <tr>
 <td><code>--github-pat=TOKEN</code></td>
@@ -656,7 +656,7 @@ co-maintainer review [options]
 <td>The token when --auth=pat.</td>
 </tr>
 </tbody></table>
-<h3 id="output-and-diagnostics">Output and diagnostics</h3>
+<h3 id="output-and-diagnostics-4">Output and diagnostics</h3>
 <table>
 <thead>
 <tr>
@@ -739,7 +739,7 @@ co-maintainer view [owner/repo] --path
 <p>Persist defaults and secrets to the user config file.</p>
 <pre><code>co-maintainer set [options]
 </code></pre>
-<h3 id="ai">AI</h3>
+<h3 id="ai-4">AI</h3>
 <table>
 <thead>
 <tr>
@@ -749,9 +749,9 @@ co-maintainer view [owner/repo] --path
 </tr>
 </thead>
 <tbody><tr>
-<td>`--ai=none</td>
-<td>openrouter</td>
-<td>hetzner`</td>
+<td><code>--ai=none|openrouter|hetzner</code></td>
+<td>none</td>
+<td>Which provider writes the review.</td>
 </tr>
 <tr>
 <td><code>--token=KEY</code></td>
@@ -774,7 +774,7 @@ co-maintainer view [owner/repo] --path
 <td>Model for the review itself.</td>
 </tr>
 </tbody></table>
-<h3 id="github-access">GitHub access</h3>
+<h3 id="github-access-5">GitHub access</h3>
 <table>
 <thead>
 <tr>
@@ -784,9 +784,9 @@ co-maintainer view [owner/repo] --path
 </tr>
 </thead>
 <tbody><tr>
-<td>`--auth=gh</td>
-<td>pat`</td>
+<td><code>--auth=gh|pat</code></td>
 <td>gh</td>
+<td>Use the gh CLI or a personal access token.</td>
 </tr>
 <tr>
 <td><code>--github-pat=TOKEN</code></td>
@@ -854,9 +854,9 @@ co-maintainer view [owner/repo] --path
 <td>The remote review token.</td>
 </tr>
 <tr>
-<td>`--review-blocking=model</td>
-<td>severity`</td>
+<td><code>--review-blocking=model|severity</code></td>
 <td>model</td>
+<td>How a review decides a blocking finding.</td>
 </tr>
 <tr>
 <td><code>--password=TEXT</code></td>
@@ -888,7 +888,7 @@ co-maintainer view [owner/repo] --path
 <p>Run the dashboard, the webhook and the job worker.</p>
 <pre><code>co-maintainer serve --port=N [options]
 </code></pre>
-<h3 id="server">Server</h3>
+<h3 id="server-2">Server</h3>
 <table>
 <thead>
 <tr>
@@ -933,7 +933,7 @@ co-maintainer view [owner/repo] --path
 <td>Return 500 for mutating requests. Debugging only.</td>
 </tr>
 </tbody></table>
-<h3 id="output-and-diagnostics">Output and diagnostics</h3>
+<h3 id="output-and-diagnostics-5">Output and diagnostics</h3>
 <table>
 <thead>
 <tr>

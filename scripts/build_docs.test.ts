@@ -186,6 +186,28 @@ test("every old flat address redirects to its new page", async () => {
   }
 });
 
+test("no page repeats a heading id", async () => {
+  // The commands page repeats `### AI` and `### GitHub access` under every
+  // command, so the same id would appear several times and collapse deep links
+  // and search results onto the first one.
+  const outDir = await buildInto();
+  try {
+    for (const page of await htmlFiles(join(outDir, "docs"))) {
+      const html = await readTextFile(page);
+      const ids = [...html.matchAll(/<h[23] id="([^"]+)"/g)].map((m) => m[1]);
+      const seen = new Set<string>();
+      for (const id of ids) {
+        if (seen.has(id)) {
+          throw new Error(`${relative(outDir, page)} repeats id "${id}"`);
+        }
+        seen.add(id);
+      }
+    }
+  } finally {
+    await remove(outDir, { recursive: true });
+  }
+});
+
 test("no internal link in the built site is dead", async () => {
   const outDir = await buildInto();
   try {

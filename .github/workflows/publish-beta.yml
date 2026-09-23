@@ -30,6 +30,13 @@ permissions:
   contents: read
   packages: write
 
+# A tag push and a manual dispatch can name the same prerelease version, so the
+# "already pushed" check and the push must not run at once. One constant group
+# serializes every beta publish (cancelling an in-flight push would be unsafe).
+concurrency:
+  group: publish-beta
+  cancel-in-progress: false
+
 jobs:
   docker:
     runs-on: ubuntu-latest

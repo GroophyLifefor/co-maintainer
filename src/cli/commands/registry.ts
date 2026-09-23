@@ -744,6 +744,12 @@ export function renderCommandHelp(name: string): string | undefined {
   return lines.join("\n");
 }
 
+/** A Markdown table cell cannot hold a raw `|`, or the column splits. Escaping
+ * it keeps values such as `--auth=gh|pat` in one cell. */
+function cell(text: string): string {
+  return text.replace(/\|/g, "\\|");
+}
+
 /** The registry as markdown, so CORE-81 can build the command reference from
  * the same data the runtime help uses. */
 export function registryToMarkdown(): string {
@@ -768,7 +774,7 @@ export function registryToMarkdown(): string {
           ? `--${flag.name}=${flag.value}`
           : `--${flag.name}`;
         lines.push(
-          `| \`${flagCell}\` | ${flag.default ?? ""} | ${flag.description} |`,
+          `| \`${cell(flagCell)}\` | ${cell(flag.default ?? "")} | ${cell(flag.description)} |`,
         );
       }
     }

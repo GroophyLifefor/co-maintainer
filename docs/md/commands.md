@@ -16,7 +16,7 @@ co-maintainer probe owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--auth=gh|pat` | gh | Use the gh CLI or a personal access token. |
+| `--auth=gh\|pat` | gh | Use the gh CLI or a personal access token. |
 | `--github-pat=TOKEN` |  | The token when --auth=pat. |
 
 ### Limits
@@ -79,7 +79,7 @@ co-maintainer init owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none|openrouter|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
@@ -89,7 +89,7 @@ co-maintainer init owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--auth=gh|pat` | gh | Use the gh CLI or a personal access token. |
+| `--auth=gh\|pat` | gh | Use the gh CLI or a personal access token. |
 | `--github-pat=TOKEN` |  | The token when --auth=pat. |
 
 ### Output and diagnostics
@@ -139,7 +139,7 @@ co-maintainer sync owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none|openrouter|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
@@ -149,7 +149,7 @@ co-maintainer sync owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--auth=gh|pat` | gh | Use the gh CLI or a personal access token. |
+| `--auth=gh\|pat` | gh | Use the gh CLI or a personal access token. |
 | `--github-pat=TOKEN` |  | The token when --auth=pat. |
 
 ### Output and diagnostics
@@ -198,7 +198,7 @@ co-maintainer review [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none|openrouter|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
@@ -208,7 +208,7 @@ co-maintainer review [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--auth=gh|pat` | gh | Use the gh CLI or a personal access token. |
+| `--auth=gh\|pat` | gh | Use the gh CLI or a personal access token. |
 | `--github-pat=TOKEN` |  | The token when --auth=pat. |
 
 ### Output and diagnostics
@@ -267,7 +267,7 @@ co-maintainer set [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none|openrouter|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
@@ -277,7 +277,7 @@ co-maintainer set [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--auth=gh|pat` | gh | Use the gh CLI or a personal access token. |
+| `--auth=gh\|pat` | gh | Use the gh CLI or a personal access token. |
 | `--github-pat=TOKEN` |  | The token when --auth=pat. |
 
 ### Server
@@ -294,7 +294,7 @@ co-maintainer set [options]
 | `--github-oauth-allowed-user=LOGIN` |  | The only GitHub user allowed to sign in. |
 | `--remote-host=URL` |  | The remote review server. |
 | `--remote-token=TOKEN` |  | The remote review token. |
-| `--review-blocking=model|severity` | model | How a review decides a blocking finding. |
+| `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |
 | `--password=TEXT` |  | Replace the dashboard password. |
 | `--disable-auth=password` |  | Turn the dashboard password off. |
 | `--enable-auth=github` |  | Turn GitHub sign-in on. |

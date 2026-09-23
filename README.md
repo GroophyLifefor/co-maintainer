@@ -91,14 +91,14 @@ the PRs are kept as defect-free controls, so precision is measurable too, not
 just recall. Full breakdown, per-PR results, and methodology:
 [`benchmark/core_v3/README.md`](benchmark/core_v3/README.md).
 
-| metric        | value                         | context                     |
-| ------------- | ----------------------------- | --------------------------- |
-| PRs reviewed  | 30 (14 defective, 16 control) | one target repo             |
-| F1            | 0.500                         | against seeded defects only |
-| Precision     | 0.353                         | 1.00 on the control PRs     |
-| Recall        | 0.857                         | 12 of 14 defects found      |
-| Avg cost / PR | $0.0045                       | low and high model together |
-| Avg time / PR | 28.9s                         | sequential, no concurrency  |
+| metric        | value                         | context                            |
+| ------------- | ----------------------------- | ---------------------------------- |
+| PRs reviewed  | 30 (14 defective, 16 control) | one target repo                    |
+| F1            | 0.500                         | against seeded defects only        |
+| Precision     | 0.353                         | 1.00 false positive per control PR |
+| Recall        | 0.857                         | 12 of 14 defects found             |
+| Avg cost / PR | $0.0045                       | low and high model together        |
+| Avg time / PR | 28.9s                         | sequential, no concurrency         |
 
 ## Development
 

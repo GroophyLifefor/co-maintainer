@@ -431,12 +431,20 @@ function buildToc(bodyHtml: string): {
   headings: Heading[];
 } {
   const headings: Heading[] = [];
+  // The commands page repeats headings such as `### AI` under every command, so
+  // the same id would appear several times and collapse deep links and search
+  // results onto the first one. A later duplicate gets a `-2`, `-3`, suffix.
+  const used = new Map<string, number>();
   const withIds = bodyHtml.replace(
     /<h([23])>([\s\S]*?)<\/h\1>/g,
     (_m, level: string, raw: string) => {
       const text = headingText(raw);
-      const id = headingId(text);
-      if (id) headings.push({ id, text, level: Number(level) });
+      const base = headingId(text);
+      if (!base) return `<h${level}>${raw}</h${level}>`;
+      const seen = used.get(base) ?? 0;
+      used.set(base, seen + 1);
+      const id = seen === 0 ? base : `${base}-${seen + 1}`;
+      headings.push({ id, text, level: Number(level) });
       return `<h${level} id="${esc(id)}">${raw}</h${level}>`;
     },
   );

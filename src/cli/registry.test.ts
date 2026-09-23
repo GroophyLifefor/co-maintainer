@@ -197,6 +197,23 @@ test("registry: the markdown export covers every visible command", () => {
   }
 });
 
+test("registry: a markdown table cell escapes its pipe", () => {
+  // `--auth=gh|pat` is one flag value, but a raw `|` would split it into two
+  // table columns and lose the description that follows.
+  const markdown = registryToMarkdown();
+  if (!markdown.includes("`--auth=gh\\|pat`")) {
+    throw new Error("the markdown export does not escape `|` in a cell");
+  }
+  for (const line of markdown.split("\n")) {
+    if (!line.startsWith("| `--")) continue;
+    const cells = line.split(/(?<!\\)\|/);
+    // A row is `|`, the flag cell, the default, the description, `|`.
+    if (cells.length !== 5) {
+      throw new Error(`a table row has ${cells.length} cells: ${line}`);
+    }
+  }
+});
+
 test("help: `help <command>` prints that command and exits 0", async () => {
   for (const name of ["probe", "init", "review", "set", "serve"]) {
     const result = await capture(["help", name]);
