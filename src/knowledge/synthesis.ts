@@ -516,7 +516,7 @@ ${JSON.stringify(relevant)}`,
     repo,
     ai,
     model,
-    ai === "hetzner" ? 1 : concurrency,
+    concurrency,
     (request, response) =>
       validateSection(response, keys[requests.indexOf(request)] ?? ""),
   );

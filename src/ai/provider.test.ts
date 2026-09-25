@@ -1,6 +1,6 @@
-import { HetznerProvider } from "./hetzner.ts";
+import { createAiProvider, rejectRetiredProvider } from "./provider.ts";
 import { OpenRouterProvider } from "./openrouter.ts";
-import type { AiRequest } from "../types.ts";
+import type { AiRequest, Options } from "../types.ts";
 import { test } from "node:test";
 
 const request: AiRequest = {
@@ -38,40 +38,27 @@ test("AI providers parse responses and apply retry policy", async () => {
     if (calls !== 1) {
       throw new Error("OpenRouter made an unexpected call count");
     }
-
-    calls = 0;
-    globalThis.fetch = async () => {
-      calls++;
-      return calls === 1
-        ? response("rate-limited", 429)
-        : response("hetzner-ok");
-    };
-    const hetzner = new HetznerProvider(
-      "test-key",
-      "test-model",
-      "https://test.invalid",
-      async () => {},
-    );
-    const hetznerResult = await hetzner.complete(request);
-    if (hetznerResult.text !== "hetzner-ok" || calls !== 2) {
-      throw new Error("Hetzner did not retry 429 correctly");
-    }
-
-    globalThis.fetch = async () => response("unauthorized", 401);
-    const fatal = new HetznerProvider(
-      "test-key",
-      "test-model",
-      "https://test.invalid",
-      async () => {},
-    );
-    let failed = false;
-    try {
-      await fatal.complete(request);
-    } catch {
-      failed = true;
-    }
-    if (!failed) throw new Error("Hetzner 401 should be fatal");
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("Hetzner is rejected by name and an unknown provider throws", () => {
+  let message = "";
+  try {
+    rejectRetiredProvider("hetzner");
+  } catch (error) {
+    message = String((error as Error).message);
+  }
+  if (!/no longer supported.*openrouter or none/.test(message)) {
+    throw new Error(`wrong message: ${message}`);
+  }
+  rejectRetiredProvider("openrouter");
+  let threw = false;
+  try {
+    createAiProvider({ ai: "hetzner" } as unknown as Options, "m");
+  } catch {
+    threw = true;
+  }
+  if (!threw) throw new Error("an unknown provider must not fall back");
 });

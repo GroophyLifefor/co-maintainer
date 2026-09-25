@@ -255,4 +255,14 @@ export const migrations: string[][] = [
     `CREATE UNIQUE INDEX idx_remote_inputs_request
      ON remote_review_inputs(token_id, request_id)`,
   ],
+  // 9 — a missing cost is unknown, not zero. Older rows are filled in place
+  [
+    `ALTER TABLE reviews ADD COLUMN cost_status TEXT`,
+    `ALTER TABLE reviews ADD COLUMN cost_note TEXT`,
+    `ALTER TABLE reviews ADD COLUMN billed_to TEXT`,
+    `UPDATE reviews SET cost_status = 'known' WHERE cost IS NOT NULL`,
+    `UPDATE reviews SET cost_status = 'unknown', cost_note = 'recorded_before_0_5_1'
+     WHERE cost IS NULL`,
+    `UPDATE reviews SET billed_to = 'server'`,
+  ],
 ];

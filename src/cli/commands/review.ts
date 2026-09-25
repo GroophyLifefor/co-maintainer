@@ -1,6 +1,12 @@
 import { parseReviewArgs, type ReviewCliArgs } from "../review_args.ts";
 import { setCliInteractive } from "../args.ts";
-import { emptyAiMetrics, recordAiCost } from "../../services/setup.ts";
+import {
+  addAiMetrics,
+  emptyAiMetrics,
+  recordAiCost,
+} from "../../services/setup.ts";
+import { costUsage } from "../../util/cost.ts";
+import { costLabel } from "../../util/run_summary.ts";
 import { reviewPullRequest } from "../../pr/reviewer.ts";
 import { GhClient } from "../../github/gh.ts";
 import {
@@ -76,11 +82,7 @@ async function runReviewPr(
             new GhClient(options.debug),
             options,
             async (response) => {
-              aiMetrics.calls++;
-              aiMetrics.tokensIn += response.tokensIn;
-              aiMetrics.tokensOut += response.tokensOut;
-              if (response.cost === undefined) aiMetrics.costKnown = false;
-              else aiMetrics.cost += response.cost;
+              addAiMetrics(aiMetrics, response);
               await recordAiCost(options.repo, "review_pull_request", response);
             },
           ),
@@ -89,7 +91,7 @@ async function runReviewPr(
       const usage = {
         tokensIn: aiMetrics.tokensIn,
         tokensOut: aiMetrics.tokensOut,
-        costUsd: aiMetrics.costKnown ? aiMetrics.cost : null,
+        ...costUsage(aiMetrics),
       };
       // The engine reports the codegraph state it actually reached, instead of
       // the old `useCodegraph ? "used" : "disabled"` that claimed "used" while
@@ -134,9 +136,9 @@ async function runReviewPr(
         if (options.logTime) {
           log(
             "time",
-            `AI total · calls=${aiMetrics.calls} · input=${aiMetrics.tokensIn} tokens · output=${aiMetrics.tokensOut} tokens · cost=${
-              aiMetrics.costKnown ? aiMetrics.cost.toFixed(4) : "unknown"
-            }`,
+            `AI total · calls=${aiMetrics.calls} · input=${aiMetrics.tokensIn} tokens · output=${aiMetrics.tokensOut} tokens · cost=${costLabel(
+              aiMetrics,
+            )}`,
           );
           console.error(
             `[time] total review · ${((performance.now() - operationStarted) / 1000).toFixed(2)}s`,

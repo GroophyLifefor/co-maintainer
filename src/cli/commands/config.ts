@@ -47,12 +47,12 @@ export type Source = "env" | "file" | "default";
 /** The env var that supplies each field, mirroring args.ts. Only the fields
  * that actually read env are listed. */
 export const ENV_BY_FIELD: Record<string, string[]> = {
-  token: ["CO_MAINTAINER_TOKEN", "OPENROUTER_API_KEY", "HETZNER_API_KEY"],
+  token: ["CO_MAINTAINER_TOKEN", "OPENROUTER_API_KEY"],
   githubPat: ["GITHUB_TOKEN", "GH_TOKEN"],
   ai: ["CO_MAINTAINER_AI"],
   auth: ["CO_MAINTAINER_AUTH"],
-  lowModel: ["OPENROUTER_LOW_MODEL", "HETZNER_LOW_MODEL", "LOW_MODEL"],
-  highModel: ["OPENROUTER_HIGH_MODEL", "HETZNER_HIGH_MODEL", "HIGH_MODEL"],
+  lowModel: ["OPENROUTER_LOW_MODEL", "LOW_MODEL"],
+  highModel: ["OPENROUTER_HIGH_MODEL", "HIGH_MODEL"],
   webhookUrl: ["CM_WEBHOOK_URL"],
   reviewBlocking: ["CO_MAINTAINER_REVIEW_BLOCKING"],
 };

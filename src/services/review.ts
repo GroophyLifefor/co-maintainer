@@ -24,6 +24,12 @@ import {
   resolveCarryOutcomes,
 } from "../review/carry_over.ts";
 import { runReviewEngine } from "../review/engine.ts";
+import {
+  addResponseCost,
+  costColumns,
+  emptyTally,
+  settle,
+} from "../util/cost.ts";
 import { loadGuides } from "../review/guides.ts";
 import {
   reviewBlockingFrom,
@@ -832,10 +838,11 @@ async function runReviewJobCore(
     );
     extras.carryPrompt = buildCarryPromptSection(carryItems, revision);
   }
+  const costTally = emptyTally();
   const response = await runReviewEngine(
     github,
     options,
-    undefined,
+    async (call) => addResponseCost(costTally, call),
     snapshot,
     ai ?? aiFor(options),
     (message) => log("info", message),
@@ -934,7 +941,7 @@ async function runReviewJobCore(
     closed_count: closedCount,
     tokens_in: response.tokensIn,
     tokens_out: response.tokensOut,
-    cost: response.cost,
+    ...costColumns(settle(costTally)),
   });
   saveSubjectRevision({
     subjectId: subject.id,

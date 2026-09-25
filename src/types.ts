@@ -25,7 +25,7 @@ export type Options = {
   envPath?: string;
   auth: "gh" | "pat";
   githubPat?: string;
-  ai: "none" | "openrouter" | "hetzner";
+  ai: "none" | "openrouter";
   aiToken?: string;
   lowModel?: string;
   highModel?: string;
@@ -110,8 +110,11 @@ export type AiResponse = {
   tokensIn: number;
   tokensOut: number;
   cost?: number;
+  /** Set on a response merged from several calls, so the caller can tell a
+   * partial cost from a missing one. */
+  costCalls?: { known: number; unknown: number };
   model: string;
-  provider: "openrouter" | "hetzner";
+  provider: "openrouter";
 };
 
 export type AiProvider = {

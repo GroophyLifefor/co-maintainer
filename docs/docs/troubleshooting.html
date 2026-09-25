@@ -173,6 +173,21 @@ is the safe default.</p>
 <td>Pass at least one flag, for example <code>--token=...</code></td>
 </tr>
 <tr>
+<td><code>There is no backup to roll back to</code></td>
+<td><code>rollback</code> found no backup, or it is incomplete</td>
+<td>A backup exists only after an upgrade migrated the database. See <a href="#going-back-after-an-upgrade">Going back after an upgrade</a></td>
+</tr>
+<tr>
+<td><code>The backup was taken when upgrading to</code></td>
+<td>The installed version is not the one that made the backup</td>
+<td>Install that version and run <code>rollback</code> again</td>
+</tr>
+<tr>
+<td><code>Rollback needs your confirmation</code></td>
+<td><code>rollback</code> has no terminal to ask on</td>
+<td>Run it in a terminal, or pass <code>--yes</code></td>
+</tr>
+<tr>
 <td><code>serve is already running</code></td>
 <td>Two <code>serve</code> processes share one <code>app.db</code></td>
 <td>Stop the other one, or point <code>CM_APP_DB</code> elsewhere</td>
@@ -216,11 +231,33 @@ missing value with no default becomes a <code>2</code> with a message naming the
 <td>Make sure the clone is healthy and no rebase or merge is in progress</td>
 </tr>
 <tr>
+<td><code>Could not back up the data before upgrading it</code></td>
+<td>The backup taken before a migration failed, so the migration did not run</td>
+<td>Free disk space or fix the permissions of the data directory, then start again. Nothing was changed</td>
+</tr>
+<tr>
 <td><code>app.db is not open</code></td>
 <td>A command that needs the server database did not open it</td>
 <td>Report it: <code>init</code> and <code>sync</code> open it for the run, <code>serve</code> keeps it open</td>
 </tr>
 </tbody></table>
+<h2 id="going-back-after-an-upgrade">Going back after an upgrade</h2>
+<p>A release refuses a database newer than it knows, so you cannot install the old
+version and open the new database. Instead, the first time an upgrade migrates
+<code>app.db</code>, co-maintainer copies <code>app.db</code>, <code>cache.db</code> and <code>config.json</code> into a
+<code>backups/previous</code> folder next to the database. There is one slot, and it holds
+the version you upgraded from.</p>
+<p>To go back, with the new version still installed and <code>serve</code> stopped:</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">rollback</span>
+npm i -g co-maintainer@&lt;the version it prints&gt;
+</code></pre>
+<p><code>rollback</code> restores the backup and prints the version to install. It asks first,
+because everything written after the upgrade is lost: reviews, settings and
+cache. Pass <code>--yes</code> to skip the question. The files it replaced are kept in
+<code>backups/rolled-back</code>, so a rollback made by mistake can be undone by hand.</p>
+<p>It refuses when there is no backup, when <code>serve</code> is running, and when the
+installed version is not the one that took the backup. If the copy cannot be
+made, the migration does not run and nothing is changed.</p>
 <h2 id="platform-notes">Platform notes</h2>
 <p><code>serve</code> recommends Linux, WSL included. <a href="dashboard.html#linux">Dashboard: Linux</a>
 explains why. Windows is supported but treated as less predictable, and <code>serve</code>
@@ -235,7 +272,7 @@ differs from CLI access. For cost questions, see <a href="cost.html">Cost</a>.</
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#exit-codes">Exit codes</a></li><li><a href="#usage-and-precondition-errors-exit-2">Usage and precondition errors (exit 2)</a></li><li><a href="#runtime-failures-exit-3">Runtime failures (exit 3)</a></li><li><a href="#platform-notes">Platform notes</a></li></ul></nav>
+      <ul><li><a href="#exit-codes">Exit codes</a></li><li><a href="#usage-and-precondition-errors-exit-2">Usage and precondition errors (exit 2)</a></li><li><a href="#runtime-failures-exit-3">Runtime failures (exit 3)</a></li><li><a href="#going-back-after-an-upgrade">Going back after an upgrade</a></li><li><a href="#platform-notes">Platform notes</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

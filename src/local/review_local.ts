@@ -11,6 +11,7 @@ import {
   type ReviewWarning,
 } from "../cli/review_result.ts";
 import {
+  addAiMetrics,
   emptyAiMetrics,
   recordAiCost,
   runInitOrRemake,
@@ -63,6 +64,7 @@ import {
   saveLocalCarry,
   tryLoadLocalCarry,
 } from "./carry_over_store.ts";
+import { costUsage } from "../util/cost.ts";
 
 function storedFindings(resolved: ResolvedFinding[]): StoredFinding[] {
   return resolved
@@ -292,11 +294,7 @@ export async function runLocalReview(
             options,
             sha,
             async (usage) => {
-              aiMetrics.calls++;
-              aiMetrics.tokensIn += usage.tokensIn;
-              aiMetrics.tokensOut += usage.tokensOut;
-              if (usage.cost === undefined) aiMetrics.costKnown = false;
-              else aiMetrics.cost += usage.cost;
+              addAiMetrics(aiMetrics, usage);
               await recordAiCost(repo, "review_local", usage);
             },
             aiFor(options),
@@ -370,7 +368,7 @@ export async function runLocalReview(
       const usage = {
         tokensIn: aiMetrics.tokensIn,
         tokensOut: aiMetrics.tokensOut,
-        costUsd: aiMetrics.costKnown ? aiMetrics.cost : null,
+        ...costUsage(aiMetrics),
       };
       if (json) {
         console.log(

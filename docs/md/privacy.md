@@ -8,7 +8,7 @@ what it stores, where, and what leaves the machine.
 | Surface | Sent to | What |
 | ------- | ------- | ---- |
 | `probe`, `init`, `sync` | GitHub | API reads through `gh` or a PAT |
-| `init`, `sync`, `review` | Your AI provider (OpenRouter or Hetzner) | The prompts: sampled code, pull request text, diffs, and guides |
+| `init`, `sync`, `review` | Your AI provider (OpenRouter) | The prompts: sampled code, pull request text, diffs, and guides |
 | Remote `review` | Your `serve` instance | The git diff, plus codegraph tool requests and results |
 | GitHub App review | GitHub | The review comment, the check run, and the inline comments |
 

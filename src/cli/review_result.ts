@@ -11,6 +11,7 @@ import {
 } from "../review/blocking.ts";
 import type { Revision } from "../review/revision.ts";
 import { humanCopy } from "../services/review.ts";
+import type { BilledTo, CostReason, CostStatus } from "../util/cost.ts";
 export type ReviewWarning = { code: string; message: string };
 
 export type JsonReviewFinding = {
@@ -408,6 +409,17 @@ export function reviewExitCodeFromJsonFindings(
   return findings.some((f) => f.blocking) ? 1 : 0;
 }
 
+/** `costUsd` is `null` when the cost is unknown, and `costStatus` and
+ * `costNote` say why. */
+export type ReviewUsage = {
+  tokensIn: number;
+  tokensOut: number;
+  costUsd: number | null;
+  costStatus?: CostStatus;
+  costNote?: CostReason | null;
+  billedTo?: BilledTo;
+};
+
 export type LocalReviewJsonInput = {
   repo: string;
   branch: string;
@@ -418,7 +430,7 @@ export type LocalReviewJsonInput = {
   codegraphReason: string | null;
   findings: ResolvedFinding[];
   warnings: ReviewWarning[];
-  usage: { tokensIn: number; tokensOut: number; costUsd: number | null };
+  usage: ReviewUsage;
   durationMs: number;
   reviewBlocking?: ReviewBlocking;
 };
@@ -430,7 +442,7 @@ export type PrReviewJsonInput = {
   guideBuiltAt: string | null;
   codegraphState: "used" | "disabled" | "unavailable";
   codegraphReason: string | null;
-  usage: { tokensIn: number; tokensOut: number; costUsd: number | null };
+  usage: ReviewUsage;
   durationMs: number;
   reviewBlocking?: ReviewBlocking;
 };

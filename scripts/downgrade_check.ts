@@ -1,18 +1,18 @@
-/** Downgrade check (CORE-05).
+/** Downgrade check (CORE-05, CORE-102b).
  *
  *   npm run downgrade:check
  *
- * Proves a user can move forward and then back: the branch's code writes a
- * config.json, a cache.db via `init` and an app.db via `serve`, and then the
- * published 0.4.13 release runs against those exact directories and exits 0 on
- * every step. A forward-only app.db migration that refuses the older binary is
- * the failure this catches.
+ * Proves a user can upgrade and then go back. The published 0.4.13 writes a
+ * config.json, a cache.db and an app.db, the branch's code upgrades them (its
+ * migration takes a backup first), `rollback` restores the backup, and 0.4.13
+ * runs against the restored directories and exits 0 on every step. A release
+ * refuses an app.db newer than it knows, so the way back is the backup, not the
+ * old code opening the new database.
  *
- * POSIX only. 0.4.13 has no `gh` override (the branch added `CM_GH_BIN` for
- * exactly that reason) and Node cannot spawn a `.cmd` through PATH without a
- * shell, so on Windows neither the fake `gh` nor the `npx` launcher is
- * reachable. The plan wires this to its own ubuntu CI job for the same reason;
- * on Windows the script reports the skip instead of pretending to pass.
+ * POSIX only for the 0.4.13 `init`. 0.4.13 has no `gh` override (the branch
+ * added `CM_GH_BIN` for exactly that reason) and Node cannot spawn a `.cmd`
+ * through PATH without a shell, so on Windows that step is reported as a skip
+ * instead of pretending to pass. The plan wires this to its own ubuntu CI job.
  */
 import { createServer } from "node:net";
 import { existsSync } from "node:fs";
@@ -238,50 +238,7 @@ try {
   await chmod(join(ghDir, "gh"), 0o755);
   const pathWithFakeGh = `${ghDir}:${process.env.PATH ?? ""}`;
 
-  // --- 1. The branch's code writes the state a downgrade will read. ---
-  const init = await run(
-    runtimeExecPath(),
-    runtimeRunArgs("main.ts", [
-      "init",
-      REPO,
-      "--ai=none",
-      "--auth=gh",
-      "--include-codebase",
-      "--include-pull-requests",
-      "--include-commit-history",
-    ]),
-    {
-      ...env,
-      CM_FAKE_AI: "1",
-      CM_GH_BIN: runtimeExecPath(),
-      CM_GH_SCRIPT: fakeGh,
-    },
-  );
-  if (!init.ok) {
-    throw new Error(`branch init exited ${init.code}: ${init.stderr}`);
-  }
-  const config = JSON.parse(await readFile(env.CM_CONFIG_PATH!, "utf8")) as {
-    repos?: Record<string, unknown>;
-  };
-  record(
-    "branch init wrote config.json, repos and cache.db",
-    Boolean(config.repos?.[REPO]),
-    `${Object.keys(config).length} top-level keys`,
-  );
-
-  const current = await serveAndStop(
-    runtimeExecPath(),
-    runtimeRunArgs("main.ts", []),
-    { ...env, CM_FAKE_AI: "1" },
-  );
-  record(
-    "branch serve opened app.db and answered /api/health",
-    current.up,
-    current.detail,
-  );
-  if (!current.up) throw new Error("the branch's own serve is not healthy");
-
-  // --- 2. 0.4.13 runs against the same directories. ---
+  // --- 1. The published release writes the state that gets upgraded. ---
   // Install into a fixed prefix and launch `dist/main.js` on this Node, not
   // through `npx`: `npx` is a `.cmd` (unspawnable without a shell) and on
   // Windows it also spawns the CLI as a detached grandchild, so killing the
@@ -338,27 +295,118 @@ try {
 
   if (isWindows()) {
     recordSkip(
-      "0.4.13 remake",
+      "0.4.13 init",
       "0.4.13 has no gh override and Node cannot spawn a .cmd through PATH",
     );
   } else {
-    const remake = await run(process.execPath, [oldEntry, "remake", REPO], {
-      ...env,
-      CM_FAKE_AI: "1",
-      PATH: pathWithFakeGh,
-    });
+    const oldInit = await run(
+      process.execPath,
+      [
+        oldEntry,
+        "init",
+        REPO,
+        "--ai=none",
+        "--auth=gh",
+        "--include-codebase",
+        "--include-pull-requests",
+        "--include-commit-history",
+      ],
+      { ...env, CM_FAKE_AI: "1", PATH: pathWithFakeGh },
+    );
     record(
-      "0.4.13 remake exits 0 against the branch's cache.db",
-      remake.ok,
-      remake.ok ? "" : remake.stderr.trim().slice(0, 400),
+      "0.4.13 init wrote config.json, repos and cache.db",
+      oldInit.ok,
+      oldInit.ok ? "" : oldInit.stderr.trim().slice(0, 400),
     );
   }
 
-  const oldServe = await serveAndStop(process.execPath, [oldEntry], env);
+  const oldFirst = await serveAndStop(process.execPath, [oldEntry], env);
   record(
-    "0.4.13 serve opened app.db and answered /api/health",
-    oldServe.up,
-    oldServe.detail,
+    "0.4.13 serve created app.db and answered /api/health",
+    oldFirst.up,
+    oldFirst.detail,
+  );
+  if (!oldFirst.up) throw new Error("0.4.13's own serve is not healthy");
+  const configBefore = await readFile(env.CM_CONFIG_PATH!, "utf8");
+
+  // --- 2. The branch upgrades it: the migration must back up first. ---
+  const upgraded = await serveAndStop(
+    runtimeExecPath(),
+    runtimeRunArgs("main.ts", []),
+    { ...env, CM_FAKE_AI: "1" },
+  );
+  record(
+    "branch serve migrated app.db and answered /api/health",
+    upgraded.up,
+    upgraded.detail,
+  );
+  if (!upgraded.up) throw new Error("the branch's serve is not healthy");
+  record(
+    "the upgrade left a backup",
+    existsSync(join(sandbox, "backups", "previous", "manifest.json")),
+  );
+
+  // Data the upgrade writes, which the rollback is meant to discard.
+  const branchInit = await run(
+    runtimeExecPath(),
+    runtimeRunArgs("main.ts", [
+      "init",
+      REPO,
+      "--ai=none",
+      "--auth=gh",
+      "--include-codebase",
+    ]),
+    {
+      ...env,
+      CM_FAKE_AI: "1",
+      CM_GH_BIN: runtimeExecPath(),
+      CM_GH_SCRIPT: fakeGh,
+    },
+  );
+  record(
+    "branch init runs after the upgrade",
+    branchInit.ok,
+    branchInit.ok ? "" : branchInit.stderr.trim().slice(0, 400),
+  );
+
+  // --- 3. Rolling back puts the old data back and 0.4.13 runs again. ---
+  const rollback = await run(
+    runtimeExecPath(),
+    runtimeRunArgs("main.ts", ["rollback", "--yes"]),
+    env,
+  );
+  record(
+    "branch rollback restored the backup",
+    rollback.ok,
+    rollback.ok ? "" : rollback.stderr.trim().slice(0, 400),
+  );
+  const configAfter = JSON.parse(
+    await readFile(env.CM_CONFIG_PATH!, "utf8"),
+  ) as Record<string, unknown>;
+  const configWas = JSON.parse(configBefore) as Record<string, unknown>;
+  const changed = [
+    ...new Set([...Object.keys(configWas), ...Object.keys(configAfter)]),
+  ]
+    .filter(
+      // `serve --password=` re-salts the stored hash on every start, before the
+      // migration takes its backup, so the hash differs while the password is the same.
+      (key) => key !== "dashboardPasswordHash",
+    )
+    .filter(
+      (key) =>
+        JSON.stringify(configWas[key]) !== JSON.stringify(configAfter[key]),
+    );
+  record(
+    "rollback restored config.json",
+    changed.length === 0,
+    changed.length ? `differs in: ${changed.join(", ")}` : "",
+  );
+
+  const oldAgain = await serveAndStop(process.execPath, [oldEntry], env);
+  record(
+    "0.4.13 serve opened the restored app.db and answered /api/health",
+    oldAgain.up,
+    oldAgain.detail,
   );
 
   const failures = steps.filter((step) => !step.ok);
@@ -370,7 +418,7 @@ try {
     );
   }
   console.log(
-    `downgrade check ok · ${steps.length} steps · 0.4.13 read the branch's config.json, cache.db and app.db`,
+    `downgrade check ok · ${steps.length} steps · the branch backed up, rolled back, and 0.4.13 ran on the restored data`,
   );
   if (skips.length > 0) {
     console.log(

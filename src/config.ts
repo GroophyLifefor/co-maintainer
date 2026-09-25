@@ -16,7 +16,7 @@ import {
  * flags and no interactive prompts, reusing what `init` was told. */
 export type RepoConfig = {
   auth?: "gh" | "pat";
-  ai?: "none" | "openrouter" | "hetzner";
+  ai?: "none" | "openrouter";
   lowModel?: string;
   highModel?: string;
   maxCommits?: number;
@@ -36,7 +36,7 @@ export type RepoConfig = {
 
 export type UserConfig = {
   auth?: "gh" | "pat";
-  ai?: "none" | "openrouter" | "hetzner";
+  ai?: "none" | "openrouter";
   lowModel?: string;
   highModel?: string;
   /** Written only by `co-maintainer set --token=...`. Every other write

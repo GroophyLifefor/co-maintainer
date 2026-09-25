@@ -30,6 +30,13 @@ import type { Options } from "../types.ts";
 import { withLogSink } from "../util/log.ts";
 import { cancel, registerHandler, type LogFn } from "./jobs.ts";
 import { recordAiCost } from "./setup.ts";
+import {
+  addResponseCost,
+  costColumns,
+  costUsage,
+  emptyTally,
+  settle,
+} from "../util/cost.ts";
 import { findRepoByFullName } from "../store/repos.ts";
 import {
   deleteRemoteReviewInput,
@@ -280,8 +287,7 @@ export function registerRemoteReviewHandler(): void {
         const started = performance.now();
         let tokensIn = 0;
         let tokensOut = 0;
-        let costUsd: number | null = 0;
-        let costKnown = true;
+        const costTally = emptyTally();
         const result = await withLogSink(
           (phase, message) => log("info", `[${phase}] ${message}`),
           () =>
@@ -292,8 +298,7 @@ export function registerRemoteReviewHandler(): void {
               async (response) => {
                 tokensIn += response.tokensIn;
                 tokensOut += response.tokensOut;
-                if (response.cost === undefined) costKnown = false;
-                else costUsd = (costUsd ?? 0) + response.cost;
+                addResponseCost(costTally, response);
                 await recordAiCost(job.repo, "remote_review", response);
               },
               undefined,
@@ -325,11 +330,7 @@ export function registerRemoteReviewHandler(): void {
           codegraph: { state: result.codegraphState },
           summary: summaryCounts(findings, blockingMode),
           findings: findings.map((row) => toJsonFinding(row, blockingMode)),
-          usage: {
-            tokensIn,
-            tokensOut,
-            costUsd: costKnown ? costUsd : null,
-          },
+          usage: { tokensIn, tokensOut, ...costUsage(costTally) },
           remote: { jobId: job.id, reviewId, clientVersion: VERSION },
         });
 
@@ -339,7 +340,7 @@ export function registerRemoteReviewHandler(): void {
           duration_ms: durationMs,
           tokens_in: tokensIn,
           tokens_out: tokensOut,
-          cost: costKnown ? costUsd : null,
+          ...costColumns(settle(costTally)),
         });
         if (subjectId) {
           saveSubjectRevision({

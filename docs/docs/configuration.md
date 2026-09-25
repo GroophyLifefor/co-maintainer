@@ -59,9 +59,9 @@ co-maintainer set --remote-host=https://your-server --remote-token=cmr_...
 
 | Flag | Written to | Used by |
 | ------ | ---------- | ------- |
-| `--token=...` | `token` | CLI AI calls (OpenRouter/Hetzner) |
+| `--token=...` | `token` | CLI AI calls (OpenRouter) |
 | `--ai-key=...` | `token` | An alias for `--token`, named for what it is |
-| `--ai=none\|openrouter\|hetzner` | `ai` | CLI and dashboard jobs |
+| `--ai=none\|openrouter` | `ai` | CLI and dashboard jobs |
 | `--low-model=...` / `--high-model=...` | `lowModel`, `highModel` | CLI and dashboard jobs |
 | `--auth=gh\|pat` | `auth` | CLI GitHub reads |
 | `--github-pat=...` | `githubPat` | CLI when `--auth=pat` |
@@ -137,7 +137,7 @@ hides the value.
 | Key | Type | Source | Masked |
 | --- | ---- | ------ | ------ |
 | `auth` | `gh` or `pat` | `set` flag | no |
-| `ai` | `none`, `openrouter`, or `hetzner` | `set` flag | no |
+| `ai` | `none` or `openrouter` | `set` flag | no |
 | `low-model` | string | `set` flag | no |
 | `high-model` | string | `set` flag | no |
 | `token` | string | `--token` or `--ai-key` | yes |

@@ -3,6 +3,7 @@ import { prepareConfig } from "../config.ts";
 import { getEnv } from "../util/runtime.ts";
 import { askLine } from "./prompt.ts";
 import { die } from "./error.ts";
+import { rejectRetiredProvider } from "../ai/provider.ts";
 import { detectRemoteRepo } from "../local/git_ops.ts";
 import { reviewBlockingFrom } from "../review/blocking.ts";
 import {
@@ -207,11 +208,9 @@ export async function parseArgs(args: string[]): Promise<Options> {
 
   const explicitAi = rest.some((arg) => arg.startsWith("--ai="));
   const configuredAiRaw = env("CO_MAINTAINER_AI") ?? repoConfig.ai ?? config.ai;
-  if (
-    configuredAiRaw &&
-    !["none", "openrouter", "hetzner"].includes(configuredAiRaw)
-  ) {
-    die("CO_MAINTAINER_AI/config.ai must be none, openrouter, or hetzner");
+  rejectRetiredProvider(configuredAiRaw);
+  if (configuredAiRaw && !["none", "openrouter"].includes(configuredAiRaw)) {
+    die("CO_MAINTAINER_AI/config.ai must be none or openrouter");
   }
   const configuredAi = configuredAiRaw as Options["ai"] | undefined;
   const configuredAuthRaw =
@@ -232,46 +231,36 @@ export async function parseArgs(args: string[]): Promise<Options> {
         "or run: co-maintainer set --github-pat=...",
     );
   }
-  let ai = choice(
-    "ai",
-    ["none", "openrouter", "hetzner"],
-    configuredAi ?? "none",
-  );
+  rejectRetiredProvider(text("ai"));
+  let ai = choice("ai", ["none", "openrouter"], configuredAi ?? "none");
   if (command === "review") {
     if (
       explicitAi &&
-      choice("ai", ["none", "openrouter", "hetzner"], "none") !== "openrouter"
+      choice("ai", ["none", "openrouter"], "none") !== "openrouter"
     ) {
       die("review supports OpenRouter only");
     }
     ai = "openrouter";
   } else if (!explicitAi && !configuredAi && command !== "probe") {
-    const selected = await ask(
-      "AI provider (openrouter|hetzner)",
-      "openrouter",
-    );
-    if (!["openrouter", "hetzner"].includes(selected)) {
-      die("AI provider must be openrouter or hetzner");
-    }
+    const selected = await ask("AI provider (openrouter)", "openrouter");
+    rejectRetiredProvider(selected);
+    if (selected !== "openrouter") die("AI provider must be openrouter");
     ai = selected as Options["ai"];
   }
   let aiToken =
     text("token") ??
     env("CO_MAINTAINER_TOKEN") ??
     (ai === "openrouter" ? env("OPENROUTER_API_KEY") : undefined) ??
-    (ai === "hetzner" ? env("HETZNER_API_KEY") : undefined) ??
     config.token;
   let lowModel =
     text("low-model") ??
     env("OPENROUTER_LOW_MODEL") ??
-    env("HETZNER_LOW_MODEL") ??
     env("LOW_MODEL") ??
     repoConfig.lowModel ??
     config.lowModel;
   let highModel =
     text("high-model") ??
     env("OPENROUTER_HIGH_MODEL") ??
-    env("HETZNER_HIGH_MODEL") ??
     env("HIGH_MODEL") ??
     repoConfig.highModel ??
     config.highModel;

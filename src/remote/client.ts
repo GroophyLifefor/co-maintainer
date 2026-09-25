@@ -30,7 +30,8 @@ import {
   resolveBaseRef,
 } from "../local/git_revision.ts";
 import { withCliLogsToStderr } from "../util/log.ts";
-import { printRunSummary, summaryFromMetrics } from "../util/run_summary.ts";
+import { printRunSummary } from "../util/run_summary.ts";
+import { costReasonText, type CostReason } from "../util/cost.ts";
 import { setCliInteractive } from "../cli/args.ts";
 import {
   MIN_SERVER_SCHEMA,
@@ -266,22 +267,24 @@ export async function runRemoteReview(
               "\n",
           );
           const usage = payload.result.usage as
-            | { tokensIn?: number; tokensOut?: number; costUsd?: number | null }
+            | {
+                tokensIn?: number;
+                tokensOut?: number;
+                costUsd?: number | null;
+                costNote?: CostReason | null;
+              }
             | undefined;
           if (usage) {
-            printRunSummary(
-              summaryFromMetrics(
-                {
-                  calls: 0,
-                  tokensIn: usage.tokensIn ?? 0,
-                  tokensOut: usage.tokensOut ?? 0,
-                  cost: usage.costUsd ?? 0,
-                  costKnown:
-                    usage.costUsd !== null && usage.costUsd !== undefined,
-                },
-                performance.now() - reviewStarted,
-              ),
-            );
+            const known = usage.costUsd !== null && usage.costUsd !== undefined;
+            printRunSummary({
+              durationMs: performance.now() - reviewStarted,
+              tokensIn: usage.tokensIn ?? 0,
+              tokensOut: usage.tokensOut ?? 0,
+              costUsd: known ? usage.costUsd! : null,
+              ...(!known && usage.costNote
+                ? { costNote: costReasonText(usage.costNote) }
+                : {}),
+            });
           }
         }
         const findings = (payload.result.findings ?? []) as JsonReviewFinding[];

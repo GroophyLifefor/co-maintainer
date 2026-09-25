@@ -52,7 +52,7 @@ const AI_FLAGS: FlagGroup = {
   flags: [
     {
       name: "ai",
-      value: "none|openrouter|hetzner",
+      value: "none|openrouter",
       default: "none",
       description: "Which provider writes the review.",
     },
@@ -594,6 +594,25 @@ export const COMMANDS: CommandSpec[] = [
       OUTPUT_FLAGS,
     ],
     examples: ["co-maintainer serve --port=5000"],
+  },
+  {
+    name: "rollback",
+    summary:
+      "Go back to the version before the last upgrade, restoring its data.",
+    usage: ["co-maintainer rollback [--yes]"],
+    groups: [
+      {
+        title: "Rollback",
+        flags: [
+          {
+            name: "yes",
+            description:
+              "Skip the confirmation. Needed when there is no terminal.",
+          },
+        ],
+      },
+    ],
+    examples: ["co-maintainer rollback", "co-maintainer rollback --yes"],
   },
   {
     name: "version",

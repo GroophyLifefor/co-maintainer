@@ -74,6 +74,10 @@ export type ReviewRow = {
   tokens_in: number;
   tokens_out: number;
   cost: number | null;
+  /** `null` on a row written by 0.5.0 after this column was added. */
+  cost_status: "known" | "unknown" | null;
+  cost_note: string | null;
+  billed_to: "server" | "byok" | null;
   duration_ms: number | null;
   posted_review_id: string | null;
   status: string;

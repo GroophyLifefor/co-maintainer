@@ -64,7 +64,6 @@ export function renderSettings(
             <option value="openrouter"${
               config.ai === "openrouter" ? " selected" : ""
             }>OpenRouter</option>
-            <option value="hetzner"${config.ai === "hetzner" ? " selected" : ""}>Hetzner</option>
           </select></div>
         <div class="field"><label>API key</label>
           <input id="token" type="password" placeholder="Leave blank to keep the current key">

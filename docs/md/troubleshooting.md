@@ -32,6 +32,9 @@ is the safe default.
 | `does not know the model <name>` | The provider refused the model with `400` | Check the name at [openrouter.ai/models](https://openrouter.ai/models) |
 | `rejected the remote review token` | The server refused a `cmr_` token | Create a new one under Settings, Remote review, or the token was deactivated |
 | `Nothing to set` | `set` was called with no values | Pass at least one flag, for example `--token=...` |
+| `There is no backup to roll back to` | `rollback` found no backup, or it is incomplete | A backup exists only after an upgrade migrated the database. See [Going back after an upgrade](#going-back-after-an-upgrade) |
+| `The backup was taken when upgrading to` | The installed version is not the one that made the backup | Install that version and run `rollback` again |
+| `Rollback needs your confirmation` | `rollback` has no terminal to ask on | Run it in a terminal, or pass `--yes` |
 | `serve is already running` | Two `serve` processes share one `app.db` | Stop the other one, or point `CM_APP_DB` elsewhere |
 
 `init`, `sync`, and `review` also refuse to start when a required value is still
@@ -47,7 +50,32 @@ missing value with no default becomes a `2` with a message naming the flag.
 | `OpenRouter request failed` | The provider returned an unclassified error | The raw body is never printed. Retry, then check `--debug` for the call |
 | `AI response was not valid JSON` | The model ignored the JSON request twice | The older Markdown parser runs as a fallback. Retry if the result looks off |
 | `git diff failed` / `git <command> failed` | A git operation did not complete | Make sure the clone is healthy and no rebase or merge is in progress |
+| `Could not back up the data before upgrading it` | The backup taken before a migration failed, so the migration did not run | Free disk space or fix the permissions of the data directory, then start again. Nothing was changed |
 | `app.db is not open` | A command that needs the server database did not open it | Report it: `init` and `sync` open it for the run, `serve` keeps it open |
+
+## Going back after an upgrade
+
+A release refuses a database newer than it knows, so you cannot install the old
+version and open the new database. Instead, the first time an upgrade migrates
+`app.db`, co-maintainer copies `app.db`, `cache.db` and `config.json` into a
+`backups/previous` folder next to the database. There is one slot, and it holds
+the version you upgraded from.
+
+To go back, with the new version still installed and `serve` stopped:
+
+```sh
+co-maintainer rollback
+npm i -g co-maintainer@<the version it prints>
+```
+
+`rollback` restores the backup and prints the version to install. It asks first,
+because everything written after the upgrade is lost: reviews, settings and
+cache. Pass `--yes` to skip the question. The files it replaced are kept in
+`backups/rolled-back`, so a rollback made by mistake can be undone by hand.
+
+It refuses when there is no backup, when `serve` is running, and when the
+installed version is not the one that took the backup. If the copy cannot be
+made, the migration does not run and nothing is changed.
 
 ## Platform notes
 

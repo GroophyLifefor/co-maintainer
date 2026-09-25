@@ -13,6 +13,7 @@
  */
 import type { AiMetrics } from "../services/setup.ts";
 import { hasLogSink, log } from "./log.ts";
+import { costReasonText, settle, type CostTally } from "./cost.ts";
 
 export type RunSummary = {
   /** Wall-clock milliseconds, or null when only the AI time is known. */
@@ -21,6 +22,8 @@ export type RunSummary = {
   tokensOut: number;
   /** `null` when any call left the cost unknown, matching `usage.costUsd`. */
   costUsd: number | null;
+  /** Why the cost is unknown, as a sentence. */
+  costNote?: string;
 };
 
 /** `3,125` — grouped the way the numbers read in the docs. */
@@ -49,7 +52,7 @@ export function formatRunSummary(summary: RunSummary): string {
   );
   parts.push(
     summary.costUsd === null
-      ? "cost unknown"
+      ? `cost unknown${summary.costNote ? ` (${summary.costNote})` : ""}`
       : `$${summary.costUsd.toFixed(4)}`,
   );
   return parts.join(" · ");
@@ -70,10 +73,20 @@ export function summaryFromMetrics(
   metrics: AiMetrics,
   durationMs: number | null,
 ): RunSummary {
+  const outcome = settle(metrics);
   return {
     durationMs,
     tokensIn: metrics.tokensIn,
     tokensOut: metrics.tokensOut,
-    costUsd: metrics.costKnown ? metrics.cost : null,
+    costUsd: outcome.status === "known" ? outcome.usd : null,
+    ...(outcome.status === "unknown"
+      ? { costNote: costReasonText(outcome.reason) }
+      : {}),
   };
+}
+
+/** `0.0016` for a known cost, `unknown` otherwise. For the timing log line. */
+export function costLabel(metrics: CostTally): string {
+  const outcome = settle(metrics);
+  return outcome.status === "known" ? outcome.usd.toFixed(4) : "unknown";
 }

@@ -322,7 +322,7 @@ export const PARSE_CASES: ParseCase[] = [
   {
     name: "bad ai value lists the providers",
     args: ["init", "owner/repo", "--ai=gemini"],
-    expect: { error: "ai must be one of: none, openrouter, hetzner" },
+    expect: { error: "ai must be one of: none, openrouter" },
   },
   {
     name: "--codegraph is explicitly rejected with a pointer",

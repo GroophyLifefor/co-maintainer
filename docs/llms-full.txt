@@ -276,7 +276,7 @@ non-trivial API cost on large repos.
 | [Install](getting-started.md#1-install) `co-maintainer` | `init` is a CLI command |
 | [`probe`](probe.md) on the same `owner/repo` (recommended) | Gives a ready-made `init` line with limits and `--include-*` flags |
 | [GitHub auth](authentication.md) | Reads the repo through `gh` or a PAT |
-| [AI provider](configuration.md) | OpenRouter or Hetzner key and models via `co-maintainer set` or flags |
+| [AI provider](configuration.md) | OpenRouter key and models via `co-maintainer set` or flags |
 
 Run [`probe`](probe.md) first when you are unsure which `--max-*` limits to use.
 
@@ -304,7 +304,7 @@ Values from `set`, `--env=PATH`, or flags are not asked again.
 | `--auth=pat` | Personal access token (see [Authentication](authentication.md)) |
 | `--github-pat=...` | PAT when not in env or config |
 | `--env=PATH` | Load env vars from a file |
-| `--ai=openrouter` | AI provider (`openrouter`, `hetzner`, or `none`) |
+| `--ai=openrouter` | AI provider (`openrouter` or `none`) |
 | `--token=...` | Provider API key |
 | `--low-model=...` | Model for extraction steps |
 | `--high-model=...` | Model for synthesis steps |
@@ -436,7 +436,7 @@ On the [dashboard](dashboard.md), **Sync now** runs the same job as this command
 | `--auth=pat` | Personal access token (see [Authentication](authentication.md)) |
 | `--github-pat=...` | PAT when not in env or config |
 | `--env=PATH` | Load env vars from a file |
-| `--ai=openrouter` | AI provider (`openrouter`, `hetzner`, or `none`) |
+| `--ai=openrouter` | AI provider (`openrouter` or `none`) |
 | `--token=...` | Provider API key |
 | `--low-model=...` | Model for extraction steps |
 | `--high-model=...` | Model for synthesis steps |
@@ -1711,7 +1711,7 @@ co-maintainer init owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
@@ -1771,7 +1771,7 @@ co-maintainer sync owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
@@ -1830,7 +1830,7 @@ co-maintainer review [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
@@ -1899,7 +1899,7 @@ co-maintainer set [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
@@ -1960,6 +1960,20 @@ co-maintainer serve --port=N [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+
+## `co-maintainer rollback`
+
+Go back to the version before the last upgrade, restoring its data.
+
+```
+co-maintainer rollback [--yes]
+```
+
+### Rollback
+
+| Flag | Default | Description |
+|---|---|---|
+| `--yes` |  | Skip the confirmation. Needed when there is no terminal. |
 
 ## `co-maintainer version`
 
@@ -2037,9 +2051,9 @@ co-maintainer set --remote-host=https://your-server --remote-token=cmr_...
 
 | Flag | Written to | Used by |
 | ------ | ---------- | ------- |
-| `--token=...` | `token` | CLI AI calls (OpenRouter/Hetzner) |
+| `--token=...` | `token` | CLI AI calls (OpenRouter) |
 | `--ai-key=...` | `token` | An alias for `--token`, named for what it is |
-| `--ai=none\|openrouter\|hetzner` | `ai` | CLI and dashboard jobs |
+| `--ai=none\|openrouter` | `ai` | CLI and dashboard jobs |
 | `--low-model=...` / `--high-model=...` | `lowModel`, `highModel` | CLI and dashboard jobs |
 | `--auth=gh\|pat` | `auth` | CLI GitHub reads |
 | `--github-pat=...` | `githubPat` | CLI when `--auth=pat` |
@@ -2115,7 +2129,7 @@ hides the value.
 | Key | Type | Source | Masked |
 | --- | ---- | ------ | ------ |
 | `auth` | `gh` or `pat` | `set` flag | no |
-| `ai` | `none`, `openrouter`, or `hetzner` | `set` flag | no |
+| `ai` | `none` or `openrouter` | `set` flag | no |
 | `low-model` | string | `set` flag | no |
 | `high-model` | string | `set` flag | no |
 | `token` | string | `--token` or `--ai-key` | yes |
@@ -2490,6 +2504,7 @@ remote review should read guides the server built.
 | Main moved, guides stale | [`sync`](sync.md) or dashboard **Sync** |
 | Change include flags or limits | `sync`/`init` with new flags (updates config + guides) |
 | Wipe server state | Stop `serve`, backup, remove `app.db` (destructive) |
+| Go back after an upgrade | Stop `serve`, run [`rollback`](troubleshooting.md#going-back-after-an-upgrade) with the new version still installed |
 | Wipe CLI evidence only | Remove `cache.db` (guides in `repos/` may remain) |
 
 ---
@@ -2510,7 +2525,7 @@ estimate it before you start.
 | `init` | Yes | Extraction and synthesis jobs over code, pull requests, and history |
 | `sync` | Yes, but less | Reuses unchanged evidence from [cache](caching.md), so only changed inputs rebuild |
 | Large-file diff summary | Yes, small | A diff over 500 changed lines is summarized with the low model instead of being sent whole |
-| Local and PR `review` | Yes | Runs on your OpenRouter or Hetzner key |
+| Local and PR `review` | Yes | Runs on your OpenRouter key |
 | Remote `review` | On the server | The server's key pays, not the laptop's |
 | GitHub App auto-review | On the server | Same as remote |
 
@@ -2584,7 +2599,7 @@ what it stores, where, and what leaves the machine.
 | Surface | Sent to | What |
 | ------- | ------- | ---- |
 | `probe`, `init`, `sync` | GitHub | API reads through `gh` or a PAT |
-| `init`, `sync`, `review` | Your AI provider (OpenRouter or Hetzner) | The prompts: sampled code, pull request text, diffs, and guides |
+| `init`, `sync`, `review` | Your AI provider (OpenRouter) | The prompts: sampled code, pull request text, diffs, and guides |
 | Remote `review` | Your `serve` instance | The git diff, plus codegraph tool requests and results |
 | GitHub App review | GitHub | The review comment, the check run, and the inline comments |
 
@@ -2685,6 +2700,9 @@ is the safe default.
 | `does not know the model <name>` | The provider refused the model with `400` | Check the name at [openrouter.ai/models](https://openrouter.ai/models) |
 | `rejected the remote review token` | The server refused a `cmr_` token | Create a new one under Settings, Remote review, or the token was deactivated |
 | `Nothing to set` | `set` was called with no values | Pass at least one flag, for example `--token=...` |
+| `There is no backup to roll back to` | `rollback` found no backup, or it is incomplete | A backup exists only after an upgrade migrated the database. See [Going back after an upgrade](#going-back-after-an-upgrade) |
+| `The backup was taken when upgrading to` | The installed version is not the one that made the backup | Install that version and run `rollback` again |
+| `Rollback needs your confirmation` | `rollback` has no terminal to ask on | Run it in a terminal, or pass `--yes` |
 | `serve is already running` | Two `serve` processes share one `app.db` | Stop the other one, or point `CM_APP_DB` elsewhere |
 
 `init`, `sync`, and `review` also refuse to start when a required value is still
@@ -2700,7 +2718,32 @@ missing value with no default becomes a `2` with a message naming the flag.
 | `OpenRouter request failed` | The provider returned an unclassified error | The raw body is never printed. Retry, then check `--debug` for the call |
 | `AI response was not valid JSON` | The model ignored the JSON request twice | The older Markdown parser runs as a fallback. Retry if the result looks off |
 | `git diff failed` / `git <command> failed` | A git operation did not complete | Make sure the clone is healthy and no rebase or merge is in progress |
+| `Could not back up the data before upgrading it` | The backup taken before a migration failed, so the migration did not run | Free disk space or fix the permissions of the data directory, then start again. Nothing was changed |
 | `app.db is not open` | A command that needs the server database did not open it | Report it: `init` and `sync` open it for the run, `serve` keeps it open |
+
+## Going back after an upgrade
+
+A release refuses a database newer than it knows, so you cannot install the old
+version and open the new database. Instead, the first time an upgrade migrates
+`app.db`, co-maintainer copies `app.db`, `cache.db` and `config.json` into a
+`backups/previous` folder next to the database. There is one slot, and it holds
+the version you upgraded from.
+
+To go back, with the new version still installed and `serve` stopped:
+
+```sh
+co-maintainer rollback
+npm i -g co-maintainer@<the version it prints>
+```
+
+`rollback` restores the backup and prints the version to install. It asks first,
+because everything written after the upgrade is lost: reviews, settings and
+cache. Pass `--yes` to skip the question. The files it replaced are kept in
+`backups/rolled-back`, so a rollback made by mistake can be undone by hand.
+
+It refuses when there is no backup, when `serve` is running, and when the
+installed version is not the one that took the backup. If the copy cannot be
+made, the migration does not run and nothing is changed.
 
 ## Platform notes
 

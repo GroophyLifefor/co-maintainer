@@ -79,7 +79,7 @@ co-maintainer init owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
@@ -139,7 +139,7 @@ co-maintainer sync owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
@@ -198,7 +198,7 @@ co-maintainer review [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
@@ -267,7 +267,7 @@ co-maintainer set [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
@@ -328,6 +328,20 @@ co-maintainer serve --port=N [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+
+## `co-maintainer rollback`
+
+Go back to the version before the last upgrade, restoring its data.
+
+```
+co-maintainer rollback [--yes]
+```
+
+### Rollback
+
+| Flag | Default | Description |
+|---|---|---|
+| `--yes` |  | Skip the confirmation. Needed when there is no terminal. |
 
 ## `co-maintainer version`
 

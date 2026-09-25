@@ -32,17 +32,25 @@ import type { Fact, Source, State } from "../knowledge/types.ts";
 import type { LogFn } from "./jobs.ts";
 import type { JobRow } from "../store/rows.ts";
 import { mkdir, readTextFile, remove } from "../util/runtime.ts";
+import { addResponseCost, emptyTally, type CostTally } from "../util/cost.ts";
+import { costLabel } from "../util/run_summary.ts";
 
-export type AiMetrics = {
+export type AiMetrics = CostTally & {
   calls: number;
   tokensIn: number;
   tokensOut: number;
-  cost: number;
-  costKnown: boolean;
 };
 
 export function emptyAiMetrics(): AiMetrics {
-  return { calls: 0, tokensIn: 0, tokensOut: 0, cost: 0, costKnown: true };
+  return { calls: 0, tokensIn: 0, tokensOut: 0, ...emptyTally() };
+}
+
+/** One AI response into the run totals. */
+export function addAiMetrics(metrics: AiMetrics, response: AiResponse): void {
+  metrics.calls++;
+  metrics.tokensIn += response.tokensIn;
+  metrics.tokensOut += response.tokensOut;
+  addResponseCost(metrics, response);
 }
 
 export async function recordAiCost(
@@ -60,7 +68,8 @@ export async function recordAiCost(
       model: response.model,
       tokensIn: response.tokensIn,
       tokensOut: response.tokensOut,
-      usd: response.provider === "hetzner" ? 0 : (response.cost ?? null),
+      usd: response.cost ?? null,
+      status: response.cost === undefined ? "unknown" : "known",
     }),
   );
 }
@@ -265,12 +274,7 @@ async function initOrRemake(options: Options): Promise<void> {
   if (lowAi) {
     log("ai", "starting extract_unit jobs");
     const usage = async (job: string, response: AiResponse) => {
-      aiMetrics.calls++;
-      aiMetrics.tokensIn += response.tokensIn;
-      aiMetrics.tokensOut += response.tokensOut;
-      if (response.provider === "hetzner") aiMetrics.cost += 0;
-      else if (response.cost === undefined) aiMetrics.costKnown = false;
-      else aiMetrics.cost += response.cost;
+      addAiMetrics(aiMetrics, response);
       await recordAiCost(options.repo, job, response);
     };
     const enriched = await timed("extract_unit AI", options.logTime, () =>
@@ -444,9 +448,9 @@ async function initOrRemake(options: Options): Promise<void> {
   if (options.logTime) {
     log(
       "time",
-      `AI total · calls=${aiMetrics.calls} · input=${aiMetrics.tokensIn} tokens · output=${aiMetrics.tokensOut} tokens · cost=${
-        aiMetrics.costKnown ? aiMetrics.cost.toFixed(4) : "unknown"
-      }`,
+      `AI total · calls=${aiMetrics.calls} · input=${aiMetrics.tokensIn} tokens · output=${aiMetrics.tokensOut} tokens · cost=${costLabel(
+        aiMetrics,
+      )}`,
     );
     log(
       "time",

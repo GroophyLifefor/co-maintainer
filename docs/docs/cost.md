@@ -12,7 +12,7 @@ estimate it before you start.
 | `init` | Yes | Extraction and synthesis jobs over code, pull requests, and history |
 | `sync` | Yes, but less | Reuses unchanged evidence from [cache](caching.md), so only changed inputs rebuild |
 | Large-file diff summary | Yes, small | A diff over 500 changed lines is summarized with the low model instead of being sent whole |
-| Local and PR `review` | Yes | Runs on your OpenRouter or Hetzner key |
+| Local and PR `review` | Yes | Runs on your OpenRouter key |
 | Remote `review` | On the server | The server's key pays, not the laptop's |
 | GitHub App auto-review | On the server | Same as remote |
 

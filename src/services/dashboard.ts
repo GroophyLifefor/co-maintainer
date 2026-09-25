@@ -58,7 +58,17 @@ function fillDays(
   const out = [];
   for (let back = days - 1; back >= 0; back--) {
     const day = daysAgoIso(back).slice(0, 10);
-    out.push(byDay.get(day) ?? { day, reviews: 0, findings: 0, cost: 0 });
+    out.push(
+      byDay.get(day) ?? {
+        day,
+        reviews: 0,
+        findings: 0,
+        cost: 0,
+        unknownCount: 0,
+        byokUsd: 0,
+        byokUnknownCount: 0,
+      },
+    );
   }
   return out;
 }

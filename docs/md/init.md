@@ -12,7 +12,7 @@ non-trivial API cost on large repos.
 | [Install](getting-started.md#1-install) `co-maintainer` | `init` is a CLI command |
 | [`probe`](probe.md) on the same `owner/repo` (recommended) | Gives a ready-made `init` line with limits and `--include-*` flags |
 | [GitHub auth](authentication.md) | Reads the repo through `gh` or a PAT |
-| [AI provider](configuration.md) | OpenRouter or Hetzner key and models via `co-maintainer set` or flags |
+| [AI provider](configuration.md) | OpenRouter key and models via `co-maintainer set` or flags |
 
 Run [`probe`](probe.md) first when you are unsure which `--max-*` limits to use.
 
@@ -40,7 +40,7 @@ Values from `set`, `--env=PATH`, or flags are not asked again.
 | `--auth=pat` | Personal access token (see [Authentication](authentication.md)) |
 | `--github-pat=...` | PAT when not in env or config |
 | `--env=PATH` | Load env vars from a file |
-| `--ai=openrouter` | AI provider (`openrouter`, `hetzner`, or `none`) |
+| `--ai=openrouter` | AI provider (`openrouter` or `none`) |
 | `--token=...` | Provider API key |
 | `--low-model=...` | Model for extraction steps |
 | `--high-model=...` | Model for synthesis steps |

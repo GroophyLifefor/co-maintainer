@@ -1,5 +1,5 @@
-import { HetznerProvider } from "./hetzner.ts";
 import { OpenRouterProvider } from "./openrouter.ts";
+import { die } from "../cli/error.ts";
 import type {
   AiMessage,
   AiProvider,
@@ -9,6 +9,13 @@ import type {
   Options,
 } from "../types.ts";
 
+/** Hetzner was dropped in 0.5.1. Naming it beats a generic "must be one of". */
+export function rejectRetiredProvider(value: string | undefined): void {
+  if (value === "hetzner") {
+    die("Hetzner is no longer supported. Use openrouter or none.");
+  }
+}
+
 export function createAiProvider(
   options: Options,
   model: string,
@@ -17,7 +24,7 @@ export function createAiProvider(
   if (options.ai === "openrouter") {
     return new OpenRouterProvider(options.aiToken ?? "", model);
   }
-  return new HetznerProvider(options.aiToken ?? "", model);
+  throw new Error(`Unknown AI provider: ${String(options.ai)}`);
 }
 
 export function parseChatResponse(

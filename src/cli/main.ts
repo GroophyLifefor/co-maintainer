@@ -2,6 +2,7 @@
  * calls straight into a command or a service — see PLAN.md Section 3. */
 import { parseArgs } from "./args.ts";
 import { runServe } from "./commands/serve.ts";
+import { runRollback } from "./commands/rollback.ts";
 import { runSet } from "./commands/set.ts";
 import { runConfig } from "./commands/config.ts";
 import { runView } from "./commands/view.ts";
@@ -75,6 +76,10 @@ export async function run(args: string[]): Promise<void> {
   }
   if (args[0] === "serve") {
     await runServe(args.slice(1));
+    return;
+  }
+  if (args[0] === "rollback") {
+    await runRollback(args.slice(1));
     return;
   }
   if (args[0] === "review") {
