@@ -1,10 +1,9 @@
-import { writeUserConfig } from "../../config.ts";
+import { readConfig, configPath, writeUserConfig } from "../../config.ts";
 import { hashPassword, passwordProblem } from "../../util/password.ts";
 import { readTextFile } from "../../util/runtime.ts";
-
-function die(message: string): never {
-  throw new Error(message);
-}
+import { verifyOpenRouter } from "../../ai/verify.ts";
+import { die } from "../error.ts";
+import { renderCommandHelp, renderGlobalHelp } from "./registry.ts";
 
 function text(args: string[], name: string): string | undefined {
   return args
@@ -24,32 +23,19 @@ const secretFields = new Set([
 
 /** `co-maintainer set --token=... --ai=... --low-model=... --high-model=...
  * --auth=... --github-app-id=... --github-app-private-key=... (or
- * --github-app-private-key-file=path) --github-webhook-secret=...` —
+ * --github-app-private-key-file=path or --github-app-private-key-path=path)
+ * --github-webhook-secret=...` —
  * persists global defaults, including secrets, to config.json so every
  * other command can skip both the flag and the interactive prompt. See
  * docs/md/configuration.md for the tradeoff. */
 export async function runSet(args: string[]): Promise<void> {
   if (args.includes("--help") || args.includes("-h") || args.length === 0) {
-    console.log(
-      "Usage: co-maintainer set --token=... --ai=none|openrouter|hetzner --low-model=... --high-model=... --auth=gh|pat --github-pat=...",
-    );
-    console.log(
-      "                        --github-app-id=... --github-app-private-key=... | --github-app-private-key-file=path",
-    );
-    console.log("                        --github-webhook-secret=...");
-    console.log(
-      "                        --github-oauth-client-id=... --github-oauth-client-secret=... --github-oauth-allowed-user=...",
-    );
-    console.log(
-      "                        --password=... --disable-auth=password --enable-auth=github",
-    );
-    console.log(
-      "Writes to the user config file; unset an entry with --unset=name (e.g. --unset=token).",
-    );
+    console.log(renderCommandHelp("set") ?? renderGlobalHelp());
     return;
   }
   const known = [
     "token",
+    "ai-key",
     "ai",
     "low-model",
     "high-model",
@@ -58,6 +44,7 @@ export async function runSet(args: string[]): Promise<void> {
     "github-app-id",
     "github-app-private-key",
     "github-app-private-key-file",
+    "github-app-private-key-path",
     "github-webhook-secret",
     "github-oauth-client-id",
     "github-oauth-client-secret",
@@ -66,10 +53,13 @@ export async function runSet(args: string[]): Promise<void> {
     "enable-auth",
     "remote-host",
     "remote-token",
+    "review-blocking",
     "password",
     "unset",
   ];
+  const verify = !args.includes("--no-verify");
   for (const arg of args) {
+    if (arg === "--no-verify") continue;
     if (
       !arg.startsWith("--") ||
       !known.some((name) => arg.startsWith(`--${name}=`))
@@ -86,17 +76,20 @@ export async function runSet(args: string[]): Promise<void> {
   if (auth && !["gh", "pat"].includes(auth)) {
     die("--auth must be one of: gh, pat");
   }
-  if (
-    text(args, "github-app-private-key") &&
-    text(args, "github-app-private-key-file")
-  ) {
+  const providedKeySources = [
+    text(args, "github-app-private-key"),
+    text(args, "github-app-private-key-file"),
+    text(args, "github-app-private-key-path"),
+  ].filter((value) => value !== undefined);
+  if (providedKeySources.length > 1) {
     die(
-      "Pass only one of --github-app-private-key or --github-app-private-key-file",
+      "Pass only one of --github-app-private-key, --github-app-private-key-file, or --github-app-private-key-path",
     );
   }
 
   const fieldByFlag: Record<string, string> = {
     token: "token",
+    "ai-key": "token",
     ai: "ai",
     "low-model": "lowModel",
     "high-model": "highModel",
@@ -104,6 +97,7 @@ export async function runSet(args: string[]): Promise<void> {
     "github-pat": "githubPat",
     "github-app-id": "githubAppId",
     "github-app-private-key": "githubAppPrivateKey",
+    "github-app-private-key-path": "githubAppPrivateKeyPath",
     "github-webhook-secret": "githubWebhookSecret",
     "github-oauth-client-id": "githubOAuthClientId",
     "github-oauth-client-secret": "githubOAuthClientSecret",
@@ -112,6 +106,7 @@ export async function runSet(args: string[]): Promise<void> {
     "enable-auth": "githubAuthEnabled",
     "remote-host": "remoteHost",
     "remote-token": "remoteToken",
+    "review-blocking": "reviewBlocking",
     password: "dashboardPasswordHash",
   };
   const unset = new Set(
@@ -129,7 +124,7 @@ export async function runSet(args: string[]): Promise<void> {
   if (lowModel) patch.lowModel = lowModel;
   const highModel = text(args, "high-model");
   if (highModel) patch.highModel = highModel;
-  const token = text(args, "token");
+  const token = text(args, "token") ?? text(args, "ai-key");
   if (token) patch.token = token;
   const githubPat = text(args, "github-pat");
   if (githubPat) patch.githubPat = githubPat;
@@ -146,6 +141,16 @@ export async function runSet(args: string[]): Promise<void> {
     } catch (error) {
       die(`Could not read ${privateKeyFile}: ${String(error)}`);
     }
+  }
+  // The path form keeps the key on disk: only the location is stored, and it
+  // is read at startup. Passing one of the other two forms also clears a
+  // previously saved path so the inline key or file wins unambiguously.
+  const privateKeyPath = text(args, "github-app-private-key-path");
+  if (privateKeyPath) {
+    patch.githubAppPrivateKeyPath = privateKeyPath;
+    patch.githubAppPrivateKey = undefined;
+  } else if (githubAppPrivateKey || privateKeyFile) {
+    patch.githubAppPrivateKeyPath = undefined;
   }
   const oauthClientId = text(args, "github-oauth-client-id");
   if (oauthClientId) patch.githubOAuthClientId = oauthClientId;
@@ -168,6 +173,13 @@ export async function runSet(args: string[]): Promise<void> {
   if (remoteHost) patch.remoteHost = remoteHost;
   const remoteToken = text(args, "remote-token");
   if (remoteToken) patch.remoteToken = remoteToken;
+  const reviewBlocking = text(args, "review-blocking");
+  if (reviewBlocking) {
+    if (!["model", "severity"].includes(reviewBlocking)) {
+      die("--review-blocking must be one of: model, severity");
+    }
+    patch.reviewBlocking = reviewBlocking;
+  }
   const password = text(args, "password");
   if (password) {
     const problem = passwordProblem(password);
@@ -177,11 +189,35 @@ export async function runSet(args: string[]): Promise<void> {
 
   if (Object.keys(patch).length === 0) {
     die(
-      "Nothing to set; pass --token=, --ai=, --low-model=, --high-model=, --auth=, --github-pat=, " +
-        "--github-app-id=, --github-app-private-key(-file)=, --github-webhook-secret=, " +
+      "Nothing to set. Pass --token= (or --ai-key=), --ai=, --low-model=, --high-model=, --auth=, --github-pat=, " +
+        "--github-app-id=, --github-app-private-key(-file|-path)=, --github-webhook-secret=, " +
         "--github-oauth-client-id=, --github-oauth-client-secret=, --github-oauth-allowed-user=, " +
+        "--remote-host=, --remote-token=, --review-blocking=model|severity, " +
         "--password=, --disable-auth=password, --enable-auth=github, or --unset=name",
     );
+  }
+
+  // Verify the key and model before writing, so a typo fails here instead of
+  // after a review has already fetched and cloned the pull request (CORE-22).
+  // A field present in the patch wins, including when its value is `undefined`
+  // — that is an unset, and there is nothing left to verify.
+  const before = readConfig();
+  const effective = (field: keyof typeof patch): unknown =>
+    field in patch ? patch[field] : before[field as keyof typeof before];
+  const effectiveAi = effective("ai");
+  const effectiveToken = effective("token");
+  const effectiveHighModel = effective("highModel");
+  if (verify && effectiveAi === "openrouter" && effectiveToken) {
+    const result = await verifyOpenRouter(
+      String(effectiveToken),
+      effectiveHighModel === undefined ? undefined : String(effectiveHighModel),
+    );
+    if (result.status === "rejected") throw result.error;
+    if (result.status === "unreachable") {
+      console.error(
+        `[set] could not verify the key and model (${result.reason}); saved anyway.`,
+      );
+    }
   }
 
   await writeUserConfig(patch);
@@ -191,4 +227,5 @@ export async function runSet(args: string[]): Promise<void> {
       : `${key}=${secretFields.has(key) ? "•".repeat(8) : value}`,
   );
   console.log(`[set] updated: ${summary.join(", ")}`);
+  console.log(`Saved to ${configPath()}`);
 }

@@ -19,7 +19,7 @@ export async function summarizeDiff(
     prompt: `Summarize this diff for \`${path}\` in 3-5 sentences: what changed, the
 mechanism, and precisely which branches, patterns, or call paths are affected.
 Do not speculate beyond what the diff shows. Do not suggest fixes or judge
-whether the change is correct — only describe it.
+whether the change is correct. Only describe it.
 
 ${patch}`,
     maxTokens: 500,
@@ -33,7 +33,7 @@ export const READ_FULL_DIFF_TOOL: Json = {
   function: {
     name: "read-full-diff",
     description:
-      "Read the complete, untruncated diff for one file in this pull request's own changes. Only files whose diff was summarized (over 500 changed lines) are available this way — everything else is already shown in full.",
+      "Read the complete, untruncated diff for one file in this pull request's own changes. Only files whose diff was summarized (over 500 changed lines) are available this way. Everything else is already shown in full.",
     parameters: {
       type: "object",
       properties: {
@@ -59,7 +59,7 @@ export function readFullDiff(
   const patch = patchByPath.get(path);
   if (patch) return numberPatch(patch);
   return patchByPath.size === 0
-    ? "No large files were summarized in this review; every file's diff is already shown in full above."
+    ? "No large files were summarized in this review. Every file's diff is already shown in full above."
     : `No summarized diff found for \`${path}\`. Summarized files: ${[
         ...patchByPath.keys(),
       ].join(", ")}`;

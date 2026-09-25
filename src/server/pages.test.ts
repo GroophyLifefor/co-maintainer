@@ -1,13 +1,14 @@
 import { createApp } from "./app.ts";
 import { markdown, money } from "./pages/layout.ts";
 import { closeAppDb, openAppDb } from "../store/app_db.ts";
-import { writeUserConfig } from "../config.ts";
+import { readConfig, writeUserConfig } from "../config.ts";
 import { activateRepo, markKnowledgeBuilt } from "../store/repos.ts";
 import { insertReview, setReviewStatus } from "../store/reviews.ts";
 import { insertFinding } from "../store/findings.ts";
 import { insertJob, setJobStatus } from "../store/jobs.ts";
 import { upsertDrift } from "../store/drift.ts";
 import { recordDelivery } from "../store/deliveries.ts";
+import { TEST_PKCS1_PEM } from "../testing/fixtures/rsa_key.ts";
 import {
   deleteEnv,
   getEnv,
@@ -188,6 +189,48 @@ test("GET / without a session redirects to login", async () => {
   });
 });
 
+test("CM_LOGIN_HINT replaces the default sign-in line, escaped", async () => {
+  await withEnv(async () => {
+    // No hint: the default line stays.
+    const plain = createApp({ password: PASSWORD });
+    const defaultHtml = await (
+      await plain.fetch(new Request("http://localhost/login"))
+    ).text();
+    if (!defaultHtml.includes("printed when serve started")) {
+      throw new Error("the default sign-in hint disappeared");
+    }
+    // A hint from the environment wins, and its angle brackets are escaped.
+    const hinted = createApp({
+      password: PASSWORD,
+      loginHint: "Use the password from <your> cloud dashboard.",
+    });
+    const hintedHtml = await (
+      await hinted.fetch(new Request("http://localhost/login"))
+    ).text();
+    if (
+      !hintedHtml.includes(
+        "Use the password from &lt;your&gt; cloud dashboard.",
+      )
+    ) {
+      throw new Error("the login hint was not shown and escaped");
+    }
+    if (hintedHtml.includes("<your>")) {
+      throw new Error("the login hint was injected without escaping");
+    }
+    if (hintedHtml.includes("printed when serve started")) {
+      throw new Error("the default line leaked through the hint");
+    }
+    // Too-short or blank hints fall back rather than leaving the page bare.
+    const blank = createApp({ password: PASSWORD, loginHint: "   " });
+    const blankHtml = await (
+      await blank.fetch(new Request("http://localhost/login"))
+    ).text();
+    if (!blankHtml.includes("printed when serve started")) {
+      throw new Error("a blank hint did not fall back to the default");
+    }
+  });
+});
+
 test("each page renders 200 with empty data", async () => {
   await withEnv(async () => {
     const app = createApp({
@@ -232,6 +275,101 @@ test("each page renders 200 with empty data", async () => {
       !settings.includes("BEGIN RSA PRIVATE KEY")
     ) {
       throw new Error("settings private key field missed PEM guidance");
+    }
+  });
+});
+
+test("the home page lists the remaining setup steps", async () => {
+  await withEnv(async () => {
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(new Request("http://localhost/", { headers: { cookie } }))
+    ).text();
+    if (!html.includes('id="finish-setup"')) {
+      throw new Error("a fresh install has no Finish setup card");
+    }
+    for (const title of [
+      "Models and API key",
+      "GitHub App",
+      "Webhook reachable",
+      "First repository",
+      "First review",
+      "CLI connected",
+    ]) {
+      if (!html.includes(title)) throw new Error(`missing step: ${title}`);
+    }
+    // Every step links somewhere actionable.
+    if (!html.includes("/settings#ai") || !html.includes("/settings#remote")) {
+      throw new Error("a step does not link to its settings card");
+    }
+    if (!html.includes("0/6 done")) {
+      throw new Error("the done counter is wrong for a fresh install");
+    }
+  });
+});
+
+test("the Finish setup card disappears once everything is done", async () => {
+  await withEnv(async () => {
+    seed();
+    await writeUserConfig({
+      auth: "gh",
+      ai: "openrouter",
+      token: "sk-or-x",
+      lowModel: "low/model",
+      highModel: "high/model",
+      githubAppId: "4900449",
+      githubAppPrivateKey: "PEM",
+    });
+    const app = createApp({
+      password: PASSWORD,
+      webhookUrl: "https://example.com/github/webhook",
+    });
+    const cookie = await cookieSession(app);
+    // A remote token satisfies the CLI step.
+    await app.fetch(
+      new Request("http://localhost/api/remote-tokens", {
+        method: "POST",
+        headers: {
+          cookie,
+          "content-type": "application/json",
+          "x-requested-with": "co-maintainer",
+        },
+        body: JSON.stringify({ name: "laptop" }),
+      }),
+    );
+    // `seed` already recorded a delivery and a review, and the repo is active.
+    const html = await (
+      await app.fetch(new Request("http://localhost/", { headers: { cookie } }))
+    ).text();
+    if (html.includes('id="finish-setup"')) {
+      throw new Error("the card stayed after everything was done");
+    }
+  });
+});
+
+test("the Finish setup card names an unreachable webhook", async () => {
+  await withEnv(async () => {
+    seed();
+    await writeUserConfig({
+      auth: "gh",
+      ai: "openrouter",
+      token: "sk-or-x",
+      lowModel: "low/model",
+      highModel: "high/model",
+      githubAppId: "4900449",
+      githubAppPrivateKey: "PEM",
+    });
+    const app = createApp({
+      password: PASSWORD,
+      webhookUrl: "http://localhost:5000/github/webhook",
+    });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(new Request("http://localhost/", { headers: { cookie } }))
+    ).text();
+    if (!html.includes("GitHub cannot reach")) {
+      throw new Error("the checklist did not flag the localhost webhook");
     }
   });
 });
@@ -424,12 +562,305 @@ test("GET /client.js is the fetch wrapper with toast and retry", async () => {
     'addEventListener("error"',
     "unhandledrejection",
     "bindToggle",
-    "pollActivity",
+    'getElementById("activity-root")',
     "5000",
   ]) {
     if (!js.includes(needle)) throw new Error(`client.js missed ${needle}`);
   }
   if (js.includes("alert(")) throw new Error("client.js still alerts");
+});
+
+test("every page carries the helper before its own scripts", async () => {
+  await withEnv(async () => {
+    seed();
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const paths = ["/", "/repos/new", "/settings", "/repos/acme/widgets"];
+    for (const path of paths) {
+      const html = await (
+        await app.fetch(
+          new Request(`http://localhost${path}`, { headers: { cookie } }),
+        )
+      ).text();
+      // `bindToggle` and `api` are called from page scripts; if the helper
+      // lands after `<body>` those calls hit an undefined name.
+      const head = html.slice(0, html.indexOf("</head>"));
+      if (!head.includes("function bindToggle")) {
+        throw new Error(`${path} did not inline the helper in <head>`);
+      }
+      if (head.includes("/client.js")) {
+        throw new Error(`${path} still loads the helper as a body script`);
+      }
+    }
+  });
+});
+
+test("the token secret panel replaces the browser prompt", async () => {
+  await withEnv(async () => {
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(
+        new Request("http://localhost/settings", { headers: { cookie } }),
+      )
+    ).text();
+    if (!html.includes('id="remote-token-secret"')) {
+      throw new Error("settings missed the secret panel");
+    }
+    if (html.includes('prompt("Copy this token')) {
+      throw new Error("settings still prompts for the token");
+    }
+  });
+});
+
+test("the repo overview warns when GitHub cannot reach the webhook", async () => {
+  await withEnv(async () => {
+    seed();
+    await mkdirPath(`${getEnv("CM_REPOS_DIR")}/acme/widgets`, {
+      recursive: true,
+    });
+    await writeTextFile(
+      `${getEnv("CM_REPOS_DIR")}/acme/widgets/PR_REVIEW_GUIDE.md`,
+      "# guide\nKeep helpers honest.\n",
+    );
+    const local = createApp({
+      password: PASSWORD,
+      webhookUrl: "http://localhost:5000/github/webhook",
+    });
+    const localCookie = await cookieSession(local);
+    const localHtml = await (
+      await local.fetch(
+        new Request("http://localhost/repos/acme/widgets", {
+          headers: { cookie: localCookie },
+        }),
+      )
+    ).text();
+    if (
+      !localHtml.includes(
+        "GitHub cannot reach this address, so automatic reviews will not arrive.",
+      )
+    ) {
+      throw new Error("a localhost webhook did not warn");
+    }
+    if (!localHtml.includes("Last webhook delivery:")) {
+      throw new Error("the warning omitted the last delivery line");
+    }
+    const publicApp = createApp({
+      password: PASSWORD,
+      webhookUrl: "https://example.com/github/webhook",
+    });
+    const publicCookie = await cookieSession(publicApp);
+    const publicHtml = await (
+      await publicApp.fetch(
+        new Request("http://localhost/repos/acme/widgets", {
+          headers: { cookie: publicCookie },
+        }),
+      )
+    ).text();
+    if (publicHtml.includes("cannot reach this address")) {
+      throw new Error("a public webhook still warned");
+    }
+    // `seed` records one delivery for acme/widgets, so this is the "has
+    // arrived" reading rather than the empty state.
+    if (!publicHtml.includes("Last webhook delivery:")) {
+      throw new Error("a reached repo hid the delivery line");
+    }
+  });
+});
+
+test("a repo with no deliveries says so instead of staying silent", async () => {
+  await withEnv(async () => {
+    activateRepo("acme/widgets", 9);
+    await mkdirPath(`${getEnv("CM_REPOS_DIR")}/acme/widgets`, {
+      recursive: true,
+    });
+    await writeTextFile(
+      `${getEnv("CM_REPOS_DIR")}/acme/widgets/PR_REVIEW_GUIDE.md`,
+      "# guide\nKeep helpers honest.\n",
+    );
+    const app = createApp({
+      password: PASSWORD,
+      webhookUrl: "https://example.com/github/webhook",
+    });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(
+        new Request("http://localhost/repos/acme/widgets", {
+          headers: { cookie },
+        }),
+      )
+    ).text();
+    if (!html.includes("No webhook delivery yet.")) {
+      throw new Error("an empty delivery history stayed silent");
+    }
+    if (!html.includes("the last webhook delivery is never")) {
+      throw new Error("the empty state omitted the never reading");
+    }
+  });
+});
+
+test("the pulls tab lists open pull requests and starts a review from one", async () => {
+  await withEnv(async () => {
+    activateRepo("acme/widgets", 9);
+    await writeUserConfig({
+      githubAppId: "4900449",
+      githubAppPrivateKey: TEST_PKCS1_PEM,
+    });
+    const original = globalThis.fetch;
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/app/installations")) {
+        return Response.json([
+          {
+            id: 7,
+            account: { login: "acme", type: "Organization" },
+            suspended_at: null,
+          },
+        ]);
+      }
+      if (url.includes("/access_tokens")) {
+        return Response.json({
+          token: "ghs_x",
+          expires_at: new Date(Date.now() + 3600_000).toISOString(),
+        });
+      }
+      if (url.includes("/installation/repositories")) {
+        return Response.json({
+          repositories: [{ full_name: "acme/widgets", private: false }],
+        });
+      }
+      if (url.includes("/repos/acme/widgets/pulls")) {
+        return Response.json([
+          {
+            number: 12,
+            title: "Tidy the helper",
+            draft: false,
+            user: { login: "octocat" },
+            head: { ref: "fix/helper" },
+            updated_at: "2026-09-22T10:00:00Z",
+          },
+        ]);
+      }
+      throw new Error(`unexpected request: ${url}`);
+    }) as typeof fetch;
+    try {
+      const app = createApp({ password: PASSWORD });
+      const cookie = await cookieSession(app);
+      const html = await (
+        await app.fetch(
+          new Request("http://localhost/repos/acme/widgets/pulls", {
+            headers: { cookie },
+          }),
+        )
+      ).text();
+      if (!html.includes('data-review-pr="12"')) {
+        throw new Error(
+          "the open pull request was not listed with a review button",
+        );
+      }
+      if (!html.includes("Tidy the helper") || !html.includes("fix/helper")) {
+        throw new Error("the open pull request row is missing its fields");
+      }
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+});
+
+test("the pulls tab explains itself when the App is not configured", async () => {
+  await withEnv(async () => {
+    activateRepo("acme/widgets", 9);
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(
+        new Request("http://localhost/repos/acme/widgets/pulls", {
+          headers: { cookie },
+        }),
+      )
+    ).text();
+    if (!html.includes("Configure the GitHub App to list open pull requests")) {
+      throw new Error("the unconfigured state stayed silent");
+    }
+    if (!html.includes('id="manual-review"')) {
+      throw new Error("the by-number form disappeared");
+    }
+  });
+});
+
+test("the settings page uses the CLI's high/low model language", async () => {
+  await withEnv(async () => {
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(
+        new Request("http://localhost/settings", { headers: { cookie } }),
+      )
+    ).text();
+    if (!html.includes("High model") || !html.includes("Low model")) {
+      throw new Error("settings does not use high/low model labels");
+    }
+    if (html.includes("Main model") || html.includes("Cheap model")) {
+      throw new Error("settings still uses the old model labels");
+    }
+    // The high model also synthesizes the guides, not only proves reviews.
+    if (!html.includes("synthesizes the guides")) {
+      throw new Error("the high-model hint does not mention synthesis");
+    }
+    if (!html.includes("Extracts facts from history")) {
+      throw new Error("the low-model hint does not describe extraction");
+    }
+  });
+});
+
+test("the add-repo page previews before it can start init", async () => {
+  await withEnv(async () => {
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(
+        new Request("http://localhost/repos/new", { headers: { cookie } }),
+      )
+    ).text();
+    if (!html.includes('id="preview"')) {
+      throw new Error("the page has no preview button");
+    }
+    if (!html.includes('id="plan"')) {
+      throw new Error("the page has no plan slot");
+    }
+    // The old one-click add is gone: no button posts straight to /api/repos.
+    if (html.includes('id="add"')) {
+      throw new Error("the page still adds without confirmation");
+    }
+    if (!html.includes("Add and start init")) {
+      throw new Error("the confirm action is missing");
+    }
+    if (!html.includes("/api/repos/preview")) {
+      throw new Error("the page does not call the preview endpoint");
+    }
+  });
+});
+
+test("the client catches only once the page is parsed", async () => {
+  // The helper is inlined into `<head>`, so its wiring and the activity poll
+  // must not run at parse time: `pollActivity` reads `activity-root`, which
+  // the body has not printed yet.
+  const app = createApp({ password: PASSWORD });
+  const js = await (
+    await app.fetch(new Request("http://localhost/client.js"))
+  ).text();
+  const firstListener = js.indexOf('addEventListener("DOMContentLoaded"');
+  const errorListener = js.indexOf('addEventListener("error"');
+  const activityLookup = js.indexOf('getElementById("activity-root")');
+  if (firstListener < 0 || errorListener < 0 || activityLookup < 0) {
+    throw new Error("client.js lost its wiring or the activity poll");
+  }
+  if (errorListener < firstListener || activityLookup < firstListener) {
+    throw new Error("client.js runs at parse time instead of on load");
+  }
+  if (/\(function pollActivity\(\)/.test(js)) {
+    throw new Error("client.js still uses the self-invoking poll wrapper");
+  }
 });
 
 test("mutating pages ship a skeleton and a failure path", async () => {
@@ -464,8 +895,11 @@ test("mutating pages ship a skeleton and a failure path", async () => {
           new Request(`http://localhost${path}`, { headers: { cookie } }),
         )
       ).text();
-      if (!html.includes('id="toasts"') || !html.includes("/client.js")) {
-        throw new Error(`${path} missed the toast host`);
+      if (
+        !html.includes('id="toasts"') ||
+        !html.includes("function bindToggle")
+      ) {
+        throw new Error(`${path} missed the toast host or the inlined helper`);
       }
       if (
         !html.includes('src="/logo.png"') ||
@@ -561,8 +995,7 @@ test("activity lists a job as a link and the job page shows the error", async ()
       repo: "acme/widgets",
     });
     setJobStatus("job-fail", "failed", {
-      error:
-        "Error: remake requires a previous init or remake for this repository",
+      error: "Error: sync requires a previous init or sync for this repository",
     });
     const app = createApp({ password: PASSWORD });
     const cookie = await cookieSession(app);
@@ -595,14 +1028,275 @@ test("activity lists a job as a link and the job page shows the error", async ()
     );
     if (job.status !== 200) throw new Error(`job page ${job.status}`);
     const html = await job.text();
-    if (!html.includes("Updated knowledge")) {
+    if (!html.includes("Synced knowledge")) {
       throw new Error("job page missed the label");
     }
-    if (!html.includes("remake requires a previous init")) {
+    if (!html.includes("sync requires a previous init")) {
       throw new Error("job page missed the error");
     }
     if (!html.includes("Retry")) throw new Error("job page missed Retry");
     assertCleanCopy(html, "/activity/job-fail");
+  });
+});
+
+test("the settings page offers to create the App, or says why it cannot", async () => {
+  await withEnv(async () => {
+    // A public webhook address: the button is live and the name defaults
+    // from the host.
+    await writeUserConfig({
+      webhookUrl: "https://cm.example.com/github/webhook",
+    });
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(
+        new Request("http://cm.example.com/settings", { headers: { cookie } }),
+      )
+    ).text();
+    if (!html.includes('id="create-app"')) {
+      throw new Error("settings has no Create GitHub App button");
+    }
+    if (!html.includes('id="app-name"')) {
+      throw new Error("settings has no editable App name");
+    }
+    if (!html.includes("co-maintainer-cm-example-com")) {
+      throw new Error("the App name did not default from the host");
+    }
+    if (!html.includes("fills App ID, private key, webhook secret")) {
+      throw new Error("the button does not explain the manifest flow");
+    }
+    if (html.includes("Set a public webhook address first")) {
+      throw new Error("a public webhook address was still blocked");
+    }
+  });
+});
+
+test("the settings page explains an unreachable webhook instead of offering the button", async () => {
+  await withEnv(async () => {
+    // No stored webhook URL: `serve` defaults to localhost, which GitHub
+    // cannot reach, so the button must say why rather than fail later.
+    const app = createApp({
+      password: PASSWORD,
+      webhookUrl: "http://localhost:5000/github/webhook",
+    });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(
+        new Request("http://localhost/settings", { headers: { cookie } }),
+      )
+    ).text();
+    if (!html.includes("Set a public webhook address first")) {
+      throw new Error("the unreachable webhook was not explained");
+    }
+    if (!html.includes("localhost only resolves on the machine")) {
+      throw new Error("the reason did not name localhost");
+    }
+  });
+});
+
+test("the manifest flow posts to GitHub with a server-held state", async () => {
+  await withEnv(async () => {
+    await writeUserConfig({
+      webhookUrl: "https://cm.example.com/github/webhook",
+    });
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const response = await app.fetch(
+      new Request("http://cm.example.com/github/app-manifest", {
+        method: "POST",
+        headers: {
+          cookie,
+          "content-type": "application/x-www-form-urlencoded",
+        },
+        body: "name=co-maintainer-cm",
+        redirect: "manual",
+      }),
+    );
+    if (response.status !== 200) {
+      throw new Error(`manifest page status ${response.status}`);
+    }
+    const html = await response.text();
+    if (!html.includes("https://github.com/settings/apps/new?state=")) {
+      throw new Error("the auto-submit form does not target GitHub");
+    }
+    if (!html.includes("github/app-manifest/callback")) {
+      throw new Error("the manifest did not set its redirect_url");
+    }
+    if (!html.includes("auth/github/callback")) {
+      throw new Error("the manifest did not set its callback_urls");
+    }
+    if (!html.includes("pull_requests")) {
+      throw new Error("the manifest is missing its permissions");
+    }
+    if (!html.includes("pull_request_review_comment")) {
+      throw new Error("the manifest is missing its events");
+    }
+    // The state belongs on the server, not in a hidden field the browser
+    // could rewrite.
+    if (/name="state"/.test(html)) {
+      throw new Error("the state was posted through the browser");
+    }
+  });
+});
+
+test("the manifest refuses a name GitHub would reject", async () => {
+  await withEnv(async () => {
+    await writeUserConfig({
+      webhookUrl: "https://cm.example.com/github/webhook",
+    });
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const response = await app.fetch(
+      new Request("http://cm.example.com/github/app-manifest", {
+        method: "POST",
+        headers: {
+          cookie,
+          "content-type": "application/x-www-form-urlencoded",
+        },
+        body: "name=bad%20name",
+        redirect: "manual",
+      }),
+    );
+    if (response.status !== 422) {
+      throw new Error(`bad name status ${response.status}, want 422`);
+    }
+  });
+});
+
+test("a forged or expired manifest callback writes nothing", async () => {
+  await withEnv(async () => {
+    await writeUserConfig({
+      webhookUrl: "https://cm.example.com/github/webhook",
+    });
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const response = await app.fetch(
+      new Request(
+        "http://cm.example.com/github/app-manifest/callback?state=forged&code=abc",
+        { headers: { cookie }, redirect: "manual" },
+      ),
+    );
+    if (response.status !== 400) {
+      throw new Error(`forged state status ${response.status}, want 400`);
+    }
+    const config = readConfig();
+    if (config.githubAppId || config.githubAppPrivateKey) {
+      throw new Error("a forged callback wrote App credentials");
+    }
+  });
+});
+
+test("the manifest callback converts the code and stores the credentials", async () => {
+  await withEnv(async () => {
+    await writeUserConfig({
+      webhookUrl: "https://cm.example.com/github/webhook",
+    });
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    // Start the flow to get a real state, then replay it against the callback.
+    const started = await app.fetch(
+      new Request("http://cm.example.com/github/app-manifest", {
+        method: "POST",
+        headers: {
+          cookie,
+          "content-type": "application/x-www-form-urlencoded",
+        },
+        body: "name=co-maintainer-cm",
+      }),
+    );
+    const state = /state=([a-f0-9]+)"/.exec(await started.text())?.[1];
+    if (!state) throw new Error("no state was issued");
+    const original = globalThis.fetch;
+    let converted = "";
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      const url = String(input);
+      if (!url.includes("/app-manifests/abc123/conversions")) {
+        throw new Error(`unexpected request: ${url}`);
+      }
+      converted = url;
+      return Response.json({
+        id: 4900449,
+        slug: "co-maintainer-cm",
+        pem: "-----BEGIN RSA PRIVATE KEY-----\nx\n-----END RSA PRIVATE KEY-----\n",
+        webhook_secret: "whsec_x",
+        client_id: "Iv1.abc",
+        client_secret: "secret_x",
+      });
+    }) as typeof fetch;
+    try {
+      const response = await app.fetch(
+        new Request(
+          `http://cm.example.com/github/app-manifest/callback?state=${state}&code=abc123`,
+          { headers: { cookie }, redirect: "manual" },
+        ),
+      );
+      if (response.status !== 303) {
+        throw new Error(`callback status ${response.status}`);
+      }
+      const location = response.headers.get("location") ?? "";
+      if (!location.includes("/installations/new")) {
+        throw new Error(
+          `callback did not send to the install page: ${location}`,
+        );
+      }
+      if (!converted.includes("abc123")) {
+        throw new Error("the code was not sent to GitHub");
+      }
+    } finally {
+      globalThis.fetch = original;
+    }
+    const config = readConfig();
+    if (config.githubAppId !== "4900449") {
+      throw new Error(`App ID not stored: ${config.githubAppId}`);
+    }
+    if (!config.githubAppPrivateKey?.includes("BEGIN RSA PRIVATE KEY")) {
+      throw new Error("private key not stored");
+    }
+    if (config.githubWebhookSecret !== "whsec_x") {
+      throw new Error("webhook secret not stored");
+    }
+    if (config.githubOAuthClientId !== "Iv1.abc") {
+      throw new Error("OAuth client id not stored");
+    }
+    if (config.githubOAuthClientSecret !== "secret_x") {
+      throw new Error("OAuth client secret not stored");
+    }
+    // The state is single use: a replay must be refused.
+    const replay = await app.fetch(
+      new Request(
+        `http://cm.example.com/github/app-manifest/callback?state=${state}&code=abc123`,
+        { headers: { cookie }, redirect: "manual" },
+      ),
+    );
+    if (replay.status !== 400) {
+      throw new Error(`replayed callback status ${replay.status}`);
+    }
+  });
+});
+
+test("the App manifest callback URL follows the trusted proxy host", async () => {
+  await withEnv(async () => {
+    await writeUserConfig({
+      webhookUrl: "https://cm.example.com/github/webhook",
+    });
+    const app = createApp({ password: PASSWORD, trustProxy: true });
+    const cookie = await cookieSession(app);
+    const response = await app.fetch(
+      new Request("http://127.0.0.1:5000/github/app-manifest", {
+        method: "POST",
+        headers: {
+          cookie,
+          "content-type": "application/x-www-form-urlencoded",
+          "x-forwarded-host": "cm.example.com",
+          "x-forwarded-proto": "https",
+        },
+        body: "name=co-maintainer-cm",
+      }),
+    );
+    const html = await response.text();
+    if (!html.includes("https://cm.example.com/github/app-manifest/callback")) {
+      throw new Error("the manifest ignored the forwarded host");
+    }
   });
 });
 

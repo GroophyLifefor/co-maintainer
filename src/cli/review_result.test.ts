@@ -103,7 +103,11 @@ test("formatHumanLocalReview shows guide date (E161)", () => {
     [],
     [],
   );
-  if (!text.includes("guide 2026-09-15")) {
+  if (!text.includes("guide built 2026-09-15")) {
+    throw new Error(text);
+  }
+  // The unified header names the codegraph state too (CORE-43 / F23).
+  if (!text.includes("codegraph disabled")) {
     throw new Error(text);
   }
 });

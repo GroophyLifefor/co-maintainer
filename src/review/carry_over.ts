@@ -3,7 +3,6 @@ import { spansOverlap } from "../pr/rounds.ts";
 import { rightLines } from "../pr/hunks.ts";
 import {
   normalizeAnchor,
-  normalizeBody,
   normalizePath,
   revisionFilesEquivalent,
   resolvePathAfterRename,
@@ -141,6 +140,30 @@ function guideChanged(
   return (previous.guideBuiltAt ?? "") !== (currentGuideBuiltAt ?? "");
 }
 
+/** CORE-42 / F03: a guide rebuilt after the previous review invalidates that
+ * review's verdicts, its "unchanged" suppression and its open findings — they
+ * were all judged against the old rules. Such a run starts fresh instead:
+ * every file is scanned again and old findings are no longer carried over.
+ *
+ * `previousBuiltAt` is the guide's own build time as of that review. A
+ * previous review that never recorded one (a snapshot written before CORE-42)
+ * counts as rebuilt too: re-scanning once is cheaper than letting a stale
+ * verdict mask a new violation. With no current time there is nothing to
+ * compare, so nothing is treated as rebuilt. */
+export function guideRebuiltSince(
+  previousBuiltAt: string | null,
+  currentBuiltAt: string | null,
+): boolean {
+  if (!currentBuiltAt) return false;
+  if (!previousBuiltAt) return true;
+  const before = Date.parse(previousBuiltAt);
+  const after = Date.parse(currentBuiltAt);
+  if (!Number.isFinite(before) || !Number.isFinite(after)) {
+    return previousBuiltAt !== currentBuiltAt;
+  }
+  return after > before;
+}
+
 export function classifyCarryItems(
   previous: CarryPrevious,
   current: Revision,
@@ -166,7 +189,6 @@ export function classifyCarryItems(
           (f) => normalizePath(f.path) === normalizePath(finding.path!),
         )
       : undefined;
-    const prevPatch = prevFile?.patch ?? "";
     const sameBody = Boolean(
       prevFile && file && revisionFilesEquivalent(prevFile, file),
     );
@@ -269,12 +291,17 @@ export function buildCarryPromptSection(
   }
   if (verify.length === 0 && unchanged.length === 0) return "";
   const lines = [
-    "PREVIOUS FINDINGS:",
-    "These were raised by an earlier review of this same change. For each one",
-    "listed under VERIFY, decide whether the code in the DIFF still has the",
-    'problem. Report every decision in a final "## Previous findings" section,',
-    'one line per id, exactly as "- F1: open path:from-to" or "- F1: closed".',
-    'Do not repeat an open previous finding under "## Findings".',
+    "PREVIOUS FINDINGS (this run has two separate jobs):",
+    "1. Scan the DIFF from scratch for every actionable violation under the",
+    "   current review guide, exactly as a first review would. Do not let the",
+    "   list below shorten or replace that scan. A changed file can contain a",
+    "   new finding even when a previous finding already covers its location.",
+    "2. For each entry under VERIFY, decide whether the code in the DIFF still",
+    "   has that problem. Report every decision in a final section headed",
+    '   exactly "## Previous findings", one line per id, exactly as',
+    '   "- F1: open path:from-to" or "- F1: closed".',
+    'Do not repeat an open previous finding under "## Findings"; report there',
+    "only findings from job 1 that are not already covered below.",
     "",
   ];
   if (verify.length) {
@@ -330,8 +357,6 @@ export function resolveCarryOutcomes(
   visiblePaths: Set<string>,
   verdicts: PreviousVerdict[],
   parsedNew: ParsedFinding[],
-  currentGuideBuiltAt: string | null,
-  previous: CarryPrevious,
 ): ResolvedFinding[] {
   const verdictByPromptId = new Map(verdicts.map((v) => [v.id, v]));
   const promptIds = new Map<string, string>();

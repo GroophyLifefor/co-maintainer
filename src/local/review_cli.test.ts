@@ -1,4 +1,4 @@
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   Command,
@@ -60,11 +60,9 @@ test("review_cli: not_initialized without guides (E159)", async () => {
   await git(worktree, ["add", "x.ts"]);
   await git(worktree, ["commit", "-m", "change"]);
 
-  const prev = process.cwd();
-  process.chdir(worktree);
   try {
     const result = await new Command(runtimeExecPath(), {
-      args: runtimeRunArgs("main.ts", [
+      args: runtimeRunArgs(join(projectRoot, "main.ts"), [
         "review",
         "--json",
         `--repo=${repo}`,
@@ -72,7 +70,11 @@ test("review_cli: not_initialized without guides (E159)", async () => {
         "--token=fake",
         "--high-model=fake/model",
       ]),
-      cwd: projectRoot,
+      // The child runs the entrypoint with its own cwd set to the temp worktree.
+      // `process.chdir` here would not reach it, and then the child would inspect
+      // whatever HEAD the CI checkout happens to be on (detached on a PR, which
+      // is the `detached_head` failure this test exists to avoid).
+      cwd: worktree,
       env: {
         ...envToObject(),
         CM_CONFIG_PATH: configPath,
@@ -90,7 +92,6 @@ test("review_cli: not_initialized without guides (E159)", async () => {
       throw new Error(`exitCode ${body.exitCode}`);
     }
   } finally {
-    process.chdir(prev);
     await removePath(tmp, { recursive: true });
   }
 });
@@ -133,11 +134,9 @@ test("review_cli: remake-before-review requires gh auth (E160)", async () => {
   await git(worktree, ["add", "x.ts"]);
   await git(worktree, ["commit", "-m", "change"]);
 
-  const prev = process.cwd();
-  process.chdir(worktree);
   try {
     const result = await new Command(runtimeExecPath(), {
-      args: runtimeRunArgs("main.ts", [
+      args: runtimeRunArgs(join(projectRoot, "main.ts"), [
         "review",
         "--json",
         `--repo=${repo}`,
@@ -148,7 +147,9 @@ test("review_cli: remake-before-review requires gh auth (E160)", async () => {
         "--token=fake",
         "--high-model=fake/model",
       ]),
-      cwd: projectRoot,
+      // Same reason as the first test: the child's cwd carries the temp
+      // worktree, not this process's own HEAD.
+      cwd: worktree,
       env: {
         ...envToObject(),
         CM_CONFIG_PATH: configPath,
@@ -163,7 +164,6 @@ test("review_cli: remake-before-review requires gh auth (E160)", async () => {
       throw new Error(JSON.stringify(body));
     }
   } finally {
-    process.chdir(prev);
     await removePath(tmp, { recursive: true });
   }
 });

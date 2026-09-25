@@ -42,6 +42,11 @@ export type Fact = {
   scope: "current" | "repeated-history" | "historical-example";
   confidence: "high" | "medium" | "low";
   status: "active" | "contradicted" | "stale";
+  /** Where the fact was mined from. A fact read out of a single pull request
+   * describes that request, not the repository, so it may not become a
+   * repository-wide rule (CORE-32 / F26b). Missing means `repository`, which
+   * keeps facts written before this field existed. */
+  origin?: "repository" | "pull-request";
 };
 
 export type State = {

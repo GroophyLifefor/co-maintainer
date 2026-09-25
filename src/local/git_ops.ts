@@ -1,6 +1,7 @@
 import { runCommand, type Run } from "../pr/checkout.ts";
 import { normalizeGithubRemote } from "./git_parse.ts";
 import { stat } from "../util/runtime.ts";
+import { CliError, EXIT_USAGE } from "../cli/error.ts";
 
 export async function gitRoot(
   cwd: string,
@@ -16,16 +17,18 @@ export async function gitRoot(
   return result.stdout.trim();
 }
 
-export class ReviewCliError extends Error {
-  code: string;
-  hint?: string;
-  exitCode: number;
-
-  constructor(code: string, message: string, hint?: string, exitCode = 2) {
-    super(message);
-    this.code = code;
-    this.hint = hint;
-    this.exitCode = exitCode;
+/** Backward-compatible name for the shared CLI error. Local and remote review
+ * threw this before CORE-10 introduced `CliError`, so it stays as a thin
+ * subclass and every existing call site keeps working. */
+export class ReviewCliError extends CliError {
+  constructor(
+    code: string,
+    message: string,
+    hint?: string,
+    exitCode = EXIT_USAGE,
+  ) {
+    super(code, message, hint, exitCode);
+    this.name = "ReviewCliError";
   }
 }
 

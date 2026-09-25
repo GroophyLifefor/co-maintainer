@@ -2,15 +2,19 @@
  * directly; it used to re-spawn the CLI as a subprocess, a second
  * execution path with its own failure modes. */
 import { createAiProvider } from "../ai/provider.ts";
-import { enrichFacts, synthesizeSections } from "../knowledge/synthesis.ts";
+import {
+  enrichFactsWithReport,
+  synthesizeSections,
+} from "../knowledge/synthesis.ts";
+import type { SkippedUnit } from "../ai/batch.ts";
 import { collectSource } from "../github/collect.ts";
 import { GhClient } from "../github/gh.ts";
 import { PatClient } from "../github/pat.ts";
 import { extractFacts } from "../knowledge/facts.ts";
-import { buildReviewDocuments } from "../knowledge/guide.ts";
+import { buildReviewDocuments, reviewSignalCount } from "../knowledge/guide.ts";
 import {
   assembleSkill,
-  extractSections,
+  codebaseBody,
   factSectionHashes,
 } from "../knowledge/skill.ts";
 import { validateSkill } from "../knowledge/validate.ts";
@@ -18,12 +22,13 @@ import { readConfig, reposDir, writeRepoConfig } from "../config.ts";
 import { readState, writeState } from "../store/skill_state.ts";
 import { cacheSet } from "../store/cache_db.ts";
 import { log, timed, withLogSink } from "../util/log.ts";
+import { printRunSummary, summaryFromMetrics } from "../util/run_summary.ts";
 import { enqueue, registerHandler } from "./jobs.ts";
 import { closeAppDb, isAppDbOpen, openAppDb } from "../store/app_db.ts";
 import { getRepo, markKnowledgeBuilt } from "../store/repos.ts";
 import { nowIso } from "../util/time.ts";
 import type { AiResponse, GitHubClient, Options } from "../types.ts";
-import type { Source, State } from "../knowledge/types.ts";
+import type { Fact, Source, State } from "../knowledge/types.ts";
 import type { LogFn } from "./jobs.ts";
 import type { JobRow } from "../store/rows.ts";
 import { mkdir, readTextFile, remove } from "../util/runtime.ts";
@@ -108,9 +113,16 @@ async function skillPath(repo: string): Promise<string> {
 async function writeReviewDocuments(
   repo: string,
   documents: ReturnType<typeof buildReviewDocuments>,
+  signalCount: number,
 ): Promise<void> {
   const directory = `${reposDir()}/${repo}`;
   if (!documents) {
+    // F05: this used to delete the files without a word. The plan's rule is
+    // "says why the third file is missing": keep it to one line.
+    log(
+      "write",
+      `PR_REVIEW_GUIDE.md skipped: found ${signalCount} review signals, needs at least 3`,
+    );
     await Promise.all([
       remove(`${directory}/PR_REVIEW_GUIDE.md`).catch(() => {}),
       remove(`${directory}/PR_REVIEW_DETAILED_GUIDE.md`).catch(() => {}),
@@ -132,17 +144,16 @@ async function writeReviewDocuments(
 /** Splits the codebase-description sections (layout/style/tests/devloop) out
  * of the assembled skill into their own file, so `review` can check a pull
  * request against how this repository's code actually looks, not just the
- * review-bar checklist mined from past PR comments. */
+ * review-bar checklist mined from past PR comments. The skill links to this
+ * file rather than repeating it (CORE-32 / F26c), so its body is built from
+ * the facts instead of being scraped back out of the skill. */
 async function writeCodebaseDocument(
   repo: string,
-  skillMarkdown: string,
+  facts: Fact[],
+  overrides: Record<string, string> = {},
 ): Promise<void> {
   const path = `${reposDir()}/${repo}/CODEBASE.md`;
-  const sections = extractSections(skillMarkdown);
-  const body = ["layout", "style", "tests", "devloop"]
-    .map((key) => sections[key])
-    .filter(Boolean)
-    .join("\n\n");
+  const body = codebaseBody(facts, overrides);
   if (!body) {
     await remove(path).catch(() => {});
     return;
@@ -181,7 +192,7 @@ async function initOrRemake(options: Options): Promise<void> {
   const previous = await readState(options.repo);
   if (options.command === "remake" && !previous) {
     throw new Error(
-      "remake requires a previous init or remake for this repository",
+      "sync requires a previous init or sync for this repository",
     );
   }
   if (options.command === "remake" && previous) {
@@ -250,6 +261,7 @@ async function initOrRemake(options: Options): Promise<void> {
     );
   }
   let overrides: Record<string, string> = {};
+  const skipped: SkippedUnit[] = [];
   if (lowAi) {
     log("ai", "starting extract_unit jobs");
     const usage = async (job: string, response: AiResponse) => {
@@ -261,9 +273,11 @@ async function initOrRemake(options: Options): Promise<void> {
       else aiMetrics.cost += response.cost;
       await recordAiCost(options.repo, job, response);
     };
-    facts = await timed("extract_unit AI", options.logTime, () =>
-      enrichFacts(lowAi, options.repo, facts, source, options, usage),
+    const enriched = await timed("extract_unit AI", options.logTime, () =>
+      enrichFactsWithReport(lowAi, options.repo, facts, source, options, usage),
     );
+    facts = enriched.facts;
+    skipped.push(...enriched.skipped);
     log("ai", `extract_unit complete · ${facts.length} facts`);
     const hashes = await factSectionHashes(facts);
     const synthesisChanged =
@@ -286,7 +300,7 @@ async function initOrRemake(options: Options): Promise<void> {
       }`,
     );
     if (highAi) {
-      overrides = await timed("synth_section AI", options.logTime, () =>
+      const synth = await timed("synth_section AI", options.logTime, () =>
         synthesizeSections(
           highAi,
           options.repo,
@@ -299,6 +313,8 @@ async function initOrRemake(options: Options): Promise<void> {
           dirtySections,
         ),
       );
+      overrides = synth.overrides;
+      skipped.push(...synth.skipped);
     }
     log(
       "ai",
@@ -355,8 +371,12 @@ async function initOrRemake(options: Options): Promise<void> {
     const { writeTextFileAtomic } = await import("../util/atomic.ts");
     await withKnowledgeLock(options.repo, async () => {
       await writeTextFileAtomic(path, result.markdown);
-      await writeCodebaseDocument(options.repo, result.markdown);
-      await writeReviewDocuments(options.repo, reviewDocuments);
+      await writeCodebaseDocument(options.repo, facts, overrides);
+      await writeReviewDocuments(
+        options.repo,
+        reviewDocuments,
+        reviewSignalCount(facts),
+      );
       const head = source.commits[0] as { sha?: string } | undefined;
       const baseSha = head?.sha ? String(head.sha) : new Date().toISOString();
       markKnowledgeBuilt(options.repo, baseSha);
@@ -375,7 +395,7 @@ async function initOrRemake(options: Options): Promise<void> {
       },
       updatedAt: new Date().toISOString(),
     });
-    // Remember everything but the token, so `remake owner/repo` alone
+    // Remember everything but the token, so `sync owner/repo` alone
     // (no flags, no prompts) reuses what this run resolved.
     await writeRepoConfig(options.repo, {
       auth: options.auth,
@@ -407,6 +427,20 @@ async function initOrRemake(options: Options): Promise<void> {
     "done",
     `${facts.length} facts · ${source.pullRequests.length} pull requests · ${source.commits.length} commits`,
   );
+  if (skipped.length) {
+    // F04: a skipped unit used to vanish into a log line and recur as a "cache
+    // hit" forever. Say it in the final line instead, in the plan's shape:
+    // `1 unit skipped (PR #3: output was not JSON)`.
+    const parts = skipped.map((unit) => unit.reason);
+    const line =
+      skipped.length === 1
+        ? `1 unit skipped (${parts[0]})`
+        : `${skipped.length} units skipped (${parts.join("; ")})`;
+    log("done", line);
+  }
+  printRunSummary(
+    summaryFromMetrics(aiMetrics, performance.now() - operationStarted),
+  );
   if (options.logTime) {
     log(
       "time",
@@ -416,7 +450,7 @@ async function initOrRemake(options: Options): Promise<void> {
     );
     log(
       "time",
-      `total init/remake · ${((performance.now() - operationStarted) / 1000).toFixed(2)}s`,
+      `total init/sync · ${((performance.now() - operationStarted) / 1000).toFixed(2)}s`,
     );
   }
 }
@@ -440,7 +474,7 @@ export function optionsFromConfig(
   const highModel = repoConfig.highModel ?? config.highModel;
   if (ai !== "none" && (!config.token || !lowModel || !highModel)) {
     throw new Error(
-      "AI is enabled but token/low-model/high-model are not fully configured; run: " +
+      "AI is enabled but token/low-model/high-model are not fully configured. Run: " +
         "co-maintainer set --token=... --low-model=... --high-model=...",
     );
   }

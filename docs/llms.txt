@@ -1,0 +1,38 @@
+# co-maintainer
+
+> co-maintainer learns a GitHub repository from its code, pull requests, and history, then reviews pull requests and local changes against that knowledge.
+
+## Getting started
+
+- [Quickstart](https://co-maintainer.com/docs/getting-started.md)
+- [Probe](https://co-maintainer.com/docs/probe.md)
+- [Init](https://co-maintainer.com/docs/init.md)
+- [Sync](https://co-maintainer.com/docs/sync.md)
+- [View guides](https://co-maintainer.com/docs/view.md)
+
+## Review
+
+- [Review](https://co-maintainer.com/docs/review.md)
+- [Local review](https://co-maintainer.com/docs/local-review.md)
+- [Remote review](https://co-maintainer.com/docs/remote-review.md)
+- [PR review](https://co-maintainer.com/docs/local-pr-review.md)
+
+## Self-hosted
+
+- [Serve](https://co-maintainer.com/docs/serve.md)
+- [Dashboard](https://co-maintainer.com/docs/dashboard.md)
+- [GitHub App](https://co-maintainer.com/docs/github-app.md)
+
+## Cloud
+
+- [Cloud](https://co-maintainer.com/docs/cloud.md)
+
+## Reference
+
+- [Commands](https://co-maintainer.com/docs/commands.md)
+- [Configuration](https://co-maintainer.com/docs/configuration.md)
+- [Authentication](https://co-maintainer.com/docs/authentication.md)
+- [Caching](https://co-maintainer.com/docs/caching.md)
+- [Cost](https://co-maintainer.com/docs/cost.md)
+- [Data and privacy](https://co-maintainer.com/docs/privacy.md)
+- [Troubleshooting](https://co-maintainer.com/docs/troubleshooting.md)

@@ -29,6 +29,54 @@ export type EnsureOptions = {
   exit?: (code: number) => never;
 };
 
+/** codegraph ships a small launcher plus a per-platform binary (an
+ * `optionalDependencies` split), so the download a user is about to accept is
+ * the platform package, not the tiny launcher. Measured from the npm registry
+ * for {@link CODEGRAPH_VERSION}: ~249 MB unpacked on win32-x64. Kept as a
+ * rounded figure because it moves between releases and the point is the order
+ * of magnitude, not the exact byte count. */
+export const CODEGRAPH_APPROX_SIZE = "~250 MB";
+
+/** A prompt may only be shown when there is a human on the other end of stdin
+ * *and* stdout, and no CI marker. A closed stdin (`</dev/null`), a piped
+ * output, or `CI=1` must all take the non-interactive path: asking then would
+ * hang on a question nobody can answer (F01). `stdout` is checked because a
+ * prompt printed into a pipe is invisible.
+ *
+ * `streams` is injectable so the tests can stand in for a TTY without a real
+ * terminal. */
+export function canPrompt(
+  streams: { stdin?: { isTTY?: boolean }; stdout?: { isTTY?: boolean } } = {
+    stdin: process.stdin,
+    stdout: process.stdout,
+  },
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return (
+    streams.stdin?.isTTY === true && streams.stdout?.isTTY === true && !env.CI
+  );
+}
+
+/** The one line a non-interactive run prints instead of asking (F01). It names
+ * the reason and both ways forward, so a CI log explains itself. */
+export function skippedNotice(version = CODEGRAPH_VERSION): string {
+  return (
+    `codegraph ${version} is not installed, reviewing without it. ` +
+    "Pass --allow-tool-install to install it, or --disable-codegraph to skip this notice."
+  );
+}
+
+/** What the install prompt says: the package and version, where it comes from,
+ * what it is for, the approximate size, and the exact directory. A bare
+ * "Install ...? [y/N]" left the user guessing (F01). */
+export function installPrompt(version: string, root: string): string {
+  return (
+    `co-maintainer uses codegraph ${version} (${CODEGRAPH_PACKAGE} from npm, ${CODEGRAPH_APPROX_SIZE}) ` +
+    "to follow calls between files while reviewing.\n" +
+    `Install it into ${versionDir(version, root)} (your global PATH is not touched)?`
+  );
+}
+
 export async function runCommand(
   command: string,
   args: string[],
@@ -132,7 +180,9 @@ export async function ensureCodegraph(
   const root = options.root ?? toolsDir();
   const run = options.run ?? runCommand;
   const log = options.log ?? ((message: string) => console.log(message));
-  const interactive = options.interactive ?? process.stdin.isTTY === true;
+  // `canPrompt` is the single source of truth for "may we ask": stdin and
+  // stdout must both be a TTY and `CI` must be unset.
+  const interactive = options.interactive ?? canPrompt();
   // Annotated so TypeScript can see the calls below never return and keeps the
   // `Presence` narrowing intact.
   const exit: (code: number) => never = options.exit ?? process.exit;
@@ -148,9 +198,11 @@ export async function ensureCodegraph(
 
   if (!options.allowInstall) {
     if (!interactive) {
+      // This path exits rather than continuing, so it must not say "reviewing
+      // without it"; it says how to proceed.
       log(
-        `[codegraph] co-maintainer needs codegraph ${CODEGRAPH_VERSION} to index the repository.\n` +
-          `Run it with --allow-tool-install, or install it yourself:\n  ${installHint(
+        `[codegraph] codegraph ${CODEGRAPH_VERSION} is not installed.\n` +
+          `Run with --allow-tool-install, or install it yourself:\n  ${installHint(
             CODEGRAPH_VERSION,
             root,
           )}`,
@@ -160,12 +212,9 @@ export async function ensureCodegraph(
     const confirm = options.confirm ?? defaultConfirm;
     // `defaultConfirm` is async, so an unawaited call is always truthy and the
     // user's "no" was silently ignored. Await it before deciding.
-    const approved = await confirm(
-      `co-maintainer needs codegraph ${CODEGRAPH_VERSION} to index the repository.\n` +
-        `Install it into ${versionDir(CODEGRAPH_VERSION, root)} (your global PATH is not touched)?`,
-    );
+    const approved = await confirm(installPrompt(CODEGRAPH_VERSION, root));
     if (!approved) {
-      log("[codegraph] declined; nothing was installed");
+      log("[codegraph] declined. Nothing was installed");
       exit(1);
     }
   }
@@ -201,7 +250,7 @@ export async function ensureCodegraphForReview(
   const root = options.root ?? toolsDir();
   const run = options.run ?? runCommand;
   const log = options.log ?? ((message: string) => console.error(message));
-  const interactive = options.interactive ?? process.stdin.isTTY === true;
+  const interactive = options.interactive ?? canPrompt();
   const present = await detect(CODEGRAPH_VERSION, root, run);
 
   if (present.state === "ok") return { path: present.path };
@@ -212,17 +261,14 @@ export async function ensureCodegraphForReview(
   }
 
   if (!options.allowInstall) {
+    // Non-interactive: do not ask, review without it. The caller logs the
+    // reason, so the run continues instead of hanging or exiting (F01).
     if (!interactive) {
-      return {
-        reason: `codegraph ${CODEGRAPH_VERSION} is not installed (use --allow-tool-install)`,
-      };
+      return { reason: skippedNotice() };
     }
     const confirm = options.confirm ?? defaultConfirm;
     // Same as `ensureCodegraph`: an unawaited async confirm is always truthy.
-    const approved = await confirm(
-      `co-maintainer needs codegraph ${CODEGRAPH_VERSION} to index this repository.\n` +
-        `Install into ${versionDir(CODEGRAPH_VERSION, root)}?`,
-    );
+    const approved = await confirm(installPrompt(CODEGRAPH_VERSION, root));
     if (!approved) return { reason: "codegraph install declined" };
   }
 

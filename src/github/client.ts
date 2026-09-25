@@ -3,6 +3,7 @@
  * not use `githubFetch`; both paths share `paginate` and `waitForRateLimit`. */
 
 import { log } from "../util/log.ts";
+import { networkFailure } from "../cli/error.ts";
 
 export class GitHubHttpError extends Error {
   readonly status: number;
@@ -106,7 +107,11 @@ export async function githubFetch(
     let response: Response | undefined;
     let exhausted: RateLimit | undefined;
     for (let attempt = 1; attempt <= 3; attempt++) {
-      response = await fetch(url, init);
+      try {
+        response = await fetch(url, init);
+      } catch (error) {
+        throw networkFailure(url, error);
+      }
       if (response.status !== 403 && response.status !== 429) return response;
       const retryAfterHeader = response.headers.get("retry-after");
       const retryAfter =

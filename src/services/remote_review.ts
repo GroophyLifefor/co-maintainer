@@ -12,6 +12,7 @@ import { type ReviewExtras, reviewWorkspaceRevision } from "../pr/reviewer.ts";
 import {
   buildCarryPromptSection,
   classifyCarryItems,
+  guideRebuiltSince,
   incrementalDiffPaths,
   type CarryPrevious,
 } from "../review/carry_over.ts";
@@ -23,6 +24,8 @@ import {
   setRemoteSyncResult,
 } from "../remote/server/sessions.ts";
 import { readConfig } from "../config.ts";
+import { reviewBlockingFrom } from "../review/blocking.ts";
+import { loadGuides } from "../review/guides.ts";
 import type { Options } from "../types.ts";
 import { withLogSink } from "../util/log.ts";
 import { cancel, registerHandler, type LogFn } from "./jobs.ts";
@@ -85,6 +88,7 @@ function reviewOptionsForRepo(repo: string, useCodegraph: boolean): Options {
     includeCommitHistory: true,
     includeHowRepoWorks: true,
     onlyRequestChangedPr: false,
+    reviewBlocking: reviewBlockingFrom(config.reviewBlocking),
   };
 }
 
@@ -225,7 +229,16 @@ export function registerRemoteReviewHandler(): void {
         const extras: ReviewExtras = {};
         if (subjectId) {
           const subjectRevision = getSubjectRevision(subjectId);
-          if (subjectRevision) {
+          // A guide rebuilt after the previous review invalidates its verdicts
+          // and its "unchanged" suppression (CORE-42 / F03): start fresh so a
+          // stale finding cannot mask a new one.
+          const guideRebuilt =
+            subjectRevision !== undefined &&
+            guideRebuiltSince(
+              subjectRevision.guide_built_at,
+              (await loadGuides(job.repo)).guideBuiltAt,
+            );
+          if (subjectRevision && !guideRebuilt) {
             const prevFiles = parseRevisionFiles(subjectRevision);
             const { unchanged } = incrementalDiffPaths(revision, prevFiles);
             extras.unchangedPaths = unchanged;
@@ -299,6 +312,7 @@ export function registerRemoteReviewHandler(): void {
           resolvedFromFirstReview(parsed, filesByPath),
         );
         const durationMs = Math.round(performance.now() - started);
+        const blockingMode = reviewBlockingFrom(options.reviewBlocking);
 
         setRemoteSyncResult(job.id, {
           subject: {
@@ -308,8 +322,9 @@ export function registerRemoteReviewHandler(): void {
           },
           revision: revisionStats(revision),
           guide: { builtAt: result.guideBuiltAt },
-          summary: summaryCounts(findings),
-          findings: findings.map(toJsonFinding),
+          codegraph: { state: result.codegraphState },
+          summary: summaryCounts(findings, blockingMode),
+          findings: findings.map((row) => toJsonFinding(row, blockingMode)),
           usage: {
             tokensIn,
             tokensOut,

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GitHub App · co-maintainer docs</title>
+  <meta name="description" content="Automatic pull request reviews, webhooks, and the dashboard repositories all run through one GitHub App. The dashboard can create it for you, so the...">
+  <link rel="canonical" href="https://co-maintainer.com/docs/github-app.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html" class="active">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="privacy.html">Data and privacy</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>GitHub App</h1>
+<p>Automatic pull request reviews, webhooks, and the dashboard repositories all run
+through one GitHub App. The dashboard can create it for you, so the private key,
+webhook secret, and OAuth credentials are written straight into <code>config.json</code>
+instead of being copied between two screens.</p>
+<p><a href="serve.html"><code>serve</code></a> runs the App. The App is <strong>not</strong> the same as CLI <code>gh</code> auth,
+which is only for reading a repository locally. See
+<a href="authentication.html">Authentication</a> for the full picture.</p>
+<h2 id="create-it-from-the-dashboard">Create it from the dashboard</h2>
+<ol>
+<li>Start <a href="serve.html"><code>serve</code></a> and open the dashboard.</li>
+<li>Set a public webhook address under <strong>Settings</strong>, <strong>Server</strong>.</li>
+<li>In the GitHub App card, keep or edit the suggested name and press
+<strong>Create GitHub App</strong>.</li>
+<li>GitHub shows the permissions and events listed below and asks you to confirm.</li>
+<li>GitHub redirects back, and <code>serve</code> writes the App ID, private key, webhook
+secret, and OAuth client ID and secret into <code>config.json</code>.</li>
+</ol>
+<p>The suggested name is <code>co-maintainer-&lt;host&gt;</code>, shortened to fit GitHub&#39;s 34
+character cap. App names are globally unique, so GitHub rejects a duplicate and
+the field stays editable. The button is refused, with the reason, until the
+webhook address looks reachable from GitHub. See
+<a href="dashboard.html#webhook-reachability">Dashboard: Webhook reachability</a>.</p>
+<p>The creation is secured with a single-use server-side state that expires after
+ten minutes, so the callback cannot be replayed.</p>
+<h2 id="install-it-on-repositories">Install it on repositories</h2>
+<p>Creating the App does not install it. In GitHub, install the App on the
+organization or account that owns your repositories, and choose which
+repositories it can reach. The dashboard&#39;s <strong>Add repository</strong> list shows only
+repositories the App can already see.</p>
+<h2 id="permissions">Permissions</h2>
+<p>The manifest requests exactly the permissions the code uses, not a superset.</p>
+<table>
+<thead>
+<tr>
+<th>Permission</th>
+<th>Access</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Contents</td>
+<td>Read</td>
+<td>Read a repository&#39;s files, trees, and <code>PR_REVIEW_GUIDE.md</code></td>
+</tr>
+<tr>
+<td>Pull requests</td>
+<td>Write</td>
+<td>Read a pull request and post reviews and review comments</td>
+</tr>
+<tr>
+<td>Issues</td>
+<td>Write</td>
+<td>Post and read issue comments, which is how a conversation reply is delivered</td>
+</tr>
+<tr>
+<td>Checks</td>
+<td>Write</td>
+<td>Create and update the review check run</td>
+</tr>
+<tr>
+<td>Metadata</td>
+<td>Read</td>
+<td>Required by every GitHub App</td>
+</tr>
+</tbody></table>
+<p>No <code>administration</code>, no <code>actions</code>, and no <code>packages</code> access is requested.</p>
+<h2 id="events">Events</h2>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Why it is subscribed</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>pull_request</code></td>
+<td>Open, synchronize, and close decide whether a review runs</td>
+</tr>
+<tr>
+<td><code>pull_request_review</code></td>
+<td>Tracks review state for the auto-review rules</td>
+</tr>
+<tr>
+<td><code>pull_request_review_comment</code></td>
+<td>Delivers a reply in an existing review comment thread</td>
+</tr>
+<tr>
+<td><code>issue_comment</code></td>
+<td>Delivers a reply in a pull request conversation</td>
+</tr>
+</tbody></table>
+<p><code>installation</code> and <code>installation_repositories</code> are handled too, but they are
+<strong>not</strong> in the subscription list: GitHub delivers both to every App without a
+subscription, which is why the webhook handler accepts them.</p>
+<h2 id="manual-setup">Manual setup</h2>
+<p>If you would rather create the App by hand, use the same values:</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-app-id=...</span> <span class="sh-flag">--github-app-private-key-path=./app.pem</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-webhook-secret=...</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-oauth-client-id=...</span> <span class="sh-flag">--github-oauth-client-secret=...</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-oauth-allowed-user=your-github-login</span>
+</code></pre>
+<p>Set the webhook URL to <code>https://&lt;your-host&gt;/github/webhook</code> and subscribe to the
+four events above. <a href="configuration.html#co-maintainer-set">Configuration</a> lists every flag and the
+three ways to supply the private key. OAuth is optional and only gates the
+dashboard sign-in. See <a href="serve.html#sign-in-to-the-dashboard"><code>serve</code>: Sign in</a>.</p>
+<h2 id="rotating-and-moving-the-key">Rotating and moving the key</h2>
+<p><code>--github-app-private-key-file</code> copies the key into <code>config.json</code>, so it keeps
+working if the file moves. <code>--github-app-private-key-path</code> stores only the path,
+so the secret never enters <code>config.json</code> and <code>serve</code> reads it at startup. If that
+file is missing, <code>serve</code> warns and continues. See
+<a href="configuration.html#app-private-key-inline-file-contents-or-path">Configuration: App private key</a>.</p>
+<p>If a new key is generated in GitHub, save it and run the <code>set</code> command again, or
+paste it into Settings. Credentials are read on every request, so the change
+applies without a restart.</p>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Create GitHub App</strong> is refused</td>
+<td>Set a public webhook address first</td>
+</tr>
+<tr>
+<td>App created but no review arrives</td>
+<td>Install the App on the repository, turn on auto-review in repo <strong>Settings</strong>, and confirm the webhook delivered</td>
+</tr>
+<tr>
+<td>Settings save returns <code>422</code></td>
+<td>The key or token is missing a scope GitHub requires</td>
+</tr>
+<tr>
+<td>Webhook works but no review is posted</td>
+<td>Check the Activity job log, then the AI key and models under <strong>Settings</strong></td>
+</tr>
+</tbody></table>
+<p>Webhook reachability problems are shown on each repository&#39;s <strong>Overview</strong> tab.
+See <a href="dashboard.html#webhook-reachability">Dashboard: Webhook reachability</a>.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/github-app.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#create-it-from-the-dashboard">Create it from the dashboard</a></li><li><a href="#install-it-on-repositories">Install it on repositories</a></li><li><a href="#permissions">Permissions</a></li><li><a href="#events">Events</a></li><li><a href="#manual-setup">Manual setup</a></li><li><a href="#rotating-and-moving-the-key">Rotating and moving the key</a></li><li><a href="#troubleshooting">Troubleshooting</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

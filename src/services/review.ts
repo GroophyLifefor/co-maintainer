@@ -18,15 +18,22 @@ import {
   type CarryItem,
   type CarryPrevious,
   classifyCarryItems,
+  guideRebuiltSince,
   incrementalDiffPaths,
   parsePreviousVerdicts,
   resolveCarryOutcomes,
 } from "../review/carry_over.ts";
 import { runReviewEngine } from "../review/engine.ts";
 import { loadGuides } from "../review/guides.ts";
+import {
+  reviewBlockingFrom,
+  isBlocking,
+  DEFAULT_REVIEW_BLOCKING,
+  type ReviewBlocking,
+} from "../review/blocking.ts";
 import { matchRepeat } from "../pr/rounds.ts";
 import type { Snapshot } from "../pr/snapshot.ts";
-import { readConfig } from "../config.ts";
+import { readConfig, resolveAppPrivateKey } from "../config.ts";
 import { outsideCode, redact } from "../util/redact.ts";
 import { getRepo, setInstallationId } from "../store/repos.ts";
 import {
@@ -59,6 +66,10 @@ const ACCESS_DENIED_BODY =
   "The App does not have access to review this pull request.";
 
 export function humanCopy(text: string): string {
+  // The semicolon is prose and always goes. The em dash is left alone here:
+  // this function also sanitizes a finding title, and a title posted before
+  // 0.5.0 uses ` — ` as its path/symbol separator, which the legacy heading
+  // reader still needs (CORE-83 keeps that one allowlisted exception).
   return outsideCode(redact(text), (prose) => prose.replaceAll(";", "."));
 }
 
@@ -118,6 +129,24 @@ export function reviewEvent(
   findingsCount: number,
 ): "REQUEST_CHANGES" | "COMMENT" {
   return findingsCount > 0 ? "REQUEST_CHANGES" : "COMMENT";
+}
+
+/** The GitHub review event for a set of stored findings (CORE-41).
+ *
+ * `model` keeps the 0.4.13 behavior: any finding requests changes, because the
+ * model's label already decided. `severity` ignores that label and requests
+ * changes only for a P0 or P1, so the same finding set always yields the same
+ * event. */
+export function appReviewEvent(
+  findings: { severity: string; title: string }[],
+  mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
+): "REQUEST_CHANGES" | "COMMENT" {
+  if (findings.length === 0) return "COMMENT";
+  if (mode === "model") return "REQUEST_CHANGES";
+  const blocking = findings.some((row) =>
+    isBlocking(mode, { severity: row.severity, text: row.title }),
+  );
+  return reviewEvent(blocking ? 1 : 0);
 }
 
 export interface ReviewMetadata {
@@ -209,6 +238,7 @@ export function reviewOptions(repo: string, prNumber: number): Options {
     includeHowRepoWorks: true,
     onlyRequestChangedPr: false,
     useCodegraph: getRepo(repo)?.use_codegraph === 1,
+    reviewBlocking: reviewBlockingFrom(config.reviewBlocking),
   };
 }
 
@@ -225,14 +255,11 @@ export function aiFor(options: Options): AiProvider {
 
 export function clientFor(installationId: number): GitHubClient {
   const config = readConfig();
-  if (!config.githubAppId || !config.githubAppPrivateKey) {
+  const privateKeyPem = resolveAppPrivateKey(config);
+  if (!config.githubAppId || !privateKeyPem) {
     throw new Error("review jobs need the GitHub App configured");
   }
-  return new AppClient(
-    config.githubAppId,
-    config.githubAppPrivateKey,
-    installationId,
-  );
+  return new AppClient(config.githubAppId, privateKeyPem, installationId);
 }
 
 export async function resolveInstallationId(
@@ -241,10 +268,11 @@ export async function resolveInstallationId(
   const current = getRepo(fullName)?.installation_id;
   if (current) return current;
   const config = readConfig();
-  if (!config.githubAppId || !config.githubAppPrivateKey) return undefined;
+  const privateKeyPem = resolveAppPrivateKey(config);
+  if (!config.githubAppId || !privateKeyPem) return undefined;
   const installationId = await findInstallationForRepo(
     config.githubAppId,
-    config.githubAppPrivateKey,
+    privateKeyPem,
     fullName,
   );
   if (installationId !== undefined) setInstallationId(fullName, installationId);
@@ -397,6 +425,7 @@ async function publish(
   files: Json[],
   log: LogFn,
   metadata: ReviewMetadata,
+  mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
 ): Promise<void> {
   const stored = listFindingsForReview(reviewId);
   const replies = stored.filter((row) => row.thread_comment_id);
@@ -489,7 +518,7 @@ async function publish(
   const payload = {
     commit_id: headSha,
     body,
-    event: reviewEvent(stored.length),
+    event: appReviewEvent(stored, mode),
     comments,
   };
   setReviewStatus(reviewId, "posting");
@@ -761,7 +790,17 @@ async function runReviewJobCore(
   let carryItems: CarryItem[] = [];
   let carryPrevious: CarryPrevious | null = null;
   const extras: { carryPrompt?: string; unchangedPaths?: string[] } = {};
-  if (subjectRevision) {
+  // A guide rebuilt after the previous review invalidates that review's
+  // verdicts and its "unchanged" suppression (CORE-42 / F03). Treat the run as
+  // if it had started fresh: carry-over off, every changed file back in scope,
+  // so a stale finding can never mask a new one.
+  const guideRebuilt =
+    subjectRevision !== undefined &&
+    guideRebuiltSince(
+      subjectRevision.guide_built_at,
+      guidesBefore.guideBuiltAt,
+    );
+  if (subjectRevision && !guideRebuilt) {
     const prevFiles = parseRevisionFiles(subjectRevision);
     const { unchanged } = incrementalDiffPaths(revision, prevFiles);
     extras.unchangedPaths = scope === "incremental" ? unchanged : undefined;
@@ -831,8 +870,6 @@ async function runReviewJobCore(
       visiblePaths,
       verdicts,
       parsed,
-      guideBuiltAt,
-      carryPrevious,
     );
     totalFindings = resolved.length;
     for (const row of resolved) {
@@ -907,11 +944,20 @@ async function runReviewJobCore(
     guideBuiltAt,
   });
   log("info", `publishing ${totalFindings} finding(s) to GitHub`);
-  await publish(github, job, reviewId, headSha, publishFiles, log, {
-    jobId: job.id,
-    model: options.highModel ?? "unknown",
-    durationMs: Date.now() - startedAt,
-  });
+  await publish(
+    github,
+    job,
+    reviewId,
+    headSha,
+    publishFiles,
+    log,
+    {
+      jobId: job.id,
+      model: options.highModel ?? "unknown",
+      durationMs: Date.now() - startedAt,
+    },
+    options.reviewBlocking,
+  );
   await finishCheck(
     github,
     job,

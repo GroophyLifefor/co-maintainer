@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - dx/**
+
+# A force-push to the same branch makes the previous run moot, so cancel it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
+    # The Windows runner is the slow one. Anything past this is a hang, not a
+    # slow test, and the plan budgets it under twenty minutes.
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+        env:
+          # Only the Linux job runs the browser smoke, and it installs its own
+          # Chromium explicitly. Skip the postinstall download so the Windows
+          # job does not pay for a browser it never launches.
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - run: npm run check
+      - run: npm run lint
+      - run: npm run fmt:check
+      - name: Docs build
+        run: npm run docs:build
+      - name: Test
+        run: npm test
+        env:
+          # Tests must never reach a real AI provider.
+          CM_FAKE_AI: "1"
+      - run: npm run build
+      - name: Package smoke
+        run: npm run pack:smoke
+      - name: Dashboard browser smoke
+        if: runner.os == 'Linux'
+        run: npx playwright install --with-deps chromium
+      - name: Dashboard smoke
+        if: runner.os == 'Linux'
+        run: npm run dashboard:smoke
+
+  # Its own job on Linux only: `npx` and the fake `gh` both need a POSIX
+  # spawn, and it downloads the published 0.4.13, so it must not slow the
+  # matrix above.
+  downgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - name: Downgrade check
+        run: npm run downgrade:check

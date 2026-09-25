@@ -11,10 +11,13 @@ import {
 } from "./layout.ts";
 import { COMPARE_FILE_CAP, MAX_COMMITS_COUNTED } from "../../services/drift.ts";
 import type { repoOverview } from "../../services/dashboard.ts";
+import { webhookReachabilityProblem } from "../../util/webhook_reachability.ts";
+import { lastDeliveryForRepo } from "../../store/deliveries.ts";
 
 export function renderRepo(
   username: string,
   data: ReturnType<typeof repoOverview>,
+  webhookUrl: string,
 ): Response {
   const name = data.repo.full_name;
   const stats = data.stats;
@@ -29,7 +32,7 @@ export function renderRepo(
           drift.commits_since,
           MAX_COMMITS_COUNTED,
         )} commits, ${capped(drift.files_changed, COMPARE_FILE_CAP)} files changed.</div>
-      <button class="btn primary" id="remake">Update now</button>
+      <button class="btn primary" id="remake">Sync now</button>
     </div>`
       : "";
   const pulls =
@@ -53,6 +56,24 @@ export function renderRepo(
               .join("")}
           </tbody>
         </table>`;
+  const reach = webhookReachabilityProblem(webhookUrl);
+  const last = lastDeliveryForRepo(name);
+  const delivery = last ? when(last.received_at) : "never";
+  const webhook = reach
+    ? `<div class="notice bad">
+      <div class="txt"><b>GitHub cannot reach this address, so automatic reviews will not arrive.</b>
+        ${text(reach)} The webhook URL is <code>${text(
+          webhookUrl,
+        )}</code>. Change it in <a href="/settings">Settings</a>.
+        Last webhook delivery: ${delivery}.</div>
+    </div>`
+    : !last
+      ? `<div class="notice info">
+      <div class="txt"><b>No webhook delivery yet.</b> GitHub has not reached this repository
+        and the last webhook delivery is never. Open a pull request, or check the webhook URL
+        <code>${text(webhookUrl)}</code> in <a href="/settings">Settings</a>.</div>
+    </div>`
+      : `<p class="muted" style="margin:0 0 18px">Last webhook delivery: ${delivery}.</p>`;
   const auto = data.repo.auto_review === 1;
   return html(
     layout({
@@ -80,6 +101,7 @@ export function renderRepo(
       </div>
     </div>
     ${notice}
+    ${webhook}
     <div class="card">
       <div class="hd"><h2>Last 30 days</h2></div>
       <div class="bd">

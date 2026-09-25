@@ -13,7 +13,7 @@ import {
 import { memoryPasswordStore } from "./auth.ts";
 import { clientAddress, forwardedHttps } from "./proxy_headers.ts";
 import type { AuthMethods, PasswordStore } from "./auth.ts";
-import { readConfig } from "../config.ts";
+import { readConfig, resolveAppPrivateKey } from "../config.ts";
 import { listJobs } from "../store/jobs.ts";
 import { handleJobsRoute } from "./api/jobs.ts";
 import { handleReposRoute } from "./api/repos.ts";
@@ -36,6 +36,9 @@ export type AppDeps = {
   /** Behind a reverse proxy this process trusts, the client address and the
    * scheme come from `x-forwarded-for` and `x-forwarded-proto`. */
   trustProxy?: boolean;
+  /** `CM_LOGIN_HINT`, shown on the sign-in page in place of the default
+   * "printed when serve started" line. */
+  loginHint?: string;
   inject500?: boolean;
   /** Defaults to password-only when omitted, matching every caller that
    * pre-dates GitHub sign-in. */
@@ -53,7 +56,7 @@ function setupStatus() {
   const github = Boolean(
     config.auth === "gh" || (config.auth === "pat" && config.githubPat),
   );
-  const app = Boolean(config.githubAppId && config.githubAppPrivateKey);
+  const app = Boolean(config.githubAppId && resolveAppPrivateKey(config));
   const missing = [
     !ai && "ai",
     !github && "github",
@@ -130,12 +133,13 @@ function health(): Response {
  * without restarting `serve`. */
 function liveGithubConfig() {
   const config = readConfig();
+  const privateKeyPem = resolveAppPrivateKey(config);
   return {
     githubApp:
-      config.githubAppId && config.githubAppPrivateKey
+      config.githubAppId && privateKeyPem
         ? {
             appId: config.githubAppId,
-            privateKeyPem: config.githubAppPrivateKey,
+            privateKeyPem,
           }
         : undefined,
     webhookSecret: config.githubWebhookSecret,
@@ -171,7 +175,13 @@ export function createApp(deps: AppDeps): App {
 
       const page = await handlePageRequest(
         request,
-        { ...deps, githubApp, passwordStore: passwords, secureCookie },
+        {
+          ...deps,
+          githubApp,
+          passwordStore: passwords,
+          secureCookie,
+          trustProxy: deps.trustProxy,
+        },
         remoteAddr,
       );
       if (page) return page;

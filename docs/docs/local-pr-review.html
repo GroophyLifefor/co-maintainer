@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PR review · co-maintainer docs</title>
+  <meta name="description" content="Review an open GitHub pull request by number. The CLI uses gh to read the PR and runs the AI on your machine (OpenRouter).">
+  <link rel="canonical" href="https://co-maintainer.com/docs/local-pr-review.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="local-pr-review.html" class="active">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="privacy.html">Data and privacy</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>PR review</h1>
+<p>Review an <strong>open GitHub pull request</strong> by number. The CLI uses <strong><code>gh</code></strong> to read
+the PR and runs the AI <strong>on your machine</strong> (OpenRouter).</p>
+<p>Overview: <a href="review.html"><code>review</code></a>. This is not the same as
+<a href="remote-review.html">remote review</a> (<code>--remote</code> is rejected when a PR number is
+present).</p>
+<h2 id="before-you-run">Before you run</h2>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="init.html"><code>init</code></a> / <a href="sync.html"><code>sync</code></a> for <code>owner/repo</code></td>
+<td>Guides on disk for that repo</td>
+</tr>
+<tr>
+<td><code>gh auth login</code></td>
+<td>PR review supports <strong><code>--auth=gh</code> only</strong></td>
+</tr>
+<tr>
+<td>Read access to the PR</td>
+<td>Private repos need a logged-in <code>gh</code> user</td>
+</tr>
+</tbody></table>
+<h2 id="usage">Usage</h2>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-arg">owner/repo</span> <span class="sh-arg">123</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-arg">owner/repo</span> <span class="sh-arg">123</span> <span class="sh-flag">--json</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-arg">owner/repo</span> <span class="sh-arg">123</span> <span class="sh-flag">--disable-codegraph</span> <span class="sh-flag">--debug</span>
+</code></pre>
+<h2 id="parameters">Parameters</h2>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>owner/repo</code></td>
+<td>Repository (required positional)</td>
+</tr>
+<tr>
+<td><code>123</code></td>
+<td>Pull request number (required positional)</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td>One JSON document on stdout</td>
+</tr>
+<tr>
+<td><code>--disable-codegraph</code></td>
+<td>Skip codegraph tools (default is on for CLI)</td>
+</tr>
+<tr>
+<td><code>--allow-tool-install</code></td>
+<td>Install pinned codegraph without a prompt</td>
+</tr>
+<tr>
+<td><code>--improve-matrix=N</code></td>
+<td>Scales review depth (see CLI help)</td>
+</tr>
+<tr>
+<td><code>--debug</code></td>
+<td>Verbose logs on stderr</td>
+</tr>
+<tr>
+<td><code>--log-time</code></td>
+<td>Print timing per phase</td>
+</tr>
+</tbody></table>
+<p><strong>Not supported for PR review:</strong> <code>--remote</code>, <code>--fresh</code>, <code>--to-branch</code>,
+<code>--branch</code>, <code>--repo=</code>, <code>--sync-before-review</code>. Use
+<a href="local-review.html">local review</a> for working-tree changes or
+<a href="remote-review.html">remote review</a> for a local diff against shared server context.</p>
+<p>PR review indexes the checked-out repository with codegraph when it is already
+installed, but it never prompts to install it: a PR review runs unattended. The
+question and its rules are in <a href="local-review.html#codegraph">local review</a>.</p>
+<p>Auth and models follow <a href="configuration.html"><code>configuration</code></a> and <code>co-maintainer set</code> like other commands (<code>--auth=pat</code> is not used for PR review).</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/local-pr-review.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

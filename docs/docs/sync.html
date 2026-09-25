@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>sync · co-maintainer docs</title>
+  <meta name="description" content="Refresh repository knowledge after the default branch or pull requests move on. sync re-fetches GitHub data, reuses unchanged evidence from cache, and...">
+  <link rel="canonical" href="https://co-maintainer.com/docs/sync.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html" class="active">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="privacy.html">Data and privacy</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1><code>sync</code></h1>
+<p>Refresh repository knowledge after the default branch or pull requests move on.
+<code>sync</code> re-fetches GitHub data, reuses unchanged evidence from
+<a href="caching.html">cache</a>, and regenerates <code>SKILL.md</code> and review guides. It costs
+less time and API usage than a full <a href="init.html"><code>init</code></a> when little changed.</p>
+<blockquote>
+<p>Earlier releases called this command <code>sync</code>. That spelling still runs the
+same job, but it is no longer shown in help.</p>
+</blockquote>
+<h2 id="before-you-run">Before you run</h2>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>A successful <a href="init.html"><code>init</code></a> or <code>sync</code> for this <code>owner/repo</code></td>
+<td>Without cached state, <code>sync</code> refuses to start</td>
+</tr>
+<tr>
+<td><a href="authentication.html">GitHub auth</a></td>
+<td>Reads the repo through <code>gh</code> or a PAT</td>
+</tr>
+<tr>
+<td><a href="configuration.html">AI provider</a></td>
+<td>Token via <code>set</code>, <code>--token=</code>, or <code>--env=PATH</code></td>
+</tr>
+<tr>
+<td>A reason to refresh</td>
+<td>New merges on <code>main</code>, outdated guides, or review quality drift</td>
+</tr>
+</tbody></table>
+<p>If the repo was never initialized, run <a href="init.html"><code>init</code></a> (or <a href="probe.html"><code>probe</code></a>
+first for limits). To change <code>--include-*</code> or limits permanently, pass flags on
+<code>sync</code> or run <a href="init.html"><code>init</code></a> again with the new options.</p>
+<h2 id="usage">Usage</h2>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--auth=gh</span> <span class="sh-flag">--ai=openrouter</span> <span class="sh-flag">--token=YOUR_KEY</span> <span class="sh-arg">\</span>
+  <span class="sh-flag">--low-model=openai/gpt-oss-120b</span> <span class="sh-flag">--high-model=openai/gpt-5.6-luna</span>
+
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">sync</span> <span class="sh-arg">owner/repo</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">sync</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--env=./.env</span> <span class="sh-flag">--log-time</span>
+</code></pre>
+<p>After the first <a href="init.html"><code>init</code></a>, a plain <code>co-maintainer sync owner/repo</code> is
+enough: auth, models, limits, and <code>include-*</code> choices are read from
+<a href="configuration.html#per-repo-memory">per-repo config</a>. You only need to supply the
+API token again if it is not in config or env.</p>
+<p>On the <a href="dashboard.html">dashboard</a>, <strong>Sync now</strong> runs the same job as this command.</p>
+<h2 id="parameters">Parameters</h2>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>owner/repo</code></td>
+<td>Repository to refresh (required)</td>
+</tr>
+<tr>
+<td><code>--auth=gh</code></td>
+<td>GitHub CLI (default, or from <code>set</code> / config)</td>
+</tr>
+<tr>
+<td><code>--auth=pat</code></td>
+<td>Personal access token (see <a href="authentication.html">Authentication</a>)</td>
+</tr>
+<tr>
+<td><code>--github-pat=...</code></td>
+<td>PAT when not in env or config</td>
+</tr>
+<tr>
+<td><code>--env=PATH</code></td>
+<td>Load env vars from a file</td>
+</tr>
+<tr>
+<td><code>--ai=openrouter</code></td>
+<td>AI provider (<code>openrouter</code>, <code>hetzner</code>, or <code>none</code>)</td>
+</tr>
+<tr>
+<td><code>--token=...</code></td>
+<td>Provider API key</td>
+</tr>
+<tr>
+<td><code>--low-model=...</code></td>
+<td>Model for extraction steps</td>
+</tr>
+<tr>
+<td><code>--high-model=...</code></td>
+<td>Model for synthesis steps</td>
+</tr>
+<tr>
+<td><code>--include-codebase</code></td>
+<td>Include default-branch tree and files</td>
+</tr>
+<tr>
+<td><code>--include-pull-requests</code></td>
+<td>Include PR metadata and discussions</td>
+</tr>
+<tr>
+<td><code>--include-pull-request-changes</code></td>
+<td>Include PR diffs</td>
+</tr>
+<tr>
+<td><code>--include-commit-history</code></td>
+<td>Include commit messages on the default branch</td>
+</tr>
+<tr>
+<td><code>--include-how-repo-works</code></td>
+<td>Include issues / workflow signals when available</td>
+</tr>
+<tr>
+<td><code>--max-pr-months=N</code></td>
+<td>Limit how far back PR history goes</td>
+</tr>
+<tr>
+<td><code>--max-commits=N</code></td>
+<td>Limit commits scanned on the default branch</td>
+</tr>
+<tr>
+<td><code>--max-pull-request-change-lines=N</code></td>
+<td>Skip oversized PR diffs</td>
+</tr>
+<tr>
+<td><code>--max-comment=N</code></td>
+<td>Cap discussion comments kept per pull request</td>
+</tr>
+<tr>
+<td><code>--only-request-changed-pr</code></td>
+<td>Keep only pull requests with at least one <code>CHANGES_REQUESTED</code> review</td>
+</tr>
+<tr>
+<td><code>--pr-state=open,closed,merged</code></td>
+<td>Keep a comma-separated subset of <code>open</code>, <code>closed</code>, and <code>merged</code></td>
+</tr>
+<tr>
+<td><code>--gh-concurrent=N</code></td>
+<td>Parallel GitHub fetches (default <code>1</code>)</td>
+</tr>
+<tr>
+<td><code>--ai-concurrent=N</code></td>
+<td>Parallel AI jobs (default <code>3</code>)</td>
+</tr>
+<tr>
+<td><code>--debug</code></td>
+<td>Verbose logs on stderr</td>
+</tr>
+<tr>
+<td><code>--log-time</code></td>
+<td>Print timing per phase</td>
+</tr>
+</tbody></table>
+<p><strong>Defaults on <code>sync</code>:</strong> With no flags, auth, models, <code>include-*</code>, <code>max-*</code>,
+<code>--only-request-changed-pr</code>, and <code>--pr-state</code> usually come from
+<a href="configuration.html#per-repo-memory">per-repo config</a> written by the last <code>init</code>
+or <code>sync</code>. Omitted <code>--max-*</code> values are also filled from the cached run
+state for that repo.</p>
+<p><strong>Include flags:</strong> If you pass <strong>any</strong> <code>--include-*</code> on the command line, only
+the flags you list are enabled. With no <code>--include-*</code> flags, the saved per-repo
+choices apply.</p>
+<p><strong>Pull request filters:</strong> <code>--only-request-changed-pr</code> applies inside the
+<code>--max-pr-months</code> window. A dismissed review does not count. Dropped pull
+requests skip comment and diff downloads. The run logs
+<code>only request-changed pr · kept N · dropped N</code>. Off until a run saves it.
+<code>--pr-state</code> takes <code>open</code>, <code>closed</code>, and <code>merged</code>, separated by commas.
+<code>closed</code> means closed and not merged. With no flag and no saved set, every
+state is kept. The listing cache is stored per state set, so a different set
+is not filled from the previous listing. <code>--only-request-changed-pr</code> does not
+turn itself off. To collect every state again, pass
+<code>--pr-state=open,closed,merged</code>.</p>
+<h2 id="what-gets-reused">What gets reused</h2>
+<ul>
+<li>Unchanged files on the default branch (tree SHA in cache)</li>
+<li>Pull request listings and discussions when <code>updated_at</code> is unchanged</li>
+<li>Diffs when the PR head SHA is unchanged</li>
+<li>AI extraction and synthesis jobs when inputs and models match</li>
+</ul>
+<p>Changed evidence invalidates only the facts and skill sections that depend on
+it. Outputs still land under <code>&lt;config dir&gt;/repos/owner/repo/</code> (see
+<a href="caching.html">Caching</a>).</p>
+<h2 id="scheduled-sync">Scheduled sync</h2>
+<p>A <a href="serve.html"><code>serve</code></a> instance can run <code>sync</code> for you. Open a repository in the
+dashboard, go to <strong>Settings</strong>, and fill <strong>Scheduled sync</strong> with a five field
+cron expression (minute, hour, day of month, month, day of week). Leave it blank
+to turn it off.</p>
+<table>
+<thead>
+<tr>
+<th>Example</th>
+<th>Runs</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>0 3 * * 1</code></td>
+<td>Every Monday at 03:00 UTC</td>
+</tr>
+<tr>
+<td><code>30 4 * * *</code></td>
+<td>Every day at 04:30 UTC</td>
+</tr>
+<tr>
+<td><code>0 */6 * * *</code></td>
+<td>Every six hours, on the hour</td>
+</tr>
+</tbody></table>
+<ul>
+<li>Times are UTC.</li>
+<li>The minute field takes a single value, so a schedule fires at most once an
+hour. A sync spends model tokens, and this keeps a typo from burning them.</li>
+<li>As in classic cron, a day field that starts with <code>*</code> counts as unrestricted, so
+both day fields must match. <code>0 0 */2 * 1</code> runs only on Mondays that fall on an
+odd day of the month. When neither day field has a <code>*</code>, either one matching is
+enough.</li>
+<li>A repository is skipped while its first setup is unfinished or while another
+setup or sync for it is queued or running.</li>
+<li>A minute the server was down for is not made up. The next matching minute runs.</li>
+<li>The scheduler lives inside <code>serve</code>, so nothing runs while <code>serve</code> is stopped.</li>
+</ul>
+<p>The schedule is stored per repository as <code>remakeCron</code> in
+<a href="configuration.html#per-repo-memory"><code>config.json</code></a>. The key keeps its original
+name so existing config files keep working.</p>
+<p>Next: <a href="review.html"><code>review</code></a>. For a one-off refresh before a local review, see
+<code>--sync-before-review</code> in <a href="local-review.html">local review</a>.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/sync.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#what-gets-reused">What gets reused</a></li><li><a href="#scheduled-sync">Scheduled sync</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

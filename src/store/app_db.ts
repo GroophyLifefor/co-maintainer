@@ -1,5 +1,6 @@
 import { Database } from "./sqlite.ts";
 import { getCacheDir } from "../config.ts";
+import { CliError, EXIT_USAGE } from "../cli/error.ts";
 import { migrations } from "./migrations.ts";
 import {
   getEnv,
@@ -39,8 +40,13 @@ async function acquireLock(): Promise<void> {
     Number.isInteger(existingPid) &&
     isProcessAlive(existingPid)
   ) {
-    throw new Error(
-      `co-maintainer serve is already running (pid ${existingPid}) against this app.db. Only one serve process may write to it at a time.`,
+    // Says what is holding the database, what to do about it, and offers the
+    // path that does not need another process. CORE-12.
+    throw new CliError(
+      "serve_already_running",
+      `A co-maintainer serve process (pid ${existingPid}) is using this data directory.`,
+      "Stop it, or run sync from its dashboard.",
+      EXIT_USAGE,
     );
   }
   await writeTextFile(path, String(process.pid));
@@ -98,7 +104,7 @@ export async function openAppDb(): Promise<Database> {
 }
 
 export function getAppDb(): Database {
-  if (!db) throw new Error("app.db is not open; call openAppDb() first");
+  if (!db) throw new Error("app.db is not open. Call openAppDb() first");
   return db;
 }
 

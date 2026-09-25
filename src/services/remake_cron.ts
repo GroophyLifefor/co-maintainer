@@ -5,12 +5,12 @@ import { cronMatches, parseCron } from "../util/cron.ts";
 import type { Cron } from "../util/cron.ts";
 import { enqueueSetup } from "./setup.ts";
 
-/** A remake costs model tokens, so a schedule may fire at most once an hour. */
+/** A sync costs model tokens, so a schedule may fire at most once an hour. */
 export function parseRemakeCron(expression: string): Cron {
   const cron = parseCron(expression);
   if (cron.minutes.size !== 1) {
     throw new Error(
-      "the minute field must be a single value, so a remake runs at most once an hour",
+      "the minute field must be a single value, so a sync runs at most once an hour",
     );
   }
   return cron;
@@ -52,7 +52,7 @@ export function startRemakeScheduler(intervalMs = 15_000): void {
   const ticker = createRemakeCronTicker();
   timer = setInterval(() => {
     for (const repo of ticker(new Date())) {
-      console.log(`[cron] queued a scheduled remake for ${repo}`);
+      console.log(`[cron] queued a scheduled sync for ${repo}`);
     }
   }, intervalMs);
 }

@@ -1,4 +1,9 @@
-import { AppClient, AppJwtClient, listInstallationsWithRepos } from "./app.ts";
+import {
+  AppClient,
+  AppJwtClient,
+  listInstallationsWithRepos,
+  listOpenPulls,
+} from "./app.ts";
 import { TEST_PKCS1_PEM } from "../testing/fixtures/rsa_key.ts";
 import { test } from "node:test";
 
@@ -160,6 +165,78 @@ test("listInstallationsWithRepos merges each installation with its repos", async
         !result[0].repos[0].private
       ) {
         throw new Error(`unexpected repos: ${JSON.stringify(result[0].repos)}`);
+      }
+    },
+  );
+});
+
+test("listOpenPulls drops drafts and returns undefined without an installation", async () => {
+  const installs = [
+    {
+      id: 7,
+      account: { login: "acme", type: "Organization" },
+      suspended_at: null,
+    },
+  ];
+  const pulls = [
+    {
+      number: 12,
+      title: "Tidy the helper",
+      draft: false,
+      user: { login: "octocat" },
+      head: { ref: "fix/helper" },
+      updated_at: "2026-09-22T10:00:00Z",
+    },
+    {
+      number: 13,
+      title: "Work in progress",
+      draft: true,
+      user: { login: "octocat" },
+      head: { ref: "wip" },
+      updated_at: "2026-09-22T11:00:00Z",
+    },
+  ];
+  await withFetch(
+    (url) => {
+      if (url.includes("/app/installations")) return jsonResponse(installs);
+      if (url.includes("/access_tokens")) {
+        return jsonResponse({
+          token: "ghs_x",
+          expires_at: new Date(Date.now() + 3600_000).toISOString(),
+        });
+      }
+      if (url.includes("/installation/repositories")) {
+        return jsonResponse({
+          repositories: [{ full_name: "acme/widgets", private: false }],
+        });
+      }
+      if (url.includes("/repos/acme/widgets/pulls")) {
+        if (!url.includes("state=open"))
+          throw new Error(`not filtered: ${url}`);
+        return jsonResponse(pulls);
+      }
+      throw new Error(`unexpected request: ${url}`);
+    },
+    async () => {
+      const open = await listOpenPulls(
+        "4900449",
+        TEST_PKCS1_PEM,
+        "acme/widgets",
+      );
+      if (!open) throw new Error("expected a list for an installed repo");
+      if (open.length !== 1 || open[0].number !== 12) {
+        throw new Error(`drafts were not dropped: ${JSON.stringify(open)}`);
+      }
+      if (open[0].author !== "octocat" || open[0].headRef !== "fix/helper") {
+        throw new Error(`bad fields: ${JSON.stringify(open[0])}`);
+      }
+      const missing = await listOpenPulls(
+        "4900449",
+        TEST_PKCS1_PEM,
+        "other/repo",
+      );
+      if (missing !== undefined) {
+        throw new Error("an uninstalled repo should read as undefined");
       }
     },
   );

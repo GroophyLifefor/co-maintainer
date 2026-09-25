@@ -1,23 +1,23 @@
 {
   "name": "co-maintainer",
-  "version": "0.4.13",
-  "description": "Analyzes a GitHub repository and writes repository-specific contribution guidance.",
+  "version": "0.5.0",
+  "description": "An imitator of yours, A PR review tool like co-maintainer.",
+  "keywords": [
+    "ai",
+    "code-review",
+    "github",
+    "maintainer",
+    "pull-request"
+  ],
+  "homepage": "https://co-maintainer.com",
+  "bugs": {
+    "url": "https://github.com/GroophyLifefor/co-maintainer/issues"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/GroophyLifefor/co-maintainer"
   },
-  "homepage": "https://github.com/GroophyLifefor/co-maintainer#readme",
-  "bugs": {
-    "url": "https://github.com/GroophyLifefor/co-maintainer/issues"
-  },
-  "keywords": [
-    "github",
-    "pull-request",
-    "code-review",
-    "maintainer",
-    "ai"
-  ],
   "bin": {
     "co-maintainer": "dist/main.js"
   },
@@ -34,7 +34,7 @@
     "build": "npm run assets:embed && tsc -p tsconfig.build.json",
     "assets:embed": "node scripts/embed_assets.mjs",
     "prepack": "npm run build",
-    "test": "node --test \"src/**/*.test.ts\" \"benchmark/**/*.test.ts\"",
+    "test": "node --test \"src/**/*.test.ts\" \"scripts/**/*.test.ts\" \"benchmark/**/*.test.ts\"",
     "check": "tsc --noEmit",
     "lint": "oxlint",
     "fmt": "oxfmt --write .",
@@ -43,6 +43,7 @@
     "probe": "node main.ts probe",
     "init": "node main.ts init",
     "remake": "node main.ts remake",
+    "sync": "node main.ts sync",
     "review": "node main.ts review",
     "serve": "node main.ts serve",
     "bench": "node benchmark/core_v2/run.ts",
@@ -52,7 +53,11 @@
     "swe-prbench-prepare": "node benchmark/swe-prbench/prepare_dataset.ts",
     "e2e": "node scripts/e2e.ts",
     "review-local-e2e": "node scripts/review_local_e2e.ts",
-    "docs:build": "node scripts/build_docs.ts"
+    "docs:build": "node scripts/build_docs.ts",
+    "pack:smoke": "node scripts/pack_smoke.ts",
+    "downgrade:check": "node scripts/downgrade_check.ts",
+    "dx:scenario": "node scripts/dx_scenario.ts",
+    "dashboard:smoke": "node scripts/dashboard_smoke.ts"
   },
   "dependencies": {
     "marked": "^15.0.7"
@@ -61,6 +66,7 @@
     "@types/node": "^24.0.0",
     "oxfmt": "^0.68.0",
     "oxlint": "^1.83.0",
+    "playwright": "^1.63.0",
     "typescript": "^5.7.0"
   },
   "engines": {

@@ -64,6 +64,14 @@ test("platformWarning is silent on linux and speaks up everywhere else", () => {
     if (!warning?.includes(os)) {
       throw new Error(`expected a warning naming ${os}, got ${warning}`);
     }
+    // Stands on its own: no internal document reference, and it links to the
+    // public troubleshooting page instead.
+    if (warning.includes("PLAN.md")) {
+      throw new Error("the warning still points at an internal document");
+    }
+    if (!warning.includes("co-maintainer.com/docs/troubleshooting.html")) {
+      throw new Error("the warning does not link to the docs");
+    }
   }
 });
 

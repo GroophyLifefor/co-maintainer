@@ -2,10 +2,15 @@ import type { Options } from "../types.ts";
 import { prepareConfig } from "../config.ts";
 import { getEnv } from "../util/runtime.ts";
 import { askLine } from "./prompt.ts";
-
-function die(message: string): never {
-  throw new Error(message);
-}
+import { die } from "./error.ts";
+import { detectRemoteRepo } from "../local/git_ops.ts";
+import { reviewBlockingFrom } from "../review/blocking.ts";
+import {
+  renderCommandHelp,
+  renderGlobalHelp,
+  unknownCommandMessage,
+  unknownOptionMessage,
+} from "./commands/registry.ts";
 
 function numberOption(value: string, name: string): number {
   const number = Number(value);
@@ -15,7 +20,7 @@ function numberOption(value: string, name: string): number {
   return number;
 }
 
-const commands = ["probe", "init", "remake", "review"] as const;
+const commands = ["probe", "init", "sync", "remake", "review"] as const;
 export const defaultLowModel = "openai/gpt-oss-120b";
 const defaultHighModel = "openai/gpt-5.6-luna";
 
@@ -57,50 +62,27 @@ export async function parseArgs(args: string[]): Promise<Options> {
     repo === "--help" ||
     repo === "-h"
   ) {
-    console.log(
-      "Usage: co-maintainer <probe|init|remake|review> owner/repo [options]",
-    );
-    console.log("       co-maintainer review [options]");
-    console.log("       co-maintainer review owner/repo PR_NUMBER [options]");
-    console.log(
-      "       co-maintainer set --token=... --ai=... --low-model=... --high-model=... --auth=...",
-    );
-    console.log("       co-maintainer serve --port=N");
-    console.log("       co-maintainer -v | --version");
-    console.log(
-      "         --webhook-url=https://host/github/webhook [or CM_WEBHOOK_URL]",
-    );
-    console.log(
-      "         --env=PATH --debug --log-time --gh-concurrent=N --ai-concurrent=N",
-    );
-    console.log(
-      "Options: --include-codebase --include-pull-requests --include-pull-request-changes",
-    );
-    console.log("         --include-commit-history --include-how-repo-works");
-    console.log(
-      "         --max-commits=N --max-pr-months=N --max-pull-request-change-lines=N --max-comment=N",
-    );
-    console.log("         --only-request-changed-pr");
-    console.log("         --pr-state=open,closed,merged");
-    console.log(
-      "         --auth=gh|pat --github-pat=... --ai=none|openrouter|hetzner --token=... --low-model=... --high-model=...",
-    );
+    console.log(renderGlobalHelp());
     process.exit(0);
   }
   if (!commands.includes(command as (typeof commands)[number])) {
-    die(`Unknown command: ${command}`);
+    die(unknownCommandMessage(command));
   }
   if (rest.includes("--help") || rest.includes("-h")) {
-    console.log(`Usage: co-maintainer ${command} ...`);
-    console.log("Run co-maintainer --help for all options.");
+    console.log(renderCommandHelp(command) ?? renderGlobalHelp());
     process.exit(0);
   }
   if (repo === "--help" || repo === "-h") {
-    console.log(`Usage: co-maintainer ${command} ...`);
-    console.log("Run co-maintainer --help for all options.");
+    console.log(renderCommandHelp(command) ?? renderGlobalHelp());
     process.exit(0);
   }
-  if (!repo || !/^[^/]+\/[^/]+$/.test(repo)) {
+  // `probe` (and only probe, for now) may omit the repo and let the current
+  // directory's git remote name it (CORE-24).
+  let repoName = repo;
+  if ((!repoName || repoName.startsWith("-")) && command === "probe") {
+    repoName = await detectRemoteRepo(process.cwd());
+  }
+  if (!repoName || !/^[^/]+\/[^/]+$/.test(repoName)) {
     die("Repository must look like owner/repo");
   }
 
@@ -109,7 +91,10 @@ export async function parseArgs(args: string[]): Promise<Options> {
   const configDefault = config.defaults ?? {};
   // Remembered from a prior `init`/`remake` on this exact repo — never a
   // secret, so it can safely fill in everything except the API token.
-  const repoConfig = config.repos?.[repo] ?? {};
+  const repoConfig = config.repos?.[repoName] ?? {};
+  const reviewBlocking = reviewBlockingFrom(
+    env("CO_MAINTAINER_REVIEW_BLOCKING") ?? config.reviewBlocking,
+  );
 
   let prNumber: number | undefined;
   if (command === "review") {
@@ -213,10 +198,11 @@ export async function parseArgs(args: string[]): Promise<Options> {
       arg === "--log-time" ||
       arg === "--review-upstream" ||
       arg === "--disable-codegraph" ||
+      arg === "--run" ||
       arg === "--only-request-changed-pr"
     )
       continue;
-    if (arg.startsWith("--") && !known) die(`Unknown option: ${arg}`);
+    if (arg.startsWith("--") && !known) die(unknownOptionMessage(arg, command));
   }
 
   const explicitAi = rest.some((arg) => arg.startsWith("--ai="));
@@ -242,7 +228,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
     config.githubPat;
   if (auth === "pat" && !githubPat) {
     die(
-      "--auth=pat requires a GitHub token; pass --github-pat=..., set GITHUB_TOKEN/GH_TOKEN, " +
+      "--auth=pat requires a GitHub token. Pass --github-pat=..., set GITHUB_TOKEN/GH_TOKEN, " +
         "or run: co-maintainer set --github-pat=...",
     );
   }
@@ -308,12 +294,13 @@ export async function parseArgs(args: string[]): Promise<Options> {
   }
 
   return {
-    command: command as Options["command"],
-    repo,
+    command: command === "sync" ? "remake" : (command as Options["command"]),
+    repo: repoName,
     prNumber,
     debug: rest.includes("--debug"),
     logTime: rest.includes("--log-time"),
     reviewUpstream: rest.includes("--review-upstream"),
+    run: rest.includes("--run"),
     useCodegraph:
       command === "review" ? !rest.includes("--disable-codegraph") : false,
     envPath,
@@ -347,5 +334,6 @@ export async function parseArgs(args: string[]): Promise<Options> {
       repoConfig.maxPullRequestChangeLines ??
       configDefault.maxPullRequestChangeLines,
     maxComments: value("max-comment") ?? repoConfig.maxComments,
+    reviewBlocking,
   };
 }

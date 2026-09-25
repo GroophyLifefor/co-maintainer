@@ -44,6 +44,12 @@ export type Options = {
   maxPrMonths?: number;
   maxPullRequestChangeLines?: number;
   maxComments?: number;
+  /** `probe --run`: after printing the plan, run the recommended init in the
+   * same process (CORE-24). */
+  run?: boolean;
+  /** How a review decides a blocking finding (CORE-41). `model` keeps the
+   * 0.4.13 behavior, `severity` uses a fixed P0/P1 threshold. */
+  reviewBlocking?: "model" | "severity";
 };
 
 export type GitHubClient = {
@@ -86,6 +92,10 @@ export type AiRequest = {
   tools?: Json[];
   maxTokens: number;
   job: string;
+  /** A JSON schema the response must satisfy, sent as OpenRouter's
+   * `response_format`. Providers without structured output ignore it, so the
+   * model is also asked for a fenced JSON block in the prompt (CORE-40). */
+  responseFormat?: Json;
   // The full scale OpenRouter exposes for models that support it (see a
   // model's `reasoning.supported_efforts`), highest first. Not every model
   // supports every level — "max"/"xhigh" are newer additions some models

@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>serve · co-maintainer docs</title>
+  <meta name="description" content="Long-running process for self-hosted co-maintainer: GitHub App webhooks, background review jobs, the dashboard, and the API used by remote review. One...">
+  <link rel="canonical" href="https://co-maintainer.com/docs/serve.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html" class="active">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="privacy.html">Data and privacy</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1><code>serve</code></h1>
+<p>Long-running process for <strong>self-hosted</strong> co-maintainer: GitHub App webhooks,
+background review jobs, the <a href="dashboard.html">dashboard</a>, and the API used by
+<a href="remote-review.html">remote review</a>. One binary, one <code>app.db</code>, one config dir.</p>
+<p>Linux (WSL included) is the recommended platform. See
+<a href="dashboard.html#linux">dashboard: Linux</a> for why.</p>
+<h2 id="what-it-does">What it does</h2>
+<figure class="mermaid-figure">
+<div class="mermaid-viewport"><div class="mermaid">flowchart LR
+  gh[GitHub App]
+  gh -->|POST webhook| serve[co-maintainer serve]
+  serve --> jobs[Review and reply jobs]
+  serve --> dash[Dashboard UI]
+  serve --> remote[Remote review API]
+  jobs -->|App token| gh
+  browser[Browser] --> dash
+  cli[CLI review --remote] --> remote</div></div>
+</figure>
+
+
+
+<table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>POST /github/webhook</code></td>
+<td>PR and conversation events enqueue work</td>
+</tr>
+<tr>
+<td>Dashboard at <code>/</code></td>
+<td>Per-repo init/sync, settings, activity, credentials</td>
+</tr>
+<tr>
+<td>Job worker</td>
+<td>Auto PR reviews, setup jobs, conversation replies</td>
+</tr>
+<tr>
+<td>Remote review</td>
+<td>Shared repo context for laptops without local init</td>
+</tr>
+</tbody></table>
+<p>Team flow: configure the App once, run <code>serve</code>, add repos on the dashboard,
+then either webhooks review PRs or developers use <a href="remote-review.html"><code>review --remote</code></a>.
+CLI-only users can ignore <code>serve</code> until they need shared context or automation.</p>
+<h2 id="before-you-run">Before you run</h2>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="getting-started.html#1-install">Install</a> <code>co-maintainer</code></td>
+<td><code>serve</code> is a CLI command</td>
+</tr>
+<tr>
+<td>GitHub App (optional at startup)</td>
+<td>Add it later in the dashboard <strong>Settings</strong>, or with <code>co-maintainer set</code> (<a href="configuration.html">Configuration</a>). Changes apply without a restart. The dashboard can also create it for you (see <a href="#create-the-app-from-the-dashboard">Create the App from the dashboard</a>)</td>
+</tr>
+<tr>
+<td><code>--github-webhook-secret=</code> (recommended)</td>
+<td>Verifies webhook payloads</td>
+</tr>
+<tr>
+<td>AI and GitHub access via dashboard <strong>Get started</strong> (<code>/setup</code>) or <strong>Settings</strong></td>
+<td>Reviews need models and repo access (can finish after first boot)</td>
+</tr>
+<tr>
+<td>Public URL for webhooks (production)</td>
+<td>GitHub must reach <code>POST .../github/webhook</code></td>
+</tr>
+<tr>
+<td>Linux or WSL for production</td>
+<td>Other platforms log a warning and continue</td>
+</tr>
+</tbody></table>
+<h2 id="usage">Usage</h2>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-app-id=...</span> <span class="sh-flag">--github-app-private-key-file=./app.pem</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-app-id=...</span> <span class="sh-flag">--github-app-private-key-path=./app.pem</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-webhook-secret=...</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">serve</span> <span class="sh-flag">--port=5000</span>
+
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">serve</span> <span class="sh-flag">--port=5000</span> <span class="sh-flag">--password=your-dashboard-secret</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">serve</span> <span class="sh-flag">--port=5000</span> <span class="sh-flag">--webhook-url=https://example.com/github/webhook</span>
+</code></pre>
+<p><code>--github-app-private-key-file</code> copies the key into <code>config.json</code>.
+<code>--github-app-private-key-path</code> stores only the path, so the key stays on disk
+and is read at startup. If that file is missing, <code>serve</code> warns and continues.
+See <a href="configuration.html#app-private-key-inline-file-contents-or-path">Configuration: App private key</a>.</p>
+<p>On non-Linux platforms, <code>serve</code> logs a one-line warning that Linux (WSL
+included) is recommended, with a link to
+<a href="https://co-maintainer.com/docs/troubleshooting.html">docs</a>. Nothing is blocked.</p>
+<p>At startup, <code>serve</code> prints <code>app.db</code> path, dashboard URL, and webhook URL. On the
+first start with password auth on it also generates a dashboard password and
+prints it once. The password is stored in <code>config.json</code> as a hash, so later
+starts keep it.</p>
+<h2 id="parameters">Parameters</h2>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--port=N</code></td>
+<td>HTTP port (required, 1 to 65535)</td>
+</tr>
+<tr>
+<td><code>--password=...</code></td>
+<td>Replace the stored dashboard password (a random one is generated on the first start if none exists)</td>
+</tr>
+<tr>
+<td><code>--webhook-url=...</code></td>
+<td>Public webhook URL GitHub should use (also <code>CM_WEBHOOK_URL</code> or saved in Settings)</td>
+</tr>
+<tr>
+<td><code>--disable-auth=password</code></td>
+<td>Turn off password sign-in for this run</td>
+</tr>
+<tr>
+<td><code>--enable-auth=github</code></td>
+<td>Turn on GitHub OAuth sign-in for this run</td>
+</tr>
+<tr>
+<td><code>--trust-proxy</code></td>
+<td>Trust <code>x-forwarded-for</code> and <code>x-forwarded-proto</code> from a reverse proxy in front (also <code>CM_TRUST_PROXY=1</code>, see <a href="#behind-a-reverse-proxy">Behind a reverse proxy</a>)</td>
+</tr>
+<tr>
+<td><code>--inject-500</code></td>
+<td>Every mutating <code>/api/*</code> call returns 500 (failure UI testing, also <code>CM_INJECT_500=1</code>)</td>
+</tr>
+<tr>
+<td><code>CM_LOGIN_HINT</code></td>
+<td>Text shown on the sign-in page instead of the default &quot;printed when <code>serve</code> started&quot; line. Useful when a deployment hands out its own password, as the Cloud image does. Escaped as plain text</td>
+</tr>
+</tbody></table>
+<p>Per-run <code>--disable-auth</code> / <code>--enable-auth</code> override values from <code>co-maintainer set</code>. At least one sign-in method must stay enabled.</p>
+<p>Persistent App, webhook, OAuth, and webhook URL fields: <a href="configuration.html">Configuration</a>
+and dashboard <strong>Settings</strong>.</p>
+<h2 id="sign-in-to-the-dashboard">Sign in to the dashboard</h2>
+<p><strong>Password (default).</strong> Copy the password from the <code>serve</code> console on first start,
+or set it with <code>--password=...</code> or <code>co-maintainer set --password=...</code>. Change it
+any time from <strong>Settings</strong>, which also signs out the other browser sessions.</p>
+<p><strong>GitHub sign-in (optional).</strong> One allowed GitHub user can sign in with the App&#39;s
+OAuth client (no separate OAuth App).</p>
+<ol>
+<li>On the GitHub App settings page, set <strong>Redirect URL</strong> to
+<code>http://&lt;host&gt;:&lt;port&gt;/auth/github/callback</code> (same host and port as <code>serve</code>).</li>
+<li>Copy client ID and client secret from that page.</li>
+<li>Save credentials and the allowed username:<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-oauth-client-id=...</span> <span class="sh-arg">\</span>
+  <span class="sh-flag">--github-oauth-client-secret=...</span> <span class="sh-arg">\</span>
+  <span class="sh-flag">--github-oauth-allowed-user=your-github-username</span>
+</code></pre>
+</li>
+<li>Enable on the command line when needed:<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">serve</span> <span class="sh-flag">--port=5000</span> <span class="sh-flag">--enable-auth=github</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">serve</span> <span class="sh-flag">--port=5000</span> <span class="sh-flag">--disable-auth=password</span> <span class="sh-flag">--enable-auth=github</span>
+</code></pre>
+</li>
+</ol>
+<p>OAuth and auth toggles can also be changed later in dashboard <strong>Settings</strong>. UI
+routes and failure behavior: <a href="dashboard.html">Dashboard</a>.</p>
+<p>The sign-in page says &quot;Use the dashboard password printed when serve started.&quot;
+Set <code>CM_LOGIN_HINT</code> to replace that line with your own text, for example a
+pointer to the password your deployment already gave the user. It is shown as
+plain text and escaped, so it cannot inject markup.</p>
+<h2 id="create-the-app-from-the-dashboard">Create the App from the dashboard</h2>
+<p>Creating an App by hand means copying a private key, a webhook secret, and OAuth
+credentials between GitHub and the dashboard, and the webhook secret is easy to
+mismatch. The GitHub App card in <strong>Settings</strong> can create the App for you instead:</p>
+<ol>
+<li>Set a public <strong>Webhook address</strong> first. On <code>http://localhost:&lt;port&gt;...</code> the
+button explains that GitHub cannot reach it, so nothing silent happens.</li>
+<li>Pick an <strong>App name</strong>. It defaults to <code>co-maintainer-&lt;host&gt;</code> and must be unique
+on GitHub, which the field lets you change.</li>
+<li>Click <strong>Create GitHub App</strong>. The dashboard opens GitHub&#39;s manifest page, which
+asks you to confirm the permissions and events listed there.</li>
+</ol>
+<p>GitHub then redirects back, and <code>serve</code> writes the App ID, private key, webhook
+secret, and OAuth client ID and secret straight into <code>config.json</code>, the same keys
+the manual fields use. The browser lands on the App&#39;s install page, where you
+choose the repositories the App can see. The manual fields stay available for an
+App you created yourself.</p>
+<p>The manifest requests only what the code calls:</p>
+<table>
+<thead>
+<tr>
+<th>Permission</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>contents: read</code></td>
+<td>Read the review guide, file contents, and git trees</td>
+</tr>
+<tr>
+<td><code>pull_requests: write</code></td>
+<td>Read a pull request, post reviews and review comments</td>
+</tr>
+<tr>
+<td><code>issues: write</code></td>
+<td>Post and read issue comments</td>
+</tr>
+<tr>
+<td><code>checks: write</code></td>
+<td>Create and update the review check run</td>
+</tr>
+<tr>
+<td><code>metadata: read</code></td>
+<td>Required by every App</td>
+</tr>
+</tbody></table>
+<p>Events: <code>pull_request</code>, <code>pull_request_review</code>, <code>pull_request_review_comment</code>,
+<code>issue_comment</code>. GitHub delivers <code>installation</code> and <code>installation_repositories</code>
+without a subscription, so the manifest does not list them.</p>
+<h2 id="webhook-url">Webhook URL</h2>
+<p>Point the GitHub App webhook at:</p>
+<p><code>http://&lt;host&gt;:&lt;port&gt;/github/webhook</code></p>
+<p>The dashboard <strong>Settings</strong> field, <code>--webhook-url=...</code>, <code>CM_WEBHOOK_URL</code>, or
+saved config override the default <code>http://localhost:&lt;port&gt;/github/webhook</code>.</p>
+<p>When a secret is configured, <code>serve</code> checks <code>x-hub-signature-256</code>. Duplicate
+delivery IDs are ignored. <code>pull_request</code> and review-comment events enqueue jobs
+when the repo is active and rules allow it. Enable <strong>Issue comments</strong> and
+<strong>Issues: write</strong> on the App if you want <code>@co-maintainer</code> conversation replies.</p>
+<p>Manual PR review from the UI when GitHub cannot reach your host:
+<a href="dashboard.html#routes">Dashboard: Pull requests</a>.</p>
+<h2 id="behind-a-reverse-proxy">Behind a reverse proxy</h2>
+<p>Put <code>serve</code> behind nginx, Traefik, Caddy, or a load balancer and start it with
+<code>--trust-proxy</code> (or <code>CM_TRUST_PROXY=1</code>). Two things change:</p>
+<ul>
+<li><strong>Client address.</strong> Sign-in lockout counts failed attempts per address. Without
+the flag every visitor arrives from the proxy&#39;s address, so five wrong guesses
+from anyone lock the owner out. With it, <code>serve</code> uses the last address in
+<code>x-forwarded-for</code>, the one your proxy appended, and ignores anything a visitor
+put to its left. A value that is not an IP address is ignored.</li>
+<li><strong>Secure cookies.</strong> When the last <code>x-forwarded-proto</code> is <code>https</code>, the session
+cookie is sent with the <code>Secure</code> flag.</li>
+</ul>
+<p>Only turn this on when a proxy you control sits in front and sets both headers.
+Without one, a visitor could send the headers themselves.</p>
+<h2 id="run-with-docker">Run with Docker</h2>
+<p>Each release is also published as an image at
+<code>ghcr.io/groophylifefor/co-maintainer</code>, tagged with the version and, for stable
+releases, <code>latest</code>. It bundles Node.js, <code>git</code>, and the codegraph binary that
+reviews use.</p>
+<pre class="shell-block"><code><span class="sh-arg">docker</span> <span class="sh-arg">run</span> <span class="sh-arg">-d</span> <span class="sh-flag">--name</span> <span class="sh-arg">co-maintainer</span> <span class="sh-arg">-p</span> <span class="sh-arg">5000:5000</span> <span class="sh-arg">\</span>
+  -v co-maintainer-data:/data \
+  -e CM_WEBHOOK_URL=https://example.com/github/webhook \
+  ghcr.io/groophylifefor/co-maintainer:latest
+
+docker logs co-maintainer
+</code></pre>
+<p>The first start prints the dashboard password in the logs. To choose it yourself,
+set it on the volume before the first start:</p>
+<pre class="shell-block"><code><span class="sh-arg">docker</span> <span class="sh-arg">run</span> <span class="sh-flag">--rm</span> <span class="sh-arg">-v</span> <span class="sh-arg">co-maintainer-data:/data</span> <span class="sh-arg">\</span>
+  <span class="sh-arg">ghcr.io/groophylifefor/co-maintainer:latest</span> <span class="sh-arg">set</span> <span class="sh-flag">--password=your-dashboard-secret</span>
+</code></pre>
+<ul>
+<li><p>Everything lives in the <code>/data</code> volume: <code>config.json</code>, <code>app.db</code>, generated
+guides, and repository clones. Keep it to survive upgrades.</p>
+</li>
+<li><p>The container listens on port <code>5000</code> and runs as the non-root <code>node</code> user
+(uid 1000). A bind mounted host folder must be writable by that user.</p>
+</li>
+<li><p>The image runs <code>serve --port=5000</code> by default. Any other command works too,
+for example <code>... set --token=...</code>. The health check assumes port <code>5000</code>.</p>
+</li>
+<li><p>Run one container per volume. Only one <code>serve</code> may write to an <code>app.db</code>.</p>
+</li>
+<li><p>Upgrade by pulling the new tag and recreating the container with the same
+volume. Queued jobs that were interrupted are picked up again on start.</p>
+</li>
+<li><p><strong>Inline, file, and path.</strong> <code>set</code> writes the App private key three ways:
+inline, as file contents, or as a path. The path form keeps the key out of
+<code>config.json</code>, and a missing file is warned about at startup. See
+<a href="configuration.html#app-private-key-inline-file-contents-or-path">Configuration: App private key</a>.</p>
+</li>
+</ul>
+<h2 id="updating">Updating</h2>
+<p>Forward-only migrations: do not install an older CLI after a newer one has
+opened <code>app.db</code>.</p>
+<ol>
+<li>Stop <code>serve</code>.</li>
+<li><code>npm install -g co-maintainer@latest</code></li>
+<li>Start <code>serve</code> again with the same data directory.</li>
+</ol>
+<p>Restart after upgrading. Do not reinstall while the old process is still
+running. Same steps are listed on <a href="dashboard.html#updating">Dashboard: Updating</a>.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/serve.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#what-it-does">What it does</a></li><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#sign-in-to-the-dashboard">Sign in to the dashboard</a></li><li><a href="#create-the-app-from-the-dashboard">Create the App from the dashboard</a></li><li><a href="#webhook-url">Webhook URL</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li><li><a href="#run-with-docker">Run with Docker</a></li><li><a href="#updating">Updating</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

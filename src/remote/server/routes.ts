@@ -22,6 +22,7 @@ import {
 import { readBoundedJson } from "./body.ts";
 import { submitRemoteReview } from "../../services/remote_review.ts";
 import { handleRemoteCancel, handleRemoteSync } from "./sync.ts";
+import { parseRepoQuery, readRemoteGuides } from "./guides.ts";
 import {
   validateHandshakeRequest,
   validateSubmitRequest,
@@ -173,6 +174,31 @@ async function handleSubmit(request: Request, ip: string): Promise<Response> {
   );
 }
 
+async function handleGuides(
+  request: Request,
+  ip: string,
+  url: URL,
+): Promise<Response> {
+  const auth = await authenticateRemote(request, ip);
+  if (auth instanceof Response) return auth;
+
+  const parsed = parseRepoQuery(url.searchParams.get("repo"));
+  if ("error" in parsed) {
+    return errorResponse(400, "bad_request", parsed.error);
+  }
+  const repoRow = findRepoByFullName(parsed.repo);
+  if (!repoRow || repoRow.active !== 1) {
+    return errorResponse(404, "repo_unavailable", REPO_UNAVAILABLE);
+  }
+  const { guides, guideBuiltAt } = await readRemoteGuides(repoRow.full_name);
+  return Response.json({
+    schemaVersion: REMOTE_SCHEMA_VERSION,
+    repo: { fullName: repoRow.full_name },
+    guideBuiltAt,
+    guides,
+  });
+}
+
 export async function handleRemoteRoute(
   request: Request,
   url: URL,
@@ -180,6 +206,10 @@ export async function handleRemoteRoute(
 ): Promise<Response> {
   if (url.pathname === "/api/remote/handshake" && request.method === "POST") {
     return await handleHandshake(request, remoteAddr);
+  }
+
+  if (url.pathname === "/api/remote/guides" && request.method === "GET") {
+    return await handleGuides(request, remoteAddr, url);
   }
 
   if (url.pathname === "/api/remote/reviews" && request.method === "POST") {

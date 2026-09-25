@@ -1,5 +1,7 @@
 import { AiBatch } from "../ai/batch.ts";
-import { sectionTitles } from "./sections.ts";
+import type { AiValidator, SkippedUnit } from "../ai/batch.ts";
+import { isPullRequestFact } from "./guide.ts";
+import { sectionAllowsPrFacts, sectionTitles } from "./sections.ts";
 import type { AiProvider, AiRequest, AiResponse, Options } from "../types.ts";
 import type { Fact, PullRequest, Source } from "./types.ts";
 
@@ -50,6 +52,7 @@ function factsFromResponse(
   text: string,
   evidence: string,
   defaultScope: Fact["scope"],
+  origin: Fact["origin"],
 ): Fact[] {
   const parsed = parseJson(text);
   if (!Array.isArray(parsed)) {
@@ -83,6 +86,7 @@ function factsFromResponse(
         scope,
         confidence,
         status: "active",
+        origin,
       },
     ];
   });
@@ -156,13 +160,43 @@ function queueFor(
   ai: Options["ai"],
   model: string,
   concurrency: number,
+  validate?: AiValidator,
 ): AiBatch {
   return new AiBatch(
     provider,
     repo,
     Math.max(1, concurrency),
     `${ai}:v2:${model}`,
+    validate,
   );
+}
+
+/** `factsFromResponse` as a validator: `null` when the text parses into facts,
+ * otherwise the parse error's message. Used so an unparseable response is never
+ * cached (CORE-30). */
+function validateFacts(
+  response: AiResponse,
+  evidence: string,
+  defaultScope: Fact["scope"],
+): string | null {
+  try {
+    factsFromResponse(response.text, evidence, defaultScope, "repository");
+    return null;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return `${evidence}: ${message}`;
+  }
+}
+
+/** `validSection` as a validator: `null` when the section body is usable,
+ * otherwise a short reason. A section that is empty or malformed is retried
+ * once and then left uncached, so a later `sync` does not replay it. */
+function validateSection(response: AiResponse, key: string): string | null {
+  const section = cleanSection(response.text, key);
+  if (!validSection(section, key)) {
+    return "synthesis output is not a valid section";
+  }
+  return null;
 }
 
 function extractRequest(prompt: string, maxTokens: number): AiRequest {
@@ -196,12 +230,12 @@ function validSection(text: string, key: string): boolean {
 function sectionGoal(key: string): string {
   const goals: Record<string, string> = {
     layout:
-      "Describe module responsibilities and important dependency or change-impact paths; do not list routine public symbols.",
+      "Describe module responsibilities and important dependency or change-impact paths. Do not list routine public symbols.",
     tests:
       "State which verification is required after a behavior change and the dependency/setup that makes it meaningful.",
     devloop:
       "Give local build, debugging, or change-impact guidance that is not already stated in Shipping.",
-    ship: "Give one concise release/CI checklist; merge overlapping workflow, artifact, and release-gate facts.",
+    ship: "Give one concise release/CI checklist. Merge overlapping workflow, artifact, and release-gate facts.",
     style:
       "Keep only repository-specific, evidenced conventions. Return only the heading when none are actionable.",
   };
@@ -209,27 +243,38 @@ function sectionGoal(key: string): string {
 }
 
 function synthesisFacts(facts: Fact[], key: string): Fact[] {
-  return facts
-    .filter((item) => item.sectionKey === key)
-    .sort(
-      (a, b) =>
-        (b.status === "active" ? 1 : 0) - (a.status === "active" ? 1 : 0) ||
-        ({
-          current: 3,
-          "repeated-history": 2,
-          "historical-example": 1,
-        }[b.scope] ?? 0) -
+  return (
+    facts
+      // A section that states repository policy never learns from a single pull
+      // request's narrative; only `review-bar` may (CORE-32 / F26b).
+      .filter(
+        (item) =>
+          item.sectionKey === key &&
+          (sectionAllowsPrFacts(key) || !isPullRequestFact(item)),
+      )
+      .sort(
+        (a, b) =>
+          (b.status === "active" ? 1 : 0) - (a.status === "active" ? 1 : 0) ||
           ({
             current: 3,
             "repeated-history": 2,
             "historical-example": 1,
-          }[a.scope] ?? 0) ||
-        b.weight - a.weight ||
-        b.evidence.length - a.evidence.length ||
-        a.claim.localeCompare(b.claim),
-    )
-    .slice(0, 20);
+          }[b.scope] ?? 0) -
+            ({
+              current: 3,
+              "repeated-history": 2,
+              "historical-example": 1,
+            }[a.scope] ?? 0) ||
+          b.weight - a.weight ||
+          b.evidence.length - a.evidence.length ||
+          a.claim.localeCompare(b.claim),
+      )
+      .slice(0, 20)
+  );
 }
+
+export type SkippedUnits = SkippedUnit[];
+export type SynthesisResult = Record<string, string>;
 
 export async function extractAiFacts(
   provider: AiProvider,
@@ -238,6 +283,18 @@ export async function extractAiFacts(
   options: Options,
   usage?: UsageSink,
 ): Promise<Fact[]> {
+  return (
+    await extractAiFactsWithReport(provider, repo, source, options, usage)
+  ).facts;
+}
+
+export async function extractAiFactsWithReport(
+  provider: AiProvider,
+  repo: string,
+  source: Source,
+  options: Options,
+  usage?: UsageSink,
+): Promise<{ facts: Fact[]; skipped: SkippedUnit[] }> {
   const requests: AiRequest[] = [];
   const evidence: string[] = [];
   const scopes: Fact["scope"][] = [];
@@ -298,6 +355,16 @@ ${files}`,
     options.ai,
     options.lowModel ?? "",
     options.aiConcurrent,
+    // Each request carries different evidence, so the validator looks the
+    // request up by identity to find which evidence it belongs to.
+    (request, response) => {
+      const at = requests.indexOf(request);
+      return validateFacts(
+        response,
+        evidence[at] ?? "repository files",
+        scopes[at] ?? "historical-example",
+      );
+    },
   );
   const responses = await queue.run(requests, usage);
   const facts: Fact[] = [];
@@ -310,6 +377,9 @@ ${files}`,
           response.text,
           evidence[index],
           scopes[index] ?? "historical-example",
+          evidence[index] === "repository files"
+            ? "repository"
+            : "pull-request",
         ).filter(
           (item) =>
             !hasUnsupportedIdentifier(item.claim, source) &&
@@ -330,7 +400,27 @@ ${files}`,
       console.log(`[ai] extract units ${index + 1}/${responses.length}`);
     }
   }
-  return facts;
+  return { facts, skipped: queue.skippedUnits() };
+}
+
+/** Same as {@link extractAiFacts}, but also reports what the batch skipped so
+ * the caller can put it in the final `[done]` line (CORE-30). */
+export async function enrichFactsWithReport(
+  provider: AiProvider,
+  repo: string,
+  base: Fact[],
+  source: Source,
+  options: Options,
+  usage?: UsageSink,
+): Promise<{ facts: Fact[]; skipped: SkippedUnit[] }> {
+  const { facts, skipped } = await extractAiFactsWithReport(
+    provider,
+    repo,
+    source,
+    options,
+    usage,
+  );
+  return { facts: mergeFacts(base, facts), skipped };
 }
 
 function mergeFacts(base: Fact[], extra: Fact[]): Fact[] {
@@ -374,12 +464,16 @@ export async function synthesizeSections(
   concurrency: number,
   usage?: UsageSink,
   onlySections?: Set<string>,
-): Promise<Record<string, string>> {
+): Promise<{ overrides: Record<string, string>; skipped: SkippedUnit[] }> {
   const requests: AiRequest[] = [];
   const keys: string[] = [];
   for (const key of [...new Set(facts.map((item) => item.sectionKey))]) {
     if (onlySections && !onlySections.has(key)) continue;
     const relevant = synthesisFacts(facts, key);
+    // A section whose only facts came from a single pull request has no
+    // repository policy to synthesize, so it is left to the deterministic
+    // renderer instead of asking the model for an empty answer (CORE-32).
+    if (!relevant.length) continue;
     keys.push(key);
     requests.push({
       job: "synth_section",
@@ -423,12 +517,18 @@ ${JSON.stringify(relevant)}`,
     ai,
     model,
     ai === "hetzner" ? 1 : concurrency,
+    (request, response) =>
+      validateSection(response, keys[requests.indexOf(request)] ?? ""),
   );
   const responses = await queue.run(requests, usage);
+  // A section that the batch skipped has no response, and a unit that failed
+  // validation never produces one: omit those keys entirely rather than
+  // passing an empty string, so `assembleSkill` keeps its own content for them
+  // (an empty string is a *present* override and would blank the section).
   const overrides: Record<string, string> = {};
   responses.forEach((response, index) => {
     const section = response ? cleanSection(response.text, keys[index]) : "";
-    overrides[keys[index]] = validSection(section, keys[index]) ? section : "";
+    if (validSection(section, keys[index])) overrides[keys[index]] = section;
   });
-  return overrides;
+  return { overrides, skipped: queue.skippedUnits() };
 }

@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Configuration · co-maintainer docs</title>
+  <meta name="description" content="Global defaults live in config.json under the platform config directory. co-maintainer set writes that file. init / sync also record per-repo choices...">
+  <link rel="canonical" href="https://co-maintainer.com/docs/configuration.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
+          <li><a href="configuration.html" class="active">Configuration</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="privacy.html">Data and privacy</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>Configuration</h1>
+<p>Global defaults live in <code>config.json</code> under the platform config directory.
+<a href="configuration.html#co-maintainer-set"><code>co-maintainer set</code></a> writes that file. <a href="init.html"><code>init</code></a> /
+<a href="sync.html"><code>sync</code></a> also record <strong>per-repo</strong> choices there (not API tokens).
+Generated guides sit under <code>repos/</code> in the same tree. Full paths:
+<a href="caching.html#on-disk-layout">Caching</a>.</p>
+<p><a href="serve.html"><code>serve</code></a> reads the same <code>config.json</code> for the GitHub App, webhook
+URL, dashboard auth defaults, and CLI remote-review targets.</p>
+<h2 id="precedence">Precedence</h2>
+<p>For CLI commands (<code>probe</code>, <code>init</code>, <code>sync</code>, <code>review</code>):</p>
+<figure class="mermaid-figure">
+<div class="mermaid-viewport"><div class="mermaid">flowchart BT
+  flags["Command-line flags"]
+  envfile["--env=PATH file"]
+  env["Process env vars"]
+  repo["config.json repos owner/repo"]
+  global["config.json global"]
+  prompt["Interactive prompt"]
+
+  flags --> wins[Value used]
+  envfile --> env
+  env --> wins
+  repo --> wins
+  global --> wins
+  prompt --> wins</div></div>
+</figure>
+
+
+
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Examples</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Highest</td>
+<td><code>--token=</code>, <code>--auth=pat</code>, <code>--max-commits=500</code> on the command</td>
+</tr>
+<tr>
+<td>Env file</td>
+<td>Only when you pass <code>--env=./.env</code> (sets vars if not already set)</td>
+</tr>
+<tr>
+<td>Environment</td>
+<td><code>GITHUB_TOKEN</code>, <code>OPENROUTER_API_KEY</code>, <code>CO_MAINTAINER_AUTH</code>, model env vars</td>
+</tr>
+<tr>
+<td>Per-repo</td>
+<td><code>repos[&quot;owner/repo&quot;]</code> after a successful init/sync</td>
+</tr>
+<tr>
+<td>Global</td>
+<td><code>set</code> defaults in <code>config.json</code></td>
+</tr>
+<tr>
+<td>Lowest</td>
+<td>Prompts when a required value is still missing</td>
+</tr>
+</tbody></table>
+<p>API tokens are <strong>never</strong> stored per repo. They come from <code>--token=</code>, env, or
+<code>set --token=...</code> only.</p>
+<h2 id="co-maintainer-set"><code>co-maintainer set</code></h2>
+<p>Persists global settings so later commands can skip flags and prompts.</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--auth=gh</span> <span class="sh-flag">--ai=openrouter</span> <span class="sh-flag">--token=YOUR_KEY</span> <span class="sh-arg">\</span>
+  <span class="sh-flag">--low-model=openai/gpt-oss-120b</span> <span class="sh-flag">--high-model=openai/gpt-5.6-luna</span>
+
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-app-id=...</span> <span class="sh-flag">--github-app-private-key-file=./app.pem</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-app-id=...</span> <span class="sh-flag">--github-app-private-key-path=./app.pem</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--remote-host=https://your-server</span> <span class="sh-flag">--remote-token=cmr_...</span>
+</code></pre>
+<h3 id="set-flags"><code>set</code> flags</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Written to</th>
+<th>Used by</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--token=...</code></td>
+<td><code>token</code></td>
+<td>CLI AI calls (OpenRouter/Hetzner)</td>
+</tr>
+<tr>
+<td><code>--ai-key=...</code></td>
+<td><code>token</code></td>
+<td>An alias for <code>--token</code>, named for what it is</td>
+</tr>
+<tr>
+<td><code>--ai=none|openrouter|hetzner</code></td>
+<td><code>ai</code></td>
+<td>CLI and dashboard jobs</td>
+</tr>
+<tr>
+<td><code>--low-model=...</code> / <code>--high-model=...</code></td>
+<td><code>lowModel</code>, <code>highModel</code></td>
+<td>CLI and dashboard jobs</td>
+</tr>
+<tr>
+<td><code>--auth=gh|pat</code></td>
+<td><code>auth</code></td>
+<td>CLI GitHub reads</td>
+</tr>
+<tr>
+<td><code>--github-pat=...</code></td>
+<td><code>githubPat</code></td>
+<td>CLI when <code>--auth=pat</code></td>
+</tr>
+<tr>
+<td><code>--github-app-id=...</code></td>
+<td><code>githubAppId</code></td>
+<td><code>serve</code></td>
+</tr>
+<tr>
+<td><code>--github-app-private-key=...</code></td>
+<td><code>githubAppPrivateKey</code></td>
+<td><code>serve</code></td>
+</tr>
+<tr>
+<td><code>--github-app-private-key-file=path</code></td>
+<td><code>githubAppPrivateKey</code> (contents)</td>
+<td><code>serve</code></td>
+</tr>
+<tr>
+<td><code>--github-app-private-key-path=path</code></td>
+<td><code>githubAppPrivateKeyPath</code> (path only)</td>
+<td><code>serve</code></td>
+</tr>
+<tr>
+<td><code>--github-webhook-secret=...</code></td>
+<td><code>githubWebhookSecret</code></td>
+<td><code>serve</code> webhook HMAC</td>
+</tr>
+<tr>
+<td><code>--github-oauth-client-id=...</code> etc.</td>
+<td>OAuth fields</td>
+<td>Dashboard GitHub sign-in</td>
+</tr>
+<tr>
+<td><code>--password=...</code></td>
+<td><code>dashboardPasswordHash</code> (stored as a hash)</td>
+<td>Dashboard password sign-in</td>
+</tr>
+<tr>
+<td><code>--disable-auth=password</code></td>
+<td><code>passwordAuthDisabled</code></td>
+<td>Default for <code>serve</code></td>
+</tr>
+<tr>
+<td><code>--enable-auth=github</code></td>
+<td><code>githubAuthEnabled</code></td>
+<td>Default for <code>serve</code></td>
+</tr>
+<tr>
+<td><code>--remote-host=...</code></td>
+<td><code>remoteHost</code></td>
+<td><code>review --remote</code></td>
+</tr>
+<tr>
+<td><code>--remote-token=...</code></td>
+<td><code>remoteToken</code></td>
+<td><code>review --remote</code></td>
+</tr>
+<tr>
+<td><code>--review-blocking=model|severity</code></td>
+<td><code>reviewBlocking</code></td>
+<td>Whether a review&#39;s own severity decides a blocking finding</td>
+</tr>
+</tbody></table>
+<h3 id="app-private-key-inline-file-contents-or-path">App private key: inline, file contents, or path</h3>
+<p>Three flags set the GitHub App private key, and they differ in what lands in
+<code>config.json</code>:</p>
+<ul>
+<li><code>--github-app-private-key=PEM</code> writes the key itself.</li>
+<li><code>--github-app-private-key-file=path</code> reads the file and writes its
+<strong>contents</strong>. If the file later moves or is deleted, the App keeps working.</li>
+<li><code>--github-app-private-key-path=path</code> writes only the <strong>path</strong>. The key stays
+on disk and is read at startup, so the secret never enters <code>config.json</code>. If
+the file is missing or unreadable, <code>serve</code> warns at startup that the App will
+not work.</li>
+</ul>
+<p>An inline key wins if both an inline key and a path are ever present. <code>set</code>
+clears the other form when you pass one, so the choice is unambiguous.</p>
+<h3 id="verification-before-saving">Verification before saving</h3>
+<p>When the provider is OpenRouter, <code>set</code> checks the key against
+<code>/api/v1/key</code> and, if a model is given, that <code>/api/v1/models</code> lists it. A bad
+key or unknown model is refused with exit code 2 and <strong>nothing is written</strong>. A
+network failure only warns (<code>saved anyway</code>), because that is not a typo. Pass
+<code>--no-verify</code> to skip the check, for example in CI with an offline key.</p>
+<p>OAuth setup steps: <a href="serve.html#sign-in-to-the-dashboard"><code>serve</code>: Sign in</a>.</p>
+<h2 id="co-maintainer-config"><code>co-maintainer config</code></h2>
+<p>Reads and edits the same <code>config.json</code> without opening the file. <code>set</code> is the
+short form of <code>config set</code>, and its output and flags are unchanged.</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">list</span>                  <span class="sh-comment"># key, value, and source per row</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">get</span> <span class="sh-arg">high-model</span>        <span class="sh-comment"># one raw value, no label</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">set</span> <span class="sh-arg">remote-host</span> <span class="sh-arg">https://review.example.com</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">set</span> <span class="sh-flag">--remote-token=cmr_...</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">unset</span> <span class="sh-arg">remote-token</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">path</span>                  <span class="sh-comment"># the config file</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">path</span> <span class="sh-flag">--all</span>            <span class="sh-comment"># config, repos, and cache directories</span>
+</code></pre>
+<p><code>list</code> prints where each value came from: <code>env</code> (an environment variable
+overrides the file at run time), <code>file</code>, or nothing for an unset key. Secrets
+are masked: twelve characters or more keep their last four, shorter ones show
+only <code>••••</code>, and the dashboard password reports <code>set</code> or <code>not set</code> rather than
+its hash. <code>get</code> prints the real value, so treat its output as a secret.</p>
+<p>Keys are the <code>UserConfig</code> field names in kebab-case (<code>high-model</code>,
+<code>remote-host</code>, <code>review-blocking</code>), and camelCase is accepted too. A name that is
+not a config key is refused with exit code 2.</p>
+<h3 id="config-keys">Config keys</h3>
+<p>Every key <code>config.json</code> can hold. The mask column says whether <code>config list</code>
+hides the value.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Source</th>
+<th>Masked</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>auth</code></td>
+<td><code>gh</code> or <code>pat</code></td>
+<td><code>set</code> flag</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>ai</code></td>
+<td><code>none</code>, <code>openrouter</code>, or <code>hetzner</code></td>
+<td><code>set</code> flag</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>low-model</code></td>
+<td>string</td>
+<td><code>set</code> flag</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>high-model</code></td>
+<td>string</td>
+<td><code>set</code> flag</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>token</code></td>
+<td>string</td>
+<td><code>--token</code> or <code>--ai-key</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>github-pat</code></td>
+<td>string</td>
+<td><code>--github-pat</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>github-app-id</code></td>
+<td>string</td>
+<td><code>--github-app-id</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>github-app-private-key</code></td>
+<td>PEM string</td>
+<td><code>--github-app-private-key</code>, <code>--github-app-private-key-file</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>github-app-private-key-path</code></td>
+<td>path string</td>
+<td><code>--github-app-private-key-path</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>github-webhook-secret</code></td>
+<td>string</td>
+<td><code>--github-webhook-secret</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>webhook-url</code></td>
+<td>URL string</td>
+<td>Settings, Server</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>github-oauth-client-id</code></td>
+<td>string</td>
+<td><code>--github-oauth-client-id</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>github-oauth-client-secret</code></td>
+<td>string</td>
+<td><code>--github-oauth-client-secret</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>github-oauth-allowed-user</code></td>
+<td>string</td>
+<td><code>--github-oauth-allowed-user</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>password-auth-disabled</code></td>
+<td>boolean</td>
+<td><code>--disable-auth=password</code>, <code>--enable-auth=password</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>github-auth-enabled</code></td>
+<td>boolean</td>
+<td><code>--enable-auth=github</code>, <code>--disable-auth=github</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>dashboard-password-hash</code></td>
+<td>scrypt hash</td>
+<td><code>--password</code></td>
+<td>reported as <code>set</code> or <code>not set</code></td>
+</tr>
+<tr>
+<td><code>defaults</code></td>
+<td>object</td>
+<td><code>init</code> / <code>sync</code> limits</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>max-concurrent-jobs</code></td>
+<td>number</td>
+<td>Settings, or the field directly</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>review-blocking</code></td>
+<td><code>model</code> or <code>severity</code></td>
+<td><code>--review-blocking</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>remote-host</code></td>
+<td>URL string</td>
+<td><code>--remote-host</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>remote-token</code></td>
+<td>string</td>
+<td><code>--remote-token</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>repos</code></td>
+<td>object</td>
+<td>Written by <code>init</code> and <code>sync</code></td>
+<td>no</td>
+</tr>
+</tbody></table>
+<p><code>config get</code> prints the real value even for a masked key, so treat its output as
+a secret.</p>
+<h3 id="unset">Unset</h3>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--unset=token</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--unset=github-webhook-secret</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--unset=disable-auth</span>
+</code></pre>
+<p><code>--unset=disable-auth</code> clears <code>passwordAuthDisabled</code> so the dashboard password
+is allowed again. Match <code>--unset=</code> to the field name or the flag name (see
+<code>co-maintainer set --help</code>).</p>
+<h2 id="per-repo-memory">Per-repo memory</h2>
+<p>After each successful <a href="init.html"><code>init</code></a> or <a href="sync.html"><code>sync</code></a>,
+<code>config.json</code> gains <code>repos[&quot;owner/repo&quot;]</code> with:</p>
+<table>
+<thead>
+<tr>
+<th>Stored</th>
+<th>Not stored</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>auth</code>, <code>ai</code>, models</td>
+<td>API token</td>
+</tr>
+<tr>
+<td><code>max-*</code> limits</td>
+<td>GitHub PAT (global only)</td>
+</tr>
+<tr>
+<td><code>include-*</code> flags</td>
+<td></td>
+</tr>
+<tr>
+<td><code>only-request-changed-pr</code>, <code>pr-state</code></td>
+<td></td>
+</tr>
+</tbody></table>
+<p>A plain <code>co-maintainer sync owner/repo</code> reuses those values. Pass new flags
+on <code>sync</code> or run <code>init</code> again to change includes, limits, or pull request
+filters permanently. <code>--only-request-changed-pr</code> stays on once saved. To
+collect every pull request state again, pass <code>--pr-state=open,closed,merged</code>.</p>
+<p>Guide files (<code>SKILL.md</code>, <code>CODEBASE.md</code>, review guides) live under
+<code>&lt;config&gt;/co-maintainer/repos/&lt;slug&gt;/</code>, not in your git clone. See
+<a href="caching.html#generated-guides">Caching</a>. <code>co-maintainer view</code> prints them
+locally, and <code>view --remote</code> prints the copies a configured review server holds
+(see <a href="remote-review.html#reading-the-servers-guides">Remote review</a>).</p>
+<h2 id="secrets-on-disk">Secrets on disk</h2>
+<p><code>config.json</code> may contain tokens, PATs, App private keys, and webhook/OAuth
+secrets in <strong>plain text</strong>. The file is chmod <code>0600</code> where supported (not on
+Windows).</p>
+<table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>Suggestion</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Personal laptop</td>
+<td><code>set</code> is fine</td>
+</tr>
+<tr>
+<td>Shared CI</td>
+<td>Prefer <code>--env=PATH</code> or flags, avoid committing config</td>
+</tr>
+<tr>
+<td><code>serve</code> host</td>
+<td>Lock down the config directory like any secret store</td>
+</tr>
+</tbody></table>
+<p>Dashboard <strong>Settings</strong> can also save credentials after validating them with
+GitHub.</p>
+<h2 id="path-overrides">Path overrides</h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>CM_CONFIG_PATH</code></td>
+<td>Replace <code>config.json</code> location (tests)</td>
+</tr>
+<tr>
+<td><code>CM_REPOS_DIR</code></td>
+<td>Replace generated guides root (must match <code>serve</code> for server init)</td>
+</tr>
+</tbody></table>
+<p>More cache and database paths: <a href="caching.html#overrides">Caching</a>.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/configuration.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#precedence">Precedence</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#per-repo-memory">Per-repo memory</a></li><li><a href="#secrets-on-disk">Secrets on disk</a></li><li><a href="#path-overrides">Path overrides</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

@@ -1,10 +1,15 @@
 import { empty, html, layout, skSlot, text, when } from "./layout.ts";
+import type { SetupItem } from "../../services/setup_checklist.ts";
 
 export function renderLogin(opts: {
   next: string;
   error?: string;
   showPassword: boolean;
   showGithub: boolean;
+  /** `CM_LOGIN_HINT`, for a deployment that hands out its own password (the
+   * Cloud image seeds one), so this page can point at it instead of the
+   * generic "printed when serve started". Falls back to the default line. */
+  hint?: string;
 }): Response {
   const err = opts.error
     ? `<p class="notice bad"><span class="txt">${text(opts.error)}</span></p>`
@@ -27,7 +32,8 @@ export function renderLogin(opts: {
       ? `<p class="muted" style="text-align:center;margin:16px 0">or</p>`
       : "";
   const lead = opts.showPassword
-    ? "Use the dashboard password printed when serve started."
+    ? opts.hint?.trim() ||
+      "Use the dashboard password printed when serve started."
     : "Sign in with your GitHub account.";
   return html(
     layout({
@@ -57,12 +63,40 @@ export function renderHome(
     reviews: string;
     cost: string;
   }[],
+  checklist: SetupItem[],
 ): Response {
   const autoCount = rows.filter((row) => row.autoOn).length;
   const lead =
     rows.length === 0
       ? "No repositories yet. Add one to start."
       : `${rows.length} repositories · ${autoCount} reviewing pull requests automatically`;
+  const remaining = checklist.filter((item) => !item.done);
+  // The card is hidden entirely once everything is done, so a finished
+  // install is not told to "finish" anything.
+  const setupCard =
+    remaining.length === 0
+      ? ""
+      : `<div class="card" id="finish-setup">
+    <div class="hd"><h2>Finish setup</h2>
+      <span class="muted" style="margin-left:auto">${checklist.length - remaining.length}/${
+        checklist.length
+      } done</span></div>
+    <div class="bd">
+      <ul class="steps">
+        ${checklist
+          .map(
+            (item, index) =>
+              `<li class="${item.done ? "done" : ""}">
+          <span class="n">${item.done ? "✓" : index + 1}</span>
+          <div class="body"><b>${text(item.title)}</b>
+            <span class="muted">${text(item.detail)}</span></div>
+          <a class="btn sm" href="${item.href}">${text(item.linkLabel)}</a>
+        </li>`,
+          )
+          .join("")}
+      </ul>
+    </div>
+  </div>`;
   const body =
     rows.length === 0
       ? empty(
@@ -115,6 +149,7 @@ export function renderHome(
       rows.length === 0 ? `<a class="btn" href="/setup">Get started</a>` : ""
     }<a class="btn primary" href="/repos/new">Add repository</a></div>
   </div>
+  ${setupCard}
   ${body}
 </div>
 <script>

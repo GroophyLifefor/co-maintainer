@@ -7,6 +7,7 @@ import { loadGuides } from "../review/guides.ts";
 import type { Revision } from "../review/revision.ts";
 import { computeScope } from "./scope.ts";
 import { prepareCodegraphTools } from "./codegraph_tools.ts";
+import { REVIEW_COPY_RULE, severitySection } from "./review_copy.ts";
 import {
   needsSummary,
   READ_FULL_DIFF_TOOL,
@@ -14,6 +15,11 @@ import {
   summarizeDiff,
 } from "./diff_summary.ts";
 import { numberPatch } from "./hunks.ts";
+import {
+  FINDINGS_JSON_INSTRUCTIONS,
+  FINDINGS_JSON_SCHEMA,
+  findingsMarkdownFromJson,
+} from "./findings_json.ts";
 import type { Snapshot } from "./snapshot.ts";
 import type {
   AiProvider,
@@ -60,7 +66,7 @@ concise by default.`;
 const REVIEW_DIAGRAM_RULES = `People generally find it easier to understand the
 problem you've identified when it's presented in diagrams. When a multi-step
 flow, lifecycle, dependency, data model, protocol, or architecture change is
-part of the finding, you are expected to draw it — do not skip the diagram
+part of the finding, you are expected to draw it. Do not skip the diagram
 just to avoid the extra tool call. During the initial review, use at most one
 diagram, so spend it on the finding that benefits most. If a user later asks
 for detailed reasoning in a reply, that reply may use up to five diagrams, but
@@ -78,13 +84,13 @@ const DIAGRAM_PROMPT_RULES = `People generally find it easier to understand the
 problem you've identified when it's presented in diagrams. When a finding
 involves a multi-step flow, lifecycle, dependency, data model, protocol, or
 architecture change, you are expected to include a Mermaid fenced code block
-for it — reading the syntax with read-mermaid-syntaxes first is a small cost,
+for it. Reading the syntax with read-mermaid-syntaxes first is a small cost,
 not a reason to skip the diagram. This review may contain at most one diagram
 in total, so if more than one finding qualifies, pick the one the diagram
 clarifies most. Its type must be one of the types named in the system
 instructions. Keep labels short and grounded in the supplied evidence. A
 one-line fix or an obvious, single-step cause and effect genuinely needs no
-diagram — that is the only reason to omit one. Close every fenced block.`;
+diagram. That is the only reason to omit one. Close every fenced block.`;
 
 export function reviewSystemPrompt(diagrams: boolean): string {
   return `${REVIEW_ROLE}
@@ -93,7 +99,7 @@ ${diagrams ? REVIEW_DIAGRAM_RULES : NO_DIAGRAM_RULES}`;
 
 /** Shared PR and local/remote workspace review instructions: confirm claims
  * against the indexed graph, not only the diff slice. */
-export const CODEGRAPH_DIFF_VERIFICATION = `Examine the changes line by line, not just file by file — a single file can
+export const CODEGRAPH_DIFF_VERIFICATION = `Examine the changes line by line, not just file by file. A single file can
 contain more than one independent defect, and a change that looks fine in
 isolation can be wrong once you trace what calls it or what else it affects.
 When a finding depends on behavior outside the changed lines, confirm it with
@@ -101,7 +107,7 @@ codegraph-node, codegraph-callers, codegraph-callees, codegraph-impact, and
 codegraph-affected before reporting it. Drop or correct findings that only seem
 plausible from the diff but contradict unchanged callers, callees, or the same
 pattern elsewhere in the repo. Use those tools to check blast radius and whether
-a test reaches the path — do not guess coverage or impact from the diff alone
+a test reaches the path. Do not guess coverage or impact from the diff alone
 when a tool can answer. A missing regression test is not a substitute for
 identifying the concrete input or code path that misbehaves when you can.`;
 
@@ -110,6 +116,50 @@ function text(value: unknown, limit = 20_000): string {
   return result.length > limit
     ? `${result.slice(0, limit)}\n[truncated]`
     : result;
+}
+
+type UsageSinkForNormalize = UsageSink;
+
+/** Turns a model reply into the Markdown every consumer already parses
+ * (CORE-40 / F02). A reply that is not usable JSON is retried once with an
+ * explicit reminder; if that also fails, the raw text is returned so the
+ * legacy Markdown parser can still read it. This keeps a provider that ignores
+ * `response_format` working, and never drops a review on the floor. */
+async function normalizeReviewResponse(
+  provider: AiProvider,
+  request: AiRequest,
+  response: AiResponse,
+  extraTools: ToolHandler[],
+  maxToolRounds: number,
+  usage: UsageSinkForNormalize | undefined,
+  report: ProgressSink,
+  options: Options,
+): Promise<string> {
+  const direct = findingsMarkdownFromJson(response.text);
+  if (direct !== undefined) return direct;
+  report("AI response was not valid JSON, asking once more");
+  const retry = await completeWithMermaidTools(
+    provider,
+    {
+      ...request,
+      job: "review_pull_request_retry",
+      prompt: `${request.prompt}\n\nThe previous answer was not valid JSON. Return only the JSON object described above, with no prose and no code fence.`,
+    },
+    1,
+    extraTools,
+    maxToolRounds,
+  );
+  if (usage) await usage(retry);
+  if (options.debug) {
+    console.log(
+      `[debug] JSON retry response · input=${retry.tokensIn} tokens · output=${retry.tokensOut} tokens`,
+    );
+    console.log(`\n----- JSON RETRY -----\n${retry.text}\n`);
+  }
+  const afterRetry = findingsMarkdownFromJson(retry.text);
+  if (afterRetry !== undefined) return afterRetry;
+  report("AI response was still not JSON, falling back to Markdown parsing");
+  return response.text.trim();
 }
 
 const MAX_FILE_PATCH_CHARS = 12_000;
@@ -132,14 +182,14 @@ export function filePatch(file: Json): string {
         ? `${changes} changed lines (+${additions} -${deletions})`
         : "an unreported number of changed lines";
     return (
-      `[${status}; ${counts}; diff withheld by GitHub, not shown here. ` +
+      `[${status}: ${counts}, diff withheld by GitHub, not shown here. ` +
       `Do not treat this file as unchanged and do not report its contents.]`
     );
   }
   if (patch.length > MAX_FILE_PATCH_CHARS) {
     return (
-      `${numberPatch(patch.slice(0, MAX_FILE_PATCH_CHARS))}\n[${status}; ${changes} ` +
-      `changed lines total; this file's diff is cut off here, later hunks are ` +
+      `${numberPatch(patch.slice(0, MAX_FILE_PATCH_CHARS))}\n[${status}: ${changes} ` +
+      `changed lines total. This file's diff is cut off here, later hunks are ` +
       `not shown.]`
     );
   }
@@ -185,7 +235,11 @@ export async function reviewPullRequest(
   progress?: ProgressSink,
   extras?: ReviewExtras,
 ): Promise<
-  AiResponse & { visiblePaths: string[]; guideBuiltAt: string | null }
+  AiResponse & {
+    visiblePaths: string[];
+    guideBuiltAt: string | null;
+    codegraphState: "used" | "disabled" | "unavailable";
+  }
 > {
   if (!options.prNumber) throw new Error("review requires a PR number");
   const number = options.prNumber;
@@ -220,7 +274,7 @@ export async function reviewPullRequest(
   report(`diff files loaded · ${files.length} files`);
   if (!guide) {
     throw new Error(
-      `repos/${options.repo}/PR_REVIEW_GUIDE.md was not found; run init first`,
+      `repos/${options.repo}/PR_REVIEW_GUIDE.md was not found. Run init first`,
     );
   }
   if (options.debug) {
@@ -301,7 +355,7 @@ export async function reviewPullRequest(
         );
         report(`summarized large diff · ${path} · ${changes} changed lines`);
         return (
-          `FILE: ${path}\n[${changes} changed lines — summarized below; ` +
+          `FILE: ${path}\n[${changes} changed lines, summarized below. ` +
           `call read-full-diff("${path}") for the complete diff if this is not ` +
           `enough]\n${description}`
         );
@@ -346,7 +400,7 @@ export async function reviewPullRequest(
   const diffWasTruncated = ownPatch.length > MAX_REVIEW_DIFF_CHARS;
   const ownDiff = text(ownPatch, MAX_REVIEW_DIFF_CHARS);
   const unchangedListing = extras?.unchangedPaths?.length
-    ? `\nUNCHANGED SINCE LAST REVIEW (paths only — do not re-report findings here):\n${extras.unchangedPaths
+    ? `\nUNCHANGED SINCE LAST REVIEW (paths only, do not re-report findings here):\n${extras.unchangedPaths
         .map((path) => `- ${path}`)
         .join("\n")}`
     : "";
@@ -361,8 +415,8 @@ export async function reviewPullRequest(
       ? `${ownDiff}${unchangedListing}`
       : `${ownDiff}
 
-UPSTREAM CONTEXT — arrived via a merge this round, not authored by this pull
-request. Do not raise a finding located only in this code; only note an
+UPSTREAM CONTEXT: arrived via a merge this round, not authored by this pull
+request. Do not raise a finding located only in this code. Only note an
 interaction if the pull request's own change above relies on or conflicts with
 one of these files, and never mark that finding blocking:
 ${upstreamListing}${unchangedListing}`;
@@ -382,66 +436,35 @@ ${upstreamListing}${unchangedListing}`;
   const carryBlock = extras?.carryPrompt ? `${extras.carryPrompt}\n` : "";
   const prompt = `Review this pull request against the repository's review guide and
 codebase conventions. Find only actionable code-level violations supported by
-the diff and either the guide or the codebase conventions — a pull request
+the diff and either the guide or the codebase conventions. A pull request
 that departs from how this repository's own code is actually written is a
 valid finding even when the review guide has no matching rule.
 Do not repeat existing review comments unless the diff still contains the issue.
 Do not invent requirements. Ignore bot noise and historical PR identities.
-Reason thoroughly, then return concise Markdown only with either:
-"## Findings" followed by findings, or "## Findings\\n\\nNo actionable findings."
-There is no fixed number of findings. Return every independently actionable
-finding supported by the diff and guide, including zero findings when appropriate.
-Do not stop early; inspect all supplied diff text first and return the natural
-count. If the diff contains a truncation marker, limit claims to the supplied
-text and do not imply that omitted files were reviewed.
+Reason thoroughly, then answer with the JSON object described below and nothing
+else. There is no fixed number of findings. Return every independently
+actionable finding supported by the diff and guide, including zero findings
+when appropriate. Do not stop early; inspect all supplied diff text first and
+return the natural count. If the diff contains a truncation marker, limit
+claims to the supplied text and do not imply that omitted files were reviewed.
 Do not invent low-value findings.
 When the DIFF section below has an UPSTREAM CONTEXT part, that code arrived
 through a merge and was not authored by this pull request; do not raise a
 finding located only there, and never mark blocking a finding whose only
 support is upstream context.
 ${CODEGRAPH_DIFF_VERIFICATION}
-Each finding must use this exact structure, keeping the default finding under
-120 words excluding an optional diagram and an optional suggestion:
-
-### [P1 · blocking] \`path/to/file.ts\` — \`symbol()\`
-Location: \`path/to/file.ts:42\`
-
-One sentence describing what is wrong and its impact.
-
-Add one short evidence paragraph explaining the mechanism or reproduction.
-Do not add labels such as Mechanism, Symptom, Scenario, Verified, Repro,
-Options, or Scope unless that detail is necessary to understand a complex
-finding. End every finding with this exact sentence on its own line:
-"If you'd like me to explain it in more detail, please ask." No finding may
-omit it and nothing may follow it.
-
-Use P0-P3 severity and exactly either "blocking" or "non-blocking".
-Keep the Location line machine-readable; it is removed from user-facing
-review copies. Use Markdown backticks around paths and symbols.
+Keep the default finding's "body" under 120 words excluding an optional
+suggestion. Write prose only: do not emit Markdown headings, a Location line,
+backticks around the path, or the sentence "If you'd like me to explain it in
+more detail, please ask." Our code renders the heading, the location, and the
+suggestion from your JSON fields. Use P0-P3 severity, and true for blocking.
+${REVIEW_COPY_RULE}
 Every diff line in the DIFF section starts with its line number in the new
-file. Copy Location numbers from that column instead of counting from the @@
-header, and use \`path:from-to\` when the finding spans several lines. Removed
-lines have no number, so anchor a finding about removed code to the nearest
-numbered line.
-
-Include one GitHub suggestion when the fix is a direct replacement of
-consecutive numbered lines from a single hunk of the same file and you are
-confident in the exact replacement text — this is the common case for
-single-line and small multi-line fixes. Keep Location as the full span of
-the problem, and put the suggestion right before the closing sentence:
-
-Suggestion: \`path/to/file.ts:42-43\`
-\`\`\`suggestion
-every line of 42-43 as it should read, with its original indentation
-\`\`\`
-
-The Suggestion range must sit inside the Location range and cover only the
-lines the fix changes. The block replaces that whole range, so write every
-line of it, not just the edited part, and write nothing else inside the block.
-When the replacement itself contains three backticks, open and close the block
-with four. Leave the suggestion out when the fix needs removed lines, another
-file, or more than one hunk, or when you are not sure of the exact code.
+file. Copy "lineFrom" and "lineTo" from that column instead of counting from
+the @@ header. Removed lines have no number, so anchor a finding about removed
+code to the nearest numbered line.
 ${diagrams ? DIAGRAM_PROMPT_RULES : NO_DIAGRAM_RULES}
+${FINDINGS_JSON_INSTRUCTIONS}
 
 REVIEW GUIDE:
 ${guide}
@@ -475,6 +498,7 @@ ${diff}`;
     prompt,
     maxTokens: 24_000 * matrix,
     reasoningEffort: "high",
+    responseFormat: FINDINGS_JSON_SCHEMA,
   };
   report(
     `AI request · model=${options.highModel ?? "openrouter default"} · ` +
@@ -509,10 +533,22 @@ ${diff}`;
   }
   if (!response.text.trim()) {
     throw new Error(
-      "OpenRouter returned an empty review; the reasoning budget may have been exhausted",
+      "OpenRouter returned an empty review. The reasoning budget may have been exhausted",
     );
   }
-  let reviewText = response.text.trim();
+  // The model returns JSON; we render the Markdown (CORE-40 / F02). A reply
+  // that is not usable JSON is retried once and then falls back to the legacy
+  // Markdown parser, so a provider that ignores the schema still works.
+  let reviewText = await normalizeReviewResponse(
+    provider,
+    request,
+    response,
+    extraTools,
+    maxToolRounds,
+    usage,
+    report,
+    options,
+  );
   for (let pass = 2; pass <= matrix; pass++) {
     const improvementRequest: AiRequest = {
       ...request,
@@ -520,13 +556,13 @@ ${diff}`;
       prompt: `Audit the draft review below against the complete pull-request diff
 and the supplied review guides. Preserve valid findings, correct inaccurate ones,
 remove duplicate or unsupported ones, and add every missing actionable finding.
-Do not stop early and do not invent requirements. Keep the existing finding
-structure unchanged. Return only the complete revised review in the same format.
+Do not stop early and do not invent requirements. Return the complete revised
+review as the same JSON object the instructions above describe, and nothing else.
 
 ORIGINAL REVIEW CONTEXT:
 ${prompt}
 
-DRAFT REVIEW:
+DRAFT REVIEW (Markdown rendering of the previous JSON answer):
 ${reviewText}`,
     };
     if (options.debug) {
@@ -554,7 +590,16 @@ ${reviewText}`,
         `OpenRouter returned an empty review improvement at pass ${pass - 1}`,
       );
     }
-    reviewText = response.text.trim();
+    reviewText = await normalizeReviewResponse(
+      provider,
+      improvementRequest,
+      response,
+      extraTools,
+      maxToolRounds,
+      usage,
+      report,
+      options,
+    );
     if (options.debug) {
       console.log(
         `[debug] improvement ${
@@ -567,16 +612,14 @@ ${reviewText}`,
   const visiblePaths = ownFiles.map(({ path }) => path);
   return {
     ...response,
-    text: `## Severity
-
-- P0 — Critical: production outage, data loss, or security issue.
-- P1 — High: major behavior is broken and should be fixed before merge.
-- P2 — Medium: important correctness or maintainability issue.
-- P3 — Low: minor, non-blocking improvement or edge case.
-
-${reviewText}`,
+    text: `${severitySection()}\n${reviewText}`,
     visiblePaths,
     guideBuiltAt: guides.guideBuiltAt,
+    codegraphState: !options.useCodegraph
+      ? "disabled"
+      : codegraphTools.length > 0
+        ? "used"
+        : "unavailable",
   };
 }
 
@@ -614,7 +657,7 @@ export async function reviewWorkspaceRevision(
   const guide = shortGuide || skill;
   if (!guide) {
     throw new Error(
-      `repos/${options.repo}/PR_REVIEW_GUIDE.md was not found; run init first`,
+      `repos/${options.repo}/PR_REVIEW_GUIDE.md was not found. Run init first`,
     );
   }
   const files = revisionToGithubFiles(revision);
@@ -640,7 +683,7 @@ export async function reviewWorkspaceRevision(
       if (!lowProvider) return `FILE: ${path}\n${filePatch(file)}`;
       patchByPath.set(path, patch);
       const description = await summarizeDiff(path, patch, lowProvider, usage);
-      return `FILE: ${path}\n[${changes} changed lines — summarized below]\n${description}`;
+      return `FILE: ${path}\n[${changes} changed lines, summarized below]\n${description}`;
     }),
   );
   const codegraphTools = options.useCodegraph
@@ -682,13 +725,12 @@ export async function reviewWorkspaceRevision(
   const prompt = `Review these local changes against the repository's review guide and
 codebase conventions. Find only actionable code-level violations supported by
 the diff and either the guide or the codebase conventions.
-Return concise Markdown with either "## Findings" and findings, or
-"## Findings\\n\\nNo actionable findings."
 Do not invent low-value findings. If the diff contains a truncation marker or a
 file is summarized, limit claims to the supplied text and use read-full-diff or
 codegraph tools before asserting behavior outside what was shown.
 ${CODEGRAPH_DIFF_VERIFICATION}
 ${diagrams ? DIAGRAM_PROMPT_RULES : NO_DIAGRAM_RULES}
+${FINDINGS_JSON_INSTRUCTIONS}
 
 REVIEW GUIDE:
 ${guide}
@@ -715,6 +757,7 @@ ${ownDiff}${unchangedListing}`;
     prompt,
     maxTokens: 24_000 * matrix,
     reasoningEffort: "high",
+    responseFormat: FINDINGS_JSON_SCHEMA,
   };
   report(`AI request · prompt=${prompt.length} chars`);
   let response = await completeWithMermaidTools(
@@ -728,7 +771,16 @@ ${ownDiff}${unchangedListing}`;
   if (!response.text.trim()) {
     throw new Error("OpenRouter returned an empty review");
   }
-  let reviewText = response.text.trim();
+  let reviewText = await normalizeReviewResponse(
+    provider,
+    request,
+    response,
+    extraTools,
+    maxToolRounds,
+    usage,
+    report,
+    options,
+  );
   for (let pass = 2; pass <= matrix; pass++) {
     const improvementRequest: AiRequest = {
       ...request,
@@ -738,12 +790,12 @@ Preserve valid findings, correct inaccurate ones, remove duplicate or
 unsupported ones, and add every missing actionable finding. Re-check each
 finding with codegraph when it depends on behavior outside the diff; remove
 findings that only looked plausible from the diff slice.
-Return only the complete revised review in the same format.
+Return the complete revised review as the same JSON object, and nothing else.
 
 ORIGINAL REVIEW CONTEXT:
 ${prompt}
 
-DRAFT REVIEW:
+DRAFT REVIEW (Markdown rendering of the previous JSON answer):
 ${reviewText}`,
     };
     response = await completeWithMermaidTools(
@@ -754,7 +806,16 @@ ${reviewText}`,
       maxToolRounds,
     );
     if (usage) await usage(response);
-    reviewText = response.text.trim();
+    reviewText = await normalizeReviewResponse(
+      provider,
+      improvementRequest,
+      response,
+      extraTools,
+      maxToolRounds,
+      usage,
+      report,
+      options,
+    );
   }
   const codegraphState = !options.useCodegraph
     ? "disabled"
@@ -763,14 +824,7 @@ ${reviewText}`,
       : "unavailable";
   return {
     ...response,
-    text: `## Severity
-
-- P0 — Critical: production outage, data loss, or security issue.
-- P1 — High: major behavior is broken and should be fixed before merge.
-- P2 — Medium: important correctness or maintainability issue.
-- P3 — Low: minor, non-blocking improvement or edge case.
-
-${reviewText}`,
+    text: `${severitySection()}\n${reviewText}`,
     visiblePaths: ownFiles.map(({ path }) => path),
     guideBuiltAt: guides.guideBuiltAt,
     codegraphState,

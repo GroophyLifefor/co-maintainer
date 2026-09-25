@@ -1,16 +1,53 @@
 /**
  * Build static HTML docs under docs/ from docs/md/*.md
  * Run: npm run docs:build
+ *
+ * Layout for co-maintainer.com (CORE-80 / D04, D05):
+ *   docs/index.html          the landing page (hand written, not built here)
+ *   docs/docs/<slug>.html    one page per docs/md/<slug>.md
+ *   docs/docs/<slug>.md      the Markdown copy of that page (CORE-84)
+ *   docs/docs/search-index.json  the client-side search rows
+ *   docs/<slug>.html         a redirect stub for the old flat address
+ *   docs/CNAME               the custom domain
+ *   docs/sitemap.xml         every page under the apex domain
+ *   docs/llms.txt            the llmstxt.org index (CORE-84)
+ *   docs/llms-full.txt       every page combined for a model (CORE-84)
+ *
+ * Assets stay at docs/assets/, so a doc page reaches them through `../`.
  */
 import { marked } from "marked";
+import { pathToFileURL } from "node:url";
+import { registryToMarkdown } from "../src/cli/commands/registry.ts";
 import { logo } from "../src/server/logo.ts";
-import { mkdir, readTextFile, stat, writeFile } from "../src/util/runtime.ts";
+import {
+  mkdir,
+  readTextFile,
+  stat,
+  writeFile,
+  writeTextFile,
+} from "../src/util/runtime.ts";
 
-const ROOT = new URL("../docs/", import.meta.url);
-const MD_DIR = new URL("md/", ROOT);
+const DEFAULT_OUT = new URL("../docs/", import.meta.url);
+const MD_DIR = new URL("md/", DEFAULT_OUT);
+
+/** The public origin. Canonical links and the sitemap use it. */
+export const SITE_ORIGIN = "https://co-maintainer.com";
+
+/** The custom domain GitHub Pages serves the site from. */
+export const CNAME = "co-maintainer.com";
 
 type NavItem = { slug: string; label: string };
 type NavSection = { title: string; items: NavItem[] };
+/** A heading the search index and the on-page table of contents both use. */
+export type Heading = { id: string; text: string; level: number };
+/** One searchable row: a page, or a section of a page. */
+export type SearchEntry = {
+  slug: string;
+  label: string;
+  section: string;
+  heading: string;
+  hash: string;
+};
 
 /** Sidebar groups. Add pages here. Top bar stays minimal. */
 const NAV: NavSection[] = [
@@ -20,7 +57,8 @@ const NAV: NavSection[] = [
       { slug: "getting-started", label: "Quickstart" },
       { slug: "probe", label: "Probe" },
       { slug: "init", label: "Init" },
-      { slug: "remake", label: "Remake" },
+      { slug: "sync", label: "Sync" },
+      { slug: "view", label: "View guides" },
     ],
   },
   {
@@ -37,26 +75,135 @@ const NAV: NavSection[] = [
     items: [
       { slug: "serve", label: "Serve" },
       { slug: "dashboard", label: "Dashboard" },
+      { slug: "github-app", label: "GitHub App" },
     ],
+  },
+  {
+    title: "Cloud",
+    items: [{ slug: "cloud", label: "Cloud" }],
   },
   {
     title: "Reference",
     items: [
+      { slug: "commands", label: "Commands" },
       { slug: "configuration", label: "Configuration" },
       { slug: "authentication", label: "Authentication" },
       { slug: "caching", label: "Caching" },
+      { slug: "cost", label: "Cost" },
+      { slug: "privacy", label: "Data and privacy" },
+      { slug: "troubleshooting", label: "Troubleshooting" },
     ],
   },
 ];
 
 const ALL_PAGES: NavItem[] = NAV.flatMap((s) => s.items);
 
+/** Which sidebar group and label a slug belongs to, for the search index. */
+const SECTION_OF = new Map<string, string>();
+const LABEL_OF = new Map<string, string>();
+for (const section of NAV) {
+  for (const item of section.items) {
+    SECTION_OF.set(item.slug, section.title);
+    LABEL_OF.set(item.slug, item.label);
+  }
+}
+
+/** The client-side search index: one row per page, plus one per section, so a
+ * query can land on a heading instead of only a whole page. */
+export function searchEntriesFor(
+  slug: string,
+  headings: readonly Heading[],
+): SearchEntry[] {
+  const label = LABEL_OF.get(slug) ?? slug;
+  const section = SECTION_OF.get(slug) ?? "";
+  const entries: SearchEntry[] = [
+    { slug, label, section, heading: "", hash: "" },
+  ];
+  for (const heading of headings) {
+    entries.push({
+      slug,
+      label,
+      section,
+      heading: heading.text,
+      hash: heading.id,
+    });
+  }
+  return entries;
+}
+
+export function searchJson(entries: readonly SearchEntry[]): string {
+  return `${JSON.stringify(entries)}\n`;
+}
+
+/** The one-sentence summary at the top of `llms.txt` (CORE-84). */
+export const LLMS_SUMMARY =
+  "co-maintainer learns a GitHub repository from its code, pull requests, and history, then reviews pull requests and local changes against that knowledge.";
+
+/** `llms.txt` (llmstxt.org): the title, one summary line, and a link to the
+ * Markdown copy of every page, grouped the way the sidebar is. */
+export function llmsTxt(): string {
+  const lines = [`# co-maintainer`, "", `> ${LLMS_SUMMARY}`, ""];
+  for (const section of NAV) {
+    lines.push(`## ${section.title}`, "");
+    for (const { slug, label } of section.items) {
+      lines.push(`- [${label}](${SITE_ORIGIN}/docs/${slug}.md)`);
+    }
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+/** `llms-full.txt`: the same content as `llms.txt`, with every page's Markdown
+ * inlined below its link so a model can read the whole site in one request. */
+export function llmsFullTxt(
+  pages: ReadonlyArray<{ slug: string; md: string }>,
+): string {
+  const lines = [`# co-maintainer`, "", `> ${LLMS_SUMMARY}`, ""];
+  for (const { slug, md } of pages) {
+    lines.push(
+      `---`,
+      "",
+      `Source: ${SITE_ORIGIN}/docs/${slug}.md`,
+      "",
+      md.trim(),
+      "",
+    );
+  }
+  return lines.join("\n");
+}
+
+/** The `commands.md` page, generated from the command registry (CORE-81). */
+export function commandsMarkdown(): string {
+  return `# Commands
+
+Reference for every visible command. This page is generated from the command
+registry in the source, so it always matches \`co-maintainer help\` and
+\`co-maintainer help <command>\`.
+
+${registryToMarkdown()}
+See [Configuration](configuration.md) for the \`config.json\` keys, and
+[Troubleshooting](troubleshooting.md) for a failing command.
+`;
+}
+
+/** The old flat addresses, and where each one points now. `remake` was the
+ * name this page had before CORE-21, and its address must keep resolving. */
+export const LEGACY_REDIRECTS: ReadonlyArray<{ from: string; to: string }> = [
+  ...ALL_PAGES.map(({ slug }) => ({ from: slug, to: slug })),
+  { from: "remake", to: "sync" },
+];
+
 const GITHUB_REPO = "https://github.com/GroophyLifefor/co-maintainer";
 const DOCS_EDIT_BRANCH = "main";
 
+/** A doc page reaches the shared assets through this prefix. */
+const ASSET_PREFIX = "../assets/";
+/** A doc page reaches the landing page through this prefix. */
+const HOME_HREF = "../index.html";
+
 marked.setOptions({ gfm: true });
 
-function esc(text: string): string {
+export function esc(text: string): string {
   return text.replace(
     /[&<>"']/g,
     (c) =>
@@ -66,8 +213,37 @@ function esc(text: string): string {
   );
 }
 
+/** The first real paragraph of a page, as a plain sentence for `<meta
+ * description>`. Markdown is stripped so the tag reads as prose, and the text
+ * is cut at a word boundary near 155 characters, the length search engines
+ * show. */
+export function pageDescription(md: string): string {
+  const withoutFences = md.replace(/```[\s\S]*?```/g, "");
+  for (const block of withoutFences.split(/\r?\n\s*\r?\n/)) {
+    const paragraph = block.trim();
+    if (paragraph === "" || /^#{1,6}\s/.test(paragraph)) continue;
+    if (/^[|>-]/.test(paragraph)) continue;
+    const plain = paragraph
+      .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+      .replace(/`([^`]+)`/g, "$1")
+      .replace(/[*_]{1,2}([^*_]+)[*_]{1,2}/g, "$1")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (plain === "") continue;
+    if (plain.length <= 155) return plain;
+    const cut = plain.slice(0, 155);
+    const lastSpace = cut.lastIndexOf(" ");
+    return `${(lastSpace > 80 ? cut.slice(0, lastSpace) : cut).trimEnd()}...`;
+  }
+  return "co-maintainer documentation.";
+}
+
 /** Markdown ```mermaid fences become placeholders, then figures after marked (blank lines break raw HTML). */
-function extractMermaidFences(md: string): { md: string; slots: string[] } {
+export function extractMermaidFences(md: string): {
+  md: string;
+  slots: string[];
+} {
   const slots: string[] = [];
   const stripped = md.replace(
     /```mermaid(?:[ \t]+zoom)?[ \t]*\r?\n([\s\S]*?)```/g,
@@ -123,8 +299,12 @@ function mermaidBlocks(html: string): string {
 const MERMAID_CDN =
   "https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.min.js";
 
-/** One-time vendor file so docs work without a CDN at view time. */
-async function ensureMermaidBundle(assetsDir: URL): Promise<void> {
+/** One-time vendor file so docs work without a CDN at view time. `fetch` is
+ * off in a test build, which must not reach the network. */
+async function ensureMermaidBundle(
+  assetsDir: URL,
+  download: boolean,
+): Promise<void> {
   const out = new URL("mermaid.min.js", assetsDir);
   try {
     await stat(out);
@@ -132,6 +312,7 @@ async function ensureMermaidBundle(assetsDir: URL): Promise<void> {
   } catch {
     /* download below */
   }
+  if (!download) return;
   const resp = await fetch(MERMAID_CDN);
   if (!resp.ok) {
     throw new Error(`Failed to download mermaid: HTTP ${resp.status}`);
@@ -200,7 +381,7 @@ function rewriteMdLinks(html: string): string {
 }
 
 /** Docs prose must not use em dashes or semicolons (code fences excluded). */
-function lintDocMd(md: string, name: string): void {
+export function lintDocMd(md: string, name: string): void {
   const prose = md.replace(/```[\s\S]*?```/g, "");
   if (/—/.test(prose)) {
     throw new Error(`${name}: em dash is not allowed in docs`);
@@ -221,36 +402,69 @@ function fixMdSourceLinks(md: string): string {
   );
 }
 
-function buildToc(bodyHtml: string): { html: string; toc: string } {
-  const headings: { id: string; text: string }[] = [];
+/** A heading's plain text: tags dropped and the entities marked emits decoded,
+ * so `&#39;` and `&amp;` do not leak into an id or the table of contents. */
+function headingText(raw: string): string {
+  return raw
+    .replace(/<[^>]+>/g, "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function headingId(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function buildToc(bodyHtml: string): {
+  html: string;
+  toc: string;
+  headings: Heading[];
+} {
+  const headings: Heading[] = [];
+  // The commands page repeats headings such as `### AI` under every command, so
+  // the same id would appear several times and collapse deep links and search
+  // results onto the first one. A later duplicate gets a `-2`, `-3`, suffix.
+  const used = new Map<string, number>();
   const withIds = bodyHtml.replace(
     /<h([23])>([\s\S]*?)<\/h\1>/g,
     (_m, level: string, raw: string) => {
-      const text = raw.replace(/<[^>]+>/g, "").trim();
-      const id = text
-        .toLowerCase()
-        .replace(/[^\w\s-]/g, "")
-        .replace(/\s+/g, "-");
-      if (level === "2" && id) headings.push({ id, text });
+      const text = headingText(raw);
+      const base = headingId(text);
+      if (!base) return `<h${level}>${raw}</h${level}>`;
+      const seen = used.get(base) ?? 0;
+      used.set(base, seen + 1);
+      const id = seen === 0 ? base : `${base}-${seen + 1}`;
+      headings.push({ id, text, level: Number(level) });
       return `<h${level} id="${esc(id)}">${raw}</h${level}>`;
     },
   );
-  if (headings.length < 2) {
-    return { html: withIds, toc: "" };
+  const tocHeadings = headings.filter((h) => h.level === 2);
+  if (tocHeadings.length < 2) {
+    return { html: withIds, toc: "", headings };
   }
   const toc =
     `<nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
       <ul>` +
-    headings
+    tocHeadings
       .map((h) => `<li><a href="#${esc(h.id)}">${esc(h.text)}</a></li>`)
       .join("") +
     `</ul></nav>`;
-  return { html: withIds, toc };
+  return { html: withIds, toc, headings };
 }
 
 function siteBrandLink(): string {
-  return `<a class="brand site-brand" href="index.html"><img src="assets/logo.png" alt="" width="32" height="32">co-maintainer</a>`;
+  return `<a class="brand site-brand" href="${HOME_HREF}"><img src="${ASSET_PREFIX}logo.png" alt="" width="32" height="32">co-maintainer</a>`;
 }
 
 function topBar(active: "home" | "docs"): string {
@@ -285,25 +499,36 @@ function sidebarHtml(activeSlug: string): string {
   }).join("\n        ");
   return `<aside class="sidebar" id="sidebar">
       <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
         ${blocks}
       </div>
     </aside>`;
 }
 
-function docPageShell(
+export function docPageShell(
   title: string,
   bodyHtml: string,
   toc: string,
   activeSlug: string,
+  description: string,
 ): string {
+  const canonical = `${SITE_ORIGIN}/docs/${activeSlug}.html`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${esc(title)} · co-maintainer docs</title>
-  <link rel="stylesheet" href="assets/site.css">
-  <link rel="icon" href="assets/logo.png">
+  <meta name="description" content="${esc(description)}">
+  <link rel="canonical" href="${canonical}">
+  <link rel="stylesheet" href="${ASSET_PREFIX}site.css">
+  <link rel="icon" href="${ASSET_PREFIX}logo.png">
 </head>
 <body class="layout-doc">
   ${topBar("docs")}
@@ -319,41 +544,135 @@ function docPageShell(
       ${toc}
     </div>
   </div>
-  <script src="assets/docs.js"></script>
-  <script src="assets/mermaid.min.js"></script>
-  <script src="assets/mermaid-init.js"></script>
+  <script src="${ASSET_PREFIX}docs.js"></script>
+  <script src="${ASSET_PREFIX}mermaid.min.js"></script>
+  <script src="${ASSET_PREFIX}mermaid-init.js"></script>
 </body>
 </html>`;
 }
 
-async function main(): Promise<void> {
-  const assetsDir = new URL("assets/", ROOT);
-  await mkdir(assetsDir, { recursive: true });
-  await ensureMermaidBundle(assetsDir);
-  await writeFile(new URL("logo.png", assetsDir), logo);
-  await writeFile(new URL(".nojekyll", ROOT), new Uint8Array());
+/** The redirect stub that now lives at an old flat address. It carries a meta
+ * refresh for people, a canonical link for crawlers, and a visible link so a
+ * reader without either still finds the page. */
+export function redirectStub(from: string, to: string): string {
+  const target = `docs/${to}.html`;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Moved · co-maintainer docs</title>
+  <meta name="robots" content="noindex">
+  <meta http-equiv="refresh" content="0; url=${target}">
+  <link rel="canonical" href="${SITE_ORIGIN}/${target}">
+</head>
+<body>
+  <p>This page moved to <a href="${target}">${target}</a>.</p>
+</body>
+</html>`;
+}
 
+/** Every indexable address, for sitemap.xml. */
+export function sitemapXml(slugs: readonly string[]): string {
+  const urls = [`${SITE_ORIGIN}/`];
+  for (const slug of slugs) urls.push(`${SITE_ORIGIN}/docs/${slug}.html`);
+  const entries = urls.map((url) => `  <url><loc>${esc(url)}</loc></url>`);
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${entries.join("\n")}
+</urlset>
+`;
+}
+
+export type BuildOptions = {
+  /** Where the site is written. Defaults to the repository `docs/` folder. */
+  outDir?: URL;
+  /** Download the vendored Mermaid bundle when it is missing. A test build
+   * passes false so it never reaches the network. */
+  fetchAssets?: boolean;
+  /** Suppress the per-page progress line. */
+  quiet?: boolean;
+};
+
+/** Builds every page, stub, and the sitemap into `outDir`. */
+export async function buildDocs(options: BuildOptions = {}): Promise<void> {
+  const out = options.outDir ?? DEFAULT_OUT;
+  const downloadAssets = options.fetchAssets ?? true;
+  const log = options.quiet ? () => {} : (line: string) => console.log(line);
+
+  const assetsDir = new URL("assets/", out);
+  const pagesDir = new URL("docs/", out);
+  await mkdir(assetsDir, { recursive: true });
+  await mkdir(pagesDir, { recursive: true });
+  await ensureMermaidBundle(assetsDir, downloadAssets);
+  await writeFile(new URL("logo.png", assetsDir), logo);
+  await writeFile(new URL(".nojekyll", out), new Uint8Array());
+  await writeTextFile(new URL("CNAME", out), `${CNAME}\n`);
+
+  // The command reference is generated from the registry, so a flag that
+  // changes in the code cannot drift out of the docs.
+  await writeTextFile(new URL("commands.md", MD_DIR), commandsMarkdown());
+  log("wrote md/commands.md");
+
+  const searchEntries: SearchEntry[] = [];
+  const builtPages: Array<{ slug: string; md: string }> = [];
   for (const { slug } of ALL_PAGES) {
     const mdPath = new URL(`${slug}.md`, MD_DIR);
     let md = await readTextFile(mdPath);
     lintDocMd(md, `${slug}.md`);
     md = fixMdSourceLinks(md);
+    // The `.md` copy sits beside the `.html`, so `/docs/<slug>.md` resolves on
+    // the deployed site and `llms.txt` can link straight to it (CORE-84).
+    await writeTextFile(new URL(`${slug}.md`, pagesDir), md);
+    builtPages.push({ slug, md });
+    const description = pageDescription(md);
     const { md: mdNoMermaid, slots } = extractMermaidFences(md);
     const raw = await marked.parse(mdNoMermaid);
     const withMermaid = injectMermaidSlots(
       mermaidBlocks(rewriteMdLinks(String(raw))),
       slots,
     );
-    const { html: body, toc } = buildToc(highlightShellBlocks(withMermaid));
+    const {
+      html: body,
+      toc,
+      headings,
+    } = buildToc(highlightShellBlocks(withMermaid));
+    searchEntries.push(...searchEntriesFor(slug, headings));
     const titleMatch = md.match(/^#\s+`?([^`\n]+)`?/);
     const title = titleMatch?.[1]?.trim() ?? slug;
-    const html = docPageShell(title, body, toc, slug);
-    await writeFile(
-      new URL(`${slug}.html`, ROOT),
-      new TextEncoder().encode(html),
-    );
-    console.log(`wrote ${slug}.html`);
+    const html = docPageShell(title, body, toc, slug, description);
+    await writeTextFile(new URL(`${slug}.html`, pagesDir), html);
+    log(`wrote docs/${slug}.html`);
   }
+
+  await writeTextFile(
+    new URL("search-index.json", pagesDir),
+    searchJson(searchEntries),
+  );
+  log("wrote docs/search-index.json");
+
+  // The model-readable copies (CORE-84): a short index and one combined file.
+  await writeTextFile(new URL("llms.txt", out), llmsTxt());
+  log("wrote llms.txt");
+  await writeTextFile(new URL("llms-full.txt", out), llmsFullTxt(builtPages));
+  log("wrote llms-full.txt");
+
+  for (const { from, to } of LEGACY_REDIRECTS) {
+    await writeTextFile(new URL(`${from}.html`, out), redirectStub(from, to));
+    log(`wrote ${from}.html (redirect to docs/${to}.html)`);
+  }
+
+  await writeTextFile(
+    new URL("sitemap.xml", out),
+    sitemapXml(ALL_PAGES.map(({ slug }) => slug)),
+  );
+  log("wrote sitemap.xml");
 }
 
-await main();
+const invokedDirectly =
+  process.argv[1] !== undefined &&
+  import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (invokedDirectly) {
+  await buildDocs();
+}

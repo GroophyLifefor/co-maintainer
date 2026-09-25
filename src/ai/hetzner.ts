@@ -82,7 +82,7 @@ export class HetznerProvider implements AiProvider {
     if (wait > 0) {
       const jittered = this.jitter(wait);
       console.log(
-        `[ai] hetzner quota spacing; waiting ${Math.round(jittered / 1000)}s`,
+        `[ai] hetzner quota spacing, waiting ${Math.round(jittered / 1000)}s`,
       );
       await this.sleeper(jittered);
     }

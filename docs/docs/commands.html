@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Commands · co-maintainer docs</title>
+  <meta name="description" content="Reference for every visible command. This page is generated from the command registry in the source, so it always matches co-maintainer help and...">
+  <link rel="canonical" href="https://co-maintainer.com/docs/commands.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="commands.html" class="active">Commands</a></li>
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="privacy.html">Data and privacy</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>Commands</h1>
+<p>Reference for every visible command. This page is generated from the command
+registry in the source, so it always matches <code>co-maintainer help</code> and
+<code>co-maintainer help &lt;command&gt;</code>.</p>
+<h2 id="co-maintainer-probe"><code>co-maintainer probe</code></h2>
+<p>Inspect a repository and recommend the init flags for it.</p>
+<pre><code>co-maintainer probe owner/repo [options]
+</code></pre>
+<h3 id="github-access">GitHub access</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--auth=gh|pat</code></td>
+<td>gh</td>
+<td>Use the gh CLI or a personal access token.</td>
+</tr>
+<tr>
+<td><code>--github-pat=TOKEN</code></td>
+<td></td>
+<td>The token when --auth=pat.</td>
+</tr>
+</tbody></table>
+<h3 id="limits">Limits</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--max-pull-request-change-lines=N</code></td>
+<td></td>
+<td>Cap the diff size sampled.</td>
+</tr>
+<tr>
+<td><code>--max-pr-months=N</code></td>
+<td></td>
+<td>Cap how far back pull requests are read.</td>
+</tr>
+<tr>
+<td><code>--max-commits=N</code></td>
+<td></td>
+<td>Cap how many commits are read.</td>
+</tr>
+</tbody></table>
+<h3 id="after-the-plan">After the plan</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--run</code></td>
+<td></td>
+<td>Run the recommended init in this same process.</td>
+</tr>
+</tbody></table>
+<h3 id="output-and-diagnostics">Output and diagnostics</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--json</code></td>
+<td></td>
+<td>Print machine-readable JSON instead of prose.</td>
+</tr>
+<tr>
+<td><code>--debug</code></td>
+<td></td>
+<td>Print the underlying gh and HTTP calls.</td>
+</tr>
+<tr>
+<td><code>--log-time</code></td>
+<td></td>
+<td>Print how long each phase took.</td>
+</tr>
+</tbody></table>
+<h2 id="co-maintainer-init"><code>co-maintainer init</code></h2>
+<p>Build the review guides for a repository for the first time.</p>
+<pre><code>co-maintainer init owner/repo [options]
+</code></pre>
+<h3 id="sources">Sources</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--include-codebase</code></td>
+<td></td>
+<td>Read the source tree.</td>
+</tr>
+<tr>
+<td><code>--include-pull-requests</code></td>
+<td></td>
+<td>Read pull request history.</td>
+</tr>
+<tr>
+<td><code>--include-pull-request-changes</code></td>
+<td></td>
+<td>Read the diffs of those pull requests.</td>
+</tr>
+<tr>
+<td><code>--include-commit-history</code></td>
+<td></td>
+<td>Read commit history.</td>
+</tr>
+<tr>
+<td><code>--include-how-repo-works</code></td>
+<td></td>
+<td>Read the docs and layout.</td>
+</tr>
+</tbody></table>
+<h3 id="limits-2">Limits</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--max-commits=N</code></td>
+<td>all</td>
+<td>Cap how many commits are read.</td>
+</tr>
+<tr>
+<td><code>--max-pr-months=N</code></td>
+<td>all</td>
+<td>Cap how far back pull requests are read.</td>
+</tr>
+<tr>
+<td><code>--max-pull-request-change-lines=N</code></td>
+<td>all</td>
+<td>Cap the diff size read.</td>
+</tr>
+<tr>
+<td><code>--max-comment=N</code></td>
+<td></td>
+<td>Cap the comments read per pull request.</td>
+</tr>
+</tbody></table>
+<h3 id="pull-request-filter">Pull request filter</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--pr-state=open,closed,merged</code></td>
+<td></td>
+<td>Which pull request states to read.</td>
+</tr>
+<tr>
+<td><code>--only-request-changed-pr</code></td>
+<td></td>
+<td>Read only the pull requests that changed the requested files.</td>
+</tr>
+</tbody></table>
+<h3 id="ai">AI</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--ai=none|openrouter|hetzner</code></td>
+<td>none</td>
+<td>Which provider writes the review.</td>
+</tr>
+<tr>
+<td><code>--token=KEY</code></td>
+<td></td>
+<td>The provider API key.</td>
+</tr>
+<tr>
+<td><code>--ai-key=KEY</code></td>
+<td></td>
+<td>The same key as --token, named for what it is.</td>
+</tr>
+<tr>
+<td><code>--low-model=ID</code></td>
+<td>openai/gpt-oss-120b</td>
+<td>Model for extraction work.</td>
+</tr>
+<tr>
+<td><code>--high-model=ID</code></td>
+<td>openai/gpt-5.6-luna</td>
+<td>Model for the review itself.</td>
+</tr>
+</tbody></table>
+<h3 id="github-access-2">GitHub access</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--auth=gh|pat</code></td>
+<td>gh</td>
+<td>Use the gh CLI or a personal access token.</td>
+</tr>
+<tr>
+<td><code>--github-pat=TOKEN</code></td>
+<td></td>
+<td>The token when --auth=pat.</td>
+</tr>
+</tbody></table>
+<h3 id="output-and-diagnostics-2">Output and diagnostics</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--json</code></td>
+<td></td>
+<td>Print machine-readable JSON instead of prose.</td>
+</tr>
+<tr>
+<td><code>--debug</code></td>
+<td></td>
+<td>Print the underlying gh and HTTP calls.</td>
+</tr>
+<tr>
+<td><code>--log-time</code></td>
+<td></td>
+<td>Print how long each phase took.</td>
+</tr>
+</tbody></table>
+<h3 id="performance">Performance</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--gh-concurrent=N</code></td>
+<td>1</td>
+<td>Concurrent gh calls.</td>
+</tr>
+<tr>
+<td><code>--ai-concurrent=N</code></td>
+<td>3</td>
+<td>Concurrent AI calls.</td>
+</tr>
+<tr>
+<td><code>--improve-matrix=N</code></td>
+<td>1</td>
+<td>How many improvement passes to run. Capped at 4, and each pass costs more.</td>
+</tr>
+</tbody></table>
+<h2 id="co-maintainer-sync"><code>co-maintainer sync</code></h2>
+<p>Rebuild the review guides for a repository that already has them.</p>
+<pre><code>co-maintainer sync owner/repo [options]
+</code></pre>
+<h3 id="sources-2">Sources</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--include-codebase</code></td>
+<td></td>
+<td>Read the source tree.</td>
+</tr>
+<tr>
+<td><code>--include-pull-requests</code></td>
+<td></td>
+<td>Read pull request history.</td>
+</tr>
+<tr>
+<td><code>--include-pull-request-changes</code></td>
+<td></td>
+<td>Read the diffs of those pull requests.</td>
+</tr>
+<tr>
+<td><code>--include-commit-history</code></td>
+<td></td>
+<td>Read commit history.</td>
+</tr>
+<tr>
+<td><code>--include-how-repo-works</code></td>
+<td></td>
+<td>Read the docs and layout.</td>
+</tr>
+</tbody></table>
+<h3 id="limits-3">Limits</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--max-commits=N</code></td>
+<td></td>
+<td>Cap how many commits are read.</td>
+</tr>
+<tr>
+<td><code>--max-pr-months=N</code></td>
+<td></td>
+<td>Cap how far back pull requests are read.</td>
+</tr>
+<tr>
+<td><code>--max-pull-request-change-lines=N</code></td>
+<td></td>
+<td>Cap the diff size read.</td>
+</tr>
+<tr>
+<td><code>--max-comment=N</code></td>
+<td></td>
+<td>Cap the comments read per pull request.</td>
+</tr>
+</tbody></table>
+<h3 id="ai-2">AI</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--ai=none|openrouter|hetzner</code></td>
+<td>none</td>
+<td>Which provider writes the review.</td>
+</tr>
+<tr>
+<td><code>--token=KEY</code></td>
+<td></td>
+<td>The provider API key.</td>
+</tr>
+<tr>
+<td><code>--ai-key=KEY</code></td>
+<td></td>
+<td>The same key as --token, named for what it is.</td>
+</tr>
+<tr>
+<td><code>--low-model=ID</code></td>
+<td>openai/gpt-oss-120b</td>
+<td>Model for extraction work.</td>
+</tr>
+<tr>
+<td><code>--high-model=ID</code></td>
+<td>openai/gpt-5.6-luna</td>
+<td>Model for the review itself.</td>
+</tr>
+</tbody></table>
+<h3 id="github-access-3">GitHub access</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--auth=gh|pat</code></td>
+<td>gh</td>
+<td>Use the gh CLI or a personal access token.</td>
+</tr>
+<tr>
+<td><code>--github-pat=TOKEN</code></td>
+<td></td>
+<td>The token when --auth=pat.</td>
+</tr>
+</tbody></table>
+<h3 id="output-and-diagnostics-3">Output and diagnostics</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--json</code></td>
+<td></td>
+<td>Print machine-readable JSON instead of prose.</td>
+</tr>
+<tr>
+<td><code>--debug</code></td>
+<td></td>
+<td>Print the underlying gh and HTTP calls.</td>
+</tr>
+<tr>
+<td><code>--log-time</code></td>
+<td></td>
+<td>Print how long each phase took.</td>
+</tr>
+</tbody></table>
+<h2 id="co-maintainer-review"><code>co-maintainer review</code></h2>
+<p>Review a pull request, or the local changes in this workspace.</p>
+<pre><code>co-maintainer review owner/repo PR_NUMBER [options]
+co-maintainer review [options]
+</code></pre>
+<h3 id="target">Target</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--repo=owner/repo</code></td>
+<td></td>
+<td>The repository the local changes belong to.</td>
+</tr>
+<tr>
+<td><code>--branch=NAME</code></td>
+<td></td>
+<td>The branch the local changes are on.</td>
+</tr>
+<tr>
+<td><code>--to-branch=NAME</code></td>
+<td></td>
+<td>Compare the local changes against this branch.</td>
+</tr>
+<tr>
+<td><code>--fresh</code></td>
+<td></td>
+<td>Ignore the previous review and start over.</td>
+</tr>
+</tbody></table>
+<h3 id="local-only">Local only</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--remote</code></td>
+<td></td>
+<td>Send the diff to the configured remote server instead of reviewing locally.</td>
+</tr>
+<tr>
+<td><code>--remote-host=URL</code></td>
+<td></td>
+<td>Override the configured remote host for this run (needs --remote).</td>
+</tr>
+<tr>
+<td><code>--remote-token=TOKEN</code></td>
+<td></td>
+<td>Override the configured remote token for this run (needs --remote).</td>
+</tr>
+<tr>
+<td><code>--sync-before-review</code></td>
+<td></td>
+<td>Rebuild the guides before reviewing.</td>
+</tr>
+</tbody></table>
+<h3 id="codegraph">Codegraph</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--disable-codegraph</code></td>
+<td></td>
+<td>Skip the codegraph index.</td>
+</tr>
+<tr>
+<td><code>--allow-tool-install</code></td>
+<td></td>
+<td>Install codegraph if it is missing.</td>
+</tr>
+</tbody></table>
+<h3 id="ai-3">AI</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--ai=none|openrouter|hetzner</code></td>
+<td>none</td>
+<td>Which provider writes the review.</td>
+</tr>
+<tr>
+<td><code>--token=KEY</code></td>
+<td></td>
+<td>The provider API key.</td>
+</tr>
+<tr>
+<td><code>--ai-key=KEY</code></td>
+<td></td>
+<td>The same key as --token, named for what it is.</td>
+</tr>
+<tr>
+<td><code>--low-model=ID</code></td>
+<td>openai/gpt-oss-120b</td>
+<td>Model for extraction work.</td>
+</tr>
+<tr>
+<td><code>--high-model=ID</code></td>
+<td>openai/gpt-5.6-luna</td>
+<td>Model for the review itself.</td>
+</tr>
+</tbody></table>
+<h3 id="github-access-4">GitHub access</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--auth=gh|pat</code></td>
+<td>gh</td>
+<td>Use the gh CLI or a personal access token.</td>
+</tr>
+<tr>
+<td><code>--github-pat=TOKEN</code></td>
+<td></td>
+<td>The token when --auth=pat.</td>
+</tr>
+</tbody></table>
+<h3 id="output-and-diagnostics-4">Output and diagnostics</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--json</code></td>
+<td></td>
+<td>Print machine-readable JSON instead of prose.</td>
+</tr>
+<tr>
+<td><code>--debug</code></td>
+<td></td>
+<td>Print the underlying gh and HTTP calls.</td>
+</tr>
+<tr>
+<td><code>--log-time</code></td>
+<td></td>
+<td>Print how long each phase took.</td>
+</tr>
+</tbody></table>
+<h2 id="co-maintainer-config"><code>co-maintainer config</code></h2>
+<p>Read and edit the user config without opening the file.</p>
+<pre><code>co-maintainer config list
+co-maintainer config get &lt;key&gt;
+co-maintainer config set &lt;key&gt; &lt;value&gt;
+co-maintainer config unset &lt;key&gt;
+co-maintainer config path [--all]
+</code></pre>
+<h3 id="subcommands">Subcommands</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--all</code></td>
+<td></td>
+<td>With <code>path</code>, also print the repos and cache directories.</td>
+</tr>
+</tbody></table>
+<h2 id="co-maintainer-view"><code>co-maintainer view</code></h2>
+<p>Print the guides co-maintainer generated for a repository.</p>
+<pre><code>co-maintainer view [owner/repo] [guide]
+co-maintainer view [owner/repo] --list
+co-maintainer view [owner/repo] --path
+</code></pre>
+<h3 id="guides">Guides</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--list</code></td>
+<td></td>
+<td>List the guide files with their size and build date.</td>
+</tr>
+<tr>
+<td><code>--path</code></td>
+<td></td>
+<td>Print the directory the guides live in.</td>
+</tr>
+<tr>
+<td><code>--remote</code></td>
+<td></td>
+<td>Read the guides from the configured remote review server instead.</td>
+</tr>
+</tbody></table>
+<h2 id="co-maintainer-set"><code>co-maintainer set</code></h2>
+<p>Persist defaults and secrets to the user config file.</p>
+<pre><code>co-maintainer set [options]
+</code></pre>
+<h3 id="ai-4">AI</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--ai=none|openrouter|hetzner</code></td>
+<td>none</td>
+<td>Which provider writes the review.</td>
+</tr>
+<tr>
+<td><code>--token=KEY</code></td>
+<td></td>
+<td>The provider API key.</td>
+</tr>
+<tr>
+<td><code>--ai-key=KEY</code></td>
+<td></td>
+<td>The same key as --token, named for what it is.</td>
+</tr>
+<tr>
+<td><code>--low-model=ID</code></td>
+<td>openai/gpt-oss-120b</td>
+<td>Model for extraction work.</td>
+</tr>
+<tr>
+<td><code>--high-model=ID</code></td>
+<td>openai/gpt-5.6-luna</td>
+<td>Model for the review itself.</td>
+</tr>
+</tbody></table>
+<h3 id="github-access-5">GitHub access</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--auth=gh|pat</code></td>
+<td>gh</td>
+<td>Use the gh CLI or a personal access token.</td>
+</tr>
+<tr>
+<td><code>--github-pat=TOKEN</code></td>
+<td></td>
+<td>The token when --auth=pat.</td>
+</tr>
+</tbody></table>
+<h3 id="server">Server</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--github-app-id=ID</code></td>
+<td></td>
+<td>The GitHub App id.</td>
+</tr>
+<tr>
+<td><code>--github-app-private-key=PEM</code></td>
+<td></td>
+<td>The GitHub App private key.</td>
+</tr>
+<tr>
+<td><code>--github-app-private-key-file=PATH</code></td>
+<td></td>
+<td>Read the private key from a file.</td>
+</tr>
+<tr>
+<td><code>--github-app-private-key-path=PATH</code></td>
+<td></td>
+<td>Store the key&#39;s path only, never its contents.</td>
+</tr>
+<tr>
+<td><code>--github-webhook-secret=SECRET</code></td>
+<td></td>
+<td>The webhook HMAC secret.</td>
+</tr>
+<tr>
+<td><code>--github-oauth-client-id=ID</code></td>
+<td></td>
+<td>The GitHub OAuth app client id.</td>
+</tr>
+<tr>
+<td><code>--github-oauth-client-secret=SECRET</code></td>
+<td></td>
+<td>The GitHub OAuth app client secret.</td>
+</tr>
+<tr>
+<td><code>--github-oauth-allowed-user=LOGIN</code></td>
+<td></td>
+<td>The only GitHub user allowed to sign in.</td>
+</tr>
+<tr>
+<td><code>--remote-host=URL</code></td>
+<td></td>
+<td>The remote review server.</td>
+</tr>
+<tr>
+<td><code>--remote-token=TOKEN</code></td>
+<td></td>
+<td>The remote review token.</td>
+</tr>
+<tr>
+<td><code>--review-blocking=model|severity</code></td>
+<td>model</td>
+<td>How a review decides a blocking finding.</td>
+</tr>
+<tr>
+<td><code>--password=TEXT</code></td>
+<td></td>
+<td>Replace the dashboard password.</td>
+</tr>
+<tr>
+<td><code>--disable-auth=password</code></td>
+<td></td>
+<td>Turn the dashboard password off.</td>
+</tr>
+<tr>
+<td><code>--enable-auth=github</code></td>
+<td></td>
+<td>Turn GitHub sign-in on.</td>
+</tr>
+<tr>
+<td><code>--no-verify</code></td>
+<td></td>
+<td>Do not check the key and model against OpenRouter.</td>
+</tr>
+<tr>
+<td><code>--unset=NAME</code></td>
+<td></td>
+<td>Remove a stored value.</td>
+</tr>
+</tbody></table>
+<h2 id="co-maintainer-serve"><code>co-maintainer serve</code></h2>
+<p>Run the dashboard, the webhook and the job worker.</p>
+<pre><code>co-maintainer serve --port=N [options]
+</code></pre>
+<h3 id="server-2">Server</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--port=N</code></td>
+<td></td>
+<td>The port to listen on. Required.</td>
+</tr>
+<tr>
+<td><code>--webhook-url=URL</code></td>
+<td></td>
+<td>The public webhook URL. Defaults to localhost.</td>
+</tr>
+<tr>
+<td><code>--password=TEXT</code></td>
+<td></td>
+<td>Set the dashboard password on first start.</td>
+</tr>
+<tr>
+<td><code>--disable-auth=password</code></td>
+<td></td>
+<td>Turn the dashboard password off.</td>
+</tr>
+<tr>
+<td><code>--enable-auth=github</code></td>
+<td></td>
+<td>Turn GitHub sign-in on.</td>
+</tr>
+<tr>
+<td><code>--trust-proxy</code></td>
+<td></td>
+<td>Trust x-forwarded-for and x-forwarded-proto.</td>
+</tr>
+<tr>
+<td><code>--inject-500</code></td>
+<td></td>
+<td>Return 500 for mutating requests. Debugging only.</td>
+</tr>
+</tbody></table>
+<h3 id="output-and-diagnostics-5">Output and diagnostics</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--json</code></td>
+<td></td>
+<td>Print machine-readable JSON instead of prose.</td>
+</tr>
+<tr>
+<td><code>--debug</code></td>
+<td></td>
+<td>Print the underlying gh and HTTP calls.</td>
+</tr>
+<tr>
+<td><code>--log-time</code></td>
+<td></td>
+<td>Print how long each phase took.</td>
+</tr>
+</tbody></table>
+<h2 id="co-maintainer-version"><code>co-maintainer version</code></h2>
+<p>Print the version.</p>
+<pre><code>co-maintainer version
+</code></pre>
+<p>See <a href="configuration.html">Configuration</a> for the <code>config.json</code> keys, and
+<a href="troubleshooting.html">Troubleshooting</a> for a failing command.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/commands.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#co-maintainer-probe">co-maintainer probe</a></li><li><a href="#co-maintainer-init">co-maintainer init</a></li><li><a href="#co-maintainer-sync">co-maintainer sync</a></li><li><a href="#co-maintainer-review">co-maintainer review</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#co-maintainer-view">co-maintainer view</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-serve">co-maintainer serve</a></li><li><a href="#co-maintainer-version">co-maintainer version</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

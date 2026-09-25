@@ -181,6 +181,49 @@ export async function listInstallationsWithRepos(
   return result;
 }
 
+export type OpenPull = {
+  number: number;
+  title: string;
+  draft: boolean;
+  author: string;
+  headRef: string;
+  updatedAt: string;
+};
+
+/** Open, non-draft pull requests for one repository through the installation
+ * that can see it, for the Pull requests tab. `undefined` when no installation
+ * covers the repo, so the caller can tell "not installed" from "none open"
+ * instead of showing an empty list for a setup mistake. */
+export async function listOpenPulls(
+  appId: string,
+  privateKeyPem: string,
+  fullName: string,
+): Promise<OpenPull[] | undefined> {
+  const installationId = await findInstallationForRepo(
+    appId,
+    privateKeyPem,
+    fullName,
+  );
+  if (installationId === undefined) return undefined;
+  const client = new AppClient(appId, privateKeyPem, installationId);
+  const [owner, repo] = fullName.split("/");
+  const raw = await client.pages<Json>(
+    `repos/${owner}/${repo}/pulls?state=open&sort=updated&direction=desc`,
+    100,
+  );
+  return raw
+    .filter((pull) => pull.draft !== true)
+    .map((pull) => ({
+      number: Number(pull.number ?? 0),
+      title: String(pull.title ?? ""),
+      draft: false,
+      author: String((pull.user as Json | undefined)?.login ?? ""),
+      headRef: String((pull.head as Json | undefined)?.ref ?? ""),
+      updatedAt: String(pull.updated_at ?? ""),
+    }))
+    .filter((pull) => Number.isSafeInteger(pull.number) && pull.number > 0);
+}
+
 export async function findInstallationForRepo(
   appId: string,
   privateKeyPem: string,

@@ -81,7 +81,7 @@ export function renderKnowledge(
     <div class="pagehead">
       <div><h1>Knowledge</h1>
         <p class="lead">What co-maintainer learned about this repository, and checks every pull request against.</p></div>
-      <div class="actions"><button class="primary" id="update">Update</button></div>
+      <div class="actions"><button class="primary" id="update">Sync</button></div>
     </div>
     ${notice}
     <div class="card"><div class="bd flush">${table}</div></div>

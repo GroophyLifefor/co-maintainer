@@ -150,7 +150,7 @@ export function analyzeProbe(
             0,
             10,
           )} is recent; use the last ${maxPrMonths} months to prioritize the current contribution and release process.`
-        : `The last ${maxPrMonths} months cover at least 85% of pull requests; older history is a minority.`,
+        : `The last ${maxPrMonths} months cover at least 85% of pull requests. Older history is a minority.`,
     );
   } else if (pulls.length) {
     reasons.push(
@@ -162,13 +162,26 @@ export function analyzeProbe(
       `${usefulCommits} non-merge commits contain enough signal to analyze commit conventions.`,
     );
   } else if (commits.length) {
-    reasons.push(
-      "Commit history is mostly merge/noise commits, so it is not recommended as a source.",
-    );
+    // Only claim the history is noise when the useful-commit ratio actually
+    // supports it. With `commits: 8 · useful: 5` the ratio is above a half,
+    // and the old unconditional sentence contradicted the numbers beside it
+    // (CORE-24).
+    const usefulRatio = usefulCommits / commits.length;
+    if (usefulRatio < 0.5) {
+      reasons.push(
+        "Commit history is mostly merge/noise commits, so it is not recommended as a source.",
+      );
+    } else {
+      reasons.push(
+        `Commit history is short (${commits.length} ${
+          commits.length === 1 ? "commit" : "commits"
+        }), so it is not recommended as a source yet.`,
+      );
+    }
   }
   if (maxChangeLines) {
     reasons.push(
-      `The sampled diff p90 is ${p90Diff} lines; the cap keeps the largest outliers out while retaining about 90% of sampled diffs.`,
+      `The sampled diff p90 is ${p90Diff} lines. The cap keeps the largest outliers out while retaining about 90% of sampled diffs.`,
     );
   }
 

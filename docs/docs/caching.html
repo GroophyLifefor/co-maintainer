@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Caching · co-maintainer docs</title>
+  <meta name="description" content="co-maintainer keeps config, generated guides, evidence caches, and (optional) server state on disk outside your git clones. Nothing in this layout is...">
+  <link rel="canonical" href="https://co-maintainer.com/docs/caching.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html" class="active">Caching</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="privacy.html">Data and privacy</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>Caching</h1>
+<p>co-maintainer keeps <strong>config</strong>, <strong>generated guides</strong>, <strong>evidence caches</strong>, and
+(optional) <strong>server state</strong> on disk outside your git clones. Nothing in this
+layout is meant to be edited by hand.</p>
+<h2 id="on-disk-layout">On disk layout</h2>
+<figure class="mermaid-figure">
+<div class="mermaid-viewport"><div class="mermaid">flowchart TB
+  config["Config directory"]
+  cache["Cache directory"]
+
+  config --> cfg["config.json"]
+  config --> guides["repos/ slug / SKILL.md guides"]
+
+  cache --> cdb["cache.db evidence AI jobs"]
+  cache --> appdb["app.db serve only"]
+  cache --> clones["clones/ bare repos"]
+  cache --> wt["wt/ PR worktrees"]
+  cache --> tools["tools/ codegraph pins"]</div></div>
+</figure>
+
+
+
+<h3 id="config-directory">Config directory</h3>
+<table>
+<thead>
+<tr>
+<th>OS</th>
+<th>Path</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Linux</td>
+<td><code>~/.config/co-maintainer/</code></td>
+</tr>
+<tr>
+<td>macOS</td>
+<td><code>~/Library/Application Support/co-maintainer/</code></td>
+</tr>
+<tr>
+<td>Windows</td>
+<td><code>%APPDATA%\co-maintainer\</code></td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>File / folder</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>config.json</code></td>
+<td>Global <code>set</code> values and <code>repos[&quot;owner/repo&quot;]</code> memory</td>
+</tr>
+<tr>
+<td><code>repos/&lt;slug&gt;/</code></td>
+<td>Generated guides for one GitHub repo (see below)</td>
+</tr>
+</tbody></table>
+<p>Override: <code>CM_CONFIG_PATH</code> points at a different <code>config.json</code>.
+Override guides root: <code>CM_REPOS_DIR</code> (must match on laptops and <code>serve</code> when
+using server-side init).</p>
+<h3 id="cache-directory">Cache directory</h3>
+<table>
+<thead>
+<tr>
+<th>OS</th>
+<th>Path</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Linux</td>
+<td><code>~/.cache/co-maintainer/</code></td>
+</tr>
+<tr>
+<td>macOS</td>
+<td><code>~/Library/Caches/co-maintainer/</code></td>
+</tr>
+<tr>
+<td>Windows</td>
+<td><code>%LOCALAPPDATA%\co-maintainer\</code></td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>File / folder</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>cache.db</code></td>
+<td>SQLite evidence and AI job cache for init/sync</td>
+</tr>
+<tr>
+<td><code>app.db</code></td>
+<td>SQLite state for <a href="serve.html"><code>serve</code></a> (repos, jobs, reviews)</td>
+</tr>
+<tr>
+<td><code>clones/</code></td>
+<td>Disposable bare clones for server jobs</td>
+</tr>
+<tr>
+<td><code>wt/</code></td>
+<td>Short-lived worktrees per PR on the server</td>
+</tr>
+<tr>
+<td><code>tools/</code></td>
+<td>Pinned helper binaries (for example codegraph), not on your PATH</td>
+</tr>
+</tbody></table>
+<p>Override: <code>CM_APP_DB</code>, <code>CM_CLONES_DIR</code>, <code>CM_TOOLS_DIR</code> (see <a href="#overrides">Overrides</a>).</p>
+<h3 id="tools-directory">Tools directory</h3>
+<p><code>tools/</code> holds helper binaries downloaded by co-maintainer, each pinned by
+version so an upgrade never overwrites a working install:</p>
+<pre><code>tools/codegraph/1.6.0/node_modules/.bin/codegraph
+</code></pre>
+<p>Codegraph is the only tool for now. It is not on your <code>PATH</code>, and the CLI runs
+the binary by absolute path. On the first local review that needs it,
+co-maintainer asks before installing and names the version, source, approximate
+size and this directory. Non-interactive runs (closed stdin, piped output, or
+<code>CI</code>) skip the question and review without it. See
+<a href="local-review.html#codegraph">Local review: Codegraph</a>.</p>
+<h2 id="cachedb-cli"><code>cache.db</code> (CLI)</h2>
+<p>Used by <a href="init.html"><code>init</code></a> and <a href="sync.html"><code>sync</code></a>:</p>
+<table>
+<thead>
+<tr>
+<th>Kind of data</th>
+<th>Cache key idea</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Codebase files</td>
+<td>Path + Git tree SHA</td>
+</tr>
+<tr>
+<td>PR list</td>
+<td>Per repo, refreshed when <code>updated_at</code> moves</td>
+</tr>
+<tr>
+<td>PR discussions</td>
+<td>PR number + update time</td>
+</tr>
+<tr>
+<td>PR diffs</td>
+<td>PR number + head SHA</td>
+</tr>
+<tr>
+<td>AI synthesis jobs</td>
+<td>Input hash + model profile</td>
+</tr>
+</tbody></table>
+<p><a href="sync.html"><code>sync</code></a> reuses unchanged rows so a moving default branch costs
+less than a full <a href="init.html"><code>init</code></a>. Delete <code>cache.db</code> only if you want a cold
+rebuild (you still need repo config or flags for limits).</p>
+<h2 id="appdb-serve"><code>app.db</code> (<code>serve</code>)</h2>
+<p>Lives beside <code>cache.db</code> under the cache directory unless <code>CM_APP_DB</code> is set.
+Holds dashboard data, job queue, webhook deduplication, remote review sessions,
+and review history. <strong>Forward-only migrations</strong> when upgrading co-maintainer.</p>
+<p>Back up <code>app.db</code> and <code>config.json</code> before major upgrades. See
+<a href="dashboard.html#updating">Dashboard: Updating</a>.</p>
+<h2 id="generated-guides">Generated guides</h2>
+<p>Under <code>repos/&lt;slug&gt;/</code> (slug is a stable hash of <code>owner/repo</code>, not the literal
+name):</p>
+<ul>
+<li><code>SKILL.md</code>, <code>CODEBASE.md</code></li>
+<li><code>PR_REVIEW_GUIDE.md</code> and related review guides when PR sources were included</li>
+</ul>
+<p>Evidence for all repos shares one <code>cache.db</code> at the cache root (see above).</p>
+<p>Paths are always under the config/cache roots so the CLI can run from any
+working directory. <a href="configuration.html#per-repo-memory">Configuration: Per-repo memory</a>.</p>
+<h2 id="overrides">Overrides</h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Overrides</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>CM_CONFIG_PATH</code></td>
+<td><code>config.json</code> file path</td>
+</tr>
+<tr>
+<td><code>CM_REPOS_DIR</code></td>
+<td>Directory containing per-repo guide folders</td>
+</tr>
+<tr>
+<td><code>CM_APP_DB</code></td>
+<td><code>serve</code> database file</td>
+</tr>
+<tr>
+<td><code>CM_CLONES_DIR</code></td>
+<td>Server clone cache</td>
+</tr>
+<tr>
+<td><code>CM_TOOLS_DIR</code></td>
+<td>Downloaded tool binaries</td>
+</tr>
+</tbody></table>
+<p>Use the same <code>CM_REPOS_DIR</code> on a <code>serve</code> host and on developer machines when
+remote review should read guides the server built.</p>
+<h2 id="when-to-refresh-vs-delete">When to refresh vs delete</h2>
+<table>
+<thead>
+<tr>
+<th>Goal</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Main moved, guides stale</td>
+<td><a href="sync.html"><code>sync</code></a> or dashboard <strong>Sync</strong></td>
+</tr>
+<tr>
+<td>Change include flags or limits</td>
+<td><code>sync</code>/<code>init</code> with new flags (updates config + guides)</td>
+</tr>
+<tr>
+<td>Wipe server state</td>
+<td>Stop <code>serve</code>, backup, remove <code>app.db</code> (destructive)</td>
+</tr>
+<tr>
+<td>Wipe CLI evidence only</td>
+<td>Remove <code>cache.db</code> (guides in <code>repos/</code> may remain)</td>
+</tr>
+</tbody></table>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/caching.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#on-disk-layout">On disk layout</a></li><li><a href="#cachedb-cli">cache.db (CLI)</a></li><li><a href="#appdb-serve">app.db (serve)</a></li><li><a href="#generated-guides">Generated guides</a></li><li><a href="#overrides">Overrides</a></li><li><a href="#when-to-refresh-vs-delete">When to refresh vs delete</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+name: Publish beta image
+
+# CORE-93: a manual fallback for the beta Docker image. `publish.yml` runs on a
+# push to `main`, so a prerelease on a working branch never gets an image. This
+# workflow builds exactly one tag, the prerelease version, and leaves npm and
+# `latest` alone. Murat triggers it from the Actions tab.
+#
+# It refuses a stable version on purpose: the image path through `publish.yml`
+# owns `latest`, and letting this workflow touch a stable tag would race it.
+#
+# The trigger is a tag push, not `workflow_dispatch`, because GitHub only lists
+# and dispatches a `workflow_dispatch` workflow that exists on the default
+# branch. The beta branch is not the default branch, so a dispatch version never
+# appeared in the Actions tab. A `push` on a tag runs from the pushed tag's own
+# tree, which is exactly the prerelease commit. `workflow_dispatch` stays for
+# the day this file reaches `main`.
+on:
+  push:
+    tags:
+      - "v*-*" # prerelease tags, e.g. v0.5.0-beta.1. Stable tags stay on publish.yml.
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or tag to build (must hold a prerelease version).
+        required: true
+        default: dx/0.5.0
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+# A tag push and a manual dispatch can name the same prerelease version, so the
+# "already pushed" check and the push must not run at once. One constant group
+# serializes every beta publish (cancelling an in-flight push would be unsafe).
+concurrency:
+  group: publish-beta
+  cancel-in-progress: false
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # On a tag push `inputs.ref` is empty, so fall back to the pushed ref.
+          ref: ${{ inputs.ref || github.ref }}
+      - name: Require a prerelease version
+        id: image
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [[ "$version" != *-* ]]; then
+            echo "::error::$version is not a prerelease; use the Publish workflow instead"
+            exit 1
+          fi
+          name="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "::notice::building $name:$version (prerelease, no latest, no npm)"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Skip if this version is already pushed
+        id: check
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+          VERSION: ${{ steps.image.outputs.version }}
+        run: |
+          if docker manifest inspect "$IMAGE:$VERSION" >/dev/null 2>&1; then
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$IMAGE:$VERSION is already on ghcr.io; skipping push"
+          else
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: docker/setup-buildx-action@v3
+        if: steps.check.outputs.pushed == 'false'
+      - uses: docker/build-push-action@v6
+        if: steps.check.outputs.pushed == 'false'
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.image.outputs.name }}:${{ steps.image.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.image.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

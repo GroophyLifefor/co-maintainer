@@ -464,7 +464,7 @@ export function extractFacts(source: Source, options: Options): Fact[] {
       facts,
       fact(
         "process",
-        `${merged}/${source.pullRequests.length} selected pull requests are merged; keep work mergeable before requesting review.`,
+        `${merged}/${source.pullRequests.length} selected pull requests are merged. Keep work mergeable before requesting review.`,
         "pull request metadata",
         2,
       ),
@@ -491,7 +491,7 @@ export function extractFacts(source: Source, options: Options): Fact[] {
         facts,
         fact(
           "title-body",
-          "Most selected pull requests contain a substantive description; explain purpose, scope, and verification before requesting review.",
+          "Most selected pull requests contain a substantive description. Explain purpose, scope, and verification before requesting review.",
           "pull request descriptions",
           3,
         ),
@@ -514,15 +514,17 @@ export function extractFacts(source: Source, options: Options): Fact[] {
         reviewText.match(new RegExp(`\\b${term}\\w*\\b`, "g")) ?? []
       ).length;
       if (count >= 2) {
-        add(
-          facts,
-          fact(
+        add(facts, {
+          ...fact(
             "review-bar",
             instruction,
             `review discussion (${count} mentions)`,
             count,
           ),
-        );
+          // A rule mined from discussion across several pull requests is
+          // repository policy, not one request's narrative (CORE-32).
+          origin: "repository",
+        });
       }
     }
     if (source.pullRequests.some((pr) => pr.additions + pr.deletions > 1000)) {

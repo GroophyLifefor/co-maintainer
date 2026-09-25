@@ -32,7 +32,7 @@ test("readFullDiff returns the stored patch for its path, numbered", () => {
 
 test("readFullDiff explains an empty summary set plainly", () => {
   const message = readFullDiff(new Map(), { path: "a.ts" });
-  if (!message.includes("every file's diff is already shown")) {
+  if (!message.includes("Every file's diff is already shown")) {
     throw new Error(`unexpected message: ${message}`);
   }
 });

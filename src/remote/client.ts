@@ -1,13 +1,16 @@
 import { VERSION } from "../version.ts";
 import type { ReviewCliArgs } from "../cli/review_args.ts";
-import { printLocalReview } from "../cli/review_output.ts";
+import { CliError, EXIT_USAGE, exitWith } from "../cli/error.ts";
 import {
-  formatHumanJsonFindings,
+  formatHumanReview,
+  humanFindingsFromJson,
   type JsonReviewFinding,
   reviewExitCodeFromJsonFindings,
 } from "../cli/review_result.ts";
+import { baseUrl, die, readApiError, remoteFetch } from "./http.ts";
 import { readConfig, writeUserConfig } from "../config.ts";
 import { prepareLocalCodegraph } from "../local/codegraph_prepare.ts";
+import { canPrompt } from "../tools/codegraph.ts";
 import {
   runRemoteToolCalls,
   toolHandlerMap,
@@ -20,7 +23,6 @@ import {
   currentBranch,
   detectRemoteRepo,
   gitRoot,
-  ReviewCliError,
 } from "../local/git_ops.ts";
 import {
   buildLocalRevision,
@@ -28,6 +30,7 @@ import {
   resolveBaseRef,
 } from "../local/git_revision.ts";
 import { withCliLogsToStderr } from "../util/log.ts";
+import { printRunSummary, summaryFromMetrics } from "../util/run_summary.ts";
 import { setCliInteractive } from "../cli/args.ts";
 import {
   MIN_SERVER_SCHEMA,
@@ -44,67 +47,27 @@ type HandshakeResponse = {
   limits: { maxBodyBytes: number };
 };
 
-function die(
-  code: string,
-  message: string,
-  hint?: string,
-  exitCode = 2,
-): never {
-  throw new ReviewCliError(code, message, hint, exitCode);
-}
-
-function baseUrl(host: string): string {
-  const trimmed = host.trim().replace(/\/+$/, "");
-  if (!/^https?:\/\//i.test(trimmed)) {
-    die(
-      "remote_not_configured",
-      "remoteHost must be an absolute http(s) URL.",
-      "co-maintainer set --remote-host=https://your-server",
-    );
-  }
-  return trimmed;
-}
-
-async function remoteFetch(
-  host: string,
-  token: string,
-  path: string,
-  init: RequestInit,
-): Promise<Response> {
-  const url = `${baseUrl(host)}${path}`;
-  const headers = new Headers(init.headers);
-  headers.set("authorization", `Bearer ${token}`);
-  if (init.body && !headers.has("content-type")) {
-    headers.set("content-type", "application/json");
-  }
-  return await fetch(url, { ...init, headers });
-}
-
-async function readApiError(response: Response): Promise<string> {
-  try {
-    const body = await response.json();
-    return String(body.error?.message ?? response.statusText);
-  } catch {
-    return response.statusText;
-  }
-}
-
 export async function runRemoteReview(
   cli: ReviewCliArgs & { mode: "remote" },
 ): Promise<void> {
   const config = readConfig();
-  const host = config.remoteHost;
-  const token = config.remoteToken;
+  // Inline flags win over the saved config for this run only (CORE-25), so a
+  // one-off review does not have to be written to disk first.
+  const host = cli.remoteHost ?? config.remoteHost;
+  const token = cli.remoteToken ?? config.remoteToken;
   if (!host || !token) {
     die(
       "remote_not_configured",
       "Remote review is not configured.",
-      "co-maintainer set --remote-host=... --remote-token=...",
+      "co-maintainer config set remote-host https://your-server " +
+        "&& co-maintainer config set remote-token <token> " +
+        "(or pass --remote-host=... --remote-token=... for one run)",
     );
   }
 
   setCliInteractive(!cli.json);
   await withCliLogsToStderr(async () => {
+    const reviewStarted = performance.now();
     const root = await gitRoot(process.cwd());
     await assertGitQuiet(root);
     const repo = await detectRemoteRepo(root, cli.repoOverride);
@@ -148,7 +111,7 @@ export async function runRemoteReview(
       } else {
         console.log("No changes to review.");
       }
-      process.exit(0);
+      exitWith(0);
     }
 
     const handshake = await remoteFetch(host, token, "/api/remote/handshake", {
@@ -196,7 +159,8 @@ export async function runRemoteReview(
       gitRoot: root,
       enabled: !cli.disableCodegraph,
       allowInstall: cli.allowToolInstall,
-      interactive: !cli.json,
+      // `--json` must stay machine-readable; `canPrompt` adds TTY and CI (F01).
+      interactive: !cli.json && canPrompt(),
     });
     const localTools = toolHandlerMap(codegraphPrep.tools);
     const capabilityTools = [...localTools.keys()]
@@ -285,24 +249,47 @@ export async function runRemoteReview(
         } else {
           const findings = (payload.result.findings ??
             []) as JsonReviewFinding[];
-          const summary = payload.result.summary as
-            | {
-                new?: number;
-                open?: number;
-                closed?: number;
-                blocking?: number;
-              }
+          const resultGuide = payload.result.guide as
+            | { builtAt?: string | null }
             | undefined;
-          const summaryLine = summary
-            ? `${summary.new ?? 0} new · ${summary.open ?? 0} open · ${summary.closed ?? 0} closed · ${summary.blocking ?? 0} blocking`
-            : "";
-          printLocalReview(
-            `co-maintainer review · ${repo} · ${branch} (remote)\n${summaryLine}`,
-            formatHumanJsonFindings(findings),
+          const resultCodegraph = payload.result.codegraph as
+            | { state?: "used" | "disabled" | "unavailable" }
+            | undefined;
+          console.log(
+            "\n" +
+              formatHumanReview({
+                title: `co-maintainer review · ${repo} · ${branch} (remote)`,
+                guideBuiltAt: resultGuide?.builtAt ?? null,
+                codegraphState: resultCodegraph?.state ?? null,
+                findings: humanFindingsFromJson(findings),
+              }) +
+              "\n",
           );
+          const usage = payload.result.usage as
+            | { tokensIn?: number; tokensOut?: number; costUsd?: number | null }
+            | undefined;
+          if (usage) {
+            printRunSummary(
+              summaryFromMetrics(
+                {
+                  calls: 0,
+                  tokensIn: usage.tokensIn ?? 0,
+                  tokensOut: usage.tokensOut ?? 0,
+                  cost: usage.costUsd ?? 0,
+                  costKnown:
+                    usage.costUsd !== null && usage.costUsd !== undefined,
+                },
+                performance.now() - reviewStarted,
+              ),
+            );
+          }
         }
         const findings = (payload.result.findings ?? []) as JsonReviewFinding[];
-        process.exit(reviewExitCodeFromJsonFindings(findings));
+        exitWith(reviewExitCodeFromJsonFindings(findings));
+        // `done` is terminal. Without this return the loop polls `sync` again
+        // and, since the server keeps reporting the same finished job, the
+        // client reprints the result and re-requests forever (CORE-25).
+        return;
       }
       if (payload.status === "failed" || payload.status === "canceled") {
         die(

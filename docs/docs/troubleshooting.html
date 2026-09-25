@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Troubleshooting · co-maintainer docs</title>
+  <meta name="description" content="Every CLI failure exits with one of three codes and prints a message, and often a Hint: line, that says what broke and what to do next. This page lists...">
+  <link rel="canonical" href="https://co-maintainer.com/docs/troubleshooting.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="privacy.html">Data and privacy</a></li>
+          <li><a href="troubleshooting.html" class="active">Troubleshooting</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>Troubleshooting</h1>
+<p>Every CLI failure exits with one of three codes and prints a message, and often
+a <code>Hint:</code> line, that says what broke and what to do next. This page lists the
+codes and the messages you are likely to see.</p>
+<p>See <a href="review.html#exit-codes">Exit codes</a> for how a review&#39;s own findings choose
+between 0 and 1.</p>
+<h2 id="exit-codes">Exit codes</h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Meaning</th>
+<th>Typical cause</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>Success. A review found no blocking finding.</td>
+<td></td>
+</tr>
+<tr>
+<td>1</td>
+<td>Success, but a review found at least one blocking finding.</td>
+<td>The <code>blocking</code> decision is <a href="review.html#what-counts-as-blocking">configurable</a></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Usage or precondition error. Nothing was started.</td>
+<td>A bad flag, a missing prerequisite, a rejected token</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Runtime failure. The run started and could not finish.</td>
+<td>A network or provider failure, an unexpected error</td>
+</tr>
+</tbody></table>
+<p>Anything the CLI does not classify is reported as a runtime failure (3), which
+is the safe default.</p>
+<h2 id="usage-and-precondition-errors-exit-2">Usage and precondition errors (exit 2)</h2>
+<table>
+<thead>
+<tr>
+<th>Message starts with</th>
+<th>What happened</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>GitHub CLI (gh) was not found</code></td>
+<td><code>--auth=gh</code> needs the <code>gh</code> binary on <code>PATH</code></td>
+<td>Install it from <a href="https://cli.github.com/">cli.github.com</a>, or use <code>--auth=pat</code></td>
+</tr>
+<tr>
+<td><code>owner/repo was not found, or your GitHub account cannot read it</code></td>
+<td>The repository does not exist, or your identity cannot see it</td>
+<td>Check the spelling, then <code>gh auth login</code> or a PAT with repo scope</td>
+</tr>
+<tr>
+<td><code>--auth=pat requires a GitHub token</code></td>
+<td><code>--auth=pat</code> with no token anywhere</td>
+<td>Pass <code>--github-pat=...</code>, set <code>GITHUB_TOKEN</code> or <code>GH_TOKEN</code>, or <code>co-maintainer set --github-pat=...</code></td>
+</tr>
+<tr>
+<td><code>repos/owner/repo/PR_REVIEW_GUIDE.md was not found</code></td>
+<td>Review without guides</td>
+<td>Run <a href="init.html"><code>init</code></a> for that repo, or <a href="sync.html"><code>sync</code></a> if it was inited before</td>
+</tr>
+<tr>
+<td><code>Unknown command</code> / <code>Unknown option</code></td>
+<td>A typo in the command or flag</td>
+<td>The message names the closest match. <code>co-maintainer help</code> lists every command</td>
+</tr>
+<tr>
+<td><code>OpenRouter rejected the API key</code></td>
+<td>The provider refused the key with <code>401</code></td>
+<td>Replace it with <code>co-maintainer set --token=...</code></td>
+</tr>
+<tr>
+<td><code>does not know the model &lt;name&gt;</code></td>
+<td>The provider refused the model with <code>400</code></td>
+<td>Check the name at <a href="https://openrouter.ai/models">openrouter.ai/models</a></td>
+</tr>
+<tr>
+<td><code>rejected the remote review token</code></td>
+<td>The server refused a <code>cmr_</code> token</td>
+<td>Create a new one under Settings, Remote review, or the token was deactivated</td>
+</tr>
+<tr>
+<td><code>Nothing to set</code></td>
+<td><code>set</code> was called with no values</td>
+<td>Pass at least one flag, for example <code>--token=...</code></td>
+</tr>
+<tr>
+<td><code>serve is already running</code></td>
+<td>Two <code>serve</code> processes share one <code>app.db</code></td>
+<td>Stop the other one, or point <code>CM_APP_DB</code> elsewhere</td>
+</tr>
+</tbody></table>
+<p><code>init</code>, <code>sync</code>, and <code>review</code> also refuse to start when a required value is still
+missing and there is no terminal to prompt on. <code>--json</code> never prompts, so a
+missing value with no default becomes a <code>2</code> with a message naming the flag.</p>
+<h2 id="runtime-failures-exit-3">Runtime failures (exit 3)</h2>
+<table>
+<thead>
+<tr>
+<th>Message starts with</th>
+<th>What happened</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Could not reach &lt;host&gt;</code></td>
+<td>The network failed. The cause code follows the host</td>
+<td>Check connectivity, proxy, or the host name. <code>ENOTFOUND</code> means DNS</td>
+</tr>
+<tr>
+<td><code>OpenRouter returned an empty review</code></td>
+<td>The model produced no text</td>
+<td>Usually a reasoning budget or a provider hiccup. Retry, or use a different high model</td>
+</tr>
+<tr>
+<td><code>OpenRouter request failed</code></td>
+<td>The provider returned an unclassified error</td>
+<td>The raw body is never printed. Retry, then check <code>--debug</code> for the call</td>
+</tr>
+<tr>
+<td><code>AI response was not valid JSON</code></td>
+<td>The model ignored the JSON request twice</td>
+<td>The older Markdown parser runs as a fallback. Retry if the result looks off</td>
+</tr>
+<tr>
+<td><code>git diff failed</code> / <code>git &lt;command&gt; failed</code></td>
+<td>A git operation did not complete</td>
+<td>Make sure the clone is healthy and no rebase or merge is in progress</td>
+</tr>
+<tr>
+<td><code>app.db is not open</code></td>
+<td>A command that needs the server database did not open it</td>
+<td>Report it: <code>init</code> and <code>sync</code> open it for the run, <code>serve</code> keeps it open</td>
+</tr>
+</tbody></table>
+<h2 id="platform-notes">Platform notes</h2>
+<p><code>serve</code> recommends Linux, WSL included. <a href="dashboard.html#linux">Dashboard: Linux</a>
+explains why. Windows is supported but treated as less predictable, and <code>serve</code>
+logs a one-line warning that links to this page when it starts on another
+platform.</p>
+<p>For the GitHub App, <a href="authentication.html">Authentication</a> covers how server access
+differs from CLI access. For cost questions, see <a href="cost.html">Cost</a>.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/troubleshooting.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#exit-codes">Exit codes</a></li><li><a href="#usage-and-precondition-errors-exit-2">Usage and precondition errors (exit 2)</a></li><li><a href="#runtime-failures-exit-3">Runtime failures (exit 3)</a></li><li><a href="#platform-notes">Platform notes</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

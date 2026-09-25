@@ -1,6 +1,10 @@
+import {
+  canPrompt,
+  ensureCodegraphForReview,
+  type Presence,
+} from "../tools/codegraph.ts";
 import type { ToolHandler } from "../ai/mermaid_loop.ts";
 import { codegraphTools, ensureCodegraphIndex } from "../pr/codegraph_tools.ts";
-import { ensureCodegraphForReview, type Presence } from "../tools/codegraph.ts";
 import {
   createCodegraphRunner,
   LOCAL_CODEGRAPH_DIR,
@@ -21,7 +25,8 @@ export async function prepareLocalCodegraph(input: {
   gitRoot: string;
   enabled: boolean;
   allowInstall: boolean;
-  interactive: boolean;
+  /** Overrides the TTY/CI detection, for tests. */
+  interactive?: boolean;
   run?: Run;
   detect?: () => Promise<Presence>;
 }): Promise<LocalCodegraphPrepare> {
@@ -32,7 +37,9 @@ export async function prepareLocalCodegraph(input: {
   await ensureCodegraphGitExclude(input.gitRoot, run);
   const resolved = await ensureCodegraphForReview({
     allowInstall: input.allowInstall,
-    interactive: input.interactive,
+    // The prompt is safe only when a human can answer it; `canPrompt` checks
+    // stdin, stdout and `CI`, so a `</dev/null` or piped run never asks (F01).
+    interactive: input.interactive ?? canPrompt(),
     log: (message) =>
       log("codegraph", message.replace(/^\[codegraph\]\s*/, "")),
   });

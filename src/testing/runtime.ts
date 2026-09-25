@@ -32,6 +32,9 @@ export type CommandOptions = {
   stderr?: "piped";
   stdin?: "piped";
   shell?: boolean;
+  /** Kills the child after this many milliseconds and reports code `124`, so a
+   * test can prove a command terminates instead of hanging (F01). */
+  timeoutMs?: number;
 };
 
 export type CommandOutput = {
@@ -61,13 +64,26 @@ export class Command {
       });
       const stdout: Buffer[] = [];
       const stderr: Buffer[] = [];
+      let timedOut = false;
+      const timer = this.#options.timeoutMs
+        ? setTimeout(() => {
+            timedOut = true;
+            child.kill();
+          }, this.#options.timeoutMs)
+        : undefined;
       child.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
       child.stderr.on("data", (chunk: Buffer) => stderr.push(chunk));
-      child.on("error", reject);
+      child.on("error", (error) => {
+        if (timer) clearTimeout(timer);
+        reject(error);
+      });
       child.on("close", (code) => {
+        if (timer) clearTimeout(timer);
         resolve({
-          success: code === 0,
-          code: code ?? 1,
+          // A killed child reports its own signal code; 124 is the `timeout`
+          // convention so the caller can tell "hung" from "failed".
+          success: !timedOut && code === 0,
+          code: timedOut ? 124 : (code ?? 1),
           stdout: new Uint8Array(Buffer.concat(stdout)),
           stderr: new Uint8Array(Buffer.concat(stderr)),
         });

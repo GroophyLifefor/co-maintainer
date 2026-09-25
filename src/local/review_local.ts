@@ -20,6 +20,7 @@ import { loadGuides } from "../review/guides.ts";
 import {
   buildCarryPromptSection,
   classifyCarryItems,
+  guideRebuiltSince,
   incrementalDiffPaths,
   parsePreviousVerdicts,
   resolveCarryOutcomes,
@@ -28,7 +29,6 @@ import {
   type StoredFinding,
 } from "../review/carry_over.ts";
 import { revisionHash } from "../review/revision.ts";
-import type { ParsedFinding } from "../pr/findings.ts";
 import { parseFindings } from "../pr/findings.ts";
 import { type ReviewExtras, reviewWorkspaceRevision } from "../pr/reviewer.ts";
 import { runCommand } from "../pr/checkout.ts";
@@ -38,8 +38,10 @@ import {
   timed,
   withCliLogsToStderr,
 } from "../util/log.ts";
+import { printRunSummary, summaryFromMetrics } from "../util/run_summary.ts";
 import { setCliInteractive } from "../cli/args.ts";
 import { prepareLocalCodegraph } from "./codegraph_prepare.ts";
+import { canPrompt } from "../tools/codegraph.ts";
 import { acquireLocalReviewLock, type LocalReviewLock } from "./review_lock.ts";
 import {
   assertGitQuiet,
@@ -49,6 +51,7 @@ import {
   headSha,
   ReviewCliError,
 } from "./git_ops.ts";
+import { EXIT_RUNTIME, exitWith } from "../cli/error.ts";
 import {
   buildLocalRevision,
   mergeBase,
@@ -77,7 +80,7 @@ function storedFindings(resolved: ResolvedFinding[]): StoredFinding[] {
     }));
 }
 
-function fail(error: ReviewCliError, json: boolean): never {
+function fail(error: ReviewCliError, json: boolean): void {
   if (json) {
     console.log(
       JSON.stringify({
@@ -91,7 +94,9 @@ function fail(error: ReviewCliError, json: boolean): never {
     console.error(error.message);
     if (error.hint) console.error(`Hint: ${error.hint}`);
   }
-  process.exit(error.exitCode);
+  // Set the exit code and return; `process.exit` here would assert in libuv on
+  // Windows whenever a fetch pool is open (CORE-11).
+  exitWith(error.exitCode);
 }
 
 function installInterruptCleanup(
@@ -109,11 +114,11 @@ function installInterruptCleanup(
             code: "aborted",
             message: "Review canceled.",
           },
-          exitCode: 3,
+          exitCode: EXIT_RUNTIME,
         }),
       );
     }
-    process.exit(3);
+    exitWith(EXIT_RUNTIME);
   };
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     try {
@@ -169,7 +174,7 @@ export async function runLocalReview(
         if (options.auth !== "gh") {
           throw new ReviewCliError(
             "usage",
-            "Remake before review requires GitHub CLI authentication (`--auth=gh`).",
+            "Sync before review requires GitHub CLI authentication (`--auth=gh`).",
           );
         }
         await runInitOrRemake({ ...options, command: "remake" });
@@ -218,7 +223,7 @@ export async function runLocalReview(
         } else {
           console.log("No changes to review.");
         }
-        process.exit(0);
+        exitWith(0);
       }
 
       const subjectId = localSubjectId(repo, root, branch);
@@ -228,10 +233,21 @@ export async function runLocalReview(
         warnings.push({
           code: "carry_over_unavailable",
           message:
-            "Could not read the local carry-over cache; continuing without prior findings.",
+            "Could not read the local carry-over cache. Continuing without prior findings.",
         });
       }
-      const previous = carryLoad.data;
+      let previous = carryLoad.data;
+      // A guide rebuilt after the last review judged its findings under rules
+      // that no longer exist. Rather than let those stale findings mask new
+      // ones, start fresh automatically (CORE-42 / F03) — the same effect as
+      // `--fresh`, without making the user remember the flag.
+      if (
+        previous &&
+        guideRebuiltSince(previous.guideBuiltAt, guides.guideBuiltAt)
+      ) {
+        await clearLocalCarry(repo, root, branch).catch(() => {});
+        previous = null;
+      }
       let carryPrevious: CarryPrevious | null = null;
       let carryItems: ReturnType<typeof classifyCarryItems> = [];
       const extras: ReviewExtras = {};
@@ -260,7 +276,9 @@ export async function runLocalReview(
         gitRoot: root,
         enabled: options.useCodegraph === true,
         allowInstall: cli.allowToolInstall,
-        interactive: !json,
+        // `--json` output must stay machine-readable, so never prompt then;
+        // `canPrompt` adds the TTY and CI checks (F01).
+        interactive: !json && canPrompt(),
       });
       extras.prepareCodegraphTools = () => Promise.resolve(codegraphPrep.tools);
       const stopHeartbeat = startHeartbeat("reviewing local changes");
@@ -287,10 +305,12 @@ export async function runLocalReview(
           ),
         );
       } finally {
+        // Stopping the heartbeat on the error path too, otherwise the interval
+        // keeps the event loop alive and a post-fetch exit never lands (CORE-11).
+        stopHeartbeat();
         await lock?.release();
         lock = null;
       }
-      stopHeartbeat();
       const codegraphState = codegraphPrep.state;
 
       const visiblePaths = new Set(response.visiblePaths);
@@ -311,8 +331,6 @@ export async function runLocalReview(
             visiblePaths,
             parsePreviousVerdicts(response.text),
             parsed,
-            response.guideBuiltAt,
-            carryPrevious,
           )
         : resolvedFromFirstReview(parsed, filesByPath);
       const findingsToStore = storedFindings(allResolved);
@@ -368,6 +386,7 @@ export async function runLocalReview(
             warnings,
             usage,
             durationMs,
+            reviewBlocking: options.reviewBlocking,
           }),
         );
       } else {
@@ -380,13 +399,20 @@ export async function runLocalReview(
               codegraphState,
               allResolved,
               warnings,
+              options.reviewBlocking,
             ) +
             "\n",
         );
+        printRunSummary(
+          summaryFromMetrics(aiMetrics, performance.now() - started),
+        );
       }
-      process.exit(reviewExitCodeFromResolved(allResolved));
+      exitWith(reviewExitCodeFromResolved(allResolved, options.reviewBlocking));
     } catch (error) {
-      if (error instanceof ReviewCliError) fail(error, json);
+      if (error instanceof ReviewCliError) {
+        fail(error, json);
+        return;
+      }
       throw error;
     } finally {
       clearInterrupt();

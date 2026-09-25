@@ -20,8 +20,8 @@ export function renderRepoRemote(
             .map(
               (review) =>
                 `<tr>
-            <td>${text(review.branch ?? "—")}</td>
-            <td>${text(review.token_name ?? "—")}</td>
+            <td>${text(review.branch ?? "none")}</td>
+            <td>${text(review.token_name ?? "none")}</td>
             <td>${text(review.status)}</td>
             <td class="num">${review.findings_count ?? 0}</td>
             <td class="num">${money(review.cost ?? 0)}</td>

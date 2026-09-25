@@ -3,7 +3,7 @@ import { getEnv, readTextFileSync } from "../util/runtime.ts";
 
 export const FAKE_REVIEW_MARKDOWN = `## Findings
 
-### [P2 · non-blocking] \`src/app.ts\` — \`helper()\`
+### [P2 · non-blocking] \`src/app.ts\`: \`helper()\`
 Location: \`src/app.ts:4\`
 
 The helper ignores its argument, so the new behavior is never applied.

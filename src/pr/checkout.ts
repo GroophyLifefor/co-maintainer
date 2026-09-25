@@ -56,17 +56,31 @@ export async function pathExists(path: string): Promise<boolean> {
 async function cloneInto(repo: string, dir: string, run: Run): Promise<string> {
   log("checkout", `cloning ${repo} into ${dir}`);
   const started = performance.now();
+  // `-c core.longpaths=true` has to be in effect for the clone itself: a deep
+  // source tree can overrun the Windows path limit while the objects are being
+  // written, and setting the config afterwards is too late to help. CORE-11.
   const result = await run("git", [
+    "-c",
+    "core.longpaths=true",
     "clone",
     "--filter=blob:none",
     `https://github.com/${repo}`,
     dir,
   ]);
   if (result.code !== 0) {
-    throw new Error(`git clone failed: ${result.stderr.trim()}`);
+    // One actionable line, not the raw multi-line git transcript: the caller
+    // only needs to know the clone failed and what it costs them. CORE-11.
+    const firstLine =
+      result.stderr
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .find((line) => line.length > 0) ?? "";
+    throw new Error(
+      `git clone failed (exit ${result.code}) for ${repo}, so this review has no ` +
+        `repository scope and falls back to the diff only` +
+        (firstLine ? `: ${firstLine}` : ""),
+    );
   }
-  // Deep source trees overrun the Windows path limit even under a short root.
-  await run("git", ["config", "core.longpaths", "true"], dir);
   log(
     "checkout",
     `cloned in ${((performance.now() - started) / 1000).toFixed(1)}s`,
