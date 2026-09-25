@@ -3,7 +3,7 @@
 [![NPM Version](https://img.shields.io/npm/v/co-maintainer)](https://www.npmjs.com/package/co-maintainer) [![](https://img.shields.io/badge/blog-co_maintainer_an_imitator_of_yours-blue)](https://muratkirazkaya.com/blogs/co-maintainer-an-imitator-of-yours)
 
 [Website](https://co-maintainer.com) ·
-[Docs](https://co-maintainer.com/docs) ·
+[Docs](https://co-maintainer.com/docs/getting-started.html) ·
 [Cloud](https://cloud.co-maintainer.com) (hosted, free, early access, invite only for now)
 
 An imitator of yours, A PR review tool like co-maintainer.
