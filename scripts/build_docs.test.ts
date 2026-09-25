@@ -20,7 +20,9 @@ import {
   remove,
   writeFile,
 } from "../src/util/runtime.ts";
+import { permissionTable, type TableKind } from "../src/github/permissions.ts";
 import {
+  applyPermissionBlocks,
   buildDocs,
   CNAME,
   commandsMarkdown,
@@ -365,6 +367,27 @@ test("the commands page is generated from the command registry", async () => {
     }
   } finally {
     await remove(outDir, { recursive: true });
+  }
+});
+
+test("the permission tables in the docs come from the code", async () => {
+  const wanted: Record<string, TableKind[]> = {
+    "authentication.md": ["gh", "pat-fine", "pat-classic", "oauth"],
+    "github-app.md": ["app"],
+  };
+  for (const [page, kinds] of Object.entries(wanted)) {
+    const md = await readTextFile(join(docsRoot, "md", page));
+    for (const kind of kinds) {
+      const block = `<!-- permissions:${kind}:start -->\n${permissionTable(kind)}\n<!-- permissions:${kind}:end -->`;
+      if (!md.includes(block)) {
+        throw new Error(
+          `${page} lacks a current ${kind} table. Run npm run docs:build.`,
+        );
+      }
+    }
+    if (applyPermissionBlocks(md) !== md) {
+      throw new Error(`${page} has a stale permission table`);
+    }
   }
 });
 

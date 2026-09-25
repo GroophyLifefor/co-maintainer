@@ -19,6 +19,7 @@ import { marked } from "marked";
 import { pathToFileURL } from "node:url";
 import { registryToMarkdown } from "../src/cli/commands/registry.ts";
 import { logo } from "../src/server/logo.ts";
+import { permissionTable, type TableKind } from "../src/github/permissions.ts";
 import {
   mkdir,
   readTextFile,
@@ -184,6 +185,16 @@ ${registryToMarkdown()}
 See [Configuration](configuration.md) for the \`config.json\` keys, and
 [Troubleshooting](troubleshooting.md) for a failing command.
 `;
+}
+
+/** Rewrites every `<!-- permissions:KIND:start -->` block from
+ * `permissionTable`, so a permission table cannot drift from the code. */
+export function applyPermissionBlocks(md: string): string {
+  return md.replace(
+    /<!-- permissions:([a-z-]+):start -->[\s\S]*?<!-- permissions:\1:end -->/g,
+    (_, kind: string) =>
+      `<!-- permissions:${kind}:start -->\n${permissionTable(kind as TableKind)}\n<!-- permissions:${kind}:end -->`,
+  );
 }
 
 /** The old flat addresses, and where each one points now. `remake` was the
@@ -618,7 +629,9 @@ export async function buildDocs(options: BuildOptions = {}): Promise<void> {
   const builtPages: Array<{ slug: string; md: string }> = [];
   for (const { slug } of ALL_PAGES) {
     const mdPath = new URL(`${slug}.md`, MD_DIR);
-    let md = await readTextFile(mdPath);
+    const source = await readTextFile(mdPath);
+    let md = applyPermissionBlocks(source);
+    if (md !== source) await writeTextFile(mdPath, md);
     lintDocMd(md, `${slug}.md`);
     md = fixMdSourceLinks(md);
     // The `.md` copy sits beside the `.html`, so `/docs/<slug>.md` resolves on

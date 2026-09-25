@@ -159,6 +159,28 @@ test("error text: a 404 names owner/repo and exits 2", async () => {
   }
 });
 
+test("error text: a 403 names the endpoint and the gh scope to grant", async () => {
+  const harness = await createCliHarness();
+  try {
+    const result = await harness.run({
+      args: ["probe", "fixture/repo"],
+      ghMode: "forbidden",
+    });
+    const output = `${result.stdout}${result.stderr}`;
+    if (!/GitHub refused GET repos\/fixture\/repo/.test(output)) {
+      throw new Error(`the 403 message is wrong:\n${output}`);
+    }
+    if (!/gh auth refresh -s repo/.test(output)) {
+      throw new Error(`the scope hint is missing:\n${output}`);
+    }
+    if (result.code !== EXIT_USAGE) {
+      throw new Error(`exit ${result.code}, wanted ${EXIT_USAGE}`);
+    }
+  } finally {
+    await harness.cleanup();
+  }
+});
+
 test("error text: gh with an empty stderr still says what failed", async () => {
   const harness = await createCliHarness();
   try {

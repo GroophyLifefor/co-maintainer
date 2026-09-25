@@ -112,6 +112,7 @@ repositories it can reach. The dashboard&#39;s <strong>Add repository</strong> l
 repositories the App can already see.</p>
 <h2 id="permissions">Permissions</h2>
 <p>The manifest requests exactly the permissions the code uses, not a superset.</p>
+<!-- permissions:app:start -->
 <table>
 <thead>
 <tr>
@@ -123,29 +124,33 @@ repositories the App can already see.</p>
 <tbody><tr>
 <td>Contents</td>
 <td>Read</td>
-<td>Read a repository&#39;s files, trees, and <code>PR_REVIEW_GUIDE.md</code></td>
-</tr>
-<tr>
-<td>Pull requests</td>
-<td>Write</td>
-<td>Read a pull request and post reviews and review comments</td>
+<td>Read files and PR_REVIEW_GUIDE.md, read the file tree, read commit history, compare two commits, read releases in the probe</td>
 </tr>
 <tr>
 <td>Issues</td>
-<td>Write</td>
-<td>Post and read issue comments, which is how a conversation reply is delivered</td>
+<td>Read and write</td>
+<td>Read the conversation on a pull request, post a conversation comment</td>
+</tr>
+<tr>
+<td>Pull requests</td>
+<td>Read and write</td>
+<td>List pull requests, read a pull request, read the files a pull request changes, read earlier reviews, read review comment threads, post a review, reply in a review comment thread</td>
 </tr>
 <tr>
 <td>Checks</td>
-<td>Write</td>
-<td>Create and update the review check run</td>
+<td>Read and write</td>
+<td>Create the review check run, update the review check run</td>
 </tr>
 <tr>
 <td>Metadata</td>
 <td>Read</td>
-<td>Required by every GitHub App</td>
+<td>Read the repository and its default branch</td>
 </tr>
 </tbody></table>
+<!-- permissions:app:end -->
+
+<p>Metadata is required by every GitHub App. The review check run is created
+through the App, never with a personal access token.</p>
 <p>No <code>administration</code>, no <code>actions</code>, and no <code>packages</code> access is requested.</p>
 <h2 id="events">Events</h2>
 <table>

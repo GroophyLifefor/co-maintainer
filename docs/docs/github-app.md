@@ -39,13 +39,18 @@ repositories the App can already see.
 
 The manifest requests exactly the permissions the code uses, not a superset.
 
+<!-- permissions:app:start -->
 | Permission | Access | Why |
 | ---------- | ------ | --- |
-| Contents | Read | Read a repository's files, trees, and `PR_REVIEW_GUIDE.md` |
-| Pull requests | Write | Read a pull request and post reviews and review comments |
-| Issues | Write | Post and read issue comments, which is how a conversation reply is delivered |
-| Checks | Write | Create and update the review check run |
-| Metadata | Read | Required by every GitHub App |
+| Contents | Read | Read files and PR_REVIEW_GUIDE.md, read the file tree, read commit history, compare two commits, read releases in the probe |
+| Issues | Read and write | Read the conversation on a pull request, post a conversation comment |
+| Pull requests | Read and write | List pull requests, read a pull request, read the files a pull request changes, read earlier reviews, read review comment threads, post a review, reply in a review comment thread |
+| Checks | Read and write | Create the review check run, update the review check run |
+| Metadata | Read | Read the repository and its default branch |
+<!-- permissions:app:end -->
+
+Metadata is required by every GitHub App. The review check run is created
+through the App, never with a personal access token.
 
 No `administration`, no `actions`, and no `packages` access is requested.
 

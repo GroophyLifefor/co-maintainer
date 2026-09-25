@@ -1,4 +1,4 @@
-import { githubFetch, GitHubHttpError, paginate } from "./client.ts";
+import { githubFetch, httpError, paginate } from "./client.ts";
 import type { GitHubClient } from "../types.ts";
 
 export class PatClient implements GitHubClient {
@@ -18,7 +18,7 @@ export class PatClient implements GitHubClient {
       },
     });
     if (!response.ok) {
-      throw new GitHubHttpError(response.status, await response.text());
+      throw await httpError(response, "GET", endpoint, "token");
     }
     return (await response.json()) as T;
   }
@@ -35,7 +35,7 @@ export class PatClient implements GitHubClient {
       body: JSON.stringify(body),
     });
     if (!response.ok) {
-      throw new GitHubHttpError(response.status, await response.text());
+      throw await httpError(response, "POST", endpoint, "token");
     }
     return (await response.json()) as T;
   }
@@ -56,7 +56,7 @@ export class PatClient implements GitHubClient {
       body: JSON.stringify(body),
     });
     if (!response.ok) {
-      throw new GitHubHttpError(response.status, await response.text());
+      throw await httpError(response, "PATCH", endpoint, "token");
     }
     return (await response.json()) as T;
   }

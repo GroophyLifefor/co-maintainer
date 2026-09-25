@@ -30,8 +30,8 @@ export type RunCliOptions = {
   configPath?: string;
   /** Reuse a repos directory written by a previous run. */
   reposDir?: string;
-  /** `ok`, `notfound`, `noauth`, or `empty-stderr`. */
-  ghMode?: "ok" | "notfound" | "noauth" | "empty-stderr";
+  /** `ok`, `notfound`, `forbidden`, `noauth`, or `empty-stderr`. */
+  ghMode?: "ok" | "notfound" | "forbidden" | "noauth" | "empty-stderr";
   /** Overrides `CM_OPENROUTER_URL`; a fake server's url goes here. */
   openrouterUrl?: string;
 };

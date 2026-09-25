@@ -4,14 +4,12 @@
 import { githubFetch, GitHubHttpError } from "../github/client.ts";
 import { AppJwtClient } from "../github/app.ts";
 import { GhClient } from "../github/gh.ts";
+import { APP_PERMISSIONS } from "../github/permissions.ts";
 
-const APP_NEED: Record<string, "read" | "write"> = {
-  metadata: "read",
-  contents: "read",
-  issues: "write",
-  pull_requests: "write",
-  checks: "write",
-};
+const APP_NEED = APP_PERMISSIONS;
+
+const AUTH_DOCS = "https://co-maintainer.com/docs/authentication.html";
+const APP_DOCS = "https://co-maintainer.com/docs/github-app.html#permissions";
 
 export type AccessOk = { ok: true; login?: string; installations?: number };
 export type AccessFail = { ok: false; message: string };
@@ -58,7 +56,7 @@ export async function testAppAccess(opts: {
         installation.account?.login ?? `installation ${installation.id}`;
       return {
         ok: false,
-        message: `The App on ${account} is missing ${missing.join(" and ")}.`,
+        message: `The App on ${account} is missing ${missing.join(" and ")}. Permissions it needs: ${APP_DOCS}`,
       };
     }
     return { ok: true, installations: installations.length };
@@ -87,7 +85,7 @@ async function testPat(token: string): Promise<AccessResult> {
     if (!canRead) {
       return {
         ok: false,
-        message: "This token cannot read repositories. Grant the repo scope.",
+        message: `This token cannot read repositories. Grant the repo scope. ${AUTH_DOCS}`,
       };
     }
     return { ok: true, login: user.login };
@@ -96,7 +94,7 @@ async function testPat(token: string): Promise<AccessResult> {
   if (repos.status === 403 || repos.status === 401) {
     return {
       ok: false,
-      message: "This token cannot list repositories. Grant repository access.",
+      message: `This token cannot list repositories. Grant it access to the repositories with Contents, Pull requests, Issues and Metadata read access. ${AUTH_DOCS}`,
     };
   }
   if (!repos.ok) {

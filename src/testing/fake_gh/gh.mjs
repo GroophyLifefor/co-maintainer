@@ -46,6 +46,7 @@ function fail(message, code) {
 }
 
 if (mode === "notfound") fail("gh: Not Found (HTTP 404)", 1);
+if (mode === "forbidden") fail("gh: Resource not accessible (HTTP 403)", 1);
 if (mode === "noauth") {
   fail(
     "gh: To get started with GitHub CLI, please run: gh auth login\n" +

@@ -15,15 +15,10 @@
  * GitHub delivers both to every App without a subscription, which is why
  * `webhook.ts` handles them at all. */
 import { githubFetch } from "./client.ts";
+import { APP_PERMISSIONS } from "./permissions.ts";
 import { webhookReachabilityProblem } from "../util/webhook_reachability.ts";
 
-export const APP_MANIFEST_PERMISSIONS = {
-  contents: "read",
-  issues: "write",
-  pull_requests: "write",
-  checks: "write",
-  metadata: "read",
-} as const;
+export const APP_MANIFEST_PERMISSIONS = APP_PERMISSIONS;
 
 export const APP_MANIFEST_EVENTS = [
   "pull_request",

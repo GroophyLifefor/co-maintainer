@@ -1481,13 +1481,18 @@ repositories the App can already see.
 
 The manifest requests exactly the permissions the code uses, not a superset.
 
+<!-- permissions:app:start -->
 | Permission | Access | Why |
 | ---------- | ------ | --- |
-| Contents | Read | Read a repository's files, trees, and `PR_REVIEW_GUIDE.md` |
-| Pull requests | Write | Read a pull request and post reviews and review comments |
-| Issues | Write | Post and read issue comments, which is how a conversation reply is delivered |
-| Checks | Write | Create and update the review check run |
-| Metadata | Read | Required by every GitHub App |
+| Contents | Read | Read files and PR_REVIEW_GUIDE.md, read the file tree, read commit history, compare two commits, read releases in the probe |
+| Issues | Read and write | Read the conversation on a pull request, post a conversation comment |
+| Pull requests | Read and write | List pull requests, read a pull request, read the files a pull request changes, read earlier reviews, read review comment threads, post a review, reply in a review comment thread |
+| Checks | Read and write | Create the review check run, update the review check run |
+| Metadata | Read | Read the repository and its default branch |
+<!-- permissions:app:end -->
+
+Metadata is required by every GitHub App. The review check run is created
+through the App, never with a personal access token.
 
 No `administration`, no `actions`, and no `packages` access is requested.
 
@@ -2249,6 +2254,18 @@ co-maintainer probe owner/repo
 
 Check access: `gh auth status`.
 
+Scopes `gh` needs:
+
+<!-- permissions:gh:start -->
+| Scope | Why |
+| ----- | --- |
+| `repo` | Read public and private repositories |
+| `public_repo` | Read public repositories only |
+<!-- permissions:gh:end -->
+
+`gh auth login` grants `repo` by default. If a private repository answers with
+a 403, run `gh auth refresh -s repo`.
+
 ## CLI: `--auth=pat`
 
 ```sh
@@ -2259,13 +2276,48 @@ co-maintainer init owner/repo --auth=pat --env=./.env
   `GH_TOKEN`, or `set --github-pat=...`.
 - Useful when `gh` is not installed or CI has no interactive `gh` login.
 - Not used for PR review (that path always calls `gh`).
+- Only reads. A token never posts reviews or creates check runs, the
+  [GitHub App](github-app.md) does that.
 
-Token needs read access to the repositories you analyze. Private repos need
-scopes your org allows.
+### Fine-grained token (recommended)
+
+1. On GitHub open **Settings**, **Developer settings**, **Personal access
+   tokens**, **Fine-grained tokens**, then **Generate new token**.
+2. Pick the **Resource owner** that owns the repositories. An organization may
+   need to approve the token first.
+3. Under **Repository access** choose **Only select repositories** and pick the
+   ones you analyze.
+4. Under **Repository permissions** set each permission below. GitHub labels the
+   read level **Read-only**. It adds **Metadata** on its own.
+
+<!-- permissions:pat-fine:start -->
+| Repository permission | Access | Needed for |
+| --------------------- | ------ | ---------- |
+| Contents | Read | Read files and PR_REVIEW_GUIDE.md, read the file tree, read commit history, compare two commits, read releases in the probe |
+| Issues | Read | Read the conversation on a pull request |
+| Pull requests | Read | List pull requests, read a pull request, read the files a pull request changes, read earlier reviews, read review comment threads |
+| Metadata | Read | Read the repository and its default branch, check the token can list repositories |
+<!-- permissions:pat-fine:end -->
+
+### Classic token
+
+Open **Settings**, **Developer settings**, **Personal access tokens**,
+**Tokens (classic)**, then **Generate new token (classic)** and tick one scope:
+
+<!-- permissions:pat-classic:start -->
+| Scope | Why |
+| ----- | --- |
+| `repo` | Read public and private repositories |
+| `public_repo` | Read public repositories only |
+<!-- permissions:pat-classic:end -->
+
+Organizations that enforce SAML single sign-on also need the token authorized
+for that organization on the token page.
 
 ## GitHub App (`serve`)
 
-The App is **not** the same as CLI `gh` auth:
+The App is **not** the same as CLI `gh` auth. Its permissions are listed on the
+[GitHub App](github-app.md#permissions) page.
 
 - Installed on orgs/repos for webhooks and posting PR reviews.
 - Configured with `co-maintainer set --github-app-id=...` and a private key, or
@@ -2280,13 +2332,22 @@ See [Configuration](configuration.md#co-maintainer-set) and [`serve`](serve.md).
 Signing into the web UI does **not** replace CLI GitHub auth or the App.
 It only gates access to the dashboard and Settings.
 
+GitHub sign-in reuses the App's own OAuth credentials and asks GitHub for:
+
+<!-- permissions:oauth:start -->
+| Scope | Why |
+| ----- | --- |
+| None requested | The sign-in only reads your GitHub login from `GET /user` |
+<!-- permissions:oauth:end -->
+
 Setup: [`serve`: Sign in](serve.md#sign-in-to-the-dashboard).
 
 ## Troubleshooting
 
 | Symptom | Likely fix |
 | ------- | ---------- |
-| `probe` / `init` cannot see a private repo | `gh auth login` or PAT with repo scope |
+| `probe` / `init` cannot see a private repo | `gh auth login`, or a token with the permissions above and that repository selected |
+| `GitHub refused ...` with a permission name | Grant that permission, the message names it |
 | PR review says gh only | Run `gh auth login`, drop `--auth=pat` for that command |
 | Webhook works but no review posted | Finish dashboard **Setup**, repo **init**, auto-review on |
 | Settings save returns 422 | Token or App key missing GitHub scopes |

@@ -152,6 +152,28 @@ can reach GitHub.</li>
 <li>Required for <strong>PR review</strong> (<code>co-maintainer review owner/repo 123</code>).</li>
 </ul>
 <p>Check access: <code>gh auth status</code>.</p>
+<p>Scopes <code>gh</code> needs:</p>
+<!-- permissions:gh:start -->
+<table>
+<thead>
+<tr>
+<th>Scope</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>repo</code></td>
+<td>Read public and private repositories</td>
+</tr>
+<tr>
+<td><code>public_repo</code></td>
+<td>Read public repositories only</td>
+</tr>
+</tbody></table>
+<!-- permissions:gh:end -->
+
+<p><code>gh auth login</code> grants <code>repo</code> by default. If a private repository answers with
+a 403, run <code>gh auth refresh -s repo</code>.</p>
 <h2 id="cli-authpat">CLI: <code>--auth=pat</code></h2>
 <pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">init</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--auth=pat</span> <span class="sh-flag">--env=./.env</span>
 </code></pre>
@@ -160,11 +182,79 @@ can reach GitHub.</li>
 <code>GH_TOKEN</code>, or <code>set --github-pat=...</code>.</li>
 <li>Useful when <code>gh</code> is not installed or CI has no interactive <code>gh</code> login.</li>
 <li>Not used for PR review (that path always calls <code>gh</code>).</li>
+<li>Only reads. A token never posts reviews or creates check runs, the
+<a href="github-app.html">GitHub App</a> does that.</li>
 </ul>
-<p>Token needs read access to the repositories you analyze. Private repos need
-scopes your org allows.</p>
+<h3 id="fine-grained-token-recommended">Fine-grained token (recommended)</h3>
+<ol>
+<li>On GitHub open <strong>Settings</strong>, <strong>Developer settings</strong>, <strong>Personal access
+tokens</strong>, <strong>Fine-grained tokens</strong>, then <strong>Generate new token</strong>.</li>
+<li>Pick the <strong>Resource owner</strong> that owns the repositories. An organization may
+need to approve the token first.</li>
+<li>Under <strong>Repository access</strong> choose <strong>Only select repositories</strong> and pick the
+ones you analyze.</li>
+<li>Under <strong>Repository permissions</strong> set each permission below. GitHub labels the
+read level <strong>Read-only</strong>. It adds <strong>Metadata</strong> on its own.</li>
+</ol>
+<!-- permissions:pat-fine:start -->
+<table>
+<thead>
+<tr>
+<th>Repository permission</th>
+<th>Access</th>
+<th>Needed for</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Contents</td>
+<td>Read</td>
+<td>Read files and PR_REVIEW_GUIDE.md, read the file tree, read commit history, compare two commits, read releases in the probe</td>
+</tr>
+<tr>
+<td>Issues</td>
+<td>Read</td>
+<td>Read the conversation on a pull request</td>
+</tr>
+<tr>
+<td>Pull requests</td>
+<td>Read</td>
+<td>List pull requests, read a pull request, read the files a pull request changes, read earlier reviews, read review comment threads</td>
+</tr>
+<tr>
+<td>Metadata</td>
+<td>Read</td>
+<td>Read the repository and its default branch, check the token can list repositories</td>
+</tr>
+</tbody></table>
+<!-- permissions:pat-fine:end -->
+
+<h3 id="classic-token">Classic token</h3>
+<p>Open <strong>Settings</strong>, <strong>Developer settings</strong>, <strong>Personal access tokens</strong>,
+<strong>Tokens (classic)</strong>, then <strong>Generate new token (classic)</strong> and tick one scope:</p>
+<!-- permissions:pat-classic:start -->
+<table>
+<thead>
+<tr>
+<th>Scope</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>repo</code></td>
+<td>Read public and private repositories</td>
+</tr>
+<tr>
+<td><code>public_repo</code></td>
+<td>Read public repositories only</td>
+</tr>
+</tbody></table>
+<!-- permissions:pat-classic:end -->
+
+<p>Organizations that enforce SAML single sign-on also need the token authorized
+for that organization on the token page.</p>
 <h2 id="github-app-serve">GitHub App (<code>serve</code>)</h2>
-<p>The App is <strong>not</strong> the same as CLI <code>gh</code> auth:</p>
+<p>The App is <strong>not</strong> the same as CLI <code>gh</code> auth. Its permissions are listed on the
+<a href="github-app.html#permissions">GitHub App</a> page.</p>
 <ul>
 <li>Installed on orgs/repos for webhooks and posting PR reviews.</li>
 <li>Configured with <code>co-maintainer set --github-app-id=...</code> and a private key, or
@@ -176,6 +266,22 @@ created for you from dashboard <strong>Settings</strong> with <strong>Create Git
 <h2 id="dashboard-sign-in">Dashboard sign-in</h2>
 <p>Signing into the web UI does <strong>not</strong> replace CLI GitHub auth or the App.
 It only gates access to the dashboard and Settings.</p>
+<p>GitHub sign-in reuses the App&#39;s own OAuth credentials and asks GitHub for:</p>
+<!-- permissions:oauth:start -->
+<table>
+<thead>
+<tr>
+<th>Scope</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>None requested</td>
+<td>The sign-in only reads your GitHub login from <code>GET /user</code></td>
+</tr>
+</tbody></table>
+<!-- permissions:oauth:end -->
+
 <p>Setup: <a href="serve.html#sign-in-to-the-dashboard"><code>serve</code>: Sign in</a>.</p>
 <h2 id="troubleshooting">Troubleshooting</h2>
 <table>
@@ -187,7 +293,11 @@ It only gates access to the dashboard and Settings.</p>
 </thead>
 <tbody><tr>
 <td><code>probe</code> / <code>init</code> cannot see a private repo</td>
-<td><code>gh auth login</code> or PAT with repo scope</td>
+<td><code>gh auth login</code>, or a token with the permissions above and that repository selected</td>
+</tr>
+<tr>
+<td><code>GitHub refused ...</code> with a permission name</td>
+<td>Grant that permission, the message names it</td>
 </tr>
 <tr>
 <td>PR review says gh only</td>

@@ -4,15 +4,34 @@
 
 import { log } from "../util/log.ts";
 import { networkFailure } from "../cli/error.ts";
+import { missingHint, refusalHint } from "./permissions.ts";
 
 export class GitHubHttpError extends Error {
   readonly status: number;
 
-  constructor(status: number, body: string) {
-    super(`GitHub API ${status}: ${body}`);
+  constructor(status: number, body: string, hint?: string) {
+    super(`GitHub API ${status}: ${body}${hint ? ` ${hint}` : ""}`);
     this.status = status;
     this.name = "GitHubHttpError";
   }
+}
+
+/** A failed response as an error. A 403 or 404 names the endpoint and the
+ * permission it needs, because GitHub's own body rarely says which one. */
+export async function httpError(
+  response: Response,
+  method: string,
+  endpoint: string,
+  who: "token" | "App",
+): Promise<GitHubHttpError> {
+  const body = await response.text();
+  const hint =
+    response.status === 403
+      ? refusalHint(method, endpoint, who)
+      : response.status === 404
+        ? missingHint(method, endpoint, who)
+        : undefined;
+  return new GitHubHttpError(response.status, body, hint);
 }
 
 export function isAccessDenied(error: unknown): boolean {

@@ -40,7 +40,7 @@ type Bucket = { remaining: number; resetAt: Date };
  * everything else. The first line is the only part a human reads, so it always
  * names the situation; the raw gh text moves to the hint so it stays available
  * without drowning the message. */
-function ghFailure(endpoint: string, stderr: string): CliError {
+function ghFailure(method: string, endpoint: string, stderr: string): CliError {
   if (/ENOENT|command not found|not recognized/i.test(stderr)) {
     return new CliError(
       "gh_not_installed",
@@ -57,6 +57,14 @@ function ghFailure(endpoint: string, stderr: string): CliError {
       "repo_not_found",
       `${subject} was not found, or your GitHub account cannot read it.`,
       "Check the name and run gh auth status.",
+      EXIT_USAGE,
+    );
+  }
+  if (/HTTP 403/i.test(stderr)) {
+    return new CliError(
+      "github_forbidden",
+      `GitHub refused ${method} ${endpoint}.`,
+      `Your gh login needs the repo scope. Run gh auth refresh -s repo. gh said: ${stderr}`,
       EXIT_USAGE,
     );
   }
@@ -178,7 +186,7 @@ export class GhClient implements GitHubClient {
   }
 
   request<T>(endpoint: string): Promise<T> {
-    return this.call(endpoint, () => {
+    return this.call("GET", endpoint, () => {
       const { command, prefix } = ghSpawn();
       return commandOutput(command, {
         args: [...prefix, "api", endpoint],
@@ -213,7 +221,7 @@ export class GhClient implements GitHubClient {
     method: "POST" | "PATCH",
     body: unknown,
   ): Promise<T> {
-    return this.call(endpoint, () => {
+    return this.call(method, endpoint, () => {
       const { command, prefix } = ghSpawn();
       return commandWithInput(
         command,
@@ -229,6 +237,7 @@ export class GhClient implements GitHubClient {
   }
 
   private async call<T>(
+    method: string,
     endpoint: string,
     run: () => Promise<CommandOutput>,
   ): Promise<T> {
@@ -265,7 +274,7 @@ export class GhClient implements GitHubClient {
       const limited = bucket
         ? bucket.remaining === 0
         : /rate limit/i.test(error);
-      if (!limited) throw ghFailure(endpoint, error);
+      if (!limited) throw ghFailure(method, endpoint, error);
       const resetAt =
         bucket?.resetAt ?? new Date(Date.now() + RATE_LIMIT_PROBE_MS);
       const delay = probeDelay(resetAt, Date.now());

@@ -1,4 +1,4 @@
-import { githubFetch, GitHubHttpError, paginate } from "./client.ts";
+import { githubFetch, httpError, paginate } from "./client.ts";
 import { importAppPrivateKey, signAppJwt } from "./jwt.ts";
 import type { GitHubClient, Json } from "../types.ts";
 
@@ -29,7 +29,7 @@ async function call<T>(
     headers: { ...headers(token), ...(init.headers ?? {}) },
   });
   if (!response.ok) {
-    throw new GitHubHttpError(response.status, await response.text());
+    throw await httpError(response, init.method ?? "GET", endpoint, "App");
   }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;

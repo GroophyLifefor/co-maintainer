@@ -95,7 +95,8 @@ export function renderSettings(
             }>Personal access token</option>
           </select></div>
         <div class="field"><label>Personal access token</label>
-          <input id="pat" type="password" placeholder="Leave blank to keep the current token"></div>
+          <input id="pat" type="password" placeholder="Leave blank to keep the current token">
+          <div class="hint">Read-only is enough. <a href="https://co-maintainer.com/docs/authentication.html" target="_blank" rel="noopener">Which permissions to grant</a></div></div>
       </div>
       <div class="ft"><button class="primary" id="save-gh">Save</button></div>
     </div>
@@ -106,7 +107,7 @@ export function renderSettings(
           appOk ? "Configured" : "Not set"
         }</span></div>
       <div class="bd">
-        <p class="muted" style="margin:0 0 16px">Needed to post reviews on pull requests.</p>
+        <p class="muted" style="margin:0 0 16px">Needed to post reviews on pull requests. <a href="https://co-maintainer.com/docs/github-app.html#permissions" target="_blank" rel="noopener">Permissions it needs</a></p>
         <div style="margin:0 0 16px">
           <div class="two" style="max-width:none;margin:0 0 12px">
             <div class="field"><label>App name</label>
