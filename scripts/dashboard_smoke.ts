@@ -324,6 +324,38 @@ try {
           });
         }
       }
+      if (path === "/settings") {
+        const boxes = await page
+          .locator('input[type="checkbox"]')
+          .evaluateAll((inputs) =>
+            inputs.map((input) => {
+              const box = input.getBoundingClientRect();
+              const label = input.closest("label");
+              const range = document.createRange();
+              range.selectNodeContents(label ?? input);
+              const line = range.getBoundingClientRect();
+              const middle = box.top + box.height / 2;
+              return {
+                id: input.id,
+                width: box.width,
+                sameLine: middle >= line.top && middle <= line.bottom,
+                textOnBoxLine: label !== null && line.height < box.height * 2.5,
+              };
+            }),
+          );
+        if (boxes.length === 0) {
+          issues.push({ path, kind: "text", text: "no checkbox found" });
+        }
+        for (const box of boxes) {
+          if (box.width >= 32 || !box.sameLine || !box.textOnBoxLine) {
+            issues.push({
+              path,
+              kind: "text",
+              text: `checkbox #${box.id} is ${Math.round(box.width)}px wide or off its label line`,
+            });
+          }
+        }
+      }
       console.log(`visited ${path}`);
     }
 
