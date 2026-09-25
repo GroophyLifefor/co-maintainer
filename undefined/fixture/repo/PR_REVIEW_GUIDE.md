@@ -1,3 +1,0 @@
-# Review guide
-
-Be terse.
