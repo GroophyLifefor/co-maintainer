@@ -131,7 +131,7 @@ test("the refusal hint names the endpoint and the missing permission", () => {
   const read = refusalHint("GET", "repos/o/r/pulls/4", "token");
   if (
     read !==
-    "GitHub refused GET repos/o/r/pulls/4. The token needs Pull requests: Read."
+    "GitHub refused GET repos/o/r/pulls/4. A fine-grained token needs Pull requests: Read. A classic token needs the repo scope."
   ) {
     throw new Error(read);
   }
@@ -159,7 +159,11 @@ test("httpError adds a hint on 403 and 404 and leaves other statuses alone", asy
   if (!(forbidden instanceof GitHubHttpError) || forbidden.status !== 403) {
     throw new Error("wrong error type");
   }
-  if (!/The token needs Pull requests: Read\./.test(forbidden.message)) {
+  if (
+    !/A fine-grained token needs Pull requests: Read\. A classic token needs the repo scope\./.test(
+      forbidden.message,
+    )
+  ) {
     throw new Error(forbidden.message);
   }
   const missing = await httpError(

@@ -297,8 +297,16 @@ export function refusalHint(
   if (who === "token" && !found.identities.includes("pat")) {
     return `${base} Only a GitHub App can do this.`;
   }
-  const name = who === "token" ? "The token" : "The GitHub App";
-  return `${base} ${name} needs ${PERMISSION_LABEL[found.permission]}: ${accessLabel(found.level)}.`;
+  return `${base} ${needs(found, who)}`;
+}
+
+/** A fine-grained token is granted permissions and a classic one scopes, so a
+ * token error names both. */
+function needs(found: Endpoint, who: "token" | "App"): string {
+  const grant = `${PERMISSION_LABEL[found.permission!]}: ${accessLabel(found.level)}`;
+  return who === "App"
+    ? `The GitHub App needs ${grant}.`
+    : `A fine-grained token needs ${grant}. A classic token needs the repo scope.`;
 }
 
 export function missingHint(
@@ -310,7 +318,7 @@ export function missingHint(
   const found = endpointFor(method, endpoint);
   const base = `GitHub returned 404 for ${method} ${endpoint}. The repository may not exist or ${name} cannot see it.`;
   if (!found?.permission) return base;
-  return `${base} It also needs ${PERMISSION_LABEL[found.permission]}: ${accessLabel(found.level)}.`;
+  return `${base} ${needs(found, who)}`;
 }
 
 /** Classic scopes cover every repository call above, for `gh` and a classic
