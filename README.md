@@ -49,7 +49,7 @@ co-maintainer config list                        # every key, its value and its 
 ```
 
 Documentation: [Getting started](https://co-maintainer.com/docs/getting-started.html)
-(install to first review) and the [full docs site](https://co-maintainer.com/docs),
+(install to first review) and the [full docs site](https://co-maintainer.com/docs/getting-started.html),
 sources in [`docs/md/`](docs/md/).
 
 Use `co-maintainer help`, `co-maintainer -h`, or `co-maintainer --help` for the
