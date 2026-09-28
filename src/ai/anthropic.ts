@@ -85,7 +85,10 @@ export function anthropicError(
       EXIT_USAGE,
     );
   }
-  if (status === 400 && (type === "not_found_error" || /model/i.test(detail))) {
+  if (
+    (status === 400 || status === 404) &&
+    (type === "not_found_error" || /model/i.test(detail))
+  ) {
     return new CliError(
       "anthropic_unknown_model",
       `Anthropic does not know the model ${model}.`,
@@ -196,8 +199,9 @@ function toAnthropicMessages(messages: AiMessage[]): {
 }
 
 /** Haiku 4.5 does not support `output_config.effort`; sending it is a 400.
- * The mapping is narrow on purpose, since `AiRequest.reasoningEffort` has two
- * levels Anthropic does not list ("none" and, on older models, "xhigh"). */
+ * Anthropic's effort accepts low/medium/high/xhigh/max, so the only level this
+ * has to drop is "none": it means "reasoning off" in `AiRequest` and is not an
+ * effort value Anthropic lists. */
 function supportsEffort(model: string): boolean {
   return !/haiku/i.test(model);
 }

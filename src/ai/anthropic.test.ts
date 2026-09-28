@@ -164,6 +164,15 @@ test("effort is sent for Opus but never for Haiku", async () => {
         `Haiku must not get output_config: ${JSON.stringify(haiku)}`,
       );
     }
+    // Anthropic's effort values include xhigh, so it is forwarded, not dropped.
+    await new AnthropicProvider("sk-ant-test", "claude-opus-5").complete({
+      ...request,
+      reasoningEffort: "xhigh",
+    });
+    const xhigh = fake.requests[2]!.output_config as Record<string, unknown>;
+    if (xhigh?.effort !== "xhigh") {
+      throw new Error(`xhigh effort expected: ${JSON.stringify(xhigh)}`);
+    }
   });
 });
 

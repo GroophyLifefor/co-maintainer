@@ -89,7 +89,7 @@ function reply(
   switch (mode) {
     case "bad-model":
       return {
-        status: 400,
+        status: 404,
         body: errorBody("not_found_error", "model: unknown model"),
       };
     case "unauthorized":
