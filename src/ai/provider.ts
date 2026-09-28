@@ -1,4 +1,5 @@
 import { OpenRouterProvider } from "./openrouter.ts";
+import { OpenAiProvider } from "./openai.ts";
 import { die } from "../cli/error.ts";
 import type {
   AiMessage,
@@ -33,6 +34,9 @@ export function createAiProvider(
   if (options.ai === "none") return undefined;
   if (options.ai === "openrouter") {
     return new OpenRouterProvider(options.aiToken ?? "", model);
+  }
+  if (options.ai === "openai") {
+    return new OpenAiProvider(options.aiToken ?? "", model);
   }
   // Accepted everywhere `--ai` is validated, but no provider exists yet.
   die(`${options.ai} support is not finished yet. Use openrouter or none.`);

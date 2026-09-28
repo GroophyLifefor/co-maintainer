@@ -7,6 +7,7 @@
  * user's mistake, so it warns and saves instead of refusing. */
 import { CliError, EXIT_USAGE } from "../cli/error.ts";
 import { getEnv } from "../util/runtime.ts";
+import { openAiBase } from "./openai.ts";
 
 /** The chat endpoint the provider uses, with `/chat/completions` removed.
  * `CM_OPENROUTER_URL` points at a local fake in tests, so the base follows it
@@ -92,6 +93,53 @@ export async function verifyOpenRouter(
         "openrouter_unknown_model",
         `OpenRouter does not know the model ${model}.`,
         "Pick one at https://openrouter.ai/models and set it with co-maintainer set --high-model=...",
+        EXIT_USAGE,
+      ),
+    };
+  }
+  return { status: "ok" };
+}
+
+/** Same shape as {@link verifyOpenRouter}: `/models` both authenticates the
+ * key and, when `model` is given, confirms OpenAI actually has it. */
+export async function verifyOpenAi(
+  apiKey: string,
+  model?: string,
+): Promise<VerifyResult> {
+  const base = openAiBase();
+  const models = await getJson(`${base}/models`, apiKey);
+  if ("unreachable" in models) {
+    return { status: "unreachable", reason: models.unreachable };
+  }
+  if (models.status === 401) {
+    return {
+      status: "rejected",
+      error: new CliError(
+        "openai_unauthorized",
+        "OpenAI rejected the API key.",
+        "Check the key at https://platform.openai.com/api-keys and pass it again.",
+        EXIT_USAGE,
+      ),
+    };
+  }
+  if (models.status >= 400) {
+    return {
+      status: "unreachable",
+      reason: `OpenAI returned ${models.status}`,
+    };
+  }
+  if (!model) return { status: "ok" };
+  const rows = (models.body as { data?: { id?: string }[] } | undefined)?.data;
+  if (!Array.isArray(rows)) {
+    return { status: "unreachable", reason: "OpenAI returned no model list" };
+  }
+  if (!rows.some((row) => row?.id === model)) {
+    return {
+      status: "rejected",
+      error: new CliError(
+        "openai_unknown_model",
+        `OpenAI does not know the model ${model}.`,
+        "Pick one at https://platform.openai.com/docs/models and set it with co-maintainer set --high-model=...",
         EXIT_USAGE,
       ),
     };

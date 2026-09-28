@@ -4,6 +4,7 @@ import {
   rejectRetiredProvider,
 } from "./provider.ts";
 import { OpenRouterProvider } from "./openrouter.ts";
+import { OpenAiProvider } from "./openai.ts";
 import type { AiRequest, Options } from "../types.ts";
 import { test } from "node:test";
 
@@ -67,19 +68,30 @@ test("Hetzner is rejected by name and an unknown provider throws", () => {
   if (!threw) throw new Error("an unknown provider must not fall back");
 });
 
-test("openai and anthropic are accepted names but have no provider yet", () => {
+test("the provider list names every accepted --ai value", () => {
   if (AI_PROVIDERS.join(",") !== "none,openrouter,openai,anthropic") {
     throw new Error(`provider list: ${AI_PROVIDERS.join(",")}`);
   }
-  for (const ai of ["openai", "anthropic"] as const) {
-    let message = "";
-    try {
-      createAiProvider({ ai } as unknown as Options, "m");
-    } catch (error) {
-      message = String((error as Error).message);
-    }
-    if (!message.includes(ai) || !/not finished yet/.test(message)) {
-      throw new Error(`${ai}: ${message}`);
-    }
+});
+
+test("anthropic is an accepted name but has no provider yet", () => {
+  let message = "";
+  try {
+    createAiProvider({ ai: "anthropic" } as unknown as Options, "m");
+  } catch (error) {
+    message = String((error as Error).message);
+  }
+  if (!message.includes("anthropic") || !/not finished yet/.test(message)) {
+    throw new Error(message);
+  }
+});
+
+test("openai is created with the given key and model", () => {
+  const provider = createAiProvider(
+    { ai: "openai", aiToken: "sk-test" } as unknown as Options,
+    "gpt-6-luna",
+  );
+  if (!(provider instanceof OpenAiProvider)) {
+    throw new Error("expected an OpenAiProvider");
   }
 });

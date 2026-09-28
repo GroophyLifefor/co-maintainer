@@ -275,9 +275,20 @@ export async function parseArgs(args: string[]): Promise<Options> {
     aiToken ??= await ask("openrouter API key", undefined, true);
     highModel ??= await ask("high model", defaultHighModel, true);
   } else if (ai !== "none" && command !== "probe") {
+    // OpenRouter keeps its long-standing suggested pair. A newer provider
+    // gets no house pick: the model to use is the user's call, not ours.
+    const modelFallback = ai === "openrouter";
     aiToken ??= await ask(`${ai} API key`, undefined, true);
-    lowModel ??= await ask("low model", defaultLowModel, true);
-    highModel ??= await ask("high model", defaultHighModel, true);
+    lowModel ??= await ask(
+      "low model",
+      modelFallback ? defaultLowModel : undefined,
+      true,
+    );
+    highModel ??= await ask(
+      "high model",
+      modelFallback ? defaultHighModel : undefined,
+      true,
+    );
   }
   if (
     command !== "review" &&
