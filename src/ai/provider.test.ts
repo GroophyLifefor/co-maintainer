@@ -5,6 +5,7 @@ import {
 } from "./provider.ts";
 import { OpenRouterProvider } from "./openrouter.ts";
 import { OpenAiProvider } from "./openai.ts";
+import { AnthropicProvider } from "./anthropic.ts";
 import type { AiRequest, Options } from "../types.ts";
 import { test } from "node:test";
 
@@ -74,15 +75,13 @@ test("the provider list names every accepted --ai value", () => {
   }
 });
 
-test("anthropic is an accepted name but has no provider yet", () => {
-  let message = "";
-  try {
-    createAiProvider({ ai: "anthropic" } as unknown as Options, "m");
-  } catch (error) {
-    message = String((error as Error).message);
-  }
-  if (!message.includes("anthropic") || !/not finished yet/.test(message)) {
-    throw new Error(message);
+test("anthropic is created with the given key and model", () => {
+  const provider = createAiProvider(
+    { ai: "anthropic", aiToken: "sk-ant-test" } as unknown as Options,
+    "claude-opus-5",
+  );
+  if (!(provider instanceof AnthropicProvider)) {
+    throw new Error("expected an AnthropicProvider");
   }
 });
 

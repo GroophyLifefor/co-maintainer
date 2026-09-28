@@ -1,7 +1,11 @@
 import { readConfig, configPath, writeUserConfig } from "../../config.ts";
 import { hashPassword, passwordProblem } from "../../util/password.ts";
 import { readTextFile } from "../../util/runtime.ts";
-import { verifyOpenAi, verifyOpenRouter } from "../../ai/verify.ts";
+import {
+  verifyAnthropic,
+  verifyOpenAi,
+  verifyOpenRouter,
+} from "../../ai/verify.ts";
 import { die } from "../error.ts";
 import { AI_PROVIDERS, rejectRetiredProvider } from "../../ai/provider.ts";
 import { renderCommandHelp, renderGlobalHelp } from "./registry.ts";
@@ -211,11 +215,17 @@ export async function runSet(args: string[]): Promise<void> {
   const effectiveHighModel = effective("highModel");
   if (
     verify &&
-    (effectiveAi === "openrouter" || effectiveAi === "openai") &&
+    (effectiveAi === "openrouter" ||
+      effectiveAi === "openai" ||
+      effectiveAi === "anthropic") &&
     effectiveToken
   ) {
     const verifyProvider =
-      effectiveAi === "openrouter" ? verifyOpenRouter : verifyOpenAi;
+      effectiveAi === "openrouter"
+        ? verifyOpenRouter
+        : effectiveAi === "openai"
+          ? verifyOpenAi
+          : verifyAnthropic;
     const result = await verifyProvider(
       String(effectiveToken),
       effectiveHighModel === undefined ? undefined : String(effectiveHighModel),

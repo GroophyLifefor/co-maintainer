@@ -8,6 +8,7 @@
 import { CliError, EXIT_USAGE } from "../cli/error.ts";
 import { getEnv } from "../util/runtime.ts";
 import { openAiBase } from "./openai.ts";
+import { anthropicBase, ANTHROPIC_VERSION } from "./anthropic.ts";
 
 /** The chat endpoint the provider uses, with `/chat/completions` removed.
  * `CM_OPENROUTER_URL` points at a local fake in tests, so the base follows it
@@ -27,11 +28,12 @@ export type VerifyResult =
 async function getJson(
   url: string,
   apiKey: string,
+  headers?: Record<string, string>,
 ): Promise<{ status: number; body: unknown } | { unreachable: string }> {
   let response: Response;
   try {
     response = await fetch(url, {
-      headers: { Authorization: `Bearer ${apiKey}` },
+      headers: headers ?? { Authorization: `Bearer ${apiKey}` },
     });
   } catch (error) {
     const code = (error as { cause?: { code?: string } }).cause?.code;
@@ -140,6 +142,61 @@ export async function verifyOpenAi(
         "openai_unknown_model",
         `OpenAI does not know the model ${model}.`,
         "Pick one at https://platform.openai.com/docs/models and set it with co-maintainer set --high-model=...",
+        EXIT_USAGE,
+      ),
+    };
+  }
+  return { status: "ok" };
+}
+
+/** Anthropic authenticates the key and lists models at `/models`, but with its
+ * own headers (`x-api-key` + `anthropic-version`) instead of a Bearer token.
+ * Without a model the call only proves the key; with one it also confirms
+ * Anthropic serves it. */
+export async function verifyAnthropic(
+  apiKey: string,
+  model?: string,
+): Promise<VerifyResult> {
+  const base = anthropicBase();
+  const models = await getJson(`${base}/models`, apiKey, {
+    "x-api-key": apiKey,
+    "anthropic-version": ANTHROPIC_VERSION,
+  });
+  if ("unreachable" in models) {
+    return { status: "unreachable", reason: models.unreachable };
+  }
+  if (models.status === 401 || models.status === 403) {
+    return {
+      status: "rejected",
+      error: new CliError(
+        "anthropic_unauthorized",
+        "Anthropic rejected the API key.",
+        "Check the key at https://console.anthropic.com/settings/keys and pass it again.",
+        EXIT_USAGE,
+      ),
+    };
+  }
+  if (models.status >= 400) {
+    return {
+      status: "unreachable",
+      reason: `Anthropic returned ${models.status}`,
+    };
+  }
+  if (!model) return { status: "ok" };
+  const rows = (models.body as { data?: { id?: string }[] } | undefined)?.data;
+  if (!Array.isArray(rows)) {
+    return {
+      status: "unreachable",
+      reason: "Anthropic returned no model list",
+    };
+  }
+  if (!rows.some((row) => row?.id === model)) {
+    return {
+      status: "rejected",
+      error: new CliError(
+        "anthropic_unknown_model",
+        `Anthropic does not know the model ${model}.`,
+        "Pick one at https://docs.anthropic.com/en/docs/about-claude/models and set it with co-maintainer set --high-model=...",
         EXIT_USAGE,
       ),
     };

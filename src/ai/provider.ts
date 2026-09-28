@@ -1,5 +1,6 @@
 import { OpenRouterProvider } from "./openrouter.ts";
 import { OpenAiProvider } from "./openai.ts";
+import { AnthropicProvider } from "./anthropic.ts";
 import { die } from "../cli/error.ts";
 import type {
   AiMessage,
@@ -38,7 +39,9 @@ export function createAiProvider(
   if (options.ai === "openai") {
     return new OpenAiProvider(options.aiToken ?? "", model);
   }
-  // Accepted everywhere `--ai` is validated, but no provider exists yet.
+  if (options.ai === "anthropic") {
+    return new AnthropicProvider(options.aiToken ?? "", model);
+  }
   die(`${options.ai} support is not finished yet. Use openrouter or none.`);
 }
 

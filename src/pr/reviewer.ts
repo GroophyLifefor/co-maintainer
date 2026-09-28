@@ -114,6 +114,26 @@ export function reviewSystemPrompt(diagrams: boolean): string {
 ${diagrams ? REVIEW_DIAGRAM_RULES : NO_DIAGRAM_RULES}`;
 }
 
+/** The guide block every review sends, kept as the stable head of the system
+ * prompt rather than the user prompt so a provider with prompt caching
+ * (Anthropic's `cache_control`) reads it instead of re-billing it. Nothing
+ * time-varying may enter this string — a single differing byte makes the cache
+ * miss (CORE-106). */
+export function reviewGuidesBlock(
+  guide: string,
+  detailed: string,
+  codebase: string,
+): string {
+  return `REVIEW GUIDE:
+${guide}
+
+DETAILED GUIDE:
+${detailed}
+
+CODEBASE CONVENTIONS:
+${codebase || "None recorded."}`;
+}
+
 /** Shared PR and local/remote workspace review instructions: confirm claims
  * against the indexed graph, not only the diff slice. */
 export const CODEGRAPH_DIFF_VERIFICATION = `Examine the changes line by line, not just file by file. A single file can
@@ -483,15 +503,6 @@ code to the nearest numbered line.
 ${diagrams ? DIAGRAM_PROMPT_RULES : NO_DIAGRAM_RULES}
 ${FINDINGS_JSON_INSTRUCTIONS}
 
-REVIEW GUIDE:
-${guide}
-
-DETAILED GUIDE:
-${detailed}
-
-CODEBASE CONVENTIONS:
-${codebase || "None recorded."}
-
 PULL REQUEST:
 ${JSON.stringify({
   number,
@@ -511,7 +522,7 @@ ${diff}`;
   const matrix = clampImproveMatrix(options.improveMatrix);
   const request: AiRequest = {
     job: "review_pull_request",
-    system: reviewSystemPrompt(diagrams),
+    system: `${reviewSystemPrompt(diagrams)}\n\n${reviewGuidesBlock(guide, detailed, codebase)}`,
     prompt,
     maxTokens: 24_000 * matrix,
     reasoningEffort: "high",
@@ -749,15 +760,6 @@ ${CODEGRAPH_DIFF_VERIFICATION}
 ${diagrams ? DIAGRAM_PROMPT_RULES : NO_DIAGRAM_RULES}
 ${FINDINGS_JSON_INSTRUCTIONS}
 
-REVIEW GUIDE:
-${guide}
-
-DETAILED GUIDE:
-${detailed}
-
-CODEBASE CONVENTIONS:
-${codebase || "None recorded."}
-
 WORKSPACE:
 ${JSON.stringify({
   branch: revision.baseLabel,
@@ -770,7 +772,7 @@ ${ownDiff}${unchangedListing}`;
   const matrix = clampImproveMatrix(options.improveMatrix);
   const request: AiRequest = {
     job: "review_local",
-    system: reviewSystemPrompt(diagrams),
+    system: `${reviewSystemPrompt(diagrams)}\n\n${reviewGuidesBlock(guide, detailed, codebase)}`,
     prompt,
     maxTokens: 24_000 * matrix,
     reasoningEffort: "high",
