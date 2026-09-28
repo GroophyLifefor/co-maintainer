@@ -199,9 +199,23 @@ Leave blank to keep the current key"></textarea></div>
           <div class="field"><label>New token name</label>
             <input id="remote-token-name" placeholder="e.g. laptop"></div>
         </div>
+        <div class="field wide" style="margin-top:16px"><label>Client key policy (BYOK)</label>
+          <select id="remote-byok-policy">
+            <option value="off"${
+              (config.remoteByokPolicy ?? "off") === "off" ? " selected" : ""
+            }>off: reject a client key</option>
+            <option value="allow"${
+              config.remoteByokPolicy === "allow" ? " selected" : ""
+            }>allow: accept a client key, fall back to the server key</option>
+            <option value="require"${
+              config.remoteByokPolicy === "require" ? " selected" : ""
+            }>require: a client key is mandatory</option>
+          </select>
+          <div class="hint">Whether <code>review --remote</code> clients may send their own AI key. The <code>CM_REMOTE_BYOK_POLICY</code> env var overrides this.</div></div>
       </div>
       <div class="ft">
         <button class="primary" id="create-remote-token">Create token</button>
+        <button class="btn" id="save-remote-byok">Save policy</button>
       </div>
     </div>
     <div class="card" id="access" data-async>
@@ -365,6 +379,12 @@ document.getElementById("save-server").addEventListener("click", function() {
     remoteSyncTimeoutSeconds: timeout.value,
     maxConcurrentRemoteReviewsPerToken: perToken.value,
     remoteToolOutputMaxChars: toolChars.value
+  });
+});
+document.getElementById("save-remote-byok").addEventListener("click", function() {
+  var card = this.closest("[data-async]");
+  save(this, {
+    remoteByokPolicy: document.getElementById("remote-byok-policy").value
   });
 });
 function escHtml(s) {

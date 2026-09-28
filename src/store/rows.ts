@@ -194,4 +194,7 @@ export type RemoteReviewInputRow = {
   request_id: string;
   token_id: string;
   created_at: string;
+  /** `'byok'` when the client's own key paid for the review, `'server'`
+   * otherwise. A null (pre-0.5.1 row) is treated as `'server'`. */
+  billed_to?: string | null;
 };

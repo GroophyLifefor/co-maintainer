@@ -86,8 +86,27 @@ export type UserConfig = {
   remoteSyncTimeoutSeconds?: number;
   maxConcurrentRemoteReviewsPerToken?: number;
   remoteToolOutputMaxChars?: number;
+  /** Whether remote clients may bring their own AI key (CORE-110). `off`
+   * rejects one, `allow` accepts one and falls back to the server key when
+   * absent, `require` refuses a review that does not carry one. The
+   * `CM_REMOTE_BYOK_POLICY` env var overrides this, which is how a hosted
+   * deployment forces the setting. */
+  remoteByokPolicy?: ByokPolicy;
   repos?: Record<string, RepoConfig>;
 };
+
+export type ByokPolicy = "off" | "allow" | "require";
+
+/** Who pays for a remote review's AI calls (CORE-110). `CM_REMOTE_BYOK_POLICY`
+ * overrides the saved config, so a hosted server cannot be talked out of its
+ * policy by a config edit. An unset or unreadable value falls back to the
+ * config, then to `off`. */
+export function remoteByokPolicy(
+  config: Pick<UserConfig, "remoteByokPolicy"> = readConfig(),
+): ByokPolicy {
+  const raw = getEnv("CM_REMOTE_BYOK_POLICY") ?? config.remoteByokPolicy;
+  return raw === "allow" || raw === "require" ? raw : "off";
+}
 
 function homeDir(env: (name: string) => string | undefined): string {
   const home = env("HOME") ?? env("USERPROFILE");

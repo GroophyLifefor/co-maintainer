@@ -23,7 +23,13 @@ import {
   openRemoteSession,
   setRemoteSyncResult,
 } from "../remote/server/sessions.ts";
-import { readConfig } from "../config.ts";
+import { readConfig, remoteByokPolicy } from "../config.ts";
+import {
+  dropByokKey,
+  getByokKey,
+  hasByokKey,
+  registerByokKey,
+} from "../remote/server/byok_keys.ts";
 import { reviewBlockingFrom } from "../review/blocking.ts";
 import { loadGuides } from "../review/guides.ts";
 import type { Options } from "../types.ts";
@@ -67,11 +73,27 @@ import type { JobRow } from "../store/rows.ts";
 
 const REPO_UNAVAILABLE = "Sorry, we could not access this repository.";
 
+/** A remote review failure whose `code` the client can branch on. `runJob`
+ * stores `error.message`, so the text is what reaches the client's abort
+ * message. */
+class RemoteReviewError extends Error {
+  code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "RemoteReviewError";
+    this.code = code;
+  }
+}
+
 function remoteQueueKey(repo: string, branch: string, tokenId: string): string {
   return `remote:${repo}:${branch}:${tokenId}`;
 }
 
-function reviewOptionsForRepo(repo: string, useCodegraph: boolean): Options {
+function reviewOptionsForRepo(
+  repo: string,
+  useCodegraph: boolean,
+  aiToken?: string,
+): Options {
   const config = readConfig();
   return {
     command: "review",
@@ -85,7 +107,7 @@ function reviewOptionsForRepo(repo: string, useCodegraph: boolean): Options {
     auth: config.auth ?? "gh",
     githubPat: config.githubPat,
     ai: config.ai ?? "openrouter",
-    aiToken: config.token,
+    aiToken: aiToken ?? config.token,
     lowModel: config.lowModel,
     highModel: config.highModel,
     synthesisVersion: 16,
@@ -125,6 +147,16 @@ export function submitRemoteReview(
   const requestId = String(body.requestId);
   const existing = findRemoteReviewInputByRequest(token.id, requestId);
   if (existing) {
+    // A retried submit must not change who pays: the key is not in the body
+    // this time, so re-register it from the first request's recorded policy.
+    const bill = existing.billed_to === "byok" ? "byok" : "server";
+    if (bill === "byok" && !hasByokKey(existing.job_id)) {
+      return {
+        error: "Your key was not kept. Submit the review again.",
+        status: 409,
+        code: "byok_key_lost",
+      };
+    }
     const review = getReviewByJobId(existing.job_id);
     if (review) {
       return { jobId: existing.job_id, reviewId: review.id };
@@ -135,6 +167,27 @@ export function submitRemoteReview(
   if (!repoRow || repoRow.active !== 1) {
     return { error: REPO_UNAVAILABLE, status: 404, code: "repo_unavailable" };
   }
+
+  const byokRaw = body.byok as { key?: unknown } | undefined;
+  const submittedKey =
+    byokRaw && typeof byokRaw.key === "string" ? byokRaw.key : undefined;
+  const policy = remoteByokPolicy();
+  if (policy === "off" && submittedKey !== undefined) {
+    return {
+      error: "This server does not accept your own key.",
+      status: 403,
+      code: "byok_not_allowed",
+    };
+  }
+  if (policy === "require" && submittedKey === undefined) {
+    return {
+      error: "This server requires your own key. Run with --remote-byok.",
+      status: 403,
+      code: "byok_required",
+    };
+  }
+  const billedTo: "server" | "byok" =
+    submittedKey !== undefined ? "byok" : "server";
 
   if (typeof body.branch !== "string") {
     return {
@@ -161,7 +214,13 @@ export function submitRemoteReview(
     capabilitiesJson: JSON.stringify(capabilities),
     requestId,
     tokenId: token.id,
+    billedTo,
   });
+  // The key is pulled out of the body before anything persists it: it lives
+  // only in this process's memory, tied to the job (CORE-110).
+  if (billedTo === "byok" && submittedKey !== undefined) {
+    registerByokKey(jobId, submittedKey);
+  }
 
   const config = readConfig();
   insertRemoteReview({
@@ -215,7 +274,18 @@ export function registerRemoteReviewHandler(): void {
       log("info", `remote review started for ${job.repo}`);
 
       let completed = false;
+      // A BYOK review runs on the client's key, never the server's. If the key
+      // is gone (a restart between submit and run), stop with a typed message
+      // instead of silently falling back to the server key (CORE-110).
+      const billedTo = input.billed_to === "byok" ? "byok" : "server";
+      const byokKey = billedTo === "byok" ? getByokKey(job.id) : undefined;
       try {
+        if (billedTo === "byok" && byokKey === undefined) {
+          throw new RemoteReviewError(
+            "byok_key_lost",
+            "Your key was not kept across a server restart. Submit the review again.",
+          );
+        }
         const revision = revisionFromSubmitJson(
           JSON.parse(input.revision_json),
         );
@@ -228,10 +298,12 @@ export function registerRemoteReviewHandler(): void {
             .filter((name) => typeof name === "string" && name),
         );
         const useCodegraph = allowed.size > 0;
-        const options = reviewOptionsForRepo(job.repo, useCodegraph);
+        const options = reviewOptionsForRepo(job.repo, useCodegraph, byokKey);
         if (!options.aiToken || options.ai === "none") {
           throw new Error("server AI is not configured for remote review");
         }
+        const billed: "server" | "byok" =
+          byokKey !== undefined ? "byok" : "server";
 
         const extras: ReviewExtras = {};
         if (subjectId) {
@@ -340,6 +412,7 @@ export function registerRemoteReviewHandler(): void {
           duration_ms: durationMs,
           tokens_in: tokensIn,
           tokens_out: tokensOut,
+          billed_to: billed,
           ...costColumns(settle(costTally)),
         });
         if (subjectId) {
@@ -370,10 +443,25 @@ export function registerRemoteReviewHandler(): void {
         closeRemoteSession(job.id);
         completed = true;
         log("info", `remote review finished (${findings.length} findings)`);
+      } catch (error) {
+        // A rejected BYOK key must say so instead of leaking the provider's
+        // own text. `byok_key_lost` was thrown before this try, so it is not
+        // remapped (CORE-110).
+        if (byokKey !== undefined && !signal.aborted) {
+          throw new RemoteReviewError(
+            "byok_rejected",
+            "The AI provider rejected your own key.",
+          );
+        }
+        throw error;
       } finally {
+        dropByokKey(job.id);
         if (!completed) {
+          // Reached on failure and on the aborted early return above.
           if (signal.aborted) {
             setReviewStatus(reviewId, "aborted");
+          } else {
+            setReviewStatus(reviewId, "failed");
           }
           deleteRemoteReviewInput(job.id);
           closeRemoteSession(job.id);

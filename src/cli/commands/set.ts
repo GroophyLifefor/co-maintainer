@@ -58,6 +58,7 @@ export async function runSet(args: string[]): Promise<void> {
     "enable-auth",
     "remote-host",
     "remote-token",
+    "remote-byok-policy",
     "review-blocking",
     "password",
     "unset",
@@ -112,6 +113,7 @@ export async function runSet(args: string[]): Promise<void> {
     "enable-auth": "githubAuthEnabled",
     "remote-host": "remoteHost",
     "remote-token": "remoteToken",
+    "remote-byok-policy": "remoteByokPolicy",
     "review-blocking": "reviewBlocking",
     password: "dashboardPasswordHash",
   };
@@ -179,6 +181,13 @@ export async function runSet(args: string[]): Promise<void> {
   if (remoteHost) patch.remoteHost = remoteHost;
   const remoteToken = text(args, "remote-token");
   if (remoteToken) patch.remoteToken = remoteToken;
+  const remoteByokPolicy = text(args, "remote-byok-policy");
+  if (remoteByokPolicy) {
+    if (!["off", "allow", "require"].includes(remoteByokPolicy)) {
+      die("--remote-byok-policy must be one of: off, allow, require");
+    }
+    patch.remoteByokPolicy = remoteByokPolicy;
+  }
   const reviewBlocking = text(args, "review-blocking");
   if (reviewBlocking) {
     if (!["model", "severity"].includes(reviewBlocking)) {
@@ -198,7 +207,8 @@ export async function runSet(args: string[]): Promise<void> {
       "Nothing to set. Pass --token= (or --ai-key=), --ai=, --low-model=, --high-model=, --auth=, --github-pat=, " +
         "--github-app-id=, --github-app-private-key(-file|-path)=, --github-webhook-secret=, " +
         "--github-oauth-client-id=, --github-oauth-client-secret=, --github-oauth-allowed-user=, " +
-        "--remote-host=, --remote-token=, --review-blocking=model|severity, " +
+        "--remote-host=, --remote-token=, --remote-byok-policy=off|allow|require, " +
+        "--review-blocking=model|severity, " +
         "--password=, --disable-auth=password, --enable-auth=github, or --unset=name",
     );
   }

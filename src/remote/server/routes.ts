@@ -1,5 +1,5 @@
 import { VERSION } from "../../version.ts";
-import { cloneDir, readConfig } from "../../config.ts";
+import { cloneDir, readConfig, remoteByokPolicy } from "../../config.ts";
 import { resolveDefaultBranchName } from "../../git/default_branch.ts";
 import { runCommand } from "../../pr/checkout.ts";
 import { loadGuides } from "../../review/guides.ts";
@@ -107,6 +107,7 @@ async function handleHandshake(
   const config = readConfig();
   const timeoutSeconds = config.remoteSyncTimeoutSeconds ?? 10;
   const toolLimit = config.remoteToolOutputMaxChars ?? null;
+  const policy = remoteByokPolicy(config);
 
   return Response.json({
     schemaVersion: REMOTE_SCHEMA_VERSION,
@@ -126,6 +127,12 @@ async function handleHandshake(
       maxBodyBytes: REMOTE_MAX_BODY_BYTES,
       toolOutputMaxChars: toolLimit,
     },
+    // Additive advertisement (CORE-110): a 0.5.0 client ignores these, and an
+    // older server never sends them, so the client gates on `features`. No key,
+    // model, or other secret is ever echoed here.
+    features: ["byok"],
+    byok: { policy },
+    ai: { provider: config.ai ?? "openrouter" },
   });
 }
 
