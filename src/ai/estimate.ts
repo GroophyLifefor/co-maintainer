@@ -100,6 +100,26 @@ function band(value: number): [number, number] {
   return [value * (1 - SPREAD), value * (1 + SPREAD)];
 }
 
+/** The probe's cost line: a dollar range when one is known, otherwise why
+ * not, so a provider with no price list (OpenAI, Anthropic) gets its own
+ * reason instead of being told to switch to OpenRouter. */
+export function estimateCostLine(
+  estimate: Estimate,
+  ai: string,
+  openRouterPricesUnavailable: boolean,
+): string {
+  if (estimate.usd) {
+    return `$${estimate.usd[0].toFixed(4)}-$${estimate.usd[1].toFixed(4)}`;
+  }
+  if (ai !== "none" && ai !== "openrouter") {
+    return "estimate unavailable for this provider";
+  }
+  if (openRouterPricesUnavailable) {
+    return "unknown (could not read OpenRouter prices)";
+  }
+  return "set --ai=openrouter with both models to estimate dollars";
+}
+
 /** The number of `extract_unit` jobs the recommended init would queue: one per
  * pull request plus one for the codebase/documents, matching
  * `extractAiFacts`. */

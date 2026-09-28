@@ -52,7 +52,7 @@ const AI_FLAGS: FlagGroup = {
   flags: [
     {
       name: "ai",
-      value: "none|openrouter",
+      value: "none|openrouter|openai|anthropic",
       default: "none",
       description: "Which provider writes the review.",
     },
@@ -74,6 +74,17 @@ const AI_FLAGS: FlagGroup = {
       default: "openai/gpt-5.6-luna",
       description: "Model for the review itself.",
     },
+  ],
+};
+
+/** `review` always calls OpenRouter regardless of what `--ai=` is passed
+ * (CORE-104), so its own help must not advertise the other three names the
+ * other AI commands accept. */
+const REVIEW_AI_FLAGS: FlagGroup = {
+  ...AI_FLAGS,
+  flags: [
+    { ...AI_FLAGS.flags[0]!, value: "openrouter" },
+    ...AI_FLAGS.flags.slice(1),
   ],
 };
 
@@ -374,7 +385,7 @@ export const COMMANDS: CommandSpec[] = [
           },
         ],
       },
-      AI_FLAGS,
+      REVIEW_AI_FLAGS,
       GITHUB_FLAGS,
       OUTPUT_FLAGS,
     ],

@@ -64,6 +64,12 @@ export function renderSettings(
             <option value="openrouter"${
               config.ai === "openrouter" ? " selected" : ""
             }>OpenRouter</option>
+            <option value="openai"${
+              config.ai === "openai" ? " selected" : ""
+            }>OpenAI</option>
+            <option value="anthropic"${
+              config.ai === "anthropic" ? " selected" : ""
+            }>Anthropic</option>
           </select></div>
         <div class="field"><label>API key</label>
           <input id="token" type="password" placeholder="Leave blank to keep the current key">

@@ -79,7 +79,7 @@ co-maintainer init owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|openai\|anthropic` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
@@ -139,7 +139,7 @@ co-maintainer sync owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|openai\|anthropic` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
@@ -198,7 +198,7 @@ co-maintainer review [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter` | none | Which provider writes the review. |
+| `--ai=openrouter` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
@@ -267,7 +267,7 @@ co-maintainer set [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|openai\|anthropic` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |

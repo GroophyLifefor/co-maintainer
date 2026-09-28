@@ -188,6 +188,25 @@ test("registry: the init help groups flags the way the plan asks", () => {
   }
 });
 
+test("registry: review's --ai only advertises openrouter, unlike init and set", () => {
+  const review = renderCommandHelp("review");
+  const init = renderCommandHelp("init");
+  if (!review || !init) throw new Error("missing help");
+  // The low-model default is itself named `openai/gpt-oss-120b` (an
+  // OpenRouter model id), so only the `--ai=` value itself is checked here.
+  if (!review.includes("--ai=openrouter ")) {
+    throw new Error(`review's --ai should be openrouter only:\n${review}`);
+  }
+  if (/--ai=[^ ]*(openai|anthropic)/.test(review)) {
+    throw new Error(
+      `review's help advertises a provider it always overrides:\n${review}`,
+    );
+  }
+  if (!init.includes("--ai=none|openrouter|openai|anthropic")) {
+    throw new Error(`init should list every provider name:\n${init}`);
+  }
+});
+
 test("registry: the markdown export covers every visible command", () => {
   const markdown = registryToMarkdown();
   for (const command of visibleCommands()) {

@@ -9,6 +9,16 @@ import type {
   Options,
 } from "../types.ts";
 
+/** The one list of accepted `--ai` values, so a new or retired provider is
+ * added or removed in a single place instead of the half dozen copies
+ * Hetzner's removal had to chase down. */
+export const AI_PROVIDERS = [
+  "none",
+  "openrouter",
+  "openai",
+  "anthropic",
+] as const;
+
 /** Hetzner was dropped in 0.5.1. Naming it beats a generic "must be one of". */
 export function rejectRetiredProvider(value: string | undefined): void {
   if (value === "hetzner") {
@@ -24,7 +34,8 @@ export function createAiProvider(
   if (options.ai === "openrouter") {
     return new OpenRouterProvider(options.aiToken ?? "", model);
   }
-  throw new Error(`Unknown AI provider: ${String(options.ai)}`);
+  // Accepted everywhere `--ai` is validated, but no provider exists yet.
+  die(`${options.ai} support is not finished yet. Use openrouter or none.`);
 }
 
 export function parseChatResponse(

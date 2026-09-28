@@ -3,7 +3,7 @@ import { hashPassword, passwordProblem } from "../../util/password.ts";
 import { readTextFile } from "../../util/runtime.ts";
 import { verifyOpenRouter } from "../../ai/verify.ts";
 import { die } from "../error.ts";
-import { rejectRetiredProvider } from "../../ai/provider.ts";
+import { AI_PROVIDERS, rejectRetiredProvider } from "../../ai/provider.ts";
 import { renderCommandHelp, renderGlobalHelp } from "./registry.ts";
 
 function text(args: string[], name: string): string | undefined {
@@ -71,8 +71,8 @@ export async function runSet(args: string[]): Promise<void> {
 
   const ai = text(args, "ai");
   rejectRetiredProvider(ai);
-  if (ai && !["none", "openrouter"].includes(ai)) {
-    die("--ai must be one of: none, openrouter");
+  if (ai && !(AI_PROVIDERS as readonly string[]).includes(ai)) {
+    die(`--ai must be one of: ${AI_PROVIDERS.join(", ")}`);
   }
   const auth = text(args, "auth");
   if (auth && !["gh", "pat"].includes(auth)) {

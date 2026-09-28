@@ -3,7 +3,7 @@ import { prepareConfig } from "../config.ts";
 import { getEnv } from "../util/runtime.ts";
 import { askLine } from "./prompt.ts";
 import { die } from "./error.ts";
-import { rejectRetiredProvider } from "../ai/provider.ts";
+import { AI_PROVIDERS, rejectRetiredProvider } from "../ai/provider.ts";
 import { detectRemoteRepo } from "../local/git_ops.ts";
 import { reviewBlockingFrom } from "../review/blocking.ts";
 import {
@@ -159,7 +159,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
   };
   const choice = <T extends string>(
     name: string,
-    allowed: T[],
+    allowed: readonly T[],
     fallback: T,
   ): T => {
     const prefix = `--${name}=`;
@@ -209,8 +209,13 @@ export async function parseArgs(args: string[]): Promise<Options> {
   const explicitAi = rest.some((arg) => arg.startsWith("--ai="));
   const configuredAiRaw = env("CO_MAINTAINER_AI") ?? repoConfig.ai ?? config.ai;
   rejectRetiredProvider(configuredAiRaw);
-  if (configuredAiRaw && !["none", "openrouter"].includes(configuredAiRaw)) {
-    die("CO_MAINTAINER_AI/config.ai must be none or openrouter");
+  if (
+    configuredAiRaw &&
+    !(AI_PROVIDERS as readonly string[]).includes(configuredAiRaw)
+  ) {
+    die(
+      `CO_MAINTAINER_AI/config.ai must be one of: ${AI_PROVIDERS.join(", ")}`,
+    );
   }
   const configuredAi = configuredAiRaw as Options["ai"] | undefined;
   const configuredAuthRaw =
@@ -232,19 +237,21 @@ export async function parseArgs(args: string[]): Promise<Options> {
     );
   }
   rejectRetiredProvider(text("ai"));
-  let ai = choice("ai", ["none", "openrouter"], configuredAi ?? "none");
+  let ai = choice("ai", AI_PROVIDERS, configuredAi ?? "none");
   if (command === "review") {
-    if (
-      explicitAi &&
-      choice("ai", ["none", "openrouter"], "none") !== "openrouter"
-    ) {
+    if (explicitAi && choice("ai", AI_PROVIDERS, "none") !== "openrouter") {
       die("review supports OpenRouter only");
     }
     ai = "openrouter";
   } else if (!explicitAi && !configuredAi && command !== "probe") {
-    const selected = await ask("AI provider (openrouter)", "openrouter");
+    const selected = await ask(
+      `AI provider (${AI_PROVIDERS.join("|")})`,
+      "openrouter",
+    );
     rejectRetiredProvider(selected);
-    if (selected !== "openrouter") die("AI provider must be openrouter");
+    if (!(AI_PROVIDERS as readonly string[]).includes(selected)) {
+      die(`AI provider must be one of: ${AI_PROVIDERS.join(", ")}`);
+    }
     ai = selected as Options["ai"];
   }
   let aiToken =

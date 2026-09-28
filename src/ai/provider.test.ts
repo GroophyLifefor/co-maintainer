@@ -1,4 +1,8 @@
-import { createAiProvider, rejectRetiredProvider } from "./provider.ts";
+import {
+  AI_PROVIDERS,
+  createAiProvider,
+  rejectRetiredProvider,
+} from "./provider.ts";
 import { OpenRouterProvider } from "./openrouter.ts";
 import type { AiRequest, Options } from "../types.ts";
 import { test } from "node:test";
@@ -61,4 +65,21 @@ test("Hetzner is rejected by name and an unknown provider throws", () => {
     threw = true;
   }
   if (!threw) throw new Error("an unknown provider must not fall back");
+});
+
+test("openai and anthropic are accepted names but have no provider yet", () => {
+  if (AI_PROVIDERS.join(",") !== "none,openrouter,openai,anthropic") {
+    throw new Error(`provider list: ${AI_PROVIDERS.join(",")}`);
+  }
+  for (const ai of ["openai", "anthropic"] as const) {
+    let message = "";
+    try {
+      createAiProvider({ ai } as unknown as Options, "m");
+    } catch (error) {
+      message = String((error as Error).message);
+    }
+    if (!message.includes(ai) || !/not finished yet/.test(message)) {
+      throw new Error(`${ai}: ${message}`);
+    }
+  }
 });
