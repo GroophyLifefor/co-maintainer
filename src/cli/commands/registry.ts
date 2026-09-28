@@ -65,13 +65,11 @@ const AI_FLAGS: FlagGroup = {
     {
       name: "low-model",
       value: "ID",
-      default: "openai/gpt-oss-120b",
       description: "Model for extraction work.",
     },
     {
       name: "high-model",
       value: "ID",
-      default: "openai/gpt-5.6-luna",
       description: "Model for the review itself.",
     },
   ],

@@ -192,8 +192,8 @@ test("registry: review's --ai only advertises openrouter, unlike init and set", 
   const review = renderCommandHelp("review");
   const init = renderCommandHelp("init");
   if (!review || !init) throw new Error("missing help");
-  // The low-model default is itself named `openai/gpt-oss-120b` (an
-  // OpenRouter model id), so only the `--ai=` value itself is checked here.
+  // No flag carries a model default any more, so `--ai=` is the only place a
+  // provider name can leak into review's help.
   if (!review.includes("--ai=openrouter ")) {
     throw new Error(`review's --ai should be openrouter only:\n${review}`);
   }

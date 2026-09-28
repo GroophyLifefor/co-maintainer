@@ -39,6 +39,7 @@ test("review_cli: not_initialized without guides (E159)", async () => {
       auth: "gh",
       ai: "openrouter",
       token: "fake",
+      lowModel: "fake/model",
       highModel: "fake/model",
     }),
   );
@@ -68,6 +69,7 @@ test("review_cli: not_initialized without guides (E159)", async () => {
         `--repo=${repo}`,
         "--disable-codegraph",
         "--token=fake",
+        "--low-model=fake/model",
         "--high-model=fake/model",
       ]),
       // The child runs the entrypoint with its own cwd set to the temp worktree.
@@ -112,6 +114,7 @@ test("review_cli: remake-before-review requires gh auth (E160)", async () => {
       auth: "pat",
       ai: "openrouter",
       token: "fake",
+      lowModel: "fake/model",
       highModel: "fake/model",
       githubPat: "pat",
     }),
@@ -145,6 +148,7 @@ test("review_cli: remake-before-review requires gh auth (E160)", async () => {
         "--remake-before-review",
         "--disable-codegraph",
         "--token=fake",
+        "--low-model=fake/model",
         "--high-model=fake/model",
       ]),
       // Same reason as the first test: the child's cwd carries the temp

@@ -54,8 +54,15 @@ if (process.env.CM_FAKE_AI === "1") {
   throw new Error("dx_scenario refuses CM_FAKE_AI=1, use a real provider.");
 }
 
-const lowModel = process.env.DX_LOW_MODEL ?? "openai/gpt-oss-120b";
-const highModel = process.env.DX_HIGH_MODEL ?? "openai/gpt-5.6-luna";
+// No house pick here for the same reason the CLI makes none: models go stale,
+// so the scenario names the ids to run rather than guessing them.
+const lowModel = process.env.DX_LOW_MODEL;
+const highModel = process.env.DX_HIGH_MODEL;
+if (!lowModel || !highModel) {
+  throw new Error(
+    "DX_LOW_MODEL and DX_HIGH_MODEL are required. The scenario names the models to run instead of guessing them.",
+  );
+}
 
 type Row = {
   step: string;

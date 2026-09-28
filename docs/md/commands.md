@@ -82,8 +82,8 @@ co-maintainer init owner/repo [options]
 | `--ai=none\|openrouter\|openai\|anthropic` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
-| `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
-| `--high-model=ID` | openai/gpt-5.6-luna | Model for the review itself. |
+| `--low-model=ID` |  | Model for extraction work. |
+| `--high-model=ID` |  | Model for the review itself. |
 
 ### GitHub access
 
@@ -142,8 +142,8 @@ co-maintainer sync owner/repo [options]
 | `--ai=none\|openrouter\|openai\|anthropic` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
-| `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
-| `--high-model=ID` | openai/gpt-5.6-luna | Model for the review itself. |
+| `--low-model=ID` |  | Model for extraction work. |
+| `--high-model=ID` |  | Model for the review itself. |
 
 ### GitHub access
 
@@ -201,8 +201,8 @@ co-maintainer review [options]
 | `--ai=openrouter` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
-| `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
-| `--high-model=ID` | openai/gpt-5.6-luna | Model for the review itself. |
+| `--low-model=ID` |  | Model for extraction work. |
+| `--high-model=ID` |  | Model for the review itself. |
 
 ### GitHub access
 
@@ -270,8 +270,8 @@ co-maintainer set [options]
 | `--ai=none\|openrouter\|openai\|anthropic` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
-| `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
-| `--high-model=ID` | openai/gpt-5.6-luna | Model for the review itself. |
+| `--low-model=ID` |  | Model for extraction work. |
+| `--high-model=ID` |  | Model for the review itself. |
 
 ### GitHub access
 

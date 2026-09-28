@@ -22,8 +22,6 @@ function numberOption(value: string, name: string): number {
 }
 
 const commands = ["probe", "init", "sync", "remake", "review"] as const;
-export const defaultLowModel = "openai/gpt-oss-120b";
-const defaultHighModel = "openai/gpt-5.6-luna";
 
 let cliInteractive = true;
 
@@ -40,12 +38,12 @@ async function ask(
   if (!cliInteractive) {
     if (fallback !== undefined && fallback !== "") return fallback;
     die(
-      `Missing ${label}; pass it as a CLI option when running without an interactive terminal`,
+      `Missing ${label}. Pass it as a CLI option when running without an interactive terminal`,
     );
   }
   if (process.stdin.isTTY !== true) {
     die(
-      `Missing ${label}; pass it as a CLI option when running without an interactive terminal`,
+      `Missing ${label}. Pass it as a CLI option when running without an interactive terminal`,
     );
   }
   const value = await askLine(label, fallback);
@@ -273,22 +271,17 @@ export async function parseArgs(args: string[]): Promise<Options> {
     config.highModel;
   if (command === "review") {
     aiToken ??= await ask("openrouter API key", undefined, true);
-    highModel ??= await ask("high model", defaultHighModel, true);
+    // Review summarizes large files with the low model, so it needs one just
+    // as init and sync do. Without a default to fall back on, ask here too.
+    lowModel ??= await ask("low model", undefined, true);
+    highModel ??= await ask("high model", undefined, true);
   } else if (ai !== "none" && command !== "probe") {
-    // OpenRouter keeps its long-standing suggested pair. A newer provider
-    // gets no house pick: the model to use is the user's call, not ours.
-    const modelFallback = ai === "openrouter";
+    // No house pick for any provider: models go stale and a shipped build
+    // cannot fetch a fresher one, so the model to use is the user's call,
+    // set once in config or passed every time (Murat, 2026-09-28).
     aiToken ??= await ask(`${ai} API key`, undefined, true);
-    lowModel ??= await ask(
-      "low model",
-      modelFallback ? defaultLowModel : undefined,
-      true,
-    );
-    highModel ??= await ask(
-      "high model",
-      modelFallback ? defaultHighModel : undefined,
-      true,
-    );
+    lowModel ??= await ask("low model", undefined, true);
+    highModel ??= await ask("high model", undefined, true);
   }
   if (
     command !== "review" &&

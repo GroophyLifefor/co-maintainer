@@ -1,4 +1,5 @@
 import { OpenRouterProvider } from "../ai/openrouter.ts";
+import { CliError, EXIT_USAGE } from "../cli/error.ts";
 import {
   completeWithMermaidTools,
   type ToolHandler,
@@ -32,6 +33,22 @@ import type {
 
 type UsageSink = (response: AiResponse) => Promise<void>;
 type ProgressSink = (message: string) => void;
+
+/** A model id is never guessed here. Models go stale, and a build already
+ * installed cannot fetch a fresher one, so the id to run comes from config
+ * or a flag, set at least once by whoever runs it (Murat, 2026-09-28). */
+function requiredModel(
+  model: string | undefined,
+  label: "low" | "high",
+): string {
+  if (model) return model;
+  throw new CliError(
+    "missing_model",
+    `No ${label} model is configured.`,
+    `Run co-maintainer set --${label}-model=..., or pass --${label}-model=... on the command that needs it.`,
+    EXIT_USAGE,
+  );
+}
 
 export type ReviewExtras = {
   carryPrompt?: string;
@@ -334,7 +351,7 @@ export async function reviewPullRequest(
     ? (ai ??
       new OpenRouterProvider(
         options.aiToken ?? "",
-        options.lowModel ?? "openai/gpt-oss-120b",
+        requiredModel(options.lowModel, "low"),
       ))
     : undefined;
   const patchByPath = new Map<string, string>();
@@ -430,7 +447,7 @@ ${upstreamListing}${unchangedListing}`;
     ai ??
     new OpenRouterProvider(
       options.aiToken ?? "",
-      options.highModel ?? "openai/gpt-5.6-luna",
+      requiredModel(options.highModel, "high"),
     );
   const diagrams = provider.supportsTools !== false;
   const carryBlock = extras?.carryPrompt ? `${extras.carryPrompt}\n` : "";
@@ -510,7 +527,7 @@ ${diff}`;
     );
     console.log(
       `[debug] openrouter request · model=${
-        options.highModel ?? "openai/gpt-5.6-luna"
+        options.highModel ?? "unset"
       } · maxTokens=${request.maxTokens}`,
     );
   }
@@ -677,7 +694,7 @@ export async function reviewWorkspaceRevision(
         ? (ai ??
           new OpenRouterProvider(
             options.aiToken ?? "",
-            options.lowModel ?? "openai/gpt-oss-120b",
+            requiredModel(options.lowModel, "low"),
           ))
         : undefined;
       if (!lowProvider) return `FILE: ${path}\n${filePatch(file)}`;
@@ -719,7 +736,7 @@ export async function reviewWorkspaceRevision(
     ai ??
     new OpenRouterProvider(
       options.aiToken ?? "",
-      options.highModel ?? "openai/gpt-5.6-luna",
+      requiredModel(options.highModel, "high"),
     );
   const diagrams = provider.supportsTools !== false;
   const prompt = `Review these local changes against the repository's review guide and
