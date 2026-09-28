@@ -4,6 +4,7 @@ import { closeAppDb, openAppDb } from "../store/app_db.ts";
 import { readConfig, writeUserConfig } from "../config.ts";
 import { activateRepo, markKnowledgeBuilt } from "../store/repos.ts";
 import { insertReview, setReviewStatus } from "../store/reviews.ts";
+import { KNOWN_COST } from "../testing/fixtures/cost.ts";
 import { insertFinding } from "../store/findings.ts";
 import { insertJob, setJobStatus } from "../store/jobs.ts";
 import { upsertDrift } from "../store/drift.ts";
@@ -125,7 +126,10 @@ function seed(): void {
     model: "fake",
     round: 1,
   });
-  setReviewStatus("rev-old", "posted", { findings_count: 1, cost: 0.01 });
+  setReviewStatus("rev-old", "posted", {
+    findings_count: 1,
+    ...KNOWN_COST(0.01),
+  });
   insertFinding({
     id: "f-old",
     reviewId: "rev-old",
@@ -147,7 +151,10 @@ function seed(): void {
     model: "fake",
     round: 2,
   });
-  setReviewStatus("rev-1", "posted", { findings_count: 1, cost: 0.02 });
+  setReviewStatus("rev-1", "posted", {
+    findings_count: 1,
+    ...KNOWN_COST(0.02),
+  });
   insertFinding({
     id: "f-1",
     reviewId: "rev-1",

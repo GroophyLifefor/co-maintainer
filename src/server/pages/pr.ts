@@ -3,12 +3,12 @@ import {
   html,
   layout,
   markdown,
-  money,
   repoNav,
   skSlot,
   text,
   when,
 } from "./layout.ts";
+import { formatCost, formatCostTotal, totalOfRows } from "./cost.ts";
 import type { prDetail } from "../../services/dashboard.ts";
 
 export function renderPr(
@@ -17,10 +17,7 @@ export function renderPr(
   data: ReturnType<typeof prDetail>,
 ): Response {
   const n = data.prNumber;
-  const totalCost = data.reviews.reduce(
-    (sum, review) => sum + Number(review.cost ?? 0),
-    0,
-  );
+  const totalCost = totalOfRows(data.reviews);
   const stateLabel = (state: string) => {
     if (state === "closed") return "Closed";
     if (state === "open") return "Still open";
@@ -117,7 +114,7 @@ export function renderPr(
                   : "Whole pull request",
               )}</td>
               <td class="num">${review.findings_count}</td>
-              <td class="num">${money(Number(review.cost ?? 0))}</td></tr>`,
+              <td class="num">${formatCost(review)}</td></tr>`,
               )
               .join("")}
           </tbody>
@@ -157,7 +154,7 @@ export function renderPr(
     </div>
     <div class="card">
       <div class="hd"><h2>Reviews</h2>
-        <span class="muted" style="margin-left:auto;font-size:13px">${money(
+        <span class="muted" style="margin-left:auto;font-size:13px">${formatCostTotal(
           totalCost,
         )} total</span></div>
       <div class="bd flush">${reviewsTable}</div>

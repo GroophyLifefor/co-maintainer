@@ -23,6 +23,7 @@ import { openAppDb, closeAppDb } from "../src/store/app_db.ts";
 import { writeUserConfig } from "../src/config.ts";
 import { activateRepo, markKnowledgeBuilt } from "../src/store/repos.ts";
 import { insertReview, setReviewStatus } from "../src/store/reviews.ts";
+import { KNOWN_COST } from "../src/testing/fixtures/cost.ts";
 import { insertFinding } from "../src/store/findings.ts";
 import { insertJob, setJobStatus } from "../src/store/jobs.ts";
 import { upsertDrift } from "../src/store/drift.ts";
@@ -160,7 +161,10 @@ function seed(): void {
     model: "fake",
     round: 1,
   });
-  setReviewStatus("rev-old", "posted", { findings_count: 1, cost: 0.01 });
+  setReviewStatus("rev-old", "posted", {
+    findings_count: 1,
+    ...KNOWN_COST(0.01),
+  });
   insertFinding({
     id: "f-old",
     reviewId: "rev-old",
@@ -184,7 +188,7 @@ function seed(): void {
   });
   setReviewStatus("rev-1", "posted", {
     findings_count: 1,
-    cost: 0.02,
+    ...KNOWN_COST(0.02),
     tokens_in: 12000,
     tokens_out: 3400,
     duration_ms: 90000,
@@ -199,6 +203,40 @@ function seed(): void {
     title: "unused value",
     bodyMd: "Use the argument or drop it.",
     firstSeenReviewId: "rev-0",
+  });
+  // A real free model: cost is known and genuinely $0, unlike the two rounds
+  // below whose cost never got recorded. Both must stay visually distinct
+  // (CORE-103b): "$0.00" here, "unknown" there, never the other way round.
+  insertReview({
+    id: "rev-free",
+    repo: REPO,
+    prNumber: 7,
+    jobId: "job-free",
+    headSha: "f0f0f0f",
+    baseSha: "cafebabe",
+    scope: "whole-pr",
+    model: "fake",
+    round: 3,
+  });
+  setReviewStatus("rev-free", "posted", {
+    findings_count: 0,
+    ...KNOWN_COST(0),
+  });
+  insertReview({
+    id: "rev-unknown",
+    repo: REPO,
+    prNumber: 7,
+    jobId: "job-unknown",
+    headSha: "abcabc1",
+    baseSha: "cafebabe",
+    scope: "whole-pr",
+    model: "fake",
+    round: 4,
+  });
+  setReviewStatus("rev-unknown", "posted", {
+    findings_count: 0,
+    cost_status: "unknown",
+    cost_note: "provider_did_not_report",
   });
   recordDelivery({
     deliveryId: "d-1",
@@ -354,6 +392,37 @@ try {
               text: `checkbox #${box.id} is ${Math.round(box.width)}px wide or off its label line`,
             });
           }
+        }
+      }
+      // The seeded PR carries a real $0.00 review and an unknown-cost one
+      // (CORE-103b): the page must show both, and never turn the unknown one
+      // into the same $0.00 as the free one.
+      if (
+        [
+          "/activity",
+          "/analytics",
+          `/repos/${REPO}`,
+          `/repos/${REPO}/pulls`,
+          `/repos/${REPO}/pulls/7`,
+        ].includes(path)
+      ) {
+        const body = await page.locator("body").innerText();
+        if (!body.includes("unknown")) {
+          issues.push({
+            path,
+            kind: "text",
+            text: "an unknown-cost review is missing its unknown label",
+          });
+        }
+      }
+      if (path === `/repos/${REPO}/pulls/7`) {
+        const body = await page.locator("body").innerText();
+        if (!body.includes("$0.00")) {
+          issues.push({
+            path,
+            kind: "text",
+            text: "the free review's real $0.00 did not render",
+          });
         }
       }
       console.log(`visited ${path}`);

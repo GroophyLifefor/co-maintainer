@@ -375,7 +375,7 @@ async function loadRemoteTokens() {
     el.innerHTML = "<table><thead><tr><th>Name</th><th>Status</th><th class=\\"num\\">Reviews (30d)</th><th class=\\"num\\">Cost (30d)</th><th></th></tr></thead><tbody>" +
       rows.map(function(r) {
         return "<tr><td>" + escHtml(r.name) + "</td><td>" + (r.active ? "Active" : "Inactive") + "</td>" +
-          "<td class=\\"num\\">" + r.reviews30d + "</td><td class=\\"num\\">" + r.cost30d + "</td>" +
+          "<td class=\\"num\\">" + r.reviews30d + "</td><td class=\\"num\\">" + escHtml(r.cost30dLabel) + "</td>" +
           "<td><button type=\\"button\\" class=\\"btn sm\\" data-token-id=\\"" + escHtml(r.id) + "\\" data-active=\\"" + r.active + "\\">" +
           (r.active ? "Deactivate" : "Activate") + "</button> " +
           "<button type=\\"button\\" class=\\"btn sm\\" data-delete-token=\\"" + escHtml(r.id) + "\\">Delete</button></td></tr>";

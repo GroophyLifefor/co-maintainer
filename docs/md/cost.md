@@ -47,6 +47,24 @@ The same numbers appear in `--json` under `usage`, and the dashboard records
 cost per job on the Activity page and per repository on Usage. When a price list
 is unavailable the line reads `cost unknown` rather than a false zero.
 
+## What "unknown" means
+
+A missing cost is never shown as `$0.00`. Zero is what a free model actually
+costs, unknown is a cost that was never learned, and the two are kept apart
+everywhere the dashboard shows money. A single review's unknown cost is a
+dotted underline you can hover, or tab to, for the reason:
+
+| Reason | What happened |
+| ------ | ------------- |
+| The provider did not report the cost | The AI call finished but its response carried no price |
+| Some AI calls in this review did not report a cost | Part of a multi-call review priced itself, part did not |
+| Recorded before 0.5.1, the cost was not saved | The review predates this page's own cost tracking |
+| The review ended before its cost was recorded | It failed, was canceled, or the process stopped before an AI call returned |
+
+A total adds up only the reviews with a known cost and names how many are
+missing one, for example `$1.23 · 4 reviews with unknown cost`, rather than
+quietly rounding them to zero.
+
 ## Keeping the cost down
 
 | Lever | Effect |

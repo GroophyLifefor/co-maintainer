@@ -709,6 +709,10 @@ tbody tr {
   font-size: 12px;
   margin-top: 3px;
 }
+.cost-unknown {
+  border-bottom: 1px dotted var(--muted);
+  cursor: help;
+}
 .trend.up {
   color: var(--green);
 }

@@ -1,4 +1,5 @@
-import { empty, html, layout, money, skSlot, text, when } from "./layout.ts";
+import { empty, html, layout, skSlot, text, when } from "./layout.ts";
+import { formatCost } from "./cost.ts";
 import type {
   activityFeed,
   runningJobs,
@@ -129,7 +130,7 @@ export function renderActivity(
           )} #${review.pr_number}</a></td>
           <td class="muted">${when(review.created_at)}</td>
           <td>${result}</td>
-          <td class="num">${money(Number(review.cost ?? 0))}</td></tr>`;
+          <td class="num">${formatCost(review)}</td></tr>`;
       }
       const job = item.job;
       return `<tr><td><a href="/activity/${text(job.id)}">${text(jobLabel(job))}</a></td>

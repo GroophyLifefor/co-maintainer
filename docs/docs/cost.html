@@ -151,6 +151,38 @@ starts until you confirm.</p>
 <p>The same numbers appear in <code>--json</code> under <code>usage</code>, and the dashboard records
 cost per job on the Activity page and per repository on Usage. When a price list
 is unavailable the line reads <code>cost unknown</code> rather than a false zero.</p>
+<h2 id="what-unknown-means">What &quot;unknown&quot; means</h2>
+<p>A missing cost is never shown as <code>$0.00</code>. Zero is what a free model actually
+costs, unknown is a cost that was never learned, and the two are kept apart
+everywhere the dashboard shows money. A single review&#39;s unknown cost is a
+dotted underline you can hover, or tab to, for the reason:</p>
+<table>
+<thead>
+<tr>
+<th>Reason</th>
+<th>What happened</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>The provider did not report the cost</td>
+<td>The AI call finished but its response carried no price</td>
+</tr>
+<tr>
+<td>Some AI calls in this review did not report a cost</td>
+<td>Part of a multi-call review priced itself, part did not</td>
+</tr>
+<tr>
+<td>Recorded before 0.5.1, the cost was not saved</td>
+<td>The review predates this page&#39;s own cost tracking</td>
+</tr>
+<tr>
+<td>The review ended before its cost was recorded</td>
+<td>It failed, was canceled, or the process stopped before an AI call returned</td>
+</tr>
+</tbody></table>
+<p>A total adds up only the reviews with a known cost and names how many are
+missing one, for example <code>$1.23 · 4 reviews with unknown cost</code>, rather than
+quietly rounding them to zero.</p>
 <h2 id="keeping-the-cost-down">Keeping the cost down</h2>
 <table>
 <thead>
@@ -203,7 +235,7 @@ live.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#what-costs-money">What costs money</a></li><li><a href="#estimate-before-you-init">Estimate before you init</a></li><li><a href="#where-to-watch-the-real-number">Where to watch the real number</a></li><li><a href="#keeping-the-cost-down">Keeping the cost down</a></li><li><a href="#what-is-not-metered">What is not metered</a></li></ul></nav>
+      <ul><li><a href="#what-costs-money">What costs money</a></li><li><a href="#estimate-before-you-init">Estimate before you init</a></li><li><a href="#where-to-watch-the-real-number">Where to watch the real number</a></li><li><a href="#what-unknown-means">What &quot;unknown&quot; means</a></li><li><a href="#keeping-the-cost-down">Keeping the cost down</a></li><li><a href="#what-is-not-metered">What is not metered</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

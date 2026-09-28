@@ -113,7 +113,7 @@ export function setReviewStatus(
        tokens_out = COALESCE(?, tokens_out),
        cost = COALESCE(?, cost),
        cost_status = COALESCE(?, cost_status),
-       cost_note = CASE WHEN ? IS NULL THEN cost_note ELSE ? END,
+       cost_note = CASE WHEN ? THEN ? ELSE cost_note END,
        billed_to = COALESCE(?, billed_to),
        duration_ms = COALESCE(?, duration_ms),
        check_run_id = COALESCE(?, check_run_id),
@@ -132,7 +132,12 @@ export function setReviewStatus(
       patch.tokens_out ?? null,
       patch.cost ?? null,
       patch.cost_status ?? null,
-      patch.cost_status ?? null,
+      // `cost_note` travels with `cost_status`: when the status changes to
+      // known, the note (e.g. a stale "not recorded yet") must clear to
+      // null, which `COALESCE(?, cost_note)` cannot do since a provided
+      // `null` and an omitted field bind the same way. The flag makes the
+      // two cases distinguishable.
+      patch.cost_status !== undefined,
       patch.cost_note ?? null,
       patch.billed_to ?? null,
       patch.duration_ms ?? null,
@@ -192,11 +197,14 @@ export function latestPostedReview(
 
 /** `cost` adds up only the costs that are known and billed to the server.
  * A review with an unknown cost is counted in `unknownCount` instead of
- * being added as zero. BYOK is kept apart, never inside `cost`. */
+ * being added as zero. `knownCount` tells "no cost yet" apart from "every
+ * review cost exactly $0". BYOK is kept apart, never inside `cost`. */
 export type CostTotals = {
   cost: number;
+  knownCount: number;
   unknownCount: number;
   byokUsd: number;
+  byokKnownCount: number;
   byokUnknownCount: number;
 };
 
@@ -205,17 +213,21 @@ const BILLED = `COALESCE(billed_to, 'server')`;
 const bucket = (status: string, billed: string, value: string) =>
   `COALESCE(SUM(CASE WHEN ${COST_STATUS} = '${status}' AND ${BILLED} = '${billed}' THEN ${value} END), 0)`;
 
-/** The four figures of `CostTotals`, ready to sit in any SELECT list. */
+/** The six figures of `CostTotals`, ready to sit in any SELECT list. */
 const COST_COLUMNS = `${bucket("known", "server", "cost")} AS cost,
+      ${bucket("known", "server", "1")} AS knownCount,
       ${bucket("unknown", "server", "1")} AS unknownCount,
       ${bucket("known", "byok", "cost")} AS byokUsd,
+      ${bucket("known", "byok", "1")} AS byokKnownCount,
       ${bucket("unknown", "byok", "1")} AS byokUnknownCount`;
 
 function asCostTotals(row: Partial<CostTotals> | undefined): CostTotals {
   return {
     cost: Number(row?.cost ?? 0),
+    knownCount: Number(row?.knownCount ?? 0),
     unknownCount: Number(row?.unknownCount ?? 0),
     byokUsd: Number(row?.byokUsd ?? 0),
+    byokKnownCount: Number(row?.byokKnownCount ?? 0),
     byokUnknownCount: Number(row?.byokUnknownCount ?? 0),
   };
 }
