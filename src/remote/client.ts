@@ -8,7 +8,8 @@ import {
   reviewExitCodeFromJsonFindings,
 } from "../cli/review_result.ts";
 import { baseUrl, die, readApiError, remoteFetch } from "./http.ts";
-import { readConfig, writeUserConfig } from "../config.ts";
+import { readConfig, writeUserConfig, type ByokPolicy } from "../config.ts";
+import { getEnv } from "../util/runtime.ts";
 import { prepareLocalCodegraph } from "../local/codegraph_prepare.ts";
 import { canPrompt } from "../tools/codegraph.ts";
 import {
@@ -46,7 +47,28 @@ type HandshakeResponse = {
   repo: { fullName: string; defaultBranch: string | null };
   sync: { intervalSeconds: number; timeoutSeconds: number };
   limits: { maxBodyBytes: number };
+  /** Additive feature list (CORE-110): a 0.5.0 server never sends this, which
+   * is how BYOK gates itself on a server that predates it. */
+  features?: string[];
+  byok?: { policy: ByokPolicy };
+  ai?: { provider: string };
 };
+
+const LOCAL_BYOK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
+
+/** A plain-http, non-local host means the BYOK key travels in the clear
+ * (CORE-111). Pulled out as a pure function so the rule is unit-testable
+ * without standing up a plain-http fake server. */
+export function byokHttpWarning(host: string): string | null {
+  const url = new URL(baseUrl(host));
+  if (url.protocol !== "http:" || LOCAL_BYOK_HOSTNAMES.has(url.hostname)) {
+    return null;
+  }
+  return (
+    `Warning: sending your AI key over plain http to ${url.hostname}. ` +
+    "Anyone on the network path can read it."
+  );
+}
 
 export async function runRemoteReview(
   cli: ReviewCliArgs & { mode: "remote" },
@@ -63,6 +85,19 @@ export async function runRemoteReview(
       "co-maintainer config set remote-host https://your-server " +
         "&& co-maintainer config set remote-token <token> " +
         "(or pass --remote-host=... --remote-token=... for one run)",
+    );
+  }
+
+  // CORE-111: the client's own AI key, used only when this run turns BYOK
+  // on. The env var wins so a hosted CI runner can supply it without writing
+  // config, mirroring how CM_REMOTE_BYOK_POLICY overrides the server side.
+  const byokKey = getEnv("CM_REMOTE_BYOK") ?? config.remoteByok;
+  const byokEnabled = cli.remoteByok ?? config.remoteByokDefault ?? false;
+  if (byokEnabled && !byokKey) {
+    die(
+      "remote_byok_not_configured",
+      "No BYOK key is set.",
+      "co-maintainer config set remote-byok <key>",
     );
   }
 
@@ -144,6 +179,35 @@ export async function runRemoteReview(
       );
     }
 
+    // CORE-111: never silently fall back to the server's own key. Each of
+    // these is a mismatch between what this run wants and what the server
+    // will do, so all four are a hard stop.
+    const serverSupportsByok = hs.features?.includes("byok") ?? false;
+    if (byokEnabled && !serverSupportsByok) {
+      die(
+        "remote_byok_unsupported",
+        `This server (version ${hs.serverVersion}) does not support your own key.`,
+        "Upgrade the server or run without --remote-byok.",
+      );
+    }
+    if (byokEnabled && hs.byok?.policy === "off") {
+      die("remote_byok_rejected", "This server does not accept your own key.");
+    }
+    if (serverSupportsByok && hs.byok?.policy === "require" && !byokEnabled) {
+      die(
+        "remote_byok_required",
+        "This server requires your own key.",
+        "co-maintainer review --remote --remote-byok",
+      );
+    }
+    if (byokEnabled && !cli.json) {
+      const warning = byokHttpWarning(host);
+      if (warning) console.error(warning);
+      console.error(
+        `Using your own key with the server's provider: ${hs.ai?.provider ?? "unknown"}.`,
+      );
+    }
+
     const hostKey = baseUrl(host);
     const shown = config.remoteNoticeShownFor ?? [];
     if (!shown.includes(hostKey) && !cli.json) {
@@ -183,6 +247,9 @@ export async function runRemoteReview(
         files: built.revision.files,
       },
       capabilities: { tools: capabilityTools },
+      // CORE-111: only present when this run turned BYOK on; `byokKey` is
+      // known to be set here because of the earlier `byokEnabled` guard.
+      ...(byokEnabled ? { byok: { key: byokKey! } } : {}),
     };
     const serialized = JSON.stringify(submitBody);
     if (serialized.length > hs.limits.maxBodyBytes) {

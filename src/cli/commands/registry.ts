@@ -365,6 +365,16 @@ export const COMMANDS: CommandSpec[] = [
               "Override the configured remote token for this run (needs --remote).",
           },
           {
+            name: "remote-byok",
+            description:
+              "Send your own AI key with a remote review (needs --remote).",
+          },
+          {
+            name: "no-remote-byok",
+            description:
+              "Do not send your own AI key, even if remote-byok-default is on.",
+          },
+          {
             name: "sync-before-review",
             description: "Rebuild the guides before reviewing.",
           },
@@ -392,6 +402,7 @@ export const COMMANDS: CommandSpec[] = [
       "co-maintainer review --json --disable-codegraph",
       "co-maintainer review --remote --json",
       "co-maintainer review --remote --remote-host=https://review.example.com --remote-token=cmr_...",
+      "co-maintainer review --remote --remote-byok --json",
     ],
   },
   {
@@ -517,6 +528,24 @@ export const COMMANDS: CommandSpec[] = [
             name: "remote-token",
             value: "TOKEN",
             description: "The remote review token.",
+          },
+          {
+            name: "remote-byok-policy",
+            value: "off|allow|require",
+            default: "off",
+            description: "Whether a remote client may send its own AI key.",
+          },
+          {
+            name: "remote-byok",
+            value: "KEY",
+            description: "Your own AI key to send with a remote review.",
+          },
+          {
+            name: "remote-byok-default",
+            value: "on|off",
+            default: "off",
+            description:
+              "Send remote-byok on every --remote review by default.",
           },
           {
             name: "review-blocking",

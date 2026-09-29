@@ -1817,6 +1817,8 @@ co-maintainer review [options]
 | `--remote` |  | Send the diff to the configured remote server instead of reviewing locally. |
 | `--remote-host=URL` |  | Override the configured remote host for this run (needs --remote). |
 | `--remote-token=TOKEN` |  | Override the configured remote token for this run (needs --remote). |
+| `--remote-byok` |  | Send your own AI key with a remote review (needs --remote). |
+| `--no-remote-byok` |  | Do not send your own AI key, even if remote-byok-default is on. |
 | `--sync-before-review` |  | Rebuild the guides before reviewing. |
 
 ### Codegraph
@@ -1926,6 +1928,9 @@ co-maintainer set [options]
 | `--github-oauth-allowed-user=LOGIN` |  | The only GitHub user allowed to sign in. |
 | `--remote-host=URL` |  | The remote review server. |
 | `--remote-token=TOKEN` |  | The remote review token. |
+| `--remote-byok-policy=off\|allow\|require` | off | Whether a remote client may send its own AI key. |
+| `--remote-byok=KEY` |  | Your own AI key to send with a remote review. |
+| `--remote-byok-default=on\|off` | off | Send remote-byok on every --remote review by default. |
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |
 | `--password=TEXT` |  | Replace the dashboard password. |
 | `--disable-auth=password` |  | Turn the dashboard password off. |

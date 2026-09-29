@@ -92,6 +92,13 @@ export type UserConfig = {
    * `CM_REMOTE_BYOK_POLICY` env var overrides this, which is how a hosted
    * deployment forces the setting. */
   remoteByokPolicy?: ByokPolicy;
+  /** The client's own AI key for remote review (CORE-111), sent only when
+   * `--remote-byok` (or `remoteByokDefault`) turns it on for a run. Only
+   * ever written by `set`. */
+  remoteByok?: string;
+  /** Whether `co-maintainer review --remote` sends `remoteByok` by default.
+   * `--no-remote-byok` turns it off for one run without unsetting this. */
+  remoteByokDefault?: boolean;
   repos?: Record<string, RepoConfig>;
 };
 

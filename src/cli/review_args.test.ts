@@ -35,6 +35,86 @@ test("parseReviewArgs: --remote selects remote mode", async () => {
   }
 });
 
+test("parseReviewArgs: --remote-byok and --no-remote-byok are captured", async () => {
+  const on = await parseReviewArgs(["--remote", "--remote-byok"]);
+  if (on.mode !== "remote" || on.remoteByok !== true) {
+    throw new Error(`on: mode=${on.mode} remoteByok=${String(on.remoteByok)}`);
+  }
+  const off = await parseReviewArgs(["--remote", "--no-remote-byok"]);
+  if (off.mode !== "remote" || off.remoteByok !== false) {
+    throw new Error(
+      `off: mode=${off.mode} remoteByok=${String(off.remoteByok)}`,
+    );
+  }
+  const unset = await parseReviewArgs(["--remote"]);
+  if (unset.mode !== "remote" || unset.remoteByok !== undefined) {
+    throw new Error(
+      `unset: mode=${unset.mode} remoteByok=${String(unset.remoteByok)}`,
+    );
+  }
+});
+
+test("parseReviewArgs: --remote-byok and --no-remote-byok together is rejected", async () => {
+  let message: string | undefined;
+  try {
+    await parseReviewArgs(["--remote", "--remote-byok", "--no-remote-byok"]);
+  } catch (thrown) {
+    message = thrown instanceof Error ? thrown.message : String(thrown);
+  }
+  if (message !== "--remote-byok and --no-remote-byok cannot both be used") {
+    throw new Error(`message: ${message}`);
+  }
+});
+
+test("parseReviewArgs: --remote-byok without --remote is refused", async () => {
+  let message: string | undefined;
+  try {
+    await parseReviewArgs(["--remote-byok"]);
+  } catch (thrown) {
+    message = thrown instanceof Error ? thrown.message : String(thrown);
+  }
+  if (message !== "--remote-byok requires --remote") {
+    throw new Error(`message: ${message}`);
+  }
+});
+
+test("parseReviewArgs: --remote-byok is refused for PR mode", async () => {
+  let message: string | undefined;
+  try {
+    await parseReviewArgs([
+      "owner/repo",
+      "42",
+      "--remote-byok",
+      "--token=test",
+    ]);
+  } catch (thrown) {
+    message = thrown instanceof Error ? thrown.message : String(thrown);
+  }
+  if (message !== "--remote-byok requires --remote") {
+    throw new Error(`message: ${message}`);
+  }
+});
+
+test("parseReviewArgs: --remote-byok is refused for PR mode even with --remote", async () => {
+  let message: string | undefined;
+  try {
+    await parseReviewArgs([
+      "owner/repo",
+      "42",
+      "--remote",
+      "--remote-byok",
+      "--token=test",
+    ]);
+  } catch (thrown) {
+    message = thrown instanceof Error ? thrown.message : String(thrown);
+  }
+  if (
+    message !== "--remote-byok is only for remote review without a PR number"
+  ) {
+    throw new Error(`message: ${message}`);
+  }
+});
+
 test("parseReviewArgs: --json fails fast on a missing model instead of prompting", async () => {
   // `--json` is a machine-readable contract, so a missing value must fail fast
   // (plan §8.7), never drive the prompt path. No provider ships a default model

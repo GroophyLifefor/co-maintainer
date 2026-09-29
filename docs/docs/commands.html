@@ -576,6 +576,16 @@ co-maintainer review [options]
 <td>Override the configured remote token for this run (needs --remote).</td>
 </tr>
 <tr>
+<td><code>--remote-byok</code></td>
+<td></td>
+<td>Send your own AI key with a remote review (needs --remote).</td>
+</tr>
+<tr>
+<td><code>--no-remote-byok</code></td>
+<td></td>
+<td>Do not send your own AI key, even if remote-byok-default is on.</td>
+</tr>
+<tr>
 <td><code>--sync-before-review</code></td>
 <td></td>
 <td>Rebuild the guides before reviewing.</td>
@@ -852,6 +862,21 @@ co-maintainer view [owner/repo] --path
 <td><code>--remote-token=TOKEN</code></td>
 <td></td>
 <td>The remote review token.</td>
+</tr>
+<tr>
+<td><code>--remote-byok-policy=off|allow|require</code></td>
+<td>off</td>
+<td>Whether a remote client may send its own AI key.</td>
+</tr>
+<tr>
+<td><code>--remote-byok=KEY</code></td>
+<td></td>
+<td>Your own AI key to send with a remote review.</td>
+</tr>
+<tr>
+<td><code>--remote-byok-default=on|off</code></td>
+<td>off</td>
+<td>Send remote-byok on every --remote review by default.</td>
 </tr>
 <tr>
 <td><code>--review-blocking=model|severity</code></td>

@@ -24,6 +24,7 @@ const secretFields = new Set([
   "githubOAuthClientSecret",
   "remoteToken",
   "dashboardPasswordHash",
+  "remoteByok",
 ]);
 
 /** `co-maintainer set --token=... --ai=... --low-model=... --high-model=...
@@ -59,6 +60,8 @@ export async function runSet(args: string[]): Promise<void> {
     "remote-host",
     "remote-token",
     "remote-byok-policy",
+    "remote-byok",
+    "remote-byok-default",
     "review-blocking",
     "password",
     "unset",
@@ -114,6 +117,8 @@ export async function runSet(args: string[]): Promise<void> {
     "remote-host": "remoteHost",
     "remote-token": "remoteToken",
     "remote-byok-policy": "remoteByokPolicy",
+    "remote-byok": "remoteByok",
+    "remote-byok-default": "remoteByokDefault",
     "review-blocking": "reviewBlocking",
     password: "dashboardPasswordHash",
   };
@@ -187,6 +192,15 @@ export async function runSet(args: string[]): Promise<void> {
       die("--remote-byok-policy must be one of: off, allow, require");
     }
     patch.remoteByokPolicy = remoteByokPolicy;
+  }
+  const remoteByok = text(args, "remote-byok");
+  if (remoteByok) patch.remoteByok = remoteByok;
+  const remoteByokDefault = text(args, "remote-byok-default");
+  if (remoteByokDefault) {
+    if (!["on", "off"].includes(remoteByokDefault)) {
+      die("--remote-byok-default must be one of: on, off");
+    }
+    patch.remoteByokDefault = remoteByokDefault === "on";
   }
   const reviewBlocking = text(args, "review-blocking");
   if (reviewBlocking) {

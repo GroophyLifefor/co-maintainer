@@ -36,6 +36,10 @@ export type FakeRemoteOptions = {
   /** Answers every request with this status and the server's error shape, so
    * the client's rejection handling can be exercised (CORE-44). */
   refuse?: number;
+  /** Extra top-level fields merged into the handshake response, so a test can
+   * add `features`/`byok`/`ai` without a real BYOK-capable server (CORE-111).
+   * Omitting it keeps the response looking like a pre-BYOK 0.5.0 server. */
+  handshake?: Record<string, unknown>;
 };
 
 const SYNC_DONE = {
@@ -102,6 +106,7 @@ export async function startFakeRemote(
             },
             sync: { intervalSeconds: 1, timeoutSeconds: 10 },
             limits: { maxBodyBytes: 50 * 1024 * 1024 },
+            ...options.handshake,
           });
           return;
         }

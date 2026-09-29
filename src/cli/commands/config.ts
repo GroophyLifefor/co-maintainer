@@ -20,6 +20,7 @@ export const SECRET_FIELDS = new Set([
   "githubOAuthClientSecret",
   "remoteToken",
   "dashboardPasswordHash",
+  "remoteByok",
 ]);
 
 /** `lowModel` -> `low-model`. The inverse of {@link configKey}. */
@@ -168,6 +169,8 @@ export const KNOWN_FIELDS = [
   "remoteSyncTimeoutSeconds",
   "maxConcurrentRemoteReviewsPerToken",
   "remoteToolOutputMaxChars",
+  "remoteByok",
+  "remoteByokDefault",
 ] as const satisfies readonly (keyof UserConfig)[];
 
 /** `co-maintainer config <sub> ...`. `set` is handled by runSet, which this

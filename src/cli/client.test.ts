@@ -8,11 +8,12 @@ import { test } from "node:test";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseReviewArgs } from "./review_args.ts";
-import { runRemoteReview } from "../remote/client.ts";
+import { byokHttpWarning, runRemoteReview } from "../remote/client.ts";
 import {
   bearerOf,
   startFakeRemote,
   writeCaCert,
+  type FakeRemoteOptions,
 } from "../testing/fake_remote.ts";
 import { CliError } from "./error.ts";
 import {
@@ -112,6 +113,67 @@ test("review: the not-configured hint names config set", async () => {
   }
   if (!/config set remote-token/.test(error.hint ?? "")) {
     throw new Error(`hint: ${error.hint}`);
+  }
+});
+
+test("review: --remote-byok without a configured key is refused", async () => {
+  const root = await makeTempDir({ prefix: "cm-remote-byok-hint-" });
+  const prev = process.env.CM_CONFIG_PATH;
+  process.env.CM_CONFIG_PATH = `${root}/config.json`;
+  await writeTextFile(
+    `${root}/config.json`,
+    JSON.stringify({ remoteHost: "https://x", remoteToken: "tok" }),
+  );
+  let error: CliError | undefined;
+  try {
+    await runRemoteReview({
+      mode: "remote",
+      rawArgs: [],
+      json: true,
+      remote: true,
+      remoteByok: true,
+      disableCodegraph: true,
+      allowToolInstall: false,
+      fresh: false,
+      remakeBeforeReview: false,
+    });
+  } catch (thrown) {
+    error = thrown as CliError;
+  } finally {
+    if (prev === undefined) delete process.env.CM_CONFIG_PATH;
+    else process.env.CM_CONFIG_PATH = prev;
+    await remove(root, { recursive: true });
+  }
+  if (!(error instanceof CliError)) {
+    throw new Error("a BYOK run with no key did not fail");
+  }
+  if (error.message !== "No BYOK key is set.") {
+    throw new Error(`message: ${error.message}`);
+  }
+  if (!/config set remote-byok/.test(error.hint ?? "")) {
+    throw new Error(`hint: ${error.hint}`);
+  }
+});
+
+test("byokHttpWarning: warns for a plain-http, non-local host", () => {
+  const warning = byokHttpWarning("http://review.example.com");
+  if (!warning || !/plain http to review\.example\.com/.test(warning)) {
+    throw new Error(`warning: ${warning}`);
+  }
+});
+
+test("byokHttpWarning: stays quiet for http on localhost", () => {
+  if (byokHttpWarning("http://localhost:8080") !== null) {
+    throw new Error("localhost should not warn");
+  }
+  if (byokHttpWarning("http://127.0.0.1:8080") !== null) {
+    throw new Error("127.0.0.1 should not warn");
+  }
+});
+
+test("byokHttpWarning: stays quiet for https", () => {
+  if (byokHttpWarning("https://review.example.com") !== null) {
+    throw new Error("https should not warn");
   }
 });
 
@@ -217,4 +279,222 @@ test("review: inline host and token reach an https server with no saved config",
     await remove(root, { recursive: true });
     await remote.close();
   }
+});
+
+/** Shared setup for the CORE-111 BYOK end-to-end cases: a fake remote server,
+ * a config file and a one-commit git worktree with an uncommitted change to
+ * review, so only the fake server's handshake and the flags differ per test. */
+async function withByokWorktreeReview(
+  opts: {
+    fakeRemote?: FakeRemoteOptions;
+    reviewArgs?: string[];
+    configPatch?: Record<string, unknown>;
+    env?: Record<string, string>;
+  },
+  run: (result: {
+    code: number | null;
+    stdout: string;
+    stderr: string;
+    remote: Awaited<ReturnType<typeof startFakeRemote>>;
+  }) => void | Promise<void>,
+): Promise<void> {
+  const remote = await startFakeRemote({
+    repo: "e2e-exit/remote",
+    ...opts.fakeRemote,
+  });
+  const root = await makeTempDir({ prefix: "cm-remote-byok-e2e-" });
+  try {
+    const ca = await writeCaCert(root);
+    const configPath = `${root}/config.json`;
+    await writeTextFile(
+      configPath,
+      `${JSON.stringify(
+        {
+          auth: "gh",
+          ai: "openrouter",
+          token: "fake-key",
+          lowModel: "fake/model",
+          highModel: "fake/model",
+          ...opts.configPatch,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    const worktree = `${root}/worktree`;
+    await mkdir(worktree, { recursive: true });
+    const git = async (args: string[]): Promise<void> => {
+      const result = await new Command("git", {
+        args,
+        cwd: worktree,
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+      if (!result.success) {
+        throw new Error(
+          `git ${args.join(" ")}: ${new TextDecoder().decode(result.stderr)}`,
+        );
+      }
+    };
+    await git(["init"]);
+    await git(["config", "user.email", "t@t"]);
+    await git(["config", "user.name", "t"]);
+    await writeTextFile(`${worktree}/x.ts`, "export {}\n");
+    await git(["add", "x.ts"]);
+    await git(["commit", "-m", "init"]);
+    await git(["branch", "-M", "main"]);
+    await git([
+      "remote",
+      "add",
+      "origin",
+      "https://github.com/e2e-exit/remote.git",
+    ]);
+    await git(["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    await writeTextFile(`${worktree}/x.ts`, "export const y = 1\n");
+    await git(["commit", "-am", "change"]);
+
+    const result = await commandOutput(runtimeExecPath(), {
+      args: runtimeRunArgs(`${projectRoot}/main.ts`, [
+        "review",
+        "--remote",
+        `--remote-host=${remote.url}`,
+        "--remote-token=cmr_inline",
+        "--json",
+        "--disable-codegraph",
+        ...(opts.reviewArgs ?? []),
+      ]),
+      cwd: worktree,
+      env: {
+        ...envToObject(),
+        CM_CONFIG_PATH: configPath,
+        CM_REPOS_DIR: `${root}/repos`,
+        NODE_EXTRA_CA_CERTS: ca,
+        ...opts.env,
+      },
+      stdout: "piped",
+      stderr: "piped",
+    });
+    await run({
+      code: result.code,
+      stdout: new TextDecoder().decode(result.stdout),
+      stderr: new TextDecoder().decode(result.stderr),
+      remote,
+    });
+  } finally {
+    await remove(root, { recursive: true });
+    await remote.close();
+  }
+}
+
+test("review --remote-byok: fails against a server that predates BYOK", async () => {
+  await withByokWorktreeReview(
+    {
+      // No `handshake` override: the fake server answers exactly like a
+      // pre-CORE-110 0.5.0 server, with no `features` field at all.
+      reviewArgs: ["--remote-byok"],
+      configPatch: { remoteByok: "sk-test-123" },
+    },
+    ({ code, stdout }) => {
+      if (code === 0) throw new Error(`unexpectedly succeeded: ${stdout}`);
+      const parsed = JSON.parse(stdout) as {
+        error?: { message?: string; hint?: string };
+      };
+      if (!/does not support your own key/.test(parsed.error?.message ?? "")) {
+        throw new Error(`message: ${parsed.error?.message}`);
+      }
+    },
+  );
+});
+
+test("review --remote-byok: fails when the server's policy is off", async () => {
+  await withByokWorktreeReview(
+    {
+      fakeRemote: {
+        handshake: {
+          features: ["byok"],
+          byok: { policy: "off" },
+          ai: { provider: "openrouter" },
+        },
+      },
+      reviewArgs: ["--remote-byok"],
+      configPatch: { remoteByok: "sk-test-123" },
+    },
+    ({ code, stdout }) => {
+      if (code === 0) throw new Error(`unexpectedly succeeded: ${stdout}`);
+      const parsed = JSON.parse(stdout) as {
+        error?: { message?: string };
+      };
+      if (
+        parsed.error?.message !== "This server does not accept your own key."
+      ) {
+        throw new Error(`message: ${parsed.error?.message}`);
+      }
+    },
+  );
+});
+
+test("review: fails when the server requires BYOK and the run did not send one", async () => {
+  await withByokWorktreeReview(
+    {
+      fakeRemote: {
+        handshake: {
+          features: ["byok"],
+          byok: { policy: "require" },
+          ai: { provider: "openrouter" },
+        },
+      },
+    },
+    ({ code, stdout }) => {
+      if (code === 0) throw new Error(`unexpectedly succeeded: ${stdout}`);
+      const parsed = JSON.parse(stdout) as {
+        error?: { message?: string; hint?: string };
+      };
+      if (parsed.error?.message !== "This server requires your own key.") {
+        throw new Error(`message: ${parsed.error?.message}`);
+      }
+      if (!/--remote-byok/.test(parsed.error?.hint ?? "")) {
+        throw new Error(`hint: ${parsed.error?.hint}`);
+      }
+    },
+  );
+});
+
+test("review --remote-byok: the key reaches the server in the submit body, not the auth header", async () => {
+  await withByokWorktreeReview(
+    {
+      fakeRemote: {
+        handshake: {
+          features: ["byok"],
+          byok: { policy: "allow" },
+          ai: { provider: "openrouter" },
+        },
+      },
+      reviewArgs: ["--remote-byok"],
+      env: { CM_REMOTE_BYOK: "sk-env-key" },
+      // A config value is also set, so this proves the env var wins.
+      configPatch: { remoteByok: "sk-config-key" },
+    },
+    ({ code, stdout, stderr, remote }) => {
+      if (code !== 0) throw new Error(`exit ${code}\n${stdout}\n${stderr}`);
+      const submit = remote.requests.find(
+        (r) => r.path === "/api/remote/reviews",
+      );
+      const body = submit?.body as { byok?: { key?: string } } | undefined;
+      if (body?.byok?.key !== "sk-env-key") {
+        throw new Error(`submit byok.key: ${JSON.stringify(body?.byok)}`);
+      }
+      const handshake = remote.requests.find(
+        (r) => r.path === "/api/remote/handshake",
+      );
+      if (bearerOf(handshake!) !== "cmr_inline") {
+        throw new Error(
+          "the server token, not the BYOK key, must authenticate",
+        );
+      }
+      if (bearerOf(submit!) !== "cmr_inline") {
+        throw new Error("the BYOK key leaked into the auth header");
+      }
+    },
+  );
 });
