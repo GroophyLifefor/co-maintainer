@@ -1,4 +1,5 @@
 import { VERSION } from "../version.ts";
+import { CliError } from "../cli/error.ts";
 import {
   resolvedFromFirstReview,
   revisionStats,
@@ -68,6 +69,7 @@ import {
   setReviewStatus,
 } from "../store/reviews.ts";
 import { insertJob, listJobsByQueueKey, setJobStatus } from "../store/jobs.ts";
+import { getAppDb } from "../store/app_db.ts";
 import type { RemoteTokenRow } from "../store/rows.ts";
 import type { JobRow } from "../store/rows.ts";
 
@@ -87,6 +89,22 @@ class RemoteReviewError extends Error {
 
 function remoteQueueKey(repo: string, branch: string, tokenId: string): string {
   return `remote:${repo}:${branch}:${tokenId}`;
+}
+
+/** True only for a provider *authentication* rejection: the three providers
+ * raise `openrouter_unauthorized`, `openai_unauthorized` and
+ * `anthropic_unauthorized`. The list is explicit so an unrelated error that
+ * happens to end in `_unauthorized` is not relabelled as a bad client key
+ * (CORE-110). */
+function isProviderAuthError(error: unknown): boolean {
+  return (
+    error instanceof CliError &&
+    [
+      "openrouter_unauthorized",
+      "openai_unauthorized",
+      "anthropic_unauthorized",
+    ].includes(error.code)
+  );
 }
 
 function reviewOptionsForRepo(
@@ -127,9 +145,15 @@ function supersedeActiveRemoteJobs(
 ): void {
   for (const job of listJobsByQueueKey(queueKey, ["queued", "running"])) {
     if (job.id === supersededBy) continue;
+    // A superseded job never becomes terminal through `runJob`, so its BYOK
+    // key must be dropped here or it would sit in memory for the process
+    // lifetime, and its input row must go too so a later retry is not blocked
+    // by a dead row (CORE-110).
+    dropByokKey(job.id);
     if (job.status === "running") {
       cancel(job.id, "superseded");
     } else {
+      deleteRemoteReviewInput(job.id);
       setJobStatus(job.id, "canceled", {
         superseded_by: supersededBy,
         cancel_reason: "superseded",
@@ -216,32 +240,50 @@ export function submitRemoteReview(
     tokenId: token.id,
     billedTo,
   });
+
+  // The review and job rows go in one transaction so a failure cannot leave a
+  // partially written submission behind: no review with no job, and no queued
+  // job whose input row points a retry at a job that never really started.
+  // The key is registered only after COMMIT, so it never outlives a failed
+  // setup (CORE-110).
+  const config = readConfig();
+  const db = getAppDb();
+  db.exec("BEGIN");
+  try {
+    insertRemoteReview({
+      id: reviewId,
+      subjectId: subject.id,
+      repo: repoRow.full_name,
+      branch,
+      tokenId: token.id,
+      tokenName: token.name,
+      jobId,
+      scope: "remote",
+      model: config.highModel ?? "unknown",
+    });
+
+    insertJob({
+      id: jobId,
+      type: "remote_review",
+      repo: repoRow.full_name,
+      queueKey,
+      args: { subjectId: subject.id, requestId, reviewId },
+    });
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    // Nothing of this submission survives, so the input row must go too, or a
+    // retry with the same request id would find a row whose key is gone and be
+    // told byok_key_lost (CORE-110).
+    deleteRemoteReviewInput(jobId);
+    throw error;
+  }
+
   // The key is pulled out of the body before anything persists it: it lives
   // only in this process's memory, tied to the job (CORE-110).
   if (billedTo === "byok" && submittedKey !== undefined) {
     registerByokKey(jobId, submittedKey);
   }
-
-  const config = readConfig();
-  insertRemoteReview({
-    id: reviewId,
-    subjectId: subject.id,
-    repo: repoRow.full_name,
-    branch,
-    tokenId: token.id,
-    tokenName: token.name,
-    jobId,
-    scope: "remote",
-    model: config.highModel ?? "unknown",
-  });
-
-  insertJob({
-    id: jobId,
-    type: "remote_review",
-    repo: repoRow.full_name,
-    queueKey,
-    args: { subjectId: subject.id, requestId, reviewId },
-  });
 
   openRemoteSession({
     jobId,
@@ -444,10 +486,16 @@ export function registerRemoteReviewHandler(): void {
         completed = true;
         log("info", `remote review finished (${findings.length} findings)`);
       } catch (error) {
-        // A rejected BYOK key must say so instead of leaking the provider's
-        // own text. `byok_key_lost` was thrown before this try, so it is not
-        // remapped (CORE-110).
-        if (byokKey !== undefined && !signal.aborted) {
+        // Only an authentication rejection proves the client's key is bad, so
+        // only that becomes `byok_rejected`. A provider outage, a parse error
+        // or a local failure must surface as itself rather than telling the
+        // user their key was refused. `byok_key_lost` is thrown before this
+        // try, so it is not remapped (CORE-110).
+        if (
+          byokKey !== undefined &&
+          !signal.aborted &&
+          isProviderAuthError(error)
+        ) {
           throw new RemoteReviewError(
             "byok_rejected",
             "The AI provider rejected your own key.",

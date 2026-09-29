@@ -104,7 +104,14 @@ export type ByokPolicy = "off" | "allow" | "require";
 export function remoteByokPolicy(
   config: Pick<UserConfig, "remoteByokPolicy"> = readConfig(),
 ): ByokPolicy {
-  const raw = getEnv("CM_REMOTE_BYOK_POLICY") ?? config.remoteByokPolicy;
+  // An env value that is not one of the three known policies is treated as
+  // unreadable and falls back to the config, so a typo cannot silently turn a
+  // configured `require` into `off`. An explicit `off` still overrides.
+  const env = getEnv("CM_REMOTE_BYOK_POLICY");
+  const raw =
+    env === "off" || env === "allow" || env === "require"
+      ? env
+      : config.remoteByokPolicy;
   return raw === "allow" || raw === "require" ? raw : "off";
 }
 

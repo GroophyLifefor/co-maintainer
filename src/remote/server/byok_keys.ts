@@ -37,3 +37,9 @@ export function dropByokKey(jobId: string): void {
 export function clearByokKeysForTest(): void {
   keys.clear();
 }
+
+/** Test-only count of held keys, so a test can prove a failed path left none
+ * behind without reading any key value. */
+export function byokKeyCountForTest(): number {
+  return keys.size;
+}

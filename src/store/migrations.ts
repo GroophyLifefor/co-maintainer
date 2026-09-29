@@ -266,7 +266,5 @@ export const migrations: string[][] = [
     `UPDATE reviews SET billed_to = 'server'`,
   ],
   // 10 — BYOK: persist only whether a review used a client key, never the key
-  [
-    `ALTER TABLE remote_review_inputs ADD COLUMN billed_to TEXT`,
-  ],
+  [`ALTER TABLE remote_review_inputs ADD COLUMN billed_to TEXT`],
 ];
