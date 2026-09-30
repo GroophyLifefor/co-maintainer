@@ -6,6 +6,7 @@ import {
 import {
   buildLocalReviewJson,
   formatHumanLocalReview,
+  humanFindingsFromResolved,
   resolvedFromFirstReview,
   reviewExitCodeFromResolved,
   type ReviewWarning,
@@ -40,6 +41,7 @@ import {
   withCliLogsToStderr,
 } from "../util/log.ts";
 import { printRunSummary, summaryFromMetrics } from "../util/run_summary.ts";
+import { emitGithubOutput } from "../cli/review_github.ts";
 import { setCliInteractive } from "../cli/args.ts";
 import { prepareLocalCodegraph } from "./codegraph_prepare.ts";
 import { canPrompt } from "../tools/codegraph.ts";
@@ -387,6 +389,15 @@ export async function runLocalReview(
             reviewBlocking: options.reviewBlocking,
           }),
         );
+      } else if (cli.output === "github") {
+        emitGithubOutput({
+          title: header,
+          findings: humanFindingsFromResolved(
+            allResolved,
+            options.reviewBlocking,
+          ),
+          run: summaryFromMetrics(aiMetrics, performance.now() - started),
+        });
       } else {
         console.log(
           "\n" +

@@ -186,3 +186,50 @@ async function assertFailsFast(
     setCliInteractive(true);
   }
 }
+
+test("parseReviewArgs: --output=github is captured in every mode", async () => {
+  const remote = await parseReviewArgs(["--remote", "--output=github"]);
+  if (remote.mode !== "remote" || remote.output !== "github") {
+    throw new Error(`remote: ${remote.mode} ${String(remote.output)}`);
+  }
+  const local = await parseReviewArgs(["--output=github"]);
+  if (local.mode !== "local" || local.output !== "github") {
+    throw new Error(`local: ${local.mode} ${String(local.output)}`);
+  }
+  const pr = await parseReviewArgs([
+    "owner/repo",
+    "42",
+    "--output=github",
+    "--token=test",
+    "--low-model=low/model",
+    "--high-model=test/model",
+  ]);
+  if (pr.mode !== "pr" || pr.output !== "github") {
+    throw new Error(`pr: ${pr.mode} ${String(pr.output)}`);
+  }
+  const plain = await parseReviewArgs(["--remote"]);
+  if (plain.output !== undefined) throw new Error("output is off by default");
+});
+
+test("parseReviewArgs: --output takes only github, and never together with --json", async () => {
+  const message = async (args: string[]): Promise<string> => {
+    try {
+      await parseReviewArgs(args);
+    } catch (thrown) {
+      return thrown instanceof Error ? thrown.message : String(thrown);
+    }
+    throw new Error(`accepted ${args.join(" ")}`);
+  };
+  if ((await message(["--output=xml"])) !== "--output must be: github") {
+    throw new Error("an unknown format must be named");
+  }
+  if ((await message(["--output="])) !== "--output must be: github") {
+    throw new Error("an empty format is not github");
+  }
+  if (
+    (await message(["--remote", "--output=github", "--json"])) !==
+    "--output=github cannot be used with --json"
+  ) {
+    throw new Error("--json and --output=github conflict");
+  }
+});

@@ -1852,6 +1852,7 @@ co-maintainer review [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+| `--output=github` |  | Print GitHub workflow annotations and write the job summary instead of prose. Cannot be used with --json. |
 
 ## `co-maintainer config`
 

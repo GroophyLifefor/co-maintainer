@@ -21,6 +21,9 @@ type ReviewFlags = {
   /** `--remote-byok` (`true`) / `--no-remote-byok` (`false`) for this run
    * only (CORE-111). Unset means "use the configured default". */
   remoteByok?: boolean;
+  /** `--output=github`: workflow commands and a job summary instead of prose
+   * (CORE-130). */
+  output?: "github";
 };
 
 export type ReviewCliArgs =
@@ -41,6 +44,7 @@ function reviewFlags(rest: string[]): {
   remoteHost?: string;
   remoteToken?: string;
   remoteByok?: boolean;
+  output?: "github";
 } {
   const text = (name: string) =>
     rest.find((item) => item.startsWith(`--${name}=`))?.slice(name.length + 3);
@@ -62,6 +66,13 @@ function reviewFlags(rest: string[]): {
   if (remoteByokOn && remoteByokOff) {
     die("--remote-byok and --no-remote-byok cannot both be used");
   }
+  const output = text("output");
+  if (output !== undefined && output !== "github") {
+    die("--output must be: github");
+  }
+  if (output !== undefined && rest.includes("--json")) {
+    die("--output=github cannot be used with --json");
+  }
   return {
     json: rest.includes("--json"),
     remote: rest.includes("--remote"),
@@ -75,6 +86,7 @@ function reviewFlags(rest: string[]): {
     remoteHost: text("remote-host"),
     remoteToken: text("remote-token"),
     remoteByok: remoteByokOn ? true : remoteByokOff ? false : undefined,
+    output,
   };
 }
 
@@ -99,7 +111,8 @@ export function filterReviewConfigArgs(raw: string[]): string[] {
       arg.startsWith("--branch=") ||
       arg.startsWith("--repo=") ||
       arg.startsWith("--remote-host=") ||
-      arg.startsWith("--remote-token=")
+      arg.startsWith("--remote-token=") ||
+      arg.startsWith("--output=")
     ) {
       return false;
     }

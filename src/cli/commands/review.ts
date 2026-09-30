@@ -27,6 +27,7 @@ import {
 import { parseFindings } from "../../pr/findings.ts";
 import { exitWith } from "../error.ts";
 import { printRunSummary, summaryFromMetrics } from "../../util/run_summary.ts";
+import { emitGithubOutput } from "../review_github.ts";
 import {
   formatHumanReview,
   humanFindingsFromResolved,
@@ -48,6 +49,7 @@ export async function runReviewFromCli(args: string[]): Promise<void> {
 export async function runReview(options: Options): Promise<void> {
   await runReviewPr(options, {
     json: false,
+    output: undefined,
     disableCodegraph: false,
     allowToolInstall: false,
     remakeBeforeReview: false,
@@ -58,7 +60,11 @@ async function runReviewPr(
   options: Options,
   cli: Pick<
     ReviewCliArgs,
-    "json" | "disableCodegraph" | "allowToolInstall" | "remakeBeforeReview"
+    | "json"
+    | "disableCodegraph"
+    | "allowToolInstall"
+    | "remakeBeforeReview"
+    | "output"
   >,
 ): Promise<void> {
   setCliInteractive(!cli.json);
@@ -115,6 +121,15 @@ async function runReviewPr(
             reviewBlocking: options.reviewBlocking,
           }),
         );
+      } else if (cli.output === "github") {
+        emitGithubOutput({
+          title: `${options.repo} · PR #${options.prNumber}`,
+          findings: humanFindingsFromResolved(resolved, options.reviewBlocking),
+          run: summaryFromMetrics(
+            aiMetrics,
+            performance.now() - operationStarted,
+          ),
+        });
       } else {
         // One presentation layer for local, PR and remote reviews (CORE-43).
         console.log(

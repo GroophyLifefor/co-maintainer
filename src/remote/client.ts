@@ -31,7 +31,8 @@ import {
   resolveBaseRef,
 } from "../local/git_revision.ts";
 import { withCliLogsToStderr } from "../util/log.ts";
-import { printRunSummary } from "../util/run_summary.ts";
+import { printRunSummary, type RunSummary } from "../util/run_summary.ts";
+import { emitGithubOutput, neutralizeCommands } from "../cli/review_github.ts";
 import { costReasonText, type CostReason } from "../util/cost.ts";
 import { setCliInteractive } from "../cli/args.ts";
 import {
@@ -298,13 +299,43 @@ export async function runRemoteReview(
       };
       for (const line of payload.logs ?? []) {
         afterLogSeq = Math.max(afterLogSeq, line.seq);
-        if (!cli.json) console.error(line.message);
+        if (!cli.json) {
+          console.error(
+            cli.output === "github"
+              ? neutralizeCommands(line.message)
+              : line.message,
+          );
+        }
       }
       if (payload.toolCalls?.length) {
         toolResults = await runRemoteToolCalls(payload.toolCalls, localTools);
         continue;
       }
       if (payload.status === "done" && payload.result) {
+        const findings = (payload.result.findings ?? []) as JsonReviewFinding[];
+        const usage = payload.result.usage as
+          | {
+              tokensIn?: number;
+              tokensOut?: number;
+              costUsd?: number | null;
+              costNote?: CostReason | null;
+            }
+          | undefined;
+        const known =
+          usage !== undefined &&
+          usage.costUsd !== null &&
+          usage.costUsd !== undefined;
+        const run: RunSummary | undefined = usage
+          ? {
+              durationMs: performance.now() - reviewStarted,
+              tokensIn: usage.tokensIn ?? 0,
+              tokensOut: usage.tokensOut ?? 0,
+              costUsd: known ? usage.costUsd! : null,
+              ...(!known && usage.costNote
+                ? { costNote: costReasonText(usage.costNote) }
+                : {}),
+            }
+          : undefined;
         if (cli.json) {
           console.log(
             JSON.stringify({
@@ -314,9 +345,13 @@ export async function runRemoteReview(
               ...payload.result,
             }),
           );
+        } else if (cli.output === "github") {
+          emitGithubOutput({
+            title: `${repo} · ${branch} (remote)`,
+            findings: humanFindingsFromJson(findings),
+            run,
+          });
         } else {
-          const findings = (payload.result.findings ??
-            []) as JsonReviewFinding[];
           const resultGuide = payload.result.guide as
             | { builtAt?: string | null }
             | undefined;
@@ -333,28 +368,8 @@ export async function runRemoteReview(
               }) +
               "\n",
           );
-          const usage = payload.result.usage as
-            | {
-                tokensIn?: number;
-                tokensOut?: number;
-                costUsd?: number | null;
-                costNote?: CostReason | null;
-              }
-            | undefined;
-          if (usage) {
-            const known = usage.costUsd !== null && usage.costUsd !== undefined;
-            printRunSummary({
-              durationMs: performance.now() - reviewStarted,
-              tokensIn: usage.tokensIn ?? 0,
-              tokensOut: usage.tokensOut ?? 0,
-              costUsd: known ? usage.costUsd! : null,
-              ...(!known && usage.costNote
-                ? { costNote: costReasonText(usage.costNote) }
-                : {}),
-            });
-          }
+          if (run) printRunSummary(run);
         }
-        const findings = (payload.result.findings ?? []) as JsonReviewFinding[];
         exitWith(reviewExitCodeFromJsonFindings(findings));
         // `done` is terminal. Without this return the loop polls `sync` again
         // and, since the server keeps reporting the same finished job, the

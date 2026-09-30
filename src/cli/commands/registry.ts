@@ -47,6 +47,20 @@ const OUTPUT_FLAGS: FlagGroup = {
   ],
 };
 
+/** `review` alone can print for a CI run (CORE-130). */
+const REVIEW_OUTPUT_FLAGS: FlagGroup = {
+  title: OUTPUT_FLAGS.title,
+  flags: [
+    ...OUTPUT_FLAGS.flags,
+    {
+      name: "output",
+      value: "github",
+      description:
+        "Print GitHub workflow annotations and write the job summary instead of prose. Cannot be used with --json.",
+    },
+  ],
+};
+
 const AI_FLAGS: FlagGroup = {
   title: "AI",
   flags: [
@@ -395,7 +409,7 @@ export const COMMANDS: CommandSpec[] = [
       },
       REVIEW_AI_FLAGS,
       GITHUB_FLAGS,
-      OUTPUT_FLAGS,
+      REVIEW_OUTPUT_FLAGS,
     ],
     examples: [
       "co-maintainer review owner/repo 42 --json",
@@ -403,6 +417,7 @@ export const COMMANDS: CommandSpec[] = [
       "co-maintainer review --remote --json",
       "co-maintainer review --remote --remote-host=https://review.example.com --remote-token=cmr_...",
       "co-maintainer review --remote --remote-byok --json",
+      "co-maintainer review --remote --output=github",
     ],
   },
   {

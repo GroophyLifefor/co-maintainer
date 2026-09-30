@@ -5,6 +5,7 @@
  * is that a `https://` host plus an inline token works without a saved config.
  */
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseReviewArgs } from "./review_args.ts";
@@ -16,6 +17,7 @@ import {
   type FakeRemoteOptions,
 } from "../testing/fake_remote.ts";
 import { CliError } from "./error.ts";
+import { tempDirSync } from "../testing/runtime.ts";
 import {
   commandOutput,
   envToObject,
@@ -288,6 +290,8 @@ async function withByokWorktreeReview(
   opts: {
     fakeRemote?: FakeRemoteOptions;
     reviewArgs?: string[];
+    /** Adds `--json` (the default). A test of another output leaves it out. */
+    json?: boolean;
     configPatch?: Record<string, unknown>;
     env?: Record<string, string>;
   },
@@ -360,7 +364,7 @@ async function withByokWorktreeReview(
         "--remote",
         `--remote-host=${remote.url}`,
         "--remote-token=cmr_inline",
-        "--json",
+        ...(opts.json === false ? [] : ["--json"]),
         "--disable-codegraph",
         ...(opts.reviewArgs ?? []),
       ]),
@@ -494,6 +498,141 @@ test("review --remote-byok: the key reaches the server in the submit body, not t
       }
       if (bearerOf(submit!) !== "cmr_inline") {
         throw new Error("the BYOK key leaked into the auth header");
+      }
+    },
+  );
+});
+
+const REMOTE_FINDINGS = [
+  {
+    id: "f1",
+    state: "new",
+    closeReason: null,
+    severity: "P1",
+    blocking: true,
+    path: "src/a.ts",
+    lineFrom: 3,
+    lineTo: 5,
+    title: "[P1 · blocking] `src/a.ts`: `run`",
+    body: "Handle null.\n::add-mask::hunter2\n100% sure",
+    suggestion: null,
+  },
+  {
+    id: "f2",
+    state: "open",
+    closeReason: null,
+    severity: "P3",
+    blocking: false,
+    path: "src/b.ts",
+    lineFrom: 9,
+    lineTo: 9,
+    title: "[P3 · non-blocking] `src/b.ts`: `name`",
+    body: "Rename it.",
+    suggestion: null,
+  },
+  {
+    id: "f3",
+    state: "closed",
+    closeReason: "fixed",
+    severity: "P2",
+    blocking: false,
+    path: "src/old.ts",
+    lineFrom: 1,
+    lineTo: 1,
+    title: "[P2 · non-blocking] `src/old.ts`: `gone`",
+    body: "Fixed.",
+    suggestion: null,
+  },
+];
+
+function doneWith(findings: unknown[], usage: unknown) {
+  return [
+    {
+      schemaVersion: 1,
+      status: "done",
+      logs: [],
+      result: { findings, summary: {}, usage },
+      abort: null,
+    },
+  ];
+}
+
+test("review --remote --output=github prints only escaped annotations, writes the summary and exits 1 on a blocking finding", async () => {
+  const summaryFile = `${tempDirSync()}/summary.md`;
+  await withByokWorktreeReview(
+    {
+      json: false,
+      reviewArgs: ["--output=github"],
+      fakeRemote: {
+        sync: doneWith(REMOTE_FINDINGS, {
+          tokensIn: 3125,
+          tokensOut: 1308,
+          costUsd: null,
+          costNote: "provider_did_not_report",
+        }),
+      },
+      env: { GITHUB_STEP_SUMMARY: summaryFile },
+    },
+    ({ code, stdout, stderr }) => {
+      if (code !== 1) throw new Error(`exit ${code}\n${stdout}\n${stderr}`);
+      const lines = stdout.split("\n").filter((line) => line !== "");
+      if (lines.length !== 2) throw new Error(`stdout:\n${stdout}`);
+      for (const line of lines) {
+        if (!line.startsWith("::")) {
+          throw new Error(`only workflow commands may reach stdout: ${line}`);
+        }
+      }
+      if (
+        !lines[0]!.startsWith(
+          "::error file=src/a.ts,line=3,endLine=5,title=P1%3A run::Handle null.%0A::add-mask::hunter2%0A100%25 sure",
+        )
+      ) {
+        throw new Error(lines[0]);
+      }
+      if (!lines[1]!.startsWith("::warning file=src/b.ts,line=9,")) {
+        throw new Error(lines[1]);
+      }
+      if (stdout.includes("old.ts"))
+        throw new Error("a closed finding was annotated");
+      const summary = readFileSync(summaryFile, "utf8");
+      for (const part of [
+        "## co-maintainer review",
+        "| P1 (blocking) | new | src/a.ts:3-5 |",
+        "| P3 | open | src/b.ts:9 |",
+        "1 new · 1 open · 1 closed · 1 blocking",
+        "cost unknown (The provider did not report the cost for this review.)",
+      ]) {
+        if (!summary.includes(part))
+          throw new Error(`missing "${part}" in\n${summary}`);
+      }
+    },
+  );
+});
+
+test("review --remote --output=github exits 0 when nothing blocks, and still annotates a warning", async () => {
+  await withByokWorktreeReview(
+    {
+      json: false,
+      reviewArgs: ["--output=github"],
+      fakeRemote: { sync: doneWith([REMOTE_FINDINGS[1]], undefined) },
+    },
+    ({ code, stdout, stderr }) => {
+      if (code !== 0) throw new Error(`exit ${code}\n${stdout}\n${stderr}`);
+      if (!stdout.startsWith("::warning file=src/b.ts,"))
+        throw new Error(stdout);
+    },
+  );
+});
+
+test("review --output=github with --json is refused before anything runs", async () => {
+  await withByokWorktreeReview(
+    { json: false, reviewArgs: ["--output=github", "--json"] },
+    ({ code, stdout, stderr, remote }) => {
+      if (code !== 2) throw new Error(`exit ${code}\n${stdout}\n${stderr}`);
+      if (remote.requests.length !== 0) {
+        throw new Error(
+          "the server must not be contacted for a refused command",
+        );
       }
     },
   );
