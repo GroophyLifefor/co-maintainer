@@ -15,6 +15,7 @@
 - [Review](https://co-maintainer.com/docs/review.md)
 - [Local review](https://co-maintainer.com/docs/local-review.md)
 - [Remote review](https://co-maintainer.com/docs/remote-review.md)
+- [CI](https://co-maintainer.com/docs/ci.md)
 - [PR review](https://co-maintainer.com/docs/local-pr-review.md)
 
 ## Self-hosted

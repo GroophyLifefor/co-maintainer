@@ -16,7 +16,13 @@ import { detectRemoteRepo } from "../../local/git_ops.ts";
 import { CliError, EXIT_USAGE } from "../error.ts";
 import { renderCommandHelp, unknownOptionMessage } from "./registry.ts";
 import { readDir, readTextFile, stat } from "../../util/runtime.ts";
-import { baseUrl, die, readApiError, remoteFetch } from "../../remote/http.ts";
+import {
+  baseUrl,
+  die,
+  readApiError,
+  remoteFetch,
+  remoteFromEnv,
+} from "../../remote/http.ts";
 
 type Kind = "skill" | "codebase" | "review-guide" | "detailed-guide";
 
@@ -123,8 +129,9 @@ type RemoteGuidesResponse = {
  * review needs no extra setup. */
 async function readRemoteGuides(repo: string): Promise<ViewGuide[]> {
   const config = readConfig();
-  const host = config.remoteHost;
-  const token = config.remoteToken;
+  const fromEnv = remoteFromEnv();
+  const host = fromEnv.host ?? config.remoteHost;
+  const token = fromEnv.token ?? config.remoteToken;
   if (!host || !token) {
     die(
       "remote_not_configured",

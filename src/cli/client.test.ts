@@ -292,6 +292,9 @@ async function withByokWorktreeReview(
     reviewArgs?: string[];
     /** Adds `--json` (the default). A test of another output leaves it out. */
     json?: boolean;
+    /** Passes `--remote-host` and `--remote-token` (the default). A test of the
+     * environment variables leaves them out. */
+    remoteFlags?: boolean;
     configPatch?: Record<string, unknown>;
     env?: Record<string, string>;
   },
@@ -362,8 +365,9 @@ async function withByokWorktreeReview(
       args: runtimeRunArgs(`${projectRoot}/main.ts`, [
         "review",
         "--remote",
-        `--remote-host=${remote.url}`,
-        "--remote-token=cmr_inline",
+        ...(opts.remoteFlags === false
+          ? []
+          : [`--remote-host=${remote.url}`, "--remote-token=cmr_inline"]),
         ...(opts.json === false ? [] : ["--json"]),
         "--disable-codegraph",
         ...(opts.reviewArgs ?? []),
@@ -374,7 +378,12 @@ async function withByokWorktreeReview(
         CM_CONFIG_PATH: configPath,
         CM_REPOS_DIR: `${root}/repos`,
         NODE_EXTRA_CA_CERTS: ca,
-        ...opts.env,
+        ...Object.fromEntries(
+          Object.entries(opts.env ?? {}).map(([key, value]) => [
+            key,
+            value.replace("@URL@", remote.url),
+          ]),
+        ),
       },
       stdout: "piped",
       stderr: "piped",
@@ -633,6 +642,114 @@ test("review --output=github with --json is refused before anything runs", async
         throw new Error(
           "the server must not be contacted for a refused command",
         );
+      }
+    },
+  );
+});
+
+test("review --remote reads the host and the token from the environment when no flag is given", async () => {
+  await withByokWorktreeReview(
+    {
+      remoteFlags: false,
+      env: { CM_REMOTE_HOST: "@URL@", CM_REMOTE_TOKEN: "cmr_from_env" },
+    },
+    ({ code, stdout, stderr, remote }) => {
+      if (code !== 0) throw new Error(`exit ${code}\n${stdout}\n${stderr}`);
+      const handshake = remote.requests.find(
+        (r) => r.path === "/api/remote/handshake",
+      );
+      if (bearerOf(handshake!) !== "cmr_from_env") {
+        throw new Error(
+          `the env token did not reach the server: ${handshake?.authorization}`,
+        );
+      }
+    },
+  );
+});
+
+test("a flag beats the environment, and the environment beats the saved config", async () => {
+  await withByokWorktreeReview(
+    {
+      env: {
+        CM_REMOTE_HOST: "https://wrong.invalid",
+        CM_REMOTE_TOKEN: "cmr_wrong",
+      },
+    },
+    ({ code, stdout, stderr, remote }) => {
+      if (code !== 0) throw new Error(`exit ${code}\n${stdout}\n${stderr}`);
+      const handshake = remote.requests.find(
+        (r) => r.path === "/api/remote/handshake",
+      );
+      if (bearerOf(handshake!) !== "cmr_inline") {
+        throw new Error("the flag must win over the environment");
+      }
+    },
+  );
+  await withByokWorktreeReview(
+    {
+      remoteFlags: false,
+      configPatch: {
+        remoteHost: "https://config.invalid",
+        remoteToken: "cmr_config",
+      },
+      env: { CM_REMOTE_HOST: "@URL@", CM_REMOTE_TOKEN: "cmr_from_env" },
+    },
+    ({ code, stdout, stderr, remote }) => {
+      if (code !== 0) throw new Error(`exit ${code}\n${stdout}\n${stderr}`);
+      const handshake = remote.requests.find(
+        (r) => r.path === "/api/remote/handshake",
+      );
+      if (bearerOf(handshake!) !== "cmr_from_env") {
+        throw new Error("the environment must win over the saved config");
+      }
+    },
+  );
+});
+
+test("an empty environment value counts as not set", async () => {
+  await withByokWorktreeReview(
+    {
+      remoteFlags: false,
+      env: { CM_REMOTE_HOST: "", CM_REMOTE_TOKEN: "" },
+    },
+    ({ code, stdout, remote }) => {
+      if (code !== 2) throw new Error(`exit ${code}\n${stdout}`);
+      const parsed = JSON.parse(stdout) as { error?: { code?: string } };
+      if (parsed.error?.code !== "remote_not_configured") {
+        throw new Error(stdout);
+      }
+      if (remote.requests.length !== 0)
+        throw new Error("the server was contacted");
+    },
+  );
+});
+
+test("a key in the environment is never sent unless --remote-byok asked for it", async () => {
+  await withByokWorktreeReview(
+    {
+      fakeRemote: {
+        handshake: {
+          features: ["byok"],
+          byok: { policy: "allow" },
+          ai: { provider: "openrouter" },
+        },
+      },
+      // No --remote-byok and no remote-byok-default: the key only exists.
+      env: { CM_REMOTE_BYOK: "sk-left-in-the-job-env" },
+    },
+    ({ code, stdout, stderr, remote }) => {
+      if (code !== 0) throw new Error(`exit ${code}\n${stdout}\n${stderr}`);
+      const submit = remote.requests.find(
+        (r) => r.path === "/api/remote/reviews",
+      );
+      const body = submit?.body as { byok?: unknown } | undefined;
+      if (body?.byok !== undefined) {
+        throw new Error(
+          `a key nobody asked to send was sent: ${JSON.stringify(body.byok)}`,
+        );
+      }
+      if (JSON.stringify(submit?.body).includes("sk-left-in-the-job-env")) {
+        throw new Error("the key reached the server");
       }
     },
   );

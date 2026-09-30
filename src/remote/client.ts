@@ -7,7 +7,13 @@ import {
   type JsonReviewFinding,
   reviewExitCodeFromJsonFindings,
 } from "../cli/review_result.ts";
-import { baseUrl, die, readApiError, remoteFetch } from "./http.ts";
+import {
+  baseUrl,
+  die,
+  readApiError,
+  remoteFetch,
+  remoteFromEnv,
+} from "./http.ts";
 import { readConfig, writeUserConfig, type ByokPolicy } from "../config.ts";
 import { getEnv } from "../util/runtime.ts";
 import { prepareLocalCodegraph } from "../local/codegraph_prepare.ts";
@@ -77,15 +83,16 @@ export async function runRemoteReview(
   const config = readConfig();
   // Inline flags win over the saved config for this run only (CORE-25), so a
   // one-off review does not have to be written to disk first.
-  const host = cli.remoteHost ?? config.remoteHost;
-  const token = cli.remoteToken ?? config.remoteToken;
+  const fromEnv = remoteFromEnv();
+  const host = cli.remoteHost ?? fromEnv.host ?? config.remoteHost;
+  const token = cli.remoteToken ?? fromEnv.token ?? config.remoteToken;
   if (!host || !token) {
     die(
       "remote_not_configured",
       "Remote review is not configured.",
       "co-maintainer config set remote-host https://your-server " +
         "&& co-maintainer config set remote-token <token> " +
-        "(or pass --remote-host=... --remote-token=... for one run)",
+        "(or pass --remote-host=... --remote-token=... for one run, or set CM_REMOTE_HOST and CM_REMOTE_TOKEN)",
     );
   }
 

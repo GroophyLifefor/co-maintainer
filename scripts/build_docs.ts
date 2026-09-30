@@ -68,6 +68,7 @@ const NAV: NavSection[] = [
       { slug: "review", label: "Review" },
       { slug: "local-review", label: "Local review" },
       { slug: "remote-review", label: "Remote review" },
+      { slug: "ci", label: "CI" },
       { slug: "local-pr-review", label: "PR review" },
     ],
   },

@@ -72,3 +72,93 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
       - name: Downgrade check
         run: npm run downgrade:check
+
+  # The action, run the way a workflow runs it (CORE-131): `uses: ./` from this
+  # checkout against fake remote servers. It never installs the published
+  # package. `CM_ACTION_PACKAGE` points the action at the tarball of this very
+  # build, and a composite action sees the env of the job that calls it.
+  action:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - run: npm run build
+      - name: Pack this build
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          echo "CM_ACTION_PACKAGE=$(ls "$RUNNER_TEMP"/co-maintainer-*.tgz)" >> "$GITHUB_ENV"
+      - name: Start two fake remote servers
+        run: |
+          node scripts/fake_remote_server.ts --findings=blocking \
+            --info="$RUNNER_TEMP/blocking.json" --log="$RUNNER_TEMP/blocking.log.json" &
+          node scripts/fake_remote_server.ts --findings=none \
+            --info="$RUNNER_TEMP/clean.json" --log="$RUNNER_TEMP/clean.log.json" &
+          for name in blocking clean; do
+            for _ in $(seq 1 50); do
+              [ -s "$RUNNER_TEMP/$name.json" ] && break
+              sleep 0.2
+            done
+            test -s "$RUNNER_TEMP/$name.json"
+          done
+          echo "BLOCKING_URL=$(node -p "require('$RUNNER_TEMP/blocking.json').url")" >> "$GITHUB_ENV"
+          echo "CLEAN_URL=$(node -p "require('$RUNNER_TEMP/clean.json').url")" >> "$GITHUB_ENV"
+          echo "NODE_EXTRA_CA_CERTS=$(node -p "require('$RUNNER_TEMP/blocking.json').ca")" >> "$GITHUB_ENV"
+      - name: Give the review something to look at
+        run: echo "action test" > action-test-marker.txt
+      - name: Blocking finding must turn the step red
+        id: blocking
+        continue-on-error: true
+        uses: ./
+        with:
+          remote-host: ${{ env.BLOCKING_URL }}
+          remote-token: cmr_action_test
+          to-branch: ${{ github.event.repository.default_branch }}
+      - name: No findings must leave the step green
+        id: clean
+        uses: ./
+        with:
+          remote-host: ${{ env.CLEAN_URL }}
+          remote-token: cmr_action_test
+          to-branch: ${{ github.event.repository.default_branch }}
+      - name: An empty secret must turn the step red
+        id: empty
+        continue-on-error: true
+        uses: ./
+        with:
+          remote-host: ${{ env.CLEAN_URL }}
+          remote-token: ""
+          to-branch: ${{ github.event.repository.default_branch }}
+      - name: Check what happened
+        env:
+          BLOCKING_OUTCOME: ${{ steps.blocking.outcome }}
+          CLEAN_OUTCOME: ${{ steps.clean.outcome }}
+          EMPTY_OUTCOME: ${{ steps.empty.outcome }}
+        run: |
+          test "$BLOCKING_OUTCOME" = failure
+          test "$CLEAN_OUTCOME" = success
+          test "$EMPTY_OUTCOME" = failure
+          sleep 1
+          node -e '
+            const fs = require("node:fs");
+            const dir = process.env.RUNNER_TEMP;
+            const read = (name) => JSON.parse(fs.readFileSync(`${dir}/${name}.log.json`, "utf8"));
+            for (const name of ["blocking", "clean"]) {
+              const requests = read(name);
+              const submits = requests.filter((r) => r.path === "/api/remote/reviews");
+              if (submits.length !== 1) throw new Error(`${name}: ${submits.length} submits`);
+              if (submits[0].authorization !== "Bearer cmr_action_test") {
+                throw new Error(`${name}: the token did not arrive as a bearer`);
+              }
+              if (submits[0].body.byok !== undefined) throw new Error(`${name}: a key was sent`);
+            }
+            console.log("the action sent one review to each server, and none for the empty secret");
+          '

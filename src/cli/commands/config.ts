@@ -55,6 +55,8 @@ export const ENV_BY_FIELD: Record<string, string[]> = {
   lowModel: ["OPENROUTER_LOW_MODEL", "LOW_MODEL"],
   highModel: ["OPENROUTER_HIGH_MODEL", "HIGH_MODEL"],
   webhookUrl: ["CM_WEBHOOK_URL"],
+  remoteHost: ["CM_REMOTE_HOST"],
+  remoteToken: ["CM_REMOTE_TOKEN"],
   reviewBlocking: ["CO_MAINTAINER_REVIEW_BLOCKING"],
 };
 

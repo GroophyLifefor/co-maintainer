@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CI (GitHub Action) · co-maintainer docs</title>
+  <meta name="description" content="Run remote review on every pull request from a workflow. The findings show up as annotations on the changed files, a table lands in the job summary, and...">
+  <link rel="canonical" href="https://co-maintainer.com/docs/ci.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="ci.html" class="active">CI</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="privacy.html">Data and privacy</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>CI (GitHub Action)</h1>
+<p>Run <a href="remote-review.html">remote review</a> on every pull request from a workflow. The
+findings show up as annotations on the changed files, a table lands in the job
+summary, and the step turns red when a finding blocks.</p>
+<p>The action needs a server that already runs <code>co-maintainer serve</code> with the
+repository added, and a remote review token from its dashboard. It sends the
+diff of the pull request to that server, the same way <code>review --remote</code> does
+from a laptop.</p>
+<h2 id="set-it-up">Set it up</h2>
+<ol>
+<li>On the dashboard open <strong>Settings</strong>, <strong>Remote review tokens</strong> and create a
+token for CI.</li>
+<li>In the GitHub repository open <strong>Settings</strong>, <strong>Secrets and variables</strong>,
+<strong>Actions</strong>, and add two secrets. <code>CO_MAINTAINER_HOST</code> holds the URL of the
+server and <code>CO_MAINTAINER_TOKEN</code> holds the token.</li>
+<li>Add a workflow:</li>
+</ol>
+<pre><code class="language-yaml">name: co-maintainer
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: GroophyLifefor/co-maintainer@v0
+        with:
+          remote-host: ${{ secrets.CO_MAINTAINER_HOST }}
+          remote-token: ${{ secrets.CO_MAINTAINER_TOKEN }}
+</code></pre>
+<p><code>fetch-depth: 0</code> gives the action the history it needs to find where the pull
+request branched off. Without it the action fetches what is missing, which is
+slower.</p>
+<h2 id="inputs">Inputs</h2>
+<table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Required</th>
+<th>Default</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>remote-host</code></td>
+<td>yes</td>
+<td>none</td>
+<td>URL of your server, for example <code>https://review.example.com</code></td>
+</tr>
+<tr>
+<td><code>remote-token</code></td>
+<td>yes</td>
+<td>none</td>
+<td>The remote review token. Pass it as a secret</td>
+</tr>
+<tr>
+<td><code>remote-byok</code></td>
+<td>no</td>
+<td>empty</td>
+<td>Your own AI key, see <a href="#your-own-ai-key">your own key</a></td>
+</tr>
+<tr>
+<td><code>to-branch</code></td>
+<td>no</td>
+<td>the pull request base branch</td>
+<td>The branch the pull request merges into</td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td>no</td>
+<td>the version at the action&#39;s own commit</td>
+<td>The co-maintainer version to run</td>
+</tr>
+<tr>
+<td><code>node-version</code></td>
+<td>no</td>
+<td><code>24</code></td>
+<td>The Node.js version to run it with</td>
+</tr>
+</tbody></table>
+<p>Inputs are never removed or renamed within <code>v0</code>. A new input is only ever added,
+with a default that keeps the old behavior.</p>
+<h2 id="what-you-see">What you see</h2>
+<ul>
+<li><strong>Annotations.</strong> Each finding that is still open is an error when it blocks
+and a warning when it does not. They appear on the <strong>Files changed</strong> tab and
+in the run&#39;s annotation list. GitHub shows at most ten errors and ten
+warnings per step, so when there are more the action adds one notice that
+says how many were left out.</li>
+<li><strong>Job summary.</strong> A table of every finding with its severity, state and
+location, the cost of the review, and how long it took. An unknown cost reads
+<code>cost unknown</code> with the reason, never <code>$0</code>.</li>
+<li><strong>Exit status.</strong> The step fails when a finding blocks, the same rule as
+<code>review</code> on the command line.</li>
+</ul>
+<p>Nothing else goes to the step&#39;s output in this mode, so a finding can never
+write a workflow command of its own. See <a href="review.html"><code>review</code></a> for the
+<code>--output=github</code> option the action uses.</p>
+<h2 id="choose-which-pull-requests-get-reviewed">Choose which pull requests get reviewed</h2>
+<p>The action reviews the diff it is given. The server&#39;s
+<a href="dashboard.html">review policy</a> decides which pull requests its GitHub App reviews,
+and it does not apply here, because a remote review looks at a diff and not at a
+pull request. Choose in the workflow instead:</p>
+<pre><code class="language-yaml">    # Skip drafts.
+    if: github.event.pull_request.draft == false
+
+    # Skip a bot.
+    if: github.actor != &#39;dependabot[bot]&#39;
+
+    # Only pull requests a maintainer labeled.
+    if: contains(github.event.pull_request.labels.*.name, &#39;needs-review&#39;)
+
+    # Only people with a stake in the repository.
+    if: contains(fromJSON(&#39;[&quot;OWNER&quot;,&quot;MEMBER&quot;,&quot;COLLABORATOR&quot;]&#39;), github.event.pull_request.author_association)
+</code></pre>
+<h2 id="pull-requests-from-forks">Pull requests from forks</h2>
+<p>GitHub does not give repository secrets to a workflow started by a pull request
+from a fork. The action then sees an empty <code>remote-token</code>, stops, and the step
+turns red with this message:</p>
+<pre><code class="language-text">remote-token is empty. Pull requests from forks do not receive repository
+secrets, so this step cannot run for them.
+</code></pre>
+<p>That is on purpose. A quiet skip would look like a clean review. If you would
+rather not see red on fork pull requests, skip the job for them:</p>
+<pre><code class="language-yaml">    if: github.event.pull_request.head.repo.full_name == github.repository
+</code></pre>
+<p>Do not switch the trigger to <code>pull_request_target</code> and check out the fork&#39;s code
+to get around this. That runs untrusted code with your secrets.</p>
+<h2 id="pin-a-version">Pin a version</h2>
+<table>
+<thead>
+<tr>
+<th>You write</th>
+<th>What runs</th>
+<th>When it changes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>@v0</code></td>
+<td>The newest stable release</td>
+<td>On every stable release, on its own</td>
+</tr>
+<tr>
+<td><code>@v0.5.1</code></td>
+<td>That release</td>
+<td>Never</td>
+</tr>
+<tr>
+<td>A full commit SHA</td>
+<td>That exact commit</td>
+<td>Never</td>
+</tr>
+</tbody></table>
+<p>The action runs the co-maintainer version that matches its own commit, so
+pinning the action pins the tool too. Use <code>@v0.5.1</code> or a SHA when a workflow
+must not change without a pull request. Beta releases are never reached through
+<code>@v0</code>.</p>
+<h2 id="your-own-ai-key">Your own AI key</h2>
+<p>If the server allows it, pass your own key and the review is billed to you and
+not to the server. See <a href="remote-review.html">remote review</a> for the server side of
+this.</p>
+<pre><code class="language-yaml">      - uses: GroophyLifefor/co-maintainer@v0
+        with:
+          remote-host: ${{ secrets.CO_MAINTAINER_HOST }}
+          remote-token: ${{ secrets.CO_MAINTAINER_TOKEN }}
+          remote-byok: ${{ secrets.OPENROUTER_API_KEY }}
+</code></pre>
+<p>The key goes to the tool by environment variable, never on a command line, and
+both the token and the key are masked in the log. The server answers with an
+error and does not fall back to its own key when it does not accept yours.
+Use an <code>https://</code> host. The key travels with the request.</p>
+<h2 id="environment-variables">Environment variables</h2>
+<p>Outside the action the same settings can be given to the CLI by environment:
+<code>CM_REMOTE_HOST</code>, <code>CM_REMOTE_TOKEN</code> and <code>CM_REMOTE_BYOK</code>. A flag wins over the
+environment, and the environment wins over the saved config. An empty value
+counts as not set.</p>
+<h2 id="when-it-fails">When it fails</h2>
+<table>
+<thead>
+<tr>
+<th>Message</th>
+<th>Cause</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>remote-token is empty</code></td>
+<td>The secret is missing, misspelled, or a fork pull request</td>
+</tr>
+<tr>
+<td><code>Could not fetch the base branch</code></td>
+<td><code>to-branch</code> names a branch that does not exist on <code>origin</code></td>
+</tr>
+<tr>
+<td><code>This server does not accept your own key</code></td>
+<td>The server&#39;s BYOK policy is <code>off</code></td>
+</tr>
+<tr>
+<td><code>This server requires your own key</code></td>
+<td>The server&#39;s BYOK policy is <code>require</code>, add <code>remote-byok</code></td>
+</tr>
+</tbody></table>
+<p>More in <a href="troubleshooting.html">troubleshooting</a>.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/ci.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#set-it-up">Set it up</a></li><li><a href="#inputs">Inputs</a></li><li><a href="#what-you-see">What you see</a></li><li><a href="#choose-which-pull-requests-get-reviewed">Choose which pull requests get reviewed</a></li><li><a href="#pull-requests-from-forks">Pull requests from forks</a></li><li><a href="#pin-a-version">Pin a version</a></li><li><a href="#your-own-ai-key">Your own AI key</a></li><li><a href="#environment-variables">Environment variables</a></li><li><a href="#when-it-fails">When it fails</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>
