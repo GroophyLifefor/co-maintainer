@@ -1,5 +1,5 @@
 /** Probe GitHub credentials before they are saved. A token that cannot
- * authenticate, or an App missing the permissions in PLAN.md Section 6,
+ * authenticate, or an App missing the permissions it needs,
  * is rejected instead of stored and failing later on a review. */
 import { githubFetch, GitHubHttpError } from "../github/client.ts";
 import { AppJwtClient } from "../github/app.ts";

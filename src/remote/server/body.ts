@@ -1,4 +1,4 @@
-/** Bounded request body read — plan §14.5 / G6 (bytes, streaming). */
+/** Bounded request body read (bytes, streaming). */
 
 export type BoundedBodyResult =
   | { ok: true; text: string }

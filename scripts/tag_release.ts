@@ -1,4 +1,4 @@
-/** Tags a release after it is published (CORE-132).
+/** Tags a release after it is published.
  *
  *   node scripts/tag_release.ts [--dry-run]
  *

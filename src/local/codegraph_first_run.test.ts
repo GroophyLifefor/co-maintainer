@@ -1,6 +1,6 @@
-/** Interactive codegraph prompt in a non-interactive run (CORE-50 / F01).
+/** Interactive codegraph prompt in a non-interactive run.
  *
- * F01: `co-maintainer review` on a fresh machine asked "Install codegraph ...?
+ * `co-maintainer review` on a fresh machine asked "Install codegraph ...?
  * [y/N]" even with stdin closed (`</dev/null`), because `process.stdin.isTTY`
  * was the only check and Windows' NUL device can present as a TTY. The prompt
  * then hung, printing `Warning: Detected unsettled top-level await`, and the
@@ -114,7 +114,7 @@ test("review never asks about codegraph when stdin is not a TTY", async () => {
     if (result.code === 124) {
       throw new Error(`review hung instead of finishing:\n${stderr}`);
     }
-    // The F01 crash signature must be gone.
+    // The old crash signature (exit 13) must be gone.
     if (result.code === 13) {
       throw new Error(`review exited 13:\n${stderr}`);
     }

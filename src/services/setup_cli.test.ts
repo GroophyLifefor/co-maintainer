@@ -1,6 +1,6 @@
-/** `PR_REVIEW_GUIDE.md` skipped: says why (CORE-31 / F05).
+/** `PR_REVIEW_GUIDE.md` skipped: says why.
  *
- * F05: `buildReviewDocuments` returned `undefined` below three review signals
+ * `buildReviewDocuments` returned `undefined` below three review signals
  * and `writeReviewDocuments` deleted the file without a word, so a user on a
  * small repository could not tell why the third guide was missing. The fix is
  * one log line naming the count and the threshold; the threshold is unchanged.

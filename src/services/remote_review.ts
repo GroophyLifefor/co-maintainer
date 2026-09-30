@@ -94,8 +94,8 @@ function remoteQueueKey(repo: string, branch: string, tokenId: string): string {
 /** True only for a provider *authentication* rejection: the three providers
  * raise `openrouter_unauthorized`, `openai_unauthorized` and
  * `anthropic_unauthorized`. The list is explicit so an unrelated error that
- * happens to end in `_unauthorized` is not relabelled as a bad client key
- * (CORE-110). */
+ * happens to end in `_unauthorized` is not relabelled as a bad client key.
+ */
 function isProviderAuthError(error: unknown): boolean {
   return (
     error instanceof CliError &&
@@ -148,7 +148,7 @@ function supersedeActiveRemoteJobs(
     // A superseded job never becomes terminal through `runJob`, so its BYOK
     // key must be dropped here or it would sit in memory for the process
     // lifetime, and its input row must go too so a later retry is not blocked
-    // by a dead row (CORE-110).
+    // by a dead row.
     dropByokKey(job.id);
     if (job.status === "running") {
       cancel(job.id, "superseded");
@@ -245,7 +245,7 @@ export function submitRemoteReview(
   // partially written submission behind: no review with no job, and no queued
   // job whose input row points a retry at a job that never really started.
   // The key is registered only after COMMIT, so it never outlives a failed
-  // setup (CORE-110).
+  // setup.
   const config = readConfig();
   const db = getAppDb();
   db.exec("BEGIN");
@@ -274,13 +274,13 @@ export function submitRemoteReview(
     db.exec("ROLLBACK");
     // Nothing of this submission survives, so the input row must go too, or a
     // retry with the same request id would find a row whose key is gone and be
-    // told byok_key_lost (CORE-110).
+    // told byok_key_lost.
     deleteRemoteReviewInput(jobId);
     throw error;
   }
 
   // The key is pulled out of the body before anything persists it: it lives
-  // only in this process's memory, tied to the job (CORE-110).
+  // only in this process's memory, tied to the job.
   if (billedTo === "byok" && submittedKey !== undefined) {
     registerByokKey(jobId, submittedKey);
   }
@@ -318,7 +318,7 @@ export function registerRemoteReviewHandler(): void {
       let completed = false;
       // A BYOK review runs on the client's key, never the server's. If the key
       // is gone (a restart between submit and run), stop with a typed message
-      // instead of silently falling back to the server key (CORE-110).
+      // instead of silently falling back to the server key.
       const billedTo = input.billed_to === "byok" ? "byok" : "server";
       const byokKey = billedTo === "byok" ? getByokKey(job.id) : undefined;
       try {
@@ -351,7 +351,7 @@ export function registerRemoteReviewHandler(): void {
         if (subjectId) {
           const subjectRevision = getSubjectRevision(subjectId);
           // A guide rebuilt after the previous review invalidates its verdicts
-          // and its "unchanged" suppression (CORE-42 / F03): start fresh so a
+          // and its "unchanged" suppression: start fresh so a
           // stale finding cannot mask a new one.
           const guideRebuilt =
             subjectRevision !== undefined &&
@@ -490,7 +490,7 @@ export function registerRemoteReviewHandler(): void {
         // only that becomes `byok_rejected`. A provider outage, a parse error
         // or a local failure must surface as itself rather than telling the
         // user their key was refused. `byok_key_lost` is thrown before this
-        // try, so it is not remapped (CORE-110).
+        // try, so it is not remapped.
         if (
           byokKey !== undefined &&
           !signal.aborted &&

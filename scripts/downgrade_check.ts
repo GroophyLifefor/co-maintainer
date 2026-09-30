@@ -1,4 +1,4 @@
-/** Downgrade check (CORE-05, CORE-102b).
+/** Downgrade check.
  *
  *   npm run downgrade:check
  *
@@ -12,7 +12,7 @@
  * POSIX only for the 0.4.13 `init`. 0.4.13 has no `gh` override (the branch
  * added `CM_GH_BIN` for exactly that reason) and Node cannot spawn a `.cmd`
  * through PATH without a shell, so on Windows that step is reported as a skip
- * instead of pretending to pass. The plan wires this to its own ubuntu CI job.
+ * instead of pretending to pass. CI runs this in its own ubuntu job.
  */
 import { createServer } from "node:net";
 import { existsSync } from "node:fs";

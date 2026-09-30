@@ -16,7 +16,7 @@ type UsageSink = (job: string, response: AiResponse) => Promise<void>;
 /** Returns `null` when a response is usable, or a short reason when it is not.
  * `synthesis.ts` supplies one that parses the model text, because a syntactically
  * fine HTTP response can still be unparseable output, and caching that is what
- * poisoned every later `sync` (CORE-30 / F04). */
+ * poisoned every later `sync`. */
 export type AiValidator = (
   request: AiRequest,
   response: AiResponse,
@@ -145,7 +145,7 @@ export class AiBatch {
   /** Runs one unit, caching its response only when the validator accepts it.
    * A rejected response is retried once; a second rejection is recorded as
    * skipped and never cached, so the next `sync` retries it rather than
-   * replaying the same unusable output (CORE-30 / F04). */
+   * replaying the same unusable output. */
   private async completeUnit(
     item: { index: number; id: string; request: AiRequest },
     results: (AiResponse | undefined)[],

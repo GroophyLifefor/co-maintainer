@@ -1,4 +1,4 @@
-/** A fake remote review server for the action's CI test (CORE-131).
+/** A fake remote review server for the action's CI test.
  *
  *   node scripts/fake_remote_server.ts --findings=blocking|none \
  *     --info=<file> --log=<file>

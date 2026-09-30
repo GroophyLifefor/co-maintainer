@@ -1,4 +1,4 @@
-/** Fake OpenAI Responses API server for `openai.test.ts` (CORE-105).
+/** Fake OpenAI Responses API server for `openai.test.ts`.
  *
  * A real HTTP server, matching {@link startFakeOpenRouter}'s shape: `/v1/models`
  * for verification, `/v1/responses` for the provider's own calls. */

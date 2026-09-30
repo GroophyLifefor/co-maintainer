@@ -1,6 +1,6 @@
-/** The one-line cost and time summary every AI command ends with (CORE-26).
+/** The one-line cost and time summary every AI command ends with.
  *
- * F18: the JSON already carried `usage.costUsd` and a duration, but the human
+ * The JSON already carried `usage.costUsd` and a duration, but the human
  * output had neither and `init` printed no total at all, so the only place to
  * see what a run cost was the OpenRouter dashboard. This renders the same
  * numbers as a single stderr line:

@@ -23,8 +23,7 @@ async function withTempEnv(fn: () => Promise<void>): Promise<void> {
     await openAppDb();
     await writeUserConfig({ auth: "gh", ai: "none" });
     // A no-op handler: this test is about the HTTP -> enqueue wiring, not
-    // about actually running init (that needs the network, see PLAN.md's
-    // Live check for this phase).
+    // about actually running init (that needs the network).
     registerHandler("init", { run: () => Promise.resolve() });
     registerHandler("remake", { run: () => Promise.resolve() });
     await fn();

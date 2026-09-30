@@ -9,7 +9,7 @@ export function insertRemoteReviewInput(input: {
   requestId: string;
   tokenId: string;
   /** `'byok'` when the client submitted its own key, else `'server'`. The key
-   * itself is never written here (CORE-110). */
+   * itself is never written here. */
   billedTo: "server" | "byok";
 }): void {
   getAppDb()

@@ -1,4 +1,4 @@
-/** Shared HTTPS plumbing for the remote endpoints (CORE-25, CORE-44).
+/** Shared HTTPS plumbing for the remote endpoints.
  *
  * `review --remote` and `view --remote` talk to the same server with the same
  * bearer token, so the base URL, the token header and the explanations for a
@@ -7,8 +7,8 @@
 import { CliError, EXIT_USAGE, networkFailure } from "../cli/error.ts";
 import { getEnv } from "../util/runtime.ts";
 
-/** Where the remote server is, as an environment variable can say it
- * (CORE-131). A CI job has no config file, and a token on the command line
+/** Where the remote server is, as an environment variable can say it.
+ * A CI job has no config file, and a token on the command line
  * ends up in the process list, so `CM_REMOTE_HOST` and `CM_REMOTE_TOKEN` are
  * read here. An empty value counts as unset, so a workflow secret that did not
  * resolve falls through to the "not configured" error instead of a blank host. */
@@ -19,7 +19,7 @@ export function remoteFromEnv(): { host?: string; token?: string } {
   };
 }
 
-/** A usage error the CLI prints with its hint and exit code (CORE-12). */
+/** A usage error the CLI prints with its hint and exit code. */
 export function die(
   code: string,
   message: string,
@@ -56,7 +56,7 @@ export async function remoteFetch(
   try {
     const response = await fetch(url, { ...init, headers });
     // The server's 401 text is `invalid or missing token`, which does not say
-    // where the token comes from or how to get another one (CORE-12).
+    // where the token comes from or how to get another one.
     if (response.status === 401 || response.status === 403) {
       die(
         "remote_token_rejected",

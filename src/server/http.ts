@@ -1,4 +1,4 @@
-/** A manual `node:http` ↔ `fetch` bridge (plan §2 HTTP).
+/** A manual `node:http` ↔ `fetch` bridge.
  *
  * The app is written against the Web `Request`/`Response` types, which Deno
  * served natively. Node has both types but no server that speaks them

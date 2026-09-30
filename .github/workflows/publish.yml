@@ -121,7 +121,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # CORE-132: tags the release once the package and the image are both out, so a
+  # Tags the release once the package and the image are both out, so a
   # failed publish never leaves a tag behind. `needs` runs it only when both
   # succeeded. Tags made with GITHUB_TOKEN start no workflow, so this cannot set
   # anything else off. It is the only job that may write to the repository.

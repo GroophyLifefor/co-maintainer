@@ -1,4 +1,4 @@
-/** CORE-24 tests: the probe estimate, the reason text, and `--run`.
+/** Tests for the probe estimate, the reason text, and `--run`.
  *
  * The estimate is pure arithmetic over a price map, so it is tested directly.
  * Pricing and `--run` touch the network and the init path, so they run through
@@ -57,8 +57,8 @@ test("estimate: extract jobs are one per pull request plus the codebase read", (
   }
 });
 
-test("estimate: the calibrated run costs about what the plan measured", () => {
-  // The plan measured 5 extract + 9 synth jobs over 151 s. The section list
+test("estimate: the calibrated run costs about what the calibration measured", () => {
+  // The calibration run measured 5 extract + 9 synth jobs over 151 s. The section list
   // is the source of the 10 (so 9 was that run's dirty-section count), which
   // is why the assertion is on the job total rather than the split.
   const estimate = estimateInit({
@@ -201,7 +201,7 @@ test("pricing: reads the fake model list and caches it", async () => {
 
 test("probe reasons: a healthy useful-commit ratio is not called noise", () => {
   // 8 commits, 5 useful: the old text claimed "mostly merge/noise", which the
-  // numbers beside it contradicted (CORE-24).
+  // numbers beside it contradicted.
   const commits = Array.from({ length: 8 }, (_, index) => ({
     commit: {
       message: index < 5 ? `feat: change ${index}` : `Merge branch ${index}`,

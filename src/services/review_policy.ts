@@ -1,4 +1,4 @@
-/** The review policy engine (CORE-120).
+/** The review policy engine.
  *
  * A policy is an ordered list of rules. The first rule whose conditions all
  * hold decides what happens to a pull request, and when none holds the policy's

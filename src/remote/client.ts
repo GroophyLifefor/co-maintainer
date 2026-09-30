@@ -54,7 +54,7 @@ type HandshakeResponse = {
   repo: { fullName: string; defaultBranch: string | null };
   sync: { intervalSeconds: number; timeoutSeconds: number };
   limits: { maxBodyBytes: number };
-  /** Additive feature list (CORE-110): a 0.5.0 server never sends this, which
+  /** Additive feature list: a 0.5.0 server never sends this, which
    * is how BYOK gates itself on a server that predates it. */
   features?: string[];
   byok?: { policy: ByokPolicy };
@@ -63,8 +63,8 @@ type HandshakeResponse = {
 
 const LOCAL_BYOK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
 
-/** A plain-http, non-local host means the BYOK key travels in the clear
- * (CORE-111). Pulled out as a pure function so the rule is unit-testable
+/** A plain-http, non-local host means the BYOK key travels in the clear.
+ * Pulled out as a pure function so the rule is unit-testable
  * without standing up a plain-http fake server. */
 export function byokHttpWarning(host: string): string | null {
   const url = new URL(baseUrl(host));
@@ -81,7 +81,7 @@ export async function runRemoteReview(
   cli: ReviewCliArgs & { mode: "remote" },
 ): Promise<void> {
   const config = readConfig();
-  // Inline flags win over the saved config for this run only (CORE-25), so a
+  // Inline flags win over the saved config for this run only, so a
   // one-off review does not have to be written to disk first.
   const fromEnv = remoteFromEnv();
   const host = cli.remoteHost ?? fromEnv.host ?? config.remoteHost;
@@ -96,7 +96,7 @@ export async function runRemoteReview(
     );
   }
 
-  // CORE-111: the client's own AI key, used only when this run turns BYOK
+  // The client's own AI key, used only when this run turns BYOK
   // on. The env var wins so a hosted CI runner can supply it without writing
   // config, mirroring how CM_REMOTE_BYOK_POLICY overrides the server side.
   const byokKey = getEnv("CM_REMOTE_BYOK") ?? config.remoteByok;
@@ -187,7 +187,7 @@ export async function runRemoteReview(
       );
     }
 
-    // CORE-111: never silently fall back to the server's own key. Each of
+    // Never silently fall back to the server's own key. Each of
     // these is a mismatch between what this run wants and what the server
     // will do, so all four are a hard stop.
     const serverSupportsByok = hs.features?.includes("byok") ?? false;
@@ -232,7 +232,7 @@ export async function runRemoteReview(
       gitRoot: root,
       enabled: !cli.disableCodegraph,
       allowInstall: cli.allowToolInstall,
-      // `--json` must stay machine-readable; `canPrompt` adds TTY and CI (F01).
+      // `--json` must stay machine-readable; `canPrompt` adds TTY and CI.
       interactive: !cli.json && canPrompt(),
     });
     const localTools = toolHandlerMap(codegraphPrep.tools);
@@ -255,7 +255,7 @@ export async function runRemoteReview(
         files: built.revision.files,
       },
       capabilities: { tools: capabilityTools },
-      // CORE-111: only present when this run turned BYOK on; `byokKey` is
+      // Only present when this run turned BYOK on; `byokKey` is
       // known to be set here because of the earlier `byokEnabled` guard.
       ...(byokEnabled ? { byok: { key: byokKey! } } : {}),
     };
@@ -380,7 +380,7 @@ export async function runRemoteReview(
         exitWith(reviewExitCodeFromJsonFindings(findings));
         // `done` is terminal. Without this return the loop polls `sync` again
         // and, since the server keeps reporting the same finished job, the
-        // client reprints the result and re-requests forever (CORE-25).
+        // client reprints the result and re-requests forever.
         return;
       }
       if (payload.status === "failed" || payload.status === "canceled") {

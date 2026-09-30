@@ -14,15 +14,15 @@ type ReviewFlags = {
   branch?: string;
   repoOverride?: string;
   remakeBeforeReview: boolean;
-  /** `--remote-host` override for this run only (CORE-25). */
+  /** `--remote-host` override for this run only. */
   remoteHost?: string;
-  /** `--remote-token` override for this run only (CORE-25). */
+  /** `--remote-token` override for this run only. */
   remoteToken?: string;
   /** `--remote-byok` (`true`) / `--no-remote-byok` (`false`) for this run
-   * only (CORE-111). Unset means "use the configured default". */
+   * only. Unset means "use the configured default". */
   remoteByok?: boolean;
-  /** `--output=github`: workflow commands and a job summary instead of prose
-   * (CORE-130). */
+  /** `--output=github`: workflow commands and a job summary instead of prose.
+   */
   output?: "github";
 };
 
@@ -49,7 +49,7 @@ function reviewFlags(rest: string[]): {
   const text = (name: string) =>
     rest.find((item) => item.startsWith(`--${name}=`))?.slice(name.length + 3);
   // `--remake-before-review` is the 0.4.13 spelling; both names mean the same
-  // thing, and only the new one is documented (CORE-21).
+  // thing, and only the new one is documented.
   const syncBeforeReview = rest.some(
     (arg) => arg === "--sync-before-review" || arg === "--remake-before-review",
   );
@@ -120,19 +120,19 @@ export function filterReviewConfigArgs(raw: string[]): string[] {
   });
 }
 
-/** Parses `co-maintainer review` after the `review` token (plan §8.1). */
+/** Parses `co-maintainer review` after the `review` token. */
 export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
   const positional = args.filter((a) => !a.startsWith("--"));
   const flags = reviewFlags(args);
   // `--remote-host` / `--remote-token` only mean something together with
-  // `--remote`; silently dropping them is exactly the F33 surprise (CORE-25).
+  // `--remote`; silently dropping them is exactly the kind of surprise to avoid.
   if ((flags.remoteHost || flags.remoteToken) && !flags.remote) {
     die("--remote-host and --remote-token require --remote");
   }
   if (flags.remoteByok !== undefined && !flags.remote) {
     die("--remote-byok requires --remote");
   }
-  // `--json` must never prompt (plan §8.7). `parseArgs` only receives the
+  // `--json` must never prompt. `parseArgs` only receives the
   // filtered args, and `--json` is stripped before it sees them, so the flag
   // has to be applied here rather than after the parse returns.
   setCliInteractive(!flags.json);

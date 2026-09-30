@@ -25,7 +25,7 @@ const commands = ["probe", "init", "sync", "remake", "review"] as const;
 
 let cliInteractive = true;
 
-/** Plan §8.7 — `--json` must not prompt. */
+/** `--json` must not prompt. */
 export function setCliInteractive(value: boolean): void {
   cliInteractive = value;
 }
@@ -76,7 +76,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
     process.exit(0);
   }
   // `probe` (and only probe, for now) may omit the repo and let the current
-  // directory's git remote name it (CORE-24).
+  // directory's git remote name it.
   let repoName = repo;
   if ((!repoName || repoName.startsWith("-")) && command === "probe") {
     repoName = await detectRemoteRepo(process.cwd());

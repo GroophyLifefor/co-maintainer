@@ -1,4 +1,4 @@
-/** How a review's cost renders on the dashboard (CORE-103b). A missing cost
+/** How a review's cost renders on the dashboard. A missing cost
  * is never a silent `$0.00`: a single review says why in a tooltip, a total
  * names how many of its reviews are missing one. */
 import { costReasonText, type CostReason } from "../../util/cost.ts";

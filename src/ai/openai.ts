@@ -1,4 +1,4 @@
-/** OpenAI via the Responses API (CORE-105).
+/** OpenAI via the Responses API.
  *
  * Chosen over Chat Completions on OpenAI's own advice: "Reasoning models work
  * better with the Responses API" (platform.openai.com/docs/guides/reasoning).
@@ -50,7 +50,7 @@ export function openAiBase(): string {
   return endpoint.replace(/\/responses\/?$/, "");
 }
 
-/** A failed response as actionable text (CORE-12). Only `error.message` is
+/** A failed response as actionable text. Only `error.message` is
  * shown: the raw body can carry request ids that mean nothing in a terminal. */
 export function openAiError(
   model: string,
@@ -279,7 +279,7 @@ export class OpenAiProvider implements AiProvider {
     let response = await this.post(responsesBody(this.model, request));
     // A model may reject `text.format` next to tools. The schema is only a
     // hint (the prompt also asks for a fenced JSON block), so one retry
-    // without it beats failing the review outright (CORE-40).
+    // without it beats failing the review outright.
     if (response.status === 400 && request.responseFormat) {
       const detail = await response.text();
       if (/text\.format|json_schema|structured/i.test(detail)) {

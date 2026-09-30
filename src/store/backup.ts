@@ -1,4 +1,4 @@
-/** The safety net for an upgrade that migrates `app.db` (CORE-102b).
+/** The safety net for an upgrade that migrates `app.db`.
  *
  * A release refuses an `app.db` newer than it knows, so going back after a
  * migration cannot mean opening the new database with the old code. Instead

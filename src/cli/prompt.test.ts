@@ -1,7 +1,7 @@
-/** Prompts always settle, even at EOF (CORE-50 / F01).
+/** Prompts always settle, even at EOF.
  *
  * `rl.question` never resolves *or* rejects when stdin hits EOF before an
- * answer; it just stays pending. That is the F01 hang: a top-level `await` on
+ * answer; it just stays pending. That is the hang: a top-level `await` on
  * the answer never settled, Node printed `Warning: Detected unsettled
  * top-level await`, and the process exited 13. These drive the real
  * `askLine`/`askConfirm` in a child process with stdin closed.

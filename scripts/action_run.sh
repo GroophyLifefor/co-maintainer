@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The body of the co-maintainer GitHub Action (CORE-131).
+# The body of the co-maintainer GitHub Action.
 #
 # It lives in a script and not in action.yml so that `scripts/action_run.test.ts`
 # can run it. The action passes every input as an environment variable, never by

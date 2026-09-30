@@ -127,7 +127,7 @@ async function handleHandshake(
       maxBodyBytes: REMOTE_MAX_BODY_BYTES,
       toolOutputMaxChars: toolLimit,
     },
-    // Additive advertisement (CORE-110): a 0.5.0 client ignores these, and an
+    // Additive advertisement: a 0.5.0 client ignores these, and an
     // older server never sends them, so the client gates on `features`. No key,
     // model, or other secret is ever echoed here.
     features: ["byok"],

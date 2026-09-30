@@ -24,7 +24,7 @@ export type CodegraphRunner = (
   worktree: string,
 ) => Promise<CommandResult>;
 
-/** Run the codegraph CLI in a repo root (plan §13.4).
+/** Run the codegraph CLI in a repo root.
  *
  * On Windows the CLI is a `.cmd`/`.ps1` shim, and `node:child_process.spawn`
  * cannot execute those without a shell — it fails with `EINVAL`. `Deno.Command`

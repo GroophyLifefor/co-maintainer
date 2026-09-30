@@ -1,4 +1,4 @@
-/** Anthropic via the Messages API (CORE-106).
+/** Anthropic via the Messages API.
  *
  * The raw fetch shape every other provider uses, against Anthropic's own
  * contract (docs.anthropic.com/en/api/messages). The request/response shapes
@@ -22,8 +22,8 @@
  * guides are billed at the cached rate from the second review on and the
  * `cache_read_input_tokens` count shows up in the usage log.
  *
- * ponytail: this talks to Messages without streaming. The plan called for the
- * SDK's `stream()` + `finalMessage()` helper for large `max_tokens` (a single
+ * ponytail: this talks to Messages without streaming. The original design
+ * called for the SDK's `stream()` + `finalMessage()` helper for large `max_tokens` (a single
  * review can ask for 96k). The SDK is not a dependency (kept fetch-only, the
  * same as every other provider), and a hand-rolled SSE accumulation loop is a
  * lot of code for a first cut. Anthropic's HTTP request timeout is the risk;
@@ -58,7 +58,7 @@ export function anthropicBase(): string {
   return endpoint.replace(/\/$/, "");
 }
 
-/** A failed response as actionable text (CORE-12). Only the error's own
+/** A failed response as actionable text. Only the error's own
  * `message` is surfaced: the raw body can carry request ids that mean nothing
  * in a terminal. */
 export function anthropicError(
@@ -226,7 +226,7 @@ function messagesBody(model: string, request: AiRequest): Json {
     model,
     max_tokens: request.maxTokens,
     // `cache_control` marks the guide prefix every review repeats, so it is
-    // read from cache instead of re-billed (CORE-106).
+    // read from cache instead of re-billed.
     ...(system
       ? {
           system: [
@@ -347,7 +347,7 @@ export class AnthropicProvider implements AiProvider {
     let response = await this.post(messagesBody(this.model, request));
     // A model may reject `output_config.format` next to tools. The schema is
     // only a hint (the prompt also asks for a fenced JSON block), so one retry
-    // without it beats failing the review outright (CORE-40).
+    // without it beats failing the review outright.
     if (response.status === 400 && request.responseFormat) {
       const detail = await response.text();
       if (/output_config|json_schema|structured/i.test(detail)) {

@@ -1,4 +1,4 @@
-/** Dashboard browser smoke test (CORE-04).
+/** Dashboard browser smoke test.
  *
  *   npm run dashboard:smoke
  *
@@ -8,7 +8,7 @@
  * uncaught page error fails the run — the dashboard's inline scripts only
  * misbehave in a browser, which no `node:test` can see.
  *
- * The `bindToggle` and `loadRemoteTokens` crashes that CORE-70 owned are gone
+ * The `bindToggle` and `loadRemoteTokens` crashes that once hit these pages are gone
  * from the marks below: the helper is inlined into `<head>` ahead of every
  * page script, and the token list waits for `DOMContentLoaded`. Everything
  * here must be clean now.
@@ -208,8 +208,8 @@ function seed(): void {
     firstSeenReviewId: "rev-0",
   });
   // A real free model: cost is known and genuinely $0, unlike the two rounds
-  // below whose cost never got recorded. Both must stay visually distinct
-  // (CORE-103b): "$0.00" here, "unknown" there, never the other way round.
+  // below whose cost never got recorded. Both must stay visually distinct:
+  // "$0.00" here, "unknown" there, never the other way round.
   insertReview({
     id: "rev-free",
     repo: REPO,
@@ -406,8 +406,8 @@ try {
           }
         }
       }
-      // The seeded PR carries a real $0.00 review and an unknown-cost one
-      // (CORE-103b): the page must show both, and never turn the unknown one
+      // The seeded PR carries a real $0.00 review and an unknown-cost one:
+      // the page must show both, and never turn the unknown one
       // into the same $0.00 as the free one.
       if (
         [
@@ -440,7 +440,7 @@ try {
       console.log(`visited ${path}`);
     }
 
-    // CORE-121: the review policy editor, driven the way a maintainer would.
+    // The review policy editor, driven the way a maintainer would.
     const shot = async (name: string): Promise<void> => {
       const dir = process.env.SMOKE_SHOTS;
       if (dir)

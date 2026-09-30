@@ -1,4 +1,4 @@
-/** Wire-level CLI harness (CORE-03).
+/** Wire-level CLI harness.
  *
  * Runs `main.ts` as a real child process with isolated config, cache, repos and
  * temp directories, a fake `gh` on `CM_GH_BIN`, and optionally a fake

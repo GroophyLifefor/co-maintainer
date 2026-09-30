@@ -164,8 +164,7 @@ export function analyzeProbe(
   } else if (commits.length) {
     // Only claim the history is noise when the useful-commit ratio actually
     // supports it. With `commits: 8 · useful: 5` the ratio is above a half,
-    // and the old unconditional sentence contradicted the numbers beside it
-    // (CORE-24).
+    // and the old unconditional sentence contradicted the numbers beside it.
     const usefulRatio = usefulCommits / commits.length;
     if (usefulRatio < 0.5) {
       reasons.push(

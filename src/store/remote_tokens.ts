@@ -55,7 +55,7 @@ export function deleteRemoteToken(id: string): void {
   getAppDb().prepare(`DELETE FROM remote_tokens WHERE id = ?`).run(id);
 }
 
-/** At most one write per minute per token (plan §14.2). */
+/** At most one write per minute per token. */
 export function touchRemoteToken(id: string): void {
   const now = nowIso();
   const minuteAgo = new Date(Date.now() - 60_000).toISOString();

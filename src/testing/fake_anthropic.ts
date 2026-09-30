@@ -1,4 +1,4 @@
-/** Fake Anthropic Messages API server for `anthropic.test.ts` (CORE-106).
+/** Fake Anthropic Messages API server for `anthropic.test.ts`.
  *
  * A real HTTP server, matching {@link startFakeOpenAi}'s shape: `/v1/models`
  * for verification, `/v1/messages` for the provider's own calls. The provider

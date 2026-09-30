@@ -1,4 +1,4 @@
-/** Command registry, help and did-you-mean tests (CORE-20).
+/** Command registry, help and did-you-mean tests.
  *
  * The help is asserted through the real dispatch (`run`), not by calling the
  * renderers directly, because the bug this fixes was in *routing*: `review -h`
@@ -162,7 +162,7 @@ test("registry: the global help lists commands and points at per-command help", 
   }
 });
 
-test("registry: the init help groups flags the way the plan asks", () => {
+test("registry: the init help groups flags the way the docs describe", () => {
   const help = renderCommandHelp("init");
   if (!help) throw new Error("init has no help");
   for (const title of [
@@ -178,7 +178,7 @@ test("registry: the init help groups flags the way the plan asks", () => {
       throw new Error(`init help is missing the ${title} group`);
     }
   }
-  // Flags the DX research said were undocumented or missing.
+  // Flags that used to be undocumented or missing from the help.
   for (const flag of [
     "--pr-state",
     "--only-request-changed-pr",
@@ -270,7 +270,7 @@ test("help: `serve --help` prints help and never starts a server", async () => {
   if (result.exitCode !== 0) {
     throw new Error(`exit ${result.exitCode}: ${result.stderr}`);
   }
-  // Before CORE-20 this failed with `--port is required`, meaning the help call
+  // This used to fail with `--port is required`, meaning the help call
   // fell through into the handler.
   if (/--port is required/.test(result.stderr)) {
     throw new Error(

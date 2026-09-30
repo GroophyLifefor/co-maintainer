@@ -1,6 +1,6 @@
 /** Cross-layer contracts only. A type owned by one layer (Fact, Source,
  * PullRequest, State) lives next to the code that owns it instead, in
- * `knowledge/types.ts` — see PLAN.md Section 3. */
+ * `knowledge/types.ts`. */
 export type Json = Record<string, unknown>;
 
 export type Options = {
@@ -45,9 +45,9 @@ export type Options = {
   maxPullRequestChangeLines?: number;
   maxComments?: number;
   /** `probe --run`: after printing the plan, run the recommended init in the
-   * same process (CORE-24). */
+   * same process. */
   run?: boolean;
-  /** How a review decides a blocking finding (CORE-41). `model` keeps the
+  /** How a review decides a blocking finding. `model` keeps the
    * 0.4.13 behavior, `severity` uses a fixed P0/P1 threshold. */
   reviewBlocking?: "model" | "severity";
 };
@@ -94,7 +94,7 @@ export type AiRequest = {
   job: string;
   /** A JSON schema the response must satisfy, sent as OpenRouter's
    * `response_format`. Providers without structured output ignore it, so the
-   * model is also asked for a fenced JSON block in the prompt (CORE-40). */
+   * model is also asked for a fenced JSON block in the prompt. */
   responseFormat?: Json;
   // The full scale OpenRouter exposes for models that support it (see a
   // model's `reasoning.supported_efforts`), highest first. Not every model

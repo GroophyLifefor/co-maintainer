@@ -1,4 +1,4 @@
-/** Live end-to-end DX scenario (CORE-06).
+/** Live end-to-end DX scenario.
  *
  * Replays the DX research journey against a real `gh` and a real OpenRouter
  * key, on `GroophyLifefor/cm-dx-lab`. Not run in CI: it spends money and
@@ -14,9 +14,9 @@
  * research report's known findings, which the run has to show as failures.
  * That is the proof the scenario measures the right thing.
  *
- * Steps whose fix belongs to a later task (per-command help CORE-20, `view`
- * CORE-23, `config` CORE-22, `sync` CORE-21) are recorded as skipped with the
- * owning task, so the run stays useful before those land.
+ * Steps for commands an older build does not have yet (per-command help,
+ * `view`, `config`, `sync`) are recorded as skipped with a note saying why,
+ * so the run stays useful against those builds.
  */
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -295,7 +295,7 @@ async function guidesExist(): Promise<boolean> {
   return false;
 }
 
-// ------------------------------------------------------------- view (CORE-23)
+// ------------------------------------------------------------- view
 
 if (shouldRun("view")) {
   const run = await cli(["view", REPO]);
@@ -310,7 +310,7 @@ if (shouldRun("view")) {
     detail: notYet
       ? "command not present yet"
       : `exit ${run.code}: ${firstLine(run.stdout || run.stderr).slice(0, 80)}`,
-    note: "owned by CORE-23",
+    note: "view is not in older builds",
   });
 }
 
@@ -430,11 +430,11 @@ if (shouldRun("local-review") && !budgetHit) {
   }
 }
 
-// ------------------------------------------------------------- sync (CORE-21)
+// ------------------------------------------------------------- sync
 
 if (shouldRun("sync") && !budgetHit) {
   const costBefore = await usageUsd();
-  // `sync` is the visible name once CORE-21 lands, `remake` still works and
+  // `sync` is the visible name in newer builds, `remake` still works and
   // is what the branch and 0.4.13 expose today.
   const run = await cli(["remake", REPO, ...configFlags, "--log-time"]);
   const cost = await settle(costBefore);
@@ -444,11 +444,11 @@ if (shouldRun("sync") && !budgetHit) {
     ms: run.ms,
     costUsd: cost,
     detail: `exit ${run.code} (via remake)${run.code === 0 ? "" : `: ${firstLine(run.stderr)}`}`,
-    note: "`sync` name owned by CORE-21",
+    note: "older builds call this command remake",
   });
 }
 
-// ------------------------------------------------------------- config list (CORE-22)
+// ------------------------------------------------------------- config list
 
 if (shouldRun("config")) {
   const run = await cli(["config", "list"]);
@@ -463,7 +463,7 @@ if (shouldRun("config")) {
     detail: notYet
       ? "command not present yet"
       : `exit ${run.code}: ${firstLine(run.stdout).slice(0, 80)}`,
-    note: "owned by CORE-22",
+    note: "config is not in older builds",
   });
 }
 
@@ -482,7 +482,7 @@ for (const command of [
   if (!shouldRun(step)) continue;
   const args = command === "help" ? ["help"] : [command, "--help"];
   const run = await cli(args);
-  // CORE-20 makes every help path exit 0. Until then this is information.
+  // Every help path is meant to exit 0. A build that does not is only reported.
   const ok = run.code === 0;
   record({
     step,
@@ -490,7 +490,7 @@ for (const command of [
     ms: run.ms,
     costUsd: null,
     detail: `exit ${run.code}: ${firstLine(run.stdout || run.stderr).slice(0, 70)}`,
-    note: ok ? undefined : "per-command help exit 0 owned by CORE-20",
+    note: ok ? undefined : "older builds do not exit 0 for per-command help",
   });
 }
 
@@ -500,7 +500,7 @@ type ErrorCase = {
   name: string;
   args: string[];
   cwd?: string;
-  /** Exit code the documented contract requires (CORE-10/11). */
+  /** Exit code the documented contract requires. */
   expect: number;
 };
 
@@ -567,9 +567,9 @@ for (const testCase of errorCases) {
     costUsd: null,
     detail,
     note: crashed
-      ? "Windows libuv assertion crash, this is F08"
+      ? "Windows libuv assertion crash on exit"
       : run.code !== testCase.expect
-        ? `exit contract owned by CORE-10, Windows crash by CORE-11`
+        ? `exit code differs from the documented contract`
         : undefined,
   });
 }

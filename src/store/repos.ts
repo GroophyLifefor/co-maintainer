@@ -80,7 +80,7 @@ export function getRepo(fullName: string): RepoRow | undefined {
     .get(fullName);
 }
 
-/** Case-insensitive match on `repos.full_name` (plan §14.4). */
+/** Case-insensitive match on `repos.full_name`. */
 export function findRepoByFullName(fullName: string): RepoRow | undefined {
   return getAppDb()
     .prepare<RepoRow>(`SELECT * FROM repos WHERE lower(full_name) = lower(?)`)

@@ -1,10 +1,10 @@
-/** A fake remote review server over real TLS (CORE-25).
+/** A fake remote review server over real TLS.
  *
  * It speaks just enough of the remote protocol for `runRemoteReview` to get
  * from handshake to a result: `/api/remote/handshake`, `/api/remote/reviews`,
  * and `/api/remote/reviews/:id/sync`. It records every request's path, bearer
  * token and body so a test can prove which host and token the CLI actually
- * used. It is HTTPS, not HTTP, because the point of the CORE-25 test is that a
+ * used. It is HTTPS, not HTTP, because the point of the test is that a
  * `https://` host with an inline token works end to end. */
 import { createServer, type Server } from "node:https";
 import { writeFileSync } from "node:fs";
@@ -27,17 +27,17 @@ export type FakeRemoteOptions = {
   repo?: string;
   /** `sync` responses in order. The last one repeats if the client asks again. */
   sync?: unknown[];
-  /** The guides `GET /api/remote/guides` answers with (CORE-44). */
+  /** The guides `GET /api/remote/guides` answers with. */
   guides?: {
     repo?: { fullName?: string };
     guideBuiltAt?: string | null;
     guides?: unknown[];
   };
   /** Answers every request with this status and the server's error shape, so
-   * the client's rejection handling can be exercised (CORE-44). */
+   * the client's rejection handling can be exercised. */
   refuse?: number;
   /** Extra top-level fields merged into the handshake response, so a test can
-   * add `features`/`byok`/`ai` without a real BYOK-capable server (CORE-111).
+   * add `features`/`byok`/`ai` without a real BYOK-capable server.
    * Omitting it keeps the response looking like a pre-BYOK 0.5.0 server. */
   handshake?: Record<string, unknown>;
 };

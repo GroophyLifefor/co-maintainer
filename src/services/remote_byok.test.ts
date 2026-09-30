@@ -1,4 +1,4 @@
-/** CORE-110: Bring Your Own Key on the server side.
+/** Bring Your Own Key on the server side.
  *
  * The client's key is the server's least forgiving input: it must reach the
  * provider and nothing else. These tests drive a real `createApp` remote route
@@ -252,7 +252,7 @@ function readBytes(path: string): Buffer | undefined {
   }
 }
 
-test("CORE-110: handshake advertises byok and the active policy, never a secret", async () => {
+test("handshake advertises byok and the active policy, never a secret", async () => {
   for (const [policy, expected] of [
     [undefined, "off"],
     ["off", "off"],
@@ -293,7 +293,7 @@ test("CORE-110: handshake advertises byok and the active policy, never a secret"
   }
 });
 
-test("CORE-110: submit matrix across the three policies", async () => {
+test("submit matrix across the three policies", async () => {
   const KEY = "sk-ant-bringyourown0001";
 
   // off: a key is refused, a 0.5.0 client still works.
@@ -383,7 +383,7 @@ test("CORE-110: submit matrix across the three policies", async () => {
   );
 });
 
-test("CORE-110: a BYOK review sends the client key, never the server key", async () => {
+test("a BYOK review sends the client key, never the server key", async () => {
   const KEY = "sk-ant-clientpaid0001";
   await withServer(
     async ({ app, token, tokenId, fake }) => {
@@ -433,7 +433,7 @@ test("CORE-110: a BYOK review sends the client key, never the server key", async
   );
 });
 
-test("CORE-110: a server-key review bills the server and never touches BYOK totals", async () => {
+test("a server-key review bills the server and never touches BYOK totals", async () => {
   await withServer(
     async ({ app, token, tokenId, fake }) => {
       const response = await post(
@@ -465,7 +465,7 @@ test("CORE-110: a server-key review bills the server and never touches BYOK tota
   );
 });
 
-test("CORE-110: a restart loses the key and the job fails without calling the provider", async () => {
+test("a restart loses the key and the job fails without calling the provider", async () => {
   await withServer(
     async ({ app, token, fake }) => {
       const response = await post(app, token, "/api/remote/reviews", {
@@ -494,7 +494,7 @@ test("CORE-110: a restart loses the key and the job fails without calling the pr
   );
 });
 
-test("CORE-110: a provider that rejects the client key reports it as BYOK", async () => {
+test("a provider that rejects the client key reports it as BYOK", async () => {
   await withServer(
     async ({ app, token, fake }) => {
       const response = await post(app, token, "/api/remote/reviews", {
@@ -516,7 +516,7 @@ test("CORE-110: a provider that rejects the client key reports it as BYOK", asyn
   );
 });
 
-test("CORE-110: a retried submit with the key gone reports byok_key_lost", async () => {
+test("a retried submit with the key gone reports byok_key_lost", async () => {
   await withServer(
     async ({ app, token }) => {
       const body = {
@@ -550,7 +550,7 @@ test("CORE-110: a retried submit with the key gone reports byok_key_lost", async
   );
 });
 
-test("CORE-110: a unique client key never lands in app.db, cache.db, config, or logs", async () => {
+test("a unique client key never lands in app.db, cache.db, config, or logs", async () => {
   const KEY = `sk-ant-leakcanary${Math.random().toString(36).slice(2)}0000`;
   await withServer(
     async ({ app, token, root }) => {
@@ -596,7 +596,7 @@ test("CORE-110: a unique client key never lands in app.db, cache.db, config, or 
   );
 });
 
-test("CORE-110: a queued BYOK job canceled before it runs drops the key", async () => {
+test("a queued BYOK job canceled before it runs drops the key", async () => {
   const KEY = "sk-ant-queuedcancel0001";
   await withServer(
     async ({ app, token }) => {
@@ -617,7 +617,7 @@ test("CORE-110: a queued BYOK job canceled before it runs drops the key", async 
         throw new Error(`job ${getJob(jobId)?.status}`);
       }
       // A queued job never enters the handler, so nothing else would drop the
-      // key; it must not outlive the cancellation (CORE-110).
+      // key; it must not outlive the cancellation.
       if (hasByokKey(jobId)) {
         throw new Error("a canceled queued job left its key in memory");
       }
@@ -626,7 +626,7 @@ test("CORE-110: a queued BYOK job canceled before it runs drops the key", async 
   );
 });
 
-test("CORE-110: a superseded BYOK job drops the key when a newer submit arrives", async () => {
+test("a superseded BYOK job drops the key when a newer submit arrives", async () => {
   const KEY = "sk-ant-superseded0001";
   await withServer(
     async ({ app, token }) => {
@@ -651,7 +651,7 @@ test("CORE-110: a superseded BYOK job drops the key when a newer submit arrives"
         throw new Error(`superseded job ${getJob(firstJobId)?.status}`);
       }
       // The superseded job never reaches its own `finally`, so its key has to
-      // be dropped when it is superseded (CORE-110).
+      // be dropped when it is superseded.
       if (hasByokKey(firstJobId)) {
         throw new Error("a superseded job left its key in memory");
       }
@@ -660,7 +660,7 @@ test("CORE-110: a superseded BYOK job drops the key when a newer submit arrives"
   );
 });
 
-test("CORE-110: an invalid CM_REMOTE_BYOK_POLICY falls back to config, not off", async () => {
+test("an invalid CM_REMOTE_BYOK_POLICY falls back to config, not off", async () => {
   // A configured `require` must survive a typo'd env value: the env override is
   // meant to be authoritative, so an unreadable one has to fall back to the
   // saved policy rather than silently disabling it (review round 1, P2).
@@ -688,7 +688,7 @@ test("CORE-110: an invalid CM_REMOTE_BYOK_POLICY falls back to config, not off",
   );
 });
 
-test("CORE-110: a provider 5xx is not reported as a rejected BYOK key", async () => {
+test("a provider 5xx is not reported as a rejected BYOK key", async () => {
   // Only an authentication rejection proves the client's key is bad. A
   // provider outage must surface as itself, not as "rejected your own key"
   // (review round 1, P2).
@@ -713,7 +713,7 @@ test("CORE-110: a provider 5xx is not reported as a rejected BYOK key", async ()
   );
 });
 
-test("CORE-110: a setup failure after the key is registered drops the key", async () => {
+test("a setup failure after the key is registered drops the key", async () => {
   // The key is registered before the review/job/session rows are written. If
   // any of those writes throws, the job never reaches the queue and the
   // worker's `finally` never runs, so the submit path itself must drop the
@@ -767,7 +767,7 @@ test("CORE-110: a setup failure after the key is registered drops the key", asyn
   );
 });
 
-test("CORE-110: a retry after a completed BYOK review stays idempotent", async () => {
+test("a retry after a completed BYOK review stays idempotent", async () => {
   // A completed review deletes its remote_review_inputs row, so a retried
   // submit is treated as new rather than as a reclaim of the finished job.
   // This documents what an at-least-once client observes (review round 3).
@@ -796,7 +796,7 @@ test("CORE-110: a retry after a completed BYOK review stays idempotent", async (
   );
 });
 
-test("CORE-110: a retry after a cancel is not blocked by a dead input row", async () => {
+test("a retry after a cancel is not blocked by a dead input row", async () => {
   // A queued review canceled while its key was in memory drops the key and the
   // input row. A client that retries the same request id must be free to
   // start over instead of finding a dead row whose key is gone and being told
@@ -825,7 +825,7 @@ test("CORE-110: a retry after a cancel is not blocked by a dead input row", asyn
   );
 });
 
-test("CORE-110: a failed job insert leaves no orphan review row", async () => {
+test("a failed job insert leaves no orphan review row", async () => {
   // The review and job rows are written in one transaction. If the job insert
   // fails, the review row must roll back rather than being left behind with no
   // job to run it (review round 5, P2).

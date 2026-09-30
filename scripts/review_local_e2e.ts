@@ -1,4 +1,4 @@
-/** Plan §25.2 — local review with fake AI and a real git worktree. */
+/** Local review end to end, with fake AI and a real git worktree. */
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {

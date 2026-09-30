@@ -295,9 +295,8 @@ export async function runServe(args: string[]): Promise<void> {
   // Ctrl+C in an interactive terminal fires this reliably everywhere,
   // including Windows. A SIGTERM sent by another process (a process
   // manager, `kill`, `taskkill`) is reliable on Linux but not on Windows,
-  // where it forcibly terminates the process before any handler can run —
-  // see the P3 Live note in PLAN.md. Registering it anyway costs nothing
-  // and is correct wherever it does work.
+  // where it forcibly terminates the process before any handler can run.
+  // Registering it anyway costs nothing and is correct wherever it does work.
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.on(signal, () => void shutdown(signal));
   }

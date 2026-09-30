@@ -255,7 +255,7 @@ export async function runSet(args: string[]): Promise<void> {
   }
 
   // Verify the key and model before writing, so a typo fails here instead of
-  // after a review has already fetched and cloned the pull request (CORE-22).
+  // after a review has already fetched and cloned the pull request.
   // A field present in the patch wins, including when its value is `undefined`
   // — that is an unset, and there is nothing left to verify.
   const before = readConfig();

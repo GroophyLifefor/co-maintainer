@@ -21,7 +21,7 @@ jobs:
           - windows-latest
     runs-on: ${{ matrix.os }}
     # The Windows runner is the slow one. Anything past this is a hang, not a
-    # slow test, and the plan budgets it under twenty minutes.
+    # slow test, and the budget is under twenty minutes.
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -73,7 +73,7 @@ jobs:
       - name: Downgrade check
         run: npm run downgrade:check
 
-  # The action, run the way a workflow runs it (CORE-131): `uses: ./` from this
+  # The action, run the way a workflow runs it: `uses: ./` from this
   # checkout against fake remote servers. It never installs the published
   # package. `CM_ACTION_PACKAGE` points the action at the tarball of this very
   # build, and a composite action sees the env of the job that calls it.
@@ -163,7 +163,7 @@ jobs:
             console.log("the action sent one review to each server, and none for the empty secret");
           '
 
-  # CORE-132: the workflows are code too. Pinned, and installed with `go install`
+  # The workflows are code too. Pinned, and installed with `go install`
   # because the Go toolchain is already on the runner. Shellcheck of the `run:`
   # blocks is off so the result is the same here and on a laptop without it.
   actionlint:

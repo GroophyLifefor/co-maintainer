@@ -1,4 +1,4 @@
-/** `review --output=github` (CORE-130).
+/** `review --output=github`.
  *
  * Findings become GitHub workflow commands (`::error` and `::warning`) so a
  * pull request shows them as annotations, and a markdown table goes to the job

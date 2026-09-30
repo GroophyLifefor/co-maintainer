@@ -1,4 +1,4 @@
-/** Pre-flight checks for `config set` (CORE-22, F35).
+/** Pre-flight checks for `config set`.
  *
  * A wrong API key or an unknown model used to be accepted by `set` and only
  * surfaced during a review, after the pull request had been fetched and

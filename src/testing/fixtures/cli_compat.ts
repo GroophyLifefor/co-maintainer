@@ -1,9 +1,8 @@
-/** Recorded 0.4.13 CLI behaviour (CORE-02).
+/** Recorded 0.4.13 CLI behaviour.
  *
- * These values are the contract. Later tasks may add cases here but must not
+ * These values are the contract. Later changes may add cases here but must not
  * change an existing expectation, with one exception: the exit code change
- * approved as decision 2 in `dx-research/plans/README.md`, which CORE-10
- * implements. Those cases carry `exitCodeDecision` so the exception is visible
+ * that was approved as a deliberate decision. Those cases carry `exitCodeDecision` so the exception is visible
  * in review rather than buried in a diff.
  *
  * Everything is plain data. The test in `src/cli/compat.test.ts` computes the
@@ -438,7 +437,7 @@ export const SET_CASES: SetCase[] = [
       "--low-model=low/model",
       "--high-model=high/model",
       // The fixture key and model are not real, and `set` verifies them against
-      // OpenRouter before writing (CORE-22). Offline compat runs skip that
+      // OpenRouter before writing. Offline compat runs skip that
       // check; the verification path has its own test in config.test.ts.
       "--no-verify",
     ],

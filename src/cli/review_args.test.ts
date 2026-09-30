@@ -116,8 +116,8 @@ test("parseReviewArgs: --remote-byok is refused for PR mode even with --remote",
 });
 
 test("parseReviewArgs: --json fails fast on a missing model instead of prompting", async () => {
-  // `--json` is a machine-readable contract, so a missing value must fail fast
-  // (plan §8.7), never drive the prompt path. No provider ships a default model
+  // `--json` is a machine-readable contract, so a missing value must fail fast,
+  // never drive the prompt path. No provider ships a default model
   // now that models go stale, so `--json` without a model is an error, low
   // first because review asks for it first.
   // The parse reads the real config, so isolate it to prove the parse decides

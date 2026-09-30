@@ -1,8 +1,8 @@
-/** The "Finish setup" checklist shown on the home page (CORE-75, C01/F26).
+/** The "Finish setup" checklist shown on the home page.
  *
  * Each item is derived from state that already exists, so the card reflects
  * what serve can actually do rather than a parallel bookkeeping of it. The
- * webhook item reuses CORE-71's reachability check. */
+ * webhook item reuses the existing reachability check. */
 import { readConfig, resolveAppPrivateKey } from "../config.ts";
 import { countReviews } from "../store/reviews.ts";
 import { listRemoteTokens } from "../store/remote_tokens.ts";

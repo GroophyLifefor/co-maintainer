@@ -1,4 +1,4 @@
-/** Cost and time estimate for the recommended `init` (CORE-24, F17).
+/** Cost and time estimate for the recommended `init`.
  *
  * Three sources, in order of trust:
  *
@@ -11,7 +11,7 @@
  * 3. Time and per-job tokens come from this repository's recorded jobs when
  *    there are enough, and from the calibration below otherwise.
  *
- * Calibration (plan §CORE-24): cm-dx-lab, 4 pull requests and 8 files, 5
+ * Calibration: cm-dx-lab, 4 pull requests and 8 files, 5
  * extract and 9 synth jobs, 151 s, $0.0014 — about 151/14 ≈ 10.8 s per job.
  * Token counts per job are near 2.4k in and 0.7k out. The text always says
  * the numbers are an estimate. */

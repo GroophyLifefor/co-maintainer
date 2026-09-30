@@ -1,10 +1,10 @@
-/** The command registry (CORE-20).
+/** The command registry.
  *
  * One place that knows every command, its aliases, its usage lines, its flags
  * and its examples. Everything the user reads as help is rendered from here,
  * so a flag cannot drift out of the help and a command cannot be documented
- * twice with different wording. It is also the source CORE-81 will export to
- * the command reference, which is why it is data rather than template strings.
+ * twice with different wording. It is also the source the command reference is
+ * generated from, which is why it is data rather than template strings.
  */
 
 export type FlagSpec = {
@@ -47,7 +47,7 @@ const OUTPUT_FLAGS: FlagGroup = {
   ],
 };
 
-/** `review` alone can print for a CI run (CORE-130). */
+/** `review` alone can print for a CI run. */
 const REVIEW_OUTPUT_FLAGS: FlagGroup = {
   title: OUTPUT_FLAGS.title,
   flags: [
@@ -89,8 +89,8 @@ const AI_FLAGS: FlagGroup = {
   ],
 };
 
-/** `review` always calls OpenRouter regardless of what `--ai=` is passed
- * (CORE-104), so its own help must not advertise the other three names the
+/** `review` always calls OpenRouter regardless of what `--ai=` is passed,
+ * so its own help must not advertise the other three names the
  * other AI commands accept. */
 const REVIEW_AI_FLAGS: FlagGroup = {
   ...AI_FLAGS,
@@ -267,7 +267,7 @@ export const COMMANDS: CommandSpec[] = [
   {
     name: "sync",
     // `remake` is the 0.4.13 spelling. It still runs the same handler but is
-    // not advertised, so nothing the user reads says "remake" (CORE-21).
+    // not advertised, so nothing the user reads says "remake".
     aliases: ["remake"],
     summary:
       "Rebuild the review guides for a repository that already has them.",
@@ -833,7 +833,7 @@ function cell(text: string): string {
   return text.replace(/\|/g, "\\|");
 }
 
-/** The registry as markdown, so CORE-81 can build the command reference from
+/** The registry as markdown, so the command reference can be built from
  * the same data the runtime help uses. */
 export function registryToMarkdown(): string {
   const lines: string[] = [];

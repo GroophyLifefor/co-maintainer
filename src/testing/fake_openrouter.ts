@@ -1,4 +1,4 @@
-/** Fake OpenRouter HTTP server for the CLI harness (CORE-03).
+/** Fake OpenRouter HTTP server for the CLI harness.
  *
  * A real server, not a stubbed `fetch`: the CLI spawns as its own process, so
  * the only way to intercept its calls is a socket it can reach. Point the CLI
@@ -20,7 +20,7 @@ export type FakeOpenRouterMode =
   | "server-error"
   | "unknown-model"
   /** Answers the first `flakyJsonFailures` chat calls with a non-JSON body,
-   * then succeeds. Models a one-off model miss so CORE-30's retry can be
+   * then succeeds. Models a one-off model miss so the retry can be
    * exercised end to end. Set the count with `flakyJsonFailures`. */
   | "flaky-json";
 
@@ -46,7 +46,7 @@ const CHAT_RESPONSE = {
 };
 
 /** A chat completion body carrying `content`. Used when a test needs control
- * over what the model "said" (e.g. CORE-30's unparseable-output cases). */
+ * over what the model "said" (e.g. the unparseable-output cases). */
 function chatReply(content: string): { status: number; body: string } {
   const body = {
     ...CHAT_RESPONSE,
@@ -60,7 +60,7 @@ function chatReply(content: string): { status: number; body: string } {
   return { status: 200, body: JSON.stringify(body) };
 }
 
-/** What a schema-aware model answers a review with (CORE-40): the JSON object
+/** What a schema-aware model answers a review with: the JSON object
  * the `response_format` asks for. A clean review is `{"findings":[]}`, which
  * renders as `No actionable findings.` — the same shape the Markdown path
  * produced, so downstream tests need no change. */
@@ -106,7 +106,7 @@ function reply(mode: FakeOpenRouterMode): { status: number; body: string } {
       };
     case "server-error":
       // A 5xx is a runtime failure the CLI cannot fix, so it must reach the top
-      // level and exit 3 (CORE-11/CORE-12).
+      // level and exit 3.
       return {
         status: 500,
         body: JSON.stringify({ error: { message: "internal error" } }),
@@ -132,8 +132,8 @@ const MODELS: { id: string; prompt: string; completion: string }[] = [
   { id: "vendor/other", prompt: "0.000001", completion: "0.000002" },
 ];
 
-/** Answers the `/key` and `/models` calls `config set` makes before writing
- * (CORE-22). A POST to the chat endpoint keeps using {@link reply}. */
+/** Answers the `/key` and `/models` calls `config set` makes before writing.
+ * A POST to the chat endpoint keeps using {@link reply}. */
 function verifyReply(
   path: string,
   mode: FakeOpenRouterMode,
@@ -168,7 +168,7 @@ export function startFakeOpenRouter(
   options: {
     flakyJsonFailures?: number;
     chatContent?: (prompt: string) => string;
-    /** The findings JSON object a review call answers with (CORE-40), as a
+    /** The findings JSON object a review call answers with, as a
      * string. Defaults to a clean review. Set it to check that the CLI renders
      * real findings from the structured path end to end. */
     reviewJson?: string;
@@ -201,7 +201,7 @@ export function startFakeOpenRouter(
       }
       // A review asks for the findings schema. Answer it with that shape only
       // when the mode itself would succeed; an error mode must still surface
-      // its status so the error paths stay testable (CORE-40). Everything that
+      // its status so the error paths stay testable. Everything that
       // is not a review keeps the mode's canned reply.
       const base = reply(mode);
       const isReview =
@@ -213,7 +213,7 @@ export function startFakeOpenRouter(
           ? verifyReply(path, mode)
           : failed
             ? // A valid HTTP response wrapping text the parser cannot use:
-              // exactly the F04 shape, where the failure is in the model's
+              // exactly the shape where the failure is in the model's
               // answer rather than the transport.
               chatReply("I could not find anything useful.")
             : isReview

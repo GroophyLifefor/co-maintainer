@@ -1,4 +1,4 @@
-/** In-memory BYOK key store for remote reviews (CORE-110).
+/** In-memory BYOK key store for remote reviews.
  *
  * A client's own AI key lives only here, keyed by job id, for the life of the
  * job. It is never written to a table, a log line, or an error message. The
@@ -8,7 +8,7 @@
  *
  * Why a module-level Map rather than the DB: a persisted key would survive a
  * restart and be readable by anything that reads the database file, which is
- * the leak the plan's byte-scan test exists to prevent. */
+ * the leak the byte-scan test exists to prevent. */
 const keys = new Map<string, string>();
 
 /** Remembers a key for one job. An empty key is not stored. */

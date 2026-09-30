@@ -30,7 +30,7 @@ export type LocalReviewLock = {
   releaseSync: () => void;
 };
 
-/** One local review per repo root (plan §13.3). */
+/** One local review per repo root. */
 export async function acquireLocalReviewLock(
   gitRoot: string,
 ): Promise<LocalReviewLock> {

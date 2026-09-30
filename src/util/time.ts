@@ -1,4 +1,4 @@
-/** The one place every stored timestamp comes from. PLAN.md Section 3's
+/** The one place every stored timestamp comes from. The
  * "every timestamp is ISO8601 UTC" rule lives here instead of as a
  * convention repeated at each call site — `store/*` never calls
  * `new Date().toISOString()` directly. */

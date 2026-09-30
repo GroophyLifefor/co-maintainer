@@ -1,5 +1,5 @@
 /** The `config` command: read and edit the user config without opening the
- * file (CORE-22, F12). `set` is `config set` under its own name, so both share
+ * file. `set` is `config set` under its own name, so both share
  * the mapping and masking here.
  *
  * The key list is derived from `UserConfig` at runtime where possible: a

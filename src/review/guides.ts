@@ -66,7 +66,7 @@ export async function loadGuides(repo: string): Promise<LoadedGuides> {
     }
     // With no `repos` row, the files are the only evidence of when the guide
     // was built. Without this a local review always says `guide unknown` and
-    // can never notice that a rebuild made its carry-over stale (CORE-42).
+    // can never notice that a rebuild made its carry-over stale.
     guideBuiltAt ??= await guideFilesBuiltAt(repo);
     return {
       shortGuide,

@@ -1,4 +1,4 @@
-/** Pure parsers for git -z output and remote URL normalization (plan §10). */
+/** Pure parsers for git -z output and remote URL normalization. */
 
 export type NameStatusEntry = {
   status: "added" | "modified" | "removed" | "renamed";
@@ -106,7 +106,7 @@ export function parseNumstatZ(raw: string): Map<string, NumstatEntry> {
   return map;
 }
 
-/** Paths from name-status that have no entry in a bulk unified diff (plan §10.7). */
+/** Paths from name-status that have no entry in a bulk unified diff. */
 export function pathsMissingPatches(
   statuses: NameStatusEntry[],
   patches: Map<string, string>,

@@ -1,4 +1,4 @@
-/** The cost and time summary line (CORE-26 / F18).
+/** The cost and time summary line.
  *
  * Two layers: the formatter is pure and tested directly, and the three
  * commands that must print it (`init`, `sync`, `review`) run as real child

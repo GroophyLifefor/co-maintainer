@@ -126,7 +126,7 @@ async function writeReviewDocuments(
 ): Promise<void> {
   const directory = `${reposDir()}/${repo}`;
   if (!documents) {
-    // F05: this used to delete the files without a word. The plan's rule is
+    // This used to delete the files without a word. The rule is
     // "says why the third file is missing": keep it to one line.
     log(
       "write",
@@ -154,7 +154,7 @@ async function writeReviewDocuments(
  * of the assembled skill into their own file, so `review` can check a pull
  * request against how this repository's code actually looks, not just the
  * review-bar checklist mined from past PR comments. The skill links to this
- * file rather than repeating it (CORE-32 / F26c), so its body is built from
+ * file rather than repeating it, so its body is built from
  * the facts instead of being scraped back out of the skill. */
 async function writeCodebaseDocument(
   repo: string,
@@ -432,8 +432,8 @@ async function initOrRemake(options: Options): Promise<void> {
     `${facts.length} facts · ${source.pullRequests.length} pull requests · ${source.commits.length} commits`,
   );
   if (skipped.length) {
-    // F04: a skipped unit used to vanish into a log line and recur as a "cache
-    // hit" forever. Say it in the final line instead, in the plan's shape:
+    // A skipped unit used to vanish into a log line and recur as a "cache
+    // hit" forever. Say it in the final line instead, in this shape:
     // `1 unit skipped (PR #3: output was not JSON)`.
     const parts = skipped.map((unit) => unit.reason);
     const line =

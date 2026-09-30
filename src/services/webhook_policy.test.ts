@@ -1,4 +1,4 @@
-/** Review policies through the webhook (CORE-120). Real app.db, realistic
+/** Review policies through the webhook. Real app.db, realistic
  * payloads, no mocks: the engine's own tables are in review_policy.test.ts. */
 import { closeAppDb, openAppDb } from "../store/app_db.ts";
 import { writeUserConfig } from "../config.ts";

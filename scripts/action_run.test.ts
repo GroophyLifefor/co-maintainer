@@ -1,4 +1,4 @@
-/** The GitHub Action's script and its manifest (CORE-131). The script runs for
+/** The GitHub Action's script and its manifest. The script runs for
  * real here, against a fake `npx` and a real `git`, so what the action does
  * with its inputs is checked without a GitHub runner. */
 import { test } from "node:test";
@@ -236,7 +236,7 @@ exit 7
 
 const manifest = readFileSync(join(root, "action.yml"), "utf8");
 
-test("action.yml keeps every input the plan promised, with the promised defaults", () => {
+test("action.yml keeps every documented input, with the documented defaults", () => {
   for (const input of [
     "remote-host",
     "remote-token",

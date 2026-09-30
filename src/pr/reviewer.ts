@@ -118,7 +118,7 @@ ${diagrams ? REVIEW_DIAGRAM_RULES : NO_DIAGRAM_RULES}`;
  * prompt rather than the user prompt so a provider with prompt caching
  * (Anthropic's `cache_control`) reads it instead of re-billing it. Nothing
  * time-varying may enter this string — a single differing byte makes the cache
- * miss (CORE-106). */
+ * miss. */
 export function reviewGuidesBlock(
   guide: string,
   detailed: string,
@@ -157,8 +157,8 @@ function text(value: unknown, limit = 20_000): string {
 
 type UsageSinkForNormalize = UsageSink;
 
-/** Turns a model reply into the Markdown every consumer already parses
- * (CORE-40 / F02). A reply that is not usable JSON is retried once with an
+/** Turns a model reply into the Markdown every consumer already parses.
+ * A reply that is not usable JSON is retried once with an
  * explicit reminder; if that also fails, the raw text is returned so the
  * legacy Markdown parser can still read it. This keeps a provider that ignores
  * `response_format` working, and never drops a review on the floor. */
@@ -564,7 +564,7 @@ ${diff}`;
       "OpenRouter returned an empty review. The reasoning budget may have been exhausted",
     );
   }
-  // The model returns JSON; we render the Markdown (CORE-40 / F02). A reply
+  // The model returns JSON; we render the Markdown. A reply
   // that is not usable JSON is retried once and then falls back to the legacy
   // Markdown parser, so a provider that ignores the schema still works.
   let reviewText = await normalizeReviewResponse(

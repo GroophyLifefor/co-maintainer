@@ -1,6 +1,6 @@
-/** Reconstructed F02 answers (CORE-40).
+/** Reconstructed colon-separator answers.
  *
- * F02 was reported from a local review: one finding ended mid-token
+ * This was reported from a local review: one finding ended mid-token
  * (`... while \`u`), and the next began inside the previous one's prose
  * (`s it through the package's public entry point`). The cause was not the
  * screen: the model wrote the heading separator as `:` where the parser only
@@ -13,12 +13,12 @@
  * the same two findings, so a test can assert they agree.
  */
 
-/** The old shape, with the exact separator mistake that triggered F02. The
+/** The old shape, with the exact separator mistake that triggered it. The
  * prose here is complete: the report's `... while \`u` and `s it through ...`
  * were not what the model wrote, they were where the old parser sliced this
  * answer once its headings were rejected. A correct parse returns both bodies
  * whole. */
-export const F02_COLON_MARKDOWN = `## Findings
+export const COLON_SEPARATOR_MARKDOWN = `## Findings
 
 ### [P2 · non-blocking] \`src/local/review.ts\`: \`waitFor()\`
 Location: \`src/local/review.ts:120-118\`
@@ -33,7 +33,7 @@ When the response is empty this passes it through the package's public entry poi
 
 /** The same two findings as structured output, which is what the review asks
  * for now. Rendering this produces one well-formed block per finding. */
-export const F02_JSON = JSON.stringify({
+export const COLON_SEPARATOR_JSON = JSON.stringify({
   findings: [
     {
       severity: "P2",
@@ -60,4 +60,7 @@ export const F02_JSON = JSON.stringify({
 
 /** The two findings a correct parse must recover, in order: the paths they
  * point at. Used to compare the JSON render with the legacy parser. */
-export const F02_EXPECTED_PATHS = ["src/local/review.ts", "src/pr/post.ts"];
+export const COLON_SEPARATOR_EXPECTED_PATHS = [
+  "src/local/review.ts",
+  "src/pr/post.ts",
+];

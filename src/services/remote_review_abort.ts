@@ -7,7 +7,7 @@ import { dropByokKey } from "../remote/server/byok_keys.ts";
  * the input row are dropped here too: a queued job canceled before it ever
  * runs must not leave the client's key in memory, and a later retry with the
  * same request id must be free to start over instead of finding a dead row
- * whose key is gone (CORE-110). */
+ * whose key is gone. */
 export function abortQueuedRemoteReviewRow(jobId: string): void {
   dropByokKey(jobId);
   deleteRemoteReviewInput(jobId);

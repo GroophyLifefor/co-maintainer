@@ -99,7 +99,7 @@ function fail(error: ReviewCliError, json: boolean): void {
     if (error.hint) console.error(`Hint: ${error.hint}`);
   }
   // Set the exit code and return; `process.exit` here would assert in libuv on
-  // Windows whenever a fetch pool is open (CORE-11).
+  // Windows whenever a fetch pool is open.
   exitWith(error.exitCode);
 }
 
@@ -243,7 +243,7 @@ export async function runLocalReview(
       let previous = carryLoad.data;
       // A guide rebuilt after the last review judged its findings under rules
       // that no longer exist. Rather than let those stale findings mask new
-      // ones, start fresh automatically (CORE-42 / F03) — the same effect as
+      // ones, start fresh automatically — the same effect as
       // `--fresh`, without making the user remember the flag.
       if (
         previous &&
@@ -281,7 +281,7 @@ export async function runLocalReview(
         enabled: options.useCodegraph === true,
         allowInstall: cli.allowToolInstall,
         // `--json` output must stay machine-readable, so never prompt then;
-        // `canPrompt` adds the TTY and CI checks (F01).
+        // `canPrompt` adds the TTY and CI checks.
         interactive: !json && canPrompt(),
       });
       extras.prepareCodegraphTools = () => Promise.resolve(codegraphPrep.tools);
@@ -306,7 +306,7 @@ export async function runLocalReview(
         );
       } finally {
         // Stopping the heartbeat on the error path too, otherwise the interval
-        // keeps the event loop alive and a post-fetch exit never lands (CORE-11).
+        // keeps the event loop alive and a post-fetch exit never lands.
         stopHeartbeat();
         await lock?.release();
         lock = null;

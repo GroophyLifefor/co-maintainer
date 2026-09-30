@@ -1,6 +1,6 @@
 import type { Run } from "../pr/checkout.ts";
 
-/** `refs/remotes/<remote>/…` for scope and PR algorithms (plan §10.5). */
+/** `refs/remotes/<remote>/…` for scope and PR algorithms. */
 export async function detectDefaultBranchRef(
   cwd: string,
   remote: string,

@@ -75,7 +75,7 @@ async function acquireLock(): Promise<void> {
   const existingPid = await liveLockPid();
   if (existingPid !== undefined) {
     // Says what is holding the database, what to do about it, and offers the
-    // path that does not need another process. CORE-12.
+    // path that does not need another process.
     throw new CliError(
       "serve_already_running",
       `A co-maintainer serve process (pid ${existingPid}) is using this data directory.`,

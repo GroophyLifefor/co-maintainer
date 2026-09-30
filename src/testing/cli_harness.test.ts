@@ -1,4 +1,4 @@
-/** Harness self-tests (CORE-03).
+/** Harness self-tests.
  *
  * The harness is only useful if it really drives the CLI: these run `probe`
  * against the fake `gh` in a child process and check the fake OpenRouter modes
@@ -49,7 +49,7 @@ test("harness: gh 404 mode fails the run without leaking a raw crash", async () 
     if (result.code === 0) {
       throw new Error(`expected a non-zero exit, got 0:\n${result.stdout}`);
     }
-    // CORE-12: the raw `gh: Not Found (HTTP 404)` is replaced by a sentence
+    // The raw `gh: Not Found (HTTP 404)` is replaced by a sentence
     // naming the repo and a hint, so assert on that instead of the gh text.
     const output = `${result.stdout}${result.stderr}`;
     if (!/fixture\/repo was not found/.test(output)) {
@@ -165,7 +165,7 @@ test("harness: a 401 from OpenRouter is surfaced, and 0.4.13 swallows it", async
     // reports success and writes a skill from the surviving facts. That gap is
     // recorded for the later error-handling tasks; this harness only has to
     // prove the 401 reached the CLI and is diagnosable from its output.
-    // CORE-12: the diagnosis is now a sentence, not the numeric status.
+    // The diagnosis is now a sentence, not the numeric status.
     const output = `${result.stdout}${result.stderr}`;
     if (!/OpenRouter rejected the API key/.test(output)) {
       throw new Error(`the 401 was not surfaced anywhere:\n${output}`);

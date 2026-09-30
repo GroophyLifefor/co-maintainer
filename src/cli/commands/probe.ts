@@ -39,7 +39,7 @@ export async function runProbe(options: Options): Promise<void> {
   for (const reason of analysis.reasons) console.log(`  - ${reason}`);
 
   // The estimate is separate from the recommendation: the flags say what to
-  // read, this says what that costs in time and dollars (CORE-24). Prices are
+  // read, this says what that costs in time and dollars. Prices are
   // only fetched when an OpenRouter model would actually be billed, so a
   // plain `--ai=none` probe makes no network call.
   const needsPrices =

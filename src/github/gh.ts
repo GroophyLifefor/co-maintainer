@@ -35,7 +35,7 @@ type QuotaBody = { resources?: { core?: QuotaRow; search?: QuotaRow } };
 type Bucket = { remaining: number; resetAt: Date };
 
 /** Turns a failed `gh api` call into a message that says what broke, why, and
- * what to do next (CORE-12, F09/F24/F28). The four shapes the DX research hit:
+ * what to do next. The four shapes that came up in practice:
  * `gh` missing from PATH, the repo missing or unreadable, an empty stderr, and
  * everything else. The first line is the only part a human reads, so it always
  * names the situation; the raw gh text moves to the hint so it stays available
@@ -246,7 +246,7 @@ export class GhClient implements GitHubClient {
     let spun = false;
     for (;;) {
       // A missing `gh` binary rejects the spawn instead of returning a failed
-      // result, so the ENOENT case has to be caught here too (CORE-12).
+      // result, so the ENOENT case has to be caught here too.
       let result: CommandOutput;
       try {
         result = await run();

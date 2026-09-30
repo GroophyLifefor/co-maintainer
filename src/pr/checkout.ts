@@ -58,7 +58,7 @@ async function cloneInto(repo: string, dir: string, run: Run): Promise<string> {
   const started = performance.now();
   // `-c core.longpaths=true` has to be in effect for the clone itself: a deep
   // source tree can overrun the Windows path limit while the objects are being
-  // written, and setting the config afterwards is too late to help. CORE-11.
+  // written, and setting the config afterwards is too late to help.
   const result = await run("git", [
     "-c",
     "core.longpaths=true",
@@ -69,7 +69,7 @@ async function cloneInto(repo: string, dir: string, run: Run): Promise<string> {
   ]);
   if (result.code !== 0) {
     // One actionable line, not the raw multi-line git transcript: the caller
-    // only needs to know the clone failed and what it costs them. CORE-11.
+    // only needs to know the clone failed and what it costs them.
     const firstLine =
       result.stderr
         .split(/\r?\n/)

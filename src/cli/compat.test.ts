@@ -1,13 +1,13 @@
-/** Backward-compatibility golden tests (CORE-02).
+/** Backward-compatibility golden tests.
  *
  * Everything here pins the 0.4.13 CLI surface as recorded in
- * `src/testing/fixtures/cli_compat.ts`. Later tasks may add cases. They must
+ * `src/testing/fixtures/cli_compat.ts`. Later changes may add cases. They must
  * not change an existing expectation, except for the exit code change approved
- * as decision 2 in `dx-research/plans/README.md`, which CORE-10 implements and
- * whose cases are marked with `exitCodeDecision`.
+ * as a deliberate decision. Those cases are marked with
+ * `exitCodeDecision`.
  *
  * The parser is pure input to output, so these call it directly rather than
- * spawning a process. Anything that spawns lives in CORE-03's harness.
+ * spawning a process. Anything that spawns lives in the CLI harness.
  */
 import { test } from "node:test";
 import { parseArgs, setCliInteractive } from "./args.ts";
@@ -360,7 +360,7 @@ for (const testCase of SET_CASES) {
         );
       }
       // A run that actually wrote keys writes the file it is named after, so
-      // the banner is part of the contract (CORE-22). The usage case makes
+      // the banner is part of the contract. The usage case makes
       // no change and is exempt.
       const wroteKeys = Object.keys(testCase.config).length > 0;
       if (wroteKeys && !result.stdout.includes("Saved to ")) {
@@ -373,7 +373,7 @@ for (const testCase of SET_CASES) {
 }
 
 /** Drops the `Saved to <path>` line, which names a temp directory that changes
- * per run (CORE-22). The line's presence is asserted separately. */
+ * per run. The line's presence is asserted separately. */
 function stripSavedLine(stdout: string): string {
   return stdout
     .split("\n")

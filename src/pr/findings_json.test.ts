@@ -1,6 +1,6 @@
-/** Structured review output (CORE-40 / F02).
+/** Structured review output.
  *
- * F02: the model's free-form Markdown was sliced by the fallback parser, so a
+ * The model's free-form Markdown was sliced by the fallback parser, so a
  * finding ended mid-token (`... while \`u`) and the next one started in the
  * middle of another finding's prose. The model now returns JSON and our code
  * renders the Markdown, so a finding's boundaries are never guessed. These
@@ -12,9 +12,9 @@ import { test } from "node:test";
 import { parseFindings } from "./findings.ts";
 import { findingsMarkdownFromJson } from "./findings_json.ts";
 import {
-  F02_COLON_MARKDOWN,
-  F02_EXPECTED_PATHS,
-  F02_JSON,
+  COLON_SEPARATOR_MARKDOWN,
+  COLON_SEPARATOR_EXPECTED_PATHS,
+  COLON_SEPARATOR_JSON,
 } from "../testing/fixtures/review_output.ts";
 
 function must(value: string | undefined, what: string): string {
@@ -54,7 +54,7 @@ test("a JSON answer renders Markdown the parser reads back whole", () => {
     throw new Error(`expected 2 findings, got ${findings.length}`);
   }
   const [first, second] = findings;
-  // The defect F02 described: the first finding was cut off mid-token. Every
+  // The original defect: the first finding was cut off mid-token. Every
   // field the model supplied survives the round trip intact.
   if (first.from !== 42 || first.to !== 44) {
     throw new Error(`first span: ${first.from}-${first.to}`);
@@ -143,7 +143,7 @@ test("a fenced JSON block is still read", () => {
 });
 
 test("the legacy parser accepts a colon separator and an omitted symbol", () => {
-  // The exact F02 trigger: the model wrote `:` instead of the em dash, so the
+  // The exact trigger: the model wrote `:` instead of the em dash, so the
   // old regex rejected the heading and the fallback sliced by offsets.
   const colon = parseFindings(`## Findings
 
@@ -168,17 +168,18 @@ This name does not match what it returns.
   }
 });
 
-test("the reconstructed F02 answer no longer splits mid-token", () => {
+test("the reconstructed colon-separated answer no longer splits mid-token", () => {
   // The colon-separated Markdown from the report. Before the regex fix both
   // headings were rejected and the parser sliced `while \`u` into one finding
   // and `s it through ...` into the next. The headings are now recognised, so
   // each finding keeps its own span and its own prose.
-  const findings = parseFindings(F02_COLON_MARKDOWN);
-  if (findings.length !== F02_EXPECTED_PATHS.length) {
+  const findings = parseFindings(COLON_SEPARATOR_MARKDOWN);
+  if (findings.length !== COLON_SEPARATOR_EXPECTED_PATHS.length) {
     throw new Error(`recovered ${findings.length} findings`);
   }
   if (
-    findings.map((item) => item.path).join(",") !== F02_EXPECTED_PATHS.join(",")
+    findings.map((item) => item.path).join(",") !==
+    COLON_SEPARATOR_EXPECTED_PATHS.join(",")
   ) {
     throw new Error(`paths: ${findings.map((item) => item.path).join(",")}`);
   }
@@ -199,11 +200,15 @@ test("the reconstructed F02 answer no longer splits mid-token", () => {
   }
 });
 
-test("the F02 findings survive the JSON round trip whole", () => {
-  const markdown = must(findingsMarkdownFromJson(F02_JSON), "F02 json");
+test("the colon-separator findings survive the JSON round trip whole", () => {
+  const markdown = must(
+    findingsMarkdownFromJson(COLON_SEPARATOR_JSON),
+    "colon separator json",
+  );
   const findings = parseFindings(markdown);
   if (
-    findings.map((item) => item.path).join(",") !== F02_EXPECTED_PATHS.join(",")
+    findings.map((item) => item.path).join(",") !==
+    COLON_SEPARATOR_EXPECTED_PATHS.join(",")
   ) {
     throw new Error(`paths: ${findings.map((item) => item.path).join(",")}`);
   }
@@ -225,7 +230,7 @@ test("the F02 findings survive the JSON round trip whole", () => {
 
 /** A parser can only guess a finding's boundary if the renderer left one; this
  * walks many answers with prose of different lengths and checks each excerpt
- * is exactly the body that went in, never a slice of its neighbour (CORE-40). */
+ * is exactly the body that went in, never a slice of its neighbour. */
 test("boundaries hold across many finding shapes", () => {
   for (let index = 0; index < 60; index++) {
     const body = `body-${index} `.repeat((index % 7) + 1).trim();

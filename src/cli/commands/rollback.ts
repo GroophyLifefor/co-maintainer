@@ -1,4 +1,4 @@
-/** `co-maintainer rollback`: put back the backup an upgrade took (CORE-102b).
+/** `co-maintainer rollback`: put back the backup an upgrade took.
  *
  * Only the previous version, and only while the version that made the backup
  * is the one running, because that is the code that knows both the old and the

@@ -1,4 +1,4 @@
-/** `review --remote` inline flags and the HTTPS path (CORE-25 / F33).
+/** `review --remote` inline flags and the HTTPS path.
  *
  * Two layers: argument handling runs in process, and the end-to-end case runs
  * the real CLI against a fake remote server over real TLS, because the point
@@ -283,7 +283,7 @@ test("review: inline host and token reach an https server with no saved config",
   }
 });
 
-/** Shared setup for the CORE-111 BYOK end-to-end cases: a fake remote server,
+/** Shared setup for the BYOK end-to-end cases: a fake remote server,
  * a config file and a one-commit git worktree with an uncommitted change to
  * review, so only the fake server's handshake and the flags differ per test. */
 async function withByokWorktreeReview(
@@ -404,7 +404,7 @@ test("review --remote-byok: fails against a server that predates BYOK", async ()
   await withByokWorktreeReview(
     {
       // No `handshake` override: the fake server answers exactly like a
-      // pre-CORE-110 0.5.0 server, with no `features` field at all.
+      // pre-BYOK 0.5.0 server, with no `features` field at all.
       reviewArgs: ["--remote-byok"],
       configPatch: { remoteByok: "sk-test-123" },
     },

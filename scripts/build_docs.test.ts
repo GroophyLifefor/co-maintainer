@@ -1,4 +1,4 @@
-/** The doc site layout (CORE-80 / D04, D05).
+/** The doc site layout.
  *
  * co-maintainer.com is one origin. The landing page stays at the root and the
  * pages move under `/docs/`, so the site has a single identity and the old flat

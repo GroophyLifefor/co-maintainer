@@ -103,7 +103,7 @@ export function chatBody(model: string, request: AiRequest): Json {
     ...(request.tools?.length
       ? { tools: request.tools, tool_choice: "auto" }
       : {}),
-    // A review asks for structured output (CORE-40). The schema is sent even
+    // A review asks for structured output. The schema is sent even
     // when tools are present, because most providers accept the pair; one that
     // rejects it gets a single retry without the schema (see
     // `OpenRouterProvider.complete`), and the prompt also asks for a fenced

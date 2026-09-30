@@ -140,13 +140,13 @@ function guideChanged(
   return (previous.guideBuiltAt ?? "") !== (currentGuideBuiltAt ?? "");
 }
 
-/** CORE-42 / F03: a guide rebuilt after the previous review invalidates that
+/** A guide rebuilt after the previous review invalidates that
  * review's verdicts, its "unchanged" suppression and its open findings — they
  * were all judged against the old rules. Such a run starts fresh instead:
  * every file is scanned again and old findings are no longer carried over.
  *
  * `previousBuiltAt` is the guide's own build time as of that review. A
- * previous review that never recorded one (a snapshot written before CORE-42)
+ * previous review that never recorded one (a snapshot written by an older version)
  * counts as rebuilt too: re-scanning once is cheaper than letting a stale
  * verdict mask a new violation. With no current time there is nothing to
  * compare, so nothing is treated as rebuilt. */

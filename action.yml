@@ -1,4 +1,4 @@
-# co-maintainer review, as a GitHub Action (CORE-131).
+# co-maintainer review, as a GitHub Action.
 #
 # Compatibility: the inputs below are stable for the whole v0 line. An input is
 # never removed or renamed, and a new one only ever has a default that keeps the

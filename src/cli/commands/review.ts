@@ -101,7 +101,7 @@ async function runReviewPr(
       };
       // The engine reports the codegraph state it actually reached, instead of
       // the old `useCodegraph ? "used" : "disabled"` that claimed "used" while
-      // stderr said codegraph was missing (CORE-43 / F23).
+      // stderr said codegraph was missing.
       const codegraphState = result.codegraphState;
       const resolved = resolvedFromFirstReview(
         parseFindings(result.text),
@@ -131,7 +131,7 @@ async function runReviewPr(
           ),
         });
       } else {
-        // One presentation layer for local, PR and remote reviews (CORE-43).
+        // One presentation layer for local, PR and remote reviews.
         console.log(
           "\n" +
             formatHumanReview({
@@ -168,7 +168,7 @@ async function runReviewPr(
     } finally {
       // A heartbeat left running on the error path keeps the event loop alive
       // forever, so the process would never drain and the exit code would never
-      // be applied. CORE-11.
+      // be applied.
       stopHeartbeat();
     }
   });

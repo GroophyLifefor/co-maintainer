@@ -1,4 +1,4 @@
-/** The copy guard for CORE-83 / D11.
+/** The copy guard.
  *
  * Product text avoids the em dash and, in prose, the semicolon. The rule
  * matters in three places at once: the model prompt (the model copies what it
@@ -70,9 +70,7 @@ test("no em dash in user-visible source outside the legacy parser", async () => 
     }
   }
   if (offenders.length > 0) {
-    throw new Error(
-      `em dash in product text (CORE-83):\n${offenders.join("\n")}`,
-    );
+    throw new Error(`em dash in product text:\n${offenders.join("\n")}`);
   }
 });
 
@@ -102,7 +100,7 @@ test("no stray semicolon in a user-visible string outside code shapes", async ()
   }
   if (offenders.length > 0) {
     throw new Error(
-      `prose semicolon in product text (CORE-83):\n${offenders.join("\n")}`,
+      `prose semicolon in product text:\n${offenders.join("\n")}`,
     );
   }
 });

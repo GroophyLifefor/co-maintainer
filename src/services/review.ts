@@ -75,7 +75,7 @@ export function humanCopy(text: string): string {
   // The semicolon is prose and always goes. The em dash is left alone here:
   // this function also sanitizes a finding title, and a title posted before
   // 0.5.0 uses ` — ` as its path/symbol separator, which the legacy heading
-  // reader still needs (CORE-83 keeps that one allowlisted exception).
+  // reader still needs (the copy guard keeps that one allowlisted exception).
   return outsideCode(redact(text), (prose) => prose.replaceAll(";", "."));
 }
 
@@ -137,7 +137,7 @@ export function reviewEvent(
   return findingsCount > 0 ? "REQUEST_CHANGES" : "COMMENT";
 }
 
-/** The GitHub review event for a set of stored findings (CORE-41).
+/** The GitHub review event for a set of stored findings.
  *
  * `model` keeps the 0.4.13 behavior: any finding requests changes, because the
  * model's label already decided. `severity` ignores that label and requests
@@ -807,7 +807,7 @@ async function runReviewJobCore(
   let carryPrevious: CarryPrevious | null = null;
   const extras: { carryPrompt?: string; unchangedPaths?: string[] } = {};
   // A guide rebuilt after the previous review invalidates that review's
-  // verdicts and its "unchanged" suppression (CORE-42 / F03). Treat the run as
+  // verdicts and its "unchanged" suppression. Treat the run as
   // if it had started fresh: carry-over off, every changed file back in scope,
   // so a stale finding can never mask a new one.
   const guideRebuilt =

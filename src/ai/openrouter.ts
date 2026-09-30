@@ -8,7 +8,7 @@ import {
   networkFailure,
 } from "../cli/error.ts";
 
-/** Provider failures as actionable text (CORE-12, F24/F28). A 401 and a 400 for
+/** Provider failures as actionable text. A 401 and a 400 for
  * an unknown model are preconditions the user can fix, so they are usage
  * errors; anything else is a runtime failure. Only the provider's own
  * `error.message` is surfaced: the raw body can carry account metadata
@@ -81,7 +81,7 @@ export class OpenRouterProvider implements AiProvider {
         body: JSON.stringify(body),
       });
     } catch (error) {
-      // `fetch failed` alone names neither the host nor the cause (CORE-12).
+      // `fetch failed` alone names neither the host nor the cause.
       throw networkFailure(this.endpoint, error);
     }
   }
@@ -90,7 +90,7 @@ export class OpenRouterProvider implements AiProvider {
     let response = await this.post(chatBody(this.model, request));
     // A provider may refuse `response_format` next to `tools`. The schema is
     // only a hint — the prompt also asks for a fenced JSON block — so one
-    // retry without it is better than failing the review (CORE-40).
+    // retry without it is better than failing the review.
     if (response.status === 400 && request.responseFormat) {
       const detail = await response.text();
       if (/response_format|json_schema|structured/i.test(detail)) {

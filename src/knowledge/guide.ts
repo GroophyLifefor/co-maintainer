@@ -7,7 +7,7 @@ export type ReviewDocuments = {
 
 /** A fact read out of a single pull request describes that request, not the
  * repository. `origin` is absent on facts written before the field existed, so
- * those count as repository policy (CORE-32 / F26b). */
+ * those count as repository policy. */
 export function isPullRequestFact(item: Fact): boolean {
   return item.origin === "pull-request";
 }
@@ -37,13 +37,13 @@ function reviewBarFacts(facts: Fact[]): Fact[] {
 }
 
 /** The short guide's checklist: every recurring review signal, including the
- * ones mined from pull requests (CORE-32 keeps this file's PR source). */
+ * ones mined from pull requests. */
 function reviewFacts(facts: Fact[]): Fact[] {
   return dedupe(reviewBarFacts(facts));
 }
 
 /** The detailed guide's checklist: only expectations backed by repository-wide
- * evidence, never a single pull request's narrative (CORE-32). */
+ * evidence, never a single pull request's narrative. */
 function detailedFacts(facts: Fact[]): Fact[] {
   return dedupe(
     reviewBarFacts(facts).filter((item) => !isPullRequestFact(item)),
@@ -85,8 +85,8 @@ ${bullets.join("\n")}
 }
 
 /** The selected review signals, before the `>2` threshold is applied. Exported
- * so `init` can tell the user how far short of the threshold a repository is
- * (CORE-31), rather than silently skipping the two guide files. */
+ * so `init` can tell the user how far short of the threshold a repository is,
+ * rather than silently skipping the two guide files. */
 export function reviewSignalCount(facts: Fact[]): number {
   return reviewFacts(facts).length;
 }
