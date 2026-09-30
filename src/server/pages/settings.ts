@@ -2,6 +2,7 @@ import { html, layout, skSlot, text } from "./layout.ts";
 import type { UserConfig } from "../../config.ts";
 import { resolveAppPrivateKey } from "../../config.ts";
 import { VERSION } from "../../version.ts";
+import { TEMPLATE_INFO } from "../../services/review_policy.ts";
 import {
   defaultAppName,
   manifestBlockedReason,
@@ -158,6 +159,28 @@ Leave blank to keep the current key"></textarea></div>
             <input id="def-lines" value="${text(
               config.defaults?.maxPullRequestChangeLines ?? "",
             )}"></div>
+        </div>
+        <div class="field wide" style="margin-top:18px">
+          <label for="def-policy">Who gets a review</label>
+          <select id="def-policy">
+            <option value=""${config.reviewPolicy === undefined ? " selected" : ""}>Everyone except drafts and bots (the simple switches)</option>
+            ${TEMPLATE_INFO.map(
+              (item) =>
+                `<option value="${text(item.name)}"${config.reviewPolicy === item.name ? " selected" : ""}>${text(item.label)}</option>`,
+            ).join("")}
+            ${
+              typeof config.reviewPolicy === "object"
+                ? `<option value="__custom" selected>Custom rules from a file</option>`
+                : ""
+            }
+          </select>
+          <div class="hint" id="def-policy-desc">${text(
+            typeof config.reviewPolicy === "string"
+              ? (TEMPLATE_INFO.find((item) => item.name === config.reviewPolicy)
+                  ?.description ?? "")
+              : "",
+          )}</div>
+          <div class="hint">New repositories start with this. Each repository can change it in its own settings. Custom rules are set with <span class="mono">co-maintainer set --review-policy-file=policy.json</span>.</div>
         </div>
       </div>
       <div class="ft"><button class="primary" id="save-def">Save</button></div>
@@ -481,6 +504,13 @@ document.getElementById("create-remote-token").addEventListener("click", functio
     await loadRemoteTokens();
   });
 });
+var POLICY_INFO = ${JSON.stringify(TEMPLATE_INFO)};
+document.getElementById("def-policy").addEventListener("change", function() {
+  var value = this.value;
+  var text = "";
+  POLICY_INFO.forEach(function(item) { if (item.name === value) text = item.description; });
+  document.getElementById("def-policy-desc").textContent = text;
+});
 document.getElementById("save-def").addEventListener("click", function() {
   var card = this.closest("[data-async]");
   var positiveInt = function(id, label) {
@@ -507,13 +537,16 @@ document.getElementById("save-def").addEventListener("click", function() {
     fail(card, lines.message, function () {});
     return;
   }
-  save(this, {
+  var body = {
     defaults: {
       maxPrMonths: months.value,
       maxCommits: commits.value,
       maxPullRequestChangeLines: lines.value
     }
-  });
+  };
+  var policy = document.getElementById("def-policy").value;
+  if (policy !== "__custom") body.reviewPolicy = policy === "" ? null : policy;
+  save(this, body);
 });
 </script>`,
     }),

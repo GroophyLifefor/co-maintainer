@@ -366,3 +366,154 @@ test("PATCH /api/repos rejects a bad schedule without applying anything", async 
     }
   });
 });
+
+test("PATCH /api/repos stores a policy, normalises a template and can go back to the switches", async () => {
+  await withTempEnv(async () => {
+    const authed = await loggedInApp();
+    await authed("/api/repos", {
+      method: "POST",
+      body: JSON.stringify({ repo: "acme/widgets" }),
+    });
+    const template = await patchRepo(authed, { reviewPolicy: "trusted-auto" });
+    if (template.status !== 200) throw new Error(`status ${template.status}`);
+    if (getRepo("acme/widgets")?.review_policy_json !== '"trusted-auto"') {
+      throw new Error(String(getRepo("acme/widgets")?.review_policy_json));
+    }
+    const custom = await patchRepo(authed, {
+      reviewPolicy: {
+        rules: [
+          {
+            name: "newcomers",
+            when: { association: ["NONE"] },
+            action: "skip",
+          },
+        ],
+        default: "review",
+        maxRounds: 3,
+      },
+    });
+    if (custom.status !== 200) throw new Error(`status ${custom.status}`);
+    const stored = JSON.parse(
+      getRepo("acme/widgets")?.review_policy_json ?? "null",
+    ) as { maxRounds?: number; rules?: unknown[] };
+    if (stored.maxRounds !== 3 || stored.rules?.length !== 1) {
+      throw new Error(JSON.stringify(stored));
+    }
+    const back = await patchRepo(authed, { reviewPolicy: "legacy" });
+    if (back.status !== 200) throw new Error(`status ${back.status}`);
+    if (getRepo("acme/widgets")?.review_policy_json !== '"legacy"') {
+      throw new Error("the repository did not go back to the switches");
+    }
+    const inherit = await patchRepo(authed, { reviewPolicy: null });
+    if (inherit.status !== 200) throw new Error(`status ${inherit.status}`);
+    if (getRepo("acme/widgets")?.review_policy_json !== null) {
+      throw new Error("null means follow the server default");
+    }
+  });
+});
+
+test("PATCH /api/repos refuses a policy it cannot read and changes nothing", async () => {
+  await withTempEnv(async () => {
+    const authed = await loggedInApp();
+    await authed("/api/repos", {
+      method: "POST",
+      body: JSON.stringify({ repo: "acme/widgets" }),
+    });
+    const response = await patchRepo(authed, {
+      reviewPolicy: { rules: [{ when: { fork: "yes" }, action: "skip" }] },
+      reviewScope: "incremental",
+    });
+    if (response.status !== 422) throw new Error(`status ${response.status}`);
+    const body = await response.json();
+    if (
+      body.error?.code !== "invalid_policy" ||
+      !/fork/.test(body.error.message)
+    ) {
+      throw new Error(JSON.stringify(body));
+    }
+    const row = getRepo("acme/widgets");
+    if (row?.review_policy_json !== null || row.review_scope !== "whole-pr") {
+      throw new Error(`nothing may change: ${JSON.stringify(row)}`);
+    }
+  });
+});
+
+test("PATCH /api/repos lets a policy and the switches travel together only when they agree", async () => {
+  await withTempEnv(async () => {
+    const authed = await loggedInApp();
+    await authed("/api/repos", {
+      method: "POST",
+      body: JSON.stringify({ repo: "acme/widgets" }),
+    });
+    const conflict = await patchRepo(authed, {
+      reviewPolicy: "trusted-auto",
+      autoReview: false,
+    });
+    if (conflict.status !== 409) throw new Error(`status ${conflict.status}`);
+    const together = await patchRepo(authed, {
+      reviewPolicy: "legacy",
+      autoReview: false,
+    });
+    if (together.status !== 200) throw new Error(`status ${together.status}`);
+    const row = getRepo("acme/widgets");
+    if (row?.review_policy_json !== '"legacy"' || row.auto_review !== 0) {
+      throw new Error(JSON.stringify(row));
+    }
+  });
+});
+
+test("POST /api/repos stores the chosen policy, and refuses a bad one before adding anything", async () => {
+  await withTempEnv(async () => {
+    const authed = await loggedInApp();
+    const bad = await authed("/api/repos", {
+      method: "POST",
+      body: JSON.stringify({ repo: "acme/widgets", reviewPolicy: "nope" }),
+    });
+    if (bad.status !== 422) throw new Error(`status ${bad.status}`);
+    if (getRepo("acme/widgets") !== undefined) {
+      throw new Error("a refused policy must not leave a repository behind");
+    }
+    const good = await authed("/api/repos", {
+      method: "POST",
+      body: JSON.stringify({
+        repo: "acme/widgets",
+        reviewPolicy: "on-request-only",
+      }),
+    });
+    if (good.status !== 200) throw new Error(`status ${good.status}`);
+    if (getRepo("acme/widgets")?.review_policy_json !== '"on-request-only"') {
+      throw new Error(String(getRepo("acme/widgets")?.review_policy_json));
+    }
+    const legacy = await authed("/api/repos", {
+      method: "POST",
+      body: JSON.stringify({ repo: "acme/other", reviewPolicy: "legacy" }),
+    });
+    if (legacy.status !== 422) {
+      throw new Error("a new repository cannot start on the simple switches");
+    }
+  });
+});
+
+test("POST /api/repos/policy-preview describes a policy in plain sentences", async () => {
+  await withTempEnv(async () => {
+    const authed = await loggedInApp();
+    const ok = await authed("/api/repos/policy-preview", {
+      method: "POST",
+      body: JSON.stringify({ policy: "trusted-auto" }),
+    });
+    if (ok.status !== 200) throw new Error(`status ${ok.status}`);
+    const { summary } = (await ok.json()) as { summary: string[] };
+    if (
+      !summary.includes(
+        "Any other pull request waits for a maintainer request.",
+      )
+    ) {
+      throw new Error(JSON.stringify(summary));
+    }
+    const bad = await authed("/api/repos/policy-preview", {
+      method: "POST",
+      body: JSON.stringify({ policy: { maxRounds: 0 } }),
+    });
+    if (bad.status !== 422) throw new Error(`status ${bad.status}`);
+  });
+});

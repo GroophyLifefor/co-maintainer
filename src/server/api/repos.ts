@@ -10,6 +10,11 @@ import {
 import { readConfig, writeRepoConfig } from "../../config.ts";
 import type { RepoConfig } from "../../config.ts";
 import { parseRemakeCron } from "../../services/remake_cron.ts";
+import {
+  parsePolicy,
+  policyToStore,
+  describePolicy,
+} from "../../services/review_policy.ts";
 import { enqueueSetup } from "../../services/setup.ts";
 import { enqueueManualReview } from "../../services/review.ts";
 import { probePlan, recommendationPatch } from "../../services/probe.ts";
@@ -35,6 +40,23 @@ export async function handleReposRoute(
 ): Promise<Response> {
   if (url.pathname === "/api/repos" && request.method === "GET") {
     return Response.json({ items: listActiveRepos() });
+  }
+
+  // The plain sentences shown under the policy editor before it is saved, so
+  // the wording lives in one place and the page never rebuilds it.
+  if (
+    url.pathname === "/api/repos/policy-preview" &&
+    request.method === "POST"
+  ) {
+    let body: { policy?: unknown };
+    try {
+      body = await request.json();
+    } catch {
+      return errorResponse(400, "bad_request", "expected a JSON body");
+    }
+    const parsed = parsePolicy(body.policy);
+    if (!parsed.ok) return errorResponse(422, "invalid_policy", parsed.problem);
+    return Response.json({ summary: describePolicy(parsed.value) });
   }
 
   if (url.pathname === "/api/repos/preview" && request.method === "POST") {
@@ -136,7 +158,7 @@ export async function handleReposRoute(
   }
 
   if (url.pathname === "/api/repos" && request.method === "POST") {
-    let body: { repo?: unknown; patch?: unknown };
+    let body: { repo?: unknown; patch?: unknown; reviewPolicy?: unknown };
     try {
       body = await request.json();
     } catch {
@@ -173,6 +195,15 @@ export async function handleReposRoute(
         );
       }
     }
+    // Checked before anything is written, so a bad policy leaves no half
+    // added repository behind.
+    let policyToKeep: string | null | undefined;
+    if ("reviewPolicy" in body) {
+      const stored = policyToStore(body.reviewPolicy, { allowLegacy: false });
+      if (!stored.ok)
+        return errorResponse(422, "invalid_policy", stored.problem);
+      policyToKeep = stored.value;
+    }
     // `patch` is the confirmed preview. It is optional so a caller that
     // never opened the preview keeps the old behavior; when present it is
     // written before `activateRepo` so the enqueued init reads it.
@@ -184,6 +215,9 @@ export async function handleReposRoute(
       await writeRepoConfig(repo, patch);
     }
     activateRepo(repo, installationId);
+    if (policyToKeep !== undefined) {
+      updateRepoSettings(repo, { review_policy_json: policyToKeep });
+    }
     try {
       const { id } = enqueueSetup(repo, "init");
       return Response.json({ jobId: id });
@@ -238,6 +272,13 @@ export async function handleReposRoute(
         }
       }
       const patch: Parameters<typeof updateRepoSettings>[1] = {};
+      if ("reviewPolicy" in body) {
+        const stored = policyToStore(body.reviewPolicy, { allowLegacy: true });
+        if (!stored.ok) {
+          return errorResponse(422, "invalid_policy", stored.problem);
+        }
+        patch.review_policy_json = stored.value;
+      }
       if (typeof body.autoReview === "boolean") {
         patch.auto_review = body.autoReview ? 1 : 0;
       }
@@ -256,7 +297,10 @@ export async function handleReposRoute(
         patch.skip_drafts !== undefined ||
         patch.skip_bots !== undefined
       ) {
-        const stored = getRepo(fullName)?.review_policy_json ?? null;
+        const stored =
+          patch.review_policy_json !== undefined
+            ? patch.review_policy_json
+            : (getRepo(fullName)?.review_policy_json ?? null);
         if (stored !== null && stored !== '"legacy"') {
           return errorResponse(
             409,

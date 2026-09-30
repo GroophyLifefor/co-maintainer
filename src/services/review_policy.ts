@@ -435,3 +435,169 @@ export function parsePolicy(value: unknown): Check<ReviewPolicy> {
   }
   return { ok: true, value: withDefaults(input) };
 }
+
+/** What the dashboard shows next to each template, one plain sentence each. */
+export const TEMPLATE_INFO: {
+  name: string;
+  label: string;
+  description: string;
+}[] = [
+  {
+    name: "everyone",
+    label: "Everyone",
+    description:
+      "Every pull request is reviewed automatically, except drafts and pull requests by bots.",
+  },
+  {
+    name: "trusted-auto",
+    label: "Trusted authors, automatic",
+    description:
+      "Owners, members and collaborators are reviewed automatically. Everyone else waits until a maintainer asks.",
+  },
+  {
+    name: "on-request-only",
+    label: "Only when requested",
+    description:
+      "Nothing is reviewed until a maintainer asks, with a label or a comment.",
+  },
+];
+
+const ASSOCIATION_WORDS: Record<Association, string> = {
+  OWNER: "owners",
+  MEMBER: "members",
+  COLLABORATOR: "collaborators",
+  CONTRIBUTOR: "earlier contributors",
+  FIRST_TIME_CONTRIBUTOR: "first time contributors",
+  FIRST_TIMER: "first timers",
+  NONE: "people with no relation to the repository",
+};
+
+function joinWords(words: string[], joiner: string): string {
+  if (words.length <= 1) return words.join("");
+  return `${words.slice(0, -1).join(", ")} ${joiner} ${words.at(-1)}`;
+}
+
+function describeWhen(when: RuleWhen): string {
+  const empty = Object.keys(when).length === 0;
+  if (empty) return "All pull requests";
+  let subject = "Pull requests";
+  if (when.draft === true && when.bot === true) {
+    subject = "Draft pull requests by bots";
+  } else if (when.draft === true) {
+    subject = "Draft pull requests";
+  } else if (when.bot === true) {
+    subject = "Pull requests by bots";
+  }
+  const extras: string[] = [];
+  if (when.draft === false) extras.push("that are ready for review");
+  if (when.bot === false) extras.push("not by bots");
+  if (when.association) {
+    extras.push(
+      `by ${joinWords(
+        when.association.map((a) => ASSOCIATION_WORDS[a]),
+        "or",
+      )}`,
+    );
+  }
+  if (when.fork === true) extras.push("opened from a fork");
+  if (when.fork === false) extras.push("opened from the repository itself");
+  if (when.labels) extras.push(`labeled ${joinWords(when.labels, "or")}`);
+  if (when.targetBranch) {
+    extras.push(`into ${joinWords(when.targetBranch, "or")}`);
+  }
+  const lines = when.changedLines;
+  if (lines) {
+    if (lines.min !== undefined && lines.max !== undefined) {
+      extras.push(`changing ${lines.min} to ${lines.max} lines`);
+    } else if (lines.min !== undefined) {
+      extras.push(`changing at least ${lines.min} lines`);
+    } else if (lines.max !== undefined) {
+      extras.push(`changing at most ${lines.max} lines`);
+    }
+  }
+  return [subject, ...extras].join(" ");
+}
+
+const PLURAL_ACTION: Record<PolicyAction, string> = {
+  review: "are reviewed automatically.",
+  "on-request": "wait for a maintainer request.",
+  skip: "are not reviewed.",
+};
+
+const SINGULAR_ACTION: Record<PolicyAction, string> = {
+  review: "is reviewed automatically.",
+  "on-request": "waits for a maintainer request.",
+  skip: "is not reviewed.",
+};
+
+/** The policy as short sentences a maintainer can read before saving it. */
+export function describePolicy(policy: ReviewPolicy): string[] {
+  const lines = policy.rules.map(
+    (rule) => `${describeWhen(rule.when)} ${PLURAL_ACTION[rule.action]}`,
+  );
+  lines.push(
+    policy.rules.length === 0
+      ? `Every pull request ${SINGULAR_ACTION[policy.default]}`
+      : `Any other pull request ${SINGULAR_ACTION[policy.default]}`,
+  );
+  const waits =
+    policy.default === "on-request" ||
+    policy.rules.some((rule) => rule.action === "on-request");
+  if (waits) {
+    const who = joinWords(
+      policy.requesters.map((a) => ASSOCIATION_WORDS[a]),
+      "and",
+    );
+    const scope =
+      policy.approvalScope === "head"
+        ? "A request covers the commit it was made on."
+        : "A request covers every later push to the pull request.";
+    lines.push(
+      `${who.charAt(0).toUpperCase()}${who.slice(1)} can ask by adding the label "${policy.requestLabel}" or by commenting "${policy.requestCommand}". ${scope}`,
+    );
+  }
+  if (policy.maxRounds !== undefined) {
+    lines.push(
+      `A pull request gets at most ${policy.maxRounds} ${policy.maxRounds === 1 ? "review" : "reviews"} from the webhook.`,
+    );
+  }
+  return lines;
+}
+
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .sort(([a], [b]) => a.localeCompare(b));
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+/** What to store for a policy: the template's name when the policy is exactly
+ * that template with the default settings, the whole policy otherwise. */
+export function storedPolicyValue(policy: ReviewPolicy): string | ReviewPolicy {
+  const wanted = canonical(policy);
+  for (const name of TEMPLATE_NAMES) {
+    if (canonical(withDefaults(TEMPLATES[name]!)) === wanted) return name;
+  }
+  return policy;
+}
+
+/** What a form or API caller sent, as the value to store. `null` clears the
+ * choice, and `"legacy"` (the simple switches) is only for one repository. */
+export function policyToStore(
+  value: unknown,
+  options: { allowLegacy: boolean },
+): Check<string | null> {
+  if (value === null) return { ok: true, value: null };
+  if (value === "legacy") {
+    return options.allowLegacy
+      ? { ok: true, value: '"legacy"' }
+      : { ok: false, problem: "the simple switches only exist per repository" };
+  }
+  const parsed = parsePolicy(value);
+  if (!parsed.ok) return parsed;
+  return { ok: true, value: JSON.stringify(storedPolicyValue(parsed.value)) };
+}

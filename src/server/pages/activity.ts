@@ -8,6 +8,11 @@ import type {
 import { getLogsSince } from "../../services/jobs.ts";
 import type { JobLogRow, JobRow } from "../../store/rows.ts";
 
+/** True for the skips a policy left waiting on a maintainer's request. */
+export function isWaitingForRequest(reason: string | null): boolean {
+  return Boolean(reason?.endsWith("waiting for a maintainer request."));
+}
+
 function skipReason(reason: string | null): string {
   switch (reason) {
     case "draft":
@@ -162,12 +167,19 @@ export function renderActivity(
         }</div>`;
   const skippedRows = skipped
     .slice(0, 20)
-    .map(
-      (row) =>
-        `<tr><td>${text(row.repo ?? "")}${row.pr_number ? ` #${row.pr_number}` : ""}</td>
+    .map((row) => {
+      const label = `${row.repo ?? ""}${row.pr_number ? ` #${row.pr_number}` : ""}`;
+      // A pull request waiting for a request is one click from a review, and
+      // the person on the dashboard is already allowed to ask.
+      const action =
+        row.repo && row.pr_number && isWaitingForRequest(row.reason)
+          ? `<button class="btn sm" type="button" data-post="/api/repos/${text(row.repo)}/pulls/${row.pr_number}/review" aria-label="Review ${text(label)} now">Review now</button>`
+          : "";
+      return `<tr><td>${text(label)}</td>
         <td class="muted">${text(skipReason(row.reason))}</td>
-        <td class="muted" style="width:120px">${when(row.received_at)}</td></tr>`,
-    )
+        <td class="muted" style="width:120px">${when(row.received_at)}</td>
+        <td style="width:110px;text-align:right">${action}</td></tr>`;
+    })
     .join("");
   return html(
     layout({

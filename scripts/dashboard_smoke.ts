@@ -13,6 +13,9 @@
  * page script, and the token list waits for `DOMContentLoaded`. Everything
  * here must be clean now.
  *
+ * `SMOKE_SHOTS=<dir>` also saves a screenshot of the review policy editor,
+ * so a change to it can be looked at, not only asserted.
+ *
  * CI runs this only on the ubuntu job (`npx playwright install --with-deps
  * chromium`); the Windows test job does not pay for a browser.
  */
@@ -247,6 +250,15 @@ function seed(): void {
     outcome: "skipped",
     reason: "draft",
   });
+  recordDelivery({
+    deliveryId: "d-2",
+    event: "pull_request",
+    action: "opened",
+    repo: REPO,
+    prNumber: 9,
+    outcome: "skipped",
+    reason: "Rule 3 (trusted author): waiting for a maintainer request.",
+  });
 }
 
 const sandbox = await makeTempDir({ prefix: "cm-dashboard-smoke-" });
@@ -427,6 +439,185 @@ try {
       }
       console.log(`visited ${path}`);
     }
+
+    // CORE-121: the review policy editor, driven the way a maintainer would.
+    const shot = async (name: string): Promise<void> => {
+      const dir = process.env.SMOKE_SHOTS;
+      if (dir)
+        await page.screenshot({
+          path: join(dir, `${name}.png`),
+          fullPage: true,
+        });
+    };
+    const controlIssues = async (scope: string): Promise<string[]> =>
+      await page.locator(scope).evaluate((root) => {
+        const problems: string[] = [];
+        for (const control of root.querySelectorAll("input, select")) {
+          const id = control.id;
+          const named =
+            control.closest("label") !== null ||
+            (id !== "" && root.querySelector(`label[for="${id}"]`) !== null);
+          if (!named) problems.push(`#${id || "(no id)"} has no label`);
+          if (control.getAttribute("type") === "checkbox") {
+            const width = control.getBoundingClientRect().width;
+            if (width >= 32)
+              problems.push(`checkbox #${id} is ${Math.round(width)}px wide`);
+          }
+        }
+        return problems;
+      });
+    const summaryHas = async (text: string): Promise<void> => {
+      await page.waitForFunction(
+        (wanted) =>
+          document
+            .querySelector("#policy-summary")
+            ?.textContent?.includes(wanted),
+        text,
+        { timeout: 5000 },
+      );
+    };
+
+    await page.goto(`${base}/repos/${REPO}/settings`, { waitUntil: "load" });
+    if ((await page.locator("#policy-template").inputValue()) !== "legacy") {
+      throw new Error(
+        "a repository nobody gave a policy must show the simple switches",
+      );
+    }
+    if ((await page.locator("#auto").count()) !== 1) {
+      throw new Error(
+        "the switches must be shown while the repository follows them",
+      );
+    }
+    await shot("policy-legacy");
+
+    await page.selectOption("#policy-template", "trusted-auto");
+    await summaryHas("waits for a maintainer request");
+    await page.click("#policy-details summary");
+    await page.click("#add-rule");
+    await page.fill("#r3-name", "newcomers");
+    await page.check("#r3-a-FIRST_TIME_CONTRIBUTOR");
+    await page.selectOption("#r3-action", "skip");
+    await summaryHas("first time contributors are not reviewed");
+    if ((await page.locator("#policy-template").inputValue()) !== "custom") {
+      throw new Error(
+        "editing a rule must turn the template into custom rules",
+      );
+    }
+    const editorIssues = await controlIssues("#policy-card");
+    for (const problem of editorIssues) {
+      issues.push({
+        path: `/repos/${REPO}/settings`,
+        kind: "text",
+        text: problem,
+      });
+    }
+    await shot("policy-custom");
+
+    const issuesBefore = issues.length;
+    await page.fill("#p-max", "0");
+    await page.waitForSelector("#policy-problem:not([hidden])", {
+      timeout: 5000,
+    });
+    if (!(await page.locator("#save-policy").isDisabled())) {
+      throw new Error("a policy the server refuses must not be saveable");
+    }
+    // The refusal is a 422 on purpose, and the browser logs it as a console
+    // error. That one line is expected here and nowhere else.
+    for (let i = issues.length - 1; i >= issuesBefore; i--) {
+      if (issues[i]!.kind === "console" && issues[i]!.text.includes("422")) {
+        issues.splice(i, 1);
+      }
+    }
+    await page.fill("#p-max", "");
+    await page.waitForFunction(
+      () => !document.querySelector("#save-policy")?.hasAttribute("disabled"),
+      null,
+      { timeout: 5000 },
+    );
+
+    await Promise.all([page.waitForEvent("load"), page.click("#save-policy")]);
+    await sleep(400);
+    if ((await page.locator("#policy-template").inputValue()) !== "custom") {
+      throw new Error("the saved custom policy did not come back as custom");
+    }
+    if ((await page.locator("#auto").count()) !== 0) {
+      throw new Error("the switches must be gone once a policy decides");
+    }
+    if ((await page.locator("#r3-name").inputValue()) !== "newcomers") {
+      throw new Error("the saved rule did not come back");
+    }
+
+    await page.selectOption("#policy-template", "legacy");
+    await Promise.all([page.waitForEvent("load"), page.click("#save-policy")]);
+    await sleep(400);
+    if ((await page.locator("#auto").count()) !== 1) {
+      throw new Error("going back to the simple switches must show them again");
+    }
+    console.log("review policy editor works");
+
+    await page.goto(`${base}/settings`, { waitUntil: "load" });
+    await page.selectOption("#def-policy", "trusted-auto");
+    const described =
+      (await page.locator("#def-policy-desc").textContent()) ?? "";
+    if (!described.includes("Owners, members and collaborators")) {
+      throw new Error(
+        `the default policy description did not update: ${described}`,
+      );
+    }
+    await Promise.all([page.waitForEvent("load"), page.click("#save-def")]);
+    await sleep(400);
+    if ((await page.locator("#def-policy").inputValue()) !== "trusted-auto") {
+      throw new Error("the server default policy did not stick");
+    }
+    console.log("server default policy works");
+
+    await page.goto(`${base}/repos/new`, { waitUntil: "load" });
+    await page.evaluate(() => {
+      // The plan step normally comes from a GitHub preview, which this
+      // sandbox cannot reach, so the page is handed a plan directly.
+      (window as unknown as { showPlan: (plan: unknown) => void }).showPlan({
+        repo: "acme/other",
+        command: "co-maintainer init acme/other",
+        patch: {},
+        reasons: [],
+        estimate: {
+          extract: 1,
+          synth: 1,
+          tokensIn: [1, 2],
+          tokensOut: [1, 2],
+          seconds: [1, 2],
+          usd: null,
+          estimateBasis: "history",
+        },
+      });
+    });
+    const radios = await page.locator('input[name="policy"]').count();
+    if (radios !== 3)
+      throw new Error(`expected 3 policy choices, found ${radios}`);
+    if (!(await page.locator("#policy-trusted-auto").isChecked())) {
+      throw new Error(
+        "the server default must be pre-selected when adding a repository",
+      );
+    }
+    for (const problem of await controlIssues("#plan")) {
+      issues.push({ path: "/repos/new", kind: "text", text: problem });
+    }
+    console.log("add repository policy choice works");
+
+    await page.goto(`${base}/activity`, { waitUntil: "load" });
+    const reviewNow = page.locator("[data-post$='/pulls/9/review']");
+    if ((await reviewNow.count()) !== 1) {
+      throw new Error(
+        "a pull request waiting for a request needs a Review now button",
+      );
+    }
+    if ((await page.locator("[data-post$='/pulls/8/review']").count()) !== 0) {
+      throw new Error("a skipped draft must not offer Review now");
+    }
+    if (!((await reviewNow.getAttribute("aria-label")) ?? "").includes("#9")) {
+      throw new Error("the Review now button must name its pull request");
+    }
+    console.log("review now button shown");
 
     // The token secret panel only exists after a real create, so drive the
     // button the same way an operator would and assert the panel appears.

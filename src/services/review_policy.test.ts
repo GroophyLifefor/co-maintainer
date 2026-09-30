@@ -1,10 +1,13 @@
 import { test } from "node:test";
 import {
   carriesEarlierRequest,
+  describePolicy,
   evaluatePolicy,
   isRequestCommand,
   legacyPolicy,
   parsePolicy,
+  policyToStore,
+  storedPolicyValue,
   TEMPLATES,
   TEMPLATE_NAMES,
   withDefaults,
@@ -331,4 +334,117 @@ test("parsePolicy says what is wrong instead of guessing", () => {
       throw new Error(`${JSON.stringify(value)}: ${text}`);
     }
   }
+});
+
+function said(input: PolicyInput): string[] {
+  return describePolicy(withDefaults(input));
+}
+
+test("describePolicy reads each template as plain sentences", () => {
+  const trusted = said(TEMPLATES["trusted-auto"]!);
+  const want = [
+    "Draft pull requests are not reviewed.",
+    "Pull requests by bots are not reviewed.",
+    "Pull requests by owners, members or collaborators are reviewed automatically.",
+    "Any other pull request waits for a maintainer request.",
+  ];
+  for (const line of want) {
+    if (!trusted.includes(line))
+      throw new Error(`missing "${line}" in ${JSON.stringify(trusted)}`);
+  }
+  const ask = trusted.find((line) => line.includes("can ask"));
+  if (
+    !ask ||
+    !ask.startsWith(
+      "Owners, members and collaborators can ask by adding the label",
+    ) ||
+    !ask.includes("A request covers the commit it was made on.")
+  ) {
+    throw new Error(String(ask));
+  }
+  const everyone = said(TEMPLATES.everyone!);
+  if (everyone.some((line) => line.includes("can ask"))) {
+    throw new Error(
+      "nothing waits for a request, so there is nothing to explain",
+    );
+  }
+  const onlyRequested = said(TEMPLATES["on-request-only"]!);
+  if (
+    onlyRequested[0] !== "Every pull request waits for a maintainer request."
+  ) {
+    throw new Error(onlyRequested[0]);
+  }
+});
+
+test("describePolicy names every kind of condition and the limits", () => {
+  const lines = said({
+    rules: [
+      {
+        when: {
+          association: ["FIRST_TIME_CONTRIBUTOR", "NONE"],
+          fork: true,
+          labels: ["docs"],
+          targetBranch: ["main"],
+          changedLines: { min: 10, max: 50 },
+        },
+        action: "on-request",
+      },
+      { when: { changedLines: { max: 5 } }, action: "review" },
+      { when: {}, action: "skip" },
+    ],
+    default: "review",
+    approvalScope: "pull-request",
+    maxRounds: 1,
+  });
+  const joined = lines.join("\n");
+  for (const part of [
+    "by first time contributors or people with no relation to the repository",
+    "opened from a fork",
+    "labeled docs",
+    "into main",
+    "changing 10 to 50 lines",
+    "changing at most 5 lines",
+    "All pull requests are not reviewed.",
+    "A request covers every later push to the pull request.",
+    "at most 1 review from the webhook.",
+  ]) {
+    if (!joined.includes(part))
+      throw new Error(`missing "${part}" in\n${joined}`);
+  }
+});
+
+test("a policy is stored as its template name only when it is exactly that template", () => {
+  const everyone = parsePolicy("everyone");
+  if (!everyone.ok || storedPolicyValue(everyone.value) !== "everyone") {
+    throw new Error("a template must come back as its name");
+  }
+  const edited = parsePolicy({ ...TEMPLATES.everyone, maxRounds: 4 });
+  if (!edited.ok) throw new Error(edited.problem);
+  if (typeof storedPolicyValue(edited.value) === "string") {
+    throw new Error("an edited template must stay a full policy");
+  }
+  const renamed = parsePolicy({
+    rules: [{ name: "other name", when: { draft: true }, action: "skip" }],
+    default: "review",
+  });
+  if (!renamed.ok || typeof storedPolicyValue(renamed.value) === "string") {
+    throw new Error("a rule with another name is not the template");
+  }
+});
+
+test("policyToStore keeps null, guards the legacy switches and validates the rest", () => {
+  const check = (value: unknown, allowLegacy: boolean) =>
+    policyToStore(value, { allowLegacy });
+  const none = check(null, false);
+  if (!none.ok || none.value !== null)
+    throw new Error("null clears the choice");
+  const legacy = check("legacy", true);
+  if (!legacy.ok || legacy.value !== '"legacy"')
+    throw new Error("legacy allowed");
+  if (check("legacy", false).ok) throw new Error("legacy needs a repository");
+  const named = check("trusted-auto", false);
+  if (!named.ok || named.value !== '"trusted-auto"')
+    throw new Error("template");
+  if (check({ default: "maybe" }, true).ok)
+    throw new Error("bad policy accepted");
 });

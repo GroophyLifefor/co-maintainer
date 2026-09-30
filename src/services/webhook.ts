@@ -44,21 +44,30 @@ const PR_ACTIONS = new Set([
  * one with nothing stored and no server default, follow the three old
  * switches. A stored value that no longer parses does too, so a bad edit
  * degrades to today's behavior rather than to a silent stop. */
-export function policyForRepo(row: RepoRow): ReviewPolicy {
+export function policySource(row: RepoRow): {
+  policy: ReviewPolicy;
+  /** True when the three old switches are what decides. */
+  legacy: boolean;
+} {
+  const switches = { policy: legacyPolicy(row), legacy: true };
   let value: unknown;
   if (row.review_policy_json !== null) {
     try {
       value = JSON.parse(row.review_policy_json);
     } catch {
-      return legacyPolicy(row);
+      return switches;
     }
-    if (value === "legacy") return legacyPolicy(row);
+    if (value === "legacy") return switches;
   } else {
     value = readConfig().reviewPolicy;
-    if (value === undefined) return legacyPolicy(row);
+    if (value === undefined) return switches;
   }
   const parsed = parsePolicy(value);
-  return parsed.ok ? parsed.value : legacyPolicy(row);
+  return parsed.ok ? { policy: parsed.value, legacy: false } : switches;
+}
+
+export function policyForRepo(row: RepoRow): ReviewPolicy {
+  return policySource(row).policy;
 }
 
 export type WebhookResult = {
