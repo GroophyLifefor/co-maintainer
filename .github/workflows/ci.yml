@@ -162,3 +162,16 @@ jobs:
             }
             console.log("the action sent one review to each server, and none for the empty secret");
           '
+
+  # CORE-132: the workflows are code too. Pinned, and installed with `go install`
+  # because the Go toolchain is already on the runner. Shellcheck of the `run:`
+  # blocks is off so the result is the same here and on a laptop without it.
+  actionlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install actionlint
+        run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.11
+      - name: Lint the workflows
+        run: $(go env GOPATH)/bin/actionlint -shellcheck=
