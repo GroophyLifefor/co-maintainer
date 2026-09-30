@@ -122,6 +122,22 @@ export const ENDPOINTS: readonly Endpoint[] = [
     feature: "Post a conversation comment",
   },
   {
+    method: "POST",
+    pattern: "repos/{repo}/issues/{n}/reactions",
+    permission: "issues",
+    level: "write",
+    identities: APP_ONLY,
+    feature: "Acknowledge a review request on the pull request",
+  },
+  {
+    method: "POST",
+    pattern: "repos/{repo}/issues/comments/{id}/reactions",
+    permission: "issues",
+    level: "write",
+    identities: APP_ONLY,
+    feature: "Acknowledge a review request in a comment",
+  },
+  {
     method: "GET",
     pattern: "repos/{repo}/contents/{path}",
     permission: "contents",

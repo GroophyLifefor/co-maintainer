@@ -26,6 +26,9 @@ export type RepoRow = {
   settings: string;
   created_at: string;
   use_codegraph: number;
+  /** JSON: `"legacy"`, a template name, or a policy object. `null` takes the
+   * server default. */
+  review_policy_json: string | null;
 };
 
 export type JobRow = {

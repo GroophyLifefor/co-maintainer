@@ -43,7 +43,7 @@ The manifest requests exactly the permissions the code uses, not a superset.
 | Permission | Access | Why |
 | ---------- | ------ | --- |
 | Contents | Read | Read files and PR_REVIEW_GUIDE.md, read the file tree, read commit history, compare two commits, read releases in the probe |
-| Issues | Read and write | Read the conversation on a pull request, post a conversation comment |
+| Issues | Read and write | Read the conversation on a pull request, post a conversation comment, acknowledge a review request on the pull request, acknowledge a review request in a comment |
 | Pull requests | Read and write | List pull requests, read a pull request, read the files a pull request changes, read earlier reviews, read review comment threads, post a review, reply in a review comment thread |
 | Checks | Read and write | Create the review check run, update the review check run |
 | Metadata | Read | Read the repository and its default branch |

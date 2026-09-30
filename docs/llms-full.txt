@@ -1485,7 +1485,7 @@ The manifest requests exactly the permissions the code uses, not a superset.
 | Permission | Access | Why |
 | ---------- | ------ | --- |
 | Contents | Read | Read files and PR_REVIEW_GUIDE.md, read the file tree, read commit history, compare two commits, read releases in the probe |
-| Issues | Read and write | Read the conversation on a pull request, post a conversation comment |
+| Issues | Read and write | Read the conversation on a pull request, post a conversation comment, acknowledge a review request on the pull request, acknowledge a review request in a comment |
 | Pull requests | Read and write | List pull requests, read a pull request, read the files a pull request changes, read earlier reviews, read review comment threads, post a review, reply in a review comment thread |
 | Checks | Read and write | Create the review check run, update the review check run |
 | Metadata | Read | Read the repository and its default branch |
@@ -1931,6 +1931,8 @@ co-maintainer set [options]
 | `--remote-byok-policy=off\|allow\|require` | off | Whether a remote client may send its own AI key. |
 | `--remote-byok=KEY` |  | Your own AI key to send with a remote review. |
 | `--remote-byok-default=on\|off` | off | Send remote-byok on every --remote review by default. |
+| `--review-policy=everyone\|trusted-auto\|on-request-only` |  | The review policy new repositories start with. |
+| `--review-policy-file=PATH` |  | Read a custom review policy from a JSON file and use it as that default. |
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |
 | `--password=TEXT` |  | Replace the dashboard password. |
 | `--disable-auth=password` |  | Turn the dashboard password off. |

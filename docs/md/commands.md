@@ -299,6 +299,8 @@ co-maintainer set [options]
 | `--remote-byok-policy=off\|allow\|require` | off | Whether a remote client may send its own AI key. |
 | `--remote-byok=KEY` |  | Your own AI key to send with a remote review. |
 | `--remote-byok-default=on\|off` | off | Send remote-byok on every --remote review by default. |
+| `--review-policy=everyone\|trusted-auto\|on-request-only` |  | The review policy new repositories start with. |
+| `--review-policy-file=PATH` |  | Read a custom review policy from a JSON file and use it as that default. |
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |
 | `--password=TEXT` |  | Replace the dashboard password. |
 | `--disable-auth=password` |  | Turn the dashboard password off. |

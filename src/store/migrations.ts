@@ -267,4 +267,12 @@ export const migrations: string[][] = [
   ],
   // 10 — BYOK: persist only whether a review used a client key, never the key
   [`ALTER TABLE remote_review_inputs ADD COLUMN billed_to TEXT`],
+  // 11 — a per repository review policy (CORE-120). Existing repositories are
+  // pinned to the policy their three old switches amount to, so they keep
+  // behaving exactly as before and the switches keep working. A new repository
+  // starts empty and takes the server default.
+  [
+    `ALTER TABLE repos ADD COLUMN review_policy_json TEXT`,
+    `UPDATE repos SET review_policy_json = '"legacy"'`,
+  ],
 ];

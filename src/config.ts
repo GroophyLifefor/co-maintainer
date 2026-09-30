@@ -92,6 +92,9 @@ export type UserConfig = {
    * `CM_REMOTE_BYOK_POLICY` env var overrides this, which is how a hosted
    * deployment forces the setting. */
   remoteByokPolicy?: ByokPolicy;
+  /** The review policy new repositories start with (CORE-120): a template
+   * name or a policy object. Unset means the old per repository switches. */
+  reviewPolicy?: string | Record<string, unknown>;
   /** The client's own AI key for remote review (CORE-111), sent only when
    * `--remote-byok` (or `remoteByokDefault`) turns it on for a run. Only
    * ever written by `set`. */

@@ -7,6 +7,7 @@ import {
   verifyOpenRouter,
 } from "../../ai/verify.ts";
 import { die } from "../error.ts";
+import { parsePolicy } from "../../services/review_policy.ts";
 import { AI_PROVIDERS, rejectRetiredProvider } from "../../ai/provider.ts";
 import { renderCommandHelp, renderGlobalHelp } from "./registry.ts";
 
@@ -62,6 +63,8 @@ export async function runSet(args: string[]): Promise<void> {
     "remote-byok-policy",
     "remote-byok",
     "remote-byok-default",
+    "review-policy",
+    "review-policy-file",
     "review-blocking",
     "password",
     "unset",
@@ -119,6 +122,7 @@ export async function runSet(args: string[]): Promise<void> {
     "remote-byok-policy": "remoteByokPolicy",
     "remote-byok": "remoteByok",
     "remote-byok-default": "remoteByokDefault",
+    "review-policy": "reviewPolicy",
     "review-blocking": "reviewBlocking",
     password: "dashboardPasswordHash",
   };
@@ -201,6 +205,29 @@ export async function runSet(args: string[]): Promise<void> {
       die("--remote-byok-default must be one of: on, off");
     }
     patch.remoteByokDefault = remoteByokDefault === "on";
+  }
+  const reviewPolicy = text(args, "review-policy");
+  const reviewPolicyFile = text(args, "review-policy-file");
+  if (reviewPolicy && reviewPolicyFile) {
+    die("Pass only one of --review-policy or --review-policy-file");
+  }
+  if (reviewPolicy) {
+    const checked = parsePolicy(reviewPolicy);
+    if (!checked.ok) die(`--review-policy: ${checked.problem}`);
+    patch.reviewPolicy = reviewPolicy;
+  }
+  if (reviewPolicyFile) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await readTextFile(reviewPolicyFile));
+    } catch (error) {
+      die(
+        `Could not read a JSON policy from ${reviewPolicyFile}: ${String(error)}`,
+      );
+    }
+    const checked = parsePolicy(parsed);
+    if (!checked.ok) die(`--review-policy-file: ${checked.problem}`);
+    patch.reviewPolicy = parsed;
   }
   const reviewBlocking = text(args, "review-blocking");
   if (reviewBlocking) {

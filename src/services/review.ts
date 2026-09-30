@@ -689,7 +689,17 @@ async function runReviewJobCore(
     scope?: string;
     sinceCommit?: string;
     round?: number;
+    requestReaction?: string;
   };
+  // A maintainer asked for this review by label or comment: acknowledge it.
+  // Best effort, a missing reaction must never fail the review itself.
+  if (args.requestReaction && !existing) {
+    try {
+      await post(github, args.requestReaction, { content: "eyes" });
+    } catch (error) {
+      log("info", `could not react to the review request: ${String(error)}`);
+    }
+  }
   const pr = await github.request<Json>(
     `repos/${job.repo}/pulls/${job.pr_number}`,
   );

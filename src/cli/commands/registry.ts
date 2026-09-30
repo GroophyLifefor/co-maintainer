@@ -548,6 +548,17 @@ export const COMMANDS: CommandSpec[] = [
               "Send remote-byok on every --remote review by default.",
           },
           {
+            name: "review-policy",
+            value: "everyone|trusted-auto|on-request-only",
+            description: "The review policy new repositories start with.",
+          },
+          {
+            name: "review-policy-file",
+            value: "PATH",
+            description:
+              "Read a custom review policy from a JSON file and use it as that default.",
+          },
+          {
             name: "review-blocking",
             value: "model|severity",
             default: "model",

@@ -171,6 +171,7 @@ export const KNOWN_FIELDS = [
   "remoteToolOutputMaxChars",
   "remoteByok",
   "remoteByokDefault",
+  "reviewPolicy",
 ] as const satisfies readonly (keyof UserConfig)[];
 
 /** `co-maintainer config <sub> ...`. `set` is handled by runSet, which this

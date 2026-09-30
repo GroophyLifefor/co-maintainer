@@ -39,6 +39,7 @@ export function updateRepoSettings(
       | "skip_drafts"
       | "skip_bots"
       | "use_codegraph"
+      | "review_policy_json"
     >
   >,
 ): void {

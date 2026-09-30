@@ -247,6 +247,25 @@ export async function handleReposRoute(
       if (typeof body.skipBots === "boolean") {
         patch.skip_bots = body.skipBots ? 1 : 0;
       }
+      // The three switches only mean something under the legacy policy. A
+      // repository on a real policy refuses them instead of silently ignoring
+      // the change, and one on the server default is pinned to the switches
+      // the moment someone uses them.
+      if (
+        patch.auto_review !== undefined ||
+        patch.skip_drafts !== undefined ||
+        patch.skip_bots !== undefined
+      ) {
+        const stored = getRepo(fullName)?.review_policy_json ?? null;
+        if (stored !== null && stored !== '"legacy"') {
+          return errorResponse(
+            409,
+            "policy_in_use",
+            "This repository uses a review policy, so the auto review, drafts and bots switches do not apply. Change the policy instead.",
+          );
+        }
+        patch.review_policy_json = '"legacy"';
+      }
       if (typeof body.useCodegraph === "boolean") {
         patch.use_codegraph = body.useCodegraph ? 1 : 0;
       }

@@ -2,7 +2,7 @@ import { createApp } from "../app.ts";
 import { closeAppDb, openAppDb } from "../../store/app_db.ts";
 import { readConfig, writeUserConfig } from "../../config.ts";
 import { registerHandler } from "../../services/jobs.ts";
-import { getRepo } from "../../store/repos.ts";
+import { getRepo, updateRepoSettings } from "../../store/repos.ts";
 import { TEST_PKCS1_PEM } from "../../testing/fixtures/rsa_key.ts";
 import {
   deleteEnv,
@@ -270,6 +270,52 @@ async function patchRepo(
     body: JSON.stringify(body),
   });
 }
+
+test("PATCH /api/repos pins a repository to the old switches the first time one is used", async () => {
+  await withTempEnv(async () => {
+    const authed = await loggedInApp();
+    await authed("/api/repos", {
+      method: "POST",
+      body: JSON.stringify({ repo: "acme/widgets" }),
+    });
+    if (getRepo("acme/widgets")?.review_policy_json !== null) {
+      throw new Error("a new repository starts without a stored policy");
+    }
+    const response = await patchRepo(authed, { autoReview: false });
+    if (response.status !== 200) throw new Error(`status ${response.status}`);
+    const row = getRepo("acme/widgets");
+    if (row?.auto_review !== 0 || row.review_policy_json !== '"legacy"') {
+      throw new Error(JSON.stringify(row));
+    }
+  });
+});
+
+test("PATCH /api/repos refuses the old switches on a repository with a real policy", async () => {
+  await withTempEnv(async () => {
+    const authed = await loggedInApp();
+    await authed("/api/repos", {
+      method: "POST",
+      body: JSON.stringify({ repo: "acme/widgets" }),
+    });
+    updateRepoSettings("acme/widgets", {
+      review_policy_json: JSON.stringify("trusted-auto"),
+    });
+    const response = await patchRepo(authed, { skipDrafts: false });
+    if (response.status !== 409) throw new Error(`status ${response.status}`);
+    const body = await response.json();
+    if (body.error?.code !== "policy_in_use") {
+      throw new Error(JSON.stringify(body));
+    }
+    const row = getRepo("acme/widgets");
+    if (row?.skip_drafts !== 1 || row.review_policy_json !== '"trusted-auto"') {
+      throw new Error(`nothing may change: ${JSON.stringify(row)}`);
+    }
+    const other = await patchRepo(authed, { reviewScope: "incremental" });
+    if (other.status !== 200) {
+      throw new Error("settings that are not a switch still save");
+    }
+  });
+});
 
 test("PATCH /api/repos saves a remake schedule and clears it again", async () => {
   await withTempEnv(async () => {
