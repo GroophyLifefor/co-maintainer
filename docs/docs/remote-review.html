@@ -48,6 +48,7 @@
           <li><a href="local-review.html">Local review</a></li>
           <li><a href="remote-review.html" class="active">Remote review</a></li>
           <li><a href="ci.html">CI</a></li>
+          <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           </ul>
         </div>
@@ -70,6 +71,7 @@
           <ul class="nav-list">
           <li><a href="commands.html">Commands</a></li>
           <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="providers.html">AI providers</a></li>
           <li><a href="authentication.html">Authentication</a></li>
           <li><a href="caching.html">Caching</a></li>
           <li><a href="cost.html">Cost</a></li>
@@ -129,7 +131,10 @@ cd your/clone
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-flag">--remote</span> <span class="sh-flag">--json</span> <span class="sh-flag">--disable-codegraph</span>
 <span class="sh-comment"># One-off, without saving host and token to the config:</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-flag">--remote</span> <span class="sh-flag">--remote-host=https://your-server</span> <span class="sh-flag">--remote-token=cmr_...</span>
+<span class="sh-comment"># Or by environment, which keeps the token off the command line:</span>
+<span class="sh-arg">CM_REMOTE_HOST=https://your-server</span> <span class="sh-arg">CM_REMOTE_TOKEN=cmr_...</span> <span class="sh-arg">co-maintainer</span> <span class="sh-arg">review</span> <span class="sh-flag">--remote</span>
 </code></pre>
+<p>To run it on every pull request from a workflow, see <a href="ci.html">CI</a>.</p>
 <h2 id="parameters">Parameters</h2>
 <p>Same as <a href="local-review.html">local review</a> for diff and output flags:</p>
 <table>
@@ -151,17 +156,53 @@ cd your/clone
 <td><code>--allow-tool-install</code></td>
 <td>Allow codegraph install without a prompt</td>
 </tr>
+<tr>
+<td><code>--fresh</code></td>
+<td>No carry-over from a prior remote run</td>
+</tr>
+<tr>
+<td><code>--to-branch=&lt;name&gt;</code></td>
+<td>Diff base branch</td>
+</tr>
+<tr>
+<td><code>--branch=&lt;name&gt;</code></td>
+<td>Branch when HEAD is detached</td>
+</tr>
+<tr>
+<td><code>--repo=owner/repo</code></td>
+<td>Override remote detection</td>
+</tr>
+<tr>
+<td><code>--remote-host=&lt;url&gt;</code></td>
+<td>Override the configured host for this run (needs <code>--remote</code>)</td>
+</tr>
+<tr>
+<td><code>--remote-token=&lt;token&gt;</code></td>
+<td>Override the configured token for this run (needs <code>--remote</code>)</td>
+</tr>
+<tr>
+<td><code>--remote-byok</code></td>
+<td>Send your own AI key with this review, see <a href="#your-own-ai-key">your own key</a></td>
+</tr>
+<tr>
+<td><code>--no-remote-byok</code></td>
+<td>Do not send it, even when <code>remote-byok-default</code> is on</td>
+</tr>
+<tr>
+<td><code>--output=github</code></td>
+<td>Print GitHub annotations and write the job summary, see <a href="ci.html">CI</a>. Cannot be used with <code>--json</code></td>
+</tr>
+<tr>
+<td><code>--debug</code></td>
+<td>Verbose stderr</td>
+</tr>
+<tr>
+<td><code>--log-time</code></td>
+<td>Phase timings</td>
+</tr>
 </tbody></table>
 <p>The codegraph question, and the conditions under which co-maintainer skips it,
-are the same as <a href="local-review.html#codegraph">local review</a>.
-| <code>--fresh</code> | No carry-over from a prior remote run |
-| <code>--to-branch=&lt;name&gt;</code> | Diff base branch |
-| <code>--branch=&lt;name&gt;</code> | Branch when HEAD is detached |
-| <code>--repo=owner/repo</code> | Override remote detection |
-| <code>--remote-host=&lt;url&gt;</code> | Override the configured host for this run (needs <code>--remote</code>) |
-| <code>--remote-token=&lt;token&gt;</code> | Override the configured token for this run (needs <code>--remote</code>) |
-| <code>--debug</code> | Verbose stderr |
-| <code>--log-time</code> | Phase timings |</p>
+are the same as <a href="local-review.html#codegraph">local review</a>.</p>
 <p>Not supported with <code>--remote</code>: <code>--sync-before-review</code> (run
 <a href="sync.html"><code>sync</code></a> on the server instead).</p>
 <h2 id="reading-the-servers-guides">Reading the server&#39;s guides</h2>
@@ -177,6 +218,107 @@ anything:</p>
 is local-only and is refused with <code>--remote</code>, because the directory belongs to
 the machine you are on. A rejected token prints the same Settings hint
 <code>review --remote</code> prints.</p>
+<h2 id="your-own-ai-key">Your own AI key</h2>
+<p>By default the server&#39;s provider and key pay for a remote review. A server can
+also let you bring your own key (BYOK), so the review is billed to you and not to
+the server. The server still chooses the provider and the models, only the key is
+yours. See <a href="providers.html">AI providers</a>.</p>
+<h3 id="from-the-command-line">From the command line</h3>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">set</span> <span class="sh-arg">remote-byok</span> <span class="sh-arg">YOUR_KEY</span>          <span class="sh-comment"># save the key once</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-flag">--remote</span> <span class="sh-flag">--remote-byok</span>            <span class="sh-comment"># send it with this review</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">set</span> <span class="sh-arg">remote-byok-default</span> <span class="sh-arg">on</span>        <span class="sh-comment"># send it every time</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-flag">--remote</span> <span class="sh-flag">--no-remote-byok</span>         <span class="sh-comment"># but not this time</span>
+<span class="sh-arg">CM_REMOTE_BYOK=YOUR_KEY</span> <span class="sh-arg">co-maintainer</span> <span class="sh-arg">review</span> <span class="sh-flag">--remote</span> <span class="sh-flag">--remote-byok</span>
+</code></pre>
+<p><code>--remote-byok</code> only works with <code>--remote</code>. The key comes from <code>CM_REMOTE_BYOK</code>
+first, then from the <code>remote-byok</code> config value. With <code>remote-byok-default on</code> the
+flag is not needed, and <code>--no-remote-byok</code> turns it off for one run. Before it
+sends anything, the CLI prints <code>Using your own key with the server&#39;s provider:</code>
+followed by the provider&#39;s name.</p>
+<p>The CLI never falls back to the server&#39;s key when you asked for your own. Each of
+these stops the run with exit code 2 before the diff is sent:</p>
+<table>
+<thead>
+<tr>
+<th>Message</th>
+<th>Why</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>No BYOK key is set.</code></td>
+<td><code>--remote-byok</code> with no key anywhere</td>
+<td><code>co-maintainer config set remote-byok &lt;key&gt;</code>, or set <code>CM_REMOTE_BYOK</code></td>
+</tr>
+<tr>
+<td><code>This server (version X) does not support your own key.</code></td>
+<td>The server predates the feature and would ignore the key, so the CLI refuses to rely on it</td>
+<td>Upgrade the server, or run without <code>--remote-byok</code></td>
+</tr>
+<tr>
+<td><code>This server does not accept your own key.</code></td>
+<td>The server&#39;s policy is <code>off</code></td>
+<td>Run without <code>--remote-byok</code></td>
+</tr>
+<tr>
+<td><code>This server requires your own key.</code></td>
+<td>The server&#39;s policy is <code>require</code> and the run did not send one</td>
+<td><code>co-maintainer review --remote --remote-byok</code></td>
+</tr>
+</tbody></table>
+<p>If the host starts with <code>http://</code> and is not <code>localhost</code>, <code>127.0.0.1</code> or <code>::1</code>,
+the CLI warns on stderr that anyone on the network path can read the key, then
+carries on. Use <code>https://</code>. Both stderr lines are
+left out with <code>--json</code>.</p>
+<h3 id="on-the-server">On the server</h3>
+<p>The policy is a server setting, <code>off</code>, <code>allow</code> or <code>require</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Policy</th>
+<th>A review without a key</th>
+<th>A review with a key</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>off</code> (the default)</td>
+<td>Uses the server&#39;s key</td>
+<td>Refused with 403: <code>This server does not accept your own key.</code></td>
+</tr>
+<tr>
+<td><code>allow</code></td>
+<td>Uses the server&#39;s key</td>
+<td>Uses your key</td>
+</tr>
+<tr>
+<td><code>require</code></td>
+<td>Refused with 403: <code>This server requires your own key. Run with --remote-byok.</code></td>
+<td>Uses your key</td>
+</tr>
+</tbody></table>
+<p>Set it under <strong>Settings</strong>, <strong>Remote review</strong>, <strong>Client key policy (BYOK)</strong>, with
+<code>co-maintainer set --remote-byok-policy=allow</code>, or with the <code>CM_REMOTE_BYOK_POLICY</code>
+environment variable. The variable wins over the saved value, so a hosted server
+keeps its policy. The handshake tells the CLI which policy is in force and which
+provider the server uses. It never includes a key or a model.</p>
+<h3 id="what-happens-to-the-key">What happens to the key</h3>
+<ul>
+<li>It is kept in the server&#39;s memory for that one review. It is removed when the
+review finishes, is canceled, or is replaced by a newer submit.</li>
+<li>It is never written to <code>app.db</code>, to the cache, to the config, or to a log or a
+job log. A test searches the raw database file and every log for a known key
+after a full review.</li>
+<li>If the server restarts while your review is waiting, the key is gone with it.
+The review ends with <code>Your key was not kept across a server restart. Submit the review again.</code> and the server&#39;s own key is never used instead.</li>
+<li>If the provider refuses the key, the error says so and names your key:
+<code>The AI provider rejected your own key.</code> Other provider failures are reported
+as what they are.</li>
+</ul>
+<h3 id="cost">Cost</h3>
+<p>A review sent with a key is recorded as billed to the key&#39;s owner. The dashboard
+keeps it out of the server&#39;s own spend. A total reads <code>$1.23 + $0.40 BYOK</code>, the
+server&#39;s cost first and what clients paid with their own keys after the plus
+sign. See <a href="cost.html">Cost</a>.</p>
 <h2 id="limits">Limits</h2>
 <ul>
 <li>Submit body size is capped (handshake <code>limits.maxBodyBytes</code>).</li>
@@ -186,6 +328,8 @@ the machine you are on. A rejected token prints the same Settings hint
 <h2 id="security">Security</h2>
 <ul>
 <li>Tokens are hashed at rest. Treat <code>cmr_…</code> like a password.</li>
+<li>A key you send travels with the request. Use an <code>https://</code> host, and see
+<a href="#what-happens-to-the-key">What happens to the key</a>.</li>
 <li>Deactivating or deleting a token cancels in-flight remote reviews for that token.</li>
 <li>Only your <strong>diff</strong> leaves the machine. The CLI shows a one-time notice per host.</li>
 </ul>
@@ -196,7 +340,7 @@ the machine you are on. A rejected token prints the same Settings hint
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#reading-the-servers-guides">Reading the server&#39;s guides</a></li><li><a href="#limits">Limits</a></li><li><a href="#security">Security</a></li></ul></nav>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#reading-the-servers-guides">Reading the server&#39;s guides</a></li><li><a href="#your-own-ai-key">Your own AI key</a></li><li><a href="#limits">Limits</a></li><li><a href="#security">Security</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

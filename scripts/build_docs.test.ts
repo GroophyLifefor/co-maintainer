@@ -115,8 +115,8 @@ test("every page is written under docs/ with a description and canonical", async
   const outDir = await buildInto();
   try {
     const pages = await htmlFiles(join(outDir, "docs"));
-    if (pages.length !== 21) {
-      throw new Error(`expected 21 doc pages, found ${pages.length}`);
+    if (pages.length !== 23) {
+      throw new Error(`expected 23 doc pages, found ${pages.length}`);
     }
     for (const page of pages) {
       const html = await readTextFile(page);
@@ -411,6 +411,7 @@ test("llms.txt lists every page and llms-full.txt inlines them", async () => {
       "local-review",
       "remote-review",
       "ci",
+      "review-policy",
       "local-pr-review",
       "serve",
       "dashboard",
@@ -418,6 +419,7 @@ test("llms.txt lists every page and llms-full.txt inlines them", async () => {
       "cloud",
       "commands",
       "configuration",
+      "providers",
       "authentication",
       "caching",
       "cost",

@@ -48,6 +48,7 @@
           <li><a href="local-review.html">Local review</a></li>
           <li><a href="remote-review.html">Remote review</a></li>
           <li><a href="ci.html">CI</a></li>
+          <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           </ul>
         </div>
@@ -70,6 +71,7 @@
           <ul class="nav-list">
           <li><a href="commands.html">Commands</a></li>
           <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="providers.html">AI providers</a></li>
           <li><a href="authentication.html">Authentication</a></li>
           <li><a href="caching.html">Caching</a></li>
           <li><a href="cost.html">Cost</a></li>
@@ -197,8 +199,10 @@ reviewed) and <strong>who keeps that context up to date</strong>.</p>
 </tr>
 </tbody></table>
 <p>Team-wide <strong>automatic</strong> PR reviews on webhooks are not a fourth <code>review</code> mode.
-They go through <a href="serve.html"><code>serve</code></a> and the GitHub App. Use PR review when <strong>you</strong>
-run the CLI against one PR.</p>
+They go through <a href="serve.html"><code>serve</code></a> and the GitHub App, and a
+<a href="review-policy.html">review policy</a> decides which pull requests they review. Use PR
+review when <strong>you</strong> run the CLI against one PR. To run a remote review on every
+pull request from a workflow, use the <a href="ci.html">GitHub Action</a>.</p>
 <h2 id="depth-improve-matrix">Depth: <code>--improve-matrix</code></h2>
 <p>Reviews share one depth control, <code>--improve-matrix=N</code>. <code>1</code> is the default. Each
 step up adds another pass that audits the draft against the complete diff and the
@@ -267,6 +271,24 @@ include <code>mode</code> (<code>local</code>, <code>remote</code>, or <code>pr<
 metadata and <code>codegraph</code> state. Errors with <code>--json</code> are JSON on stdout as well.</p>
 <p>Flag details per mode: <a href="local-review.html">Local review</a>, <a href="remote-review.html">Remote review</a>,
 <a href="local-pr-review.html">PR review</a>.</p>
+<h2 id="github-output">GitHub output</h2>
+<p><code>--output=github</code> prints the findings as GitHub workflow annotations and writes a
+table to the job summary, for a run inside GitHub Actions. It works in all three
+modes and cannot be combined with <code>--json</code>.</p>
+<ul>
+<li>Each finding that is still open becomes one command on stdout, <code>::error</code> when it
+blocks and <code>::warning</code> when it does not, with its file, line span and a short
+title. A finding closed since the last review is not annotated.</li>
+<li>When <code>GITHUB_STEP_SUMMARY</code> is set, a table of every finding, the cost and the
+time is appended to it. An unknown cost reads <code>cost unknown</code> with the reason.</li>
+<li>The exit code is the same as without the flag, so a blocking finding fails the
+step.</li>
+<li>Nothing else goes to stdout in this mode. Every finding is one escaped line, so
+text from a pull request can never start a workflow command of its own.</li>
+</ul>
+<p>GitHub shows at most ten errors and ten warnings per step. When there are more,
+one notice says how many were left out, and the job summary lists all of them.
+<a href="ci.html">CI</a> shows it inside a workflow.</p>
 <h2 id="human-output">Human output</h2>
 <p>Without <code>--json</code>, all three modes print the <strong>same</strong> format. Only the header
 names the mode, because the subject differs:</p>
@@ -322,8 +344,8 @@ disagree.</p>
 <td>Required for local and PR review</td>
 </tr>
 <tr>
-<td><a href="configuration.html">OpenRouter</a> for local and PR review</td>
-<td>AI runs on your machine</td>
+<td><a href="providers.html">OpenRouter</a> for local and PR review, with both models saved</td>
+<td>AI runs on your machine, and no model is picked for you</td>
 </tr>
 <tr>
 <td><a href="remote-review.html">Remote setup</a> for <code>--remote</code></td>
@@ -337,7 +359,7 @@ disagree.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#which-mode-should-i-use">Which mode should I use?</a></li><li><a href="#how-the-three-modes-differ">How the three modes differ</a></li><li><a href="#depth-improve-matrix">Depth: --improve-matrix</a></li><li><a href="#exit-codes">Exit codes</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#human-output">Human output</a></li><li><a href="#how-findings-are-produced">How findings are produced</a></li><li><a href="#before-any-review">Before any review</a></li></ul></nav>
+      <ul><li><a href="#which-mode-should-i-use">Which mode should I use?</a></li><li><a href="#how-the-three-modes-differ">How the three modes differ</a></li><li><a href="#depth-improve-matrix">Depth: --improve-matrix</a></li><li><a href="#exit-codes">Exit codes</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#github-output">GitHub output</a></li><li><a href="#human-output">Human output</a></li><li><a href="#how-findings-are-produced">How findings are produced</a></li><li><a href="#before-any-review">Before any review</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

@@ -16,6 +16,7 @@
 - [Local review](https://co-maintainer.com/docs/local-review.md)
 - [Remote review](https://co-maintainer.com/docs/remote-review.md)
 - [CI](https://co-maintainer.com/docs/ci.md)
+- [Review policy](https://co-maintainer.com/docs/review-policy.md)
 - [PR review](https://co-maintainer.com/docs/local-pr-review.md)
 
 ## Self-hosted
@@ -32,6 +33,7 @@
 
 - [Commands](https://co-maintainer.com/docs/commands.md)
 - [Configuration](https://co-maintainer.com/docs/configuration.md)
+- [AI providers](https://co-maintainer.com/docs/providers.md)
 - [Authentication](https://co-maintainer.com/docs/authentication.md)
 - [Caching](https://co-maintainer.com/docs/caching.md)
 - [Cost](https://co-maintainer.com/docs/cost.md)

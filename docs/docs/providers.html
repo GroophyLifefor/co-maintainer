@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI providers · co-maintainer docs</title>
+  <meta name="description" content="co-maintainer asks an AI provider to write the guides in init and sync and to write every review. Three providers are supported.">
+  <link rel="canonical" href="https://co-maintainer.com/docs/providers.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="ci.html">CI</a></li>
+          <li><a href="review-policy.html">Review policy</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="providers.html" class="active">AI providers</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="privacy.html">Data and privacy</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>AI providers</h1>
+<p>co-maintainer asks an AI provider to write the guides in <a href="init.html"><code>init</code></a> and
+<a href="sync.html"><code>sync</code></a> and to write every review. Three providers are supported.</p>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th><code>--ai=</code></th>
+<th>Where you get a key</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="https://openrouter.ai/">OpenRouter</a></td>
+<td><code>openrouter</code></td>
+<td>openrouter.ai, under Keys</td>
+</tr>
+<tr>
+<td><a href="https://platform.openai.com/">OpenAI</a></td>
+<td><code>openai</code></td>
+<td>platform.openai.com, under API keys</td>
+</tr>
+<tr>
+<td><a href="https://console.anthropic.com/">Anthropic</a></td>
+<td><code>anthropic</code></td>
+<td>console.anthropic.com, under API keys</td>
+</tr>
+</tbody></table>
+<p><code>--ai=none</code> is the default until you choose a provider. <a href="probe.html"><code>probe</code></a>
+needs no model, so it works with it.</p>
+<h2 id="where-each-provider-works">Where each provider works</h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>OpenRouter</th>
+<th>OpenAI</th>
+<th>Anthropic</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="init.html"><code>init</code></a> and <a href="sync.html"><code>sync</code></a></td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><a href="serve.html"><code>serve</code></a> jobs and automatic reviews</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><a href="remote-review.html">Remote review</a></td>
+<td>The server&#39;s provider</td>
+<td>The server&#39;s provider</td>
+<td>The server&#39;s provider</td>
+</tr>
+<tr>
+<td><a href="local-review.html">Local review</a> and <a href="local-pr-review.html">PR review</a> on your machine</td>
+<td>Yes</td>
+<td>No</td>
+<td>No</td>
+</tr>
+</tbody></table>
+<p>Local and PR review always call OpenRouter. <code>review --ai=openai</code> is refused.
+For a remote review the provider is whichever one the server is configured with,
+so the laptop never needs a key unless it brings its own (see
+<a href="remote-review.html#your-own-ai-key">your own key</a>).</p>
+<h2 id="pick-a-provider-and-save-it-once">Pick a provider and save it once</h2>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--ai=anthropic</span> <span class="sh-flag">--token=YOUR_KEY</span> <span class="sh-arg">\</span>
+  <span class="sh-flag">--low-model=YOUR_LOW_MODEL_ID</span> <span class="sh-flag">--high-model=YOUR_HIGH_MODEL_ID</span>
+</code></pre>
+<p>After that <code>init</code>, <code>sync</code> and <code>serve</code> need no flags. The dashboard does the same
+under <strong>Settings</strong>, <strong>Models and API key</strong>.</p>
+<h2 id="there-is-no-default-model">There is no default model</h2>
+<p>co-maintainer never picks a model for you. Models change quickly, and an
+installed version cannot fetch a newer list, so a built-in default would one day
+name a model the provider no longer serves. You choose both models once and save
+them, or pass them on the command:</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--low-model</code></td>
+<td>History extraction and diff summaries, the high volume and cheaper work</td>
+</tr>
+<tr>
+<td><code>--high-model</code></td>
+<td>Synthesis of the guides and the review itself</td>
+</tr>
+</tbody></table>
+<p>When one is missing, the command stops before it spends anything:</p>
+<ul>
+<li>In a terminal it asks for the value and suggests none.</li>
+<li>Without a terminal, or with <code>--json</code>, it exits with code 2 and says which one
+is missing: <code>Missing low model. Pass it as a CLI option when running without an interactive terminal</code>.</li>
+<li>A review that reaches a model it does not have reports <code>No low model is configured.</code> with the hint <code>Run co-maintainer set --low-model=..., or pass --low-model=... on the command that needs it.</code></li>
+</ul>
+<p>Use the model ids the provider lists, for example the ones on its models page.
+The examples in these docs use an OpenRouter pair such as
+<code>openai/gpt-oss-120b</code> and <code>openai/gpt-5.6-luna</code>. They are examples, so check your
+provider&#39;s current list before you copy one.</p>
+<h2 id="keys">Keys</h2>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>Key from</th>
+<th>Environment variable</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>OpenRouter</td>
+<td><code>--token=</code>, <code>--ai-key=</code>, <code>set</code></td>
+<td><code>CO_MAINTAINER_TOKEN</code> or <code>OPENROUTER_API_KEY</code></td>
+</tr>
+<tr>
+<td>OpenAI</td>
+<td><code>--token=</code>, <code>--ai-key=</code>, <code>set</code></td>
+<td><code>CO_MAINTAINER_TOKEN</code></td>
+</tr>
+<tr>
+<td>Anthropic</td>
+<td><code>--token=</code>, <code>--ai-key=</code>, <code>set</code></td>
+<td><code>CO_MAINTAINER_TOKEN</code></td>
+</tr>
+</tbody></table>
+<p><code>OPENROUTER_API_KEY</code> is only read when the provider is OpenRouter, so a key for
+one provider is never sent to another. A key is never stored per repository. The
+order every setting is resolved in is on <a href="configuration.html#precedence">Configuration</a>.</p>
+<h2 id="set-checks-the-key-and-the-model"><code>set</code> checks the key and the model</h2>
+<p>Before it writes anything, <code>set</code> asks the provider whether the key works and, if
+you gave a model, whether the provider has it:</p>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>What is checked</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>OpenRouter</td>
+<td>The key against its key endpoint, the model against its model list</td>
+</tr>
+<tr>
+<td>OpenAI</td>
+<td>The key and the model against its model list</td>
+</tr>
+<tr>
+<td>Anthropic</td>
+<td>The key and the model against its model list</td>
+</tr>
+</tbody></table>
+<p>A rejected key or an unknown model exits with code 2 and <strong>nothing is saved</strong>. A
+network failure only warns, because that is not a typo. Pass <code>--no-verify</code> to
+skip the check.</p>
+<h2 id="what-differs-between-providers">What differs between providers</h2>
+<ul>
+<li><strong>OpenRouter</strong> reports the dollar cost of every call, so its reviews show a
+real cost.</li>
+<li><strong>OpenAI</strong> is called through its Responses API. It does not report a cost, so
+the cost of a review is <code>unknown</code>. During a codegraph tool conversation the
+reasoning items of a reasoning model are not passed back between rounds, which
+can make a later round reason a little less well. The number of rounds is
+small, so little is at stake.</li>
+<li><strong>Anthropic</strong> is called through its Messages API. It does not report a cost
+either. The guides are the same prefix in every review and are marked for
+prompt caching, so a review that follows soon after another reads them from
+Anthropic&#39;s cache at the cached rate. The call is not streamed, so a very long
+answer can run into Anthropic&#39;s request timeout.</li>
+</ul>
+<p><code>unknown</code> is not zero. <a href="cost.html#what-unknown-means">Cost</a> explains how the two
+are kept apart. The <a href="probe.html"><code>probe</code></a> estimate says <code>estimate unavailable for this provider</code> for OpenAI and Anthropic instead of printing a made-up dollar
+range.</p>
+<h2 id="errors">Errors</h2>
+<table>
+<thead>
+<tr>
+<th>Message starts with</th>
+<th>Code</th>
+<th>What happened</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>OpenRouter rejected the API key</code>, <code>OpenAI rejected the API key</code>, <code>Anthropic rejected the API key</code></td>
+<td>2</td>
+<td>The provider refused the key. Replace it with <code>co-maintainer set --token=...</code></td>
+</tr>
+<tr>
+<td><code>OpenAI does not know the model</code>, <code>Anthropic does not know the model</code></td>
+<td>2</td>
+<td>The model id is not one the provider serves. The hint links its model list</td>
+</tr>
+<tr>
+<td><code>OpenAI failed with</code>, <code>Anthropic failed with</code></td>
+<td>3</td>
+<td>The provider returned an error that is not about the key or the model. The message carries its status</td>
+</tr>
+<tr>
+<td><code>OpenAI refused to answer</code>, <code>Anthropic refused to answer</code></td>
+<td>3</td>
+<td>The model declined the request. The message says why when the provider did</td>
+</tr>
+</tbody></table>
+<p>More in <a href="troubleshooting.html">Troubleshooting</a>.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/providers.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#where-each-provider-works">Where each provider works</a></li><li><a href="#pick-a-provider-and-save-it-once">Pick a provider and save it once</a></li><li><a href="#there-is-no-default-model">There is no default model</a></li><li><a href="#keys">Keys</a></li><li><a href="#set-checks-the-key-and-the-model">set checks the key and the model</a></li><li><a href="#what-differs-between-providers">What differs between providers</a></li><li><a href="#errors">Errors</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

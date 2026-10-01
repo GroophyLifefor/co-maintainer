@@ -37,12 +37,14 @@ co-maintainer review owner/repo 123 --improve-matrix=2 --debug
 
 co-maintainer review              # local branch (staged, unstaged, untracked)
 co-maintainer review --json       # machine-readable stdout, logs on stderr
+co-maintainer review --output=github  # annotations and a job summary inside GitHub Actions
 ```
 
 Settings live in `config.json`, so a flag you use every time can be saved once:
 
 ```sh
-co-maintainer config set ai-key sk-or-...        # OpenRouter key
+co-maintainer config set ai openrouter             # or openai, or anthropic
+co-maintainer config set ai-key sk-or-...        # your provider's key (OpenRouter, OpenAI or Anthropic)
 co-maintainer config set high-model openai/gpt-5.6-luna
 co-maintainer config set low-model openai/gpt-oss-120b
 co-maintainer config list                        # every key, its value and its source

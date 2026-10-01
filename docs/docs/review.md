@@ -69,8 +69,10 @@ flowchart TB
 | Deep dive | [local-review](local-review.md) | [local-pr-review](local-pr-review.md) | [remote-review](remote-review.md) |
 
 Team-wide **automatic** PR reviews on webhooks are not a fourth `review` mode.
-They go through [`serve`](serve.md) and the GitHub App. Use PR review when **you**
-run the CLI against one PR.
+They go through [`serve`](serve.md) and the GitHub App, and a
+[review policy](review-policy.md) decides which pull requests they review. Use PR
+review when **you** run the CLI against one PR. To run a remote review on every
+pull request from a workflow, use the [GitHub Action](ci.md).
 
 ## Depth: `--improve-matrix`
 
@@ -123,6 +125,26 @@ metadata and `codegraph` state. Errors with `--json` are JSON on stdout as well.
 
 Flag details per mode: [Local review](local-review.md), [Remote review](remote-review.md),
 [PR review](local-pr-review.md).
+
+## GitHub output
+
+`--output=github` prints the findings as GitHub workflow annotations and writes a
+table to the job summary, for a run inside GitHub Actions. It works in all three
+modes and cannot be combined with `--json`.
+
+- Each finding that is still open becomes one command on stdout, `::error` when it
+  blocks and `::warning` when it does not, with its file, line span and a short
+  title. A finding closed since the last review is not annotated.
+- When `GITHUB_STEP_SUMMARY` is set, a table of every finding, the cost and the
+  time is appended to it. An unknown cost reads `cost unknown` with the reason.
+- The exit code is the same as without the flag, so a blocking finding fails the
+  step.
+- Nothing else goes to stdout in this mode. Every finding is one escaped line, so
+  text from a pull request can never start a workflow command of its own.
+
+GitHub shows at most ten errors and ten warnings per step. When there are more,
+one notice says how many were left out, and the job summary lists all of them.
+[CI](ci.md) shows it inside a workflow.
 
 ## Human output
 
@@ -180,5 +202,5 @@ disagree.
 | Check | Why |
 | ----- | --- |
 | [`init`](init.md) or [`sync`](sync.md) on your laptop | Required for local and PR review |
-| [OpenRouter](configuration.md) for local and PR review | AI runs on your machine |
+| [OpenRouter](providers.md) for local and PR review, with both models saved | AI runs on your machine, and no model is picked for you |
 | [Remote setup](remote-review.md) for `--remote` | Host, token, repo already inited on the server |

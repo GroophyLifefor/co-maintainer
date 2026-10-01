@@ -16,7 +16,7 @@ flowchart LR
 ```
 
 **Need:** [Node.js 24+](https://nodejs.org/), a repo you can read, `gh auth login`, an
-[OpenRouter](https://openrouter.ai/) key. Details: [Authentication](authentication.md).
+key from [OpenRouter](https://openrouter.ai/), OpenAI or Anthropic ([AI providers](providers.md)). Details: [Authentication](authentication.md).
 
 ## 1. Install
 

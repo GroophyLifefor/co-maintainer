@@ -14,7 +14,7 @@ less time and API usage than a full [`init`](init.md) when little changed.
 | ----- | --- |
 | A successful [`init`](init.md) or `sync` for this `owner/repo` | Without cached state, `sync` refuses to start |
 | [GitHub auth](authentication.md) | Reads the repo through `gh` or a PAT |
-| [AI provider](configuration.md) | Token via `set`, `--token=`, or `--env=PATH` |
+| [AI provider](providers.md) | Token via `set`, `--token=`, or `--env=PATH`, and both models |
 | A reason to refresh | New merges on `main`, outdated guides, or review quality drift |
 
 If the repo was never initialized, run [`init`](init.md) (or [`probe`](probe.md)
@@ -47,7 +47,7 @@ On the [dashboard](dashboard.md), **Sync now** runs the same job as this command
 | `--auth=pat` | Personal access token (see [Authentication](authentication.md)) |
 | `--github-pat=...` | PAT when not in env or config |
 | `--env=PATH` | Load env vars from a file |
-| `--ai=openrouter` | AI provider (`openrouter` or `none`) |
+| `--ai=openrouter` | AI provider (`openrouter`, `openai`, `anthropic` or `none`), see [AI providers](providers.md) |
 | `--token=...` | Provider API key |
 | `--low-model=...` | Model for extraction steps |
 | `--high-model=...` | Model for synthesis steps |

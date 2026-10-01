@@ -34,7 +34,7 @@ flowchart BT
 | ----- | -------- |
 | Highest | `--token=`, `--auth=pat`, `--max-commits=500` on the command |
 | Env file | Only when you pass `--env=./.env` (sets vars if not already set) |
-| Environment | `GITHUB_TOKEN`, `OPENROUTER_API_KEY`, `CO_MAINTAINER_AUTH`, model env vars |
+| Environment | `GITHUB_TOKEN`, `CO_MAINTAINER_TOKEN`, `OPENROUTER_API_KEY`, `CO_MAINTAINER_AUTH`, model env vars, [remote review variables](#remote-review-variables) |
 | Per-repo | `repos["owner/repo"]` after a successful init/sync |
 | Global | `set` defaults in `config.json` |
 | Lowest | Prompts when a required value is still missing |
@@ -55,13 +55,17 @@ co-maintainer set --github-app-id=... --github-app-private-key-path=./app.pem
 co-maintainer set --remote-host=https://your-server --remote-token=cmr_...
 ```
 
+`--ai` also takes `openai` and `anthropic`. There is no default model for any
+provider, so both models are saved the first time. See
+[AI providers](providers.md).
+
 ### `set` flags
 
 | Flag | Written to | Used by |
 | ------ | ---------- | ------- |
-| `--token=...` | `token` | CLI AI calls (OpenRouter) |
+| `--token=...` | `token` | AI calls for the provider in `ai` |
 | `--ai-key=...` | `token` | An alias for `--token`, named for what it is |
-| `--ai=none\|openrouter` | `ai` | CLI and dashboard jobs |
+| `--ai=none\|openrouter\|openai\|anthropic` | `ai` | CLI and dashboard jobs, see [AI providers](providers.md) |
 | `--low-model=...` / `--high-model=...` | `lowModel`, `highModel` | CLI and dashboard jobs |
 | `--auth=gh\|pat` | `auth` | CLI GitHub reads |
 | `--github-pat=...` | `githubPat` | CLI when `--auth=pat` |
@@ -77,6 +81,11 @@ co-maintainer set --remote-host=https://your-server --remote-token=cmr_...
 | `--remote-host=...` | `remoteHost` | `review --remote` |
 | `--remote-token=...` | `remoteToken` | `review --remote` |
 | `--review-blocking=model\|severity` | `reviewBlocking` | Whether a review's own severity decides a blocking finding |
+| `--remote-byok=KEY` | `remoteByok` | `review --remote`, your own AI key, see [Remote review](remote-review.md#your-own-ai-key) |
+| `--remote-byok-default=on\|off` | `remoteByokDefault` | Whether `review --remote` sends `remote-byok` without being asked |
+| `--remote-byok-policy=off\|allow\|require` | `remoteByokPolicy` | `serve`, whether remote clients may send their own key |
+| `--review-policy=everyone\|trusted-auto\|on-request-only` | `reviewPolicy` | `serve`, the [review policy](review-policy.md) new repositories start with |
+| `--review-policy-file=PATH` | `reviewPolicy` (the parsed policy) | The same, from a JSON file. A bad policy is refused and nothing is saved |
 
 ### App private key: inline, file contents, or path
 
@@ -96,11 +105,13 @@ clears the other form when you pass one, so the choice is unambiguous.
 
 ### Verification before saving
 
-When the provider is OpenRouter, `set` checks the key against
-`/api/v1/key` and, if a model is given, that `/api/v1/models` lists it. A bad
+Whatever the provider is, `set` asks it whether the key works and, if a model is
+given, whether the provider has that model. OpenRouter is checked against its
+key and model endpoints, OpenAI and Anthropic against their model list. A bad
 key or unknown model is refused with exit code 2 and **nothing is written**. A
 network failure only warns (`saved anyway`), because that is not a typo. Pass
-`--no-verify` to skip the check, for example in CI with an offline key.
+`--no-verify` to skip the check, for example in CI with an offline key. The
+checks are listed on [AI providers](providers.md#set-checks-the-key-and-the-model).
 
 OAuth setup steps: [`serve`: Sign in](serve.md#sign-in-to-the-dashboard).
 
@@ -137,7 +148,7 @@ hides the value.
 | Key | Type | Source | Masked |
 | --- | ---- | ------ | ------ |
 | `auth` | `gh` or `pat` | `set` flag | no |
-| `ai` | `none` or `openrouter` | `set` flag | no |
+| `ai` | `none`, `openrouter`, `openai` or `anthropic` | `set` flag | no |
 | `low-model` | string | `set` flag | no |
 | `high-model` | string | `set` flag | no |
 | `token` | string | `--token` or `--ai-key` | yes |
@@ -158,6 +169,14 @@ hides the value.
 | `review-blocking` | `model` or `severity` | `--review-blocking` | no |
 | `remote-host` | URL string | `--remote-host` | no |
 | `remote-token` | string | `--remote-token` | yes |
+| `remote-byok` | string | `--remote-byok` | yes |
+| `remote-byok-default` | boolean | `--remote-byok-default` | no |
+| `remote-byok-policy` | `off`, `allow` or `require` | `--remote-byok-policy`, Settings, Remote review | no |
+| `review-policy` | template name or policy object | `--review-policy`, `--review-policy-file`, Settings, Defaults | no |
+| `remote-sync-timeout-seconds` | number | Settings | no |
+| `max-concurrent-remote-reviews-per-token` | number | Settings | no |
+| `remote-tool-output-max-chars` | number | Settings | no |
+| `remote-notice-shown-for` | list of hosts | Written by `review --remote` | no |
 | `repos` | object | Written by `init` and `sync` | no |
 
 `config get` prints the real value even for a masked key, so treat its output as
@@ -207,7 +226,7 @@ Windows).
 | Situation | Suggestion |
 | --------- | ---------- |
 | Personal laptop | `set` is fine |
-| Shared CI | Prefer `--env=PATH` or flags, avoid committing config |
+| Shared CI | Prefer environment variables or `--env=PATH`, avoid committing config. For the GitHub Action see [CI](ci.md) |
 | `serve` host | Lock down the config directory like any secret store |
 
 Dashboard **Settings** can also save credentials after validating them with
@@ -221,3 +240,19 @@ GitHub.
 | `CM_REPOS_DIR` | Replace generated guides root (must match `serve` for server init) |
 
 More cache and database paths: [Caching](caching.md#overrides).
+
+## Remote review variables
+
+These let a job with no config file, such as [CI](ci.md), reach a review server.
+A flag wins over the environment, and the environment wins over `config.json`.
+An empty value counts as not set.
+
+| Variable | Effect |
+| -------- | ------ |
+| `CM_REMOTE_HOST` | The server for `review --remote` and `view --remote`, the same as `remote-host` |
+| `CM_REMOTE_TOKEN` | The remote review token, the same as `remote-token`. Keeps it off the command line |
+| `CM_REMOTE_BYOK` | Your own AI key for `review --remote --remote-byok`, the same as `remote-byok` |
+| `CM_REMOTE_BYOK_POLICY` | On the server, `off`, `allow` or `require`. It overrides `remote-byok-policy`, so a hosted deployment cannot be talked out of it from the dashboard |
+
+`config list` shows `env` as the source of `remote-host` and `remote-token` when
+their variable is set.

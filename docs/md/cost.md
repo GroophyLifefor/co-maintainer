@@ -12,8 +12,8 @@ estimate it before you start.
 | `init` | Yes | Extraction and synthesis jobs over code, pull requests, and history |
 | `sync` | Yes, but less | Reuses unchanged evidence from [cache](caching.md), so only changed inputs rebuild |
 | Large-file diff summary | Yes, small | A diff over 500 changed lines is summarized with the low model instead of being sent whole |
-| Local and PR `review` | Yes | Runs on your OpenRouter key |
-| Remote `review` | On the server | The server's key pays, not the laptop's |
+| Local and PR `review` | Yes | Runs on your OpenRouter key, see [AI providers](providers.md) |
+| Remote `review` | On the server | The server's key pays, not the laptop's, unless you [send your own key](remote-review.md#your-own-ai-key) |
 | GitHub App auto-review | On the server | Same as remote |
 
 `gh` reads cost nothing beyond the API rate limit. Codegraph runs locally and is
@@ -29,8 +29,10 @@ range, a time range, and a dollar range, and says which basis it used:
 - **The calibration**, otherwise, taken from the maintainers' reference runs.
 
 If the provider's price list cannot be reached, the dollar line is omitted and
-the estimate says it is unavailable, rather than printing a made-up number. The
-line always ends with `an estimate, not a bill`.
+the estimate says it is unavailable, rather than printing a made-up number. For
+OpenAI and Anthropic, which publish no price list this way, it reads `estimate
+unavailable for this provider`. The line always ends with `an estimate, not a
+bill`.
 
 The dashboard shows the same estimate when you add a repository, and nothing
 starts until you confirm.
@@ -56,7 +58,7 @@ dotted underline you can hover, or tab to, for the reason:
 
 | Reason | What happened |
 | ------ | ------------- |
-| The provider did not report the cost | The AI call finished but its response carried no price |
+| The provider did not report the cost | The AI call finished but its response carried no price. |
 | Some AI calls in this review did not report a cost | Part of a multi-call review priced itself, part did not |
 | Recorded before 0.5.1, the cost was not saved | The review predates this page's own cost tracking |
 | The review ended before its cost was recorded | It failed, was canceled, or the process stopped before an AI call returned |
@@ -64,6 +66,17 @@ dotted underline you can hover, or tab to, for the reason:
 A total adds up only the reviews with a known cost and names how many are
 missing one, for example `$1.23 · 4 reviews with unknown cost`, rather than
 quietly rounding them to zero.
+
+OpenAI and Anthropic never report a cost, so every review on them reads
+`unknown`. OpenRouter reports one. See [AI providers](providers.md#what-differs-between-providers).
+
+## Who pays
+
+A remote review is paid by the server's key unless the client sends its own (see
+[your own key](remote-review.md#your-own-ai-key)). A review paid with a client's
+key is kept out of the server's own spend and shown after a plus sign, so a total
+reads `$1.23 + $0.40 BYOK`. If the cost of those reviews is unknown, it reads
+`4 reviews with unknown cost BYOK` in the same place.
 
 ## Keeping the cost down
 

@@ -69,6 +69,7 @@ const NAV: NavSection[] = [
       { slug: "local-review", label: "Local review" },
       { slug: "remote-review", label: "Remote review" },
       { slug: "ci", label: "CI" },
+      { slug: "review-policy", label: "Review policy" },
       { slug: "local-pr-review", label: "PR review" },
     ],
   },
@@ -89,6 +90,7 @@ const NAV: NavSection[] = [
     items: [
       { slug: "commands", label: "Commands" },
       { slug: "configuration", label: "Configuration" },
+      { slug: "providers", label: "AI providers" },
       { slug: "authentication", label: "Authentication" },
       { slug: "caching", label: "Caching" },
       { slug: "cost", label: "Cost" },

@@ -48,6 +48,7 @@
           <li><a href="local-review.html">Local review</a></li>
           <li><a href="remote-review.html">Remote review</a></li>
           <li><a href="ci.html">CI</a></li>
+          <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           </ul>
         </div>
@@ -70,6 +71,7 @@
           <ul class="nav-list">
           <li><a href="commands.html">Commands</a></li>
           <li><a href="configuration.html" class="active">Configuration</a></li>
+          <li><a href="providers.html">AI providers</a></li>
           <li><a href="authentication.html">Authentication</a></li>
           <li><a href="caching.html">Caching</a></li>
           <li><a href="cost.html">Cost</a></li>
@@ -127,7 +129,7 @@ URL, dashboard auth defaults, and CLI remote-review targets.</p>
 </tr>
 <tr>
 <td>Environment</td>
-<td><code>GITHUB_TOKEN</code>, <code>OPENROUTER_API_KEY</code>, <code>CO_MAINTAINER_AUTH</code>, model env vars</td>
+<td><code>GITHUB_TOKEN</code>, <code>CO_MAINTAINER_TOKEN</code>, <code>OPENROUTER_API_KEY</code>, <code>CO_MAINTAINER_AUTH</code>, model env vars, <a href="#remote-review-variables">remote review variables</a></td>
 </tr>
 <tr>
 <td>Per-repo</td>
@@ -153,6 +155,9 @@ URL, dashboard auth defaults, and CLI remote-review targets.</p>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-app-id=...</span> <span class="sh-flag">--github-app-private-key-path=./app.pem</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--remote-host=https://your-server</span> <span class="sh-flag">--remote-token=cmr_...</span>
 </code></pre>
+<p><code>--ai</code> also takes <code>openai</code> and <code>anthropic</code>. There is no default model for any
+provider, so both models are saved the first time. See
+<a href="providers.html">AI providers</a>.</p>
 <h3 id="set-flags"><code>set</code> flags</h3>
 <table>
 <thead>
@@ -165,7 +170,7 @@ URL, dashboard auth defaults, and CLI remote-review targets.</p>
 <tbody><tr>
 <td><code>--token=...</code></td>
 <td><code>token</code></td>
-<td>CLI AI calls (OpenRouter)</td>
+<td>AI calls for the provider in <code>ai</code></td>
 </tr>
 <tr>
 <td><code>--ai-key=...</code></td>
@@ -173,9 +178,9 @@ URL, dashboard auth defaults, and CLI remote-review targets.</p>
 <td>An alias for <code>--token</code>, named for what it is</td>
 </tr>
 <tr>
-<td><code>--ai=none|openrouter</code></td>
+<td><code>--ai=none|openrouter|openai|anthropic</code></td>
 <td><code>ai</code></td>
-<td>CLI and dashboard jobs</td>
+<td>CLI and dashboard jobs, see <a href="providers.html">AI providers</a></td>
 </tr>
 <tr>
 <td><code>--low-model=...</code> / <code>--high-model=...</code></td>
@@ -252,6 +257,31 @@ URL, dashboard auth defaults, and CLI remote-review targets.</p>
 <td><code>reviewBlocking</code></td>
 <td>Whether a review&#39;s own severity decides a blocking finding</td>
 </tr>
+<tr>
+<td><code>--remote-byok=KEY</code></td>
+<td><code>remoteByok</code></td>
+<td><code>review --remote</code>, your own AI key, see <a href="remote-review.html#your-own-ai-key">Remote review</a></td>
+</tr>
+<tr>
+<td><code>--remote-byok-default=on|off</code></td>
+<td><code>remoteByokDefault</code></td>
+<td>Whether <code>review --remote</code> sends <code>remote-byok</code> without being asked</td>
+</tr>
+<tr>
+<td><code>--remote-byok-policy=off|allow|require</code></td>
+<td><code>remoteByokPolicy</code></td>
+<td><code>serve</code>, whether remote clients may send their own key</td>
+</tr>
+<tr>
+<td><code>--review-policy=everyone|trusted-auto|on-request-only</code></td>
+<td><code>reviewPolicy</code></td>
+<td><code>serve</code>, the <a href="review-policy.html">review policy</a> new repositories start with</td>
+</tr>
+<tr>
+<td><code>--review-policy-file=PATH</code></td>
+<td><code>reviewPolicy</code> (the parsed policy)</td>
+<td>The same, from a JSON file. A bad policy is refused and nothing is saved</td>
+</tr>
 </tbody></table>
 <h3 id="app-private-key-inline-file-contents-or-path">App private key: inline, file contents, or path</h3>
 <p>Three flags set the GitHub App private key, and they differ in what lands in
@@ -268,11 +298,13 @@ not work.</li>
 <p>An inline key wins if both an inline key and a path are ever present. <code>set</code>
 clears the other form when you pass one, so the choice is unambiguous.</p>
 <h3 id="verification-before-saving">Verification before saving</h3>
-<p>When the provider is OpenRouter, <code>set</code> checks the key against
-<code>/api/v1/key</code> and, if a model is given, that <code>/api/v1/models</code> lists it. A bad
+<p>Whatever the provider is, <code>set</code> asks it whether the key works and, if a model is
+given, whether the provider has that model. OpenRouter is checked against its
+key and model endpoints, OpenAI and Anthropic against their model list. A bad
 key or unknown model is refused with exit code 2 and <strong>nothing is written</strong>. A
 network failure only warns (<code>saved anyway</code>), because that is not a typo. Pass
-<code>--no-verify</code> to skip the check, for example in CI with an offline key.</p>
+<code>--no-verify</code> to skip the check, for example in CI with an offline key. The
+checks are listed on <a href="providers.html#set-checks-the-key-and-the-model">AI providers</a>.</p>
 <p>OAuth setup steps: <a href="serve.html#sign-in-to-the-dashboard"><code>serve</code>: Sign in</a>.</p>
 <h2 id="co-maintainer-config"><code>co-maintainer config</code></h2>
 <p>Reads and edits the same <code>config.json</code> without opening the file. <code>set</code> is the
@@ -313,7 +345,7 @@ hides the value.</p>
 </tr>
 <tr>
 <td><code>ai</code></td>
-<td><code>none</code> or <code>openrouter</code></td>
+<td><code>none</code>, <code>openrouter</code>, <code>openai</code> or <code>anthropic</code></td>
 <td><code>set</code> flag</td>
 <td>no</td>
 </tr>
@@ -438,6 +470,54 @@ hides the value.</p>
 <td>yes</td>
 </tr>
 <tr>
+<td><code>remote-byok</code></td>
+<td>string</td>
+<td><code>--remote-byok</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>remote-byok-default</code></td>
+<td>boolean</td>
+<td><code>--remote-byok-default</code></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>remote-byok-policy</code></td>
+<td><code>off</code>, <code>allow</code> or <code>require</code></td>
+<td><code>--remote-byok-policy</code>, Settings, Remote review</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>review-policy</code></td>
+<td>template name or policy object</td>
+<td><code>--review-policy</code>, <code>--review-policy-file</code>, Settings, Defaults</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>remote-sync-timeout-seconds</code></td>
+<td>number</td>
+<td>Settings</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>max-concurrent-remote-reviews-per-token</code></td>
+<td>number</td>
+<td>Settings</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>remote-tool-output-max-chars</code></td>
+<td>number</td>
+<td>Settings</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>remote-notice-shown-for</code></td>
+<td>list of hosts</td>
+<td>Written by <code>review --remote</code></td>
+<td>no</td>
+</tr>
+<tr>
 <td><code>repos</code></td>
 <td>object</td>
 <td>Written by <code>init</code> and <code>sync</code></td>
@@ -507,7 +587,7 @@ Windows).</p>
 </tr>
 <tr>
 <td>Shared CI</td>
-<td>Prefer <code>--env=PATH</code> or flags, avoid committing config</td>
+<td>Prefer environment variables or <code>--env=PATH</code>, avoid committing config. For the GitHub Action see <a href="ci.html">CI</a></td>
 </tr>
 <tr>
 <td><code>serve</code> host</td>
@@ -534,6 +614,36 @@ GitHub.</p>
 </tr>
 </tbody></table>
 <p>More cache and database paths: <a href="caching.html#overrides">Caching</a>.</p>
+<h2 id="remote-review-variables">Remote review variables</h2>
+<p>These let a job with no config file, such as <a href="ci.html">CI</a>, reach a review server.
+A flag wins over the environment, and the environment wins over <code>config.json</code>.
+An empty value counts as not set.</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>CM_REMOTE_HOST</code></td>
+<td>The server for <code>review --remote</code> and <code>view --remote</code>, the same as <code>remote-host</code></td>
+</tr>
+<tr>
+<td><code>CM_REMOTE_TOKEN</code></td>
+<td>The remote review token, the same as <code>remote-token</code>. Keeps it off the command line</td>
+</tr>
+<tr>
+<td><code>CM_REMOTE_BYOK</code></td>
+<td>Your own AI key for <code>review --remote --remote-byok</code>, the same as <code>remote-byok</code></td>
+</tr>
+<tr>
+<td><code>CM_REMOTE_BYOK_POLICY</code></td>
+<td>On the server, <code>off</code>, <code>allow</code> or <code>require</code>. It overrides <code>remote-byok-policy</code>, so a hosted deployment cannot be talked out of it from the dashboard</td>
+</tr>
+</tbody></table>
+<p><code>config list</code> shows <code>env</code> as the source of <code>remote-host</code> and <code>remote-token</code> when
+their variable is set.</p>
 </article>
         <footer class="doc-footer">
           <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/configuration.md">Edit this page</a> on GitHub
@@ -541,7 +651,7 @@ GitHub.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#precedence">Precedence</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#per-repo-memory">Per-repo memory</a></li><li><a href="#secrets-on-disk">Secrets on disk</a></li><li><a href="#path-overrides">Path overrides</a></li></ul></nav>
+      <ul><li><a href="#precedence">Precedence</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#per-repo-memory">Per-repo memory</a></li><li><a href="#secrets-on-disk">Secrets on disk</a></li><li><a href="#path-overrides">Path overrides</a></li><li><a href="#remote-review-variables">Remote review variables</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>
