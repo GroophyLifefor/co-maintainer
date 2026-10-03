@@ -107,6 +107,27 @@ test("run summary: metrics with an unknown cost become a null dollar value", () 
   }
 });
 
+test("run summary: a run that made no AI call costs a real zero, not an unknown", () => {
+  const summary = summaryFromMetrics(
+    {
+      calls: 0,
+      tokensIn: 0,
+      tokensOut: 0,
+      cost: 0,
+      knownCalls: 0,
+      unknownCalls: 0,
+    },
+    12_900,
+  );
+  const line = formatRunSummary(summary);
+  if (!line.endsWith("0 in, 0 out tokens · $0.0000")) {
+    throw new Error(`line: ${line}`);
+  }
+  if (summary.costNote !== undefined) {
+    throw new Error(`costNote: ${summary.costNote}`);
+  }
+});
+
 test("run summary: init prints the line on stderr and keeps stdout clean", async () => {
   const server = await startFakeOpenRouter("success");
   const root = await makeTempDir({ prefix: "cm-summary-init-" });

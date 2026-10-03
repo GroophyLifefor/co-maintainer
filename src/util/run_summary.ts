@@ -68,11 +68,26 @@ export function printRunSummary(summary: RunSummary): void {
   else console.error(line);
 }
 
+/** A run that finished without one AI call, such as a `sync` served entirely
+ * from the cache, spent nothing. `settle` reads that as "ended before its cost
+ * was recorded", which is right for a review row and wrong for this line. */
+function madeNoAiCall(metrics: CostTally): boolean {
+  return metrics.knownCalls === 0 && metrics.unknownCalls === 0;
+}
+
 /** The metrics half of a summary, so call sites do not repeat the spread. */
 export function summaryFromMetrics(
   metrics: AiMetrics,
   durationMs: number | null,
 ): RunSummary {
+  if (madeNoAiCall(metrics)) {
+    return {
+      durationMs,
+      tokensIn: metrics.tokensIn,
+      tokensOut: metrics.tokensOut,
+      costUsd: 0,
+    };
+  }
   const outcome = settle(metrics);
   return {
     durationMs,
@@ -87,6 +102,7 @@ export function summaryFromMetrics(
 
 /** `0.0016` for a known cost, `unknown` otherwise. For the timing log line. */
 export function costLabel(metrics: CostTally): string {
+  if (madeNoAiCall(metrics)) return "0.0000";
   const outcome = settle(metrics);
   return outcome.status === "known" ? outcome.usd.toFixed(4) : "unknown";
 }
