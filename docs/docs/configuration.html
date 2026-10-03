@@ -129,7 +129,7 @@ URL, dashboard auth defaults, and CLI remote-review targets.</p>
 </tr>
 <tr>
 <td>Environment</td>
-<td><code>GITHUB_TOKEN</code>, <code>CO_MAINTAINER_TOKEN</code>, <code>OPENROUTER_API_KEY</code>, <code>CO_MAINTAINER_AUTH</code>, model env vars, <a href="#remote-review-variables">remote review variables</a></td>
+<td><code>GITHUB_TOKEN</code>, <code>CO_MAINTAINER_TOKEN</code>, <code>OPENROUTER_API_KEY</code>, <code>OPENCODE_API_KEY</code>, <code>CO_MAINTAINER_AUTH</code>, model env vars, <a href="#remote-review-variables">remote review variables</a></td>
 </tr>
 <tr>
 <td>Per-repo</td>
@@ -178,7 +178,7 @@ provider, so both models are saved the first time. See
 <td>An alias for <code>--token</code>, named for what it is</td>
 </tr>
 <tr>
-<td><code>--ai=none|openrouter|openai|anthropic</code></td>
+<td><code>--ai=none|openrouter|openai|anthropic|opencode-zen|opencode-go</code></td>
 <td><code>ai</code></td>
 <td>CLI and dashboard jobs, see <a href="providers.html">AI providers</a></td>
 </tr>
@@ -300,7 +300,9 @@ clears the other form when you pass one, so the choice is unambiguous.</p>
 <h3 id="verification-before-saving">Verification before saving</h3>
 <p>Whatever the provider is, <code>set</code> asks it whether the key works and, if a model is
 given, whether the provider has that model. OpenRouter is checked against its
-key and model endpoints, OpenAI and Anthropic against their model list. A bad
+key and model endpoints, OpenAI and Anthropic against their model list, and
+OpenCode against its public model list, which checks the model but not the
+key. A bad
 key or unknown model is refused with exit code 2 and <strong>nothing is written</strong>. A
 network failure only warns (<code>saved anyway</code>), because that is not a typo. Pass
 <code>--no-verify</code> to skip the check, for example in CI with an offline key. The
@@ -345,7 +347,7 @@ hides the value.</p>
 </tr>
 <tr>
 <td><code>ai</code></td>
-<td><code>none</code>, <code>openrouter</code>, <code>openai</code> or <code>anthropic</code></td>
+<td><code>none</code>, <code>openrouter</code>, <code>openai</code>, <code>anthropic</code>, <code>opencode-zen</code> or <code>opencode-go</code></td>
 <td><code>set</code> flag</td>
 <td>no</td>
 </tr>

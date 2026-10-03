@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1-beta.2] - 2026-10-04
+
+### Added
+
+- **OpenCode Zen and OpenCode Go.** `--ai=opencode-zen` and `--ai=opencode-go` call the two OpenCode gateways. Every model is called over Chat Completions, and a model that only answers in another format is refused with a hint that says so. Go gets its own user agent and one session id per run, as it asks every client to. The key comes from `--token`, `set` or `OPENCODE_API_KEY`. Neither gateway reports a cost, so it reads `unknown`. See [AI providers](docs/md/providers.md).
+
+### Changed
+
+- **Local and PR review use your saved provider.** Review was pinned to OpenRouter so a Hetzner model never wrote one. Hetzner is gone, so `review` now runs on whichever provider is saved or passed with `--ai`. With none saved it still uses OpenRouter, and `review --ai=none` is refused with `review needs an AI provider`.
+- **`OPENROUTER_LOW_MODEL` and `OPENROUTER_HIGH_MODEL`** are only read when OpenRouter is the provider.
+
+### Fixed
+
+- **A key saved for one provider was sent to OpenRouter by `review`.** With `ai` set to OpenAI or Anthropic, review still called OpenRouter with that key. It now goes only to the saved provider.
+- **A run with no AI call printed `cost unknown`.** A `sync` served entirely from the cache said the review ended before its cost was recorded. It now prints `$0.0000`, as 0.5.0 did.
+- **OpenAI keys are masked in logs and output**, like OpenRouter and Anthropic keys.
+
 ## [0.5.1-beta.1] - 2026-10-01
 
 ### Added

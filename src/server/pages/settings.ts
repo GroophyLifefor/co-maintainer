@@ -71,6 +71,12 @@ export function renderSettings(
             <option value="anthropic"${
               config.ai === "anthropic" ? " selected" : ""
             }>Anthropic</option>
+            <option value="opencode-zen"${
+              config.ai === "opencode-zen" ? " selected" : ""
+            }>OpenCode Zen</option>
+            <option value="opencode-go"${
+              config.ai === "opencode-go" ? " selected" : ""
+            }>OpenCode Go</option>
           </select></div>
         <div class="field"><label>API key</label>
           <input id="token" type="password" placeholder="Leave blank to keep the current key">

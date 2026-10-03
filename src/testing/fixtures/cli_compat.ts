@@ -208,11 +208,37 @@ export const PARSE_CASES: ParseCase[] = [
     },
   },
   {
-    name: "review forces openrouter and dies without a model",
+    name: "review with no provider set uses openrouter and dies without a model",
     args: ["review", "owner/repo", "42", "--token=tok"],
     expect: {
       error:
         "Missing low model. Pass it as a CLI option when running without an interactive terminal",
+    },
+  },
+  {
+    name: "review keeps the provider it is given",
+    args: [
+      "review",
+      "owner/repo",
+      "42",
+      "--ai=anthropic",
+      "--token=tok",
+      "--low-model=low/model",
+      "--high-model=high/model",
+    ],
+    expect: {
+      command: "review",
+      ai: "anthropic",
+      aiToken: "tok",
+      useCodegraph: true,
+    },
+  },
+  {
+    name: "review --ai=none is refused",
+    args: ["review", "owner/repo", "42", "--ai=none", "--token=tok"],
+    expect: {
+      error:
+        "review needs an AI provider. Pass --ai=openrouter|openai|anthropic|opencode-zen|opencode-go",
     },
   },
   {
@@ -333,7 +359,10 @@ export const PARSE_CASES: ParseCase[] = [
   {
     name: "bad ai value lists the providers",
     args: ["init", "owner/repo", "--ai=gemini"],
-    expect: { error: "ai must be one of: none, openrouter, openai, anthropic" },
+    expect: {
+      error:
+        "ai must be one of: none, openrouter, openai, anthropic, opencode-zen, opencode-go",
+    },
   },
   {
     name: "--codegraph is explicitly rejected with a pointer",

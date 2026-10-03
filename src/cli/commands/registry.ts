@@ -6,6 +6,7 @@
  * twice with different wording. It is also the source the command reference is
  * generated from, which is why it is data rather than template strings.
  */
+import { AI_PROVIDERS } from "../../ai/provider.ts";
 
 export type FlagSpec = {
   /** Without the leading dashes, e.g. `include-codebase`. */
@@ -66,7 +67,7 @@ const AI_FLAGS: FlagGroup = {
   flags: [
     {
       name: "ai",
-      value: "none|openrouter|openai|anthropic",
+      value: AI_PROVIDERS.join("|"),
       default: "none",
       description: "Which provider writes the review.",
     },
@@ -86,17 +87,6 @@ const AI_FLAGS: FlagGroup = {
       value: "ID",
       description: "Model for the review itself.",
     },
-  ],
-};
-
-/** `review` always calls OpenRouter regardless of what `--ai=` is passed,
- * so its own help must not advertise the other three names the
- * other AI commands accept. */
-const REVIEW_AI_FLAGS: FlagGroup = {
-  ...AI_FLAGS,
-  flags: [
-    { ...AI_FLAGS.flags[0]!, value: "openrouter" },
-    ...AI_FLAGS.flags.slice(1),
   ],
 };
 
@@ -407,7 +397,7 @@ export const COMMANDS: CommandSpec[] = [
           },
         ],
       },
-      REVIEW_AI_FLAGS,
+      AI_FLAGS,
       GITHUB_FLAGS,
       REVIEW_OUTPUT_FLAGS,
     ],
@@ -596,7 +586,7 @@ export const COMMANDS: CommandSpec[] = [
           },
           {
             name: "no-verify",
-            description: "Do not check the key and model against OpenRouter.",
+            description: "Do not check the key and model against the provider.",
           },
           {
             name: "unset",

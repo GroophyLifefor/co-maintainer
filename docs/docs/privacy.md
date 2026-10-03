@@ -8,7 +8,7 @@ what it stores, where, and what leaves the machine.
 | Surface | Sent to | What |
 | ------- | ------- | ---- |
 | `probe`, `init`, `sync` | GitHub | API reads through `gh` or a PAT |
-| `init`, `sync`, `review` | Your AI provider ([OpenRouter, OpenAI or Anthropic](providers.md)) | The prompts: sampled code, pull request text, diffs, and guides |
+| `init`, `sync`, `review` | Your AI provider ([OpenRouter, OpenAI, Anthropic or OpenCode](providers.md)) | The prompts: sampled code, pull request text, diffs, and guides |
 | Remote `review` | Your `serve` instance | The git diff, plus codegraph tool requests and results |
 | Remote `review` with your own key | Your `serve` instance | Your AI key, kept in memory for that review and never stored, see [your own key](remote-review.md#your-own-ai-key) |
 | GitHub App review | GitHub | The review comment, the check run, and the inline comments |

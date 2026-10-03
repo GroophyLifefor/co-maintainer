@@ -12,7 +12,7 @@ estimate it before you start.
 | `init` | Yes | Extraction and synthesis jobs over code, pull requests, and history |
 | `sync` | Yes, but less | Reuses unchanged evidence from [cache](caching.md), so only changed inputs rebuild |
 | Large-file diff summary | Yes, small | A diff over 500 changed lines is summarized with the low model instead of being sent whole |
-| Local and PR `review` | Yes | Runs on your OpenRouter key, see [AI providers](providers.md) |
+| Local and PR `review` | Yes | Runs on your provider's key, see [AI providers](providers.md) |
 | Remote `review` | On the server | The server's key pays, not the laptop's, unless you [send your own key](remote-review.md#your-own-ai-key) |
 | GitHub App auto-review | On the server | Same as remote |
 
@@ -67,8 +67,8 @@ A total adds up only the reviews with a known cost and names how many are
 missing one, for example `$1.23 · 4 reviews with unknown cost`, rather than
 quietly rounding them to zero.
 
-OpenAI and Anthropic never report a cost, so every review on them reads
-`unknown`. OpenRouter reports one. See [AI providers](providers.md#what-differs-between-providers).
+OpenAI, Anthropic and OpenCode never report a cost, so every review on them
+reads `unknown`. OpenRouter reports one. See [AI providers](providers.md#what-differs-between-providers).
 
 ## Who pays
 

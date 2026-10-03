@@ -1,30 +1,33 @@
 # AI providers
 
 co-maintainer asks an AI provider to write the guides in [`init`](init.md) and
-[`sync`](sync.md) and to write every review. Three providers are supported.
+[`sync`](sync.md) and to write every review. Five providers are supported.
 
 | Provider | `--ai=` | Where you get a key |
 | -------- | ------- | ------------------- |
 | [OpenRouter](https://openrouter.ai/) | `openrouter` | openrouter.ai, under Keys |
 | [OpenAI](https://platform.openai.com/) | `openai` | platform.openai.com, under API keys |
 | [Anthropic](https://console.anthropic.com/) | `anthropic` | console.anthropic.com, under API keys |
+| [OpenCode Zen](https://opencode.ai/docs/zen) | `opencode-zen` | opencode.ai, after adding credit |
+| [OpenCode Go](https://opencode.ai/docs/go) | `opencode-go` | opencode.ai, with a Go subscription |
 
 `--ai=none` is the default until you choose a provider. [`probe`](probe.md)
 needs no model, so it works with it.
 
 ## Where each provider works
 
-| Command | OpenRouter | OpenAI | Anthropic |
-| ------- | ---------- | ------ | --------- |
-| [`init`](init.md) and [`sync`](sync.md) | Yes | Yes | Yes |
-| [`serve`](serve.md) jobs and automatic reviews | Yes | Yes | Yes |
-| [Remote review](remote-review.md) | The server's provider | The server's provider | The server's provider |
-| [Local review](local-review.md) and [PR review](local-pr-review.md) on your machine | Yes | No | No |
+| Command | Which provider |
+| ------- | -------------- |
+| [`init`](init.md) and [`sync`](sync.md) | The one you saved or pass with `--ai=` |
+| [Local review](local-review.md) and [PR review](local-pr-review.md) | The one you saved or pass with `--ai=` |
+| [`serve`](serve.md) jobs and automatic reviews | The one saved on the server |
+| [Remote review](remote-review.md) | The server's provider |
 
-Local and PR review always call OpenRouter. `review --ai=openai` is refused.
-For a remote review the provider is whichever one the server is configured with,
-so the laptop never needs a key unless it brings its own (see
-[your own key](remote-review.md#your-own-ai-key)).
+Every provider works everywhere. A review with no provider saved uses OpenRouter,
+which is what every review used before other providers existed, and
+`review --ai=none` is refused. For a remote review the provider is whichever
+one the server is configured with, so the laptop never needs a key unless it
+brings its own (see [your own key](remote-review.md#your-own-ai-key)).
 
 ## Pick a provider and save it once
 
@@ -70,9 +73,13 @@ provider's current list before you copy one.
 | OpenRouter | `--token=`, `--ai-key=`, `set` | `CO_MAINTAINER_TOKEN` or `OPENROUTER_API_KEY` |
 | OpenAI | `--token=`, `--ai-key=`, `set` | `CO_MAINTAINER_TOKEN` |
 | Anthropic | `--token=`, `--ai-key=`, `set` | `CO_MAINTAINER_TOKEN` |
+| OpenCode Zen and Go | `--token=`, `--ai-key=`, `set` | `CO_MAINTAINER_TOKEN` or `OPENCODE_API_KEY` |
 
-`OPENROUTER_API_KEY` is only read when the provider is OpenRouter, so a key for
-one provider is never sent to another. A key is never stored per repository. The
+`OPENROUTER_API_KEY` is only read when the provider is OpenRouter and
+`OPENCODE_API_KEY` only for OpenCode, so a key for one provider is never sent
+to another. The saved key belongs to the saved provider, and every command,
+review included, sends it there. `OPENROUTER_LOW_MODEL` and
+`OPENROUTER_HIGH_MODEL` are likewise only read for OpenRouter. A key is never stored per repository. The
 order every setting is resolved in is on [Configuration](configuration.md#precedence).
 
 ## `set` checks the key and the model
@@ -85,6 +92,7 @@ you gave a model, whether the provider has it:
 | OpenRouter | The key against its key endpoint, the model against its model list |
 | OpenAI | The key and the model against its model list |
 | Anthropic | The key and the model against its model list |
+| OpenCode Zen and Go | The model against the public model list. The list needs no key, so a wrong key shows up on the first real call |
 
 A rejected key or an unknown model exits with code 2 and **nothing is saved**. A
 network failure only warns, because that is not a typo. Pass `--no-verify` to
@@ -105,6 +113,18 @@ skip the check.
   Anthropic's cache at the cached rate. The call is not streamed, so a very long
   answer can run into Anthropic's request timeout.
 
+- **OpenCode Zen and Go** route each model to its own API format, and the
+  model list does not say which. co-maintainer calls every model over Chat
+  Completions. A model that only answers in another format is refused with
+  `OpenCode Zen does not know the model` and a hint that says so. Pick a model
+  that supports Chat Completions. Gemini models on Zen use Google's format and
+  do not work. Neither gateway reports a cost, so a review on it is `unknown`.
+- **OpenCode Go** is a subscription meant for coding agents, and OpenCode
+  watches its traffic for abuse. co-maintainer identifies itself with its own
+  user agent and one session id per run, as Go asks every client to. `init`
+  makes many short calls in a row, which is not the traffic Go is built for, so
+  heavy use may hit its limits or its abuse checks. Zen has no such rule.
+
 `unknown` is not zero. [Cost](cost.md#what-unknown-means) explains how the two
 are kept apart. The [`probe`](probe.md) estimate says `estimate unavailable for
 this provider` for OpenAI and Anthropic instead of printing a made-up dollar
@@ -114,8 +134,8 @@ range.
 
 | Message starts with | Code | What happened |
 | ------------------- | ---- | ------------- |
-| `OpenRouter rejected the API key`, `OpenAI rejected the API key`, `Anthropic rejected the API key` | 2 | The provider refused the key. Replace it with `co-maintainer set --token=...` |
-| `OpenAI does not know the model`, `Anthropic does not know the model` | 2 | The model id is not one the provider serves. The hint links its model list |
+| `OpenRouter rejected the API key`, `OpenAI rejected the API key`, `Anthropic rejected the API key`, `OpenCode Zen rejected the API key`, `OpenCode Go rejected the API key` | 2 | The provider refused the key. Replace it with `co-maintainer set --token=...` |
+| `OpenAI does not know the model`, `Anthropic does not know the model`, `OpenCode Zen does not know the model`, `OpenCode Go does not know the model` | 2 | The model id is not one the provider serves. The hint links its model list |
 | `OpenAI failed with`, `Anthropic failed with` | 3 | The provider returned an error that is not about the key or the model. The message carries its status |
 | `OpenAI refused to answer`, `Anthropic refused to answer` | 3 | The model declined the request. The message says why when the provider did |
 

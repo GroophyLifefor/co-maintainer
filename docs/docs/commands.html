@@ -275,7 +275,7 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 </tr>
 </thead>
 <tbody><tr>
-<td><code>--ai=none|openrouter|openai|anthropic</code></td>
+<td><code>--ai=none|openrouter|openai|anthropic|opencode-zen|opencode-go</code></td>
 <td>none</td>
 <td>Which provider writes the review.</td>
 </tr>
@@ -449,7 +449,7 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 </tr>
 </thead>
 <tbody><tr>
-<td><code>--ai=none|openrouter|openai|anthropic</code></td>
+<td><code>--ai=none|openrouter|openai|anthropic|opencode-zen|opencode-go</code></td>
 <td>none</td>
 <td>Which provider writes the review.</td>
 </tr>
@@ -624,7 +624,7 @@ co-maintainer review [options]
 </tr>
 </thead>
 <tbody><tr>
-<td><code>--ai=openrouter</code></td>
+<td><code>--ai=none|openrouter|openai|anthropic|opencode-zen|opencode-go</code></td>
 <td>none</td>
 <td>Which provider writes the review.</td>
 </tr>
@@ -767,7 +767,7 @@ co-maintainer view [owner/repo] --path
 </tr>
 </thead>
 <tbody><tr>
-<td><code>--ai=none|openrouter|openai|anthropic</code></td>
+<td><code>--ai=none|openrouter|openai|anthropic|opencode-zen|opencode-go</code></td>
 <td>none</td>
 <td>Which provider writes the review.</td>
 </tr>
@@ -919,7 +919,7 @@ co-maintainer view [owner/repo] --path
 <tr>
 <td><code>--no-verify</code></td>
 <td></td>
-<td>Do not check the key and model against OpenRouter.</td>
+<td>Do not check the key and model against the provider.</td>
 </tr>
 <tr>
 <td><code>--unset=NAME</code></td>

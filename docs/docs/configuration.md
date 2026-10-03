@@ -34,7 +34,7 @@ flowchart BT
 | ----- | -------- |
 | Highest | `--token=`, `--auth=pat`, `--max-commits=500` on the command |
 | Env file | Only when you pass `--env=./.env` (sets vars if not already set) |
-| Environment | `GITHUB_TOKEN`, `CO_MAINTAINER_TOKEN`, `OPENROUTER_API_KEY`, `CO_MAINTAINER_AUTH`, model env vars, [remote review variables](#remote-review-variables) |
+| Environment | `GITHUB_TOKEN`, `CO_MAINTAINER_TOKEN`, `OPENROUTER_API_KEY`, `OPENCODE_API_KEY`, `CO_MAINTAINER_AUTH`, model env vars, [remote review variables](#remote-review-variables) |
 | Per-repo | `repos["owner/repo"]` after a successful init/sync |
 | Global | `set` defaults in `config.json` |
 | Lowest | Prompts when a required value is still missing |
@@ -65,7 +65,7 @@ provider, so both models are saved the first time. See
 | ------ | ---------- | ------- |
 | `--token=...` | `token` | AI calls for the provider in `ai` |
 | `--ai-key=...` | `token` | An alias for `--token`, named for what it is |
-| `--ai=none\|openrouter\|openai\|anthropic` | `ai` | CLI and dashboard jobs, see [AI providers](providers.md) |
+| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | `ai` | CLI and dashboard jobs, see [AI providers](providers.md) |
 | `--low-model=...` / `--high-model=...` | `lowModel`, `highModel` | CLI and dashboard jobs |
 | `--auth=gh\|pat` | `auth` | CLI GitHub reads |
 | `--github-pat=...` | `githubPat` | CLI when `--auth=pat` |
@@ -107,7 +107,9 @@ clears the other form when you pass one, so the choice is unambiguous.
 
 Whatever the provider is, `set` asks it whether the key works and, if a model is
 given, whether the provider has that model. OpenRouter is checked against its
-key and model endpoints, OpenAI and Anthropic against their model list. A bad
+key and model endpoints, OpenAI and Anthropic against their model list, and
+OpenCode against its public model list, which checks the model but not the
+key. A bad
 key or unknown model is refused with exit code 2 and **nothing is written**. A
 network failure only warns (`saved anyway`), because that is not a typo. Pass
 `--no-verify` to skip the check, for example in CI with an offline key. The
@@ -148,7 +150,7 @@ hides the value.
 | Key | Type | Source | Masked |
 | --- | ---- | ------ | ------ |
 | `auth` | `gh` or `pat` | `set` flag | no |
-| `ai` | `none`, `openrouter`, `openai` or `anthropic` | `set` flag | no |
+| `ai` | `none`, `openrouter`, `openai`, `anthropic`, `opencode-zen` or `opencode-go` | `set` flag | no |
 | `low-model` | string | `set` flag | no |
 | `high-model` | string | `set` flag | no |
 | `token` | string | `--token` or `--ai-key` | yes |

@@ -116,7 +116,7 @@ linked pages below.</p>
 <tbody><tr>
 <td>You are in a clone and want feedback on your branch or working tree before you open a PR</td>
 <td><a href="local-review.html">Local review</a></td>
-<td>OpenRouter on your machine, guides on disk</td>
+<td>Your AI provider on your machine, guides on disk</td>
 </tr>
 <tr>
 <td>Same as local review, but the repo is already inited on <a href="serve.html"><code>serve</code></a> and you skip per-laptop init/sync</td>
@@ -187,8 +187,8 @@ reviewed) and <strong>who keeps that context up to date</strong>.</p>
 </tr>
 <tr>
 <td>Extra setup</td>
-<td>OpenRouter</td>
-<td><code>gh auth login</code></td>
+<td><a href="providers.html">AI provider</a></td>
+<td><code>gh auth login</code> and an <a href="providers.html">AI provider</a></td>
 <td><code>serve</code>, token, <code>set --remote-host</code></td>
 </tr>
 <tr>
@@ -322,8 +322,8 @@ which is a different reader.</p>
 the severity, whether it blocks, the path and line span, the symbol, a title, the
 explanation, and an optional replacement. <code>co-maintainer</code> renders the Markdown
 from that object, so a finding&#39;s boundaries are never guessed from the model&#39;s
-wording. The JSON schema is sent as OpenRouter&#39;s <code>response_format</code> when the
-provider accepts it. A provider that rejects the combination gets one request
+wording. The JSON schema is sent as structured output in the provider&#39;s own format
+when the provider accepts it. A provider that rejects the combination gets one request
 without the schema, and the prompt also asks for a fenced JSON block.</p>
 <p>If the answer is not usable JSON, the request is retried once and then, if it
 still fails, the older Markdown parser reads it. That parser accepts the em
@@ -344,7 +344,7 @@ disagree.</p>
 <td>Required for local and PR review</td>
 </tr>
 <tr>
-<td><a href="providers.html">OpenRouter</a> for local and PR review, with both models saved</td>
+<td>An <a href="providers.html">AI provider</a> for local and PR review, with both models saved</td>
 <td>AI runs on your machine, and no model is picked for you</td>
 </tr>
 <tr>

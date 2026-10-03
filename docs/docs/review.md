@@ -26,7 +26,7 @@ flowchart TD
 
 | If this sounds like you | Mode | Read next |
 | ----------------------- | ---- | --------- |
-| You are in a clone and want feedback on your branch or working tree before you open a PR | [Local review](local-review.md) | OpenRouter on your machine, guides on disk |
+| You are in a clone and want feedback on your branch or working tree before you open a PR | [Local review](local-review.md) | Your AI provider on your machine, guides on disk |
 | Same as local review, but the repo is already inited on [`serve`](serve.md) and you skip per-laptop init/sync | [Remote review](remote-review.md) | Shared context on the server, diff from your clone |
 | You have a PR number and do not need to check out that branch locally | [PR review](local-pr-review.md) | `gh` only, guides on disk, AI on your machine |
 
@@ -65,7 +65,7 @@ flowchart TB
 | Typical moment | Pre-push in your clone, you own local guides | Open PR by number, you own local guides | Pre-push using the team's shared server context |
 | Who runs init/sync | You on the laptop | You on the laptop | Ops on the server (you usually do not) |
 | Guides at review time | Laptop cache | Laptop cache | Server dashboard repo |
-| Extra setup | OpenRouter | `gh auth login` | `serve`, token, `set --remote-host` |
+| Extra setup | [AI provider](providers.md) | `gh auth login` and an [AI provider](providers.md) | `serve`, token, `set --remote-host` |
 | Deep dive | [local-review](local-review.md) | [local-pr-review](local-pr-review.md) | [remote-review](remote-review.md) |
 
 Team-wide **automatic** PR reviews on webhooks are not a fourth `review` mode.
@@ -186,8 +186,8 @@ The model is asked for a JSON object, not for prose. For each finding it returns
 the severity, whether it blocks, the path and line span, the symbol, a title, the
 explanation, and an optional replacement. `co-maintainer` renders the Markdown
 from that object, so a finding's boundaries are never guessed from the model's
-wording. The JSON schema is sent as OpenRouter's `response_format` when the
-provider accepts it. A provider that rejects the combination gets one request
+wording. The JSON schema is sent as structured output in the provider's own format
+when the provider accepts it. A provider that rejects the combination gets one request
 without the schema, and the prompt also asks for a fenced JSON block.
 
 If the answer is not usable JSON, the request is retried once and then, if it
@@ -202,5 +202,5 @@ disagree.
 | Check | Why |
 | ----- | --- |
 | [`init`](init.md) or [`sync`](sync.md) on your laptop | Required for local and PR review |
-| [OpenRouter](providers.md) for local and PR review, with both models saved | AI runs on your machine, and no model is picked for you |
+| An [AI provider](providers.md) for local and PR review, with both models saved | AI runs on your machine, and no model is picked for you |
 | [Remote setup](remote-review.md) for `--remote` | Host, token, repo already inited on the server |

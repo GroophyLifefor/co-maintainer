@@ -47,7 +47,7 @@ On the [dashboard](dashboard.md), **Sync now** runs the same job as this command
 | `--auth=pat` | Personal access token (see [Authentication](authentication.md)) |
 | `--github-pat=...` | PAT when not in env or config |
 | `--env=PATH` | Load env vars from a file |
-| `--ai=openrouter` | AI provider (`openrouter`, `openai`, `anthropic` or `none`), see [AI providers](providers.md) |
+| `--ai=openrouter` | AI provider (`openrouter`, `openai`, `anthropic`, `opencode-zen`, `opencode-go` or `none`), see [AI providers](providers.md) |
 | `--token=...` | Provider API key |
 | `--low-model=...` | Model for extraction steps |
 | `--high-model=...` | Model for synthesis steps |

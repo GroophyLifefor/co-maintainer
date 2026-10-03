@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AI providers · co-maintainer docs</title>
-  <meta name="description" content="co-maintainer asks an AI provider to write the guides in init and sync and to write every review. Three providers are supported.">
+  <meta name="description" content="co-maintainer asks an AI provider to write the guides in init and sync and to write every review. Five providers are supported.">
   <link rel="canonical" href="https://co-maintainer.com/docs/providers.html">
   <link rel="stylesheet" href="../assets/site.css">
   <link rel="icon" href="../assets/logo.png">
@@ -85,7 +85,7 @@
       <main class="doc-main">
         <article class="markdown prose"><h1>AI providers</h1>
 <p>co-maintainer asks an AI provider to write the guides in <a href="init.html"><code>init</code></a> and
-<a href="sync.html"><code>sync</code></a> and to write every review. Three providers are supported.</p>
+<a href="sync.html"><code>sync</code></a> and to write every review. Five providers are supported.</p>
 <table>
 <thead>
 <tr>
@@ -109,6 +109,16 @@
 <td><code>anthropic</code></td>
 <td>console.anthropic.com, under API keys</td>
 </tr>
+<tr>
+<td><a href="https://opencode.ai/docs/zen">OpenCode Zen</a></td>
+<td><code>opencode-zen</code></td>
+<td>opencode.ai, after adding credit</td>
+</tr>
+<tr>
+<td><a href="https://opencode.ai/docs/go">OpenCode Go</a></td>
+<td><code>opencode-go</code></td>
+<td>opencode.ai, with a Go subscription</td>
+</tr>
 </tbody></table>
 <p><code>--ai=none</code> is the default until you choose a provider. <a href="probe.html"><code>probe</code></a>
 needs no model, so it works with it.</p>
@@ -117,40 +127,31 @@ needs no model, so it works with it.</p>
 <thead>
 <tr>
 <th>Command</th>
-<th>OpenRouter</th>
-<th>OpenAI</th>
-<th>Anthropic</th>
+<th>Which provider</th>
 </tr>
 </thead>
 <tbody><tr>
 <td><a href="init.html"><code>init</code></a> and <a href="sync.html"><code>sync</code></a></td>
-<td>Yes</td>
-<td>Yes</td>
-<td>Yes</td>
+<td>The one you saved or pass with <code>--ai=</code></td>
+</tr>
+<tr>
+<td><a href="local-review.html">Local review</a> and <a href="local-pr-review.html">PR review</a></td>
+<td>The one you saved or pass with <code>--ai=</code></td>
 </tr>
 <tr>
 <td><a href="serve.html"><code>serve</code></a> jobs and automatic reviews</td>
-<td>Yes</td>
-<td>Yes</td>
-<td>Yes</td>
+<td>The one saved on the server</td>
 </tr>
 <tr>
 <td><a href="remote-review.html">Remote review</a></td>
 <td>The server&#39;s provider</td>
-<td>The server&#39;s provider</td>
-<td>The server&#39;s provider</td>
-</tr>
-<tr>
-<td><a href="local-review.html">Local review</a> and <a href="local-pr-review.html">PR review</a> on your machine</td>
-<td>Yes</td>
-<td>No</td>
-<td>No</td>
 </tr>
 </tbody></table>
-<p>Local and PR review always call OpenRouter. <code>review --ai=openai</code> is refused.
-For a remote review the provider is whichever one the server is configured with,
-so the laptop never needs a key unless it brings its own (see
-<a href="remote-review.html#your-own-ai-key">your own key</a>).</p>
+<p>Every provider works everywhere. A review with no provider saved uses OpenRouter,
+which is what every review used before other providers existed, and
+<code>review --ai=none</code> is refused. For a remote review the provider is whichever
+one the server is configured with, so the laptop never needs a key unless it
+brings its own (see <a href="remote-review.html#your-own-ai-key">your own key</a>).</p>
 <h2 id="pick-a-provider-and-save-it-once">Pick a provider and save it once</h2>
 <pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--ai=anthropic</span> <span class="sh-flag">--token=YOUR_KEY</span> <span class="sh-arg">\</span>
   <span class="sh-flag">--low-model=YOUR_LOW_MODEL_ID</span> <span class="sh-flag">--high-model=YOUR_HIGH_MODEL_ID</span>
@@ -213,9 +214,17 @@ provider&#39;s current list before you copy one.</p>
 <td><code>--token=</code>, <code>--ai-key=</code>, <code>set</code></td>
 <td><code>CO_MAINTAINER_TOKEN</code></td>
 </tr>
+<tr>
+<td>OpenCode Zen and Go</td>
+<td><code>--token=</code>, <code>--ai-key=</code>, <code>set</code></td>
+<td><code>CO_MAINTAINER_TOKEN</code> or <code>OPENCODE_API_KEY</code></td>
+</tr>
 </tbody></table>
-<p><code>OPENROUTER_API_KEY</code> is only read when the provider is OpenRouter, so a key for
-one provider is never sent to another. A key is never stored per repository. The
+<p><code>OPENROUTER_API_KEY</code> is only read when the provider is OpenRouter and
+<code>OPENCODE_API_KEY</code> only for OpenCode, so a key for one provider is never sent
+to another. The saved key belongs to the saved provider, and every command,
+review included, sends it there. <code>OPENROUTER_LOW_MODEL</code> and
+<code>OPENROUTER_HIGH_MODEL</code> are likewise only read for OpenRouter. A key is never stored per repository. The
 order every setting is resolved in is on <a href="configuration.html#precedence">Configuration</a>.</p>
 <h2 id="set-checks-the-key-and-the-model"><code>set</code> checks the key and the model</h2>
 <p>Before it writes anything, <code>set</code> asks the provider whether the key works and, if
@@ -239,24 +248,44 @@ you gave a model, whether the provider has it:</p>
 <td>Anthropic</td>
 <td>The key and the model against its model list</td>
 </tr>
+<tr>
+<td>OpenCode Zen and Go</td>
+<td>The model against the public model list. The list needs no key, so a wrong key shows up on the first real call</td>
+</tr>
 </tbody></table>
 <p>A rejected key or an unknown model exits with code 2 and <strong>nothing is saved</strong>. A
 network failure only warns, because that is not a typo. Pass <code>--no-verify</code> to
 skip the check.</p>
 <h2 id="what-differs-between-providers">What differs between providers</h2>
 <ul>
-<li><strong>OpenRouter</strong> reports the dollar cost of every call, so its reviews show a
-real cost.</li>
-<li><strong>OpenAI</strong> is called through its Responses API. It does not report a cost, so
+<li><p><strong>OpenRouter</strong> reports the dollar cost of every call, so its reviews show a
+real cost.</p>
+</li>
+<li><p><strong>OpenAI</strong> is called through its Responses API. It does not report a cost, so
 the cost of a review is <code>unknown</code>. During a codegraph tool conversation the
 reasoning items of a reasoning model are not passed back between rounds, which
 can make a later round reason a little less well. The number of rounds is
-small, so little is at stake.</li>
-<li><strong>Anthropic</strong> is called through its Messages API. It does not report a cost
+small, so little is at stake.</p>
+</li>
+<li><p><strong>Anthropic</strong> is called through its Messages API. It does not report a cost
 either. The guides are the same prefix in every review and are marked for
 prompt caching, so a review that follows soon after another reads them from
 Anthropic&#39;s cache at the cached rate. The call is not streamed, so a very long
-answer can run into Anthropic&#39;s request timeout.</li>
+answer can run into Anthropic&#39;s request timeout.</p>
+</li>
+<li><p><strong>OpenCode Zen and Go</strong> route each model to its own API format, and the
+model list does not say which. co-maintainer calls every model over Chat
+Completions. A model that only answers in another format is refused with
+<code>OpenCode Zen does not know the model</code> and a hint that says so. Pick a model
+that supports Chat Completions. Gemini models on Zen use Google&#39;s format and
+do not work. Neither gateway reports a cost, so a review on it is <code>unknown</code>.</p>
+</li>
+<li><p><strong>OpenCode Go</strong> is a subscription meant for coding agents, and OpenCode
+watches its traffic for abuse. co-maintainer identifies itself with its own
+user agent and one session id per run, as Go asks every client to. <code>init</code>
+makes many short calls in a row, which is not the traffic Go is built for, so
+heavy use may hit its limits or its abuse checks. Zen has no such rule.</p>
+</li>
 </ul>
 <p><code>unknown</code> is not zero. <a href="cost.html#what-unknown-means">Cost</a> explains how the two
 are kept apart. The <a href="probe.html"><code>probe</code></a> estimate says <code>estimate unavailable for this provider</code> for OpenAI and Anthropic instead of printing a made-up dollar
@@ -271,12 +300,12 @@ range.</p>
 </tr>
 </thead>
 <tbody><tr>
-<td><code>OpenRouter rejected the API key</code>, <code>OpenAI rejected the API key</code>, <code>Anthropic rejected the API key</code></td>
+<td><code>OpenRouter rejected the API key</code>, <code>OpenAI rejected the API key</code>, <code>Anthropic rejected the API key</code>, <code>OpenCode Zen rejected the API key</code>, <code>OpenCode Go rejected the API key</code></td>
 <td>2</td>
 <td>The provider refused the key. Replace it with <code>co-maintainer set --token=...</code></td>
 </tr>
 <tr>
-<td><code>OpenAI does not know the model</code>, <code>Anthropic does not know the model</code></td>
+<td><code>OpenAI does not know the model</code>, <code>Anthropic does not know the model</code>, <code>OpenCode Zen does not know the model</code>, <code>OpenCode Go does not know the model</code></td>
 <td>2</td>
 <td>The model id is not one the provider serves. The hint links its model list</td>
 </tr>

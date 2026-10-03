@@ -304,7 +304,7 @@ Values from `set`, `--env=PATH`, or flags are not asked again.
 | `--auth=pat` | Personal access token (see [Authentication](authentication.md)) |
 | `--github-pat=...` | PAT when not in env or config |
 | `--env=PATH` | Load env vars from a file |
-| `--ai=openrouter` | AI provider (`openrouter`, `openai`, `anthropic` or `none`), see [AI providers](providers.md) |
+| `--ai=openrouter` | AI provider (`openrouter`, `openai`, `anthropic`, `opencode-zen`, `opencode-go` or `none`), see [AI providers](providers.md) |
 | `--token=...` | Provider API key |
 | `--low-model=...` | Model for extraction steps |
 | `--high-model=...` | Model for synthesis steps |
@@ -436,7 +436,7 @@ On the [dashboard](dashboard.md), **Sync now** runs the same job as this command
 | `--auth=pat` | Personal access token (see [Authentication](authentication.md)) |
 | `--github-pat=...` | PAT when not in env or config |
 | `--env=PATH` | Load env vars from a file |
-| `--ai=openrouter` | AI provider (`openrouter`, `openai`, `anthropic` or `none`), see [AI providers](providers.md) |
+| `--ai=openrouter` | AI provider (`openrouter`, `openai`, `anthropic`, `opencode-zen`, `opencode-go` or `none`), see [AI providers](providers.md) |
 | `--token=...` | Provider API key |
 | `--low-model=...` | Model for extraction steps |
 | `--high-model=...` | Model for synthesis steps |
@@ -620,7 +620,7 @@ flowchart TD
 
 | If this sounds like you | Mode | Read next |
 | ----------------------- | ---- | --------- |
-| You are in a clone and want feedback on your branch or working tree before you open a PR | [Local review](local-review.md) | OpenRouter on your machine, guides on disk |
+| You are in a clone and want feedback on your branch or working tree before you open a PR | [Local review](local-review.md) | Your AI provider on your machine, guides on disk |
 | Same as local review, but the repo is already inited on [`serve`](serve.md) and you skip per-laptop init/sync | [Remote review](remote-review.md) | Shared context on the server, diff from your clone |
 | You have a PR number and do not need to check out that branch locally | [PR review](local-pr-review.md) | `gh` only, guides on disk, AI on your machine |
 
@@ -659,7 +659,7 @@ flowchart TB
 | Typical moment | Pre-push in your clone, you own local guides | Open PR by number, you own local guides | Pre-push using the team's shared server context |
 | Who runs init/sync | You on the laptop | You on the laptop | Ops on the server (you usually do not) |
 | Guides at review time | Laptop cache | Laptop cache | Server dashboard repo |
-| Extra setup | OpenRouter | `gh auth login` | `serve`, token, `set --remote-host` |
+| Extra setup | [AI provider](providers.md) | `gh auth login` and an [AI provider](providers.md) | `serve`, token, `set --remote-host` |
 | Deep dive | [local-review](local-review.md) | [local-pr-review](local-pr-review.md) | [remote-review](remote-review.md) |
 
 Team-wide **automatic** PR reviews on webhooks are not a fourth `review` mode.
@@ -780,8 +780,8 @@ The model is asked for a JSON object, not for prose. For each finding it returns
 the severity, whether it blocks, the path and line span, the symbol, a title, the
 explanation, and an optional replacement. `co-maintainer` renders the Markdown
 from that object, so a finding's boundaries are never guessed from the model's
-wording. The JSON schema is sent as OpenRouter's `response_format` when the
-provider accepts it. A provider that rejects the combination gets one request
+wording. The JSON schema is sent as structured output in the provider's own format
+when the provider accepts it. A provider that rejects the combination gets one request
 without the schema, and the prompt also asks for a fenced JSON block.
 
 If the answer is not usable JSON, the request is retried once and then, if it
@@ -796,7 +796,7 @@ disagree.
 | Check | Why |
 | ----- | --- |
 | [`init`](init.md) or [`sync`](sync.md) on your laptop | Required for local and PR review |
-| [OpenRouter](providers.md) for local and PR review, with both models saved | AI runs on your machine, and no model is picked for you |
+| An [AI provider](providers.md) for local and PR review, with both models saved | AI runs on your machine, and no model is picked for you |
 | [Remote setup](remote-review.md) for `--remote` | Host, token, repo already inited on the server |
 
 ---
@@ -806,8 +806,8 @@ Source: https://co-maintainer.com/docs/local-review.md
 # Local review
 
 Review **staged, unstaged, and untracked** files in your git clone against a
-base branch. AI and guides run on **your machine** (OpenRouter via
-[configuration](configuration.md)).
+base branch. AI and guides run on **your machine**, with the
+[AI provider](providers.md) you saved.
 
 Overview: [`review`](review.md).
 
@@ -818,7 +818,7 @@ Overview: [`review`](review.md).
 | Run from the repo root (or a subdirectory with a git root) | Review needs a working tree |
 | `origin` or `upstream` points at GitHub (or use `--repo=owner/repo`) | Maps the clone to guides for that repo |
 | [`init`](init.md) / [`sync`](sync.md) for that `owner/repo` | `SKILL.md` and review guides on disk |
-| OpenRouter key in `set`, `--token=`, or `--env=PATH` | Local review uses your provider |
+| A provider key in `set`, `--token=`, or `--env=PATH` | Local review uses your [provider](providers.md) |
 | Clean enough git state | Conflicts or broken git state can fail collection |
 
 ## Usage
@@ -1454,7 +1454,7 @@ Source: https://co-maintainer.com/docs/local-pr-review.md
 # PR review
 
 Review an **open GitHub pull request** by number. The CLI uses **`gh`** to read
-the PR and runs the AI **on your machine** (OpenRouter).
+the PR and runs the AI **on your machine** with your [AI provider](providers.md).
 
 Overview: [`review`](review.md). This is not the same as
 [remote review](remote-review.md) (`--remote` is rejected when a PR number is
@@ -2203,7 +2203,7 @@ co-maintainer init owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|openai\|anthropic` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
@@ -2263,7 +2263,7 @@ co-maintainer sync owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|openai\|anthropic` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
@@ -2324,7 +2324,7 @@ co-maintainer review [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=openrouter` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
@@ -2394,7 +2394,7 @@ co-maintainer set [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|openai\|anthropic` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
@@ -2430,7 +2430,7 @@ co-maintainer set [options]
 | `--password=TEXT` |  | Replace the dashboard password. |
 | `--disable-auth=password` |  | Turn the dashboard password off. |
 | `--enable-auth=github` |  | Turn GitHub sign-in on. |
-| `--no-verify` |  | Do not check the key and model against OpenRouter. |
+| `--no-verify` |  | Do not check the key and model against the provider. |
 | `--unset=NAME` |  | Remove a stored value. |
 
 ## `co-maintainer serve`
@@ -2526,7 +2526,7 @@ flowchart BT
 | ----- | -------- |
 | Highest | `--token=`, `--auth=pat`, `--max-commits=500` on the command |
 | Env file | Only when you pass `--env=./.env` (sets vars if not already set) |
-| Environment | `GITHUB_TOKEN`, `CO_MAINTAINER_TOKEN`, `OPENROUTER_API_KEY`, `CO_MAINTAINER_AUTH`, model env vars, [remote review variables](#remote-review-variables) |
+| Environment | `GITHUB_TOKEN`, `CO_MAINTAINER_TOKEN`, `OPENROUTER_API_KEY`, `OPENCODE_API_KEY`, `CO_MAINTAINER_AUTH`, model env vars, [remote review variables](#remote-review-variables) |
 | Per-repo | `repos["owner/repo"]` after a successful init/sync |
 | Global | `set` defaults in `config.json` |
 | Lowest | Prompts when a required value is still missing |
@@ -2557,7 +2557,7 @@ provider, so both models are saved the first time. See
 | ------ | ---------- | ------- |
 | `--token=...` | `token` | AI calls for the provider in `ai` |
 | `--ai-key=...` | `token` | An alias for `--token`, named for what it is |
-| `--ai=none\|openrouter\|openai\|anthropic` | `ai` | CLI and dashboard jobs, see [AI providers](providers.md) |
+| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | `ai` | CLI and dashboard jobs, see [AI providers](providers.md) |
 | `--low-model=...` / `--high-model=...` | `lowModel`, `highModel` | CLI and dashboard jobs |
 | `--auth=gh\|pat` | `auth` | CLI GitHub reads |
 | `--github-pat=...` | `githubPat` | CLI when `--auth=pat` |
@@ -2599,7 +2599,9 @@ clears the other form when you pass one, so the choice is unambiguous.
 
 Whatever the provider is, `set` asks it whether the key works and, if a model is
 given, whether the provider has that model. OpenRouter is checked against its
-key and model endpoints, OpenAI and Anthropic against their model list. A bad
+key and model endpoints, OpenAI and Anthropic against their model list, and
+OpenCode against its public model list, which checks the model but not the
+key. A bad
 key or unknown model is refused with exit code 2 and **nothing is written**. A
 network failure only warns (`saved anyway`), because that is not a typo. Pass
 `--no-verify` to skip the check, for example in CI with an offline key. The
@@ -2640,7 +2642,7 @@ hides the value.
 | Key | Type | Source | Masked |
 | --- | ---- | ------ | ------ |
 | `auth` | `gh` or `pat` | `set` flag | no |
-| `ai` | `none`, `openrouter`, `openai` or `anthropic` | `set` flag | no |
+| `ai` | `none`, `openrouter`, `openai`, `anthropic`, `opencode-zen` or `opencode-go` | `set` flag | no |
 | `low-model` | string | `set` flag | no |
 | `high-model` | string | `set` flag | no |
 | `token` | string | `--token` or `--ai-key` | yes |
@@ -2756,30 +2758,33 @@ Source: https://co-maintainer.com/docs/providers.md
 # AI providers
 
 co-maintainer asks an AI provider to write the guides in [`init`](init.md) and
-[`sync`](sync.md) and to write every review. Three providers are supported.
+[`sync`](sync.md) and to write every review. Five providers are supported.
 
 | Provider | `--ai=` | Where you get a key |
 | -------- | ------- | ------------------- |
 | [OpenRouter](https://openrouter.ai/) | `openrouter` | openrouter.ai, under Keys |
 | [OpenAI](https://platform.openai.com/) | `openai` | platform.openai.com, under API keys |
 | [Anthropic](https://console.anthropic.com/) | `anthropic` | console.anthropic.com, under API keys |
+| [OpenCode Zen](https://opencode.ai/docs/zen) | `opencode-zen` | opencode.ai, after adding credit |
+| [OpenCode Go](https://opencode.ai/docs/go) | `opencode-go` | opencode.ai, with a Go subscription |
 
 `--ai=none` is the default until you choose a provider. [`probe`](probe.md)
 needs no model, so it works with it.
 
 ## Where each provider works
 
-| Command | OpenRouter | OpenAI | Anthropic |
-| ------- | ---------- | ------ | --------- |
-| [`init`](init.md) and [`sync`](sync.md) | Yes | Yes | Yes |
-| [`serve`](serve.md) jobs and automatic reviews | Yes | Yes | Yes |
-| [Remote review](remote-review.md) | The server's provider | The server's provider | The server's provider |
-| [Local review](local-review.md) and [PR review](local-pr-review.md) on your machine | Yes | No | No |
+| Command | Which provider |
+| ------- | -------------- |
+| [`init`](init.md) and [`sync`](sync.md) | The one you saved or pass with `--ai=` |
+| [Local review](local-review.md) and [PR review](local-pr-review.md) | The one you saved or pass with `--ai=` |
+| [`serve`](serve.md) jobs and automatic reviews | The one saved on the server |
+| [Remote review](remote-review.md) | The server's provider |
 
-Local and PR review always call OpenRouter. `review --ai=openai` is refused.
-For a remote review the provider is whichever one the server is configured with,
-so the laptop never needs a key unless it brings its own (see
-[your own key](remote-review.md#your-own-ai-key)).
+Every provider works everywhere. A review with no provider saved uses OpenRouter,
+which is what every review used before other providers existed, and
+`review --ai=none` is refused. For a remote review the provider is whichever
+one the server is configured with, so the laptop never needs a key unless it
+brings its own (see [your own key](remote-review.md#your-own-ai-key)).
 
 ## Pick a provider and save it once
 
@@ -2825,9 +2830,13 @@ provider's current list before you copy one.
 | OpenRouter | `--token=`, `--ai-key=`, `set` | `CO_MAINTAINER_TOKEN` or `OPENROUTER_API_KEY` |
 | OpenAI | `--token=`, `--ai-key=`, `set` | `CO_MAINTAINER_TOKEN` |
 | Anthropic | `--token=`, `--ai-key=`, `set` | `CO_MAINTAINER_TOKEN` |
+| OpenCode Zen and Go | `--token=`, `--ai-key=`, `set` | `CO_MAINTAINER_TOKEN` or `OPENCODE_API_KEY` |
 
-`OPENROUTER_API_KEY` is only read when the provider is OpenRouter, so a key for
-one provider is never sent to another. A key is never stored per repository. The
+`OPENROUTER_API_KEY` is only read when the provider is OpenRouter and
+`OPENCODE_API_KEY` only for OpenCode, so a key for one provider is never sent
+to another. The saved key belongs to the saved provider, and every command,
+review included, sends it there. `OPENROUTER_LOW_MODEL` and
+`OPENROUTER_HIGH_MODEL` are likewise only read for OpenRouter. A key is never stored per repository. The
 order every setting is resolved in is on [Configuration](configuration.md#precedence).
 
 ## `set` checks the key and the model
@@ -2840,6 +2849,7 @@ you gave a model, whether the provider has it:
 | OpenRouter | The key against its key endpoint, the model against its model list |
 | OpenAI | The key and the model against its model list |
 | Anthropic | The key and the model against its model list |
+| OpenCode Zen and Go | The model against the public model list. The list needs no key, so a wrong key shows up on the first real call |
 
 A rejected key or an unknown model exits with code 2 and **nothing is saved**. A
 network failure only warns, because that is not a typo. Pass `--no-verify` to
@@ -2860,6 +2870,18 @@ skip the check.
   Anthropic's cache at the cached rate. The call is not streamed, so a very long
   answer can run into Anthropic's request timeout.
 
+- **OpenCode Zen and Go** route each model to its own API format, and the
+  model list does not say which. co-maintainer calls every model over Chat
+  Completions. A model that only answers in another format is refused with
+  `OpenCode Zen does not know the model` and a hint that says so. Pick a model
+  that supports Chat Completions. Gemini models on Zen use Google's format and
+  do not work. Neither gateway reports a cost, so a review on it is `unknown`.
+- **OpenCode Go** is a subscription meant for coding agents, and OpenCode
+  watches its traffic for abuse. co-maintainer identifies itself with its own
+  user agent and one session id per run, as Go asks every client to. `init`
+  makes many short calls in a row, which is not the traffic Go is built for, so
+  heavy use may hit its limits or its abuse checks. Zen has no such rule.
+
 `unknown` is not zero. [Cost](cost.md#what-unknown-means) explains how the two
 are kept apart. The [`probe`](probe.md) estimate says `estimate unavailable for
 this provider` for OpenAI and Anthropic instead of printing a made-up dollar
@@ -2869,8 +2891,8 @@ range.
 
 | Message starts with | Code | What happened |
 | ------------------- | ---- | ------------- |
-| `OpenRouter rejected the API key`, `OpenAI rejected the API key`, `Anthropic rejected the API key` | 2 | The provider refused the key. Replace it with `co-maintainer set --token=...` |
-| `OpenAI does not know the model`, `Anthropic does not know the model` | 2 | The model id is not one the provider serves. The hint links its model list |
+| `OpenRouter rejected the API key`, `OpenAI rejected the API key`, `Anthropic rejected the API key`, `OpenCode Zen rejected the API key`, `OpenCode Go rejected the API key` | 2 | The provider refused the key. Replace it with `co-maintainer set --token=...` |
+| `OpenAI does not know the model`, `Anthropic does not know the model`, `OpenCode Zen does not know the model`, `OpenCode Go does not know the model` | 2 | The model id is not one the provider serves. The hint links its model list |
 | `OpenAI failed with`, `Anthropic failed with` | 3 | The provider returned an error that is not about the key or the model. The message carries its status |
 | `OpenAI refused to answer`, `Anthropic refused to answer` | 3 | The model declined the request. The message says why when the provider did |
 
@@ -3187,7 +3209,7 @@ estimate it before you start.
 | `init` | Yes | Extraction and synthesis jobs over code, pull requests, and history |
 | `sync` | Yes, but less | Reuses unchanged evidence from [cache](caching.md), so only changed inputs rebuild |
 | Large-file diff summary | Yes, small | A diff over 500 changed lines is summarized with the low model instead of being sent whole |
-| Local and PR `review` | Yes | Runs on your OpenRouter key, see [AI providers](providers.md) |
+| Local and PR `review` | Yes | Runs on your provider's key, see [AI providers](providers.md) |
 | Remote `review` | On the server | The server's key pays, not the laptop's, unless you [send your own key](remote-review.md#your-own-ai-key) |
 | GitHub App auto-review | On the server | Same as remote |
 
@@ -3242,8 +3264,8 @@ A total adds up only the reviews with a known cost and names how many are
 missing one, for example `$1.23 · 4 reviews with unknown cost`, rather than
 quietly rounding them to zero.
 
-OpenAI and Anthropic never report a cost, so every review on them reads
-`unknown`. OpenRouter reports one. See [AI providers](providers.md#what-differs-between-providers).
+OpenAI, Anthropic and OpenCode never report a cost, so every review on them
+reads `unknown`. OpenRouter reports one. See [AI providers](providers.md#what-differs-between-providers).
 
 ## Who pays
 
@@ -3292,7 +3314,7 @@ what it stores, where, and what leaves the machine.
 | Surface | Sent to | What |
 | ------- | ------- | ---- |
 | `probe`, `init`, `sync` | GitHub | API reads through `gh` or a PAT |
-| `init`, `sync`, `review` | Your AI provider ([OpenRouter, OpenAI or Anthropic](providers.md)) | The prompts: sampled code, pull request text, diffs, and guides |
+| `init`, `sync`, `review` | Your AI provider ([OpenRouter, OpenAI, Anthropic or OpenCode](providers.md)) | The prompts: sampled code, pull request text, diffs, and guides |
 | Remote `review` | Your `serve` instance | The git diff, plus codegraph tool requests and results |
 | Remote `review` with your own key | Your `serve` instance | Your AI key, kept in memory for that review and never stored, see [your own key](remote-review.md#your-own-ai-key) |
 | GitHub App review | GitHub | The review comment, the check run, and the inline comments |
@@ -3394,7 +3416,7 @@ is the safe default.
 | `does not know the model <name>` | The provider refused the model, for OpenRouter with `400` | Check the name on the provider's model list: [OpenRouter](https://openrouter.ai/models), [OpenAI](https://platform.openai.com/docs/models), [Anthropic](https://docs.anthropic.com/en/docs/about-claude/models) |
 | `Missing low model` or `Missing high model` | No model is saved or passed, and there is no terminal to ask on | co-maintainer never picks a model. Pass `--low-model=` and `--high-model=`, or save them once with `co-maintainer set` |
 | `No low model is configured.` or `No high model is configured.` | A review reached a model that was never set | Run `co-maintainer set --low-model=...`, or pass `--low-model=...` on the command |
-| `review supports OpenRouter only` | `review --ai=openai` or `--ai=anthropic` | Local and PR review always use OpenRouter. See [AI providers](providers.md#where-each-provider-works) |
+| `review needs an AI provider` | `review --ai=none` | Pass a provider, or leave `--ai` out to use the saved one. See [AI providers](providers.md#where-each-provider-works) |
 | `GitHub refused <METHOD> <endpoint>` | The token or the App lacks a permission for that call | The message names the missing permission, for example `Pull requests: Read and write`. See [Authentication](authentication.md) and [GitHub App](github-app.md) |
 | `GitHub returned 404 for` | The repository does not exist, or the token or App cannot see it | The message repeats the permission the call needs |
 | `--output must be: github` or `--output=github cannot be used with --json` | A bad `--output` value, or both output modes at once | Use `--output=github` alone. See [CI](ci.md) |

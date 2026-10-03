@@ -1,6 +1,7 @@
 import { OpenRouterProvider } from "./openrouter.ts";
 import { OpenAiProvider } from "./openai.ts";
 import { AnthropicProvider } from "./anthropic.ts";
+import { openCodeHost } from "./opencode.ts";
 import { die } from "../cli/error.ts";
 import type {
   AiMessage,
@@ -19,7 +20,22 @@ export const AI_PROVIDERS = [
   "openrouter",
   "openai",
   "anthropic",
+  "opencode-zen",
+  "opencode-go",
 ] as const;
+
+/** The provider's own key variable. It is read only when that provider runs,
+ * so a key meant for one provider is never sent to another. */
+export function providerKeyEnv(
+  ai: string,
+  env: (name: string) => string | undefined,
+): string | undefined {
+  if (ai === "openrouter") return env("OPENROUTER_API_KEY");
+  if (ai === "opencode-zen" || ai === "opencode-go") {
+    return env("OPENCODE_API_KEY");
+  }
+  return undefined;
+}
 
 /** Hetzner was dropped in 0.5.1. Naming it beats a generic "must be one of". */
 export function rejectRetiredProvider(value: string | undefined): void {
@@ -41,6 +57,13 @@ export function createAiProvider(
   }
   if (options.ai === "anthropic") {
     return new AnthropicProvider(options.aiToken ?? "", model);
+  }
+  if (options.ai === "opencode-zen" || options.ai === "opencode-go") {
+    return new OpenRouterProvider(
+      options.aiToken ?? "",
+      model,
+      openCodeHost(options.ai),
+    );
   }
   die(`${options.ai} support is not finished yet. Use openrouter or none.`);
 }

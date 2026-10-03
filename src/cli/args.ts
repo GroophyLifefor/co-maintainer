@@ -3,7 +3,11 @@ import { prepareConfig } from "../config.ts";
 import { getEnv } from "../util/runtime.ts";
 import { askLine } from "./prompt.ts";
 import { die } from "./error.ts";
-import { AI_PROVIDERS, rejectRetiredProvider } from "../ai/provider.ts";
+import {
+  AI_PROVIDERS,
+  providerKeyEnv,
+  rejectRetiredProvider,
+} from "../ai/provider.ts";
 import { detectRemoteRepo } from "../local/git_ops.ts";
 import { reviewBlockingFrom } from "../review/blocking.ts";
 import {
@@ -237,10 +241,17 @@ export async function parseArgs(args: string[]): Promise<Options> {
   rejectRetiredProvider(text("ai"));
   let ai = choice("ai", AI_PROVIDERS, configuredAi ?? "none");
   if (command === "review") {
-    if (explicitAi && choice("ai", AI_PROVIDERS, "none") !== "openrouter") {
-      die("review supports OpenRouter only");
+    // Review was pinned to OpenRouter only so Hetzner never wrote one. Hetzner
+    // is gone, so review follows the configured provider. With none set it
+    // stays on OpenRouter, which every review before this one used.
+    if (ai === "none") {
+      if (explicitAi) {
+        die(
+          `review needs an AI provider. Pass --ai=${AI_PROVIDERS.filter((p) => p !== "none").join("|")}`,
+        );
+      }
+      ai = "openrouter";
     }
-    ai = "openrouter";
   } else if (!explicitAi && !configuredAi && command !== "probe") {
     const selected = await ask(
       `AI provider (${AI_PROVIDERS.join("|")})`,
@@ -255,22 +266,26 @@ export async function parseArgs(args: string[]): Promise<Options> {
   let aiToken =
     text("token") ??
     env("CO_MAINTAINER_TOKEN") ??
-    (ai === "openrouter" ? env("OPENROUTER_API_KEY") : undefined) ??
+    providerKeyEnv(ai, env) ??
     config.token;
+  // The OPENROUTER_ names would hand an OpenRouter model id to another
+  // provider, so they only count when OpenRouter is the one running.
+  const openRouterModelEnv = (name: string): string | undefined =>
+    ai === "openrouter" ? env(name) : undefined;
   let lowModel =
     text("low-model") ??
-    env("OPENROUTER_LOW_MODEL") ??
+    openRouterModelEnv("OPENROUTER_LOW_MODEL") ??
     env("LOW_MODEL") ??
     repoConfig.lowModel ??
     config.lowModel;
   let highModel =
     text("high-model") ??
-    env("OPENROUTER_HIGH_MODEL") ??
+    openRouterModelEnv("OPENROUTER_HIGH_MODEL") ??
     env("HIGH_MODEL") ??
     repoConfig.highModel ??
     config.highModel;
   if (command === "review") {
-    aiToken ??= await ask("openrouter API key", undefined, true);
+    aiToken ??= await ask(`${ai} API key`, undefined, true);
     // Review summarizes large files with the low model, so it needs one just
     // as init and sync do. Without a default to fall back on, ask here too.
     lowModel ??= await ask("low model", undefined, true);

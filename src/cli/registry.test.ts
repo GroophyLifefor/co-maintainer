@@ -188,22 +188,18 @@ test("registry: the init help groups flags the way the docs describe", () => {
   }
 });
 
-test("registry: review's --ai only advertises openrouter, unlike init and set", () => {
+test("registry: review and init list every provider", () => {
   const review = renderCommandHelp("review");
   const init = renderCommandHelp("init");
   if (!review || !init) throw new Error("missing help");
-  // No flag carries a model default any more, so `--ai=` is the only place a
-  // provider name can leak into review's help.
-  if (!review.includes("--ai=openrouter ")) {
-    throw new Error(`review's --ai should be openrouter only:\n${review}`);
+  const all = "--ai=none|openrouter|openai|anthropic|opencode-zen|opencode-go";
+  if (!review.includes(all)) {
+    throw new Error(`review should list every provider name:
+${review}`);
   }
-  if (/--ai=[^ ]*(openai|anthropic)/.test(review)) {
-    throw new Error(
-      `review's help advertises a provider it always overrides:\n${review}`,
-    );
-  }
-  if (!init.includes("--ai=none|openrouter|openai|anthropic")) {
-    throw new Error(`init should list every provider name:\n${init}`);
+  if (!init.includes(all)) {
+    throw new Error(`init should list every provider name:
+${init}`);
   }
 });
 

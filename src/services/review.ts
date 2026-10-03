@@ -232,6 +232,8 @@ export function reviewOptions(repo: string, prNumber: number): Options {
     ghConcurrent: 1,
     aiConcurrent: 1,
     auth: "gh",
+    // With no provider saved the App review stays on OpenRouter, the same
+    // fallback the CLI review uses.
     ai: config.ai && config.ai !== "none" ? config.ai : "openrouter",
     aiToken: config.token,
     highModel: config.highModel,

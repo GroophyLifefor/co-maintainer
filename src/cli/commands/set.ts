@@ -5,7 +5,9 @@ import {
   verifyAnthropic,
   verifyOpenAi,
   verifyOpenRouter,
+  type VerifyResult,
 } from "../../ai/verify.ts";
+import { verifyOpenCode } from "../../ai/opencode.ts";
 import { die } from "../error.ts";
 import { parsePolicy } from "../../services/review_policy.ts";
 import { AI_PROVIDERS, rejectRetiredProvider } from "../../ai/provider.ts";
@@ -264,19 +266,19 @@ export async function runSet(args: string[]): Promise<void> {
   const effectiveAi = effective("ai");
   const effectiveToken = effective("token");
   const effectiveHighModel = effective("highModel");
-  if (
-    verify &&
-    (effectiveAi === "openrouter" ||
-      effectiveAi === "openai" ||
-      effectiveAi === "anthropic") &&
-    effectiveToken
-  ) {
-    const verifyProvider =
-      effectiveAi === "openrouter"
-        ? verifyOpenRouter
-        : effectiveAi === "openai"
-          ? verifyOpenAi
-          : verifyAnthropic;
+  const verifiers: Record<
+    string,
+    (key: string, model?: string) => Promise<VerifyResult>
+  > = {
+    openrouter: verifyOpenRouter,
+    openai: verifyOpenAi,
+    anthropic: verifyAnthropic,
+    "opencode-zen": (key, model) => verifyOpenCode("opencode-zen", key, model),
+    "opencode-go": (key, model) => verifyOpenCode("opencode-go", key, model),
+  };
+  const verifyProvider =
+    typeof effectiveAi === "string" ? verifiers[effectiveAi] : undefined;
+  if (verify && verifyProvider && effectiveToken) {
     const result = await verifyProvider(
       String(effectiveToken),
       effectiveHighModel === undefined ? undefined : String(effectiveHighModel),

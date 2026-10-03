@@ -25,7 +25,13 @@ export type Options = {
   envPath?: string;
   auth: "gh" | "pat";
   githubPat?: string;
-  ai: "none" | "openrouter" | "openai" | "anthropic";
+  ai:
+    | "none"
+    | "openrouter"
+    | "openai"
+    | "anthropic"
+    | "opencode-zen"
+    | "opencode-go";
   aiToken?: string;
   lowModel?: string;
   highModel?: string;
@@ -114,7 +120,12 @@ export type AiResponse = {
    * partial cost from a missing one. */
   costCalls?: { known: number; unknown: number };
   model: string;
-  provider: "openrouter" | "openai" | "anthropic";
+  provider:
+    | "openrouter"
+    | "openai"
+    | "anthropic"
+    | "opencode-zen"
+    | "opencode-go";
 };
 
 export type AiProvider = {

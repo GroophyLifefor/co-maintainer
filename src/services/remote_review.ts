@@ -91,9 +91,9 @@ function remoteQueueKey(repo: string, branch: string, tokenId: string): string {
   return `remote:${repo}:${branch}:${tokenId}`;
 }
 
-/** True only for a provider *authentication* rejection: the three providers
- * raise `openrouter_unauthorized`, `openai_unauthorized` and
- * `anthropic_unauthorized`. The list is explicit so an unrelated error that
+/** True only for a provider *authentication* rejection: the providers raise
+ * `openrouter_unauthorized`, `openai_unauthorized`, `anthropic_unauthorized`
+ * and `opencode_unauthorized`. The list is explicit so an unrelated error that
  * happens to end in `_unauthorized` is not relabelled as a bad client key.
  */
 function isProviderAuthError(error: unknown): boolean {
@@ -103,6 +103,7 @@ function isProviderAuthError(error: unknown): boolean {
       "openrouter_unauthorized",
       "openai_unauthorized",
       "anthropic_unauthorized",
+      "opencode_unauthorized",
     ].includes(error.code)
   );
 }

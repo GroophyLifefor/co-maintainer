@@ -48,7 +48,7 @@ export type Source = "env" | "file" | "default";
 /** The env var that supplies each field, mirroring args.ts. Only the fields
  * that actually read env are listed. */
 export const ENV_BY_FIELD: Record<string, string[]> = {
-  token: ["CO_MAINTAINER_TOKEN", "OPENROUTER_API_KEY"],
+  token: ["CO_MAINTAINER_TOKEN", "OPENROUTER_API_KEY", "OPENCODE_API_KEY"],
   githubPat: ["GITHUB_TOKEN", "GH_TOKEN"],
   ai: ["CO_MAINTAINER_AI"],
   auth: ["CO_MAINTAINER_AUTH"],

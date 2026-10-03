@@ -176,9 +176,9 @@ is the safe default.</p>
 <td>Run <code>co-maintainer set --low-model=...</code>, or pass <code>--low-model=...</code> on the command</td>
 </tr>
 <tr>
-<td><code>review supports OpenRouter only</code></td>
-<td><code>review --ai=openai</code> or <code>--ai=anthropic</code></td>
-<td>Local and PR review always use OpenRouter. See <a href="providers.html#where-each-provider-works">AI providers</a></td>
+<td><code>review needs an AI provider</code></td>
+<td><code>review --ai=none</code></td>
+<td>Pass a provider, or leave <code>--ai</code> out to use the saved one. See <a href="providers.html#where-each-provider-works">AI providers</a></td>
 </tr>
 <tr>
 <td><code>GitHub refused &lt;METHOD&gt; &lt;endpoint&gt;</code></td>
