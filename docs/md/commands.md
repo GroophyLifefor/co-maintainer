@@ -79,11 +79,11 @@ co-maintainer init owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
-| `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
-| `--high-model=ID` | openai/gpt-5.6-luna | Model for the review itself. |
+| `--low-model=ID` |  | Model for extraction work. |
+| `--high-model=ID` |  | Model for the review itself. |
 
 ### GitHub access
 
@@ -139,11 +139,11 @@ co-maintainer sync owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
-| `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
-| `--high-model=ID` | openai/gpt-5.6-luna | Model for the review itself. |
+| `--low-model=ID` |  | Model for extraction work. |
+| `--high-model=ID` |  | Model for the review itself. |
 
 ### GitHub access
 
@@ -185,6 +185,8 @@ co-maintainer review [options]
 | `--remote` |  | Send the diff to the configured remote server instead of reviewing locally. |
 | `--remote-host=URL` |  | Override the configured remote host for this run (needs --remote). |
 | `--remote-token=TOKEN` |  | Override the configured remote token for this run (needs --remote). |
+| `--remote-byok` |  | Send your own AI key with a remote review (needs --remote). |
+| `--no-remote-byok` |  | Do not send your own AI key, even if remote-byok-default is on. |
 | `--sync-before-review` |  | Rebuild the guides before reviewing. |
 
 ### Codegraph
@@ -198,11 +200,11 @@ co-maintainer review [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
-| `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
-| `--high-model=ID` | openai/gpt-5.6-luna | Model for the review itself. |
+| `--low-model=ID` |  | Model for extraction work. |
+| `--high-model=ID` |  | Model for the review itself. |
 
 ### GitHub access
 
@@ -218,6 +220,7 @@ co-maintainer review [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+| `--output=github` |  | Print GitHub workflow annotations and write the job summary instead of prose. Cannot be used with --json. |
 
 ## `co-maintainer config`
 
@@ -267,11 +270,11 @@ co-maintainer set [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
-| `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
-| `--high-model=ID` | openai/gpt-5.6-luna | Model for the review itself. |
+| `--low-model=ID` |  | Model for extraction work. |
+| `--high-model=ID` |  | Model for the review itself. |
 
 ### GitHub access
 
@@ -294,11 +297,16 @@ co-maintainer set [options]
 | `--github-oauth-allowed-user=LOGIN` |  | The only GitHub user allowed to sign in. |
 | `--remote-host=URL` |  | The remote review server. |
 | `--remote-token=TOKEN` |  | The remote review token. |
+| `--remote-byok-policy=off\|allow\|require` | off | Whether a remote client may send its own AI key. |
+| `--remote-byok=KEY` |  | Your own AI key to send with a remote review. |
+| `--remote-byok-default=on\|off` | off | Send remote-byok on every --remote review by default. |
+| `--review-policy=everyone\|trusted-auto\|on-request-only` |  | The review policy new repositories start with. |
+| `--review-policy-file=PATH` |  | Read a custom review policy from a JSON file and use it as that default. |
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |
 | `--password=TEXT` |  | Replace the dashboard password. |
 | `--disable-auth=password` |  | Turn the dashboard password off. |
 | `--enable-auth=github` |  | Turn GitHub sign-in on. |
-| `--no-verify` |  | Do not check the key and model against OpenRouter. |
+| `--no-verify` |  | Do not check the key and model against the provider. |
 | `--unset=NAME` |  | Remove a stored value. |
 
 ## `co-maintainer serve`
@@ -328,6 +336,20 @@ co-maintainer serve --port=N [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+
+## `co-maintainer rollback`
+
+Go back to the version before the last upgrade, restoring its data.
+
+```
+co-maintainer rollback [--yes]
+```
+
+### Rollback
+
+| Flag | Default | Description |
+|---|---|---|
+| `--yes` |  | Skip the confirmation. Needed when there is no terminal. |
 
 ## `co-maintainer version`
 

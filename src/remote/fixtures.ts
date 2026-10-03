@@ -1,4 +1,4 @@
-/** Fixture directory hashing for plan §15.3.
+/** Fixture directory hashing.
  *
  * The hash exists to catch schema/content drift in the wire fixtures, not
  * line-ending drift, so `\r\n` is normalized to `\n` before hashing. Without

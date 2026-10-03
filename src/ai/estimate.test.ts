@@ -1,14 +1,16 @@
-/** CORE-24 tests: the probe estimate, the reason text, and `--run`.
+/** Tests for the probe estimate, the reason text, and `--run`.
  *
  * The estimate is pure arithmetic over a price map, so it is tested directly.
  * Pricing and `--run` touch the network and the init path, so they run through
  * the fake OpenRouter and the CLI harness. */
 import { test } from "node:test";
 import {
+  estimateCostLine,
   estimateInit,
   extractJobCount,
   readJobHistory,
 } from "../ai/estimate.ts";
+import type { Estimate } from "../ai/estimate.ts";
 import { loadPrices } from "../ai/pricing.ts";
 import type { ModelPrice } from "../ai/pricing.ts";
 import { analyzeProbe } from "../knowledge/probe.ts";
@@ -55,8 +57,8 @@ test("estimate: extract jobs are one per pull request plus the codebase read", (
   }
 });
 
-test("estimate: the calibrated run costs about what the plan measured", () => {
-  // The plan measured 5 extract + 9 synth jobs over 151 s. The section list
+test("estimate: the calibrated run costs about what the calibration measured", () => {
+  // The calibration run measured 5 extract + 9 synth jobs over 151 s. The section list
   // is the source of the 10 (so 9 was that run's dirty-section count), which
   // is why the assertion is on the job total rather than the split.
   const estimate = estimateInit({
@@ -199,7 +201,7 @@ test("pricing: reads the fake model list and caches it", async () => {
 
 test("probe reasons: a healthy useful-commit ratio is not called noise", () => {
   // 8 commits, 5 useful: the old text claimed "mostly merge/noise", which the
-  // numbers beside it contradicted (CORE-24).
+  // numbers beside it contradicted.
   const commits = Array.from({ length: 8 }, (_, index) => ({
     commit: {
       message: index < 5 ? `feat: change ${index}` : `Merge branch ${index}`,
@@ -229,4 +231,47 @@ test("probe reasons: a genuinely noisy history is called noise", () => {
   );
   if (!noise)
     throw new Error(`expected noise at 5/20 useful: ${analysis.reasons}`);
+});
+
+function estimateWithout(usd: Estimate["usd"]): Estimate {
+  return {
+    extract: 1,
+    synth: 1,
+    seconds: [1, 2],
+    tokensIn: [1, 2],
+    tokensOut: [1, 2],
+    usd,
+    basis: "calibration",
+  };
+}
+
+test("estimateCostLine: a known price wins over everything else", () => {
+  const line = estimateCostLine(
+    estimateWithout([0.001, 0.002]),
+    "openai",
+    true,
+  );
+  if (line !== "$0.0010-$0.0020") throw new Error(line);
+});
+
+test("estimateCostLine: a provider with no price list names itself, not OpenRouter", () => {
+  for (const ai of ["openai", "anthropic"]) {
+    const line = estimateCostLine(estimateWithout(undefined), ai, false);
+    if (line !== "estimate unavailable for this provider") {
+      throw new Error(`${ai}: ${line}`);
+    }
+  }
+});
+
+test("estimateCostLine: openrouter keeps its own two reasons", () => {
+  const unreachable = estimateCostLine(
+    estimateWithout(undefined),
+    "openrouter",
+    true,
+  );
+  if (!unreachable.includes("could not read OpenRouter prices")) {
+    throw new Error(unreachable);
+  }
+  const noModels = estimateCostLine(estimateWithout(undefined), "none", false);
+  if (!noModels.includes("set --ai=openrouter")) throw new Error(noModels);
 });

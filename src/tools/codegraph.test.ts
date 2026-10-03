@@ -74,7 +74,7 @@ test("detect reports missing when the binary is not there", async () => {
 
 test("canPrompt needs both streams on a TTY and no CI", () => {
   const tty = { stdin: { isTTY: true }, stdout: { isTTY: true } };
-  // The regression that caused F01: a closed stdin is not a TTY, so no prompt.
+  // The regression that caused the hang: a closed stdin is not a TTY, so no prompt.
   same(
     canPrompt({ ...tty, stdin: { isTTY: false } }, {}),
     false,

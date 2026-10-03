@@ -58,7 +58,19 @@ function fillDays(
   const out = [];
   for (let back = days - 1; back >= 0; back--) {
     const day = daysAgoIso(back).slice(0, 10);
-    out.push(byDay.get(day) ?? { day, reviews: 0, findings: 0, cost: 0 });
+    out.push(
+      byDay.get(day) ?? {
+        day,
+        reviews: 0,
+        findings: 0,
+        cost: 0,
+        knownCount: 0,
+        unknownCount: 0,
+        byokUsd: 0,
+        byokKnownCount: 0,
+        byokUnknownCount: 0,
+      },
+    );
   }
   return out;
 }
@@ -76,7 +88,12 @@ export function statsForRange(range: string) {
     change: {
       pullRequests: percentChange(previous.pullRequests, totals.pullRequests),
       findings: percentChange(previous.findings, totals.findings),
-      cost: percentChange(previous.cost, totals.cost),
+      // A trend line over a partly unknown total would compare an amount to
+      // one that is not the same thing, so it is left out rather than misled.
+      cost:
+        totals.unknownCount > 0 || previous.unknownCount > 0
+          ? undefined
+          : percentChange(previous.cost, totals.cost),
     },
     byRepo: reviewStatsByRepo(since),
     byDay: fillDays(days, reviewStatsByDay(since)),

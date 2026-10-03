@@ -14,6 +14,7 @@ import {
 import type { PasswordStore } from "../auth.ts";
 import { passwordProblem } from "../../util/password.ts";
 import { readJsonObject } from "./json_body.ts";
+import { policyToStore } from "../../services/review_policy.ts";
 
 function validateWebhookUrl(value: unknown): string | undefined {
   if (typeof value !== "string" || !value.trim()) {
@@ -88,6 +89,7 @@ export async function handleSettingsRoute(
       maxConcurrentRemoteReviewsPerToken:
         config.maxConcurrentRemoteReviewsPerToken ?? null,
       remoteToolOutputMaxChars: config.remoteToolOutputMaxChars ?? null,
+      reviewPolicy: config.reviewPolicy ?? null,
     });
   }
 
@@ -180,6 +182,14 @@ export async function handleSettingsRoute(
       "remoteToolOutputMaxChars",
     );
     if (remoteToolOut) return remoteToolOut;
+    if ("reviewPolicy" in body) {
+      const stored = policyToStore(body.reviewPolicy, { allowLegacy: false });
+      if (!stored.ok) {
+        return errorResponse(422, "invalid_policy", stored.problem);
+      }
+      patch.reviewPolicy =
+        stored.value === null ? undefined : JSON.parse(stored.value);
+    }
     if (body.defaults && typeof body.defaults === "object") {
       const defaults = body.defaults as Record<string, unknown>;
       const next = { ...current.defaults };

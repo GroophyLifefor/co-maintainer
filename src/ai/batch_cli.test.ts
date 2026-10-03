@@ -1,6 +1,6 @@
-/** Failed AI units are never cached (CORE-30 / F04).
+/** Failed AI units are never cached.
  *
- * F04: a unit whose output did not parse was logged and then, because the
+ * A unit whose output did not parse was logged and then, because the
  * provider response itself was cached as `done`, replayed as a `cache hit` on
  * every later `sync` instead of being retried, so the same PR stayed dropped
  * forever. `src/ai/batch.test.ts` covers the retry and skip logic directly;
@@ -114,7 +114,7 @@ test("a unit that never parses is reported skipped and not cached", async () => 
     if (!/\[ai\] skipped extract_unit/.test(firstOutput)) {
       throw new Error(`the bad output was not skipped:\n${firstOutput}`);
     }
-    // The `[done]` line names the skipped unit (CORE-30, item 3).
+    // The `[done]` line names the skipped unit.
     if (!/\[done\] \d+ units? skipped \(/.test(firstOutput)) {
       throw new Error(`no skipped line in the output:\n${firstOutput}`);
     }

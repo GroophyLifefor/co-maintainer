@@ -1,9 +1,8 @@
-/** Recorded 0.4.13 CLI behaviour (CORE-02).
+/** Recorded 0.4.13 CLI behaviour.
  *
- * These values are the contract. Later tasks may add cases here but must not
+ * These values are the contract. Later changes may add cases here but must not
  * change an existing expectation, with one exception: the exit code change
- * approved as decision 2 in `dx-research/plans/README.md`, which CORE-10
- * implements. Those cases carry `exitCodeDecision` so the exception is visible
+ * that was approved as a deliberate decision. Those cases carry `exitCodeDecision` so the exception is visible
  * in review rather than buried in a diff.
  *
  * Everything is plain data. The test in `src/cli/compat.test.ts` computes the
@@ -209,38 +208,76 @@ export const PARSE_CASES: ParseCase[] = [
     },
   },
   {
-    name: "review forces openrouter and defaults the high model",
+    name: "review with no provider set uses openrouter and dies without a model",
     args: ["review", "owner/repo", "42", "--token=tok"],
     expect: {
+      error:
+        "Missing low model. Pass it as a CLI option when running without an interactive terminal",
+    },
+  },
+  {
+    name: "review keeps the provider it is given",
+    args: [
+      "review",
+      "owner/repo",
+      "42",
+      "--ai=anthropic",
+      "--token=tok",
+      "--low-model=low/model",
+      "--high-model=high/model",
+    ],
+    expect: {
       command: "review",
-      repo: "owner/repo",
-      prNumber: 42,
-      ai: "openrouter",
+      ai: "anthropic",
       aiToken: "tok",
-      highModel: "openai/gpt-5.6-luna",
       useCodegraph: true,
     },
   },
   {
+    name: "review --ai=none is refused",
+    args: ["review", "owner/repo", "42", "--ai=none", "--token=tok"],
+    expect: {
+      error:
+        "review needs an AI provider. Pass --ai=openrouter|openai|anthropic|opencode-zen|opencode-go",
+    },
+  },
+  {
     name: "review without a PR number leaves prNumber unset",
-    args: ["review", "owner/repo", "--token=tok"],
+    args: [
+      "review",
+      "owner/repo",
+      "--token=tok",
+      "--low-model=low/model",
+      "--high-model=high/model",
+    ],
     expect: {
       command: "review",
       repo: "owner/repo",
       ai: "openrouter",
-      highModel: "openai/gpt-5.6-luna",
+      lowModel: "low/model",
+      highModel: "high/model",
       useCodegraph: true,
     },
     absent: ["prNumber"],
   },
   {
     name: "review --disable-codegraph turns codegraph off",
-    args: ["review", "owner/repo", "42", "--token=tok", "--disable-codegraph"],
+    args: [
+      "review",
+      "owner/repo",
+      "42",
+      "--token=tok",
+      "--low-model=low/model",
+      "--high-model=high/model",
+      "--disable-codegraph",
+    ],
     expect: {
       command: "review",
       repo: "owner/repo",
       prNumber: 42,
       ai: "openrouter",
+      lowModel: "low/model",
+      highModel: "high/model",
       useCodegraph: false,
     },
   },
@@ -322,7 +359,10 @@ export const PARSE_CASES: ParseCase[] = [
   {
     name: "bad ai value lists the providers",
     args: ["init", "owner/repo", "--ai=gemini"],
-    expect: { error: "ai must be one of: none, openrouter, hetzner" },
+    expect: {
+      error:
+        "ai must be one of: none, openrouter, openai, anthropic, opencode-zen, opencode-go",
+    },
   },
   {
     name: "--codegraph is explicitly rejected with a pointer",
@@ -358,7 +398,13 @@ export const REVIEW_MODE_CASES: ReviewModeCase[] = [
   },
   {
     name: "owner/repo plus a number is PR mode",
-    args: ["owner/repo", "42", "--token=tok", "--high-model=high/model"],
+    args: [
+      "owner/repo",
+      "42",
+      "--token=tok",
+      "--low-model=low/model",
+      "--high-model=high/model",
+    ],
     mode: "pr",
     flags: {},
   },
@@ -368,6 +414,7 @@ export const REVIEW_MODE_CASES: ReviewModeCase[] = [
       "owner/repo",
       "42",
       "--token=tok",
+      "--low-model=low/model",
       "--high-model=high/model",
       "--json",
       "--fresh",
@@ -394,6 +441,7 @@ export const REVIEW_MODE_CASES: ReviewModeCase[] = [
       "owner/repo",
       "42",
       "--token=tok",
+      "--low-model=low/model",
       "--high-model=high/model",
       "--remake-before-review",
     ],
@@ -418,7 +466,7 @@ export const SET_CASES: SetCase[] = [
       "--low-model=low/model",
       "--high-model=high/model",
       // The fixture key and model are not real, and `set` verifies them against
-      // OpenRouter before writing (CORE-22). Offline compat runs skip that
+      // OpenRouter before writing. Offline compat runs skip that
       // check; the verification path has its own test in config.test.ts.
       "--no-verify",
     ],

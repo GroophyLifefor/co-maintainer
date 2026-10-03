@@ -76,6 +76,7 @@ test("remote review inputs: idempotency key", async () => {
       capabilitiesJson: "{}",
       requestId: "req-1",
       tokenId: "t1",
+      billedTo: "server",
     });
     const found = findRemoteReviewInputByRequest("t1", "req-1");
     if (!found || found.job_id !== "job1") throw new Error("lookup failed");

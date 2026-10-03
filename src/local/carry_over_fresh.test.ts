@@ -1,6 +1,6 @@
-/** Carry-over must not shadow a fresh scan (CORE-42 / F03).
+/** Carry-over must not shadow a fresh scan.
  *
- * F03: after the review guide was rebuilt, a local review still showed only the
+ * After the review guide was rebuilt, a local review still showed only the
  * old finding as "Still open" and reported nothing new; `--fresh` on the same
  * working tree immediately surfaced two real violations. The carry-over pass
  * had quietly replaced the review instead of running beside it.
@@ -187,7 +187,7 @@ test("a carry-over run still scans the diff and reports new findings", async () 
   const server = await startFakeOpenRouter("success", {
     chatContent: (prompt) => {
       if (run === 1) return JSON.stringify({ findings: [FINDING_A] });
-      // The F03 model: with only a verdict task it answers the verdict and
+      // The model behavior under test: with only a verdict task it answers the verdict and
       // stops; when told to scan afresh it also reports B.
       const fresh = /Scan the DIFF from scratch/i.test(prompt);
       return JSON.stringify({
@@ -222,7 +222,7 @@ test("a carry-over run still scans the diff and reports new findings", async () 
       reposDir,
       server.url,
     );
-    // The point of CORE-42: the new violation is found even though a carry-over
+    // The point of the fresh scan: the new violation is found even though a carry-over
     // finding is in play.
     if (!has(second.stdout, "src/b.ts")) {
       throw new Error(

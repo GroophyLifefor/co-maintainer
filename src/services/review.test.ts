@@ -248,6 +248,47 @@ test("review checks use annotations and the conclusion matrix", async () => {
   });
 });
 
+test("a review that was asked for acknowledges the request once, and a failed reaction does not fail it", async () => {
+  await withEnv(async () => {
+    const job = seed();
+    const endpoint = "repos/acme/widgets/issues/comments/900/reactions";
+    job.args = JSON.stringify({
+      trigger: "request-comment",
+      requestReaction: endpoint,
+    });
+    const github = new FakeGithub();
+    await runReviewJob(job, () => {}, github, new FakeAiProvider());
+    const reactions = github.writes.filter((write) =>
+      write.endpoint.endsWith("/reactions"),
+    );
+    if (
+      reactions.length !== 1 ||
+      reactions[0]!.endpoint !== endpoint ||
+      (reactions[0]!.body as { content: string }).content !== "eyes"
+    ) {
+      throw new Error(`reactions: ${JSON.stringify(reactions)}`);
+    }
+  });
+
+  await withEnv(async () => {
+    const job = seed();
+    job.args = JSON.stringify({
+      trigger: "request-label",
+      requestReaction: "repos/acme/widgets/issues/1/reactions",
+    });
+    const github = new FakeGithub();
+    const write = github.write.bind(github);
+    github.write = async (endpoint, body) => {
+      if (endpoint.endsWith("/reactions")) throw new Error("no permission");
+      return write(endpoint, body);
+    };
+    await runReviewJob(job, () => {}, github, new FakeAiProvider());
+    if (getReviewByJobId("job-rev")?.status !== "posted") {
+      throw new Error("a missing reaction must not stop the review");
+    }
+  });
+});
+
 test("a failed review completes its check with failure", async () => {
   await withEnv(async () => {
     const github = new FakeGithub();

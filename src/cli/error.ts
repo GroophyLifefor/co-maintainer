@@ -1,4 +1,4 @@
-/** One error shape for every CLI failure (CORE-10).
+/** One error shape for every CLI failure.
  *
  * The message is the first line the user reads, `hint` is an optional
  * follow-up line printed as `Hint: ...`, and `exitCode` is the documented
@@ -44,14 +44,14 @@ export function die(message: string, code = "usage"): never {
  * of the intended code. Every provider and remote call uses fetch, so this is
  * reachable from any error path after a request. Setting `exitCode` and letting
  * the loop empty is what the probe confirms is crash-free and immediate (the
- * undici pool does not keep the process alive). CORE-11. */
+ * undici pool does not keep the process alive). */
 export function exitWith(code: number): void {
   process.exitCode = code;
 }
 
 /** Renders an error the way the CLI prints it: the message, then `Hint: ...`
  * when there is one. Used where an error becomes a log line rather than the
- * top-level exit (CORE-12), so a hint is not lost just because the failure was
+ * top-level exit, so a hint is not lost just because the failure was
  * quarantined. */
 export function formatError(error: unknown): string {
   if (error instanceof CliError) {
@@ -60,7 +60,7 @@ export function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** A failed `fetch` as a message that names the host and the cause (CORE-12).
+/** A failed `fetch` as a message that names the host and the cause.
  * Node's own text is only `fetch failed`, which says neither. */
 export function networkFailure(url: string, error: unknown): CliError {
   const code = (error as { cause?: { code?: string } }).cause?.code;

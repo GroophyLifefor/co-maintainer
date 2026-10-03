@@ -16,7 +16,13 @@ import {
  * flags and no interactive prompts, reusing what `init` was told. */
 export type RepoConfig = {
   auth?: "gh" | "pat";
-  ai?: "none" | "openrouter" | "hetzner";
+  ai?:
+    | "none"
+    | "openrouter"
+    | "openai"
+    | "anthropic"
+    | "opencode-zen"
+    | "opencode-go";
   lowModel?: string;
   highModel?: string;
   maxCommits?: number;
@@ -36,7 +42,13 @@ export type RepoConfig = {
 
 export type UserConfig = {
   auth?: "gh" | "pat";
-  ai?: "none" | "openrouter" | "hetzner";
+  ai?:
+    | "none"
+    | "openrouter"
+    | "openai"
+    | "anthropic"
+    | "opencode-zen"
+    | "opencode-go";
   lowModel?: string;
   highModel?: string;
   /** Written only by `co-maintainer set --token=...`. Every other write
@@ -73,21 +85,57 @@ export type UserConfig = {
   };
   /** Cap on jobs running at once across all types. Unset means no limit. */
   maxConcurrentJobs?: number;
-  /** What a review uses to decide a blocking finding (CORE-41). `model` lets
+  /** What a review uses to decide a blocking finding. `model` lets
    * the model's own severity decide, `severity` uses a fixed threshold. */
   reviewBlocking?: "model" | "severity";
   /** Remote review CLI target (`co-maintainer set`). */
   remoteHost?: string;
   /** Bearer token for `/api/remote/*`; only written by `set`. */
   remoteToken?: string;
-  /** Hosts for which the unpublished-code notice was shown (plan §14.1 G13). */
+  /** Hosts for which the unpublished-code notice was shown. */
   remoteNoticeShownFor?: string[];
-  /** Remote client watchdog timeout; dashboard may override (plan §19.6). */
+  /** Remote client watchdog timeout; dashboard may override. */
   remoteSyncTimeoutSeconds?: number;
   maxConcurrentRemoteReviewsPerToken?: number;
   remoteToolOutputMaxChars?: number;
+  /** Whether remote clients may bring their own AI key. `off`
+   * rejects one, `allow` accepts one and falls back to the server key when
+   * absent, `require` refuses a review that does not carry one. The
+   * `CM_REMOTE_BYOK_POLICY` env var overrides this, which is how a hosted
+   * deployment forces the setting. */
+  remoteByokPolicy?: ByokPolicy;
+  /** The review policy new repositories start with: a template
+   * name or a policy object. Unset means the old per repository switches. */
+  reviewPolicy?: string | Record<string, unknown>;
+  /** The client's own AI key for remote review, sent only when
+   * `--remote-byok` (or `remoteByokDefault`) turns it on for a run. Only
+   * ever written by `set`. */
+  remoteByok?: string;
+  /** Whether `co-maintainer review --remote` sends `remoteByok` by default.
+   * `--no-remote-byok` turns it off for one run without unsetting this. */
+  remoteByokDefault?: boolean;
   repos?: Record<string, RepoConfig>;
 };
+
+export type ByokPolicy = "off" | "allow" | "require";
+
+/** Who pays for a remote review's AI calls. `CM_REMOTE_BYOK_POLICY`
+ * overrides the saved config, so a hosted server cannot be talked out of its
+ * policy by a config edit. An unset or unreadable value falls back to the
+ * config, then to `off`. */
+export function remoteByokPolicy(
+  config: Pick<UserConfig, "remoteByokPolicy"> = readConfig(),
+): ByokPolicy {
+  // An env value that is not one of the three known policies is treated as
+  // unreadable and falls back to the config, so a typo cannot silently turn a
+  // configured `require` into `off`. An explicit `off` still overrides.
+  const env = getEnv("CM_REMOTE_BYOK_POLICY");
+  const raw =
+    env === "off" || env === "allow" || env === "require"
+      ? env
+      : config.remoteByokPolicy;
+  return raw === "allow" || raw === "require" ? raw : "off";
+}
 
 function homeDir(env: (name: string) => string | undefined): string {
   const home = env("HOME") ?? env("USERPROFILE");
@@ -95,7 +143,7 @@ function homeDir(env: (name: string) => string | undefined): string {
   return home;
 }
 
-/** Platform/env injection keeps the OS branches testable (plan §0b): the
+/** Platform/env injection keeps the OS branches testable: the
  * migration's `"windows"` vs `"win32"` trap is invisible otherwise. */
 export function getConfigDir(
   os: Platform = currentPlatform(),

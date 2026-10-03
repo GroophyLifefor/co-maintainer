@@ -1,12 +1,12 @@
-/** Structured review output end to end (CORE-40 / F02).
+/** Structured review output end to end.
  *
  * The unit tests in `src/pr/findings_json.test.ts` pin the renderer and the
  * parser. These run the real CLI against the fake OpenRouter with a real
  * findings JSON answer, so the whole path is covered: the request carries
  * `response_format`, the answer is rendered to Markdown, the CLI parses it
  * back, and the finding reaches both the JSON output and the human output
- * without being cut. Before this task that path was the fallback parser, which
- * sliced the answer at fixed offsets and produced F02.
+ * without being cut. Before JSON findings that path was the fallback parser, which
+ * sliced the answer at fixed offsets and cut findings mid-token.
  */
 import { test } from "node:test";
 import { dirname, join } from "node:path";
@@ -177,7 +177,7 @@ test("review --json: findings come through whole, not sliced", async () => {
     const result = await runReview(root, worktree, repo, server.url, [
       "--json",
     ]);
-    // A blocking P1 means exit 1 (CORE-10): the review ran and found something.
+    // A blocking P1 means exit 1: the review ran and found something.
     if (result.code !== 1) {
       throw new Error(`exit ${result.code}:\n${result.stdout}${result.stderr}`);
     }
@@ -204,7 +204,7 @@ test("review --json: findings come through whole, not sliced", async () => {
     if (first.severity !== "P1" || first.blocking !== true) {
       throw new Error(`first severity: ${JSON.stringify(first)}`);
     }
-    // The defect F02 described: the body was cut mid-token and the second
+    // The original defect: the body was cut mid-token and the second
     // finding started inside the first one's prose. Both bodies must be whole
     // and distinct here.
     if (!first.body?.includes("it never terminates.")) {
@@ -236,7 +236,7 @@ test("review: the human output shows the finding whole too", async () => {
     const result = await runReview(root, worktree, repo, server.url, []);
     const output = `${result.stdout}${result.stderr}`;
     // Both findings are visible, each with its own prose, and no body was cut
-    // mid-token the way F02 reported.
+    // mid-token as it once was.
     if (!output.includes("it never terminates.")) {
       throw new Error(`first body missing from the output:\n${output}`);
     }
@@ -254,7 +254,7 @@ test("review: the human output shows the finding whole too", async () => {
 
 test("review: a non-JSON answer is retried once and still reviewed", async () => {
   // A provider that ignores `response_format` answers prose instead. The CLI
-  // must ask once more (CORE-40 step 3) and, when that fails too, fall back to
+  // must ask once more and, when that fails too, fall back to
   // the legacy parser rather than dropping the review.
   const root = await makeTempDir({ prefix: "cm-core40-fallback-" });
   const server = await startFakeOpenRouter("success", {

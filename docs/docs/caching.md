@@ -130,4 +130,5 @@ remote review should read guides the server built.
 | Main moved, guides stale | [`sync`](sync.md) or dashboard **Sync** |
 | Change include flags or limits | `sync`/`init` with new flags (updates config + guides) |
 | Wipe server state | Stop `serve`, backup, remove `app.db` (destructive) |
+| Go back after an upgrade | Stop `serve`, run [`rollback`](troubleshooting.md#going-back-after-an-upgrade) with the new version still installed |
 | Wipe CLI evidence only | Remove `cache.db` (guides in `repos/` may remain) |

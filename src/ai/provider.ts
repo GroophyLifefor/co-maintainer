@@ -1,5 +1,8 @@
-import { HetznerProvider } from "./hetzner.ts";
 import { OpenRouterProvider } from "./openrouter.ts";
+import { OpenAiProvider } from "./openai.ts";
+import { AnthropicProvider } from "./anthropic.ts";
+import { openCodeHost } from "./opencode.ts";
+import { die } from "../cli/error.ts";
 import type {
   AiMessage,
   AiProvider,
@@ -9,6 +12,38 @@ import type {
   Options,
 } from "../types.ts";
 
+/** The one list of accepted `--ai` values, so a new or retired provider is
+ * added or removed in a single place instead of the half dozen copies
+ * Hetzner's removal had to chase down. */
+export const AI_PROVIDERS = [
+  "none",
+  "openrouter",
+  "openai",
+  "anthropic",
+  "opencode-zen",
+  "opencode-go",
+] as const;
+
+/** The provider's own key variable. It is read only when that provider runs,
+ * so a key meant for one provider is never sent to another. */
+export function providerKeyEnv(
+  ai: string,
+  env: (name: string) => string | undefined,
+): string | undefined {
+  if (ai === "openrouter") return env("OPENROUTER_API_KEY");
+  if (ai === "opencode-zen" || ai === "opencode-go") {
+    return env("OPENCODE_API_KEY");
+  }
+  return undefined;
+}
+
+/** Hetzner was dropped in 0.5.1. Naming it beats a generic "must be one of". */
+export function rejectRetiredProvider(value: string | undefined): void {
+  if (value === "hetzner") {
+    die("Hetzner is no longer supported. Use openrouter or none.");
+  }
+}
+
 export function createAiProvider(
   options: Options,
   model: string,
@@ -17,7 +52,20 @@ export function createAiProvider(
   if (options.ai === "openrouter") {
     return new OpenRouterProvider(options.aiToken ?? "", model);
   }
-  return new HetznerProvider(options.aiToken ?? "", model);
+  if (options.ai === "openai") {
+    return new OpenAiProvider(options.aiToken ?? "", model);
+  }
+  if (options.ai === "anthropic") {
+    return new AnthropicProvider(options.aiToken ?? "", model);
+  }
+  if (options.ai === "opencode-zen" || options.ai === "opencode-go") {
+    return new OpenRouterProvider(
+      options.aiToken ?? "",
+      model,
+      openCodeHost(options.ai),
+    );
+  }
+  die(`${options.ai} support is not finished yet. Use openrouter or none.`);
 }
 
 export function parseChatResponse(
@@ -78,7 +126,7 @@ export function chatBody(model: string, request: AiRequest): Json {
     ...(request.tools?.length
       ? { tools: request.tools, tool_choice: "auto" }
       : {}),
-    // A review asks for structured output (CORE-40). The schema is sent even
+    // A review asks for structured output. The schema is sent even
     // when tools are present, because most providers accept the pair; one that
     // rejects it gets a single retry without the schema (see
     // `OpenRouterProvider.complete`), and the prompt also asks for a fenced

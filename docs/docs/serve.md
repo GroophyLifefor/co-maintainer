@@ -80,6 +80,7 @@ starts keep it.
 | `--enable-auth=github` | Turn on GitHub OAuth sign-in for this run |
 | `--trust-proxy` | Trust `x-forwarded-for` and `x-forwarded-proto` from a reverse proxy in front (also `CM_TRUST_PROXY=1`, see [Behind a reverse proxy](#behind-a-reverse-proxy)) |
 | `--inject-500` | Every mutating `/api/*` call returns 500 (failure UI testing, also `CM_INJECT_500=1`) |
+| `CM_REMOTE_BYOK_POLICY` | Whether a remote review may bring its own AI key: `off` (the default), `allow` or `require`, see [your own key](remote-review.md#your-own-ai-key) |
 | `CM_LOGIN_HINT` | Text shown on the sign-in page instead of the default "printed when `serve` started" line. Useful when a deployment hands out its own password, as the Cloud image does. Escaped as plain text |
 
 Per-run `--disable-auth` / `--enable-auth` override values from `co-maintainer

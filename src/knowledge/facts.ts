@@ -522,7 +522,7 @@ export function extractFacts(source: Source, options: Options): Fact[] {
             count,
           ),
           // A rule mined from discussion across several pull requests is
-          // repository policy, not one request's narrative (CORE-32).
+          // repository policy, not one request's narrative.
           origin: "repository",
         });
       }

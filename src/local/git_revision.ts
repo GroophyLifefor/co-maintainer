@@ -28,7 +28,7 @@ const unifiedDiffArgs = [
   "--unified=3",
 ];
 
-/** Single-file unified patch when bulk `git diff` did not map a path (plan §10.7). */
+/** Single-file unified patch when bulk `git diff` did not map a path. */
 export async function perFileUnifiedPatch(
   cwd: string,
   base: string,

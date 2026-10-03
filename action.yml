@@ -1,0 +1,55 @@
+# co-maintainer review, as a GitHub Action.
+#
+# Compatibility: the inputs below are stable for the whole v0 line. An input is
+# never removed or renamed, and a new one only ever has a default that keeps the
+# old behavior. `@v0` moves to every stable release, so pin `@v0.5.1` or a full
+# commit SHA when a workflow must not change on its own.
+name: co-maintainer review
+description: Review a pull request with a co-maintainer server and show the findings as annotations.
+branding:
+  icon: eye
+  color: green
+
+inputs:
+  remote-host:
+    description: URL of your co-maintainer server, for example https://review.example.com.
+    required: true
+  remote-token:
+    description: The remote review token from the server's dashboard. Pass it as a secret.
+    required: true
+  remote-byok:
+    description: Your own AI key, sent with the review so the server bills you and not itself. Pass it as a secret. Leave empty to use the server's key.
+    required: false
+    default: ""
+  to-branch:
+    description: The branch the pull request merges into. Defaults to the pull request base branch.
+    required: false
+    default: ${{ github.base_ref }}
+  version:
+    description: The co-maintainer version to run. Defaults to the version at this action's own commit.
+    required: false
+    default: ""
+  node-version:
+    description: The Node.js version to run co-maintainer with.
+    required: false
+    default: "24"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+    - name: Review
+      shell: bash
+      # Every input goes in by env. Pasting `${{ inputs.* }}` into the script
+      # would let a value run as shell code.
+      env:
+        REMOTE_HOST: ${{ inputs.remote-host }}
+        REMOTE_TOKEN: ${{ inputs.remote-token }}
+        REMOTE_BYOK: ${{ inputs.remote-byok }}
+        TO_BRANCH: ${{ inputs.to-branch }}
+        VERSION: ${{ inputs.version }}
+        HEAD_REF: ${{ github.head_ref }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: bash "$ACTION_PATH/scripts/action_run.sh"

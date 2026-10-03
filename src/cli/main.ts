@@ -1,7 +1,8 @@
 /** CLI dispatch only. Each branch parses nothing itself beyond `args[0]` and
- * calls straight into a command or a service — see PLAN.md Section 3. */
+ * calls straight into a command or a service. */
 import { parseArgs } from "./args.ts";
 import { runServe } from "./commands/serve.ts";
+import { runRollback } from "./commands/rollback.ts";
 import { runSet } from "./commands/set.ts";
 import { runConfig } from "./commands/config.ts";
 import { runView } from "./commands/view.ts";
@@ -19,7 +20,7 @@ import {
 
 /** Every command's help is rendered from the registry, so a new flag cannot
  * drift out of it. `help <command>`, `<command> --help` and `<command> -h` all
- * land here and all exit 0 (CORE-20). */
+ * land here and all exit 0. */
 function printHelpFor(name: string): void {
   const help = renderCommandHelp(name);
   console.log(help ?? renderGlobalHelp());
@@ -44,7 +45,7 @@ function handleHelp(args: string[]): boolean {
     return true;
   }
   // `<command> --help` without a repo: `serve --help` and `set --help` must not
-  // reach their handlers, which would start a server or demand a flag (CORE-20).
+  // reach their handlers, which would start a server or demand a flag.
   if (first && (args.includes("--help") || args.includes("-h"))) {
     const spec = findCommand(first);
     if (spec) {
@@ -77,12 +78,16 @@ export async function run(args: string[]): Promise<void> {
     await runServe(args.slice(1));
     return;
   }
+  if (args[0] === "rollback") {
+    await runRollback(args.slice(1));
+    return;
+  }
   if (args[0] === "review") {
     await runReviewFromCli(args.slice(1));
     return;
   }
   // An unknown command is a usage error with a suggestion, and it must resolve
-  // through the registry so hidden aliases still work (CORE-20).
+  // through the registry so hidden aliases still work.
   if (args[0] && !args[0].startsWith("-") && !findCommand(args[0])) {
     throw new CliError("usage", unknownCommandMessage(args[0]));
   }
@@ -91,12 +96,12 @@ export async function run(args: string[]): Promise<void> {
   else await runInitOrRemake(options);
 }
 
-/** The single place a CLI error turns into output and an exit code (CORE-10).
+/** The single place a CLI error turns into output and an exit code.
  * The message's first line and the optional `Hint:` line keep the 0.4.13
  * shape. With `--json` the error goes to stdout as `schemaVersion 1` JSON, the
- * same shape local review already used. CORE-11 later replaces the direct
- * `process.exit` with `exitCode` plus handle cleanup, which is why that work is
- * separate. */
+ * same shape local review already used. The exit goes through `exitWith`,
+ * which sets `exitCode` and lets open handles drain instead of calling
+ * `process.exit`. */
 export function reportCliError(error: unknown): void {
   const cli =
     error instanceof CliError

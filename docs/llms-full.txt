@@ -24,7 +24,7 @@ flowchart LR
 ```
 
 **Need:** [Node.js 24+](https://nodejs.org/), a repo you can read, `gh auth login`, an
-[OpenRouter](https://openrouter.ai/) key. Details: [Authentication](authentication.md).
+key from [OpenRouter](https://openrouter.ai/), OpenAI or Anthropic ([AI providers](providers.md)). Details: [Authentication](authentication.md).
 
 ## 1. Install
 
@@ -276,7 +276,7 @@ non-trivial API cost on large repos.
 | [Install](getting-started.md#1-install) `co-maintainer` | `init` is a CLI command |
 | [`probe`](probe.md) on the same `owner/repo` (recommended) | Gives a ready-made `init` line with limits and `--include-*` flags |
 | [GitHub auth](authentication.md) | Reads the repo through `gh` or a PAT |
-| [AI provider](configuration.md) | OpenRouter or Hetzner key and models via `co-maintainer set` or flags |
+| [AI provider](providers.md) | A key and both models via `co-maintainer set` or flags. There is no default model |
 
 Run [`probe`](probe.md) first when you are unsure which `--max-*` limits to use.
 
@@ -304,7 +304,7 @@ Values from `set`, `--env=PATH`, or flags are not asked again.
 | `--auth=pat` | Personal access token (see [Authentication](authentication.md)) |
 | `--github-pat=...` | PAT when not in env or config |
 | `--env=PATH` | Load env vars from a file |
-| `--ai=openrouter` | AI provider (`openrouter`, `hetzner`, or `none`) |
+| `--ai=openrouter` | AI provider (`openrouter`, `openai`, `anthropic`, `opencode-zen`, `opencode-go` or `none`), see [AI providers](providers.md) |
 | `--token=...` | Provider API key |
 | `--low-model=...` | Model for extraction steps |
 | `--high-model=...` | Model for synthesis steps |
@@ -403,7 +403,7 @@ less time and API usage than a full [`init`](init.md) when little changed.
 | ----- | --- |
 | A successful [`init`](init.md) or `sync` for this `owner/repo` | Without cached state, `sync` refuses to start |
 | [GitHub auth](authentication.md) | Reads the repo through `gh` or a PAT |
-| [AI provider](configuration.md) | Token via `set`, `--token=`, or `--env=PATH` |
+| [AI provider](providers.md) | Token via `set`, `--token=`, or `--env=PATH`, and both models |
 | A reason to refresh | New merges on `main`, outdated guides, or review quality drift |
 
 If the repo was never initialized, run [`init`](init.md) (or [`probe`](probe.md)
@@ -436,7 +436,7 @@ On the [dashboard](dashboard.md), **Sync now** runs the same job as this command
 | `--auth=pat` | Personal access token (see [Authentication](authentication.md)) |
 | `--github-pat=...` | PAT when not in env or config |
 | `--env=PATH` | Load env vars from a file |
-| `--ai=openrouter` | AI provider (`openrouter`, `hetzner`, or `none`) |
+| `--ai=openrouter` | AI provider (`openrouter`, `openai`, `anthropic`, `opencode-zen`, `opencode-go` or `none`), see [AI providers](providers.md) |
 | `--token=...` | Provider API key |
 | `--low-model=...` | Model for extraction steps |
 | `--high-model=...` | Model for synthesis steps |
@@ -620,7 +620,7 @@ flowchart TD
 
 | If this sounds like you | Mode | Read next |
 | ----------------------- | ---- | --------- |
-| You are in a clone and want feedback on your branch or working tree before you open a PR | [Local review](local-review.md) | OpenRouter on your machine, guides on disk |
+| You are in a clone and want feedback on your branch or working tree before you open a PR | [Local review](local-review.md) | Your AI provider on your machine, guides on disk |
 | Same as local review, but the repo is already inited on [`serve`](serve.md) and you skip per-laptop init/sync | [Remote review](remote-review.md) | Shared context on the server, diff from your clone |
 | You have a PR number and do not need to check out that branch locally | [PR review](local-pr-review.md) | `gh` only, guides on disk, AI on your machine |
 
@@ -659,12 +659,14 @@ flowchart TB
 | Typical moment | Pre-push in your clone, you own local guides | Open PR by number, you own local guides | Pre-push using the team's shared server context |
 | Who runs init/sync | You on the laptop | You on the laptop | Ops on the server (you usually do not) |
 | Guides at review time | Laptop cache | Laptop cache | Server dashboard repo |
-| Extra setup | OpenRouter | `gh auth login` | `serve`, token, `set --remote-host` |
+| Extra setup | [AI provider](providers.md) | `gh auth login` and an [AI provider](providers.md) | `serve`, token, `set --remote-host` |
 | Deep dive | [local-review](local-review.md) | [local-pr-review](local-pr-review.md) | [remote-review](remote-review.md) |
 
 Team-wide **automatic** PR reviews on webhooks are not a fourth `review` mode.
-They go through [`serve`](serve.md) and the GitHub App. Use PR review when **you**
-run the CLI against one PR.
+They go through [`serve`](serve.md) and the GitHub App, and a
+[review policy](review-policy.md) decides which pull requests they review. Use PR
+review when **you** run the CLI against one PR. To run a remote review on every
+pull request from a workflow, use the [GitHub Action](ci.md).
 
 ## Depth: `--improve-matrix`
 
@@ -718,6 +720,26 @@ metadata and `codegraph` state. Errors with `--json` are JSON on stdout as well.
 Flag details per mode: [Local review](local-review.md), [Remote review](remote-review.md),
 [PR review](local-pr-review.md).
 
+## GitHub output
+
+`--output=github` prints the findings as GitHub workflow annotations and writes a
+table to the job summary, for a run inside GitHub Actions. It works in all three
+modes and cannot be combined with `--json`.
+
+- Each finding that is still open becomes one command on stdout, `::error` when it
+  blocks and `::warning` when it does not, with its file, line span and a short
+  title. A finding closed since the last review is not annotated.
+- When `GITHUB_STEP_SUMMARY` is set, a table of every finding, the cost and the
+  time is appended to it. An unknown cost reads `cost unknown` with the reason.
+- The exit code is the same as without the flag, so a blocking finding fails the
+  step.
+- Nothing else goes to stdout in this mode. Every finding is one escaped line, so
+  text from a pull request can never start a workflow command of its own.
+
+GitHub shows at most ten errors and ten warnings per step. When there are more,
+one notice says how many were left out, and the job summary lists all of them.
+[CI](ci.md) shows it inside a workflow.
+
 ## Human output
 
 Without `--json`, all three modes print the **same** format. Only the header
@@ -758,8 +780,8 @@ The model is asked for a JSON object, not for prose. For each finding it returns
 the severity, whether it blocks, the path and line span, the symbol, a title, the
 explanation, and an optional replacement. `co-maintainer` renders the Markdown
 from that object, so a finding's boundaries are never guessed from the model's
-wording. The JSON schema is sent as OpenRouter's `response_format` when the
-provider accepts it. A provider that rejects the combination gets one request
+wording. The JSON schema is sent as structured output in the provider's own format
+when the provider accepts it. A provider that rejects the combination gets one request
 without the schema, and the prompt also asks for a fenced JSON block.
 
 If the answer is not usable JSON, the request is retried once and then, if it
@@ -774,7 +796,7 @@ disagree.
 | Check | Why |
 | ----- | --- |
 | [`init`](init.md) or [`sync`](sync.md) on your laptop | Required for local and PR review |
-| [OpenRouter](configuration.md) for local and PR review | AI runs on your machine |
+| An [AI provider](providers.md) for local and PR review, with both models saved | AI runs on your machine, and no model is picked for you |
 | [Remote setup](remote-review.md) for `--remote` | Host, token, repo already inited on the server |
 
 ---
@@ -784,8 +806,8 @@ Source: https://co-maintainer.com/docs/local-review.md
 # Local review
 
 Review **staged, unstaged, and untracked** files in your git clone against a
-base branch. AI and guides run on **your machine** (OpenRouter via
-[configuration](configuration.md)).
+base branch. AI and guides run on **your machine**, with the
+[AI provider](providers.md) you saved.
 
 Overview: [`review`](review.md).
 
@@ -796,7 +818,7 @@ Overview: [`review`](review.md).
 | Run from the repo root (or a subdirectory with a git root) | Review needs a working tree |
 | `origin` or `upstream` points at GitHub (or use `--repo=owner/repo`) | Maps the clone to guides for that repo |
 | [`init`](init.md) / [`sync`](sync.md) for that `owner/repo` | `SKILL.md` and review guides on disk |
-| OpenRouter key in `set`, `--token=`, or `--env=PATH` | Local review uses your provider |
+| A provider key in `set`, `--token=`, or `--env=PATH` | Local review uses your [provider](providers.md) |
 | Clean enough git state | Conflicts or broken git state can fail collection |
 
 ## Usage
@@ -917,7 +939,11 @@ co-maintainer review --remote
 co-maintainer review --remote --json --disable-codegraph
 # One-off, without saving host and token to the config:
 co-maintainer review --remote --remote-host=https://your-server --remote-token=cmr_...
+# Or by environment, which keeps the token off the command line:
+CM_REMOTE_HOST=https://your-server CM_REMOTE_TOKEN=cmr_... co-maintainer review --remote
 ```
+
+To run it on every pull request from a workflow, see [CI](ci.md).
 
 ## Parameters
 
@@ -928,17 +954,20 @@ Same as [local review](local-review.md) for diff and output flags:
 | `--json` | JSON on stdout |
 | `--disable-codegraph` | Skip local codegraph |
 | `--allow-tool-install` | Allow codegraph install without a prompt |
-
-The codegraph question, and the conditions under which co-maintainer skips it,
-are the same as [local review](local-review.md#codegraph).
 | `--fresh` | No carry-over from a prior remote run |
 | `--to-branch=<name>` | Diff base branch |
 | `--branch=<name>` | Branch when HEAD is detached |
 | `--repo=owner/repo` | Override remote detection |
 | `--remote-host=<url>` | Override the configured host for this run (needs `--remote`) |
 | `--remote-token=<token>` | Override the configured token for this run (needs `--remote`) |
+| `--remote-byok` | Send your own AI key with this review, see [your own key](#your-own-ai-key) |
+| `--no-remote-byok` | Do not send it, even when `remote-byok-default` is on |
+| `--output=github` | Print GitHub annotations and write the job summary, see [CI](ci.md). Cannot be used with `--json` |
 | `--debug` | Verbose stderr |
 | `--log-time` | Phase timings |
+
+The codegraph question, and the conditions under which co-maintainer skips it,
+are the same as [local review](local-review.md#codegraph).
 
 Not supported with `--remote`: `--sync-before-review` (run
 [`sync`](sync.md) on the server instead).
@@ -961,6 +990,81 @@ is local-only and is refused with `--remote`, because the directory belongs to
 the machine you are on. A rejected token prints the same Settings hint
 `review --remote` prints.
 
+## Your own AI key
+
+By default the server's provider and key pay for a remote review. A server can
+also let you bring your own key (BYOK), so the review is billed to you and not to
+the server. The server still chooses the provider and the models, only the key is
+yours. See [AI providers](providers.md).
+
+### From the command line
+
+```sh
+co-maintainer config set remote-byok YOUR_KEY          # save the key once
+co-maintainer review --remote --remote-byok            # send it with this review
+co-maintainer config set remote-byok-default on        # send it every time
+co-maintainer review --remote --no-remote-byok         # but not this time
+CM_REMOTE_BYOK=YOUR_KEY co-maintainer review --remote --remote-byok
+```
+
+`--remote-byok` only works with `--remote`. The key comes from `CM_REMOTE_BYOK`
+first, then from the `remote-byok` config value. With `remote-byok-default on` the
+flag is not needed, and `--no-remote-byok` turns it off for one run. Before it
+sends anything, the CLI prints `Using your own key with the server's provider:`
+followed by the provider's name.
+
+The CLI never falls back to the server's key when you asked for your own. Each of
+these stops the run with exit code 2 before the diff is sent:
+
+| Message | Why | What to do |
+| ------- | --- | ---------- |
+| `No BYOK key is set.` | `--remote-byok` with no key anywhere | `co-maintainer config set remote-byok <key>`, or set `CM_REMOTE_BYOK` |
+| `This server (version X) does not support your own key.` | The server predates the feature and would ignore the key, so the CLI refuses to rely on it | Upgrade the server, or run without `--remote-byok` |
+| `This server does not accept your own key.` | The server's policy is `off` | Run without `--remote-byok` |
+| `This server requires your own key.` | The server's policy is `require` and the run did not send one | `co-maintainer review --remote --remote-byok` |
+
+If the host starts with `http://` and is not `localhost`, `127.0.0.1` or `::1`,
+the CLI warns on stderr that anyone on the network path can read the key, then
+carries on. Use `https://`. Both stderr lines are
+left out with `--json`.
+
+### On the server
+
+The policy is a server setting, `off`, `allow` or `require`:
+
+| Policy | A review without a key | A review with a key |
+| ------ | ---------------------- | ------------------- |
+| `off` (the default) | Uses the server's key | Refused with 403: `This server does not accept your own key.` |
+| `allow` | Uses the server's key | Uses your key |
+| `require` | Refused with 403: `This server requires your own key. Run with --remote-byok.` | Uses your key |
+
+Set it under **Settings**, **Remote review**, **Client key policy (BYOK)**, with
+`co-maintainer set --remote-byok-policy=allow`, or with the `CM_REMOTE_BYOK_POLICY`
+environment variable. The variable wins over the saved value, so a hosted server
+keeps its policy. The handshake tells the CLI which policy is in force and which
+provider the server uses. It never includes a key or a model.
+
+### What happens to the key
+
+- It is kept in the server's memory for that one review. It is removed when the
+  review finishes, is canceled, or is replaced by a newer submit.
+- It is never written to `app.db`, to the cache, to the config, or to a log or a
+  job log. A test searches the raw database file and every log for a known key
+  after a full review.
+- If the server restarts while your review is waiting, the key is gone with it.
+  The review ends with `Your key was not kept across a server restart. Submit the
+  review again.` and the server's own key is never used instead.
+- If the provider refuses the key, the error says so and names your key:
+  `The AI provider rejected your own key.` Other provider failures are reported
+  as what they are.
+
+### Cost
+
+A review sent with a key is recorded as billed to the key's owner. The dashboard
+keeps it out of the server's own spend. A total reads `$1.23 + $0.40 BYOK`, the
+server's cost first and what clients paid with their own keys after the plus
+sign. See [Cost](cost.md).
+
 ## Limits
 
 - Submit body size is capped (handshake `limits.maxBodyBytes`).
@@ -970,8 +1074,378 @@ the machine you are on. A rejected token prints the same Settings hint
 ## Security
 
 - Tokens are hashed at rest. Treat `cmr_…` like a password.
+- A key you send travels with the request. Use an `https://` host, and see
+  [What happens to the key](#what-happens-to-the-key).
 - Deactivating or deleting a token cancels in-flight remote reviews for that token.
 - Only your **diff** leaves the machine. The CLI shows a one-time notice per host.
+
+---
+
+Source: https://co-maintainer.com/docs/ci.md
+
+# CI (GitHub Action)
+
+Run [remote review](remote-review.md) on every pull request from a workflow. The
+findings show up as annotations on the changed files, a table lands in the job
+summary, and the step turns red when a finding blocks.
+
+The action needs a server that already runs `co-maintainer serve` with the
+repository added, and a remote review token from its dashboard. It sends the
+diff of the pull request to that server, the same way `review --remote` does
+from a laptop.
+
+## Set it up
+
+1. On the dashboard open **Settings**, **Remote review tokens** and create a
+   token for CI.
+2. In the GitHub repository open **Settings**, **Secrets and variables**,
+   **Actions**, and add two secrets. `CO_MAINTAINER_HOST` holds the URL of the
+   server and `CO_MAINTAINER_TOKEN` holds the token.
+3. Add a workflow:
+
+```yaml
+name: co-maintainer
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: GroophyLifefor/co-maintainer@v0
+        with:
+          remote-host: ${{ secrets.CO_MAINTAINER_HOST }}
+          remote-token: ${{ secrets.CO_MAINTAINER_TOKEN }}
+```
+
+`fetch-depth: 0` gives the action the history it needs to find where the pull
+request branched off. Without it the action fetches what is missing, which is
+slower.
+
+## Inputs
+
+| Input | Required | Default | What it does |
+| ----- | -------- | ------- | ------------ |
+| `remote-host` | yes | none | URL of your server, for example `https://review.example.com` |
+| `remote-token` | yes | none | The remote review token. Pass it as a secret |
+| `remote-byok` | no | empty | Your own AI key, see [your own key](#your-own-ai-key) |
+| `to-branch` | no | the pull request base branch | The branch the pull request merges into |
+| `version` | no | the version at the action's own commit | The co-maintainer version to run |
+| `node-version` | no | `24` | The Node.js version to run it with |
+
+Inputs are never removed or renamed within `v0`. A new input is only ever added,
+with a default that keeps the old behavior.
+
+## What you see
+
+- **Annotations.** Each finding that is still open is an error when it blocks
+  and a warning when it does not. They appear on the **Files changed** tab and
+  in the run's annotation list. GitHub shows at most ten errors and ten
+  warnings per step, so when there are more the action adds one notice that
+  says how many were left out.
+- **Job summary.** A table of every finding with its severity, state and
+  location, the cost of the review, and how long it took. An unknown cost reads
+  `cost unknown` with the reason, never `$0`.
+- **Exit status.** The step fails when a finding blocks, the same rule as
+  `review` on the command line.
+
+Nothing else goes to the step's output in this mode, so a finding can never
+write a workflow command of its own. See [`review`](review.md) for the
+`--output=github` option the action uses.
+
+## Choose which pull requests get reviewed
+
+The action reviews the diff it is given. The server's
+[review policy](dashboard.md) decides which pull requests its GitHub App reviews,
+and it does not apply here, because a remote review looks at a diff and not at a
+pull request. Choose in the workflow instead:
+
+```yaml
+    # Skip drafts.
+    if: github.event.pull_request.draft == false
+
+    # Skip a bot.
+    if: github.actor != 'dependabot[bot]'
+
+    # Only pull requests a maintainer labeled.
+    if: contains(github.event.pull_request.labels.*.name, 'needs-review')
+
+    # Only people with a stake in the repository.
+    if: contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
+```
+
+## Pull requests from forks
+
+GitHub does not give repository secrets to a workflow started by a pull request
+from a fork. The action then sees an empty `remote-token`, stops, and the step
+turns red with this message:
+
+```text
+remote-token is empty. Pull requests from forks do not receive repository
+secrets, so this step cannot run for them.
+```
+
+That is on purpose. A quiet skip would look like a clean review. If you would
+rather not see red on fork pull requests, skip the job for them:
+
+```yaml
+    if: github.event.pull_request.head.repo.full_name == github.repository
+```
+
+Do not switch the trigger to `pull_request_target` and check out the fork's code
+to get around this. That runs untrusted code with your secrets.
+
+## Pin a version
+
+| You write | What runs | When it changes |
+| --------- | --------- | --------------- |
+| `@v0` | The newest stable release | On every stable release, on its own |
+| `@v0.5.1` | That release | Never |
+| A full commit SHA | That exact commit | Never |
+
+The action runs the co-maintainer version that matches its own commit, so
+pinning the action pins the tool too. Use `@v0.5.1` or a SHA when a workflow
+must not change without a pull request. Beta releases are never reached through
+`@v0`.
+
+## Your own AI key
+
+If the server allows it, pass your own key and the review is billed to you and
+not to the server. See [remote review](remote-review.md) for the server side of
+this.
+
+```yaml
+      - uses: GroophyLifefor/co-maintainer@v0
+        with:
+          remote-host: ${{ secrets.CO_MAINTAINER_HOST }}
+          remote-token: ${{ secrets.CO_MAINTAINER_TOKEN }}
+          remote-byok: ${{ secrets.OPENROUTER_API_KEY }}
+```
+
+The key goes to the tool by environment variable, never on a command line, and
+both the token and the key are masked in the log. The server answers with an
+error and does not fall back to its own key when it does not accept yours.
+Use an `https://` host. The key travels with the request.
+
+## Environment variables
+
+Outside the action the same settings can be given to the CLI by environment:
+`CM_REMOTE_HOST`, `CM_REMOTE_TOKEN` and `CM_REMOTE_BYOK`. A flag wins over the
+environment, and the environment wins over the saved config. An empty value
+counts as not set.
+
+## When it fails
+
+| Message | Cause |
+| ------- | ----- |
+| `remote-token is empty` | The secret is missing, misspelled, or a fork pull request |
+| `Could not fetch the base branch` | `to-branch` names a branch that does not exist on `origin` |
+| `This server does not accept your own key` | The server's BYOK policy is `off` |
+| `This server requires your own key` | The server's BYOK policy is `require`, add `remote-byok` |
+
+More in [troubleshooting](troubleshooting.md).
+
+---
+
+Source: https://co-maintainer.com/docs/review-policy.md
+
+# Review policy
+
+A review policy decides which pull requests the [GitHub App](github-app.md) reviews
+on its own, which ones wait until a maintainer asks, and which are never
+reviewed. It runs in [`serve`](serve.md) when a webhook arrives. You set it per
+repository in the [dashboard](dashboard.md), and for new repositories as a
+server default.
+
+The policy is about the App's reviews. A [remote review](remote-review.md) from
+a laptop or from [CI](ci.md) looks at a diff, not at a pull request, so it does
+not apply it.
+
+## Three actions
+
+| Action | What happens to a pull request |
+| ------ | ------------------------------ |
+| Review | It is reviewed automatically |
+| Wait for a request | It is left alone until a maintainer [asks](#asking-for-a-review) |
+| Do not review | It is never reviewed, and asking does not change that |
+
+## Templates
+
+| Template | What it does |
+| -------- | ------------ |
+| Everyone | Every pull request is reviewed, except drafts and pull requests by bots |
+| Trusted authors, automatic | Owners, members and collaborators are reviewed. Everyone else waits for a request. Drafts and bots are skipped |
+| Only when requested | Nothing is reviewed until a maintainer asks |
+| Custom rules | Your own list of rules, see below |
+| Simple switches | The three on and off switches a repository had before policies existed, see [Existing repositories](#existing-repositories) |
+
+## Rules
+
+A policy is an ordered list of rules. For each pull request the first rule whose
+conditions all hold decides the action. When no rule holds, the last setting,
+**Any other pull request**, decides. A rule can test:
+
+| Condition | Matches when |
+| --------- | ------------ |
+| Author | The author's relation to the repository is one of the ones you tick |
+| Opened from a fork | The head branch lives in another repository, or in none because the fork was deleted |
+| Is a draft | The pull request is a draft, or is not |
+| Is by a bot | The author is a bot account, or is not |
+| Labels | The pull request has at least one of the labels, compared without regard to case |
+| Target branch | The pull request merges into one of the branches, by exact name |
+| Changed lines | Additions plus deletions are within a minimum and a maximum |
+
+The author's relation is GitHub's own `author_association`:
+
+| Value | Meaning |
+| ----- | ------- |
+| `OWNER` | Owns the repository |
+| `MEMBER` | Belongs to the organization that owns it |
+| `COLLABORATOR` | Was invited to the repository |
+| `CONTRIBUTOR` | Has had a commit merged before |
+| `FIRST_TIME_CONTRIBUTOR` | First contribution to this repository |
+| `FIRST_TIMER` | First contribution anywhere on GitHub |
+| `NONE` | No relation |
+
+A rule that asks about something GitHub did not send never matches.
+
+## Asking for a review
+
+A pull request that waits, or one that no rule reviews, can be started three ways:
+
+- **The request label.** Add `co-maintainer:review` to the pull request. Adding a
+  label already needs triage rights, so nothing else is checked.
+- **The request comment.** Comment `/co-maintainer review` as the first words of
+  a comment on the pull request. Only people in the allowed set can ask, which is
+  owners, members and collaborators unless you change it.
+- **Review now.** On the dashboard, a pull request that is waiting shows a
+  **Review now** button on the Activity page, under **Pull requests we
+  skipped**. Whoever is signed in is already allowed to ask, and the button ignores
+  the round limit.
+
+When a label or comment request starts a review, the App reacts with an eyes
+emoji on the comment or the pull request, so the person who asked can see it was
+picked up.
+
+A request never overrides **Do not review**. If a rule skips the pull request, a
+request is refused and the reason is recorded.
+
+GitHub sends no fork, target branch or size with a comment, so on a **comment**
+request the rules about those three do not match. A label request, and a push,
+check everything.
+
+### What a request covers
+
+| Setting | Covers |
+| ------- | ------ |
+| Only the commit it was made on | Each new push waits for a new request |
+| Every later push to the pull request | After the first review, every push is reviewed |
+
+Comments and reviews on a waiting pull request do not start a review either. The
+second setting is the one that carries an earlier request forward.
+
+### Round limit
+
+**Reviews per pull request** stops the webhook after that many reviews. A request
+obeys it too, and the skip reason reads `Round limit reached: 2 of 2 reviews.`
+Leave it blank for no limit.
+
+## Set it up
+
+### In the dashboard
+
+- **Repository settings**, card **Who gets a review.** Pick a template, read the
+  plain sentences under **In short**, and open **Edit the rules** to change them.
+  The sentences update as you edit, and **Save** is disabled while the policy is
+  not valid. Editing a template turns it into custom rules.
+- **Settings**, **Defaults for new repositories.** The template a repository
+  starts with. Custom rules are set with a file, see below.
+- **Add repository.** After the preview, the plan step lists the templates with
+  their descriptions. The server default is selected, and you decide.
+
+### On the command line
+
+```sh
+# The server default for new repositories
+co-maintainer set --review-policy=trusted-auto
+
+# A custom policy from a file
+co-maintainer set --review-policy-file=policy.json
+
+# Back to no default
+co-maintainer set --unset=review-policy
+```
+
+A policy file is JSON. Everything except the rules can be left out:
+
+```json
+{
+  "rules": [
+    { "name": "draft", "when": { "draft": true }, "action": "skip" },
+    {
+      "name": "first time contributor",
+      "when": { "association": ["FIRST_TIME_CONTRIBUTOR", "FIRST_TIMER"] },
+      "action": "on-request"
+    },
+    {
+      "name": "small change by anyone we know",
+      "when": { "association": ["OWNER", "MEMBER", "COLLABORATOR", "CONTRIBUTOR"], "changedLines": { "max": 300 } },
+      "action": "review"
+    }
+  ],
+  "default": "on-request",
+  "requestLabel": "co-maintainer:review",
+  "requestCommand": "/co-maintainer review",
+  "requesters": ["OWNER", "MEMBER", "COLLABORATOR"],
+  "approvalScope": "head",
+  "maxRounds": 3
+}
+```
+
+| Field | Values | Default |
+| ----- | ------ | ------- |
+| `rules[].action` and `default` | `review`, `on-request`, `skip` | `default` is `review` |
+| `rules[].when` | `association`, `fork`, `draft`, `bot`, `labels`, `targetBranch`, `changedLines` (`min`, `max`) | No condition matches everything |
+| `requestLabel` | Label name | `co-maintainer:review` |
+| `requestCommand` | Text a comment starts with | `/co-maintainer review` |
+| `requesters` | Author relations that may ask by comment | `OWNER`, `MEMBER`, `COLLABORATOR` |
+| `approvalScope` | `head`, `pull-request` | `head` |
+| `maxRounds` | Whole number of 1 or more | No limit |
+
+A policy that cannot be read is refused and says what is wrong, for example
+`unknown template "x"` or `rules[0].action must be one of review, on-request, skip`.
+Nothing is saved.
+
+## Existing repositories
+
+A repository added before policies existed keeps the three switches it had:
+automatic review on or off, skip drafts, skip bots. They behave exactly as they
+always did, and the repository shows **Simple switches**. Choosing a template
+replaces them. On a repository that follows a policy, the switches are hidden and
+changing one through the API is refused with a message that says to change the
+policy instead.
+
+A new repository with no choice follows the server default. With no server
+default it behaves like **Everyone**.
+
+## Why a pull request was skipped
+
+**Activity**, **Pull requests we skipped** names the rule that decided, for
+example `Rule 3 (trusted author): waiting for a maintainer request.` or
+`Default rule: waiting for a maintainer request.` A rule without a name shows its
+position only, so name the rules you write.
+
+## Permissions
+
+A request needs nothing new. The eyes reaction uses the Issues permission the App
+already has, and a label request arrives on the `pull_request` event it already
+receives. See [GitHub App](github-app.md) for the permission table.
 
 ---
 
@@ -980,7 +1454,7 @@ Source: https://co-maintainer.com/docs/local-pr-review.md
 # PR review
 
 Review an **open GitHub pull request** by number. The CLI uses **`gh`** to read
-the PR and runs the AI **on your machine** (OpenRouter).
+the PR and runs the AI **on your machine** with your [AI provider](providers.md).
 
 Overview: [`review`](review.md). This is not the same as
 [remote review](remote-review.md) (`--remote` is rejected when a PR number is
@@ -1113,6 +1587,7 @@ starts keep it.
 | `--enable-auth=github` | Turn on GitHub OAuth sign-in for this run |
 | `--trust-proxy` | Trust `x-forwarded-for` and `x-forwarded-proto` from a reverse proxy in front (also `CM_TRUST_PROXY=1`, see [Behind a reverse proxy](#behind-a-reverse-proxy)) |
 | `--inject-500` | Every mutating `/api/*` call returns 500 (failure UI testing, also `CM_INJECT_500=1`) |
+| `CM_REMOTE_BYOK_POLICY` | Whether a remote review may bring its own AI key: `off` (the default), `allow` or `require`, see [your own key](remote-review.md#your-own-ai-key) |
 | `CM_LOGIN_HINT` | Text shown on the sign-in page instead of the default "printed when `serve` started" line. Useful when a deployment hands out its own password, as the Cloud image does. Escaped as plain text |
 
 Per-run `--disable-auth` / `--enable-auth` override values from `co-maintainer
@@ -1340,6 +1815,10 @@ The estimate says whether it used this repository's recorded jobs or the
 cm-dx-lab calibration, and whether it priced dollars from OpenRouter. See
 [`probe`](probe.md) for how the recommendation is derived.
 
+The same step asks who gets a review. It lists the [review policy](review-policy.md)
+templates with a sentence each. The server default is selected and you decide.
+Leaving it on the server default keeps the repository following it.
+
 ## Sign in
 
 Open `http://<host>:<port>/`.
@@ -1373,7 +1852,7 @@ Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
 
 | Path | Purpose |
 | ---- | ------- |
-| `/` | Repository list, **Finish setup** checklist until complete, **Add repository**, auto-review toggles |
+| `/` | Repository list, **Finish setup** checklist until complete, **Add repository**, auto-review toggles (they only apply to repositories on **Simple switches**) |
 | `/setup` | Same checklist as above (direct URL) |
 | `/repos/new` | Pick an App-installed repo, **Preview** the plan, then confirm to start **init** |
 | `/repos/:owner/:repo` | Overview, 30-day stats, drift **Update now**, recent PRs, webhook reachability and last delivery |
@@ -1381,11 +1860,11 @@ Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
 | `/repos/:owner/:repo/pulls/:n` | Findings and cost for one PR |
 | `/repos/:owner/:repo/remote` | Remote CLI reviews for this repo (last 30 days) |
 | `/repos/:owner/:repo/knowledge` | Generated guides, **Sync** |
-| `/repos/:owner/:repo/settings` | Auto-review, skip rules, scope, remove repo |
-| `/activity` | Live and recent jobs (refreshes about every 5 seconds) |
+| `/repos/:owner/:repo/settings` | **Who gets a review** (the [review policy](review-policy.md)), review scope, codegraph, analysis limits, schedule, remove repo |
+| `/activity` | Live and recent jobs (refreshes about every 5 seconds) and **Pull requests we skipped**, with the rule that skipped each and **Review now** for one that is waiting |
 | `/activity/:id` | Single job log |
 | `/analytics` | Usage for 7, 30, or 90 days |
-| `/settings` | Global models, GitHub, App (**Create GitHub App**), webhook URL, remote limits and tokens |
+| `/settings` | Global models, GitHub, App (**Create GitHub App**), webhook URL, review policy default, remote limits, tokens and key policy |
 
 Per-repo sidebar: **Overview**, **Pull requests**, **Remote**, **Knowledge**, **Settings**.
 
@@ -1397,17 +1876,30 @@ Single page with sections (anchor links in the sidebar):
 
 | Section | What you configure |
 | ------- | ------------------ |
-| Models and API key | Provider, token, high model (reviews and synthesis), low model (history extraction) |
+| Models and API key | Provider (OpenRouter, OpenAI or Anthropic, see [AI providers](providers.md)), token, high model (reviews and synthesis), low model (history extraction). No model is pre-filled |
 | GitHub | `gh` or PAT for init/sync and server-side Git reads |
-| Defaults | Auth and include/limit defaults for new work |
+| Defaults | Auth and include/limit defaults for new work, and the [review policy](review-policy.md) template new repositories start with |
 | Server | Webhook URL shown to GitHub, queue and timeout knobs |
-| Remote review | `cmr_…` tokens (secret shown once, with copy), per-token concurrency, sync timeout |
+| Remote review | `cmr_…` tokens (secret shown once, with copy), per-token concurrency, sync timeout, and the **Client key policy (BYOK)**, see [your own key](remote-review.md#your-own-ai-key) |
 | Access | Password vs GitHub sign-in toggles (mirrors `serve` flags) |
 | Password | Change the dashboard password and sign out other sessions |
 | About | Version and source link |
 
 Saving PAT, App key, or OAuth values is validated against GitHub first. Bad
 scopes return **422** and nothing is stored.
+
+## Who gets a review
+
+Each repository has a **Who gets a review** card under its **Settings**. It is
+where the [review policy](review-policy.md) lives. The summary under **In short**
+says in plain sentences what the current choice does, and it updates as you edit
+the rules. **Save** stays off while the policy is not valid and the message says
+what to fix. A repository on **Simple switches** shows the three switches it had
+before. One on a policy shows **How reviews run**, which holds only the review
+scope and codegraph.
+
+On **Activity**, **Pull requests we skipped** names the rule that decided, and a
+pull request that is waiting for a request has a **Review now** button.
 
 ## UI behavior
 
@@ -1481,13 +1973,18 @@ repositories the App can already see.
 
 The manifest requests exactly the permissions the code uses, not a superset.
 
+<!-- permissions:app:start -->
 | Permission | Access | Why |
 | ---------- | ------ | --- |
-| Contents | Read | Read a repository's files, trees, and `PR_REVIEW_GUIDE.md` |
-| Pull requests | Write | Read a pull request and post reviews and review comments |
-| Issues | Write | Post and read issue comments, which is how a conversation reply is delivered |
-| Checks | Write | Create and update the review check run |
-| Metadata | Read | Required by every GitHub App |
+| Contents | Read | Read files and PR_REVIEW_GUIDE.md, read the file tree, read commit history, compare two commits, read releases in the probe |
+| Issues | Read and write | Read the conversation on a pull request, post a conversation comment, acknowledge a review request on the pull request, acknowledge a review request in a comment |
+| Pull requests | Read and write | List pull requests, read a pull request, read the files a pull request changes, read earlier reviews, read review comment threads, post a review, reply in a review comment thread |
+| Checks | Read and write | Create the review check run, update the review check run |
+| Metadata | Read | Read the repository and its default branch |
+<!-- permissions:app:end -->
+
+Metadata is required by every GitHub App. The review check run is created
+through the App, never with a personal access token.
 
 No `administration`, no `actions`, and no `packages` access is requested.
 
@@ -1706,11 +2203,11 @@ co-maintainer init owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
-| `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
-| `--high-model=ID` | openai/gpt-5.6-luna | Model for the review itself. |
+| `--low-model=ID` |  | Model for extraction work. |
+| `--high-model=ID` |  | Model for the review itself. |
 
 ### GitHub access
 
@@ -1766,11 +2263,11 @@ co-maintainer sync owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
-| `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
-| `--high-model=ID` | openai/gpt-5.6-luna | Model for the review itself. |
+| `--low-model=ID` |  | Model for extraction work. |
+| `--high-model=ID` |  | Model for the review itself. |
 
 ### GitHub access
 
@@ -1812,6 +2309,8 @@ co-maintainer review [options]
 | `--remote` |  | Send the diff to the configured remote server instead of reviewing locally. |
 | `--remote-host=URL` |  | Override the configured remote host for this run (needs --remote). |
 | `--remote-token=TOKEN` |  | Override the configured remote token for this run (needs --remote). |
+| `--remote-byok` |  | Send your own AI key with a remote review (needs --remote). |
+| `--no-remote-byok` |  | Do not send your own AI key, even if remote-byok-default is on. |
 | `--sync-before-review` |  | Rebuild the guides before reviewing. |
 
 ### Codegraph
@@ -1825,11 +2324,11 @@ co-maintainer review [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
-| `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
-| `--high-model=ID` | openai/gpt-5.6-luna | Model for the review itself. |
+| `--low-model=ID` |  | Model for extraction work. |
+| `--high-model=ID` |  | Model for the review itself. |
 
 ### GitHub access
 
@@ -1845,6 +2344,7 @@ co-maintainer review [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+| `--output=github` |  | Print GitHub workflow annotations and write the job summary instead of prose. Cannot be used with --json. |
 
 ## `co-maintainer config`
 
@@ -1894,11 +2394,11 @@ co-maintainer set [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|hetzner` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
-| `--low-model=ID` | openai/gpt-oss-120b | Model for extraction work. |
-| `--high-model=ID` | openai/gpt-5.6-luna | Model for the review itself. |
+| `--low-model=ID` |  | Model for extraction work. |
+| `--high-model=ID` |  | Model for the review itself. |
 
 ### GitHub access
 
@@ -1921,11 +2421,16 @@ co-maintainer set [options]
 | `--github-oauth-allowed-user=LOGIN` |  | The only GitHub user allowed to sign in. |
 | `--remote-host=URL` |  | The remote review server. |
 | `--remote-token=TOKEN` |  | The remote review token. |
+| `--remote-byok-policy=off\|allow\|require` | off | Whether a remote client may send its own AI key. |
+| `--remote-byok=KEY` |  | Your own AI key to send with a remote review. |
+| `--remote-byok-default=on\|off` | off | Send remote-byok on every --remote review by default. |
+| `--review-policy=everyone\|trusted-auto\|on-request-only` |  | The review policy new repositories start with. |
+| `--review-policy-file=PATH` |  | Read a custom review policy from a JSON file and use it as that default. |
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |
 | `--password=TEXT` |  | Replace the dashboard password. |
 | `--disable-auth=password` |  | Turn the dashboard password off. |
 | `--enable-auth=github` |  | Turn GitHub sign-in on. |
-| `--no-verify` |  | Do not check the key and model against OpenRouter. |
+| `--no-verify` |  | Do not check the key and model against the provider. |
 | `--unset=NAME` |  | Remove a stored value. |
 
 ## `co-maintainer serve`
@@ -1955,6 +2460,20 @@ co-maintainer serve --port=N [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+
+## `co-maintainer rollback`
+
+Go back to the version before the last upgrade, restoring its data.
+
+```
+co-maintainer rollback [--yes]
+```
+
+### Rollback
+
+| Flag | Default | Description |
+|---|---|---|
+| `--yes` |  | Skip the confirmation. Needed when there is no terminal. |
 
 ## `co-maintainer version`
 
@@ -2007,7 +2526,7 @@ flowchart BT
 | ----- | -------- |
 | Highest | `--token=`, `--auth=pat`, `--max-commits=500` on the command |
 | Env file | Only when you pass `--env=./.env` (sets vars if not already set) |
-| Environment | `GITHUB_TOKEN`, `OPENROUTER_API_KEY`, `CO_MAINTAINER_AUTH`, model env vars |
+| Environment | `GITHUB_TOKEN`, `CO_MAINTAINER_TOKEN`, `OPENROUTER_API_KEY`, `OPENCODE_API_KEY`, `CO_MAINTAINER_AUTH`, model env vars, [remote review variables](#remote-review-variables) |
 | Per-repo | `repos["owner/repo"]` after a successful init/sync |
 | Global | `set` defaults in `config.json` |
 | Lowest | Prompts when a required value is still missing |
@@ -2028,13 +2547,17 @@ co-maintainer set --github-app-id=... --github-app-private-key-path=./app.pem
 co-maintainer set --remote-host=https://your-server --remote-token=cmr_...
 ```
 
+`--ai` also takes `openai` and `anthropic`. There is no default model for any
+provider, so both models are saved the first time. See
+[AI providers](providers.md).
+
 ### `set` flags
 
 | Flag | Written to | Used by |
 | ------ | ---------- | ------- |
-| `--token=...` | `token` | CLI AI calls (OpenRouter/Hetzner) |
+| `--token=...` | `token` | AI calls for the provider in `ai` |
 | `--ai-key=...` | `token` | An alias for `--token`, named for what it is |
-| `--ai=none\|openrouter\|hetzner` | `ai` | CLI and dashboard jobs |
+| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | `ai` | CLI and dashboard jobs, see [AI providers](providers.md) |
 | `--low-model=...` / `--high-model=...` | `lowModel`, `highModel` | CLI and dashboard jobs |
 | `--auth=gh\|pat` | `auth` | CLI GitHub reads |
 | `--github-pat=...` | `githubPat` | CLI when `--auth=pat` |
@@ -2050,6 +2573,11 @@ co-maintainer set --remote-host=https://your-server --remote-token=cmr_...
 | `--remote-host=...` | `remoteHost` | `review --remote` |
 | `--remote-token=...` | `remoteToken` | `review --remote` |
 | `--review-blocking=model\|severity` | `reviewBlocking` | Whether a review's own severity decides a blocking finding |
+| `--remote-byok=KEY` | `remoteByok` | `review --remote`, your own AI key, see [Remote review](remote-review.md#your-own-ai-key) |
+| `--remote-byok-default=on\|off` | `remoteByokDefault` | Whether `review --remote` sends `remote-byok` without being asked |
+| `--remote-byok-policy=off\|allow\|require` | `remoteByokPolicy` | `serve`, whether remote clients may send their own key |
+| `--review-policy=everyone\|trusted-auto\|on-request-only` | `reviewPolicy` | `serve`, the [review policy](review-policy.md) new repositories start with |
+| `--review-policy-file=PATH` | `reviewPolicy` (the parsed policy) | The same, from a JSON file. A bad policy is refused and nothing is saved |
 
 ### App private key: inline, file contents, or path
 
@@ -2069,11 +2597,15 @@ clears the other form when you pass one, so the choice is unambiguous.
 
 ### Verification before saving
 
-When the provider is OpenRouter, `set` checks the key against
-`/api/v1/key` and, if a model is given, that `/api/v1/models` lists it. A bad
+Whatever the provider is, `set` asks it whether the key works and, if a model is
+given, whether the provider has that model. OpenRouter is checked against its
+key and model endpoints, OpenAI and Anthropic against their model list, and
+OpenCode against its public model list, which checks the model but not the
+key. A bad
 key or unknown model is refused with exit code 2 and **nothing is written**. A
 network failure only warns (`saved anyway`), because that is not a typo. Pass
-`--no-verify` to skip the check, for example in CI with an offline key.
+`--no-verify` to skip the check, for example in CI with an offline key. The
+checks are listed on [AI providers](providers.md#set-checks-the-key-and-the-model).
 
 OAuth setup steps: [`serve`: Sign in](serve.md#sign-in-to-the-dashboard).
 
@@ -2110,7 +2642,7 @@ hides the value.
 | Key | Type | Source | Masked |
 | --- | ---- | ------ | ------ |
 | `auth` | `gh` or `pat` | `set` flag | no |
-| `ai` | `none`, `openrouter`, or `hetzner` | `set` flag | no |
+| `ai` | `none`, `openrouter`, `openai`, `anthropic`, `opencode-zen` or `opencode-go` | `set` flag | no |
 | `low-model` | string | `set` flag | no |
 | `high-model` | string | `set` flag | no |
 | `token` | string | `--token` or `--ai-key` | yes |
@@ -2131,6 +2663,14 @@ hides the value.
 | `review-blocking` | `model` or `severity` | `--review-blocking` | no |
 | `remote-host` | URL string | `--remote-host` | no |
 | `remote-token` | string | `--remote-token` | yes |
+| `remote-byok` | string | `--remote-byok` | yes |
+| `remote-byok-default` | boolean | `--remote-byok-default` | no |
+| `remote-byok-policy` | `off`, `allow` or `require` | `--remote-byok-policy`, Settings, Remote review | no |
+| `review-policy` | template name or policy object | `--review-policy`, `--review-policy-file`, Settings, Defaults | no |
+| `remote-sync-timeout-seconds` | number | Settings | no |
+| `max-concurrent-remote-reviews-per-token` | number | Settings | no |
+| `remote-tool-output-max-chars` | number | Settings | no |
+| `remote-notice-shown-for` | list of hosts | Written by `review --remote` | no |
 | `repos` | object | Written by `init` and `sync` | no |
 
 `config get` prints the real value even for a masked key, so treat its output as
@@ -2180,7 +2720,7 @@ Windows).
 | Situation | Suggestion |
 | --------- | ---------- |
 | Personal laptop | `set` is fine |
-| Shared CI | Prefer `--env=PATH` or flags, avoid committing config |
+| Shared CI | Prefer environment variables or `--env=PATH`, avoid committing config. For the GitHub Action see [CI](ci.md) |
 | `serve` host | Lock down the config directory like any secret store |
 
 Dashboard **Settings** can also save credentials after validating them with
@@ -2194,6 +2734,169 @@ GitHub.
 | `CM_REPOS_DIR` | Replace generated guides root (must match `serve` for server init) |
 
 More cache and database paths: [Caching](caching.md#overrides).
+
+## Remote review variables
+
+These let a job with no config file, such as [CI](ci.md), reach a review server.
+A flag wins over the environment, and the environment wins over `config.json`.
+An empty value counts as not set.
+
+| Variable | Effect |
+| -------- | ------ |
+| `CM_REMOTE_HOST` | The server for `review --remote` and `view --remote`, the same as `remote-host` |
+| `CM_REMOTE_TOKEN` | The remote review token, the same as `remote-token`. Keeps it off the command line |
+| `CM_REMOTE_BYOK` | Your own AI key for `review --remote --remote-byok`, the same as `remote-byok` |
+| `CM_REMOTE_BYOK_POLICY` | On the server, `off`, `allow` or `require`. It overrides `remote-byok-policy`, so a hosted deployment cannot be talked out of it from the dashboard |
+
+`config list` shows `env` as the source of `remote-host` and `remote-token` when
+their variable is set.
+
+---
+
+Source: https://co-maintainer.com/docs/providers.md
+
+# AI providers
+
+co-maintainer asks an AI provider to write the guides in [`init`](init.md) and
+[`sync`](sync.md) and to write every review. Five providers are supported.
+
+| Provider | `--ai=` | Where you get a key |
+| -------- | ------- | ------------------- |
+| [OpenRouter](https://openrouter.ai/) | `openrouter` | openrouter.ai, under Keys |
+| [OpenAI](https://platform.openai.com/) | `openai` | platform.openai.com, under API keys |
+| [Anthropic](https://console.anthropic.com/) | `anthropic` | console.anthropic.com, under API keys |
+| [OpenCode Zen](https://opencode.ai/docs/zen) | `opencode-zen` | opencode.ai, after adding credit |
+| [OpenCode Go](https://opencode.ai/docs/go) | `opencode-go` | opencode.ai, with a Go subscription |
+
+`--ai=none` is the default until you choose a provider. [`probe`](probe.md)
+needs no model, so it works with it.
+
+## Where each provider works
+
+| Command | Which provider |
+| ------- | -------------- |
+| [`init`](init.md) and [`sync`](sync.md) | The one you saved or pass with `--ai=` |
+| [Local review](local-review.md) and [PR review](local-pr-review.md) | The one you saved or pass with `--ai=` |
+| [`serve`](serve.md) jobs and automatic reviews | The one saved on the server |
+| [Remote review](remote-review.md) | The server's provider |
+
+Every provider works everywhere. A review with no provider saved uses OpenRouter,
+which is what every review used before other providers existed, and
+`review --ai=none` is refused. For a remote review the provider is whichever
+one the server is configured with, so the laptop never needs a key unless it
+brings its own (see [your own key](remote-review.md#your-own-ai-key)).
+
+## Pick a provider and save it once
+
+```sh
+co-maintainer set --ai=anthropic --token=YOUR_KEY \
+  --low-model=YOUR_LOW_MODEL_ID --high-model=YOUR_HIGH_MODEL_ID
+```
+
+After that `init`, `sync` and `serve` need no flags. The dashboard does the same
+under **Settings**, **Models and API key**.
+
+## There is no default model
+
+co-maintainer never picks a model for you. Models change quickly, and an
+installed version cannot fetch a newer list, so a built-in default would one day
+name a model the provider no longer serves. You choose both models once and save
+them, or pass them on the command:
+
+| Model | Used for |
+| ----- | -------- |
+| `--low-model` | History extraction and diff summaries, the high volume and cheaper work |
+| `--high-model` | Synthesis of the guides and the review itself |
+
+When one is missing, the command stops before it spends anything:
+
+- In a terminal it asks for the value and suggests none.
+- Without a terminal, or with `--json`, it exits with code 2 and says which one
+  is missing: `Missing low model. Pass it as a CLI option when running without
+  an interactive terminal`.
+- A review that reaches a model it does not have reports `No low model is
+  configured.` with the hint `Run co-maintainer set --low-model=..., or pass
+  --low-model=... on the command that needs it.`
+
+Use the model ids the provider lists, for example the ones on its models page.
+The examples in these docs use an OpenRouter pair such as
+`openai/gpt-oss-120b` and `openai/gpt-5.6-luna`. They are examples, so check your
+provider's current list before you copy one.
+
+## Keys
+
+| Provider | Key from | Environment variable |
+| -------- | -------- | -------------------- |
+| OpenRouter | `--token=`, `--ai-key=`, `set` | `CO_MAINTAINER_TOKEN` or `OPENROUTER_API_KEY` |
+| OpenAI | `--token=`, `--ai-key=`, `set` | `CO_MAINTAINER_TOKEN` |
+| Anthropic | `--token=`, `--ai-key=`, `set` | `CO_MAINTAINER_TOKEN` |
+| OpenCode Zen and Go | `--token=`, `--ai-key=`, `set` | `CO_MAINTAINER_TOKEN` or `OPENCODE_API_KEY` |
+
+`OPENROUTER_API_KEY` is only read when the provider is OpenRouter and
+`OPENCODE_API_KEY` only for OpenCode, so a key for one provider is never sent
+to another. The saved key belongs to the saved provider, and every command,
+review included, sends it there. `OPENROUTER_LOW_MODEL` and
+`OPENROUTER_HIGH_MODEL` are likewise only read for OpenRouter. A key is never stored per repository. The
+order every setting is resolved in is on [Configuration](configuration.md#precedence).
+
+## `set` checks the key and the model
+
+Before it writes anything, `set` asks the provider whether the key works and, if
+you gave a model, whether the provider has it:
+
+| Provider | What is checked |
+| -------- | --------------- |
+| OpenRouter | The key against its key endpoint, the model against its model list |
+| OpenAI | The key and the model against its model list |
+| Anthropic | The key and the model against its model list |
+| OpenCode Zen and Go | The model against the public model list. The list needs no key, so a wrong key shows up on the first real call |
+
+A rejected key or an unknown model exits with code 2 and **nothing is saved**. A
+network failure only warns, because that is not a typo. Pass `--no-verify` to
+skip the check.
+
+## What differs between providers
+
+- **OpenRouter** reports the dollar cost of every call, so its reviews show a
+  real cost.
+- **OpenAI** is called through its Responses API. It does not report a cost, so
+  the cost of a review is `unknown`. During a codegraph tool conversation the
+  reasoning items of a reasoning model are not passed back between rounds, which
+  can make a later round reason a little less well. The number of rounds is
+  small, so little is at stake.
+- **Anthropic** is called through its Messages API. It does not report a cost
+  either. The guides are the same prefix in every review and are marked for
+  prompt caching, so a review that follows soon after another reads them from
+  Anthropic's cache at the cached rate. The call is not streamed, so a very long
+  answer can run into Anthropic's request timeout.
+
+- **OpenCode Zen and Go** route each model to its own API format, and the
+  model list does not say which. co-maintainer calls every model over Chat
+  Completions. A model that only answers in another format is refused with
+  `OpenCode Zen does not know the model` and a hint that says so. Pick a model
+  that supports Chat Completions. Gemini models on Zen use Google's format and
+  do not work. Neither gateway reports a cost, so a review on it is `unknown`.
+- **OpenCode Go** is a subscription meant for coding agents, and OpenCode
+  watches its traffic for abuse. co-maintainer identifies itself with its own
+  user agent and one session id per run, as Go asks every client to. `init`
+  makes many short calls in a row, which is not the traffic Go is built for, so
+  heavy use may hit its limits or its abuse checks. Zen has no such rule.
+
+`unknown` is not zero. [Cost](cost.md#what-unknown-means) explains how the two
+are kept apart. The [`probe`](probe.md) estimate says `estimate unavailable for
+this provider` for OpenAI and Anthropic instead of printing a made-up dollar
+range.
+
+## Errors
+
+| Message starts with | Code | What happened |
+| ------------------- | ---- | ------------- |
+| `OpenRouter rejected the API key`, `OpenAI rejected the API key`, `Anthropic rejected the API key`, `OpenCode Zen rejected the API key`, `OpenCode Go rejected the API key` | 2 | The provider refused the key. Replace it with `co-maintainer set --token=...` |
+| `OpenAI does not know the model`, `Anthropic does not know the model`, `OpenCode Zen does not know the model`, `OpenCode Go does not know the model` | 2 | The model id is not one the provider serves. The hint links its model list |
+| `OpenAI failed with`, `Anthropic failed with` | 3 | The provider returned an error that is not about the key or the model. The message carries its status |
+| `OpenAI refused to answer`, `Anthropic refused to answer` | 3 | The model declined the request. The message says why when the provider did |
+
+More in [Troubleshooting](troubleshooting.md).
 
 ---
 
@@ -2249,6 +2952,18 @@ co-maintainer probe owner/repo
 
 Check access: `gh auth status`.
 
+Scopes `gh` needs:
+
+<!-- permissions:gh:start -->
+| Scope | Why |
+| ----- | --- |
+| `repo` | Read public and private repositories |
+| `public_repo` | Read public repositories only |
+<!-- permissions:gh:end -->
+
+`gh auth login` grants `repo` by default. If a private repository answers with
+a 403, run `gh auth refresh -s repo`.
+
 ## CLI: `--auth=pat`
 
 ```sh
@@ -2259,13 +2974,48 @@ co-maintainer init owner/repo --auth=pat --env=./.env
   `GH_TOKEN`, or `set --github-pat=...`.
 - Useful when `gh` is not installed or CI has no interactive `gh` login.
 - Not used for PR review (that path always calls `gh`).
+- Only reads. A token never posts reviews or creates check runs, the
+  [GitHub App](github-app.md) does that.
 
-Token needs read access to the repositories you analyze. Private repos need
-scopes your org allows.
+### Fine-grained token (recommended)
+
+1. On GitHub open **Settings**, **Developer settings**, **Personal access
+   tokens**, **Fine-grained tokens**, then **Generate new token**.
+2. Pick the **Resource owner** that owns the repositories. An organization may
+   need to approve the token first.
+3. Under **Repository access** choose **Only select repositories** and pick the
+   ones you analyze.
+4. Under **Repository permissions** set each permission below. GitHub labels the
+   read level **Read-only**. It adds **Metadata** on its own.
+
+<!-- permissions:pat-fine:start -->
+| Repository permission | Access | Needed for |
+| --------------------- | ------ | ---------- |
+| Contents | Read | Read files and PR_REVIEW_GUIDE.md, read the file tree, read commit history, compare two commits, read releases in the probe |
+| Issues | Read | Read the conversation on a pull request |
+| Pull requests | Read | List pull requests, read a pull request, read the files a pull request changes, read earlier reviews, read review comment threads |
+| Metadata | Read | Read the repository and its default branch, check the token can list repositories |
+<!-- permissions:pat-fine:end -->
+
+### Classic token
+
+Open **Settings**, **Developer settings**, **Personal access tokens**,
+**Tokens (classic)**, then **Generate new token (classic)** and tick one scope:
+
+<!-- permissions:pat-classic:start -->
+| Scope | Why |
+| ----- | --- |
+| `repo` | Read public and private repositories |
+| `public_repo` | Read public repositories only |
+<!-- permissions:pat-classic:end -->
+
+Organizations that enforce SAML single sign-on also need the token authorized
+for that organization on the token page.
 
 ## GitHub App (`serve`)
 
-The App is **not** the same as CLI `gh` auth:
+The App is **not** the same as CLI `gh` auth. Its permissions are listed on the
+[GitHub App](github-app.md#permissions) page.
 
 - Installed on orgs/repos for webhooks and posting PR reviews.
 - Configured with `co-maintainer set --github-app-id=...` and a private key, or
@@ -2280,13 +3030,22 @@ See [Configuration](configuration.md#co-maintainer-set) and [`serve`](serve.md).
 Signing into the web UI does **not** replace CLI GitHub auth or the App.
 It only gates access to the dashboard and Settings.
 
+GitHub sign-in reuses the App's own OAuth credentials and asks GitHub for:
+
+<!-- permissions:oauth:start -->
+| Scope | Why |
+| ----- | --- |
+| None requested | The sign-in only reads your GitHub login from `GET /user` |
+<!-- permissions:oauth:end -->
+
 Setup: [`serve`: Sign in](serve.md#sign-in-to-the-dashboard).
 
 ## Troubleshooting
 
 | Symptom | Likely fix |
 | ------- | ---------- |
-| `probe` / `init` cannot see a private repo | `gh auth login` or PAT with repo scope |
+| `probe` / `init` cannot see a private repo | `gh auth login`, or a token with the permissions above and that repository selected |
+| `GitHub refused ...` with a permission name | Grant that permission, the message names it |
 | PR review says gh only | Run `gh auth login`, drop `--auth=pat` for that command |
 | Webhook works but no review posted | Finish dashboard **Setup**, repo **init**, auto-review on |
 | Settings save returns 422 | Token or App key missing GitHub scopes |
@@ -2429,6 +3188,7 @@ remote review should read guides the server built.
 | Main moved, guides stale | [`sync`](sync.md) or dashboard **Sync** |
 | Change include flags or limits | `sync`/`init` with new flags (updates config + guides) |
 | Wipe server state | Stop `serve`, backup, remove `app.db` (destructive) |
+| Go back after an upgrade | Stop `serve`, run [`rollback`](troubleshooting.md#going-back-after-an-upgrade) with the new version still installed |
 | Wipe CLI evidence only | Remove `cache.db` (guides in `repos/` may remain) |
 
 ---
@@ -2449,8 +3209,8 @@ estimate it before you start.
 | `init` | Yes | Extraction and synthesis jobs over code, pull requests, and history |
 | `sync` | Yes, but less | Reuses unchanged evidence from [cache](caching.md), so only changed inputs rebuild |
 | Large-file diff summary | Yes, small | A diff over 500 changed lines is summarized with the low model instead of being sent whole |
-| Local and PR `review` | Yes | Runs on your OpenRouter or Hetzner key |
-| Remote `review` | On the server | The server's key pays, not the laptop's |
+| Local and PR `review` | Yes | Runs on your provider's key, see [AI providers](providers.md) |
+| Remote `review` | On the server | The server's key pays, not the laptop's, unless you [send your own key](remote-review.md#your-own-ai-key) |
 | GitHub App auto-review | On the server | Same as remote |
 
 `gh` reads cost nothing beyond the API rate limit. Codegraph runs locally and is
@@ -2466,8 +3226,10 @@ range, a time range, and a dollar range, and says which basis it used:
 - **The calibration**, otherwise, taken from the maintainers' reference runs.
 
 If the provider's price list cannot be reached, the dollar line is omitted and
-the estimate says it is unavailable, rather than printing a made-up number. The
-line always ends with `an estimate, not a bill`.
+the estimate says it is unavailable, rather than printing a made-up number. For
+OpenAI and Anthropic, which publish no price list this way, it reads `estimate
+unavailable for this provider`. The line always ends with `an estimate, not a
+bill`.
 
 The dashboard shows the same estimate when you add a repository, and nothing
 starts until you confirm.
@@ -2483,6 +3245,35 @@ Done in 21.0s · 3,125 in, 1,308 out tokens · $0.0016
 The same numbers appear in `--json` under `usage`, and the dashboard records
 cost per job on the Activity page and per repository on Usage. When a price list
 is unavailable the line reads `cost unknown` rather than a false zero.
+
+## What "unknown" means
+
+A missing cost is never shown as `$0.00`. Zero is what a free model actually
+costs, unknown is a cost that was never learned, and the two are kept apart
+everywhere the dashboard shows money. A single review's unknown cost is a
+dotted underline you can hover, or tab to, for the reason:
+
+| Reason | What happened |
+| ------ | ------------- |
+| The provider did not report the cost | The AI call finished but its response carried no price. |
+| Some AI calls in this review did not report a cost | Part of a multi-call review priced itself, part did not |
+| Recorded before 0.5.1, the cost was not saved | The review predates this page's own cost tracking |
+| The review ended before its cost was recorded | It failed, was canceled, or the process stopped before an AI call returned |
+
+A total adds up only the reviews with a known cost and names how many are
+missing one, for example `$1.23 · 4 reviews with unknown cost`, rather than
+quietly rounding them to zero.
+
+OpenAI, Anthropic and OpenCode never report a cost, so every review on them
+reads `unknown`. OpenRouter reports one. See [AI providers](providers.md#what-differs-between-providers).
+
+## Who pays
+
+A remote review is paid by the server's key unless the client sends its own (see
+[your own key](remote-review.md#your-own-ai-key)). A review paid with a client's
+key is kept out of the server's own spend and shown after a plus sign, so a total
+reads `$1.23 + $0.40 BYOK`. If the cost of those reviews is unknown, it reads
+`4 reviews with unknown cost BYOK` in the same place.
 
 ## Keeping the cost down
 
@@ -2523,8 +3314,9 @@ what it stores, where, and what leaves the machine.
 | Surface | Sent to | What |
 | ------- | ------- | ---- |
 | `probe`, `init`, `sync` | GitHub | API reads through `gh` or a PAT |
-| `init`, `sync`, `review` | Your AI provider (OpenRouter or Hetzner) | The prompts: sampled code, pull request text, diffs, and guides |
+| `init`, `sync`, `review` | Your AI provider ([OpenRouter, OpenAI, Anthropic or OpenCode](providers.md)) | The prompts: sampled code, pull request text, diffs, and guides |
 | Remote `review` | Your `serve` instance | The git diff, plus codegraph tool requests and results |
+| Remote `review` with your own key | Your `serve` instance | Your AI key, kept in memory for that review and never stored, see [your own key](remote-review.md#your-own-ai-key) |
 | GitHub App review | GitHub | The review comment, the check run, and the inline comments |
 
 Nothing is sent to the co-maintainer maintainers. There is no telemetry, no
@@ -2620,10 +3412,26 @@ is the safe default.
 | `--auth=pat requires a GitHub token` | `--auth=pat` with no token anywhere | Pass `--github-pat=...`, set `GITHUB_TOKEN` or `GH_TOKEN`, or `co-maintainer set --github-pat=...` |
 | `repos/owner/repo/PR_REVIEW_GUIDE.md was not found` | Review without guides | Run [`init`](init.md) for that repo, or [`sync`](sync.md) if it was inited before |
 | `Unknown command` / `Unknown option` | A typo in the command or flag | The message names the closest match. `co-maintainer help` lists every command |
-| `OpenRouter rejected the API key` | The provider refused the key with `401` | Replace it with `co-maintainer set --token=...` |
-| `does not know the model <name>` | The provider refused the model with `400` | Check the name at [openrouter.ai/models](https://openrouter.ai/models) |
+| `OpenRouter rejected the API key`, `OpenAI rejected the API key`, `Anthropic rejected the API key` | The provider refused the key | Replace it with `co-maintainer set --token=...`. See [AI providers](providers.md#keys) |
+| `does not know the model <name>` | The provider refused the model, for OpenRouter with `400` | Check the name on the provider's model list: [OpenRouter](https://openrouter.ai/models), [OpenAI](https://platform.openai.com/docs/models), [Anthropic](https://docs.anthropic.com/en/docs/about-claude/models) |
+| `Missing low model` or `Missing high model` | No model is saved or passed, and there is no terminal to ask on | co-maintainer never picks a model. Pass `--low-model=` and `--high-model=`, or save them once with `co-maintainer set` |
+| `No low model is configured.` or `No high model is configured.` | A review reached a model that was never set | Run `co-maintainer set --low-model=...`, or pass `--low-model=...` on the command |
+| `review needs an AI provider` | `review --ai=none` | Pass a provider, or leave `--ai` out to use the saved one. See [AI providers](providers.md#where-each-provider-works) |
+| `GitHub refused <METHOD> <endpoint>` | The token or the App lacks a permission for that call | The message names the missing permission, for example `Pull requests: Read and write`. See [Authentication](authentication.md) and [GitHub App](github-app.md) |
+| `GitHub returned 404 for` | The repository does not exist, or the token or App cannot see it | The message repeats the permission the call needs |
+| `--output must be: github` or `--output=github cannot be used with --json` | A bad `--output` value, or both output modes at once | Use `--output=github` alone. See [CI](ci.md) |
 | `rejected the remote review token` | The server refused a `cmr_` token | Create a new one under Settings, Remote review, or the token was deactivated |
+| `No BYOK key is set.` | `--remote-byok` with no key | `co-maintainer config set remote-byok <key>`, or set `CM_REMOTE_BYOK` |
+| `This server (version X) does not support your own key.` | The server is too old to accept a key | Upgrade the server, or run without `--remote-byok` |
+| `This server does not accept your own key.` | The server's BYOK policy is `off` | Run without `--remote-byok`, or ask the server's owner to allow it |
+| `This server requires your own key.` | The server's BYOK policy is `require` | `co-maintainer review --remote --remote-byok` |
+| `Your key was not kept across a server restart.` | The server restarted while your review was waiting | Run the review again. The server's own key is never used instead |
+| `The AI provider rejected your own key.` | The provider refused the key you sent | Check the key. See [your own key](remote-review.md#your-own-ai-key) |
+| `remote-token is empty` | The GitHub Action had no token, which is what a fork pull request gets | See [CI](ci.md#pull-requests-from-forks) |
 | `Nothing to set` | `set` was called with no values | Pass at least one flag, for example `--token=...` |
+| `There is no backup to roll back to` | `rollback` found no backup, or it is incomplete | A backup exists only after an upgrade migrated the database. See [Going back after an upgrade](#going-back-after-an-upgrade) |
+| `The backup was taken when upgrading to` | The installed version is not the one that made the backup | Install that version and run `rollback` again |
+| `Rollback needs your confirmation` | `rollback` has no terminal to ask on | Run it in a terminal, or pass `--yes` |
 | `serve is already running` | Two `serve` processes share one `app.db` | Stop the other one, or point `CM_APP_DB` elsewhere |
 
 `init`, `sync`, and `review` also refuse to start when a required value is still
@@ -2637,9 +3445,45 @@ missing value with no default becomes a `2` with a message naming the flag.
 | `Could not reach <host>` | The network failed. The cause code follows the host | Check connectivity, proxy, or the host name. `ENOTFOUND` means DNS |
 | `OpenRouter returned an empty review` | The model produced no text | Usually a reasoning budget or a provider hiccup. Retry, or use a different high model |
 | `OpenRouter request failed` | The provider returned an unclassified error | The raw body is never printed. Retry, then check `--debug` for the call |
+| `OpenAI failed with` or `Anthropic failed with` | The provider returned an error that is not about the key or the model | The message carries the status. Retry, then check the provider's status page |
+| `OpenAI refused to answer` or `Anthropic refused to answer` | The model declined the request | The message says why when the provider did. Change the model or the diff |
 | `AI response was not valid JSON` | The model ignored the JSON request twice | The older Markdown parser runs as a fallback. Retry if the result looks off |
 | `git diff failed` / `git <command> failed` | A git operation did not complete | Make sure the clone is healthy and no rebase or merge is in progress |
+| `Could not back up the data before upgrading it` | The backup taken before a migration failed, so the migration did not run | Free disk space or fix the permissions of the data directory, then start again. Nothing was changed |
 | `app.db is not open` | A command that needs the server database did not open it | Report it: `init` and `sync` open it for the run, `serve` keeps it open |
+
+## Dashboard messages
+
+These come back from the dashboard's API and show as a message next to the form.
+
+| Message | What happened | Fix |
+| ------- | ------------- | --- |
+| `policy_in_use` (409) | `This repository uses a review policy, so the auto review, drafts and bots switches do not apply.` | Change the [review policy](review-policy.md) instead, or pick **Simple switches** first |
+| `invalid_policy` (422) | The review policy cannot be read. The message says what is wrong | Fix the field it names. Nothing is saved |
+
+## Going back after an upgrade
+
+A release refuses a database newer than it knows, so you cannot install the old
+version and open the new database. Instead, the first time an upgrade migrates
+`app.db`, co-maintainer copies `app.db`, `cache.db` and `config.json` into a
+`backups/previous` folder next to the database. There is one slot, and it holds
+the version you upgraded from.
+
+To go back, with the new version still installed and `serve` stopped:
+
+```sh
+co-maintainer rollback
+npm i -g co-maintainer@<the version it prints>
+```
+
+`rollback` restores the backup and prints the version to install. It asks first,
+because everything written after the upgrade is lost: reviews, settings and
+cache. Pass `--yes` to skip the question. The files it replaced are kept in
+`backups/rolled-back`, so a rollback made by mistake can be undone by hand.
+
+It refuses when there is no backup, when `serve` is running, and when the
+installed version is not the one that took the backup. If the copy cannot be
+made, the migration does not run and nothing is changed.
 
 ## Platform notes
 

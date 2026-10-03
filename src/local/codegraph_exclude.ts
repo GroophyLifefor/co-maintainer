@@ -9,7 +9,7 @@ import {
 
 const EXCLUDE_LINE = "/.co-maintainer-codegraph/";
 
-/** Plan §13.2 — hide the local codegraph index from git status. */
+/** Hide the local codegraph index from git status. */
 export async function ensureCodegraphGitExclude(
   gitRoot: string,
   run: Run,

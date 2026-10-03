@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PR review · co-maintainer docs</title>
-  <meta name="description" content="Review an open GitHub pull request by number. The CLI uses gh to read the PR and runs the AI on your machine (OpenRouter).">
+  <meta name="description" content="Review an open GitHub pull request by number. The CLI uses gh to read the PR and runs the AI on your machine with your AI provider.">
   <link rel="canonical" href="https://co-maintainer.com/docs/local-pr-review.html">
   <link rel="stylesheet" href="../assets/site.css">
   <link rel="icon" href="../assets/logo.png">
@@ -47,6 +47,8 @@
           <li><a href="review.html">Review</a></li>
           <li><a href="local-review.html">Local review</a></li>
           <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="ci.html">CI</a></li>
+          <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html" class="active">PR review</a></li>
           </ul>
         </div>
@@ -69,6 +71,7 @@
           <ul class="nav-list">
           <li><a href="commands.html">Commands</a></li>
           <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="providers.html">AI providers</a></li>
           <li><a href="authentication.html">Authentication</a></li>
           <li><a href="caching.html">Caching</a></li>
           <li><a href="cost.html">Cost</a></li>
@@ -82,7 +85,7 @@
       <main class="doc-main">
         <article class="markdown prose"><h1>PR review</h1>
 <p>Review an <strong>open GitHub pull request</strong> by number. The CLI uses <strong><code>gh</code></strong> to read
-the PR and runs the AI <strong>on your machine</strong> (OpenRouter).</p>
+the PR and runs the AI <strong>on your machine</strong> with your <a href="providers.html">AI provider</a>.</p>
 <p>Overview: <a href="review.html"><code>review</code></a>. This is not the same as
 <a href="remote-review.html">remote review</a> (<code>--remote</code> is rejected when a PR number is
 present).</p>

@@ -9,6 +9,7 @@ import {
   money,
   text,
 } from "./layout.ts";
+import { formatCostTotal } from "./cost.ts";
 import type { statsForRange } from "../../services/dashboard.ts";
 import { listJobs } from "../../store/jobs.ts";
 
@@ -43,7 +44,7 @@ export function renderAnalytics(
             }</td>
             <td class="num">${count(row.tokensIn + row.tokensOut)}</td>
             <td class="num">${duration(row.avgDurationMs)}</td>
-            <td class="num">${money(row.cost)}</td></tr>`,
+            <td class="num">${formatCostTotal(row)}</td></tr>`,
             )
             .join("")}
         </tbody>
@@ -64,8 +65,14 @@ export function renderAnalytics(
             <td class="num">${count(row.tokensIn)}</td>
             <td class="num">${count(row.tokensOut)}</td>
             <td class="num">${duration(row.avgDurationMs)}</td>
-            <td class="num">${money(row.reviews ? row.cost / row.reviews : 0)}</td>
-            <td class="num">${money(row.cost)}</td></tr>`,
+            <td class="num">${
+              row.knownCount
+                ? money(row.cost / row.knownCount)
+                : row.unknownCount
+                  ? "unknown"
+                  : money(0)
+            }</td>
+            <td class="num">${formatCostTotal(row)}</td></tr>`,
             )
             .join("")}
         </tbody>
@@ -83,7 +90,7 @@ export function renderAnalytics(
                 `<tr><td>${text(row.tokenName)}</td>
             <td class="num">${row.reviews}</td>
             <td class="num">${row.findings}</td>
-            <td class="num">${money(row.cost)}</td></tr>`,
+            <td class="num">${formatCostTotal(row)}</td></tr>`,
             )
             .join("")}
         </tbody>
@@ -121,6 +128,11 @@ export function renderAnalytics(
       cost: 0,
       reviews: 0,
       findings: 0,
+      knownCount: 0,
+      unknownCount: 0,
+      byokUsd: 0,
+      byokKnownCount: 0,
+      byokUnknownCount: 0,
     },
   );
   const looks =
@@ -169,8 +181,8 @@ export function renderAnalytics(
         data.change.findings,
         data.days,
       )}</div>
-      <div><div class="k">Cost</div><div class="big">${money(
-        data.totals.cost,
+      <div><div class="k">Cost</div><div class="big">${formatCostTotal(
+        data.totals,
       )}</div>${delta(data.change.cost, data.days, true)}</div>
       <div><div class="k">Tokens</div><div class="big">${count(
         data.totals.tokensIn + data.totals.tokensOut,
@@ -196,13 +208,13 @@ export function renderAnalytics(
     <div class="bd">
       ${bars(
         data.byDay.map((row) => ({
-          label: `${row.day} ${money(row.cost)} over ${row.reviews} reviews`,
+          label: `${row.day} ${formatCostTotal(row)} over ${row.reviews} reviews`,
           value: row.cost,
         })),
       )}
       <p class="muted" style="margin:10px 0 0">${
-        busiest.cost
-          ? `Busiest day was ${text(busiest.day)} at ${money(busiest.cost)}`
+        busiest.cost > 0 || busiest.unknownCount > 0
+          ? `Busiest day was ${text(busiest.day)} at ${formatCostTotal(busiest)}`
           : "No spend in this range"
       }</p>
     </div>

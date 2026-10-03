@@ -47,6 +47,8 @@
           <li><a href="review.html">Review</a></li>
           <li><a href="local-review.html">Local review</a></li>
           <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="ci.html">CI</a></li>
+          <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           </ul>
         </div>
@@ -69,6 +71,7 @@
           <ul class="nav-list">
           <li><a href="commands.html">Commands</a></li>
           <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="providers.html">AI providers</a></li>
           <li><a href="authentication.html">Authentication</a></li>
           <li><a href="caching.html">Caching</a></li>
           <li><a href="cost.html" class="active">Cost</a></li>
@@ -116,12 +119,12 @@ estimate it before you start.</p>
 <tr>
 <td>Local and PR <code>review</code></td>
 <td>Yes</td>
-<td>Runs on your OpenRouter or Hetzner key</td>
+<td>Runs on your provider&#39;s key, see <a href="providers.html">AI providers</a></td>
 </tr>
 <tr>
 <td>Remote <code>review</code></td>
 <td>On the server</td>
-<td>The server&#39;s key pays, not the laptop&#39;s</td>
+<td>The server&#39;s key pays, not the laptop&#39;s, unless you <a href="remote-review.html#your-own-ai-key">send your own key</a></td>
 </tr>
 <tr>
 <td>GitHub App auto-review</td>
@@ -140,8 +143,8 @@ for it. This is the closest to what the run will do.</li>
 <li><strong>The calibration</strong>, otherwise, taken from the maintainers&#39; reference runs.</li>
 </ul>
 <p>If the provider&#39;s price list cannot be reached, the dollar line is omitted and
-the estimate says it is unavailable, rather than printing a made-up number. The
-line always ends with <code>an estimate, not a bill</code>.</p>
+the estimate says it is unavailable, rather than printing a made-up number. For
+OpenAI and Anthropic, which publish no price list this way, it reads <code>estimate unavailable for this provider</code>. The line always ends with <code>an estimate, not a bill</code>.</p>
 <p>The dashboard shows the same estimate when you add a repository, and nothing
 starts until you confirm.</p>
 <h2 id="where-to-watch-the-real-number">Where to watch the real number</h2>
@@ -151,6 +154,46 @@ starts until you confirm.</p>
 <p>The same numbers appear in <code>--json</code> under <code>usage</code>, and the dashboard records
 cost per job on the Activity page and per repository on Usage. When a price list
 is unavailable the line reads <code>cost unknown</code> rather than a false zero.</p>
+<h2 id="what-unknown-means">What &quot;unknown&quot; means</h2>
+<p>A missing cost is never shown as <code>$0.00</code>. Zero is what a free model actually
+costs, unknown is a cost that was never learned, and the two are kept apart
+everywhere the dashboard shows money. A single review&#39;s unknown cost is a
+dotted underline you can hover, or tab to, for the reason:</p>
+<table>
+<thead>
+<tr>
+<th>Reason</th>
+<th>What happened</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>The provider did not report the cost</td>
+<td>The AI call finished but its response carried no price.</td>
+</tr>
+<tr>
+<td>Some AI calls in this review did not report a cost</td>
+<td>Part of a multi-call review priced itself, part did not</td>
+</tr>
+<tr>
+<td>Recorded before 0.5.1, the cost was not saved</td>
+<td>The review predates this page&#39;s own cost tracking</td>
+</tr>
+<tr>
+<td>The review ended before its cost was recorded</td>
+<td>It failed, was canceled, or the process stopped before an AI call returned</td>
+</tr>
+</tbody></table>
+<p>A total adds up only the reviews with a known cost and names how many are
+missing one, for example <code>$1.23 · 4 reviews with unknown cost</code>, rather than
+quietly rounding them to zero.</p>
+<p>OpenAI, Anthropic and OpenCode never report a cost, so every review on them
+reads <code>unknown</code>. OpenRouter reports one. See <a href="providers.html#what-differs-between-providers">AI providers</a>.</p>
+<h2 id="who-pays">Who pays</h2>
+<p>A remote review is paid by the server&#39;s key unless the client sends its own (see
+<a href="remote-review.html#your-own-ai-key">your own key</a>). A review paid with a client&#39;s
+key is kept out of the server&#39;s own spend and shown after a plus sign, so a total
+reads <code>$1.23 + $0.40 BYOK</code>. If the cost of those reviews is unknown, it reads
+<code>4 reviews with unknown cost BYOK</code> in the same place.</p>
 <h2 id="keeping-the-cost-down">Keeping the cost down</h2>
 <table>
 <thead>
@@ -203,7 +246,7 @@ live.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#what-costs-money">What costs money</a></li><li><a href="#estimate-before-you-init">Estimate before you init</a></li><li><a href="#where-to-watch-the-real-number">Where to watch the real number</a></li><li><a href="#keeping-the-cost-down">Keeping the cost down</a></li><li><a href="#what-is-not-metered">What is not metered</a></li></ul></nav>
+      <ul><li><a href="#what-costs-money">What costs money</a></li><li><a href="#estimate-before-you-init">Estimate before you init</a></li><li><a href="#where-to-watch-the-real-number">Where to watch the real number</a></li><li><a href="#what-unknown-means">What &quot;unknown&quot; means</a></li><li><a href="#who-pays">Who pays</a></li><li><a href="#keeping-the-cost-down">Keeping the cost down</a></li><li><a href="#what-is-not-metered">What is not metered</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

@@ -1,12 +1,12 @@
-/** Error text contract tests (CORE-12).
+/** Error text contract tests.
  *
- * Each row of the plan's table is one case: the situation, the sentence the
+ * Each row of the table below is one case: the situation, the sentence the
  * user should read, and the exit code. The messages are asserted on their
  * substance (what broke, what to do) rather than the exact phrasing, so the
  * test survives copy edits but not a regression to the raw provider text.
  *
  * Where a case can only be produced by a real child process — a missing `gh`,
- * a 404, a rejected token — it runs through the CORE-03 harness, because that
+ * a 404, a rejected token — it runs through the CLI harness, because that
  * is the only place the exit code and the merged output are observable.
  */
 import { test } from "node:test";
@@ -159,6 +159,28 @@ test("error text: a 404 names owner/repo and exits 2", async () => {
   }
 });
 
+test("error text: a 403 names the endpoint and the gh scope to grant", async () => {
+  const harness = await createCliHarness();
+  try {
+    const result = await harness.run({
+      args: ["probe", "fixture/repo"],
+      ghMode: "forbidden",
+    });
+    const output = `${result.stdout}${result.stderr}`;
+    if (!/GitHub refused GET repos\/fixture\/repo/.test(output)) {
+      throw new Error(`the 403 message is wrong:\n${output}`);
+    }
+    if (!/gh auth refresh -s repo/.test(output)) {
+      throw new Error(`the scope hint is missing:\n${output}`);
+    }
+    if (result.code !== EXIT_USAGE) {
+      throw new Error(`exit ${result.code}, wanted ${EXIT_USAGE}`);
+    }
+  } finally {
+    await harness.cleanup();
+  }
+});
+
 test("error text: gh with an empty stderr still says what failed", async () => {
   const harness = await createCliHarness();
   try {
@@ -167,7 +189,7 @@ test("error text: gh with an empty stderr still says what failed", async () => {
       ghMode: "empty-stderr",
     });
     const output = `${result.stdout}${result.stderr}`;
-    // Before CORE-12 this collapsed to just the endpoint with no explanation.
+    // This used to collapse to just the endpoint with no explanation.
     if (/\[error\] repos\/fixture\/repo\s*$/.test(output)) {
       throw new Error(
         `the empty-stderr message is just the endpoint:\n${output}`,

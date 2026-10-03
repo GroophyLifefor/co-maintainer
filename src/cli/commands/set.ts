@@ -1,8 +1,16 @@
 import { readConfig, configPath, writeUserConfig } from "../../config.ts";
 import { hashPassword, passwordProblem } from "../../util/password.ts";
 import { readTextFile } from "../../util/runtime.ts";
-import { verifyOpenRouter } from "../../ai/verify.ts";
+import {
+  verifyAnthropic,
+  verifyOpenAi,
+  verifyOpenRouter,
+  type VerifyResult,
+} from "../../ai/verify.ts";
+import { verifyOpenCode } from "../../ai/opencode.ts";
 import { die } from "../error.ts";
+import { parsePolicy } from "../../services/review_policy.ts";
+import { AI_PROVIDERS, rejectRetiredProvider } from "../../ai/provider.ts";
 import { renderCommandHelp, renderGlobalHelp } from "./registry.ts";
 
 function text(args: string[], name: string): string | undefined {
@@ -19,6 +27,7 @@ const secretFields = new Set([
   "githubOAuthClientSecret",
   "remoteToken",
   "dashboardPasswordHash",
+  "remoteByok",
 ]);
 
 /** `co-maintainer set --token=... --ai=... --low-model=... --high-model=...
@@ -53,6 +62,11 @@ export async function runSet(args: string[]): Promise<void> {
     "enable-auth",
     "remote-host",
     "remote-token",
+    "remote-byok-policy",
+    "remote-byok",
+    "remote-byok-default",
+    "review-policy",
+    "review-policy-file",
     "review-blocking",
     "password",
     "unset",
@@ -69,8 +83,9 @@ export async function runSet(args: string[]): Promise<void> {
   }
 
   const ai = text(args, "ai");
-  if (ai && !["none", "openrouter", "hetzner"].includes(ai)) {
-    die("--ai must be one of: none, openrouter, hetzner");
+  rejectRetiredProvider(ai);
+  if (ai && !(AI_PROVIDERS as readonly string[]).includes(ai)) {
+    die(`--ai must be one of: ${AI_PROVIDERS.join(", ")}`);
   }
   const auth = text(args, "auth");
   if (auth && !["gh", "pat"].includes(auth)) {
@@ -106,6 +121,10 @@ export async function runSet(args: string[]): Promise<void> {
     "enable-auth": "githubAuthEnabled",
     "remote-host": "remoteHost",
     "remote-token": "remoteToken",
+    "remote-byok-policy": "remoteByokPolicy",
+    "remote-byok": "remoteByok",
+    "remote-byok-default": "remoteByokDefault",
+    "review-policy": "reviewPolicy",
     "review-blocking": "reviewBlocking",
     password: "dashboardPasswordHash",
   };
@@ -173,6 +192,45 @@ export async function runSet(args: string[]): Promise<void> {
   if (remoteHost) patch.remoteHost = remoteHost;
   const remoteToken = text(args, "remote-token");
   if (remoteToken) patch.remoteToken = remoteToken;
+  const remoteByokPolicy = text(args, "remote-byok-policy");
+  if (remoteByokPolicy) {
+    if (!["off", "allow", "require"].includes(remoteByokPolicy)) {
+      die("--remote-byok-policy must be one of: off, allow, require");
+    }
+    patch.remoteByokPolicy = remoteByokPolicy;
+  }
+  const remoteByok = text(args, "remote-byok");
+  if (remoteByok) patch.remoteByok = remoteByok;
+  const remoteByokDefault = text(args, "remote-byok-default");
+  if (remoteByokDefault) {
+    if (!["on", "off"].includes(remoteByokDefault)) {
+      die("--remote-byok-default must be one of: on, off");
+    }
+    patch.remoteByokDefault = remoteByokDefault === "on";
+  }
+  const reviewPolicy = text(args, "review-policy");
+  const reviewPolicyFile = text(args, "review-policy-file");
+  if (reviewPolicy && reviewPolicyFile) {
+    die("Pass only one of --review-policy or --review-policy-file");
+  }
+  if (reviewPolicy) {
+    const checked = parsePolicy(reviewPolicy);
+    if (!checked.ok) die(`--review-policy: ${checked.problem}`);
+    patch.reviewPolicy = reviewPolicy;
+  }
+  if (reviewPolicyFile) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await readTextFile(reviewPolicyFile));
+    } catch (error) {
+      die(
+        `Could not read a JSON policy from ${reviewPolicyFile}: ${String(error)}`,
+      );
+    }
+    const checked = parsePolicy(parsed);
+    if (!checked.ok) die(`--review-policy-file: ${checked.problem}`);
+    patch.reviewPolicy = parsed;
+  }
   const reviewBlocking = text(args, "review-blocking");
   if (reviewBlocking) {
     if (!["model", "severity"].includes(reviewBlocking)) {
@@ -192,13 +250,14 @@ export async function runSet(args: string[]): Promise<void> {
       "Nothing to set. Pass --token= (or --ai-key=), --ai=, --low-model=, --high-model=, --auth=, --github-pat=, " +
         "--github-app-id=, --github-app-private-key(-file|-path)=, --github-webhook-secret=, " +
         "--github-oauth-client-id=, --github-oauth-client-secret=, --github-oauth-allowed-user=, " +
-        "--remote-host=, --remote-token=, --review-blocking=model|severity, " +
+        "--remote-host=, --remote-token=, --remote-byok-policy=off|allow|require, " +
+        "--review-blocking=model|severity, " +
         "--password=, --disable-auth=password, --enable-auth=github, or --unset=name",
     );
   }
 
   // Verify the key and model before writing, so a typo fails here instead of
-  // after a review has already fetched and cloned the pull request (CORE-22).
+  // after a review has already fetched and cloned the pull request.
   // A field present in the patch wins, including when its value is `undefined`
   // — that is an unset, and there is nothing left to verify.
   const before = readConfig();
@@ -207,8 +266,20 @@ export async function runSet(args: string[]): Promise<void> {
   const effectiveAi = effective("ai");
   const effectiveToken = effective("token");
   const effectiveHighModel = effective("highModel");
-  if (verify && effectiveAi === "openrouter" && effectiveToken) {
-    const result = await verifyOpenRouter(
+  const verifiers: Record<
+    string,
+    (key: string, model?: string) => Promise<VerifyResult>
+  > = {
+    openrouter: verifyOpenRouter,
+    openai: verifyOpenAi,
+    anthropic: verifyAnthropic,
+    "opencode-zen": (key, model) => verifyOpenCode("opencode-zen", key, model),
+    "opencode-go": (key, model) => verifyOpenCode("opencode-go", key, model),
+  };
+  const verifyProvider =
+    typeof effectiveAi === "string" ? verifiers[effectiveAi] : undefined;
+  if (verify && verifyProvider && effectiveToken) {
+    const result = await verifyProvider(
       String(effectiveToken),
       effectiveHighModel === undefined ? undefined : String(effectiveHighModel),
     );

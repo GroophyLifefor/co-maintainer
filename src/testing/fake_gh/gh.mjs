@@ -1,4 +1,4 @@
-// Fake `gh` for the CLI harness (CORE-03).
+// Fake `gh` for the CLI harness.
 //
 // Invoked through `CM_GH_BIN` as `gh api <endpoint>`. Reads fixtures from
 // `gh_fixture.json` next to this file, appends each call to the file named by
@@ -46,6 +46,7 @@ function fail(message, code) {
 }
 
 if (mode === "notfound") fail("gh: Not Found (HTTP 404)", 1);
+if (mode === "forbidden") fail("gh: Resource not accessible (HTTP 403)", 1);
 if (mode === "noauth") {
   fail(
     "gh: To get started with GitHub CLI, please run: gh auth login\n" +

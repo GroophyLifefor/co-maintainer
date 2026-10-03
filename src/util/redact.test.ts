@@ -12,6 +12,14 @@ test("redact replaces known secret shapes", () => {
       "pat [redacted]",
     ],
     ["key sk-or-v1-abcdef0123456789 here", "key [redacted] here"],
+    [
+      "openai sk-proj-AbCdEf0123456789_ghIJkl-mnop here",
+      "openai [redacted] here",
+    ],
+    [
+      "legacy sk-abcdefghijklmnopqrstuvwxyz123456 here",
+      "legacy [redacted] here",
+    ],
   ];
   for (const [input, expected] of cases) {
     if (redact(input) !== expected) {

@@ -4,6 +4,8 @@ const PATTERNS: RegExp[] = [
   /gh[pousr]_[A-Za-z0-9]{20,}/g, // ghp_, gho_, ghu_, ghs_, ghr_ (classic GitHub PATs and tokens)
   /github_pat_[A-Za-z0-9_]{20,}/g, // fine-grained GitHub PATs
   /sk-or-[A-Za-z0-9-]{10,}/g, // OpenRouter keys
+  /sk-ant-[A-Za-z0-9_-]{10,}/g, // Anthropic keys
+  /sk-[A-Za-z0-9_-]{20,}/g, // OpenAI keys, old `sk-` and new `sk-proj-` alike
   /cmr_[A-Za-z0-9_-]{20,}/g, // remote review bearer tokens
   /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
 ];

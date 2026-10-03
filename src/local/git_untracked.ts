@@ -9,7 +9,7 @@ export type UntrackedWarning = {
   message: string;
 };
 
-/** Build patch for a new untracked file (plan §10.8). */
+/** Build patch for a new untracked file. */
 export function patchFromNewFileContent(content: Uint8Array): {
   patch: string;
   additions: number;

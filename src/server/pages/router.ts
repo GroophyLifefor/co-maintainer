@@ -27,7 +27,8 @@ import {
   skippedDeliveries,
   statsForRange,
 } from "../../services/dashboard.ts";
-import { escapeHtml, html, money } from "./layout.ts";
+import { escapeHtml, html } from "./layout.ts";
+import { formatCostTotal } from "./cost.ts";
 import {
   readConfig,
   resolveAppPrivateKey,
@@ -321,7 +322,7 @@ function toHomeRow(item: ReturnType<typeof listReposForHome>[number]) {
     knowledgeAt,
     autoOn: item.repo.auto_review === 1,
     reviews: String(item.stats.reviews),
-    cost: money(item.stats.cost),
+    cost: formatCostTotal(item.stats),
   };
 }
 

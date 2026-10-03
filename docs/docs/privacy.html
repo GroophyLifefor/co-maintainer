@@ -47,6 +47,8 @@
           <li><a href="review.html">Review</a></li>
           <li><a href="local-review.html">Local review</a></li>
           <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="ci.html">CI</a></li>
+          <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           </ul>
         </div>
@@ -69,6 +71,7 @@
           <ul class="nav-list">
           <li><a href="commands.html">Commands</a></li>
           <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="providers.html">AI providers</a></li>
           <li><a href="authentication.html">Authentication</a></li>
           <li><a href="caching.html">Caching</a></li>
           <li><a href="cost.html">Cost</a></li>
@@ -99,13 +102,18 @@ what it stores, where, and what leaves the machine.</p>
 </tr>
 <tr>
 <td><code>init</code>, <code>sync</code>, <code>review</code></td>
-<td>Your AI provider (OpenRouter or Hetzner)</td>
+<td>Your AI provider (<a href="providers.html">OpenRouter, OpenAI, Anthropic or OpenCode</a>)</td>
 <td>The prompts: sampled code, pull request text, diffs, and guides</td>
 </tr>
 <tr>
 <td>Remote <code>review</code></td>
 <td>Your <code>serve</code> instance</td>
 <td>The git diff, plus codegraph tool requests and results</td>
+</tr>
+<tr>
+<td>Remote <code>review</code> with your own key</td>
+<td>Your <code>serve</code> instance</td>
+<td>Your AI key, kept in memory for that review and never stored, see <a href="remote-review.html#your-own-ai-key">your own key</a></td>
 </tr>
 <tr>
 <td>GitHub App review</td>

@@ -1,11 +1,12 @@
-/** The command registry (CORE-20).
+/** The command registry.
  *
  * One place that knows every command, its aliases, its usage lines, its flags
  * and its examples. Everything the user reads as help is rendered from here,
  * so a flag cannot drift out of the help and a command cannot be documented
- * twice with different wording. It is also the source CORE-81 will export to
- * the command reference, which is why it is data rather than template strings.
+ * twice with different wording. It is also the source the command reference is
+ * generated from, which is why it is data rather than template strings.
  */
+import { AI_PROVIDERS } from "../../ai/provider.ts";
 
 export type FlagSpec = {
   /** Without the leading dashes, e.g. `include-codebase`. */
@@ -47,12 +48,26 @@ const OUTPUT_FLAGS: FlagGroup = {
   ],
 };
 
+/** `review` alone can print for a CI run. */
+const REVIEW_OUTPUT_FLAGS: FlagGroup = {
+  title: OUTPUT_FLAGS.title,
+  flags: [
+    ...OUTPUT_FLAGS.flags,
+    {
+      name: "output",
+      value: "github",
+      description:
+        "Print GitHub workflow annotations and write the job summary instead of prose. Cannot be used with --json.",
+    },
+  ],
+};
+
 const AI_FLAGS: FlagGroup = {
   title: "AI",
   flags: [
     {
       name: "ai",
-      value: "none|openrouter|hetzner",
+      value: AI_PROVIDERS.join("|"),
       default: "none",
       description: "Which provider writes the review.",
     },
@@ -65,13 +80,11 @@ const AI_FLAGS: FlagGroup = {
     {
       name: "low-model",
       value: "ID",
-      default: "openai/gpt-oss-120b",
       description: "Model for extraction work.",
     },
     {
       name: "high-model",
       value: "ID",
-      default: "openai/gpt-5.6-luna",
       description: "Model for the review itself.",
     },
   ],
@@ -244,7 +257,7 @@ export const COMMANDS: CommandSpec[] = [
   {
     name: "sync",
     // `remake` is the 0.4.13 spelling. It still runs the same handler but is
-    // not advertised, so nothing the user reads says "remake" (CORE-21).
+    // not advertised, so nothing the user reads says "remake".
     aliases: ["remake"],
     summary:
       "Rebuild the review guides for a repository that already has them.",
@@ -356,6 +369,16 @@ export const COMMANDS: CommandSpec[] = [
               "Override the configured remote token for this run (needs --remote).",
           },
           {
+            name: "remote-byok",
+            description:
+              "Send your own AI key with a remote review (needs --remote).",
+          },
+          {
+            name: "no-remote-byok",
+            description:
+              "Do not send your own AI key, even if remote-byok-default is on.",
+          },
+          {
             name: "sync-before-review",
             description: "Rebuild the guides before reviewing.",
           },
@@ -376,13 +399,15 @@ export const COMMANDS: CommandSpec[] = [
       },
       AI_FLAGS,
       GITHUB_FLAGS,
-      OUTPUT_FLAGS,
+      REVIEW_OUTPUT_FLAGS,
     ],
     examples: [
       "co-maintainer review owner/repo 42 --json",
       "co-maintainer review --json --disable-codegraph",
       "co-maintainer review --remote --json",
       "co-maintainer review --remote --remote-host=https://review.example.com --remote-token=cmr_...",
+      "co-maintainer review --remote --remote-byok --json",
+      "co-maintainer review --remote --output=github",
     ],
   },
   {
@@ -510,6 +535,35 @@ export const COMMANDS: CommandSpec[] = [
             description: "The remote review token.",
           },
           {
+            name: "remote-byok-policy",
+            value: "off|allow|require",
+            default: "off",
+            description: "Whether a remote client may send its own AI key.",
+          },
+          {
+            name: "remote-byok",
+            value: "KEY",
+            description: "Your own AI key to send with a remote review.",
+          },
+          {
+            name: "remote-byok-default",
+            value: "on|off",
+            default: "off",
+            description:
+              "Send remote-byok on every --remote review by default.",
+          },
+          {
+            name: "review-policy",
+            value: "everyone|trusted-auto|on-request-only",
+            description: "The review policy new repositories start with.",
+          },
+          {
+            name: "review-policy-file",
+            value: "PATH",
+            description:
+              "Read a custom review policy from a JSON file and use it as that default.",
+          },
+          {
             name: "review-blocking",
             value: "model|severity",
             default: "model",
@@ -532,7 +586,7 @@ export const COMMANDS: CommandSpec[] = [
           },
           {
             name: "no-verify",
-            description: "Do not check the key and model against OpenRouter.",
+            description: "Do not check the key and model against the provider.",
           },
           {
             name: "unset",
@@ -594,6 +648,25 @@ export const COMMANDS: CommandSpec[] = [
       OUTPUT_FLAGS,
     ],
     examples: ["co-maintainer serve --port=5000"],
+  },
+  {
+    name: "rollback",
+    summary:
+      "Go back to the version before the last upgrade, restoring its data.",
+    usage: ["co-maintainer rollback [--yes]"],
+    groups: [
+      {
+        title: "Rollback",
+        flags: [
+          {
+            name: "yes",
+            description:
+              "Skip the confirmation. Needed when there is no terminal.",
+          },
+        ],
+      },
+    ],
+    examples: ["co-maintainer rollback", "co-maintainer rollback --yes"],
   },
   {
     name: "version",
@@ -750,7 +823,7 @@ function cell(text: string): string {
   return text.replace(/\|/g, "\\|");
 }
 
-/** The registry as markdown, so CORE-81 can build the command reference from
+/** The registry as markdown, so the command reference can be built from
  * the same data the runtime help uses. */
 export function registryToMarkdown(): string {
   const lines: string[] = [];

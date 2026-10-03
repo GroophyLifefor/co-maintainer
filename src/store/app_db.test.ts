@@ -123,7 +123,7 @@ test("a second serve process refuses to start while the first holds the lock", a
       await openAppDb();
     } catch (error) {
       threw = true;
-      // CORE-12: the message names the pid and the hint offers the next step;
+      // The message names the pid and the hint offers the next step;
       // `String(error)` only carries the message, so read both fields.
       const message = (error as { message?: string }).message ?? String(error);
       const hint = (error as { hint?: string }).hint ?? "";

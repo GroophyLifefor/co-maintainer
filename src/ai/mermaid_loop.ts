@@ -71,16 +71,20 @@ export async function completeWithMermaidTools(
     tokensOut: 0,
     cost: undefined as number | undefined,
   };
-  let costKnown = true;
+  const calls = { known: 0, unknown: 0 };
   const merge = (response: AiResponse): AiResponse => {
     totals.tokensIn += response.tokensIn;
     totals.tokensOut += response.tokensOut;
-    if (response.cost === undefined) costKnown = false;
-    else if (costKnown) totals.cost = (totals.cost ?? 0) + response.cost;
+    if (response.cost === undefined) calls.unknown++;
+    else {
+      calls.known++;
+      totals.cost = (totals.cost ?? 0) + response.cost;
+    }
     return {
       ...response,
       ...totals,
-      cost: costKnown ? totals.cost : undefined,
+      cost: calls.unknown === 0 ? totals.cost : undefined,
+      costCalls: { ...calls },
     };
   };
 

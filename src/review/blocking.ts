@@ -1,6 +1,6 @@
-/** How a review decides a blocking finding (CORE-41, plan decision 2 option C).
+/** How a review decides a blocking finding.
  *
- * F19: the same pull request was reviewed twice, the same P2 finding came back
+ * The same pull request was reviewed twice, the same P2 finding came back
  * `non-blocking` the first time and `blocking` the second, and the exit code
  * changed because the model's own label moved. `model` keeps that behavior
  * (the model decides) because it is what 0.4.13 shipped; `severity` ignores

@@ -1,6 +1,6 @@
 name: Publish beta image
 
-# CORE-93: a manual fallback for the beta Docker image. `publish.yml` runs on a
+# A manual fallback for the beta Docker image. `publish.yml` runs on a
 # push to `main`, so a prerelease on a working branch never gets an image. This
 # workflow builds exactly one tag, the prerelease version, and leaves npm and
 # `latest` alone. Murat triggers it from the Actions tab.

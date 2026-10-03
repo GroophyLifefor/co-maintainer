@@ -26,6 +26,9 @@ export type RepoRow = {
   settings: string;
   created_at: string;
   use_codegraph: number;
+  /** JSON: `"legacy"`, a template name, or a policy object. `null` takes the
+   * server default. */
+  review_policy_json: string | null;
 };
 
 export type JobRow = {
@@ -74,6 +77,10 @@ export type ReviewRow = {
   tokens_in: number;
   tokens_out: number;
   cost: number | null;
+  /** `null` on a row written by 0.5.0 after this column was added. */
+  cost_status: "known" | "unknown" | null;
+  cost_note: string | null;
+  billed_to: "server" | "byok" | null;
   duration_ms: number | null;
   posted_review_id: string | null;
   status: string;
@@ -190,4 +197,7 @@ export type RemoteReviewInputRow = {
   request_id: string;
   token_id: string;
   created_at: string;
+  /** `'byok'` when the client's own key paid for the review, `'server'`
+   * otherwise. A null (pre-0.5.1 row) is treated as `'server'`. */
+  billed_to?: string | null;
 };

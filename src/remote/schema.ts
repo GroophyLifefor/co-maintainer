@@ -1,10 +1,10 @@
-/** Remote review wire protocol — plan §15.1–15.2. */
+/** Remote review wire protocol. */
 
 export const REMOTE_SCHEMA_VERSION = 1;
 export const MIN_CLIENT_SCHEMA = 1;
 export const MIN_SERVER_SCHEMA = 1;
 
-/** README install line for 426 responses (plan §14.4). */
+/** README install line for 426 responses. */
 export const REMOTE_CLI_UPGRADE_COMMAND = "npm install -g co-maintainer@latest";
 
 export const REMOTE_MAX_BODY_BYTES = 52_428_800;
@@ -26,7 +26,7 @@ export const REMOTE_SYNC_STATUSES = [
 
 export type RemoteSyncStatus = (typeof REMOTE_SYNC_STATUSES)[number];
 
-/** Tool names the server may invoke via the bridge (plan §13.6, §14.5). */
+/** Tool names the server may invoke via the bridge. */
 export const REMOTE_KNOWN_TOOL_NAMES = new Set([
   "codegraph-query",
   "codegraph-node",

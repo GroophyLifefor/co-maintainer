@@ -1,4 +1,4 @@
-/** The doc site layout (CORE-80 / D04, D05).
+/** The doc site layout.
  *
  * co-maintainer.com is one origin. The landing page stays at the root and the
  * pages move under `/docs/`, so the site has a single identity and the old flat
@@ -20,7 +20,9 @@ import {
   remove,
   writeFile,
 } from "../src/util/runtime.ts";
+import { permissionTable, type TableKind } from "../src/github/permissions.ts";
 import {
+  applyPermissionBlocks,
   buildDocs,
   CNAME,
   commandsMarkdown,
@@ -113,8 +115,8 @@ test("every page is written under docs/ with a description and canonical", async
   const outDir = await buildInto();
   try {
     const pages = await htmlFiles(join(outDir, "docs"));
-    if (pages.length !== 20) {
-      throw new Error(`expected 20 doc pages, found ${pages.length}`);
+    if (pages.length !== 23) {
+      throw new Error(`expected 23 doc pages, found ${pages.length}`);
     }
     for (const page of pages) {
       const html = await readTextFile(page);
@@ -368,6 +370,27 @@ test("the commands page is generated from the command registry", async () => {
   }
 });
 
+test("the permission tables in the docs come from the code", async () => {
+  const wanted: Record<string, TableKind[]> = {
+    "authentication.md": ["gh", "pat-fine", "pat-classic", "oauth"],
+    "github-app.md": ["app"],
+  };
+  for (const [page, kinds] of Object.entries(wanted)) {
+    const md = await readTextFile(join(docsRoot, "md", page));
+    for (const kind of kinds) {
+      const block = `<!-- permissions:${kind}:start -->\n${permissionTable(kind)}\n<!-- permissions:${kind}:end -->`;
+      if (!md.includes(block)) {
+        throw new Error(
+          `${page} lacks a current ${kind} table. Run npm run docs:build.`,
+        );
+      }
+    }
+    if (applyPermissionBlocks(md) !== md) {
+      throw new Error(`${page} has a stale permission table`);
+    }
+  }
+});
+
 test("llms.txt lists every page and llms-full.txt inlines them", async () => {
   const outDir = await buildInto();
   try {
@@ -387,6 +410,8 @@ test("llms.txt lists every page and llms-full.txt inlines them", async () => {
       "review",
       "local-review",
       "remote-review",
+      "ci",
+      "review-policy",
       "local-pr-review",
       "serve",
       "dashboard",
@@ -394,6 +419,7 @@ test("llms.txt lists every page and llms-full.txt inlines them", async () => {
       "cloud",
       "commands",
       "configuration",
+      "providers",
       "authentication",
       "caching",
       "cost",

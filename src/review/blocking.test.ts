@@ -1,6 +1,6 @@
-/** One blocking decision for every review path (CORE-41, F19).
+/** One blocking decision for every review path.
  *
- * F19: the same pull request was reviewed twice, the same P2 finding came back
+ * The same pull request was reviewed twice, the same P2 finding came back
  * `non-blocking` the first time and `blocking` the second, and the exit code
  * changed because the model's label moved. `severity` mode removes that
  * wobble; `model` keeps the 0.4.13 behavior, so no existing review changes its
@@ -93,7 +93,7 @@ test("severity mode ignores the model and uses P0/P1 only", () => {
 });
 
 test("the decision is stable for the same finding set", () => {
-  // F19 in one line: the same two findings, reviewed twice, must yield the
+  // The regression in one line: the same two findings, reviewed twice, must yield the
   // same per-finding decision under `severity` even if the model's labels
   // changed between the runs.
   const first = [

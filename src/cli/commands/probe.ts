@@ -1,7 +1,11 @@
 import { clientFor, runInitOrRemake } from "../../services/setup.ts";
 import { probePlan } from "../../services/probe.ts";
 import { log, startHeartbeat } from "../../util/log.ts";
-import { estimateInit, readJobHistory } from "../../ai/estimate.ts";
+import {
+  estimateCostLine,
+  estimateInit,
+  readJobHistory,
+} from "../../ai/estimate.ts";
 import { loadPrices } from "../../ai/pricing.ts";
 import { cacheSet } from "../../store/cache_db.ts";
 import type { Options } from "../../types.ts";
@@ -35,7 +39,7 @@ export async function runProbe(options: Options): Promise<void> {
   for (const reason of analysis.reasons) console.log(`  - ${reason}`);
 
   // The estimate is separate from the recommendation: the flags say what to
-  // read, this says what that costs in time and dollars (CORE-24). Prices are
+  // read, this says what that costs in time and dollars. Prices are
   // only fetched when an OpenRouter model would actually be billed, so a
   // plain `--ai=none` probe makes no network call.
   const needsPrices =
@@ -65,17 +69,13 @@ export async function runProbe(options: Options): Promise<void> {
     `  tokens: ${range(estimate.tokensIn)} in · ${range(estimate.tokensOut)} out`,
   );
   console.log(`  time: ${secondsRange(estimate.seconds)}s`);
-  if (estimate.usd) {
-    console.log(
-      `  cost: $${estimate.usd[0].toFixed(4)}-$${estimate.usd[1].toFixed(4)}`,
-    );
-  } else if (needsPrices && prices.source === "unavailable") {
-    console.log("  cost: unknown (could not read OpenRouter prices)");
-  } else {
-    console.log(
-      "  cost: set --ai=openrouter with both models to estimate dollars",
-    );
-  }
+  console.log(
+    `  cost: ${estimateCostLine(
+      estimate,
+      options.ai,
+      needsPrices && prices.source === "unavailable",
+    )}`,
+  );
   console.log(
     `  basis: ${
       estimate.basis === "history"

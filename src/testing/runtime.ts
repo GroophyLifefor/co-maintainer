@@ -33,7 +33,7 @@ export type CommandOptions = {
   stdin?: "piped";
   shell?: boolean;
   /** Kills the child after this many milliseconds and reports code `124`, so a
-   * test can prove a command terminates instead of hanging (F01). */
+   * test can prove a command terminates instead of hanging. */
   timeoutMs?: number;
 };
 

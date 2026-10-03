@@ -5,6 +5,48 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1-beta.2] - 2026-10-04
+
+### Added
+
+- **OpenCode Zen and OpenCode Go.** `--ai=opencode-zen` and `--ai=opencode-go` call the two OpenCode gateways. Every model is called over Chat Completions, and a model that only answers in another format is refused with a hint that says so. Go gets its own user agent and one session id per run, as it asks every client to. The key comes from `--token`, `set` or `OPENCODE_API_KEY`. Neither gateway reports a cost, so it reads `unknown`. See [AI providers](docs/md/providers.md).
+
+### Changed
+
+- **Local and PR review use your saved provider.** Review was pinned to OpenRouter so a Hetzner model never wrote one. Hetzner is gone, so `review` now runs on whichever provider is saved or passed with `--ai`. With none saved it still uses OpenRouter, and `review --ai=none` is refused with `review needs an AI provider`.
+- **`OPENROUTER_LOW_MODEL` and `OPENROUTER_HIGH_MODEL`** are only read when OpenRouter is the provider.
+
+### Fixed
+
+- **A key saved for one provider was sent to OpenRouter by `review`.** With `ai` set to OpenAI or Anthropic, review still called OpenRouter with that key. It now goes only to the saved provider.
+- **A run with no AI call printed `cost unknown`.** A `sync` served entirely from the cache said the review ended before its cost was recorded. It now prints `$0.0000`, as 0.5.0 did.
+- **OpenAI keys are masked in logs and output**, like OpenRouter and Anthropic keys.
+
+## [0.5.1-beta.1] - 2026-10-01
+
+### Added
+
+- **OpenAI and Anthropic as AI providers.** `--ai=openai` and `--ai=anthropic` work for `init`, `sync`, `serve` jobs and automatic reviews, next to OpenRouter. OpenAI is called through its Responses API and Anthropic through its Messages API, with prompt caching on the guides. Local and PR `review` on your machine still use OpenRouter. `set` checks the key and the model against the provider before saving, and a rejected key or an unknown model names the provider and exits 2. See [AI providers](docs/md/providers.md).
+- **No default model.** co-maintainer no longer picks a model for you. `--low-model` and `--high-model` come from `set` or a flag, a terminal asks for the missing one without suggesting a value, and a non-interactive run exits 2 naming which one is missing.
+- **Your own AI key for remote review.** `review --remote --remote-byok` sends the key saved as `remote-byok` (or set in `CM_REMOTE_BYOK`) with a remote review, so the server's key is not used and the AI cost is billed to you. The server decides with `CM_REMOTE_BYOK_POLICY` (`off`, `allow` or `require`, `off` by default). The key lives in memory for that review only and is never stored. `--no-remote-byok` and `remote-byok-default` control sending it. See [Remote review](docs/md/remote-review.md#your-own-ai-key).
+- **Review policies.** An ordered list of rules decides which pull requests the GitHub App reviews on its own, which wait for a maintainer, and which are never reviewed. Rules can test the author's relation, fork, draft, bot, labels, target branch and changed lines. Templates cover the common cases, and a repository that existed before keeps its three old switches until you pick one. Setting one up is in the dashboard (**Who gets a review**, the server default, the add repository step) and on the command line (`--review-policy`, `--review-policy-file`). See [Review policy](docs/md/review-policy.md).
+- **Ask for a review.** A pull request that waits can be started with the `co-maintainer:review` label, a `/co-maintainer review` comment from an allowed author, or **Review now** on the Activity page. The App reacts with an eyes emoji, a request never overrides a rule that skips, and **Reviews per pull request** limits the rounds.
+- **GitHub Action.** A composite action runs a remote review on a pull request from a workflow. Inputs reach the script through the environment, keys are masked, and a blocking finding fails the step. Releases move the `v0` style major tag after publish. See [CI](docs/md/ci.md).
+- **`review --output=github`.** Findings print as `::error` and `::warning` annotations and a table goes to the job summary. Text the model wrote is escaped, so a pull request can never start a workflow command of its own. The exit code is unchanged.
+- **`CM_REMOTE_HOST` and `CM_REMOTE_TOKEN`.** The remote host and token can come from the environment, so a workflow needs no saved config.
+- **Back up before an upgrade, and `rollback`.** When an upgrade has to migrate `app.db`, the old `app.db`, `cache.db` and `config.json` are copied first. `co-maintainer rollback` puts them back and tells you what you lose.
+- **Permission tables.** The GitHub App permissions and the scopes a token needs are one documented list, and a missing permission now names the permission in the error.
+- **Documentation.** New pages for AI providers and review policy, and updated pages for configuration, remote review, cost, the dashboard, troubleshooting, privacy and the commands reference.
+
+### Changed
+
+- **Unknown cost reads `unknown`.** A review whose provider did not report a cost used to show `$0.00`. It now shows `unknown` with the reason, and a total says how many of its reviews have no recorded cost instead of rounding them away. OpenAI and Anthropic never report a cost. A remote review billed to your own key is listed as `$x + $y BYOK`.
+- **`probe` on OpenAI and Anthropic.** The estimate says `estimate unavailable for this provider` instead of printing a dollar range it cannot know.
+
+### Fixed
+
+- **Checkboxes on the Settings page.** They stretched across the whole row and pushed their label to the next line. They now sit beside the label.
+
 ## [0.5.0] - 2026-09-23
 
 ### Added

@@ -11,6 +11,7 @@ import {
 } from "../review/blocking.ts";
 import type { Revision } from "../review/revision.ts";
 import { humanCopy } from "../services/review.ts";
+import type { BilledTo, CostReason, CostStatus } from "../util/cost.ts";
 export type ReviewWarning = { code: string; message: string };
 
 export type JsonReviewFinding = {
@@ -176,7 +177,7 @@ export function reviewExitCodeFromResolved(
 
 /** One finding as the human renderer prints it. Local, PR and remote reviews
  * all normalize into this shape before printing, so the three modes cannot
- * drift into different products (CORE-43 / F21, F22). */
+ * drift into different products. */
 export type HumanFinding = {
   state: "new" | "open" | "closed";
   severity: string;
@@ -190,7 +191,7 @@ export type HumanFinding = {
 };
 
 /** Local and PR findings: blocking is decided here from the configured rule,
- * exactly as the exit code decides it (CORE-41). */
+ * exactly as the exit code decides it. */
 export function humanFindingsFromResolved(
   findings: ResolvedFinding[],
   mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
@@ -219,7 +220,7 @@ export function humanFindingsFromResolved(
 
 /** Remote findings already carry the server's blocking decision, so the label
  * uses that field rather than re-deriving the rule on a client that may not
- * share the server's config (CORE-41). */
+ * share the server's config. */
 export function humanFindingsFromJson(
   findings: JsonReviewFinding[],
 ): HumanFinding[] {
@@ -249,8 +250,8 @@ function humanLocation(row: HumanFinding): string {
  * already printed beside it, so only the symbol survives. An older heading
  * that used an em dash is still accepted, so comments posted before 0.5.0
  * stay readable. A heading with no symbol leaves nothing: printing the label
- * or the path again would repeat what the line already says (CORE-43). */
-function humanShortTitle(row: HumanFinding): string {
+ * or the path again would repeat what the line already says. */
+export function humanShortTitle(row: HumanFinding): string {
   const withoutLabel = row.title.replace(/^\[P\d\s*·\s*[^\]]*\]\s*/, "");
   const dash = withoutLabel.indexOf(" — ");
   const tail = dash === -1 ? withoutLabel : withoutLabel.slice(dash + 3);
@@ -260,7 +261,7 @@ function humanShortTitle(row: HumanFinding): string {
   return clean === "" || clean === row.path ? "" : clean;
 }
 
-function sortHumanFindings(rows: HumanFinding[]): HumanFinding[] {
+export function sortHumanFindings(rows: HumanFinding[]): HumanFinding[] {
   const stateOrder = { new: 0, open: 1, closed: 2 };
   return [...rows].sort((a, b) => {
     const ds = stateOrder[a.state] - stateOrder[b.state];
@@ -282,14 +283,14 @@ export type HumanReviewInput = {
   stats?: string;
   guideBuiltAt: string | null;
   /** `null` when the run cannot say (a server older than 0.5.0 sends no
-   * codegraph block). A wrong "used" is what F23 was about, so unknown is
+   * codegraph block). A wrong "used" is misleading, so unknown is
    * reported as unknown rather than guessed. */
   codegraphState: "used" | "disabled" | "unavailable" | null;
   findings: HumanFinding[];
   warnings?: ReviewWarning[];
 };
 
-/** The single human-readable review format (CORE-43 / F21, F22, F23). Local,
+/** The single human-readable review format. Local,
  * PR and remote reviews print this: a header naming the guide build date and
  * the codegraph state, the findings grouped by state, then one summary line.
  *
@@ -398,7 +399,7 @@ export function formatHumanLocalReview(
   });
 }
 
-/** The exit code for a remote review (CORE-41). The server already decided
+/** The exit code for a remote review. The server already decided
  * each finding's `blocking` under its own configured rule, so the client
  * trusts that field instead of re-deriving the rule from a title: the client
  * may not even have the same config as the server. */
@@ -407,6 +408,17 @@ export function reviewExitCodeFromJsonFindings(
 ): number {
   return findings.some((f) => f.blocking) ? 1 : 0;
 }
+
+/** `costUsd` is `null` when the cost is unknown, and `costStatus` and
+ * `costNote` say why. */
+export type ReviewUsage = {
+  tokensIn: number;
+  tokensOut: number;
+  costUsd: number | null;
+  costStatus?: CostStatus;
+  costNote?: CostReason | null;
+  billedTo?: BilledTo;
+};
 
 export type LocalReviewJsonInput = {
   repo: string;
@@ -418,7 +430,7 @@ export type LocalReviewJsonInput = {
   codegraphReason: string | null;
   findings: ResolvedFinding[];
   warnings: ReviewWarning[];
-  usage: { tokensIn: number; tokensOut: number; costUsd: number | null };
+  usage: ReviewUsage;
   durationMs: number;
   reviewBlocking?: ReviewBlocking;
 };
@@ -430,7 +442,7 @@ export type PrReviewJsonInput = {
   guideBuiltAt: string | null;
   codegraphState: "used" | "disabled" | "unavailable";
   codegraphReason: string | null;
-  usage: { tokensIn: number; tokensOut: number; costUsd: number | null };
+  usage: ReviewUsage;
   durationMs: number;
   reviewBlocking?: ReviewBlocking;
 };

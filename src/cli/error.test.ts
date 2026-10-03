@@ -1,8 +1,8 @@
-/** Exit-code contract tests (CORE-10).
+/** Exit-code contract tests.
  *
- * Plan README decision 2: 0 success, 1 blocking review findings only, 2 usage
+ * The exit code contract: 0 success, 1 blocking review findings only, 2 usage
  * and precondition errors, 3 runtime errors. These run the CLI as a real child
- * process through the CORE-03 harness, because the contract is about the
+ * process through the CLI harness, because the contract is about the
  * process exit code, not an in-process return value.
  */
 import { test } from "node:test";
@@ -88,7 +88,7 @@ test("error: a hint prints on its own line as `Hint: ...`", () => {
   }
 });
 
-test("error: unknown command exits 2 (was 1 before CORE-10)", async () => {
+test("error: unknown command exits 2 (it used to exit 1)", async () => {
   const harness = await createCliHarness();
   try {
     const result = await harness.run({ args: ["prob", "fixture/repo"] });

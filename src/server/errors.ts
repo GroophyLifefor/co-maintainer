@@ -1,4 +1,4 @@
-/** The one error shape every `/api/*` response uses — see PLAN.md Section 7. */
+/** The one error shape every `/api/*` response uses. */
 export type ApiError = {
   code: string;
   message: string;

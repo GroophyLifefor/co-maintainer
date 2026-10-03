@@ -8,7 +8,7 @@ import { createInterface } from "node:readline/promises";
 /** Asks one question and always settles.
  *
  * `rl.question` never settles when stdin reaches EOF before an answer, which
- * is the F01 hang: `co-maintainer review </dev/null` awaited the answer
+ * is the hang: `co-maintainer review </dev/null` awaited the answer
  * forever, printed `Warning: Detected unsettled top-level await`, and exited
  * 13. Racing the question against `close`/`end` and treating those as "no
  * answer" keeps the caller's fallback path alive instead. */

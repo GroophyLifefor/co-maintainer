@@ -40,7 +40,7 @@ export const CODEGRAPH_APPROX_SIZE = "~250 MB";
 /** A prompt may only be shown when there is a human on the other end of stdin
  * *and* stdout, and no CI marker. A closed stdin (`</dev/null`), a piped
  * output, or `CI=1` must all take the non-interactive path: asking then would
- * hang on a question nobody can answer (F01). `stdout` is checked because a
+ * hang on a question nobody can answer. `stdout` is checked because a
  * prompt printed into a pipe is invisible.
  *
  * `streams` is injectable so the tests can stand in for a TTY without a real
@@ -57,7 +57,7 @@ export function canPrompt(
   );
 }
 
-/** The one line a non-interactive run prints instead of asking (F01). It names
+/** The one line a non-interactive run prints instead of asking. It names
  * the reason and both ways forward, so a CI log explains itself. */
 export function skippedNotice(version = CODEGRAPH_VERSION): string {
   return (
@@ -68,7 +68,7 @@ export function skippedNotice(version = CODEGRAPH_VERSION): string {
 
 /** What the install prompt says: the package and version, where it comes from,
  * what it is for, the approximate size, and the exact directory. A bare
- * "Install ...? [y/N]" left the user guessing (F01). */
+ * "Install ...? [y/N]" left the user guessing. */
 export function installPrompt(version: string, root: string): string {
   return (
     `co-maintainer uses codegraph ${version} (${CODEGRAPH_PACKAGE} from npm, ${CODEGRAPH_APPROX_SIZE}) ` +
@@ -243,7 +243,7 @@ export async function ensureCodegraph(
   return after.path;
 }
 
-/** Review paths must not call `Deno.exit` (plan §8.7, S13). */
+/** Review paths must not call `Deno.exit`. */
 export async function ensureCodegraphForReview(
   options: EnsureOptions = {},
 ): Promise<{ path: string } | { reason: string }> {
@@ -262,7 +262,7 @@ export async function ensureCodegraphForReview(
 
   if (!options.allowInstall) {
     // Non-interactive: do not ask, review without it. The caller logs the
-    // reason, so the run continues instead of hanging or exiting (F01).
+    // reason, so the run continues instead of hanging or exiting.
     if (!interactive) {
       return { reason: skippedNotice() };
     }

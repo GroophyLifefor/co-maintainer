@@ -1,6 +1,6 @@
-/** Windows exit crash regression tests (CORE-11).
+/** Windows exit crash regression tests.
  *
- * F08: `process.exit` while undici's fetch connection pool is still open trips
+ * `process.exit` while undici's fetch connection pool is still open trips
  * `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src\win\async.c,
  * line 94` on Windows, and the process dies with 0xC0000409 (surfaced as 127 by
  * some shells, -1073740791 here) instead of the documented exit code.
@@ -114,7 +114,7 @@ async function makeWorktree(root: string, repo: string): Promise<string> {
 }
 
 test("exit: a failing provider after a real fetch exits 3 without aborting", async () => {
-  // A 5xx, not a 401: since CORE-12 a 401 is a usage error (exit 2). The crash
+  // A 5xx, not a 401: a 401 is a usage error (exit 2). The crash
   // path is any failure that reaches the top level after a real fetch, so the
   // runtime failure is the honest reproduction.
   const server = await startFakeOpenRouter("server-error");

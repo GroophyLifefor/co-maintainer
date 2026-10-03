@@ -1,4 +1,5 @@
-import { OpenRouterProvider } from "../ai/openrouter.ts";
+import { createAiProvider } from "../ai/provider.ts";
+import { CliError, EXIT_USAGE } from "../cli/error.ts";
 import {
   completeWithMermaidTools,
   type ToolHandler,
@@ -32,6 +33,41 @@ import type {
 
 type UsageSink = (response: AiResponse) => Promise<void>;
 type ProgressSink = (message: string) => void;
+
+/** A model id is never guessed here. Models go stale, and a build already
+ * installed cannot fetch a fresher one, so the id to run comes from config
+ * or a flag, set at least once by whoever runs it (Murat, 2026-09-28). */
+/** The configured provider for one model. Built only when a call needs it:
+ * a provider's constructor requires a real key, which a fake-AI run never has. */
+function reviewProvider(
+  options: Options,
+  model: string | undefined,
+  label: "low" | "high",
+): AiProvider {
+  const provider = createAiProvider(options, requiredModel(model, label));
+  if (!provider) {
+    throw new CliError(
+      "missing_provider",
+      "Review needs an AI provider.",
+      "Run co-maintainer set --ai=... --token=...",
+      EXIT_USAGE,
+    );
+  }
+  return provider;
+}
+
+function requiredModel(
+  model: string | undefined,
+  label: "low" | "high",
+): string {
+  if (model) return model;
+  throw new CliError(
+    "missing_model",
+    `No ${label} model is configured.`,
+    `Run co-maintainer set --${label}-model=..., or pass --${label}-model=... on the command that needs it.`,
+    EXIT_USAGE,
+  );
+}
 
 export type ReviewExtras = {
   carryPrompt?: string;
@@ -97,6 +133,26 @@ export function reviewSystemPrompt(diagrams: boolean): string {
 ${diagrams ? REVIEW_DIAGRAM_RULES : NO_DIAGRAM_RULES}`;
 }
 
+/** The guide block every review sends, kept as the stable head of the system
+ * prompt rather than the user prompt so a provider with prompt caching
+ * (Anthropic's `cache_control`) reads it instead of re-billing it. Nothing
+ * time-varying may enter this string — a single differing byte makes the cache
+ * miss. */
+export function reviewGuidesBlock(
+  guide: string,
+  detailed: string,
+  codebase: string,
+): string {
+  return `REVIEW GUIDE:
+${guide}
+
+DETAILED GUIDE:
+${detailed}
+
+CODEBASE CONVENTIONS:
+${codebase || "None recorded."}`;
+}
+
 /** Shared PR and local/remote workspace review instructions: confirm claims
  * against the indexed graph, not only the diff slice. */
 export const CODEGRAPH_DIFF_VERIFICATION = `Examine the changes line by line, not just file by file. A single file can
@@ -120,8 +176,8 @@ function text(value: unknown, limit = 20_000): string {
 
 type UsageSinkForNormalize = UsageSink;
 
-/** Turns a model reply into the Markdown every consumer already parses
- * (CORE-40 / F02). A reply that is not usable JSON is retried once with an
+/** Turns a model reply into the Markdown every consumer already parses.
+ * A reply that is not usable JSON is retried once with an
  * explicit reminder; if that also fails, the raw text is returned so the
  * legacy Markdown parser can still read it. This keeps a provider that ignores
  * `response_format` working, and never drops a review on the floor. */
@@ -325,17 +381,12 @@ export async function reviewPullRequest(
     );
   }
 
-  // Built only if needed: OpenRouterProvider's constructor requires a real
-  // API key, which a fake-AI test run never has.
+  // Built only if needed, see reviewProvider.
   const filesNeedSummary = ownFiles.some(({ file }) =>
     needsSummary(Number(file.changes ?? 0), String(file.patch ?? "")),
   );
   const lowProvider = filesNeedSummary
-    ? (ai ??
-      new OpenRouterProvider(
-        options.aiToken ?? "",
-        options.lowModel ?? "openai/gpt-oss-120b",
-      ))
+    ? (ai ?? reviewProvider(options, options.lowModel, "low"))
     : undefined;
   const patchByPath = new Map<string, string>();
   const [ownSections, codegraphTools] = await Promise.all([
@@ -426,12 +477,7 @@ ${upstreamListing}${unchangedListing}`;
       diffWasTruncated ? " · truncated for model context" : ""
     }`,
   );
-  const provider =
-    ai ??
-    new OpenRouterProvider(
-      options.aiToken ?? "",
-      options.highModel ?? "openai/gpt-5.6-luna",
-    );
+  const provider = ai ?? reviewProvider(options, options.highModel, "high");
   const diagrams = provider.supportsTools !== false;
   const carryBlock = extras?.carryPrompt ? `${extras.carryPrompt}\n` : "";
   const prompt = `Review this pull request against the repository's review guide and
@@ -466,15 +512,6 @@ code to the nearest numbered line.
 ${diagrams ? DIAGRAM_PROMPT_RULES : NO_DIAGRAM_RULES}
 ${FINDINGS_JSON_INSTRUCTIONS}
 
-REVIEW GUIDE:
-${guide}
-
-DETAILED GUIDE:
-${detailed}
-
-CODEBASE CONVENTIONS:
-${codebase || "None recorded."}
-
 PULL REQUEST:
 ${JSON.stringify({
   number,
@@ -494,14 +531,14 @@ ${diff}`;
   const matrix = clampImproveMatrix(options.improveMatrix);
   const request: AiRequest = {
     job: "review_pull_request",
-    system: reviewSystemPrompt(diagrams),
+    system: `${reviewSystemPrompt(diagrams)}\n\n${reviewGuidesBlock(guide, detailed, codebase)}`,
     prompt,
     maxTokens: 24_000 * matrix,
     reasoningEffort: "high",
     responseFormat: FINDINGS_JSON_SCHEMA,
   };
   report(
-    `AI request · model=${options.highModel ?? "openrouter default"} · ` +
+    `AI request · ${options.ai} · model=${options.highModel ?? "unset"} · ` +
       `prompt=${prompt.length} chars · maxTokens=${request.maxTokens}`,
   );
   if (options.debug) {
@@ -509,8 +546,8 @@ ${diff}`;
       `[debug] review prompt · ${prompt.length} chars · diff=${diff.length} chars`,
     );
     console.log(
-      `[debug] openrouter request · model=${
-        options.highModel ?? "openai/gpt-5.6-luna"
+      `[debug] ${options.ai} request · model=${
+        options.highModel ?? "unset"
       } · maxTokens=${request.maxTokens}`,
     );
   }
@@ -533,10 +570,10 @@ ${diff}`;
   }
   if (!response.text.trim()) {
     throw new Error(
-      "OpenRouter returned an empty review. The reasoning budget may have been exhausted",
+      `${options.ai} returned an empty review. The reasoning budget may have been exhausted`,
     );
   }
-  // The model returns JSON; we render the Markdown (CORE-40 / F02). A reply
+  // The model returns JSON; we render the Markdown. A reply
   // that is not usable JSON is retried once and then falls back to the legacy
   // Markdown parser, so a provider that ignores the schema still works.
   let reviewText = await normalizeReviewResponse(
@@ -587,7 +624,7 @@ ${reviewText}`,
     );
     if (!response.text.trim()) {
       throw new Error(
-        `OpenRouter returned an empty review improvement at pass ${pass - 1}`,
+        `${options.ai} returned an empty review improvement at pass ${pass - 1}`,
       );
     }
     reviewText = await normalizeReviewResponse(
@@ -674,11 +711,7 @@ export async function reviewWorkspaceRevision(
       const changes = Number(file.changes ?? 0);
       const patch = String(file.patch ?? "");
       const lowProvider = needsSummary(changes, patch)
-        ? (ai ??
-          new OpenRouterProvider(
-            options.aiToken ?? "",
-            options.lowModel ?? "openai/gpt-oss-120b",
-          ))
+        ? (ai ?? reviewProvider(options, options.lowModel, "low"))
         : undefined;
       if (!lowProvider) return `FILE: ${path}\n${filePatch(file)}`;
       patchByPath.set(path, patch);
@@ -715,12 +748,7 @@ export async function reviewWorkspaceRevision(
         .join("\n")}`
     : "";
   const carryBlock = extras?.carryPrompt ? `${extras.carryPrompt}\n` : "";
-  const provider =
-    ai ??
-    new OpenRouterProvider(
-      options.aiToken ?? "",
-      options.highModel ?? "openai/gpt-5.6-luna",
-    );
+  const provider = ai ?? reviewProvider(options, options.highModel, "high");
   const diagrams = provider.supportsTools !== false;
   const prompt = `Review these local changes against the repository's review guide and
 codebase conventions. Find only actionable code-level violations supported by
@@ -731,15 +759,6 @@ codegraph tools before asserting behavior outside what was shown.
 ${CODEGRAPH_DIFF_VERIFICATION}
 ${diagrams ? DIAGRAM_PROMPT_RULES : NO_DIAGRAM_RULES}
 ${FINDINGS_JSON_INSTRUCTIONS}
-
-REVIEW GUIDE:
-${guide}
-
-DETAILED GUIDE:
-${detailed}
-
-CODEBASE CONVENTIONS:
-${codebase || "None recorded."}
 
 WORKSPACE:
 ${JSON.stringify({
@@ -753,7 +772,7 @@ ${ownDiff}${unchangedListing}`;
   const matrix = clampImproveMatrix(options.improveMatrix);
   const request: AiRequest = {
     job: "review_local",
-    system: reviewSystemPrompt(diagrams),
+    system: `${reviewSystemPrompt(diagrams)}\n\n${reviewGuidesBlock(guide, detailed, codebase)}`,
     prompt,
     maxTokens: 24_000 * matrix,
     reasoningEffort: "high",
@@ -769,7 +788,7 @@ ${ownDiff}${unchangedListing}`;
   );
   if (usage) await usage(response);
   if (!response.text.trim()) {
-    throw new Error("OpenRouter returned an empty review");
+    throw new Error(`${options.ai} returned an empty review`);
   }
   let reviewText = await normalizeReviewResponse(
     provider,

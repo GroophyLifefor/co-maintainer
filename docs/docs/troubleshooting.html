@@ -47,6 +47,8 @@
           <li><a href="review.html">Review</a></li>
           <li><a href="local-review.html">Local review</a></li>
           <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="ci.html">CI</a></li>
+          <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           </ul>
         </div>
@@ -69,6 +71,7 @@
           <ul class="nav-list">
           <li><a href="commands.html">Commands</a></li>
           <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="providers.html">AI providers</a></li>
           <li><a href="authentication.html">Authentication</a></li>
           <li><a href="caching.html">Caching</a></li>
           <li><a href="cost.html">Cost</a></li>
@@ -153,14 +156,44 @@ is the safe default.</p>
 <td>The message names the closest match. <code>co-maintainer help</code> lists every command</td>
 </tr>
 <tr>
-<td><code>OpenRouter rejected the API key</code></td>
-<td>The provider refused the key with <code>401</code></td>
-<td>Replace it with <code>co-maintainer set --token=...</code></td>
+<td><code>OpenRouter rejected the API key</code>, <code>OpenAI rejected the API key</code>, <code>Anthropic rejected the API key</code></td>
+<td>The provider refused the key</td>
+<td>Replace it with <code>co-maintainer set --token=...</code>. See <a href="providers.html#keys">AI providers</a></td>
 </tr>
 <tr>
 <td><code>does not know the model &lt;name&gt;</code></td>
-<td>The provider refused the model with <code>400</code></td>
-<td>Check the name at <a href="https://openrouter.ai/models">openrouter.ai/models</a></td>
+<td>The provider refused the model, for OpenRouter with <code>400</code></td>
+<td>Check the name on the provider&#39;s model list: <a href="https://openrouter.ai/models">OpenRouter</a>, <a href="https://platform.openai.com/docs/models">OpenAI</a>, <a href="https://docs.anthropic.com/en/docs/about-claude/models">Anthropic</a></td>
+</tr>
+<tr>
+<td><code>Missing low model</code> or <code>Missing high model</code></td>
+<td>No model is saved or passed, and there is no terminal to ask on</td>
+<td>co-maintainer never picks a model. Pass <code>--low-model=</code> and <code>--high-model=</code>, or save them once with <code>co-maintainer set</code></td>
+</tr>
+<tr>
+<td><code>No low model is configured.</code> or <code>No high model is configured.</code></td>
+<td>A review reached a model that was never set</td>
+<td>Run <code>co-maintainer set --low-model=...</code>, or pass <code>--low-model=...</code> on the command</td>
+</tr>
+<tr>
+<td><code>review needs an AI provider</code></td>
+<td><code>review --ai=none</code></td>
+<td>Pass a provider, or leave <code>--ai</code> out to use the saved one. See <a href="providers.html#where-each-provider-works">AI providers</a></td>
+</tr>
+<tr>
+<td><code>GitHub refused &lt;METHOD&gt; &lt;endpoint&gt;</code></td>
+<td>The token or the App lacks a permission for that call</td>
+<td>The message names the missing permission, for example <code>Pull requests: Read and write</code>. See <a href="authentication.html">Authentication</a> and <a href="github-app.html">GitHub App</a></td>
+</tr>
+<tr>
+<td><code>GitHub returned 404 for</code></td>
+<td>The repository does not exist, or the token or App cannot see it</td>
+<td>The message repeats the permission the call needs</td>
+</tr>
+<tr>
+<td><code>--output must be: github</code> or <code>--output=github cannot be used with --json</code></td>
+<td>A bad <code>--output</code> value, or both output modes at once</td>
+<td>Use <code>--output=github</code> alone. See <a href="ci.html">CI</a></td>
 </tr>
 <tr>
 <td><code>rejected the remote review token</code></td>
@@ -168,9 +201,59 @@ is the safe default.</p>
 <td>Create a new one under Settings, Remote review, or the token was deactivated</td>
 </tr>
 <tr>
+<td><code>No BYOK key is set.</code></td>
+<td><code>--remote-byok</code> with no key</td>
+<td><code>co-maintainer config set remote-byok &lt;key&gt;</code>, or set <code>CM_REMOTE_BYOK</code></td>
+</tr>
+<tr>
+<td><code>This server (version X) does not support your own key.</code></td>
+<td>The server is too old to accept a key</td>
+<td>Upgrade the server, or run without <code>--remote-byok</code></td>
+</tr>
+<tr>
+<td><code>This server does not accept your own key.</code></td>
+<td>The server&#39;s BYOK policy is <code>off</code></td>
+<td>Run without <code>--remote-byok</code>, or ask the server&#39;s owner to allow it</td>
+</tr>
+<tr>
+<td><code>This server requires your own key.</code></td>
+<td>The server&#39;s BYOK policy is <code>require</code></td>
+<td><code>co-maintainer review --remote --remote-byok</code></td>
+</tr>
+<tr>
+<td><code>Your key was not kept across a server restart.</code></td>
+<td>The server restarted while your review was waiting</td>
+<td>Run the review again. The server&#39;s own key is never used instead</td>
+</tr>
+<tr>
+<td><code>The AI provider rejected your own key.</code></td>
+<td>The provider refused the key you sent</td>
+<td>Check the key. See <a href="remote-review.html#your-own-ai-key">your own key</a></td>
+</tr>
+<tr>
+<td><code>remote-token is empty</code></td>
+<td>The GitHub Action had no token, which is what a fork pull request gets</td>
+<td>See <a href="ci.html#pull-requests-from-forks">CI</a></td>
+</tr>
+<tr>
 <td><code>Nothing to set</code></td>
 <td><code>set</code> was called with no values</td>
 <td>Pass at least one flag, for example <code>--token=...</code></td>
+</tr>
+<tr>
+<td><code>There is no backup to roll back to</code></td>
+<td><code>rollback</code> found no backup, or it is incomplete</td>
+<td>A backup exists only after an upgrade migrated the database. See <a href="#going-back-after-an-upgrade">Going back after an upgrade</a></td>
+</tr>
+<tr>
+<td><code>The backup was taken when upgrading to</code></td>
+<td>The installed version is not the one that made the backup</td>
+<td>Install that version and run <code>rollback</code> again</td>
+</tr>
+<tr>
+<td><code>Rollback needs your confirmation</code></td>
+<td><code>rollback</code> has no terminal to ask on</td>
+<td>Run it in a terminal, or pass <code>--yes</code></td>
 </tr>
 <tr>
 <td><code>serve is already running</code></td>
@@ -206,6 +289,16 @@ missing value with no default becomes a <code>2</code> with a message naming the
 <td>The raw body is never printed. Retry, then check <code>--debug</code> for the call</td>
 </tr>
 <tr>
+<td><code>OpenAI failed with</code> or <code>Anthropic failed with</code></td>
+<td>The provider returned an error that is not about the key or the model</td>
+<td>The message carries the status. Retry, then check the provider&#39;s status page</td>
+</tr>
+<tr>
+<td><code>OpenAI refused to answer</code> or <code>Anthropic refused to answer</code></td>
+<td>The model declined the request</td>
+<td>The message says why when the provider did. Change the model or the diff</td>
+</tr>
+<tr>
 <td><code>AI response was not valid JSON</code></td>
 <td>The model ignored the JSON request twice</td>
 <td>The older Markdown parser runs as a fallback. Retry if the result looks off</td>
@@ -216,11 +309,54 @@ missing value with no default becomes a <code>2</code> with a message naming the
 <td>Make sure the clone is healthy and no rebase or merge is in progress</td>
 </tr>
 <tr>
+<td><code>Could not back up the data before upgrading it</code></td>
+<td>The backup taken before a migration failed, so the migration did not run</td>
+<td>Free disk space or fix the permissions of the data directory, then start again. Nothing was changed</td>
+</tr>
+<tr>
 <td><code>app.db is not open</code></td>
 <td>A command that needs the server database did not open it</td>
 <td>Report it: <code>init</code> and <code>sync</code> open it for the run, <code>serve</code> keeps it open</td>
 </tr>
 </tbody></table>
+<h2 id="dashboard-messages">Dashboard messages</h2>
+<p>These come back from the dashboard&#39;s API and show as a message next to the form.</p>
+<table>
+<thead>
+<tr>
+<th>Message</th>
+<th>What happened</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>policy_in_use</code> (409)</td>
+<td><code>This repository uses a review policy, so the auto review, drafts and bots switches do not apply.</code></td>
+<td>Change the <a href="review-policy.html">review policy</a> instead, or pick <strong>Simple switches</strong> first</td>
+</tr>
+<tr>
+<td><code>invalid_policy</code> (422)</td>
+<td>The review policy cannot be read. The message says what is wrong</td>
+<td>Fix the field it names. Nothing is saved</td>
+</tr>
+</tbody></table>
+<h2 id="going-back-after-an-upgrade">Going back after an upgrade</h2>
+<p>A release refuses a database newer than it knows, so you cannot install the old
+version and open the new database. Instead, the first time an upgrade migrates
+<code>app.db</code>, co-maintainer copies <code>app.db</code>, <code>cache.db</code> and <code>config.json</code> into a
+<code>backups/previous</code> folder next to the database. There is one slot, and it holds
+the version you upgraded from.</p>
+<p>To go back, with the new version still installed and <code>serve</code> stopped:</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">rollback</span>
+npm i -g co-maintainer@&lt;the version it prints&gt;
+</code></pre>
+<p><code>rollback</code> restores the backup and prints the version to install. It asks first,
+because everything written after the upgrade is lost: reviews, settings and
+cache. Pass <code>--yes</code> to skip the question. The files it replaced are kept in
+<code>backups/rolled-back</code>, so a rollback made by mistake can be undone by hand.</p>
+<p>It refuses when there is no backup, when <code>serve</code> is running, and when the
+installed version is not the one that took the backup. If the copy cannot be
+made, the migration does not run and nothing is changed.</p>
 <h2 id="platform-notes">Platform notes</h2>
 <p><code>serve</code> recommends Linux, WSL included. <a href="dashboard.html#linux">Dashboard: Linux</a>
 explains why. Windows is supported but treated as less predictable, and <code>serve</code>
@@ -235,7 +371,7 @@ differs from CLI access. For cost questions, see <a href="cost.html">Cost</a>.</
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#exit-codes">Exit codes</a></li><li><a href="#usage-and-precondition-errors-exit-2">Usage and precondition errors (exit 2)</a></li><li><a href="#runtime-failures-exit-3">Runtime failures (exit 3)</a></li><li><a href="#platform-notes">Platform notes</a></li></ul></nav>
+      <ul><li><a href="#exit-codes">Exit codes</a></li><li><a href="#usage-and-precondition-errors-exit-2">Usage and precondition errors (exit 2)</a></li><li><a href="#runtime-failures-exit-3">Runtime failures (exit 3)</a></li><li><a href="#dashboard-messages">Dashboard messages</a></li><li><a href="#going-back-after-an-upgrade">Going back after an upgrade</a></li><li><a href="#platform-notes">Platform notes</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

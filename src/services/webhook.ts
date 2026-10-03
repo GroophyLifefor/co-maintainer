@@ -13,11 +13,23 @@ import {
   findReplyByPostedComment,
 } from "../store/replies.ts";
 import { latestPostedReview } from "../store/reviews.ts";
+import { getQueuedJob } from "../store/jobs.ts";
+import type { RepoRow } from "../store/rows.ts";
 import {
   markInstallationRemoved,
   markInstallationSuspended,
   upsertInstallation,
 } from "../store/installations.ts";
+import { readConfig } from "../config.ts";
+import {
+  carriesEarlierRequest,
+  evaluatePolicy,
+  isRequestCommand,
+  legacyPolicy,
+  parsePolicy,
+  type Association,
+  type ReviewPolicy,
+} from "./review_policy.ts";
 
 export const REVIEW_DEBOUNCE_MS = 20_000;
 
@@ -27,6 +39,36 @@ const PR_ACTIONS = new Set([
   "synchronize",
   "ready_for_review",
 ]);
+
+/** The policy that governs a repository. A repository pinned to `"legacy"`, and
+ * one with nothing stored and no server default, follow the three old
+ * switches. A stored value that no longer parses does too, so a bad edit
+ * degrades to today's behavior rather than to a silent stop. */
+export function policySource(row: RepoRow): {
+  policy: ReviewPolicy;
+  /** True when the three old switches are what decides. */
+  legacy: boolean;
+} {
+  const switches = { policy: legacyPolicy(row), legacy: true };
+  let value: unknown;
+  if (row.review_policy_json !== null) {
+    try {
+      value = JSON.parse(row.review_policy_json);
+    } catch {
+      return switches;
+    }
+    if (value === "legacy") return switches;
+  } else {
+    value = readConfig().reviewPolicy;
+    if (value === undefined) return switches;
+  }
+  const parsed = parsePolicy(value);
+  return parsed.ok ? { policy: parsed.value, legacy: false } : switches;
+}
+
+export function policyForRepo(row: RepoRow): ReviewPolicy {
+  return policySource(row).policy;
+}
 
 export type WebhookResult = {
   outcome: "enqueued" | "skipped" | "ignored" | "error";
@@ -81,6 +123,34 @@ function isBot(user: Record<string, unknown> | undefined): boolean {
   return login.endsWith("[bot]");
 }
 
+function labelNames(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value
+    .map((label) => asString(asRecord(label)?.name))
+    .filter((name): name is string => Boolean(name));
+}
+
+/** The policy facts a pull request object carries. `fork` is true when the head
+ * lives in another repository, or in none because the fork was deleted. */
+function pullRequestFacts(
+  pr: Record<string, unknown> | undefined,
+  repo: string,
+): {
+  association?: string;
+  fork?: boolean;
+  labels?: string[];
+  targetBranch?: string;
+} {
+  const head = asRecord(pr?.head);
+  const headRepo = asString(asRecord(head?.repo)?.full_name);
+  return {
+    association: asString(pr?.author_association),
+    fork: head ? headRepo?.toLowerCase() !== repo.toLowerCase() : undefined,
+    labels: labelNames(pr?.labels),
+    targetBranch: asString(asRecord(pr?.base)?.ref),
+  };
+}
+
 export function maybeEnqueueReview(input: {
   repo: string;
   prNumber: number;
@@ -93,6 +163,15 @@ export function maybeEnqueueReview(input: {
   trigger: string;
   headSha?: string;
   maxDiffLines?: number;
+  /** What the pull request payload said about its author and shape. Left out
+   * when GitHub did not send it, and a rule that asks about it then skips. */
+  association?: string;
+  fork?: boolean;
+  labels?: string[];
+  targetBranch?: string;
+  /** Set when a maintainer asked for this review by label or comment. The
+   * reaction endpoint is where the App acknowledges it once the job starts. */
+  request?: { reaction: string };
 }): WebhookResult {
   const row = getRepo(input.repo);
   if (!row || row.active !== 1) {
@@ -103,29 +182,32 @@ export function maybeEnqueueReview(input: {
       prNumber: input.prNumber,
     };
   }
-  if (row.auto_review !== 1) {
-    return {
-      outcome: "skipped",
-      reason: "auto-review-off",
-      repo: input.repo,
-      prNumber: input.prNumber,
-    };
-  }
-  if (row.skip_drafts === 1 && input.draft) {
-    return {
-      outcome: "skipped",
-      reason: "draft",
-      repo: input.repo,
-      prNumber: input.prNumber,
-    };
-  }
-  if (row.skip_bots === 1 && input.bot) {
-    return {
-      outcome: "skipped",
-      reason: "bot-author",
-      repo: input.repo,
-      prNumber: input.prNumber,
-    };
+  const policy = policyForRepo(row);
+  const decision = evaluatePolicy(policy, {
+    association: input.association,
+    fork: input.fork,
+    draft: input.draft,
+    bot: input.bot,
+    labels: input.labels,
+    targetBranch: input.targetBranch,
+    changedLines:
+      input.changedFiles >= 0 ? input.additions + input.deletions : undefined,
+  });
+  const skipped = (reason: string): WebhookResult => ({
+    outcome: "skipped",
+    reason,
+    repo: input.repo,
+    prNumber: input.prNumber,
+  });
+  const earlier = latestPostedReview(input.repo, input.prNumber);
+  if (decision.action === "skip") return skipped(decision.reason);
+  if (decision.action === "on-request" && !input.request) {
+    const asked =
+      earlier !== undefined ||
+      getQueuedJob(input.repo, input.prNumber) !== undefined;
+    if (!carriesEarlierRequest(policy, asked)) {
+      return skipped(decision.reason);
+    }
   }
   if (!row.knowledge_built_at) {
     return {
@@ -158,17 +240,20 @@ export function maybeEnqueueReview(input: {
     (input.trigger === "review" || input.trigger === "review-comment") &&
     input.headSha
   ) {
-    const last = latestPostedReview(input.repo, input.prNumber);
-    if (last && last.head_sha === input.headSha) {
-      return {
-        outcome: "skipped",
-        reason: "nothing-new-since-last-round",
-        repo: input.repo,
-        prNumber: input.prNumber,
-      };
+    if (earlier && earlier.head_sha === input.headSha) {
+      return skipped("nothing-new-since-last-round");
     }
   }
-  const last = latestPostedReview(input.repo, input.prNumber);
+  if (
+    policy.maxRounds !== undefined &&
+    earlier &&
+    earlier.round >= policy.maxRounds
+  ) {
+    return skipped(
+      `Round limit reached: ${earlier.round} of ${policy.maxRounds} reviews.`,
+    );
+  }
+  const last = earlier;
   const incremental =
     row.review_scope === "incremental" && Boolean(last?.head_sha);
   const { id } = enqueue({
@@ -182,6 +267,7 @@ export function maybeEnqueueReview(input: {
       scope: incremental ? "incremental" : "whole-pr",
       sinceCommit: incremental ? last!.head_sha : undefined,
       round: last ? last.round + 1 : 1,
+      requestReaction: input.request?.reaction,
     },
   });
   return {
@@ -263,8 +349,26 @@ function pullRequestEvent(
   const pr = asRecord(payload.pull_request);
   const repo = asString(asRecord(payload.repository)?.full_name);
   const prNumber = asNumber(pr?.number) ?? asNumber(payload.number);
-  if (!PR_ACTIONS.has(action) || !repo || prNumber === undefined) {
+  const labeled = action === "labeled";
+  if (
+    (!PR_ACTIONS.has(action) && !labeled) ||
+    !repo ||
+    prNumber === undefined
+  ) {
     return { outcome: "ignored", repo, prNumber };
+  }
+  // A label only means something when it is the repository's request label.
+  // Adding it already takes triage rights, so no further check is made.
+  if (labeled) {
+    const row = getRepo(repo);
+    const added = asString(asRecord(payload.label)?.name);
+    if (
+      !row ||
+      !added ||
+      added.toLowerCase() !== policyForRepo(row).requestLabel.toLowerCase()
+    ) {
+      return { outcome: "ignored", repo, prNumber };
+    }
   }
   const user = asRecord(pr?.user);
   const installationId = asNumber(asRecord(payload.installation)?.id);
@@ -278,9 +382,13 @@ function pullRequestEvent(
     deletions: asNumber(pr?.deletions) ?? 0,
     changedFiles: asNumber(pr?.changed_files) ?? -1,
     deliveryId,
-    trigger: action,
+    trigger: labeled ? "request-label" : action,
     headSha: asString(asRecord(pr?.head)?.sha),
     maxDiffLines,
+    ...pullRequestFacts(pr, repo),
+    request: labeled
+      ? { reaction: `repos/${repo}/issues/${prNumber}/reactions` }
+      : undefined,
   });
 }
 
@@ -328,6 +436,7 @@ function reviewWakeEvent(
     trigger: event === "pull_request_review" ? "review" : "review-comment",
     headSha: asString(asRecord(pr?.head)?.sha),
     maxDiffLines,
+    ...pullRequestFacts(pr, repo),
   });
 }
 
@@ -482,6 +591,41 @@ function issueCommentEvent(
       repo,
       prNumber,
     };
+  }
+  const row = getRepo(repo);
+  if (row?.active === 1) {
+    const policy = policyForRepo(row);
+    if (isRequestCommand(body, policy.requestCommand)) {
+      const commenter = asString(comment?.author_association) ?? "NONE";
+      if (!policy.requesters.includes(commenter as Association)) {
+        return {
+          outcome: "skipped",
+          reason: `Not allowed to request a review: ${commenter} is not one of ${policy.requesters.join(", ")}.`,
+          repo,
+          prNumber,
+        };
+      }
+      const installationId = asNumber(asRecord(payload.installation)?.id);
+      if (installationId !== undefined) setInstallationId(repo, installationId);
+      // An issue payload carries no head, base or diff size, so rules about
+      // the fork, the target branch and the size do not match here.
+      return maybeEnqueueReview({
+        repo,
+        prNumber,
+        draft: asBool(issue?.draft),
+        bot: isBot(asRecord(issue?.user)),
+        additions: 0,
+        deletions: 0,
+        changedFiles: -1,
+        deliveryId,
+        trigger: "request-comment",
+        association: asString(issue?.author_association),
+        labels: labelNames(issue?.labels),
+        request: {
+          reaction: `repos/${repo}/issues/comments/${String(sourceId)}/reactions`,
+        },
+      });
+    }
   }
   if (!hasAppMention(body, appSlug(payload))) {
     return {

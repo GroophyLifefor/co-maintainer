@@ -1,4 +1,5 @@
-import { empty, html, layout, money, repoNav, text, when } from "./layout.ts";
+import { empty, html, layout, repoNav, text, when } from "./layout.ts";
+import { formatCost } from "./cost.ts";
 import type { repoRemoteReviews } from "../../services/dashboard.ts";
 
 export function renderRepoRemote(
@@ -24,7 +25,7 @@ export function renderRepoRemote(
             <td>${text(review.token_name ?? "none")}</td>
             <td>${text(review.status)}</td>
             <td class="num">${review.findings_count ?? 0}</td>
-            <td class="num">${money(review.cost ?? 0)}</td>
+            <td class="num">${formatCost(review)}</td>
             <td class="muted">${when(review.created_at)}</td>
           </tr>`,
             )

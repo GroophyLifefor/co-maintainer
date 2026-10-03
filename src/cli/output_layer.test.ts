@@ -1,10 +1,10 @@
-/** One presentation layer for local, PR and remote reviews (CORE-43).
+/** One presentation layer for local, PR and remote reviews.
  *
- * F21: a terminal printed the fixed four-line severity legend and the sentence
+ * A terminal printed the fixed four-line severity legend and the sentence
  * "If you'd like me to explain it in more detail, please ask." — neither has a
- * reader there. F22: a PR review printed Markdown sections while a local review
+ * reader there. A PR review printed Markdown sections while a local review
  * printed `New (1) •` and a `Summary:` line, so the same tool looked like two
- * products. F23: the header said `guide unknown` when the code was only unsure
+ * products. The header said `guide unknown` when the code was only unsure
  * of the *date*, and JSON claimed `codegraph.state: "used"` while stderr said
  * codegraph was missing.
  *
@@ -38,7 +38,7 @@ import {
 
 const projectRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 
-/** Text that must never reach a terminal (F21). */
+/** Text that must never reach a terminal. */
 const TERMINAL_NOISE = [
   "If you'd like me to explain it in more detail, please ask.",
   "P0: Critical",
@@ -153,7 +153,7 @@ test("local review prints the shared human format, with the real guide date", as
         `--repo=${repo}`,
         // Codegraph is requested by default but cannot be prepared (the tools
         // dir is empty and there is no terminal), so the header must say
-        // `unavailable` rather than claiming it was used (F23).
+        // `unavailable` rather than claiming it was used.
       ]),
       cwd: worktree,
       env: {
@@ -180,7 +180,7 @@ test("local review prints the shared human format, with the real guide date", as
         `codegraph was requested but absent; the header must say so:\n${stdout}\n${stderr}`,
       );
     }
-    // F23: the source of the guide timestamp is the file on disk, so a local
+    // The source of the guide timestamp is the file on disk, so a local
     // review can print a date instead of "guide unknown".
     if (stdout.includes("guide unknown")) {
       throw new Error(`local review still has no guide date:\n${stdout}`);
@@ -315,7 +315,7 @@ test("remote review prints the same format as a local review", async () => {
     if (!stdout.includes("guide built 2026-09-15")) {
       throw new Error(`the remote guide date is missing:\n${stdout}`);
     }
-    // F23: the state comes from the server's own report, not from the flag the
+    // The state comes from the server's own report, not from the flag the
     // client happened to pass.
     if (!stdout.includes("codegraph used")) {
       throw new Error(

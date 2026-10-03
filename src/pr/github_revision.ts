@@ -19,7 +19,7 @@ export function githubFileToRevisionFile(file: Json): RevisionFile {
   const additions = Number(file.additions ?? 0);
   const deletions = Number(file.deletions ?? 0);
   const patch = String(file.patch ?? "");
-  // GitHub omits large text patches; do not treat that as binary (plan §10.7).
+  // GitHub omits large text patches; do not treat that as binary.
   const binary = false;
   return {
     path,

@@ -1,8 +1,8 @@
-/** `review-blocking` reaches every review path (CORE-41).
+/** `review-blocking` reaches every review path.
  *
  * The unit rule lives in `src/review/blocking.test.ts`. These check the four
  * consumers actually honor it:
- *  - the local review exit code and its human output (the F19 surface),
+ *  - the local review exit code and its human output,
  *  - the PR review exit code,
  *  - the App review's GitHub event,
  *  - the config plumbing that carries the mode into `Options`.
@@ -67,7 +67,7 @@ const MODEL_BLOCKING_P2 = row({
 });
 
 /** A P1 the model called non-blocking: exit 0 under `model`, 1 under
- * `severity`. This is the pair F19 wobbled between. */
+ * `severity`. This is the pair the decision once wobbled between. */
 const MODEL_CLEAN_P1 = row({
   state: "new",
   severity: "P1",
@@ -133,7 +133,7 @@ test("the App review event follows the mode", () => {
 
 test("the human output labels the finding the way the exit code decided", () => {
   // Under `severity` the same P2 reads non-blocking, matching exit 0; before
-  // F19 the heading and the exit code could disagree.
+  // the fix the heading and the exit code could disagree.
   const severityText = formatHumanLocalReview(
     "header",
     REVISION,
