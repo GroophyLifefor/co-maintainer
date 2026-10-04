@@ -24,7 +24,7 @@ import {
   openRemoteSession,
   setRemoteSyncResult,
 } from "../remote/server/sessions.ts";
-import { readConfig, remoteByokPolicy } from "../config.ts";
+import { readConfig, remoteByokPolicy, resolvedAiToken } from "../config.ts";
 import {
   dropByokKey,
   getByokKey,
@@ -126,7 +126,7 @@ function reviewOptionsForRepo(
     auth: config.auth ?? "gh",
     githubPat: config.githubPat,
     ai: config.ai ?? "openrouter",
-    aiToken: aiToken ?? config.token,
+    aiToken: aiToken ?? resolvedAiToken(config, config.ai ?? "openrouter"),
     lowModel: config.lowModel,
     highModel: config.highModel,
     synthesisVersion: 16,

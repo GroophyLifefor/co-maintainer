@@ -123,6 +123,41 @@ export type ByokPolicy = "off" | "allow" | "require";
  * overrides the saved config, so a hosted server cannot be talked out of its
  * policy by a config edit. An unset or unreadable value falls back to the
  * config, then to `off`. */
+/** The provider's own key variable. It is read only when that provider runs,
+ * so a key meant for one provider is never sent to another. */
+export function providerKeyEnv(
+  ai: string,
+  env: (name: string) => string | undefined = getEnv,
+): string | undefined {
+  if (ai === "openrouter") return env("OPENROUTER_API_KEY");
+  if (ai === "opencode-zen" || ai === "opencode-go") {
+    return env("OPENCODE_API_KEY");
+  }
+  return undefined;
+}
+
+/** The AI key `serve` uses for its jobs and its setup checks, in the order the
+ * CLI resolves it: `CO_MAINTAINER_TOKEN`, then the provider's own variable,
+ * then the saved key. Without this a server started with the key in its
+ * environment reported AI as not configured and failed every job. */
+export function resolvedAiToken(
+  config: Pick<UserConfig, "ai" | "token">,
+  ai: string | undefined = config.ai,
+): string | undefined {
+  return (
+    getEnv("CO_MAINTAINER_TOKEN") ??
+    (ai ? providerKeyEnv(ai) : undefined) ??
+    config.token
+  );
+}
+
+/** True when a provider is chosen and a key reaches it from anywhere. */
+export function aiConfigured(
+  config: Pick<UserConfig, "ai" | "token">,
+): boolean {
+  return Boolean(config.ai && config.ai !== "none" && resolvedAiToken(config));
+}
+
 export function remoteByokPolicy(
   config: Pick<UserConfig, "remoteByokPolicy"> = readConfig(),
 ): ByokPolicy {

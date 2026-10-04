@@ -1363,3 +1363,38 @@ test("a repository subpage with a stray PR number is not a rendered page", async
     }
   });
 });
+
+test("settings names the key the jobs use, and the environment wins over the saved one", async () => {
+  await withEnv(async () => {
+    const original = getEnv("OPENROUTER_API_KEY");
+    const general = getEnv("CO_MAINTAINER_TOKEN");
+    deleteEnv("CO_MAINTAINER_TOKEN");
+    try {
+      const app = createApp({ password: PASSWORD });
+      const cookie = await cookieSession(app);
+      const hint = async (): Promise<string> =>
+        visibleText(
+          await (
+            await app.fetch(
+              new Request("http://localhost/settings", { headers: { cookie } }),
+            )
+          ).text(),
+        );
+      await writeUserConfig({ ai: "openrouter", token: "saved" });
+      deleteEnv("OPENROUTER_API_KEY");
+      if (!(await hint()).includes("A key is saved")) {
+        throw new Error("the saved key was not named");
+      }
+      setEnv("OPENROUTER_API_KEY", "from-env");
+      if (!(await hint()).includes("which overrides the saved key")) {
+        throw new Error(
+          "the environment key won, but the page said the saved one",
+        );
+      }
+    } finally {
+      if (original === undefined) deleteEnv("OPENROUTER_API_KEY");
+      else setEnv("OPENROUTER_API_KEY", original);
+      if (general !== undefined) setEnv("CO_MAINTAINER_TOKEN", general);
+    }
+  });
+});

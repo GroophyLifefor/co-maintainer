@@ -1,6 +1,10 @@
 import { html, layout, skSlot, text } from "./layout.ts";
 import type { UserConfig } from "../../config.ts";
-import { resolveAppPrivateKey } from "../../config.ts";
+import {
+  aiConfigured,
+  resolveAppPrivateKey,
+  resolvedAiToken,
+} from "../../config.ts";
 import { VERSION } from "../../version.ts";
 import { TEMPLATE_INFO } from "../../services/review_policy.ts";
 import {
@@ -10,13 +14,24 @@ import {
 
 const SOURCE_URL = "https://github.com/GroophyLifefor/co-maintainer";
 
+/** Which key the jobs will use. The environment wins over the saved key, the
+ * same order `resolvedAiToken` follows, so the hint must check it first. */
+function keyHint(config: UserConfig): string {
+  const fromEnv = resolvedAiToken({ ai: config.ai });
+  if (fromEnv && config.token) {
+    return "Using the key from the server's environment, which overrides the saved key";
+  }
+  if (fromEnv) return "Using the key from the server's environment";
+  return config.token ? "A key is saved" : "No key saved";
+}
+
 export function renderSettings(
   username: string,
   config: UserConfig,
   webhookUrl: string,
   baseUrl: string,
 ): Response {
-  const aiOk = Boolean(config.ai && config.ai !== "none" && config.token);
+  const aiOk = aiConfigured(config);
   const ghOk = Boolean(
     config.auth === "gh" || (config.auth === "pat" && config.githubPat),
   );
@@ -80,7 +95,7 @@ export function renderSettings(
           </select></div>
         <div class="field"><label>API key</label>
           <input id="token" type="password" placeholder="Leave blank to keep the current key">
-          <div class="hint">${config.token ? "A key is saved" : "No key saved"}</div></div>
+          <div class="hint">${keyHint(config)}</div></div>
         <div class="two" style="max-width:none">
           <div class="field"><label>High model</label>
             <input id="high" value="${text(config.highModel ?? "")}">

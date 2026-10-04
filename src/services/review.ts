@@ -39,7 +39,11 @@ import {
 } from "../review/blocking.ts";
 import { matchRepeat } from "../pr/rounds.ts";
 import type { Snapshot } from "../pr/snapshot.ts";
-import { readConfig, resolveAppPrivateKey } from "../config.ts";
+import {
+  readConfig,
+  resolveAppPrivateKey,
+  resolvedAiToken,
+} from "../config.ts";
 import { outsideCode, redact } from "../util/redact.ts";
 import { getRepo, setInstallationId } from "../store/repos.ts";
 import {
@@ -235,7 +239,10 @@ export function reviewOptions(repo: string, prNumber: number): Options {
     // With no provider saved the App review stays on OpenRouter, the same
     // fallback the CLI review uses.
     ai: config.ai && config.ai !== "none" ? config.ai : "openrouter",
-    aiToken: config.token,
+    aiToken: resolvedAiToken(
+      config,
+      config.ai && config.ai !== "none" ? config.ai : "openrouter",
+    ),
     highModel: config.highModel,
     lowModel: config.lowModel,
     synthesisVersion: 16,

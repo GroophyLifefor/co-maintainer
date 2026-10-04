@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`serve` ignored a key in its environment.** Jobs read the AI key only from `config.json`, so a server started with `CO_MAINTAINER_TOKEN`, `OPENROUTER_API_KEY` or `OPENCODE_API_KEY` failed every job with `AI is enabled but token/low-model/high-model are not fully configured` and the dashboard said AI was not set up. It now resolves the key the way the CLI does.
+- **Failed job errors carried the class name.** A remote review that failed printed `RemoteReviewError: The AI provider rejected your own key.` on the client, and the dashboard showed `Error: ...`. Only the message is stored now.
+
 ## [0.5.1-beta.2] - 2026-10-04
 
 ### Added

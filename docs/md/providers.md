@@ -79,7 +79,11 @@ provider's current list before you copy one.
 `OPENCODE_API_KEY` only for OpenCode, so a key for one provider is never sent
 to another. The saved key belongs to the saved provider, and every command,
 review included, sends it there. `OPENROUTER_LOW_MODEL` and
-`OPENROUTER_HIGH_MODEL` are likewise only read for OpenRouter. A key is never stored per repository. The
+`OPENROUTER_HIGH_MODEL` are likewise only read for OpenRouter.
+
+[`serve`](serve.md) reads the same variables for its jobs, so a server can keep
+its key in the environment instead of `config.json`. The Settings page then says
+the key comes from the server's environment. A key is never stored per repository. The
 order every setting is resolved in is on [Configuration](configuration.md#precedence).
 
 ## `set` checks the key and the model

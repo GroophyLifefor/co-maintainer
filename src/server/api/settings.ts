@@ -4,7 +4,7 @@ import {
   resolveAppPrivateKey,
   writeUserConfig,
 } from "../../config.ts";
-import type { UserConfig } from "../../config.ts";
+import { aiConfigured, type UserConfig } from "../../config.ts";
 import { testAppAccess, testGithubAccess } from "../../services/credentials.ts";
 import {
   checkPassword,
@@ -281,7 +281,7 @@ export async function handleSettingsRoute(
       privateKeyPem: resolveAppPrivateKey(config) ?? "",
     });
     return Response.json({
-      ai: { ok: Boolean(config.ai && config.ai !== "none" && config.token) },
+      ai: { ok: aiConfigured(config) },
       github: github.ok
         ? { ok: true, login: github.login }
         : { ok: false, message: github.message },

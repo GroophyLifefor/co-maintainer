@@ -24,18 +24,7 @@ export const AI_PROVIDERS = [
   "opencode-go",
 ] as const;
 
-/** The provider's own key variable. It is read only when that provider runs,
- * so a key meant for one provider is never sent to another. */
-export function providerKeyEnv(
-  ai: string,
-  env: (name: string) => string | undefined,
-): string | undefined {
-  if (ai === "openrouter") return env("OPENROUTER_API_KEY");
-  if (ai === "opencode-zen" || ai === "opencode-go") {
-    return env("OPENCODE_API_KEY");
-  }
-  return undefined;
-}
+export { providerKeyEnv } from "../config.ts";
 
 /** Hetzner was dropped in 0.5.1. Naming it beats a generic "must be one of". */
 export function rejectRetiredProvider(value: string | undefined): void {

@@ -18,7 +18,12 @@ import {
   factSectionHashes,
 } from "../knowledge/skill.ts";
 import { validateSkill } from "../knowledge/validate.ts";
-import { readConfig, reposDir, writeRepoConfig } from "../config.ts";
+import {
+  readConfig,
+  reposDir,
+  resolvedAiToken,
+  writeRepoConfig,
+} from "../config.ts";
 import { readState, writeState } from "../store/skill_state.ts";
 import { cacheSet } from "../store/cache_db.ts";
 import { log, timed, withLogSink } from "../util/log.ts";
@@ -476,7 +481,8 @@ export function optionsFromConfig(
   const ai = repoConfig.ai ?? config.ai ?? "none";
   const lowModel = repoConfig.lowModel ?? config.lowModel;
   const highModel = repoConfig.highModel ?? config.highModel;
-  if (ai !== "none" && (!config.token || !lowModel || !highModel)) {
+  const aiToken = resolvedAiToken(config, ai);
+  if (ai !== "none" && (!aiToken || !lowModel || !highModel)) {
     throw new Error(
       "AI is enabled but token/low-model/high-model are not fully configured. Run: " +
         "co-maintainer set --token=... --low-model=... --high-model=...",
@@ -493,7 +499,7 @@ export function optionsFromConfig(
     auth,
     githubPat: config.githubPat,
     ai,
-    aiToken: config.token,
+    aiToken,
     lowModel,
     highModel,
     synthesisVersion: 16,

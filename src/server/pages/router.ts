@@ -34,7 +34,7 @@ import {
   resolveAppPrivateKey,
   writeUserConfig,
 } from "../../config.ts";
-import type { UserConfig } from "../../config.ts";
+import { aiConfigured, type UserConfig } from "../../config.ts";
 import {
   appNameProblem,
   beginManifestState,
@@ -190,7 +190,7 @@ export async function handlePageRequest(
     if (url.pathname === "/setup" && request.method === "GET") {
       const config = readConfig();
       return renderSetup(username, {
-        ai: Boolean(config.ai && config.ai !== "none" && config.token),
+        ai: aiConfigured(config),
         github: Boolean(
           config.auth === "gh" || (config.auth === "pat" && config.githubPat),
         ),
