@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1-beta.4] - 2026-10-07
+
+### Fixed
+
+- **A remote review on your own key said the server paid.** The result `review --remote --remote-byok` printed always read `billedTo: server`, while the server stored the review as yours. It now says `byok`. A failed or canceled review on your own key is also stored as yours.
+- **A server with no models told a BYOK client to fix its own CLI.** The review failed with `No high model is configured.` and a hint to run `set --high-model` locally. It now says `server AI is not configured for remote review`, and no provider is called.
+
 ## [0.5.1-beta.3] - 2026-10-04
 
 ### Fixed
