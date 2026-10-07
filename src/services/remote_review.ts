@@ -342,7 +342,14 @@ export function registerRemoteReviewHandler(): void {
         );
         const useCodegraph = allowed.size > 0;
         const options = reviewOptionsForRepo(job.repo, useCodegraph, byokKey);
-        if (!options.aiToken || options.ai === "none") {
+        // A BYOK client brings a key but not models, so a server with no
+        // models cannot run its review either.
+        if (
+          !options.aiToken ||
+          options.ai === "none" ||
+          !options.lowModel ||
+          !options.highModel
+        ) {
           throw new Error("server AI is not configured for remote review");
         }
         const billed: "server" | "byok" =
@@ -445,7 +452,12 @@ export function registerRemoteReviewHandler(): void {
           codegraph: { state: result.codegraphState },
           summary: summaryCounts(findings, blockingMode),
           findings: findings.map((row) => toJsonFinding(row, blockingMode)),
-          usage: { tokensIn, tokensOut, ...costUsage(costTally) },
+          usage: {
+            tokensIn,
+            tokensOut,
+            ...costUsage(costTally),
+            billedTo: billed,
+          },
           remote: { jobId: job.id, reviewId, clientVersion: VERSION },
         });
 
@@ -507,11 +519,9 @@ export function registerRemoteReviewHandler(): void {
         dropByokKey(job.id);
         if (!completed) {
           // Reached on failure and on the aborted early return above.
-          if (signal.aborted) {
-            setReviewStatus(reviewId, "aborted");
-          } else {
-            setReviewStatus(reviewId, "failed");
-          }
+          setReviewStatus(reviewId, signal.aborted ? "aborted" : "failed", {
+            billed_to: billedTo,
+          });
           deleteRemoteReviewInput(job.id);
           closeRemoteSession(job.id);
         }

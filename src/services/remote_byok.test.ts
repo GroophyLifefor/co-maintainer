@@ -27,6 +27,7 @@ import {
   clearByokKeysForTest,
   hasByokKey,
 } from "../remote/server/byok_keys.ts";
+import { getRemoteSyncResult } from "../remote/server/sessions.ts";
 import { createApp } from "../server/app.ts";
 import { redact } from "../util/redact.ts";
 import {
@@ -127,6 +128,8 @@ async function withServer(
     configPolicy?: "off" | "allow" | "require";
     fakeStatus?: number;
     fakeErrorMessage?: string;
+    /** A server whose operator never picked models. */
+    noModels?: boolean;
   } = {},
 ): Promise<void> {
   const root = tempDirSync();
@@ -173,8 +176,9 @@ async function withServer(
   await writeUserConfig({
     ai: "openrouter",
     token: SERVER_KEY,
-    lowModel: "fake/model",
-    highModel: "fake/model",
+    ...(options.noModels
+      ? {}
+      : { lowModel: "fake/model", highModel: "fake/model" }),
     auth: "gh",
     ...(options.configPolicy ? { remoteByokPolicy: options.configPolicy } : {}),
   });
@@ -242,6 +246,14 @@ function handshakeRequest(token: string): Request {
       repo: REPO,
     }),
   });
+}
+
+/** Who the result the client prints says paid for the review. */
+function resultBilledTo(jobId: string): unknown {
+  const usage = getRemoteSyncResult(jobId)?.usage as
+    | { billedTo?: unknown }
+    | undefined;
+  return usage?.billedTo;
 }
 
 function readBytes(path: string): Buffer | undefined {
@@ -414,6 +426,9 @@ test("a BYOK review sends the client key, never the server key", async () => {
           `review billed_to ${getReviewByJobId(jobId)?.billed_to}`,
         );
       }
+      // The result the client prints says the same as the stored row.
+      const billed = resultBilledTo(jobId);
+      if (billed !== "byok") throw new Error(`result billedTo ${billed}`);
       if (fake.authorizations.length === 0) {
         throw new Error("the provider was never called");
       }
@@ -451,6 +466,8 @@ test("a server-key review bills the server and never touches BYOK totals", async
       if (getReviewByJobId(jobId)?.billed_to !== "server") {
         throw new Error("review should be billed to the server");
       }
+      const billed = resultBilledTo(jobId);
+      if (billed !== "server") throw new Error(`result billedTo ${billed}`);
       for (const header of fake.authorizations) {
         if (header !== `Bearer ${SERVER_KEY}`) {
           throw new Error(`provider saw ${header}, expected the server key`);
@@ -511,8 +528,38 @@ test("a provider that rejects the client key reports it as BYOK", async () => {
       if (fake.authorizations.length === 0) {
         throw new Error("the provider should have been tried once");
       }
+      // A failed BYOK review is still the client's, not the server's.
+      if (getReviewByJobId(jobId)?.billed_to !== "byok") {
+        throw new Error(
+          `review billed_to ${getReviewByJobId(jobId)?.billed_to}`,
+        );
+      }
     },
     { policy: "allow", fakeStatus: 401 },
+  );
+});
+
+test("a BYOK review on a server with no models says the server is not set up", async () => {
+  await withServer(
+    async ({ app, token, fake }) => {
+      const response = await post(app, token, "/api/remote/reviews", {
+        ...(await submitBody()),
+        byok: { key: "sk-ant-nomodels0001" },
+      });
+      const { jobId } = (await response.json()) as { jobId: string };
+      await claimAndRun();
+      const job = getJob(jobId);
+      if (job?.status !== "failed") throw new Error(`job ${job?.status}`);
+      // Not "No high model is configured", which points the client at its own
+      // CLI settings.
+      if (!job.error?.includes("server AI is not configured")) {
+        throw new Error(`error ${job.error}`);
+      }
+      if (fake.authorizations.length !== 0) {
+        throw new Error("no provider call should be made without models");
+      }
+    },
+    { policy: "allow", noModels: true },
   );
 });
 
