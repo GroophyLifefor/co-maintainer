@@ -1,9 +1,9 @@
-name: Publish beta image
+name: Publish beta
 
-# A manual fallback for the beta Docker image. `publish.yml` runs on a
-# push to `main`, so a prerelease on a working branch never gets an image. This
-# workflow builds exactly one tag, the prerelease version, and leaves npm and
-# `latest` alone. Murat triggers it from the Actions tab.
+# A fallback for a beta release. `publish.yml` runs on a push to `main`, so a
+# prerelease on a working branch never reaches npm or gets an image. This
+# workflow publishes exactly the prerelease version: npm under the `beta`
+# dist-tag, and one Docker tag. It leaves npm `latest` and Docker `latest` alone.
 #
 # It refuses a stable version on purpose: the image path through `publish.yml`
 # owns `latest`, and letting this workflow touch a stable tag would race it.
@@ -38,7 +38,53 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  npm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          cache: npm
+      - name: Require a prerelease version
+        id: version
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [[ "$version" != *-* ]]; then
+            echo "::error::$version is not a prerelease; use the Publish workflow instead"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+        env:
+          CM_FAKE_AI: "1"
+      - name: Skip if this version is already published
+        id: check
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          if npm view "co-maintainer@$version" version >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::co-maintainer@$version is already on the registry; skipping publish"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish package
+        if: steps.check.outputs.published == 'false'
+        run: npm publish --provenance --access public --tag beta
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
   docker:
+    needs: npm
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
