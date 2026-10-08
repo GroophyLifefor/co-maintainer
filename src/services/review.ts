@@ -24,6 +24,12 @@ import {
   resolveCarryOutcomes,
 } from "../review/carry_over.ts";
 import { runReviewEngine } from "../review/engine.ts";
+import {
+  addResponseCost,
+  costColumns,
+  emptyTally,
+  settle,
+} from "../util/cost.ts";
 import { loadGuides } from "../review/guides.ts";
 import {
   reviewBlockingFrom,
@@ -33,7 +39,11 @@ import {
 } from "../review/blocking.ts";
 import { matchRepeat } from "../pr/rounds.ts";
 import type { Snapshot } from "../pr/snapshot.ts";
-import { readConfig, resolveAppPrivateKey } from "../config.ts";
+import {
+  readConfig,
+  resolveAppPrivateKey,
+  resolvedAiToken,
+} from "../config.ts";
 import { outsideCode, redact } from "../util/redact.ts";
 import { getRepo, setInstallationId } from "../store/repos.ts";
 import {
@@ -58,6 +68,7 @@ import {
   saveSubjectRevision,
 } from "../store/subjects.ts";
 import { enqueue, type LogFn, registerHandler } from "./jobs.ts";
+import { requestedReviewBlocked } from "./webhook.ts";
 import type { AiProvider, GitHubClient, Json, Options } from "../types.ts";
 import type { JobRow } from "../store/rows.ts";
 import { getEnv } from "../util/runtime.ts";
@@ -69,7 +80,7 @@ export function humanCopy(text: string): string {
   // The semicolon is prose and always goes. The em dash is left alone here:
   // this function also sanitizes a finding title, and a title posted before
   // 0.5.0 uses ` — ` as its path/symbol separator, which the legacy heading
-  // reader still needs (CORE-83 keeps that one allowlisted exception).
+  // reader still needs (the copy guard keeps that one allowlisted exception).
   return outsideCode(redact(text), (prose) => prose.replaceAll(";", "."));
 }
 
@@ -131,7 +142,7 @@ export function reviewEvent(
   return findingsCount > 0 ? "REQUEST_CHANGES" : "COMMENT";
 }
 
-/** The GitHub review event for a set of stored findings (CORE-41).
+/** The GitHub review event for a set of stored findings.
  *
  * `model` keeps the 0.4.13 behavior: any finding requests changes, because the
  * model's label already decided. `severity` ignores that label and requests
@@ -226,8 +237,13 @@ export function reviewOptions(repo: string, prNumber: number): Options {
     ghConcurrent: 1,
     aiConcurrent: 1,
     auth: "gh",
+    // With no provider saved the App review stays on OpenRouter, the same
+    // fallback the CLI review uses.
     ai: config.ai && config.ai !== "none" ? config.ai : "openrouter",
-    aiToken: config.token,
+    aiToken: resolvedAiToken(
+      config,
+      config.ai && config.ai !== "none" ? config.ai : "openrouter",
+    ),
     highModel: config.highModel,
     lowModel: config.lowModel,
     synthesisVersion: 16,
@@ -683,10 +699,27 @@ async function runReviewJobCore(
     scope?: string;
     sinceCommit?: string;
     round?: number;
+    requestReaction?: string;
   };
   const pr = await github.request<Json>(
     `repos/${job.repo}/pulls/${job.pr_number}`,
   );
+  if (args.trigger === "request-comment" && !existing) {
+    const blocked = requestedReviewBlocked(job.repo, pr);
+    if (blocked) {
+      log("info", `the review request was not run: ${blocked}`);
+      return;
+    }
+  }
+  // A maintainer asked for this review by label or comment: acknowledge it.
+  // Best effort, a missing reaction must never fail the review itself.
+  if (args.requestReaction && !existing) {
+    try {
+      await post(github, args.requestReaction, { content: "eyes" });
+    } catch (error) {
+      log("info", `could not react to the review request: ${String(error)}`);
+    }
+  }
   const headSha = String((pr.head as Json | undefined)?.sha ?? "");
   const mergeBase = String((pr.base as Json | undefined)?.sha ?? "");
   let scope = args.scope === "incremental" ? "incremental" : "whole-pr";
@@ -791,7 +824,7 @@ async function runReviewJobCore(
   let carryPrevious: CarryPrevious | null = null;
   const extras: { carryPrompt?: string; unchangedPaths?: string[] } = {};
   // A guide rebuilt after the previous review invalidates that review's
-  // verdicts and its "unchanged" suppression (CORE-42 / F03). Treat the run as
+  // verdicts and its "unchanged" suppression. Treat the run as
   // if it had started fresh: carry-over off, every changed file back in scope,
   // so a stale finding can never mask a new one.
   const guideRebuilt =
@@ -832,10 +865,11 @@ async function runReviewJobCore(
     );
     extras.carryPrompt = buildCarryPromptSection(carryItems, revision);
   }
+  const costTally = emptyTally();
   const response = await runReviewEngine(
     github,
     options,
-    undefined,
+    async (call) => addResponseCost(costTally, call),
     snapshot,
     ai ?? aiFor(options),
     (message) => log("info", message),
@@ -934,7 +968,7 @@ async function runReviewJobCore(
     closed_count: closedCount,
     tokens_in: response.tokensIn,
     tokens_out: response.tokensOut,
-    cost: response.cost,
+    ...costColumns(settle(costTally)),
   });
   saveSubjectRevision({
     subjectId: subject.id,

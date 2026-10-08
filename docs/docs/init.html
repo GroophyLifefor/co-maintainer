@@ -47,6 +47,8 @@
           <li><a href="review.html">Review</a></li>
           <li><a href="local-review.html">Local review</a></li>
           <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="ci.html">CI</a></li>
+          <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           </ul>
         </div>
@@ -69,6 +71,7 @@
           <ul class="nav-list">
           <li><a href="commands.html">Commands</a></li>
           <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="providers.html">AI providers</a></li>
           <li><a href="authentication.html">Authentication</a></li>
           <li><a href="caching.html">Caching</a></li>
           <li><a href="cost.html">Cost</a></li>
@@ -106,8 +109,8 @@ non-trivial API cost on large repos.</p>
 <td>Reads the repo through <code>gh</code> or a PAT</td>
 </tr>
 <tr>
-<td><a href="configuration.html">AI provider</a></td>
-<td>OpenRouter or Hetzner key and models via <code>co-maintainer set</code> or flags</td>
+<td><a href="providers.html">AI provider</a></td>
+<td>A key and both models via <code>co-maintainer set</code> or flags. There is no default model</td>
 </tr>
 </tbody></table>
 <p>Run <a href="probe.html"><code>probe</code></a> first when you are unsure which <code>--max-*</code> limits to use.</p>
@@ -152,7 +155,7 @@ Values from <code>set</code>, <code>--env=PATH</code>, or flags are not asked ag
 </tr>
 <tr>
 <td><code>--ai=openrouter</code></td>
-<td>AI provider (<code>openrouter</code>, <code>hetzner</code>, or <code>none</code>)</td>
+<td>AI provider (<code>openrouter</code>, <code>openai</code>, <code>anthropic</code>, <code>opencode-zen</code>, <code>opencode-go</code> or <code>none</code>), see <a href="providers.html">AI providers</a></td>
 </tr>
 <tr>
 <td><code>--token=...</code></td>

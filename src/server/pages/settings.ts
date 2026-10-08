@@ -1,7 +1,12 @@
 import { html, layout, skSlot, text } from "./layout.ts";
 import type { UserConfig } from "../../config.ts";
-import { resolveAppPrivateKey } from "../../config.ts";
+import {
+  aiConfigured,
+  resolveAppPrivateKey,
+  resolvedAiToken,
+} from "../../config.ts";
 import { VERSION } from "../../version.ts";
+import { TEMPLATE_INFO } from "../../services/review_policy.ts";
 import {
   defaultAppName,
   manifestBlockedReason,
@@ -9,13 +14,24 @@ import {
 
 const SOURCE_URL = "https://github.com/GroophyLifefor/co-maintainer";
 
+/** Which key the jobs will use. The environment wins over the saved key, the
+ * same order `resolvedAiToken` follows, so the hint must check it first. */
+function keyHint(config: UserConfig): string {
+  const fromEnv = resolvedAiToken({ ai: config.ai });
+  if (fromEnv && config.token) {
+    return "Using the key from the server's environment, which overrides the saved key";
+  }
+  if (fromEnv) return "Using the key from the server's environment";
+  return config.token ? "A key is saved" : "No key saved";
+}
+
 export function renderSettings(
   username: string,
   config: UserConfig,
   webhookUrl: string,
   baseUrl: string,
 ): Response {
-  const aiOk = Boolean(config.ai && config.ai !== "none" && config.token);
+  const aiOk = aiConfigured(config);
   const ghOk = Boolean(
     config.auth === "gh" || (config.auth === "pat" && config.githubPat),
   );
@@ -64,11 +80,22 @@ export function renderSettings(
             <option value="openrouter"${
               config.ai === "openrouter" ? " selected" : ""
             }>OpenRouter</option>
-            <option value="hetzner"${config.ai === "hetzner" ? " selected" : ""}>Hetzner</option>
+            <option value="openai"${
+              config.ai === "openai" ? " selected" : ""
+            }>OpenAI</option>
+            <option value="anthropic"${
+              config.ai === "anthropic" ? " selected" : ""
+            }>Anthropic</option>
+            <option value="opencode-zen"${
+              config.ai === "opencode-zen" ? " selected" : ""
+            }>OpenCode Zen</option>
+            <option value="opencode-go"${
+              config.ai === "opencode-go" ? " selected" : ""
+            }>OpenCode Go</option>
           </select></div>
         <div class="field"><label>API key</label>
           <input id="token" type="password" placeholder="Leave blank to keep the current key">
-          <div class="hint">${config.token ? "A key is saved" : "No key saved"}</div></div>
+          <div class="hint">${keyHint(config)}</div></div>
         <div class="two" style="max-width:none">
           <div class="field"><label>High model</label>
             <input id="high" value="${text(config.highModel ?? "")}">
@@ -95,7 +122,8 @@ export function renderSettings(
             }>Personal access token</option>
           </select></div>
         <div class="field"><label>Personal access token</label>
-          <input id="pat" type="password" placeholder="Leave blank to keep the current token"></div>
+          <input id="pat" type="password" placeholder="Leave blank to keep the current token">
+          <div class="hint">Read-only is enough. <a href="https://co-maintainer.com/docs/authentication.html" target="_blank" rel="noopener">Which permissions to grant</a></div></div>
       </div>
       <div class="ft"><button class="primary" id="save-gh">Save</button></div>
     </div>
@@ -106,7 +134,7 @@ export function renderSettings(
           appOk ? "Configured" : "Not set"
         }</span></div>
       <div class="bd">
-        <p class="muted" style="margin:0 0 16px">Needed to post reviews on pull requests.</p>
+        <p class="muted" style="margin:0 0 16px">Needed to post reviews on pull requests. <a href="https://co-maintainer.com/docs/github-app.html#permissions" target="_blank" rel="noopener">Permissions it needs</a></p>
         <div style="margin:0 0 16px">
           <div class="two" style="max-width:none;margin:0 0 12px">
             <div class="field"><label>App name</label>
@@ -153,6 +181,28 @@ Leave blank to keep the current key"></textarea></div>
               config.defaults?.maxPullRequestChangeLines ?? "",
             )}"></div>
         </div>
+        <div class="field wide" style="margin-top:18px">
+          <label for="def-policy">Who gets a review</label>
+          <select id="def-policy">
+            <option value=""${config.reviewPolicy === undefined ? " selected" : ""}>Everyone except drafts and bots (the simple switches)</option>
+            ${TEMPLATE_INFO.map(
+              (item) =>
+                `<option value="${text(item.name)}"${config.reviewPolicy === item.name ? " selected" : ""}>${text(item.label)}</option>`,
+            ).join("")}
+            ${
+              typeof config.reviewPolicy === "object"
+                ? `<option value="__custom" selected>Custom rules from a file</option>`
+                : ""
+            }
+          </select>
+          <div class="hint" id="def-policy-desc">${text(
+            typeof config.reviewPolicy === "string"
+              ? (TEMPLATE_INFO.find((item) => item.name === config.reviewPolicy)
+                  ?.description ?? "")
+              : "",
+          )}</div>
+          <div class="hint">New repositories start with this. Each repository can change it in its own settings. Custom rules are set with <span class="mono">co-maintainer set --review-policy-file=policy.json</span>.</div>
+        </div>
       </div>
       <div class="ft"><button class="primary" id="save-def">Save</button></div>
     </div>
@@ -193,9 +243,23 @@ Leave blank to keep the current key"></textarea></div>
           <div class="field"><label>New token name</label>
             <input id="remote-token-name" placeholder="e.g. laptop"></div>
         </div>
+        <div class="field wide" style="margin-top:16px"><label>Client key policy (BYOK)</label>
+          <select id="remote-byok-policy">
+            <option value="off"${
+              (config.remoteByokPolicy ?? "off") === "off" ? " selected" : ""
+            }>off: reject a client key</option>
+            <option value="allow"${
+              config.remoteByokPolicy === "allow" ? " selected" : ""
+            }>allow: accept a client key, fall back to the server key</option>
+            <option value="require"${
+              config.remoteByokPolicy === "require" ? " selected" : ""
+            }>require: a client key is mandatory</option>
+          </select>
+          <div class="hint">Whether <code>review --remote</code> clients may send their own AI key. The <code>CM_REMOTE_BYOK_POLICY</code> env var overrides this.</div></div>
       </div>
       <div class="ft">
         <button class="primary" id="create-remote-token">Create token</button>
+        <button class="btn" id="save-remote-byok">Save policy</button>
       </div>
     </div>
     <div class="card" id="access" data-async>
@@ -361,6 +425,12 @@ document.getElementById("save-server").addEventListener("click", function() {
     remoteToolOutputMaxChars: toolChars.value
   });
 });
+document.getElementById("save-remote-byok").addEventListener("click", function() {
+  var card = this.closest("[data-async]");
+  save(this, {
+    remoteByokPolicy: document.getElementById("remote-byok-policy").value
+  });
+});
 function escHtml(s) {
   return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
@@ -375,7 +445,7 @@ async function loadRemoteTokens() {
     el.innerHTML = "<table><thead><tr><th>Name</th><th>Status</th><th class=\\"num\\">Reviews (30d)</th><th class=\\"num\\">Cost (30d)</th><th></th></tr></thead><tbody>" +
       rows.map(function(r) {
         return "<tr><td>" + escHtml(r.name) + "</td><td>" + (r.active ? "Active" : "Inactive") + "</td>" +
-          "<td class=\\"num\\">" + r.reviews30d + "</td><td class=\\"num\\">" + r.cost30d + "</td>" +
+          "<td class=\\"num\\">" + r.reviews30d + "</td><td class=\\"num\\">" + escHtml(r.cost30dLabel) + "</td>" +
           "<td><button type=\\"button\\" class=\\"btn sm\\" data-token-id=\\"" + escHtml(r.id) + "\\" data-active=\\"" + r.active + "\\">" +
           (r.active ? "Deactivate" : "Activate") + "</button> " +
           "<button type=\\"button\\" class=\\"btn sm\\" data-delete-token=\\"" + escHtml(r.id) + "\\">Delete</button></td></tr>";
@@ -455,6 +525,13 @@ document.getElementById("create-remote-token").addEventListener("click", functio
     await loadRemoteTokens();
   });
 });
+var POLICY_INFO = ${JSON.stringify(TEMPLATE_INFO)};
+document.getElementById("def-policy").addEventListener("change", function() {
+  var value = this.value;
+  var text = "";
+  POLICY_INFO.forEach(function(item) { if (item.name === value) text = item.description; });
+  document.getElementById("def-policy-desc").textContent = text;
+});
 document.getElementById("save-def").addEventListener("click", function() {
   var card = this.closest("[data-async]");
   var positiveInt = function(id, label) {
@@ -481,13 +558,16 @@ document.getElementById("save-def").addEventListener("click", function() {
     fail(card, lines.message, function () {});
     return;
   }
-  save(this, {
+  var body = {
     defaults: {
       maxPrMonths: months.value,
       maxCommits: commits.value,
       maxPullRequestChangeLines: lines.value
     }
-  });
+  };
+  var policy = document.getElementById("def-policy").value;
+  if (policy !== "__custom") body.reviewPolicy = policy === "" ? null : policy;
+  save(this, body);
 });
 </script>`,
     }),

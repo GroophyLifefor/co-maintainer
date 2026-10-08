@@ -28,7 +28,7 @@ test("ensureClone clones exactly once under concurrent callers", async () => {
   const run: Run = async (_command, args): Promise<CommandResult> => {
     if (args.includes("clone")) {
       cloneInvocations++;
-      // CORE-11: `-c core.longpaths=true` has to precede the clone subcommand.
+      // `-c core.longpaths=true` has to precede the clone subcommand.
       if (args[0] !== "-c" || args[1] !== "core.longpaths=true") {
         throw new Error(
           `longpaths is not in effect for the clone: ${args.join(" ")}`,

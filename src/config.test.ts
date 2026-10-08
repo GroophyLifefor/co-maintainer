@@ -1,9 +1,11 @@
 import {
+  aiConfigured,
   appPrivateKeyFileMissing,
   getCacheDir,
   getConfigDir,
   loadEnvFile,
   resolveAppPrivateKey,
+  resolvedAiToken,
 } from "./config.ts";
 import {
   deleteEnv,
@@ -214,5 +216,41 @@ test("appPrivateKeyFileMissing flags only a configured path with no file", async
     }
   } finally {
     await removePath(dir, { recursive: true });
+  }
+});
+
+test("resolvedAiToken: serve takes the key from its environment like the CLI does", () => {
+  const names = [
+    "CO_MAINTAINER_TOKEN",
+    "OPENROUTER_API_KEY",
+    "OPENCODE_API_KEY",
+  ];
+  const saved = Object.fromEntries(names.map((name) => [name, getEnv(name)]));
+  try {
+    for (const name of names) deleteEnv(name);
+    const config = { ai: "openrouter" as const, token: "saved" };
+    if (resolvedAiToken(config) !== "saved") throw new Error("saved key");
+    setEnv("OPENROUTER_API_KEY", "router-env");
+    if (resolvedAiToken(config) !== "router-env") {
+      throw new Error("the provider's own variable should beat the saved key");
+    }
+    if (resolvedAiToken({ ai: "anthropic" }) !== undefined) {
+      throw new Error("an OpenRouter key must never reach another provider");
+    }
+    setEnv("CO_MAINTAINER_TOKEN", "general-env");
+    if (resolvedAiToken(config) !== "general-env") {
+      throw new Error("CO_MAINTAINER_TOKEN comes first, as on the CLI");
+    }
+    if (!aiConfigured({ ai: "anthropic" })) {
+      throw new Error("a key in the environment counts as configured");
+    }
+    if (aiConfigured({ ai: "none" }))
+      throw new Error("none is never configured");
+  } finally {
+    for (const name of names) {
+      const value = saved[name];
+      if (value === undefined) deleteEnv(name);
+      else setEnv(name, value);
+    }
   }
 });

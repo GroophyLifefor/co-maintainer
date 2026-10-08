@@ -14,8 +14,8 @@ function sectionFacts(facts: Fact[], key: string): Fact[] {
 }
 
 /** Facts a section may state. A fact read out of a single pull request is that
- * request's narrative, not a rule, so only `review-bar` may use it (CORE-32 /
- * F26b). Facts written before `origin` existed count as repository policy. */
+ * request's narrative, not a rule, so only `review-bar` may use it. Facts
+ * written before `origin` existed count as repository policy. */
 function usableFacts(facts: Fact[], key: string): Fact[] {
   const items = sectionFacts(facts, key);
   return sectionAllowsPrFacts(key)
@@ -56,7 +56,7 @@ function codebaseSectionText(
 /** The full text of the sections that live in `CODEBASE.md`. The skill itself
  * only links to that file, so this is the single place the codebase guidance is
  * written out: the synthesized override when there is one, otherwise the
- * rendered facts (CORE-32 / F26c). */
+ * rendered facts. */
 export function codebaseBody(
   facts: Fact[],
   overrides: Record<string, string> = {},
@@ -110,7 +110,7 @@ async function hash(value: string): Promise<string> {
 
 /** The fields that decide a section's text. `origin` is included so a fact
  * moving from PR narrative to repository policy (or the reverse) counts as a
- * change rather than reusing a section built under the old rule (CORE-32). */
+ * change rather than reusing a section built under the old rule. */
 function hashInput(item: Fact): unknown[] {
   return [
     item.id,

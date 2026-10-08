@@ -76,7 +76,7 @@ test("invalid synthesis output is omitted instead of copied", async () => {
         `invalid synthesis output was accepted: ${JSON.stringify(overridesResult)}`,
       );
     }
-    // An output that never validates is skipped, not cached (CORE-30).
+    // An output that never validates is skipped, not cached.
     if (overridesResult.skipped.length !== 1) {
       throw new Error(`skipped: ${JSON.stringify(overridesResult.skipped)}`);
     }

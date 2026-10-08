@@ -47,6 +47,8 @@
           <li><a href="review.html">Review</a></li>
           <li><a href="local-review.html">Local review</a></li>
           <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="ci.html">CI</a></li>
+          <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           </ul>
         </div>
@@ -69,6 +71,7 @@
           <ul class="nav-list">
           <li><a href="commands.html">Commands</a></li>
           <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="providers.html">AI providers</a></li>
           <li><a href="authentication.html">Authentication</a></li>
           <li><a href="caching.html">Caching</a></li>
           <li><a href="cost.html">Cost</a></li>
@@ -106,8 +109,8 @@ same job, but it is no longer shown in help.</p>
 <td>Reads the repo through <code>gh</code> or a PAT</td>
 </tr>
 <tr>
-<td><a href="configuration.html">AI provider</a></td>
-<td>Token via <code>set</code>, <code>--token=</code>, or <code>--env=PATH</code></td>
+<td><a href="providers.html">AI provider</a></td>
+<td>Token via <code>set</code>, <code>--token=</code>, or <code>--env=PATH</code>, and both models</td>
 </tr>
 <tr>
 <td>A reason to refresh</td>
@@ -159,7 +162,7 @@ API token again if it is not in config or env.</p>
 </tr>
 <tr>
 <td><code>--ai=openrouter</code></td>
-<td>AI provider (<code>openrouter</code>, <code>hetzner</code>, or <code>none</code>)</td>
+<td>AI provider (<code>openrouter</code>, <code>openai</code>, <code>anthropic</code>, <code>opencode-zen</code>, <code>opencode-go</code> or <code>none</code>), see <a href="providers.html">AI providers</a></td>
 </tr>
 <tr>
 <td><code>--token=...</code></td>

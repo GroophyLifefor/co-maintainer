@@ -18,7 +18,12 @@ import {
   factSectionHashes,
 } from "../knowledge/skill.ts";
 import { validateSkill } from "../knowledge/validate.ts";
-import { readConfig, reposDir, writeRepoConfig } from "../config.ts";
+import {
+  readConfig,
+  reposDir,
+  resolvedAiToken,
+  writeRepoConfig,
+} from "../config.ts";
 import { readState, writeState } from "../store/skill_state.ts";
 import { cacheSet } from "../store/cache_db.ts";
 import { log, timed, withLogSink } from "../util/log.ts";
@@ -32,17 +37,25 @@ import type { Fact, Source, State } from "../knowledge/types.ts";
 import type { LogFn } from "./jobs.ts";
 import type { JobRow } from "../store/rows.ts";
 import { mkdir, readTextFile, remove } from "../util/runtime.ts";
+import { addResponseCost, emptyTally, type CostTally } from "../util/cost.ts";
+import { costLabel } from "../util/run_summary.ts";
 
-export type AiMetrics = {
+export type AiMetrics = CostTally & {
   calls: number;
   tokensIn: number;
   tokensOut: number;
-  cost: number;
-  costKnown: boolean;
 };
 
 export function emptyAiMetrics(): AiMetrics {
-  return { calls: 0, tokensIn: 0, tokensOut: 0, cost: 0, costKnown: true };
+  return { calls: 0, tokensIn: 0, tokensOut: 0, ...emptyTally() };
+}
+
+/** One AI response into the run totals. */
+export function addAiMetrics(metrics: AiMetrics, response: AiResponse): void {
+  metrics.calls++;
+  metrics.tokensIn += response.tokensIn;
+  metrics.tokensOut += response.tokensOut;
+  addResponseCost(metrics, response);
 }
 
 export async function recordAiCost(
@@ -60,7 +73,8 @@ export async function recordAiCost(
       model: response.model,
       tokensIn: response.tokensIn,
       tokensOut: response.tokensOut,
-      usd: response.provider === "hetzner" ? 0 : (response.cost ?? null),
+      usd: response.cost ?? null,
+      status: response.cost === undefined ? "unknown" : "known",
     }),
   );
 }
@@ -117,7 +131,7 @@ async function writeReviewDocuments(
 ): Promise<void> {
   const directory = `${reposDir()}/${repo}`;
   if (!documents) {
-    // F05: this used to delete the files without a word. The plan's rule is
+    // This used to delete the files without a word. The rule is
     // "says why the third file is missing": keep it to one line.
     log(
       "write",
@@ -145,7 +159,7 @@ async function writeReviewDocuments(
  * of the assembled skill into their own file, so `review` can check a pull
  * request against how this repository's code actually looks, not just the
  * review-bar checklist mined from past PR comments. The skill links to this
- * file rather than repeating it (CORE-32 / F26c), so its body is built from
+ * file rather than repeating it, so its body is built from
  * the facts instead of being scraped back out of the skill. */
 async function writeCodebaseDocument(
   repo: string,
@@ -265,12 +279,7 @@ async function initOrRemake(options: Options): Promise<void> {
   if (lowAi) {
     log("ai", "starting extract_unit jobs");
     const usage = async (job: string, response: AiResponse) => {
-      aiMetrics.calls++;
-      aiMetrics.tokensIn += response.tokensIn;
-      aiMetrics.tokensOut += response.tokensOut;
-      if (response.provider === "hetzner") aiMetrics.cost += 0;
-      else if (response.cost === undefined) aiMetrics.costKnown = false;
-      else aiMetrics.cost += response.cost;
+      addAiMetrics(aiMetrics, response);
       await recordAiCost(options.repo, job, response);
     };
     const enriched = await timed("extract_unit AI", options.logTime, () =>
@@ -428,8 +437,8 @@ async function initOrRemake(options: Options): Promise<void> {
     `${facts.length} facts · ${source.pullRequests.length} pull requests · ${source.commits.length} commits`,
   );
   if (skipped.length) {
-    // F04: a skipped unit used to vanish into a log line and recur as a "cache
-    // hit" forever. Say it in the final line instead, in the plan's shape:
+    // A skipped unit used to vanish into a log line and recur as a "cache
+    // hit" forever. Say it in the final line instead, in this shape:
     // `1 unit skipped (PR #3: output was not JSON)`.
     const parts = skipped.map((unit) => unit.reason);
     const line =
@@ -444,9 +453,9 @@ async function initOrRemake(options: Options): Promise<void> {
   if (options.logTime) {
     log(
       "time",
-      `AI total · calls=${aiMetrics.calls} · input=${aiMetrics.tokensIn} tokens · output=${aiMetrics.tokensOut} tokens · cost=${
-        aiMetrics.costKnown ? aiMetrics.cost.toFixed(4) : "unknown"
-      }`,
+      `AI total · calls=${aiMetrics.calls} · input=${aiMetrics.tokensIn} tokens · output=${aiMetrics.tokensOut} tokens · cost=${costLabel(
+        aiMetrics,
+      )}`,
     );
     log(
       "time",
@@ -472,7 +481,8 @@ export function optionsFromConfig(
   const ai = repoConfig.ai ?? config.ai ?? "none";
   const lowModel = repoConfig.lowModel ?? config.lowModel;
   const highModel = repoConfig.highModel ?? config.highModel;
-  if (ai !== "none" && (!config.token || !lowModel || !highModel)) {
+  const aiToken = resolvedAiToken(config, ai);
+  if (ai !== "none" && (!aiToken || !lowModel || !highModel)) {
     throw new Error(
       "AI is enabled but token/low-model/high-model are not fully configured. Run: " +
         "co-maintainer set --token=... --low-model=... --high-model=...",
@@ -489,7 +499,7 @@ export function optionsFromConfig(
     auth,
     githubPat: config.githubPat,
     ai,
-    aiToken: config.token,
+    aiToken,
     lowModel,
     highModel,
     synthesisVersion: 16,

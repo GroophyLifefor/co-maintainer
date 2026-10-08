@@ -1,7 +1,7 @@
 # PR review
 
 Review an **open GitHub pull request** by number. The CLI uses **`gh`** to read
-the PR and runs the AI **on your machine** (OpenRouter).
+the PR and runs the AI **on your machine** with your [AI provider](providers.md).
 
 Overview: [`review`](review.md). This is not the same as
 [remote review](remote-review.md) (`--remote` is rejected when a PR number is

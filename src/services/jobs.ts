@@ -128,7 +128,9 @@ async function runJob(job: JobRow): Promise<void> {
         ? cancelReason
           ? { cancel_reason: cancelReason }
           : {}
-        : { error: String(error) },
+        : // The message only: `String(error)` would show the class name, and
+          // a remote client prints this text to its user as is.
+          { error: message },
     );
     if (status === "failed") log(job.id, "error", message);
     log(job.id, "status", status);
@@ -261,7 +263,9 @@ export async function recoverOrphans(): Promise<number> {
           outcome === "canceled" ? { cancel_reason: "server_restarted" } : {},
         );
       } catch (error) {
-        setJobStatus(job.id, "failed", { error: String(error) });
+        setJobStatus(job.id, "failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     } else {
       logFn("info", "recovering after a restart: requeued from the top");

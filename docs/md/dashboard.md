@@ -64,6 +64,10 @@ The estimate says whether it used this repository's recorded jobs or the
 cm-dx-lab calibration, and whether it priced dollars from OpenRouter. See
 [`probe`](probe.md) for how the recommendation is derived.
 
+The same step asks who gets a review. It lists the [review policy](review-policy.md)
+templates with a sentence each. The server default is selected and you decide.
+Leaving it on the server default keeps the repository following it.
+
 ## Sign in
 
 Open `http://<host>:<port>/`.
@@ -97,7 +101,7 @@ Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
 
 | Path | Purpose |
 | ---- | ------- |
-| `/` | Repository list, **Finish setup** checklist until complete, **Add repository**, auto-review toggles |
+| `/` | Repository list, **Finish setup** checklist until complete, **Add repository**, auto-review toggles (they only apply to repositories on **Simple switches**) |
 | `/setup` | Same checklist as above (direct URL) |
 | `/repos/new` | Pick an App-installed repo, **Preview** the plan, then confirm to start **init** |
 | `/repos/:owner/:repo` | Overview, 30-day stats, drift **Update now**, recent PRs, webhook reachability and last delivery |
@@ -105,11 +109,11 @@ Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
 | `/repos/:owner/:repo/pulls/:n` | Findings and cost for one PR |
 | `/repos/:owner/:repo/remote` | Remote CLI reviews for this repo (last 30 days) |
 | `/repos/:owner/:repo/knowledge` | Generated guides, **Sync** |
-| `/repos/:owner/:repo/settings` | Auto-review, skip rules, scope, remove repo |
-| `/activity` | Live and recent jobs (refreshes about every 5 seconds) |
+| `/repos/:owner/:repo/settings` | **Who gets a review** (the [review policy](review-policy.md)), review scope, codegraph, analysis limits, schedule, remove repo |
+| `/activity` | Live and recent jobs (refreshes about every 5 seconds) and **Pull requests we skipped**, with the rule that skipped each and **Review now** for one that is waiting |
 | `/activity/:id` | Single job log |
 | `/analytics` | Usage for 7, 30, or 90 days |
-| `/settings` | Global models, GitHub, App (**Create GitHub App**), webhook URL, remote limits and tokens |
+| `/settings` | Global models, GitHub, App (**Create GitHub App**), webhook URL, review policy default, remote limits, tokens and key policy |
 
 Per-repo sidebar: **Overview**, **Pull requests**, **Remote**, **Knowledge**, **Settings**.
 
@@ -121,17 +125,30 @@ Single page with sections (anchor links in the sidebar):
 
 | Section | What you configure |
 | ------- | ------------------ |
-| Models and API key | Provider, token, high model (reviews and synthesis), low model (history extraction) |
+| Models and API key | Provider (OpenRouter, OpenAI or Anthropic, see [AI providers](providers.md)), token, high model (reviews and synthesis), low model (history extraction). No model is pre-filled |
 | GitHub | `gh` or PAT for init/sync and server-side Git reads |
-| Defaults | Auth and include/limit defaults for new work |
+| Defaults | Auth and include/limit defaults for new work, and the [review policy](review-policy.md) template new repositories start with |
 | Server | Webhook URL shown to GitHub, queue and timeout knobs |
-| Remote review | `cmr_…` tokens (secret shown once, with copy), per-token concurrency, sync timeout |
+| Remote review | `cmr_…` tokens (secret shown once, with copy), per-token concurrency, sync timeout, and the **Client key policy (BYOK)**, see [your own key](remote-review.md#your-own-ai-key) |
 | Access | Password vs GitHub sign-in toggles (mirrors `serve` flags) |
 | Password | Change the dashboard password and sign out other sessions |
 | About | Version and source link |
 
 Saving PAT, App key, or OAuth values is validated against GitHub first. Bad
 scopes return **422** and nothing is stored.
+
+## Who gets a review
+
+Each repository has a **Who gets a review** card under its **Settings**. It is
+where the [review policy](review-policy.md) lives. The summary under **In short**
+says in plain sentences what the current choice does, and it updates as you edit
+the rules. **Save** stays off while the policy is not valid and the message says
+what to fix. A repository on **Simple switches** shows the three switches it had
+before. One on a policy shows **How reviews run**, which holds only the review
+scope and codegraph.
+
+On **Activity**, **Pull requests we skipped** names the rule that decided, and a
+pull request that is waiting for a request has a **Review now** button.
 
 ## UI behavior
 

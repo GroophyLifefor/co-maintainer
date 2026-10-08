@@ -1,9 +1,9 @@
-/** `view` command tests (CORE-23, CORE-44).
+/** `view` command tests.
  *
  * The local command is pure filesystem reads, so the tests write a
  * `CM_REPOS_DIR` fixture and assert on what `runView` prints. The git-remote
  * path is covered separately by the fact that `view owner/repo` never touches
- * git. `--remote` (CORE-44) is exercised against the fake TLS server, because
+ * git. `--remote` is exercised against the fake TLS server, because
  * the point is that the same one-time token `review --remote` uses reaches the
  * guides endpoint. */
 import { test } from "node:test";

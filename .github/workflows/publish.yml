@@ -120,3 +120,23 @@ jobs:
             org.opencontainers.image.version=${{ steps.image.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Tags the release once the package and the image are both out, so a
+  # failed publish never leaves a tag behind. `needs` runs it only when both
+  # succeeded. Tags made with GITHUB_TOKEN start no workflow, so this cannot set
+  # anything else off. It is the only job that may write to the repository.
+  tag:
+    needs: [publish, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Tag the release
+        run: node scripts/tag_release.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

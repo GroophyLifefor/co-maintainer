@@ -8,6 +8,7 @@ import {
 } from "../../services/remote_tokens.ts";
 import { cancelRemoteJobsForToken } from "../../services/remote_token_jobs.ts";
 import { remoteTokenUsageSince } from "../../store/reviews.ts";
+import { formatCostTotal } from "../pages/cost.ts";
 import { getRemoteToken } from "../../store/remote_tokens.ts";
 import { daysAgoIso } from "../../util/time.ts";
 
@@ -27,6 +28,7 @@ export async function handleRemoteTokensRoute(
         lastUsedAt: row.last_used_at,
         reviews30d: usage.reviews,
         cost30d: usage.cost,
+        cost30dLabel: formatCostTotal(usage),
       };
     });
     return Response.json(items);

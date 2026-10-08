@@ -130,7 +130,7 @@ test("a failing handler marks the job failed with the error message", async () =
     const { id } = enqueue({ type: "test-fail", repo: "a/b" });
     await claimAndRun();
     const job = getJob(id);
-    if (job?.status !== "failed" || job.error !== "Error: boom") {
+    if (job?.status !== "failed" || job.error !== "boom") {
       throw new Error(`unexpected job state: ${JSON.stringify(job)}`);
     }
     const lines = getLogsSince(id);

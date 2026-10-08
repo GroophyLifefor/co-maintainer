@@ -4,6 +4,7 @@ import { closeAppDb, openAppDb } from "../store/app_db.ts";
 import { readConfig, writeUserConfig } from "../config.ts";
 import { activateRepo, markKnowledgeBuilt } from "../store/repos.ts";
 import { insertReview, setReviewStatus } from "../store/reviews.ts";
+import { KNOWN_COST } from "../testing/fixtures/cost.ts";
 import { insertFinding } from "../store/findings.ts";
 import { insertJob, setJobStatus } from "../store/jobs.ts";
 import { upsertDrift } from "../store/drift.ts";
@@ -125,7 +126,10 @@ function seed(): void {
     model: "fake",
     round: 1,
   });
-  setReviewStatus("rev-old", "posted", { findings_count: 1, cost: 0.01 });
+  setReviewStatus("rev-old", "posted", {
+    findings_count: 1,
+    ...KNOWN_COST(0.01),
+  });
   insertFinding({
     id: "f-old",
     reviewId: "rev-old",
@@ -147,7 +151,10 @@ function seed(): void {
     model: "fake",
     round: 2,
   });
-  setReviewStatus("rev-1", "posted", { findings_count: 1, cost: 0.02 });
+  setReviewStatus("rev-1", "posted", {
+    findings_count: 1,
+    ...KNOWN_COST(0.02),
+  });
   insertFinding({
     id: "f-1",
     reviewId: "rev-1",
@@ -1353,6 +1360,41 @@ test("a repository subpage with a stray PR number is not a rendered page", async
     );
     if (ok.status !== 200) {
       throw new Error(`/pulls/7 status ${ok.status}`);
+    }
+  });
+});
+
+test("settings names the key the jobs use, and the environment wins over the saved one", async () => {
+  await withEnv(async () => {
+    const original = getEnv("OPENROUTER_API_KEY");
+    const general = getEnv("CO_MAINTAINER_TOKEN");
+    deleteEnv("CO_MAINTAINER_TOKEN");
+    try {
+      const app = createApp({ password: PASSWORD });
+      const cookie = await cookieSession(app);
+      const hint = async (): Promise<string> =>
+        visibleText(
+          await (
+            await app.fetch(
+              new Request("http://localhost/settings", { headers: { cookie } }),
+            )
+          ).text(),
+        );
+      await writeUserConfig({ ai: "openrouter", token: "saved" });
+      deleteEnv("OPENROUTER_API_KEY");
+      if (!(await hint()).includes("A key is saved")) {
+        throw new Error("the saved key was not named");
+      }
+      setEnv("OPENROUTER_API_KEY", "from-env");
+      if (!(await hint()).includes("which overrides the saved key")) {
+        throw new Error(
+          "the environment key won, but the page said the saved one",
+        );
+      }
+    } finally {
+      if (original === undefined) deleteEnv("OPENROUTER_API_KEY");
+      else setEnv("OPENROUTER_API_KEY", original);
+      if (general !== undefined) setEnv("CO_MAINTAINER_TOKEN", general);
     }
   });
 });

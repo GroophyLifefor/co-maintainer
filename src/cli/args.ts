@@ -1,8 +1,13 @@
 import type { Options } from "../types.ts";
-import { prepareConfig } from "../config.ts";
+import { prepareConfig, savedTokenFor } from "../config.ts";
 import { getEnv } from "../util/runtime.ts";
 import { askLine } from "./prompt.ts";
 import { die } from "./error.ts";
+import {
+  AI_PROVIDERS,
+  providerKeyEnv,
+  rejectRetiredProvider,
+} from "../ai/provider.ts";
 import { detectRemoteRepo } from "../local/git_ops.ts";
 import { reviewBlockingFrom } from "../review/blocking.ts";
 import {
@@ -21,12 +26,10 @@ function numberOption(value: string, name: string): number {
 }
 
 const commands = ["probe", "init", "sync", "remake", "review"] as const;
-export const defaultLowModel = "openai/gpt-oss-120b";
-const defaultHighModel = "openai/gpt-5.6-luna";
 
 let cliInteractive = true;
 
-/** Plan §8.7 — `--json` must not prompt. */
+/** `--json` must not prompt. */
 export function setCliInteractive(value: boolean): void {
   cliInteractive = value;
 }
@@ -39,12 +42,12 @@ async function ask(
   if (!cliInteractive) {
     if (fallback !== undefined && fallback !== "") return fallback;
     die(
-      `Missing ${label}; pass it as a CLI option when running without an interactive terminal`,
+      `Missing ${label}. Pass it as a CLI option when running without an interactive terminal`,
     );
   }
   if (process.stdin.isTTY !== true) {
     die(
-      `Missing ${label}; pass it as a CLI option when running without an interactive terminal`,
+      `Missing ${label}. Pass it as a CLI option when running without an interactive terminal`,
     );
   }
   const value = await askLine(label, fallback);
@@ -77,7 +80,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
     process.exit(0);
   }
   // `probe` (and only probe, for now) may omit the repo and let the current
-  // directory's git remote name it (CORE-24).
+  // directory's git remote name it.
   let repoName = repo;
   if ((!repoName || repoName.startsWith("-")) && command === "probe") {
     repoName = await detectRemoteRepo(process.cwd());
@@ -158,7 +161,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
   };
   const choice = <T extends string>(
     name: string,
-    allowed: T[],
+    allowed: readonly T[],
     fallback: T,
   ): T => {
     const prefix = `--${name}=`;
@@ -207,11 +210,14 @@ export async function parseArgs(args: string[]): Promise<Options> {
 
   const explicitAi = rest.some((arg) => arg.startsWith("--ai="));
   const configuredAiRaw = env("CO_MAINTAINER_AI") ?? repoConfig.ai ?? config.ai;
+  rejectRetiredProvider(configuredAiRaw);
   if (
     configuredAiRaw &&
-    !["none", "openrouter", "hetzner"].includes(configuredAiRaw)
+    !(AI_PROVIDERS as readonly string[]).includes(configuredAiRaw)
   ) {
-    die("CO_MAINTAINER_AI/config.ai must be none, openrouter, or hetzner");
+    die(
+      `CO_MAINTAINER_AI/config.ai must be one of: ${AI_PROVIDERS.join(", ")}`,
+    );
   }
   const configuredAi = configuredAiRaw as Options["ai"] | undefined;
   const configuredAuthRaw =
@@ -232,56 +238,65 @@ export async function parseArgs(args: string[]): Promise<Options> {
         "or run: co-maintainer set --github-pat=...",
     );
   }
-  let ai = choice(
-    "ai",
-    ["none", "openrouter", "hetzner"],
-    configuredAi ?? "none",
-  );
+  rejectRetiredProvider(text("ai"));
+  let ai = choice("ai", AI_PROVIDERS, configuredAi ?? "none");
   if (command === "review") {
-    if (
-      explicitAi &&
-      choice("ai", ["none", "openrouter", "hetzner"], "none") !== "openrouter"
-    ) {
-      die("review supports OpenRouter only");
+    // Review was pinned to OpenRouter only so Hetzner never wrote one. Hetzner
+    // is gone, so review follows the configured provider. With none set it
+    // stays on OpenRouter, which every review before this one used.
+    if (ai === "none") {
+      if (explicitAi) {
+        die(
+          `review needs an AI provider. Pass --ai=${AI_PROVIDERS.filter((p) => p !== "none").join("|")}`,
+        );
+      }
+      ai = "openrouter";
     }
-    ai = "openrouter";
   } else if (!explicitAi && !configuredAi && command !== "probe") {
     const selected = await ask(
-      "AI provider (openrouter|hetzner)",
+      `AI provider (${AI_PROVIDERS.join("|")})`,
       "openrouter",
     );
-    if (!["openrouter", "hetzner"].includes(selected)) {
-      die("AI provider must be openrouter or hetzner");
+    rejectRetiredProvider(selected);
+    if (!(AI_PROVIDERS as readonly string[]).includes(selected)) {
+      die(`AI provider must be one of: ${AI_PROVIDERS.join(", ")}`);
     }
     ai = selected as Options["ai"];
   }
   let aiToken =
     text("token") ??
     env("CO_MAINTAINER_TOKEN") ??
-    (ai === "openrouter" ? env("OPENROUTER_API_KEY") : undefined) ??
-    (ai === "hetzner" ? env("HETZNER_API_KEY") : undefined) ??
-    config.token;
+    providerKeyEnv(ai, env) ??
+    savedTokenFor(config, ai);
+  // The OPENROUTER_ names would hand an OpenRouter model id to another
+  // provider, so they only count when OpenRouter is the one running.
+  const openRouterModelEnv = (name: string): string | undefined =>
+    ai === "openrouter" ? env(name) : undefined;
   let lowModel =
     text("low-model") ??
-    env("OPENROUTER_LOW_MODEL") ??
-    env("HETZNER_LOW_MODEL") ??
+    openRouterModelEnv("OPENROUTER_LOW_MODEL") ??
     env("LOW_MODEL") ??
     repoConfig.lowModel ??
     config.lowModel;
   let highModel =
     text("high-model") ??
-    env("OPENROUTER_HIGH_MODEL") ??
-    env("HETZNER_HIGH_MODEL") ??
+    openRouterModelEnv("OPENROUTER_HIGH_MODEL") ??
     env("HIGH_MODEL") ??
     repoConfig.highModel ??
     config.highModel;
   if (command === "review") {
-    aiToken ??= await ask("openrouter API key", undefined, true);
-    highModel ??= await ask("high model", defaultHighModel, true);
-  } else if (ai !== "none" && command !== "probe") {
     aiToken ??= await ask(`${ai} API key`, undefined, true);
-    lowModel ??= await ask("low model", defaultLowModel, true);
-    highModel ??= await ask("high model", defaultHighModel, true);
+    // Review summarizes large files with the low model, so it needs one just
+    // as init and sync do. Without a default to fall back on, ask here too.
+    lowModel ??= await ask("low model", undefined, true);
+    highModel ??= await ask("high model", undefined, true);
+  } else if (ai !== "none" && command !== "probe") {
+    // No house pick for any provider: models go stale and a shipped build
+    // cannot fetch a fresher one, so the model to use is the user's call,
+    // set once in config or passed every time (Murat, 2026-09-28).
+    aiToken ??= await ask(`${ai} API key`, undefined, true);
+    lowModel ??= await ask("low model", undefined, true);
+    highModel ??= await ask("high model", undefined, true);
   }
   if (
     command !== "review" &&

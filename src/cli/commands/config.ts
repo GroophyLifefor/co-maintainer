@@ -1,5 +1,5 @@
 /** The `config` command: read and edit the user config without opening the
- * file (CORE-22, F12). `set` is `config set` under its own name, so both share
+ * file. `set` is `config set` under its own name, so both share
  * the mapping and masking here.
  *
  * The key list is derived from `UserConfig` at runtime where possible: a
@@ -20,6 +20,7 @@ export const SECRET_FIELDS = new Set([
   "githubOAuthClientSecret",
   "remoteToken",
   "dashboardPasswordHash",
+  "remoteByok",
 ]);
 
 /** `lowModel` -> `low-model`. The inverse of {@link configKey}. */
@@ -47,14 +48,17 @@ export type Source = "env" | "file" | "default";
 /** The env var that supplies each field, mirroring args.ts. Only the fields
  * that actually read env are listed. */
 export const ENV_BY_FIELD: Record<string, string[]> = {
-  token: ["CO_MAINTAINER_TOKEN", "OPENROUTER_API_KEY", "HETZNER_API_KEY"],
+  token: ["CO_MAINTAINER_TOKEN", "OPENROUTER_API_KEY", "OPENCODE_API_KEY"],
   githubPat: ["GITHUB_TOKEN", "GH_TOKEN"],
   ai: ["CO_MAINTAINER_AI"],
   auth: ["CO_MAINTAINER_AUTH"],
-  lowModel: ["OPENROUTER_LOW_MODEL", "HETZNER_LOW_MODEL", "LOW_MODEL"],
-  highModel: ["OPENROUTER_HIGH_MODEL", "HETZNER_HIGH_MODEL", "HIGH_MODEL"],
+  lowModel: ["OPENROUTER_LOW_MODEL", "LOW_MODEL"],
+  highModel: ["OPENROUTER_HIGH_MODEL", "HIGH_MODEL"],
   webhookUrl: ["CM_WEBHOOK_URL"],
+  remoteHost: ["CM_REMOTE_HOST"],
+  remoteToken: ["CM_REMOTE_TOKEN"],
   reviewBlocking: ["CO_MAINTAINER_REVIEW_BLOCKING"],
+  remoteByokPolicy: ["CM_REMOTE_BYOK_POLICY"],
 };
 
 /** Renders one field for people. A secret is masked; the password hash, which
@@ -168,6 +172,10 @@ export const KNOWN_FIELDS = [
   "remoteSyncTimeoutSeconds",
   "maxConcurrentRemoteReviewsPerToken",
   "remoteToolOutputMaxChars",
+  "remoteByok",
+  "remoteByokDefault",
+  "remoteByokPolicy",
+  "reviewPolicy",
 ] as const satisfies readonly (keyof UserConfig)[];
 
 /** `co-maintainer config <sub> ...`. `set` is handled by runSet, which this

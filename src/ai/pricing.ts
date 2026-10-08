@@ -1,4 +1,4 @@
-/** OpenRouter model prices for the probe estimate (CORE-24).
+/** OpenRouter model prices for the probe estimate.
  *
  * `/api/v1/models` is public: no key needed. The list is large and changes
  * slowly, so it is cached for 24 hours in cache.db. A network failure is not

@@ -1,6 +1,6 @@
 /** A disposable self-signed certificate for `localhost` (SAN: localhost,
  * 127.0.0.1), generated once with `openssl req -x509` and never used for
- * anything but tests (CORE-25). Add `TLS_CERT_PEM` to a temp file and point
+ * anything but tests. Add `TLS_CERT_PEM` to a temp file and point
  * `NODE_EXTRA_CA_CERTS` at it so a client trusts a fake TLS server. */
 export const TLS_CERT_PEM = `-----BEGIN CERTIFICATE-----
 MIIDJTCCAg2gAwIBAgIUC2SY5TGnu53jWm6F1P3O4iDisZEwDQYJKoZIhvcNAQEL

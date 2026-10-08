@@ -4,7 +4,11 @@ import {
   resolveAppPrivateKey,
   writeUserConfig,
 } from "../../config.ts";
-import type { UserConfig } from "../../config.ts";
+import {
+  aiConfigured,
+  savedKeyProvider,
+  type UserConfig,
+} from "../../config.ts";
 import { testAppAccess, testGithubAccess } from "../../services/credentials.ts";
 import {
   checkPassword,
@@ -14,6 +18,7 @@ import {
 import type { PasswordStore } from "../auth.ts";
 import { passwordProblem } from "../../util/password.ts";
 import { readJsonObject } from "./json_body.ts";
+import { policyToStore } from "../../services/review_policy.ts";
 
 function validateWebhookUrl(value: unknown): string | undefined {
   if (typeof value !== "string" || !value.trim()) {
@@ -88,6 +93,7 @@ export async function handleSettingsRoute(
       maxConcurrentRemoteReviewsPerToken:
         config.maxConcurrentRemoteReviewsPerToken ?? null,
       remoteToolOutputMaxChars: config.remoteToolOutputMaxChars ?? null,
+      reviewPolicy: config.reviewPolicy ?? null,
     });
   }
 
@@ -118,6 +124,31 @@ export async function handleSettingsRoute(
     text("githubOAuthClientId");
     text("githubOAuthClientSecret");
     text("githubOAuthAllowedUser");
+    const previousAi = savedKeyProvider(current);
+    if (
+      patch.ai &&
+      patch.ai !== "none" &&
+      patch.ai !== previousAi &&
+      !patch.token &&
+      current.token
+    ) {
+      return errorResponse(
+        422,
+        "key_for_other_provider",
+        `The saved key is for ${previousAi}. Enter the ${patch.ai} key to switch providers.`,
+      );
+    }
+    if ("remoteByokPolicy" in body) {
+      const policy = body.remoteByokPolicy;
+      if (policy !== "off" && policy !== "allow" && policy !== "require") {
+        return errorResponse(
+          422,
+          "invalid_setting",
+          "remoteByokPolicy must be off, allow or require",
+        );
+      }
+      patch.remoteByokPolicy = policy;
+    }
     if (typeof body.passwordAuthDisabled === "boolean") {
       patch.passwordAuthDisabled = body.passwordAuthDisabled;
     }
@@ -180,6 +211,14 @@ export async function handleSettingsRoute(
       "remoteToolOutputMaxChars",
     );
     if (remoteToolOut) return remoteToolOut;
+    if ("reviewPolicy" in body) {
+      const stored = policyToStore(body.reviewPolicy, { allowLegacy: false });
+      if (!stored.ok) {
+        return errorResponse(422, "invalid_policy", stored.problem);
+      }
+      patch.reviewPolicy =
+        stored.value === null ? undefined : JSON.parse(stored.value);
+    }
     if (body.defaults && typeof body.defaults === "object") {
       const defaults = body.defaults as Record<string, unknown>;
       const next = { ...current.defaults };
@@ -271,7 +310,7 @@ export async function handleSettingsRoute(
       privateKeyPem: resolveAppPrivateKey(config) ?? "",
     });
     return Response.json({
-      ai: { ok: Boolean(config.ai && config.ai !== "none" && config.token) },
+      ai: { ok: aiConfigured(config) },
       github: github.ok
         ? { ok: true, login: github.login }
         : { ok: false, message: github.message },

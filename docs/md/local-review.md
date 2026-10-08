@@ -1,8 +1,8 @@
 # Local review
 
 Review **staged, unstaged, and untracked** files in your git clone against a
-base branch. AI and guides run on **your machine** (OpenRouter via
-[configuration](configuration.md)).
+base branch. AI and guides run on **your machine**, with the
+[AI provider](providers.md) you saved.
 
 Overview: [`review`](review.md).
 
@@ -13,7 +13,7 @@ Overview: [`review`](review.md).
 | Run from the repo root (or a subdirectory with a git root) | Review needs a working tree |
 | `origin` or `upstream` points at GitHub (or use `--repo=owner/repo`) | Maps the clone to guides for that repo |
 | [`init`](init.md) / [`sync`](sync.md) for that `owner/repo` | `SKILL.md` and review guides on disk |
-| OpenRouter key in `set`, `--token=`, or `--env=PATH` | Local review uses your provider |
+| A provider key in `set`, `--token=`, or `--env=PATH` | Local review uses your [provider](providers.md) |
 | Clean enough git state | Conflicts or broken git state can fail collection |
 
 ## Usage

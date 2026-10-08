@@ -18,7 +18,7 @@ export async function gitRoot(
 }
 
 /** Backward-compatible name for the shared CLI error. Local and remote review
- * threw this before CORE-10 introduced `CliError`, so it stays as a thin
+ * threw this before `CliError` existed, so it stays as a thin
  * subclass and every existing call site keeps working. */
 export class ReviewCliError extends CliError {
   constructor(

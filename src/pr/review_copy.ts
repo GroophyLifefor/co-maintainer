@@ -1,4 +1,4 @@
-/** The severity legend and the review-copy rule (CORE-83 / D11).
+/** The severity legend and the review-copy rule.
  *
  * Product text avoids the em dash and the semicolon: the docs linter rejects
  * them, and the finding parser had to accept both a `—` and a `:` heading
@@ -44,7 +44,7 @@ export function severitySection(): string {
   return `## Severity\n\n${items.join("\n")}\n`;
 }
 
-/** What the model is told about prose (CORE-83). The review body is rendered
+/** What the model is told about prose. The review body is rendered
  * by our code, not the model, so this only has to keep the fields clean. */
 export const REVIEW_COPY_RULE =
   "Write prose without the em dash or the semicolon. Use a colon or a comma instead.";

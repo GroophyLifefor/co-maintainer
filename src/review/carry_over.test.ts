@@ -52,7 +52,7 @@ test("guideRebuiltSince: silence is not a rebuild", () => {
     throw new Error("a missing current build must not force fresh");
   }
   // A previous snapshot with no recorded build time is treated as stale, so
-  // the first run after CORE-42 re-scans once instead of trusting old verdicts.
+  // the first run after this change re-scans once instead of trusting old verdicts.
   if (!guideRebuiltSince(null, "2026-01-01T00:00:00Z")) {
     throw new Error("a previous record without a build time must force fresh");
   }
@@ -118,7 +118,7 @@ test("buildCarryPromptSection: asks for a fresh scan as well as the verdicts", (
     [item],
     revisionWith("src/a.ts", "@@ -1 +1 @@\n-const x = 0\n+const x = 1"),
   );
-  // The F03 fix: the prompt must say the whole diff is still scanned, not just
+  // The fix: the prompt must say the whole diff is still scanned, not just
   // that the previous finding is re-checked.
   if (!/Scan the DIFF from scratch/i.test(section)) {
     throw new Error(`no fresh-scan instruction:\n${section}`);

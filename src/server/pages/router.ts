@@ -27,13 +27,14 @@ import {
   skippedDeliveries,
   statsForRange,
 } from "../../services/dashboard.ts";
-import { escapeHtml, html, money } from "./layout.ts";
+import { escapeHtml, html } from "./layout.ts";
+import { formatCostTotal } from "./cost.ts";
 import {
   readConfig,
   resolveAppPrivateKey,
   writeUserConfig,
 } from "../../config.ts";
-import type { UserConfig } from "../../config.ts";
+import { aiConfigured, type UserConfig } from "../../config.ts";
 import {
   appNameProblem,
   beginManifestState,
@@ -189,7 +190,7 @@ export async function handlePageRequest(
     if (url.pathname === "/setup" && request.method === "GET") {
       const config = readConfig();
       return renderSetup(username, {
-        ai: Boolean(config.ai && config.ai !== "none" && config.token),
+        ai: aiConfigured(config),
         github: Boolean(
           config.auth === "gh" || (config.auth === "pat" && config.githubPat),
         ),
@@ -321,7 +322,7 @@ function toHomeRow(item: ReturnType<typeof listReposForHome>[number]) {
     knowledgeAt,
     autoOn: item.repo.auto_review === 1,
     reviews: String(item.stats.reviews),
-    cost: money(item.stats.cost),
+    cost: formatCostTotal(item.stats),
   };
 }
 

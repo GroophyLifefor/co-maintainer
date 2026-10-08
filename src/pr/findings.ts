@@ -19,7 +19,7 @@ const FILE_LINE =
  * sometimes writes `:` where the prompt asked for the em dash, and sometimes
  * leaves the symbol off. Both are accepted: an unrecognised heading used to
  * send every finding down the fallback path, which is what produced the
- * truncated and shifted output in F02. The separator may also sit directly
+ * truncated and shifted output. The separator may also sit directly
  * against the path (`\`src/a.ts\`: \`helper()\``), which is how the model
  * usually writes the colon form. */
 const NEW_HEADING =

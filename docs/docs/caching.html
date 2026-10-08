@@ -47,6 +47,8 @@
           <li><a href="review.html">Review</a></li>
           <li><a href="local-review.html">Local review</a></li>
           <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="ci.html">CI</a></li>
+          <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           </ul>
         </div>
@@ -69,6 +71,7 @@
           <ul class="nav-list">
           <li><a href="commands.html">Commands</a></li>
           <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="providers.html">AI providers</a></li>
           <li><a href="authentication.html">Authentication</a></li>
           <li><a href="caching.html" class="active">Caching</a></li>
           <li><a href="cost.html">Cost</a></li>
@@ -302,6 +305,10 @@ remote review should read guides the server built.</p>
 <tr>
 <td>Wipe server state</td>
 <td>Stop <code>serve</code>, backup, remove <code>app.db</code> (destructive)</td>
+</tr>
+<tr>
+<td>Go back after an upgrade</td>
+<td>Stop <code>serve</code>, run <a href="troubleshooting.html#going-back-after-an-upgrade"><code>rollback</code></a> with the new version still installed</td>
 </tr>
 <tr>
 <td>Wipe CLI evidence only</td>

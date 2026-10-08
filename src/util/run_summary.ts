@@ -1,6 +1,6 @@
-/** The one-line cost and time summary every AI command ends with (CORE-26).
+/** The one-line cost and time summary every AI command ends with.
  *
- * F18: the JSON already carried `usage.costUsd` and a duration, but the human
+ * The JSON already carried `usage.costUsd` and a duration, but the human
  * output had neither and `init` printed no total at all, so the only place to
  * see what a run cost was the OpenRouter dashboard. This renders the same
  * numbers as a single stderr line:
@@ -13,6 +13,7 @@
  */
 import type { AiMetrics } from "../services/setup.ts";
 import { hasLogSink, log } from "./log.ts";
+import { costReasonText, settle, type CostTally } from "./cost.ts";
 
 export type RunSummary = {
   /** Wall-clock milliseconds, or null when only the AI time is known. */
@@ -21,6 +22,8 @@ export type RunSummary = {
   tokensOut: number;
   /** `null` when any call left the cost unknown, matching `usage.costUsd`. */
   costUsd: number | null;
+  /** Why the cost is unknown, as a sentence. */
+  costNote?: string;
 };
 
 /** `3,125` — grouped the way the numbers read in the docs. */
@@ -49,7 +52,7 @@ export function formatRunSummary(summary: RunSummary): string {
   );
   parts.push(
     summary.costUsd === null
-      ? "cost unknown"
+      ? `cost unknown${summary.costNote ? ` (${summary.costNote})` : ""}`
       : `$${summary.costUsd.toFixed(4)}`,
   );
   return parts.join(" · ");
@@ -65,15 +68,41 @@ export function printRunSummary(summary: RunSummary): void {
   else console.error(line);
 }
 
+/** A run that finished without one AI call, such as a `sync` served entirely
+ * from the cache, spent nothing. `settle` reads that as "ended before its cost
+ * was recorded", which is right for a review row and wrong for this line. */
+function madeNoAiCall(metrics: CostTally): boolean {
+  return metrics.knownCalls === 0 && metrics.unknownCalls === 0;
+}
+
 /** The metrics half of a summary, so call sites do not repeat the spread. */
 export function summaryFromMetrics(
   metrics: AiMetrics,
   durationMs: number | null,
 ): RunSummary {
+  if (madeNoAiCall(metrics)) {
+    return {
+      durationMs,
+      tokensIn: metrics.tokensIn,
+      tokensOut: metrics.tokensOut,
+      costUsd: 0,
+    };
+  }
+  const outcome = settle(metrics);
   return {
     durationMs,
     tokensIn: metrics.tokensIn,
     tokensOut: metrics.tokensOut,
-    costUsd: metrics.costKnown ? metrics.cost : null,
+    costUsd: outcome.status === "known" ? outcome.usd : null,
+    ...(outcome.status === "unknown"
+      ? { costNote: costReasonText(outcome.reason) }
+      : {}),
   };
+}
+
+/** `0.0016` for a known cost, `unknown` otherwise. For the timing log line. */
+export function costLabel(metrics: CostTally): string {
+  if (madeNoAiCall(metrics)) return "0.0000";
+  const outcome = settle(metrics);
+  return outcome.status === "known" ? outcome.usd.toFixed(4) : "unknown";
 }

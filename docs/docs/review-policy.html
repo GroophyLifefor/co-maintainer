@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Review policy · co-maintainer docs</title>
+  <meta name="description" content="A review policy decides which pull requests the GitHub App reviews on its own, which ones wait until a maintainer asks, and which are never reviewed. It...">
+  <link rel="canonical" href="https://co-maintainer.com/docs/review-policy.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="ci.html">CI</a></li>
+          <li><a href="review-policy.html" class="active">Review policy</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="providers.html">AI providers</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="privacy.html">Data and privacy</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>Review policy</h1>
+<p>A review policy decides which pull requests the <a href="github-app.html">GitHub App</a> reviews
+on its own, which ones wait until a maintainer asks, and which are never
+reviewed. It runs in <a href="serve.html"><code>serve</code></a> when a webhook arrives. You set it per
+repository in the <a href="dashboard.html">dashboard</a>, and for new repositories as a
+server default.</p>
+<p>The policy is about the App&#39;s reviews. A <a href="remote-review.html">remote review</a> from
+a laptop or from <a href="ci.html">CI</a> looks at a diff, not at a pull request, so it does
+not apply it.</p>
+<h2 id="three-actions">Three actions</h2>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>What happens to a pull request</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Review</td>
+<td>It is reviewed automatically</td>
+</tr>
+<tr>
+<td>Wait for a request</td>
+<td>It is left alone until a maintainer <a href="#asking-for-a-review">asks</a></td>
+</tr>
+<tr>
+<td>Do not review</td>
+<td>It is never reviewed, and asking does not change that</td>
+</tr>
+</tbody></table>
+<h2 id="templates">Templates</h2>
+<table>
+<thead>
+<tr>
+<th>Template</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Everyone</td>
+<td>Every pull request is reviewed, except drafts and pull requests by bots</td>
+</tr>
+<tr>
+<td>Trusted authors, automatic</td>
+<td>Owners, members and collaborators are reviewed. Everyone else waits for a request. Drafts and bots are skipped</td>
+</tr>
+<tr>
+<td>Only when requested</td>
+<td>Nothing is reviewed until a maintainer asks</td>
+</tr>
+<tr>
+<td>Custom rules</td>
+<td>Your own list of rules, see below</td>
+</tr>
+<tr>
+<td>Simple switches</td>
+<td>The three on and off switches a repository had before policies existed, see <a href="#existing-repositories">Existing repositories</a></td>
+</tr>
+</tbody></table>
+<h2 id="rules">Rules</h2>
+<p>A policy is an ordered list of rules. For each pull request the first rule whose
+conditions all hold decides the action. When no rule holds, the last setting,
+<strong>Any other pull request</strong>, decides. A rule can test:</p>
+<table>
+<thead>
+<tr>
+<th>Condition</th>
+<th>Matches when</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Author</td>
+<td>The author&#39;s relation to the repository is one of the ones you tick</td>
+</tr>
+<tr>
+<td>Opened from a fork</td>
+<td>The head branch lives in another repository, or in none because the fork was deleted</td>
+</tr>
+<tr>
+<td>Is a draft</td>
+<td>The pull request is a draft, or is not</td>
+</tr>
+<tr>
+<td>Is by a bot</td>
+<td>The author is a bot account, or is not</td>
+</tr>
+<tr>
+<td>Labels</td>
+<td>The pull request has at least one of the labels, compared without regard to case</td>
+</tr>
+<tr>
+<td>Target branch</td>
+<td>The pull request merges into one of the branches, by exact name</td>
+</tr>
+<tr>
+<td>Changed lines</td>
+<td>Additions plus deletions are within a minimum and a maximum</td>
+</tr>
+</tbody></table>
+<p>The author&#39;s relation is GitHub&#39;s own <code>author_association</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>OWNER</code></td>
+<td>Owns the repository</td>
+</tr>
+<tr>
+<td><code>MEMBER</code></td>
+<td>Belongs to the organization that owns it</td>
+</tr>
+<tr>
+<td><code>COLLABORATOR</code></td>
+<td>Was invited to the repository</td>
+</tr>
+<tr>
+<td><code>CONTRIBUTOR</code></td>
+<td>Has had a commit merged before</td>
+</tr>
+<tr>
+<td><code>FIRST_TIME_CONTRIBUTOR</code></td>
+<td>First contribution to this repository</td>
+</tr>
+<tr>
+<td><code>FIRST_TIMER</code></td>
+<td>First contribution anywhere on GitHub</td>
+</tr>
+<tr>
+<td><code>NONE</code></td>
+<td>No relation</td>
+</tr>
+</tbody></table>
+<p>A rule that asks about something GitHub did not send never matches.</p>
+<h2 id="asking-for-a-review">Asking for a review</h2>
+<p>A pull request that waits, or one that no rule reviews, can be started three ways:</p>
+<ul>
+<li><strong>The request label.</strong> Add <code>co-maintainer:review</code> to the pull request. Adding a
+label already needs triage rights, so nothing else is checked.</li>
+<li><strong>The request comment.</strong> Comment <code>/co-maintainer review</code> as the first words of
+a comment on the pull request. Only people in the allowed set can ask, which is
+owners, members and collaborators unless you change it.</li>
+<li><strong>Review now.</strong> On the dashboard, a pull request that is waiting shows a
+<strong>Review now</strong> button on the Activity page, under <strong>Pull requests we
+skipped</strong>. Whoever is signed in is already allowed to ask, and the button ignores
+the round limit.</li>
+</ul>
+<p>When a label or comment request starts a review, the App reacts with an eyes
+emoji on the comment or the pull request, so the person who asked can see it was
+picked up.</p>
+<p>A request never overrides <strong>Do not review</strong>. If a rule skips the pull request, a
+request is refused and the reason is recorded.</p>
+<p>GitHub sends no fork, target branch or size with a comment, so a <strong>comment</strong>
+request is checked again when the review starts and the pull request has been
+fetched. If a rule about those three skips it, or it is over the size limit, the
+review does not run and no eyes reaction is added.</p>
+<h3 id="what-a-request-covers">What a request covers</h3>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Covers</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Only the commit it was made on</td>
+<td>Each new push waits for a new request</td>
+</tr>
+<tr>
+<td>Every later push to the pull request</td>
+<td>After the first review, every push is reviewed</td>
+</tr>
+</tbody></table>
+<p>Comments and reviews on a waiting pull request do not start a review either. The
+second setting is the one that carries an earlier request forward.</p>
+<h3 id="round-limit">Round limit</h3>
+<p><strong>Reviews per pull request</strong> stops the webhook after that many reviews. A request
+obeys it too, and the skip reason reads <code>Round limit reached: 2 of 2 reviews.</code>
+Leave it blank for no limit.</p>
+<h2 id="set-it-up">Set it up</h2>
+<h3 id="in-the-dashboard">In the dashboard</h3>
+<ul>
+<li><strong>Repository settings</strong>, card <strong>Who gets a review.</strong> Pick a template, read the
+plain sentences under <strong>In short</strong>, and open <strong>Edit the rules</strong> to change them.
+The sentences update as you edit, and <strong>Save</strong> is disabled while the policy is
+not valid. Editing a template turns it into custom rules.</li>
+<li><strong>Settings</strong>, <strong>Defaults for new repositories.</strong> The template a repository
+starts with. Custom rules are set with a file, see below.</li>
+<li><strong>Add repository.</strong> After the preview, the plan step lists the templates with
+their descriptions. The server default is selected, and you decide.</li>
+</ul>
+<h3 id="on-the-command-line">On the command line</h3>
+<pre class="shell-block"><code><span class="sh-comment"># The server default for new repositories</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--review-policy=trusted-auto</span>
+
+<span class="sh-comment"># A custom policy from a file</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--review-policy-file=policy.json</span>
+
+<span class="sh-comment"># Back to no default</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--unset=review-policy</span>
+</code></pre>
+<p>A policy file is JSON. Everything except the rules can be left out:</p>
+<pre><code class="language-json">{
+  &quot;rules&quot;: [
+    { &quot;name&quot;: &quot;draft&quot;, &quot;when&quot;: { &quot;draft&quot;: true }, &quot;action&quot;: &quot;skip&quot; },
+    {
+      &quot;name&quot;: &quot;first time contributor&quot;,
+      &quot;when&quot;: { &quot;association&quot;: [&quot;FIRST_TIME_CONTRIBUTOR&quot;, &quot;FIRST_TIMER&quot;] },
+      &quot;action&quot;: &quot;on-request&quot;
+    },
+    {
+      &quot;name&quot;: &quot;small change by anyone we know&quot;,
+      &quot;when&quot;: { &quot;association&quot;: [&quot;OWNER&quot;, &quot;MEMBER&quot;, &quot;COLLABORATOR&quot;, &quot;CONTRIBUTOR&quot;], &quot;changedLines&quot;: { &quot;max&quot;: 300 } },
+      &quot;action&quot;: &quot;review&quot;
+    }
+  ],
+  &quot;default&quot;: &quot;on-request&quot;,
+  &quot;requestLabel&quot;: &quot;co-maintainer:review&quot;,
+  &quot;requestCommand&quot;: &quot;/co-maintainer review&quot;,
+  &quot;requesters&quot;: [&quot;OWNER&quot;, &quot;MEMBER&quot;, &quot;COLLABORATOR&quot;],
+  &quot;approvalScope&quot;: &quot;head&quot;,
+  &quot;maxRounds&quot;: 3
+}
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Values</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>rules[].action</code> and <code>default</code></td>
+<td><code>review</code>, <code>on-request</code>, <code>skip</code></td>
+<td><code>default</code> is <code>review</code></td>
+</tr>
+<tr>
+<td><code>rules[].when</code></td>
+<td><code>association</code>, <code>fork</code>, <code>draft</code>, <code>bot</code>, <code>labels</code>, <code>targetBranch</code>, <code>changedLines</code> (<code>min</code>, <code>max</code>)</td>
+<td>No condition matches everything</td>
+</tr>
+<tr>
+<td><code>requestLabel</code></td>
+<td>Label name</td>
+<td><code>co-maintainer:review</code></td>
+</tr>
+<tr>
+<td><code>requestCommand</code></td>
+<td>Text a comment starts with</td>
+<td><code>/co-maintainer review</code></td>
+</tr>
+<tr>
+<td><code>requesters</code></td>
+<td>Author relations that may ask by comment</td>
+<td><code>OWNER</code>, <code>MEMBER</code>, <code>COLLABORATOR</code></td>
+</tr>
+<tr>
+<td><code>approvalScope</code></td>
+<td><code>head</code>, <code>pull-request</code></td>
+<td><code>head</code></td>
+</tr>
+<tr>
+<td><code>maxRounds</code></td>
+<td>Whole number of 1 or more</td>
+<td>No limit</td>
+</tr>
+</tbody></table>
+<p>A policy that cannot be read is refused and says what is wrong, for example
+<code>unknown template &quot;x&quot;</code> or <code>rules[0].action must be one of review, on-request, skip</code>.
+Nothing is saved.</p>
+<h2 id="existing-repositories">Existing repositories</h2>
+<p>A repository added before policies existed keeps the three switches it had:
+automatic review on or off, skip drafts, skip bots. They behave exactly as they
+always did, and the repository shows <strong>Simple switches</strong>. Choosing a template
+replaces them. On a repository that follows a policy, the switches are hidden and
+changing one through the API is refused with a message that says to change the
+policy instead.</p>
+<p>A new repository with no choice follows the server default. With no server
+default it behaves like <strong>Everyone</strong>.</p>
+<h2 id="why-a-pull-request-was-skipped">Why a pull request was skipped</h2>
+<p><strong>Activity</strong>, <strong>Pull requests we skipped</strong> names the rule that decided, for
+example <code>Rule 3 (trusted author): waiting for a maintainer request.</code> or
+<code>Default rule: waiting for a maintainer request.</code> A rule without a name shows its
+position only, so name the rules you write.</p>
+<h2 id="permissions">Permissions</h2>
+<p>A request needs nothing new. The eyes reaction uses the Issues permission the App
+already has, and a label request arrives on the <code>pull_request</code> event it already
+receives. See <a href="github-app.html">GitHub App</a> for the permission table.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/review-policy.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#three-actions">Three actions</a></li><li><a href="#templates">Templates</a></li><li><a href="#rules">Rules</a></li><li><a href="#asking-for-a-review">Asking for a review</a></li><li><a href="#set-it-up">Set it up</a></li><li><a href="#existing-repositories">Existing repositories</a></li><li><a href="#why-a-pull-request-was-skipped">Why a pull request was skipped</a></li><li><a href="#permissions">Permissions</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

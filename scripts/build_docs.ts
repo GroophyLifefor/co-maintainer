@@ -2,16 +2,16 @@
  * Build static HTML docs under docs/ from docs/md/*.md
  * Run: npm run docs:build
  *
- * Layout for co-maintainer.com (CORE-80 / D04, D05):
+ * Layout for co-maintainer.com:
  *   docs/index.html          the landing page (hand written, not built here)
  *   docs/docs/<slug>.html    one page per docs/md/<slug>.md
- *   docs/docs/<slug>.md      the Markdown copy of that page (CORE-84)
+ *   docs/docs/<slug>.md      the Markdown copy of that page
  *   docs/docs/search-index.json  the client-side search rows
  *   docs/<slug>.html         a redirect stub for the old flat address
  *   docs/CNAME               the custom domain
  *   docs/sitemap.xml         every page under the apex domain
- *   docs/llms.txt            the llmstxt.org index (CORE-84)
- *   docs/llms-full.txt       every page combined for a model (CORE-84)
+ *   docs/llms.txt            the llmstxt.org index
+ *   docs/llms-full.txt       every page combined for a model
  *
  * Assets stay at docs/assets/, so a doc page reaches them through `../`.
  */
@@ -19,6 +19,7 @@ import { marked } from "marked";
 import { pathToFileURL } from "node:url";
 import { registryToMarkdown } from "../src/cli/commands/registry.ts";
 import { logo } from "../src/server/logo.ts";
+import { permissionTable, type TableKind } from "../src/github/permissions.ts";
 import {
   mkdir,
   readTextFile,
@@ -67,6 +68,8 @@ const NAV: NavSection[] = [
       { slug: "review", label: "Review" },
       { slug: "local-review", label: "Local review" },
       { slug: "remote-review", label: "Remote review" },
+      { slug: "ci", label: "CI" },
+      { slug: "review-policy", label: "Review policy" },
       { slug: "local-pr-review", label: "PR review" },
     ],
   },
@@ -87,6 +90,7 @@ const NAV: NavSection[] = [
     items: [
       { slug: "commands", label: "Commands" },
       { slug: "configuration", label: "Configuration" },
+      { slug: "providers", label: "AI providers" },
       { slug: "authentication", label: "Authentication" },
       { slug: "caching", label: "Caching" },
       { slug: "cost", label: "Cost" },
@@ -135,7 +139,7 @@ export function searchJson(entries: readonly SearchEntry[]): string {
   return `${JSON.stringify(entries)}\n`;
 }
 
-/** The one-sentence summary at the top of `llms.txt` (CORE-84). */
+/** The one-sentence summary at the top of `llms.txt`. */
 export const LLMS_SUMMARY =
   "co-maintainer learns a GitHub repository from its code, pull requests, and history, then reviews pull requests and local changes against that knowledge.";
 
@@ -172,7 +176,7 @@ export function llmsFullTxt(
   return lines.join("\n");
 }
 
-/** The `commands.md` page, generated from the command registry (CORE-81). */
+/** The `commands.md` page, generated from the command registry. */
 export function commandsMarkdown(): string {
   return `# Commands
 
@@ -186,8 +190,18 @@ See [Configuration](configuration.md) for the \`config.json\` keys, and
 `;
 }
 
+/** Rewrites every `<!-- permissions:KIND:start -->` block from
+ * `permissionTable`, so a permission table cannot drift from the code. */
+export function applyPermissionBlocks(md: string): string {
+  return md.replace(
+    /<!-- permissions:([a-z-]+):start -->[\s\S]*?<!-- permissions:\1:end -->/g,
+    (_, kind: string) =>
+      `<!-- permissions:${kind}:start -->\n${permissionTable(kind as TableKind)}\n<!-- permissions:${kind}:end -->`,
+  );
+}
+
 /** The old flat addresses, and where each one points now. `remake` was the
- * name this page had before CORE-21, and its address must keep resolving. */
+ * name this page had before it was renamed, and its address must keep resolving. */
 export const LEGACY_REDIRECTS: ReadonlyArray<{ from: string; to: string }> = [
   ...ALL_PAGES.map(({ slug }) => ({ from: slug, to: slug })),
   { from: "remake", to: "sync" },
@@ -618,11 +632,13 @@ export async function buildDocs(options: BuildOptions = {}): Promise<void> {
   const builtPages: Array<{ slug: string; md: string }> = [];
   for (const { slug } of ALL_PAGES) {
     const mdPath = new URL(`${slug}.md`, MD_DIR);
-    let md = await readTextFile(mdPath);
+    const source = await readTextFile(mdPath);
+    let md = applyPermissionBlocks(source);
+    if (md !== source) await writeTextFile(mdPath, md);
     lintDocMd(md, `${slug}.md`);
     md = fixMdSourceLinks(md);
     // The `.md` copy sits beside the `.html`, so `/docs/<slug>.md` resolves on
-    // the deployed site and `llms.txt` can link straight to it (CORE-84).
+    // the deployed site and `llms.txt` can link straight to it.
     await writeTextFile(new URL(`${slug}.md`, pagesDir), md);
     builtPages.push({ slug, md });
     const description = pageDescription(md);
@@ -651,7 +667,7 @@ export async function buildDocs(options: BuildOptions = {}): Promise<void> {
   );
   log("wrote docs/search-index.json");
 
-  // The model-readable copies (CORE-84): a short index and one combined file.
+  // The model-readable copies: a short index and one combined file.
   await writeTextFile(new URL("llms.txt", out), llmsTxt());
   log("wrote llms.txt");
   await writeTextFile(new URL("llms-full.txt", out), llmsFullTxt(builtPages));

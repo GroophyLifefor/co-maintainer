@@ -1,9 +1,8 @@
-/** A single pull request's narrative may not become repository policy
- * (CORE-32 / F26b, F26c).
+/** A single pull request's narrative may not become repository policy.
  *
- * F26b: `remake` wrote a "Pull request title and body" section full of
+ * `remake` wrote a "Pull request title and body" section full of
  * `The PR title is "Support weeks in parse and format".` lines, so a pull
- * request still under review was learned as a norm. F26c: the four codebase
+ * request still under review was learned as a norm. The four codebase
  * sections were byte-identical in `SKILL.md` and `CODEBASE.md`, paying for the
  * same guidance twice in a review prompt.
  */

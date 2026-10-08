@@ -260,3 +260,114 @@ test("changing the password with a null JSON body is a 400, not a crash", async 
     }
   });
 });
+
+async function putSettings(body: unknown): Promise<Response> {
+  return await handleSettingsRoute(
+    new Request("http://localhost/api/settings", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+    new URL("http://localhost/api/settings"),
+    "http://localhost:5000/github/webhook",
+    memoryPasswordStore(PASSWORD),
+    "test",
+  );
+}
+
+test("PUT /api/settings stores a template as the default policy and clears it", async () => {
+  await withTempEnv(async () => {
+    const saved = await putSettings({ reviewPolicy: "trusted-auto" });
+    if (saved.status !== 200) throw new Error(`status ${saved.status}`);
+    if (readConfig().reviewPolicy !== "trusted-auto") {
+      throw new Error(JSON.stringify(readConfig().reviewPolicy));
+    }
+    const cleared = await putSettings({ reviewPolicy: null });
+    if (cleared.status !== 200) throw new Error(`status ${cleared.status}`);
+    if (readConfig().reviewPolicy !== undefined) {
+      throw new Error("the default policy was not cleared");
+    }
+  });
+});
+
+test("PUT /api/settings turns a policy that is exactly a template into its name", async () => {
+  await withTempEnv(async () => {
+    const response = await putSettings({
+      reviewPolicy: {
+        rules: [
+          { name: "draft", when: { draft: true }, action: "skip" },
+          { name: "bot author", when: { bot: true }, action: "skip" },
+        ],
+        default: "review",
+      },
+    });
+    if (response.status !== 200) throw new Error(`status ${response.status}`);
+    if (readConfig().reviewPolicy !== "everyone") {
+      throw new Error(JSON.stringify(readConfig().reviewPolicy));
+    }
+    await putSettings({
+      reviewPolicy: { rules: [], default: "skip", maxRounds: 2 },
+    });
+    const kept = readConfig().reviewPolicy as { maxRounds?: number };
+    if (typeof kept !== "object" || kept.maxRounds !== 2) {
+      throw new Error("a policy with its own settings must stay an object");
+    }
+  });
+});
+
+test("PUT /api/settings refuses a policy it cannot read, and the simple switches", async () => {
+  await withTempEnv(async () => {
+    const bad = await putSettings({ reviewPolicy: { default: "maybe" } });
+    if (bad.status !== 422) throw new Error(`status ${bad.status}`);
+    const body = await bad.json();
+    if (body.error?.code !== "invalid_policy") {
+      throw new Error(JSON.stringify(body));
+    }
+    const legacy = await putSettings({ reviewPolicy: "legacy" });
+    if (legacy.status !== 422) {
+      throw new Error("the simple switches are per repository only");
+    }
+    if (readConfig().reviewPolicy !== undefined) {
+      throw new Error("a refused policy must not be saved");
+    }
+  });
+});
+
+test("PUT /api/settings saves the remote BYOK policy and refuses an unknown one", async () => {
+  await withTempEnv(async () => {
+    const saved = await putSettings({ remoteByokPolicy: "require" });
+    if (saved.status !== 200) throw new Error(`status ${saved.status}`);
+    if (readConfig().remoteByokPolicy !== "require") {
+      throw new Error(`policy ${readConfig().remoteByokPolicy}`);
+    }
+    const bad = await putSettings({ remoteByokPolicy: "sometimes" });
+    if (bad.status !== 422) throw new Error(`status ${bad.status}`);
+    if (readConfig().remoteByokPolicy !== "require") {
+      throw new Error("a rejected policy changed the saved one");
+    }
+  });
+});
+
+test("PUT /api/settings will not move a saved key to another provider", async () => {
+  await withTempEnv(async () => {
+    await writeUserConfig({ ai: "openrouter", token: "sk-or-saved" });
+    const refused = await putSettings({ ai: "anthropic" });
+    if (refused.status !== 422) {
+      throw new Error(`status ${refused.status}: ${await refused.text()}`);
+    }
+    const after = readConfig();
+    if (after.ai !== "openrouter" || after.token !== "sk-or-saved") {
+      throw new Error(`config changed: ${after.ai}`);
+    }
+    // With the new provider's key the switch goes through, and switching
+    // off AI needs no key at all.
+    const switched = await putSettings({
+      ai: "anthropic",
+      token: "sk-ant-new",
+    });
+    if (switched.status !== 200) throw new Error(`status ${switched.status}`);
+    if (readConfig().ai !== "anthropic") throw new Error("switch not saved");
+    const off = await putSettings({ ai: "none" });
+    if (off.status !== 200) throw new Error(`status ${off.status}`);
+  });
+});

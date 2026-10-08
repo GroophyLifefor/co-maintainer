@@ -355,6 +355,13 @@ textarea {
   font: inherit;
   font-size: 14px;
 }
+input[type="checkbox"],
+input[type="radio"] {
+  width: auto;
+  padding: 0;
+  margin: 0 6px 0 0;
+  vertical-align: middle;
+}
 input:focus,
 select:focus,
 textarea:focus {
@@ -702,6 +709,10 @@ tbody tr {
   font-size: 12px;
   margin-top: 3px;
 }
+.cost-unknown {
+  border-bottom: 1px dotted var(--muted);
+  cursor: help;
+}
 .trend.up {
   color: var(--green);
 }
@@ -711,4 +722,33 @@ tbody tr {
 .kfig.wrap4 {
   flex-wrap: wrap;
   gap: 28px 44px;
+}
+
+/* Review policy editor: one rule, and the tick boxes inside it, kept compact. */
+.rule {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  background: var(--card);
+}
+.ticks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 18px;
+  border: 0;
+  padding: 0;
+  margin: 8px 0;
+}
+.ticks legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.ticks label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0;
 }

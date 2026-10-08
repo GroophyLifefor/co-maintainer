@@ -16,7 +16,11 @@ import { test } from "node:test";
 
 async function withTempDb(fn: () => Promise<void> | void): Promise<void> {
   const original = getEnv("CM_APP_DB");
+  const originalConfig = getEnv("CM_CONFIG_PATH");
   setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
+  // A repository with no stored policy reads the server default from the
+  // config, so the tests must not see the developer's own config.json.
+  setEnv("CM_CONFIG_PATH", `${tempDirSync()}/config.json`);
   try {
     await openAppDb();
     await fn();
@@ -24,6 +28,8 @@ async function withTempDb(fn: () => Promise<void> | void): Promise<void> {
     await closeAppDb();
     if (original === undefined) deleteEnv("CM_APP_DB");
     else setEnv("CM_APP_DB", original);
+    if (originalConfig === undefined) deleteEnv("CM_CONFIG_PATH");
+    else setEnv("CM_CONFIG_PATH", originalConfig);
   }
 }
 

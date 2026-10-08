@@ -1,4 +1,4 @@
-/** The cost and time summary line (CORE-26 / F18).
+/** The cost and time summary line.
  *
  * Two layers: the formatter is pure and tested directly, and the three
  * commands that must print it (`init`, `sync`, `review`) run as real child
@@ -81,10 +81,51 @@ test("run summary: durations read as seconds, then minutes", () => {
 
 test("run summary: metrics with an unknown cost become a null dollar value", () => {
   const summary = summaryFromMetrics(
-    { calls: 2, tokensIn: 10, tokensOut: 20, cost: 0, costKnown: false },
+    {
+      calls: 2,
+      tokensIn: 10,
+      tokensOut: 20,
+      cost: 0,
+      knownCalls: 0,
+      unknownCalls: 2,
+    },
     5000,
   );
   if (summary.costUsd !== null) throw new Error(`costUsd: ${summary.costUsd}`);
+  if (
+    summary.costNote !== "The provider did not report the cost for this review."
+  ) {
+    throw new Error(`costNote: ${summary.costNote}`);
+  }
+  const line = formatRunSummary(summary);
+  if (
+    !line.endsWith(
+      "cost unknown (The provider did not report the cost for this review.)",
+    )
+  ) {
+    throw new Error(`line: ${line}`);
+  }
+});
+
+test("run summary: a run that made no AI call costs a real zero, not an unknown", () => {
+  const summary = summaryFromMetrics(
+    {
+      calls: 0,
+      tokensIn: 0,
+      tokensOut: 0,
+      cost: 0,
+      knownCalls: 0,
+      unknownCalls: 0,
+    },
+    12_900,
+  );
+  const line = formatRunSummary(summary);
+  if (!line.endsWith("0 in, 0 out tokens · $0.0000")) {
+    throw new Error(`line: ${line}`);
+  }
+  if (summary.costNote !== undefined) {
+    throw new Error(`costNote: ${summary.costNote}`);
+  }
 });
 
 test("run summary: init prints the line on stderr and keeps stdout clean", async () => {

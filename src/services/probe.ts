@@ -1,5 +1,5 @@
 /** The reading half of `co-maintainer probe`, shared by the CLI and the
- * dashboard's Add repository preview (CORE-73).
+ * dashboard's Add repository preview.
  *
  * It only reads: no guide is written, nothing is cached here. The CLI adds
  * the estimate, the printing and `--run`; `/api/repos/preview` adds the

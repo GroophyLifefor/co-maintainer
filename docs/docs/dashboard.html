@@ -47,6 +47,8 @@
           <li><a href="review.html">Review</a></li>
           <li><a href="local-review.html">Local review</a></li>
           <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="ci.html">CI</a></li>
+          <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           </ul>
         </div>
@@ -69,6 +71,7 @@
           <ul class="nav-list">
           <li><a href="commands.html">Commands</a></li>
           <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="providers.html">AI providers</a></li>
           <li><a href="authentication.html">Authentication</a></li>
           <li><a href="caching.html">Caching</a></li>
           <li><a href="cost.html">Cost</a></li>
@@ -177,6 +180,9 @@ the repo before the init job is queued, so the run matches what was approved.</p
 <p>The estimate says whether it used this repository&#39;s recorded jobs or the
 cm-dx-lab calibration, and whether it priced dollars from OpenRouter. See
 <a href="probe.html"><code>probe</code></a> for how the recommendation is derived.</p>
+<p>The same step asks who gets a review. It lists the <a href="review-policy.html">review policy</a>
+templates with a sentence each. The server default is selected and you decide.
+Leaving it on the server default keeps the repository following it.</p>
 <h2 id="sign-in">Sign in</h2>
 <p>Open <code>http://&lt;host&gt;:&lt;port&gt;/</code>.</p>
 <ul>
@@ -209,7 +215,7 @@ You can skip it and configure the same items under <strong>Settings</strong> at 
 </thead>
 <tbody><tr>
 <td><code>/</code></td>
-<td>Repository list, <strong>Finish setup</strong> checklist until complete, <strong>Add repository</strong>, auto-review toggles</td>
+<td>Repository list, <strong>Finish setup</strong> checklist until complete, <strong>Add repository</strong>, auto-review toggles (they only apply to repositories on <strong>Simple switches</strong>)</td>
 </tr>
 <tr>
 <td><code>/setup</code></td>
@@ -241,11 +247,11 @@ You can skip it and configure the same items under <strong>Settings</strong> at 
 </tr>
 <tr>
 <td><code>/repos/:owner/:repo/settings</code></td>
-<td>Auto-review, skip rules, scope, remove repo</td>
+<td><strong>Who gets a review</strong> (the <a href="review-policy.html">review policy</a>), review scope, codegraph, analysis limits, schedule, remove repo</td>
 </tr>
 <tr>
 <td><code>/activity</code></td>
-<td>Live and recent jobs (refreshes about every 5 seconds)</td>
+<td>Live and recent jobs (refreshes about every 5 seconds) and <strong>Pull requests we skipped</strong>, with the rule that skipped each and <strong>Review now</strong> for one that is waiting</td>
 </tr>
 <tr>
 <td><code>/activity/:id</code></td>
@@ -257,7 +263,7 @@ You can skip it and configure the same items under <strong>Settings</strong> at 
 </tr>
 <tr>
 <td><code>/settings</code></td>
-<td>Global models, GitHub, App (<strong>Create GitHub App</strong>), webhook URL, remote limits and tokens</td>
+<td>Global models, GitHub, App (<strong>Create GitHub App</strong>), webhook URL, review policy default, remote limits, tokens and key policy</td>
 </tr>
 </tbody></table>
 <p>Per-repo sidebar: <strong>Overview</strong>, <strong>Pull requests</strong>, <strong>Remote</strong>, <strong>Knowledge</strong>, <strong>Settings</strong>.</p>
@@ -273,7 +279,7 @@ You can skip it and configure the same items under <strong>Settings</strong> at 
 </thead>
 <tbody><tr>
 <td>Models and API key</td>
-<td>Provider, token, high model (reviews and synthesis), low model (history extraction)</td>
+<td>Provider (OpenRouter, OpenAI or Anthropic, see <a href="providers.html">AI providers</a>), token, high model (reviews and synthesis), low model (history extraction). No model is pre-filled</td>
 </tr>
 <tr>
 <td>GitHub</td>
@@ -281,7 +287,7 @@ You can skip it and configure the same items under <strong>Settings</strong> at 
 </tr>
 <tr>
 <td>Defaults</td>
-<td>Auth and include/limit defaults for new work</td>
+<td>Auth and include/limit defaults for new work, and the <a href="review-policy.html">review policy</a> template new repositories start with</td>
 </tr>
 <tr>
 <td>Server</td>
@@ -289,7 +295,7 @@ You can skip it and configure the same items under <strong>Settings</strong> at 
 </tr>
 <tr>
 <td>Remote review</td>
-<td><code>cmr_…</code> tokens (secret shown once, with copy), per-token concurrency, sync timeout</td>
+<td><code>cmr_…</code> tokens (secret shown once, with copy), per-token concurrency, sync timeout, and the <strong>Client key policy (BYOK)</strong>, see <a href="remote-review.html#your-own-ai-key">your own key</a></td>
 </tr>
 <tr>
 <td>Access</td>
@@ -306,6 +312,16 @@ You can skip it and configure the same items under <strong>Settings</strong> at 
 </tbody></table>
 <p>Saving PAT, App key, or OAuth values is validated against GitHub first. Bad
 scopes return <strong>422</strong> and nothing is stored.</p>
+<h2 id="who-gets-a-review">Who gets a review</h2>
+<p>Each repository has a <strong>Who gets a review</strong> card under its <strong>Settings</strong>. It is
+where the <a href="review-policy.html">review policy</a> lives. The summary under <strong>In short</strong>
+says in plain sentences what the current choice does, and it updates as you edit
+the rules. <strong>Save</strong> stays off while the policy is not valid and the message says
+what to fix. A repository on <strong>Simple switches</strong> shows the three switches it had
+before. One on a policy shows <strong>How reviews run</strong>, which holds only the review
+scope and codegraph.</p>
+<p>On <strong>Activity</strong>, <strong>Pull requests we skipped</strong> names the rule that decided, and a
+pull request that is waiting for a request has a <strong>Review now</strong> button.</p>
 <h2 id="ui-behavior">UI behavior</h2>
 <ul>
 <li>Failed API calls show a toast and <strong>Retry</strong>.</li>
@@ -337,7 +353,7 @@ has run.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#what-it-is-for">What it is for</a></li><li><a href="#before-you-open">Before you open</a></li><li><a href="#webhook-reachability">Webhook reachability</a></li><li><a href="#adding-a-repository">Adding a repository</a></li><li><a href="#sign-in">Sign in</a></li><li><a href="#get-started-setup">Get started (/setup)</a></li><li><a href="#routes">Routes</a></li><li><a href="#settings-global">Settings (global)</a></li><li><a href="#ui-behavior">UI behavior</a></li><li><a href="#linux">Linux</a></li><li><a href="#updating">Updating</a></li></ul></nav>
+      <ul><li><a href="#what-it-is-for">What it is for</a></li><li><a href="#before-you-open">Before you open</a></li><li><a href="#webhook-reachability">Webhook reachability</a></li><li><a href="#adding-a-repository">Adding a repository</a></li><li><a href="#sign-in">Sign in</a></li><li><a href="#get-started-setup">Get started (/setup)</a></li><li><a href="#routes">Routes</a></li><li><a href="#settings-global">Settings (global)</a></li><li><a href="#who-gets-a-review">Who gets a review</a></li><li><a href="#ui-behavior">UI behavior</a></li><li><a href="#linux">Linux</a></li><li><a href="#updating">Updating</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

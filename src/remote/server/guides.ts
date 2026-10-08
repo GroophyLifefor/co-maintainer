@@ -1,5 +1,5 @@
 /** `GET /api/remote/guides?repo=owner/repo` — read a repository's guides with a
- * remote token (CORE-44).
+ * remote token.
  *
  * This is what `view --remote` calls. It is a read-only addition: no existing
  * route changes, and it uses the same bearer model the review endpoints use
@@ -12,7 +12,7 @@ import { loadGuides } from "../../review/guides.ts";
 import { readDir, readTextFile, stat } from "../../util/runtime.ts";
 import { validateRemotePath } from "../validate.ts";
 
-/** The four generated guides, in the order a reader wants them (CORE-23). */
+/** The four generated guides, in the order a reader wants them. */
 const GUIDES: { kind: string; file: string }[] = [
   { kind: "skill", file: "SKILL.md" },
   { kind: "codebase", file: "CODEBASE.md" },

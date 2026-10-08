@@ -14,10 +14,16 @@ type ReviewFlags = {
   branch?: string;
   repoOverride?: string;
   remakeBeforeReview: boolean;
-  /** `--remote-host` override for this run only (CORE-25). */
+  /** `--remote-host` override for this run only. */
   remoteHost?: string;
-  /** `--remote-token` override for this run only (CORE-25). */
+  /** `--remote-token` override for this run only. */
   remoteToken?: string;
+  /** `--remote-byok` (`true`) / `--no-remote-byok` (`false`) for this run
+   * only. Unset means "use the configured default". */
+  remoteByok?: boolean;
+  /** `--output=github`: workflow commands and a job summary instead of prose.
+   */
+  output?: "github";
 };
 
 export type ReviewCliArgs =
@@ -37,14 +43,18 @@ function reviewFlags(rest: string[]): {
   remakeBeforeReview: boolean;
   remoteHost?: string;
   remoteToken?: string;
+  remoteByok?: boolean;
+  output?: "github";
 } {
   const text = (name: string) =>
     rest.find((item) => item.startsWith(`--${name}=`))?.slice(name.length + 3);
   // `--remake-before-review` is the 0.4.13 spelling; both names mean the same
-  // thing, and only the new one is documented (CORE-21).
+  // thing, and only the new one is documented.
   const syncBeforeReview = rest.some(
     (arg) => arg === "--sync-before-review" || arg === "--remake-before-review",
   );
+  const remoteByokOn = rest.includes("--remote-byok");
+  const remoteByokOff = rest.includes("--no-remote-byok");
   for (const arg of rest) {
     if (arg === "--codegraph") {
       die("Unknown option: --codegraph");
@@ -52,6 +62,16 @@ function reviewFlags(rest: string[]): {
     if (arg === "--remote" && syncBeforeReview) {
       die("--sync-before-review cannot be used with --remote");
     }
+  }
+  if (remoteByokOn && remoteByokOff) {
+    die("--remote-byok and --no-remote-byok cannot both be used");
+  }
+  const output = text("output");
+  if (output !== undefined && output !== "github") {
+    die("--output must be: github");
+  }
+  if (output !== undefined && rest.includes("--json")) {
+    die("--output=github cannot be used with --json");
   }
   return {
     json: rest.includes("--json"),
@@ -65,6 +85,8 @@ function reviewFlags(rest: string[]): {
     remakeBeforeReview: syncBeforeReview,
     remoteHost: text("remote-host"),
     remoteToken: text("remote-token"),
+    remoteByok: remoteByokOn ? true : remoteByokOff ? false : undefined,
+    output,
   };
 }
 
@@ -76,6 +98,8 @@ const LOCAL_ONLY_FLAGS = new Set([
   "--fresh",
   "--remake-before-review",
   "--sync-before-review",
+  "--remote-byok",
+  "--no-remote-byok",
 ]);
 
 /** Strip local-only flags before `parseArgs` for PR-style options. */
@@ -87,7 +111,8 @@ export function filterReviewConfigArgs(raw: string[]): string[] {
       arg.startsWith("--branch=") ||
       arg.startsWith("--repo=") ||
       arg.startsWith("--remote-host=") ||
-      arg.startsWith("--remote-token=")
+      arg.startsWith("--remote-token=") ||
+      arg.startsWith("--output=")
     ) {
       return false;
     }
@@ -95,16 +120,19 @@ export function filterReviewConfigArgs(raw: string[]): string[] {
   });
 }
 
-/** Parses `co-maintainer review` after the `review` token (plan §8.1). */
+/** Parses `co-maintainer review` after the `review` token. */
 export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
   const positional = args.filter((a) => !a.startsWith("--"));
   const flags = reviewFlags(args);
   // `--remote-host` / `--remote-token` only mean something together with
-  // `--remote`; silently dropping them is exactly the F33 surprise (CORE-25).
+  // `--remote`; silently dropping them is exactly the kind of surprise to avoid.
   if ((flags.remoteHost || flags.remoteToken) && !flags.remote) {
     die("--remote-host and --remote-token require --remote");
   }
-  // `--json` must never prompt (plan §8.7). `parseArgs` only receives the
+  if (flags.remoteByok !== undefined && !flags.remote) {
+    die("--remote-byok requires --remote");
+  }
+  // `--json` must never prompt. `parseArgs` only receives the
   // filtered args, and `--json` is stripped before it sees them, so the flag
   // has to be applied here rather than after the parse returns.
   setCliInteractive(!flags.json);
@@ -115,6 +143,9 @@ export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
   if (isPr) {
     if (flags.remoteHost || flags.remoteToken) {
       die("--remote-host is only for remote review without a PR number");
+    }
+    if (flags.remoteByok !== undefined) {
+      die("--remote-byok is only for remote review without a PR number");
     }
     const options = await parseArgs([
       "review",

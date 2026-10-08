@@ -1,13 +1,13 @@
-/** `co-maintainer view`: print the guides co-maintainer already generated
- * (CORE-23, F25). Read-only — the counterpart to `config` for the generated
+/** `co-maintainer view`: print the guides co-maintainer already generated.
+ * Read-only — the counterpart to `config` for the generated
  * knowledge rather than the settings.
  *
- * Two sources, one presentation (CORE-44): the guide directory on this machine,
+ * Two sources, one presentation: the guide directory on this machine,
  * or the servers a remote review token can read (`--remote`). Local and remote
  * differ only in where the guide list comes from, so `--list`, a single guide
  * and the every-guide headers are all rendered by the same code.
  *
- * Naming: the plan calls the guide kinds `skill`, `codebase`,
+ * Naming: the guide kinds are `skill`, `codebase`,
  * `review-guide`, `detailed-guide`; `--list` and the headers show the real
  * file names, and a kind name is accepted too so a user never has to type
  * `PR_REVIEW_GUIDE.md` unless they want to. */
@@ -16,7 +16,13 @@ import { detectRemoteRepo } from "../../local/git_ops.ts";
 import { CliError, EXIT_USAGE } from "../error.ts";
 import { renderCommandHelp, unknownOptionMessage } from "./registry.ts";
 import { readDir, readTextFile, stat } from "../../util/runtime.ts";
-import { baseUrl, die, readApiError, remoteFetch } from "../../remote/http.ts";
+import {
+  baseUrl,
+  die,
+  readApiError,
+  remoteFetch,
+  remoteFromEnv,
+} from "../../remote/http.ts";
 
 type Kind = "skill" | "codebase" | "review-guide" | "detailed-guide";
 
@@ -40,7 +46,7 @@ type ViewGuide = {
   content: string;
 };
 
-/** Resolves a user-supplied name to a guide. Accepts the plan's kind names
+/** Resolves a user-supplied name to a guide. Accepts the kind names
  * (`review-guide`), the file name (`PR_REVIEW_GUIDE.md`), and the bare stem
  * (`PR_REVIEW_GUIDE`), case-insensitively. */
 function resolveGuide(name: string): { kind: Kind; file: string } {
@@ -118,13 +124,14 @@ type RemoteGuidesResponse = {
   guides?: ViewGuide[];
 };
 
-/** The guides a remote review server holds for `repo` (CORE-44). The token is
+/** The guides a remote review server holds for `repo`. The token is
  * the same one `review --remote` uses, so a host already configured for remote
  * review needs no extra setup. */
 async function readRemoteGuides(repo: string): Promise<ViewGuide[]> {
   const config = readConfig();
-  const host = config.remoteHost;
-  const token = config.remoteToken;
+  const fromEnv = remoteFromEnv();
+  const host = fromEnv.host ?? config.remoteHost;
+  const token = fromEnv.token ?? config.remoteToken;
   if (!host || !token) {
     die(
       "remote_not_configured",

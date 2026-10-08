@@ -3,12 +3,12 @@ import {
   empty,
   html,
   layout,
-  money,
   repoNav,
   skSlot,
   text,
   when,
 } from "./layout.ts";
+import { formatCostTotal } from "./cost.ts";
 import { COMPARE_FILE_CAP, MAX_COMMITS_COUNTED } from "../../services/drift.ts";
 import type { repoOverview } from "../../services/dashboard.ts";
 import { webhookReachabilityProblem } from "../../util/webhook_reachability.ts";
@@ -108,7 +108,7 @@ export function renderRepo(
         <div class="kfig">
           <div><div class="k">Pull requests reviewed</div><div class="big">${stats.pullRequests}</div></div>
           <div><div class="k">Findings</div><div class="big">${stats.findings}</div></div>
-          <div><div class="k">Cost</div><div class="big">${money(stats.cost)}</div></div>
+          <div><div class="k">Cost</div><div class="big">${formatCostTotal(stats)}</div></div>
         </div>
       </div>
     </div>

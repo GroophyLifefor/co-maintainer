@@ -203,6 +203,21 @@ export function validateSubmitRequest(body: unknown): string | null {
     return bad("fresh", "must be a boolean");
   }
 
+  if (body.byok !== undefined) {
+    if (!isRecord(body.byok)) {
+      return bad("byok", "must be an object");
+    }
+    if (typeof body.byok.key !== "string" || !body.byok.key) {
+      return bad("byok.key", "must be a non-empty string");
+    }
+    if (body.byok.key.length > 500) {
+      return bad("byok.key", "too long");
+    }
+    if (/[\0\r\n]/.test(body.byok.key)) {
+      return bad("byok.key", "invalid characters");
+    }
+  }
+
   const revisionErr = validateRevisionPayload(body.revision);
   if (revisionErr) return revisionErr;
 
@@ -222,7 +237,7 @@ export function validateSubmitRequest(body: unknown): string | null {
         if (typeof tool.name !== "string" || !tool.name) {
           return bad(`capabilities.tools[${i}].name`, "required");
         }
-        // Unknown tools are ignored at runtime; no error here (plan §14.5).
+        // Unknown tools are ignored at runtime; no error here.
         if (
           REMOTE_KNOWN_TOOL_NAMES.has(tool.name) &&
           tool.version !== undefined &&

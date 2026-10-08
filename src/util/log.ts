@@ -7,7 +7,7 @@ type Sink = (phase: string, message: string) => void;
 const sinkStorage = new AsyncLocalStorage<Sink>();
 let cliLogsToStderr = false;
 
-/** Plan §8.4 — progress and logs on stderr during CLI review. */
+/** Progress and logs go to stderr during a CLI review. */
 export function withCliLogsToStderr<T>(fn: () => Promise<T>): Promise<T> {
   const prev = cliLogsToStderr;
   cliLogsToStderr = true;
@@ -42,7 +42,7 @@ export function startHeartbeat(phase: string | (() => string)): () => void {
       `still running ${label()} · ${Math.round((Date.now() - started) / 1000)}s elapsed`,
     );
   }, 15_000);
-  // Never keep the process alive on its own (CORE-11). A long operation holds
+  // Never keep the process alive on its own. A long operation holds
   // the loop open through its own pending async work (a fetch, a child), so the
   // heartbeat still fires; but once that work is gone the timer must not be the
   // reason the process cannot drain and apply its exit code. Every call site

@@ -26,7 +26,7 @@ flowchart TD
 
 | If this sounds like you | Mode | Read next |
 | ----------------------- | ---- | --------- |
-| You are in a clone and want feedback on your branch or working tree before you open a PR | [Local review](local-review.md) | OpenRouter on your machine, guides on disk |
+| You are in a clone and want feedback on your branch or working tree before you open a PR | [Local review](local-review.md) | Your AI provider on your machine, guides on disk |
 | Same as local review, but the repo is already inited on [`serve`](serve.md) and you skip per-laptop init/sync | [Remote review](remote-review.md) | Shared context on the server, diff from your clone |
 | You have a PR number and do not need to check out that branch locally | [PR review](local-pr-review.md) | `gh` only, guides on disk, AI on your machine |
 
@@ -65,12 +65,14 @@ flowchart TB
 | Typical moment | Pre-push in your clone, you own local guides | Open PR by number, you own local guides | Pre-push using the team's shared server context |
 | Who runs init/sync | You on the laptop | You on the laptop | Ops on the server (you usually do not) |
 | Guides at review time | Laptop cache | Laptop cache | Server dashboard repo |
-| Extra setup | OpenRouter | `gh auth login` | `serve`, token, `set --remote-host` |
+| Extra setup | [AI provider](providers.md) | `gh auth login` and an [AI provider](providers.md) | `serve`, token, `set --remote-host` |
 | Deep dive | [local-review](local-review.md) | [local-pr-review](local-pr-review.md) | [remote-review](remote-review.md) |
 
 Team-wide **automatic** PR reviews on webhooks are not a fourth `review` mode.
-They go through [`serve`](serve.md) and the GitHub App. Use PR review when **you**
-run the CLI against one PR.
+They go through [`serve`](serve.md) and the GitHub App, and a
+[review policy](review-policy.md) decides which pull requests they review. Use PR
+review when **you** run the CLI against one PR. To run a remote review on every
+pull request from a workflow, use the [GitHub Action](ci.md).
 
 ## Depth: `--improve-matrix`
 
@@ -124,6 +126,26 @@ metadata and `codegraph` state. Errors with `--json` are JSON on stdout as well.
 Flag details per mode: [Local review](local-review.md), [Remote review](remote-review.md),
 [PR review](local-pr-review.md).
 
+## GitHub output
+
+`--output=github` prints the findings as GitHub workflow annotations and writes a
+table to the job summary, for a run inside GitHub Actions. It works in all three
+modes and cannot be combined with `--json`.
+
+- Each finding that is still open becomes one command on stdout, `::error` when it
+  blocks and `::warning` when it does not, with its file, line span and a short
+  title. A finding closed since the last review is not annotated.
+- When `GITHUB_STEP_SUMMARY` is set, a table of every finding, the cost and the
+  time is appended to it. An unknown cost reads `cost unknown` with the reason.
+- The exit code is the same as without the flag, so a blocking finding fails the
+  step.
+- Nothing else goes to stdout in this mode. Every finding is one escaped line, so
+  text from a pull request can never start a workflow command of its own.
+
+GitHub shows at most ten errors and ten warnings per step. When there are more,
+one notice says how many were left out, and the job summary lists all of them.
+[CI](ci.md) shows it inside a workflow.
+
 ## Human output
 
 Without `--json`, all three modes print the **same** format. Only the header
@@ -164,8 +186,8 @@ The model is asked for a JSON object, not for prose. For each finding it returns
 the severity, whether it blocks, the path and line span, the symbol, a title, the
 explanation, and an optional replacement. `co-maintainer` renders the Markdown
 from that object, so a finding's boundaries are never guessed from the model's
-wording. The JSON schema is sent as OpenRouter's `response_format` when the
-provider accepts it. A provider that rejects the combination gets one request
+wording. The JSON schema is sent as structured output in the provider's own format
+when the provider accepts it. A provider that rejects the combination gets one request
 without the schema, and the prompt also asks for a fenced JSON block.
 
 If the answer is not usable JSON, the request is retried once and then, if it
@@ -180,5 +202,5 @@ disagree.
 | Check | Why |
 | ----- | --- |
 | [`init`](init.md) or [`sync`](sync.md) on your laptop | Required for local and PR review |
-| [OpenRouter](configuration.md) for local and PR review | AI runs on your machine |
+| An [AI provider](providers.md) for local and PR review, with both models saved | AI runs on your machine, and no model is picked for you |
 | [Remote setup](remote-review.md) for `--remote` | Host, token, repo already inited on the server |

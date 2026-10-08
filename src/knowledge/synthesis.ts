@@ -173,7 +173,7 @@ function queueFor(
 
 /** `factsFromResponse` as a validator: `null` when the text parses into facts,
  * otherwise the parse error's message. Used so an unparseable response is never
- * cached (CORE-30). */
+ * cached. */
 function validateFacts(
   response: AiResponse,
   evidence: string,
@@ -246,7 +246,7 @@ function synthesisFacts(facts: Fact[], key: string): Fact[] {
   return (
     facts
       // A section that states repository policy never learns from a single pull
-      // request's narrative; only `review-bar` may (CORE-32 / F26b).
+      // request's narrative; only `review-bar` may.
       .filter(
         (item) =>
           item.sectionKey === key &&
@@ -404,7 +404,7 @@ ${files}`,
 }
 
 /** Same as {@link extractAiFacts}, but also reports what the batch skipped so
- * the caller can put it in the final `[done]` line (CORE-30). */
+ * the caller can put it in the final `[done]` line. */
 export async function enrichFactsWithReport(
   provider: AiProvider,
   repo: string,
@@ -472,7 +472,7 @@ export async function synthesizeSections(
     const relevant = synthesisFacts(facts, key);
     // A section whose only facts came from a single pull request has no
     // repository policy to synthesize, so it is left to the deterministic
-    // renderer instead of asking the model for an empty answer (CORE-32).
+    // renderer instead of asking the model for an empty answer.
     if (!relevant.length) continue;
     keys.push(key);
     requests.push({
@@ -516,7 +516,7 @@ ${JSON.stringify(relevant)}`,
     repo,
     ai,
     model,
-    ai === "hetzner" ? 1 : concurrency,
+    concurrency,
     (request, response) =>
       validateSection(response, keys[requests.indexOf(request)] ?? ""),
   );

@@ -47,6 +47,8 @@
           <li><a href="review.html">Review</a></li>
           <li><a href="local-review.html">Local review</a></li>
           <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="ci.html">CI</a></li>
+          <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           </ul>
         </div>
@@ -69,6 +71,7 @@
           <ul class="nav-list">
           <li><a href="commands.html">Commands</a></li>
           <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="providers.html">AI providers</a></li>
           <li><a href="authentication.html">Authentication</a></li>
           <li><a href="caching.html">Caching</a></li>
           <li><a href="cost.html">Cost</a></li>
@@ -216,6 +219,10 @@ starts keep it.</p>
 <tr>
 <td><code>--inject-500</code></td>
 <td>Every mutating <code>/api/*</code> call returns 500 (failure UI testing, also <code>CM_INJECT_500=1</code>)</td>
+</tr>
+<tr>
+<td><code>CM_REMOTE_BYOK_POLICY</code></td>
+<td>Whether a remote review may bring its own AI key: <code>off</code> (the default), <code>allow</code> or <code>require</code>, see <a href="remote-review.html#your-own-ai-key">your own key</a></td>
 </tr>
 <tr>
 <td><code>CM_LOGIN_HINT</code></td>

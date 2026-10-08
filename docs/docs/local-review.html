@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Local review · co-maintainer docs</title>
-  <meta name="description" content="Review staged, unstaged, and untracked files in your git clone against a base branch. AI and guides run on your machine (OpenRouter via configuration).">
+  <meta name="description" content="Review staged, unstaged, and untracked files in your git clone against a base branch. AI and guides run on your machine, with the AI provider you saved.">
   <link rel="canonical" href="https://co-maintainer.com/docs/local-review.html">
   <link rel="stylesheet" href="../assets/site.css">
   <link rel="icon" href="../assets/logo.png">
@@ -47,6 +47,8 @@
           <li><a href="review.html">Review</a></li>
           <li><a href="local-review.html" class="active">Local review</a></li>
           <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="ci.html">CI</a></li>
+          <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           </ul>
         </div>
@@ -69,6 +71,7 @@
           <ul class="nav-list">
           <li><a href="commands.html">Commands</a></li>
           <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="providers.html">AI providers</a></li>
           <li><a href="authentication.html">Authentication</a></li>
           <li><a href="caching.html">Caching</a></li>
           <li><a href="cost.html">Cost</a></li>
@@ -82,8 +85,8 @@
       <main class="doc-main">
         <article class="markdown prose"><h1>Local review</h1>
 <p>Review <strong>staged, unstaged, and untracked</strong> files in your git clone against a
-base branch. AI and guides run on <strong>your machine</strong> (OpenRouter via
-<a href="configuration.html">configuration</a>).</p>
+base branch. AI and guides run on <strong>your machine</strong>, with the
+<a href="providers.html">AI provider</a> you saved.</p>
 <p>Overview: <a href="review.html"><code>review</code></a>.</p>
 <h2 id="before-you-run">Before you run</h2>
 <table>
@@ -106,8 +109,8 @@ base branch. AI and guides run on <strong>your machine</strong> (OpenRouter via
 <td><code>SKILL.md</code> and review guides on disk</td>
 </tr>
 <tr>
-<td>OpenRouter key in <code>set</code>, <code>--token=</code>, or <code>--env=PATH</code></td>
-<td>Local review uses your provider</td>
+<td>A provider key in <code>set</code>, <code>--token=</code>, or <code>--env=PATH</code></td>
+<td>Local review uses your <a href="providers.html">provider</a></td>
 </tr>
 <tr>
 <td>Clean enough git state</td>

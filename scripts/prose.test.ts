@@ -1,4 +1,4 @@
-/** Prose guard for the repository Markdown that ships to users (CORE-83).
+/** Prose guard for the repository Markdown that ships to users.
  *
  * The docs site has its own guard inside `build_docs.ts`. The README, the
  * changelog, and each benchmark README ship to npm or GitHub and never pass
@@ -49,9 +49,7 @@ test("shipped Markdown has no em dash as punctuation", async () => {
     }
   }
   if (offenders.length > 0) {
-    throw new Error(
-      `em dash in shipped Markdown (CORE-83):\n${offenders.join("\n")}`,
-    );
+    throw new Error(`em dash in shipped Markdown:\n${offenders.join("\n")}`);
   }
 });
 
@@ -67,7 +65,7 @@ test("shipped Markdown has no semicolon in prose", async () => {
   }
   if (offenders.length > 0) {
     throw new Error(
-      `semicolon in shipped Markdown prose (CORE-83):\n${offenders.join("\n")}`,
+      `semicolon in shipped Markdown prose:\n${offenders.join("\n")}`,
     );
   }
 });

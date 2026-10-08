@@ -1,9 +1,9 @@
-/** The "Finish setup" checklist shown on the home page (CORE-75, C01/F26).
+/** The "Finish setup" checklist shown on the home page.
  *
  * Each item is derived from state that already exists, so the card reflects
  * what serve can actually do rather than a parallel bookkeeping of it. The
- * webhook item reuses CORE-71's reachability check. */
-import { readConfig, resolveAppPrivateKey } from "../config.ts";
+ * webhook item reuses the existing reachability check. */
+import { aiConfigured, readConfig, resolveAppPrivateKey } from "../config.ts";
 import { countReviews } from "../store/reviews.ts";
 import { listRemoteTokens } from "../store/remote_tokens.ts";
 import { listActiveRepos } from "../store/repos.ts";
@@ -22,7 +22,7 @@ export type SetupItem = {
 
 export function setupChecklist(webhookUrl: string): SetupItem[] {
   const config = readConfig();
-  const aiDone = Boolean(config.ai && config.ai !== "none" && config.token);
+  const aiDone = aiConfigured(config);
   const appDone = Boolean(config.githubAppId && resolveAppPrivateKey(config));
   const repoCount = listActiveRepos().length;
   const reviewCount = countReviews();

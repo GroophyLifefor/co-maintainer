@@ -1,6 +1,6 @@
-/** Structured review output (CORE-40 / F02).
+/** Structured review output.
  *
- * F02: findings were truncated mid-sentence (`... while \`u`) and split at the
+ * Findings were truncated mid-sentence (`... while \`u`) and split at the
  * wrong offsets, because the model's free-form Markdown was sliced by the
  * fallback parser. The fix is to have the model return JSON and generate the
  * Markdown ourselves, so a finding's boundaries can no longer be guessed from
@@ -95,7 +95,7 @@ function asText(value: unknown): string {
 
 /** Like {@link asText} but keeps the leading indentation. A suggestion is
  * source lines with their original indentation, so trimming the left edge
- * changes the code it proposes (CORE-40). Only the outer blank lines go. */
+ * changes the code it proposes. Only the outer blank lines go. */
 function asSource(value: unknown): string {
   return typeof value === "string"
     ? value.replace(/^\s*\n/, "").replace(/\s+$/, "")

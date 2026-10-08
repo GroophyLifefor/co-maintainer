@@ -1,4 +1,4 @@
-/** The `sync` rename tests (CORE-21).
+/** The `sync` rename tests.
  *
  * The contract has two halves that are easy to break in opposite directions:
  * everything the user reads says `sync`, but the stored values that 0.4.13 and

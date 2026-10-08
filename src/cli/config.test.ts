@@ -1,4 +1,4 @@
-/** `config` command and pre-save verification tests (CORE-22).
+/** `config` command and pre-save verification tests.
  *
  * Two layers: pure helpers (masking, key resolution, row building) run in
  * process, and the verification path runs `runSet` directly so a fake server's
@@ -32,7 +32,7 @@ test("config: a long secret keeps its last four characters, a short one is fully
   if (maskSecret("short") !== "••••") {
     throw new Error(`short mask: ${maskSecret("short")}`);
   }
-  // Twelve is the boundary the plan names: at and above it, the tail shows.
+  // Twelve is the boundary: at and above it, the tail shows.
   if (maskSecret("twelvechars!") !== "••••ars!") {
     throw new Error(`boundary mask: ${maskSecret("twelvechars!")}`);
   }

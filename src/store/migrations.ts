@@ -1,4 +1,4 @@
-/** Numbered, forward-only migrations — PLAN.md Section 5. Each entry is a
+/** Numbered, forward-only migrations. Each entry is a
  * list of individual statements (not one multi-statement blob) run in a
  * transaction; `PRAGMA user_version` tracks how many have applied. Never
  * edit an already-released migration — add a new one instead. */
@@ -254,5 +254,25 @@ export const migrations: string[][] = [
     )`,
     `CREATE UNIQUE INDEX idx_remote_inputs_request
      ON remote_review_inputs(token_id, request_id)`,
+  ],
+  // 9 — a missing cost is unknown, not zero. Older rows are filled in place
+  [
+    `ALTER TABLE reviews ADD COLUMN cost_status TEXT`,
+    `ALTER TABLE reviews ADD COLUMN cost_note TEXT`,
+    `ALTER TABLE reviews ADD COLUMN billed_to TEXT`,
+    `UPDATE reviews SET cost_status = 'known' WHERE cost IS NOT NULL`,
+    `UPDATE reviews SET cost_status = 'unknown', cost_note = 'recorded_before_0_5_1'
+     WHERE cost IS NULL`,
+    `UPDATE reviews SET billed_to = 'server'`,
+  ],
+  // 10 — BYOK: persist only whether a review used a client key, never the key
+  [`ALTER TABLE remote_review_inputs ADD COLUMN billed_to TEXT`],
+  // 11 — a per repository review policy. Existing repositories are
+  // pinned to the policy their three old switches amount to, so they keep
+  // behaving exactly as before and the switches keep working. A new repository
+  // starts empty and takes the server default.
+  [
+    `ALTER TABLE repos ADD COLUMN review_policy_json TEXT`,
+    `UPDATE repos SET review_policy_json = '"legacy"'`,
   ],
 ];
