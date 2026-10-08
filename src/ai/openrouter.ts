@@ -1,4 +1,4 @@
-import { chatBody, parseChatResponse } from "./provider.ts";
+import { chatBody, parseChatResponse, withoutRefusedPart } from "./provider.ts";
 import type { AiProvider, AiRequest, AiResponse, Json } from "../types.ts";
 import { getEnv } from "../util/runtime.ts";
 import {
@@ -126,33 +126,27 @@ export class OpenRouterProvider implements AiProvider {
   }
 
   async complete(request: AiRequest): Promise<AiResponse> {
-    let response = await this.post(chatBody(this.model, request));
-    // A provider may refuse `response_format` next to `tools`. The schema is
-    // only a hint — the prompt also asks for a fenced JSON block — so one
-    // retry without it is better than failing the review.
-    if (response.status === 400 && request.responseFormat) {
-      const detail = await response.text();
-      if (/response_format|json_schema|structured/i.test(detail)) {
-        const { responseFormat: _dropped, ...withoutSchema } = request;
-        response = await this.post(chatBody(this.model, withoutSchema));
-        if (response.ok) {
-          return parseChatResponse(
-            (await response.json()) as Json,
-            this.host.provider,
-            this.model,
-          );
-        }
-        throw this.fail(response.status, await response.text());
+    let current = request;
+    for (;;) {
+      const response = await this.post(chatBody(this.model, current));
+      if (response.ok) {
+        return parseChatResponse(
+          (await response.json()) as Json,
+          this.host.provider,
+          this.model,
+        );
       }
-      throw this.fail(response.status, detail);
+      const detail = await response.text();
+      const lighter =
+        response.status === 400
+          ? withoutRefusedPart(
+              current,
+              detail,
+              /response_format|json_schema|structured/i,
+            )
+          : undefined;
+      if (!lighter) throw this.fail(response.status, detail);
+      current = lighter;
     }
-    if (!response.ok) {
-      throw this.fail(response.status, await response.text());
-    }
-    return parseChatResponse(
-      (await response.json()) as Json,
-      this.host.provider,
-      this.model,
-    );
   }
 }

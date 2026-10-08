@@ -1,4 +1,6 @@
-import { synthesizeSections } from "./synthesis.ts";
+import { extractAiFacts, synthesizeSections } from "./synthesis.ts";
+import { testOptions } from "../testing/helpers.ts";
+import type { Source } from "./types.ts";
 import { cacheDeletePrefix } from "../store/cache_db.ts";
 import { testFact } from "../testing/helpers.ts";
 import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
@@ -82,5 +84,62 @@ test("invalid synthesis output is omitted instead of copied", async () => {
     }
   } finally {
     await cacheDeletePrefix("ai-jobs", `${repo}:`);
+  }
+});
+
+test("fact extraction asks for no thinking", async () => {
+  const requests: AiRequest[] = [];
+  const provider: AiProvider = {
+    async complete(request) {
+      requests.push(request);
+      return {
+        text: "[]",
+        tokensIn: 1,
+        tokensOut: 1,
+        model: "fixture",
+        provider: "openrouter",
+      };
+    },
+  };
+  const repo = `fixture-extract-${crypto.randomUUID()}`;
+  const source: Source = {
+    repo: { full_name: repo, default_branch: "main" },
+    tree: ["README.md"],
+    treeSha: {},
+    files: { "README.md": "# Fixture" },
+    pullRequests: [
+      {
+        number: 1,
+        title: "t",
+        body: "",
+        state: "closed",
+        merged: true,
+        updatedAt: "2026-01-01T00:00:00Z",
+        headSha: "sha",
+        labels: [],
+        additions: 1,
+        deletions: 1,
+        comments: [],
+        reviews: [],
+        changedFiles: ["README.md"],
+        diff: "",
+      },
+    ],
+    commits: [],
+  };
+  try {
+    await extractAiFacts(
+      provider,
+      repo,
+      source,
+      testOptions({ includePullRequests: true, includeCodebase: true }),
+    );
+  } finally {
+    await cacheDeletePrefix("ai-jobs", `${repo}:`);
+  }
+  const extracts = requests.filter((item) => item.job === "extract_unit");
+  if (extracts.length !== 2) throw new Error(`${extracts.length} extracts`);
+  if (extracts.some((item) => item.reasoningEffort !== "none")) {
+    throw new Error("an extraction asked for thinking");
   }
 });

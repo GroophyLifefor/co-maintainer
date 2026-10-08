@@ -204,6 +204,9 @@ function extractRequest(prompt: string, maxTokens: number): AiRequest {
     job: "extract_unit",
     prompt,
     maxTokens,
+    // Pulling facts out of a text needs no thinking, and on a thinking model
+    // the thinking used the whole limit and left the answer empty.
+    reasoningEffort: "none",
     system:
       "Extract only repository-specific facts. Never invent files, commands, or process.",
   };

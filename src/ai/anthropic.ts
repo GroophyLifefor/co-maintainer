@@ -40,6 +40,7 @@ import type {
   Json,
 } from "../types.ts";
 import { getEnv } from "../util/runtime.ts";
+import { outputLimitError } from "./provider.ts";
 import {
   CliError,
   EXIT_RUNTIME,
@@ -299,8 +300,12 @@ export function parseMessagesBody(json: Json, model: string): AiResponse {
     }
   }
   const usage = json.usage as Json | undefined;
+  const text = texts.join("");
+  if (json.stop_reason === "max_tokens" && !text.trim() && !toolCalls.length) {
+    throw outputLimitError("anthropic", model);
+  }
   return {
-    text: texts.join(""),
+    text,
     ...(toolCalls.length ? { toolCalls } : {}),
     // Tokens read from or written to the prompt cache are input too, and with
     // the guides cached they are most of it.

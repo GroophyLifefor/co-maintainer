@@ -57,6 +57,38 @@ export function createAiProvider(
   die(`${options.ai} support is not finished yet. Use openrouter or none.`);
 }
 
+/** A 400 that names one optional part of the request earns one retry without
+ * it: the JSON schema, which the prompt asks for anyway, or "thinking off",
+ * which a model that always thinks refuses. Undefined when nothing is left to
+ * drop, so the caller reports the error. */
+export function withoutRefusedPart(
+  request: AiRequest,
+  detail: string,
+  schemaPattern: RegExp,
+): AiRequest | undefined {
+  if (request.responseFormat && schemaPattern.test(detail)) {
+    const { responseFormat: _dropped, ...rest } = request;
+    return rest;
+  }
+  if (
+    request.reasoningEffort === "none" &&
+    /reasoning|effort|thinking/i.test(detail)
+  ) {
+    const { reasoningEffort: _dropped, ...rest } = request;
+    return rest;
+  }
+  return undefined;
+}
+
+/** The model stopped at its output limit before writing a word. Thinking counts
+ * toward that limit, so a thinking model can spend all of it there. Without
+ * this the empty answer read as a normal one and failed later as "not JSON". */
+export function outputLimitError(provider: string, model: string): Error {
+  return new Error(
+    `${provider} model ${model} reached its output limit before writing an answer. Thinking counts toward that limit.`,
+  );
+}
+
 export function parseChatResponse(
   json: Json,
   provider: AiResponse["provider"],
@@ -86,8 +118,16 @@ export function parseChatResponse(
         })
         .filter((call) => call.id && call.function.name)
     : undefined;
+  const text = String(message?.content ?? "");
+  if (
+    choice?.finish_reason === "length" &&
+    !text.trim() &&
+    !toolCalls?.length
+  ) {
+    throw outputLimitError(provider, model);
+  }
   return {
-    text: String(message?.content ?? ""),
+    text,
     ...(toolCalls?.length ? { toolCalls } : {}),
     tokensIn: Number(usage?.prompt_tokens ?? 0),
     tokensOut: Number(usage?.completion_tokens ?? 0),

@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-10-09
+
+### Fixed
+
+- **`init` and `sync` learned nothing from pull requests and files on a thinking model.** Pulling facts out of a pull request had a small output limit, and a model that thinks by default, such as DeepSeek V4.1 Flash, spent all of it thinking. Every unit was skipped with `AI fact output is not JSON` and the guide was written without them. Fact extraction now asks for no thinking. A model that must always think gets the same request once more without that setting.
+- **An answer cut off before its first word read as an empty answer.** When a model reached its output limit before writing anything, OpenRouter, OpenCode, OpenAI and Anthropic answers were taken as empty text and failed later with a misleading message. They now fail with `reached its output limit before writing an answer`, which says that thinking counts toward that limit.
+
 ## [0.5.1] - 2026-10-07
 
 ### Added

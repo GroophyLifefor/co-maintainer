@@ -35,6 +35,7 @@ import type {
   Json,
 } from "../types.ts";
 import { getEnv } from "../util/runtime.ts";
+import { outputLimitError, withoutRefusedPart } from "./provider.ts";
 import {
   CliError,
   EXIT_RUNTIME,
@@ -237,8 +238,12 @@ function parseResponsesBody(json: Json, model: string): AiResponse {
     }
   }
   const usage = json.usage as Json | undefined;
+  const text = texts.join("");
+  if (json.status === "incomplete" && !text.trim() && !toolCalls.length) {
+    throw outputLimitError("openai", model);
+  }
   return {
-    text: texts.join(""),
+    text,
     ...(toolCalls.length ? { toolCalls } : {}),
     tokensIn: Number(usage?.input_tokens ?? 0),
     tokensOut: Number(usage?.output_tokens ?? 0),
@@ -278,28 +283,23 @@ export class OpenAiProvider implements AiProvider {
   }
 
   async complete(request: AiRequest): Promise<AiResponse> {
-    let response = await this.post(responsesBody(this.model, request));
-    // A model may reject `text.format` next to tools. The schema is only a
-    // hint (the prompt also asks for a fenced JSON block), so one retry
-    // without it beats failing the review outright.
-    if (response.status === 400 && request.responseFormat) {
-      const detail = await response.text();
-      if (/text\.format|json_schema|structured/i.test(detail)) {
-        const { responseFormat: _dropped, ...withoutSchema } = request;
-        response = await this.post(responsesBody(this.model, withoutSchema));
-        if (response.ok) {
-          return parseResponsesBody(
-            (await response.json()) as Json,
-            this.model,
-          );
-        }
-        throw openAiError(this.model, response.status, await response.text());
+    let current = request;
+    for (;;) {
+      const response = await this.post(responsesBody(this.model, current));
+      if (response.ok) {
+        return parseResponsesBody((await response.json()) as Json, this.model);
       }
-      throw openAiError(this.model, response.status, detail);
+      const detail = await response.text();
+      const lighter =
+        response.status === 400
+          ? withoutRefusedPart(
+              current,
+              detail,
+              /text\.format|json_schema|structured/i,
+            )
+          : undefined;
+      if (!lighter) throw openAiError(this.model, response.status, detail);
+      current = lighter;
     }
-    if (!response.ok) {
-      throw openAiError(this.model, response.status, await response.text());
-    }
-    return parseResponsesBody((await response.json()) as Json, this.model);
   }
 }

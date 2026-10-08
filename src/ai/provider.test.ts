@@ -5,7 +5,7 @@ import {
 } from "./provider.ts";
 import { OpenRouterProvider } from "./openrouter.ts";
 import { OpenAiProvider } from "./openai.ts";
-import { AnthropicProvider } from "./anthropic.ts";
+import { AnthropicProvider, parseMessagesBody } from "./anthropic.ts";
 import type { AiRequest, Options } from "../types.ts";
 import { test } from "node:test";
 
@@ -96,4 +96,95 @@ test("openai is created with the given key and model", () => {
   if (!(provider instanceof OpenAiProvider)) {
     throw new Error("expected an OpenAiProvider");
   }
+});
+
+test("a model that must think gets the request again without thinking off", async () => {
+  const originalFetch = globalThis.fetch;
+  const bodies: Record<string, unknown>[] = [];
+  try {
+    globalThis.fetch = async (_url, init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      if (bodies.length === 1) {
+        return new Response(
+          JSON.stringify({
+            error: {
+              message:
+                "Reasoning is mandatory for this endpoint and cannot be disabled.",
+            },
+          }),
+          { status: 400 },
+        );
+      }
+      return response("[]");
+    };
+    const provider = new OpenRouterProvider("test-key", "test-model");
+    const result = await provider.complete({
+      ...request,
+      reasoningEffort: "none",
+    });
+    if (result.text !== "[]") throw new Error(result.text);
+    if (bodies.length !== 2) throw new Error(`${bodies.length} calls`);
+    const [first, second] = bodies;
+    if ((first!.reasoning as { effort?: string })?.effort !== "none") {
+      throw new Error(`first ${JSON.stringify(first!.reasoning)}`);
+    }
+    if ("reasoning" in second!) throw new Error("the retry still asked");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("an answer cut off before its first word says so", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          choices: [{ finish_reason: "length", message: { content: "" } }],
+          usage: { prompt_tokens: 2, completion_tokens: 1200 },
+        }),
+        { status: 200 },
+      );
+    let message = "";
+    try {
+      await new OpenRouterProvider("test-key", "test-model").complete(request);
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    if (!message.includes("reached its output limit")) throw new Error(message);
+
+    globalThis.fetch = async () =>
+      new Response(
+        JSON.stringify({
+          status: "incomplete",
+          incomplete_details: { reason: "max_output_tokens" },
+          output: [{ type: "reasoning", summary: [] }],
+          usage: { input_tokens: 2, output_tokens: 1200 },
+        }),
+        { status: 200 },
+      );
+    message = "";
+    try {
+      await new OpenAiProvider("test-key", "test-model").complete(request);
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    if (!message.includes("reached its output limit")) throw new Error(message);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  let message = "";
+  try {
+    parseMessagesBody(
+      {
+        stop_reason: "max_tokens",
+        content: [{ type: "thinking", thinking: "..." }],
+        usage: { input_tokens: 2, output_tokens: 1200 },
+      },
+      "claude-test",
+    );
+  } catch (error) {
+    message = (error as Error).message;
+  }
+  if (!message.includes("reached its output limit")) throw new Error(message);
 });
