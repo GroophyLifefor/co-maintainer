@@ -19,7 +19,7 @@ import {
   tempDirSync,
   writeTextFile,
 } from "../testing/runtime.ts";
-import { readFile, readTextFile, stat } from "../util/runtime.ts";
+import { chmod, readFile, readTextFile, stat } from "../util/runtime.ts";
 
 const ENV = ["CM_APP_DB", "CM_CONFIG_PATH", "LOCALAPPDATA", "XDG_CACHE_HOME"];
 
@@ -146,6 +146,31 @@ test("a backup holds consistent copies and a manifest, and restoring puts them b
     throw new Error("the version marker still names the upgraded version");
   }
 });
+
+test(
+  "the copy of config.json and the restored one stay private",
+  {
+    skip: process.platform === "win32" ? "Windows has no POSIX modes" : false,
+  },
+  async () => {
+    const p = paths();
+    makeDb(p.appDb, "app");
+    await writeTextFile(p.config, '{"token":"sk-or-secret"}');
+    await chmod(p.config, 0o600);
+    await takeBackup(p, { from: "0.5.0", to: "0.5.1" });
+    const folder = (await stat(`${p.root}/previous`)).mode & 0o777;
+    if (folder !== 0o700)
+      throw new Error(`backup folder mode ${folder.toString(8)}`);
+    const copy = (await stat(`${p.root}/previous/config.json`)).mode & 0o777;
+    if (copy !== 0o600) throw new Error(`backup mode ${copy.toString(8)}`);
+
+    await writeTextFile(p.config, "{}");
+    await restoreBackup(p);
+    const restored = (await stat(p.config)).mode & 0o777;
+    if (restored !== 0o600)
+      throw new Error(`restored mode ${restored.toString(8)}`);
+  },
+);
 
 test("a directory without a manifest is not a backup", async () => {
   const p = paths();

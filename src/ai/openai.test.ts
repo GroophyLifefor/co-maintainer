@@ -201,3 +201,25 @@ test("verifyOpenAi rejects a bad key", async () => {
     if (result.status !== "rejected") throw new Error(JSON.stringify(result));
   });
 });
+
+test("a 400 that only mentions the model is not an unknown model", () => {
+  for (const message of [
+    "This model's maximum context length is 128000 tokens.",
+    "'reasoning.effort' is not supported with this model.",
+  ]) {
+    const error = openAiError(
+      "gpt-test",
+      400,
+      JSON.stringify({ error: { message, code: "invalid_request_error" } }),
+    );
+    if (error.code === "openai_unknown_model") throw new Error(message);
+  }
+  const unknown = openAiError(
+    "gpt-test",
+    404,
+    JSON.stringify({
+      error: { message: "The model does not exist", code: "model_not_found" },
+    }),
+  );
+  if (unknown.code !== "openai_unknown_model") throw new Error(unknown.code);
+});

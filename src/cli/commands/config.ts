@@ -58,6 +58,7 @@ export const ENV_BY_FIELD: Record<string, string[]> = {
   remoteHost: ["CM_REMOTE_HOST"],
   remoteToken: ["CM_REMOTE_TOKEN"],
   reviewBlocking: ["CO_MAINTAINER_REVIEW_BLOCKING"],
+  remoteByokPolicy: ["CM_REMOTE_BYOK_POLICY"],
 };
 
 /** Renders one field for people. A secret is masked; the password hash, which
@@ -173,6 +174,7 @@ export const KNOWN_FIELDS = [
   "remoteToolOutputMaxChars",
   "remoteByok",
   "remoteByokDefault",
+  "remoteByokPolicy",
   "reviewPolicy",
 ] as const satisfies readonly (keyof UserConfig)[];
 

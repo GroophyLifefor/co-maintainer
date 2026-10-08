@@ -332,3 +332,42 @@ test("PUT /api/settings refuses a policy it cannot read, and the simple switches
     }
   });
 });
+
+test("PUT /api/settings saves the remote BYOK policy and refuses an unknown one", async () => {
+  await withTempEnv(async () => {
+    const saved = await putSettings({ remoteByokPolicy: "require" });
+    if (saved.status !== 200) throw new Error(`status ${saved.status}`);
+    if (readConfig().remoteByokPolicy !== "require") {
+      throw new Error(`policy ${readConfig().remoteByokPolicy}`);
+    }
+    const bad = await putSettings({ remoteByokPolicy: "sometimes" });
+    if (bad.status !== 422) throw new Error(`status ${bad.status}`);
+    if (readConfig().remoteByokPolicy !== "require") {
+      throw new Error("a rejected policy changed the saved one");
+    }
+  });
+});
+
+test("PUT /api/settings will not move a saved key to another provider", async () => {
+  await withTempEnv(async () => {
+    await writeUserConfig({ ai: "openrouter", token: "sk-or-saved" });
+    const refused = await putSettings({ ai: "anthropic" });
+    if (refused.status !== 422) {
+      throw new Error(`status ${refused.status}: ${await refused.text()}`);
+    }
+    const after = readConfig();
+    if (after.ai !== "openrouter" || after.token !== "sk-or-saved") {
+      throw new Error(`config changed: ${after.ai}`);
+    }
+    // With the new provider's key the switch goes through, and switching
+    // off AI needs no key at all.
+    const switched = await putSettings({
+      ai: "anthropic",
+      token: "sk-ant-new",
+    });
+    if (switched.status !== 200) throw new Error(`status ${switched.status}`);
+    if (readConfig().ai !== "anthropic") throw new Error("switch not saved");
+    const off = await putSettings({ ai: "none" });
+    if (off.status !== 200) throw new Error(`status ${off.status}`);
+  });
+});

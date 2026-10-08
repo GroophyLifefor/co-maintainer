@@ -151,6 +151,35 @@ function pullRequestFacts(
   };
 }
 
+/** A comment request is decided from the issue payload, which says nothing
+ * about the fork, the target branch or the size. The review job asks again
+ * with the pull request it fetched, so a comment can never get past the size
+ * cap or a rule that a label request would hit. Returns why the review must
+ * not run, or undefined. */
+export function requestedReviewBlocked(
+  repo: string,
+  pr: Record<string, unknown>,
+): string | undefined {
+  const row = getRepo(repo);
+  if (!row || row.active !== 1) return "repo-not-active";
+  const config = readConfig();
+  const maxDiffLines =
+    config.repos?.[repo]?.maxPullRequestChangeLines ??
+    config.defaults?.maxPullRequestChangeLines;
+  const changedLines =
+    (asNumber(pr.additions) ?? 0) + (asNumber(pr.deletions) ?? 0);
+  if (maxDiffLines !== undefined && changedLines > maxDiffLines) {
+    return "diff-too-large";
+  }
+  const decision = evaluatePolicy(policyForRepo(row), {
+    ...pullRequestFacts(pr, repo),
+    draft: asBool(pr.draft),
+    bot: isBot(asRecord(pr.user)),
+    changedLines,
+  });
+  return decision.action === "skip" ? decision.reason : undefined;
+}
+
 export function maybeEnqueueReview(input: {
   repo: string;
   prNumber: number;

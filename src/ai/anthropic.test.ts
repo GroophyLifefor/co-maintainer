@@ -1,5 +1,9 @@
 import { test } from "node:test";
-import { AnthropicProvider, anthropicError } from "./anthropic.ts";
+import {
+  AnthropicProvider,
+  anthropicError,
+  parseMessagesBody,
+} from "./anthropic.ts";
 import { verifyAnthropic } from "./verify.ts";
 import { completeWithMermaidTools } from "./mermaid_loop.ts";
 import { FINDINGS_JSON_SCHEMA } from "../pr/findings_json.ts";
@@ -285,4 +289,35 @@ test("verifyAnthropic rejects a bad key", async () => {
     const result = await verifyAnthropic("sk-bad", undefined);
     if (result.status !== "rejected") throw new Error(JSON.stringify(result));
   });
+});
+
+test("cached input counts as input", () => {
+  const response = parseMessagesBody(
+    {
+      content: [{ type: "text", text: "ok" }],
+      stop_reason: "end_turn",
+      usage: {
+        input_tokens: 120,
+        cache_read_input_tokens: 40000,
+        cache_creation_input_tokens: 500,
+        output_tokens: 9,
+      },
+    },
+    "claude-test",
+  );
+  if (response.tokensIn !== 40620) throw new Error(String(response.tokensIn));
+});
+
+test("a 400 that only mentions the model is not an unknown model", () => {
+  const error = anthropicError(
+    "claude-test",
+    400,
+    JSON.stringify({
+      error: {
+        type: "invalid_request_error",
+        message: "effort is not supported on this model",
+      },
+    }),
+  );
+  if (error.code === "anthropic_unknown_model") throw new Error(error.code);
 });

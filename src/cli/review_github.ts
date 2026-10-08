@@ -153,8 +153,9 @@ export function emitGithubOutput(input: GithubSummaryInput): void {
  * printed on stderr, and the runner reads workflow commands from stderr too.
  * A line that would start one is given a prefix so it stays plain text. */
 export function neutralizeCommands(text: string): string {
+  // The runner also ends a line at a bare carriage return.
   return text
-    .split("\n")
+    .split(/\r\n|\r|\n/)
     .map((line) => (line.trimStart().startsWith("::") ? `[log] ${line}` : line))
     .join("\n");
 }

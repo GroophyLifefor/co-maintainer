@@ -265,7 +265,20 @@ export async function runSet(args: string[]): Promise<void> {
     field in patch ? patch[field] : before[field as keyof typeof before];
   const effectiveAi = effective("ai");
   const effectiveToken = effective("token");
-  const effectiveHighModel = effective("highModel");
+  // The saved key and model belong to the saved provider. A switch without a
+  // new key would hand the old provider's key to the new one.
+  const previousAi = before.ai ?? "openrouter";
+  const switching =
+    typeof patch.ai === "string" &&
+    patch.ai !== "none" &&
+    patch.ai !== previousAi;
+  if (switching && !("token" in patch) && before.token) {
+    die(
+      `The saved key is for ${previousAi}. Pass --token= with the ${String(patch.ai)} key to switch providers.`,
+    );
+  }
+  const effectiveHighModel =
+    switching && !("highModel" in patch) ? undefined : effective("highModel");
   const verifiers: Record<
     string,
     (key: string, model?: string) => Promise<VerifyResult>

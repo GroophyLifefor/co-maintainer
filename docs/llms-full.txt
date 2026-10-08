@@ -1336,9 +1336,10 @@ picked up.
 A request never overrides **Do not review**. If a rule skips the pull request, a
 request is refused and the reason is recorded.
 
-GitHub sends no fork, target branch or size with a comment, so on a **comment**
-request the rules about those three do not match. A label request, and a push,
-check everything.
+GitHub sends no fork, target branch or size with a comment, so a **comment**
+request is checked again when the review starts and the pull request has been
+fetched. If a rule about those three skips it, or it is over the size limit, the
+review does not run and no eyes reaction is added.
 
 ### What a request covers
 

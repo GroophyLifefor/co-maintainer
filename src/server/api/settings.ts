@@ -120,6 +120,31 @@ export async function handleSettingsRoute(
     text("githubOAuthClientId");
     text("githubOAuthClientSecret");
     text("githubOAuthAllowedUser");
+    const previousAi = current.ai ?? "openrouter";
+    if (
+      patch.ai &&
+      patch.ai !== "none" &&
+      patch.ai !== previousAi &&
+      !patch.token &&
+      current.token
+    ) {
+      return errorResponse(
+        422,
+        "key_for_other_provider",
+        `The saved key is for ${previousAi}. Enter the ${patch.ai} key to switch providers.`,
+      );
+    }
+    if ("remoteByokPolicy" in body) {
+      const policy = body.remoteByokPolicy;
+      if (policy !== "off" && policy !== "allow" && policy !== "require") {
+        return errorResponse(
+          422,
+          "invalid_setting",
+          "remoteByokPolicy must be off, allow or require",
+        );
+      }
+      patch.remoteByokPolicy = policy;
+    }
     if (typeof body.passwordAuthDisabled === "boolean") {
       patch.passwordAuthDisabled = body.passwordAuthDisabled;
     }

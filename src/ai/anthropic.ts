@@ -19,8 +19,8 @@
  *
  * `cache_control` is set on the system prompt, which every review sends as the
  * same guide prefix. Anthropic caches the longest stable prefix, so the
- * guides are billed at the cached rate from the second review on and the
- * `cache_read_input_tokens` count shows up in the usage log.
+ * guides are billed at the cached rate from the second review on. The cached
+ * tokens are counted in `tokensIn` with the rest of the input.
  *
  * ponytail: this talks to Messages without streaming. The original design
  * called for the SDK's `stream()` + `finalMessage()` helper for large `max_tokens` (a single
@@ -85,10 +85,7 @@ export function anthropicError(
       EXIT_USAGE,
     );
   }
-  if (
-    (status === 400 || status === 404) &&
-    (type === "not_found_error" || /model/i.test(detail))
-  ) {
+  if ((status === 400 || status === 404) && type === "not_found_error") {
     return new CliError(
       "anthropic_unknown_model",
       `Anthropic does not know the model ${model}.`,
@@ -305,7 +302,12 @@ export function parseMessagesBody(json: Json, model: string): AiResponse {
   return {
     text: texts.join(""),
     ...(toolCalls.length ? { toolCalls } : {}),
-    tokensIn: Number(usage?.input_tokens ?? 0),
+    // Tokens read from or written to the prompt cache are input too, and with
+    // the guides cached they are most of it.
+    tokensIn:
+      Number(usage?.input_tokens ?? 0) +
+      Number(usage?.cache_read_input_tokens ?? 0) +
+      Number(usage?.cache_creation_input_tokens ?? 0),
     tokensOut: Number(usage?.output_tokens ?? 0),
     // Anthropic reports only token counts, never a dollar cost, so this is
     // always unknown (`costReasonText`'s "provider_did_not_report").

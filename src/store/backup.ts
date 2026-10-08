@@ -8,6 +8,7 @@
 import { Database } from "./sqlite.ts";
 import { CliError, EXIT_USAGE } from "../cli/error.ts";
 import {
+  chmod,
   isNotFound,
   mkdir,
   readFile,
@@ -18,6 +19,13 @@ import {
   writeFile,
   writeTextFile,
 } from "../util/runtime.ts";
+
+// config.json holds the AI key, the PAT and the App key, so a copy of it is as
+// private as the original. Windows has no POSIX modes.
+async function writePrivate(path: string, data: Uint8Array): Promise<void> {
+  await writeFile(path, data);
+  await chmod(path, 0o600).catch(() => {});
+}
 
 export type BackupPaths = {
   appDb: string;
@@ -70,6 +78,7 @@ export async function takeBackup(
   const temp = `${slot(paths)}.tmp`;
   await remove(temp, { recursive: true }).catch(() => {});
   await mkdir(temp, { recursive: true });
+  await chmod(temp, 0o700).catch(() => {});
   const files = ["app.db"];
   copyDatabase(paths.appDb, `${temp}/app.db`);
   if (await exists(paths.cacheDb)) {
@@ -77,7 +86,7 @@ export async function takeBackup(
     files.push("cache.db");
   }
   if (await exists(paths.config)) {
-    await writeFile(`${temp}/config.json`, await readFile(paths.config));
+    await writePrivate(`${temp}/config.json`, await readFile(paths.config));
     files.push("config.json");
   }
   const manifest: BackupManifest = {
@@ -193,7 +202,7 @@ export async function restoreBackup(paths: BackupPaths): Promise<void> {
     "config.json": paths.config,
   };
   for (const file of manifest.files) {
-    await writeFile(
+    await writePrivate(
       destinations[file]!,
       await readFile(`${slot(paths)}/${file}`),
     );

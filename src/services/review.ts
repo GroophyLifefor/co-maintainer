@@ -68,6 +68,7 @@ import {
   saveSubjectRevision,
 } from "../store/subjects.ts";
 import { enqueue, type LogFn, registerHandler } from "./jobs.ts";
+import { requestedReviewBlocked } from "./webhook.ts";
 import type { AiProvider, GitHubClient, Json, Options } from "../types.ts";
 import type { JobRow } from "../store/rows.ts";
 import { getEnv } from "../util/runtime.ts";
@@ -700,6 +701,16 @@ async function runReviewJobCore(
     round?: number;
     requestReaction?: string;
   };
+  const pr = await github.request<Json>(
+    `repos/${job.repo}/pulls/${job.pr_number}`,
+  );
+  if (args.trigger === "request-comment" && !existing) {
+    const blocked = requestedReviewBlocked(job.repo, pr);
+    if (blocked) {
+      log("info", `the review request was not run: ${blocked}`);
+      return;
+    }
+  }
   // A maintainer asked for this review by label or comment: acknowledge it.
   // Best effort, a missing reaction must never fail the review itself.
   if (args.requestReaction && !existing) {
@@ -709,9 +720,6 @@ async function runReviewJobCore(
       log("info", `could not react to the review request: ${String(error)}`);
     }
   }
-  const pr = await github.request<Json>(
-    `repos/${job.repo}/pulls/${job.pr_number}`,
-  );
   const headSha = String((pr.head as Json | undefined)?.sha ?? "");
   const mergeBase = String((pr.base as Json | undefined)?.sha ?? "");
   let scope = args.scope === "incremental" ? "incremental" : "whole-pr";

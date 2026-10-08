@@ -1,5 +1,5 @@
 import type { Options } from "../types.ts";
-import { prepareConfig } from "../config.ts";
+import { prepareConfig, savedTokenFor } from "../config.ts";
 import { getEnv } from "../util/runtime.ts";
 import { askLine } from "./prompt.ts";
 import { die } from "./error.ts";
@@ -267,7 +267,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
     text("token") ??
     env("CO_MAINTAINER_TOKEN") ??
     providerKeyEnv(ai, env) ??
-    config.token;
+    savedTokenFor(config, ai);
   // The OPENROUTER_ names would hand an OpenRouter model id to another
   // provider, so they only count when OpenRouter is the one running.
   const openRouterModelEnv = (name: string): string | undefined =>

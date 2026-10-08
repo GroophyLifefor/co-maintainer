@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unknown cost reads `unknown`.** A review whose provider did not report a cost used to show `$0.00`. It now shows `unknown` with the reason, and a total says how many of its reviews have no recorded cost instead of rounding them away. OpenAI, Anthropic and the OpenCode gateways never report a cost. A remote review billed to your own key is listed as `$x + $y BYOK`.
 - **`probe` on providers without prices.** The estimate says `estimate unavailable for this provider` instead of printing a dollar range it cannot know.
 - **`OPENROUTER_LOW_MODEL` and `OPENROUTER_HIGH_MODEL`** are only read when OpenRouter is the provider.
+- **The saved key goes only to the saved provider.** A run on another provider, with `--ai` or a repository that was set up on another one, asks for that provider's key instead. Switching the provider with `set --ai` or in the dashboard needs the new provider's key.
 
 ### Fixed
 

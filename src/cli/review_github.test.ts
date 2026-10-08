@@ -254,4 +254,9 @@ test("neutralizeCommands keeps a log line from starting a command", () => {
   if (got !== "fine\n[log] ::error::boom\n[log]    ::add-mask::x\nalso fine") {
     throw new Error(got);
   }
+  // A bare carriage return also ends a line for the runner.
+  const carried = neutralizeCommands("[info] x\r::stop-commands::tok");
+  if (carried !== "[info] x\n[log] ::stop-commands::tok") {
+    throw new Error(JSON.stringify(carried));
+  }
 });

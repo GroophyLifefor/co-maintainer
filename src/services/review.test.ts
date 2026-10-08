@@ -1,4 +1,5 @@
 import { closeAppDb, openAppDb } from "../store/app_db.ts";
+import { writeUserConfig } from "../config.ts";
 import { activateRepo, markKnowledgeBuilt } from "../store/repos.ts";
 import { insertJob } from "../store/jobs.ts";
 import {
@@ -66,6 +67,7 @@ class FakeGithub implements GitHubClient {
   listedReviews: Json[] = [];
   files: Json[] = [{ filename: "src/app.ts", patch: "@@ -4 +4 @@" }];
   prFiles?: Json[];
+  prExtra: Json = {};
   filesError?: Error;
   writeError?: Error;
   compareError?: Error;
@@ -82,6 +84,7 @@ class FakeGithub implements GitHubClient {
         state: "open",
         head: { sha: "head1" },
         base: { sha: "base1", ref: "main" },
+        ...this.prExtra,
       } as T);
     }
     throw new Error(`unexpected request ${endpoint}`);
@@ -285,6 +288,33 @@ test("a review that was asked for acknowledges the request once, and a failed re
     await runReviewJob(job, () => {}, github, new FakeAiProvider());
     if (getReviewByJobId("job-rev")?.status !== "posted") {
       throw new Error("a missing reaction must not stop the review");
+    }
+  });
+});
+
+test("a comment request over the size cap is dropped once the pull request is fetched", async () => {
+  await withEnv(async () => {
+    await writeUserConfig({ defaults: { maxPullRequestChangeLines: 100 } });
+    const job = seed();
+    job.args = JSON.stringify({
+      trigger: "request-comment",
+      requestReaction: "repos/acme/widgets/issues/comments/900/reactions",
+    });
+    const github = new FakeGithub();
+    github.prExtra = { additions: 90_000, deletions: 0 };
+    const lines: string[] = [];
+    await runReviewJob(
+      job,
+      (_level, message) => lines.push(message),
+      github,
+      new FakeAiProvider(),
+    );
+    if (getReviewByJobId("job-rev")) throw new Error("the review still ran");
+    if (github.writes.length !== 0) {
+      throw new Error(`wrote ${JSON.stringify(github.writes)}`);
+    }
+    if (!lines.some((line) => line.includes("diff-too-large"))) {
+      throw new Error(lines.join(" | "));
     }
   });
 });

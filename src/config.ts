@@ -119,10 +119,6 @@ export type UserConfig = {
 
 export type ByokPolicy = "off" | "allow" | "require";
 
-/** Who pays for a remote review's AI calls. `CM_REMOTE_BYOK_POLICY`
- * overrides the saved config, so a hosted server cannot be talked out of its
- * policy by a config edit. An unset or unreadable value falls back to the
- * config, then to `off`. */
 /** The provider's own key variable. It is read only when that provider runs,
  * so a key meant for one provider is never sent to another. */
 export function providerKeyEnv(
@@ -147,8 +143,18 @@ export function resolvedAiToken(
   return (
     getEnv("CO_MAINTAINER_TOKEN") ??
     (ai ? providerKeyEnv(ai) : undefined) ??
-    config.token
+    savedTokenFor(config, ai ?? "openrouter")
   );
+}
+
+/** The saved key belongs to the saved provider, so a run on any other
+ * provider never receives it. A config from before providers were saved holds
+ * an OpenRouter key. */
+export function savedTokenFor(
+  config: Pick<UserConfig, "ai" | "token">,
+  ai: string,
+): string | undefined {
+  return (config.ai ?? "openrouter") === ai ? config.token : undefined;
 }
 
 /** True when a provider is chosen and a key reaches it from anywhere. */
@@ -158,6 +164,10 @@ export function aiConfigured(
   return Boolean(config.ai && config.ai !== "none" && resolvedAiToken(config));
 }
 
+/** Who pays for a remote review's AI calls. `CM_REMOTE_BYOK_POLICY`
+ * overrides the saved config, so a hosted server cannot be talked out of its
+ * policy by a config edit. An unset or unreadable value falls back to the
+ * config, then to `off`. */
 export function remoteByokPolicy(
   config: Pick<UserConfig, "remoteByokPolicy"> = readConfig(),
 ): ByokPolicy {

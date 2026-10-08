@@ -238,9 +238,10 @@ emoji on the comment or the pull request, so the person who asked can see it was
 picked up.</p>
 <p>A request never overrides <strong>Do not review</strong>. If a rule skips the pull request, a
 request is refused and the reason is recorded.</p>
-<p>GitHub sends no fork, target branch or size with a comment, so on a <strong>comment</strong>
-request the rules about those three do not match. A label request, and a push,
-check everything.</p>
+<p>GitHub sends no fork, target branch or size with a comment, so a <strong>comment</strong>
+request is checked again when the review starts and the pull request has been
+fetched. If a rule about those three skips it, or it is over the size limit, the
+review does not run and no eyes reaction is added.</p>
 <h3 id="what-a-request-covers">What a request covers</h3>
 <table>
 <thead>

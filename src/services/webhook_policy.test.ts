@@ -9,7 +9,7 @@ import {
 } from "../store/repos.ts";
 import { getJob } from "../store/jobs.ts";
 import { insertReview, setReviewStatus } from "../store/reviews.ts";
-import { dispatchGithubEvent } from "./webhook.ts";
+import { dispatchGithubEvent, requestedReviewBlocked } from "./webhook.ts";
 import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
 import { test } from "node:test";
 
@@ -465,5 +465,38 @@ test("a stored policy that no longer parses falls back to the switches", async (
     if (invalid.outcome !== "enqueued") {
       throw new Error(JSON.stringify(invalid));
     }
+  });
+});
+
+test("a comment request is checked again against the fetched pull request", async () => {
+  await withTempDb(async () => {
+    readyRepo();
+    setPolicy({
+      rules: [{ name: "fork", when: { fork: true }, action: "skip" }],
+      default: "on-request",
+    });
+    await writeUserConfig({ defaults: { maxPullRequestChangeLines: 5000 } });
+    // The comment itself is accepted: an issue payload has no fork or size.
+    const asked = dispatchGithubEvent(
+      "issue_comment",
+      commentPayload("/co-maintainer review", MEMBER),
+      "c-1",
+    );
+    if (asked.outcome !== "enqueued") throw new Error(JSON.stringify(asked));
+
+    const pr = policyPayload("opened").pull_request;
+    if (requestedReviewBlocked("acme/widgets", pr) !== undefined) {
+      throw new Error("a small pull request from the repo itself was blocked");
+    }
+    const fork = requestedReviewBlocked("acme/widgets", {
+      ...pr,
+      head: { sha: "h1", repo: { full_name: "outsider/widgets" } },
+    });
+    if (!fork?.startsWith("Rule 1 (fork)")) throw new Error(String(fork));
+    const huge = requestedReviewBlocked("acme/widgets", {
+      ...pr,
+      additions: 90_000,
+    });
+    if (huge !== "diff-too-large") throw new Error(String(huge));
   });
 });

@@ -76,7 +76,9 @@ export function openAiError(
       EXIT_USAGE,
     );
   }
-  if (status === 400 && (code === "model_not_found" || /model/i.test(detail))) {
+  // Only the code says the model is unknown. Other 400s mention "model" too,
+  // a context that is too long or a setting this model does not take.
+  if ((status === 400 || status === 404) && code === "model_not_found") {
     return new CliError(
       "openai_unknown_model",
       `OpenAI does not know the model ${model}.`,
