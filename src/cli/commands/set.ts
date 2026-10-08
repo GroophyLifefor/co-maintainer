@@ -1,4 +1,9 @@
-import { readConfig, configPath, writeUserConfig } from "../../config.ts";
+import {
+  readConfig,
+  configPath,
+  savedKeyProvider,
+  writeUserConfig,
+} from "../../config.ts";
 import { hashPassword, passwordProblem } from "../../util/password.ts";
 import { readTextFile } from "../../util/runtime.ts";
 import {
@@ -267,7 +272,7 @@ export async function runSet(args: string[]): Promise<void> {
   const effectiveToken = effective("token");
   // The saved key and model belong to the saved provider. A switch without a
   // new key would hand the old provider's key to the new one.
-  const previousAi = before.ai ?? "openrouter";
+  const previousAi = savedKeyProvider(before);
   const switching =
     typeof patch.ai === "string" &&
     patch.ai !== "none" &&

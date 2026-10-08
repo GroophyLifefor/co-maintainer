@@ -4,7 +4,11 @@ import {
   resolveAppPrivateKey,
   writeUserConfig,
 } from "../../config.ts";
-import { aiConfigured, type UserConfig } from "../../config.ts";
+import {
+  aiConfigured,
+  savedKeyProvider,
+  type UserConfig,
+} from "../../config.ts";
 import { testAppAccess, testGithubAccess } from "../../services/credentials.ts";
 import {
   checkPassword,
@@ -120,7 +124,7 @@ export async function handleSettingsRoute(
     text("githubOAuthClientId");
     text("githubOAuthClientSecret");
     text("githubOAuthAllowedUser");
-    const previousAi = current.ai ?? "openrouter";
+    const previousAi = savedKeyProvider(current);
     if (
       patch.ai &&
       patch.ai !== "none" &&

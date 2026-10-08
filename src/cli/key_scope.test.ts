@@ -69,6 +69,12 @@ test("savedTokenFor: the key goes only to the provider it was saved with", () =>
   if (savedTokenFor({ token: "sk-or-old" }, "openai") !== undefined) {
     throw new Error("an older config key reached OpenAI");
   }
+  // The dashboard writes ai "none" for an older config, and the key it kept
+  // is still the OpenRouter one.
+  const off = { ai: "none", token: "sk-or-old" } as const;
+  if (savedTokenFor(off, "openrouter") !== "sk-or-old") {
+    throw new Error("switching AI off lost the OpenRouter key");
+  }
 });
 
 test("--ai for another provider does not take the saved key", async () => {

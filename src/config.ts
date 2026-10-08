@@ -147,14 +147,20 @@ export function resolvedAiToken(
   );
 }
 
+/** The provider the saved key belongs to. A config from before providers
+ * were saved holds an OpenRouter key, and so does one where AI was switched
+ * off, which the dashboard writes for such a config. */
+export function savedKeyProvider(config: Pick<UserConfig, "ai">): string {
+  return config.ai && config.ai !== "none" ? config.ai : "openrouter";
+}
+
 /** The saved key belongs to the saved provider, so a run on any other
- * provider never receives it. A config from before providers were saved holds
- * an OpenRouter key. */
+ * provider never receives it. */
 export function savedTokenFor(
   config: Pick<UserConfig, "ai" | "token">,
   ai: string,
 ): string | undefined {
-  return (config.ai ?? "openrouter") === ai ? config.token : undefined;
+  return savedKeyProvider(config) === ai ? config.token : undefined;
 }
 
 /** True when a provider is chosen and a key reaches it from anywhere. */
