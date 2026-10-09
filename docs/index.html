@@ -40,6 +40,26 @@
         <span class="prompt">$</span>
         <code>npm install -g co-maintainer</code>
       </div>
+      <div class="home-stats" id="home-stats">
+        <a class="home-stat" href="https://github.com/GroophyLifefor/co-maintainer">
+          <svg class="stat-icon" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
+          </svg>
+          <span class="stat-value">
+            <strong data-stat="stars" title="10">10</strong>
+            <span>GitHub stars</span>
+          </span>
+        </a>
+        <a class="home-stat" href="https://www.npmjs.com/package/co-maintainer">
+          <svg class="stat-icon" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">
+            <path d="M8 1a1 1 0 0 1 1 1v7.59l3.3-3.3 1.4 1.42L8 13.41 2.3 7.71l1.4-1.42L7 9.59V2a1 1 0 0 1 1-1ZM3 13a1 1 0 1 1 0 2h10a1 1 0 1 1 0-2H3Z"/>
+          </svg>
+          <span class="stat-value">
+            <strong data-stat="downloads" title="3,714">3.7k</strong>
+            <span>npm downloads this month</span>
+          </span>
+        </a>
+      </div>
     </section>
 
     <section class="product-stage home-section" aria-label="Repository knowledge">
@@ -179,5 +199,42 @@
       <a href="https://github.com/GroophyLifefor/co-maintainer/blob/main/LICENSE">MIT License</a>
     </nav>
   </footer>
+  <script>
+    // Live social proof. The markup already carries the last known numbers,
+    // so the cards stay readable offline and with no JS. These two public
+    // APIs refresh them on load and need no keys.
+    (function () {
+      var compact = function (value) {
+        var n = Number(value);
+        if (!Number.isFinite(n) || n < 0) return null;
+        return n >= 1000
+          ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k"
+          : String(n);
+      };
+      var set = function (key, value) {
+        var strong = document.querySelector('[data-stat="' + key + '"]');
+        var text = compact(value);
+        if (!strong || text === null) return;
+        strong.textContent = text;
+        strong.title = Number(value).toLocaleString("en-US");
+      };
+      fetch("https://api.github.com/repos/GroophyLifefor/co-maintainer")
+        .then(function (response) {
+          return response.json();
+        })
+        .then(function (data) {
+          set("stars", data.stargazers_count);
+        })
+        .catch(function () {});
+      fetch("https://api.npmjs.org/downloads/point/last-month/co-maintainer")
+        .then(function (response) {
+          return response.json();
+        })
+        .then(function (data) {
+          set("downloads", data.downloads);
+        })
+        .catch(function () {});
+    })();
+  </script>
 </body>
 </html>

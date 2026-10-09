@@ -21,6 +21,7 @@ import {
   writeFile,
 } from "../src/util/runtime.ts";
 import { permissionTable, type TableKind } from "../src/github/permissions.ts";
+import { visibleCommandNames } from "../src/cli/commands/registry.ts";
 import {
   applyPermissionBlocks,
   buildDocs,
@@ -356,7 +357,7 @@ test("the commands page is generated from the command registry", async () => {
       );
     }
     const html = await readTextFile(join(outDir, "docs", "commands.html"));
-    for (const command of ["probe", "init", "sync", "review", "serve"]) {
+    for (const command of visibleCommandNames()) {
       if (!html.includes(`co-maintainer ${command}`)) {
         throw new Error(`the commands page omits ${command}`);
       }
@@ -388,6 +389,24 @@ test("the permission tables in the docs come from the code", async () => {
     if (applyPermissionBlocks(md) !== md) {
       throw new Error(`${page} has a stale permission table`);
     }
+  }
+});
+
+test("the landing page carries the live stats hooks", async () => {
+  const html = await readTextFile(join(docsRoot, "index.html"));
+  for (const needle of [
+    'id="home-stats"',
+    'data-stat="stars"',
+    'data-stat="downloads"',
+    "https://api.github.com/repos/GroophyLifefor/co-maintainer",
+    "https://api.npmjs.org/downloads/point/last-month/co-maintainer",
+  ]) {
+    if (!html.includes(needle)) {
+      throw new Error(`the landing page lost ${needle}`);
+    }
+  }
+  if (/<script[^>]+src=/.test(html)) {
+    throw new Error("the landing page must not load external scripts");
   }
 });
 

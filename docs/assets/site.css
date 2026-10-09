@@ -437,6 +437,7 @@ body.layout-home {
 .home-hero {
   min-height: 670px;
   padding-top: clamp(100px, 15vh, 160px);
+  padding-bottom: clamp(72px, 9vh, 112px);
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -525,6 +526,58 @@ body.layout-home {
   scrollbar-width: none;
 }
 .install-line code {
+  white-space: nowrap;
+}
+.home-stats {
+  display: flex;
+  align-items: stretch;
+  margin-top: 30px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-subtle);
+}
+.home-stat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 22px;
+  color: var(--text-secondary);
+  transition: background 160ms ease;
+}
+.home-stat + .home-stat {
+  border-left: 1px solid var(--border);
+}
+.home-stat:hover {
+  background: #fff;
+  text-decoration: none;
+}
+.stat-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--text-tertiary);
+  transition: color 160ms ease;
+}
+.home-stat:hover .stat-icon {
+  color: var(--text);
+}
+.stat-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+}
+.stat-value strong {
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.stat-value span {
+  color: var(--text-secondary);
+  font-size: 12px;
   white-space: nowrap;
 }
 .prompt {
@@ -800,7 +853,8 @@ body.layout-home {
   .home-hero h1,
   .home-lead,
   .home-actions,
-  .install-line {
+  .install-line,
+  .home-stats {
     animation: home-enter 700ms cubic-bezier(.2, .75, .25, 1) both;
   }
   .home-kicker { animation-delay: 70ms; }
@@ -808,6 +862,7 @@ body.layout-home {
   .home-lead { animation-delay: 210ms; }
   .home-actions { animation-delay: 280ms; }
   .install-line { animation-delay: 350ms; }
+  .home-stats { animation-delay: 420ms; }
   @keyframes home-enter {
     from { opacity: 0; transform: translateY(14px); }
   }
@@ -918,6 +973,15 @@ body.layout-home {
   }
   .home-hero h1 {
     font-size: clamp(2.7rem, 13vw, 4.2rem);
+  }
+  .home-stats {
+    width: 100%;
+    max-width: 340px;
+    flex-direction: column;
+  }
+  .home-stat + .home-stat {
+    border-left: 0;
+    border-top: 1px solid var(--border);
   }
   .knowledge-head,
   .knowledge-uses {
