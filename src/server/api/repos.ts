@@ -29,6 +29,7 @@ import {
   repoPulls,
   requireActiveRepo,
 } from "../../services/dashboard.ts";
+import { clearOneRepo } from "./knowledge.ts";
 
 const REPO =
   /^\/api\/repos\/([^/]+)\/([^/]+)(?:\/(remake|knowledge|pulls)(?:\/(\d+)(?:\/(review))?)?)?$/;
@@ -347,6 +348,10 @@ export async function handleReposRoute(
     }
     if (sub === "knowledge" && request.method === "GET") {
       return Response.json(await repoKnowledge(fullName));
+    }
+    if (sub === "knowledge" && request.method === "DELETE") {
+      requireActiveRepo(fullName);
+      return await clearOneRepo(fullName, url);
     }
     if (
       sub === "pulls" &&

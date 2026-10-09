@@ -30,6 +30,7 @@ import {
   remove,
   writeTextFile,
 } from "../src/util/runtime.ts";
+import { visibleCommandNames } from "../src/cli/commands/registry.ts";
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -469,15 +470,7 @@ if (shouldRun("config")) {
 
 // ------------------------------------------------------------- help matrix
 
-for (const command of [
-  "help",
-  "probe",
-  "init",
-  "remake",
-  "review",
-  "set",
-  "serve",
-]) {
+for (const command of ["help", "remake", ...visibleCommandNames()]) {
   const step = `help:${command}`;
   if (!shouldRun(step)) continue;
   const args = command === "help" ? ["help"] : [command, "--help"];

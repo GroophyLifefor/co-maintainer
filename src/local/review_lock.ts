@@ -1,4 +1,4 @@
-import { getCacheDir } from "../config.ts";
+import { locksDir } from "../config.ts";
 import { ReviewCliError } from "./git_ops.ts";
 import {
   isNotFound,
@@ -19,7 +19,7 @@ async function lockPath(gitRoot: string): Promise<string> {
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("")
     .slice(0, 16);
-  const dir = `${getCacheDir()}/co-maintainer/locks`;
+  const dir = locksDir();
   await mkdir(dir, { recursive: true });
   return `${dir}/${hex}.lock`;
 }

@@ -1860,7 +1860,7 @@ Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
 | `/repos/:owner/:repo/pulls` | Open PR list with a **Review** button each, paged review history, manual **Review** by number when webhooks fail |
 | `/repos/:owner/:repo/pulls/:n` | Findings and cost for one PR |
 | `/repos/:owner/:repo/remote` | Remote CLI reviews for this repo (last 30 days) |
-| `/repos/:owner/:repo/knowledge` | Generated guides, **Sync** |
+| `/repos/:owner/:repo/knowledge` | Generated guides, **Sync**, **Clear** |
 | `/repos/:owner/:repo/settings` | **Who gets a review** (the [review policy](review-policy.md)), review scope, codegraph, analysis limits, schedule, remove repo |
 | `/activity` | Live and recent jobs (refreshes about every 5 seconds) and **Pull requests we skipped**, with the rule that skipped each and **Review now** for one that is waiting |
 | `/activity/:id` | Single job log |
@@ -1901,6 +1901,19 @@ scope and codegraph.
 
 On **Activity**, **Pull requests we skipped** names the rule that decided, and a
 pull request that is waiting for a request has a **Review now** button.
+
+## Clearing knowledge
+
+**Knowledge** carries a **Clear knowledge** card: it deletes that repository's
+guides and saved settings, and a checkbox also drops the cached evidence
+(pull request listings, costs, clones and worktrees). The next **Sync** builds
+the knowledge from scratch. See [Caching: Clearing](caching.md#clearing).
+
+**Settings** ends with **Clear all knowledge**, which does the same for every
+repository on the server. Repository records, review history and tokens stay.
+Both actions ask about work in flight first: queued jobs are canceled, a
+running review can be stopped, and a running sync is waited out because it
+cannot be interrupted. Nothing is deleted until that question is answered.
 
 ## UI behavior
 
@@ -2383,6 +2396,35 @@ co-maintainer view [owner/repo] --path
 | `--path` |  | Print the directory the guides live in. |
 | `--remote` |  | Read the guides from the configured remote review server instead. |
 
+## `co-maintainer clear`
+
+Delete the generated guides and saved settings for a repository, or for every repository.
+
+```
+co-maintainer clear <owner/repo|all> [options]
+```
+
+### Clear
+
+| Flag | Default | Description |
+|---|---|---|
+| `--include-cache` |  | Also delete the fetched evidence: pull request listings, AI job cache, costs, local review carry-over, clones and worktrees. The next init is then a cold build. |
+| `--yes` |  | Skip the confirmation `all` asks. Needed when there is no terminal. |
+
+## `co-maintainer uninstall`
+
+Delete every co-maintainer data file on this machine.
+
+```
+co-maintainer uninstall [--yes]
+```
+
+### Uninstall
+
+| Flag | Default | Description |
+|---|---|---|
+| `--yes` |  | Skip the confirmation. Needed when there is no terminal. |
+
 ## `co-maintainer set`
 
 Persist defaults and secrets to the user config file.
@@ -2705,9 +2747,11 @@ A plain `co-maintainer sync owner/repo` reuses those values. Pass new flags
 on `sync` or run `init` again to change includes, limits, or pull request
 filters permanently. `--only-request-changed-pr` stays on once saved. To
 collect every pull request state again, pass `--pr-state=open,closed,merged`.
+[`clear owner/repo`](caching.md#clearing) deletes this entry, so the repository
+goes back to "never inited" and the next build is an `init`.
 
 Guide files (`SKILL.md`, `CODEBASE.md`, review guides) live under
-`<config>/co-maintainer/repos/<slug>/`, not in your git clone. See
+`<config>/co-maintainer/repos/<owner>/<repo>/`, not in your git clone. See
 [Caching](caching.md#generated-guides). `co-maintainer view` prints them
 locally, and `view --remote` prints the copies a configured review server holds
 (see [Remote review](remote-review.md#reading-the-servers-guides)).
@@ -3075,7 +3119,7 @@ flowchart TB
   cache["Cache directory"]
 
   config --> cfg["config.json"]
-  config --> guides["repos/ slug / SKILL.md guides"]
+  config --> guides["repos/ owner-repo / guides"]
 
   cache --> cdb["cache.db evidence AI jobs"]
   cache --> appdb["app.db serve only"]
@@ -3095,7 +3139,7 @@ flowchart TB
 | File / folder | Purpose |
 | ------------- | ------- |
 | `config.json` | Global `set` values and `repos["owner/repo"]` memory |
-| `repos/<slug>/` | Generated guides for one GitHub repo (see below) |
+| `repos/<owner>/<repo>/` | Generated guides for one GitHub repo (see below) |
 
 Override: `CM_CONFIG_PATH` points at a different `config.json`.
 Override guides root: `CM_REPOS_DIR` (must match on laptops and `serve` when
@@ -3162,8 +3206,7 @@ Back up `app.db` and `config.json` before major upgrades. See
 
 ## Generated guides
 
-Under `repos/<slug>/` (slug is a stable hash of `owner/repo`, not the literal
-name):
+Under `repos/<owner>/<repo>/` (the literal repository name, so `repos/acme/widgets/`):
 
 - `SKILL.md`, `CODEBASE.md`
 - `PR_REVIEW_GUIDE.md` and related review guides when PR sources were included
@@ -3172,6 +3215,35 @@ Evidence for all repos shares one `cache.db` at the cache root (see above).
 
 Paths are always under the config/cache roots so the CLI can run from any
 working directory. [Configuration: Per-repo memory](configuration.md#per-repo-memory).
+
+## Clearing
+
+`co-maintainer clear` deletes what `init` produced:
+
+```sh
+co-maintainer clear owner/repo                  # guides and saved settings
+co-maintainer clear owner/repo --include-cache  # plus the fetched evidence
+co-maintainer clear all --yes                   # every repository on this machine
+```
+
+A cleared repository goes back to "never inited". Its guides, knowledge stamp,
+skill state and `repos["owner/repo"]` settings are gone, so the next build is
+[`init`](init.md), not [`sync`](sync.md). The command asks before it clears
+everything, and `--yes` skips that question when there is no terminal.
+
+`--include-cache` also drops the fetched evidence for the repository (pull
+request listings, AI job cache, costs, local review carry-over) plus its clones
+and worktrees. The next `init` is then a cold build that pays for everything
+again. Without the flag, only the knowledge is gone and the next build still
+reuses the files and pull requests it already collected.
+
+The dashboard has the same action per repository under **Knowledge** and for
+every repository under **Settings**. See [Dashboard](dashboard.md#routes).
+
+`co-maintainer uninstall` goes further and deletes every data file on the
+machine: `config.json`, `app.db`, `cache.db`, `repos/`, `clones/`, `wt/` and
+`tools/`. The npm package cannot remove itself while the CLI runs from it, so
+the command prints `npm uninstall -g co-maintainer` when it is done.
 
 ## Overrides
 
@@ -3192,9 +3264,11 @@ remote review should read guides the server built.
 | ---- | ------ |
 | Main moved, guides stale | [`sync`](sync.md) or dashboard **Sync** |
 | Change include flags or limits | `sync`/`init` with new flags (updates config + guides) |
-| Wipe server state | Stop `serve`, backup, remove `app.db` (destructive) |
+| Forget one repository | [`clear owner/repo`](#clearing) |
+| Forget everything and free the space | [`clear all --include-cache`](#clearing) |
 | Go back after an upgrade | Stop `serve`, run [`rollback`](troubleshooting.md#going-back-after-an-upgrade) with the new version still installed |
-| Wipe CLI evidence only | Remove `cache.db` (guides in `repos/` may remain) |
+| Remove the CLI and all its data | [`uninstall`](#clearing) |
+| Wipe server state | Stop `serve`, backup, remove `app.db` (destructive) |
 
 ---
 
@@ -3437,6 +3511,10 @@ is the safe default.
 | `There is no backup to roll back to` | `rollback` found no backup, or it is incomplete | A backup exists only after an upgrade migrated the database. See [Going back after an upgrade](#going-back-after-an-upgrade) |
 | `The backup was taken when upgrading to` | The installed version is not the one that made the backup | Install that version and run `rollback` again |
 | `Rollback needs your confirmation` | `rollback` has no terminal to ask on | Run it in a terminal, or pass `--yes` |
+| `clear needs one target` | `clear` was called with no repository and no `all` | Pass `owner/repo` or `all`. See [Caching](caching.md#clearing) |
+| `clear all needs your confirmation` | `clear all` has no terminal to ask on | Run it in a terminal, or pass `--yes` |
+| `Uninstall needs your confirmation` | `uninstall` has no terminal to ask on | Run it in a terminal, or pass `--yes` |
+| `A co-maintainer serve process (pid N) is using this data directory` | `clear`, `uninstall` or `rollback` needs exclusive access | Stop `serve`, then run the command again |
 | `serve is already running` | Two `serve` processes share one `app.db` | Stop the other one, or point `CM_APP_DB` elsewhere |
 
 `init`, `sync`, and `review` also refuse to start when a required value is still
@@ -3465,6 +3543,8 @@ These come back from the dashboard's API and show as a message next to the form.
 | ------- | ------------- | --- |
 | `policy_in_use` (409) | `This repository uses a review policy, so the auto review, drafts and bots switches do not apply.` | Change the [review policy](review-policy.md) instead, or pick **Simple switches** first |
 | `invalid_policy` (422) | The review policy cannot be read. The message says what is wrong | Fix the field it names. Nothing is saved |
+| `jobs_running` (409) | A clear found queued jobs or a running review for the target | The page asks whether to stop them and cancel the queue. Answer it to continue |
+| `job_not_abortable` (409) | A sync is running and cannot be interrupted | The page waits for it to finish, then clears. See [Caching: Clearing](caching.md#clearing) |
 
 ## Going back after an upgrade
 

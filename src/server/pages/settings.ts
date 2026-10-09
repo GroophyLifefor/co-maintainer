@@ -307,6 +307,15 @@ Leave blank to keep the current key"></textarea></div>
       </div>
       <div class="ft"><button class="primary" id="save-password">Change password</button></div>
     </div>
+    <div class="card" id="danger" data-async>
+      ${skSlot()}
+      <div class="hd"><h2>Clear all knowledge</h2></div>
+      <div class="bd">
+        <p class="muted" style="margin:0 0 16px">Delete every repository's guides and saved settings on this server. Repository records, reviews and tokens stay, so this is not an uninstall.</p>
+        <div class="field wide"><label><input type="checkbox" id="clear-all-cache"> Also delete the cached evidence: pull request listings, costs, clones and worktrees</label></div>
+      </div>
+      <div class="ft"><button id="clear-all" style="color:var(--red)">Clear all knowledge</button></div>
+    </div>
     <div class="card" id="about">
       <div class="hd"><h2>About</h2></div>
       <div class="bd">
@@ -568,6 +577,15 @@ document.getElementById("save-def").addEventListener("click", function() {
   var policy = document.getElementById("def-policy").value;
   if (policy !== "__custom") body.reviewPolicy = policy === "" ? null : policy;
   save(this, body);
+});
+document.getElementById("clear-all").addEventListener("click", function() {
+  if (!confirm("Delete the guides and saved settings for every repository on this server?")) return;
+  var includeCache = document.getElementById("clear-all-cache").checked;
+  var btn = this;
+  run(btn, btn.closest("[data-async]"), async function() {
+    var done = await clearKnowledge("/api/knowledge", includeCache);
+    if (done !== false) location.reload();
+  });
 });
 </script>`,
     }),

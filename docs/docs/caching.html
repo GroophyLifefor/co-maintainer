@@ -94,7 +94,7 @@ layout is meant to be edited by hand.</p>
   cache["Cache directory"]
 
   config --> cfg["config.json"]
-  config --> guides["repos/ slug / SKILL.md guides"]
+  config --> guides["repos/ owner-repo / guides"]
 
   cache --> cdb["cache.db evidence AI jobs"]
   cache --> appdb["app.db serve only"]
@@ -138,7 +138,7 @@ layout is meant to be edited by hand.</p>
 <td>Global <code>set</code> values and <code>repos[&quot;owner/repo&quot;]</code> memory</td>
 </tr>
 <tr>
-<td><code>repos/&lt;slug&gt;/</code></td>
+<td><code>repos/&lt;owner&gt;/&lt;repo&gt;/</code></td>
 <td>Generated guides for one GitHub repo (see below)</td>
 </tr>
 </tbody></table>
@@ -246,8 +246,7 @@ and review history. <strong>Forward-only migrations</strong> when upgrading co-m
 <p>Back up <code>app.db</code> and <code>config.json</code> before major upgrades. See
 <a href="dashboard.html#updating">Dashboard: Updating</a>.</p>
 <h2 id="generated-guides">Generated guides</h2>
-<p>Under <code>repos/&lt;slug&gt;/</code> (slug is a stable hash of <code>owner/repo</code>, not the literal
-name):</p>
+<p>Under <code>repos/&lt;owner&gt;/&lt;repo&gt;/</code> (the literal repository name, so <code>repos/acme/widgets/</code>):</p>
 <ul>
 <li><code>SKILL.md</code>, <code>CODEBASE.md</code></li>
 <li><code>PR_REVIEW_GUIDE.md</code> and related review guides when PR sources were included</li>
@@ -255,6 +254,27 @@ name):</p>
 <p>Evidence for all repos shares one <code>cache.db</code> at the cache root (see above).</p>
 <p>Paths are always under the config/cache roots so the CLI can run from any
 working directory. <a href="configuration.html#per-repo-memory">Configuration: Per-repo memory</a>.</p>
+<h2 id="clearing">Clearing</h2>
+<p><code>co-maintainer clear</code> deletes what <code>init</code> produced:</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">clear</span> <span class="sh-arg">owner/repo</span>                  <span class="sh-comment"># guides and saved settings</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">clear</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--include-cache</span>  <span class="sh-comment"># plus the fetched evidence</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">clear</span> <span class="sh-arg">all</span> <span class="sh-flag">--yes</span>                   <span class="sh-comment"># every repository on this machine</span>
+</code></pre>
+<p>A cleared repository goes back to &quot;never inited&quot;. Its guides, knowledge stamp,
+skill state and <code>repos[&quot;owner/repo&quot;]</code> settings are gone, so the next build is
+<a href="init.html"><code>init</code></a>, not <a href="sync.html"><code>sync</code></a>. The command asks before it clears
+everything, and <code>--yes</code> skips that question when there is no terminal.</p>
+<p><code>--include-cache</code> also drops the fetched evidence for the repository (pull
+request listings, AI job cache, costs, local review carry-over) plus its clones
+and worktrees. The next <code>init</code> is then a cold build that pays for everything
+again. Without the flag, only the knowledge is gone and the next build still
+reuses the files and pull requests it already collected.</p>
+<p>The dashboard has the same action per repository under <strong>Knowledge</strong> and for
+every repository under <strong>Settings</strong>. See <a href="dashboard.html#routes">Dashboard</a>.</p>
+<p><code>co-maintainer uninstall</code> goes further and deletes every data file on the
+machine: <code>config.json</code>, <code>app.db</code>, <code>cache.db</code>, <code>repos/</code>, <code>clones/</code>, <code>wt/</code> and
+<code>tools/</code>. The npm package cannot remove itself while the CLI runs from it, so
+the command prints <code>npm uninstall -g co-maintainer</code> when it is done.</p>
 <h2 id="overrides">Overrides</h2>
 <table>
 <thead>
@@ -303,16 +323,24 @@ remote review should read guides the server built.</p>
 <td><code>sync</code>/<code>init</code> with new flags (updates config + guides)</td>
 </tr>
 <tr>
-<td>Wipe server state</td>
-<td>Stop <code>serve</code>, backup, remove <code>app.db</code> (destructive)</td>
+<td>Forget one repository</td>
+<td><a href="#clearing"><code>clear owner/repo</code></a></td>
+</tr>
+<tr>
+<td>Forget everything and free the space</td>
+<td><a href="#clearing"><code>clear all --include-cache</code></a></td>
 </tr>
 <tr>
 <td>Go back after an upgrade</td>
 <td>Stop <code>serve</code>, run <a href="troubleshooting.html#going-back-after-an-upgrade"><code>rollback</code></a> with the new version still installed</td>
 </tr>
 <tr>
-<td>Wipe CLI evidence only</td>
-<td>Remove <code>cache.db</code> (guides in <code>repos/</code> may remain)</td>
+<td>Remove the CLI and all its data</td>
+<td><a href="#clearing"><code>uninstall</code></a></td>
+</tr>
+<tr>
+<td>Wipe server state</td>
+<td>Stop <code>serve</code>, backup, remove <code>app.db</code> (destructive)</td>
 </tr>
 </tbody></table>
 </article>
@@ -322,7 +350,7 @@ remote review should read guides the server built.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#on-disk-layout">On disk layout</a></li><li><a href="#cachedb-cli">cache.db (CLI)</a></li><li><a href="#appdb-serve">app.db (serve)</a></li><li><a href="#generated-guides">Generated guides</a></li><li><a href="#overrides">Overrides</a></li><li><a href="#when-to-refresh-vs-delete">When to refresh vs delete</a></li></ul></nav>
+      <ul><li><a href="#on-disk-layout">On disk layout</a></li><li><a href="#cachedb-cli">cache.db (CLI)</a></li><li><a href="#appdb-serve">app.db (serve)</a></li><li><a href="#generated-guides">Generated guides</a></li><li><a href="#clearing">Clearing</a></li><li><a href="#overrides">Overrides</a></li><li><a href="#when-to-refresh-vs-delete">When to refresh vs delete</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

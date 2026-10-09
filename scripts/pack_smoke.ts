@@ -13,11 +13,26 @@
  * CLI and the packaged entry through `process.execPath` sidesteps that.
  */
 import { existsSync } from "node:fs";
-import { mkdtemp, rm, stat } from "node:fs/promises";
-import { join } from "node:path";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { commandOutput, getEnv, isWindows } from "../src/util/runtime.ts";
+import {
+  commandOutput,
+  deleteEnv,
+  getEnv,
+  isWindows,
+  setEnv,
+} from "../src/util/runtime.ts";
+import { cacheGet, cacheSet } from "../src/store/cache_db.ts";
+import { cacheDbPath, configPath, reposDir } from "../src/config.ts";
 
 const ROOT = new URL("../", import.meta.url);
 // `pathname` stays percent-encoded, so a repo path with a space would resolve
@@ -96,6 +111,70 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
+/** Seeds one repository the packaged `clear` and `uninstall` can act on. The
+ * store helpers read the process environment, so it is pointed at the same
+ * sandbox the child gets and restored afterwards. */
+/** Runs `fn` with the process environment pointed at the same sandbox the
+ * child gets, then restores it. The store helpers read the process env, so
+ * without this the seeding and the checks would land outside the sandbox. */
+async function withSandboxEnv<T>(
+  env: Record<string, string | undefined>,
+  fn: () => T | Promise<T>,
+): Promise<T> {
+  const names = [
+    "CM_CONFIG_PATH",
+    "CM_REPOS_DIR",
+    "CM_APP_DB",
+    "CM_CLONES_DIR",
+    "CM_TOOLS_DIR",
+    "XDG_CACHE_HOME",
+    "LOCALAPPDATA",
+    "APPDATA",
+    "XDG_CONFIG_HOME",
+  ];
+  const saved = new Map(names.map((name) => [name, getEnv(name)] as const));
+  for (const name of names) {
+    const value = env[name];
+    if (value === undefined) deleteEnv(name);
+    else setEnv(name, value);
+  }
+  try {
+    return await fn();
+  } finally {
+    for (const [name, value] of saved) {
+      if (value === undefined) deleteEnv(name);
+      else setEnv(name, value);
+    }
+  }
+}
+
+/** Seeds one repository the packaged `clear` and `uninstall` can act on, the
+ * way a user's machine looks after one `init`. */
+async function seedClearSandbox(): Promise<{
+  repos: string;
+  config: string;
+  cacheDb: string;
+}> {
+  const paths = {
+    repos: reposDir(),
+    config: configPath(),
+    cacheDb: cacheDbPath(),
+  };
+  await mkdir(join(paths.repos, "acme/widgets"), { recursive: true });
+  await mkdir(dirname(paths.config), { recursive: true });
+  await writeFile(join(paths.repos, "acme/widgets", "SKILL.md"), "# guide\n");
+  await writeFile(
+    paths.config,
+    `${JSON.stringify({
+      ai: "none",
+      repos: { "acme/widgets": { maxCommits: 5 } },
+    })}\n`,
+  );
+  await cacheSet("state", "acme/widgets", "{}");
+  await cacheSet("cost", "acme/widgets:smoke", "{}");
+  return paths;
+}
+
 const sandbox = await mkdtemp(join(tmpdir(), "cm-pack-smoke-"));
 let tarball: string | undefined;
 
@@ -159,6 +238,52 @@ try {
   }
   if (!help.stdout.trim()) throw new Error("help printed nothing");
   console.log("help -> exit 0");
+
+  // `clear` and `uninstall` through the packaged bin, on a sandbox seeded the
+  // way a user's machine looks after one `init`.
+  const paths = await withSandboxEnv(env, seedClearSandbox);
+  const clear = await runShim(
+    shim,
+    ["clear", "acme/widgets", "--include-cache", "--yes"],
+    env,
+  );
+  if (!clear.ok) {
+    throw new Error(`clear exited ${clear.code}: ${clear.stderr}`);
+  }
+  if (
+    (await exists(join(paths.repos, "acme/widgets"))) ||
+    !existsSync(paths.config)
+  ) {
+    throw new Error("clear left something behind");
+  }
+  const config = JSON.parse(await readFile(paths.config, "utf8")) as {
+    repos?: unknown;
+  };
+  if (config.repos !== undefined) {
+    throw new Error("clear left the saved settings in the config");
+  }
+  // A single repository keeps the shared cache.db, but its rows must be gone.
+  await withSandboxEnv(env, async () => {
+    if ((await cacheGet("state", "acme/widgets")) !== undefined) {
+      throw new Error("clear left the skill state in the cache");
+    }
+    if ((await cacheGet("cost", "acme/widgets:smoke")) !== undefined) {
+      throw new Error("clear left the cached evidence in the cache");
+    }
+  });
+  console.log("clear -> exit 0");
+
+  const uninstall = await runShim(shim, ["uninstall", "--yes"], env);
+  if (!uninstall.ok) {
+    throw new Error(`uninstall exited ${uninstall.code}: ${uninstall.stderr}`);
+  }
+  if (!uninstall.stdout.includes("npm uninstall -g co-maintainer")) {
+    throw new Error("uninstall did not name the npm command");
+  }
+  for (const target of [paths.config, paths.repos, paths.cacheDb]) {
+    if (await exists(target)) throw new Error(`uninstall left ${target}`);
+  }
+  console.log("uninstall -> exit 0");
 
   console.log("pack smoke ok");
 } finally {

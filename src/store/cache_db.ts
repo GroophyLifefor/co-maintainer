@@ -1,6 +1,6 @@
 import { Database } from "./sqlite.ts";
 import { cacheDbPath, getCacheDir } from "../config.ts";
-import { mkdirSync } from "../util/runtime.ts";
+import { isNotFound, mkdirSync, stat } from "../util/runtime.ts";
 
 /** Paths whose schema this process has already created. Keyed by path rather
  * than a single boolean: `cacheDbPath()` reads the environment at call time
@@ -87,6 +87,74 @@ export async function cacheDeletePrefix(
     db.prepare(
       "DELETE FROM cache WHERE namespace = ? AND cache_key LIKE ?",
     ).run(namespace, `${prefix}%`);
+  } finally {
+    db.close();
+  }
+}
+
+/** Whether cache.db exists, so a `clear` that has nothing to delete does not
+ * create one just to close it again. */
+export async function cacheDbExists(): Promise<boolean> {
+  try {
+    await stat(cacheDbPath());
+    return true;
+  } catch (error) {
+    if (isNotFound(error)) return false;
+    throw error;
+  }
+}
+
+/** Escapes LIKE's own wildcards and the escape character. A repository name
+ * may contain `_`, which LIKE would otherwise read as "any character". */
+function likePrefix(prefix: string): string {
+  return `${prefix.replace(/[\\%_]/g, "\\$&")}%`;
+}
+
+function deleteRows(
+  db: Database,
+  namespace: string,
+  pattern: { exact: string } | { prefix: string },
+): number {
+  if ("exact" in pattern) {
+    db.prepare("DELETE FROM cache WHERE namespace = ? AND cache_key = ?").run(
+      namespace,
+      pattern.exact,
+    );
+  } else {
+    db.prepare(
+      "DELETE FROM cache WHERE namespace = ? AND cache_key LIKE ? ESCAPE '\\'",
+    ).run(namespace, likePrefix(pattern.prefix));
+  }
+  return db.changes;
+}
+
+/** The skill state is the repository's own knowledge, so `clear` always drops
+ * it: without it the next build starts from `init` rather than `sync`. */
+export async function cacheDeleteRepoKnowledge(repo: string): Promise<number> {
+  const db = openDatabase();
+  try {
+    return deleteRows(db, "state", { exact: repo });
+  } finally {
+    db.close();
+  }
+}
+
+/** Everything `init` fetched or paid for, kept unless the caller asked for a
+ * cold next build. The global `pricing` cache stays either way. Keys live in
+ * three shapes: an exact repository key, `${repo}:...`, and the local review
+ * carry-over's NUL separated `${repo}\0...`. */
+export async function cacheDeleteRepoEvidence(repo: string): Promise<number> {
+  const db = openDatabase();
+  try {
+    let removed = 0;
+    for (const namespace of ["pr-listing", "probe"]) {
+      removed += deleteRows(db, namespace, { exact: repo });
+    }
+    for (const namespace of ["ai-jobs", "cost"]) {
+      removed += deleteRows(db, namespace, { prefix: `${repo}:` });
+    }
+    removed += deleteRows(db, "local-review", { prefix: `${repo}\0` });
+    return removed;
   } finally {
     db.close();
   }

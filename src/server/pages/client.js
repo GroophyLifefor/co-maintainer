@@ -54,13 +54,20 @@ async function api(method, url, body) {
   });
   if (!res.ok) {
     let message = "Request failed";
+    let code = "";
+    let detail;
     try {
       const data = await res.json();
       if (data.error && data.error.message) message = data.error.message;
+      if (data.error && data.error.code) code = data.error.code;
+      if (data.error) detail = data.error.detail;
     } catch {
       // body was not JSON; keep the generic message
     }
-    throw new Error(message);
+    const error = new Error(message);
+    if (code) error.code = code;
+    error.detail = detail;
+    throw error;
   }
   if (res.status === 204) return null;
   return await res.json();
@@ -79,6 +86,82 @@ async function run(btn, card, fn) {
   } finally {
     if (btn) btn.disabled = false;
     skeleton(card, false);
+  }
+}
+
+/** Polls one job until it reaches a terminal status. A running `init`/`remake`
+ * ignores the abort signal, so "wait for the sync" is the only honest option
+ * the clear pages can offer for it. */
+function waitForJob(id) {
+  return new Promise(function (resolve, reject) {
+    let attempts = 0;
+    async function tick() {
+      attempts++;
+      try {
+        const res = await fetch("/api/jobs/" + encodeURIComponent(id), {
+          headers: { "x-requested-with": "co-maintainer" },
+        });
+        if (!res.ok) throw new Error("Could not check the running job.");
+        const job = await res.json();
+        if (job.status !== "running" && job.status !== "queued") {
+          resolve();
+          return;
+        }
+        if (attempts > 1200) {
+          reject(new Error("The sync did not finish."));
+          return;
+        }
+        setTimeout(tick, 3000);
+      } catch (err) {
+        reject(err);
+      }
+    }
+    tick();
+  });
+}
+
+/** Clears knowledge, asking about pending jobs when the server refuses.
+ * Returns false when the user backed out, so the caller does not reload.
+ * A running review is abortable and a running setup is not, which is the
+ * difference between the two questions. */
+async function clearKnowledge(url, includeCache) {
+  const target = includeCache ? url + "?includeCache=1" : url;
+  const retry = target.indexOf("?") >= 0 ? "&" : "?";
+  try {
+    await api("DELETE", target);
+  } catch (err) {
+    if (err.code !== "jobs_running") throw err;
+    const detail = err.detail || { queued: 0, running: [] };
+    const running = detail.running || [];
+    const setup = running.find(function (job) {
+      return job.abortable === false;
+    });
+    if (setup) {
+      if (
+        !confirm(
+          "A sync is running and cannot be stopped. Wait for it to finish and then clear?",
+        )
+      ) {
+        return false;
+      }
+      await waitForJob(setup.id);
+      await api("DELETE", target);
+      return;
+    }
+    const parts = [];
+    if (running.length) parts.push(running.length + " running review(s)");
+    if (detail.queued) parts.push(detail.queued + " queued job(s)");
+    if (!confirm("Stop " + parts.join(" and ") + " and clear?")) return false;
+    try {
+      await api("DELETE", target + retry + "onRunning=abort");
+    } catch (retryError) {
+      // A setup job was claimed between the first 409 and this retry. It
+      // cannot be aborted, so wait it out like the branch above.
+      if (retryError.code !== "job_not_abortable") throw retryError;
+      const jobId = retryError.detail && retryError.detail.id;
+      if (jobId) await waitForJob(jobId);
+      await api("DELETE", target);
+    }
   }
 }
 

@@ -4,6 +4,7 @@ import { sessionCookieHeader } from "../../server/auth.ts";
 import { closeAppDb, openAppDb } from "../../store/app_db.ts";
 import { activateRepo, markKnowledgeBuilt } from "../../store/repos.ts";
 import { createRemoteToken } from "../../services/remote_tokens.ts";
+import { clearRepo } from "../../services/clear.ts";
 import { setRemoteTokenActive } from "../../store/remote_tokens.ts";
 import {
   deleteEnv,
@@ -86,6 +87,41 @@ test("remote handshake succeeds without CSRF", async () => {
       throw new Error(`canonical repo ${body.repo?.fullName}`);
     }
     if (body.token?.name !== "cli") throw new Error("token name");
+  });
+});
+
+test("remote handshake refuses a repository whose knowledge was cleared", async () => {
+  await withEnv(async () => {
+    const repo = "Owner/Repo";
+    activateRepo(repo, undefined);
+    markKnowledgeBuilt(repo, "abc");
+    const guideDir = `${reposDir()}/${repo}`;
+    await mkdirPath(guideDir, { recursive: true });
+    await writeTextFile(`${guideDir}/PR_REVIEW_GUIDE.md`, "# Guide\n");
+    const { token } = await createRemoteToken("cli");
+    await clearRepo(repo);
+    const app = createApp({ password: PASSWORD });
+    const response = await app.fetch(
+      new Request("http://localhost/api/remote/handshake", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          schemaVersion: 1,
+          clientVersion: "0.3.0",
+          repo: "owner/repo",
+        }),
+      }),
+    );
+    if (response.status !== 409) {
+      throw new Error(`status ${response.status}: ${await response.text()}`);
+    }
+    const body = await response.json();
+    if (body.error?.code !== "not_initialized") {
+      throw new Error(JSON.stringify(body));
+    }
   });
 });
 

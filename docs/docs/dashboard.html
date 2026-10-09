@@ -243,7 +243,7 @@ You can skip it and configure the same items under <strong>Settings</strong> at 
 </tr>
 <tr>
 <td><code>/repos/:owner/:repo/knowledge</code></td>
-<td>Generated guides, <strong>Sync</strong></td>
+<td>Generated guides, <strong>Sync</strong>, <strong>Clear</strong></td>
 </tr>
 <tr>
 <td><code>/repos/:owner/:repo/settings</code></td>
@@ -322,6 +322,16 @@ before. One on a policy shows <strong>How reviews run</strong>, which holds only
 scope and codegraph.</p>
 <p>On <strong>Activity</strong>, <strong>Pull requests we skipped</strong> names the rule that decided, and a
 pull request that is waiting for a request has a <strong>Review now</strong> button.</p>
+<h2 id="clearing-knowledge">Clearing knowledge</h2>
+<p><strong>Knowledge</strong> carries a <strong>Clear knowledge</strong> card: it deletes that repository&#39;s
+guides and saved settings, and a checkbox also drops the cached evidence
+(pull request listings, costs, clones and worktrees). The next <strong>Sync</strong> builds
+the knowledge from scratch. See <a href="caching.html#clearing">Caching: Clearing</a>.</p>
+<p><strong>Settings</strong> ends with <strong>Clear all knowledge</strong>, which does the same for every
+repository on the server. Repository records, review history and tokens stay.
+Both actions ask about work in flight first: queued jobs are canceled, a
+running review can be stopped, and a running sync is waited out because it
+cannot be interrupted. Nothing is deleted until that question is answered.</p>
 <h2 id="ui-behavior">UI behavior</h2>
 <ul>
 <li>Failed API calls show a toast and <strong>Retry</strong>.</li>
@@ -353,7 +363,7 @@ has run.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#what-it-is-for">What it is for</a></li><li><a href="#before-you-open">Before you open</a></li><li><a href="#webhook-reachability">Webhook reachability</a></li><li><a href="#adding-a-repository">Adding a repository</a></li><li><a href="#sign-in">Sign in</a></li><li><a href="#get-started-setup">Get started (/setup)</a></li><li><a href="#routes">Routes</a></li><li><a href="#settings-global">Settings (global)</a></li><li><a href="#who-gets-a-review">Who gets a review</a></li><li><a href="#ui-behavior">UI behavior</a></li><li><a href="#linux">Linux</a></li><li><a href="#updating">Updating</a></li></ul></nav>
+      <ul><li><a href="#what-it-is-for">What it is for</a></li><li><a href="#before-you-open">Before you open</a></li><li><a href="#webhook-reachability">Webhook reachability</a></li><li><a href="#adding-a-repository">Adding a repository</a></li><li><a href="#sign-in">Sign in</a></li><li><a href="#get-started-setup">Get started (/setup)</a></li><li><a href="#routes">Routes</a></li><li><a href="#settings-global">Settings (global)</a></li><li><a href="#who-gets-a-review">Who gets a review</a></li><li><a href="#clearing-knowledge">Clearing knowledge</a></li><li><a href="#ui-behavior">UI behavior</a></li><li><a href="#linux">Linux</a></li><li><a href="#updating">Updating</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

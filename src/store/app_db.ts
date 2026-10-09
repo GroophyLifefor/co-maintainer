@@ -29,6 +29,12 @@ function lockPath(): string {
   return `${appDbPath()}.lock`;
 }
 
+/** The lock file on its own, so `uninstall` deletes it with the database
+ * instead of leaving a pid file that names a process that no longer exists. */
+export function appDbLockPath(): string {
+  return lockPath();
+}
+
 /** Where the backup taken before a migration lives, and what it covers. */
 export function backupPaths(): BackupPaths {
   return {

@@ -258,6 +258,35 @@ co-maintainer view [owner/repo] --path
 | `--path` |  | Print the directory the guides live in. |
 | `--remote` |  | Read the guides from the configured remote review server instead. |
 
+## `co-maintainer clear`
+
+Delete the generated guides and saved settings for a repository, or for every repository.
+
+```
+co-maintainer clear <owner/repo|all> [options]
+```
+
+### Clear
+
+| Flag | Default | Description |
+|---|---|---|
+| `--include-cache` |  | Also delete the fetched evidence: pull request listings, AI job cache, costs, local review carry-over, clones and worktrees. The next init is then a cold build. |
+| `--yes` |  | Skip the confirmation `all` asks. Needed when there is no terminal. |
+
+## `co-maintainer uninstall`
+
+Delete every co-maintainer data file on this machine.
+
+```
+co-maintainer uninstall [--yes]
+```
+
+### Uninstall
+
+| Flag | Default | Description |
+|---|---|---|
+| `--yes` |  | Skip the confirmation. Needed when there is no terminal. |
+
 ## `co-maintainer set`
 
 Persist defaults and secrets to the user config file.

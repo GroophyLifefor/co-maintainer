@@ -566,9 +566,11 @@ is allowed again. Match <code>--unset=</code> to the field name or the flag name
 <p>A plain <code>co-maintainer sync owner/repo</code> reuses those values. Pass new flags
 on <code>sync</code> or run <code>init</code> again to change includes, limits, or pull request
 filters permanently. <code>--only-request-changed-pr</code> stays on once saved. To
-collect every pull request state again, pass <code>--pr-state=open,closed,merged</code>.</p>
+collect every pull request state again, pass <code>--pr-state=open,closed,merged</code>.
+<a href="caching.html#clearing"><code>clear owner/repo</code></a> deletes this entry, so the repository
+goes back to &quot;never inited&quot; and the next build is an <code>init</code>.</p>
 <p>Guide files (<code>SKILL.md</code>, <code>CODEBASE.md</code>, review guides) live under
-<code>&lt;config&gt;/co-maintainer/repos/&lt;slug&gt;/</code>, not in your git clone. See
+<code>&lt;config&gt;/co-maintainer/repos/&lt;owner&gt;/&lt;repo&gt;/</code>, not in your git clone. See
 <a href="caching.html#generated-guides">Caching</a>. <code>co-maintainer view</code> prints them
 locally, and <code>view --remote</code> prints the copies a configured review server holds
 (see <a href="remote-review.html#reading-the-servers-guides">Remote review</a>).</p>
