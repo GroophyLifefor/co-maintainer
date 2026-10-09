@@ -1,6 +1,6 @@
 {
   "name": "co-maintainer",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "An imitator of yours, A PR review tool like co-maintainer.",
   "keywords": [
     "ai",
@@ -59,11 +59,9 @@
     "dx:scenario": "node scripts/dx_scenario.ts",
     "dashboard:smoke": "node scripts/dashboard_smoke.ts"
   },
-  "dependencies": {
-    "marked": "^15.0.7"
-  },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "marked": "^15.0.7",
     "oxfmt": "^0.68.0",
     "oxlint": "^1.83.0",
     "playwright": "^1.63.0",
