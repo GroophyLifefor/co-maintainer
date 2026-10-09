@@ -12,7 +12,7 @@ flowchart TB
   cache["Cache directory"]
 
   config --> cfg["config.json"]
-  config --> guides["repos/ slug / SKILL.md guides"]
+  config --> guides["repos/ owner-repo / guides"]
 
   cache --> cdb["cache.db evidence AI jobs"]
   cache --> appdb["app.db serve only"]
@@ -32,7 +32,7 @@ flowchart TB
 | File / folder | Purpose |
 | ------------- | ------- |
 | `config.json` | Global `set` values and `repos["owner/repo"]` memory |
-| `repos/<slug>/` | Generated guides for one GitHub repo (see below) |
+| `repos/<owner>/<repo>/` | Generated guides for one GitHub repo (see below) |
 
 Override: `CM_CONFIG_PATH` points at a different `config.json`.
 Override guides root: `CM_REPOS_DIR` (must match on laptops and `serve` when
@@ -99,8 +99,7 @@ Back up `app.db` and `config.json` before major upgrades. See
 
 ## Generated guides
 
-Under `repos/<slug>/` (slug is a stable hash of `owner/repo`, not the literal
-name):
+Under `repos/<owner>/<repo>/` (the literal repository name, so `repos/acme/widgets/`):
 
 - `SKILL.md`, `CODEBASE.md`
 - `PR_REVIEW_GUIDE.md` and related review guides when PR sources were included
@@ -109,6 +108,35 @@ Evidence for all repos shares one `cache.db` at the cache root (see above).
 
 Paths are always under the config/cache roots so the CLI can run from any
 working directory. [Configuration: Per-repo memory](configuration.md#per-repo-memory).
+
+## Clearing
+
+`co-maintainer clear` deletes what `init` produced:
+
+```sh
+co-maintainer clear owner/repo                  # guides and saved settings
+co-maintainer clear owner/repo --include-cache  # plus the fetched evidence
+co-maintainer clear all --yes                   # every repository on this machine
+```
+
+A cleared repository goes back to "never inited". Its guides, knowledge stamp,
+skill state and `repos["owner/repo"]` settings are gone, so the next build is
+[`init`](init.md), not [`sync`](sync.md). The command asks before it clears
+everything, and `--yes` skips that question when there is no terminal.
+
+`--include-cache` also drops the fetched evidence for the repository (pull
+request listings, AI job cache, costs, local review carry-over) plus its clones
+and worktrees. The next `init` is then a cold build that pays for everything
+again. Without the flag, only the knowledge is gone and the next build still
+reuses the files and pull requests it already collected.
+
+The dashboard has the same action per repository under **Knowledge** and for
+every repository under **Settings**. See [Dashboard](dashboard.md#routes).
+
+`co-maintainer uninstall` goes further and deletes every data file on the
+machine: `config.json`, `app.db`, `cache.db`, `repos/`, `clones/`, `wt/` and
+`tools/`. The npm package cannot remove itself while the CLI runs from it, so
+the command prints `npm uninstall -g co-maintainer` when it is done.
 
 ## Overrides
 
@@ -129,6 +157,8 @@ remote review should read guides the server built.
 | ---- | ------ |
 | Main moved, guides stale | [`sync`](sync.md) or dashboard **Sync** |
 | Change include flags or limits | `sync`/`init` with new flags (updates config + guides) |
-| Wipe server state | Stop `serve`, backup, remove `app.db` (destructive) |
+| Forget one repository | [`clear owner/repo`](#clearing) |
+| Forget everything and free the space | [`clear all --include-cache`](#clearing) |
 | Go back after an upgrade | Stop `serve`, run [`rollback`](troubleshooting.md#going-back-after-an-upgrade) with the new version still installed |
-| Wipe CLI evidence only | Remove `cache.db` (guides in `repos/` may remain) |
+| Remove the CLI and all its data | [`uninstall`](#clearing) |
+| Wipe server state | Stop `serve`, backup, remove `app.db` (destructive) |

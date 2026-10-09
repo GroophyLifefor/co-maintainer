@@ -108,7 +108,7 @@ Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
 | `/repos/:owner/:repo/pulls` | Open PR list with a **Review** button each, paged review history, manual **Review** by number when webhooks fail |
 | `/repos/:owner/:repo/pulls/:n` | Findings and cost for one PR |
 | `/repos/:owner/:repo/remote` | Remote CLI reviews for this repo (last 30 days) |
-| `/repos/:owner/:repo/knowledge` | Generated guides, **Sync** |
+| `/repos/:owner/:repo/knowledge` | Generated guides, **Sync**, **Clear** |
 | `/repos/:owner/:repo/settings` | **Who gets a review** (the [review policy](review-policy.md)), review scope, codegraph, analysis limits, schedule, remove repo |
 | `/activity` | Live and recent jobs (refreshes about every 5 seconds) and **Pull requests we skipped**, with the rule that skipped each and **Review now** for one that is waiting |
 | `/activity/:id` | Single job log |
@@ -149,6 +149,19 @@ scope and codegraph.
 
 On **Activity**, **Pull requests we skipped** names the rule that decided, and a
 pull request that is waiting for a request has a **Review now** button.
+
+## Clearing knowledge
+
+**Knowledge** carries a **Clear knowledge** card: it deletes that repository's
+guides and saved settings, and a checkbox also drops the cached evidence
+(pull request listings, costs, clones and worktrees). The next **Sync** builds
+the knowledge from scratch. See [Caching: Clearing](caching.md#clearing).
+
+**Settings** ends with **Clear all knowledge**, which does the same for every
+repository on the server. Repository records, review history and tokens stay.
+Both actions ask about work in flight first: queued jobs are canceled, a
+running review can be stopped, and a running sync is waited out because it
+cannot be interrupted. Nothing is deleted until that question is answered.
 
 ## UI behavior
 

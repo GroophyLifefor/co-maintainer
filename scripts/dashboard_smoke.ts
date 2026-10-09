@@ -37,8 +37,10 @@ import {
   mkdir,
   remove,
   setEnv,
+  stat,
   writeTextFile,
 } from "../src/util/runtime.ts";
+import { cacheGet, cacheSet } from "../src/store/cache_db.ts";
 import { runtimeExecPath, runtimeRunArgs } from "../src/testing/runtime.ts";
 
 const PASSWORD = "dashboard-smoke-pass";
@@ -133,9 +135,11 @@ function sandboxEnv(sandbox: string): Record<string, string | undefined> {
   };
 }
 
-function seed(): void {
+async function seed(): Promise<void> {
   activateRepo(REPO, 9);
   markKnowledgeBuilt(REPO, "abc");
+  await cacheSet("state", REPO, "{}");
+  await cacheSet("cost", `${REPO}:smoke`, "{}");
   upsertDrift({
     repo: REPO,
     as_of: new Date().toISOString(),
@@ -284,7 +288,7 @@ try {
   await writeUserConfig({ auth: "gh", ai: "none" });
   await openAppDb();
   try {
-    seed();
+    await seed();
   } finally {
     await closeAppDb();
   }
@@ -637,6 +641,37 @@ try {
       throw new Error("the secret panel is missing its warning");
     }
     console.log("token secret panel shown");
+
+    // Clear knowledge with the cached-evidence checkbox, the way an operator
+    // would. The page asks for a confirmation first.
+    await page.goto(`${base}/repos/${REPO}/knowledge`, { waitUntil: "load" });
+    let sawConfirm = false;
+    page.once("dialog", (dialog) => {
+      sawConfirm = true;
+      void dialog.accept();
+    });
+    await page.check("#clear-cache");
+    await Promise.all([page.waitForEvent("load"), page.click("#clear")]);
+    if (!sawConfirm) throw new Error("the clear did not ask for confirmation");
+    await sleep(400);
+    const notice = (await page.locator(".notice").first().textContent()) ?? "";
+    if (!notice.includes("Knowledge has not been built yet")) {
+      throw new Error(`the clear did not reset the notice: ${notice}`);
+    }
+    let guideSurvived = true;
+    try {
+      await stat(join(env.CM_REPOS_DIR ?? "", REPO, "PR_REVIEW_GUIDE.md"));
+    } catch {
+      guideSurvived = false;
+    }
+    if (guideSurvived) throw new Error("the guide file survived the clear");
+    if ((await cacheGet("state", REPO)) !== undefined) {
+      throw new Error("the skill state survived the clear");
+    }
+    if ((await cacheGet("cost", `${REPO}:smoke`)) !== undefined) {
+      throw new Error("the cached evidence survived includeCache");
+    }
+    console.log("clear knowledge works");
   } finally {
     await browser.close();
   }

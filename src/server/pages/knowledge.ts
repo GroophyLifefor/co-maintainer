@@ -36,7 +36,7 @@ export function renderKnowledge(
             )} changed files</b>. <span class="muted">Checked ${when(drift.as_of)}.</span>`
           : ""
       }</div></div>`
-    : `<div class="notice info"><div class="txt">Knowledge has not been built yet. Run init from the repository list.</div></div>`;
+    : `<div class="notice info"><div class="txt">Knowledge has not been built yet. Use Sync to build it.</div></div>`;
   const viewer = viewing
     ? `<div class="card"><div class="hd"><h2>${text(viewing.title)}</h2>
         <a class="btn sm" style="margin-left:auto" href="/repos/${text(
@@ -93,11 +93,30 @@ export function renderKnowledge(
         "Older versions are not stored yet.",
       )}</div>
     </div>
+    <div class="card" data-async>
+      ${skSlot()}
+      <div class="hd"><h2>Clear</h2></div>
+      <div class="bd">
+        <p class="muted" style="margin:0 0 16px">Delete the guides and the saved settings for this repository. The next Sync builds them from scratch.</p>
+        <div class="field wide"><label><input type="checkbox" id="clear-cache"> Also delete the cached evidence: pull request listings, costs, clones and worktrees</label>
+          <div class="hint">Without it the next build still reuses the files and pull requests it already paid for.</div></div>
+      </div>
+      <div class="ft"><button id="clear" style="color:var(--red)">Clear knowledge</button></div>
+    </div>
   </div>
 </div>
 <script>
 document.getElementById("update").addEventListener("click", function() {
   postAndGo("/api/repos/" + ${JSON.stringify(name)} + "/remake", {}, "/activity", this);
+});
+document.getElementById("clear").addEventListener("click", function() {
+  if (!confirm("Delete the guides and saved settings for this repository?")) return;
+  var includeCache = document.getElementById("clear-cache").checked;
+  var btn = this;
+  run(btn, btn.closest("[data-async]"), async function() {
+    var done = await clearKnowledge(${JSON.stringify(`/api/repos/${name}/knowledge`)}, includeCache);
+    if (done !== false) location.reload();
+  });
 });
 </script>`,
     }),

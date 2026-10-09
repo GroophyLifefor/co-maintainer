@@ -17,6 +17,7 @@ import { aiConfigured, readConfig, resolveAppPrivateKey } from "../config.ts";
 import { listJobs } from "../store/jobs.ts";
 import { handleJobsRoute } from "./api/jobs.ts";
 import { handleReposRoute } from "./api/repos.ts";
+import { handleKnowledgeRoute } from "./api/knowledge.ts";
 import { handleInstallationsRoute } from "./api/installations.ts";
 import { handleSettingsRoute } from "./api/settings.ts";
 import { handleActivityRoute } from "./api/activity.ts";
@@ -231,6 +232,9 @@ export function createApp(deps: AppDeps): App {
         }
         if (url.pathname.startsWith("/api/repos")) {
           return await handleReposRoute(request, url, githubApp);
+        }
+        if (url.pathname === "/api/knowledge") {
+          return await handleKnowledgeRoute(request, url);
         }
         if (url.pathname === "/api/installations") {
           return await handleInstallationsRoute(request, githubApp);

@@ -6,6 +6,8 @@ import { runRollback } from "./commands/rollback.ts";
 import { runSet } from "./commands/set.ts";
 import { runConfig } from "./commands/config.ts";
 import { runView } from "./commands/view.ts";
+import { runClear } from "./commands/clear.ts";
+import { runUninstall } from "./commands/uninstall.ts";
 import { runProbe } from "./commands/probe.ts";
 import { runReviewFromCli } from "./commands/review.ts";
 import { runInitOrRemake } from "../services/setup.ts";
@@ -72,6 +74,14 @@ export async function run(args: string[]): Promise<void> {
   }
   if (args[0] === "view") {
     await runView(args.slice(1));
+    return;
+  }
+  if (args[0] === "clear") {
+    await runClear(args.slice(1));
+    return;
+  }
+  if (args[0] === "uninstall") {
+    await runUninstall(args.slice(1));
     return;
   }
   if (args[0] === "serve") {

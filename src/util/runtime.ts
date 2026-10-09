@@ -15,6 +15,7 @@ import {
   readdir,
   readlink as fsReadLink,
   rename as fsRename,
+  rmdir as fsRmdir,
   rm as fsRm,
   stat as fsStat,
   writeFile as fsWriteFile,
@@ -139,6 +140,12 @@ export function remove(
   options?: { recursive?: boolean },
 ): Promise<void> {
   return fsRm(path, { recursive: options?.recursive ?? false, force: false });
+}
+
+/** Removes an empty directory only. Unlike `remove`, a non-empty directory
+ * fails, which is what callers that prune parents after deleting files want. */
+export function rmdir(path: string | URL): Promise<void> {
+  return fsRmdir(path);
 }
 
 export function stat(path: string | URL): Promise<Stats> {

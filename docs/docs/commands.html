@@ -753,6 +753,49 @@ co-maintainer view [owner/repo] --path
 <td>Read the guides from the configured remote review server instead.</td>
 </tr>
 </tbody></table>
+<h2 id="co-maintainer-clear"><code>co-maintainer clear</code></h2>
+<p>Delete the generated guides and saved settings for a repository, or for every repository.</p>
+<pre><code>co-maintainer clear &lt;owner/repo|all&gt; [options]
+</code></pre>
+<h3 id="clear">Clear</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--include-cache</code></td>
+<td></td>
+<td>Also delete the fetched evidence: pull request listings, AI job cache, costs, local review carry-over, clones and worktrees. The next init is then a cold build.</td>
+</tr>
+<tr>
+<td><code>--yes</code></td>
+<td></td>
+<td>Skip the confirmation <code>all</code> asks. Needed when there is no terminal.</td>
+</tr>
+</tbody></table>
+<h2 id="co-maintainer-uninstall"><code>co-maintainer uninstall</code></h2>
+<p>Delete every co-maintainer data file on this machine.</p>
+<pre><code>co-maintainer uninstall [--yes]
+</code></pre>
+<h3 id="uninstall">Uninstall</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--yes</code></td>
+<td></td>
+<td>Skip the confirmation. Needed when there is no terminal.</td>
+</tr>
+</tbody></table>
 <h2 id="co-maintainer-set"><code>co-maintainer set</code></h2>
 <p>Persist defaults and secrets to the user config file.</p>
 <pre><code>co-maintainer set [options]
@@ -1033,7 +1076,7 @@ co-maintainer view [owner/repo] --path
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#co-maintainer-probe">co-maintainer probe</a></li><li><a href="#co-maintainer-init">co-maintainer init</a></li><li><a href="#co-maintainer-sync">co-maintainer sync</a></li><li><a href="#co-maintainer-review">co-maintainer review</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#co-maintainer-view">co-maintainer view</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-serve">co-maintainer serve</a></li><li><a href="#co-maintainer-rollback">co-maintainer rollback</a></li><li><a href="#co-maintainer-version">co-maintainer version</a></li></ul></nav>
+      <ul><li><a href="#co-maintainer-probe">co-maintainer probe</a></li><li><a href="#co-maintainer-init">co-maintainer init</a></li><li><a href="#co-maintainer-sync">co-maintainer sync</a></li><li><a href="#co-maintainer-review">co-maintainer review</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#co-maintainer-view">co-maintainer view</a></li><li><a href="#co-maintainer-clear">co-maintainer clear</a></li><li><a href="#co-maintainer-uninstall">co-maintainer uninstall</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-serve">co-maintainer serve</a></li><li><a href="#co-maintainer-rollback">co-maintainer rollback</a></li><li><a href="#co-maintainer-version">co-maintainer version</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

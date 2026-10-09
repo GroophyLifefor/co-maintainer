@@ -17,6 +17,7 @@ import {
   registryToMarkdown,
   unknownCommandMessage,
   unknownOptionMessage,
+  visibleCommandNames,
   visibleCommands,
 } from "./commands/registry.ts";
 
@@ -230,7 +231,7 @@ test("registry: a markdown table cell escapes its pipe", () => {
 });
 
 test("help: `help <command>` prints that command and exits 0", async () => {
-  for (const name of ["probe", "init", "review", "set", "serve"]) {
+  for (const name of visibleCommandNames()) {
     const result = await capture(["help", name]);
     if (result.exitCode !== 0) {
       throw new Error(`help ${name} exited ${result.exitCode}`);
@@ -244,7 +245,7 @@ test("help: `help <command>` prints that command and exits 0", async () => {
 });
 
 test("help: `<command> --help` and `<command> -h` both exit 0", async () => {
-  for (const name of ["probe", "init", "review", "set", "serve"]) {
+  for (const name of visibleCommandNames()) {
     for (const flag of ["--help", "-h"]) {
       const result = await capture([name, flag]);
       if (result.exitCode !== 0) {

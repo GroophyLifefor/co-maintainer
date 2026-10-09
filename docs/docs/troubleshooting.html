@@ -256,6 +256,26 @@ is the safe default.</p>
 <td>Run it in a terminal, or pass <code>--yes</code></td>
 </tr>
 <tr>
+<td><code>clear needs one target</code></td>
+<td><code>clear</code> was called with no repository and no <code>all</code></td>
+<td>Pass <code>owner/repo</code> or <code>all</code>. See <a href="caching.html#clearing">Caching</a></td>
+</tr>
+<tr>
+<td><code>clear all needs your confirmation</code></td>
+<td><code>clear all</code> has no terminal to ask on</td>
+<td>Run it in a terminal, or pass <code>--yes</code></td>
+</tr>
+<tr>
+<td><code>Uninstall needs your confirmation</code></td>
+<td><code>uninstall</code> has no terminal to ask on</td>
+<td>Run it in a terminal, or pass <code>--yes</code></td>
+</tr>
+<tr>
+<td><code>A co-maintainer serve process (pid N) is using this data directory</code></td>
+<td><code>clear</code>, <code>uninstall</code> or <code>rollback</code> needs exclusive access</td>
+<td>Stop <code>serve</code>, then run the command again</td>
+</tr>
+<tr>
 <td><code>serve is already running</code></td>
 <td>Two <code>serve</code> processes share one <code>app.db</code></td>
 <td>Stop the other one, or point <code>CM_APP_DB</code> elsewhere</td>
@@ -338,6 +358,16 @@ missing value with no default becomes a <code>2</code> with a message naming the
 <td><code>invalid_policy</code> (422)</td>
 <td>The review policy cannot be read. The message says what is wrong</td>
 <td>Fix the field it names. Nothing is saved</td>
+</tr>
+<tr>
+<td><code>jobs_running</code> (409)</td>
+<td>A clear found queued jobs or a running review for the target</td>
+<td>The page asks whether to stop them and cancel the queue. Answer it to continue</td>
+</tr>
+<tr>
+<td><code>job_not_abortable</code> (409)</td>
+<td>A sync is running and cannot be interrupted</td>
+<td>The page waits for it to finish, then clears. See <a href="caching.html#clearing">Caching: Clearing</a></td>
 </tr>
 </tbody></table>
 <h2 id="going-back-after-an-upgrade">Going back after an upgrade</h2>

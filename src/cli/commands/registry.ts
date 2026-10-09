@@ -475,6 +475,52 @@ export const COMMANDS: CommandSpec[] = [
     ],
   },
   {
+    name: "clear",
+    summary:
+      "Delete the generated guides and saved settings for a repository, or for every repository.",
+    usage: ["co-maintainer clear <owner/repo|all> [options]"],
+    groups: [
+      {
+        title: "Clear",
+        flags: [
+          {
+            name: "include-cache",
+            description:
+              "Also delete the fetched evidence: pull request listings, AI job cache, costs, local review carry-over, clones and worktrees. The next init is then a cold build.",
+          },
+          {
+            name: "yes",
+            description:
+              "Skip the confirmation `all` asks. Needed when there is no terminal.",
+          },
+        ],
+      },
+    ],
+    examples: [
+      "co-maintainer clear owner/repo",
+      "co-maintainer clear owner/repo --include-cache",
+      "co-maintainer clear all --include-cache --yes",
+    ],
+  },
+  {
+    name: "uninstall",
+    summary: "Delete every co-maintainer data file on this machine.",
+    usage: ["co-maintainer uninstall [--yes]"],
+    groups: [
+      {
+        title: "Uninstall",
+        flags: [
+          {
+            name: "yes",
+            description:
+              "Skip the confirmation. Needed when there is no terminal.",
+          },
+        ],
+      },
+    ],
+    examples: ["co-maintainer uninstall", "co-maintainer uninstall --yes"],
+  },
+  {
     name: "set",
     summary: "Persist defaults and secrets to the user config file.",
     usage: ["co-maintainer set [options]"],
@@ -696,6 +742,13 @@ export function findCommand(name: string): CommandSpec | undefined {
  * but invisible. */
 export function visibleCommands(): CommandSpec[] {
   return COMMANDS.filter((command) => !command.hidden);
+}
+
+/** The visible command names in help order. Tests and scripts iterate this
+ * instead of repeating the list, so a new command cannot be forgotten in one
+ * place and present in another. */
+export function visibleCommandNames(): string[] {
+  return visibleCommands().map((command) => command.name);
 }
 
 /** Levenshtein distance, iterative and allocation-light: the help path runs it

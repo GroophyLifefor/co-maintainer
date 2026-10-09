@@ -274,12 +274,29 @@ export function cloneDir(repo: string): string {
   return `${clonesDir()}/${repoSlug(repo)}`;
 }
 
+/** The directory holding one repository's PR worktrees. `clear` removes it
+ * whole, so the layout lives in one place instead of at each call site. */
+export function repoWorktreesDir(repo: string): string {
+  return `${getCacheDir()}/co-maintainer/wt/${repoSlug(repo)}`;
+}
+
+/** Every repository's worktrees, for `clear all` and `uninstall`. */
+export function worktreesDir(): string {
+  return `${getCacheDir()}/co-maintainer/wt`;
+}
+
 export function worktreeDir(repo: string, pr: number): string {
-  return `${getCacheDir()}/co-maintainer/wt/${repoSlug(repo)}/${pr}`;
+  return `${repoWorktreesDir(repo)}/${pr}`;
 }
 
 export function cacheDbPath(): string {
   return `${getCacheDir()}/co-maintainer/cache.db`;
+}
+
+/** Transient pid files that keep one local review per repository root.
+ * `uninstall` still takes them: they are co-maintainer data too. */
+export function locksDir(): string {
+  return `${getCacheDir()}/co-maintainer/locks`;
 }
 
 export function loadEnvFile(path: string): void {
@@ -367,6 +384,29 @@ export async function writeRepoConfig(
     ),
   );
   await writeConfig({ ...config, repos });
+}
+
+/** Drops `repos[repo]` from config.json. `clear` uses this so the repository
+ * goes back to "never inited": the next run resolves its flags again. Returns
+ * whether there was an entry to drop. */
+export async function removeRepoConfig(repo: string): Promise<boolean> {
+  const config = readConfig();
+  if (!config.repos || !(repo in config.repos)) return false;
+  const repos = { ...config.repos };
+  delete repos[repo];
+  await writeConfig({
+    ...config,
+    repos: Object.keys(repos).length > 0 ? repos : undefined,
+  });
+  return true;
+}
+
+/** Drops every per-repo entry. `clear all` forgets every repository it knows. */
+export async function removeAllRepoConfig(): Promise<boolean> {
+  const config = readConfig();
+  if (!config.repos || Object.keys(config.repos).length === 0) return false;
+  await writeConfig({ ...config, repos: undefined });
+  return true;
 }
 
 /** Merges `patch` into the top-level (global, cross-repo) config —

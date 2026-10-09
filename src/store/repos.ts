@@ -65,6 +65,17 @@ export function markKnowledgeBuilt(fullName: string, baseSha: string): void {
   deleteDrift(fullName);
 }
 
+/** Forgets the built knowledge: the stamp every review and the dashboard read
+ * as "built", and the drift baseline that only meant anything against it. */
+export function clearRepoKnowledge(fullName: string): void {
+  getAppDb()
+    .prepare(
+      `UPDATE repos SET knowledge_built_at = NULL, knowledge_base_sha = NULL WHERE full_name = ?`,
+    )
+    .run(fullName);
+  deleteDrift(fullName);
+}
+
 export function setInstallationId(
   fullName: string,
   installationId: number,

@@ -48,6 +48,10 @@ is the safe default.
 | `There is no backup to roll back to` | `rollback` found no backup, or it is incomplete | A backup exists only after an upgrade migrated the database. See [Going back after an upgrade](#going-back-after-an-upgrade) |
 | `The backup was taken when upgrading to` | The installed version is not the one that made the backup | Install that version and run `rollback` again |
 | `Rollback needs your confirmation` | `rollback` has no terminal to ask on | Run it in a terminal, or pass `--yes` |
+| `clear needs one target` | `clear` was called with no repository and no `all` | Pass `owner/repo` or `all`. See [Caching](caching.md#clearing) |
+| `clear all needs your confirmation` | `clear all` has no terminal to ask on | Run it in a terminal, or pass `--yes` |
+| `Uninstall needs your confirmation` | `uninstall` has no terminal to ask on | Run it in a terminal, or pass `--yes` |
+| `A co-maintainer serve process (pid N) is using this data directory` | `clear`, `uninstall` or `rollback` needs exclusive access | Stop `serve`, then run the command again |
 | `serve is already running` | Two `serve` processes share one `app.db` | Stop the other one, or point `CM_APP_DB` elsewhere |
 
 `init`, `sync`, and `review` also refuse to start when a required value is still
@@ -76,6 +80,8 @@ These come back from the dashboard's API and show as a message next to the form.
 | ------- | ------------- | --- |
 | `policy_in_use` (409) | `This repository uses a review policy, so the auto review, drafts and bots switches do not apply.` | Change the [review policy](review-policy.md) instead, or pick **Simple switches** first |
 | `invalid_policy` (422) | The review policy cannot be read. The message says what is wrong | Fix the field it names. Nothing is saved |
+| `jobs_running` (409) | A clear found queued jobs or a running review for the target | The page asks whether to stop them and cancel the queue. Answer it to continue |
+| `job_not_abortable` (409) | A sync is running and cannot be interrupted | The page waits for it to finish, then clears. See [Caching: Clearing](caching.md#clearing) |
 
 ## Going back after an upgrade
 

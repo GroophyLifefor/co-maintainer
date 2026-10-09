@@ -2,7 +2,11 @@ import { createApp } from "./app.ts";
 import { markdown, money } from "./pages/layout.ts";
 import { closeAppDb, openAppDb } from "../store/app_db.ts";
 import { readConfig, writeUserConfig } from "../config.ts";
-import { activateRepo, markKnowledgeBuilt } from "../store/repos.ts";
+import {
+  activateRepo,
+  clearRepoKnowledge,
+  markKnowledgeBuilt,
+} from "../store/repos.ts";
 import { insertReview, setReviewStatus } from "../store/reviews.ts";
 import { KNOWN_COST } from "../testing/fixtures/cost.ts";
 import { insertFinding } from "../store/findings.ts";
@@ -523,6 +527,57 @@ test("the knowledge page counts new and changed pull requests apart", async () =
     ]) {
       if (!html.includes(needle)) {
         throw new Error(`knowledge page missed "${needle}"`);
+      }
+    }
+  });
+});
+
+test("the knowledge and settings pages carry their clear controls", async () => {
+  await withEnv(async () => {
+    seed();
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const knowledge = await (
+      await app.fetch(
+        new Request("http://localhost/repos/acme/widgets/knowledge", {
+          headers: { cookie },
+        }),
+      )
+    ).text();
+    for (const needle of [
+      'id="clear"',
+      'id="clear-cache"',
+      "Clear knowledge",
+      "Delete the guides and saved settings for this repository?",
+    ]) {
+      if (!knowledge.includes(needle)) {
+        throw new Error(`knowledge page missed "${needle}"`);
+      }
+    }
+    clearRepoKnowledge("acme/widgets");
+    const cleared = await (
+      await app.fetch(
+        new Request("http://localhost/repos/acme/widgets/knowledge", {
+          headers: { cookie },
+        }),
+      )
+    ).text();
+    if (!cleared.includes("Use Sync to build it.")) {
+      throw new Error("the not-built notice does not point at Sync");
+    }
+    const settings = await (
+      await app.fetch(
+        new Request("http://localhost/settings", { headers: { cookie } }),
+      )
+    ).text();
+    for (const needle of [
+      'id="clear-all"',
+      'id="clear-all-cache"',
+      "Clear all knowledge",
+      "Delete the guides and saved settings for every repository",
+    ]) {
+      if (!settings.includes(needle)) {
+        throw new Error(`settings page missed "${needle}"`);
       }
     }
   });

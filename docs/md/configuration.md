@@ -212,9 +212,11 @@ A plain `co-maintainer sync owner/repo` reuses those values. Pass new flags
 on `sync` or run `init` again to change includes, limits, or pull request
 filters permanently. `--only-request-changed-pr` stays on once saved. To
 collect every pull request state again, pass `--pr-state=open,closed,merged`.
+[`clear owner/repo`](caching.md#clearing) deletes this entry, so the repository
+goes back to "never inited" and the next build is an `init`.
 
 Guide files (`SKILL.md`, `CODEBASE.md`, review guides) live under
-`<config>/co-maintainer/repos/<slug>/`, not in your git clone. See
+`<config>/co-maintainer/repos/<owner>/<repo>/`, not in your git clone. See
 [Caching](caching.md#generated-guides). `co-maintainer view` prints them
 locally, and `view --remote` prints the copies a configured review server holds
 (see [Remote review](remote-review.md#reading-the-servers-guides)).

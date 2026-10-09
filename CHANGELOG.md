@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3] - 2026-10-09
+
+### Added
+
+- **`clear` command.** `co-maintainer clear owner/repo` deletes the generated guides, the knowledge stamp, the skill state and the saved per-repo settings, so the repository goes back to "never inited" and the next build is `init`, not `sync`. `--include-cache` also deletes the fetched evidence (pull request listings, AI job cache, costs, local review carry-over) plus its clones and worktrees, so the next `init` is a cold build. `co-maintainer clear all` clears every repository on the machine and asks first, with `--yes` for a terminal-less run. Pending jobs are asked about: queued jobs are canceled and a running review can be stopped. See [Caching](docs/md/caching.md#clearing).
+- **Dashboard: clear knowledge.** The Knowledge page has a **Clear knowledge** card with an optional cached-evidence checkbox, and Settings can clear every repository at once. Both ask about jobs in flight: a running review can be stopped, and a running sync cannot be interrupted, so the page waits for it and then clears. Repository records, review history and tokens stay.
+- **`uninstall` command.** `co-maintainer uninstall` deletes every data file (config.json, app.db, cache.db, repos, clones, worktrees and tools) and prints the `npm uninstall -g co-maintainer` command that finishes the job, because a running npm package cannot remove itself.
+- **Landing page stats.** co-maintainer.com shows GitHub stars and npm downloads this month next to the install command. The numbers refresh from the public GitHub and npm APIs on every visit, with the last known values kept in the markup for offline and no-JS readers.
+
 ## [0.5.2] - 2026-10-09
 
 ### Fixed
