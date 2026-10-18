@@ -145,5 +145,3 @@ Setup: [`serve`: Sign in](serve.md#sign-in-to-the-dashboard).
 | PR review says gh only | Run `gh auth login`, drop `--auth=pat` for that command |
 | Webhook works but no review posted | Finish dashboard **Setup**, repo **init**, auto-review on |
 | Settings save returns 422 | Token or App key missing GitHub scopes |
-
-First-time CLI path: [Getting started](getting-started.md#2-save-defaults-once).

@@ -18,6 +18,7 @@
 - [CI](https://co-maintainer.com/docs/ci.md)
 - [Review policy](https://co-maintainer.com/docs/review-policy.md)
 - [PR review](https://co-maintainer.com/docs/local-pr-review.md)
+- [Commit watch review](https://co-maintainer.com/docs/commit-watch-review.md)
 
 ## Self-hosted
 

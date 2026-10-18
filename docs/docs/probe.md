@@ -10,7 +10,7 @@ write guide files.
 
 | Check | Why |
 | ----- | --- |
-| [Install](getting-started.md#1-install) `co-maintainer` | `probe` is a CLI command |
+| [Install](getting-started.md#install) `co-maintainer` | `probe` is a CLI command |
 | [GitHub auth](authentication.md) (`gh auth login` or a PAT) | `probe` only reads the repo via the API |
 | [Defaults](configuration.md) with `co-maintainer set` (optional) | Skips repeating `--auth=...` on every run |
 | Read access to `owner/repo` | Private repos need a token or `gh` login that can see them |

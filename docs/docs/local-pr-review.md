@@ -7,6 +7,9 @@ Overview: [`review`](review.md). This is not the same as
 [remote review](remote-review.md) (`--remote` is rejected when a PR number is
 present).
 
+Pushing straight to `main` without PRs: see
+[commit watch review](commit-watch-review.md) (coming soon).
+
 ## Before you run
 
 | Check | Why |

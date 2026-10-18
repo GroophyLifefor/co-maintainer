@@ -9,7 +9,7 @@ non-trivial API cost on large repos.
 
 | Check | Why |
 | ----- | --- |
-| [Install](getting-started.md#1-install) `co-maintainer` | `init` is a CLI command |
+| [Install](getting-started.md#install) `co-maintainer` | `init` is a CLI command |
 | [`probe`](probe.md) on the same `owner/repo` (recommended) | Gives a ready-made `init` line with limits and `--include-*` flags |
 | [GitHub auth](authentication.md) | Reads the repo through `gh` or a PAT |
 | [AI provider](providers.md) | A key and both models via `co-maintainer set` or flags. There is no default model |

@@ -36,7 +36,7 @@ CLI-only users can ignore `serve` until they need shared context or automation.
 
 | Check | Why |
 | ----- | --- |
-| [Install](getting-started.md#1-install) `co-maintainer` | `serve` is a CLI command |
+| [Install](getting-started.md#install) `co-maintainer` | `serve` is a CLI command |
 | GitHub App (optional at startup) | Add it later in the dashboard **Settings**, or with `co-maintainer set` ([Configuration](configuration.md)). Changes apply without a restart. The dashboard can also create it for you (see [Create the App from the dashboard](#create-the-app-from-the-dashboard)) |
 | `--github-webhook-secret=` (recommended) | Verifies webhook payloads |
 | AI and GitHub access via dashboard **Get started** (`/setup`) or **Settings** | Reviews need models and repo access (can finish after first boot) |
