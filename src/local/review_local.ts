@@ -1,6 +1,8 @@
 import { parseArgs } from "../cli/args.ts";
 import {
   filterReviewConfigArgs,
+  loadReviewSystemPromptFlags,
+  reviewSystemPromptLimitFor,
   type ReviewCliArgs,
 } from "../cli/review_args.ts";
 import {
@@ -165,6 +167,12 @@ export async function runLocalReview(
         ...filterReviewConfigArgs(cli.rawArgs),
       ]);
       options.useCodegraph = cli.disableCodegraph ? false : true;
+      const promptFlags = await loadReviewSystemPromptFlags(
+        cli,
+        reviewSystemPromptLimitFor(repo),
+      );
+      options.reviewSystemPromptAdd = promptFlags.add;
+      options.reviewSystemPromptOverride = promptFlags.override;
 
       const guides = await loadGuides(repo);
       if (!guides.shortGuide && !guides.skill) {

@@ -724,6 +724,37 @@ test("an empty environment value counts as not set", async () => {
   );
 });
 
+test("review --remote sends the per-run system prompts in the submit body", async () => {
+  const dir = tempDirSync();
+  const addPath = `${dir}/add.md`;
+  const overridePath = `${dir}/override.md`;
+  await writeTextFile(addPath, "Extra guidance.");
+  await writeTextFile(overridePath, "Strict mode.");
+  await withByokWorktreeReview(
+    {
+      reviewArgs: [
+        `--system-prompt-file=${addPath}`,
+        `--system-prompt-override-file=${overridePath}`,
+      ],
+    },
+    ({ code, stdout, stderr, remote }) => {
+      if (code !== 0) throw new Error(`exit ${code}\n${stdout}\n${stderr}`);
+      const submit = remote.requests.find(
+        (r) => r.path === "/api/remote/reviews",
+      );
+      const body = submit?.body as
+        | { systemPromptAdd?: string; systemPromptOverride?: string }
+        | undefined;
+      if (body?.systemPromptAdd !== "Extra guidance.") {
+        throw new Error(`systemPromptAdd: ${JSON.stringify(body)}`);
+      }
+      if (body?.systemPromptOverride !== "Strict mode.") {
+        throw new Error(`systemPromptOverride: ${JSON.stringify(body)}`);
+      }
+    },
+  );
+});
+
 test("a key in the environment is never sent unless --remote-byok asked for it", async () => {
   await withByokWorktreeReview(
     {

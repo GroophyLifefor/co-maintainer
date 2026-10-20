@@ -397,6 +397,23 @@ export const COMMANDS: CommandSpec[] = [
           },
         ],
       },
+      {
+        title: "Custom instructions",
+        flags: [
+          {
+            name: "system-prompt-file",
+            value: "PATH",
+            description:
+              "Append this file's contents to the review instructions for this run only.",
+          },
+          {
+            name: "system-prompt-override-file",
+            value: "PATH",
+            description:
+              "Replace the repository's review instructions with this file for this run only. The built-in instructions are kept.",
+          },
+        ],
+      },
       AI_FLAGS,
       GITHUB_FLAGS,
       REVIEW_OUTPUT_FLAGS,
@@ -408,6 +425,8 @@ export const COMMANDS: CommandSpec[] = [
       "co-maintainer review --remote --remote-host=https://review.example.com --remote-token=cmr_...",
       "co-maintainer review --remote --remote-byok --json",
       "co-maintainer review --remote --output=github",
+      "co-maintainer review owner/repo 42 --system-prompt-file=extra.md",
+      "co-maintainer review --system-prompt-override-file=strict.md",
     ],
   },
   {
@@ -610,6 +629,24 @@ export const COMMANDS: CommandSpec[] = [
               "Read a custom review policy from a JSON file and use it as that default.",
           },
           {
+            name: "repo",
+            value: "owner/repo",
+            description:
+              "Write the repository-scoped settings below to this repository instead of the global config.",
+          },
+          {
+            name: "review-system-prompt",
+            value: "TEXT",
+            description:
+              "A repository's own review instructions. Needs --repo. Empty clears it.",
+          },
+          {
+            name: "review-system-prompt-max-chars",
+            value: "N",
+            description:
+              "Cap the repository's review instructions in characters. Needs --repo. 0 or -1 means no limit.",
+          },
+          {
             name: "review-blocking",
             value: "model|severity",
             default: "model",
@@ -645,6 +682,7 @@ export const COMMANDS: CommandSpec[] = [
     examples: [
       "co-maintainer set --ai=openrouter --ai-key=... --low-model=... --high-model=...",
       "co-maintainer set --remote-host=https://review.example.com --remote-token=...",
+      "co-maintainer set --repo=owner/repo --review-system-prompt='Focus on the parser.'",
       "co-maintainer set --unset=token",
     ],
   },

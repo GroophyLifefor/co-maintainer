@@ -86,6 +86,9 @@ provider, so both models are saved the first time. See
 | `--remote-byok-policy=off\|allow\|require` | `remoteByokPolicy` | `serve`, whether remote clients may send their own key |
 | `--review-policy=everyone\|trusted-auto\|on-request-only` | `reviewPolicy` | `serve`, the [review policy](review-policy.md) new repositories start with |
 | `--review-policy-file=PATH` | `reviewPolicy` (the parsed policy) | The same, from a JSON file. A bad policy is refused and nothing is saved |
+| `--repo=owner/repo` | `repos[owner/repo]` | Write the repository-scoped flags below to that repository, not the global config |
+| `--review-system-prompt=TEXT` | `repos[owner/repo].reviewSystemPrompt` | A repository's own review instructions. Needs `--repo`. A blank value clears it |
+| `--review-system-prompt-max-chars=N` | `repos[owner/repo].reviewSystemPromptMaxChars` | Cap those instructions in characters. Needs `--repo`. `0` or `-1` means no limit |
 
 ### App private key: inline, file contents, or path
 
@@ -207,6 +210,7 @@ After each successful [`init`](init.md) or [`sync`](sync.md),
 | `max-*` limits | GitHub PAT (global only) |
 | `include-*` flags | |
 | `only-request-changed-pr`, `pr-state` | |
+| `review-system-prompt`, `review-system-prompt-max-chars` | |
 
 A plain `co-maintainer sync owner/repo` reuses those values. Pass new flags
 on `sync` or run `init` again to change includes, limits, or pull request
@@ -214,6 +218,10 @@ filters permanently. `--only-request-changed-pr` stays on once saved. To
 collect every pull request state again, pass `--pr-state=open,closed,merged`.
 [`clear owner/repo`](caching.md#clearing) deletes this entry, so the repository
 goes back to "never inited" and the next build is an `init`.
+
+[`review-system-prompt`](review.md#repository-review-instructions) and its cap
+are the exception: `init` and `sync` never write them. Set them with
+`co-maintainer set --repo=owner/repo` or the repository **Settings** page.
 
 Guide files (`SKILL.md`, `CODEBASE.md`, review guides) live under
 `<config>/co-maintainer/repos/<owner>/<repo>/`, not in your git clone. See

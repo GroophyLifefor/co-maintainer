@@ -615,6 +615,26 @@ co-maintainer review [options]
 <td>Install codegraph if it is missing.</td>
 </tr>
 </tbody></table>
+<h3 id="custom-instructions">Custom instructions</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--system-prompt-file=PATH</code></td>
+<td></td>
+<td>Append this file&#39;s contents to the review instructions for this run only.</td>
+</tr>
+<tr>
+<td><code>--system-prompt-override-file=PATH</code></td>
+<td></td>
+<td>Replace the repository&#39;s review instructions with this file for this run only. The built-in instructions are kept.</td>
+</tr>
+</tbody></table>
 <h3 id="ai-3">AI</h3>
 <table>
 <thead>
@@ -939,6 +959,21 @@ co-maintainer view [owner/repo] --path
 <td><code>--review-policy-file=PATH</code></td>
 <td></td>
 <td>Read a custom review policy from a JSON file and use it as that default.</td>
+</tr>
+<tr>
+<td><code>--repo=owner/repo</code></td>
+<td></td>
+<td>Write the repository-scoped settings below to this repository instead of the global config.</td>
+</tr>
+<tr>
+<td><code>--review-system-prompt=TEXT</code></td>
+<td></td>
+<td>A repository&#39;s own review instructions. Needs --repo. Empty clears it.</td>
+</tr>
+<tr>
+<td><code>--review-system-prompt-max-chars=N</code></td>
+<td></td>
+<td>Cap the repository&#39;s review instructions in characters. Needs --repo. 0 or -1 means no limit.</td>
 </tr>
 <tr>
 <td><code>--review-blocking=model|severity</code></td>

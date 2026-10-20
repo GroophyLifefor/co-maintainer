@@ -150,6 +150,15 @@ scope and codegraph.
 On **Activity**, **Pull requests we skipped** names the rule that decided, and a
 pull request that is waiting for a request has a **Review now** button.
 
+## Custom review instructions
+
+Each repository also has a **Custom review instructions** card under its
+**Settings**. The text is added to the reviewer's built-in instructions for
+every review of that repository, as a `CUSTOM REVIEW INSTRUCTIONS` section.
+Leave it blank for none. **Maximum characters** caps the text, defaults to 8000,
+and `0` or `-1` means no limit. The command line form and the per-run flags are
+on [Review](review.md#repository-review-instructions).
+
 ## Clearing knowledge
 
 **Knowledge** carries a **Clear knowledge** card: it deletes that repository's

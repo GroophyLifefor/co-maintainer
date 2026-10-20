@@ -20,7 +20,7 @@ import {
   reviewBody,
   runReviewJob,
 } from "./review.ts";
-import type { GitHubClient, Json } from "../types.ts";
+import type { AiRequest, AiResponse, GitHubClient, Json } from "../types.ts";
 import type { JobRow } from "../store/rows.ts";
 import {
   deleteEnv,
@@ -730,4 +730,30 @@ test("humanCopy preserves the review heading dash and removes semicolons", () =>
   if (body.includes(";")) {
     throw new Error(body);
   }
+});
+
+test("a repository's custom instructions reach the review's system prompt", async () => {
+  await withEnv(async () => {
+    await writeUserConfig({
+      repos: {
+        "acme/widgets": {
+          reviewSystemPrompt: "Prefer the project's own helpers.",
+        },
+      },
+    });
+    let system = "";
+    class Capture extends FakeAiProvider {
+      complete(request: AiRequest): Promise<AiResponse> {
+        system = request.system ?? "";
+        return super.complete(request);
+      }
+    }
+    await runReviewJob(seed(), () => {}, new FakeGithub(), new Capture());
+    if (!system.includes("CUSTOM REVIEW INSTRUCTIONS")) {
+      throw new Error(`heading missing from system prompt: ${system}`);
+    }
+    if (!system.includes("Prefer the project's own helpers.")) {
+      throw new Error("instruction text missing from system prompt");
+    }
+  });
 });

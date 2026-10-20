@@ -3,6 +3,7 @@ import type { RevisionFileStatus } from "../review/revision.ts";
 import {
   MIN_CLIENT_SCHEMA,
   REMOTE_KNOWN_TOOL_NAMES,
+  REMOTE_MAX_SYSTEM_PROMPT_CHARS,
   REMOTE_SCHEMA_VERSION,
   REMOTE_SYNC_STATUSES,
 } from "./schema.ts";
@@ -220,6 +221,17 @@ export function validateSubmitRequest(body: unknown): string | null {
 
   const revisionErr = validateRevisionPayload(body.revision);
   if (revisionErr) return revisionErr;
+
+  for (const field of ["systemPromptAdd", "systemPromptOverride"] as const) {
+    const value = body[field];
+    if (value === undefined) continue;
+    if (typeof value !== "string") {
+      return bad(field, "must be a string");
+    }
+    if (value.length > REMOTE_MAX_SYSTEM_PROMPT_CHARS) {
+      return bad(field, "too long");
+    }
+  }
 
   if (body.capabilities !== undefined) {
     if (!isRecord(body.capabilities)) {

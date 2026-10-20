@@ -10,6 +10,10 @@ export const REMOTE_CLI_UPGRADE_COMMAND = "npm install -g co-maintainer@latest";
 export const REMOTE_MAX_BODY_BYTES = 52_428_800;
 export const REMOTE_SYNC_INTERVAL_SECONDS = 3;
 
+/** Absolute ceiling on a client's one-run review instructions, before the
+ * repository's own cap is applied on the server. Guards the body size. */
+export const REMOTE_MAX_SYSTEM_PROMPT_CHARS = 200_000;
+
 /** SHA-256 of sorted `fixtures/v<N>/*.json` (name + contents, `\r\n` normalized
  * to `\n`); bump with schema version. */
 export const REMOTE_FIXTURE_HASH: Record<number, string> = {

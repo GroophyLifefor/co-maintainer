@@ -200,4 +200,7 @@ export type RemoteReviewInputRow = {
   /** `'byok'` when the client's own key paid for the review, `'server'`
    * otherwise. A null (pre-0.5.1 row) is treated as `'server'`. */
   billed_to?: string | null;
+  /** The client's one-run review instructions, kept so a retry reuses them. */
+  system_prompt_add?: string | null;
+  system_prompt_override?: string | null;
 };

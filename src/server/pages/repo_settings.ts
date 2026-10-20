@@ -4,6 +4,7 @@ import type { RepoConfig } from "../../config.ts";
 import { parseRemakeCron } from "../../services/remake_cron.ts";
 import { nextCronRun } from "../../util/cron.ts";
 import { policySource } from "../../services/webhook.ts";
+import { DEFAULT_REVIEW_SYSTEM_PROMPT_MAX_CHARS } from "../../review/system_prompt.ts";
 import {
   ASSOCIATIONS,
   TEMPLATES,
@@ -179,6 +180,19 @@ export function renderRepoSettings(
         <div class="hint">Slower and costs more tokens per review, try it before turning it on everywhere.</div>
       </div>
       <div class="ft"><button class="primary" id="save-auto">Save</button></div>
+    </div>
+    <div class="card" data-async>
+      ${skSlot()}
+      <div class="hd"><h2>Custom review instructions</h2></div>
+      <div class="bd">
+        <p class="muted" style="margin:0 0 18px">Added to the reviewer's built-in instructions for every review of this repository, as a separate section. Leave blank for none.</p>
+        <div class="field wide"><label for="system-prompt">Instructions</label>
+          <textarea id="system-prompt" rows="8" placeholder="For example: prefer the project's own helpers over new dependencies.">${text(config.reviewSystemPrompt ?? "")}</textarea></div>
+        <div class="field"><label for="system-prompt-max">Maximum characters</label>
+          <input id="system-prompt-max" placeholder="${DEFAULT_REVIEW_SYSTEM_PROMPT_MAX_CHARS}" value="${text(config.reviewSystemPromptMaxChars ?? "")}">
+          <div class="hint">Blank uses ${DEFAULT_REVIEW_SYSTEM_PROMPT_MAX_CHARS}. 0 or -1 means no limit.</div></div>
+      </div>
+      <div class="ft"><button class="primary" id="save-prompt">Save</button></div>
     </div>
     <div class="card" data-async>
       ${skSlot()}
@@ -484,6 +498,23 @@ document.getElementById("save-init").addEventListener("click", function() {
 });
 document.getElementById("save-cron").addEventListener("click", function() {
   save(this, { remakeCron: document.getElementById("cron").value.trim() });
+});
+document.getElementById("save-prompt").addEventListener("click", function() {
+  var maxRaw = document.getElementById("system-prompt-max").value.trim();
+  var max;
+  if (maxRaw === "") {
+    max = null;
+  } else {
+    max = Number(maxRaw);
+    if (!Number.isInteger(max)) {
+      toast("Maximum characters must be a whole number, or blank for the default.");
+      return;
+    }
+  }
+  save(this, {
+    reviewSystemPrompt: document.getElementById("system-prompt").value,
+    reviewSystemPromptMaxChars: max
+  });
 });
 document.getElementById("remove").addEventListener("click", function() {
   if (!confirm("Stop reviewing this repository?")) return;

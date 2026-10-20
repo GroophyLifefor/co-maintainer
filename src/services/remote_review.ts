@@ -32,6 +32,10 @@ import {
   registerByokKey,
 } from "../remote/server/byok_keys.ts";
 import { reviewBlockingFrom } from "../review/blocking.ts";
+import {
+  checkReviewSystemPrompt,
+  reviewSystemPromptLimit,
+} from "../review/system_prompt.ts";
 import { loadGuides } from "../review/guides.ts";
 import type { Options } from "../types.ts";
 import { withLogSink } from "../util/log.ts";
@@ -137,6 +141,7 @@ function reviewOptionsForRepo(
     includeHowRepoWorks: true,
     onlyRequestChangedPr: false,
     reviewBlocking: reviewBlockingFrom(config.reviewBlocking),
+    reviewSystemPrompt: config.repos?.[repo]?.reviewSystemPrompt,
   };
 }
 
@@ -233,6 +238,30 @@ export function submitRemoteReview(
 
   const revision = body.revision ?? {};
   const capabilities = body.capabilities ?? { tools: [] };
+  const config = readConfig();
+  const promptLimit = reviewSystemPromptLimit(
+    config.repos?.[repoRow.full_name],
+  );
+  const systemPromptAdd =
+    typeof body.systemPromptAdd === "string" ? body.systemPromptAdd : undefined;
+  const systemPromptOverride =
+    typeof body.systemPromptOverride === "string"
+      ? body.systemPromptOverride
+      : undefined;
+  for (const [field, value] of [
+    ["systemPromptAdd", systemPromptAdd],
+    ["systemPromptOverride", systemPromptOverride],
+  ] as const) {
+    if (value === undefined) continue;
+    const problem = checkReviewSystemPrompt(value, promptLimit);
+    if (problem) {
+      return {
+        error: `${field}: ${problem}`,
+        status: 400,
+        code: "bad_request",
+      };
+    }
+  }
   insertRemoteReviewInput({
     jobId,
     revisionJson: JSON.stringify(revision),
@@ -240,6 +269,8 @@ export function submitRemoteReview(
     requestId,
     tokenId: token.id,
     billedTo,
+    systemPromptAdd,
+    systemPromptOverride,
   });
 
   // The review and job rows go in one transaction so a failure cannot leave a
@@ -247,7 +278,6 @@ export function submitRemoteReview(
   // job whose input row points a retry at a job that never really started.
   // The key is registered only after COMMIT, so it never outlives a failed
   // setup.
-  const config = readConfig();
   const db = getAppDb();
   db.exec("BEGIN");
   try {
@@ -342,6 +372,11 @@ export function registerRemoteReviewHandler(): void {
         );
         const useCodegraph = allowed.size > 0;
         const options = reviewOptionsForRepo(job.repo, useCodegraph, byokKey);
+        // The client's one-run instructions travel with the job, so a retry
+        // keeps them. They apply on top of the server's per-repo prompt.
+        options.reviewSystemPromptAdd = input.system_prompt_add ?? undefined;
+        options.reviewSystemPromptOverride =
+          input.system_prompt_override ?? undefined;
         // A BYOK client brings a key but not models, so a server with no
         // models cannot run its review either.
         if (
