@@ -47,6 +47,9 @@ const SINCE = "2000-01-01T00:00:00.000Z";
 type KeyFake = {
   url: string;
   authorizations: string[];
+  /** The raw JSON body of every provider call, for tests that inspect the
+   * prompt that reached the provider. */
+  bodies: string[];
   close: () => Promise<void>;
 };
 
@@ -57,10 +60,15 @@ function startKeyFake(
   options: { status?: number; content?: string; errorMessage?: string } = {},
 ): Promise<KeyFake> {
   const authorizations: string[] = [];
+  const bodies: string[] = [];
   const server: Server = createServer((request, response) => {
-    request.on("data", () => {});
+    let raw = "";
+    request.on("data", (chunk) => {
+      raw += String(chunk);
+    });
     request.on("end", () => {
       authorizations.push(request.headers.authorization ?? "");
+      if (raw) bodies.push(raw);
       const status = options.status ?? 200;
       const body =
         status === 200
@@ -96,6 +104,7 @@ function startKeyFake(
       resolve({
         url: `http://127.0.0.1:${address.port}/api/v1/chat/completions`,
         authorizations,
+        bodies,
         close: () =>
           new Promise((done) => {
             server.closeAllConnections();
@@ -393,6 +402,38 @@ test("submit matrix across the three policies", async () => {
     },
     { policy: "require" },
   );
+});
+
+test("a client's one-run system prompt reaches the provider and is stored", async () => {
+  await withServer(async ({ app, token, fake }) => {
+    const response = await post(app, token, "/api/remote/reviews", {
+      ...(await submitBody()),
+      systemPromptOverride: "Only report P0 issues.",
+      systemPromptAdd: "Cite the guide.",
+    });
+    if (response.status !== 202) {
+      throw new Error(`submit ${response.status}: ${await response.text()}`);
+    }
+    const { jobId } = (await response.json()) as { jobId: string };
+    const input = getRemoteReviewInput(jobId);
+    if (
+      input?.system_prompt_override !== "Only report P0 issues." ||
+      input?.system_prompt_add !== "Cite the guide."
+    ) {
+      throw new Error(`input ${JSON.stringify(input)}`);
+    }
+    if (!(await claimAndRun())) throw new Error("the review job never ran");
+    const body = fake.bodies.join("\n");
+    for (const part of [
+      "CUSTOM REVIEW INSTRUCTIONS",
+      "Only report P0 issues.",
+      "Cite the guide.",
+    ]) {
+      if (!body.includes(part)) {
+        throw new Error(`the provider did not see "${part}"`);
+      }
+    }
+  });
 });
 
 test("a BYOK review sends the client key, never the server key", async () => {

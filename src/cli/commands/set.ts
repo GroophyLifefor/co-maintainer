@@ -2,8 +2,14 @@ import {
   readConfig,
   configPath,
   savedKeyProvider,
+  writeRepoConfig,
   writeUserConfig,
 } from "../../config.ts";
+import {
+  checkReviewSystemPrompt,
+  reviewSystemPromptLimit,
+} from "../../review/system_prompt.ts";
+import type { RepoConfig } from "../../config.ts";
 import { hashPassword, passwordProblem } from "../../util/password.ts";
 import { readTextFile } from "../../util/runtime.ts";
 import {
@@ -73,6 +79,9 @@ export async function runSet(args: string[]): Promise<void> {
     "review-policy",
     "review-policy-file",
     "review-blocking",
+    "repo",
+    "review-system-prompt",
+    "review-system-prompt-max-chars",
     "password",
     "unset",
   ];
@@ -85,6 +94,14 @@ export async function runSet(args: string[]): Promise<void> {
     ) {
       die(`Unknown option: ${arg}`);
     }
+  }
+
+  // `--repo` turns `set` into a write to `repos[owner/repo]` in config.json.
+  // Only the repository-scoped settings are accepted alongside it.
+  const repoArg = text(args, "repo");
+  if (repoArg !== undefined) {
+    await runSetRepo(repoArg, args);
+    return;
   }
 
   const ai = text(args, "ai");
@@ -316,5 +333,109 @@ export async function runSet(args: string[]): Promise<void> {
       : `${key}=${secretFields.has(key) ? "•".repeat(8) : value}`,
   );
   console.log(`[set] updated: ${summary.join(", ")}`);
+  console.log(`Saved to ${configPath()}`);
+}
+
+/** Flag names that make sense together with `--repo`. Anything else is a
+ * global setting and is refused rather than silently written to the wrong
+ * place. */
+const REPO_SCOPED_FLAGS = new Set([
+  "repo",
+  "review-system-prompt",
+  "review-system-prompt-max-chars",
+  "unset",
+  "no-verify",
+]);
+
+/** The `--unset=name` values that address a repository-scoped field. */
+const REPO_SCOPED_UNSET = new Set([
+  "review-system-prompt",
+  "reviewSystemPrompt",
+  "review-system-prompt-max-chars",
+  "reviewSystemPromptMaxChars",
+]);
+
+/** `set --repo=owner/repo [--review-system-prompt=... | --review-system-prompt-max-chars=N | --unset=name]`
+ * writes the repository-scoped settings to `repos[owner/repo]` in config.json
+ * instead of the global config. */
+async function runSetRepo(repo: string, args: string[]): Promise<void> {
+  if (!/^[^/]+\/[^/]+$/.test(repo)) die("--repo must look like owner/repo");
+  for (const arg of args) {
+    if (!arg.startsWith("--")) continue;
+    const name = arg.slice(2).split("=")[0]!;
+    if (!REPO_SCOPED_FLAGS.has(name)) {
+      die(`--${name} cannot be used with --repo`);
+    }
+    if (name === "unset") {
+      const value = arg.slice("--unset=".length);
+      if (!REPO_SCOPED_UNSET.has(value)) {
+        die(`--unset=${value} cannot be used with --repo`);
+      }
+    }
+  }
+  const unset = new Set(
+    args
+      .filter((arg) => arg.startsWith("--unset="))
+      .map((arg) => arg.slice("--unset=".length)),
+  );
+  const existing = readConfig().repos?.[repo] ?? {};
+  const patch: RepoConfig = {};
+  // Unset first, then explicit values win, so `--unset=x --x=...` sets.
+  if (unset.has("review-system-prompt") || unset.has("reviewSystemPrompt")) {
+    patch.reviewSystemPrompt = undefined;
+  }
+  if (
+    unset.has("review-system-prompt-max-chars") ||
+    unset.has("reviewSystemPromptMaxChars")
+  ) {
+    patch.reviewSystemPromptMaxChars = undefined;
+  }
+  const maxRaw = text(args, "review-system-prompt-max-chars");
+  if (maxRaw !== undefined) {
+    // Blank clears it, the same as an empty value on the dashboard form.
+    if (maxRaw.trim() === "") {
+      patch.reviewSystemPromptMaxChars = undefined;
+    } else {
+      const value = Number(maxRaw);
+      if (!Number.isInteger(value)) {
+        die(
+          "--review-system-prompt-max-chars must be an integer (0 or -1 for no limit)",
+        );
+      }
+      patch.reviewSystemPromptMaxChars = value;
+    }
+  }
+  const prompt = text(args, "review-system-prompt");
+  if (prompt !== undefined) {
+    patch.reviewSystemPrompt = prompt.trim() === "" ? undefined : prompt;
+  }
+  if (Object.keys(patch).length === 0) {
+    die(
+      "Nothing to set. Pass --review-system-prompt=, --review-system-prompt-max-chars=N, or --unset=name with --repo.",
+    );
+  }
+  // The values after this write are the ones given here, or the stored ones.
+  // Lowering the cap re-checks the stored prompt too, so it cannot end up over
+  // the cap it is measured against.
+  const effectiveMax =
+    "reviewSystemPromptMaxChars" in patch
+      ? patch.reviewSystemPromptMaxChars
+      : existing.reviewSystemPromptMaxChars;
+  const effectivePrompt =
+    "reviewSystemPrompt" in patch
+      ? patch.reviewSystemPrompt
+      : existing.reviewSystemPrompt;
+  if (effectivePrompt !== undefined) {
+    const problem = checkReviewSystemPrompt(
+      effectivePrompt,
+      reviewSystemPromptLimit({ reviewSystemPromptMaxChars: effectiveMax }),
+    );
+    if (problem) die(`--review-system-prompt: ${problem}`);
+  }
+  await writeRepoConfig(repo, patch);
+  const summary = Object.entries(patch).map(([key, value]) =>
+    value === undefined ? `${key} (unset)` : `${key}=${value}`,
+  );
+  console.log(`[set] updated ${repo}: ${summary.join(", ")}`);
   console.log(`Saved to ${configPath()}`);
 }

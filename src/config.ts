@@ -38,6 +38,13 @@ export type RepoConfig = {
   prState?: ("open" | "closed" | "merged")[];
   /** Five field cron in UTC, checked by `serve` to queue a remake. */
   remakeCron?: string;
+  /** A repository's own review instructions, appended to the built-in
+   * reviewer prompt as a `CUSTOM REVIEW INSTRUCTIONS` section. Unset or blank
+   * means none. */
+  reviewSystemPrompt?: string;
+  /** Cap on `reviewSystemPrompt` in characters for this repository. Unset
+   * means the default; `0` or a negative number means no limit. */
+  reviewSystemPromptMaxChars?: number;
 };
 
 export type UserConfig = {

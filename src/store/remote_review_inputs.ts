@@ -11,12 +11,14 @@ export function insertRemoteReviewInput(input: {
   /** `'byok'` when the client submitted its own key, else `'server'`. The key
    * itself is never written here. */
   billedTo: "server" | "byok";
+  systemPromptAdd?: string;
+  systemPromptOverride?: string;
 }): void {
   getAppDb()
     .prepare(
       `INSERT INTO remote_review_inputs
-      (job_id, revision_json, capabilities_json, request_id, token_id, created_at, billed_to)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      (job_id, revision_json, capabilities_json, request_id, token_id, created_at, billed_to, system_prompt_add, system_prompt_override)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       input.jobId,
@@ -26,6 +28,8 @@ export function insertRemoteReviewInput(input: {
       input.tokenId,
       nowIso(),
       input.billedTo,
+      input.systemPromptAdd ?? null,
+      input.systemPromptOverride ?? null,
     );
 }
 

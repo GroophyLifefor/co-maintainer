@@ -123,7 +123,9 @@ function waitForJob(id) {
 /** Clears knowledge, asking about pending jobs when the server refuses.
  * Returns false when the user backed out, so the caller does not reload.
  * A running review is abortable and a running setup is not, which is the
- * difference between the two questions. */
+ * difference between the two questions. Called from the inline scripts on the
+ * knowledge pages, so it looks unused from inside this file. */
+// oxlint-disable-next-line no-unused-vars
 async function clearKnowledge(url, includeCache) {
   const target = includeCache ? url + "?includeCache=1" : url;
   const retry = target.indexOf("?") >= 0 ? "&" : "?";
@@ -176,6 +178,7 @@ async function postAndGo(url, body, next, btn) {
 // Called from the inline scripts on the repo list and repo pages, which deno lint
 // cannot see, so it looks unused from inside this file.
 // deno-lint-ignore no-unused-vars
+// oxlint-disable-next-line no-unused-vars
 function bindToggle(btn, url, field) {
   btn.addEventListener("click", async function () {
     if (btn.disabled) return;

@@ -212,6 +212,44 @@ valid findings, corrects inaccurate ones, removes duplicates, and adds what the
 first pass missed. More passes cost more tokens and take longer. <code>2</code> is a
 reasonable step up when a change is high risk or the repository is large. The
 value is capped at <code>4</code>. See <a href="cost.html">Cost</a> for what a pass costs.</p>
+<h2 id="repository-review-instructions">Repository review instructions</h2>
+<p>A repository can carry its own review instructions. They are appended to the
+reviewer&#39;s built-in system prompt as a <code>CUSTOM REVIEW INSTRUCTIONS</code> section, so
+the built-in role, the diagram rules and the guide are always kept. They are set
+per repository, never globally:</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--review-system-prompt=&#39;Prefer</span> <span class="sh-arg">the</span> <span class="sh-arg">project</span> <span class="sh-arg">helpers</span> <span class="sh-arg">over</span> <span class="sh-arg">new</span> <span class="sh-arg">dependencies.&#39;</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--review-system-prompt-max-chars=20000</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--unset=review-system-prompt</span>
+</code></pre>
+<p>The dashboard&#39;s repository <strong>Settings</strong> has the same field. A blank value turns
+it off. See <a href="configuration.html#per-repo-memory">Configuration</a> for where it is
+stored.</p>
+<p>For one run, without saving anything, two <code>review</code> flags add to or replace that
+section. Both work in every mode, PR, local and remote:</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--system-prompt-file=PATH</code></td>
+<td>Append the file&#39;s contents to the repository&#39;s instructions for this run</td>
+</tr>
+<tr>
+<td><code>--system-prompt-override-file=PATH</code></td>
+<td>Replace the repository&#39;s instructions with the file for this run. The built-in instructions are kept</td>
+</tr>
+</tbody></table>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-arg">owner/repo</span> <span class="sh-arg">42</span> <span class="sh-flag">--system-prompt-file=extra.md</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-flag">--system-prompt-override-file=strict.md</span>
+</code></pre>
+<p>The cap is <code>reviewSystemPromptMaxChars</code>, per repository, in characters. It
+defaults to 8000, and <code>0</code> or <code>-1</code> means no limit. The cap applies to the stored
+value and to both per-run files, and <code>set</code> and the dashboard refuse a value over
+it. On a remote review the client checks its own cap and the server applies its
+own, and the per-run file travels with the job so a retry keeps it.</p>
 <h2 id="exit-codes">Exit codes</h2>
 <table>
 <thead>
@@ -360,7 +398,7 @@ disagree.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#which-mode-should-i-use">Which mode should I use?</a></li><li><a href="#how-the-three-modes-differ">How the three modes differ</a></li><li><a href="#depth-improve-matrix">Depth: --improve-matrix</a></li><li><a href="#exit-codes">Exit codes</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#github-output">GitHub output</a></li><li><a href="#human-output">Human output</a></li><li><a href="#how-findings-are-produced">How findings are produced</a></li><li><a href="#before-any-review">Before any review</a></li></ul></nav>
+      <ul><li><a href="#which-mode-should-i-use">Which mode should I use?</a></li><li><a href="#how-the-three-modes-differ">How the three modes differ</a></li><li><a href="#depth-improve-matrix">Depth: --improve-matrix</a></li><li><a href="#repository-review-instructions">Repository review instructions</a></li><li><a href="#exit-codes">Exit codes</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#github-output">GitHub output</a></li><li><a href="#human-output">Human output</a></li><li><a href="#how-findings-are-produced">How findings are produced</a></li><li><a href="#before-any-review">Before any review</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

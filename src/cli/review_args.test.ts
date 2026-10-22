@@ -1,5 +1,6 @@
 import { parseReviewArgs } from "./review_args.ts";
 import { setCliInteractive } from "./args.ts";
+import { writeUserConfig } from "../config.ts";
 import { test } from "node:test";
 import {
   deleteEnv,
@@ -7,6 +8,7 @@ import {
   makeTempDir,
   remove,
   setEnv,
+  writeTextFile,
 } from "../util/runtime.ts";
 
 test("parseReviewArgs: PR mode strips local-only flags before parseArgs", async () => {
@@ -231,5 +233,89 @@ test("parseReviewArgs: --output takes only github, and never together with --jso
     "--output=github cannot be used with --json"
   ) {
     throw new Error("--json and --output=github conflict");
+  }
+});
+
+test("parseReviewArgs: per-run system-prompt files are read into the options", async () => {
+  const dir = await makeTempDir({ prefix: "cm-review-prompt-" });
+  const previous = getEnv("CM_CONFIG_PATH");
+  setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
+  try {
+    const addPath = `${dir}/add.md`;
+    const overridePath = `${dir}/override.md`;
+    await writeTextFile(addPath, "Extra guidance.");
+    await writeTextFile(overridePath, "Strict mode.");
+    const parsed = await parseReviewArgs([
+      "owner/repo",
+      "42",
+      `--system-prompt-file=${addPath}`,
+      `--system-prompt-override-file=${overridePath}`,
+      "--token=test",
+      "--low-model=low/model",
+      "--high-model=test/model",
+    ]);
+    if (parsed.mode !== "pr") throw new Error(`mode ${parsed.mode}`);
+    if (parsed.options.reviewSystemPromptAdd !== "Extra guidance.") {
+      throw new Error(`add: ${String(parsed.options.reviewSystemPromptAdd)}`);
+    }
+    if (parsed.options.reviewSystemPromptOverride !== "Strict mode.") {
+      throw new Error(
+        `override: ${String(parsed.options.reviewSystemPromptOverride)}`,
+      );
+    }
+  } finally {
+    if (previous === undefined) deleteEnv("CM_CONFIG_PATH");
+    else setEnv("CM_CONFIG_PATH", previous);
+    await remove(dir, { recursive: true });
+  }
+});
+
+test("parseReviewArgs: a per-run file over the repository's cap is refused", async () => {
+  const dir = await makeTempDir({ prefix: "cm-review-prompt-limit-" });
+  const previous = getEnv("CM_CONFIG_PATH");
+  setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
+  try {
+    await writeUserConfig({
+      repos: { "owner/repo": { reviewSystemPromptMaxChars: 3 } },
+    });
+    const path = `${dir}/long.md`;
+    await writeTextFile(path, "far too long");
+    let message = "";
+    try {
+      await parseReviewArgs([
+        "owner/repo",
+        "42",
+        `--system-prompt-file=${path}`,
+        "--token=test",
+        "--low-model=low/model",
+        "--high-model=test/model",
+      ]);
+    } catch (thrown) {
+      message = thrown instanceof Error ? thrown.message : String(thrown);
+    }
+    if (!/--system-prompt-file: must be at most 3 characters/.test(message)) {
+      throw new Error(message || "the over-cap file was accepted");
+    }
+
+    let missing = "";
+    try {
+      await parseReviewArgs([
+        "owner/repo",
+        "42",
+        `--system-prompt-file=${dir}/nope.md`,
+        "--token=test",
+        "--low-model=low/model",
+        "--high-model=test/model",
+      ]);
+    } catch (thrown) {
+      missing = thrown instanceof Error ? thrown.message : String(thrown);
+    }
+    if (!/--system-prompt-file: could not read/.test(missing)) {
+      throw new Error(missing || "a missing file was accepted");
+    }
+  } finally {
+    if (previous === undefined) deleteEnv("CM_CONFIG_PATH");
+    else setEnv("CM_CONFIG_PATH", previous);
+    await remove(dir, { recursive: true });
   }
 });

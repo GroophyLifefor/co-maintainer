@@ -323,6 +323,13 @@ before. One on a policy shows <strong>How reviews run</strong>, which holds only
 scope and codegraph.</p>
 <p>On <strong>Activity</strong>, <strong>Pull requests we skipped</strong> names the rule that decided, and a
 pull request that is waiting for a request has a <strong>Review now</strong> button.</p>
+<h2 id="custom-review-instructions">Custom review instructions</h2>
+<p>Each repository also has a <strong>Custom review instructions</strong> card under its
+<strong>Settings</strong>. The text is added to the reviewer&#39;s built-in instructions for
+every review of that repository, as a <code>CUSTOM REVIEW INSTRUCTIONS</code> section.
+Leave it blank for none. <strong>Maximum characters</strong> caps the text, defaults to 8000,
+and <code>0</code> or <code>-1</code> means no limit. The command line form and the per-run flags are
+on <a href="review.html#repository-review-instructions">Review</a>.</p>
 <h2 id="clearing-knowledge">Clearing knowledge</h2>
 <p><strong>Knowledge</strong> carries a <strong>Clear knowledge</strong> card: it deletes that repository&#39;s
 guides and saved settings, and a checkbox also drops the cached evidence
@@ -364,7 +371,7 @@ has run.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#what-it-is-for">What it is for</a></li><li><a href="#before-you-open">Before you open</a></li><li><a href="#webhook-reachability">Webhook reachability</a></li><li><a href="#adding-a-repository">Adding a repository</a></li><li><a href="#sign-in">Sign in</a></li><li><a href="#get-started-setup">Get started (/setup)</a></li><li><a href="#routes">Routes</a></li><li><a href="#settings-global">Settings (global)</a></li><li><a href="#who-gets-a-review">Who gets a review</a></li><li><a href="#clearing-knowledge">Clearing knowledge</a></li><li><a href="#ui-behavior">UI behavior</a></li><li><a href="#linux">Linux</a></li><li><a href="#updating">Updating</a></li></ul></nav>
+      <ul><li><a href="#what-it-is-for">What it is for</a></li><li><a href="#before-you-open">Before you open</a></li><li><a href="#webhook-reachability">Webhook reachability</a></li><li><a href="#adding-a-repository">Adding a repository</a></li><li><a href="#sign-in">Sign in</a></li><li><a href="#get-started-setup">Get started (/setup)</a></li><li><a href="#routes">Routes</a></li><li><a href="#settings-global">Settings (global)</a></li><li><a href="#who-gets-a-review">Who gets a review</a></li><li><a href="#custom-review-instructions">Custom review instructions</a></li><li><a href="#clearing-knowledge">Clearing knowledge</a></li><li><a href="#ui-behavior">UI behavior</a></li><li><a href="#linux">Linux</a></li><li><a href="#updating">Updating</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

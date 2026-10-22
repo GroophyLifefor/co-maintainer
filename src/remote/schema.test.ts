@@ -151,3 +151,45 @@ test("validateSubmitRequest rejects non-string branch", () => {
     throw new Error(`expected branch error, got ${err}`);
   }
 });
+
+test("validateSubmitRequest accepts one-run system prompts and rejects bad ones", () => {
+  const base = {
+    schemaVersion: 1,
+    requestId: "550e8400-e29b-41d4-a716-446655440000",
+    repo: "o/r",
+    branch: "main",
+    revision: {
+      files: [
+        {
+          path: "a.ts",
+          previousPath: null,
+          status: "modified",
+          binary: false,
+          additions: 1,
+          deletions: 0,
+          patch: "x",
+        },
+      ],
+    },
+  };
+  if (
+    validateSubmitRequest({
+      ...base,
+      systemPromptAdd: "Extra.",
+      systemPromptOverride: "Strict.",
+    })
+  ) {
+    throw new Error("valid system prompts must pass");
+  }
+  const badAdd = validateSubmitRequest({ ...base, systemPromptAdd: 5 });
+  if (!badAdd?.includes("systemPromptAdd")) {
+    throw new Error(`expected systemPromptAdd error, got ${badAdd}`);
+  }
+  const badOverride = validateSubmitRequest({
+    ...base,
+    systemPromptOverride: ["x"],
+  });
+  if (!badOverride?.includes("systemPromptOverride")) {
+    throw new Error(`expected systemPromptOverride error, got ${badOverride}`);
+  }
+});

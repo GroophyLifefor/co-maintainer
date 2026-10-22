@@ -56,6 +56,17 @@ export type Options = {
   /** How a review decides a blocking finding. `model` keeps the
    * 0.4.13 behavior, `severity` uses a fixed P0/P1 threshold. */
   reviewBlocking?: "model" | "severity";
+  /** The repository's own review instructions (config.json
+   * `repos[repo].reviewSystemPrompt`). Appended to the built-in reviewer
+   * prompt as a `CUSTOM REVIEW INSTRUCTIONS` section. */
+  reviewSystemPrompt?: string;
+  /** A one-run addition to the custom section
+   * (`review --system-prompt-file`). */
+  reviewSystemPromptAdd?: string;
+  /** A one-run replacement of the repository's custom section
+   * (`review --system-prompt-override-file`). The built-in role, diagram
+   * rules and guide block are still kept. */
+  reviewSystemPromptOverride?: string;
 };
 
 export type GitHubClient = {

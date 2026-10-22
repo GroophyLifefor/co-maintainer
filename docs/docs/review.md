@@ -84,6 +84,42 @@ first pass missed. More passes cost more tokens and take longer. `2` is a
 reasonable step up when a change is high risk or the repository is large. The
 value is capped at `4`. See [Cost](cost.md) for what a pass costs.
 
+## Repository review instructions
+
+A repository can carry its own review instructions. They are appended to the
+reviewer's built-in system prompt as a `CUSTOM REVIEW INSTRUCTIONS` section, so
+the built-in role, the diagram rules and the guide are always kept. They are set
+per repository, never globally:
+
+```sh
+co-maintainer set --repo=owner/repo --review-system-prompt='Prefer the project helpers over new dependencies.'
+co-maintainer set --repo=owner/repo --review-system-prompt-max-chars=20000
+co-maintainer set --repo=owner/repo --unset=review-system-prompt
+```
+
+The dashboard's repository **Settings** has the same field. A blank value turns
+it off. See [Configuration](configuration.md#per-repo-memory) for where it is
+stored.
+
+For one run, without saving anything, two `review` flags add to or replace that
+section. Both work in every mode, PR, local and remote:
+
+| Flag | Effect |
+| ---- | ------ |
+| `--system-prompt-file=PATH` | Append the file's contents to the repository's instructions for this run |
+| `--system-prompt-override-file=PATH` | Replace the repository's instructions with the file for this run. The built-in instructions are kept |
+
+```sh
+co-maintainer review owner/repo 42 --system-prompt-file=extra.md
+co-maintainer review --system-prompt-override-file=strict.md
+```
+
+The cap is `reviewSystemPromptMaxChars`, per repository, in characters. It
+defaults to 8000, and `0` or `-1` means no limit. The cap applies to the stored
+value and to both per-run files, and `set` and the dashboard refuse a value over
+it. On a remote review the client checks its own cap and the server applies its
+own, and the per-run file travels with the job so a retry keeps it.
+
 ## Exit codes
 
 | Code | Meaning |
