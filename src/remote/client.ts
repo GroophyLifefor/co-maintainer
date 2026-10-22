@@ -1,7 +1,7 @@
 import { VERSION } from "../version.ts";
 import type { ReviewCliArgs } from "../cli/review_args.ts";
 import { loadReviewSystemPromptFlags } from "../cli/review_args.ts";
-import { CliError, EXIT_USAGE, exitWith } from "../cli/error.ts";
+import { exitWith } from "../cli/error.ts";
 import {
   formatHumanReview,
   humanFindingsFromJson,
