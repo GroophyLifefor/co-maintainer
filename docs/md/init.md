@@ -40,7 +40,7 @@ Values from `set`, `--env=PATH`, or flags are not asked again.
 | `--auth=pat` | Personal access token (see [Authentication](authentication.md)) |
 | `--github-pat=...` | PAT when not in env or config |
 | `--env=PATH` | Load env vars from a file |
-| `--ai=openrouter` | AI provider (`openrouter`, `openai`, `anthropic`, `opencode-zen`, `opencode-go` or `none`), see [AI providers](providers.md) |
+| `--ai=openrouter` | AI provider (`openrouter`, `openai`, `anthropic`, `opencode-zen` or `opencode-go`). Required, see [AI providers](providers.md) |
 | `--token=...` | Provider API key |
 | `--low-model=...` | Model for extraction steps |
 | `--high-model=...` | Model for synthesis steps |
@@ -86,6 +86,9 @@ Under `<config dir>/repos/owner/repo/` (see [Caching](caching.md)):
 - `SKILL.md` and `CODEBASE.md`
 - `PR_REVIEW_GUIDE.md` and related review guides when PR sources were included
 
+Every file is written by the AI provider. There is no offline or AI-free build,
+so `init` and [`sync`](sync.md) refuse to run when no provider is configured.
+
 `SKILL.md` holds the contribution guidance and links to `CODEBASE.md` for the
 codebase sections (layout, style, tests, development and debugging), so the same
 text is not repeated in both files and paid for twice in a review prompt.
@@ -93,11 +96,18 @@ text is not repeated in both files and paid for twice in a review prompt.
 
 Findings read out of a single pull request stay out of the guidance sections: a
 request under review describes that request, not how the repository works. Only
-the review-bar checklist, built from repeated review signals, learns from them.
+the review guide, built from recurring review findings, learns from them.
 
-The two review guides need at least three selected review signals, drawn from
-PR discussions and merged-PR feedback. A repository with fewer keeps only
-`SKILL.md` and `CODEBASE.md`. When that happens `init` says why on one line:
+The guide is a method, not a list. Each pass states a general invariant a future
+change must satisfy, keeps the concrete case as an example under it, and ends
+with an exit check followed by its obligations, `when <surface> changes → what
+must also change`, so a reviewer who sees only a diff can apply the rule.
+`PR_REVIEW_GUIDE.md` is the short checklist and `PR_REVIEW_DETAILED_GUIDE.md`
+the full method.
+
+The review guides need at least three review findings, drawn from PR discussions
+and merged-PR feedback. A repository with fewer keeps only `SKILL.md` and
+`CODEBASE.md`. When that happens `init` says why on one line:
 
     [write] PR_REVIEW_GUIDE.md skipped: found 1 review signals, needs at least 3
 
@@ -105,8 +115,13 @@ The count is what `init` saw, so adding PR sources or another review signal and
 running [`sync`](sync.md) can push a repository over the threshold. The
 threshold itself does not change.
 
-Evidence and AI job results go into `cache.db` for faster [`sync`](sync.md).
-After `init` succeeds, run [`review`](review.md) on a PR or local changes.
+Evidence and AI job results go into `cache.db` for faster [`sync`](sync.md). A
+provider call is retried three times, and if it still fails that one unit is
+dropped, or a response that never matches its shape is left out. A format or
+provider failure never fails the whole run: `SKILL.md` and `CODEBASE.md` are
+still written, and a guide the last run wrote is kept. Fetching and extraction
+are cached, so rerunning [`sync`](sync.md) continues without re-fetching. After
+`init` succeeds, run [`review`](review.md) on a PR or local changes.
 
 ## What it reports
 

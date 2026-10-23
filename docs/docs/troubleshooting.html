@@ -182,6 +182,16 @@ is the safe default.</p>
 <td>Pass a provider, or leave <code>--ai</code> out to use the saved one. See <a href="providers.html#where-each-provider-works">AI providers</a></td>
 </tr>
 <tr>
+<td><code>init and sync need an AI provider</code></td>
+<td><code>init</code> or <code>sync</code> ran with <code>--ai=none</code>, or no provider is saved</td>
+<td>The guides are written by the provider. Save one with <code>co-maintainer set --ai=... --token=... --low-model=... --high-model=...</code></td>
+</tr>
+<tr>
+<td><code>AI failed to generate the guides</code></td>
+<td>A non-provider error (for example a cache-write failure) broke the build</td>
+<td>The provider path itself is not fatal: a failed unit is dropped and the run continues. Rerun <a href="sync.html"><code>sync</code></a>, which continues from the cached fetch and extraction</td>
+</tr>
+<tr>
 <td><code>GitHub refused &lt;METHOD&gt; &lt;endpoint&gt;</code></td>
 <td>The token or the App lacks a permission for that call</td>
 <td>The message names the missing permission, for example <code>Pull requests: Read and write</code>. See <a href="authentication.html">Authentication</a> and <a href="github-app.html">GitHub App</a></td>

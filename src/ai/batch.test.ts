@@ -1,4 +1,4 @@
-import { AiBatch } from "./batch.ts";
+import { AiBatch, retryDelayMs } from "./batch.ts";
 import { cacheDeletePrefix } from "../store/cache_db.ts";
 import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
 import { test } from "node:test";
@@ -79,9 +79,31 @@ class FlakyProvider implements AiProvider {
   }
 }
 
+/** Throws on every call, to exercise the provider-error path. */
+class ErrorProvider implements AiProvider {
+  calls = 0;
+  async complete(): Promise<AiResponse> {
+    this.calls++;
+    throw new Error("connection reset");
+  }
+}
+
 const REQUEST: AiRequest = { job: "extract_unit", prompt: "p", maxTokens: 10 };
 
-test("a unit whose output does not parse is retried once and then cached", async () => {
+test("a rate limit waits before the retry, other failures do not", () => {
+  const limited = "OpenRouter failed with 429: Provider returned error";
+  if (retryDelayMs(limited, 1) !== 5_000) {
+    throw new Error(`first backoff: ${retryDelayMs(limited, 1)}`);
+  }
+  if (retryDelayMs(limited, 2) !== 15_000) {
+    throw new Error(`second backoff: ${retryDelayMs(limited, 2)}`);
+  }
+  if (retryDelayMs("connection reset", 1) !== 0) {
+    throw new Error("a non-rate-limit failure must retry immediately");
+  }
+});
+
+test("a unit whose output does not parse is retried and then cached", async () => {
   const repo = `batch-retry-${crypto.randomUUID()}`;
   // One bad call: the first attempt fails validation, the retry succeeds.
   const provider = new FlakyProvider(1);
@@ -98,7 +120,7 @@ test("a unit whose output does not parse is retried once and then cached", async
     if (provider.calls !== 2) {
       throw new Error(`expected one retry, got ${provider.calls} calls`);
     }
-    if (!results[0] || queue.skippedUnits().length !== 0) {
+    if (!results[0]) {
       throw new Error("the retry did not produce a usable result");
     }
     // The good retry is cached, so a second batch needs no provider call.
@@ -113,35 +135,37 @@ test("a unit whose output does not parse is retried once and then cached", async
   }
 });
 
-test("a unit that never parses is skipped and left uncached", async () => {
-  const repo = `batch-skip-${crypto.randomUUID()}`;
+test("a unit that never parses does not fail the run", async () => {
+  const repo = `batch-fail-${crypto.randomUUID()}`;
   const provider = new FlakyProvider(Number.POSITIVE_INFINITY);
   const queue = new AiBatch(provider, repo, 1, "mock:v2", () => "not JSON");
   try {
     const results = await queue.run([{ ...REQUEST }]);
+    if (provider.calls !== 3) {
+      throw new Error(`expected three attempts, got ${provider.calls}`);
+    }
+    // The response never met its contract: the unit is dropped, not cached, so
+    // a later run retries it, and the run itself does not fail.
     if (results[0] !== undefined) {
-      throw new Error("a skipped unit still returned a response");
+      throw new Error("an unusable unit was kept");
     }
-    if (provider.calls !== 2) {
-      throw new Error(`expected two attempts, got ${provider.calls}`);
+  } finally {
+    await cacheDeletePrefix("ai-jobs", `${repo}:`);
+  }
+});
+
+test("a provider error does not fail the run", async () => {
+  const repo = `batch-error-${crypto.randomUUID()}`;
+  const provider = new ErrorProvider();
+  const queue = new AiBatch(provider, repo, 1, "mock:v2");
+  try {
+    const results = await queue.run([{ ...REQUEST }]);
+    if (provider.calls !== 3) {
+      throw new Error(`expected three attempts, got ${provider.calls}`);
     }
-    const skipped = queue.skippedUnits();
-    if (skipped.length !== 1 || skipped[0].reason !== "not JSON") {
-      throw new Error(`skipped: ${JSON.stringify(skipped)}`);
-    }
-    // Nothing was cached: a fresh batch calls the provider again rather than
-    // replaying the unusable output.
-    const second = new FlakyProvider(Number.POSITIVE_INFINITY);
-    const secondQueue = new AiBatch(
-      second,
-      repo,
-      1,
-      "mock:v2",
-      () => "not JSON",
-    );
-    await secondQueue.run([{ ...REQUEST }]);
-    if (second.calls === 0) {
-      throw new Error("the skipped unit was cached anyway");
+    // The unit is dropped, not thrown: the run keeps its other work.
+    if (results[0] !== undefined) {
+      throw new Error("a failed unit produced a result");
     }
   } finally {
     await cacheDeletePrefix("ai-jobs", `${repo}:`);
@@ -171,7 +195,7 @@ test("an unusable cache record from an earlier version is dropped and retried", 
     if (good.calls !== 1) {
       throw new Error(`expected one provider call, got ${good.calls}`);
     }
-    if (!results[0] || second.skippedUnits().length !== 0) {
+    if (!results[0]) {
       throw new Error("the poisoned record was not replaced");
     }
   } finally {

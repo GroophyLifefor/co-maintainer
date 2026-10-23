@@ -62,6 +62,7 @@ class PullRequestCacheClient implements GitHubClient {
   updatedAt = "1";
   headSha = "head-1";
   commentsRequests: number = 0;
+  reviewCommentRequests: number = 0;
   reviewRequests: number = 0;
   fileRequests: number = 0;
 
@@ -101,6 +102,10 @@ class PullRequestCacheClient implements GitHubClient {
         },
       ] as T[];
     }
+    if (endpoint.includes("/pulls/") && endpoint.includes("/comments")) {
+      this.reviewCommentRequests++;
+      return [{ path: "src/app.ts", line: 3, body: "inline note" }] as T[];
+    }
     if (endpoint.includes("/comments")) {
       this.commentsRequests++;
       return [{ body: "please add a test" }] as T[];
@@ -126,7 +131,11 @@ test("PR discussion and diff caches follow their independent revisions", async (
     includePullRequestChanges: true,
   });
   const first = await collectSource(client, prOptions);
-  if (client.commentsRequests !== 1 || client.reviewRequests !== 1) {
+  if (
+    client.commentsRequests !== 1 ||
+    client.reviewCommentRequests !== 1 ||
+    client.reviewRequests !== 1
+  ) {
     throw new Error("initial PR discussion was not fetched");
   }
   if (client.fileRequests !== 1) {
@@ -134,7 +143,11 @@ test("PR discussion and diff caches follow their independent revisions", async (
   }
 
   await collectSource(client, prOptions, { source: first } as never);
-  if (client.commentsRequests !== 1 || client.fileRequests !== 1) {
+  if (
+    client.commentsRequests !== 1 ||
+    client.reviewCommentRequests !== 1 ||
+    client.fileRequests !== 1
+  ) {
     throw new Error("unchanged PR data was fetched again");
   }
 
@@ -144,6 +157,7 @@ test("PR discussion and diff caches follow their independent revisions", async (
   } as never);
   if (
     Number(client.commentsRequests) !== 2 ||
+    Number(client.reviewCommentRequests) !== 2 ||
     Number(client.reviewRequests) !== 2
   ) {
     throw new Error("changed discussion was not refreshed");

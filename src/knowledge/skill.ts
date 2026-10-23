@@ -1,11 +1,5 @@
 import type { Fact } from "./types.ts";
-import { isPullRequestFact } from "./guide.ts";
-import {
-  codebaseSectionKeys,
-  sectionAllowsPrFacts,
-  sectionKeys,
-  sectionTitles,
-} from "./sections.ts";
+import { codebaseSectionKeys, sectionKeys, sectionTitles } from "./sections.ts";
 
 function sectionFacts(facts: Fact[], key: string): Fact[] {
   return facts
@@ -13,56 +7,38 @@ function sectionFacts(facts: Fact[], key: string): Fact[] {
     .sort((a, b) => b.weight - a.weight);
 }
 
-/** Facts a section may state. A fact read out of a single pull request is that
- * request's narrative, not a rule, so only `review-bar` may use it. Facts
- * written before `origin` existed count as repository policy. */
-function usableFacts(facts: Fact[], key: string): Fact[] {
-  const items = sectionFacts(facts, key);
-  return sectionAllowsPrFacts(key)
-    ? items
-    : items.filter((item) => !isPullRequestFact(item));
-}
-
 /** The link that stands in for a codebase section's text. */
 function isCodebaseLink(section: string): boolean {
   return section.includes("[CODEBASE.md](CODEBASE.md)");
 }
 
-function render(key: string, facts: Fact[]): string {
+/** A codebase section in the skill is a link to `CODEBASE.md`, never text.
+ * Every other section's body is authored by the synthesis job: there is no
+ * deterministic fact renderer, so a section with no AI output is omitted. */
+function render(key: string): string {
   if (codebaseSectionKeys.has(key)) {
     return `## ${sectionTitles[key] ?? key}\n\nSee [CODEBASE.md](CODEBASE.md).`;
   }
-  const items = usableFacts(facts, key).slice(0, 6);
-  if (!items.length) return "";
-  return `## ${sectionTitles[key] ?? key}\n\n${items.map((item) => `- ${item.claim}`).join("\n")}`;
+  return "";
 }
 
 function codebaseSectionText(
   key: string,
-  facts: Fact[],
   overrides: Record<string, string>,
 ): string {
   const override = overrides[key]?.trim();
   if (override && hasBullets(override) && !isCodebaseLink(override)) {
     return cleanSection(override);
   }
-  const items = usableFacts(facts, key).slice(0, 6);
-  if (!items.length) return "";
-  return `## ${sectionTitles[key] ?? key}\n\n${items
-    .map((item) => `- ${item.claim}`)
-    .join("\n")}`;
+  return "";
 }
 
-/** The full text of the sections that live in `CODEBASE.md`. The skill itself
- * only links to that file, so this is the single place the codebase guidance is
- * written out: the synthesized override when there is one, otherwise the
- * rendered facts. */
-export function codebaseBody(
-  facts: Fact[],
-  overrides: Record<string, string> = {},
-): string {
+/** The full text of the sections that live in `CODEBASE.md`, each authored by
+ * the synthesis job. The skill itself only links to that file, so this is the
+ * single place the codebase guidance is written out. */
+export function codebaseBody(overrides: Record<string, string> = {}): string {
   return [...codebaseSectionKeys]
-    .map((key) => codebaseSectionText(key, facts, overrides))
+    .map((key) => codebaseSectionText(key, overrides))
     .filter(Boolean)
     .join("\n\n");
 }
@@ -154,16 +130,15 @@ export async function assembleSkill(
   );
 
   for (const key of keys) {
-    const content = render(key, facts);
-    if (!content) continue;
+    const content = render(key);
     const relevant = sectionFacts(facts, key);
     const sectionHash = await hash(JSON.stringify(relevant.map(hashInput)));
     hashes[key] = sectionHash;
     const canonicalHeading = `## ${sectionTitles[key] ?? key}`;
+    const override = overrides[key]?.trim();
     // The codebase sections hold a link, not text, so the skill never takes a
     // synthesized override for them; the override goes to CODEBASE.md instead.
-    const hasOverride =
-      Object.hasOwn(overrides, key) && !codebaseSectionKeys.has(key);
+    const hasOverride = Boolean(override) && !codebaseSectionKeys.has(key);
     if (
       !hasOverride &&
       previousMarkdown &&
@@ -178,8 +153,17 @@ export async function assembleSkill(
       continue;
     }
     const section = hasOverride ? overrides[key] : content;
-    // A codebase section is a link, not a bullet list, so it is kept even
-    // though it has no bullets; a text section without bullets is dropped.
+    if (!section) {
+      // A dirty text section the synthesis job did not return (a dropped unit):
+      // keep the previous body rather than dropping the section silently.
+      const prior = previous?.[key];
+      if (prior?.startsWith(canonicalHeading)) {
+        sections[key] = cleanSection(prior);
+      }
+      continue;
+    }
+    // A codebase section is a link, not a bullet list, and is kept even though
+    // it has no bullets.
     if (!isCodebaseLink(section) && !hasBullets(section)) continue;
     sections[key] = section;
     changed.push(key);

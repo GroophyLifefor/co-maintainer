@@ -121,8 +121,10 @@
 <td>opencode.ai, with a Go subscription</td>
 </tr>
 </tbody></table>
-<p><code>--ai=none</code> is the default until you choose a provider. <a href="probe.html"><code>probe</code></a>
-needs no model, so it works with it.</p>
+<p><code>--ai=none</code> is the default setting until you choose a provider. It turns AI off,
+which is enough for <a href="probe.html"><code>probe</code></a> because it needs no model. <a href="init.html"><code>init</code></a>,
+<a href="sync.html"><code>sync</code></a> and <a href="review.html"><code>review</code></a> all refuse it: the guides and the
+reviews are written by the provider, so there is nothing to build without one.</p>
 <h2 id="where-each-provider-works">Where each provider works</h2>
 <table>
 <thead>

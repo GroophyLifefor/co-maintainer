@@ -2,16 +2,16 @@
  * directly; it used to re-spawn the CLI as a subprocess, a second
  * execution path with its own failure modes. */
 import { createAiProvider } from "../ai/provider.ts";
-import {
-  enrichFactsWithReport,
-  synthesizeSections,
-} from "../knowledge/synthesis.ts";
-import type { SkippedUnit } from "../ai/batch.ts";
+import { enrichFacts, synthesizeSections } from "../knowledge/synthesis.ts";
 import { collectSource } from "../github/collect.ts";
 import { GhClient } from "../github/gh.ts";
 import { PatClient } from "../github/pat.ts";
 import { extractFacts } from "../knowledge/facts.ts";
-import { buildReviewDocuments, reviewSignalCount } from "../knowledge/guide.ts";
+import {
+  reviewSignalCount,
+  synthesizeReviewGuides,
+} from "../knowledge/guide.ts";
+import type { ReviewDocuments } from "../knowledge/guide.ts";
 import {
   assembleSkill,
   codebaseBody,
@@ -33,12 +33,13 @@ import { closeAppDb, isAppDbOpen, openAppDb } from "../store/app_db.ts";
 import { getRepo, markKnowledgeBuilt } from "../store/repos.ts";
 import { nowIso } from "../util/time.ts";
 import type { AiResponse, GitHubClient, Options } from "../types.ts";
-import type { Fact, Source, State } from "../knowledge/types.ts";
+import type { Source, State } from "../knowledge/types.ts";
 import type { LogFn } from "./jobs.ts";
 import type { JobRow } from "../store/rows.ts";
 import { mkdir, readTextFile, remove } from "../util/runtime.ts";
 import { addResponseCost, emptyTally, type CostTally } from "../util/cost.ts";
 import { costLabel } from "../util/run_summary.ts";
+import { formatError } from "../cli/error.ts";
 
 export type AiMetrics = CostTally & {
   calls: number;
@@ -126,21 +127,30 @@ async function skillPath(repo: string): Promise<string> {
 
 async function writeReviewDocuments(
   repo: string,
-  documents: ReturnType<typeof buildReviewDocuments>,
+  documents: ReviewDocuments | undefined,
   signalCount: number,
 ): Promise<void> {
   const directory = `${reposDir()}/${repo}`;
   if (!documents) {
-    // This used to delete the files without a word. The rule is
-    // "says why the third file is missing": keep it to one line.
-    log(
-      "write",
-      `PR_REVIEW_GUIDE.md skipped: found ${signalCount} review signals, needs at least 3`,
-    );
-    await Promise.all([
-      remove(`${directory}/PR_REVIEW_GUIDE.md`).catch(() => {}),
-      remove(`${directory}/PR_REVIEW_DETAILED_GUIDE.md`).catch(() => {}),
-    ]);
+    // `undefined` means two different things. Below the signal threshold there
+    // is nothing to write, so the files are removed and the reason is one line.
+    // When the AI produced no usable guide, the existing files are kept: a
+    // provider hiccup must not delete a guide the last run wrote.
+    if (signalCount <= 2) {
+      log(
+        "write",
+        `PR_REVIEW_GUIDE.md skipped: found ${signalCount} review signals, needs at least 3`,
+      );
+      await Promise.all([
+        remove(`${directory}/PR_REVIEW_GUIDE.md`).catch(() => {}),
+        remove(`${directory}/PR_REVIEW_DETAILED_GUIDE.md`).catch(() => {}),
+      ]);
+    } else {
+      log(
+        "write",
+        "PR_REVIEW_GUIDE.md not regenerated: the AI produced no guide, keeping any existing file",
+      );
+    }
     return;
   }
   const { writeTextFileAtomic } = await import("../util/atomic.ts");
@@ -155,21 +165,25 @@ async function writeReviewDocuments(
   }
 }
 
-/** Splits the codebase-description sections (layout/style/tests/devloop) out
- * of the assembled skill into their own file, so `review` can check a pull
- * request against how this repository's code actually looks, not just the
- * review-bar checklist mined from past PR comments. The skill links to this
- * file rather than repeating it, so its body is built from
- * the facts instead of being scraped back out of the skill. */
+/** Writes the codebase-description sections (layout/style/tests/devloop) to
+ * their own file, so `review` can check a pull request against how this
+ * repository's code actually looks, not just the review-bar checklist. Every
+ * section body is authored by the synthesis job; the skill links to this file
+ * rather than repeating it. */
 async function writeCodebaseDocument(
   repo: string,
-  facts: Fact[],
   overrides: Record<string, string> = {},
 ): Promise<void> {
   const path = `${reposDir()}/${repo}/CODEBASE.md`;
-  const body = codebaseBody(facts, overrides);
+  const body = codebaseBody(overrides);
   if (!body) {
-    await remove(path).catch(() => {});
+    // Keep any existing file: `SKILL.md` links to it, and removing it would
+    // leave that link dangling. A guide the last run wrote is better than a
+    // broken link.
+    log(
+      "write",
+      "CODEBASE.md not regenerated: the AI produced no codebase sections, keeping any existing file",
+    );
     return;
   }
   const { writeTextFileAtomic } = await import("../util/atomic.ts");
@@ -181,7 +195,7 @@ async function writeCodebaseDocument(
 
 function addReviewLink(
   markdown: string,
-  documents: ReturnType<typeof buildReviewDocuments>,
+  documents: ReviewDocuments | undefined,
 ): string {
   if (!documents) return markdown;
   const detailedLink = documents.detailed
@@ -219,12 +233,16 @@ async function initOrRemake(options: Options): Promise<void> {
   const client = clientFor(options);
   const lowAi = createAiProvider(options, options.lowModel ?? "");
   const highAi = createAiProvider(options, options.highModel ?? "");
-  if (lowAi || highAi) {
-    log(
-      "ai",
-      `${options.ai} providers configured · low=${options.lowModel} · high=${options.highModel}`,
+  // Every guide is AI-authored: with no provider there is nothing to build.
+  if (!lowAi || !highAi) {
+    throw new Error(
+      "init requires an AI provider. Run: co-maintainer set --ai=openrouter --token=... --low-model=... --high-model=...",
     );
   }
+  log(
+    "ai",
+    `${options.ai} providers configured · low=${options.lowModel} · high=${options.highModel}`,
+  );
 
   log("fetch", `${options.repo} via ${options.auth}`);
   const source = await timed("fetch repository data", options.logTime, () =>
@@ -274,19 +292,17 @@ async function initOrRemake(options: Options): Promise<void> {
       `extract deterministic facts · ${((performance.now() - factsStarted) / 1000).toFixed(2)}s`,
     );
   }
+  const usage = async (job: string, response: AiResponse) => {
+    addAiMetrics(aiMetrics, response);
+    await recordAiCost(options.repo, job, response);
+  };
   let overrides: Record<string, string> = {};
-  const skipped: SkippedUnit[] = [];
-  if (lowAi) {
+  let reviewDocuments: ReviewDocuments | undefined;
+  try {
     log("ai", "starting extract_unit jobs");
-    const usage = async (job: string, response: AiResponse) => {
-      addAiMetrics(aiMetrics, response);
-      await recordAiCost(options.repo, job, response);
-    };
-    const enriched = await timed("extract_unit AI", options.logTime, () =>
-      enrichFactsWithReport(lowAi, options.repo, facts, source, options, usage),
+    facts = await timed("extract_unit AI", options.logTime, () =>
+      enrichFacts(lowAi, options.repo, facts, source, options, usage),
     );
-    facts = enriched.facts;
-    skipped.push(...enriched.skipped);
     log("ai", `extract_unit complete · ${facts.length} facts`);
     const hashes = await factSectionHashes(facts);
     const synthesisChanged =
@@ -308,26 +324,50 @@ async function initOrRemake(options: Options): Promise<void> {
         dirtySections ? ` · ${dirtySections.size} dirty sections` : ""
       }`,
     );
-    if (highAi) {
-      const synth = await timed("synth_section AI", options.logTime, () =>
-        synthesizeSections(
-          highAi,
-          options.repo,
-          facts,
-          previousMarkdown,
-          options.ai,
-          options.highModel ?? "",
-          options.aiConcurrent,
-          usage,
-          dirtySections,
-        ),
-      );
-      overrides = synth.overrides;
-      skipped.push(...synth.skipped);
-    }
+    const synth = await timed("synth_section AI", options.logTime, () =>
+      synthesizeSections(
+        highAi,
+        options.repo,
+        facts,
+        previousMarkdown,
+        options.ai,
+        options.highModel ?? "",
+        options.aiConcurrent,
+        usage,
+        dirtySections,
+      ),
+    );
+    overrides = synth.overrides;
     log(
       "ai",
       `synth_section complete · ${Object.keys(overrides).length} sections`,
+    );
+    log("ai", "starting synth_guide jobs");
+    reviewDocuments = await timed("synth_guide AI", options.logTime, () =>
+      synthesizeReviewGuides(
+        highAi,
+        options.repo,
+        options.ai,
+        options.highModel ?? "",
+        options.aiConcurrent,
+        facts,
+        usage,
+      ),
+    );
+    log(
+      "ai",
+      reviewDocuments
+        ? `synth_guide complete · ${
+            reviewDocuments.detailed ? "short + detailed" : "single guide"
+          }`
+        : "synth_guide skipped · fewer than 3 review signals",
+    );
+  } catch (error) {
+    // Nothing is written on an AI failure. Fetching and extraction are cached,
+    // so a rerun picks up where this stopped instead of starting over.
+    throw new Error(
+      `AI failed to generate the guides: ${formatError(error)}. ` +
+        "Fetching and extraction are cached, so rerunning `co-maintainer sync <owner/repo>` continues without re-fetching.",
     );
   }
   let result = await timed("assemble skill", options.logTime, () =>
@@ -339,24 +379,14 @@ async function initOrRemake(options: Options): Promise<void> {
       overrides,
     ),
   );
-  const reviewDocuments = buildReviewDocuments(facts);
   result.markdown = addReviewLink(result.markdown, reviewDocuments);
   const validation = await timed("validate skill", options.logTime, () =>
     validateSkill(result.markdown, source),
   );
-  if (!validation.valid && Object.keys(overrides).length) {
-    log("validate", `AI output rejected: ${validation.errors.join("; ")}`);
-    overrides = {};
-    result = await timed("reassemble valid skill", options.logTime, () =>
-      assembleSkill(
-        options.repo,
-        facts,
-        previousMarkdown,
-        previous?.sectionHashes ?? {},
-        overrides,
-      ),
-    );
-    result.markdown = addReviewLink(result.markdown, reviewDocuments);
+  // There is no deterministic fallback to reassemble from: a skill the AI could
+  // not write correctly is reported rather than rebuilt from facts.
+  if (!validation.valid) {
+    log("validate", `skill problems kept: ${validation.errors.join("; ")}`);
   }
   const finalValidation = await timed(
     "final skill validation",
@@ -380,7 +410,7 @@ async function initOrRemake(options: Options): Promise<void> {
     const { writeTextFileAtomic } = await import("../util/atomic.ts");
     await withKnowledgeLock(options.repo, async () => {
       await writeTextFileAtomic(path, result.markdown);
-      await writeCodebaseDocument(options.repo, facts, overrides);
+      await writeCodebaseDocument(options.repo, overrides);
       await writeReviewDocuments(
         options.repo,
         reviewDocuments,
@@ -436,17 +466,6 @@ async function initOrRemake(options: Options): Promise<void> {
     "done",
     `${facts.length} facts · ${source.pullRequests.length} pull requests · ${source.commits.length} commits`,
   );
-  if (skipped.length) {
-    // A skipped unit used to vanish into a log line and recur as a "cache
-    // hit" forever. Say it in the final line instead, in this shape:
-    // `1 unit skipped (PR #3: output was not JSON)`.
-    const parts = skipped.map((unit) => unit.reason);
-    const line =
-      skipped.length === 1
-        ? `1 unit skipped (${parts[0]})`
-        : `${skipped.length} units skipped (${parts.join("; ")})`;
-    log("done", line);
-  }
   printRunSummary(
     summaryFromMetrics(aiMetrics, performance.now() - operationStarted),
   );
@@ -482,7 +501,13 @@ export function optionsFromConfig(
   const lowModel = repoConfig.lowModel ?? config.lowModel;
   const highModel = repoConfig.highModel ?? config.highModel;
   const aiToken = resolvedAiToken(config, ai);
-  if (ai !== "none" && (!aiToken || !lowModel || !highModel)) {
+  // Every guide is AI-authored: init and sync cannot run without a provider.
+  if (ai === "none") {
+    throw new Error(
+      "init and sync need an AI provider. Run: co-maintainer set --ai=openrouter --token=... --low-model=... --high-model=...",
+    );
+  }
+  if (!aiToken || !lowModel || !highModel) {
     throw new Error(
       "AI is enabled but token/low-model/high-model are not fully configured. Run: " +
         "co-maintainer set --token=... --low-model=... --high-model=...",
@@ -502,7 +527,7 @@ export function optionsFromConfig(
     aiToken,
     lowModel,
     highModel,
-    synthesisVersion: 16,
+    synthesisVersion: 17,
     includeCodebase: repoConfig.includeCodebase ?? true,
     includePullRequests: repoConfig.includePullRequests ?? true,
     includePullRequestChanges: repoConfig.includePullRequestChanges ?? true,
