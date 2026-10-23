@@ -153,12 +153,18 @@ export async function assembleSkill(
       continue;
     }
     const section = hasOverride ? overrides[key] : content;
-    // Every text section body is authored by the synthesis job, so a section
-    // with no AI output is omitted. A codebase section is a link, not a bullet
-    // list, and is kept even though it has no bullets.
-    if (!section || (!isCodebaseLink(section) && !hasBullets(section))) {
+    if (!section) {
+      // A dirty text section the synthesis job did not return (a dropped unit):
+      // keep the previous body rather than dropping the section silently.
+      const prior = previous?.[key];
+      if (prior?.startsWith(canonicalHeading)) {
+        sections[key] = cleanSection(prior);
+      }
       continue;
     }
+    // A codebase section is a link, not a bullet list, and is kept even though
+    // it has no bullets.
+    if (!isCodebaseLink(section) && !hasBullets(section)) continue;
     sections[key] = section;
     changed.push(key);
   }

@@ -35,7 +35,7 @@ const projectRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
  * request with the shape its parser expects. */
 function initChatContent(prompt: string): string {
   if (prompt.includes("JSON array")) return "[]";
-  if (prompt.includes("Write a Markdown review guide")) {
+  if (prompt.includes("Write a Markdown review method")) {
     return "# PR review guide\n\nHow to review a change here.\n\n## Checks\n- Read the diff · it can hide a regression · always\n- Read the tests · they can go stale · always\n";
   }
   return "## Section\n\n- Follow the repository convention.\n";

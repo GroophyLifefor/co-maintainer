@@ -224,7 +224,7 @@ test("cli init opens app.db itself and still writes the cache", async () => {
       }
       const content = prompt.includes("JSON array")
         ? "[]"
-        : prompt.includes("Write a Markdown review guide")
+        : prompt.includes("Write a Markdown review method")
           ? "# PR review guide\n\nHow to review a change here.\n\n## Checks\n- Read the diff · it can hide a regression · always\n- Read the tests · they can go stale · always\n"
           : "## Section\n\n- Follow the repository convention.\n";
       return new Response(

@@ -240,11 +240,28 @@ function queueFor(
 /** `factsFromResponse` as a validator: `null` when the text parses into facts,
  * otherwise the parse error's message. Used so an unparseable response is never
  * cached. */
+/** Whether the response contains a parseable JSON array at all. `parseJson`
+ * returns `[]` for anything it cannot read, so this is the only way to tell an
+ * empty-but-valid answer from garbage that must not be cached as a result. */
+function hasJsonArray(text: string): boolean {
+  const cleaned = text
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "");
+  if (Array.isArray(tryParse(cleaned))) return true;
+  return balancedArrays(cleaned).some((chunk) =>
+    Array.isArray(tryParse(chunk)),
+  );
+}
+
 function validateFacts(
   response: AiResponse,
   evidence: string,
   defaultScope: Fact["scope"],
 ): string | null {
+  if (!hasJsonArray(response.text)) {
+    return `${evidence}: AI fact output is not a JSON array`;
+  }
   try {
     factsFromResponse(response.text, evidence, defaultScope, "repository");
     return null;
@@ -441,13 +458,14 @@ ${files}`,
           return false;
         }
         // An invented path is worse than no path: keep the finding and drop
-        // the location when it does not exist in the repository.
-        if (
-          item.sectionKey === "review" &&
-          item.location &&
-          hasUnsupportedPath(item.location, source)
-        ) {
-          item.location = undefined;
+        // the location when it does not exist in the repository. The location
+        // may carry a line (`path:12` or `path:12-20`), which is stripped
+        // before the path is checked so a real path with a line survives.
+        if (item.sectionKey === "review" && item.location) {
+          const locationPath = item.location.replace(/:\d+(?:-\d+)?$/, "");
+          if (hasUnsupportedPath(locationPath, source)) {
+            item.location = undefined;
+          }
         }
         return true;
       }),

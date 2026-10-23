@@ -116,10 +116,12 @@ running [`sync`](sync.md) can push a repository over the threshold. The
 threshold itself does not change.
 
 Evidence and AI job results go into `cache.db` for faster [`sync`](sync.md). A
-provider call that fails is retried three times, and if it still fails the whole
-run stops without writing a guide. Fetching and extraction are cached, so
-rerunning [`sync`](sync.md) continues without re-fetching. After `init`
-succeeds, run [`review`](review.md) on a PR or local changes.
+provider call is retried three times, and if it still fails that one unit is
+dropped, or a response that never matches its shape is left out. A format or
+provider failure never fails the whole run: `SKILL.md` and `CODEBASE.md` are
+still written, and a guide the last run wrote is kept. Fetching and extraction
+are cached, so rerunning [`sync`](sync.md) continues without re-fetching. After
+`init` succeeds, run [`review`](review.md) on a PR or local changes.
 
 ## What it reports
 

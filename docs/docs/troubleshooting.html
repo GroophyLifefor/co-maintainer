@@ -188,8 +188,8 @@ is the safe default.</p>
 </tr>
 <tr>
 <td><code>AI failed to generate the guides</code></td>
-<td>A provider call failed three times</td>
-<td>Nothing was written. Fetching and extraction are cached, so rerun <a href="sync.html"><code>sync</code></a> to continue without re-fetching. Fix the provider if the cause repeats</td>
+<td>A non-provider error (for example a cache-write failure) broke the build</td>
+<td>The provider path itself is not fatal: a failed unit is dropped and the run continues. Rerun <a href="sync.html"><code>sync</code></a>, which continues from the cached fetch and extraction</td>
 </tr>
 <tr>
 <td><code>GitHub refused &lt;METHOD&gt; &lt;endpoint&gt;</code></td>

@@ -144,8 +144,11 @@ test("a unit that never parses does not fail the run", async () => {
     if (provider.calls !== 3) {
       throw new Error(`expected three attempts, got ${provider.calls}`);
     }
-    // A response that never validates is used anyway, so the run continues.
-    if (!results[0]) throw new Error("the unvalidated output was dropped");
+    // The response never met its contract: the unit is dropped, not cached, so
+    // a later run retries it, and the run itself does not fail.
+    if (results[0] !== undefined) {
+      throw new Error("an unusable unit was kept");
+    }
   } finally {
     await cacheDeletePrefix("ai-jobs", `${repo}:`);
   }

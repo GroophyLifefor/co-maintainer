@@ -207,9 +207,13 @@ export class AiBatch {
         continue;
       }
       if (reason !== null) {
+        // The last attempt still failed its contract. Do not cache it, so a
+        // later sync retries instead of replaying the same unusable output, and
+        // do not throw: the run keeps its other work.
         console.log(
-          `[ai] using output that did not validate ${item.request.job} ${item.id.slice(0, 8)}: ${reason}`,
+          `[ai] dropping ${item.request.job} ${item.id.slice(0, 8)} after ${attempt} attempts: ${reason}`,
         );
+        return;
       }
       this.records[item.id] = {
         status: "done",

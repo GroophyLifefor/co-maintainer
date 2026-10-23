@@ -132,16 +132,25 @@ async function writeReviewDocuments(
 ): Promise<void> {
   const directory = `${reposDir()}/${repo}`;
   if (!documents) {
-    // This used to delete the files without a word. The rule is
-    // "says why the third file is missing": keep it to one line.
-    log(
-      "write",
-      `PR_REVIEW_GUIDE.md skipped: found ${signalCount} review signals, needs at least 3`,
-    );
-    await Promise.all([
-      remove(`${directory}/PR_REVIEW_GUIDE.md`).catch(() => {}),
-      remove(`${directory}/PR_REVIEW_DETAILED_GUIDE.md`).catch(() => {}),
-    ]);
+    // `undefined` means two different things. Below the signal threshold there
+    // is nothing to write, so the files are removed and the reason is one line.
+    // When the AI produced no usable guide, the existing files are kept: a
+    // provider hiccup must not delete a guide the last run wrote.
+    if (signalCount <= 2) {
+      log(
+        "write",
+        `PR_REVIEW_GUIDE.md skipped: found ${signalCount} review signals, needs at least 3`,
+      );
+      await Promise.all([
+        remove(`${directory}/PR_REVIEW_GUIDE.md`).catch(() => {}),
+        remove(`${directory}/PR_REVIEW_DETAILED_GUIDE.md`).catch(() => {}),
+      ]);
+    } else {
+      log(
+        "write",
+        "PR_REVIEW_GUIDE.md not regenerated: the AI produced no guide, keeping any existing file",
+      );
+    }
     return;
   }
   const { writeTextFileAtomic } = await import("../util/atomic.ts");
@@ -168,7 +177,13 @@ async function writeCodebaseDocument(
   const path = `${reposDir()}/${repo}/CODEBASE.md`;
   const body = codebaseBody(overrides);
   if (!body) {
-    await remove(path).catch(() => {});
+    // Keep any existing file: `SKILL.md` links to it, and removing it would
+    // leave that link dangling. A guide the last run wrote is better than a
+    // broken link.
+    log(
+      "write",
+      "CODEBASE.md not regenerated: the AI produced no codebase sections, keeping any existing file",
+    );
     return;
   }
   const { writeTextFileAtomic } = await import("../util/atomic.ts");

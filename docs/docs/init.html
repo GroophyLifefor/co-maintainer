@@ -275,10 +275,12 @@ and merged-PR feedback. A repository with fewer keeps only <code>SKILL.md</code>
 running <a href="sync.html"><code>sync</code></a> can push a repository over the threshold. The
 threshold itself does not change.</p>
 <p>Evidence and AI job results go into <code>cache.db</code> for faster <a href="sync.html"><code>sync</code></a>. A
-provider call that fails is retried three times, and if it still fails the whole
-run stops without writing a guide. Fetching and extraction are cached, so
-rerunning <a href="sync.html"><code>sync</code></a> continues without re-fetching. After <code>init</code>
-succeeds, run <a href="review.html"><code>review</code></a> on a PR or local changes.</p>
+provider call is retried three times, and if it still fails that one unit is
+dropped, or a response that never matches its shape is left out. A format or
+provider failure never fails the whole run: <code>SKILL.md</code> and <code>CODEBASE.md</code> are
+still written, and a guide the last run wrote is kept. Fetching and extraction
+are cached, so rerunning <a href="sync.html"><code>sync</code></a> continues without re-fetching. After
+<code>init</code> succeeds, run <a href="review.html"><code>review</code></a> on a PR or local changes.</p>
 <h2 id="what-it-reports">What it reports</h2>
 <p>The last line on stderr is the run&#39;s cost and time:</p>
 <pre><code>Done in 21.0s · 3,125 in, 1,308 out tokens · $0.0016

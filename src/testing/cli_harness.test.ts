@@ -121,7 +121,7 @@ test("harness: the CLI reaches the fake OpenRouter through CM_OPENROUTER_URL", a
     // fake answers each shape its parser expects.
     chatContent: (prompt) => {
       if (prompt.includes("JSON array")) return "[]";
-      if (prompt.includes("Write a Markdown review guide")) {
+      if (prompt.includes("Write a Markdown review method")) {
         return "# PR review guide\n\nHow to review a change here.\n\n## Checks\n- Read the diff · it can hide a regression · always\n- Read the tests · they can go stale · always\n";
       }
       return "## Section\n\n- Follow the repository convention.\n";
