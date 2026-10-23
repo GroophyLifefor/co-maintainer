@@ -1,5 +1,11 @@
 import { parseArgs, setCliInteractive } from "./args.ts";
 import { die } from "./error.ts";
+import { readConfig } from "../config.ts";
+import { readTextFile } from "../util/runtime.ts";
+import {
+  checkReviewSystemPrompt,
+  reviewSystemPromptLimit,
+} from "../review/system_prompt.ts";
 import type { Options } from "../types.ts";
 
 export type ReviewMode = "local" | "remote" | "pr";
@@ -24,6 +30,12 @@ type ReviewFlags = {
   /** `--output=github`: workflow commands and a job summary instead of prose.
    */
   output?: "github";
+  /** `--system-prompt-file`: a file whose contents are appended to the
+   * custom review section for this run only. */
+  systemPromptFile?: string;
+  /** `--system-prompt-override-file`: a file whose contents replace the
+   * repository's custom review section for this run only. */
+  systemPromptOverrideFile?: string;
 };
 
 export type ReviewCliArgs =
@@ -45,6 +57,8 @@ function reviewFlags(rest: string[]): {
   remoteToken?: string;
   remoteByok?: boolean;
   output?: "github";
+  systemPromptFile?: string;
+  systemPromptOverrideFile?: string;
 } {
   const text = (name: string) =>
     rest.find((item) => item.startsWith(`--${name}=`))?.slice(name.length + 3);
@@ -87,6 +101,8 @@ function reviewFlags(rest: string[]): {
     remoteToken: text("remote-token"),
     remoteByok: remoteByokOn ? true : remoteByokOff ? false : undefined,
     output,
+    systemPromptFile: text("system-prompt-file"),
+    systemPromptOverrideFile: text("system-prompt-override-file"),
   };
 }
 
@@ -112,12 +128,50 @@ export function filterReviewConfigArgs(raw: string[]): string[] {
       arg.startsWith("--repo=") ||
       arg.startsWith("--remote-host=") ||
       arg.startsWith("--remote-token=") ||
-      arg.startsWith("--output=")
+      arg.startsWith("--output=") ||
+      arg.startsWith("--system-prompt-file=") ||
+      arg.startsWith("--system-prompt-override-file=")
     ) {
       return false;
     }
     return true;
   });
+}
+
+/** The repository's custom-prompt cap, read from config.json. */
+export function reviewSystemPromptLimitFor(repo: string): number | null {
+  return reviewSystemPromptLimit(readConfig().repos?.[repo]);
+}
+
+/** Reads the per-run system-prompt files and checks each against the
+ * repository's cap. `die`s naming the flag when a file cannot be read or is
+ * over the cap. */
+export async function loadReviewSystemPromptFlags(
+  cli: Pick<ReviewFlags, "systemPromptFile" | "systemPromptOverrideFile">,
+  limit: number | null,
+): Promise<{ add?: string; override?: string }> {
+  const load = async (flag: string, path: string): Promise<string> => {
+    let text: string;
+    try {
+      text = await readTextFile(path);
+    } catch (error) {
+      die(`${flag}: could not read ${path}: ${String(error)}`);
+    }
+    const problem = checkReviewSystemPrompt(text, limit);
+    if (problem) die(`${flag}: ${problem}`);
+    return text;
+  };
+  const result: { add?: string; override?: string } = {};
+  if (cli.systemPromptFile) {
+    result.add = await load("--system-prompt-file", cli.systemPromptFile);
+  }
+  if (cli.systemPromptOverrideFile) {
+    result.override = await load(
+      "--system-prompt-override-file",
+      cli.systemPromptOverrideFile,
+    );
+  }
+  return result;
 }
 
 /** Parses `co-maintainer review` after the `review` token. */
@@ -158,11 +212,17 @@ export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
     if (flags.remakeBeforeReview) {
       die("--sync-before-review is not supported for PR review");
     }
+    const promptFlags = await loadReviewSystemPromptFlags(
+      flags,
+      reviewSystemPromptLimitFor(options.repo),
+    );
     return {
       mode: "pr",
       options: {
         ...options,
         useCodegraph: flags.disableCodegraph ? false : true,
+        reviewSystemPromptAdd: promptFlags.add,
+        reviewSystemPromptOverride: promptFlags.override,
       },
       ...flags,
     };

@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The deterministic guide builder.** `buildReviewDocuments` and the fact renderer in `assembleSkill` and `codebaseBody` are gone. There is no offline or AI-free path that writes the guides.
 
+## [0.5.4] - 2026-10-20
+
+### Added
+
+- **Per-repository review instructions.** A repository can carry its own review instructions, appended to the built-in reviewer prompt as a `CUSTOM REVIEW INSTRUCTIONS` section so the role, the diagram rules and the guide are always kept. Set them with `co-maintainer set --repo=owner/repo --review-system-prompt=...` or on the repository's **Settings** page. `review` also takes `--system-prompt-file=PATH` to add and `--system-prompt-override-file=PATH` to replace them for one run, in PR, local and remote review. `reviewSystemPromptMaxChars` caps them per repository (default 8000, `0` or `-1` for no limit). See [Review](docs/md/review.md#repository-review-instructions).
+
 ## [0.5.3] - 2026-10-09
 
 ### Added

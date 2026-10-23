@@ -516,3 +516,73 @@ test("POST /api/repos/policy-preview describes a policy in plain sentences", asy
     if (bad.status !== 422) throw new Error(`status ${bad.status}`);
   });
 });
+
+test("PATCH /api/repos saves and clears the repository's review instructions", async () => {
+  await withTempEnv(async () => {
+    const authed = await loggedInApp();
+    await authed("/api/repos", {
+      method: "POST",
+      body: JSON.stringify({ repo: "acme/widgets" }),
+    });
+    const saved = await patchRepo(authed, {
+      reviewSystemPrompt: "Focus on X.",
+      reviewSystemPromptMaxChars: 100,
+    });
+    if (saved.status !== 200) {
+      throw new Error(`status ${saved.status}: ${await saved.text()}`);
+    }
+    const stored = readConfig().repos?.["acme/widgets"];
+    if (
+      stored?.reviewSystemPrompt !== "Focus on X." ||
+      stored.reviewSystemPromptMaxChars !== 100
+    ) {
+      throw new Error(JSON.stringify(stored));
+    }
+
+    const over = await patchRepo(authed, {
+      reviewSystemPrompt: "x".repeat(101),
+      reviewSystemPromptMaxChars: 100,
+    });
+    if (over.status !== 422) throw new Error(`status ${over.status}`);
+    if (
+      readConfig().repos?.["acme/widgets"]?.reviewSystemPrompt !== "Focus on X."
+    ) {
+      throw new Error("a rejected prompt still changed the value");
+    }
+
+    const cleared = await patchRepo(authed, { reviewSystemPrompt: "" });
+    if (cleared.status !== 200) throw new Error(`status ${cleared.status}`);
+    if (
+      readConfig().repos?.["acme/widgets"]?.reviewSystemPrompt !== undefined
+    ) {
+      throw new Error("a blank value did not clear it");
+    }
+
+    const badCap = await patchRepo(authed, { reviewSystemPromptMaxChars: 1.5 });
+    if (badCap.status !== 422) throw new Error(`status ${badCap.status}`);
+  });
+});
+
+test("PATCH /api/repos refuses lowering the cap below the stored prompt", async () => {
+  await withTempEnv(async () => {
+    const authed = await loggedInApp();
+    await authed("/api/repos", {
+      method: "POST",
+      body: JSON.stringify({ repo: "acme/widgets" }),
+    });
+    await patchRepo(authed, {
+      reviewSystemPrompt: "This is longer than three.",
+    });
+    const response = await patchRepo(authed, {
+      reviewSystemPromptMaxChars: 3,
+    });
+    if (response.status !== 422) throw new Error(`status ${response.status}`);
+    const stored = readConfig().repos?.["acme/widgets"];
+    if (
+      stored?.reviewSystemPrompt !== "This is longer than three." ||
+      stored.reviewSystemPromptMaxChars !== undefined
+    ) {
+      throw new Error(JSON.stringify(stored));
+    }
+  });
+});

@@ -563,6 +563,42 @@ first pass missed. More passes cost more tokens and take longer. `2` is a
 reasonable step up when a change is high risk or the repository is large. The
 value is capped at `4`. See [Cost](cost.md) for what a pass costs.
 
+## Repository review instructions
+
+A repository can carry its own review instructions. They are appended to the
+reviewer's built-in system prompt as a `CUSTOM REVIEW INSTRUCTIONS` section, so
+the built-in role, the diagram rules and the guide are always kept. They are set
+per repository, never globally:
+
+```sh
+co-maintainer set --repo=owner/repo --review-system-prompt='Prefer the project helpers over new dependencies.'
+co-maintainer set --repo=owner/repo --review-system-prompt-max-chars=20000
+co-maintainer set --repo=owner/repo --unset=review-system-prompt
+```
+
+The dashboard's repository **Settings** has the same field. A blank value turns
+it off. See [Configuration](configuration.md#per-repo-memory) for where it is
+stored.
+
+For one run, without saving anything, two `review` flags add to or replace that
+section. Both work in every mode, PR, local and remote:
+
+| Flag | Effect |
+| ---- | ------ |
+| `--system-prompt-file=PATH` | Append the file's contents to the repository's instructions for this run |
+| `--system-prompt-override-file=PATH` | Replace the repository's instructions with the file for this run. The built-in instructions are kept |
+
+```sh
+co-maintainer review owner/repo 42 --system-prompt-file=extra.md
+co-maintainer review --system-prompt-override-file=strict.md
+```
+
+The cap is `reviewSystemPromptMaxChars`, per repository, in characters. It
+defaults to 8000, and `0` or `-1` means no limit. The cap applies to the stored
+value and to both per-run files, and `set` and the dashboard refuse a value over
+it. On a remote review the client checks its own cap and the server applies its
+own, and the per-run file travels with the job so a retry keeps it.
+
 ## Exit codes
 
 | Code | Meaning |
@@ -1851,6 +1887,15 @@ scope and codegraph.
 On **Activity**, **Pull requests we skipped** names the rule that decided, and a
 pull request that is waiting for a request has a **Review now** button.
 
+## Custom review instructions
+
+Each repository also has a **Custom review instructions** card under its
+**Settings**. The text is added to the reviewer's built-in instructions for
+every review of that repository, as a `CUSTOM REVIEW INSTRUCTIONS` section.
+Leave it blank for none. **Maximum characters** caps the text, defaults to 8000,
+and `0` or `-1` means no limit. The command line form and the per-run flags are
+on [Review](review.md#repository-review-instructions).
+
 ## Clearing knowledge
 
 **Knowledge** carries a **Clear knowledge** card: it deletes that repository's
@@ -2283,6 +2328,13 @@ co-maintainer review [options]
 | `--disable-codegraph` |  | Skip the codegraph index. |
 | `--allow-tool-install` |  | Install codegraph if it is missing. |
 
+### Custom instructions
+
+| Flag | Default | Description |
+|---|---|---|
+| `--system-prompt-file=PATH` |  | Append this file's contents to the review instructions for this run only. |
+| `--system-prompt-override-file=PATH` |  | Replace the repository's review instructions with this file for this run only. The built-in instructions are kept. |
+
 ### AI
 
 | Flag | Default | Description |
@@ -2418,6 +2470,9 @@ co-maintainer set [options]
 | `--remote-byok-default=on\|off` | off | Send remote-byok on every --remote review by default. |
 | `--review-policy=everyone\|trusted-auto\|on-request-only` |  | The review policy new repositories start with. |
 | `--review-policy-file=PATH` |  | Read a custom review policy from a JSON file and use it as that default. |
+| `--repo=owner/repo` |  | Write the repository-scoped settings below to this repository instead of the global config. |
+| `--review-system-prompt=TEXT` |  | A repository's own review instructions. Needs --repo. Empty clears it. |
+| `--review-system-prompt-max-chars=N` |  | Cap the repository's review instructions in characters. Needs --repo. 0 or -1 means no limit. |
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |
 | `--password=TEXT` |  | Replace the dashboard password. |
 | `--disable-auth=password` |  | Turn the dashboard password off. |
@@ -2570,6 +2625,9 @@ provider, so both models are saved the first time. See
 | `--remote-byok-policy=off\|allow\|require` | `remoteByokPolicy` | `serve`, whether remote clients may send their own key |
 | `--review-policy=everyone\|trusted-auto\|on-request-only` | `reviewPolicy` | `serve`, the [review policy](review-policy.md) new repositories start with |
 | `--review-policy-file=PATH` | `reviewPolicy` (the parsed policy) | The same, from a JSON file. A bad policy is refused and nothing is saved |
+| `--repo=owner/repo` | `repos[owner/repo]` | Write the repository-scoped flags below to that repository, not the global config |
+| `--review-system-prompt=TEXT` | `repos[owner/repo].reviewSystemPrompt` | A repository's own review instructions. Needs `--repo`. A blank value clears it |
+| `--review-system-prompt-max-chars=N` | `repos[owner/repo].reviewSystemPromptMaxChars` | Cap those instructions in characters. Needs `--repo`. `0` or `-1` means no limit |
 
 ### App private key: inline, file contents, or path
 
@@ -2691,6 +2749,7 @@ After each successful [`init`](init.md) or [`sync`](sync.md),
 | `max-*` limits | GitHub PAT (global only) |
 | `include-*` flags | |
 | `only-request-changed-pr`, `pr-state` | |
+| `review-system-prompt`, `review-system-prompt-max-chars` | |
 
 A plain `co-maintainer sync owner/repo` reuses those values. Pass new flags
 on `sync` or run `init` again to change includes, limits, or pull request
@@ -2698,6 +2757,10 @@ filters permanently. `--only-request-changed-pr` stays on once saved. To
 collect every pull request state again, pass `--pr-state=open,closed,merged`.
 [`clear owner/repo`](caching.md#clearing) deletes this entry, so the repository
 goes back to "never inited" and the next build is an `init`.
+
+[`review-system-prompt`](review.md#repository-review-instructions) and its cap
+are the exception: `init` and `sync` never write them. Set them with
+`co-maintainer set --repo=owner/repo` or the repository **Settings** page.
 
 Guide files (`SKILL.md`, `CODEBASE.md`, review guides) live under
 `<config>/co-maintainer/repos/<owner>/<repo>/`, not in your git clone. See

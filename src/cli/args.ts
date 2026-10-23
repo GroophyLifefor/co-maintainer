@@ -350,5 +350,6 @@ export async function parseArgs(args: string[]): Promise<Options> {
       configDefault.maxPullRequestChangeLines,
     maxComments: value("max-comment") ?? repoConfig.maxComments,
     reviewBlocking,
+    reviewSystemPrompt: repoConfig.reviewSystemPrompt,
   };
 }

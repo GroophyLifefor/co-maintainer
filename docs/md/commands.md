@@ -196,6 +196,13 @@ co-maintainer review [options]
 | `--disable-codegraph` |  | Skip the codegraph index. |
 | `--allow-tool-install` |  | Install codegraph if it is missing. |
 
+### Custom instructions
+
+| Flag | Default | Description |
+|---|---|---|
+| `--system-prompt-file=PATH` |  | Append this file's contents to the review instructions for this run only. |
+| `--system-prompt-override-file=PATH` |  | Replace the repository's review instructions with this file for this run only. The built-in instructions are kept. |
+
 ### AI
 
 | Flag | Default | Description |
@@ -331,6 +338,9 @@ co-maintainer set [options]
 | `--remote-byok-default=on\|off` | off | Send remote-byok on every --remote review by default. |
 | `--review-policy=everyone\|trusted-auto\|on-request-only` |  | The review policy new repositories start with. |
 | `--review-policy-file=PATH` |  | Read a custom review policy from a JSON file and use it as that default. |
+| `--repo=owner/repo` |  | Write the repository-scoped settings below to this repository instead of the global config. |
+| `--review-system-prompt=TEXT` |  | A repository's own review instructions. Needs --repo. Empty clears it. |
+| `--review-system-prompt-max-chars=N` |  | Cap the repository's review instructions in characters. Needs --repo. 0 or -1 means no limit. |
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |
 | `--password=TEXT` |  | Replace the dashboard password. |
 | `--disable-auth=password` |  | Turn the dashboard password off. |

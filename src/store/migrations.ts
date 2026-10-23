@@ -275,4 +275,11 @@ export const migrations: string[][] = [
     `ALTER TABLE repos ADD COLUMN review_policy_json TEXT`,
     `UPDATE repos SET review_policy_json = '"legacy"'`,
   ],
+  // 12 — a remote client's one-run review instructions travel with the job so
+  // a retry keeps them. The per-repo prompt stays in config.json and is read
+  // on the server where the review runs.
+  [
+    `ALTER TABLE remote_review_inputs ADD COLUMN system_prompt_add TEXT`,
+    `ALTER TABLE remote_review_inputs ADD COLUMN system_prompt_override TEXT`,
+  ],
 ];

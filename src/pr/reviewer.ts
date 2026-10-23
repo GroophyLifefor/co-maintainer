@@ -9,6 +9,7 @@ import type { Revision } from "../review/revision.ts";
 import { computeScope } from "./scope.ts";
 import { prepareCodegraphTools } from "./codegraph_tools.ts";
 import { REVIEW_COPY_RULE, severitySection } from "./review_copy.ts";
+import { reviewSystemPromptBlock } from "../review/system_prompt.ts";
 import {
   needsSummary,
   READ_FULL_DIFF_TOOL,
@@ -531,7 +532,7 @@ ${diff}`;
   const matrix = clampImproveMatrix(options.improveMatrix);
   const request: AiRequest = {
     job: "review_pull_request",
-    system: `${reviewSystemPrompt(diagrams)}\n\n${reviewGuidesBlock(guide, detailed, codebase)}`,
+    system: `${reviewSystemPrompt(diagrams)}\n\n${reviewGuidesBlock(guide, detailed, codebase)}${reviewSystemPromptBlock(options)}`,
     prompt,
     maxTokens: 24_000 * matrix,
     reasoningEffort: "high",
@@ -772,7 +773,7 @@ ${ownDiff}${unchangedListing}`;
   const matrix = clampImproveMatrix(options.improveMatrix);
   const request: AiRequest = {
     job: "review_local",
-    system: `${reviewSystemPrompt(diagrams)}\n\n${reviewGuidesBlock(guide, detailed, codebase)}`,
+    system: `${reviewSystemPrompt(diagrams)}\n\n${reviewGuidesBlock(guide, detailed, codebase)}${reviewSystemPromptBlock(options)}`,
     prompt,
     maxTokens: 24_000 * matrix,
     reasoningEffort: "high",

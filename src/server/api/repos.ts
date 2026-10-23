@@ -9,6 +9,10 @@ import {
 } from "../../store/repos.ts";
 import { readConfig, writeRepoConfig } from "../../config.ts";
 import type { RepoConfig } from "../../config.ts";
+import {
+  checkReviewSystemPrompt,
+  reviewSystemPromptLimit,
+} from "../../review/system_prompt.ts";
 import { parseRemakeCron } from "../../services/remake_cron.ts";
 import {
   parsePolicy,
@@ -273,6 +277,68 @@ export async function handleReposRoute(
         }
       }
       const patch: Parameters<typeof updateRepoSettings>[1] = {};
+      // The repository's own review instructions live in config.json, not the
+      // database, so they go through writeRepoConfig below.
+      const promptPatch: RepoConfig = {};
+      if ("reviewSystemPromptMaxChars" in body) {
+        const raw = body.reviewSystemPromptMaxChars;
+        if (raw === null || raw === "") {
+          promptPatch.reviewSystemPromptMaxChars = undefined;
+        } else if (typeof raw === "number" && Number.isInteger(raw)) {
+          promptPatch.reviewSystemPromptMaxChars = raw;
+        } else {
+          return errorResponse(
+            422,
+            "invalid_review_system_prompt_limit",
+            "reviewSystemPromptMaxChars must be an integer (0 or -1 for no limit) or null",
+          );
+        }
+      }
+      if ("reviewSystemPrompt" in body) {
+        const raw = body.reviewSystemPrompt;
+        if (raw === null || raw === "") {
+          promptPatch.reviewSystemPrompt = undefined;
+        } else if (typeof raw === "string") {
+          promptPatch.reviewSystemPrompt = raw.trim() === "" ? undefined : raw;
+        } else {
+          return errorResponse(
+            422,
+            "invalid_review_system_prompt",
+            "reviewSystemPrompt must be text or null",
+          );
+        }
+      }
+      // The prompt after this write is the one given here, or the stored one.
+      // Lowering the cap re-checks the stored prompt too.
+      if (
+        "reviewSystemPrompt" in promptPatch ||
+        "reviewSystemPromptMaxChars" in promptPatch
+      ) {
+        const existing = readConfig().repos?.[fullName] ?? {};
+        const effectiveMax =
+          "reviewSystemPromptMaxChars" in promptPatch
+            ? promptPatch.reviewSystemPromptMaxChars
+            : existing.reviewSystemPromptMaxChars;
+        const effectivePrompt =
+          "reviewSystemPrompt" in promptPatch
+            ? promptPatch.reviewSystemPrompt
+            : existing.reviewSystemPrompt;
+        if (effectivePrompt !== undefined) {
+          const problem = checkReviewSystemPrompt(
+            effectivePrompt,
+            reviewSystemPromptLimit({
+              reviewSystemPromptMaxChars: effectiveMax,
+            }),
+          );
+          if (problem) {
+            return errorResponse(
+              422,
+              "invalid_review_system_prompt",
+              `reviewSystemPrompt ${problem}`,
+            );
+          }
+        }
+      }
       if ("reviewPolicy" in body) {
         const stored = policyToStore(body.reviewPolicy, { allowLegacy: true });
         if (!stored.ok) {
@@ -332,8 +398,16 @@ export async function handleReposRoute(
           init[key] = body[key] as number;
         }
       }
-      if (Object.keys(init).length > 0 || "remakeCron" in cronPatch) {
-        await writeRepoConfig(fullName, { ...init, ...cronPatch });
+      if (
+        Object.keys(init).length > 0 ||
+        "remakeCron" in cronPatch ||
+        Object.keys(promptPatch).length > 0
+      ) {
+        await writeRepoConfig(fullName, {
+          ...init,
+          ...cronPatch,
+          ...promptPatch,
+        });
       }
       return Response.json({ ok: true });
     }

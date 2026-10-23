@@ -255,6 +255,7 @@ export function reviewOptions(repo: string, prNumber: number): Options {
     onlyRequestChangedPr: false,
     useCodegraph: getRepo(repo)?.use_codegraph === 1,
     reviewBlocking: reviewBlockingFrom(config.reviewBlocking),
+    reviewSystemPrompt: config.repos?.[repo]?.reviewSystemPrompt,
   };
 }
 

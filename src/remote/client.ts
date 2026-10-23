@@ -1,6 +1,7 @@
 import { VERSION } from "../version.ts";
 import type { ReviewCliArgs } from "../cli/review_args.ts";
-import { CliError, EXIT_USAGE, exitWith } from "../cli/error.ts";
+import { loadReviewSystemPromptFlags } from "../cli/review_args.ts";
+import { exitWith } from "../cli/error.ts";
 import {
   formatHumanReview,
   humanFindingsFromJson,
@@ -241,6 +242,10 @@ export async function runRemoteReview(
       .map((name) => ({ name }));
 
     const requestId = crypto.randomUUID();
+    // The review runs on the server, so the server's per-repo cap decides. The
+    // client only reads the files and sends them, and the server rejects an
+    // over-cap value with a 400.
+    const promptFlags = await loadReviewSystemPromptFlags(cli, null);
     const submitBody = {
       schemaVersion: REMOTE_SCHEMA_VERSION,
       requestId,
@@ -258,6 +263,14 @@ export async function runRemoteReview(
       // Only present when this run turned BYOK on; `byokKey` is
       // known to be set here because of the earlier `byokEnabled` guard.
       ...(byokEnabled ? { byok: { key: byokKey! } } : {}),
+      // The client's one-run instructions, when given. The server applies
+      // them on top of its own per-repo prompt.
+      ...(promptFlags.add !== undefined
+        ? { systemPromptAdd: promptFlags.add }
+        : {}),
+      ...(promptFlags.override !== undefined
+        ? { systemPromptOverride: promptFlags.override }
+        : {}),
     };
     const serialized = JSON.stringify(submitBody);
     if (serialized.length > hs.limits.maxBodyBytes) {
