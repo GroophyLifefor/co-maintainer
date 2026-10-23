@@ -116,7 +116,17 @@ test("harness: isolated dirs mean the real config is never read", async () => {
 
 test("harness: the CLI reaches the fake OpenRouter through CM_OPENROUTER_URL", async () => {
   const harness = await createCliHarness();
-  const server = await startFakeOpenRouter("success");
+  const server = await startFakeOpenRouter("success", {
+    // `init` now asks the provider for facts, sections and the guide, so the
+    // fake answers each shape its parser expects.
+    chatContent: (prompt) => {
+      if (prompt.includes("JSON array")) return "[]";
+      if (prompt.includes("Write a Markdown review guide")) {
+        return "# PR review guide\n\nHow to review a change here.\n\n## Checks\n- Read the diff · it can hide a regression · always\n- Read the tests · they can go stale · always\n";
+      }
+      return "## Section\n\n- Follow the repository convention.\n";
+    },
+  });
   try {
     await writeHarnessConfig(`${harness.home}/config/config.json`, {
       auth: "gh",

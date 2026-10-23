@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-10-23
+
+### Changed
+
+- **Guides are written by the AI, with no offline build.** `init` and `sync` no longer assemble `SKILL.md`, `CODEBASE.md` or the review guides from facts. Every document is authored by the provider, so `--ai=none` is refused for `init` and `sync` and a run with no provider stops before it fetches anything. `probe` still works with no provider.
+- **The review guide is a method, not a list.** The guide is one AI synthesis. Each pass states a general invariant a future change must satisfy, keeps the concrete case as an example under it, and ends with an exit check followed by its obligations, `when <surface> changes -> what must also change`. It carries no priority tag, no pull request number, no commit id, no reviewer name, no quoted comment and no command to run, and passes and rules are ordered by how often the findings recur.
+- **Extraction reads inline review comments.** `init` and `sync` now read `pulls/{n}/comments`, where most substantive review feedback lives, next to the issue comments and review bodies. Each review finding carries a class, a location, an impact and an action, so the guide keeps the specifics instead of flattening every review into a short claim.
+- **A bad AI response no longer fails the run.** A provider error that outlives its retries drops that one unit, and a response that does not match the expected shape is used as written. Format and provider failures are never fatal after the work is paid for. A rate limit (`429`) waits and retries with backoff.
+
+### Removed
+
+- **The deterministic guide builder.** `buildReviewDocuments` and the fact renderer in `assembleSkill` and `codebaseBody` are gone. There is no offline or AI-free path that writes the guides.
+
 ## [0.5.3] - 2026-10-09
 
 ### Added

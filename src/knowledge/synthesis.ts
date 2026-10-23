@@ -1,5 +1,5 @@
 import { AiBatch } from "../ai/batch.ts";
-import type { AiValidator, SkippedUnit } from "../ai/batch.ts";
+import type { AiValidator } from "../ai/batch.ts";
 import { isPullRequestFact } from "./guide.ts";
 import { sectionAllowsPrFacts, sectionTitles } from "./sections.ts";
 import type { AiProvider, AiRequest, AiResponse, Options } from "../types.ts";
@@ -28,24 +28,72 @@ function promptText(value: string, limit = 6_000): string {
   return value.length > limit ? `${value.slice(0, limit)}\n[truncated]` : value;
 }
 
+function tryParse(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Every balanced top-level `[...]` in the text, string-aware so a `[` inside a
+ * string does not shift the depth. */
+function balancedArrays(text: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escape = false;
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index];
+    if (inString) {
+      if (escape) escape = false;
+      else if (char === "\\") escape = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') inString = true;
+    else if (char === "[") {
+      if (depth === 0) start = index;
+      depth++;
+    } else if (char === "]" && depth > 0) {
+      depth--;
+      if (depth === 0 && start >= 0) {
+        out.push(text.slice(start, index + 1));
+        start = -1;
+      }
+    }
+  }
+  return out;
+}
+
 function parseJson(text: string): unknown {
   const cleaned = text
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/, "");
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    const start = cleaned.indexOf("[");
-    const end = cleaned.lastIndexOf("]");
-    if (start < 0) throw new Error("AI fact output is not JSON");
-    if (end > start) return JSON.parse(cleaned.slice(start, end + 1));
-    const lastCompleteObject = cleaned.lastIndexOf("}");
-    if (lastCompleteObject <= start) {
-      throw new Error("AI fact output is truncated");
-    }
-    return JSON.parse(`${cleaned.slice(start, lastCompleteObject + 1)}]`);
+  const direct = tryParse(cleaned);
+  if (direct !== undefined) return direct;
+  // The model sometimes appends a second array (for example `[]` then the real
+  // one), so the first-to-last-bracket slice is wrong. Read every balanced
+  // top-level array and prefer the first non-empty one.
+  const parsed = balancedArrays(cleaned)
+    .map((chunk) => tryParse(chunk))
+    .filter((value): value is unknown[] => Array.isArray(value));
+  const nonEmpty = parsed.find((value) => value.length > 0);
+  if (nonEmpty) return nonEmpty;
+  if (parsed.length) return parsed[0];
+  // Last resort: repair an array whose final bracket was truncated.
+  // Nothing usable: return an empty list rather than throw. A format deviation
+  // must not cost the whole run.
+  const start = cleaned.indexOf("[");
+  if (start < 0) return [];
+  const lastObject = cleaned.lastIndexOf("}");
+  if (lastObject > start) {
+    const repaired = tryParse(`${cleaned.slice(start, lastObject + 1)}]`);
+    if (repaired !== undefined) return repaired;
   }
+  return [];
 }
 
 function factsFromResponse(
@@ -55,15 +103,14 @@ function factsFromResponse(
   origin: Fact["origin"],
 ): Fact[] {
   const parsed = parseJson(text);
-  if (!Array.isArray(parsed)) {
-    throw new Error("AI fact output must be an array");
-  }
+  if (!Array.isArray(parsed)) return [];
   return parsed.flatMap((item) => {
     if (!item || typeof item !== "object") return [];
     const value = item as Record<string, unknown>;
     const claim = String(value.claim ?? "").trim();
     const sectionKey = String(value.sectionKey ?? "").trim();
-    if (!claim || !allowedSections.has(sectionKey)) return [];
+    const isReview = sectionKey === "review";
+    if (!claim || (!isReview && !allowedSections.has(sectionKey))) return [];
     const scope =
       value.scope === "current" ||
       value.scope === "repeated-history" ||
@@ -76,6 +123,13 @@ function factsFromResponse(
       value.confidence === "low"
         ? value.confidence
         : "medium";
+    // A review finding without an impact and an action is the generic advice
+    // that made the old guide hollow, so it is dropped rather than stored.
+    const impact = String(value.impact ?? "").trim();
+    const action = String(value.action ?? "").trim();
+    const location = String(value.location ?? "").trim();
+    const trigger = String(value.trigger ?? "").trim();
+    if (isReview && (!impact || !action)) return [];
     return [
       {
         id: `${sectionKey}:${slug(claim)}`,
@@ -87,6 +141,15 @@ function factsFromResponse(
         confidence,
         status: "active",
         origin,
+        ...(isReview
+          ? {
+              class: String(value.class ?? "general").trim() || "general",
+              ...(location ? { location } : {}),
+              ...(trigger ? { trigger } : {}),
+              impact,
+              action,
+            }
+          : {}),
       },
     ];
   });
@@ -148,6 +211,9 @@ function pullRequestUnit(pr: PullRequest): string {
     body: promptText(pr.body),
     labels: pr.labels,
     comments: pr.comments.map((comment) => promptText(comment, 2_000)),
+    reviewComments: pr.reviewComments.map((comment) =>
+      promptText(comment, 2_000),
+    ),
     reviews: pr.reviews.map((review) => promptText(review, 2_000)),
     changedFiles: pr.changedFiles,
     diff: promptText(pr.diff, 8_000),
@@ -166,7 +232,7 @@ function queueFor(
     provider,
     repo,
     Math.max(1, concurrency),
-    `${ai}:v2:${model}`,
+    `${ai}:v3:${model}`,
     validate,
   );
 }
@@ -188,46 +254,30 @@ function validateFacts(
   }
 }
 
-/** `validSection` as a validator: `null` when the section body is usable,
- * otherwise a short reason. A section that is empty or malformed is retried
- * once and then left uncached, so a later `sync` does not replay it. */
-function validateSection(response: AiResponse, key: string): string | null {
-  const section = cleanSection(response.text, key);
-  if (!validSection(section, key)) {
-    return "synthesis output is not a valid section";
-  }
-  return null;
-}
-
 function extractRequest(prompt: string, maxTokens: number): AiRequest {
   return {
     job: "extract_unit",
     prompt,
     maxTokens,
-    // Pulling facts out of a text needs no thinking, and on a thinking model
-    // the thinking used the whole limit and left the answer empty.
-    reasoningEffort: "none",
+    // Reading a discussion into structured findings is multi-step work: with no
+    // thinking the model returned an empty array for most pull requests, so a
+    // little reasoning is allowed (the answer still fits the token budget).
+    reasoningEffort: "low",
     system:
-      "Extract only repository-specific facts. Never invent files, commands, or process.",
+      'Extract only repository-specific facts and review findings. Never invent files, commands, or process. Never write a pull-request number, a commit id, a reviewer name, or quoted comment text in a claim. A review finding (sectionKey "review") states a concrete rule with an impact and an action.',
   };
 }
 
 function cleanSection(text: string, key: string): string {
-  const clean = text.replace(/^\s*```[a-zA-Z0-9_-]*\s*$/gm, "").trim();
-  const heading = sectionTitles[key] ?? key;
-  return clean.replace(/^##\s+.+$/m, `## ${heading}`);
-}
-
-function validSection(text: string, key: string): boolean {
+  const clean = text
+    .replace(/^\s*```[a-zA-Z0-9_-]*\s*$/gm, "")
+    .replace(/```/g, "")
+    .trim();
   const heading = `## ${sectionTitles[key] ?? key}`;
-  const bullets = text.match(/^-\s+/gm) ?? [];
-  return (
-    text.startsWith(heading) &&
-    bullets.length > 0 &&
-    bullets.length <= 6 &&
-    !text.includes("```") &&
-    !/\b(?:TODO|TBD)\b/i.test(text)
-  );
+  // Guarantee the heading the skill assembler keys on, and keep whatever body
+  // the model produced rather than rejecting it.
+  if (/^##\s+.+$/m.test(clean)) return clean.replace(/^##\s+.+$/m, heading);
+  return clean ? `${heading}\n\n${clean}` : heading;
 }
 
 function sectionGoal(key: string): string {
@@ -276,7 +326,6 @@ function synthesisFacts(facts: Fact[], key: string): Fact[] {
   );
 }
 
-export type SkippedUnits = SkippedUnit[];
 export type SynthesisResult = Record<string, string>;
 
 export async function extractAiFacts(
@@ -286,18 +335,6 @@ export async function extractAiFacts(
   options: Options,
   usage?: UsageSink,
 ): Promise<Fact[]> {
-  return (
-    await extractAiFactsWithReport(provider, repo, source, options, usage)
-  ).facts;
-}
-
-export async function extractAiFactsWithReport(
-  provider: AiProvider,
-  repo: string,
-  source: Source,
-  options: Options,
-  usage?: UsageSink,
-): Promise<{ facts: Fact[]; skipped: SkippedUnit[] }> {
   const requests: AiRequest[] = [];
   const evidence: string[] = [];
   const scopes: Fact["scope"][] = [];
@@ -306,15 +343,22 @@ export async function extractAiFactsWithReport(
   for (const pr of prs) {
     requests.push(
       extractRequest(
-        `Analyze this pull request and return only a JSON array of atomic observations. Each item must have exactly:
-{"sectionKey":"one allowed section","claim":"one directly evidenced observation","scope":"historical-example","confidence":"medium"}
-Allowed sections: ${[...allowedSections].join(", ")}
-Use evidence from this PR only. Do not generalize this PR into a repository-wide policy.
-Return at most 6 items. Keep each claim under 180 characters. Do not explain the answer.
+        `Analyze this pull request's reviews, comments, code and diff, and return only a JSON array of review findings.
+Each item must have exactly:
+{"sectionKey":"review","class":"a short area name","claim":"the invariant a reviewer would enforce, imperative and general","location":"path or path:line the finding is about, or empty when none","trigger":"the diff surface that should trigger this rule: a path, glob, or symbol, or empty when none","impact":"why this matters here, from the review's reasoning","action":"what to change or verify","scope":"historical-example","confidence":"medium"}
+Rules:
+- Include only substantive findings: a reviewer identifies something to fix, change, verify or decide.
+- Never write an approval, a merge, "LGTM", thanks, a reviewer name, a pull-request number, a commit id, or quoted comment text.
+- The claim is a general invariant, not one past fix: "When X changes, Y must also change", or "Every Z uses W", never "change this one line".
+- trigger is what a reviewer can see in a diff: a path, a glob, or a symbol. It is how the rule applies to a future change, so a rule with no trigger is a one-off and is not useful.
+- impact and action are mandatory and concrete. Paraphrase the reviewer's reasoning for impact; never quote it.
+- class is a short area label chosen from a small, consistent set; reuse the same label for findings of the same kind so related findings can be grouped.
+- location is a repository path when the review names one, otherwise leave it empty.
+- Return every distinct finding the reviews support, not a summary. Do not explain the answer.
 
 PULL REQUEST:
 ${pullRequestUnit(pr)}`,
-        1_200,
+        2_400,
       ),
     );
     evidence.push(`PR #${pr.number}`);
@@ -374,56 +418,45 @@ ${files}`,
   for (let index = 0; index < responses.length; index++) {
     const response = responses[index];
     if (!response) continue;
-    try {
-      facts.push(
-        ...factsFromResponse(
-          response.text,
-          evidence[index],
-          scopes[index] ?? "historical-example",
-          evidence[index] === "repository files"
-            ? "repository"
-            : "pull-request",
-        ).filter(
-          (item) =>
-            !hasUnsupportedIdentifier(item.claim, source) &&
-            !hasUnsupportedPath(item.claim, source) &&
-            (evidence[index] !== "repository files" ||
-              allowsContributionSections(source) ||
-              !["title-body", "labels", "review-bar", "process"].includes(
-                item.sectionKey,
-              )),
-        ),
-      );
-    } catch (error) {
-      console.log(
-        `[ai] invalid ${evidence[index]} output skipped: ${String(error)}`,
-      );
-    }
+    facts.push(
+      ...factsFromResponse(
+        response.text,
+        evidence[index],
+        scopes[index] ?? "historical-example",
+        evidence[index] === "repository files" ? "repository" : "pull-request",
+      ).filter((item) => {
+        if (
+          hasUnsupportedIdentifier(item.claim, source) ||
+          hasUnsupportedPath(item.claim, source)
+        ) {
+          return false;
+        }
+        if (
+          evidence[index] === "repository files" &&
+          !allowsContributionSections(source) &&
+          ["title-body", "labels", "review-bar", "process"].includes(
+            item.sectionKey,
+          )
+        ) {
+          return false;
+        }
+        // An invented path is worse than no path: keep the finding and drop
+        // the location when it does not exist in the repository.
+        if (
+          item.sectionKey === "review" &&
+          item.location &&
+          hasUnsupportedPath(item.location, source)
+        ) {
+          item.location = undefined;
+        }
+        return true;
+      }),
+    );
     if (index % 10 === 0 || index === responses.length - 1) {
       console.log(`[ai] extract units ${index + 1}/${responses.length}`);
     }
   }
-  return { facts, skipped: queue.skippedUnits() };
-}
-
-/** Same as {@link extractAiFacts}, but also reports what the batch skipped so
- * the caller can put it in the final `[done]` line. */
-export async function enrichFactsWithReport(
-  provider: AiProvider,
-  repo: string,
-  base: Fact[],
-  source: Source,
-  options: Options,
-  usage?: UsageSink,
-): Promise<{ facts: Fact[]; skipped: SkippedUnit[] }> {
-  const { facts, skipped } = await extractAiFactsWithReport(
-    provider,
-    repo,
-    source,
-    options,
-    usage,
-  );
-  return { facts: mergeFacts(base, facts), skipped };
+  return facts;
 }
 
 function mergeFacts(base: Fact[], extra: Fact[]): Fact[] {
@@ -467,20 +500,22 @@ export async function synthesizeSections(
   concurrency: number,
   usage?: UsageSink,
   onlySections?: Set<string>,
-): Promise<{ overrides: Record<string, string>; skipped: SkippedUnit[] }> {
+): Promise<{ overrides: Record<string, string> }> {
   const requests: AiRequest[] = [];
   const keys: string[] = [];
   for (const key of [...new Set(facts.map((item) => item.sectionKey))]) {
+    // Review findings are the guide's material, not a prose section.
+    if (!sectionTitles[key]) continue;
     if (onlySections && !onlySections.has(key)) continue;
     const relevant = synthesisFacts(facts, key);
     // A section whose only facts came from a single pull request has no
-    // repository policy to synthesize, so it is left to the deterministic
-    // renderer instead of asking the model for an empty answer.
+    // repository policy to synthesize, so it is skipped instead of asking the
+    // model for an empty answer.
     if (!relevant.length) continue;
     keys.push(key);
     requests.push({
       job: "synth_section",
-      maxTokens: 1_800,
+      maxTokens: 4_000,
       reasoningEffort: "high",
       system: `You synthesize contribution guidance for an unfamiliar open-source repository.
 Help developers make correct implementation, testing, review, debugging, and release
@@ -514,24 +549,19 @@ ${JSON.stringify(relevant)}`,
     });
   }
 
-  const queue = queueFor(
-    provider,
-    repo,
-    ai,
-    model,
-    concurrency,
-    (request, response) =>
-      validateSection(response, keys[requests.indexOf(request)] ?? ""),
-  );
+  // No validator: a section that does not match the ideal shape is normalized
+  // by `cleanSection` and kept, not rejected. Losing the whole run over a
+  // section's format is not worth it.
+  const queue = queueFor(provider, repo, ai, model, concurrency);
   const responses = await queue.run(requests, usage);
-  // A section that the batch skipped has no response, and a unit that failed
-  // validation never produces one: omit those keys entirely rather than
-  // passing an empty string, so `assembleSkill` keeps its own content for them
-  // (an empty string is a *present* override and would blank the section).
+  // A heading with no bullets is the model saying "no durable guidance", so the
+  // section is omitted rather than written empty. Anything with a bullet is
+  // kept as the model wrote it.
   const overrides: Record<string, string> = {};
   responses.forEach((response, index) => {
-    const section = response ? cleanSection(response.text, keys[index]) : "";
-    if (validSection(section, keys[index])) overrides[keys[index]] = section;
+    if (!response) return;
+    const section = cleanSection(response.text, keys[index]);
+    if (/^- /m.test(section)) overrides[keys[index]] = section;
   });
-  return { overrides, skipped: queue.skippedUnits() };
+  return { overrides };
 }

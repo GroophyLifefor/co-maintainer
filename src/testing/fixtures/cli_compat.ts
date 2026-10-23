@@ -77,7 +77,7 @@ export const PARSE_DEFAULTS: Partial<Options> = {
   aiConcurrent: 3,
   auth: "gh",
   ai: "none",
-  synthesisVersion: 16,
+  synthesisVersion: 17,
   includeCodebase: true,
   includePullRequests: true,
   includePullRequestChanges: true,

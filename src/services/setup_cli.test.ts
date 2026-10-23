@@ -1,9 +1,9 @@
 /** `PR_REVIEW_GUIDE.md` skipped: says why.
  *
- * `buildReviewDocuments` returned `undefined` below three review signals
- * and `writeReviewDocuments` deleted the file without a word, so a user on a
- * small repository could not tell why the third guide was missing. The fix is
- * one log line naming the count and the threshold; the threshold is unchanged.
+ * The guide is built by the AI below three review signals `writeReviewDocuments`
+ * deletes the file without a word, so a user on a small repository could not
+ * tell why the third guide was missing. The fix is one log line naming the count
+ * and the threshold; the threshold is unchanged.
  */
 import { test } from "node:test";
 import {
@@ -11,35 +11,42 @@ import {
   writeHarnessConfig,
 } from "../testing/cli_harness.ts";
 import { reviewSignalCount } from "../knowledge/guide.ts";
+import { startFakeOpenRouter } from "../testing/fake_openrouter.ts";
 import { testFact } from "../testing/helpers.ts";
 
-test("reviewSignalCount counts only PR-derived review-bar facts", () => {
-  const facts = [
-    testFact("Include tests.", "current", "review discussion (2 mentions)"),
-    testFact("Keep it focused.", "historical-example", "PR #2"),
-    // A `review-bar` fact with non-PR evidence must not count.
-    testFact("Follow the template.", "current", "CONTRIBUTING.md"),
-    // A non-`review-bar` fact must not count either.
-    testFact("Use tabs.", "current", "PR #9"),
-  ].map((item, index) =>
-    // `testFact` always uses the `tests` section; the review signals live in
-    // `review-bar`, so the first, second and fourth entries move there.
-    index === 3 ? item : { ...item, sectionKey: "review-bar" },
-  );
-  if (reviewSignalCount(facts) !== 2) {
-    throw new Error(`signals: ${reviewSignalCount(facts)} (want 2)`);
+test("reviewSignalCount counts review findings that carry an impact and an action", () => {
+  const base = testFact("Rule.", "historical-example", "PR #2");
+  const signals = [
+    { ...base, sectionKey: "review", impact: "it regresses", action: "fix it" },
+    { ...base, sectionKey: "review", claim: "No impact." },
+    { ...base, sectionKey: "review-bar" },
+    { ...base, sectionKey: "tests" },
+  ];
+  if (reviewSignalCount(signals) !== 1) {
+    throw new Error(`signals: ${reviewSignalCount(signals)} (want 1)`);
   }
 });
 
 test("init with too few review signals says why the guide is missing", async () => {
   const harness = await createCliHarness();
+  const server = await startFakeOpenRouter("success", {
+    chatContent: (prompt) =>
+      prompt.includes("JSON array")
+        ? "[]"
+        : "## Section\n\n- Follow the repository convention.\n",
+  });
   try {
     await writeHarnessConfig(`${harness.home}/config/config.json`, {
       auth: "gh",
-      ai: "none",
+      ai: "openrouter",
+      token: "fake-key",
+      lowModel: "fake/model",
+      highModel: "fake/model",
     });
     const result = await harness.run({
       args: ["init", "fixture/repo", "--include-pull-requests"],
+      openrouterUrl: server.url,
+      env: { CM_FAKE_AI: undefined, CM_FAKE_REVIEW_FILE: undefined },
     });
     const output = `${result.stdout}${result.stderr}`;
     if (result.code !== 0) {
@@ -51,6 +58,7 @@ test("init with too few review signals says why the guide is missing", async () 
       throw new Error(`no skip reason in the output:\n${output}`);
     }
   } finally {
+    await server.close();
     await harness.cleanup();
   }
 });

@@ -62,6 +62,25 @@ const REVIEW_OUTPUT_FLAGS: FlagGroup = {
   ],
 };
 
+const AI_KEY_FLAGS: FlagSpec[] = [
+  { name: "token", value: "KEY", description: "The provider API key." },
+  {
+    name: "ai-key",
+    value: "KEY",
+    description: "The same key as --token, named for what it is.",
+  },
+  {
+    name: "low-model",
+    value: "ID",
+    description: "Model for extraction work.",
+  },
+  {
+    name: "high-model",
+    value: "ID",
+    description: "Model for the review itself.",
+  },
+];
+
 const AI_FLAGS: FlagGroup = {
   title: "AI",
   flags: [
@@ -69,24 +88,24 @@ const AI_FLAGS: FlagGroup = {
       name: "ai",
       value: AI_PROVIDERS.join("|"),
       default: "none",
-      description: "Which provider writes the review.",
+      description: "Which provider writes the review. `none` turns AI off.",
     },
-    { name: "token", value: "KEY", description: "The provider API key." },
+    ...AI_KEY_FLAGS,
+  ],
+};
+
+/** `init` and `sync` author every guide with AI, so no provider is not a
+ * choice there. */
+const AI_FLAGS_REQUIRED: FlagGroup = {
+  title: "AI",
+  flags: [
     {
-      name: "ai-key",
-      value: "KEY",
-      description: "The same key as --token, named for what it is.",
+      name: "ai",
+      value: AI_PROVIDERS.filter((provider) => provider !== "none").join("|"),
+      description:
+        "Which provider writes the guides. Required: init and sync cannot run without one.",
     },
-    {
-      name: "low-model",
-      value: "ID",
-      description: "Model for extraction work.",
-    },
-    {
-      name: "high-model",
-      value: "ID",
-      description: "Model for the review itself.",
-    },
+    ...AI_KEY_FLAGS,
   ],
 };
 
@@ -221,7 +240,7 @@ export const COMMANDS: CommandSpec[] = [
           },
         ],
       },
-      AI_FLAGS,
+      AI_FLAGS_REQUIRED,
       GITHUB_FLAGS,
       OUTPUT_FLAGS,
       {
@@ -310,7 +329,7 @@ export const COMMANDS: CommandSpec[] = [
           },
         ],
       },
-      AI_FLAGS,
+      AI_FLAGS_REQUIRED,
       GITHUB_FLAGS,
       OUTPUT_FLAGS,
     ],

@@ -246,7 +246,7 @@ export function reviewOptions(repo: string, prNumber: number): Options {
     ),
     highModel: config.highModel,
     lowModel: config.lowModel,
-    synthesisVersion: 16,
+    synthesisVersion: 17,
     includeCodebase: true,
     includePullRequests: true,
     includePullRequestChanges: true,

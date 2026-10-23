@@ -32,15 +32,42 @@ async function withTempConfigAndDb(fn: () => Promise<void>): Promise<void> {
   }
 }
 
-test("optionsFromConfig resolves from global and repo config, ai off by default", async () => {
+test("optionsFromConfig resolves from global and repo config", async () => {
   await withTempConfigAndDb(async () => {
-    await writeUserConfig({ auth: "gh" });
+    await writeUserConfig({
+      auth: "gh",
+      ai: "openrouter",
+      token: "tok",
+      lowModel: "low/model",
+      highModel: "high/model",
+    });
     const options = optionsFromConfig("acme/widgets", "init");
     if (options.command !== "init" || options.repo !== "acme/widgets") {
       throw new Error("command/repo not set correctly");
     }
-    if (options.auth !== "gh" || options.ai !== "none") {
+    if (options.auth !== "gh" || options.ai !== "openrouter") {
       throw new Error("did not fall back to global config defaults");
+    }
+    if (
+      options.lowModel !== "low/model" ||
+      options.highModel !== "high/model"
+    ) {
+      throw new Error("models were not read from the global config");
+    }
+  });
+});
+
+test("optionsFromConfig refuses init with no AI provider", async () => {
+  await withTempConfigAndDb(async () => {
+    await writeUserConfig({ auth: "gh" });
+    let message = "";
+    try {
+      optionsFromConfig("acme/widgets", "init");
+    } catch (error) {
+      message = String(error);
+    }
+    if (!message.includes("need an AI provider")) {
+      throw new Error(`the AI-off error was not clear: ${message}`);
     }
   });
 });
@@ -49,6 +76,10 @@ test("optionsFromConfig prefers repo-level overrides over global config", async 
   await withTempConfigAndDb(async () => {
     await writeUserConfig({
       auth: "gh",
+      ai: "openrouter",
+      token: "tok",
+      lowModel: "low/model",
+      highModel: "high/model",
       githubPat: "irrelevant-for-this-test",
     });
     await writeRepoConfig("acme/widgets", { auth: "pat" });
@@ -93,7 +124,13 @@ test("optionsFromConfig throws a clear error when AI is enabled but incomplete",
 
 test("buildSetupHandler merges the job's override onto config defaults and captures logs", async () => {
   await withTempConfigAndDb(async () => {
-    await writeUserConfig({ auth: "gh" });
+    await writeUserConfig({
+      auth: "gh",
+      ai: "openrouter",
+      token: "tok",
+      lowModel: "low/model",
+      highModel: "high/model",
+    });
     activateRepo("acme/widgets", undefined);
     let seenOptions: Options | undefined;
     const { log } = await import("../util/log.ts");
@@ -131,7 +168,13 @@ test("buildSetupHandler merges the job's override onto config defaults and captu
 
 test("a remake job with no cached state runs init instead of failing", async () => {
   await withTempConfigAndDb(async () => {
-    await writeUserConfig({ auth: "gh" });
+    await writeUserConfig({
+      auth: "gh",
+      ai: "openrouter",
+      token: "tok",
+      lowModel: "low/model",
+      highModel: "high/model",
+    });
     activateRepo("acme/fresh", undefined);
     let seen: Options | undefined;
     const handler = buildSetupHandler((options) => {
@@ -164,19 +207,60 @@ test("cli init opens app.db itself and still writes the cache", async () => {
   setEnv("CM_REPOS_DIR", `${root}/repos`);
   await closeAppDb();
   const previousFetch = globalThis.fetch;
-  globalThis.fetch = (async () =>
-    new Response(JSON.stringify({ default_branch: "main", full_name: repo }), {
-      status: 200,
-    })) as typeof fetch;
+  // The AI provider and the GitHub client both use `fetch`. Answer a chat
+  // completion with the shape each job parses, and everything else as the repo.
+  globalThis.fetch = (async (input: unknown, init?: { body?: unknown }) => {
+    if (String(input).includes("chat/completions")) {
+      let prompt = "";
+      try {
+        const body = JSON.parse(String(init?.body ?? "{}")) as {
+          messages?: { content?: unknown }[];
+        };
+        prompt = (body.messages ?? [])
+          .map((message) => String(message.content ?? ""))
+          .join("\n");
+      } catch {
+        // An unparseable body is answered with a generic section below.
+      }
+      const content = prompt.includes("JSON array")
+        ? "[]"
+        : prompt.includes("Write a Markdown review guide")
+          ? "# PR review guide\n\nHow to review a change here.\n\n## Checks\n- Read the diff · it can hide a regression · always\n- Read the tests · they can go stale · always\n"
+          : "## Section\n\n- Follow the repository convention.\n";
+      return new Response(
+        JSON.stringify({
+          choices: [
+            { finish_reason: "stop", message: { role: "assistant", content } },
+          ],
+          usage: { prompt_tokens: 1, completion_tokens: 1, cost: 0 },
+        }),
+        { status: 200 },
+      );
+    }
+    return new Response(
+      JSON.stringify({ default_branch: "main", full_name: repo }),
+      { status: 200 },
+    );
+  }) as unknown as typeof fetch;
   try {
-    await writeUserConfig({ auth: "pat", githubPat: "test-token", ai: "none" });
+    await writeUserConfig({
+      auth: "pat",
+      githubPat: "test-token",
+      ai: "openrouter",
+      token: "fake-key",
+      lowModel: "low/model",
+      highModel: "high/model",
+    });
     await runInitOrRemake(
       testOptions({
         command: "init",
         repo,
         auth: "pat",
         githubPat: "test-token",
-        ai: "none",
+        ai: "openrouter",
+        aiToken: "fake-key",
+        lowModel: "low/model",
+        highModel: "high/model",
         includeCodebase: false,
         includePullRequests: false,
         includePullRequestChanges: false,

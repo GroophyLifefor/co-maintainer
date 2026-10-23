@@ -76,6 +76,7 @@ test("frequently changed files skips paths that no longer exist", () => {
     additions: 1,
     deletions: 1,
     comments: [],
+    reviewComments: [],
     reviews: [],
     changedFiles,
     diff: "",

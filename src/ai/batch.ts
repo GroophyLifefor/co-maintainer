@@ -22,8 +22,31 @@ export type AiValidator = (
   response: AiResponse,
 ) => string | null;
 
-/** A unit whose output never parsed, kept so the run can say what it dropped. */
-export type SkippedUnit = { index: number; job: string; reason: string };
+/** A provider call and an unusable response are both retried this many times
+ * before the batch gives up and the run fails. */
+export const MAX_ATTEMPTS = 3;
+
+/** A rate-limited unit gets more tries than a broken one. The provider needs a
+ * window to recover, and giving up after three fast retries fails a run that
+ * would have gone through a minute later. Only `429`/`rate limit` failures use
+ * this bound. */
+export const MAX_RATE_LIMIT_ATTEMPTS = 6;
+const RATE_LIMIT_BACKOFF_MS = [5_000, 15_000, 30_000, 45_000, 60_000];
+
+/** True when a failure is the provider throttling, not a broken request. */
+export function isRateLimit(reason: string): boolean {
+  return /429|rate limit/i.test(reason);
+}
+
+/** How long to wait before the next attempt. Zero unless the failure is a rate
+ * limit, so every other failure retries immediately. Exported so the schedule
+ * can be tested without waiting on it. */
+export function retryDelayMs(reason: string, attempt: number): number {
+  if (!isRateLimit(reason)) return 0;
+  return RATE_LIMIT_BACKOFF_MS[
+    Math.min(attempt - 1, RATE_LIMIT_BACKOFF_MS.length - 1)
+  ]!;
+}
 
 async function digest(value: string): Promise<string> {
   const bytes = await crypto.subtle.digest(
@@ -44,7 +67,6 @@ export class AiBatch {
   private readonly concurrency: number;
   private readonly profile: string;
   private readonly validate?: AiValidator;
-  private readonly skipped: SkippedUnit[] = [];
 
   constructor(
     provider: AiProvider,
@@ -58,11 +80,6 @@ export class AiBatch {
     this.concurrency = concurrency;
     this.profile = profile;
     this.validate = validate;
-  }
-
-  /** Units whose output did not parse this run (or on re-try), in request order. */
-  skippedUnits(): SkippedUnit[] {
-    return [...this.skipped];
   }
 
   async run(
@@ -102,9 +119,11 @@ export class AiBatch {
           pending.push({ index, id, request });
         }
       } else if (cached?.status === "quarantine") {
-        console.log(
-          `[ai] quarantined job skipped: ${request.job} ${id.slice(0, 8)}`,
-        );
+        // A provider error from an earlier run is not a permanent verdict: drop
+        // the record and try again rather than skipping it forever.
+        delete this.records[id];
+        await this.persist();
+        pending.push({ index, id, request });
       } else {
         pending.push({ index, id, request });
       }
@@ -142,71 +161,71 @@ export class AiBatch {
     return results;
   }
 
-  /** Runs one unit, caching its response only when the validator accepts it.
-   * A rejected response is retried once; a second rejection is recorded as
-   * skipped and never cached, so the next `sync` retries it rather than
-   * replaying the same unusable output. */
+  /** Runs one unit, retrying a provider error and a response the validator
+   * rejects. It never throws: a provider error that outlives its retries drops
+   * the unit, and a response that still does not validate is used anyway. A run
+   * that has already paid for extraction must still write what it has; a format
+   * deviation is not worth losing the whole run over. */
   private async completeUnit(
     item: { index: number; id: string; request: AiRequest },
     results: (AiResponse | undefined)[],
     usage: UsageSink | undefined,
     startedAt: number,
   ): Promise<void> {
-    for (const attempt of [1, 2]) {
+    for (let attempt = 1; ; attempt++) {
+      let response: AiResponse;
       try {
-        const response = await this.provider.complete(item.request);
-        const reason = this.validate?.(item.request, response) ?? null;
-        if (reason !== null) {
-          if (attempt === 2) {
-            this.markSkipped(item, reason);
-            return;
+        response = await this.provider.complete(item.request);
+      } catch (error) {
+        const reason = formatError(error);
+        const limit = isRateLimit(reason)
+          ? MAX_RATE_LIMIT_ATTEMPTS
+          : MAX_ATTEMPTS;
+        console.log(
+          `[ai] call failed ${attempt}/${limit} ${item.request.job} ${item.id.slice(0, 8)}: ${reason}`,
+        );
+        if (attempt < limit) {
+          const wait = retryDelayMs(reason, attempt);
+          if (wait > 0) {
+            console.log(
+              `[ai] waiting ${Math.round(wait / 1000)}s before retry (provider is rate limiting)`,
+            );
+            await new Promise((resolve) => setTimeout(resolve, wait));
           }
-          console.log(
-            `[ai] retrying ${item.request.job} ${item.id.slice(0, 8)}: ${reason}`,
-          );
           continue;
         }
-        this.records[item.id] = {
-          status: "done",
-          response,
-          updatedAt: new Date().toISOString(),
-        };
-        results[item.index] = response;
-        await this.persist();
-        if (usage) await usage(item.request.job, response);
         console.log(
-          `[ai] ${attempt === 1 ? "done" : "retried"} ${item.request.job} ${item.id.slice(0, 8)} · ${Math.round(
-            (Date.now() - startedAt) / 1000,
-          )}s`,
-        );
-        return;
-      } catch (error) {
-        this.records[item.id] = {
-          status: "quarantine",
-          error: formatError(error),
-          updatedAt: new Date().toISOString(),
-        };
-        await this.persist();
-        console.log(
-          `[ai] quarantined ${item.request.job} ${item.id.slice(0, 8)}: ${formatError(error)}`,
+          `[ai] gave up ${item.request.job} ${item.id.slice(0, 8)} after ${attempt} attempts; continuing without it`,
         );
         return;
       }
+      const reason = this.validate?.(item.request, response) ?? null;
+      if (reason !== null && attempt < MAX_ATTEMPTS) {
+        console.log(
+          `[ai] output rejected ${attempt}/${MAX_ATTEMPTS} ${item.request.job} ${item.id.slice(0, 8)}: ${reason}`,
+        );
+        continue;
+      }
+      if (reason !== null) {
+        console.log(
+          `[ai] using output that did not validate ${item.request.job} ${item.id.slice(0, 8)}: ${reason}`,
+        );
+      }
+      this.records[item.id] = {
+        status: "done",
+        response,
+        updatedAt: new Date().toISOString(),
+      };
+      results[item.index] = response;
+      await this.persist();
+      if (usage) await usage(item.request.job, response);
+      console.log(
+        `[ai] ${attempt === 1 ? "done" : `retried (${attempt})`} ${item.request.job} ${item.id.slice(0, 8)} · ${Math.round(
+          (Date.now() - startedAt) / 1000,
+        )}s`,
+      );
+      return;
     }
-  }
-
-  /** Records a unit as skipped: no cache write, so it stays retried and its
-   * absence is never mistaken for a deliberate empty result. */
-  private markSkipped(
-    item: { index: number; request: AiRequest },
-    reason: string,
-  ): void {
-    this.skipped.push({
-      index: item.index,
-      job: item.request.job,
-      reason,
-    });
-    console.log(`[ai] skipped ${item.request.job} ${item.index}: ${reason}`);
   }
 
   private async load(): Promise<void> {

@@ -11,8 +11,10 @@ co-maintainer asks an AI provider to write the guides in [`init`](init.md) and
 | [OpenCode Zen](https://opencode.ai/docs/zen) | `opencode-zen` | opencode.ai, after adding credit |
 | [OpenCode Go](https://opencode.ai/docs/go) | `opencode-go` | opencode.ai, with a Go subscription |
 
-`--ai=none` is the default until you choose a provider. [`probe`](probe.md)
-needs no model, so it works with it.
+`--ai=none` is the default setting until you choose a provider. It turns AI off,
+which is enough for [`probe`](probe.md) because it needs no model. [`init`](init.md),
+[`sync`](sync.md) and [`review`](review.md) all refuse it: the guides and the
+reviews are written by the provider, so there is nothing to build without one.
 
 ## Where each provider works
 

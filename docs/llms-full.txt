@@ -176,7 +176,7 @@ Values from `set`, `--env=PATH`, or flags are not asked again.
 | `--auth=pat` | Personal access token (see [Authentication](authentication.md)) |
 | `--github-pat=...` | PAT when not in env or config |
 | `--env=PATH` | Load env vars from a file |
-| `--ai=openrouter` | AI provider (`openrouter`, `openai`, `anthropic`, `opencode-zen`, `opencode-go` or `none`), see [AI providers](providers.md) |
+| `--ai=openrouter` | AI provider (`openrouter`, `openai`, `anthropic`, `opencode-zen` or `opencode-go`). Required, see [AI providers](providers.md) |
 | `--token=...` | Provider API key |
 | `--low-model=...` | Model for extraction steps |
 | `--high-model=...` | Model for synthesis steps |
@@ -222,6 +222,9 @@ Under `<config dir>/repos/owner/repo/` (see [Caching](caching.md)):
 - `SKILL.md` and `CODEBASE.md`
 - `PR_REVIEW_GUIDE.md` and related review guides when PR sources were included
 
+Every file is written by the AI provider. There is no offline or AI-free build,
+so `init` and [`sync`](sync.md) refuse to run when no provider is configured.
+
 `SKILL.md` holds the contribution guidance and links to `CODEBASE.md` for the
 codebase sections (layout, style, tests, development and debugging), so the same
 text is not repeated in both files and paid for twice in a review prompt.
@@ -229,11 +232,18 @@ text is not repeated in both files and paid for twice in a review prompt.
 
 Findings read out of a single pull request stay out of the guidance sections: a
 request under review describes that request, not how the repository works. Only
-the review-bar checklist, built from repeated review signals, learns from them.
+the review guide, built from recurring review findings, learns from them.
 
-The two review guides need at least three selected review signals, drawn from
-PR discussions and merged-PR feedback. A repository with fewer keeps only
-`SKILL.md` and `CODEBASE.md`. When that happens `init` says why on one line:
+The guide is a method, not a list. Each pass states a general invariant a future
+change must satisfy, keeps the concrete case as an example under it, and ends
+with an exit check followed by its obligations, `when <surface> changes → what
+must also change`, so a reviewer who sees only a diff can apply the rule.
+`PR_REVIEW_GUIDE.md` is the short checklist and `PR_REVIEW_DETAILED_GUIDE.md`
+the full method.
+
+The review guides need at least three review findings, drawn from PR discussions
+and merged-PR feedback. A repository with fewer keeps only `SKILL.md` and
+`CODEBASE.md`. When that happens `init` says why on one line:
 
     [write] PR_REVIEW_GUIDE.md skipped: found 1 review signals, needs at least 3
 
@@ -241,8 +251,11 @@ The count is what `init` saw, so adding PR sources or another review signal and
 running [`sync`](sync.md) can push a repository over the threshold. The
 threshold itself does not change.
 
-Evidence and AI job results go into `cache.db` for faster [`sync`](sync.md).
-After `init` succeeds, run [`review`](review.md) on a PR or local changes.
+Evidence and AI job results go into `cache.db` for faster [`sync`](sync.md). A
+provider call that fails is retried three times, and if it still fails the whole
+run stops without writing a guide. Fetching and extraction are cached, so
+rerunning [`sync`](sync.md) continues without re-fetching. After `init`
+succeeds, run [`review`](review.md) on a PR or local changes.
 
 ## What it reports
 
@@ -308,7 +321,7 @@ On the [dashboard](dashboard.md), **Sync now** runs the same job as this command
 | `--auth=pat` | Personal access token (see [Authentication](authentication.md)) |
 | `--github-pat=...` | PAT when not in env or config |
 | `--env=PATH` | Load env vars from a file |
-| `--ai=openrouter` | AI provider (`openrouter`, `openai`, `anthropic`, `opencode-zen`, `opencode-go` or `none`), see [AI providers](providers.md) |
+| `--ai=openrouter` | AI provider (`openrouter`, `openai`, `anthropic`, `opencode-zen` or `opencode-go`). Required, see [AI providers](providers.md) |
 | `--token=...` | Provider API key |
 | `--low-model=...` | Model for extraction steps |
 | `--high-model=...` | Model for synthesis steps |
@@ -2153,7 +2166,7 @@ co-maintainer init owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. |
+| `--ai=openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` |  | Which provider writes the guides. Required: init and sync cannot run without one. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
@@ -2213,7 +2226,7 @@ co-maintainer sync owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. |
+| `--ai=openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` |  | Which provider writes the guides. Required: init and sync cannot run without one. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
@@ -2274,7 +2287,7 @@ co-maintainer review [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. `none` turns AI off. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
@@ -2373,7 +2386,7 @@ co-maintainer set [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. |
+| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. `none` turns AI off. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
@@ -2749,8 +2762,10 @@ co-maintainer asks an AI provider to write the guides in [`init`](init.md) and
 | [OpenCode Zen](https://opencode.ai/docs/zen) | `opencode-zen` | opencode.ai, after adding credit |
 | [OpenCode Go](https://opencode.ai/docs/go) | `opencode-go` | opencode.ai, with a Go subscription |
 
-`--ai=none` is the default until you choose a provider. [`probe`](probe.md)
-needs no model, so it works with it.
+`--ai=none` is the default setting until you choose a provider. It turns AI off,
+which is enough for [`probe`](probe.md) because it needs no model. [`init`](init.md),
+[`sync`](sync.md) and [`review`](review.md) all refuse it: the guides and the
+reviews are written by the provider, so there is nothing to build without one.
 
 ## Where each provider works
 
@@ -3430,6 +3445,8 @@ is the safe default.
 | `Missing low model` or `Missing high model` | No model is saved or passed, and there is no terminal to ask on | co-maintainer never picks a model. Pass `--low-model=` and `--high-model=`, or save them once with `co-maintainer set` |
 | `No low model is configured.` or `No high model is configured.` | A review reached a model that was never set | Run `co-maintainer set --low-model=...`, or pass `--low-model=...` on the command |
 | `review needs an AI provider` | `review --ai=none` | Pass a provider, or leave `--ai` out to use the saved one. See [AI providers](providers.md#where-each-provider-works) |
+| `init and sync need an AI provider` | `init` or `sync` ran with `--ai=none`, or no provider is saved | The guides are written by the provider. Save one with `co-maintainer set --ai=... --token=... --low-model=... --high-model=...` |
+| `AI failed to generate the guides` | A provider call failed three times | Nothing was written. Fetching and extraction are cached, so rerun [`sync`](sync.md) to continue without re-fetching. Fix the provider if the cause repeats |
 | `GitHub refused <METHOD> <endpoint>` | The token or the App lacks a permission for that call | The message names the missing permission, for example `Pull requests: Read and write`. See [Authentication](authentication.md) and [GitHub App](github-app.md) |
 | `GitHub returned 404 for` | The repository does not exist, or the token or App cannot see it | The message repeats the permission the call needs |
 | `--output must be: github` or `--output=github cannot be used with --json` | A bad `--output` value, or both output modes at once | Use `--output=github` alone. See [CI](ci.md) |

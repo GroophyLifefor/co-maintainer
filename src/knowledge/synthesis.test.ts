@@ -60,11 +60,11 @@ test("current evidence is ordered before historical evidence", async () => {
   }
 });
 
-test("invalid synthesis output is omitted instead of copied", async () => {
+test("a malformed section is left out, not failed", async () => {
   const repo = `fixture-invalid-${crypto.randomUUID()}`;
   const provider = new SynthesisProvider(false);
   try {
-    const overridesResult = await synthesizeSections(
+    const result = await synthesizeSections(
       provider,
       repo,
       [testFact("Run tests before review.", "current", "workflow")],
@@ -73,21 +73,15 @@ test("invalid synthesis output is omitted instead of copied", async () => {
       "fixture",
       3,
     );
-    if (overridesResult.overrides.tests) {
-      throw new Error(
-        `invalid synthesis output was accepted: ${JSON.stringify(overridesResult)}`,
-      );
-    }
-    // An output that never validates is skipped, not cached.
-    if (overridesResult.skipped.length !== 1) {
-      throw new Error(`skipped: ${JSON.stringify(overridesResult.skipped)}`);
+    if (result.overrides.tests) {
+      throw new Error("a section with no bullet was kept");
     }
   } finally {
     await cacheDeletePrefix("ai-jobs", `${repo}:`);
   }
 });
 
-test("fact extraction asks for no thinking", async () => {
+test("fact extraction allows a little thinking", async () => {
   const requests: AiRequest[] = [];
   const provider: AiProvider = {
     async complete(request) {
@@ -120,6 +114,7 @@ test("fact extraction asks for no thinking", async () => {
         additions: 1,
         deletions: 1,
         comments: [],
+        reviewComments: [],
         reviews: [],
         changedFiles: ["README.md"],
         diff: "",
@@ -139,7 +134,46 @@ test("fact extraction asks for no thinking", async () => {
   }
   const extracts = requests.filter((item) => item.job === "extract_unit");
   if (extracts.length !== 2) throw new Error(`${extracts.length} extracts`);
-  if (extracts.some((item) => item.reasoningEffort !== "none")) {
-    throw new Error("an extraction asked for thinking");
+  if (extracts.some((item) => item.reasoningEffort !== "low")) {
+    throw new Error("an extraction did not ask for low reasoning");
+  }
+});
+
+test("extraction reads the real array when the model returns two", async () => {
+  // A real model answered a file extraction with an empty array followed by the
+  // real one (`[]` then `[...]`), which the old first-to-last-bracket slice
+  // could not parse.
+  const provider: AiProvider = {
+    async complete() {
+      return {
+        text: '[]\n\n[{"sectionKey":"identity","claim":"Work here.","scope":"current","confidence":"high"}]',
+        tokensIn: 1,
+        tokensOut: 1,
+        model: "fixture",
+        provider: "openrouter",
+      };
+    },
+  };
+  const repo = `fixture-double-array-${crypto.randomUUID()}`;
+  const source: Source = {
+    repo: { full_name: repo, default_branch: "main" },
+    tree: ["README.md"],
+    treeSha: {},
+    files: { "README.md": "# Fixture" },
+    pullRequests: [],
+    commits: [],
+  };
+  try {
+    const facts = await extractAiFacts(
+      provider,
+      repo,
+      source,
+      testOptions({ includeCodebase: true }),
+    );
+    if (!facts.some((item) => item.claim === "Work here.")) {
+      throw new Error(`the real array was lost: ${JSON.stringify(facts)}`);
+    }
+  } finally {
+    await cacheDeletePrefix("ai-jobs", `${repo}:`);
   }
 });

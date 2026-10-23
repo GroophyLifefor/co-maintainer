@@ -254,7 +254,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
     }
   } else if (!explicitAi && !configuredAi && command !== "probe") {
     const selected = await ask(
-      `AI provider (${AI_PROVIDERS.join("|")})`,
+      `AI provider (${AI_PROVIDERS.filter((p) => p !== "none").join("|")})`,
       "openrouter",
     );
     rejectRetiredProvider(selected);
@@ -328,7 +328,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
     aiToken,
     lowModel,
     highModel,
-    synthesisVersion: 16,
+    synthesisVersion: 17,
     includeCodebase: enabled("include-codebase"),
     includePullRequests: enabled("include-pull-requests"),
     includePullRequestChanges: enabled("include-pull-request-changes"),

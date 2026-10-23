@@ -156,7 +156,7 @@ Values from <code>set</code>, <code>--env=PATH</code>, or flags are not asked ag
 </tr>
 <tr>
 <td><code>--ai=openrouter</code></td>
-<td>AI provider (<code>openrouter</code>, <code>openai</code>, <code>anthropic</code>, <code>opencode-zen</code>, <code>opencode-go</code> or <code>none</code>), see <a href="providers.html">AI providers</a></td>
+<td>AI provider (<code>openrouter</code>, <code>openai</code>, <code>anthropic</code>, <code>opencode-zen</code> or <code>opencode-go</code>). Required, see <a href="providers.html">AI providers</a></td>
 </tr>
 <tr>
 <td><code>--token=...</code></td>
@@ -252,23 +252,33 @@ To collect every state again, pass <code>--pr-state=open,closed,merged</code>.</
 <li><code>SKILL.md</code> and <code>CODEBASE.md</code></li>
 <li><code>PR_REVIEW_GUIDE.md</code> and related review guides when PR sources were included</li>
 </ul>
+<p>Every file is written by the AI provider. There is no offline or AI-free build,
+so <code>init</code> and <a href="sync.html"><code>sync</code></a> refuse to run when no provider is configured.</p>
 <p><code>SKILL.md</code> holds the contribution guidance and links to <code>CODEBASE.md</code> for the
 codebase sections (layout, style, tests, development and debugging), so the same
 text is not repeated in both files and paid for twice in a review prompt.
 <code>CODEBASE.md</code> is where that text actually lives.</p>
 <p>Findings read out of a single pull request stay out of the guidance sections: a
 request under review describes that request, not how the repository works. Only
-the review-bar checklist, built from repeated review signals, learns from them.</p>
-<p>The two review guides need at least three selected review signals, drawn from
-PR discussions and merged-PR feedback. A repository with fewer keeps only
-<code>SKILL.md</code> and <code>CODEBASE.md</code>. When that happens <code>init</code> says why on one line:</p>
+the review guide, built from recurring review findings, learns from them.</p>
+<p>The guide is a method, not a list. Each pass states a general invariant a future
+change must satisfy, keeps the concrete case as an example under it, and ends
+with an exit check followed by its obligations, <code>when &lt;surface&gt; changes → what must also change</code>, so a reviewer who sees only a diff can apply the rule.
+<code>PR_REVIEW_GUIDE.md</code> is the short checklist and <code>PR_REVIEW_DETAILED_GUIDE.md</code>
+the full method.</p>
+<p>The review guides need at least three review findings, drawn from PR discussions
+and merged-PR feedback. A repository with fewer keeps only <code>SKILL.md</code> and
+<code>CODEBASE.md</code>. When that happens <code>init</code> says why on one line:</p>
 <pre><code>[write] PR_REVIEW_GUIDE.md skipped: found 1 review signals, needs at least 3
 </code></pre>
 <p>The count is what <code>init</code> saw, so adding PR sources or another review signal and
 running <a href="sync.html"><code>sync</code></a> can push a repository over the threshold. The
 threshold itself does not change.</p>
-<p>Evidence and AI job results go into <code>cache.db</code> for faster <a href="sync.html"><code>sync</code></a>.
-After <code>init</code> succeeds, run <a href="review.html"><code>review</code></a> on a PR or local changes.</p>
+<p>Evidence and AI job results go into <code>cache.db</code> for faster <a href="sync.html"><code>sync</code></a>. A
+provider call that fails is retried three times, and if it still fails the whole
+run stops without writing a guide. Fetching and extraction are cached, so
+rerunning <a href="sync.html"><code>sync</code></a> continues without re-fetching. After <code>init</code>
+succeeds, run <a href="review.html"><code>review</code></a> on a PR or local changes.</p>
 <h2 id="what-it-reports">What it reports</h2>
 <p>The last line on stderr is the run&#39;s cost and time:</p>
 <pre><code>Done in 21.0s · 3,125 in, 1,308 out tokens · $0.0016

@@ -189,17 +189,23 @@ test("registry: the init help groups flags the way the docs describe", () => {
   }
 });
 
-test("registry: review and init list every provider", () => {
+test("registry: review lists every provider and init lists every accepted one", () => {
   const review = renderCommandHelp("review");
   const init = renderCommandHelp("init");
   if (!review || !init) throw new Error("missing help");
-  const all = "--ai=none|openrouter|openai|anthropic|opencode-zen|opencode-go";
-  if (!review.includes(all)) {
+  const every =
+    "--ai=none|openrouter|openai|anthropic|opencode-zen|opencode-go";
+  const required = "--ai=openrouter|openai|anthropic|opencode-zen|opencode-go";
+  if (!review.includes(every)) {
     throw new Error(`review should list every provider name:
 ${review}`);
   }
-  if (!init.includes(all)) {
-    throw new Error(`init should list every provider name:
+  if (!init.includes(required)) {
+    throw new Error(`init should list every accepted provider name:
+${init}`);
+  }
+  if (init.includes("--ai=none")) {
+    throw new Error(`init must not offer --ai=none:
 ${init}`);
   }
 });

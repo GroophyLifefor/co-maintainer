@@ -31,6 +31,16 @@ import { fakeGhBin } from "../testing/cli_harness.ts";
 
 const projectRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 
+/** `init` and `sync` now author every guide with AI, so the fake answers each
+ * request with the shape its parser expects. */
+function initChatContent(prompt: string): string {
+  if (prompt.includes("JSON array")) return "[]";
+  if (prompt.includes("Write a Markdown review guide")) {
+    return "# PR review guide\n\nHow to review a change here.\n\n## Checks\n- Read the diff · it can hide a regression · always\n- Read the tests · they can go stale · always\n";
+  }
+  return "## Section\n\n- Follow the repository convention.\n";
+}
+
 test("run summary: the line matches the documented shape", () => {
   const line = formatRunSummary({
     durationMs: 21_000,
@@ -129,7 +139,9 @@ test("run summary: a run that made no AI call costs a real zero, not an unknown"
 });
 
 test("run summary: init prints the line on stderr and keeps stdout clean", async () => {
-  const server = await startFakeOpenRouter("success");
+  const server = await startFakeOpenRouter("success", {
+    chatContent: initChatContent,
+  });
   const root = await makeTempDir({ prefix: "cm-summary-init-" });
   try {
     const configPath = `${root}/config.json`;
@@ -190,7 +202,9 @@ test("run summary: init prints the line on stderr and keeps stdout clean", async
 });
 
 test("run summary: sync prints the line on stderr", async () => {
-  const server = await startFakeOpenRouter("success");
+  const server = await startFakeOpenRouter("success", {
+    chatContent: initChatContent,
+  });
   const root = await makeTempDir({ prefix: "cm-summary-sync-" });
   try {
     const configPath = `${root}/config.json`;
