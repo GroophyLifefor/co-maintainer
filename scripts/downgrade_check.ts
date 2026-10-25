@@ -29,6 +29,7 @@ import {
   writeTextFile,
 } from "../src/util/runtime.ts";
 import { runtimeExecPath, runtimeRunArgs } from "../src/testing/runtime.ts";
+import { startFakeOpenRouter } from "../src/testing/fake_openrouter.ts";
 
 const OLD_VERSION = "0.4.13";
 const PASSWORD = "downgrade-check-pass";
@@ -347,22 +348,32 @@ try {
   );
 
   // Data the upgrade writes, which the rollback is meant to discard.
-  const branchInit = await run(
-    runtimeExecPath(),
-    runtimeRunArgs("main.ts", [
-      "init",
-      REPO,
-      "--ai=none",
-      "--auth=gh",
-      "--include-codebase",
-    ]),
-    {
-      ...env,
-      CM_FAKE_AI: "1",
-      CM_GH_BIN: runtimeExecPath(),
-      CM_GH_SCRIPT: fakeGh,
-    },
-  );
+  // `init` now needs a provider, so it is pointed at a local fake OpenRouter
+  // over `CM_OPENROUTER_URL`: the check stays offline and spends nothing.
+  const fakeAi = await startFakeOpenRouter("success");
+  let branchInit: Awaited<ReturnType<typeof run>>;
+  try {
+    branchInit = await run(
+      runtimeExecPath(),
+      runtimeRunArgs("main.ts", [
+        "init",
+        REPO,
+        "--ai=openrouter",
+        "--token=fake",
+        "--auth=gh",
+        "--include-codebase",
+      ]),
+      {
+        ...env,
+        CM_OPENROUTER_URL: fakeAi.url,
+        CM_FAKE_AI: "1",
+        CM_GH_BIN: runtimeExecPath(),
+        CM_GH_SCRIPT: fakeGh,
+      },
+    );
+  } finally {
+    await fakeAi.close();
+  }
   record(
     "branch init runs after the upgrade",
     branchInit.ok,

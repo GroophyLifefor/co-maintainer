@@ -133,7 +133,7 @@ function reviewOptionsForRepo(
     aiToken: aiToken ?? resolvedAiToken(config, config.ai ?? "openrouter"),
     lowModel: config.lowModel,
     highModel: config.highModel,
-    synthesisVersion: 16,
+    synthesisVersion: 17,
     includeCodebase: true,
     includePullRequests: true,
     includePullRequestChanges: true,

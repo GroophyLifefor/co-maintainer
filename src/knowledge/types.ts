@@ -12,6 +12,10 @@ export type PullRequest = {
   additions: number;
   deletions: number;
   comments: string[];
+  /** Inline review comments (`pulls/{n}/comments`), as `path:line body`. These
+   * carry most of the substantive review feedback, and the reviewer never sees
+   * them otherwise. */
+  reviewComments: string[];
   reviews: string[];
   /** Set once reviews have been read. Missing means an older checkpoint
    * never stored the review state. */
@@ -47,6 +51,24 @@ export type Fact = {
    * repository-wide rule. Missing means `repository`, which
    * keeps facts written before this field existed. */
   origin?: "repository" | "pull-request";
+  /** Review findings only (`sectionKey === "review"`): the free-form area the
+   * finding belongs to, so the guide can group findings into passes without a
+   * fixed taxonomy. */
+  class?: string;
+  /** A repository-relative path or `path:line` the finding is about, when the
+   * review named one. Kept because it is the difference between a concrete
+   * rule and generic advice. */
+  location?: string;
+  /** Review findings only: why the finding matters here, in one or two
+   * sentences of the review's own reasoning (never a verbatim quote). */
+  impact?: string;
+  /** Review findings only: what to change or verify. */
+  action?: string;
+  /** Review findings only: the diff surface that should trigger this rule: a
+   * path, a glob, or a symbol. The guide turns these into the "when X changes,
+   * also do Y" obligations listed under a pass's exit check, so a reviewer that
+   * only sees a diff can still apply the rule. */
+  trigger?: string;
 };
 
 export type State = {

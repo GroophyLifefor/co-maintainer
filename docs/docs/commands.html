@@ -276,9 +276,9 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 </tr>
 </thead>
 <tbody><tr>
-<td><code>--ai=none|openrouter|openai|anthropic|opencode-zen|opencode-go</code></td>
-<td>none</td>
-<td>Which provider writes the review.</td>
+<td><code>--ai=openrouter|openai|anthropic|opencode-zen|opencode-go</code></td>
+<td></td>
+<td>Which provider writes the guides. Required: init and sync cannot run without one.</td>
 </tr>
 <tr>
 <td><code>--token=KEY</code></td>
@@ -450,9 +450,9 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 </tr>
 </thead>
 <tbody><tr>
-<td><code>--ai=none|openrouter|openai|anthropic|opencode-zen|opencode-go</code></td>
-<td>none</td>
-<td>Which provider writes the review.</td>
+<td><code>--ai=openrouter|openai|anthropic|opencode-zen|opencode-go</code></td>
+<td></td>
+<td>Which provider writes the guides. Required: init and sync cannot run without one.</td>
 </tr>
 <tr>
 <td><code>--token=KEY</code></td>
@@ -647,7 +647,7 @@ co-maintainer review [options]
 <tbody><tr>
 <td><code>--ai=none|openrouter|openai|anthropic|opencode-zen|opencode-go</code></td>
 <td>none</td>
-<td>Which provider writes the review.</td>
+<td>Which provider writes the review. <code>none</code> turns AI off.</td>
 </tr>
 <tr>
 <td><code>--token=KEY</code></td>
@@ -833,7 +833,7 @@ co-maintainer view [owner/repo] --path
 <tbody><tr>
 <td><code>--ai=none|openrouter|openai|anthropic|opencode-zen|opencode-go</code></td>
 <td>none</td>
-<td>Which provider writes the review.</td>
+<td>Which provider writes the review. <code>none</code> turns AI off.</td>
 </tr>
 <tr>
 <td><code>--token=KEY</code></td>

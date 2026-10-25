@@ -430,6 +430,7 @@ async function pullRequests(
       additions: Number(detail?.additions ?? cached?.additions ?? 0),
       deletions: Number(detail?.deletions ?? cached?.deletions ?? 0),
       comments: cached?.comments ?? [],
+      reviewComments: cached?.reviewComments ?? [],
       reviews: cached?.reviews ?? [],
       changedFiles: cached?.changedFiles ?? [],
       diff: cached?.diff ?? "",
@@ -456,6 +457,22 @@ async function pullRequests(
         .filter(Boolean)
         .slice(0, options.maxComments);
     };
+    // Inline review comments carry most of the substantive feedback, and the
+    // reviewer only sees them if they are read here.
+    const loadReviewComments = async () => {
+      const comments = await client.pages<Json>(
+        `repos/${options.repo}/pulls/${number}/comments`,
+      );
+      current.reviewComments = comments
+        .map((comment) => {
+          const path = String(comment.path ?? "");
+          const line = String(comment.line ?? comment.original_line ?? "");
+          const body = String(comment.body ?? "");
+          return path ? `${path}:${line} ${body}` : body;
+        })
+        .filter(Boolean)
+        .slice(0, options.maxComments);
+    };
     const loadReviews = async () => {
       const reviews = await client.pages<Json>(
         `repos/${options.repo}/pulls/${number}/reviews`,
@@ -466,9 +483,13 @@ async function pullRequests(
     if (!dropped && only && (!discussionUnchanged || !decisionKnown)) {
       await loadReviews();
       if (!current.changesRequested) dropped = true;
-      else if (!discussionUnchanged) await loadComments();
+      else if (!discussionUnchanged) {
+        await loadComments();
+        await loadReviewComments();
+      }
     } else if (!dropped && !discussionUnchanged) {
       await loadComments();
+      await loadReviewComments();
       await loadReviews();
     }
     const discussionStatus = dropped
