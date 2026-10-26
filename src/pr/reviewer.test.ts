@@ -1,11 +1,36 @@
-import { clampImproveMatrix, clampToolRounds, filePatch } from "./reviewer.ts";
+import {
+  clampImproveMatrix,
+  clampToolRounds,
+  filePatch,
+  modelSummary,
+} from "./reviewer.ts";
 import { test } from "node:test";
+import type { Options } from "../types.ts";
 
 function contains(haystack: string, needle: string, what: string): void {
   if (!haystack.includes(needle)) {
     throw new Error(`${what}: ${JSON.stringify(haystack)} lacks ${needle}`);
   }
 }
+
+test("modelSummary names the provider and both models", () => {
+  const options = {
+    ai: "openrouter",
+    lowModel: "low/model",
+    highModel: "high/model",
+  } as unknown as Options;
+  contains(
+    modelSummary(options),
+    "provider=openrouter · low=low/model · high=high/model",
+    "summary",
+  );
+});
+
+test("modelSummary says unset when a model is missing", () => {
+  const options = { ai: "none" } as unknown as Options;
+  contains(modelSummary(options), "low=unset", "low");
+  contains(modelSummary(options), "high=unset", "high");
+});
 
 test("filePatch numbers a present patch", () => {
   const patch = "@@ -1,2 +1,3 @@\n context\n+added";

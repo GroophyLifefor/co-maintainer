@@ -672,6 +672,12 @@ export const COMMANDS: CommandSpec[] = [
             description: "How a review decides a blocking finding.",
           },
           {
+            name: "codegraph-version",
+            value: "SEMVER",
+            description:
+              "The pinned codegraph version, overriding the built-in one. For a security fix without a release.",
+          },
+          {
             name: "password",
             value: "TEXT",
             description: "Replace the dashboard password.",

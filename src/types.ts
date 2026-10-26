@@ -19,6 +19,10 @@ export type Options = {
    * Server jobs still follow per-repo settings. Indexing adds tokens and time;
    * measured PR recall gains were small when this was opt-in only (K25). */
   useCodegraph?: boolean;
+  /** PR review installs the pinned codegraph when `--allow-tool-install` is
+   * passed, instead of only using an install that is already there. CLI-only,
+   * off for server jobs and remote reviews. */
+  allowToolInstall?: boolean;
   improveMatrix: number;
   ghConcurrent: number;
   aiConcurrent: number;

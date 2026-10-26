@@ -75,6 +75,7 @@
           <li><a href="providers.html">AI providers</a></li>
           <li><a href="authentication.html">Authentication</a></li>
           <li><a href="caching.html">Caching</a></li>
+          <li><a href="codegraph.html">Codegraph</a></li>
           <li><a href="cost.html">Cost</a></li>
           <li><a href="privacy.html">Data and privacy</a></li>
           <li><a href="troubleshooting.html">Troubleshooting</a></li>
@@ -164,8 +165,10 @@ present).</p>
 <a href="local-review.html">local review</a> for working-tree changes or
 <a href="remote-review.html">remote review</a> for a local diff against shared server context.</p>
 <p>PR review indexes the checked-out repository with codegraph when it is already
-installed, but it never prompts to install it: a PR review runs unattended. The
-question and its rules are in <a href="local-review.html#codegraph">local review</a>.</p>
+installed, and installs the pinned version when you pass <code>--allow-tool-install</code>.
+It never prompts: a PR review runs unattended. The question and its rules are in
+<a href="local-review.html#codegraph">local review</a>, and <a href="codegraph.html">Codegraph</a> lists
+the install table and the version-resolution order.</p>
 <p>Auth and models follow <a href="configuration.html"><code>configuration</code></a> and <code>co-maintainer set</code> like other commands (<code>--auth=pat</code> is not used for PR review).</p>
 </article>
         <footer class="doc-footer">

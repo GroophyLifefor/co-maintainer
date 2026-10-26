@@ -94,6 +94,7 @@ const NAV: NavSection[] = [
       { slug: "providers", label: "AI providers" },
       { slug: "authentication", label: "Authentication" },
       { slug: "caching", label: "Caching" },
+      { slug: "codegraph", label: "Codegraph" },
       { slug: "cost", label: "Cost" },
       { slug: "privacy", label: "Data and privacy" },
       { slug: "troubleshooting", label: "Troubleshooting" },

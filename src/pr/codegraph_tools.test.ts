@@ -124,3 +124,60 @@ test("prepareCodegraphTools returns no tools when the worktree cannot be prepare
   });
   same(tools, [], "empty");
 });
+
+test("prepareCodegraphTools installs on demand when allowInstall is set", async () => {
+  let ensurances = 0;
+  const tools = await prepareCodegraphTools("owner/repo", 1, "sha", {
+    detect: () => Promise.resolve({ state: "missing" }),
+    allowInstall: true,
+    ensure: () => {
+      ensurances++;
+      return Promise.resolve({ path: "codegraph" });
+    },
+    // The install succeeded, so the run reaches the worktree step, which fails
+    // here: the point is that the install was attempted.
+    run: () => Promise.reject(new Error("no clone")),
+  });
+  same([ensurances, tools], [1, []], "install attempted");
+});
+
+test("prepareCodegraphTools reports the install reason and skips the tools", async () => {
+  let ensurances = 0;
+  const tools = await prepareCodegraphTools("owner/repo", 1, "sha", {
+    detect: () => Promise.resolve({ state: "missing" }),
+    allowInstall: true,
+    ensure: () => {
+      ensurances++;
+      return Promise.resolve({ reason: "declined" });
+    },
+  });
+  same([ensurances, tools], [1, []], "reason returns no tools");
+});
+
+test("prepareCodegraphTools never installs without allowInstall", async () => {
+  let ensurances = 0;
+  const tools = await prepareCodegraphTools("owner/repo", 1, "sha", {
+    detect: () =>
+      Promise.resolve({ state: "mismatch", version: "1.5.0", path: "x" }),
+    ensure: () => {
+      ensurances++;
+      return Promise.resolve({ path: "codegraph" });
+    },
+  });
+  same([ensurances, tools], [0, []], "no install without the flag");
+});
+
+test("prepareCodegraphTools installs only when the binary is not already usable", async () => {
+  let ensurances = 0;
+  const tools = await prepareCodegraphTools("owner/repo", 1, "sha", {
+    detect: () =>
+      Promise.resolve({ state: "ok", version: "1.6.0", path: "codegraph" }),
+    allowInstall: true,
+    ensure: () => {
+      ensurances++;
+      return Promise.resolve({ path: "codegraph" });
+    },
+    run: () => Promise.reject(new Error("no clone")),
+  });
+  same([ensurances, tools], [0, []], "present binary skips the install");
+});

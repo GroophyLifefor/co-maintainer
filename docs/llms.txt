@@ -37,6 +37,7 @@
 - [AI providers](https://co-maintainer.com/docs/providers.md)
 - [Authentication](https://co-maintainer.com/docs/authentication.md)
 - [Caching](https://co-maintainer.com/docs/caching.md)
+- [Codegraph](https://co-maintainer.com/docs/codegraph.md)
 - [Cost](https://co-maintainer.com/docs/cost.md)
 - [Data and privacy](https://co-maintainer.com/docs/privacy.md)
 - [Troubleshooting](https://co-maintainer.com/docs/troubleshooting.md)

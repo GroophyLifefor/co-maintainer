@@ -95,6 +95,21 @@ test("config: rows mark env values as env and never print a secret in full", () 
   }
 });
 
+test("config: codegraph-version is a known key and env overrides the file", () => {
+  const previous = getEnv("CM_CODEGRAPH_VERSION");
+  setEnv("CM_CODEGRAPH_VERSION", "1.9.0");
+  try {
+    const rows = configRows({ codegraphVersion: "1.7.0" });
+    const row = rows.find((item) => item.key === "codegraph-version");
+    if (row?.source !== "env" || row.value !== "1.9.0") {
+      throw new Error(`row: ${JSON.stringify(row)}`);
+    }
+  } finally {
+    if (previous === undefined) deleteEnv("CM_CODEGRAPH_VERSION");
+    else setEnv("CM_CODEGRAPH_VERSION", previous);
+  }
+});
+
 test("config: the dashboard password reports set, never the hash", () => {
   const rows = configRows({ dashboardPasswordHash: "scrypt$deadbeef" });
   const row = rows.find((item) => item.key === "dashboard-password-hash");
@@ -302,6 +317,39 @@ test("config set: --no-verify skips the check entirely and saves", async () => {
   } finally {
     console.log = log;
     console.error = error;
+    env.restore();
+    await remove(dir, { recursive: true });
+  }
+});
+
+test("config set: --codegraph-version normalizes a leading v and refuses a bad one", async () => {
+  const env = isolate();
+  const dir = await makeTempDir({ prefix: "cm-config-cg-" });
+  setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
+  const log = console.log;
+  const sink: string[] = [];
+  console.log = (...parts: unknown[]) => void sink.push(parts.join(" "));
+  try {
+    await runSet(["--codegraph-version=v1.8.0", "--no-verify"]);
+    const written = JSON.parse(await readTextFile(`${dir}/config.json`)) as {
+      codegraphVersion?: string;
+    };
+    if (written.codegraphVersion !== "1.8.0") {
+      throw new Error(`config not written: ${JSON.stringify(written)}`);
+    }
+    await runConfig(["get", "codegraph-version"]);
+    if (sink[sink.length - 1] !== "1.8.0") {
+      throw new Error(`config get: ${JSON.stringify(sink)}`);
+    }
+    let code = 0;
+    try {
+      await runSet(["--codegraph-version=../../etc", "--no-verify"]);
+    } catch (thrown) {
+      code = (thrown as { exitCode?: number }).exitCode ?? 3;
+    }
+    if (code !== 2) throw new Error(`bad version exit ${code} (want 2)`);
+  } finally {
+    console.log = log;
     env.restore();
     await remove(dir, { recursive: true });
   }

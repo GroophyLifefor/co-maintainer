@@ -67,7 +67,8 @@ is skipped and review continues without codegraph, printing one line:
 
 Pass `--allow-tool-install` to install without a prompt, or
 `--disable-codegraph` to skip the check entirely. Neither CI jobs nor pipelines
-can hang on the question.
+can hang on the question. Full details, including the install table and the
+version-resolution order, are in [Codegraph](codegraph.md).
 
 ## Carry-over
 

@@ -30,6 +30,40 @@ test("parseReviewArgs: PR mode strips local-only flags before parseArgs", async 
   }
 });
 
+test("parseReviewArgs: --allow-tool-install lands in the PR options", async () => {
+  const parsed = await parseReviewArgs([
+    "owner/repo",
+    "42",
+    "--allow-tool-install",
+    "--token=test",
+    "--low-model=low/model",
+    "--high-model=test/model",
+  ]);
+  if (parsed.mode !== "pr") throw new Error(`mode ${parsed.mode}`);
+  if (parsed.options.allowToolInstall !== true) {
+    throw new Error(
+      `allowToolInstall=${String(parsed.options.allowToolInstall)}`,
+    );
+  }
+  if (parsed.allowToolInstall !== true) throw new Error("flag not captured");
+});
+
+test("parseReviewArgs: PR options leave --allow-tool-install unset by default", async () => {
+  const parsed = await parseReviewArgs([
+    "owner/repo",
+    "42",
+    "--token=test",
+    "--low-model=low/model",
+    "--high-model=test/model",
+  ]);
+  if (parsed.mode !== "pr") throw new Error(`mode ${parsed.mode}`);
+  if (parsed.options.allowToolInstall !== false) {
+    throw new Error(
+      `allowToolInstall=${String(parsed.options.allowToolInstall)}`,
+    );
+  }
+});
+
 test("parseReviewArgs: --remote selects remote mode", async () => {
   const parsed = await parseReviewArgs(["--remote"]);
   if (parsed.mode !== "remote") {

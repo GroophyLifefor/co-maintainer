@@ -95,6 +95,10 @@ export type UserConfig = {
   /** What a review uses to decide a blocking finding. `model` lets
    * the model's own severity decide, `severity` uses a fixed threshold. */
   reviewBlocking?: "model" | "severity";
+  /** The pinned codegraph version to install and detect, replacing the one
+   * this build ships. Lets a security fix ship without a new release.
+   * `CM_CODEGRAPH_VERSION` overrides it. */
+  codegraphVersion?: string;
   /** Remote review CLI target (`co-maintainer set`). */
   remoteHost?: string;
   /** Bearer token for `/api/remote/*`; only written by `set`. */
