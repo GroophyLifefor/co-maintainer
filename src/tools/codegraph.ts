@@ -1,5 +1,11 @@
 import { readConfig, toolsDir, type UserConfig } from "../config.ts";
-import { commandOutput, getEnv, isWindows, mkdir, stat } from "../util/runtime.ts";
+import {
+  commandOutput,
+  getEnv,
+  isWindows,
+  mkdir,
+  stat,
+} from "../util/runtime.ts";
 import { askConfirm } from "../cli/prompt.ts";
 
 /** The version co-maintainer is built against. codegraph's CLI output shape is

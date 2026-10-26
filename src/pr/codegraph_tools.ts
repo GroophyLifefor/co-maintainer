@@ -5,7 +5,11 @@ import {
   type Run,
   runCommand,
 } from "./checkout.ts";
-import { detect, ensureCodegraphForReview, type Presence } from "../tools/codegraph.ts";
+import {
+  detect,
+  ensureCodegraphForReview,
+  type Presence,
+} from "../tools/codegraph.ts";
 import {
   createCodegraphRunner,
   LOCAL_CODEGRAPH_DIR,

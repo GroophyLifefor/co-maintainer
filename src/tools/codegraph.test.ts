@@ -258,7 +258,11 @@ test("isCodegraphVersion accepts semver and refuses paths and flags", () => {
   same(isCodegraphVersion("1.7.0-beta.1"), true, "prerelease");
   same(isCodegraphVersion("1.6.0-"), false, "empty prerelease");
   same(isCodegraphVersion("1.6.0-."), false, "dangling prerelease separator");
-  same(isCodegraphVersion("v1.6.0"), false, "leading v is normalized elsewhere");
+  same(
+    isCodegraphVersion("v1.6.0"),
+    false,
+    "leading v is normalized elsewhere",
+  );
   same(isCodegraphVersion("../../etc/passwd"), false, "path traversal");
   same(isCodegraphVersion("--prefix"), false, "flag like");
   same(isCodegraphVersion(""), false, "empty");
@@ -274,9 +278,16 @@ test("codegraphVersion prefers env, then config, then the built-in pin", () => {
     "1.8.0",
     "env wins",
   );
-  same(codegraphVersion(() => undefined, config), "1.7.0", "config next");
   same(
-    codegraphVersion(() => undefined, () => ({})),
+    codegraphVersion(() => undefined, config),
+    "1.7.0",
+    "config next",
+  );
+  same(
+    codegraphVersion(
+      () => undefined,
+      () => ({}),
+    ),
     CODEGRAPH_VERSION,
     "built-in last",
   );
@@ -285,8 +296,7 @@ test("codegraphVersion prefers env, then config, then the built-in pin", () => {
 test("codegraphVersion skips a layer that is not a plain semver", () => {
   same(
     codegraphVersion(
-      (name) =>
-        name === "CM_CODEGRAPH_VERSION" ? "../../etc" : undefined,
+      (name) => (name === "CM_CODEGRAPH_VERSION" ? "../../etc" : undefined),
       () => ({ codegraphVersion: "1.7.0" }),
     ),
     "1.7.0",
