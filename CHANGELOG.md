@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-10-26
+
+### Added
+
+- **PR review can install codegraph.** `co-maintainer review owner/repo PR --allow-tool-install` now installs the pinned codegraph when it is missing, instead of only using an install that is already there. A PR review still never prompts, so it stays safe to run unattended.
+- **The pinned codegraph version is configurable.** `co-maintainer set --codegraph-version=X` and the `CM_CODEGRAPH_VERSION` environment variable override the version this build ships, resolved in the order environment, then config, then the built-in pin. This lets a codegraph security or bug fix land without a new co-maintainer release.
+- **A Codegraph docs page.** What codegraph is, where it installs, when each command installs it, and how to change the pinned version.
+- **Reviews print the provider and models as they start.** Every review logs one line, `models · provider=... · low=... · high=...`, so it is clear which models a run is using before any AI call.
+
 ## [0.6.0] - 2026-10-23
 
 ### Changed

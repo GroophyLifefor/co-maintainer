@@ -59,6 +59,7 @@ export const ENV_BY_FIELD: Record<string, string[]> = {
   remoteToken: ["CM_REMOTE_TOKEN"],
   reviewBlocking: ["CO_MAINTAINER_REVIEW_BLOCKING"],
   remoteByokPolicy: ["CM_REMOTE_BYOK_POLICY"],
+  codegraphVersion: ["CM_CODEGRAPH_VERSION"],
 };
 
 /** Renders one field for people. A secret is masked; the password hash, which
@@ -166,6 +167,7 @@ export const KNOWN_FIELDS = [
   "dashboardPasswordHash",
   "maxConcurrentJobs",
   "reviewBlocking",
+  "codegraphVersion",
   "remoteHost",
   "remoteToken",
   "remoteNoticeShownFor",

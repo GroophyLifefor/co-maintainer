@@ -1,5 +1,11 @@
-import { toolsDir } from "../config.ts";
-import { commandOutput, isWindows, mkdir, stat } from "../util/runtime.ts";
+import { readConfig, toolsDir, type UserConfig } from "../config.ts";
+import {
+  commandOutput,
+  getEnv,
+  isWindows,
+  mkdir,
+  stat,
+} from "../util/runtime.ts";
 import { askConfirm } from "../cli/prompt.ts";
 
 /** The version co-maintainer is built against. codegraph's CLI output shape is
@@ -8,6 +14,43 @@ import { askConfirm } from "../cli/prompt.ts";
  * someone else's machine. Raise it, adjust whatever reads the output, done. */
 export const CODEGRAPH_VERSION = "1.6.0";
 export const CODEGRAPH_PACKAGE = "@colbymchenry/codegraph";
+
+/** A version that is safe in a directory name and an npm argument: a bare
+ * semver, optionally with a prerelease suffix. Anything else (a path, a
+ * leading `-`, whitespace) is refused, so a bad config value can never reach
+ * `versionDir` or the npm spec. */
+export function isCodegraphVersion(value: string): boolean {
+  return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(value);
+}
+
+/** Trims and drops a leading `v`, then checks the result is a plain semver.
+ * `undefined` for anything that is not, so the caller falls back. */
+function normalizeVersion(raw: string): string | undefined {
+  const value = raw.trim().replace(/^v/, "");
+  return value !== "" && isCodegraphVersion(value) ? value : undefined;
+}
+
+/** The pinned version to use, in precedence order: `CM_CODEGRAPH_VERSION`,
+ * then `config.json codegraphVersion`, then the version this build ships. A
+ * layer that is missing or not a plain semver is skipped, so a typo falls back
+ * instead of breaking detection. This is what lets a security fix ship as a
+ * config or environment change without a new release. */
+export function codegraphVersion(
+  env: (name: string) => string | undefined = getEnv,
+  config: () => UserConfig = readConfig,
+): string {
+  const fromEnv = env("CM_CODEGRAPH_VERSION");
+  if (fromEnv !== undefined) {
+    const value = normalizeVersion(fromEnv);
+    if (value) return value;
+  }
+  const fromConfig = config().codegraphVersion;
+  if (fromConfig !== undefined) {
+    const value = normalizeVersion(fromConfig);
+    if (value) return value;
+  }
+  return CODEGRAPH_VERSION;
+}
 
 export type CommandResult = { code: number; stdout: string; stderr: string };
 export type Runner = (
@@ -25,6 +68,9 @@ export type EnsureOptions = {
   log?: (message: string) => void;
   /** Overrides `toolsDir()`, for tests. */
   root?: string;
+  /** Overrides the pinned version, for tests. Defaults to
+   * {@link codegraphVersion}. */
+  version?: string;
   /** Overrides `process.exit`, for tests. */
   exit?: (code: number) => never;
 };
@@ -59,7 +105,7 @@ export function canPrompt(
 
 /** The one line a non-interactive run prints instead of asking. It names
  * the reason and both ways forward, so a CI log explains itself. */
-export function skippedNotice(version = CODEGRAPH_VERSION): string {
+export function skippedNotice(version = codegraphVersion()): string {
   return (
     `codegraph ${version} is not installed, reviewing without it. ` +
     "Pass --allow-tool-install to install it, or --disable-codegraph to skip this notice."
@@ -124,7 +170,7 @@ export type Presence =
   | { state: "missing" };
 
 export async function detect(
-  version = CODEGRAPH_VERSION,
+  version = codegraphVersion(),
   root = toolsDir(),
   run: Runner = runCommand,
 ): Promise<Presence> {
@@ -143,7 +189,7 @@ export async function detect(
 }
 
 export function installCommand(
-  version = CODEGRAPH_VERSION,
+  version = codegraphVersion(),
   root = toolsDir(),
 ): { command: string; args: string[] } {
   return {
@@ -160,7 +206,7 @@ export function installCommand(
 }
 
 export function installHint(
-  version = CODEGRAPH_VERSION,
+  version = codegraphVersion(),
   root = toolsDir(),
 ): string {
   const { command, args } = installCommand(version, root);
@@ -178,6 +224,7 @@ export async function ensureCodegraph(
   options: EnsureOptions = {},
 ): Promise<string> {
   const root = options.root ?? toolsDir();
+  const version = options.version ?? codegraphVersion();
   const run = options.run ?? runCommand;
   const log = options.log ?? ((message: string) => console.log(message));
   // `canPrompt` is the single source of truth for "may we ask": stdin and
@@ -186,12 +233,12 @@ export async function ensureCodegraph(
   // Annotated so TypeScript can see the calls below never return and keeps the
   // `Presence` narrowing intact.
   const exit: (code: number) => never = options.exit ?? process.exit;
-  const present = await detect(CODEGRAPH_VERSION, root, run);
+  const present = await detect(version, root, run);
 
   if (present.state === "ok") return present.path;
   if (present.state === "mismatch") {
     log(
-      `[codegraph] expected ${CODEGRAPH_VERSION} but found ${present.version} ` +
+      `[codegraph] expected ${version} but found ${present.version} ` +
         `at ${present.path}; reinstalling the pinned version`,
     );
   }
@@ -201,9 +248,9 @@ export async function ensureCodegraph(
       // This path exits rather than continuing, so it must not say "reviewing
       // without it"; it says how to proceed.
       log(
-        `[codegraph] codegraph ${CODEGRAPH_VERSION} is not installed.\n` +
+        `[codegraph] codegraph ${version} is not installed.\n` +
           `Run with --allow-tool-install, or install it yourself:\n  ${installHint(
-            CODEGRAPH_VERSION,
+            version,
             root,
           )}`,
       );
@@ -212,16 +259,16 @@ export async function ensureCodegraph(
     const confirm = options.confirm ?? defaultConfirm;
     // `defaultConfirm` is async, so an unawaited call is always truthy and the
     // user's "no" was silently ignored. Await it before deciding.
-    const approved = await confirm(installPrompt(CODEGRAPH_VERSION, root));
+    const approved = await confirm(installPrompt(version, root));
     if (!approved) {
       log("[codegraph] declined. Nothing was installed");
       exit(1);
     }
   }
 
-  const { command, args } = installCommand(CODEGRAPH_VERSION, root);
-  log(`[codegraph] installing ${CODEGRAPH_PACKAGE}@${CODEGRAPH_VERSION}`);
-  await mkdir(versionDir(CODEGRAPH_VERSION, root), { recursive: true });
+  const { command, args } = installCommand(version, root);
+  log(`[codegraph] installing ${CODEGRAPH_PACKAGE}@${version}`);
+  await mkdir(versionDir(version, root), { recursive: true });
   const result = await run(command, args);
   if (result.code !== 0) {
     log(
@@ -232,10 +279,10 @@ export async function ensureCodegraph(
     exit(1);
   }
 
-  const after = await detect(CODEGRAPH_VERSION, root, run);
+  const after = await detect(version, root, run);
   if (after.state !== "ok") {
     log(
-      `[codegraph] install finished but ${binaryPath(CODEGRAPH_VERSION, root)} is still not usable`,
+      `[codegraph] install finished but ${binaryPath(version, root)} is still not usable`,
     );
     exit(1);
   }
@@ -248,15 +295,16 @@ export async function ensureCodegraphForReview(
   options: EnsureOptions = {},
 ): Promise<{ path: string } | { reason: string }> {
   const root = options.root ?? toolsDir();
+  const version = options.version ?? codegraphVersion();
   const run = options.run ?? runCommand;
   const log = options.log ?? ((message: string) => console.error(message));
   const interactive = options.interactive ?? canPrompt();
-  const present = await detect(CODEGRAPH_VERSION, root, run);
+  const present = await detect(version, root, run);
 
   if (present.state === "ok") return { path: present.path };
   if (present.state === "mismatch") {
     log(
-      `[codegraph] expected ${CODEGRAPH_VERSION} but found ${present.version}; reinstalling`,
+      `[codegraph] expected ${version} but found ${present.version}; reinstalling`,
     );
   }
 
@@ -264,17 +312,17 @@ export async function ensureCodegraphForReview(
     // Non-interactive: do not ask, review without it. The caller logs the
     // reason, so the run continues instead of hanging or exiting.
     if (!interactive) {
-      return { reason: skippedNotice() };
+      return { reason: skippedNotice(version) };
     }
     const confirm = options.confirm ?? defaultConfirm;
     // Same as `ensureCodegraph`: an unawaited async confirm is always truthy.
-    const approved = await confirm(installPrompt(CODEGRAPH_VERSION, root));
+    const approved = await confirm(installPrompt(version, root));
     if (!approved) return { reason: "codegraph install declined" };
   }
 
-  const { command, args } = installCommand(CODEGRAPH_VERSION, root);
-  log(`[codegraph] installing ${CODEGRAPH_PACKAGE}@${CODEGRAPH_VERSION}`);
-  await mkdir(versionDir(CODEGRAPH_VERSION, root), { recursive: true });
+  const { command, args } = installCommand(version, root);
+  log(`[codegraph] installing ${CODEGRAPH_PACKAGE}@${version}`);
+  await mkdir(versionDir(version, root), { recursive: true });
   const result = await run(command, args);
   if (result.code !== 0) {
     return {
@@ -284,7 +332,7 @@ export async function ensureCodegraphForReview(
         `install failed (exit ${result.code})`,
     };
   }
-  const after = await detect(CODEGRAPH_VERSION, root, run);
+  const after = await detect(version, root, run);
   if (after.state !== "ok") {
     return { reason: "install finished but the binary is still not usable" };
   }

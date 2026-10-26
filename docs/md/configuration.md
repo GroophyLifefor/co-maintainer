@@ -81,6 +81,7 @@ provider, so both models are saved the first time. See
 | `--remote-host=...` | `remoteHost` | `review --remote` |
 | `--remote-token=...` | `remoteToken` | `review --remote` |
 | `--review-blocking=model\|severity` | `reviewBlocking` | Whether a review's own severity decides a blocking finding |
+| `--codegraph-version=SEMVER` | `codegraphVersion` | The pinned [codegraph](codegraph.md) version, replacing the built-in one |
 | `--remote-byok=KEY` | `remoteByok` | `review --remote`, your own AI key, see [Remote review](remote-review.md#your-own-ai-key) |
 | `--remote-byok-default=on\|off` | `remoteByokDefault` | Whether `review --remote` sends `remote-byok` without being asked |
 | `--remote-byok-policy=off\|allow\|require` | `remoteByokPolicy` | `serve`, whether remote clients may send their own key |
@@ -172,6 +173,7 @@ hides the value.
 | `defaults` | object | `init` / `sync` limits | no |
 | `max-concurrent-jobs` | number | Settings, or the field directly | no |
 | `review-blocking` | `model` or `severity` | `--review-blocking` | no |
+| `codegraph-version` | version string | `--codegraph-version`, or `CM_CODEGRAPH_VERSION` | no |
 | `remote-host` | URL string | `--remote-host` | no |
 | `remote-token` | string | `--remote-token` | yes |
 | `remote-byok` | string | `--remote-byok` | yes |
@@ -186,6 +188,9 @@ hides the value.
 
 `config get` prints the real value even for a masked key, so treat its output as
 a secret.
+
+`CM_CODEGRAPH_VERSION` overrides `codegraph-version` at run time, ahead of the
+file. See [Codegraph](codegraph.md#changing-the-pinned-version).
 
 ### Unset
 

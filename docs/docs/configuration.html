@@ -75,6 +75,7 @@
           <li><a href="providers.html">AI providers</a></li>
           <li><a href="authentication.html">Authentication</a></li>
           <li><a href="caching.html">Caching</a></li>
+          <li><a href="codegraph.html">Codegraph</a></li>
           <li><a href="cost.html">Cost</a></li>
           <li><a href="privacy.html">Data and privacy</a></li>
           <li><a href="troubleshooting.html">Troubleshooting</a></li>
@@ -257,6 +258,11 @@ provider, so both models are saved the first time. See
 <td><code>--review-blocking=model|severity</code></td>
 <td><code>reviewBlocking</code></td>
 <td>Whether a review&#39;s own severity decides a blocking finding</td>
+</tr>
+<tr>
+<td><code>--codegraph-version=SEMVER</code></td>
+<td><code>codegraphVersion</code></td>
+<td>The pinned <a href="codegraph.html">codegraph</a> version, replacing the built-in one</td>
 </tr>
 <tr>
 <td><code>--remote-byok=KEY</code></td>
@@ -476,6 +482,12 @@ hides the value.</p>
 <td>no</td>
 </tr>
 <tr>
+<td><code>codegraph-version</code></td>
+<td>version string</td>
+<td><code>--codegraph-version</code>, or <code>CM_CODEGRAPH_VERSION</code></td>
+<td>no</td>
+</tr>
+<tr>
 <td><code>remote-host</code></td>
 <td>URL string</td>
 <td><code>--remote-host</code></td>
@@ -544,6 +556,8 @@ hides the value.</p>
 </tbody></table>
 <p><code>config get</code> prints the real value even for a masked key, so treat its output as
 a secret.</p>
+<p><code>CM_CODEGRAPH_VERSION</code> overrides <code>codegraph-version</code> at run time, ahead of the
+file. See <a href="codegraph.html#changing-the-pinned-version">Codegraph</a>.</p>
 <h3 id="unset">Unset</h3>
 <pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--unset=token</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--unset=github-webhook-secret</span>

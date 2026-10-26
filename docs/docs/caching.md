@@ -70,7 +70,8 @@ the binary by absolute path. On the first local review that needs it,
 co-maintainer asks before installing and names the version, source, approximate
 size and this directory. Non-interactive runs (closed stdin, piped output, or
 `CI`) skip the question and review without it. See
-[Local review: Codegraph](local-review.md#codegraph).
+[Local review: Codegraph](local-review.md#codegraph) and
+[Codegraph](codegraph.md) for the version-resolution order.
 
 ## `cache.db` (CLI)
 

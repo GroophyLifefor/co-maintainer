@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Codegraph · co-maintainer docs</title>
+  <meta name="description" content="codegraph is a code graph tool that lets a review follow calls between files instead of guessing from the diff alone. co-maintainer keeps it as its own...">
+  <link rel="canonical" href="https://co-maintainer.com/docs/codegraph.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="ci.html">CI</a></li>
+          <li><a href="review-policy.html">Review policy</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          <li><a href="commit-watch-review.html">Commit watch review</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="providers.html">AI providers</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          <li><a href="codegraph.html" class="active">Codegraph</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="privacy.html">Data and privacy</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>Codegraph</h1>
+<p>codegraph is a code graph tool that lets a review follow calls between files
+instead of guessing from the diff alone. co-maintainer keeps it as its own
+tool, pinned to a version, and runs it beside the review when it helps.</p>
+<h2 id="why-a-pinned-version">Why a pinned version</h2>
+<p>The reviewer parses codegraph&#39;s CLI output, so the version is pinned rather
+than tracking latest: an upstream format change must be an explicit upgrade,
+not a surprise on someone else&#39;s machine. This build ships codegraph <code>1.6.0</code>
+(<code>@colbymchenry/codegraph</code> from npm, about 250 MB unpacked).</p>
+<h2 id="where-it-lives">Where it lives</h2>
+<p>codegraph is installed under the tools directory, one folder per version, and
+it is <strong>never added to your <code>PATH</code></strong>. The CLI runs the binary by absolute path:</p>
+<pre><code>&lt;tools dir&gt;/codegraph/1.6.0/node_modules/.bin/codegraph
+</code></pre>
+<p>The tools directory sits under the cache directory (see
+<a href="caching.html#tools-directory">Caching</a>). <code>CM_TOOLS_DIR</code> overrides it. Because
+each version has its own folder, a change of version never overwrites a working
+install.</p>
+<h2 id="when-it-installs">When it installs</h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="local-review.html#codegraph">Local review</a></td>
+<td>Asks before installing on an interactive terminal, <code>--allow-tool-install</code> installs without a prompt</td>
+</tr>
+<tr>
+<td><a href="local-pr-review.html">PR review</a></td>
+<td>Uses an install that is already there, <code>--allow-tool-install</code> installs a missing or mismatched one without a prompt</td>
+</tr>
+<tr>
+<td><a href="remote-review.html">Remote review</a></td>
+<td>The client prepares the tools locally, the server never installs</td>
+</tr>
+<tr>
+<td>CI, pipelines, <code>--json</code>, closed stdin</td>
+<td>Never prompts. Without <code>--allow-tool-install</code>, reviews without codegraph</td>
+</tr>
+</tbody></table>
+<p><code>--disable-codegraph</code> skips the check entirely. A prompt is only shown when
+both stdin and stdout are a terminal and <code>CI</code> is unset, so a pipeline cannot
+hang on it.</p>
+<h2 id="changing-the-pinned-version">Changing the pinned version</h2>
+<p>Use this when a codegraph security or bug fix must land without waiting for a
+new co-maintainer release. The version is resolved in this order:</p>
+<ol>
+<li><code>CM_CODEGRAPH_VERSION</code> environment variable</li>
+<li><code>config.json</code> <code>codegraphVersion</code>, written by <code>co-maintainer set</code></li>
+<li>the version this build ships</li>
+</ol>
+<p>A layer that is missing, or whose value is not a version number, is skipped, so
+a typo falls back to the next one instead of breaking detection. A leading <code>v</code>
+is accepted and dropped.</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--codegraph-version=1.7.0</span>
+<span class="sh-comment"># or, for one run or a CI job:</span>
+<span class="sh-arg">CM_CODEGRAPH_VERSION=1.7.0</span> <span class="sh-arg">co-maintainer</span> <span class="sh-arg">review</span> <span class="sh-arg">owner/repo</span> <span class="sh-arg">123</span> <span class="sh-flag">--allow-tool-install</span>
+</code></pre>
+<p>Changing the version only changes what co-maintainer looks for. The new build
+is downloaded on the next run that is allowed to install, which is a prompt on
+local review or <code>--allow-tool-install</code> on PR review. An existing older version
+stays on disk.</p>
+<p>Install the pinned build by hand if you prefer:</p>
+<pre class="shell-block"><code>npm install @colbymchenry/codegraph@1.7.0 \
+  <span class="sh-flag">--prefix</span> <span class="sh-arg">&quot;&lt;tools</span> <span class="sh-arg">dir&gt;/codegraph/1.7.0&quot;</span> <span class="sh-flag">--no-audit</span> <span class="sh-flag">--no-fund</span>
+</code></pre>
+<p><code>co-maintainer config get codegraph-version</code> prints the configured value when
+one is set, and <code>co-maintainer config list</code> shows whether the value comes from
+the environment, the file, or nothing.</p>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>codegraph is missing</code></td>
+<td>The pinned version is not installed</td>
+<td><code>--allow-tool-install</code>, or install it by hand</td>
+</tr>
+<tr>
+<td><code>codegraph is mismatch</code></td>
+<td>An install exists but reports another version</td>
+<td><code>--allow-tool-install</code> reinstalls the pinned version</td>
+</tr>
+<tr>
+<td>A review skipped codegraph</td>
+<td>Non-interactive run with no install</td>
+<td>Install it, or pass <code>--allow-tool-install</code></td>
+</tr>
+<tr>
+<td>A review is much slower</td>
+<td>Indexing a large repository</td>
+<td><code>--disable-codegraph</code></td>
+</tr>
+</tbody></table>
+<p>See <a href="local-review.html#codegraph">Local review: Codegraph</a> for the prompt text and
+<a href="caching.html#tools-directory">Caching</a> for the directory layout.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/codegraph.md">Edit this page</a> on GitHub
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#why-a-pinned-version">Why a pinned version</a></li><li><a href="#where-it-lives">Where it lives</a></li><li><a href="#when-it-installs">When it installs</a></li><li><a href="#changing-the-pinned-version">Changing the pinned version</a></li><li><a href="#troubleshooting">Troubleshooting</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

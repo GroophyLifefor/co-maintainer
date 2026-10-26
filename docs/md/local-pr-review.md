@@ -45,8 +45,10 @@ co-maintainer review owner/repo 123 --disable-codegraph --debug
 [remote review](remote-review.md) for a local diff against shared server context.
 
 PR review indexes the checked-out repository with codegraph when it is already
-installed, but it never prompts to install it: a PR review runs unattended. The
-question and its rules are in [local review](local-review.md#codegraph).
+installed, and installs the pinned version when you pass `--allow-tool-install`.
+It never prompts: a PR review runs unattended. The question and its rules are in
+[local review](local-review.md#codegraph), and [Codegraph](codegraph.md) lists
+the install table and the version-resolution order.
 
 Auth and models follow [`configuration`](configuration.md) and `co-maintainer
 set` like other commands (`--auth=pat` is not used for PR review).

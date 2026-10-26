@@ -21,6 +21,7 @@ import {
 import { verifyOpenCode } from "../../ai/opencode.ts";
 import { die } from "../error.ts";
 import { parsePolicy } from "../../services/review_policy.ts";
+import { isCodegraphVersion } from "../../tools/codegraph.ts";
 import { AI_PROVIDERS, rejectRetiredProvider } from "../../ai/provider.ts";
 import { renderCommandHelp, renderGlobalHelp } from "./registry.ts";
 
@@ -79,6 +80,7 @@ export async function runSet(args: string[]): Promise<void> {
     "review-policy",
     "review-policy-file",
     "review-blocking",
+    "codegraph-version",
     "repo",
     "review-system-prompt",
     "review-system-prompt-max-chars",
@@ -148,6 +150,7 @@ export async function runSet(args: string[]): Promise<void> {
     "remote-byok-default": "remoteByokDefault",
     "review-policy": "reviewPolicy",
     "review-blocking": "reviewBlocking",
+    "codegraph-version": "codegraphVersion",
     password: "dashboardPasswordHash",
   };
   const unset = new Set(
@@ -260,6 +263,16 @@ export async function runSet(args: string[]): Promise<void> {
     }
     patch.reviewBlocking = reviewBlocking;
   }
+  const rawCodegraphVersion = text(args, "codegraph-version");
+  if (rawCodegraphVersion !== undefined && rawCodegraphVersion.trim() !== "") {
+    // Match the reader: a leading `v` is accepted and dropped, so `set` and
+    // `codegraphVersion()` agree on what a version looks like.
+    const normalized = rawCodegraphVersion.trim().replace(/^v/, "");
+    if (!isCodegraphVersion(normalized)) {
+      die("--codegraph-version must be a version like 1.6.0");
+    }
+    patch.codegraphVersion = normalized;
+  }
   const password = text(args, "password");
   if (password) {
     const problem = passwordProblem(password);
@@ -273,7 +286,7 @@ export async function runSet(args: string[]): Promise<void> {
         "--github-app-id=, --github-app-private-key(-file|-path)=, --github-webhook-secret=, " +
         "--github-oauth-client-id=, --github-oauth-client-secret=, --github-oauth-allowed-user=, " +
         "--remote-host=, --remote-token=, --remote-byok-policy=off|allow|require, " +
-        "--review-blocking=model|severity, " +
+        "--review-blocking=model|severity, --codegraph-version=SEMVER, " +
         "--password=, --disable-auth=password, --enable-auth=github, or --unset=name",
     );
   }

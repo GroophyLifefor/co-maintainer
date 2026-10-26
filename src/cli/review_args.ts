@@ -221,6 +221,7 @@ export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
       options: {
         ...options,
         useCodegraph: flags.disableCodegraph ? false : true,
+        allowToolInstall: flags.allowToolInstall,
         reviewSystemPromptAdd: promptFlags.add,
         reviewSystemPromptOverride: promptFlags.override,
       },

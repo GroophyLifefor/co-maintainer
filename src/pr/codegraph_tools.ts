@@ -5,7 +5,11 @@ import {
   type Run,
   runCommand,
 } from "./checkout.ts";
-import { detect, type Presence } from "../tools/codegraph.ts";
+import {
+  detect,
+  ensureCodegraphForReview,
+  type Presence,
+} from "../tools/codegraph.ts";
 import {
   createCodegraphRunner,
   LOCAL_CODEGRAPH_DIR,
@@ -86,27 +90,53 @@ export async function ensureCodegraphIndex(
   );
 }
 
-/** Uses `detect`, never `ensureCodegraph`: the latter can call `Deno.exit` on
- * a declined or failed install, fine for a one-time `init`/`remake`/`serve`
- * setup step but not for a single review that happens to want this tool. */
+/** Resolves the codegraph binary for a review. `detect` is the default and
+ * never installs: the exiting `ensureCodegraph` is for a one-time
+ * `init`/`remake`/`serve` setup step, not for a single review that happens to
+ * want this tool. With `allowInstall` (`--allow-tool-install`) a missing or
+ * mismatched install is resolved through `ensureCodegraphForReview`, which
+ * installs without prompting and returns a reason instead of exiting. */
 export async function prepareCodegraphTools(
   repo: string,
   pr: number,
   commit: string,
-  options: { run?: Run; detect?: () => Promise<Presence> } = {},
+  options: {
+    run?: Run;
+    detect?: () => Promise<Presence>;
+    allowInstall?: boolean;
+    /** Overrides the install step, for tests. */
+    ensure?: () => Promise<{ path: string } | { reason: string }>;
+  } = {},
 ): Promise<ToolHandler[]> {
   const runner = options.run ?? runCommand;
   const detectPresence = options.detect ?? detect;
+  const ensure =
+    options.ensure ??
+    (() =>
+      ensureCodegraphForReview({
+        allowInstall: options.allowInstall,
+        interactive: false,
+      }));
   try {
     const presence = await detectPresence();
-    if (presence.state !== "ok") {
+    let binary = presence.state === "ok" ? presence.path : null;
+    if (binary === null && options.allowInstall) {
+      const resolved = await ensure();
+      if ("path" in resolved) {
+        binary = resolved.path;
+      } else {
+        log("codegraph", `tools unavailable · ${resolved.reason}`);
+        return [];
+      }
+    }
+    if (binary === null) {
       log("codegraph", `tools unavailable · codegraph is ${presence.state}`);
       return [];
     }
     const worktree = await ensureWorktree(repo, pr, commit, runner);
     const cgRun = createCodegraphRunner(SERVER_CODEGRAPH_DIR);
-    await ensureCodegraphIndex(presence.path, worktree, cgRun);
-    return codegraphTools(presence.path, worktree, cgRun);
+    await ensureCodegraphIndex(binary, worktree, cgRun);
+    return codegraphTools(binary, worktree, cgRun);
   } catch (error) {
     log("codegraph", `tools unavailable · ${String(error)}`);
     return [];

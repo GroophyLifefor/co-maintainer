@@ -342,6 +342,7 @@ co-maintainer set [options]
 | `--review-system-prompt=TEXT` |  | A repository's own review instructions. Needs --repo. Empty clears it. |
 | `--review-system-prompt-max-chars=N` |  | Cap the repository's review instructions in characters. Needs --repo. 0 or -1 means no limit. |
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |
+| `--codegraph-version=SEMVER` |  | The pinned codegraph version, overriding the built-in one. For a security fix without a release. |
 | `--password=TEXT` |  | Replace the dashboard password. |
 | `--disable-auth=password` |  | Turn the dashboard password off. |
 | `--enable-auth=github` |  | Turn GitHub sign-in on. |

@@ -35,6 +35,16 @@ import type {
 type UsageSink = (response: AiResponse) => Promise<void>;
 type ProgressSink = (message: string) => void;
 
+/** One line naming the provider and the two models a review will call, printed
+ * before any AI request so the operator can see what is running. The low model
+ * summarizes large diffs, the high model writes the review. */
+export function modelSummary(options: Options): string {
+  return (
+    `models · provider=${options.ai} · low=${options.lowModel ?? "unset"} · ` +
+    `high=${options.highModel ?? "unset"}`
+  );
+}
+
 /** A model id is never guessed here. Models go stale, and a build already
  * installed cannot fetch a fresher one, so the id to run comes from config
  * or a flag, set at least once by whoever runs it (Murat, 2026-09-28). */
@@ -301,6 +311,7 @@ export async function reviewPullRequest(
   if (!options.prNumber) throw new Error("review requires a PR number");
   const number = options.prNumber;
   const report = progress ?? (() => {});
+  report(modelSummary(options));
   report(`loading PR context for ${options.repo}#${number}`);
   const [pr, allComments, allReviews, guides] = await Promise.all([
     client.request<Json>(`repos/${options.repo}/pulls/${number}`),
@@ -414,7 +425,9 @@ export async function reviewPullRequest(
       }),
     ),
     options.useCodegraph && headSha
-      ? prepareCodegraphTools(options.repo, number, headSha)
+      ? prepareCodegraphTools(options.repo, number, headSha, {
+          allowInstall: options.allowToolInstall,
+        })
       : Promise.resolve([] as ToolHandler[]),
   ]);
   if (options.useCodegraph) {
@@ -690,6 +703,7 @@ export async function reviewWorkspaceRevision(
   }
 > {
   const report = progress ?? (() => {});
+  report(modelSummary(options));
   const guides = await loadGuides(options.repo);
   const { shortGuide, detailed, codebase, skill } = guides;
   const guide = shortGuide || skill;

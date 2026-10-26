@@ -2,12 +2,14 @@ import {
   binaryPath,
   canPrompt,
   CODEGRAPH_VERSION,
+  codegraphVersion,
   type CommandResult,
   detect,
   ensureCodegraph,
   ensureCodegraphForReview,
   installCommand,
   installPrompt,
+  isCodegraphVersion,
   parseVersion,
   skippedNotice,
   versionDir,
@@ -124,6 +126,7 @@ test("ensureCodegraph returns the path when the pinned version is present", asyn
   let installs = 0;
   const found = await ensureCodegraph({
     root: dir,
+    version: CODEGRAPH_VERSION,
     interactive: false,
     log: () => {},
     run: (command, args) => {
@@ -146,6 +149,7 @@ test("ensureCodegraph installs after the prompt is accepted", async () => {
   let asked = 0;
   const found = await ensureCodegraph({
     root: dir,
+    version: CODEGRAPH_VERSION,
     interactive: true,
     log: () => {},
     confirm: () => {
@@ -177,6 +181,7 @@ test("ensureCodegraphForReview declines when the async prompt says no", async ()
   let installs = 0;
   const found = await ensureCodegraphForReview({
     root: dir,
+    version: CODEGRAPH_VERSION,
     interactive: true,
     log: () => {},
     // The real `defaultConfirm` is async (`node:readline/promises`), so this
@@ -198,6 +203,7 @@ test("ensureCodegraph does not install when the async prompt says no", async () 
   let exitCode: number | undefined;
   await ensureCodegraph({
     root: dir,
+    version: CODEGRAPH_VERSION,
     interactive: true,
     log: () => {},
     confirm: async () => false,
@@ -222,6 +228,7 @@ test("ensureCodegraph installs when the async prompt says yes", async () => {
   let installs = 0;
   const found = await ensureCodegraph({
     root: dir,
+    version: CODEGRAPH_VERSION,
     interactive: true,
     log: () => {},
     confirm: async () => true,
@@ -243,5 +250,138 @@ test("ensureCodegraph installs when the async prompt says yes", async () => {
   });
   same(installs, 1, "accepted install");
   same(found, path, "path");
+  await removePath(dir, { recursive: true });
+});
+
+test("isCodegraphVersion accepts semver and refuses paths and flags", () => {
+  same(isCodegraphVersion("1.6.0"), true, "bare");
+  same(isCodegraphVersion("1.7.0-beta.1"), true, "prerelease");
+  same(isCodegraphVersion("1.6.0-"), false, "empty prerelease");
+  same(isCodegraphVersion("1.6.0-."), false, "dangling prerelease separator");
+  same(
+    isCodegraphVersion("v1.6.0"),
+    false,
+    "leading v is normalized elsewhere",
+  );
+  same(isCodegraphVersion("../../etc/passwd"), false, "path traversal");
+  same(isCodegraphVersion("--prefix"), false, "flag like");
+  same(isCodegraphVersion(""), false, "empty");
+});
+
+test("codegraphVersion prefers env, then config, then the built-in pin", () => {
+  const config = () => ({ codegraphVersion: "1.7.0" });
+  same(
+    codegraphVersion(
+      (name) => (name === "CM_CODEGRAPH_VERSION" ? "1.8.0" : undefined),
+      config,
+    ),
+    "1.8.0",
+    "env wins",
+  );
+  same(
+    codegraphVersion(() => undefined, config),
+    "1.7.0",
+    "config next",
+  );
+  same(
+    codegraphVersion(
+      () => undefined,
+      () => ({}),
+    ),
+    CODEGRAPH_VERSION,
+    "built-in last",
+  );
+});
+
+test("codegraphVersion skips a layer that is not a plain semver", () => {
+  same(
+    codegraphVersion(
+      (name) => (name === "CM_CODEGRAPH_VERSION" ? "../../etc" : undefined),
+      () => ({ codegraphVersion: "1.7.0" }),
+    ),
+    "1.7.0",
+    "bad env falls through to config",
+  );
+  same(
+    codegraphVersion(
+      () => undefined,
+      () => ({ codegraphVersion: "not-a-version" }),
+    ),
+    CODEGRAPH_VERSION,
+    "bad config falls through to the built-in",
+  );
+  same(
+    codegraphVersion(
+      (name) => (name === "CM_CODEGRAPH_VERSION" ? "v1.9.0" : undefined),
+      () => ({}),
+    ),
+    "1.9.0",
+    "a leading v is dropped",
+  );
+});
+
+test("ensureCodegraphForReview installs without prompting when allowInstall is set", async () => {
+  const dir = await tempDir();
+  const path = binaryPath(CODEGRAPH_VERSION, dir);
+  let installs = 0;
+  let asked = 0;
+  const found = await ensureCodegraphForReview({
+    root: dir,
+    version: CODEGRAPH_VERSION,
+    allowInstall: true,
+    interactive: true,
+    log: () => {},
+    confirm: () => {
+      asked++;
+      return true;
+    },
+    run: (command, args) => {
+      if (args.includes("--version")) {
+        return Promise.resolve(
+          installs > 0 ? ok(0, CODEGRAPH_VERSION) : ok(1, "", "not found"),
+        );
+      }
+      if (command === "npm") {
+        installs++;
+        mkdirPathSync(path.slice(0, path.lastIndexOf("/")), {
+          recursive: true,
+        });
+        writeTextFileSync(path, "");
+      }
+      return Promise.resolve(ok());
+    },
+  });
+  same([asked, installs, found], [0, 1, { path }], "installs without a prompt");
+  await removePath(dir, { recursive: true });
+});
+
+test("ensureCodegraphForReview installs the version the config names", async () => {
+  const dir = await tempDir();
+  const path = binaryPath("1.7.0", dir);
+  const specs: string[] = [];
+  const found = await ensureCodegraphForReview({
+    root: dir,
+    version: "1.7.0",
+    allowInstall: true,
+    interactive: false,
+    log: () => {},
+    run: (command, args) => {
+      if (args.includes("--version")) {
+        return Promise.resolve(
+          specs.length > 0 ? ok(0, "1.7.0") : ok(1, "", "not found"),
+        );
+      }
+      if (command === "npm") {
+        specs.push(args.find((arg) => arg.includes("codegraph@")) ?? "");
+        mkdirPathSync(path.slice(0, path.lastIndexOf("/")), {
+          recursive: true,
+        });
+        writeTextFileSync(path, "");
+      }
+      return Promise.resolve(ok());
+    },
+  });
+  same(specs, ["@colbymchenry/codegraph@1.7.0"], "pinned spec");
+  same(found, { path }, "resolved path");
   await removePath(dir, { recursive: true });
 });

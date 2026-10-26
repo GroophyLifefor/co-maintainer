@@ -7,7 +7,7 @@ import {
 } from "../../services/setup.ts";
 import { costUsage } from "../../util/cost.ts";
 import { costLabel } from "../../util/run_summary.ts";
-import { reviewPullRequest } from "../../pr/reviewer.ts";
+import { modelSummary, reviewPullRequest } from "../../pr/reviewer.ts";
 import { GhClient } from "../../github/gh.ts";
 import {
   log,
@@ -80,6 +80,7 @@ async function runReviewPr(
         "review",
         `reading PR #${options.prNumber} in ${options.repo} via gh`,
       );
+      log("review", modelSummary(options));
       const result = await timed(
         "review GitHub collection and AI",
         options.logTime,
