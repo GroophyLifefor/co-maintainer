@@ -15,6 +15,11 @@ export type FakeOAuth = {
   /** Set to true to make the next `/responses` call return 401, so a test can
    * exercise the refresh-on-401 path. */
   failNextResponses: boolean;
+  /** `expires_in` the token endpoint reports. Set to 0 to make every token
+   * immediately stale, so a test can exercise the refresh path. */
+  expiresIn: number;
+  /** Omit the id_token from refresh responses, as the real endpoint may. */
+  omitRefreshIdToken: boolean;
   completeSignIn(authorizeUrl: string): Promise<void>;
   close(): Promise<void>;
 };
@@ -46,6 +51,8 @@ export async function startFakeOAuth(): Promise<FakeOAuth> {
   };
   let failNextResponses = false;
   let tokenCalls = 0;
+  let expiresIn = 3600;
+  let omitRefreshIdToken = false;
 
   let base = "";
 
@@ -101,12 +108,14 @@ export async function startFakeOAuth(): Promise<FakeOAuth> {
         nonce,
       });
       tokenCalls += 1;
+      const includeIdToken =
+        grant === "authorization_code" || !omitRefreshIdToken;
       json({
         access_token: `access_${tokenCalls}`,
         refresh_token: `refresh_${tokenCalls}`,
-        id_token: idToken,
+        ...(includeIdToken ? { id_token: idToken } : {}),
         token_type: "Bearer",
-        expires_in: 3600,
+        expires_in: expiresIn,
         scope:
           "openid profile email offline_access resource.invoke chatgpt.tokens.use.direct",
       });
@@ -201,6 +210,18 @@ export async function startFakeOAuth(): Promise<FakeOAuth> {
     },
     set failNextResponses(value: boolean) {
       failNextResponses = value;
+    },
+    get expiresIn() {
+      return expiresIn;
+    },
+    set expiresIn(value: number) {
+      expiresIn = value;
+    },
+    get omitRefreshIdToken() {
+      return omitRefreshIdToken;
+    },
+    set omitRefreshIdToken(value: boolean) {
+      omitRefreshIdToken = value;
     },
     async completeSignIn(authorizeUrl: string): Promise<void> {
       const redirect = await fetch(authorizeUrl, { redirect: "manual" });

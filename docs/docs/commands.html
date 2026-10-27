@@ -302,6 +302,21 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td>Model for the review itself.</td>
 </tr>
 </tbody></table>
+<h3 id="experimental">Experimental</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--experimental-siwc</code></td>
+<td></td>
+<td>Run on your ChatGPT plan through Sign in with ChatGPT instead of an API key. Cannot be combined with --ai. Set up with co-maintainer oauth.</td>
+</tr>
+</tbody></table>
 <h3 id="github-access-2">GitHub access</h3>
 <table>
 <thead>
@@ -474,6 +489,21 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td><code>--high-model=ID</code></td>
 <td></td>
 <td>Model for the review itself.</td>
+</tr>
+</tbody></table>
+<h3 id="experimental-2">Experimental</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--experimental-siwc</code></td>
+<td></td>
+<td>Run on your ChatGPT plan through Sign in with ChatGPT instead of an API key. Cannot be combined with --ai. Set up with co-maintainer oauth.</td>
 </tr>
 </tbody></table>
 <h3 id="github-access-3">GitHub access</h3>
@@ -671,6 +701,21 @@ co-maintainer review [options]
 <td>Model for the review itself.</td>
 </tr>
 </tbody></table>
+<h3 id="experimental-3">Experimental</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--experimental-siwc</code></td>
+<td></td>
+<td>Run on your ChatGPT plan through Sign in with ChatGPT instead of an API key. Cannot be combined with --ai. Set up with co-maintainer oauth.</td>
+</tr>
+</tbody></table>
 <h3 id="github-access-4">GitHub access</h3>
 <table>
 <thead>
@@ -816,6 +861,29 @@ co-maintainer view [owner/repo] --path
 <td><code>--yes</code></td>
 <td></td>
 <td>Skip the confirmation. Needed when there is no terminal.</td>
+</tr>
+</tbody></table>
+<h2 id="co-maintainer-oauth"><code>co-maintainer oauth</code></h2>
+<p>Sign in to an OAuth AI provider (experimental).</p>
+<pre><code>co-maintainer oauth login --provider=sign-in-with-chatgpt
+co-maintainer oauth logout --provider=sign-in-with-chatgpt
+co-maintainer oauth refresh --provider=sign-in-with-chatgpt
+co-maintainer oauth ping --provider=sign-in-with-chatgpt
+co-maintainer oauth list-models --provider=sign-in-with-chatgpt
+</code></pre>
+<h3 id="oauth">OAuth</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--provider=sign-in-with-chatgpt</code></td>
+<td></td>
+<td>Which provider to sign in to. <code>siwc</code> is accepted as a short alias.</td>
 </tr>
 </tbody></table>
 <h2 id="co-maintainer-set"><code>co-maintainer set</code></h2>
@@ -1118,7 +1186,7 @@ co-maintainer view [owner/repo] --path
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#co-maintainer-probe">co-maintainer probe</a></li><li><a href="#co-maintainer-init">co-maintainer init</a></li><li><a href="#co-maintainer-sync">co-maintainer sync</a></li><li><a href="#co-maintainer-review">co-maintainer review</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#co-maintainer-view">co-maintainer view</a></li><li><a href="#co-maintainer-clear">co-maintainer clear</a></li><li><a href="#co-maintainer-uninstall">co-maintainer uninstall</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-serve">co-maintainer serve</a></li><li><a href="#co-maintainer-rollback">co-maintainer rollback</a></li><li><a href="#co-maintainer-version">co-maintainer version</a></li></ul></nav>
+      <ul><li><a href="#co-maintainer-probe">co-maintainer probe</a></li><li><a href="#co-maintainer-init">co-maintainer init</a></li><li><a href="#co-maintainer-sync">co-maintainer sync</a></li><li><a href="#co-maintainer-review">co-maintainer review</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#co-maintainer-view">co-maintainer view</a></li><li><a href="#co-maintainer-clear">co-maintainer clear</a></li><li><a href="#co-maintainer-uninstall">co-maintainer uninstall</a></li><li><a href="#co-maintainer-oauth">co-maintainer oauth</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-serve">co-maintainer serve</a></li><li><a href="#co-maintainer-rollback">co-maintainer rollback</a></li><li><a href="#co-maintainer-version">co-maintainer version</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

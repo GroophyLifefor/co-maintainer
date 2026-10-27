@@ -268,16 +268,21 @@ function openBrowser(url: string): void {
     browserOpener(url);
     return;
   }
-  const command =
+  const { command, args } =
     process.platform === "darwin"
-      ? "open"
+      ? { command: "open", args: [url] }
       : process.platform === "win32"
-        ? "start"
-        : "xdg-open";
+        ? // `start` is a cmd.exe builtin, not an executable, so it needs cmd.
+          { command: "cmd", args: ["/c", "start", "", url] }
+        : { command: "xdg-open", args: [url] };
   try {
-    spawn(command, [url], { detached: true, stdio: "ignore" }).unref();
+    const child = spawn(command, args, { detached: true, stdio: "ignore" });
+    // A missing launcher (no xdg-open, no cmd) reports through this event, not
+    // a throw. Swallow it: the printed URL is the manual fallback.
+    child.on("error", () => {});
+    child.unref();
   } catch {
-    // No browser here; the printed URL is the fallback.
+    // Synchronous spawn failures are the same: the printed URL is the fallback.
   }
 }
 
@@ -516,7 +521,13 @@ export async function refresh(creds: Credentials): Promise<Credentials> {
     creds.client_id,
   );
   const next = toCredentials(
-    { ...token, refresh_token: token.refresh_token ?? creds.refresh_token },
+    {
+      ...token,
+      // A refresh response may omit the id_token. Keep the one that was
+      // already validated, or a later refresh has nothing to decode.
+      id_token: token.id_token ?? creds.id_token,
+      refresh_token: token.refresh_token ?? creds.refresh_token,
+    },
     creds.client_id,
     creds.ext_agent_host_id,
     identity,
@@ -556,9 +567,17 @@ export function ensureCredentials(): Promise<Credentials> {
     requireInteractive();
     return login();
   })();
-  inflight.catch(() => {
-    inflight = undefined;
-  });
+  // Clear on settle, not only on rejection: a resolved `inflight` that stayed
+  // set would be handed out again after `cached` expires, serving a stale
+  // token. Concurrent callers still share this one promise.
+  inflight.then(
+    () => {
+      inflight = undefined;
+    },
+    () => {
+      inflight = undefined;
+    },
+  );
   return inflight;
 }
 

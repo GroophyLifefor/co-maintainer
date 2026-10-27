@@ -6,6 +6,7 @@ import {
   listModels,
   login,
   normalizeModel,
+  refresh,
   setBrowserOpener,
 } from "./sign-in-with-chatgpt.ts";
 import {
@@ -235,6 +236,73 @@ test("Sign in with ChatGPT: an unknown model names both model flags", async () =
     }
     if (!hint.includes("--low-model") || !hint.includes("--high-model")) {
       throw new Error(hint || "no hint");
+    }
+  } finally {
+    setBrowserOpener(undefined);
+    restore();
+    await remove(dir, { recursive: true });
+    await fake.close();
+  }
+});
+
+test("Sign in with ChatGPT: an expired cache refreshes instead of reusing a settled inflight", async () => {
+  const fake = await startFakeOAuth();
+  fake.expiresIn = 0; // every token is immediately stale
+  const dir = await makeTempDir();
+  const restore = withEnv(
+    ["CM_SIWC_DIR", "CM_SIWC_AUTH_URL", "CM_SIWC_API_URL"],
+    {
+      CM_SIWC_DIR: dir,
+      CM_SIWC_AUTH_URL: fake.url,
+      CM_SIWC_API_URL: fake.url,
+    },
+  );
+  setBrowserOpener((url) => {
+    void fake.completeSignIn(url);
+  });
+  try {
+    await login(); // access_1
+    const first = await ensureCredentials(); // refresh -> access_2
+    if (first.access_token !== "access_2") {
+      throw new Error(`first call: ${first.access_token}`);
+    }
+    const second = await ensureCredentials(); // must refresh again -> access_3
+    if (second.access_token !== "access_3") {
+      throw new Error(`reused a settled inflight: ${second.access_token}`);
+    }
+  } finally {
+    setBrowserOpener(undefined);
+    restore();
+    await remove(dir, { recursive: true });
+    await fake.close();
+  }
+});
+
+test("Sign in with ChatGPT: a refresh that omits id_token keeps the validated one", async () => {
+  const fake = await startFakeOAuth();
+  fake.omitRefreshIdToken = true;
+  const dir = await makeTempDir();
+  const restore = withEnv(
+    ["CM_SIWC_DIR", "CM_SIWC_AUTH_URL", "CM_SIWC_API_URL"],
+    {
+      CM_SIWC_DIR: dir,
+      CM_SIWC_AUTH_URL: fake.url,
+      CM_SIWC_API_URL: fake.url,
+    },
+  );
+  setBrowserOpener((url) => {
+    void fake.completeSignIn(url);
+  });
+  try {
+    const creds = await login();
+    const refreshed = await refresh(creds);
+    if (refreshed.id_token !== creds.id_token) {
+      throw new Error("the refresh dropped the id_token");
+    }
+    // The second refresh has nothing new to decode; the kept id_token holds.
+    const again = await refresh(refreshed);
+    if (again.id_token !== creds.id_token) {
+      throw new Error("the second refresh dropped the id_token");
     }
   } finally {
     setBrowserOpener(undefined);

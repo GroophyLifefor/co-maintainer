@@ -140,7 +140,8 @@ range.
 
 `review`, `init` and `sync` can run on a ChatGPT subscription instead of an API
 key, through OpenAI's Sign in with ChatGPT. Add `--experimental-siwc` to the
-command; `--ai` and `--token` are then unused and cannot be combined with it.
+command. `--ai` and `--token` are then unused, and neither can be combined with
+it.
 
 Sign in once, then check it:
 
