@@ -12,6 +12,9 @@ export type FakeOAuth = {
   url: string;
   requests: string[];
   lastResponsesBody?: Record<string, unknown>;
+  /** Set to true to make the next `/responses` call return 401, so a test can
+   * exercise the refresh-on-401 path. */
+  failNextResponses: boolean;
   completeSignIn(authorizeUrl: string): Promise<void>;
   close(): Promise<void>;
 };
@@ -35,9 +38,14 @@ export async function startFakeOAuth(): Promise<FakeOAuth> {
     kid: "test",
   };
   const pending = new Map<string, { nonce: string }>();
-  const state: Omit<FakeOAuth, "url" | "completeSignIn" | "close"> = {
+  const state: {
+    requests: string[];
+    lastResponsesBody?: Record<string, unknown>;
+  } = {
     requests: [],
   };
+  let failNextResponses = false;
+  let tokenCalls = 0;
 
   let base = "";
 
@@ -92,9 +100,10 @@ export async function startFakeOAuth(): Promise<FakeOAuth> {
         exp: Math.floor(Date.now() / 1000) + 3600,
         nonce,
       });
+      tokenCalls += 1;
       json({
-        access_token: "access_test",
-        refresh_token: "refresh_test",
+        access_token: `access_${tokenCalls}`,
+        refresh_token: `refresh_${tokenCalls}`,
         id_token: idToken,
         token_type: "Bearer",
         expires_in: 3600,
@@ -104,7 +113,11 @@ export async function startFakeOAuth(): Promise<FakeOAuth> {
       return;
     }
     if (url.pathname === "/models") {
-      if (request.headers.authorization !== "Bearer access_test") {
+      if (
+        !String(request.headers.authorization ?? "").startsWith(
+          "Bearer access_",
+        )
+      ) {
         json({ error: { code: "unauthorized" } }, 401);
         return;
       }
@@ -123,6 +136,18 @@ export async function startFakeOAuth(): Promise<FakeOAuth> {
     if (url.pathname === "/responses") {
       const body = await readBody(request);
       state.lastResponsesBody = JSON.parse(body) as Record<string, unknown>;
+      if (state.lastResponsesBody.model === "unknown-model") {
+        json(
+          { error: { code: "model_not_found", message: "no such model" } },
+          400,
+        );
+        return;
+      }
+      if (failNextResponses) {
+        failNextResponses = false;
+        json({ error: { code: "unauthorized" } }, 401);
+        return;
+      }
       response.writeHead(200, { "content-type": "text/event-stream" });
       response.write(
         `data: ${JSON.stringify({ type: "response.created" })}\n\n`,
@@ -170,6 +195,12 @@ export async function startFakeOAuth(): Promise<FakeOAuth> {
     },
     get lastResponsesBody() {
       return state.lastResponsesBody;
+    },
+    get failNextResponses() {
+      return failNextResponses;
+    },
+    set failNextResponses(value: boolean) {
+      failNextResponses = value;
     },
     async completeSignIn(authorizeUrl: string): Promise<void> {
       const redirect = await fetch(authorizeUrl, { redirect: "manual" });

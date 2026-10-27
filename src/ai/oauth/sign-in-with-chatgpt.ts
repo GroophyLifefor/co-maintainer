@@ -53,7 +53,14 @@ const DEFAULT_CLIENT_ID = "dynamic_agent_client";
 const SCOPE =
   "openid profile email offline_access resource.invoke chatgpt.tokens.use.direct";
 const HELP_URL = "https://developers.openai.com/siwc/token-sharing-open-source";
-const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
+
+/** How long the browser sign-in waits for the callback. `CM_SIWC_LOGIN_TIMEOUT_MS`
+ * overrides it so a test can prove the loopback server closes on a timeout
+ * without waiting five minutes. */
+function loginTimeoutMs(): number {
+  const raw = Number(getEnv("CM_SIWC_LOGIN_TIMEOUT_MS"));
+  return Number.isFinite(raw) && raw > 0 ? raw : 5 * 60 * 1000;
+}
 
 /** `CM_SIWC_AUTH_URL` and `CM_SIWC_API_URL` point the flow at local fakes in
  * tests; unset means the real endpoints. `CM_SIWC_DIR` moves the credentials
@@ -370,14 +377,24 @@ async function authorize(opts: {
   console.log(url);
   openBrowser(url);
 
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
       () => reject(new Error("timed out waiting for the browser sign-in")),
-      LOGIN_TIMEOUT_MS,
-    ).unref?.(),
-  );
-  const result = await Promise.race([pending, timeout]);
-  server.close();
+      loginTimeoutMs(),
+    );
+    timer.unref?.();
+  });
+  let result: CallbackResult | undefined;
+  try {
+    result = await Promise.race([pending, timeout]);
+  } finally {
+    // The timeout path must not leave the loopback server listening, or it
+    // keeps the CLI process alive after the sign-in failed.
+    if (timer) clearTimeout(timer);
+    server.close();
+  }
+  if (!result) throw new Error("sign-in ended without a result");
 
   if (result.error) {
     throw new CliError(
@@ -439,6 +456,16 @@ function toCredentials(
   };
 }
 
+let cached: Credentials | undefined;
+
+/** The freshest credentials this process has seen. `complete()` refreshes on a
+ * 401, and this is what makes the new token visible to the next caller instead
+ * of the stale record `ensureCredentials` resolved earlier. */
+function remember(creds: Credentials): Credentials {
+  cached = creds;
+  return creds;
+}
+
 /** The browser flow. Always runs, so a user can switch accounts; `logout`
  * first if the old one should not be reused. */
 export async function login(): Promise<Credentials> {
@@ -474,7 +501,7 @@ export async function login(): Promise<Credentials> {
   );
   const creds = toCredentials(token, clientId, hostId, identity);
   await saveCredentials(creds);
-  return creds;
+  return remember(creds);
 }
 
 export async function refresh(creds: Credentials): Promise<Credentials> {
@@ -495,7 +522,7 @@ export async function refresh(creds: Credentials): Promise<Credentials> {
     identity,
   );
   await saveCredentials(next);
-  return next;
+  return remember(next);
 }
 
 function requireInteractive(): void {
@@ -511,13 +538,17 @@ function requireInteractive(): void {
 
 let inflight: Promise<Credentials> | undefined;
 
-/** Credentials for a run: reuse a live token, refresh an expired one, or
- * start the browser flow. One shared promise so `init`'s low and high
- * providers never open two browsers. */
+/** Credentials for a run: reuse the freshest token this process has seen,
+ * refresh an expired one, or start the browser flow. `inflight` dedups so
+ * `init`'s low and high providers never open two browsers; `cached` keeps a
+ * 401 refresh done inside `complete()` visible to later callers. */
 export function ensureCredentials(): Promise<Credentials> {
+  if (cached && cached.expires_at - 60_000 > Date.now()) {
+    return Promise.resolve(cached);
+  }
   if (inflight) return inflight;
   inflight = (async () => {
-    const existing = loadCredentials();
+    const existing = cached ?? loadCredentials();
     if (existing?.refresh_token) {
       if (existing.expires_at - 60_000 > Date.now()) return existing;
       return refresh(existing);
@@ -639,7 +670,7 @@ async function planError(
       "siwc_unknown_model",
       `This ChatGPT plan does not serve the model ${normalizeModel(model)}${message ? `: ${message}` : "."}`,
       slugs.length
-        ? `Available models: ${slugs.join(", ")}. Set one with --high-model=...`
+        ? `Available models: ${slugs.join(", ")}. Set one with --low-model=... or --high-model=...`
         : undefined,
       EXIT_USAGE,
     );
