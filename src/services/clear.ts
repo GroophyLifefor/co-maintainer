@@ -27,6 +27,7 @@ import {
   worktreesDir,
 } from "../config.ts";
 import { withKnowledgeLock } from "../review/guides.ts";
+import { credentialsDir } from "../ai/oauth/sign-in-with-chatgpt.ts";
 import {
   appDbLockPath,
   appDbPath,
@@ -349,6 +350,7 @@ function uninstallTargets(): string[] {
     worktreesDir(),
     locksDir(),
     toolsDir(),
+    credentialsDir(),
     backupPaths().root,
   ];
 }

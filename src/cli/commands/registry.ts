@@ -109,6 +109,19 @@ const AI_FLAGS_REQUIRED: FlagGroup = {
   ],
 };
 
+/** `--experimental-siwc`: run on a ChatGPT plan through Sign in with ChatGPT
+ * instead of an API key. Its own group so it reads as not yet settled. */
+const EXPERIMENTAL_FLAGS: FlagGroup = {
+  title: "Experimental",
+  flags: [
+    {
+      name: "experimental-siwc",
+      description:
+        "Run on your ChatGPT plan through Sign in with ChatGPT instead of an API key. Cannot be combined with --ai. Set up with co-maintainer oauth.",
+    },
+  ],
+};
+
 const GITHUB_FLAGS: FlagGroup = {
   title: "GitHub access",
   flags: [
@@ -241,6 +254,7 @@ export const COMMANDS: CommandSpec[] = [
         ],
       },
       AI_FLAGS_REQUIRED,
+      EXPERIMENTAL_FLAGS,
       GITHUB_FLAGS,
       OUTPUT_FLAGS,
       {
@@ -330,6 +344,7 @@ export const COMMANDS: CommandSpec[] = [
         ],
       },
       AI_FLAGS_REQUIRED,
+      EXPERIMENTAL_FLAGS,
       GITHUB_FLAGS,
       OUTPUT_FLAGS,
     ],
@@ -434,6 +449,7 @@ export const COMMANDS: CommandSpec[] = [
         ],
       },
       AI_FLAGS,
+      EXPERIMENTAL_FLAGS,
       GITHUB_FLAGS,
       REVIEW_OUTPUT_FLAGS,
     ],
@@ -557,6 +573,34 @@ export const COMMANDS: CommandSpec[] = [
       },
     ],
     examples: ["co-maintainer uninstall", "co-maintainer uninstall --yes"],
+  },
+  {
+    name: "oauth",
+    summary: "Sign in to an OAuth AI provider (experimental).",
+    usage: [
+      "co-maintainer oauth login --provider=sign-in-with-chatgpt",
+      "co-maintainer oauth logout --provider=sign-in-with-chatgpt",
+      "co-maintainer oauth refresh --provider=sign-in-with-chatgpt",
+      "co-maintainer oauth ping --provider=sign-in-with-chatgpt",
+      "co-maintainer oauth list-models --provider=sign-in-with-chatgpt",
+    ],
+    groups: [
+      {
+        title: "OAuth",
+        flags: [
+          {
+            name: "provider",
+            value: "sign-in-with-chatgpt",
+            description:
+              "Which provider to sign in to. `siwc` is accepted as a short alias.",
+          },
+        ],
+      },
+    ],
+    examples: [
+      "co-maintainer oauth login --provider=sign-in-with-chatgpt",
+      "co-maintainer oauth list-models --provider=siwc",
+    ],
   },
   {
     name: "set",

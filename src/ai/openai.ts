@@ -169,14 +169,27 @@ function toResponsesInput(messages: AiMessage[]): {
   return { instructions, input };
 }
 
-function responsesBody(model: string, request: AiRequest): Json {
+export type ResponsesBodyOptions = {
+  /** The ChatGPT plan usage route. It rejects `max_output_tokens` and
+   * requires `store: false` with `stream: true`, unlike the API-key route
+   * this file otherwise targets. */
+  planUsage?: boolean;
+};
+
+export function responsesBody(
+  model: string,
+  request: AiRequest,
+  options: ResponsesBodyOptions = {},
+): Json {
   const { instructions, input } = toResponsesInput(effectiveMessages(request));
   const schema = request.responseFormat?.json_schema as Json | undefined;
   return {
     model,
     ...(instructions ? { instructions } : {}),
     input,
-    max_output_tokens: request.maxTokens,
+    ...(options.planUsage
+      ? { store: false, stream: true }
+      : { max_output_tokens: request.maxTokens }),
     ...(request.reasoningEffort
       ? { reasoning: { effort: request.reasoningEffort } }
       : {}),
@@ -209,7 +222,11 @@ type ResponsesOutputItem = {
   arguments?: string;
 };
 
-function parseResponsesBody(json: Json, model: string): AiResponse {
+export function parseResponsesBody(
+  json: Json,
+  model: string,
+  provider: AiResponse["provider"] = "openai",
+): AiResponse {
   const output = Array.isArray(json.output)
     ? (json.output as ResponsesOutputItem[])
     : [];
@@ -240,7 +257,7 @@ function parseResponsesBody(json: Json, model: string): AiResponse {
   const usage = json.usage as Json | undefined;
   const text = texts.join("");
   if (json.status === "incomplete" && !text.trim() && !toolCalls.length) {
-    throw outputLimitError("openai", model);
+    throw outputLimitError(provider, model);
   }
   return {
     text,
@@ -251,8 +268,65 @@ function parseResponsesBody(json: Json, model: string): AiResponse {
     // unknown (`costReasonText`'s "provider_did_not_report").
     cost: undefined,
     model,
-    provider: "openai",
+    provider,
   };
+}
+
+/** The SSE body the plan usage route always returns (`stream: true`). The
+ * text deltas are ignored; the output items arrive as their own
+ * `response.output_item.done` events, because this route's terminal
+ * `response.completed` carries an empty `output` array (the standard API
+ * fills it). The terminal response supplies `usage` and `status`; the
+ * collected items supply `output`, so the shared {@link parseResponsesBody}
+ * sees the same shape on both routes. A stream with no terminal response
+ * throws. */
+export async function readResponsesStream(response: Response): Promise<Json> {
+  if (!response.body) {
+    throw new Error("OpenAI returned no response body to stream");
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let terminal: Json | undefined;
+  const items: Json[] = [];
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    // SSE events are separated by a blank line; tolerate CRLF.
+    buffer = buffer.replace(/\r/g, "");
+    let index = buffer.indexOf("\n\n");
+    while (index >= 0) {
+      const block = buffer.slice(0, index);
+      buffer = buffer.slice(index + 2);
+      for (const line of block.split("\n")) {
+        if (!line.startsWith("data:")) continue;
+        const data = line.slice(5).trim();
+        if (!data || data === "[DONE]") continue;
+        let event: Json;
+        try {
+          event = JSON.parse(data) as Json;
+        } catch {
+          continue;
+        }
+        const type = String(event.type ?? "");
+        if (type === "response.output_item.done" && event.item) {
+          items.push(event.item as Json);
+        } else if (
+          type === "response.completed" ||
+          type === "response.incomplete" ||
+          type === "response.failed"
+        ) {
+          terminal = event.response as Json | undefined;
+        }
+      }
+      index = buffer.indexOf("\n\n");
+    }
+  }
+  if (!terminal) throw new Error("OpenAI stream ended without a response");
+  const output = terminal.output;
+  if (Array.isArray(output) && output.length > 0) return terminal;
+  return { ...terminal, output: items };
 }
 
 export class OpenAiProvider implements AiProvider {

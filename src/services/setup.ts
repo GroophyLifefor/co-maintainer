@@ -1,7 +1,7 @@
 /** `init`/`remake` orchestration. The dashboard calls `runInitOrRemake`
  * directly; it used to re-spawn the CLI as a subprocess, a second
  * execution path with its own failure modes. */
-import { createAiProvider } from "../ai/provider.ts";
+import { aiProviderName, createAiProvider } from "../ai/provider.ts";
 import { enrichFacts, synthesizeSections } from "../knowledge/synthesis.ts";
 import { collectSource } from "../github/collect.ts";
 import { GhClient } from "../github/gh.ts";
@@ -241,7 +241,7 @@ async function initOrRemake(options: Options): Promise<void> {
   }
   log(
     "ai",
-    `${options.ai} providers configured · low=${options.lowModel} · high=${options.highModel}`,
+    `${aiProviderName(options)} providers configured · low=${options.lowModel} · high=${options.highModel}`,
   );
 
   log("fetch", `${options.repo} via ${options.auth}`);

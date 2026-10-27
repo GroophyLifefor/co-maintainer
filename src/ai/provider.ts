@@ -2,6 +2,7 @@ import { OpenRouterProvider } from "./openrouter.ts";
 import { OpenAiProvider } from "./openai.ts";
 import { AnthropicProvider } from "./anthropic.ts";
 import { openCodeHost } from "./opencode.ts";
+import { EXPERIMENTAL_OAUTH_PROVIDER, oauthOps } from "./oauth/registry.ts";
 import { die } from "../cli/error.ts";
 import type {
   AiMessage,
@@ -33,11 +34,21 @@ export function rejectRetiredProvider(value: string | undefined): void {
   }
 }
 
+/** The provider a run actually calls. `--experimental-siwc` overrides the
+ * configured `ai` for the run, so logs and error labels name what ran. */
+export function aiProviderName(options: Options): string {
+  return options.experimentalSiwc ? EXPERIMENTAL_OAUTH_PROVIDER : options.ai;
+}
+
 export function createAiProvider(
   options: Options,
   model: string,
 ): AiProvider | undefined {
-  if (options.ai === "none") return undefined;
+  // `--experimental-siwc` wins over `--ai` for the run; `parseArgs` refuses
+  // the two together, so this only sees one of them set.
+  if (options.experimentalSiwc) {
+    return oauthOps(EXPERIMENTAL_OAUTH_PROVIDER).createProvider(model);
+  }
   if (options.ai === "openrouter") {
     return new OpenRouterProvider(options.aiToken ?? "", model);
   }

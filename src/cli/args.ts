@@ -8,6 +8,7 @@ import {
   providerKeyEnv,
   rejectRetiredProvider,
 } from "../ai/provider.ts";
+import { availableModelSlugs } from "../ai/oauth/sign-in-with-chatgpt.ts";
 import { detectRemoteRepo } from "../local/git_ops.ts";
 import { reviewBlockingFrom } from "../review/blocking.ts";
 import {
@@ -202,13 +203,18 @@ export async function parseArgs(args: string[]): Promise<Options> {
       arg === "--review-upstream" ||
       arg === "--disable-codegraph" ||
       arg === "--run" ||
-      arg === "--only-request-changed-pr"
+      arg === "--only-request-changed-pr" ||
+      arg === "--experimental-siwc"
     )
       continue;
     if (arg.startsWith("--") && !known) die(unknownOptionMessage(arg, command));
   }
 
   const explicitAi = rest.some((arg) => arg.startsWith("--ai="));
+  const experimentalSiwc = rest.includes("--experimental-siwc");
+  if (experimentalSiwc && explicitAi) {
+    die("--experimental-siwc cannot be combined with --ai");
+  }
   const configuredAiRaw = env("CO_MAINTAINER_AI") ?? repoConfig.ai ?? config.ai;
   rejectRetiredProvider(configuredAiRaw);
   if (
@@ -240,28 +246,30 @@ export async function parseArgs(args: string[]): Promise<Options> {
   }
   rejectRetiredProvider(text("ai"));
   let ai = choice("ai", AI_PROVIDERS, configuredAi ?? "none");
-  if (command === "review") {
-    // Review was pinned to OpenRouter only so Hetzner never wrote one. Hetzner
-    // is gone, so review follows the configured provider. With none set it
-    // stays on OpenRouter, which every review before this one used.
-    if (ai === "none") {
-      if (explicitAi) {
-        die(
-          `review needs an AI provider. Pass --ai=${AI_PROVIDERS.filter((p) => p !== "none").join("|")}`,
-        );
+  if (!experimentalSiwc) {
+    if (command === "review") {
+      // Review was pinned to OpenRouter only so Hetzner never wrote one.
+      // Hetzner is gone, so review follows the configured provider. With none
+      // set it stays on OpenRouter, which every review before this one used.
+      if (ai === "none") {
+        if (explicitAi) {
+          die(
+            `review needs an AI provider. Pass --ai=${AI_PROVIDERS.filter((p) => p !== "none").join("|")}`,
+          );
+        }
+        ai = "openrouter";
       }
-      ai = "openrouter";
+    } else if (!explicitAi && !configuredAi && command !== "probe") {
+      const selected = await ask(
+        `AI provider (${AI_PROVIDERS.filter((p) => p !== "none").join("|")})`,
+        "openrouter",
+      );
+      rejectRetiredProvider(selected);
+      if (!(AI_PROVIDERS as readonly string[]).includes(selected)) {
+        die(`AI provider must be one of: ${AI_PROVIDERS.join(", ")}`);
+      }
+      ai = selected as Options["ai"];
     }
-  } else if (!explicitAi && !configuredAi && command !== "probe") {
-    const selected = await ask(
-      `AI provider (${AI_PROVIDERS.filter((p) => p !== "none").join("|")})`,
-      "openrouter",
-    );
-    rejectRetiredProvider(selected);
-    if (!(AI_PROVIDERS as readonly string[]).includes(selected)) {
-      die(`AI provider must be one of: ${AI_PROVIDERS.join(", ")}`);
-    }
-    ai = selected as Options["ai"];
   }
   let aiToken =
     text("token") ??
@@ -284,7 +292,17 @@ export async function parseArgs(args: string[]): Promise<Options> {
     env("HIGH_MODEL") ??
     repoConfig.highModel ??
     config.highModel;
-  if (command === "review") {
+  if (experimentalSiwc) {
+    // No API key: the OAuth credentials cover the run. The models still come
+    // from the user, but the account's own list is shown first so the value
+    // is easy to pick, and it is shown again on a bad model.
+    if (command !== "probe" && (!lowModel || !highModel)) {
+      const slugs = await availableModelSlugs().catch(() => [] as string[]);
+      if (slugs.length) console.log(`ChatGPT models: ${slugs.join(", ")}`);
+    }
+    lowModel ??= await ask("low model", undefined, true);
+    highModel ??= await ask("high model", undefined, true);
+  } else if (command === "review") {
     aiToken ??= await ask(`${ai} API key`, undefined, true);
     // Review summarizes large files with the low model, so it needs one just
     // as init and sync do. Without a default to fall back on, ask here too.
@@ -299,6 +317,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
     highModel ??= await ask("high model", undefined, true);
   }
   if (
+    !experimentalSiwc &&
     command !== "review" &&
     ai !== "none" &&
     (!lowModel || !highModel || !aiToken)
@@ -326,6 +345,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
     githubPat,
     ai,
     aiToken,
+    ...(experimentalSiwc ? { experimentalSiwc: true } : {}),
     lowModel,
     highModel,
     synthesisVersion: 17,

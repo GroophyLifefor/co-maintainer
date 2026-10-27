@@ -2222,6 +2222,12 @@ co-maintainer init owner/repo [options]
 | `--low-model=ID` |  | Model for extraction work. |
 | `--high-model=ID` |  | Model for the review itself. |
 
+### Experimental
+
+| Flag | Default | Description |
+|---|---|---|
+| `--experimental-siwc` |  | Run on your ChatGPT plan through Sign in with ChatGPT instead of an API key. Cannot be combined with --ai. Set up with co-maintainer oauth. |
+
 ### GitHub access
 
 | Flag | Default | Description |
@@ -2281,6 +2287,12 @@ co-maintainer sync owner/repo [options]
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
 | `--high-model=ID` |  | Model for the review itself. |
+
+### Experimental
+
+| Flag | Default | Description |
+|---|---|---|
+| `--experimental-siwc` |  | Run on your ChatGPT plan through Sign in with ChatGPT instead of an API key. Cannot be combined with --ai. Set up with co-maintainer oauth. |
 
 ### GitHub access
 
@@ -2349,6 +2361,12 @@ co-maintainer review [options]
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
 | `--high-model=ID` |  | Model for the review itself. |
+
+### Experimental
+
+| Flag | Default | Description |
+|---|---|---|
+| `--experimental-siwc` |  | Run on your ChatGPT plan through Sign in with ChatGPT instead of an API key. Cannot be combined with --ai. Set up with co-maintainer oauth. |
 
 ### GitHub access
 
@@ -2430,6 +2448,24 @@ co-maintainer uninstall [--yes]
 | Flag | Default | Description |
 |---|---|---|
 | `--yes` |  | Skip the confirmation. Needed when there is no terminal. |
+
+## `co-maintainer oauth`
+
+Sign in to an OAuth AI provider (experimental).
+
+```
+co-maintainer oauth login --provider=sign-in-with-chatgpt
+co-maintainer oauth logout --provider=sign-in-with-chatgpt
+co-maintainer oauth refresh --provider=sign-in-with-chatgpt
+co-maintainer oauth ping --provider=sign-in-with-chatgpt
+co-maintainer oauth list-models --provider=sign-in-with-chatgpt
+```
+
+### OAuth
+
+| Flag | Default | Description |
+|---|---|---|
+| `--provider=sign-in-with-chatgpt` |  | Which provider to sign in to. `siwc` is accepted as a short alias. |
 
 ## `co-maintainer set`
 
@@ -2960,6 +2996,38 @@ skip the check.
 are kept apart. The [`probe`](probe.md) estimate says `estimate unavailable for
 this provider` for OpenAI and Anthropic instead of printing a made-up dollar
 range.
+
+## Experimental: Sign in with ChatGPT
+
+`review`, `init` and `sync` can run on a ChatGPT subscription instead of an API
+key, through OpenAI's Sign in with ChatGPT. Add `--experimental-siwc` to the
+command. `--ai` and `--token` are then unused, and neither can be combined with
+it.
+
+Sign in once, then check it:
+
+```sh
+co-maintainer oauth login --provider=sign-in-with-chatgpt
+co-maintainer oauth list-models --provider=sign-in-with-chatgpt
+```
+
+`--provider=siwc` is accepted as a short alias. `oauth logout` removes the
+saved credentials (useful before switching accounts), `oauth refresh` renews the
+token, and `oauth ping` prints the account and its models. Credentials live in
+`~/.config/co-maintainer/oauth/sign-in-with-chatgpt.json`, readable only by you.
+
+At least a ChatGPT **Go**, **Plus** or **Pro** plan is required. A Free account
+is not eligible, and buying credits or signing in again does not change that.
+See the OpenAI help article
+[Using your ChatGPT plan in other apps and sites](https://help.openai.com/en/articles/20001542-using-your-chatgpt-plan-in-other-apps-and-sites).
+
+Models still come from `--low-model` and `--high-model`. The account's own list
+is printed when one is missing or unknown, and a leading `openai/` in a model id
+is ignored, so an OpenRouter id like `openai/gpt-5.6-luna` also works here.
+
+This is experimental. It is CLI-only for now, because the sign-in needs a
+browser: `serve`, the dashboard and remote review do not use it. A ChatGPT call
+reports no dollar cost, so a review on it shows `unknown`.
 
 ## Errors
 

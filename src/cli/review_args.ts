@@ -178,6 +178,11 @@ export async function loadReviewSystemPromptFlags(
 export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
   const positional = args.filter((a) => !a.startsWith("--"));
   const flags = reviewFlags(args);
+  // Remote review runs on the server's provider, so the experimental local
+  // provider has nothing to attach to.
+  if (flags.remote && args.includes("--experimental-siwc")) {
+    die("--experimental-siwc cannot be used with --remote");
+  }
   // `--remote-host` / `--remote-token` only mean something together with
   // `--remote`; silently dropping them is exactly the kind of surprise to avoid.
   if ((flags.remoteHost || flags.remoteToken) && !flags.remote) {

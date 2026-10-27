@@ -85,6 +85,12 @@ co-maintainer init owner/repo [options]
 | `--low-model=ID` |  | Model for extraction work. |
 | `--high-model=ID` |  | Model for the review itself. |
 
+### Experimental
+
+| Flag | Default | Description |
+|---|---|---|
+| `--experimental-siwc` |  | Run on your ChatGPT plan through Sign in with ChatGPT instead of an API key. Cannot be combined with --ai. Set up with co-maintainer oauth. |
+
 ### GitHub access
 
 | Flag | Default | Description |
@@ -144,6 +150,12 @@ co-maintainer sync owner/repo [options]
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
 | `--high-model=ID` |  | Model for the review itself. |
+
+### Experimental
+
+| Flag | Default | Description |
+|---|---|---|
+| `--experimental-siwc` |  | Run on your ChatGPT plan through Sign in with ChatGPT instead of an API key. Cannot be combined with --ai. Set up with co-maintainer oauth. |
 
 ### GitHub access
 
@@ -212,6 +224,12 @@ co-maintainer review [options]
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
 | `--high-model=ID` |  | Model for the review itself. |
+
+### Experimental
+
+| Flag | Default | Description |
+|---|---|---|
+| `--experimental-siwc` |  | Run on your ChatGPT plan through Sign in with ChatGPT instead of an API key. Cannot be combined with --ai. Set up with co-maintainer oauth. |
 
 ### GitHub access
 
@@ -293,6 +311,24 @@ co-maintainer uninstall [--yes]
 | Flag | Default | Description |
 |---|---|---|
 | `--yes` |  | Skip the confirmation. Needed when there is no terminal. |
+
+## `co-maintainer oauth`
+
+Sign in to an OAuth AI provider (experimental).
+
+```
+co-maintainer oauth login --provider=sign-in-with-chatgpt
+co-maintainer oauth logout --provider=sign-in-with-chatgpt
+co-maintainer oauth refresh --provider=sign-in-with-chatgpt
+co-maintainer oauth ping --provider=sign-in-with-chatgpt
+co-maintainer oauth list-models --provider=sign-in-with-chatgpt
+```
+
+### OAuth
+
+| Flag | Default | Description |
+|---|---|---|
+| `--provider=sign-in-with-chatgpt` |  | Which provider to sign in to. `siwc` is accepted as a short alias. |
 
 ## `co-maintainer set`
 
