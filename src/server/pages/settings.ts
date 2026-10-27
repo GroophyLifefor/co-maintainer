@@ -73,7 +73,7 @@ export function renderSettings(
         }</span></div>
       <div class="bd">
         <div class="field"><label>Provider</label>
-          <select id="ai">
+          <select id="ai-provider">
             <option value="none"${
               !config.ai || config.ai === "none" ? " selected" : ""
             }>None</option>
@@ -342,7 +342,7 @@ function save(btn, body) {
 }
 document.getElementById("save-ai").addEventListener("click", function() {
   save(this, {
-    ai: document.getElementById("ai").value,
+    ai: document.getElementById("ai-provider").value,
     token: document.getElementById("token").value,
     highModel: document.getElementById("high").value,
     lowModel: document.getElementById("low").value

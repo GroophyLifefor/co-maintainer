@@ -82,6 +82,20 @@ function assertCleanCopy(html: string, path: string): void {
   }
 }
 
+/** Two elements sharing an id make `getElementById` return whichever comes
+ * first in the document, which is how the AI provider select silently lost
+ * its value: a card `<div id="ai">` and the `<select id="ai">` collided, and
+ * `document.getElementById("ai").value` read the div. Every rendered page
+ * must keep its ids unique. */
+function assertUniqueIds(html: string, path: string): void {
+  const seen = new Set<string>();
+  for (const match of html.matchAll(/\sid="([^"]+)"/g)) {
+    const id = match[1]!;
+    if (seen.has(id)) throw new Error(`duplicate id "${id}" on ${path}`);
+    seen.add(id);
+  }
+}
+
 async function cookieSession(
   app: ReturnType<typeof createApp>,
 ): Promise<string> {
@@ -411,6 +425,7 @@ test("each page renders 200 with seeded data", async () => {
       }
       const html = await response.text();
       assertCleanCopy(html, path);
+      assertUniqueIds(html, path);
     }
     const home = await (
       await app.fetch(new Request("http://localhost/", { headers: { cookie } }))
