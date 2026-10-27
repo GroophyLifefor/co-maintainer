@@ -31,6 +31,7 @@ import type {
   Json,
   Options,
 } from "../types.ts";
+import { aiProviderName } from "../ai/provider.ts";
 
 type UsageSink = (response: AiResponse) => Promise<void>;
 type ProgressSink = (message: string) => void;
@@ -40,7 +41,7 @@ type ProgressSink = (message: string) => void;
  * summarizes large diffs, the high model writes the review. */
 export function modelSummary(options: Options): string {
   return (
-    `models · provider=${options.ai} · low=${options.lowModel ?? "unset"} · ` +
+    `models · provider=${aiProviderName(options)} · low=${options.lowModel ?? "unset"} · ` +
     `high=${options.highModel ?? "unset"}`
   );
 }
@@ -584,7 +585,7 @@ ${diff}`;
   }
   if (!response.text.trim()) {
     throw new Error(
-      `${options.ai} returned an empty review. The reasoning budget may have been exhausted`,
+      `${aiProviderName(options)} returned an empty review. The reasoning budget may have been exhausted`,
     );
   }
   // The model returns JSON; we render the Markdown. A reply
@@ -638,7 +639,7 @@ ${reviewText}`,
     );
     if (!response.text.trim()) {
       throw new Error(
-        `${options.ai} returned an empty review improvement at pass ${pass - 1}`,
+        `${aiProviderName(options)} returned an empty review improvement at pass ${pass - 1}`,
       );
     }
     reviewText = await normalizeReviewResponse(
@@ -803,7 +804,7 @@ ${ownDiff}${unchangedListing}`;
   );
   if (usage) await usage(response);
   if (!response.text.trim()) {
-    throw new Error(`${options.ai} returned an empty review`);
+    throw new Error(`${aiProviderName(options)} returned an empty review`);
   }
   let reviewText = await normalizeReviewResponse(
     provider,

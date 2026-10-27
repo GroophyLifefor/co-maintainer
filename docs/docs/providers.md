@@ -136,6 +136,37 @@ are kept apart. The [`probe`](probe.md) estimate says `estimate unavailable for
 this provider` for OpenAI and Anthropic instead of printing a made-up dollar
 range.
 
+## Experimental: Sign in with ChatGPT
+
+`review`, `init` and `sync` can run on a ChatGPT subscription instead of an API
+key, through OpenAI's Sign in with ChatGPT. Add `--experimental-siwc` to the
+command; `--ai` and `--token` are then unused and cannot be combined with it.
+
+Sign in once, then check it:
+
+```sh
+co-maintainer oauth login --provider=sign-in-with-chatgpt
+co-maintainer oauth list-models --provider=sign-in-with-chatgpt
+```
+
+`--provider=siwc` is accepted as a short alias. `oauth logout` removes the
+saved credentials (useful before switching accounts), `oauth refresh` renews the
+token, and `oauth ping` prints the account and its models. Credentials live in
+`~/.config/co-maintainer/oauth/sign-in-with-chatgpt.json`, readable only by you.
+
+At least a ChatGPT **Go**, **Plus** or **Pro** plan is required. A Free account
+is not eligible, and buying credits or signing in again does not change that.
+See the OpenAI help article
+[Using your ChatGPT plan in other apps and sites](https://help.openai.com/en/articles/20001542-using-your-chatgpt-plan-in-other-apps-and-sites).
+
+Models still come from `--low-model` and `--high-model`. The account's own list
+is printed when one is missing or unknown, and a leading `openai/` in a model id
+is ignored, so an OpenRouter id like `openai/gpt-5.6-luna` also works here.
+
+This is experimental. It is CLI-only for now, because the sign-in needs a
+browser: `serve`, the dashboard and remote review do not use it. A ChatGPT call
+reports no dollar cost, so a review on it shows `unknown`.
+
 ## Errors
 
 | Message starts with | Code | What happened |

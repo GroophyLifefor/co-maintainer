@@ -4,6 +4,7 @@ import { parseArgs } from "./args.ts";
 import { runServe } from "./commands/serve.ts";
 import { runRollback } from "./commands/rollback.ts";
 import { runSet } from "./commands/set.ts";
+import { runOAuth } from "./commands/oauth.ts";
 import { runConfig } from "./commands/config.ts";
 import { runView } from "./commands/view.ts";
 import { runClear } from "./commands/clear.ts";
@@ -66,6 +67,10 @@ export async function run(args: string[]): Promise<void> {
   }
   if (args[0] === "set") {
     await runSet(args.slice(1));
+    return;
+  }
+  if (args[0] === "oauth") {
+    await runOAuth(args.slice(1));
     return;
   }
   if (args[0] === "config") {
