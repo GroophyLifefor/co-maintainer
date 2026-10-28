@@ -250,16 +250,6 @@ async function initOrRemake(options: Options): Promise<void> {
       client,
       options,
       previous,
-      async (pullRequests, cache) => {
-        checkpoint.source.pullRequests = pullRequests;
-        checkpoint.source.pullRequestCache = cache;
-        checkpoint.scanDone = {
-          ...checkpoint.scanDone,
-          pullRequests: pullRequests.length,
-          updatedAt: new Date().toISOString(),
-        };
-        await writeState(checkpoint);
-      },
       async (codebase) => {
         checkpoint.source = {
           ...checkpoint.source,

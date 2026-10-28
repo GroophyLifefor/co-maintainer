@@ -150,7 +150,7 @@ export async function cacheDeleteRepoEvidence(repo: string): Promise<number> {
     for (const namespace of ["pr-listing", "probe"]) {
       removed += deleteRows(db, namespace, { exact: repo });
     }
-    for (const namespace of ["ai-jobs", "cost"]) {
+    for (const namespace of ["pr", "ai-jobs", "cost"]) {
       removed += deleteRows(db, namespace, { prefix: `${repo}:` });
     }
     removed += deleteRows(db, "local-review", { prefix: `${repo}\0` });
