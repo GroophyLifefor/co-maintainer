@@ -543,9 +543,7 @@ test("per-pull-request cache is reused without a previous state blob", async () 
     // state blob, are what an interrupted run leaves behind.
     await collectSource(client, options);
     if (detailCalls() !== downloaded) {
-      throw new Error(
-        `cache depended on the state blob: ${calls.join(" ")}`,
-      );
+      throw new Error(`cache depended on the state blob: ${calls.join(" ")}`);
     }
   } finally {
     await cacheDeletePrefix("pr-listing", repo);
