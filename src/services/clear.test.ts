@@ -102,6 +102,7 @@ async function seedGuides(repo: string, files: string[]): Promise<void> {
 async function seedCache(repo: string): Promise<void> {
   await cacheSet("state", repo, "{}");
   await cacheSet("pr-listing", repo, "{}");
+  await cacheSet("pr", `${repo}:12`, "{}");
   await cacheSet("probe", repo, "{}");
   await cacheSet("ai-jobs", `${repo}:low`, "{}");
   await cacheSet("cost", `${repo}:job`, "{}");
@@ -146,6 +147,9 @@ test("clearRepo forgets knowledge and settings and keeps fetched evidence", asyn
     if ((await cacheGet("pr-listing", "acme/widgets")) === undefined) {
       throw new Error("evidence was deleted without includeCache");
     }
+    if ((await cacheGet("pr", "acme/widgets:12")) === undefined) {
+      throw new Error("pull request evidence was deleted without includeCache");
+    }
     if ("acme/widgets" in (readConfig().repos ?? {})) {
       throw new Error("the saved repo settings survived");
     }
@@ -165,13 +169,14 @@ test("includeCache removes evidence, clones, worktrees and the legacy state", as
       await writeTextFile(".cache/acme/widgets/state.json", "{}");
 
       const result = await clearRepo("acme/widgets", { includeCache: true });
-      if (result.cacheRows !== 6) throw new Error(`rows ${result.cacheRows}`);
+      if (result.cacheRows !== 7) throw new Error(`rows ${result.cacheRows}`);
       if (!result.clones || !result.worktrees) {
         throw new Error("clone or worktree was not reported");
       }
       for (const [namespace, key] of [
         ["state", "acme/widgets"],
         ["pr-listing", "acme/widgets"],
+        ["pr", "acme/widgets:12"],
         ["probe", "acme/widgets"],
         ["ai-jobs", "acme/widgets:low"],
         ["cost", "acme/widgets:job"],

@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.3] - 2026-10-28
+
+### Fixed
+
+- **An interrupted `sync` no longer throws away the pull request cache.** Every pull request is now cached as its own row in `cache.db` (namespace `pr`, keyed `owner/repo:number`) instead of living inside the single `state` row. A run stopped with Ctrl+C keeps the evidence it already fetched, and the next run reuses every unchanged pull request and downloads only what changed, where before it overwrote the whole list with only the pull requests it had finished. An existing `state` is migrated to the new rows on the first run.
+
+### Changed
+
+- **Pull request evidence moved out of the single state blob.** `source.pullRequestCache` is gone, and the per-pull-request rows replace it, so a partial checkpoint can no longer drop the other pull requests' comments, reviews and diffs.
+
 ## [0.6.1] - 2026-10-26
 
 ### Added

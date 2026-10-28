@@ -1,8 +1,8 @@
 import { collectSource } from "./collect.ts";
-import { cacheDeletePrefix } from "../store/cache_db.ts";
+import { cacheDeletePrefix, cacheGet, cacheSet } from "../store/cache_db.ts";
 import { testOptions } from "../testing/helpers.ts";
 import { withLogSink } from "../util/log.ts";
-import type { State } from "../knowledge/types.ts";
+import type { PullRequest, State } from "../knowledge/types.ts";
 import type { GitHubClient } from "../types.ts";
 import { test } from "node:test";
 
@@ -124,6 +124,7 @@ class PullRequestCacheClient implements GitHubClient {
 
 test("PR discussion and diff caches follow their independent revisions", async () => {
   await cacheDeletePrefix("pr-listing", "fixture/repo");
+  await cacheDeletePrefix("pr", "fixture/repo");
   const client = new PullRequestCacheClient();
   const prOptions = testOptions({
     includeCodebase: false,
@@ -310,6 +311,7 @@ test("PR listing catch-up skips extra GitHub pages", async () => {
   } finally {
     await cacheDeletePrefix("pr-listing", repo);
     await cacheDeletePrefix("state", repo);
+    await cacheDeletePrefix("pr", repo);
   }
 });
 
@@ -418,6 +420,7 @@ test("--only-request-changed-pr keeps a changes-requested pull request and drops
     }
   } finally {
     await cacheDeletePrefix("pr-listing", repo);
+    await cacheDeletePrefix("pr", repo);
   }
 });
 
@@ -452,6 +455,7 @@ test("pull request selection is unchanged when --only-request-changed-pr is off"
     }
   } finally {
     await cacheDeletePrefix("pr-listing", repo);
+    await cacheDeletePrefix("pr", repo);
   }
 });
 
@@ -471,7 +475,9 @@ test("a dropped pull request is cached and not downloaded again", async () => {
       (_phase, message) => lines.push(message),
       () => collectSource(client, options),
     );
-    const dropped = first.pullRequestCache?.find((pr) => pr.number === 2);
+    const dropped = JSON.parse(
+      (await cacheGet("pr", `${repo}:2`)) ?? "null",
+    ) as PullRequest | null;
     if (!dropped || dropped.changesRequested !== false) {
       throw new Error("dropped pull request was not cached");
     }
@@ -510,6 +516,85 @@ test("a dropped pull request is cached and not downloaded again", async () => {
     }
   } finally {
     await cacheDeletePrefix("pr-listing", repo);
+    await cacheDeletePrefix("pr", repo);
+  }
+});
+
+test("per-pull-request cache is reused without a previous state blob", async () => {
+  const repo = `fixture/interrupt-${crypto.randomUUID()}`;
+  const { client, calls } = requestChangedClient(repo);
+  const options = testOptions({
+    repo,
+    includeCodebase: false,
+    includePullRequests: true,
+    includePullRequestChanges: true,
+  });
+  const detailCalls = () =>
+    calls.filter((endpoint) =>
+      /\/pulls\/[12]\/(reviews|comments|files)/.test(endpoint),
+    ).length;
+  try {
+    await collectSource(client, options);
+    const downloaded = detailCalls();
+    if (downloaded === 0) {
+      throw new Error("the first run did not download any detail");
+    }
+    // No `previous` state at all: the per-pull-request rows, not the single
+    // state blob, are what an interrupted run leaves behind.
+    await collectSource(client, options);
+    if (detailCalls() !== downloaded) {
+      throw new Error(`cache depended on the state blob: ${calls.join(" ")}`);
+    }
+  } finally {
+    await cacheDeletePrefix("pr-listing", repo);
+    await cacheDeletePrefix("pr", repo);
+  }
+});
+
+test("a legacy migration interrupted after the first row still merges the rest", async () => {
+  const repo = `fixture/migrate-${crypto.randomUUID()}`;
+  const { client, calls } = requestChangedClient(repo);
+  const legacy = (number: number, sha: string): PullRequest =>
+    ({
+      number,
+      updatedAt: "1",
+      headSha: sha,
+      additions: 1,
+      deletions: 0,
+      comments: [],
+      reviewComments: [],
+      reviews: [],
+      changedFiles: [],
+      diff: "diff",
+    }) as unknown as PullRequest;
+  // A row for #1 only: the previous run migrated the first pull request and
+  // then stopped.
+  await cacheSet("pr", `${repo}:1`, JSON.stringify(legacy(1, "h1")));
+  const previous = {
+    source: { pullRequestCache: [legacy(1, "h1"), legacy(2, "h2")] },
+  } as unknown as State;
+  try {
+    await collectSource(
+      client,
+      testOptions({
+        repo,
+        includeCodebase: false,
+        includePullRequests: true,
+        includePullRequestChanges: true,
+      }),
+      previous,
+    );
+    if (calls.some((endpoint) => endpoint.includes("/pulls/2/"))) {
+      throw new Error(
+        `a legacy pull request was downloaded again: ${calls.join(" ")}`,
+      );
+    }
+    if ((await cacheGet("pr", `${repo}:2`)) === undefined) {
+      throw new Error("#2 was not merged into the per-pull-request cache");
+    }
+  } finally {
+    await cacheDeletePrefix("pr-listing", repo);
+    await cacheDeletePrefix("pr", repo);
   }
 });
 
@@ -651,5 +736,6 @@ test("--pr-state filters the listing and does not reuse a different state's cach
     }
   } finally {
     await cacheDeletePrefix("pr-listing", repo);
+    await cacheDeletePrefix("pr", repo);
   }
 });

@@ -29,11 +29,10 @@ export type Source = {
   tree: string[];
   treeSha: Record<string, string>;
   files: Record<string, string>;
-  /** Pull requests selected for facts and the skill. */
+  /** Pull requests selected for facts and the skill. Every decided pull
+   * request, including ones left out of the skill, is kept per pull request in
+   * cache.db, so a `changesRequested: false` result is not downloaded again. */
   pullRequests: PullRequest[];
-  /** Every pull request already decided, including ones left out of the skill.
-   * The next fetch reads this so a `changesRequested: false` result is not downloaded again. */
-  pullRequestCache?: PullRequest[];
   commits: Json[];
 };
 

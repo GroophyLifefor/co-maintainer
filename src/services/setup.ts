@@ -246,30 +246,15 @@ async function initOrRemake(options: Options): Promise<void> {
 
   log("fetch", `${options.repo} via ${options.auth}`);
   const source = await timed("fetch repository data", options.logTime, () =>
-    collectSource(
-      client,
-      options,
-      previous,
-      async (pullRequests, cache) => {
-        checkpoint.source.pullRequests = pullRequests;
-        checkpoint.source.pullRequestCache = cache;
-        checkpoint.scanDone = {
-          ...checkpoint.scanDone,
-          pullRequests: pullRequests.length,
-          updatedAt: new Date().toISOString(),
-        };
-        await writeState(checkpoint);
-      },
-      async (codebase) => {
-        checkpoint.source = {
-          ...checkpoint.source,
-          tree: codebase.tree,
-          treeSha: codebase.treeSha,
-          files: codebase.files,
-        };
-        await writeState(checkpoint);
-      },
-    ),
+    collectSource(client, options, previous, async (codebase) => {
+      checkpoint.source = {
+        ...checkpoint.source,
+        tree: codebase.tree,
+        treeSha: codebase.treeSha,
+        files: codebase.files,
+      };
+      await writeState(checkpoint);
+    }),
   );
   log(
     "fetch",

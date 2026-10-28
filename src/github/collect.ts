@@ -1,5 +1,5 @@
 import { log, startHeartbeat } from "../util/log.ts";
-import { cacheGet, cacheSet } from "../store/cache_db.ts";
+import { cacheGet, cacheSet, cacheValues } from "../store/cache_db.ts";
 import type { GitHubClient, Json, Options } from "../types.ts";
 import type { PullRequest, Source, State } from "../knowledge/types.ts";
 
@@ -352,25 +352,63 @@ async function codebase(
   return { tree, treeSha, files };
 }
 
+/** One pull request's cached evidence, keyed by number. `cacheValues` returns
+ * the newest rows first, so a later row for the same number wins. Legacy
+ * entries still in the state blob are merged in when their row is missing, so
+ * a migration interrupted after the first row resumes instead of treating the
+ * rows it wrote as proof that every pull request moved. */
+async function loadPrCache(
+  repo: string,
+  previous: State | undefined,
+): Promise<Map<number, PullRequest>> {
+  const cache = new Map<number, PullRequest>();
+  for (const raw of await cacheValues("pr", `${repo}:`)) {
+    try {
+      const pr = JSON.parse(raw) as PullRequest;
+      if (typeof pr?.number === "number") cache.set(pr.number, pr);
+    } catch {
+      // A corrupt row is skipped rather than losing every other row.
+    }
+  }
+  for (const pr of legacyPrCache(previous)) {
+    if (cache.has(pr.number)) continue;
+    cache.set(pr.number, pr);
+    await savePr(repo, pr);
+  }
+  return cache;
+}
+
+/** The single state blob used to hold every decided pull request before they
+ * moved to one row per pull request. Read once, then rewritten as rows. */
+function legacyPrCache(previous: State | undefined): PullRequest[] {
+  const source = previous?.source as
+    | (Source & { pullRequestCache?: PullRequest[] })
+    | undefined;
+  const byNumber = new Map<number, PullRequest>();
+  for (const pr of [
+    ...(source?.pullRequestCache ?? []),
+    ...(source?.pullRequests ?? []),
+  ]) {
+    if (!byNumber.has(pr.number)) byNumber.set(pr.number, pr);
+  }
+  return [...byNumber.values()];
+}
+
+async function savePr(repo: string, pr: PullRequest): Promise<void> {
+  await cacheSet("pr", `${repo}:${pr.number}`, JSON.stringify(pr));
+}
+
 async function pullRequests(
   client: GitHubClient,
   options: Options,
   previous: State | undefined,
   phase?: FetchPhase,
-  progress?: (items: PullRequest[], cache: PullRequest[]) => Promise<void>,
-): Promise<{ kept: PullRequest[]; cache: PullRequest[] }> {
+): Promise<PullRequest[]> {
   if (phase) phase.text = "listing pull requests · page 0 · fetched 0";
   const selected = await listPullRequestPages(client, options, phase);
-  const keptByNumber = new Map(
-    (previous?.source.pullRequests ?? []).map((pr) => [pr.number, pr]),
-  );
-  const cacheByNumber = new Map(
-    (previous?.source.pullRequestCache ?? []).map((pr) => [pr.number, pr]),
-  );
+  const prCache = await loadPrCache(options.repo, previous);
   const result: PullRequest[] = new Array(selected.length);
-  const cache: PullRequest[] = new Array(selected.length);
   let completed = 0;
-  let save = Promise.resolve();
   if (phase) {
     phase.text = `pull requests 0/${selected.length} · 0% · concurrency=${options.ghConcurrent}`;
   }
@@ -381,8 +419,7 @@ async function pullRequests(
 
   await mapPool(selected, options.ghConcurrent, async (pr, index) => {
     const number = Number(pr.number);
-    const full = keptByNumber.get(number);
-    const cached = full ?? cacheByNumber.get(number);
+    const cached = prCache.get(number);
     const listedAdditions = Number(pr.additions);
     const listedDeletions = Number(pr.deletions);
     const listedStatsAvailable =
@@ -439,10 +476,10 @@ async function pullRequests(
       current.changesRequested = cached.changesRequested;
     }
     const only = options.onlyRequestChangedPr;
-    const discussionUnchanged = full?.updatedAt === current.updatedAt;
+    const discussionUnchanged = cached?.updatedAt === current.updatedAt;
     const decisionKnown = typeof cached?.changesRequested === "boolean";
     const diffUnchanged =
-      full?.headSha === current.headSha && Boolean(full?.diff);
+      cached?.headSha === current.headSha && Boolean(cached?.diff);
     let droppedFromCache =
       only &&
       cached?.updatedAt === current.updatedAt &&
@@ -547,7 +584,12 @@ async function pullRequests(
         current.diff = "";
       }
     }
-    cache[index] = current;
+    const shouldSave =
+      !cached ||
+      !discussionUnchanged ||
+      !diffUnchanged ||
+      (!decisionKnown && typeof current.changesRequested === "boolean");
+    if (shouldSave) await savePr(options.repo, current);
     if (!dropped) result[index] = current;
     completed++;
     if (phase) {
@@ -563,25 +605,15 @@ async function pullRequests(
         selected.length,
       )} #${number} · ${discussionStatus} · ${diffStatus}`,
     );
-    if (progress) {
-      save = save.then(() =>
-        progress(
-          result.filter((item): item is PullRequest => !!item),
-          cache.filter((item): item is PullRequest => !!item),
-        ),
-      );
-      await save;
-    }
   });
   const kept = result.filter((item): item is PullRequest => !!item);
-  const decided = cache.filter((item): item is PullRequest => !!item);
   if (options.onlyRequestChangedPr) {
     log(
       "fetch",
       `only request-changed pr · kept ${kept.length} · dropped ${selected.length - kept.length}`,
     );
   }
-  return { kept, cache: decided };
+  return kept;
 }
 
 function commitLimit(maxCommits: number | undefined): number | undefined {
@@ -670,7 +702,6 @@ export async function collectSource(
   client: GitHubClient,
   options: Options,
   previous?: State,
-  progress?: (items: PullRequest[], cache: PullRequest[]) => Promise<void>,
   codebaseProgress?: (data: {
     tree: string[];
     treeSha: Record<string, string>;
@@ -694,9 +725,9 @@ export async function collectSource(
           codebaseProgress,
         )
       : { tree: [], treeSha: {}, files: {} };
-    const pullRequestData = options.includePullRequests
-      ? await pullRequests(client, options, previous, phase, progress)
-      : { kept: [], cache: previous?.source.pullRequestCache ?? [] };
+    const selectedPullRequests = options.includePullRequests
+      ? await pullRequests(client, options, previous, phase)
+      : [];
     const commitData = options.includeCommitHistory
       ? await commits(client, options, repo, previous, phase)
       : [];
@@ -705,8 +736,7 @@ export async function collectSource(
       tree: files.tree,
       treeSha: files.treeSha,
       files: files.files,
-      pullRequests: pullRequestData.kept,
-      pullRequestCache: pullRequestData.cache,
+      pullRequests: selectedPullRequests,
       commits: commitData,
     };
   } finally {
