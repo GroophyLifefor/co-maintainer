@@ -260,6 +260,13 @@ export async function runServe(args: string[]): Promise<void> {
     );
   }
 
+  const debug = args.includes("--debug") || getEnv("CM_DEBUG") === "1";
+  if (debug) {
+    console.log(
+      "[serve] --debug is on. The /__ui component gallery is available.",
+    );
+  }
+
   const app = createApp({
     password: "",
     passwordStore,
@@ -268,6 +275,7 @@ export async function runServe(args: string[]): Promise<void> {
     trustProxy,
     auth,
     githubOAuth,
+    debug,
     loginHint: getEnv("CM_LOGIN_HINT"),
   });
   const server = serveHttp(

@@ -41,6 +41,9 @@ export type AppDeps = {
    * "printed when serve started" line. */
   loginHint?: string;
   inject500?: boolean;
+  /** Exposes the internal `/__ui` component gallery. `serve --debug` /
+   * `CM_DEBUG=1` sets it. */
+  debug?: boolean;
   /** Defaults to password-only when omitted, matching every caller that
    * pre-dates GitHub sign-in. */
   auth?: AuthMethods;

@@ -54,6 +54,7 @@ const PAGES = [
   "/analytics",
   "/settings",
   "/activity/job-fail",
+  "/__ui",
 ];
 
 const REPO_PAGES = [
@@ -300,6 +301,7 @@ try {
       "serve",
       `--port=${port}`,
       `--password=${PASSWORD}`,
+      "--debug",
     ]),
     cwd: join(import.meta.dirname, ".."),
     env,
@@ -443,6 +445,54 @@ try {
       }
       console.log(`visited ${path}`);
     }
+
+    // Component gallery (A1). It only exists with `--debug`, so it proves the
+    // icon sprite resolves and the two themes are genuinely different, and it
+    // is the surface the visual baseline is captured from.
+    await page.goto(`${base}/__ui`, { waitUntil: "load" });
+    await sleep(400);
+    const spriteProblem = await page.evaluate(() => {
+      const symbol = document.querySelector("#i-git-pull-request");
+      const use = document.querySelector('use[href="#i-git-pull-request"]');
+      if (!symbol || !use) return "the sprite or a use is missing";
+      const box = use.getBoundingClientRect();
+      if (box.width < 1 || box.height < 1) return "the icon did not paint";
+      return "";
+    });
+    if (spriteProblem) {
+      issues.push({ path: "/__ui", kind: "text", text: spriteProblem });
+    }
+    const theme = await page.evaluate(() => {
+      const light = document.querySelector(".app");
+      const dark = document.querySelector(".dark .app");
+      return {
+        light: light ? getComputedStyle(light).backgroundColor : "",
+        dark: dark ? getComputedStyle(dark).backgroundColor : "",
+      };
+    });
+    if (!theme.light || theme.light === theme.dark) {
+      issues.push({
+        path: "/__ui",
+        kind: "text",
+        text: "light and dark do not use different backgrounds",
+      });
+    }
+    if (process.env.SMOKE_SHOTS) {
+      await page.screenshot({
+        path: join(process.env.SMOKE_SHOTS, "ui-light.png"),
+        fullPage: true,
+      });
+      await page.evaluate(() => document.documentElement.classList.add("dark"));
+      await sleep(150);
+      await page.screenshot({
+        path: join(process.env.SMOKE_SHOTS, "ui-dark.png"),
+        fullPage: true,
+      });
+      await page.evaluate(() =>
+        document.documentElement.classList.remove("dark"),
+      );
+    }
+    console.log("component gallery renders");
 
     // The review policy editor, driven the way a maintainer would.
     const shot = async (name: string): Promise<void> => {

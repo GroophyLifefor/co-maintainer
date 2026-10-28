@@ -54,6 +54,7 @@ import { renderRepoSettings } from "./repo_settings.ts";
 import { renderActivity, renderJob } from "./activity.ts";
 import { renderAnalytics } from "./analytics.ts";
 import { renderSettings } from "./settings.ts";
+import { renderCatalog } from "./catalog.ts";
 import { getRepo } from "../../store/repos.ts";
 import { getJob } from "../../store/jobs.ts";
 import { getLogsSince } from "../../services/jobs.ts";
@@ -74,6 +75,9 @@ export type PageDeps = {
   /** `CM_LOGIN_HINT`, shown on the sign-in page in place of the default
    * "printed when serve started" line. */
   loginHint?: string;
+  /** `serve --debug` / `CM_DEBUG=1`: exposes the internal `/__ui` component
+   * gallery. Off by default so a normal server never serves it. */
+  debug?: boolean;
 };
 
 const REPO =
@@ -179,6 +183,10 @@ export async function handlePageRequest(
 
   const username = session.username;
   try {
+    if (url.pathname === "/__ui" && request.method === "GET") {
+      if (!deps.debug) return undefined;
+      return renderCatalog();
+    }
     if (url.pathname === "/" && request.method === "GET") {
       const config = readConfig();
       return renderHome(
@@ -374,6 +382,7 @@ function isPagePath(pathname: string): boolean {
   return (
     pathname === "/" ||
     pathname === "/setup" ||
+    pathname === "/__ui" ||
     pathname === "/activity" ||
     pathname.startsWith("/activity/") ||
     pathname === "/analytics" ||

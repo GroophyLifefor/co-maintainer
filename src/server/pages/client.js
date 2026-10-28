@@ -38,6 +38,36 @@ function clearFail(card) {
   if (box) box.remove();
 }
 
+/** Copy text for the `codeBlock` copy button. `navigator.clipboard` needs a
+ * secure context, so the hidden-textarea path keeps Copy working on plain
+ * http://localhost too. */
+function copyText(value, done) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(value).then(done, function () {
+      legacyCopy(value, done);
+    });
+    return;
+  }
+  legacyCopy(value, done);
+}
+
+function legacyCopy(value, done) {
+  const area = document.createElement("textarea");
+  area.value = value;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.opacity = "0";
+  document.body.appendChild(area);
+  area.select();
+  try {
+    document.execCommand("copy");
+  } catch {
+    // nothing left to try; the toast still confirms the click
+  }
+  area.remove();
+  done();
+}
+
 function skeleton(card, on) {
   if (!card) return;
   card.classList.toggle("busy", on);
@@ -213,6 +243,19 @@ document.addEventListener("DOMContentLoaded", function () {
   });
   addEventListener("unhandledrejection", function (ev) {
     toast((ev.reason && ev.reason.message) || "Something broke");
+  });
+
+  document.addEventListener("click", function (ev) {
+    const btn =
+      ev.target && ev.target.closest ? ev.target.closest("[data-copy]") : null;
+    if (!btn) return;
+    const box = btn.closest(".code");
+    const span = box && box.querySelector("span:not(.lbl)");
+    if (!span) return;
+    ev.preventDefault();
+    copyText(span.textContent || "", function () {
+      toast("Copied");
+    });
   });
 
   document.addEventListener("click", function (ev) {

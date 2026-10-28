@@ -752,3 +752,1208 @@ tbody tr {
   gap: 8px;
   margin: 2px 0;
 }
+
+/* =====================================================================
+   Design system (redesign A1), ported from the fitsync admin language.
+   Everything below is scoped to `.app` / `.focus` so the pre-redesign
+   pages keep their existing rules untouched until they are migrated in
+   A2/A3. `.dark` is set on <html> (or any ancestor) for the dark theme.
+   ===================================================================== */
+
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("outfit-latin.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Outfit";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("outfit-latin-ext.woff2") format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
+    U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+[hidden] {
+  display: none !important;
+}
+svg.ic {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+}
+
+.app,
+.focus {
+  --bg: #f8f8f8;
+  --card: #fff;
+  --fg: #1a1a1a;
+  --muted: #999;
+  --muted2: #6b6b6b;
+  --border: #ebebeb;
+  --primary: #000;
+  --primary-fg: #fff;
+  --hover: rgba(0, 0, 0, 0.04);
+  --head: rgba(0, 0, 0, 0.015);
+  --em-b: #a7f3d0;
+  --em-bg: #ecfdf5;
+  --em-t: #047857;
+  --am-b: #fde68a;
+  --am-bg: #fffbeb;
+  --am-t: #b45309;
+  --red-b: #fecaca;
+  --red-bg: #fef2f2;
+  --red-t: #b91c1c;
+  --sky-b: #bae6fd;
+  --sky-bg: #f0f9ff;
+  --sky-t: #0369a1;
+  --ne-b: #e5e5e5;
+  --ne-bg: #f5f5f5;
+  --ne-t: #525252;
+  --code-bg: #0b0b0c;
+  --code-fg: #e5e5e5;
+}
+.dark .app,
+.dark .focus,
+.app.dark,
+.focus.dark {
+  --bg: #0b0b0c;
+  --card: #141416;
+  --fg: #f4f4f5;
+  --muted: #a1a1aa;
+  --muted2: #a1a1aa;
+  --border: #2a2a2f;
+  --primary: #f4f4f5;
+  --primary-fg: #131316;
+  --hover: rgba(255, 255, 255, 0.05);
+  --head: rgba(255, 255, 255, 0.02);
+  --em-b: rgba(6, 95, 70, 0.6);
+  --em-bg: rgba(2, 44, 34, 0.4);
+  --em-t: #34d399;
+  --am-b: rgba(146, 64, 14, 0.6);
+  --am-bg: rgba(69, 26, 3, 0.4);
+  --am-t: #fbbf24;
+  --red-b: rgba(153, 27, 27, 0.6);
+  --red-bg: rgba(69, 10, 10, 0.4);
+  --red-t: #f87171;
+  --sky-b: rgba(7, 89, 133, 0.6);
+  --sky-bg: rgba(8, 47, 73, 0.4);
+  --sky-t: #38bdf8;
+  --ne-b: #3f3f46;
+  --ne-bg: rgba(39, 39, 42, 0.6);
+  --ne-t: #d4d4d8;
+  --code-bg: #1c1c1f;
+}
+
+.app,
+.focus {
+  display: flex;
+  min-height: 100dvh;
+  background: var(--bg);
+  color: var(--fg);
+  font:
+    14px/1.5 "Outfit",
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.app a,
+.focus a {
+  color: inherit;
+  text-decoration: none;
+}
+.app button,
+.focus button {
+  font: inherit;
+  color: inherit;
+}
+.app main,
+.focus main {
+  flex: 1;
+  min-width: 0;
+  padding: 32px 32px 88px;
+}
+.app .wrap,
+.focus .wrap {
+  max-width: 1152px;
+  margin: 0 auto;
+}
+.app .narrow,
+.focus .narrow {
+  max-width: 760px;
+}
+.app .muted,
+.focus .muted {
+  color: var(--muted);
+}
+.app .tnum,
+.focus .tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* page header */
+.app .ph,
+.focus .ph {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.app .ph h1,
+.focus .ph h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.app .ph .d,
+.focus .ph .d {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.app .crumb,
+.focus .crumb {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.app .crumb svg,
+.focus .crumb svg {
+  width: 14px;
+  height: 14px;
+}
+.app .tabs,
+.focus .tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin: -8px 0 20px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.app .tabs::-webkit-scrollbar,
+.focus .tabs::-webkit-scrollbar {
+  display: none;
+}
+.app .tabs a,
+.focus .tabs a {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.app .tabs a.on,
+.focus .tabs a.on {
+  color: var(--fg);
+  border-bottom-color: var(--fg);
+}
+.app .tabs .cnt,
+.focus .tabs .cnt {
+  font-size: 11px;
+  border-radius: 999px;
+  background: var(--hover);
+  padding: 0 6px;
+}
+
+/* primitives */
+.app .btn,
+.focus .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    transform 0.15s,
+    background 0.15s;
+}
+.app .btn:active,
+.focus .btn:active {
+  transform: scale(0.97);
+}
+.app .btn.pri,
+.focus .btn.pri {
+  background: var(--primary);
+  color: var(--primary-fg);
+}
+.app .btn.pri:hover,
+.focus .btn.pri:hover {
+  opacity: 0.9;
+}
+.app .btn.out,
+.focus .btn.out {
+  background: var(--card);
+  border-color: var(--border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.app .btn.out:hover,
+.focus .btn.out:hover {
+  background: var(--bg);
+}
+.app .btn.gh,
+.focus .btn.gh {
+  background: transparent;
+}
+.app .btn.gh:hover,
+.focus .btn.gh:hover {
+  background: var(--hover);
+}
+.app .btn.danger,
+.focus .btn.danger {
+  background: var(--red-t);
+  color: #fff;
+}
+.app .btn.danger-out,
+.focus .btn.danger-out {
+  background: var(--card);
+  border-color: var(--red-b);
+  color: var(--red-t);
+}
+.app .btn.sm,
+.focus .btn.sm {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+.app .btn.wide,
+.focus .btn.wide {
+  width: 100%;
+}
+.app .btn .arr,
+.focus .btn .arr {
+  transition: transform 0.2s;
+}
+.app .btn:hover .arr,
+.focus .btn:hover .arr {
+  transform: translateX(2px);
+}
+.app .badge,
+.focus .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid;
+  border-radius: 6px;
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.app .badge svg,
+.focus .badge svg {
+  width: 12px;
+  height: 12px;
+}
+.app .b-em,
+.focus .b-em {
+  border-color: var(--em-b);
+  background: var(--em-bg);
+  color: var(--em-t);
+}
+.app .b-am,
+.focus .b-am {
+  border-color: var(--am-b);
+  background: var(--am-bg);
+  color: var(--am-t);
+}
+.app .b-red,
+.focus .b-red {
+  border-color: var(--red-b);
+  background: var(--red-bg);
+  color: var(--red-t);
+}
+.app .b-sky,
+.focus .b-sky {
+  border-color: var(--sky-b);
+  background: var(--sky-bg);
+  color: var(--sky-t);
+}
+.app .b-ne,
+.focus .b-ne {
+  border-color: var(--ne-b);
+  background: var(--ne-bg);
+  color: var(--ne-t);
+}
+.app .dot,
+.focus .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* card / section */
+.app .card,
+.focus .card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  margin-bottom: 16px;
+}
+.app .card.flush,
+.focus .card.flush {
+  overflow: hidden;
+}
+.app .card.red,
+.focus .card.red {
+  border-color: var(--red-b);
+}
+.app .sec,
+.focus .sec {
+  padding: 20px;
+}
+.app .sec + .sec,
+.focus .sec + .sec {
+  border-top: 1px solid var(--border);
+}
+.app .sec h2,
+.focus .sec h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.app .sec h2 svg,
+.focus .sec h2 svg {
+  color: var(--muted);
+}
+.app .sec h2 .cnt,
+.focus .sec h2 .cnt {
+  border-radius: 999px;
+  background: var(--hover);
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.app .sec h2 .act,
+.focus .sec h2 .act {
+  margin-left: auto;
+  font-weight: 400;
+}
+.app .sec .lead,
+.focus .sec .lead {
+  margin: -8px 0 14px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.app .foot,
+.focus .foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--muted);
+}
+.app .foot .sp,
+.focus .foot .sp {
+  margin-left: auto;
+}
+
+/* table */
+.app table,
+.focus table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.app thead tr,
+.focus thead tr {
+  background: var(--head);
+  border-bottom: 1px solid var(--border);
+}
+.app th,
+.focus th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--muted);
+  height: 40px;
+  padding: 0 8px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.app td,
+.focus td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.app tbody tr:last-child td,
+.focus tbody tr:last-child td {
+  border-bottom: 0;
+}
+.app tbody tr:hover,
+.focus tbody tr:hover {
+  background: var(--head);
+}
+.app th:first-child,
+.app td:first-child,
+.focus th:first-child,
+.focus td:first-child {
+  padding-left: 20px;
+}
+.app th:last-child,
+.app td:last-child,
+.focus th:last-child,
+.focus td:last-child {
+  padding-right: 20px;
+}
+.app .r,
+.focus .r {
+  text-align: right;
+}
+.app .sub,
+.focus .sub {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+}
+.app .strong,
+.focus .strong {
+  font-weight: 500;
+}
+
+/* stats */
+.app .stats,
+.focus .stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.app .stats.three,
+.focus .stats.three {
+  grid-template-columns: repeat(3, 1fr);
+}
+.app .stat,
+.focus .stat {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  padding: 20px;
+}
+.app .stat .top,
+.focus .stat .top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.app .stat .ic,
+.focus .stat .ic {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.app .stat .ic svg,
+.focus .stat .ic svg {
+  width: 14px;
+  height: 14px;
+  opacity: 0.7;
+}
+.app .stat .v,
+.focus .stat .v {
+  margin-top: 12px;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.app .stat .h,
+.focus .stat .h {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* segmented control + filters */
+.app .seg,
+.focus .seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  padding: 2px;
+  flex-wrap: wrap;
+}
+.app .seg button,
+.focus .seg button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+}
+.app .seg button.on,
+.focus .seg button.on {
+  background: var(--primary);
+  color: var(--primary-fg);
+}
+.app .seg svg,
+.focus .seg svg {
+  width: 14px;
+  height: 14px;
+}
+.app .filters,
+.focus .filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.app .sbox,
+.focus .sbox {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+  max-width: 320px;
+}
+.app .sbox svg,
+.focus .sbox svg {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  color: var(--muted);
+}
+.app .seg .tag,
+.focus .seg .tag {
+  font-size: 10px;
+  font-weight: 500;
+  border-radius: 4px;
+  padding: 0 4px;
+  margin-left: 2px;
+  background: var(--hover);
+  color: var(--muted);
+}
+.app .seg .tag.rec,
+.focus .seg .tag.rec {
+  background: var(--em-bg);
+  color: var(--em-t);
+}
+.app .seg button.on .tag,
+.focus .seg button.on .tag {
+  background: rgba(255, 255, 255, 0.18);
+  color: inherit;
+}
+.dark .app .seg button.on .tag,
+.dark .focus .seg button.on .tag {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+/* definition list + forms */
+.app .dl,
+.focus .dl {
+  margin: 0;
+}
+.app .dl div,
+.focus .dl div {
+  display: grid;
+  grid-template-columns: 10rem 1fr;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 0;
+  font-size: 14px;
+}
+.app .dl div:not(:last-child),
+.focus .dl div:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+.app .dl dt,
+.focus .dl dt {
+  color: var(--muted);
+}
+.app .dl dd,
+.focus .dl dd {
+  margin: 0;
+  min-width: 0;
+  word-break: break-word;
+}
+.app .field,
+.focus .field {
+  margin-bottom: 18px;
+}
+.app .field:last-child,
+.focus .field:last-child {
+  margin-bottom: 0;
+}
+.app .field > label,
+.focus .field > label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+.app .inp,
+.focus .inp {
+  width: 100%;
+  max-width: 440px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--fg);
+  padding: 0 12px;
+  font: inherit;
+  font-size: 14px;
+}
+.app textarea.inp,
+.focus textarea.inp {
+  height: auto;
+  max-width: none;
+  padding: 10px 12px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.app .inp:focus,
+.focus .inp:focus {
+  outline: none;
+  border-color: var(--fg);
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08);
+}
+.app .help,
+.focus .help {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.app .cli,
+.focus .cli {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.app .grid2,
+.app .c11,
+.focus .grid2,
+.focus .c11 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 24px;
+}
+.app .grid3,
+.focus .grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0 24px;
+}
+.app .cols,
+.focus .cols {
+  display: grid;
+  gap: 16px;
+}
+.app .cols > *,
+.focus .cols > * {
+  min-width: 0;
+}
+.app .row,
+.focus .row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+}
+.app .row:not(:last-child),
+.focus .row:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+.app .row .b,
+.focus .row .b {
+  flex: 1;
+  min-width: 0;
+}
+.app .row .b p,
+.focus .row .b p {
+  margin: 0;
+}
+
+/* switch, radio, checks */
+.app .sw,
+.focus .sw {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--border);
+  border: 0;
+  cursor: pointer;
+  flex: none;
+  transition: background 0.15s;
+}
+.app .sw:after,
+.focus .sw:after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: left 0.15s;
+}
+.app .sw.on,
+.focus .sw.on {
+  background: var(--primary);
+}
+.app .sw.on:after,
+.focus .sw.on:after {
+  left: 18px;
+}
+.dark .app .sw.on:after,
+.dark .focus .sw.on:after {
+  background: #131316;
+}
+.app .radio,
+.focus .radio {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.app .radio label,
+.focus .radio label {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.app .radio label:not(:last-child),
+.focus .radio label:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+.app .radio label.on,
+.focus .radio label.on {
+  background: var(--head);
+}
+.app .radio input,
+.app .checks input,
+.focus .radio input,
+.focus .checks input {
+  margin-top: 4px;
+  accent-color: var(--primary);
+}
+.app .checks label,
+.focus .checks label {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 0;
+  font-size: 14px;
+  cursor: pointer;
+}
+.app .checks label:not(:last-child),
+.focus .checks label:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+
+/* alerts + code */
+.app .alert,
+.focus .alert {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border: 1px solid;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+.app .alert svg,
+.focus .alert svg {
+  margin-top: 2px;
+}
+.app .alert .t,
+.focus .alert .t {
+  font-weight: 600;
+}
+.app .alert p,
+.focus .alert p {
+  margin: 2px 0 0;
+}
+.app .alert > div,
+.focus .alert > div {
+  flex: 1;
+  min-width: 0;
+}
+.app .code,
+.focus .code {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  min-width: 0;
+}
+.app .code span,
+.focus .code span {
+  flex: 1;
+  white-space: nowrap;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12.5px;
+}
+.app .code button,
+.focus .code button {
+  border: 0;
+  background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+  border-radius: 6px;
+  padding: 4px 6px;
+  cursor: pointer;
+  display: flex;
+}
+.app .code button svg,
+.focus .code button svg {
+  width: 14px;
+  height: 14px;
+}
+.app .pre,
+.focus .pre {
+  background: var(--code-bg);
+  color: var(--code-fg);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+  white-space: pre;
+  overflow-x: auto;
+  margin-top: 10px;
+}
+
+/* steps + timeline */
+.app .steps,
+.focus .steps {
+  display: flex;
+  flex-direction: column;
+}
+.app .step,
+.focus .step {
+  border-bottom: 1px solid var(--border);
+}
+.app .step:last-child,
+.focus .step:last-child {
+  border-bottom: 0;
+}
+.app .step .hdr,
+.focus .step .hdr {
+  display: flex;
+  gap: 14px;
+  padding: 14px 20px;
+  align-items: center;
+  cursor: pointer;
+}
+.app .step .n,
+.focus .step .n {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  flex: none;
+}
+.app .step.done .n,
+.focus .step.done .n {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-fg);
+}
+.app .step.now .n,
+.focus .step.now .n {
+  border-color: var(--fg);
+  color: var(--fg);
+}
+.app .step .b,
+.focus .step .b {
+  flex: 1;
+  min-width: 0;
+}
+.app .step .b p,
+.focus .step .b p {
+  margin: 0;
+}
+.app .step .ttl,
+.focus .step .ttl {
+  font-weight: 500;
+}
+.app .step .chev,
+.focus .step .chev {
+  color: var(--muted);
+  transition: transform 0.2s;
+}
+.app .step.open .chev,
+.focus .step.open .chev {
+  transform: rotate(90deg);
+}
+.app .step .body,
+.focus .step .body {
+  display: none;
+  padding: 4px 20px 20px 58px;
+}
+.app .step.open .body,
+.focus .step.open .body {
+  display: block;
+}
+.app .timeline,
+.focus .timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.app .timeline li,
+.focus .timeline li {
+  display: flex;
+  gap: 12px;
+  padding: 10px 0;
+  font-size: 14px;
+}
+.app .timeline li:not(:last-child),
+.focus .timeline li:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+.app .timeline .ic,
+.focus .timeline .ic {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border: 1px solid var(--border);
+}
+.app .timeline .ic svg,
+.focus .timeline .ic svg {
+  width: 13px;
+  height: 13px;
+}
+.app .prog,
+.focus .prog {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+.app .prog i,
+.focus .prog i {
+  display: block;
+  height: 100%;
+  background: var(--fg);
+  border-radius: 3px;
+}
+.app .finding,
+.focus .finding {
+  padding: 16px 0;
+}
+.app .finding:not(:last-child),
+.focus .finding:not(:last-child) {
+  border-bottom: 1px solid var(--border);
+}
+.app .finding .h,
+.focus .finding .h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.app .finding p,
+.focus .finding p {
+  margin: 0 0 10px;
+}
+
+/* empty state + doc */
+.app .empty,
+.focus .empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  padding: 48px 20px;
+}
+.app .empty .eic,
+.focus .empty .eic {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+.app .empty .eic svg,
+.focus .empty .eic svg {
+  width: 22px;
+  height: 22px;
+  color: var(--muted);
+}
+.app .empty .t,
+.focus .empty .t {
+  font-weight: 500;
+  font-size: 15px;
+}
+.app .empty p,
+.focus .empty p {
+  margin: 0;
+  max-width: 26rem;
+  color: var(--muted);
+  font-size: 14px;
+}
+.app .empty .a,
+.focus .empty .a {
+  margin-top: 10px;
+}
+
+/* toast (new style, scoped) */
+.app #toasts,
+.focus #toasts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.app .toast,
+.focus .toast {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  padding: 12px 14px;
+  font-size: 14px;
+  min-width: 260px;
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+}
+.app .toast .t,
+.focus .toast .t {
+  font-weight: 600;
+}
+.app .toast .s,
+.focus .toast .s {
+  font-size: 13px;
+  color: var(--muted);
+}
+.app .toast svg,
+.focus .toast svg {
+  color: var(--em-t);
+  margin-top: 2px;
+}
+
+@media (max-width: 860px) {
+  .app main,
+  .focus main {
+    padding: 16px 16px 96px;
+  }
+  .app .stats,
+  .app .stats.three,
+  .focus .stats,
+  .focus .stats.three {
+    grid-template-columns: 1fr 1fr;
+  }
+  .app .grid2,
+  .app .grid3,
+  .app .c11,
+  .app .cols,
+  .focus .grid2,
+  .focus .grid3,
+  .focus .c11,
+  .focus .cols {
+    grid-template-columns: 1fr;
+  }
+  .app .row,
+  .focus .row {
+    flex-wrap: wrap;
+  }
+  .app .row .b,
+  .focus .row .b {
+    flex-basis: 100%;
+  }
+  .app .dl div,
+  .focus .dl div {
+    grid-template-columns: 7rem 1fr;
+  }
+  .app .step .body,
+  .focus .step .body {
+    padding-left: 20px;
+  }
+}

@@ -1468,3 +1468,79 @@ test("settings names the key the jobs use, and the environment wins over the sav
     }
   });
 });
+
+test("the component gallery is served only in debug mode, behind sign-in", async () => {
+  await withEnv(async () => {
+    // No session: `/__ui` is a page path, so it still redirects to sign-in.
+    const off = createApp({ password: PASSWORD });
+    const anonymous = await off.fetch(
+      new Request("http://localhost/__ui", { redirect: "manual" }),
+    );
+    if (
+      anonymous.status !== 303 ||
+      !anonymous.headers.get("location")?.includes("/login")
+    ) {
+      throw new Error(`anonymous /__ui status ${anonymous.status}`);
+    }
+    const offCookie = await cookieSession(off);
+    const hidden = await off.fetch(
+      new Request("http://localhost/__ui", { headers: { cookie: offCookie } }),
+    );
+    if (hidden.status !== 404) {
+      throw new Error(`debug-off /__ui status ${hidden.status}, want 404`);
+    }
+
+    const on = createApp({ password: PASSWORD, debug: true });
+    const cookie = await cookieSession(on);
+    const response = await on.fetch(
+      new Request("http://localhost/__ui", { headers: { cookie } }),
+    );
+    if (response.status !== 200) {
+      throw new Error(`debug-on /__ui status ${response.status}`);
+    }
+    const html = await response.text();
+    for (const needle of [
+      "Light theme",
+      "Dark theme",
+      '<div class="app">',
+      '<div class="dark">',
+      'id="l-f1"',
+      'id="d-f1"',
+      'href="#i-copy"',
+      '<symbol id="i-git-pull-request"',
+    ]) {
+      if (!html.includes(needle)) {
+        throw new Error(`the component gallery missed ${needle}`);
+      }
+    }
+    assertCleanCopy(html, "/__ui");
+    assertUniqueIds(html, "/__ui");
+  });
+});
+
+test("the stylesheet ships the design tokens, the embedded font and dark theme", async () => {
+  const app = createApp({ password: PASSWORD });
+  const css = await (
+    await app.fetch(new Request("http://localhost/styles.css"))
+  ).text();
+  for (const needle of [
+    "@font-face",
+    'font-family: "Outfit"',
+    "data:font/woff2;base64,",
+    "--em-bg",
+    ".dark .app",
+    "scrollbar-gutter: stable",
+    "svg.ic",
+  ]) {
+    if (!css.includes(needle)) throw new Error(`styles missed ${needle}`);
+  }
+  // The font is embedded, not linked: the served sheet carries its bytes.
+  if (css.length < 90_000) {
+    throw new Error(
+      `styles is only ${css.length} chars; the font was not inlined`,
+    );
+  }
+  if (css.includes("fonts.googleapis.com")) {
+    throw new Error("styles still points at a font CDN");
+  }
+});
