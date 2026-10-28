@@ -1,5 +1,5 @@
 import { collectSource } from "./collect.ts";
-import { cacheDeletePrefix, cacheGet } from "../store/cache_db.ts";
+import { cacheDeletePrefix, cacheGet, cacheSet } from "../store/cache_db.ts";
 import { testOptions } from "../testing/helpers.ts";
 import { withLogSink } from "../util/log.ts";
 import type { PullRequest, State } from "../knowledge/types.ts";
@@ -544,6 +544,53 @@ test("per-pull-request cache is reused without a previous state blob", async () 
     await collectSource(client, options);
     if (detailCalls() !== downloaded) {
       throw new Error(`cache depended on the state blob: ${calls.join(" ")}`);
+    }
+  } finally {
+    await cacheDeletePrefix("pr-listing", repo);
+    await cacheDeletePrefix("pr", repo);
+  }
+});
+
+test("a legacy migration interrupted after the first row still merges the rest", async () => {
+  const repo = `fixture/migrate-${crypto.randomUUID()}`;
+  const { client, calls } = requestChangedClient(repo);
+  const legacy = (number: number, sha: string): PullRequest =>
+    ({
+      number,
+      updatedAt: "1",
+      headSha: sha,
+      additions: 1,
+      deletions: 0,
+      comments: [],
+      reviewComments: [],
+      reviews: [],
+      changedFiles: [],
+      diff: "diff",
+    }) as unknown as PullRequest;
+  // A row for #1 only: the previous run migrated the first pull request and
+  // then stopped.
+  await cacheSet("pr", `${repo}:1`, JSON.stringify(legacy(1, "h1")));
+  const previous = {
+    source: { pullRequestCache: [legacy(1, "h1"), legacy(2, "h2")] },
+  } as unknown as State;
+  try {
+    await collectSource(
+      client,
+      testOptions({
+        repo,
+        includeCodebase: false,
+        includePullRequests: true,
+        includePullRequestChanges: true,
+      }),
+      previous,
+    );
+    if (calls.some((endpoint) => endpoint.includes("/pulls/2/"))) {
+      throw new Error(
+        `a legacy pull request was downloaded again: ${calls.join(" ")}`,
+      );
+    }
+    if ((await cacheGet("pr", `${repo}:2`)) === undefined) {
+      throw new Error("#2 was not merged into the per-pull-request cache");
     }
   } finally {
     await cacheDeletePrefix("pr-listing", repo);

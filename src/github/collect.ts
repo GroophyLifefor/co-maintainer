@@ -353,7 +353,10 @@ async function codebase(
 }
 
 /** One pull request's cached evidence, keyed by number. `cacheValues` returns
- * the newest rows first, so a later row for the same number wins. */
+ * the newest rows first, so a later row for the same number wins. Legacy
+ * entries still in the state blob are merged in when their row is missing, so
+ * a migration interrupted after the first row resumes instead of treating the
+ * rows it wrote as proof that every pull request moved. */
 async function loadPrCache(
   repo: string,
   previous: State | undefined,
@@ -367,7 +370,6 @@ async function loadPrCache(
       // A corrupt row is skipped rather than losing every other row.
     }
   }
-  if (cache.size > 0) return cache;
   for (const pr of legacyPrCache(previous)) {
     if (cache.has(pr.number)) continue;
     cache.set(pr.number, pr);
