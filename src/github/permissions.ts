@@ -130,6 +130,14 @@ export const ENDPOINTS: readonly Endpoint[] = [
     feature: "Acknowledge a review request on the pull request",
   },
   {
+    method: "PATCH",
+    pattern: "repos/{repo}/issues/comments/{id}",
+    permission: "issues",
+    level: "write",
+    identities: APP_ONLY,
+    feature: "Edit the failure note left on a pull request",
+  },
+  {
     method: "POST",
     pattern: "repos/{repo}/issues/comments/{id}/reactions",
     permission: "issues",

@@ -12,6 +12,7 @@ import {
   runConfig,
 } from "./commands/config.ts";
 import { runSet } from "./commands/set.ts";
+import { parseArgs, setCliInteractive } from "./args.ts";
 import type { UserConfig } from "../config.ts";
 import { createCliHarness } from "../testing/cli_harness.ts";
 import { startFakeOpenRouter } from "../testing/fake_openrouter.ts";
@@ -355,6 +356,232 @@ test("config set: --codegraph-version normalizes a leading v and refuses a bad o
   }
 });
 
+test("config set: --gh-concurrent and --ai-concurrent persist the server defaults", async () => {
+  const result = await captureSet([
+    "--gh-concurrent=4",
+    "--ai-concurrent=2",
+    "--no-verify",
+  ]);
+  if (result.code !== 0) {
+    throw new Error(
+      `exit ${result.code}: ${result.stderr || result.stdout}`,
+    );
+  }
+  const defaults = (result.config.defaults ?? {}) as Record<string, unknown>;
+  if (defaults.ghConcurrent !== 4 || defaults.aiConcurrent !== 2) {
+    throw new Error(
+      `saved defaults: ${JSON.stringify(defaults)} (want 4/2)`,
+    );
+  }
+});
+
+test("config set: --repo with --gh-concurrent and --ai-concurrent writes the repository values", async () => {
+  const result = await captureSet([
+    "--repo=acme/widgets",
+    "--gh-concurrent=8",
+    "--ai-concurrent=6",
+    "--no-verify",
+  ]);
+  if (result.code !== 0) {
+    throw new Error(
+      `exit ${result.code}: ${result.stderr || result.stdout}`,
+    );
+  }
+  const repo = (result.config.repos?.["acme/widgets"] ?? {}) as Record<
+    string,
+    unknown
+  >;
+  if (repo.ghConcurrent !== 8 || repo.aiConcurrent !== 6) {
+    throw new Error(`saved repo values: ${JSON.stringify(repo)} (want 8/6)`);
+  }
+});
+
+test("config set: concurrency accepts 1 and 16 and refuses 0, 17, -1, 2.5, a and blank without a partial save", async () => {
+  const valid = await captureSet([
+    "--gh-concurrent=1",
+    "--ai-concurrent=16",
+    "--no-verify",
+  ]);
+  if (valid.code !== 0) {
+    throw new Error(
+      `1 and 16 exited ${valid.code}: ${valid.stderr || valid.stdout}`,
+    );
+  }
+  const validDefaults = (valid.config.defaults ?? {}) as Record<
+    string,
+    unknown
+  >;
+  if (
+    validDefaults.ghConcurrent !== 1 ||
+    validDefaults.aiConcurrent !== 16
+  ) {
+    throw new Error(
+      `1 and 16 saved as ${JSON.stringify(validDefaults)} (want 1/16)`,
+    );
+  }
+
+  for (const raw of ["0", "17", "-1", "2.5", "a", ""]) {
+    const result = await captureSet(
+      [`--gh-concurrent=${raw}`, "--ai-concurrent=4", "--no-verify"],
+      { defaults: { maxCommits: 7 } } as never,
+    );
+    if (result.code !== 2) {
+      throw new Error(
+        `--gh-concurrent=${JSON.stringify(raw)} exited ${result.code} (want 2)`,
+      );
+    }
+    const defaults = (result.config.defaults ?? {}) as Record<string, unknown>;
+    if (
+      defaults.maxCommits !== 7 ||
+      defaults.ghConcurrent !== undefined ||
+      defaults.aiConcurrent !== undefined
+    ) {
+      throw new Error(
+        `--gh-concurrent=${JSON.stringify(raw)} partially saved: ${JSON.stringify(defaults)}`,
+      );
+    }
+  }
+
+  const range = await captureSet(["--gh-concurrent=17", "--no-verify"]);
+  if (!/(1.*16|between 1 and 16)/.test(`${range.stdout}${range.stderr}`)) {
+    throw new Error(
+      `the refusal does not name the 1..16 range: ${range.stdout}${range.stderr}`,
+    );
+  }
+});
+
+test("config set: an invalid concurrency pair is refused without a partial save", async () => {
+  const result = await captureSet(
+    ["--gh-concurrent=8", "--ai-concurrent=17", "--no-verify"],
+    { defaults: { maxCommits: 7 } } as never,
+  );
+  if (result.code !== 2) {
+    throw new Error(`exit ${result.code} (want 2)`);
+  }
+  const defaults = (result.config.defaults ?? {}) as Record<string, unknown>;
+  if (
+    defaults.maxCommits !== 7 ||
+    defaults.ghConcurrent !== undefined ||
+    defaults.aiConcurrent !== undefined
+  ) {
+    throw new Error(`the pair partially saved: ${JSON.stringify(defaults)}`);
+  }
+  if (!/(1.*16|between 1 and 16)/.test(`${result.stdout}${result.stderr}`)) {
+    throw new Error(
+      `the refusal does not name the 1..16 range: ${result.stdout}${result.stderr}`,
+    );
+  }
+});
+
+test("config set: --repo --unset removes the repository concurrency keys", async () => {
+  const result = await captureSet(
+    [
+      "--repo=acme/widgets",
+      "--unset=gh-concurrent",
+      "--unset=ai-concurrent",
+      "--no-verify",
+    ],
+    {
+      repos: { "acme/widgets": { ghConcurrent: 8, aiConcurrent: 6 } },
+    } as never,
+  );
+  if (result.code !== 0) {
+    throw new Error(
+      `exit ${result.code}: ${result.stderr || result.stdout}`,
+    );
+  }
+  const repo = (result.config.repos?.["acme/widgets"] ?? {}) as Record<
+    string,
+    unknown
+  >;
+  if (
+    "ghConcurrent" in repo ||
+    "aiConcurrent" in repo
+  ) {
+    throw new Error(`the reset left repo keys behind: ${JSON.stringify(repo)}`);
+  }
+});
+
+test("config: init and sync resolve concurrency from config and a one-off flag overrides only that run", async () => {
+  const config = {
+    auth: "gh",
+    ai: "none",
+    defaults: { ghConcurrent: 4, aiConcurrent: 2 },
+    repos: { "owner/repo": { ghConcurrent: 8, aiConcurrent: 6 } },
+  } as never;
+
+  const init = await parseWithConfig(
+    ["init", "owner/repo", "--ai=none"],
+    config,
+  );
+  if (init.options.ghConcurrent !== 8 || init.options.aiConcurrent !== 6) {
+    throw new Error(
+      `init resolved ${init.options.ghConcurrent}/${init.options.aiConcurrent} (want 8/6)`,
+    );
+  }
+
+  const sync = await parseWithConfig(
+    ["sync", "owner/repo", "--ai=none"],
+    config,
+  );
+  if (sync.options.ghConcurrent !== 8 || sync.options.aiConcurrent !== 6) {
+    throw new Error(
+      `sync resolved ${sync.options.ghConcurrent}/${sync.options.aiConcurrent} (want 8/6)`,
+    );
+  }
+
+  const oneOff = await parseWithConfig(
+    [
+      "init",
+      "owner/repo",
+      "--ai=none",
+      "--gh-concurrent=2",
+      "--ai-concurrent=2",
+    ],
+    config,
+  );
+  if (
+    oneOff.options.ghConcurrent !== 2 ||
+    oneOff.options.aiConcurrent !== 2
+  ) {
+    throw new Error(
+      `the one-off flag did not win: ${oneOff.options.ghConcurrent}/${oneOff.options.aiConcurrent}`,
+    );
+  }
+  if (JSON.stringify(oneOff.saved) !== JSON.stringify(config)) {
+    throw new Error(
+      `the one-off flag changed the saved config: ${JSON.stringify(oneOff.saved)}`,
+    );
+  }
+});
+
+test("config: invalid one-off concurrency is refused before a job or network", async () => {
+  const config = { auth: "gh", ai: "none" } as never;
+  for (const raw of ["0", "17", "-1", "2.5", "a", ""]) {
+    let code = 0;
+    let message = "";
+    try {
+      await parseWithConfig(
+        ["init", "owner/repo", "--ai=none", `--gh-concurrent=${raw}`],
+        config,
+      );
+    } catch (thrown) {
+      code = (thrown as { exitCode?: number }).exitCode ?? 3;
+      message = (thrown as Error).message;
+    }
+    if (code !== 2) {
+      throw new Error(
+        `--gh-concurrent=${JSON.stringify(raw)} exited ${code} (want 2)`,
+      );
+    }
+    if (!/(1.*16|between 1 and 16|integer)/.test(message)) {
+      throw new Error(
+        `--gh-concurrent=${JSON.stringify(raw)} message: ${message}`,
+      );
+    }
+  }
+});
+
 test("config: the wired CLI answers list, get and path", async () => {
   const harness = await createCliHarness();
   try {
@@ -427,4 +654,77 @@ async function captureConfig(
     await remove(dir, { recursive: true });
   }
   return { code, stdout: sink.join("\n"), stderr: errors.join("\n") };
+}
+
+/** Runs `runSet` against a temp config and returns what was written, so a
+ * refused value can be shown to leave the file alone. */
+async function captureSet(
+  args: string[],
+  config: UserConfig = {},
+): Promise<{
+  code: number;
+  stdout: string;
+  stderr: string;
+  config: UserConfig;
+}> {
+  const env = isolate();
+  const dir = await makeTempDir({ prefix: "cm-set-concurrency-" });
+  const path = `${dir}/config.json`;
+  setEnv("CM_CONFIG_PATH", path);
+  await writeTextFile(path, `${JSON.stringify(config, null, 2)}\n`);
+  const sink: string[] = [];
+  const errors: string[] = [];
+  const log = console.log;
+  const error = console.error;
+  console.log = (...parts: unknown[]) => void sink.push(parts.join(" "));
+  console.error = (...parts: unknown[]) => errors.push(parts.join(" "));
+  let code = 0;
+  try {
+    await runSet(args);
+  } catch (thrown) {
+    code = (thrown as { exitCode?: number }).exitCode ?? 3;
+    errors.push((thrown as Error).message);
+  } finally {
+    console.log = log;
+    console.error = error;
+    env.restore();
+  }
+  let written: UserConfig = {};
+  try {
+    written = JSON.parse(await readTextFile(path)) as UserConfig;
+  } catch {
+    // A refused write leaves no file, which is also a pass.
+  }
+  await remove(dir, { recursive: true });
+  return {
+    code,
+    stdout: sink.join("\n"),
+    stderr: errors.join("\n"),
+    config: written,
+  };
+}
+
+/** Parses args against a temp config and returns both the resolved options and
+ * the config after parsing, so a one-off flag can be shown not to persist. */
+async function parseWithConfig(
+  args: string[],
+  config: UserConfig,
+): Promise<{ options: Record<string, unknown>; saved: UserConfig }> {
+  const env = isolate();
+  const dir = await makeTempDir({ prefix: "cm-parse-concurrency-" });
+  const path = `${dir}/config.json`;
+  setEnv("CM_CONFIG_PATH", path);
+  await writeTextFile(path, `${JSON.stringify(config, null, 2)}\n`);
+  try {
+    setCliInteractive(false);
+    const options = (await parseArgs(args)) as unknown as Record<
+      string,
+      unknown
+    >;
+    const saved = JSON.parse(await readTextFile(path)) as UserConfig;
+    return { options, saved };
+  } finally {
+    env.restore();
+    await remove(dir, { recursive: true });
+  }
 }

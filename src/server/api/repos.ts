@@ -15,17 +15,23 @@ import {
 } from "../../review/system_prompt.ts";
 import { parseRemakeCron } from "../../services/remake_cron.ts";
 import {
+  MAX_CONCURRENCY,
+  MIN_CONCURRENCY,
+} from "../../services/concurrency.ts";
+import {
   parsePolicy,
   policyToStore,
   describePolicy,
 } from "../../services/review_policy.ts";
 import { enqueueSetup } from "../../services/setup.ts";
+import { appReady, filterRepoList } from "../../services/repo_list.ts";
 import { enqueueManualReview } from "../../services/review.ts";
 import { probePlan, recommendationPatch } from "../../services/probe.ts";
 import { estimateInit, readJobHistory } from "../../ai/estimate.ts";
 import { loadPrices } from "../../ai/pricing.ts";
 import type { ModelPrice } from "../../ai/pricing.ts";
 import {
+  listReposForHome,
   prDetail,
   repoKnowledge,
   RepoNotFound,
@@ -44,7 +50,17 @@ export async function handleReposRoute(
   githubApp?: { appId: string; privateKeyPem: string },
 ): Promise<Response> {
   if (url.pathname === "/api/repos" && request.method === "GET") {
-    return Response.json({ items: listActiveRepos() });
+    const q = url.searchParams.get("q");
+    const status = url.searchParams.get("status");
+    if (q === null && status === null) {
+      return Response.json({ items: listActiveRepos() });
+    }
+    const items = filterRepoList(
+      listReposForHome(),
+      { q: q ?? undefined, status: status ?? undefined },
+      appReady(),
+    );
+    return Response.json({ items: items.map((item) => item.repo) });
   }
 
   // The plain sentences shown under the policy editor before it is saved, so
@@ -257,10 +273,13 @@ export async function handleReposRoute(
         const raw = body.remakeCron;
         if (raw === null || raw === "") {
           cronPatch.remakeCron = undefined;
+          cronPatch.remakeCronDraft = undefined;
         } else if (typeof raw === "string") {
           try {
             parseRemakeCron(raw);
           } catch (error) {
+            // Keep what was typed only for the form, never as a schedule.
+            await writeRepoConfig(fullName, { remakeCronDraft: raw });
             return errorResponse(
               422,
               "invalid_cron",
@@ -268,6 +287,7 @@ export async function handleReposRoute(
             );
           }
           cronPatch.remakeCron = raw.trim();
+          cronPatch.remakeCronDraft = undefined;
         } else {
           return errorResponse(
             422,
@@ -346,6 +366,43 @@ export async function handleReposRoute(
         }
         patch.review_policy_json = stored.value;
       }
+      const speedPatch: RepoConfig = {};
+      for (const key of ["ghConcurrent", "aiConcurrent"] as const) {
+        if (!(key in body)) continue;
+        const raw = body[key];
+        if (raw === null || raw === "") {
+          speedPatch[key] = undefined;
+          continue;
+        }
+        if (
+          typeof raw !== "number" ||
+          !Number.isInteger(raw) ||
+          raw < MIN_CONCURRENCY ||
+          raw > MAX_CONCURRENCY
+        ) {
+          return errorResponse(
+            422,
+            "invalid_concurrency",
+            `${key} must be an integer between ${MIN_CONCURRENCY} and ${MAX_CONCURRENCY}`,
+          );
+        }
+        speedPatch[key] = raw;
+      }
+      const blockingPatch: RepoConfig = {};
+      if ("reviewBlocking" in body) {
+        const raw = body.reviewBlocking;
+        if (raw === null || raw === "") {
+          blockingPatch.reviewBlocking = undefined;
+        } else if (raw === "model" || raw === "severity") {
+          blockingPatch.reviewBlocking = raw;
+        } else {
+          return errorResponse(
+            422,
+            "invalid_review_blocking",
+            "reviewBlocking must be model or severity",
+          );
+        }
+      }
       if (typeof body.autoReview === "boolean") {
         patch.auto_review = body.autoReview ? 1 : 0;
       }
@@ -398,16 +455,15 @@ export async function handleReposRoute(
           init[key] = body[key] as number;
         }
       }
-      if (
-        Object.keys(init).length > 0 ||
-        "remakeCron" in cronPatch ||
-        Object.keys(promptPatch).length > 0
-      ) {
-        await writeRepoConfig(fullName, {
-          ...init,
-          ...cronPatch,
-          ...promptPatch,
-        });
+      const repoPatch: RepoConfig = {
+        ...init,
+        ...cronPatch,
+        ...promptPatch,
+        ...speedPatch,
+        ...blockingPatch,
+      };
+      if (Object.keys(repoPatch).length > 0) {
+        await writeRepoConfig(fullName, repoPatch);
       }
       return Response.json({ ok: true });
     }

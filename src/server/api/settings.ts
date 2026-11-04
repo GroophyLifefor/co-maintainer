@@ -124,6 +124,16 @@ export async function handleSettingsRoute(
     text("githubOAuthClientId");
     text("githubOAuthClientSecret");
     text("githubOAuthAllowedUser");
+    // A key means nothing without the provider it belongs to: saving one
+    // with no provider would read "A key is saved" next to "Not set".
+    const provider = patch.ai ?? current.ai;
+    if (patch.token && (!provider || provider === "none")) {
+      return errorResponse(
+        422,
+        "provider_required",
+        "Choose a provider before saving an API key.",
+      );
+    }
     const previousAi = savedKeyProvider(current);
     if (
       patch.ai &&

@@ -23,12 +23,31 @@ import { die } from "../error.ts";
 import { parsePolicy } from "../../services/review_policy.ts";
 import { isCodegraphVersion } from "../../tools/codegraph.ts";
 import { AI_PROVIDERS, rejectRetiredProvider } from "../../ai/provider.ts";
+import {
+  MAX_CONCURRENCY,
+  MIN_CONCURRENCY,
+} from "../../services/concurrency.ts";
 import { renderCommandHelp, renderGlobalHelp } from "./registry.ts";
 
 function text(args: string[], name: string): string | undefined {
   return args
     .find((arg) => arg.startsWith(`--${name}=`))
     ?.slice(name.length + 3);
+}
+
+function concurrencyValue(raw: string, flag: string): number {
+  const number = Number(raw);
+  if (
+    raw.trim() === "" ||
+    !Number.isInteger(number) ||
+    number < MIN_CONCURRENCY ||
+    number > MAX_CONCURRENCY
+  ) {
+    die(
+      `${flag} must be an integer between ${MIN_CONCURRENCY} and ${MAX_CONCURRENCY}`,
+    );
+  }
+  return number;
 }
 
 const secretFields = new Set([
@@ -81,6 +100,8 @@ export async function runSet(args: string[]): Promise<void> {
     "review-policy-file",
     "review-blocking",
     "codegraph-version",
+    "gh-concurrent",
+    "ai-concurrent",
     "repo",
     "review-system-prompt",
     "review-system-prompt-max-chars",
@@ -273,6 +294,27 @@ export async function runSet(args: string[]): Promise<void> {
     }
     patch.codegraphVersion = normalized;
   }
+  const ghConcurrent = text(args, "gh-concurrent");
+  const aiConcurrent = text(args, "ai-concurrent");
+  const unsetGh = unset.has("gh-concurrent") || unset.has("ghConcurrent");
+  const unsetAi = unset.has("ai-concurrent") || unset.has("aiConcurrent");
+  if (
+    ghConcurrent !== undefined ||
+    aiConcurrent !== undefined ||
+    unsetGh ||
+    unsetAi
+  ) {
+    const defaults = { ...(readConfig().defaults ?? {}) };
+    if (unsetGh) delete defaults.ghConcurrent;
+    if (unsetAi) delete defaults.aiConcurrent;
+    if (ghConcurrent !== undefined) {
+      defaults.ghConcurrent = concurrencyValue(ghConcurrent, "--gh-concurrent");
+    }
+    if (aiConcurrent !== undefined) {
+      defaults.aiConcurrent = concurrencyValue(aiConcurrent, "--ai-concurrent");
+    }
+    patch.defaults = defaults;
+  }
   const password = text(args, "password");
   if (password) {
     const problem = passwordProblem(password);
@@ -356,6 +398,8 @@ const REPO_SCOPED_FLAGS = new Set([
   "repo",
   "review-system-prompt",
   "review-system-prompt-max-chars",
+  "gh-concurrent",
+  "ai-concurrent",
   "unset",
   "no-verify",
 ]);
@@ -366,6 +410,10 @@ const REPO_SCOPED_UNSET = new Set([
   "reviewSystemPrompt",
   "review-system-prompt-max-chars",
   "reviewSystemPromptMaxChars",
+  "gh-concurrent",
+  "ghConcurrent",
+  "ai-concurrent",
+  "aiConcurrent",
 ]);
 
 /** `set --repo=owner/repo [--review-system-prompt=... | --review-system-prompt-max-chars=N | --unset=name]`
@@ -402,6 +450,20 @@ async function runSetRepo(repo: string, args: string[]): Promise<void> {
     unset.has("reviewSystemPromptMaxChars")
   ) {
     patch.reviewSystemPromptMaxChars = undefined;
+  }
+  if (unset.has("gh-concurrent") || unset.has("ghConcurrent")) {
+    patch.ghConcurrent = undefined;
+  }
+  if (unset.has("ai-concurrent") || unset.has("aiConcurrent")) {
+    patch.aiConcurrent = undefined;
+  }
+  const ghRaw = text(args, "gh-concurrent");
+  if (ghRaw !== undefined) {
+    patch.ghConcurrent = concurrencyValue(ghRaw, "--gh-concurrent");
+  }
+  const aiRaw = text(args, "ai-concurrent");
+  if (aiRaw !== undefined) {
+    patch.aiConcurrent = concurrencyValue(aiRaw, "--ai-concurrent");
   }
   const maxRaw = text(args, "review-system-prompt-max-chars");
   if (maxRaw !== undefined) {

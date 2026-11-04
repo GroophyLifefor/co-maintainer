@@ -65,7 +65,8 @@ export function renderAddRepo(
     layout({
       title: "Add repository · co-maintainer",
       username,
-      body: `<div class="wrap" style="max-width:760px">
+      active: "/",
+      body: `<div class="wrap narrow">
   <div class="crumbs"><a href="/">Repositories</a> / Add</div>
   <div class="pagehead">
     <div><h1>Add repository</h1>
@@ -83,6 +84,10 @@ export function renderAddRepo(
       <button class="primary" id="preview"${canAdd ? "" : " disabled"}>Preview</button>
     </div>
     <div id="plan" hidden></div>
+    <details class="cli" id="cli-equivalent">
+      <summary>CLI equivalent</summary>
+      <p class="mono" style="word-break:break-all">co-maintainer init owner/repo</p>
+    </details>
   </div></div>
 </div>
 <script>

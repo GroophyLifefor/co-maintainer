@@ -111,7 +111,10 @@ export type SeverityStats = {
 
 /** A repeat is a finding the previous round already raised, so the repeat
  * column reads as "raised again after the author saw it". */
-export function findingStatsBySeverity(sinceIso: string): SeverityStats[] {
+export function findingStatsBySeverity(
+  sinceIso: string,
+  repo?: string,
+): SeverityStats[] {
   return getAppDb()
     .prepare<SeverityStats>(
       `SELECT f.severity AS severity,
@@ -120,11 +123,11 @@ export function findingStatsBySeverity(sinceIso: string): SeverityStats[] {
         COALESCE(SUM(f.posted_comment_id IS NOT NULL), 0) AS posted
      FROM findings f
      INNER JOIN reviews r ON r.id = f.review_id
-     WHERE r.created_at >= ?
+     WHERE r.created_at >= ?${repo ? " AND r.repo = ?" : ""}
      GROUP BY f.severity
      ORDER BY f.severity`,
     )
-    .all(sinceIso)
+    .all(...(repo ? [sinceIso, repo] : [sinceIso]))
     .map((row) => ({
       severity: String(row.severity),
       findings: Number(row.findings),

@@ -99,6 +99,7 @@ export function setReviewStatus(
       | "closed_count"
       | "subject_id"
       | "guide_built_at"
+      | "note_comment_id"
     >
   > = {},
 ): void {
@@ -119,7 +120,8 @@ export function setReviewStatus(
        check_run_id = COALESCE(?, check_run_id),
        posted_fallback = COALESCE(?, posted_fallback),
        subject_id = COALESCE(?, subject_id),
-       guide_built_at = COALESCE(?, guide_built_at)
+       guide_built_at = COALESCE(?, guide_built_at),
+       note_comment_id = COALESCE(?, note_comment_id)
      WHERE id = ?`,
     )
     .run(
@@ -145,8 +147,26 @@ export function setReviewStatus(
       patch.posted_fallback ?? null,
       patch.subject_id ?? null,
       patch.guide_built_at ?? null,
+      patch.note_comment_id ?? null,
       id,
     );
+}
+
+/** The failure note another attempt already left for this exact push, so a
+ * retry edits that note rather than opening a second one. */
+export function findNoteCommentId(
+  repo: string,
+  prNumber: number,
+  headSha: string | null,
+): string | undefined {
+  if (!headSha) return undefined;
+  return getAppDb()
+    .prepare<{ note_comment_id: string }>(
+      `SELECT note_comment_id FROM reviews
+     WHERE repo = ? AND pr_number = ? AND head_sha = ? AND note_comment_id IS NOT NULL
+     ORDER BY created_at DESC LIMIT 1`,
+    )
+    .get(repo, prNumber, headSha)?.note_comment_id;
 }
 
 export function setReviewScope(
@@ -305,6 +325,33 @@ export function reviewStatsByRepo(
     )
     .all(sinceIso)
     .map((row) => ({ ...asStats(row), repo: row.repo }));
+}
+
+export type ReviewKindBucket = "posted" | "not_posted" | "failed" | "cli";
+
+/** Runs and cost per kind of review, for the Usage "By kind" table. A CLI
+ * (remote) review is its own bucket whatever its status, and every bucket is
+ * present, zero when nothing ran. */
+export function reviewStatsByKind(
+  sinceIso: string,
+): (CostTotals & { kind: ReviewKindBucket; runs: number })[] {
+  const rows = getAppDb()
+    .prepare<CostTotals & { kind: string; runs: number }>(
+      `SELECT CASE
+          WHEN kind = 'remote' THEN 'cli'
+          WHEN status = 'failed' THEN 'failed'
+          WHEN status = 'not_posted' THEN 'not_posted'
+          ELSE 'posted' END AS kind,
+        COUNT(*) AS runs,
+        ${COST_COLUMNS}
+     FROM reviews WHERE created_at >= ?
+     GROUP BY 1`,
+    )
+    .all(sinceIso);
+  return (["posted", "not_posted", "failed", "cli"] as const).map((kind) => {
+    const row = rows.find((r) => r.kind === kind);
+    return { ...asCostTotals(row), kind, runs: Number(row?.runs ?? 0) };
+  });
 }
 
 export type DayStats = CostTotals & {

@@ -1,5 +1,10 @@
 import type { Options } from "../types.ts";
 import { prepareConfig, savedTokenFor } from "../config.ts";
+import {
+  MAX_CONCURRENCY,
+  MIN_CONCURRENCY,
+  resolveConcurrency,
+} from "../services/concurrency.ts";
 import { getEnv } from "../util/runtime.ts";
 import { askLine } from "./prompt.ts";
 import { die } from "./error.ts";
@@ -97,7 +102,9 @@ export async function parseArgs(args: string[]): Promise<Options> {
   // secret, so it can safely fill in everything except the API token.
   const repoConfig = config.repos?.[repoName] ?? {};
   const reviewBlocking = reviewBlockingFrom(
-    env("CO_MAINTAINER_REVIEW_BLOCKING") ?? config.reviewBlocking,
+    env("CO_MAINTAINER_REVIEW_BLOCKING") ??
+      repoConfig.reviewBlocking ??
+      config.reviewBlocking,
   );
 
   let prNumber: number | undefined;
@@ -135,6 +142,23 @@ export async function parseArgs(args: string[]): Promise<Options> {
     return arg
       ? numberOption(arg.slice(name.length + 3), `--${name}`)
       : undefined;
+  };
+  const concurrencyValue = (name: string, fallback: number): number => {
+    const arg = rest.find((item) => item.startsWith(`--${name}=`));
+    if (!arg) return fallback;
+    const raw = arg.slice(name.length + 3);
+    const number = Number(raw);
+    if (
+      raw.trim() === "" ||
+      !Number.isInteger(number) ||
+      number < MIN_CONCURRENCY ||
+      number > MAX_CONCURRENCY
+    ) {
+      die(
+        `--${name} must be an integer between ${MIN_CONCURRENCY} and ${MAX_CONCURRENCY}`,
+      );
+    }
+    return number;
   };
   const text = (name: string): string | undefined =>
     rest.find((item) => item.startsWith(`--${name}=`))?.slice(name.length + 3);
@@ -327,6 +351,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
     );
   }
 
+  const resolvedConcurrency = resolveConcurrency(repoName, config);
   return {
     command: command === "sync" ? "remake" : (command as Options["command"]),
     repo: repoName,
@@ -339,8 +364,8 @@ export async function parseArgs(args: string[]): Promise<Options> {
       command === "review" ? !rest.includes("--disable-codegraph") : false,
     envPath,
     improveMatrix: value("improve-matrix") ?? 1,
-    ghConcurrent: Math.max(1, value("gh-concurrent") ?? 1),
-    aiConcurrent: Math.max(1, value("ai-concurrent") ?? 3),
+    ghConcurrent: concurrencyValue("gh-concurrent", resolvedConcurrency.gh),
+    aiConcurrent: concurrencyValue("ai-concurrent", resolvedConcurrency.ai),
     auth,
     githubPat,
     ai,

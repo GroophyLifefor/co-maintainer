@@ -31,7 +31,7 @@ const PAGES = [
   "/setup",
   "/repos/new",
   "/activity",
-  "/analytics",
+  "/usage",
   "/settings",
 ];
 
@@ -304,7 +304,7 @@ test("each page renders 200 with empty data", async () => {
   });
 });
 
-test("the home page lists the remaining setup steps", async () => {
+test("the home page shows one setup banner that continues on /setup", async () => {
   await withEnv(async () => {
     const app = createApp({ password: PASSWORD });
     const cookie = await cookieSession(app);
@@ -312,24 +312,22 @@ test("the home page lists the remaining setup steps", async () => {
       await app.fetch(new Request("http://localhost/", { headers: { cookie } }))
     ).text();
     if (!html.includes('id="finish-setup"')) {
-      throw new Error("a fresh install has no Finish setup card");
+      throw new Error("a fresh install has no setup banner");
     }
-    for (const title of [
-      "Models and API key",
-      "GitHub App",
-      "Webhook reachable",
-      "First repository",
-      "First review",
-      "CLI connected",
-    ]) {
-      if (!html.includes(title)) throw new Error(`missing step: ${title}`);
+    const banner = html.slice(html.indexOf('id="finish-setup"')).split("</div></div>")[0]!;
+    if (!banner.includes('class="alert')) {
+      throw new Error("the setup banner is not a compact alert");
     }
-    // Every step links somewhere actionable.
-    if (!html.includes("/settings#ai") || !html.includes("/settings#remote")) {
-      throw new Error("a step does not link to its settings card");
+    if (!/href="\/setup"[^>]*>[^<]*Continue/.test(banner)) {
+      throw new Error("the banner has no Continue link to /setup");
     }
-    if (!html.includes("0/6 done")) {
+    // `withEnv` saves auth "gh", so GitHub access is the one finished step.
+    if (!html.includes("1/4 done")) {
       throw new Error("the done counter is wrong for a fresh install");
+    }
+    // The long checklist lives on /setup only.
+    for (const gone of ["CLI connected", "First review", 'class="steps"']) {
+      if (html.includes(gone)) throw new Error(`home still lists: ${gone}`);
     }
   });
 });
@@ -1013,12 +1011,12 @@ test("usage breaks spend down by day, model and severity", async () => {
     const cookie = await cookieSession(app);
     const html = await (
       await app.fetch(
-        new Request("http://localhost/analytics?range=7d", {
+        new Request("http://localhost/usage?range=7d", {
           headers: { cookie },
         }),
       )
     ).text();
-    assertCleanCopy(html, "/analytics");
+    assertCleanCopy(html, "/usage");
     const visible = visibleText(html);
     for (const label of ["Cost per day", "By model", "Findings by severity"]) {
       if (!visible.includes(label)) throw new Error(`usage missed ${label}`);
@@ -1089,14 +1087,14 @@ test("activity lists a job as a link and the job page shows the error", async ()
     }
     const analytics = await (
       await app.fetch(
-        new Request("http://localhost/analytics", { headers: { cookie } }),
+        new Request("http://localhost/usage", { headers: { cookie } }),
       )
     ).text();
     if (
       !analytics.includes('data-worth-id="job-fail"') ||
       !analytics.includes('data-dismiss-worth="job-fail"')
     ) {
-      throw new Error("analytics missed dismissible failed job");
+      throw new Error("usage missed dismissible failed job");
     }
     const job = await app.fetch(
       new Request("http://localhost/activity/job-fail", {

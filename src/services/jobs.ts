@@ -12,6 +12,7 @@ import { appendLog as storeAppendLog, listLogs } from "../store/job_logs.ts";
 import { redact } from "../util/redact.ts";
 import { abortQueuedRemoteReviewRow } from "./remote_review_abort.ts";
 import { getReviewByJobId } from "../store/reviews.ts";
+import { withRateLimitJob } from "./rate_limit.ts";
 import type { JobLogRow, JobRow } from "../store/rows.ts";
 
 export type LogFn = (level: string, message: string) => void;
@@ -108,7 +109,9 @@ async function runJob(job: JobRow): Promise<void> {
   const controller = new AbortController();
   running.set(job.id, controller);
   try {
-    await handler.run(job, logFn, controller.signal);
+    await withRateLimitJob(job.id, () =>
+      handler.run(job, logFn, controller.signal),
+    );
     const status = controller.signal.aborted ? "canceled" : "done";
     const cancelReason = pendingCancelReason.get(job.id);
     setJobStatus(
@@ -250,13 +253,16 @@ export async function recoverOrphans(): Promise<number> {
   for (const job of orphans) {
     const handler = handlers.get(job.type);
     const logFn: LogFn = (level, message) => log(job.id, level, message);
-    if (handler?.reconcile) {
+    const reconcile = handler?.reconcile;
+    if (reconcile) {
       logFn(
         "info",
         "recovering after a restart: reconciling instead of rerunning",
       );
       try {
-        const outcome = await handler.reconcile(job, logFn);
+        const outcome = await withRateLimitJob(job.id, () =>
+          reconcile(job, logFn),
+        );
         setJobStatus(
           job.id,
           outcome === "canceled" ? "canceled" : "done",

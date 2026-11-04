@@ -70,12 +70,13 @@ await writeTextFile(
 );
 await writeTextFile(
   configPath,
-  JSON.stringify({
-    auth: "gh",
-    ai: "openrouter",
-    token: "fake",
-    highModel: "fake/model",
-  }),
+    JSON.stringify({
+      auth: "gh",
+      ai: "openrouter",
+      token: "fake",
+      lowModel: "fake/model",
+      highModel: "fake/model",
+    }),
 );
 await mkdir(worktree, { recursive: true });
 await git(worktree, ["init"]);

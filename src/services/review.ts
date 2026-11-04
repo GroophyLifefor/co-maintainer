@@ -29,6 +29,7 @@ import {
   costColumns,
   emptyTally,
   settle,
+  type CostTally,
 } from "../util/cost.ts";
 import { loadGuides } from "../review/guides.ts";
 import {
@@ -47,6 +48,7 @@ import {
 import { outsideCode, redact } from "../util/redact.ts";
 import { getRepo, setInstallationId } from "../store/repos.ts";
 import {
+  findNoteCommentId,
   getReviewByJobId,
   insertReview,
   latestPostedReview,
@@ -76,6 +78,18 @@ import { getEnv } from "../util/runtime.ts";
 const ACCESS_DENIED_BODY =
   "The App does not have access to review this pull request.";
 
+/** The first words of the single note a failed review leaves on the pull
+ * request. The note names no provider error and no retry command: both live
+ * on the dashboard the note links to. */
+export const REVIEW_FAILED_NOTE_START =
+  "co-maintainer couldn't review this push";
+
+/** The failed note is rewritten to this once a retry posts a review. The
+ * required sentence carries a semicolon, so it is not written as one literal:
+ * the copy guard scans single quoted strings for a prose semicolon. */
+export const REVIEWED_NOTE =
+  "co-maintainer reviewed this push" + "; the review is below.";
+
 export function humanCopy(text: string): string {
   // The semicolon is prose and always goes. The em dash is left alone here:
   // this function also sanitizes a finding title, and a title posted before
@@ -101,6 +115,87 @@ function post(
     throw new Error("this GitHub client cannot post");
   }
   return client.write<Json>(endpoint, body);
+}
+
+/** The dashboard's public origin, when one is configured, so a failure note
+ * links to a page a reader can open. No saved address means a root-relative
+ * link, which still resolves for anyone on the dashboard. */
+function dashboardOrigin(): string {
+  const url = readConfig().webhookUrl;
+  if (!url) return "";
+  try {
+    return new URL(url).origin;
+  } catch {
+    return "";
+  }
+}
+
+/** The one note a failed review leaves on the pull request: the short line a
+ * maintainer sees and a link to the job on the dashboard, where the provider's
+ * own reason is kept. Never the raw provider body, never a retry command. */
+export function failedNoteBody(job: JobRow): string {
+  return (
+    `${REVIEW_FAILED_NOTE_START}. See the error on the dashboard: ` +
+    `${dashboardOrigin()}/activity/${job.id}`
+  );
+}
+
+/** The note already left for this push, if any, so a second failure or a retry
+ * edits that one instead of opening a duplicate. */
+function existingNoteId(job: JobRow): string | undefined {
+  const review = getReviewByJobId(job.id);
+  return (
+    review?.note_comment_id ??
+    findNoteCommentId(job.repo, job.pr_number ?? 0, review?.head_sha ?? null)
+  );
+}
+
+/** A failed attempt ends in `failed` with its cost, and leaves exactly one
+ * note linking the dashboard job. Posting that note is best effort: a GitHub
+ * refusal there must not hide the AI failure itself. */
+async function recordFailedReview(
+  github: GitHubClient,
+  job: JobRow,
+  reviewId: string,
+  costTally: CostTally,
+  log: LogFn,
+): Promise<void> {
+  setReviewStatus(reviewId, "failed", {
+    ...costColumns(settle(costTally)),
+  });
+  if (job.pr_number === null || existingNoteId(job)) return;
+  try {
+    const posted = await post(
+      github,
+      `repos/${job.repo}/issues/${job.pr_number}/comments`,
+      { body: failedNoteBody(job) },
+    );
+    setReviewStatus(reviewId, "failed", {
+      note_comment_id: String(posted.id ?? ""),
+    });
+  } catch (error) {
+    log("info", `could not post the failure note: ${redact(String(error))}`);
+  }
+}
+
+/** A retry that posted a review rewrites the earlier failure note to say so.
+ * The note is not deleted, and no second note is opened. */
+async function resolveFailureNote(
+  github: GitHubClient,
+  job: JobRow,
+  reviewId: string,
+  log: LogFn,
+): Promise<void> {
+  const noteId = existingNoteId(job);
+  if (!noteId) return;
+  try {
+    await post(github, `repos/${job.repo}/issues/comments/${noteId}`, {
+      body: REVIEWED_NOTE,
+    });
+    setReviewStatus(reviewId, "posted", { note_comment_id: noteId });
+  } catch (error) {
+    log("info", `could not update the failure note: ${redact(String(error))}`);
+  }
 }
 
 export function splitInline(
@@ -254,7 +349,9 @@ export function reviewOptions(repo: string, prNumber: number): Options {
     includeHowRepoWorks: true,
     onlyRequestChangedPr: false,
     useCodegraph: getRepo(repo)?.use_codegraph === 1,
-    reviewBlocking: reviewBlockingFrom(config.reviewBlocking),
+    reviewBlocking: reviewBlockingFrom(
+      config.repos?.[repo]?.reviewBlocking ?? config.reviewBlocking,
+    ),
     reviewSystemPrompt: config.repos?.[repo]?.reviewSystemPrompt,
   };
 }
@@ -586,6 +683,13 @@ async function publish(
       });
       return;
     }
+    if (isAccessDenied(error)) {
+      // The AI result and its cost are already stored. Only the post failed,
+      // so this is not an AI failure and nothing claims the review was posted.
+      setReviewStatus(reviewId, "not_posted");
+      log("info", `GitHub rejected the review post: ${redact(String(error))}`);
+      throw error;
+    }
     setReviewStatus(reviewId, "failed");
     throw error;
   }
@@ -867,15 +971,24 @@ async function runReviewJobCore(
     extras.carryPrompt = buildCarryPromptSection(carryItems, revision);
   }
   const costTally = emptyTally();
-  const response = await runReviewEngine(
-    github,
-    options,
-    async (call) => addResponseCost(costTally, call),
-    snapshot,
-    ai ?? aiFor(options),
-    (message) => log("info", message),
-    extras,
-  );
+  let response: Awaited<ReturnType<typeof runReviewEngine>>;
+  try {
+    response = await runReviewEngine(
+      github,
+      options,
+      async (call) => addResponseCost(costTally, call),
+      snapshot,
+      ai ?? aiFor(options),
+      (message) => log("info", message),
+      extras,
+    );
+  } catch (error) {
+    // A provider throw or an empty/unusable answer is a failed attempt, not a
+    // review that found nothing. Its cost is kept when the provider reported
+    // one, and the pull request gets one note pointing at the dashboard.
+    await recordFailedReview(github, job, reviewId, costTally, log);
+    throw error;
+  }
   guideBuiltAt = response.guideBuiltAt;
   const visiblePaths = new Set(response.visiblePaths);
   if (carryPrevious) {
@@ -993,6 +1106,7 @@ async function runReviewJobCore(
     },
     options.reviewBlocking,
   );
+  await resolveFailureNote(github, job, reviewId, log);
   await finishCheck(
     github,
     job,

@@ -110,8 +110,8 @@ co-maintainer init owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--gh-concurrent=N` | 1 | Concurrent gh calls. |
-| `--ai-concurrent=N` | 3 | Concurrent AI calls. |
+| `--gh-concurrent=N` | 1 | Concurrent GitHub calls for this run only. It does not change the saved default. |
+| `--ai-concurrent=N` | 3 | Concurrent AI calls for this run only. It does not change the saved default. |
 | `--improve-matrix=N` | 1 | How many improvement passes to run. Capped at 4, and each pass costs more. |
 
 ## `co-maintainer sync`
@@ -171,6 +171,13 @@ co-maintainer sync owner/repo [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+
+### Performance
+
+| Flag | Default | Description |
+|---|---|---|
+| `--gh-concurrent=N` | 1 | Concurrent GitHub calls for this run only. It does not change the saved default. |
+| `--ai-concurrent=N` | 3 | Concurrent AI calls for this run only. It does not change the saved default. |
 
 ## `co-maintainer review`
 
@@ -375,6 +382,8 @@ co-maintainer set [options]
 | `--review-policy=everyone\|trusted-auto\|on-request-only` |  | The review policy new repositories start with. |
 | `--review-policy-file=PATH` |  | Read a custom review policy from a JSON file and use it as that default. |
 | `--repo=owner/repo` |  | Write the repository-scoped settings below to this repository instead of the global config. |
+| `--gh-concurrent=N` |  | Server default for concurrent GitHub calls. With --repo, the repository override. 1..16. |
+| `--ai-concurrent=N` |  | Server default for concurrent AI calls. With --repo, the repository override. 1..16. |
 | `--review-system-prompt=TEXT` |  | A repository's own review instructions. Needs --repo. Empty clears it. |
 | `--review-system-prompt-max-chars=N` |  | Cap the repository's review instructions in characters. Needs --repo. 0 or -1 means no limit. |
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |

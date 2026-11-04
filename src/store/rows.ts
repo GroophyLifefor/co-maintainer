@@ -29,6 +29,9 @@ export type RepoRow = {
   /** JSON: `"legacy"`, a template name, or a policy object. `null` takes the
    * server default. */
   review_policy_json: string | null;
+  /** `'cli'` when a CLI init built it, NULL when added from the dashboard.
+   * Optional so a row built by hand (a test fixture) need not name it. */
+  added_from?: string | null;
 };
 
 export type JobRow = {
@@ -91,6 +94,9 @@ export type ReviewRow = {
   posted_fallback: number;
   guide_built_at: string | null;
   codegraph: string | null;
+  /** The pull request issue comment a failed review left, so a retry edits it
+   * in place instead of posting a second note. */
+  note_comment_id: string | null;
 };
 
 export type FindingRow = {

@@ -31,12 +31,15 @@ export function icon(name: string, cls = ""): string {
 export function pageHeader(opts: {
   title: string;
   lead?: string;
+  /** Pre-escaped lead, for one that carries markup such as `<time>`. */
+  leadHtml?: string;
   crumb?: string;
   actions?: string;
 }): string {
+  const lead = opts.leadHtml ?? (opts.lead ? text(opts.lead) : "");
   return `<div class="ph">
   <div>${opts.crumb ?? ""}<h1>${text(opts.title)}</h1>${
-    opts.lead ? `<div class="d">${text(opts.lead)}</div>` : ""
+    lead ? `<div class="d">${lead}</div>` : ""
   }</div>
   ${opts.actions ? `<div class="actions-row">${opts.actions}</div>` : ""}
 </div>`;
@@ -166,21 +169,24 @@ export function segmented(
     tagRec?: boolean;
     icon?: string;
     attrs?: string;
+    /** Renders a link instead of a button, for tabs that work without JS. */
+    href?: string;
   }[],
 ): string {
   return `<div class="seg">${items
-    .map(
-      (item) =>
-        `<button type="button"${item.on ? ` class="on"` : ""}${
-          item.attrs ? ` ${item.attrs}` : ""
-        }>${item.icon ? icon(item.icon) : ""}${text(item.label)}${
-          item.tag
-            ? `<span class="tag${item.tagRec ? " rec" : ""}">${text(
-                item.tag,
-              )}</span>`
-            : ""
-        }</button>`,
-    )
+    .map((item) => {
+      const inner = `${item.icon ? icon(item.icon) : ""}${text(item.label)}${
+        item.tag
+          ? `<span class="tag${item.tagRec ? " rec" : ""}">${text(item.tag)}</span>`
+          : ""
+      }`;
+      const attrs = item.attrs ? ` ${item.attrs}` : "";
+      return item.href !== undefined
+        ? `<a${item.on ? ` class="on" aria-current="page"` : ""}${attrs} href="${escapeHtml(
+            item.href,
+          )}">${inner}</a>`
+        : `<button type="button"${item.on ? ` class="on"` : ""}${attrs}>${inner}</button>`;
+    })
     .join("")}</div>`;
 }
 

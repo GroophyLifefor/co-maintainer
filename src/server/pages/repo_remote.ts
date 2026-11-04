@@ -1,4 +1,4 @@
-import { empty, html, layout, repoNav, text, when } from "./layout.ts";
+import { empty, html, layout, repoTabs, text, when } from "./layout.ts";
 import { formatCost } from "./cost.ts";
 import type { repoRemoteReviews } from "../../services/dashboard.ts";
 
@@ -36,8 +36,9 @@ export function renderRepoRemote(
     layout({
       title: `${fullName} · Remote · co-maintainer`,
       username,
-      body: `<div class="wrap side">
-  ${repoNav(fullName, "remote")}
+      active: "/",
+      body: `<div class="wrap">
+  ${repoTabs(fullName, "remote")}
   <div>
     <div class="crumbs"><a href="/">Repositories</a> / ${text(fullName)}</div>
     <div class="pagehead">
