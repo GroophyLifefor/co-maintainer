@@ -116,7 +116,14 @@ async function startServe(options: {
     base,
     port,
     sandbox,
-    dataDir: join(sandbox, "cache", "co-maintainer"),
+    // The cache directory serve really uses: LOCALAPPDATA on Windows,
+    // ~/Library/Caches on macOS, XDG_CACHE_HOME elsewhere.
+    dataDir:
+      process.platform === "win32"
+        ? join(sandbox, "localappdata", "co-maintainer")
+        : process.platform === "darwin"
+          ? join(sandbox, "home", "Library", "Caches", "co-maintainer")
+          : join(sandbox, "cache", "co-maintainer"),
     stop,
   };
 }
@@ -183,7 +190,9 @@ function samePath(shown: string, expected: string, sandbox: string): boolean {
   const expanded = shown.startsWith("~")
     ? join(sandbox, "home", shown.slice(1))
     : shown;
-  const normalize = (value: string) => value.replace(/[/\\]+$/, "");
+  // Windows paths may mix `\` and `/` (`...\localappdata/co-maintainer`).
+  const normalize = (value: string) =>
+    value.replace(/[/\\]+/g, "/").replace(/\/+$/, "");
   return normalize(expanded) === normalize(expected);
 }
 
