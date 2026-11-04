@@ -21,7 +21,10 @@ export function activateRepo(
  * or removed from the dashboard on purpose). It starts with automatic review
  * off: building knowledge from the CLI never opts a repository into posting
  * reviews. */
-export function registerCliRepo(fullName: string, knowledgeBuiltAt?: string): boolean {
+export function registerCliRepo(
+  fullName: string,
+  knowledgeBuiltAt?: string,
+): boolean {
   const result = getAppDb()
     .prepare(
       `INSERT INTO repos (full_name, installation_id, active, auto_review, created_at, added_from, knowledge_built_at)

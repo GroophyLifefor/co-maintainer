@@ -26,7 +26,10 @@ async function put(
     const login = await app.fetch(
       new Request("http://localhost/api/login", {
         method: "POST",
-        headers: { "content-type": "application/json", "x-requested-with": "co-maintainer" },
+        headers: {
+          "content-type": "application/json",
+          "x-requested-with": "co-maintainer",
+        },
         body: JSON.stringify({ password: PASSWORD }),
       }),
     );
@@ -42,8 +45,15 @@ async function put(
         body: JSON.stringify(body),
       }),
     );
-    const json = (await response.json().catch(() => ({}))) as { error?: { code?: string }; code?: string };
-    return { status: response.status, code: json.error?.code ?? json.code, after: readConfig() };
+    const json = (await response.json().catch(() => ({}))) as {
+      error?: { code?: string };
+      code?: string;
+    };
+    return {
+      status: response.status,
+      code: json.error?.code ?? json.code,
+      after: readConfig(),
+    };
   } finally {
     await closeAppDb();
     keys.forEach((key, i) => {
@@ -60,12 +70,16 @@ test("a key sent with no provider is refused with provider_required and nothing 
     if (result.status !== 422 || result.code !== "provider_required") {
       throw new Error(`ai=${ai}: ${result.status} ${result.code}`);
     }
-    if (result.after.token) throw new Error(`ai=${ai}: the key was saved anyway`);
+    if (result.after.token)
+      throw new Error(`ai=${ai}: the key was saved anyway`);
   }
 });
 
 test("choosing none while sending a key is refused too", async () => {
-  const result = await put({ ai: "openrouter", token: "old" }, { ai: "none", token: "sk-new" });
+  const result = await put(
+    { ai: "openrouter", token: "old" },
+    { ai: "none", token: "sk-new" },
+  );
   if (result.status !== 422 || result.code !== "provider_required") {
     throw new Error(`${result.status} ${result.code}`);
   }
@@ -77,7 +91,10 @@ test("choosing none while sending a key is refused too", async () => {
 test("a key with a provider in the same request still saves", async () => {
   const result = await put({}, { ai: "openrouter", token: "sk-or-v1-new" });
   if (result.status !== 200) throw new Error(`status ${result.status}`);
-  if (result.after.token !== "sk-or-v1-new" || result.after.ai !== "openrouter") {
+  if (
+    result.after.token !== "sk-or-v1-new" ||
+    result.after.ai !== "openrouter"
+  ) {
     throw new Error("the key and provider were not saved");
   }
 });

@@ -48,12 +48,17 @@ async function withApp(fn: (get: Get) => Promise<void>): Promise<void> {
         redirect: "manual",
       }),
     );
-    const token = (login.headers.get("set-cookie") ?? "").match(/^cm=([^;]+)/)?.[1];
+    const token = (login.headers.get("set-cookie") ?? "").match(
+      /^cm=([^;]+)/,
+    )?.[1];
     if (!token) throw new Error("no session cookie");
     await fn((path) =>
       app.fetch(
         new Request(`http://localhost${path}`, {
-          headers: { cookie: `cm=${token}`, "x-requested-with": "co-maintainer" },
+          headers: {
+            cookie: `cm=${token}`,
+            "x-requested-with": "co-maintainer",
+          },
         }),
       ),
     );
@@ -68,17 +73,27 @@ async function withApp(fn: (get: Get) => Promise<void>): Promise<void> {
 }
 
 function side(html: string): string {
-  return html.match(/<aside\b[^>]*class="side"[^>]*>([\s\S]*?)<\/aside>/)?.[1] ?? "";
+  return (
+    html.match(/<aside\b[^>]*class="side"[^>]*>([\s\S]*?)<\/aside>/)?.[1] ?? ""
+  );
 }
 
 function navItem(nav: string, href: string): string {
-  return nav.match(new RegExp(`<a class="item[^"]*" href="${href}">([\\s\\S]*?)</a>`))?.[1] ?? "";
+  return (
+    nav.match(
+      new RegExp(`<a class="item[^"]*" href="${href}">([\\s\\S]*?)</a>`),
+    )?.[1] ?? ""
+  );
 }
 
 test("the sidebar has a Search button with its Ctrl K hint", async () => {
   await withApp(async (get) => {
     const nav = side(await (await get("/usage")).text());
-    if (!/<button type="button" class="search"[^>]*data-palette[^>]*>[\s\S]*?Search[\s\S]*?<kbd>Ctrl K<\/kbd><\/button>/.test(nav)) {
+    if (
+      !/<button type="button" class="search"[^>]*data-palette[^>]*>[\s\S]*?Search[\s\S]*?<kbd>Ctrl K<\/kbd><\/button>/.test(
+        nav,
+      )
+    ) {
       throw new Error("no search button with a Ctrl K hint");
     }
     if (!nav.includes('aria-keyshortcuts="Control+K Meta+K"')) {
@@ -90,7 +105,8 @@ test("the sidebar has a Search button with its Ctrl K hint", async () => {
 test("the sidebar shows the version", async () => {
   await withApp(async (get) => {
     const nav = side(await (await get("/")).text());
-    if (!nav.includes(`v${VERSION}`)) throw new Error(`no v${VERSION} in the sidebar`);
+    if (!nav.includes(`v${VERSION}`))
+      throw new Error(`no v${VERSION} in the sidebar`);
   });
 });
 
@@ -100,7 +116,11 @@ test("the sidebar badges show repo count, failed reviews and setup progress", as
     if (!/<span class="r tnum">2<\/span>/.test(navItem(nav, "/"))) {
       throw new Error("Repositories badge is not 2");
     }
-    if (!/<span class="r fail-count">1 failed<\/span>/.test(navItem(nav, "/activity"))) {
+    if (
+      !/<span class="r fail-count">1 failed<\/span>/.test(
+        navItem(nav, "/activity"),
+      )
+    ) {
       throw new Error("Activity badge is not 1 failed");
     }
     if (!/<span class="r tnum">1\/4<\/span>/.test(navItem(nav, "/setup"))) {
@@ -113,10 +133,18 @@ test("every page carries the palette dialog, hidden until opened", async () => {
   await withApp(async (get) => {
     for (const path of ["/", "/usage", "/setup"]) {
       const html = await (await get(path)).text();
-      if (!/<div class="pal" id="pal" role="dialog" aria-modal="true" aria-label="Search" hidden>/.test(html)) {
+      if (
+        !/<div class="pal" id="pal" role="dialog" aria-modal="true" aria-label="Search" hidden>/.test(
+          html,
+        )
+      ) {
         throw new Error(`${path} has no hidden palette dialog`);
       }
-      if (!/<input id="pal-q"[^>]*role="combobox"[^>]*aria-controls="pal-list"/.test(html)) {
+      if (
+        !/<input id="pal-q"[^>]*role="combobox"[^>]*aria-controls="pal-list"/.test(
+          html,
+        )
+      ) {
         throw new Error(`${path} palette input is not a combobox`);
       }
     }
@@ -129,12 +157,16 @@ test("GET /api/search returns grouped real results and needs a session", async (
     const body = (await response.json()) as {
       groups: { label: string; items: { label: string; href: string }[] }[];
     };
-    const repos = body.groups.find((g) => g.label === "Repositories")?.items ?? [];
+    const repos =
+      body.groups.find((g) => g.label === "Repositories")?.items ?? [];
     if (repos.map((r) => r.href).join(",") !== "/repos/acme/widgets") {
       throw new Error(JSON.stringify(body));
     }
   });
   const app = createApp({ password: PASSWORD });
-  const anonymous = await app.fetch(new Request("http://localhost/api/search?q=a"));
-  if (anonymous.status !== 401) throw new Error(`anonymous got ${anonymous.status}`);
+  const anonymous = await app.fetch(
+    new Request("http://localhost/api/search?q=a"),
+  );
+  if (anonymous.status !== 401)
+    throw new Error(`anonymous got ${anonymous.status}`);
 });

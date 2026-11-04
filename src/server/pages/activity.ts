@@ -198,7 +198,11 @@ function jobDurationMs(
 ): number | undefined {
   const fromArgs = asNumber(args.durationMs);
   if (fromArgs !== undefined) return fromArgs;
-  if (review && review.duration_ms !== null && review.duration_ms !== undefined) {
+  if (
+    review &&
+    review.duration_ms !== null &&
+    review.duration_ms !== undefined
+  ) {
     return review.duration_ms;
   }
   if (job.started_at && job.finished_at) {
@@ -431,7 +435,7 @@ function doneBody(
   const next =
     !appConfigured && promisedAutomatic
       ? defaultNextAction(job, false)
-      : providedNext ?? defaultNextAction(job, appConfigured);
+      : (providedNext ?? defaultNextAction(job, appConfigured));
   const appLink =
     !appConfigured && (job.type === "init" || job.type === "remake")
       ? `<a class="btn out" href="/settings/github">Connect the GitHub App</a>`
@@ -498,9 +502,7 @@ function failedBody(
   const cost = jobCost(args, review);
   const explanation = failureExplanation(job.error);
   const rows = [
-    provider
-      ? `<div><dt>Provider</dt><dd>${text(provider)}</dd></div>`
-      : "",
+    provider ? `<div><dt>Provider</dt><dd>${text(provider)}</dd></div>` : "",
     model
       ? `<div><dt>Model</dt><dd class="mono">${text(model)}</dd></div>`
       : "",
@@ -730,7 +732,10 @@ export function renderJob(
   ${pageHeader({
     title: jobTitle(job),
     leadHtml: lead,
-    crumb: crumb([{ label: "Activity", href: "/activity" }, { label: jobLabel(job) }]),
+    crumb: crumb([
+      { label: "Activity", href: "/activity" },
+      { label: jobLabel(job) },
+    ]),
     actions: `${stop}${retry}${changeModel}`,
   })}
   ${error}${canceled}

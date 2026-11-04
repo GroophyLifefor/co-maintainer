@@ -8,12 +8,7 @@ import { readConfig, writeRepoConfig, writeUserConfig } from "../config.ts";
 import { probePlan } from "./probe.ts";
 import { AiBatch } from "../ai/batch.ts";
 import type { AiProvider, AiRequest, GitHubClient } from "../types.ts";
-import {
-  deleteEnv,
-  getEnv,
-  setEnv,
-  tempDirSync,
-} from "../testing/runtime.ts";
+import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
 
 const MODULE = "./concurrency.ts";
 
@@ -85,7 +80,10 @@ function writeConfig(value: Record<string, unknown>): Promise<void> {
   return writeUserConfig(value as never);
 }
 
-function writeRepo(repo: string, value: Record<string, unknown>): Promise<void> {
+function writeRepo(
+  repo: string,
+  value: Record<string, unknown>,
+): Promise<void> {
   return writeRepoConfig(repo, value as never);
 }
 
@@ -94,9 +92,7 @@ test("resolution: repo override wins over the server default and the built-in va
   await withTempConfig(async () => {
     const builtin = resolveConcurrency("acme/widgets");
     if (builtin.gh !== 1 || builtin.ai !== 3) {
-      throw new Error(
-        `built-in values: ${JSON.stringify(builtin)} (want 1/3)`,
-      );
+      throw new Error(`built-in values: ${JSON.stringify(builtin)} (want 1/3)`);
     }
 
     await writeConfig({ defaults: { ghConcurrent: 4, aiConcurrent: 2 } });
@@ -132,17 +128,13 @@ test("resolution: a missing repo value falls back field by field to the server d
     await writeRepo("acme/widgets", { ghConcurrent: 8 });
     const ghOnly = resolveConcurrency("acme/widgets");
     if (ghOnly.gh !== 8 || ghOnly.ai !== 2) {
-      throw new Error(
-        `gh-only override: ${JSON.stringify(ghOnly)} (want 8/2)`,
-      );
+      throw new Error(`gh-only override: ${JSON.stringify(ghOnly)} (want 8/2)`);
     }
 
     await writeRepo("acme/gadgets", { aiConcurrent: 6 });
     const aiOnly = resolveConcurrency("acme/gadgets");
     if (aiOnly.gh !== 4 || aiOnly.ai !== 6) {
-      throw new Error(
-        `ai-only override: ${JSON.stringify(aiOnly)} (want 4/6)`,
-      );
+      throw new Error(`ai-only override: ${JSON.stringify(aiOnly)} (want 4/6)`);
     }
   });
 });
@@ -193,7 +185,12 @@ test("recommendation: the AI ceiling is 8 on paid OpenRouter, 4 on OpenAI/Anthro
   const paid = recommend("openrouter", "paid/low", "paid/high");
   if (paid.ai !== 8) throw new Error(`paid OpenRouter AI: ${paid.ai} (want 8)`);
 
-  for (const provider of ["openai", "anthropic", "opencode-zen", "opencode-go"]) {
+  for (const provider of [
+    "openai",
+    "anthropic",
+    "opencode-zen",
+    "opencode-go",
+  ]) {
     const result = recommend(provider, "paid/low", "paid/high");
     if (result.ai !== 4) {
       throw new Error(`${provider} AI: ${result.ai} (want 4)`);
@@ -236,10 +233,14 @@ test("recommendation: never above the job count, 16, NaN or negative", async () 
   for (const jobs of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
     const result = recommend(jobs);
     if (!Number.isFinite(result.gh) || !Number.isFinite(result.ai)) {
-      throw new Error(`${jobs} jobs produced a non-finite value: ${JSON.stringify(result)}`);
+      throw new Error(
+        `${jobs} jobs produced a non-finite value: ${JSON.stringify(result)}`,
+      );
     }
     if (result.gh < 0 || result.ai < 0) {
-      throw new Error(`${jobs} jobs produced a negative value: ${JSON.stringify(result)}`);
+      throw new Error(
+        `${jobs} jobs produced a negative value: ${JSON.stringify(result)}`,
+      );
     }
     if (result.gh > 16 || result.ai > 16) {
       throw new Error(`${jobs} jobs exceeded 16: ${JSON.stringify(result)}`);
@@ -306,21 +307,19 @@ test("warnings: a free OpenRouter model warns at AI 2 and clears at AI 1", async
 
   const freeLow = warnings(2, "deepseek/deepseek-chat-v3.1:free", "paid/high");
   if (!warningKinds(freeLow).includes("free-model")) {
-    throw new Error(
-      `free low model at AI 2: ${JSON.stringify(freeLow)}`,
-    );
+    throw new Error(`free low model at AI 2: ${JSON.stringify(freeLow)}`);
   }
 
   const freeHigh = warnings(2, "paid/low", "deepseek/deepseek-chat-v3.1:free");
   if (!warningKinds(freeHigh).includes("free-model")) {
-    throw new Error(
-      `free high model at AI 2: ${JSON.stringify(freeHigh)}`,
-    );
+    throw new Error(`free high model at AI 2: ${JSON.stringify(freeHigh)}`);
   }
 
   const cleared = warnings(1, "deepseek/deepseek-chat-v3.1:free", "paid/high");
   if (warningKinds(cleared).includes("free-model")) {
-    throw new Error(`free-model warning stayed at AI 1: ${JSON.stringify(cleared)}`);
+    throw new Error(
+      `free-model warning stayed at AI 1: ${JSON.stringify(cleared)}`,
+    );
   }
 });
 
@@ -340,7 +339,9 @@ test("warnings: exceeding the provider ceiling warns about waiting", async () =>
     throw new Error(`OpenAI at AI 5: ${JSON.stringify(above)}`);
   }
   if (!/slow|wait/i.test(warningText(above))) {
-    throw new Error(`the wait warning has no wait wording: ${warningText(above)}`);
+    throw new Error(
+      `the wait warning has no wait wording: ${warningText(above)}`,
+    );
   }
 
   const atCeiling = warnings("openai", 4);
@@ -371,7 +372,9 @@ test("warnings: a PAT at GitHub 8 warns about the request quota", async () => {
     throw new Error(`PAT at GitHub 8: ${JSON.stringify(pat)}`);
   }
   if (!/5,000|5000|requests\/hour/i.test(warningText(pat))) {
-    throw new Error(`the quota warning has no quota wording: ${warningText(pat)}`);
+    throw new Error(
+      `the quota warning has no quota wording: ${warningText(pat)}`,
+    );
   }
 
   const below = warnings("pat", 7);

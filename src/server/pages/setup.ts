@@ -1,7 +1,10 @@
 import { html, layout, text } from "./layout.ts";
 import type { SetupItem } from "../../services/setup_checklist.ts";
 
-export function renderSetup(username: string, checklist: SetupItem[]): Response {
+export function renderSetup(
+  username: string,
+  checklist: SetupItem[],
+): Response {
   const doneCount = checklist.filter((item) => item.done).length;
   const allDone = doneCount === checklist.length;
   // The first unfinished step is the current one.

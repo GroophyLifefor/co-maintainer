@@ -18,7 +18,9 @@ import { test } from "node:test";
 
 const PASSWORD = "home-list-pass";
 
-async function withSeed(fn: (get: (path: string) => Promise<string>) => Promise<void>) {
+async function withSeed(
+  fn: (get: (path: string) => Promise<string>) => Promise<void>,
+) {
   const keys = ["CM_APP_DB", "CM_CONFIG_PATH", "CM_REPOS_DIR"];
   const original = keys.map((key) => getEnv(key));
   const dir = tempDirSync();
@@ -49,12 +51,16 @@ async function withSeed(fn: (get: (path: string) => Promise<string>) => Promise<
         redirect: "manual",
       }),
     );
-    const token = (login.headers.get("set-cookie") ?? "").match(/^cm=([^;]+)/)?.[1];
+    const token = (login.headers.get("set-cookie") ?? "").match(
+      /^cm=([^;]+)/,
+    )?.[1];
     if (!token) throw new Error("no session cookie");
     await fn(async (path) =>
       (
         await app.fetch(
-          new Request(`http://localhost${path}`, { headers: { cookie: `cm=${token}` } }),
+          new Request(`http://localhost${path}`, {
+            headers: { cookie: `cm=${token}` },
+          }),
         )
       ).text(),
     );
@@ -90,7 +96,11 @@ test("each repository row has a status badge and an Open button", async () => {
     ];
     for (const [name, label] of cases) {
       const row = rowFor(html, name);
-      if (!new RegExp(`class="badge[^"]*"[^>]*>(<svg[\\s\\S]*?</svg>)?${label}<`).test(row)) {
+      if (
+        !new RegExp(
+          `class="badge[^"]*"[^>]*>(<svg[\\s\\S]*?</svg>)?${label}<`,
+        ).test(row)
+      ) {
         throw new Error(`${name} has no ${label} badge`);
       }
       if (!new RegExp(`href="/repos/${name}"[^>]*>Open`).test(row)) {
@@ -115,7 +125,9 @@ test("the auto review toggle column is gone from the list", async () => {
 test("the list has a search field and All / Reviewing / Paused tabs", async () => {
   await withSeed(async (get) => {
     const html = await get("/");
-    if (!/<form[^>]*method="get"[^>]*>[\s\S]*?<input[^>]*name="q"/i.test(html)) {
+    if (
+      !/<form[^>]*method="get"[^>]*>[\s\S]*?<input[^>]*name="q"/i.test(html)
+    ) {
       throw new Error("no search form");
     }
     for (const [label, href] of [
@@ -123,7 +135,11 @@ test("the list has a search field and All / Reviewing / Paused tabs", async () =
       ["Reviewing", "/?status=reviewing"],
       ["Paused", "/?status=paused"],
     ]) {
-      if (!new RegExp(`<a[^>]*href="${href.replace("?", "\\?")}"[^>]*>(<svg[\\s\\S]*?</svg>)?${label}<`).test(html)) {
+      if (
+        !new RegExp(
+          `<a[^>]*href="${href.replace("?", "\\?")}"[^>]*>(<svg[\\s\\S]*?</svg>)?${label}<`,
+        ).test(html)
+      ) {
         throw new Error(`no ${label} tab linking to ${href}`);
       }
     }
@@ -164,7 +180,11 @@ test("a repo built from the CLI says so in the list", async () => {
   await withSeed(async (get) => {
     registerCliRepo("acme/fromcli", "2026-11-01T00:00:00.000Z");
     const html = await get("/");
-    if (!rowFor(html, "acme/fromcli").includes('<span class="sub">Added from CLI</span>')) {
+    if (
+      !rowFor(html, "acme/fromcli").includes(
+        '<span class="sub">Added from CLI</span>',
+      )
+    ) {
       throw new Error("the CLI repo is not labelled Added from CLI");
     }
     if (rowFor(html, "acme/widgets").includes("Added from CLI")) {
@@ -176,7 +196,11 @@ test("a repo built from the CLI says so in the list", async () => {
 test("Add repository carries the plus mark", async () => {
   await withSeed(async (get) => {
     const html = await get("/");
-    if (!/<a class="btn primary" href="\/repos\/new"><svg[^>]*><use href="#i-plus"><\/use><\/svg>Add repository<\/a>/.test(html)) {
+    if (
+      !/<a class="btn primary" href="\/repos\/new"><svg[^>]*><use href="#i-plus"><\/use><\/svg>Add repository<\/a>/.test(
+        html,
+      )
+    ) {
       throw new Error("Add repository has no plus icon");
     }
   });

@@ -34,13 +34,32 @@ export function renderAnalytics(
       byokKnownCount: sum.byokKnownCount + row.byokKnownCount,
       byokUnknownCount: sum.byokUnknownCount + row.byokUnknownCount,
     }),
-    { cost: 0, knownCount: 0, unknownCount: 0, byokUsd: 0, byokKnownCount: 0, byokUnknownCount: 0 },
+    {
+      cost: 0,
+      knownCount: 0,
+      unknownCount: 0,
+      byokUsd: 0,
+      byokKnownCount: 0,
+      byokUnknownCount: 0,
+    },
   );
   const kindRows: [string, string, string][] = [
     ["init / sync", String(data.setupRuns), "Not recorded"],
-    ["Pull request reviews", String(kind("posted").runs), formatCostTotal(kind("posted"))],
-    ["Not posted reviews", String(kind("not_posted").runs), formatCostTotal(kind("not_posted"))],
-    ["Failed attempts", String(kind("failed").runs), formatCostTotal(kind("failed"))],
+    [
+      "Pull request reviews",
+      String(kind("posted").runs),
+      formatCostTotal(kind("posted")),
+    ],
+    [
+      "Not posted reviews",
+      String(kind("not_posted").runs),
+      formatCostTotal(kind("not_posted")),
+    ],
+    [
+      "Failed attempts",
+      String(kind("failed").runs),
+      formatCostTotal(kind("failed")),
+    ],
     ["CLI reviews", String(kind("cli").runs), formatCostTotal(kind("cli"))],
   ];
   const byKind = `<table>
@@ -218,14 +237,17 @@ export function renderAnalytics(
     ${statCard({
       label: "Reviews",
       value: String(kind("posted").runs + kind("not_posted").runs),
-      hint: [
-        kind("failed").runs > 0
-          ? `${kind("failed").runs} failed ${kind("failed").runs === 1 ? "attempt" : "attempts"}`
-          : "",
-        kind("not_posted").runs > 0 ? `${kind("not_posted").runs} not posted` : "",
-      ]
-        .filter(Boolean)
-        .join(" · ") || undefined,
+      hint:
+        [
+          kind("failed").runs > 0
+            ? `${kind("failed").runs} failed ${kind("failed").runs === 1 ? "attempt" : "attempts"}`
+            : "",
+          kind("not_posted").runs > 0
+            ? `${kind("not_posted").runs} not posted`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" · ") || undefined,
       icon: "git-pull-request",
     })}
     ${statCard({

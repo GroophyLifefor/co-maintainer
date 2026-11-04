@@ -25,7 +25,10 @@ import {
 } from "../testing/runtime.ts";
 import { test } from "node:test";
 
-async function withEnv(fn: (root: string) => Promise<void>, open = true): Promise<void> {
+async function withEnv(
+  fn: (root: string) => Promise<void>,
+  open = true,
+): Promise<void> {
   const keys = ["CM_CONFIG_PATH", "CM_APP_DB", "CM_REPOS_DIR"];
   const original = keys.map((key) => getEnv(key));
   const root = tempDirSync();
@@ -55,7 +58,12 @@ test("registerCliRepo adds a missing repo once, from the CLI, with auto review o
     registerCliRepo("acme/cli");
     registerCliRepo("acme/cli");
     const row = getRepo("acme/cli");
-    if (!row || row.active !== 1 || row.added_from !== "cli" || row.auto_review !== 0) {
+    if (
+      !row ||
+      row.active !== 1 ||
+      row.added_from !== "cli" ||
+      row.auto_review !== 0
+    ) {
       throw new Error(JSON.stringify(row));
     }
   });
@@ -66,7 +74,11 @@ test("registerCliRepo leaves a repo the dashboard added alone", async () => {
     activateRepo("acme/dash", 9);
     registerCliRepo("acme/dash");
     const row = getRepo("acme/dash");
-    if (row?.added_from !== null || row.auto_review !== 1 || row.installation_id !== 9) {
+    if (
+      row?.added_from !== null ||
+      row.auto_review !== 1 ||
+      row.installation_id !== 9
+    ) {
       throw new Error(JSON.stringify(row));
     }
   });
@@ -78,13 +90,19 @@ test("serve finds built repos on disk once, and skips folders with no guide", as
     await mkdirPath(`${root}/repos/acme/empty`, { recursive: true });
     await writeTextFile(`${root}/repos/stray.txt`, "not a repo");
     const first = await discoverCliRepos();
-    if (first.join(",") !== "acme/built") throw new Error(`first: ${first.join(",")}`);
+    if (first.join(",") !== "acme/built")
+      throw new Error(`first: ${first.join(",")}`);
     const row = getRepo("acme/built");
-    if (row?.added_from !== "cli" || !row.knowledge_built_at || row.auto_review !== 0) {
+    if (
+      row?.added_from !== "cli" ||
+      !row.knowledge_built_at ||
+      row.auto_review !== 0
+    ) {
       throw new Error(JSON.stringify(row));
     }
     const second = await discoverCliRepos();
-    if (second.length !== 0) throw new Error(`second run added ${second.join(",")}`);
+    if (second.length !== 0)
+      throw new Error(`second run added ${second.join(",")}`);
   });
 });
 
@@ -121,13 +139,24 @@ test("a real CLI init registers its repo in app.db", async () => {
             : "## Section\\n\\n- Follow the repository convention.\\n";
         return new Response(
           JSON.stringify({
-            choices: [{ finish_reason: "stop", message: { role: "assistant", content: JSON.parse(`"${content}"`) } }],
+            choices: [
+              {
+                finish_reason: "stop",
+                message: {
+                  role: "assistant",
+                  content: JSON.parse(`"${content}"`),
+                },
+              },
+            ],
             usage: { prompt_tokens: 1, completion_tokens: 1, cost: 0 },
           }),
           { status: 200 },
         );
       }
-      return new Response(JSON.stringify({ default_branch: "main", full_name: repo }), { status: 200 });
+      return new Response(
+        JSON.stringify({ default_branch: "main", full_name: repo }),
+        { status: 200 },
+      );
     }) as unknown as typeof fetch;
     try {
       await writeUserConfig({

@@ -8,7 +8,16 @@ import {
   text,
   when,
 } from "./layout.ts";
-import { badge, crumb, dl, icon, pageHeader, section, statCard, type Tone } from "./ui.ts";
+import {
+  badge,
+  crumb,
+  dl,
+  icon,
+  pageHeader,
+  section,
+  statCard,
+  type Tone,
+} from "./ui.ts";
 import { formatCostTotal } from "./cost.ts";
 import { COMPARE_FILE_CAP, MAX_COMMITS_COUNTED } from "../../services/drift.ts";
 import type { repoOverview } from "../../services/dashboard.ts";
@@ -35,7 +44,9 @@ function severityName(level: string): string {
 }
 
 /** "1 high · 1 low", most severe first. */
-function severityHint(counts: { severity: string; findings: number }[]): string {
+function severityHint(
+  counts: { severity: string; findings: number }[],
+): string {
   return SEVERITY_LEGEND.map((entry) => {
     const n = counts.find((c) => c.severity === entry.level)?.findings ?? 0;
     return n > 0 ? `${n} ${entry.name.toLowerCase()}` : "";
@@ -49,7 +60,10 @@ function topSeverity(levels: string[]): string {
   const top = SEVERITY_LEGEND.find((entry) => levels.includes(entry.level));
   if (!top) return "";
   const n = levels.filter((level) => level === top.level).length;
-  return badge(SEVERITY_TONE[top.level] ?? "neutral", `${n} ${severityName(top.level)}`);
+  return badge(
+    SEVERITY_TONE[top.level] ?? "neutral",
+    `${n} ${severityName(top.level)}`,
+  );
 }
 
 function seconds(ms: number): string {
@@ -127,7 +141,10 @@ export function renderRepo(
       ? `${badge("emerald", "Receiving", { icon: "circle-check" })} <span class="muted" style="font-size:13px">Last webhook delivery: ${delivery}</span>`
       : `${badge("amber", "Not receiving", { icon: "triangle-alert" })} <span class="muted" style="font-size:13px">Last webhook delivery: ${delivery}</span>`;
   const how = dl([
-    { k: "Who", v: describePolicy(policyForRepo(data.repo)).map(text).join(" ") },
+    {
+      k: "Who",
+      v: describePolicy(policyForRepo(data.repo)).map(text).join(" "),
+    },
     {
       k: "Scope",
       v:
@@ -142,7 +159,9 @@ export function renderRepo(
   const lead = `${
     auto ? "Reviewing pull requests automatically" : "Automatic review is off"
   } · knowledge ${
-    data.repo.knowledge_built_at ? when(data.repo.knowledge_built_at) : "not built yet"
+    data.repo.knowledge_built_at
+      ? when(data.repo.knowledge_built_at)
+      : "not built yet"
   }`;
   const failedHint =
     stats.failed > 0

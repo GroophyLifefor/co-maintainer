@@ -128,7 +128,11 @@ async function patchRepo(
   } catch {
     json = undefined;
   }
-  return { status: response.status, json, html: await settingsPage(app, cookie) };
+  return {
+    status: response.status,
+    json,
+    html: await settingsPage(app, cookie),
+  };
 }
 
 function escapeRegExp(value: string): string {
@@ -203,7 +207,10 @@ function hasSelectedChoice(html: string, label: string): boolean {
     `<label[^>]*>[\\s\\S]{0,400}?${escaped}[\\s\\S]{0,400}?</label>`,
     "i",
   ).exec(html);
-  if (labelMatch && /<input[^>]*type="radio"[^>]*checked/i.test(labelMatch[0])) {
+  if (
+    labelMatch &&
+    /<input[^>]*type="radio"[^>]*checked/i.test(labelMatch[0])
+  ) {
     return true;
   }
   return new RegExp(
@@ -360,12 +367,24 @@ test("repo settings: a free OpenRouter model warns at AI 2 and above but not at 
       },
       repo: { aiConcurrent: 2 },
     });
-    if (!/Free OpenRouter models hit rate limits|free OpenRouter model is in use/i.test(atTwo)) {
-      throw new Error("AI 2 with a free OpenRouter model shows no free-model warning");
+    if (
+      !/Free OpenRouter models hit rate limits|free OpenRouter model is in use/i.test(
+        atTwo,
+      )
+    ) {
+      throw new Error(
+        "AI 2 with a free OpenRouter model shows no free-model warning",
+      );
     }
     const atOne = await pageWith({ repo: { aiConcurrent: 1 } });
-    if (/Free OpenRouter models hit rate limits|free OpenRouter model is in use/i.test(atOne)) {
-      throw new Error("AI 1 with a free OpenRouter model still shows the warning");
+    if (
+      /Free OpenRouter models hit rate limits|free OpenRouter model is in use/i.test(
+        atOne,
+      )
+    ) {
+      throw new Error(
+        "AI 1 with a free OpenRouter model still shows the warning",
+      );
     }
     const paid = await pageWith({
       user: {
@@ -375,7 +394,11 @@ test("repo settings: a free OpenRouter model warns at AI 2 and above but not at 
       },
       repo: { aiConcurrent: 8 },
     });
-    if (/Free OpenRouter models hit rate limits|free OpenRouter model is in use/i.test(paid)) {
+    if (
+      /Free OpenRouter models hit rate limits|free OpenRouter model is in use/i.test(
+        paid,
+      )
+    ) {
       throw new Error("a paid OpenRouter model shows the free-model warning");
     }
   });
@@ -387,12 +410,17 @@ test("repo settings: the provider ceiling warning appears only above the ceiling
       user: { ai: "openai", lowModel: "paid/low", highModel: "paid/high" },
       repo: { aiConcurrent: 5 },
     });
-    if (!/OpenAI/.test(speedArea(above)) || !/wait|slow/i.test(speedArea(above))) {
+    if (
+      !/OpenAI/.test(speedArea(above)) ||
+      !/wait|slow/i.test(speedArea(above))
+    ) {
       throw new Error("OpenAI at AI 5 shows no provider-ceiling warning");
     }
     const atCeiling = await pageWith({ repo: { aiConcurrent: 4 } });
     if (/OpenAI/.test(speedArea(atCeiling))) {
-      throw new Error("OpenAI at AI 4 still shows the provider-ceiling warning");
+      throw new Error(
+        "OpenAI at AI 4 still shows the provider-ceiling warning",
+      );
     }
     const openRouterAbove = await pageWith({
       user: {
@@ -502,7 +530,9 @@ test("repo settings: an invalid Custom schedule is rejected with a reason", asyn
     const body = result.json as { error?: { message?: string } } | undefined;
     const reason = body?.error?.message ?? "";
     if (!/cron|field|minute|hour/i.test(reason)) {
-      throw new Error(`the invalid cron has no usable reason: ${JSON.stringify(body)}`);
+      throw new Error(
+        `the invalid cron has no usable reason: ${JSON.stringify(body)}`,
+      );
     }
     const scheduled = between(result.html, "Scheduled sync", [
       "Danger",
@@ -545,13 +575,15 @@ test("repo settings: saving severity changes the real blocking mode", async () =
     if (mode !== "severity") {
       throw new Error(`the saved blocking mode is ${JSON.stringify(mode)}`);
     }
-    const blocking = between(result.html, "A finding blocks the pull request when", [
-      "Custom review instructions",
-      "What knowledge reads",
-      "Danger",
-    ]);
+    const blocking = between(
+      result.html,
+      "A finding blocks the pull request when",
+      ["Custom review instructions", "What knowledge reads", "Danger"],
+    );
     if (!hasSelectedChoice(blocking, "Severity is Critical or High")) {
-      throw new Error("the page does not show severity as the saved blocking mode");
+      throw new Error(
+        "the page does not show severity as the saved blocking mode",
+      );
     }
   });
 });
@@ -602,17 +634,15 @@ test("repo settings: saving Trusted authors persists the real policy", async () 
 test("repo settings: the section titles are How reviews run, What knowledge reads and Danger", async () => {
   await withEnv(async () => {
     const html = await pageWith({});
-    for (const title of [
-      "How reviews run",
-      "What knowledge reads",
-      "Danger",
-    ]) {
+    for (const title of ["How reviews run", "What knowledge reads", "Danger"]) {
       const heading = new RegExp(
         `<h2[^>]*>[\\s\\S]{0,200}?${escapeRegExp(title)}[\\s\\S]{0,200}?</h2>`,
         "i",
       );
       if (!heading.test(html)) {
-        throw new Error(`the section title ${JSON.stringify(title)} is missing`);
+        throw new Error(
+          `the section title ${JSON.stringify(title)} is missing`,
+        );
       }
     }
   });
@@ -623,11 +653,15 @@ test("repo settings: one Save changes footer and a Reset to defaults control", a
     const html = await pageWith({});
     const saveChanges = (html.match(/>\s*Save changes\s*</g) ?? []).length;
     if (saveChanges !== 1) {
-      throw new Error(`the page has ${saveChanges} Save changes controls, want 1`);
+      throw new Error(
+        `the page has ${saveChanges} Save changes controls, want 1`,
+      );
     }
     const reset = (html.match(/>\s*Reset to defaults\s*</g) ?? []).length;
     if (reset !== 1) {
-      throw new Error(`the page has ${reset} Reset to defaults controls, want 1`);
+      throw new Error(
+        `the page has ${reset} Reset to defaults controls, want 1`,
+      );
     }
   });
 });

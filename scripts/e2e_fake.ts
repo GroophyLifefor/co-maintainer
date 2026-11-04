@@ -7,28 +7,29 @@
  */
 import { commandOutput, envToObject } from "../src/util/runtime.ts";
 
-const steps: { name: string; args: string[]; env?: Record<string, string> }[] = [
-  {
-    name: "unit and integration",
-    args: [
-      "--test",
-      "src/**/*.test.ts",
-      "scripts/**/*.test.ts",
-      "benchmark/**/*.test.ts",
-    ],
-  },
-  { name: "local review e2e", args: ["scripts/review_local_e2e.ts"] },
-  {
-    name: "dashboard smoke",
-    args: ["scripts/dashboard_smoke.ts"],
-    env: { CM_FAKE_AI: "1" },
-  },
-  {
-    name: "palette smoke",
-    args: ["scripts/palette_smoke.ts"],
-    env: { CM_FAKE_AI: "1" },
-  },
-];
+const steps: { name: string; args: string[]; env?: Record<string, string> }[] =
+  [
+    {
+      name: "unit and integration",
+      args: [
+        "--test",
+        "src/**/*.test.ts",
+        "scripts/**/*.test.ts",
+        "benchmark/**/*.test.ts",
+      ],
+    },
+    { name: "local review e2e", args: ["scripts/review_local_e2e.ts"] },
+    {
+      name: "dashboard smoke",
+      args: ["scripts/dashboard_smoke.ts"],
+      env: { CM_FAKE_AI: "1" },
+    },
+    {
+      name: "palette smoke",
+      args: ["scripts/palette_smoke.ts"],
+      env: { CM_FAKE_AI: "1" },
+    },
+  ];
 
 let failed = false;
 

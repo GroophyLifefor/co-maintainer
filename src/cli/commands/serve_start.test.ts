@@ -4,13 +4,21 @@
  * machine's real config or databases. */
 import { createServer, type Server } from "node:net";
 import { join } from "node:path";
-import { commandOutput, commandSpawn, makeTempDir, remove } from "../../util/runtime.ts";
+import {
+  commandOutput,
+  commandSpawn,
+  makeTempDir,
+  remove,
+} from "../../util/runtime.ts";
 import { runtimeExecPath, runtimeRunArgs } from "../../testing/runtime.ts";
 import { test } from "node:test";
 
 const ROOT = join(import.meta.dirname, "..", "..", "..");
 
-async function sandbox(): Promise<{ dir: string; env: Record<string, string | undefined> }> {
+async function sandbox(): Promise<{
+  dir: string;
+  env: Record<string, string | undefined>;
+}> {
   const dir = await makeTempDir({ prefix: "cm-serve-start-" });
   return {
     dir,
@@ -34,7 +42,10 @@ function hold(): Promise<{ server: Server; port: number }> {
     server.on("error", reject);
     server.listen(0, () => {
       const address = server.address();
-      resolve({ server, port: typeof address === "object" && address ? address.port : 0 });
+      resolve({
+        server,
+        port: typeof address === "object" && address ? address.port : 0,
+      });
     });
   });
 }
@@ -44,7 +55,11 @@ test("a busy port fails with one clear error and never says listening", async ()
   const busy = await hold();
   try {
     const result = await commandOutput(runtimeExecPath(), {
-      args: runtimeRunArgs("main.ts", ["serve", `--port=${busy.port}`, "--password=serve-start-pass"]),
+      args: runtimeRunArgs("main.ts", [
+        "serve",
+        `--port=${busy.port}`,
+        "--password=serve-start-pass",
+      ]),
       cwd: ROOT,
       env,
       stdout: "piped",
@@ -56,7 +71,9 @@ test("a busy port fails with one clear error and never says listening", async ()
     if (out.includes("listening") || out.includes("dashboard at")) {
       throw new Error(`serve claimed to listen on a busy port:\n${out}`);
     }
-    const lines = err.split("\n").filter((line) => line.includes(String(busy.port)));
+    const lines = err
+      .split("\n")
+      .filter((line) => line.includes(String(busy.port)));
     if (lines.length !== 1 || !/already in use/.test(lines[0]!)) {
       throw new Error(`want one "already in use" line, got:\n${err}`);
     }
@@ -73,7 +90,11 @@ test("a fresh install prints the /setup address on the chosen port after it list
   const port = free.port;
   await new Promise<void>((resolve) => free.server.close(() => resolve()));
   const serve = commandSpawn(runtimeExecPath(), {
-    args: runtimeRunArgs("main.ts", ["serve", `--port=${port}`, "--password=serve-start-pass"]),
+    args: runtimeRunArgs("main.ts", [
+      "serve",
+      `--port=${port}`,
+      "--password=serve-start-pass",
+    ]),
     cwd: ROOT,
     env,
     stdout: "piped",
@@ -100,5 +121,6 @@ test("a fresh install prints the /setup address on the chosen port after it list
   const setup = out.indexOf(`finish setup at http://localhost:${port}/setup`);
   if (listening < 0) throw new Error(`no listening line:\n${out}`);
   if (setup < 0) throw new Error(`no /setup address on port ${port}:\n${out}`);
-  if (out.includes("serve-start-pass")) throw new Error("the given password was echoed");
+  if (out.includes("serve-start-pass"))
+    throw new Error("the given password was echoed");
 });

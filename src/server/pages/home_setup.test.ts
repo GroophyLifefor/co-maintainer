@@ -46,20 +46,27 @@ async function page(
       redirect: "manual",
     }),
   );
-  const token = (login.headers.get("set-cookie") ?? "").match(/^cm=([^;]+)/)?.[1];
+  const token = (login.headers.get("set-cookie") ?? "").match(
+    /^cm=([^;]+)/,
+  )?.[1];
   if (!token) throw new Error("no session cookie");
   return (
     await app.fetch(
-      new Request(`http://localhost${path}`, { headers: { cookie: `cm=${token}` } }),
+      new Request(`http://localhost${path}`, {
+        headers: { cookie: `cm=${token}` },
+      }),
     )
   ).text();
 }
 
 /** Home "n/4 done" and /setup "n of 4 done" must come from one count. */
-async function counts(webhookUrl: string): Promise<{ home: string; setup: string }> {
+async function counts(
+  webhookUrl: string,
+): Promise<{ home: string; setup: string }> {
   const app = createApp({ password: PASSWORD, webhookUrl });
   const home = (await page(app, "/")).match(/(\d)\/4 done/)?.[1] ?? "none";
-  const setup = (await page(app, "/setup")).match(/(\d) of 4 done/)?.[1] ?? "none";
+  const setup =
+    (await page(app, "/setup")).match(/(\d) of 4 done/)?.[1] ?? "none";
   return { home, setup };
 }
 
@@ -100,7 +107,8 @@ test("/setup lists the four required steps and keeps optional ones out", async (
       if (!html.includes(title)) throw new Error(`missing step: ${title}`);
     }
     for (const optional of ["CLI connected", "First review"]) {
-      if (html.includes(optional)) throw new Error(`optional step counted: ${optional}`);
+      if (html.includes(optional))
+        throw new Error(`optional step counted: ${optional}`);
     }
   });
 });

@@ -796,7 +796,9 @@ function settingsPage(
 ): Response {
   const host = hostOf(baseUrl);
   const cards = sections
-    .map((section) => cardForSection(section, config, webhookUrl, host, runtime))
+    .map((section) =>
+      cardForSection(section, config, webhookUrl, host, runtime),
+    )
     .join("");
   const about = sections.includes("server") || combined ? aboutCard() : "";
   const fragment = combined

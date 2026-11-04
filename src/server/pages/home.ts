@@ -1,4 +1,12 @@
-import { empty, html, layout, layoutFocus, skSlot, text, when } from "./layout.ts";
+import {
+  empty,
+  html,
+  layout,
+  layoutFocus,
+  skSlot,
+  text,
+  when,
+} from "./layout.ts";
 import type { SetupItem } from "../../services/setup_checklist.ts";
 import { alert, badge, icon, segmented } from "./ui.ts";
 import type { RepoState } from "../../services/repo_list.ts";
@@ -104,19 +112,32 @@ export function renderHome(
     const query = params.toString();
     return query ? `/?${query}` : "/";
   };
-  const current = filter.status === "reviewing" || filter.status === "paused"
-    ? filter.status
-    : "all";
+  const current =
+    filter.status === "reviewing" || filter.status === "paused"
+      ? filter.status
+      : "all";
   const filters = `<div class="filters">
     <form class="sbox" method="get" action="/" role="search">${icon("search")}<input class="inp" type="search" name="q" value="${text(
       filter.q,
     )}" placeholder="Search repositories" aria-label="Search repositories">${
-      current === "all" ? "" : `<input type="hidden" name="status" value="${current}">`
+      current === "all"
+        ? ""
+        : `<input type="hidden" name="status" value="${current}">`
     }</form>
     ${segmented([
       { label: "All", href: tabHref("all"), on: current === "all" },
-      { label: "Reviewing", icon: "circle-check", href: tabHref("reviewing"), on: current === "reviewing" },
-      { label: "Paused", icon: "circle-pause", href: tabHref("paused"), on: current === "paused" },
+      {
+        label: "Reviewing",
+        icon: "circle-check",
+        href: tabHref("reviewing"),
+        on: current === "reviewing",
+      },
+      {
+        label: "Paused",
+        icon: "circle-pause",
+        href: tabHref("paused"),
+        on: current === "paused",
+      },
     ])}
   </div>`;
   const body =
@@ -154,7 +175,9 @@ export function renderHome(
                 : ""
             }</td>
             <td class="num">${text(row.reviews)}${
-              row.failed > 0 ? `<span class="sub">${row.failed} failed</span>` : ""
+              row.failed > 0
+                ? `<span class="sub">${row.failed} failed</span>`
+                : ""
             }</td>
             <td class="num">${text(row.cost)}</td>
             <td class="num"><a class="btn out sm" href="/repos/${text(row.fullName)}">Open${icon(

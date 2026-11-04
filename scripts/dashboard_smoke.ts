@@ -23,11 +23,7 @@ import { createServer } from "node:net";
 import { join } from "node:path";
 import { chromium } from "playwright";
 import { openAppDb, closeAppDb } from "../src/store/app_db.ts";
-import {
-  readConfig,
-  writeRepoConfig,
-  writeUserConfig,
-} from "../src/config.ts";
+import { readConfig, writeRepoConfig, writeUserConfig } from "../src/config.ts";
 import { parseRemakeCron } from "../src/services/remake_cron.ts";
 import { activateRepo, markKnowledgeBuilt } from "../src/store/repos.ts";
 import { insertReview, setReviewStatus } from "../src/store/reviews.ts";
@@ -501,7 +497,11 @@ async function checkRepoSettingsVision(
   if ((await ghSeg.count()) === 0) {
     add("the Speed card has no GitHub concurrency segment");
   } else {
-    const selected = await ghSeg.locator("button.on").first().innerText().catch(() => "");
+    const selected = await ghSeg
+      .locator("button.on")
+      .first()
+      .innerText()
+      .catch(() => "");
     if (!selected.trim().startsWith("8")) {
       add(`the GitHub segment shows ${JSON.stringify(selected)}, want 8`);
     }
@@ -509,7 +509,11 @@ async function checkRepoSettingsVision(
   if ((await aiSeg.count()) === 0) {
     add("the Speed card has no AI concurrency segment");
   } else {
-    const selected = await aiSeg.locator("button.on").first().innerText().catch(() => "");
+    const selected = await aiSeg
+      .locator("button.on")
+      .first()
+      .innerText()
+      .catch(() => "");
     if (!selected.trim().startsWith("6")) {
       add(`the AI segment shows ${JSON.stringify(selected)}, want 6`);
     }
@@ -517,8 +521,13 @@ async function checkRepoSettingsVision(
   if (!/Overridden/i.test(text)) {
     add("the Speed card has no Overridden badge");
   }
-  if (!text.includes("--gh-concurrent=8") || !text.includes("--ai-concurrent=6")) {
-    add("the Speed card's CLI equivalent does not show --gh-concurrent=8 --ai-concurrent=6");
+  if (
+    !text.includes("--gh-concurrent=8") ||
+    !text.includes("--ai-concurrent=6")
+  ) {
+    add(
+      "the Speed card's CLI equivalent does not show --gh-concurrent=8 --ai-concurrent=6",
+    );
   }
 
   const useRecommended = page.getByRole("button", { name: /Use recommended/i });
@@ -558,9 +567,15 @@ async function checkRepoSettingsVision(
     }
     await open();
     if ((await ghSeg.count()) > 0) {
-      const selected = await ghSeg.locator("button.on").first().innerText().catch(() => "");
+      const selected = await ghSeg
+        .locator("button.on")
+        .first()
+        .innerText()
+        .catch(() => "");
       if (!selected.trim().startsWith("2")) {
-        add(`after Reset the GitHub segment shows ${JSON.stringify(selected)}, want the default 2`);
+        add(
+          `after Reset the GitHub segment shows ${JSON.stringify(selected)}, want the default 2`,
+        );
       }
     }
   }
@@ -570,11 +585,18 @@ async function checkRepoSettingsVision(
     add("Scheduled sync has no Off/Daily/Weekly/Custom segment");
   } else {
     for (const label of ["Off", "Daily", "Weekly", "Custom"]) {
-      if ((await scheduled.getByRole("button", { name: label, exact: true }).count()) === 0) {
+      if (
+        (await scheduled
+          .getByRole("button", { name: label, exact: true })
+          .count()) === 0
+      ) {
         add(`Scheduled sync has no ${label} choice`);
       }
     }
-    const custom = scheduled.getByRole("button", { name: "Custom", exact: true });
+    const custom = scheduled.getByRole("button", {
+      name: "Custom",
+      exact: true,
+    });
     const cron = page.locator("#cron");
     if ((await custom.count()) === 1 && (await cron.count()) === 1) {
       await custom.click();
@@ -624,9 +646,7 @@ async function checkRepoSettingsVision(
           exact: true,
         });
         if (
-          !(await selectedClass(selectedWeekly))
-            .split(/\s+/)
-            .includes("on")
+          !(await selectedClass(selectedWeekly)).split(/\s+/).includes("on")
         ) {
           add("the saved Weekly schedule is not selected after reload");
         }
@@ -670,9 +690,7 @@ async function checkRepoSettingsVision(
         name: "Severity is Critical or High",
         exact: true,
       });
-    if (
-      !(await selectedClass(selectedSeverity)).split(/\s+/).includes("on")
-    ) {
+    if (!(await selectedClass(selectedSeverity)).split(/\s+/).includes("on")) {
       add("the saved severity blocking mode is not selected after reload");
     }
   }
@@ -730,7 +748,10 @@ async function checkRepoSettingsVision(
   const checkedButton = reloadedPolicy.locator(
     'button.on:has-text("Trusted authors")',
   );
-  if ((await checkedRadio.count()) === 0 && (await checkedButton.count()) === 0) {
+  if (
+    (await checkedRadio.count()) === 0 &&
+    (await checkedButton.count()) === 0
+  ) {
     add("the saved Trusted authors policy is not selected after reload");
   }
 
@@ -778,10 +799,7 @@ async function checkRepoSettingsVision(
 
 try {
   await mkdir(`${env.CM_REPOS_DIR}/${REPO}`, { recursive: true });
-  await writeTextFile(
-    `${env.CM_REPOS_DIR}/${REPO}/PR_REVIEW_GUIDE.md`,
-    GUIDE,
-  );
+  await writeTextFile(`${env.CM_REPOS_DIR}/${REPO}/PR_REVIEW_GUIDE.md`, GUIDE);
   await writeUserConfig({ auth: "gh", ai: "none" });
   await openAppDb();
   try {
@@ -1006,7 +1024,9 @@ try {
           });
         }
       }
-      await page.evaluate(() => document.documentElement.classList.remove("dark"));
+      await page.evaluate(() =>
+        document.documentElement.classList.remove("dark"),
+      );
     };
     // One listener for the whole run, plus a per-navigation set of failed
     // requests so each page is judged on its own.
@@ -1231,7 +1251,10 @@ try {
     let sawSavedLimit = true;
     try {
       await page.waitForFunction(
-        () => (document.querySelector("#toasts")?.textContent ?? "").includes("Saved"),
+        () =>
+          (document.querySelector("#toasts")?.textContent ?? "").includes(
+            "Saved",
+          ),
         null,
         { timeout: 3000 },
       );
@@ -1263,9 +1286,7 @@ try {
     await sleep(300);
     const docState = await page.evaluate(() => {
       const source = document.querySelector('[data-doc-source="guide"]');
-      const download = document.querySelector(
-        'a[data-doc-download="guide"]',
-      );
+      const download = document.querySelector('a[data-doc-download="guide"]');
       return {
         markdown: Boolean(document.querySelector(".markdown")),
         heading: document.querySelector(".markdown h2")?.textContent ?? "",
@@ -1838,7 +1859,6 @@ try {
     await page.goto(`${base}/activity/${RUN_JOB}`, { waitUntil: "load" });
     await sleep(500);
 
-
     const panel = page.locator(".logpanel");
     if ((await panel.count()) !== 1) {
       throw new Error("the running job page has no log panel");
@@ -2110,7 +2130,9 @@ try {
     await page.evaluate(() => document.documentElement.classList.add("dark"));
     await sleep(150);
     const darkContrast = await contrast();
-    await page.evaluate(() => document.documentElement.classList.remove("dark"));
+    await page.evaluate(() =>
+      document.documentElement.classList.remove("dark"),
+    );
     for (const [theme, values] of [
       ["light", lightContrast],
       ["dark", darkContrast],
@@ -2167,8 +2189,8 @@ try {
           );
           return Boolean(
             extract &&
-              extract.getAttribute("data-stage-state") === "current" &&
-              document.body.innerText.includes("$0.02"),
+            extract.getAttribute("data-stage-state") === "current" &&
+            document.body.innerText.includes("$0.02"),
           );
         },
         null,
@@ -2236,9 +2258,9 @@ try {
           const panel = document.querySelector(".logpanel");
           return Boolean(
             panel &&
-              /connection (lost|error|problem)|could not (connect|refresh)|reconnecting/i.test(
-                panel.textContent ?? "",
-              ),
+            /connection (lost|error|problem)|could not (connect|refresh)|reconnecting/i.test(
+              panel.textContent ?? "",
+            ),
           );
         },
         null,
@@ -2403,10 +2425,7 @@ try {
         }
       }
       const want = expectedActive(finalPath);
-      if (
-        want &&
-        !(shell.active.length === 1 && shell.active[0] === want)
-      ) {
+      if (want && !(shell.active.length === 1 && shell.active[0] === want)) {
         issues.push({
           path,
           kind: "text",
@@ -2498,7 +2517,11 @@ try {
         };
       });
       if (!inside.hasSide) {
-        issues.push({ path: "/404", kind: "text", text: "404 outside the shell" });
+        issues.push({
+          path: "/404",
+          kind: "text",
+          text: "404 outside the shell",
+        });
       }
       if (!inside.hasHeading) {
         issues.push({
@@ -2551,7 +2574,11 @@ try {
       await page.click("#menu");
       await sleep(200);
       if (!(await drawerOpen())) {
-        issues.push({ path: "/", kind: "text", text: "the drawer did not open" });
+        issues.push({
+          path: "/",
+          kind: "text",
+          text: "the drawer did not open",
+        });
       }
       if ((await page.locator("#overlay").count()) === 1) {
         await page.click("#overlay");
@@ -2762,16 +2789,10 @@ try {
         // Error path: the card keeps the typed value and does not reload.
         await page.goto(`${base}${path}`, { waitUntil: "load" });
         await sleep(200);
-        const errorCard = page
-          .locator("[data-async]")
-          .nth(target.cardIndex);
-        const errorButton = errorCard
-          .locator("button")
-          .nth(target.buttonIndex);
+        const errorCard = page.locator("[data-async]").nth(target.cardIndex);
+        const errorButton = errorCard.locator("button").nth(target.buttonIndex);
         let control = errorCard
-          .locator(
-            'input:not([type="checkbox"]):not([type="radio"]), textarea',
-          )
+          .locator('input:not([type="checkbox"]):not([type="radio"]), textarea')
           .first();
         let controlTag = await control
           .evaluate((el) => el.tagName.toLowerCase())

@@ -208,8 +208,9 @@ export async function handlePageRequest(
           q,
           status,
           total: all.length,
-          reviewing: all.filter((item) => repoState(item, ready) === "reviewing")
-            .length,
+          reviewing: all.filter(
+            (item) => repoState(item, ready) === "reviewing",
+          ).length,
         },
       );
     }

@@ -19,7 +19,11 @@ const PAGES: SearchItem[] = [
   { label: "Setup", href: "/setup", icon: "list-checks" },
   { label: "AI models", href: "/settings/ai", icon: "sparkles" },
   { label: "GitHub", href: "/settings/github", icon: "github" },
-  { label: "Review defaults", href: "/settings/defaults", icon: "sliders-horizontal" },
+  {
+    label: "Review defaults",
+    href: "/settings/defaults",
+    icon: "sliders-horizontal",
+  },
   { label: "Remote access", href: "/settings/remote", icon: "key-round" },
   { label: "Server", href: "/settings/server", icon: "server" },
   { label: "Sign-in", href: "/settings/sign-in", icon: "shield-check" },
@@ -28,7 +32,11 @@ const PAGES: SearchItem[] = [
 
 const ACTIONS: SearchItem[] = [
   { label: "Add repository", href: "/repos/new", icon: "plus" },
-  { label: "Create a remote token", href: "/settings/remote", icon: "key-round" },
+  {
+    label: "Create a remote token",
+    href: "/settings/remote",
+    icon: "key-round",
+  },
   { label: "Change AI model", href: "/settings/ai", icon: "sparkles" },
 ];
 
@@ -72,7 +80,10 @@ export function searchAll(query: string): SearchResult {
       { label: "Pages", items: PAGES.filter((item) => matches(item.label)) },
       { label: "Repositories", items: repos },
       { label: "Pull requests", items: pulls },
-      { label: "Actions", items: ACTIONS.filter((item) => matches(item.label)) },
+      {
+        label: "Actions",
+        items: ACTIONS.filter((item) => matches(item.label)),
+      },
     ].filter((group) => group.items.length > 0),
   };
 }

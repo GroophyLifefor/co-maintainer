@@ -10,7 +10,13 @@ import { listFindingsForReview } from "../store/findings.ts";
 import { GitHubHttpError } from "../github/client.ts";
 import { FakeAiProvider } from "../ai/fake.ts";
 import { enqueueManualReview, runReviewJob } from "./review.ts";
-import type { AiProvider, AiRequest, AiResponse, GitHubClient, Json } from "../types.ts";
+import type {
+  AiProvider,
+  AiRequest,
+  AiResponse,
+  GitHubClient,
+  Json,
+} from "../types.ts";
 import type { JobRow } from "../store/rows.ts";
 import {
   deleteEnv,
@@ -126,9 +132,7 @@ class FakeGithub implements GitHubClient {
 }
 
 function noteCreates(github: FakeGithub) {
-  return github.writes.filter((w) =>
-    /\/issues\/1\/comments$/.test(w.endpoint),
-  );
+  return github.writes.filter((w) => /\/issues\/1\/comments$/.test(w.endpoint));
 }
 
 function noteEdits(github: FakeGithub) {
@@ -194,7 +198,9 @@ test("an empty AI answer is recorded as a failed review, not a successful review
     if (reviewStats(sinceIso(), "acme/widgets").failed !== 1) {
       throw new Error("the failed attempt did not reach the failed tally");
     }
-    if (listReviewsForPr("acme/widgets", 1).some((row) => row.status === "posted")) {
+    if (
+      listReviewsForPr("acme/widgets", 1).some((row) => row.status === "posted")
+    ) {
       throw new Error("an empty answer was counted as a posted review");
     }
   });
@@ -208,12 +214,16 @@ test("the provider's own error message is preserved on the failed attempt", asyn
       new ThrowingProvider("reasoning budget exhausted"),
     );
     if (!error.message.includes("reasoning budget exhausted")) {
-      throw new Error(`the failure result dropped the reason: ${error.message}`);
+      throw new Error(
+        `the failure result dropped the reason: ${error.message}`,
+      );
     }
     const review = getReviewByJobId("job-rev");
     const result = `${error.message} ${review?.status ?? ""}`;
     if (!result.includes("reasoning budget exhausted")) {
-      throw new Error(`the failure result does not carry the reason: ${result}`);
+      throw new Error(
+        `the failure result does not carry the reason: ${result}`,
+      );
     }
     if (review?.status !== "failed") {
       throw new Error(`the attempt is not failed: ${review?.status}`);
@@ -277,7 +287,9 @@ test("retrying the same push starts a new attempt without a second PR note, and 
     }
     const retryReview = getReviewByJobId(retry.id);
     if (retryReview?.head_sha !== "head1") {
-      throw new Error(`the retry is not the same push: ${retryReview?.head_sha}`);
+      throw new Error(
+        `the retry is not the same push: ${retryReview?.head_sha}`,
+      );
     }
     if (noteCreates(github).length !== 1) {
       throw new Error("the retry opened a second PR note");
@@ -348,7 +360,10 @@ test("the failed attempt cost is recorded and an unknown cost is not stored as z
 test("a GitHub 403 on the review post keeps the AI result and cost, marks the review not posted, and posts no note claiming it was posted", async () => {
   await withEnv(async () => {
     const github = new FakeGithub();
-    github.reviewWriteError = new GitHubHttpError(403, "Resource not accessible");
+    github.reviewWriteError = new GitHubHttpError(
+      403,
+      "Resource not accessible",
+    );
     let threw = false;
     try {
       await runReviewJob(seed(), () => {}, github, new FakeAiProvider());
@@ -377,7 +392,9 @@ test("a GitHub 403 on the review post keeps the AI result and cost, marks the re
     }
     for (const write of noteCreates(github)) {
       if (/reviewed this push/i.test(noteBody(write))) {
-        throw new Error(`a PR note claimed the review was posted: ${noteBody(write)}`);
+        throw new Error(
+          `a PR note claimed the review was posted: ${noteBody(write)}`,
+        );
       }
     }
   });

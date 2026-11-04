@@ -419,12 +419,9 @@ function startLogPanel(panel) {
     live = false;
     panel.setAttribute("data-live", "0");
     baseStatus =
-      next === "failed"
-        ? "Failed"
-        : next === "canceled"
-          ? "Canceled"
-          : "Done";
-    baseClass = next === "failed" ? "failed" : next === "canceled" ? "warn" : "done";
+      next === "failed" ? "Failed" : next === "canceled" ? "Canceled" : "Done";
+    baseClass =
+      next === "failed" ? "failed" : next === "canceled" ? "warn" : "done";
     panel.setAttribute("data-status", baseStatus);
     if (!paused && status) {
       status.className = "st " + baseClass;

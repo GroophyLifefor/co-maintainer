@@ -212,8 +212,7 @@ export function skSlot(kind: "table" | "block" = "block"): string {
 /** Runs in `<head>` before first paint: a remembered dark theme is applied to
  * `<html>` before the stylesheet can flash the light background. Kept inline
  * and synchronous on purpose. */
-const THEME_BOOTSTRAP =
-  `try{if(localStorage.getItem("theme")==="dark"){document.documentElement.classList.add("dark")}}catch(e){}`;
+const THEME_BOOTSTRAP = `try{if(localStorage.getItem("theme")==="dark"){document.documentElement.classList.add("dark")}}catch(e){}`;
 
 function ico(name: string): string {
   return `<svg class="ic" aria-hidden="true"><use href="#i-${escapeHtml(
@@ -250,7 +249,11 @@ const NAV_GROUPS: {
       { href: "/settings/remote", label: "Remote access", icon: "key-round" },
       { href: "/settings/server", label: "Server", icon: "server" },
       { href: "/settings/sign-in", label: "Sign-in", icon: "shield-check" },
-      { href: "/settings/danger", label: "Danger zone", icon: "triangle-alert" },
+      {
+        href: "/settings/danger",
+        label: "Danger zone",
+        icon: "triangle-alert",
+      },
     ],
   },
 ];
@@ -282,7 +285,8 @@ function navBadge(href: string, counts: NavCounts | undefined): string {
   if (href === "/activity" && counts.failed > 0) {
     return `<span class="r fail-count">${counts.failed} failed</span>`;
   }
-  if (href === "/setup") return `<span class="r tnum">${text(counts.setup)}</span>`;
+  if (href === "/setup")
+    return `<span class="r tnum">${text(counts.setup)}</span>`;
   return "";
 }
 

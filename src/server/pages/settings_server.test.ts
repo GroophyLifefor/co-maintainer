@@ -65,7 +65,9 @@ async function waitForServer(url: string, timeoutMs: number): Promise<void> {
 
 /** Start the real CLI, not a hand-built app, so the port, trust-proxy flag and
  * data directory come from the same code path an operator runs. */
-async function startServe(options: { trustProxy: boolean }): Promise<RunningServer> {
+async function startServe(options: {
+  trustProxy: boolean;
+}): Promise<RunningServer> {
   const sandbox = await makeTempDir({ prefix: "cm-settings-server-" });
   const port = await freePort();
   const env: Record<string, string> = {};
@@ -223,7 +225,9 @@ function inputValue(html: string, id: string): string | undefined {
   return /value="([^"]*)"/.exec(tag)?.[1];
 }
 
-async function cookieSession(app: ReturnType<typeof createApp>): Promise<string> {
+async function cookieSession(
+  app: ReturnType<typeof createApp>,
+): Promise<string> {
   const response = await app.fetch(
     new Request("http://localhost/login", {
       method: "POST",
@@ -232,7 +236,8 @@ async function cookieSession(app: ReturnType<typeof createApp>): Promise<string>
       redirect: "manual",
     }),
   );
-  if (response.status !== 303) throw new Error(`login status ${response.status}`);
+  if (response.status !== 303)
+    throw new Error(`login status ${response.status}`);
   const token = response.headers.get("set-cookie")?.match(/^cm=([^;]+)/)?.[1];
   if (!token) throw new Error("the login response set no session cookie");
   return `cm=${token}`;
@@ -286,7 +291,9 @@ test("the server page shows the live version, port, trust-proxy state and data d
     const trustedData = rowValue(trustedHtml, "Data");
     const plainData = rowValue(plainHtml, "Data");
     if (trustedData === plainData) {
-      throw new Error("two different runtimes rendered the same data directory");
+      throw new Error(
+        "two different runtimes rendered the same data directory",
+      );
     }
   } finally {
     if (plain) await plain.stop();
@@ -370,7 +377,9 @@ test("an invalid server limit is rejected by the API and a valid save round-trip
       throw new Error("the server page lost the job limit field");
     }
     if (!pageHtml.includes("must be a positive whole number")) {
-      throw new Error("the server page has no visible reason for an invalid value");
+      throw new Error(
+        "the server page has no visible reason for an invalid value",
+      );
     }
 
     const valid = await put({
@@ -395,7 +404,9 @@ test("an invalid server limit is rejected by the API and a valid save round-trip
       saved.maxConcurrentRemoteReviewsPerToken !== 3 ||
       saved.remoteToolOutputMaxChars !== 900
     ) {
-      throw new Error(`the API did not keep the saved limits: ${JSON.stringify(saved)}`);
+      throw new Error(
+        `the API did not keep the saved limits: ${JSON.stringify(saved)}`,
+      );
     }
 
     const after = await app.fetch(

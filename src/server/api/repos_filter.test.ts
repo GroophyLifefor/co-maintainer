@@ -16,7 +16,9 @@ import { test } from "node:test";
 
 const PASSWORD = "repos-filter-test";
 
-async function withSeed(fn: (get: (path: string) => Promise<unknown>) => Promise<void>) {
+async function withSeed(
+  fn: (get: (path: string) => Promise<unknown>) => Promise<void>,
+) {
   const keys = ["CM_APP_DB", "CM_CONFIG_PATH"];
   const original = keys.map((key) => getEnv(key));
   setEnv("CM_CONFIG_PATH", `${tempDirSync()}/config.json`);

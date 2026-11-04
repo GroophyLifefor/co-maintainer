@@ -391,11 +391,7 @@ test("failed job page shows the real reason, the PR note status and a retry that
     });
     appendLog("job-failed", "info", "reviewing acme/widgets#7");
     appendLog("job-failed", "dim", "AI request · prompt=6524 chars");
-    appendLog(
-      "job-failed",
-      "error",
-      "openrouter returned an empty review",
-    );
+    appendLog("job-failed", "error", "openrouter returned an empty review");
 
     const app = createApp({ password: PASSWORD });
     const cookie = await cookieSession(app);
@@ -417,11 +413,7 @@ test("failed job page shows the real reason, the PR note status and a retry that
     if (!visible.includes("Retry with the same model")) {
       throw new Error("failed page missed the retry that starts a new attempt");
     }
-    if (
-      !html.includes(
-        'data-post="/api/repos/acme/widgets/pulls/7/review"',
-      )
-    ) {
+    if (!html.includes('data-post="/api/repos/acme/widgets/pulls/7/review"')) {
       throw new Error("the retry does not post a new review attempt");
     }
     if (!visible.includes("3 lines")) {
@@ -463,7 +455,11 @@ test("failed job page does not claim a note was posted when none was", async () 
     setJobStatus("job-failed-no-note", "failed", {
       error: "reasoning budget exhausted",
     });
-    appendLog("job-failed-no-note", "error", "openrouter returned an empty review");
+    appendLog(
+      "job-failed-no-note",
+      "error",
+      "openrouter returned an empty review",
+    );
 
     const app = createApp({ password: PASSWORD });
     const cookie = await cookieSession(app);
@@ -508,7 +504,11 @@ test("running job page with no log lines says the log is empty", async () => {
     if (!visible.includes("0 lines")) {
       throw new Error("the empty log panel does not report 0 lines");
     }
-    if (!/no log lines yet|waiting for log lines|nothing has been logged yet/i.test(visible)) {
+    if (
+      !/no log lines yet|waiting for log lines|nothing has been logged yet/i.test(
+        visible,
+      )
+    ) {
       throw new Error("the empty log panel has no explanation");
     }
   });
@@ -602,7 +602,11 @@ test("done job page does not promise automatic review when no GitHub App is conf
   await withEnv(async () => {
     seedRepo();
     const { visible } = await doneNoAppPage("job-done-no-app");
-    if (/reviewed automatically|review automatically|will be reviewed/i.test(visible)) {
+    if (
+      /reviewed automatically|review automatically|will be reviewed/i.test(
+        visible,
+      )
+    ) {
       throw new Error(
         "done page promised automatic review without a GitHub App",
       );
@@ -736,7 +740,9 @@ test("failed job retry offers the same model and does not recommend a specific m
       throw new Error("failed page recommends a specific model");
     }
     if (/\bgpt-|\bclaude\b/i.test(visible)) {
-      throw new Error("failed page names a model other than the one that failed");
+      throw new Error(
+        "failed page names a model other than the one that failed",
+      );
     }
   });
 });

@@ -26,11 +26,21 @@ async function help(command: string): Promise<string[]> {
 
 test("a long option ends its line and the description starts on the next", async () => {
   const lines = await help("init");
-  const at = lines.indexOf("  --ai=openrouter|openai|anthropic|opencode-zen|opencode-go");
-  if (at < 0) throw new Error(`the long --ai option is not on a line of its own:\n${lines.join("\n")}`);
+  const at = lines.indexOf(
+    "  --ai=openrouter|openai|anthropic|opencode-zen|opencode-go",
+  );
+  if (at < 0)
+    throw new Error(
+      `the long --ai option is not on a line of its own:\n${lines.join("\n")}`,
+    );
   const next = lines[at + 1] ?? "";
-  if (next !== `${" ".repeat(COLUMN)}Which provider writes the guides. Required: init and sync cannot run without one.`) {
-    throw new Error(`the description is not aligned under the column: ${JSON.stringify(next)}`);
+  if (
+    next !==
+    `${" ".repeat(COLUMN)}Which provider writes the guides. Required: init and sync cannot run without one.`
+  ) {
+    throw new Error(
+      `the description is not aligned under the column: ${JSON.stringify(next)}`,
+    );
   }
 });
 
@@ -47,7 +57,15 @@ test("set --review-policy keeps every allowed value and a gap before its text", 
 });
 
 test("every option of every visible command is separated from its description", async () => {
-  for (const command of ["init", "sync", "review", "set", "serve", "view", "config"]) {
+  for (const command of [
+    "init",
+    "sync",
+    "review",
+    "set",
+    "serve",
+    "view",
+    "config",
+  ]) {
     const lines = await help(command);
     for (const [i, line] of lines.entries()) {
       if (!line.startsWith("  --")) continue;
@@ -59,14 +77,19 @@ test("every option of every visible command is separated from its description", 
       if (alone) {
         const below = lines[i + 1] ?? "";
         if (below.trim() && !below.startsWith(" ".repeat(COLUMN))) {
-          throw new Error(`${command}: description under ${line.trim()} is not aligned: ${below}`);
+          throw new Error(
+            `${command}: description under ${line.trim()} is not aligned: ${below}`,
+          );
         }
         continue;
       }
       if (!/ {2}$/.test(head) && rest.length > 0) {
-        throw new Error(`${command}: option runs into its description: ${line}`);
+        throw new Error(
+          `${command}: option runs into its description: ${line}`,
+        );
       }
-      if (line.includes("\u001b[")) throw new Error(`${command}: ANSI code in help: ${line}`);
+      if (line.includes("\u001b["))
+        throw new Error(`${command}: ANSI code in help: ${line}`);
     }
   }
 });

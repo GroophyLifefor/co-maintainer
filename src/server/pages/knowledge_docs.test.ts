@@ -65,7 +65,9 @@ async function withEnv(fn: (dir: string) => Promise<void>): Promise<void> {
   }
 }
 
-async function cookieSession(app: ReturnType<typeof createApp>): Promise<string> {
+async function cookieSession(
+  app: ReturnType<typeof createApp>,
+): Promise<string> {
   const response = await app.fetch(
     new Request("http://localhost/login", {
       method: "POST",
@@ -74,7 +76,8 @@ async function cookieSession(app: ReturnType<typeof createApp>): Promise<string>
       redirect: "manual",
     }),
   );
-  if (response.status !== 303) throw new Error(`login status ${response.status}`);
+  if (response.status !== 303)
+    throw new Error(`login status ${response.status}`);
   const token = response.headers.get("set-cookie")?.match(/^cm=([^;]+)/)?.[1];
   if (!token) throw new Error("the login response set no session cookie");
   return `cm=${token}`;
@@ -136,10 +139,9 @@ function copyControl(html: string, id: string): string | undefined {
 }
 
 function downloadLink(html: string, id: string): string | undefined {
-  const tag = new RegExp(
-    `<a[^>]*data-doc-download="${id}"[^>]*>`,
-    "i",
-  ).exec(html)?.[0];
+  const tag = new RegExp(`<a[^>]*data-doc-download="${id}"[^>]*>`, "i").exec(
+    html,
+  )?.[0];
   return tag ? attributeValue(tag, "href") : undefined;
 }
 
@@ -168,7 +170,9 @@ test("the document view renders markdown and exposes the same raw text for Copy"
     if (!/<code>id<\/code>/.test(page.html)) {
       throw new Error("markdown inline code was not rendered");
     }
-    if (!/<pre><code>[\s\S]*const veryLong[\s\S]*<\/code><\/pre>/.test(page.html)) {
+    if (
+      !/<pre><code>[\s\S]*const veryLong[\s\S]*<\/code><\/pre>/.test(page.html)
+    ) {
       throw new Error("the fenced code block was not rendered as markdown");
     }
     const control = copyControl(page.html, "guide");
@@ -250,11 +254,7 @@ test("a missing document returns 404 and a path outside the repository is never 
       throw new Error(`a missing document returned ${missing.status}`);
     }
 
-    for (const id of [
-      "../secret",
-      "../../secret",
-      "../../../../etc/passwd",
-    ]) {
+    for (const id of ["../secret", "../../secret", "../../../../etc/passwd"]) {
       const page = await getPage(
         app,
         cookie,

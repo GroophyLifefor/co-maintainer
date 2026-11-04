@@ -6,18 +6,8 @@ import { closeAppDb, getAppDb, openAppDb } from "../store/app_db.ts";
 import { appendLog } from "../store/job_logs.ts";
 import { getJob, insertJob, setJobStatus } from "../store/jobs.ts";
 import { writeUserConfig } from "../config.ts";
-import {
-  claimAndRun,
-  enqueue,
-  getLogsSince,
-  registerHandler,
-} from "./jobs.ts";
-import {
-  deleteEnv,
-  getEnv,
-  setEnv,
-  tempDirSync,
-} from "../testing/runtime.ts";
+import { claimAndRun, enqueue, getLogsSince, registerHandler } from "./jobs.ts";
+import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
 import type { AiProvider, AiResponse } from "../types.ts";
 
 const WAIT_LOG_TYPE = "rate_limit_wait";
@@ -152,10 +142,7 @@ async function flush(): Promise<void> {
   }
 }
 
-async function waitFor(
-  check: () => boolean,
-  label: string,
-): Promise<void> {
+async function waitFor(check: () => boolean, label: string): Promise<void> {
   for (let index = 0; index < 200; index++) {
     if (check()) return;
     await new Promise((resolve) => setImmediate(resolve));
@@ -215,7 +202,9 @@ test("a job lists each rate-limit wait with its service, stage, reason, applied 
         throw new Error("a wait record lost its stage or reason");
       }
       if (!Number.isFinite(wait.seconds) || wait.seconds <= 0) {
-        throw new Error(`a wait record has no applied seconds: ${wait.seconds}`);
+        throw new Error(
+          `a wait record has no applied seconds: ${wait.seconds}`,
+        );
       }
       if (!wait.at || Number.isNaN(Date.parse(wait.at))) {
         throw new Error(`a wait record has no usable time: ${wait.at}`);
@@ -309,7 +298,9 @@ test("the AI 429 backoff records its wait and still succeeds when the provider r
       await waitFor(() => calls === 1, "the first AI attempt");
       await flush();
       if (getJob(id)?.status !== "running") {
-        throw new Error(`the job left running before the wait: ${getJob(id)?.status}`);
+        throw new Error(
+          `the job left running before the wait: ${getJob(id)?.status}`,
+        );
       }
 
       mock.timers.tick(retryDelay(1));
@@ -410,7 +401,9 @@ test("the GitHub 403 retry records its wait and still succeeds when the service 
       throw new Error(`the GitHub wait was recorded as ${wait.service}`);
     }
     if (wait.seconds !== 4) {
-      throw new Error(`the GitHub wait recorded ${wait.seconds} seconds, want 4`);
+      throw new Error(
+        `the GitHub wait recorded ${wait.seconds} seconds, want 4`,
+      );
     }
     if (!wait.stage || !wait.reason) {
       throw new Error("the GitHub wait lost its stage or reason");
@@ -439,7 +432,9 @@ test("the GitHub 429 retry records its wait and still succeeds when the service 
       throw new Error(`the GitHub wait was recorded as ${wait.service}`);
     }
     if (wait.seconds !== 4) {
-      throw new Error(`the GitHub wait recorded ${wait.seconds} seconds, want 4`);
+      throw new Error(
+        `the GitHub wait recorded ${wait.seconds} seconds, want 4`,
+      );
     }
   });
 });
@@ -449,9 +444,7 @@ test("wait records survive a store reopen and the total is the sum of waits, not
     insertJob({ id: "job-reopen", type: "remake", repo: "acme/widgets" });
     setJobStatus("job-reopen", "done");
     getAppDb()
-      .prepare(
-        `UPDATE jobs SET started_at = ?, finished_at = ? WHERE id = ?`,
-      )
+      .prepare(`UPDATE jobs SET started_at = ?, finished_at = ? WHERE id = ?`)
       .run(
         "2026-01-02T00:00:00.000Z",
         "2026-01-02T00:09:00.000Z",
@@ -478,7 +471,9 @@ test("wait records survive a store reopen and the total is the sum of waits, not
 
     const before = parseWaitLogs("job-reopen");
     if (before.length !== 3) {
-      throw new Error(`expected 3 waits before reopening, got ${before.length}`);
+      throw new Error(
+        `expected 3 waits before reopening, got ${before.length}`,
+      );
     }
 
     await closeAppDb();
@@ -517,4 +512,3 @@ test("wait records survive a store reopen and the total is the sum of waits, not
     }
   });
 });
-

@@ -27,7 +27,9 @@ function item(
     },
     drift: undefined,
     stats: {} as RepoListItem["stats"],
-    latestJob: job ? ({ type: "init", status: "done", ...job } as JobRow) : undefined,
+    latestJob: job
+      ? ({ type: "init", status: "done", ...job } as JobRow)
+      : undefined,
   } as RepoListItem;
 }
 

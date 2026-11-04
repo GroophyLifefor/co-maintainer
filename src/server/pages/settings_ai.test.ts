@@ -13,7 +13,12 @@ const PASSWORD = "settings-ai-pass";
 const KEY = "sk-or-v1-abcdef0123456789428";
 
 async function aiPage(config: Partial<UserConfig>): Promise<string> {
-  const keys = ["CM_APP_DB", "CM_CONFIG_PATH", "OPENROUTER_API_KEY", "CO_MAINTAINER_TOKEN"];
+  const keys = [
+    "CM_APP_DB",
+    "CM_CONFIG_PATH",
+    "OPENROUTER_API_KEY",
+    "CO_MAINTAINER_TOKEN",
+  ];
   const original = keys.map((key) => getEnv(key));
   const dir = tempDirSync();
   setEnv("CM_APP_DB", `${dir}/app.db`);
@@ -32,11 +37,15 @@ async function aiPage(config: Partial<UserConfig>): Promise<string> {
         redirect: "manual",
       }),
     );
-    const token = (login.headers.get("set-cookie") ?? "").match(/^cm=([^;]+)/)?.[1];
+    const token = (login.headers.get("set-cookie") ?? "").match(
+      /^cm=([^;]+)/,
+    )?.[1];
     if (!token) throw new Error("no session cookie");
     return await (
       await app.fetch(
-        new Request("http://localhost/settings/ai", { headers: { cookie: `cm=${token}` } }),
+        new Request("http://localhost/settings/ai", {
+          headers: { cookie: `cm=${token}` },
+        }),
       )
     ).text();
   } finally {
@@ -61,10 +70,18 @@ test("a saved key is shown masked with a Replace button, never in full", async (
   if (html.includes(KEY) || html.includes("abcdef0123456789")) {
     throw new Error("the saved key leaked into the page");
   }
-  if (!html.includes('<span class="inp mono key-mask">sk-or-v1-••••••••428</span>')) {
+  if (
+    !html.includes(
+      '<span class="inp mono key-mask">sk-or-v1-••••••••428</span>',
+    )
+  ) {
     throw new Error("no masked key");
   }
-  if (!/<button type="button" class="btn gh sm" id="replace-key">Replace<\/button>/.test(html)) {
+  if (
+    !/<button type="button" class="btn gh sm" id="replace-key">Replace<\/button>/.test(
+      html,
+    )
+  ) {
     throw new Error("no Replace button");
   }
   if (!/<input id="token" type="password"[^>]*hidden/.test(html)) {
@@ -84,12 +101,18 @@ test("with no saved key the key input is shown and there is nothing to replace",
 
 test("a key that was never checked is not called Verified", async () => {
   const html = await aiPage(SAVED);
-  if (html.includes("Verified")) throw new Error("the page claims a verification that never ran");
+  if (html.includes("Verified"))
+    throw new Error("the page claims a verification that never ran");
 });
 
 test("each field names its CLI equivalent", async () => {
   const html = await aiPage(SAVED);
-  for (const flag of ["--ai=openrouter", "--ai-key=…", "--high-model=…", "--low-model=…"]) {
+  for (const flag of [
+    "--ai=openrouter",
+    "--ai-key=…",
+    "--high-model=…",
+    "--low-model=…",
+  ]) {
     if (!html.includes(`<div class="cli"><code>${flag}</code>`)) {
       throw new Error(`no CLI hint ${flag}`);
     }
@@ -98,8 +121,10 @@ test("each field names its CLI equivalent", async () => {
 
 test("models are labelled Review and Extraction, with the CLI's high/low names", async () => {
   const html = await aiPage(SAVED);
-  if (!html.includes('<label for="high">Review model</label>')) throw new Error("no Review model label");
-  if (!html.includes('<label for="low">Extraction model</label>')) throw new Error("no Extraction model label");
+  if (!html.includes('<label for="high">Review model</label>'))
+    throw new Error("no Review model label");
+  if (!html.includes('<label for="low">Extraction model</label>'))
+    throw new Error("no Extraction model label");
   if (!html.includes("High model") || !html.includes("Low model")) {
     throw new Error("the CLI's high/low model names are gone");
   }

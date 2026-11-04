@@ -26,14 +26,7 @@ import { test } from "node:test";
 
 const PASSWORD = "page-pass";
 
-const PAGES = [
-  "/",
-  "/setup",
-  "/repos/new",
-  "/activity",
-  "/usage",
-  "/settings",
-];
+const PAGES = ["/", "/setup", "/repos/new", "/activity", "/usage", "/settings"];
 
 const REPO_PAGES = [
   "/repos/acme/widgets",
@@ -314,7 +307,9 @@ test("the home page shows one setup banner that continues on /setup", async () =
     if (!html.includes('id="finish-setup"')) {
       throw new Error("a fresh install has no setup banner");
     }
-    const banner = html.slice(html.indexOf('id="finish-setup"')).split("</div></div>")[0]!;
+    const banner = html
+      .slice(html.indexOf('id="finish-setup"'))
+      .split("</div></div>")[0]!;
     if (!banner.includes('class="alert')) {
       throw new Error("the setup banner is not a compact alert");
     }

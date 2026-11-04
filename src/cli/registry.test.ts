@@ -196,7 +196,9 @@ test("registry: the set help names the server and repository scope of the concur
     if (!help.includes(flag)) throw new Error(`set help omits ${flag}`);
   }
   if (!/server default/i.test(help)) {
-    throw new Error(`set help does not name the server default scope:\n${help}`);
+    throw new Error(
+      `set help does not name the server default scope:\n${help}`,
+    );
   }
   if (!/repository/i.test(help)) {
     throw new Error(`set help does not name the repository scope:\n${help}`);

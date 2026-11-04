@@ -77,7 +77,9 @@ async function overview(
         redirect: "manual",
       }),
     );
-    const token = (login.headers.get("set-cookie") ?? "").match(/^cm=([^;]+)/)?.[1];
+    const token = (login.headers.get("set-cookie") ?? "").match(
+      /^cm=([^;]+)/,
+    )?.[1];
     if (!token) throw new Error("no session cookie");
     return await (
       await app.fetch(
@@ -99,7 +101,10 @@ async function overview(
 function statCard(html: string, label: string): string {
   const at = html.indexOf(`<div class="top">${label}`);
   if (at < 0) throw new Error(`no stat card "${label}"`);
-  return html.slice(at, html.indexOf('<div class="stat">', at + 1) >>> 0 || undefined);
+  return html.slice(
+    at,
+    html.indexOf('<div class="stat">', at + 1) >>> 0 || undefined,
+  );
 }
 
 test("the overview shows four stat cards from real 30 day figures", async () => {
@@ -108,9 +113,13 @@ test("the overview shows four stat cards from real 30 day figures", async () => 
     throw new Error("want four stat cards");
   }
   const reviewed = statCard(html, "Reviewed (30d)");
-  if (!/<div class="v">1<\/div>/.test(reviewed)) throw new Error("reviewed is not 1");
+  if (!/<div class="v">1<\/div>/.test(reviewed))
+    throw new Error("reviewed is not 1");
   const findings = statCard(html, "Findings");
-  if (!/<div class="v">2<\/div>/.test(findings) || !findings.includes("1 high · 1 low")) {
+  if (
+    !/<div class="v">2<\/div>/.test(findings) ||
+    !findings.includes("1 high · 1 low")
+  ) {
     throw new Error(`findings card wrong: ${findings.slice(0, 300)}`);
   }
   statCard(html, "Cost (30d)");
@@ -121,17 +130,30 @@ test("the overview shows four stat cards from real 30 day figures", async () => 
 
 test("the header has a chevron breadcrumb, Sync and GitHub buttons", async () => {
   const html = await overview();
-  if (!/<div class="crumb"><a href="\/">Repositories<\/a><svg[^>]*><use href="#i-chevron-right">/.test(html)) {
+  if (
+    !/<div class="crumb"><a href="\/">Repositories<\/a><svg[^>]*><use href="#i-chevron-right">/.test(
+      html,
+    )
+  ) {
     throw new Error("no chevron breadcrumb back to Repositories");
   }
-  if (!/<button type="button" class="btn out" id="remake">[\s\S]*?Sync<\/button>/.test(html)) {
+  if (
+    !/<button type="button" class="btn out" id="remake">[\s\S]*?Sync<\/button>/.test(
+      html,
+    )
+  ) {
     throw new Error("no Sync button");
   }
-  if (!/<a class="btn out" href="https:\/\/github.com\/acme\/widgets"[^>]*>[\s\S]*?GitHub<\/a>/.test(html)) {
+  if (
+    !/<a class="btn out" href="https:\/\/github.com\/acme\/widgets"[^>]*>[\s\S]*?GitHub<\/a>/.test(
+      html,
+    )
+  ) {
     throw new Error("no GitHub button");
   }
   const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]);
-  if (new Set(ids).size !== ids.length) throw new Error("duplicate ids on the overview");
+  if (new Set(ids).size !== ids.length)
+    throw new Error("duplicate ids on the overview");
 });
 
 test("the tabs come after the page header, as in the mock", async () => {
@@ -155,7 +177,8 @@ test("How it reviews names who, scope, blocking and the webhook", async () => {
   const html = await overview({ reviewBlocking: "severity" }, "incremental");
   const panel = html.slice(html.indexOf("How it reviews"));
   for (const term of ["Who", "Scope", "Blocking", "Webhook"]) {
-    if (!panel.includes(`<dt>${term}</dt>`)) throw new Error(`panel lacks ${term}`);
+    if (!panel.includes(`<dt>${term}</dt>`))
+      throw new Error(`panel lacks ${term}`);
   }
   if (!panel.includes("Only what changed since the last review")) {
     throw new Error("scope does not follow the repository setting");
@@ -163,19 +186,27 @@ test("How it reviews names who, scope, blocking and the webhook", async () => {
   if (!panel.includes("Severity is Critical or High")) {
     throw new Error("blocking does not follow the config");
   }
-  if (!panel.includes("Receiving") || !panel.includes("Last webhook delivery:")) {
+  if (
+    !panel.includes("Receiving") ||
+    !panel.includes("Last webhook delivery:")
+  ) {
     throw new Error("webhook row does not show the last delivery");
   }
   if (!panel.includes(`href="/repos/${REPO}/settings"`)) {
     throw new Error("no Change link to repository settings");
   }
   const model = await overview();
-  if (!model.slice(model.indexOf("How it reviews")).includes("When the model says so")) {
+  if (
+    !model
+      .slice(model.indexOf("How it reviews"))
+      .includes("When the model says so")
+  ) {
     throw new Error("default blocking wording missing");
   }
 });
 
 test("the auto review toggle moved to repository settings", async () => {
   const html = await overview();
-  if (html.includes('id="auto"')) throw new Error("the overview still has the toggle");
+  if (html.includes('id="auto"'))
+    throw new Error("the overview still has the toggle");
 });

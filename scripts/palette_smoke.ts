@@ -96,7 +96,11 @@ try {
   const port = await freePort();
   const base = `http://127.0.0.1:${port}`;
   serve = commandSpawn(runtimeExecPath(), {
-    args: runtimeRunArgs("main.ts", ["serve", `--port=${port}`, `--password=${PASSWORD}`]),
+    args: runtimeRunArgs("main.ts", [
+      "serve",
+      `--port=${port}`,
+      `--password=${PASSWORD}`,
+    ]),
     cwd: join(import.meta.dirname, ".."),
     env,
     stdout: "piped",
@@ -109,25 +113,34 @@ try {
     const page = await browser.newPage();
     await page.goto(`${base}/login`);
     await page.fill('input[name="password"]', PASSWORD);
-    await Promise.all([page.waitForURL(`${base}/`), page.click('button[type="submit"]')]);
+    await Promise.all([
+      page.waitForURL(`${base}/`),
+      page.click('button[type="submit"]'),
+    ]);
     await page.goto(`${base}/usage`);
 
     const open = () => page.locator("#pal").isVisible();
-    const focusedId = () => page.evaluate(() => document.activeElement?.id ?? "");
+    const focusedId = () =>
+      page.evaluate(() => document.activeElement?.id ?? "");
     const selected = () =>
       page.evaluate(() => {
         const item = document.querySelector('#pal-list [aria-selected="true"]');
         return item ? item.getAttribute("data-href") : null;
       });
     const settle = async (page: Page) => {
-      await page.waitForFunction(() => !document.querySelector("#pal")?.hasAttribute("data-loading"));
+      await page.waitForFunction(
+        () => !document.querySelector("#pal")?.hasAttribute("data-loading"),
+      );
     };
 
     // Ctrl K opens with focus in the input; Esc closes and restores focus.
     await page.locator("#theme").focus();
     await page.keyboard.press("Control+k");
     check(await open(), "Ctrl K did not open the palette");
-    check((await focusedId()) === "pal-q", "Ctrl K did not focus the palette input");
+    check(
+      (await focusedId()) === "pal-q",
+      "Ctrl K did not focus the palette input",
+    );
     await page.keyboard.press("Escape");
     check(!(await open()), "Esc did not close the palette");
     check((await focusedId()) === "theme", "Esc did not give focus back");
@@ -146,13 +159,22 @@ try {
     await settle(page);
     // textContent, not innerText: the group labels are uppercased by CSS.
     const emptyText = (await page.locator("#pal-list").textContent()) ?? "";
-    check(emptyText.includes("Pages") && emptyText.includes("acme/widgets"), "the empty query shows no pages or repositories");
+    check(
+      emptyText.includes("Pages") && emptyText.includes("acme/widgets"),
+      "the empty query shows no pages or repositories",
+    );
 
     // No match says so and offers nothing to open.
     await page.fill("#pal-q", "zzz-nothing");
     await settle(page);
-    check((await page.locator("#pal-list [data-href]").count()) === 0, "a query with no match still lists results");
-    check((await page.locator("#pal-list").innerText()).includes("No results"), "a query with no match does not say so");
+    check(
+      (await page.locator("#pal-list [data-href]").count()) === 0,
+      "a query with no match still lists results",
+    );
+    check(
+      (await page.locator("#pal-list").innerText()).includes("No results"),
+      "a query with no match does not say so",
+    );
 
     // A slow answer for an older query never replaces a newer one.
     await page.route("**/api/search?q=a", async (route) => {
@@ -167,7 +189,11 @@ try {
     await settle(page);
     await page.waitForTimeout(1200);
     const afterStale = await page.locator("#pal-list").innerText();
-    check(afterStale.includes("acme/gadgets") && !afterStale.includes("acme/widgets"), `a stale answer replaced the newer one: ${afterStale}`);
+    check(
+      afterStale.includes("acme/gadgets") &&
+        !afterStale.includes("acme/widgets"),
+      `a stale answer replaced the newer one: ${afterStale}`,
+    );
     await page.unroute("**/api/search?q=a");
 
     // A long name stays inside the list.
@@ -177,7 +203,10 @@ try {
       const list = document.getElementById("pal-list");
       return list ? list.scrollWidth - list.clientWidth : 999;
     });
-    check(overflow <= 0, `a long repository name overflows the palette by ${overflow}px`);
+    check(
+      overflow <= 0,
+      `a long repository name overflows the palette by ${overflow}px`,
+    );
 
     // Arrow keys move the selection; Enter opens the selected result.
     await page.fill("#pal-q", "widg");
@@ -185,13 +214,22 @@ try {
     const first = await selected();
     await page.keyboard.press("ArrowDown");
     const second = await selected();
-    check(first !== null && second !== null && first !== second, "ArrowDown did not move the selection");
+    check(
+      first !== null && second !== null && first !== second,
+      "ArrowDown did not move the selection",
+    );
     await page.keyboard.press("ArrowUp");
     check((await selected()) === first, "ArrowUp did not move back");
     await page.keyboard.press("ArrowDown");
     const target = await selected();
-    await Promise.all([page.waitForURL(`${base}${target}`), page.keyboard.press("Enter")]);
-    check(new URL(page.url()).pathname === target, `Enter opened ${page.url()}, not ${target}`);
+    await Promise.all([
+      page.waitForURL(`${base}${target}`),
+      page.keyboard.press("Enter"),
+    ]);
+    check(
+      new URL(page.url()).pathname === target,
+      `Enter opened ${page.url()}, not ${target}`,
+    );
   } finally {
     await browser.close();
   }

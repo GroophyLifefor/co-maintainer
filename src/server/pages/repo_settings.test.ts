@@ -336,7 +336,9 @@ test("a latest sync with no waits shows no last sync warning", async () => {
     );
 
     if (/Last sync|asked to slow down/i.test(settingsText)) {
-      throw new Error("the settings page warned although the latest sync waited");
+      throw new Error(
+        "the settings page warned although the latest sync waited",
+      );
     }
     if (/asked to slow down/i.test(jobText)) {
       throw new Error("the job page warned although the job never waited");
@@ -372,7 +374,9 @@ test("an older sync job's waits do not become the latest last sync warning", asy
     );
 
     if (/asked to slow down/i.test(settingsText)) {
-      throw new Error("an older job's waits were shown as the latest last sync");
+      throw new Error(
+        "an older job's waits were shown as the latest last sync",
+      );
     }
   });
 });

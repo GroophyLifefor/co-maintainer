@@ -374,12 +374,12 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <tbody><tr>
 <td><code>--gh-concurrent=N</code></td>
 <td>1</td>
-<td>Concurrent gh calls.</td>
+<td>Concurrent GitHub calls for this run only. It does not change the saved default.</td>
 </tr>
 <tr>
 <td><code>--ai-concurrent=N</code></td>
 <td>3</td>
-<td>Concurrent AI calls.</td>
+<td>Concurrent AI calls for this run only. It does not change the saved default.</td>
 </tr>
 <tr>
 <td><code>--improve-matrix=N</code></td>
@@ -549,6 +549,26 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td><code>--log-time</code></td>
 <td></td>
 <td>Print how long each phase took.</td>
+</tr>
+</tbody></table>
+<h3 id="performance-2">Performance</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--gh-concurrent=N</code></td>
+<td>1</td>
+<td>Concurrent GitHub calls for this run only. It does not change the saved default.</td>
+</tr>
+<tr>
+<td><code>--ai-concurrent=N</code></td>
+<td>3</td>
+<td>Concurrent AI calls for this run only. It does not change the saved default.</td>
 </tr>
 </tbody></table>
 <h2 id="co-maintainer-review"><code>co-maintainer review</code></h2>
@@ -1033,6 +1053,16 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td><code>--repo=owner/repo</code></td>
 <td></td>
 <td>Write the repository-scoped settings below to this repository instead of the global config.</td>
+</tr>
+<tr>
+<td><code>--gh-concurrent=N</code></td>
+<td></td>
+<td>Server default for concurrent GitHub calls. With --repo, the repository override. 1..16.</td>
+</tr>
+<tr>
+<td><code>--ai-concurrent=N</code></td>
+<td></td>
+<td>Server default for concurrent AI calls. With --repo, the repository override. 1..16.</td>
 </tr>
 <tr>
 <td><code>--review-system-prompt=TEXT</code></td>

@@ -255,7 +255,9 @@ test("GET /settings lands on the AI models page", async () => {
     const { status, html, location } = await get(app, cookie, "/settings");
     if (status >= 300 && status < 400) {
       if (!location.endsWith("/settings/ai")) {
-        throw new Error(`/settings redirected to ${location}, want /settings/ai`);
+        throw new Error(
+          `/settings redirected to ${location}, want /settings/ai`,
+        );
       }
       return;
     }
@@ -291,7 +293,11 @@ test("an unknown page returns a 404 rendered inside the shell", async () => {
   await withEnv(async () => {
     const app = createApp({ password: PASSWORD });
     const cookie = await cookieSession(app);
-    const { status, html } = await get(app, cookie, "/this-page-does-not-exist");
+    const { status, html } = await get(
+      app,
+      cookie,
+      "/this-page-does-not-exist",
+    );
     if (status !== 404) throw new Error(`status ${status}, want 404`);
     if (!/page not found|not found/i.test(html)) {
       throw new Error("the 404 body has no not-found heading");
@@ -380,7 +386,11 @@ test("no page body sets its width with an inline max-width", async () => {
     );
     const app = createApp({ password: PASSWORD });
     const cookie = await cookieSession(app);
-    const paths = [...APP_PAGES.map((page) => page.path), ...REPO_PAGES.map((p) => p.path), "/settings"];
+    const paths = [
+      ...APP_PAGES.map((page) => page.path),
+      ...REPO_PAGES.map((p) => p.path),
+      "/settings",
+    ];
     for (const path of paths) {
       const { html } = await get(app, cookie, path);
       const offenders = pageInlineMaxWidths(html);

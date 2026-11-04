@@ -363,15 +363,11 @@ test("config set: --gh-concurrent and --ai-concurrent persist the server default
     "--no-verify",
   ]);
   if (result.code !== 0) {
-    throw new Error(
-      `exit ${result.code}: ${result.stderr || result.stdout}`,
-    );
+    throw new Error(`exit ${result.code}: ${result.stderr || result.stdout}`);
   }
   const defaults = (result.config.defaults ?? {}) as Record<string, unknown>;
   if (defaults.ghConcurrent !== 4 || defaults.aiConcurrent !== 2) {
-    throw new Error(
-      `saved defaults: ${JSON.stringify(defaults)} (want 4/2)`,
-    );
+    throw new Error(`saved defaults: ${JSON.stringify(defaults)} (want 4/2)`);
   }
 });
 
@@ -383,9 +379,7 @@ test("config set: --repo with --gh-concurrent and --ai-concurrent writes the rep
     "--no-verify",
   ]);
   if (result.code !== 0) {
-    throw new Error(
-      `exit ${result.code}: ${result.stderr || result.stdout}`,
-    );
+    throw new Error(`exit ${result.code}: ${result.stderr || result.stdout}`);
   }
   const repo = (result.config.repos?.["acme/widgets"] ?? {}) as Record<
     string,
@@ -411,10 +405,7 @@ test("config set: concurrency accepts 1 and 16 and refuses 0, 17, -1, 2.5, a and
     string,
     unknown
   >;
-  if (
-    validDefaults.ghConcurrent !== 1 ||
-    validDefaults.aiConcurrent !== 16
-  ) {
+  if (validDefaults.ghConcurrent !== 1 || validDefaults.aiConcurrent !== 16) {
     throw new Error(
       `1 and 16 saved as ${JSON.stringify(validDefaults)} (want 1/16)`,
     );
@@ -486,18 +477,13 @@ test("config set: --repo --unset removes the repository concurrency keys", async
     } as never,
   );
   if (result.code !== 0) {
-    throw new Error(
-      `exit ${result.code}: ${result.stderr || result.stdout}`,
-    );
+    throw new Error(`exit ${result.code}: ${result.stderr || result.stdout}`);
   }
   const repo = (result.config.repos?.["acme/widgets"] ?? {}) as Record<
     string,
     unknown
   >;
-  if (
-    "ghConcurrent" in repo ||
-    "aiConcurrent" in repo
-  ) {
+  if ("ghConcurrent" in repo || "aiConcurrent" in repo) {
     throw new Error(`the reset left repo keys behind: ${JSON.stringify(repo)}`);
   }
 });
@@ -540,10 +526,7 @@ test("config: init and sync resolve concurrency from config and a one-off flag o
     ],
     config,
   );
-  if (
-    oneOff.options.ghConcurrent !== 2 ||
-    oneOff.options.aiConcurrent !== 2
-  ) {
+  if (oneOff.options.ghConcurrent !== 2 || oneOff.options.aiConcurrent !== 2) {
     throw new Error(
       `the one-off flag did not win: ${oneOff.options.ghConcurrent}/${oneOff.options.aiConcurrent}`,
     );

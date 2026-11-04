@@ -34,7 +34,9 @@ export async function discoverCliRepos(): Promise<string[]> {
       if (getRepo(fullName)) continue;
       let builtAt: string;
       try {
-        builtAt = (await stat(`${root}/${fullName}/${GUIDE}`)).mtime.toISOString();
+        builtAt = (
+          await stat(`${root}/${fullName}/${GUIDE}`)
+        ).mtime.toISOString();
       } catch (error) {
         if (isNotFound(error)) continue;
         throw error;
