@@ -13,6 +13,7 @@ import {
   deleteEnv,
   getEnv,
   mkdirPath,
+  removePath,
   setEnv,
   tempDirSync,
   writeTextFile,
@@ -95,6 +96,7 @@ async function overview(
       if (value === undefined) deleteEnv(key);
       else setEnv(key, value);
     });
+    await removePath(dir, { recursive: true }).catch(() => {});
   }
 }
 

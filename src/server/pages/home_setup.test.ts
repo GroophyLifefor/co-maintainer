@@ -6,6 +6,7 @@ import { recordDelivery } from "../../store/deliveries.ts";
 import {
   deleteEnv,
   getEnv,
+  removePath,
   setEnv,
   tempDirSync,
 } from "../../testing/runtime.ts";
@@ -31,6 +32,7 @@ async function withEnv(fn: () => Promise<void>): Promise<void> {
       if (value === undefined) deleteEnv(key);
       else setEnv(key, value);
     });
+    await removePath(dir, { recursive: true }).catch(() => {});
   }
 }
 

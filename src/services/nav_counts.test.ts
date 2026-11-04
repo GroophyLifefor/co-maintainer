@@ -4,7 +4,13 @@ import { closeAppDb, getAppDb, openAppDb } from "../store/app_db.ts";
 import { writeUserConfig } from "../config.ts";
 import { activateRepo, markKnowledgeBuilt } from "../store/repos.ts";
 import { insertReview, setReviewStatus } from "../store/reviews.ts";
-import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
+import {
+  deleteEnv,
+  getEnv,
+  removePath,
+  setEnv,
+  tempDirSync,
+} from "../testing/runtime.ts";
 import { test } from "node:test";
 
 async function withEnv(fn: () => Promise<void>): Promise<void> {
@@ -24,6 +30,7 @@ async function withEnv(fn: () => Promise<void>): Promise<void> {
       if (value === undefined) deleteEnv(key);
       else setEnv(key, value);
     });
+    await removePath(dir, { recursive: true }).catch(() => {});
   }
 }
 

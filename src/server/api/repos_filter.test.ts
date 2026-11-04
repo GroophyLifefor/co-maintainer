@@ -9,6 +9,7 @@ import {
 import {
   deleteEnv,
   getEnv,
+  removePath,
   setEnv,
   tempDirSync,
 } from "../../testing/runtime.ts";
@@ -21,8 +22,9 @@ async function withSeed(
 ) {
   const keys = ["CM_APP_DB", "CM_CONFIG_PATH"];
   const original = keys.map((key) => getEnv(key));
-  setEnv("CM_CONFIG_PATH", `${tempDirSync()}/config.json`);
-  setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
+  const dir = tempDirSync();
+  setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
+  setEnv("CM_APP_DB", `${dir}/app.db`);
   try {
     await openAppDb();
     await writeUserConfig({
@@ -67,6 +69,7 @@ async function withSeed(
       if (value === undefined) deleteEnv(key);
       else setEnv(key, value);
     });
+    await removePath(dir, { recursive: true }).catch(() => {});
   }
 }
 

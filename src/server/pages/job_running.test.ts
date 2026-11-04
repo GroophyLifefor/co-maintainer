@@ -3,9 +3,11 @@ import { closeAppDb, openAppDb } from "../../store/app_db.ts";
 import { writeUserConfig } from "../../config.ts";
 import { activateRepo } from "../../store/repos.ts";
 import { insertJob, setJobStatus } from "../../store/jobs.ts";
+import { insertReview, setReviewStatus } from "../../store/reviews.ts";
 import {
   deleteEnv,
   getEnv,
+  removePath,
   setEnv,
   tempDirSync,
 } from "../../testing/runtime.ts";
@@ -27,6 +29,7 @@ async function jobPage(
   type: string,
   status: string,
   args: Record<string, unknown> = {},
+  seed?: () => void,
 ): Promise<string> {
   const keys = ["CM_APP_DB", "CM_CONFIG_PATH", "CM_REPOS_DIR"];
   const original = keys.map((key) => getEnv(key));
@@ -46,6 +49,7 @@ async function jobPage(
       prNumber: type === "review" ? 7 : undefined,
     });
     setJobStatus("job-1", status);
+    seed?.();
     const app = createApp({ password: PASSWORD });
     const login = await app.fetch(
       new Request("http://localhost/login", {
@@ -73,8 +77,59 @@ async function jobPage(
       if (value === undefined) deleteEnv(key);
       else setEnv(key, value);
     });
+    await removePath(dir, { recursive: true }).catch(() => {});
   }
 }
+
+test("a queued job waits: no Started, no Running, Cancel instead of Stop", async () => {
+  const html = await jobPage("init", "queued", { stages: STAGES });
+  const lead = html.match(/<div class="d">([\s\S]*?)<\/div>/)?.[1] ?? "";
+  if (lead.includes("Started") || !lead.includes("Queued")) {
+    throw new Error(`a queued job claims it started: ${lead}`);
+  }
+  if (html.includes("Stop after this step")) {
+    throw new Error("a queued job offers Stop after this step");
+  }
+  if (
+    !/<button class="btn out" type="button" data-cancel="job-1">[\s\S]*?Cancel<\/button>/.test(
+      html,
+    )
+  ) {
+    throw new Error("a queued job has no Cancel");
+  }
+  if (
+    !html.includes('<span class="st run">Queued</span>') ||
+    html.includes(">Running<")
+  ) {
+    throw new Error("the log panel of a queued job says Running");
+  }
+});
+
+test("a failed manual review shows the model its review ran with and retries with it", async () => {
+  const html = await jobPage("review", "failed", { trigger: "manual" }, () => {
+    insertReview({
+      id: "rev-1",
+      repo: "acme/widgets",
+      prNumber: 7,
+      jobId: "job-1",
+      headSha: "h",
+      baseSha: "b",
+      scope: "whole-pr",
+      model: "deepseek/deepseek-chat-v3.1",
+    });
+    setReviewStatus("rev-1", "failed", {});
+  });
+  if (!html.includes("deepseek/deepseek-chat-v3.1")) {
+    throw new Error("the failed page omits the model the review used");
+  }
+  if (
+    !/data-post="\/api\/repos\/acme\/widgets\/pulls\/7\/review" data-body="\{&quot;model&quot;:&quot;deepseek\/deepseek-chat-v3.1&quot;\}"/.test(
+      html,
+    )
+  ) {
+    throw new Error("Retry with the same model does not send that model");
+  }
+});
 
 test("the title reads kind · repository", async () => {
   const cases: [string, string][] = [

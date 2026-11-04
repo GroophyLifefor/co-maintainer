@@ -320,6 +320,17 @@ function inlineCommentBody(finding: ParsedFinding, suggestion = false): string {
   return `${heading}\n\n${rest}`;
 }
 
+/** A review job's options: the config, with the job's pinned model (a
+ * "Retry with the same model") over the configured one. */
+export function reviewOptionsForJob(
+  repo: string,
+  prNumber: number,
+  args: { model?: string },
+): Options {
+  const options = reviewOptions(repo, prNumber);
+  return args.model ? { ...options, highModel: args.model } : options;
+}
+
 export function reviewOptions(repo: string, prNumber: number): Options {
   const config = readConfig();
   return {
@@ -798,14 +809,15 @@ async function runReviewJobCore(
     return;
   }
 
-  const options = reviewOptions(job.repo, job.pr_number);
   const args = JSON.parse(job.args || "{}") as {
     trigger?: string;
     scope?: string;
     sinceCommit?: string;
     round?: number;
     requestReaction?: string;
+    model?: string;
   };
+  const options = reviewOptionsForJob(job.repo, job.pr_number, args);
   const pr = await github.request<Json>(
     `repos/${job.repo}/pulls/${job.pr_number}`,
   );
@@ -1134,9 +1146,13 @@ export function registerReviewJobHandler(): void {
   });
 }
 
+/** `model` pins the review to one model, the way "Retry with the same
+ * model" asks; without it the job resolves the model from config when it
+ * runs. */
 export function enqueueManualReview(
   repo: string,
   prNumber: number,
+  pin: { model?: string } = {},
 ): { id: string; debounced: boolean } {
   const last = latestPostedReview(repo, prNumber);
   const row = getRepo(repo);
@@ -1151,6 +1167,7 @@ export function enqueueManualReview(
       scope: incremental ? "incremental" : "whole-pr",
       sinceCommit: incremental ? last!.head_sha : undefined,
       round: last ? last.round + 1 : 1,
+      ...(pin.model ? { model: pin.model } : {}),
     },
   });
 }

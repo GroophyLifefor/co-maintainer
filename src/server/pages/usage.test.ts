@@ -7,6 +7,7 @@ import { insertJob } from "../../store/jobs.ts";
 import {
   deleteEnv,
   getEnv,
+  removePath,
   setEnv,
   tempDirSync,
 } from "../../testing/runtime.ts";
@@ -77,6 +78,7 @@ async function usage(path = "/usage"): Promise<string> {
       if (value === undefined) deleteEnv(key);
       else setEnv(key, value);
     });
+    await removePath(dir, { recursive: true }).catch(() => {});
   }
 }
 

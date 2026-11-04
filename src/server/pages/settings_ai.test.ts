@@ -4,6 +4,7 @@ import { writeUserConfig, type UserConfig } from "../../config.ts";
 import {
   deleteEnv,
   getEnv,
+  removePath,
   setEnv,
   tempDirSync,
 } from "../../testing/runtime.ts";
@@ -55,6 +56,7 @@ async function aiPage(config: Partial<UserConfig>): Promise<string> {
       if (value === undefined) deleteEnv(key);
       else setEnv(key, value);
     });
+    await removePath(dir, { recursive: true }).catch(() => {});
   }
 }
 

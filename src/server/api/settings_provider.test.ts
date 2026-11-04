@@ -4,6 +4,7 @@ import { readConfig, writeUserConfig, type UserConfig } from "../../config.ts";
 import {
   deleteEnv,
   getEnv,
+  removePath,
   setEnv,
   tempDirSync,
 } from "../../testing/runtime.ts";
@@ -17,8 +18,9 @@ async function put(
 ): Promise<{ status: number; code?: string; after: UserConfig }> {
   const keys = ["CM_APP_DB", "CM_CONFIG_PATH"];
   const original = keys.map((key) => getEnv(key));
-  setEnv("CM_CONFIG_PATH", `${tempDirSync()}/config.json`);
-  setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
+  const dir = tempDirSync();
+  setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
+  setEnv("CM_APP_DB", `${dir}/app.db`);
   try {
     await openAppDb();
     await writeUserConfig({ auth: "gh", ...config });
@@ -61,6 +63,7 @@ async function put(
       if (value === undefined) deleteEnv(key);
       else setEnv(key, value);
     });
+    await removePath(dir, { recursive: true }).catch(() => {});
   }
 }
 

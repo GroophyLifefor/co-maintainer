@@ -490,7 +490,30 @@ export async function handleReposRoute(
       request.method === "POST"
     ) {
       requireActiveRepo(fullName);
-      const { id } = enqueueManualReview(fullName, pr);
+      // An optional `{ model }` pins the review to the model a failed one
+      // used. No body, or no model, keeps the configured model.
+      let body: { model?: unknown } = {};
+      try {
+        const raw = await request.text();
+        if (raw.trim()) body = JSON.parse(raw);
+      } catch {
+        return errorResponse(400, "bad_request", "expected a JSON body");
+      }
+      if (
+        body.model !== undefined &&
+        (typeof body.model !== "string" ||
+          body.model.length === 0 ||
+          body.model.length > 200)
+      ) {
+        return errorResponse(
+          422,
+          "invalid_setting",
+          "model must be a model id of 1 to 200 characters",
+        );
+      }
+      const { id } = enqueueManualReview(fullName, pr, {
+        model: body.model as string | undefined,
+      });
       return Response.json({ jobId: id });
     }
     if (sub === "pulls" && pr && request.method === "GET") {

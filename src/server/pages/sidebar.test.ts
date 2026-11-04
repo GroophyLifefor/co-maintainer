@@ -7,6 +7,7 @@ import { VERSION } from "../../version.ts";
 import {
   deleteEnv,
   getEnv,
+  removePath,
   setEnv,
   tempDirSync,
 } from "../../testing/runtime.ts";
@@ -69,6 +70,7 @@ async function withApp(fn: (get: Get) => Promise<void>): Promise<void> {
       if (value === undefined) deleteEnv(key);
       else setEnv(key, value);
     });
+    await removePath(dir, { recursive: true }).catch(() => {});
   }
 }
 

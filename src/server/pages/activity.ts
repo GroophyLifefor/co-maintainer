@@ -357,7 +357,7 @@ function runningBody(
       ${stagesBlock(stagesOf(args))}
       ${details ? `<dl class="dl" style="margin-top:8px">${details}</dl>` : ""}
     </div>
-    ${logPanel(job, logs, true, "Running", "run")}
+    ${logPanel(job, logs, true, job.status === "queued" ? "Queued" : "Running", "run")}
   </div></div>`;
 }
 
@@ -489,6 +489,18 @@ function failureExplanation(error: string | null | undefined): string {
   return "";
 }
 
+/** The model a failed job ran with. A manual or webhook review does not put
+ * the model in its job args; the review row records the one it resolved.
+ * "unknown" is what a review stores when no model was set. */
+function failedModel(
+  args: Record<string, unknown>,
+  review: ReviewRow | undefined,
+): string | undefined {
+  const fromReview =
+    review?.model && review.model !== "unknown" ? review.model : undefined;
+  return fromReview ?? asString(args.model);
+}
+
 function failedBody(
   job: JobRow,
   args: Record<string, unknown>,
@@ -496,7 +508,7 @@ function failedBody(
   review: ReviewRow | undefined,
 ): string {
   const provider = asString(args.provider);
-  const model = asString(args.model);
+  const model = failedModel(args, review);
   const note = noteStatus(review);
   const durationMs = jobDurationMs(job, args, review);
   const cost = jobCost(args, review);
@@ -691,24 +703,36 @@ export function renderJob(
           cancelReasonLabel(job.cancel_reason),
         )}</div></div>`
       : "";
+  // A queued job has not started a step yet: it waits, and can be cancelled
+  // outright rather than stopped after a step.
+  const queued = job.status === "queued";
   const stop = live
     ? `<button class="btn out" type="button" data-cancel="${text(job.id)}">${icon(
         "square",
-      )}Stop after this step</button>`
+      )}${queued ? "Cancel" : "Stop after this step"}</button>`
     : "";
   const left = live ? minutesRange(estimateSeconds(args)) : "";
-  const lead = live
-    ? `Started ${when(job.started_at ?? job.created_at)}${left ? ` · about ${left} left` : ""}`
-    : `<a href="/repos/${text(job.repo)}">${text(job.repo)}</a> · ${text(job.status)}`;
+  const lead = queued
+    ? `Queued ${when(job.created_at)} · waiting for a worker`
+    : live
+      ? `Started ${when(job.started_at ?? job.created_at)}${left ? ` · about ${left} left` : ""}`
+      : `<a href="/repos/${text(job.repo)}">${text(job.repo)}</a> · ${text(job.status)}`;
+  const retryModel = failedModel(args, review);
   let retry = "";
   if (failed && (job.type === "init" || job.type === "remake")) {
     retry = `<button class="primary" type="button" data-post="/api/repos/${text(
       job.repo,
     )}/remake">Retry</button>`;
   } else if (failed && job.type === "review" && job.pr_number) {
+    // The model travels with the retry, so a config change since the
+    // failure does not swap it for another one.
     retry = `<button class="primary" type="button" data-post="/api/repos/${text(
       job.repo,
-    )}/pulls/${job.pr_number}/review">Retry with the same model</button>`;
+    )}/pulls/${job.pr_number}/review"${
+      retryModel
+        ? ` data-body="${text(JSON.stringify({ model: retryModel }))}"`
+        : ""
+    }>Retry with the same model</button>`;
   }
   const changeModel = failed
     ? `<a class="btn out" href="/settings/ai">Change default model</a>`

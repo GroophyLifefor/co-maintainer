@@ -855,7 +855,13 @@ document.addEventListener("DOMContentLoaded", function () {
           "text/html",
         );
         const next = doc.querySelector("[data-job-progress]");
-        if (next) progress.innerHTML = next.innerHTML;
+        // A finished job renders its result page, which has no progress
+        // block: load it rather than keep the running stages and Stop.
+        if (!next) {
+          location.reload();
+          return;
+        }
+        progress.innerHTML = next.innerHTML;
         if (refreshError) {
           refreshError.textContent = "";
           refreshError.hidden = true;

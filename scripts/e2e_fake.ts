@@ -17,8 +17,14 @@ const steps: { name: string; args: string[]; env?: Record<string, string> }[] =
         "scripts/**/*.test.ts",
         "benchmark/**/*.test.ts",
       ],
+      // Same as CI: no test may reach a real AI provider.
+      env: { CM_FAKE_AI: "1" },
     },
-    { name: "local review e2e", args: ["scripts/review_local_e2e.ts"] },
+    {
+      name: "local review e2e",
+      args: ["scripts/review_local_e2e.ts"],
+      env: { CM_FAKE_AI: "1" },
+    },
     {
       name: "dashboard smoke",
       args: ["scripts/dashboard_smoke.ts"],
@@ -27,6 +33,11 @@ const steps: { name: string; args: string[]; env?: Record<string, string> }[] =
     {
       name: "palette smoke",
       args: ["scripts/palette_smoke.ts"],
+      env: { CM_FAKE_AI: "1" },
+    },
+    {
+      name: "job refresh smoke",
+      args: ["scripts/job_refresh_smoke.ts"],
       env: { CM_FAKE_AI: "1" },
     },
   ];
