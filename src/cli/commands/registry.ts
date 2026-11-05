@@ -264,13 +264,15 @@ export const COMMANDS: CommandSpec[] = [
             name: "gh-concurrent",
             value: "N",
             default: "1",
-            description: "Concurrent gh calls.",
+            description:
+              "Concurrent GitHub calls for this run only. It does not change the saved default.",
           },
           {
             name: "ai-concurrent",
             value: "N",
             default: "3",
-            description: "Concurrent AI calls.",
+            description:
+              "Concurrent AI calls for this run only. It does not change the saved default.",
           },
           {
             name: "improve-matrix",
@@ -347,6 +349,25 @@ export const COMMANDS: CommandSpec[] = [
       EXPERIMENTAL_FLAGS,
       GITHUB_FLAGS,
       OUTPUT_FLAGS,
+      {
+        title: "Performance",
+        flags: [
+          {
+            name: "gh-concurrent",
+            value: "N",
+            default: "1",
+            description:
+              "Concurrent GitHub calls for this run only. It does not change the saved default.",
+          },
+          {
+            name: "ai-concurrent",
+            value: "N",
+            default: "3",
+            description:
+              "Concurrent AI calls for this run only. It does not change the saved default.",
+          },
+        ],
+      },
     ],
     examples: ["co-maintainer sync owner/repo --include-codebase"],
   },
@@ -698,6 +719,18 @@ export const COMMANDS: CommandSpec[] = [
               "Write the repository-scoped settings below to this repository instead of the global config.",
           },
           {
+            name: "gh-concurrent",
+            value: "N",
+            description:
+              "Server default for concurrent GitHub calls. With --repo, the repository override. 1..16.",
+          },
+          {
+            name: "ai-concurrent",
+            value: "N",
+            description:
+              "Server default for concurrent AI calls. With --repo, the repository override. 1..16.",
+          },
+          {
             name: "review-system-prompt",
             value: "TEXT",
             description:
@@ -936,7 +969,14 @@ function renderFlags(groups: FlagGroup[], lines: string[]): void {
       const head = `  --${flag.name}${flag.value ? `=${flag.value}` : ""}`;
       const meta =
         flag.default !== undefined ? ` (default: ${flag.default})` : "";
-      lines.push(`${head.padEnd(42)}${flag.description}${meta}`);
+      // An option too long for the 42-column gutter gets its own line, so
+      // its last value never runs into the description.
+      if (head.length + 2 > 42) {
+        lines.push(head);
+        lines.push(`${" ".repeat(42)}${flag.description}${meta}`);
+      } else {
+        lines.push(`${head.padEnd(42)}${flag.description}${meta}`);
+      }
     }
   }
 }

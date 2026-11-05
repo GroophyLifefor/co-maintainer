@@ -3,6 +3,10 @@
  * `Authorization` header, and every other `/api/*` route needs one. */
 import { errorResponse } from "../errors.ts";
 import { cancel, getLogsSince, subscribeToLogs } from "../../services/jobs.ts";
+import {
+  listRateLimitWaits,
+  summarizeRateLimitWaits,
+} from "../../services/rate_limit.ts";
 import { getJob, listJobs } from "../../store/jobs.ts";
 import type { JobLogRow } from "../../store/rows.ts";
 
@@ -27,7 +31,13 @@ export function handleJobsRoute(request: Request, url: URL): Response {
   if (jobId && !sub && request.method === "GET") {
     const job = getJob(jobId);
     if (!job) return errorResponse(404, "not_found", "no such job");
-    return Response.json({ ...job, logs: getLogsSince(jobId).slice(-50) });
+    const rateLimitWaits = listRateLimitWaits(jobId);
+    return Response.json({
+      ...job,
+      logs: getLogsSince(jobId).slice(-50),
+      rateLimitWaits,
+      rateLimitWaitSummary: summarizeRateLimitWaits(rateLimitWaits),
+    });
   }
 
   if (jobId && sub === "cancel" && request.method === "POST") {

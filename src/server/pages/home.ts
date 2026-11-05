@@ -1,5 +1,22 @@
-import { empty, html, layout, skSlot, text, when } from "./layout.ts";
+import {
+  empty,
+  html,
+  layout,
+  layoutFocus,
+  skSlot,
+  text,
+  when,
+} from "./layout.ts";
 import type { SetupItem } from "../../services/setup_checklist.ts";
+import { alert, badge, icon, segmented } from "./ui.ts";
+import type { RepoState } from "../../services/repo_list.ts";
+
+const STATE_BADGE: Record<RepoState, string> = {
+  reviewing: badge("emerald", "Reviewing", { icon: "circle-check" }),
+  paused: badge("neutral", "Paused", { icon: "circle-pause" }),
+  "setting-up": badge("sky", "Setting up", { icon: "loader" }),
+  "setup-failed": badge("red", "Setup failed", { icon: "circle-alert" }),
+};
 
 export function renderLogin(opts: {
   next: string;
@@ -36,17 +53,15 @@ export function renderLogin(opts: {
       "Use the dashboard password printed when serve started."
     : "Sign in with your GitHub account.";
   return html(
-    layout({
+    layoutFocus({
       title: "Sign in · co-maintainer",
-      body: `<div class="wrap" style="max-width:420px">
-  <img class="brand" src="/logo.png" alt="co-maintainer">
+      body: `<img class="brand" src="/logo.png" alt="co-maintainer">
   <div class="pagehead"><div><h1>Sign in</h1>
     <p class="lead">${text(lead)}</p></div></div>
   ${err}
   <div class="card"><div class="bd">
     ${passwordForm}${divider}${githubButton}
-  </div></div>
-</div>`,
+  </div></div>`,
     }),
   );
 }
@@ -55,108 +70,143 @@ export function renderHome(
   username: string,
   rows: {
     fullName: string;
-    statusKind: "ok" | "warn" | "err" | "run";
-    status: string;
+    state: RepoState;
+    autoOn: boolean;
+    fromCli?: boolean;
     knowledge: string;
     knowledgeAt?: string;
-    autoOn: boolean;
     reviews: string;
+    failed: number;
     cost: string;
   }[],
   checklist: SetupItem[],
+  /** `rows` is already filtered; `total` and `reviewing` count every
+   * repository so the lead and the tabs do not shrink with the filter. */
+  filter: { q: string; status: string; total: number; reviewing: number },
 ): Response {
-  const autoCount = rows.filter((row) => row.autoOn).length;
   const lead =
-    rows.length === 0
+    filter.total === 0
       ? "No repositories yet. Add one to start."
-      : `${rows.length} repositories · ${autoCount} reviewing pull requests automatically`;
+      : `${filter.total} repositories · ${filter.reviewing} reviewing pull requests automatically`;
   const remaining = checklist.filter((item) => !item.done);
-  // The card is hidden entirely once everything is done, so a finished
-  // install is not told to "finish" anything.
+  // One compact banner pointing at /setup, where the steps live. It is
+  // hidden entirely once everything is done, so a finished install is not
+  // told to "finish" anything.
   const setupCard =
     remaining.length === 0
       ? ""
-      : `<div class="card" id="finish-setup">
-    <div class="hd"><h2>Finish setup</h2>
-      <span class="muted" style="margin-left:auto">${checklist.length - remaining.length}/${
-        checklist.length
-      } done</span></div>
-    <div class="bd">
-      <ul class="steps">
-        ${checklist
-          .map(
-            (item, index) =>
-              `<li class="${item.done ? "done" : ""}">
-          <span class="n">${item.done ? "✓" : index + 1}</span>
-          <div class="body"><b>${text(item.title)}</b>
-            <span class="muted">${text(item.detail)}</span></div>
-          <a class="btn sm" href="${item.href}">${text(item.linkLabel)}</a>
-        </li>`,
-          )
-          .join("")}
-      </ul>
-    </div>
+      : `<div id="finish-setup">${alert("amber", {
+          title: "Setup is not finished",
+          body: `${checklist.length - remaining.length}/${checklist.length} done · ${text(
+            remaining[0]!.detail,
+          )}`,
+          icon: "list-checks",
+          action: `<a class="btn out sm" href="/setup">Continue${icon("arrow-right", "arr")}</a>`,
+        })}</div>`;
+  // Tabs keep the search and the search keeps the tab, so both filters
+  // combine without JS.
+  const tabHref = (status: string) => {
+    const params = new URLSearchParams();
+    if (status !== "all") params.set("status", status);
+    if (filter.q) params.set("q", filter.q);
+    const query = params.toString();
+    return query ? `/?${query}` : "/";
+  };
+  const current =
+    filter.status === "reviewing" || filter.status === "paused"
+      ? filter.status
+      : "all";
+  const filters = `<div class="filters">
+    <form class="sbox" method="get" action="/" role="search">${icon("search")}<input class="inp" type="search" name="q" value="${text(
+      filter.q,
+    )}" placeholder="Search repositories" aria-label="Search repositories">${
+      current === "all"
+        ? ""
+        : `<input type="hidden" name="status" value="${current}">`
+    }</form>
+    ${segmented([
+      { label: "All", href: tabHref("all"), on: current === "all" },
+      {
+        label: "Reviewing",
+        icon: "circle-check",
+        href: tabHref("reviewing"),
+        on: current === "reviewing",
+      },
+      {
+        label: "Paused",
+        icon: "circle-pause",
+        href: tabHref("paused"),
+        on: current === "paused",
+      },
+    ])}
   </div>`;
   const body =
-    rows.length === 0
+    filter.total === 0
       ? empty(
           "No repositories",
           "Add a repository to generate knowledge and review pull requests.",
         )
-      : `<div class="card" data-async>
+      : rows.length === 0
+        ? `${filters}${empty("No repositories match", "Try another search or tab.")}`
+        : `${filters}<div class="card" data-async>
     ${skSlot("table")}
     <div class="bd flush">
       <table>
         <thead><tr>
-          <th>Repository</th><th>Status</th><th>Knowledge</th><th>Auto review</th>
-          <th class="num">Reviews</th><th class="num">Cost (30d)</th>
+          <th>Repository</th><th>Status</th><th>Knowledge</th>
+          <th class="num">Reviews (30d)</th><th class="num">Cost (30d)</th><th></th>
         </tr></thead>
         <tbody>
           ${rows
             .map(
               (row) =>
                 `<tr>
-            <td><a href="/repos/${text(row.fullName)}">${text(row.fullName)}</a></td>
-            <td><span class="st ${row.statusKind}">${text(row.status)}</span></td>
+            <td><a class="strong" href="/repos/${text(row.fullName)}">${text(row.fullName)}</a><span class="sub">${
+              row.fromCli
+                ? "Added from CLI"
+                : row.autoOn
+                  ? "Automatic review on"
+                  : "Automatic review off"
+            }</span></td>
+            <td>${STATE_BADGE[row.state]}</td>
             <td>${text(row.knowledge)}${
               row.knowledgeAt
                 ? `<div class="dim" style="font-size:13px">${when(row.knowledgeAt)}</div>`
                 : ""
             }</td>
-            <td>${
-              row.autoOn
-                ? `<button class="tg on" data-repo="${text(row.fullName)}" data-on="1"></button>`
-                : `<button class="tg" data-repo="${text(row.fullName)}" data-on="0"></button>`
+            <td class="num">${text(row.reviews)}${
+              row.failed > 0
+                ? `<span class="sub">${row.failed} failed</span>`
+                : ""
             }</td>
-            <td class="num">${text(row.reviews)}</td>
             <td class="num">${text(row.cost)}</td>
+            <td class="num"><a class="btn out sm" href="/repos/${text(row.fullName)}">Open${icon(
+              "arrow-right",
+              "arr",
+            )}</a></td>
           </tr>`,
             )
             .join("")}
         </tbody>
       </table>
     </div>
-    <div class="ft"><span>Showing ${rows.length} repositories</span></div>
+    <div class="ft"><span>Showing ${rows.length} of ${filter.total} repositories</span></div>
   </div>`;
   return html(
     layout({
       title: "Repositories · co-maintainer",
       username,
+      active: "/",
       body: `<div class="wrap">
   <div class="pagehead">
     <div><h1>Repositories</h1><p class="lead">${text(lead)}</p></div>
     <div class="actions">${
       rows.length === 0 ? `<a class="btn" href="/setup">Get started</a>` : ""
-    }<a class="btn primary" href="/repos/new">Add repository</a></div>
+    }<a class="btn primary" href="/repos/new">${icon("plus")}Add repository</a></div>
   </div>
   ${setupCard}
   ${body}
-</div>
-<script>
-document.querySelectorAll(".tg[data-repo]").forEach(function(btn) {
-  bindToggle(btn, "/api/repos/" + btn.getAttribute("data-repo"), "autoReview");
-});
-</script>`,
+</div>`,
     }),
   );
 }

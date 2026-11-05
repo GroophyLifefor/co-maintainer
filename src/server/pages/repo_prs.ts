@@ -1,4 +1,4 @@
-import { empty, html, layout, repoNav, skSlot, text, when } from "./layout.ts";
+import { empty, html, layout, repoTabs, skSlot, text, when } from "./layout.ts";
 import { formatCostTotal } from "./cost.ts";
 import type { repoPulls } from "../../services/dashboard.ts";
 import type { OpenPull } from "../../github/app.ts";
@@ -89,8 +89,9 @@ export function renderRepoPulls(
     layout({
       title: `Pull requests · ${fullName}`,
       username,
-      body: `<div class="wrap side">
-  ${repoNav(fullName, "pulls")}
+      active: "/",
+      body: `<div class="wrap">
+  ${repoTabs(fullName, "pulls")}
   <div>
     <div class="crumbs"><a href="/">Repositories</a> /
       <a href="/repos/${text(fullName)}">${text(fullName)}</a> / Pull requests</div>

@@ -1,9 +1,11 @@
 import {
   capped,
   empty,
+  escapeHtml,
   html,
   layout,
-  repoNav,
+  markdown,
+  repoTabs,
   skSlot,
   text,
   when,
@@ -39,12 +41,20 @@ export function renderKnowledge(
     : `<div class="notice info"><div class="txt">Knowledge has not been built yet. Use Sync to build it.</div></div>`;
   const viewer = viewing
     ? `<div class="card"><div class="hd"><h2>${text(viewing.title)}</h2>
-        <a class="btn sm" style="margin-left:auto" href="/repos/${text(
-          name,
-        )}/knowledge">Close</a></div>
-      <div class="bd"><pre class="log" style="max-height:none">${text(
-        viewing.text,
-      )}</pre></div></div>`
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <button class="btn sm" type="button" data-copy-doc="${text(
+            viewing.id,
+          )}" aria-label="Copy">Copy</button>
+          <a class="btn sm" data-doc-download="${text(
+            viewing.id,
+          )}" href="/repos/${text(name)}/knowledge?view=${encodeURIComponent(
+            viewing.id,
+          )}&amp;download=1" download>Download</a>
+          <a class="btn sm" href="/repos/${text(name)}/knowledge">Close</a>
+        </div></div>
+      <div class="bd"><textarea hidden data-doc-source="${text(
+        viewing.id,
+      )}">${escapeHtml(viewing.text)}</textarea>${markdown(viewing.text)}</div></div>`
     : "";
   const table =
     data.docs.length === 0
@@ -72,8 +82,9 @@ export function renderKnowledge(
     layout({
       title: `Knowledge · ${name}`,
       username,
-      body: `<div class="wrap side">
-  ${repoNav(name, "knowledge")}
+      active: "/",
+      body: `<div class="wrap">
+  ${repoTabs(name, "knowledge")}
   <div data-async>
     ${skSlot()}
     <div class="crumbs"><a href="/">Repositories</a> /

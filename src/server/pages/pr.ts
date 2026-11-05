@@ -3,7 +3,7 @@ import {
   html,
   layout,
   markdown,
-  repoNav,
+  repoTabs,
   skSlot,
   text,
   when,
@@ -123,8 +123,9 @@ export function renderPr(
     layout({
       title: `#${n} · co-maintainer`,
       username,
-      body: `<div class="wrap side">
-  ${repoNav(fullName, "pulls")}
+      active: "/",
+      body: `<div class="wrap">
+  ${repoTabs(fullName, "pulls")}
   <div data-async>
     ${skSlot()}
     <div class="crumbs"><a href="/">Repositories</a> /

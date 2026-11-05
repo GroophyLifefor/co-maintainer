@@ -14,6 +14,8 @@ import {
   stopWorkerLoop,
 } from "../../services/jobs.ts";
 import { registerSetupJobHandler } from "../../services/setup.ts";
+import { setupChecklist } from "../../services/setup_checklist.ts";
+import { discoverCliRepos } from "../../services/cli_repos.ts";
 import { registerReviewJobHandler } from "../../services/review.ts";
 import {
   recoverReplyRequests,
@@ -218,10 +220,15 @@ export async function runServe(args: string[]): Promise<void> {
 
   await openAppDb();
   console.log(`[serve] app.db ready at ${appDbPath()}`);
+  const fromCli = await discoverCliRepos();
+  if (fromCli.length > 0) {
+    console.log(
+      `[serve] added ${fromCli.length} repositor${fromCli.length === 1 ? "y" : "ies"} built from the CLI: ${fromCli.join(", ")}`,
+    );
+  }
   registerSetupJobHandler();
   registerReviewJobHandler();
   registerRemoteReviewHandler();
-  startRemoteWatchdog();
   registerReplyJobHandler();
   const recovered = await recoverOrphans();
   if (recovered > 0) {
@@ -237,8 +244,6 @@ export async function runServe(args: string[]): Promise<void> {
       }`,
     );
   }
-  startWorkerLoop();
-  startRemakeScheduler();
 
   if (auth.github)
     console.log(
@@ -260,22 +265,53 @@ export async function runServe(args: string[]): Promise<void> {
     );
   }
 
+  const debug = args.includes("--debug") || getEnv("CM_DEBUG") === "1";
+  if (debug) {
+    console.log(
+      "[serve] --debug is on. The /__ui component gallery is available.",
+    );
+  }
+
   const app = createApp({
     password: "",
     passwordStore,
     webhookUrl,
     inject500,
+    port,
     trustProxy,
     auth,
     githubOAuth,
+    debug,
     loginHint: getEnv("CM_LOGIN_HINT"),
   });
   const server = serveHttp(
     (req, remoteAddr) => app.fetch(req, remoteAddr),
     port,
   );
+  // Nothing runs in the background and nothing claims to listen until the
+  // port is really bound, so a busy port leaves no worker behind.
+  try {
+    await server.ready;
+  } catch (error) {
+    await closeAppDb();
+    const code = (error as NodeJS.ErrnoException).code;
+    die(
+      code === "EADDRINUSE"
+        ? `port ${port} is already in use. Stop the other server or pick another --port.`
+        : `could not listen on port ${port}: ${(error as Error).message}`,
+    );
+  }
+  startRemoteWatchdog();
+  startWorkerLoop();
+  startRemakeScheduler();
   console.log(`[serve] listening on http://localhost:${port}`);
   console.log(`[serve] dashboard at http://localhost:${port}/`);
+  const steps = setupChecklist(webhookUrl);
+  if (steps.some((step) => !step.done)) {
+    console.log(
+      `[serve] finish setup at http://localhost:${port}/setup (${steps.filter((s) => s.done).length}/${steps.length} done)`,
+    );
+  }
   console.log(`[serve] webhook URL: ${webhookUrl}`);
 
   let shuttingDown = false;

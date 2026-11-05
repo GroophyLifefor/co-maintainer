@@ -29,8 +29,13 @@ import { cacheSet } from "../store/cache_db.ts";
 import { log, timed, withLogSink } from "../util/log.ts";
 import { printRunSummary, summaryFromMetrics } from "../util/run_summary.ts";
 import { enqueue, registerHandler } from "./jobs.ts";
+import { resolveConcurrency } from "./concurrency.ts";
 import { closeAppDb, isAppDbOpen, openAppDb } from "../store/app_db.ts";
-import { getRepo, markKnowledgeBuilt } from "../store/repos.ts";
+import {
+  getRepo,
+  markKnowledgeBuilt,
+  registerCliRepo,
+} from "../store/repos.ts";
 import { nowIso } from "../util/time.ts";
 import type { AiResponse, GitHubClient, Options } from "../types.ts";
 import type { Source, State } from "../knowledge/types.ts";
@@ -403,6 +408,9 @@ async function initOrRemake(options: Options): Promise<void> {
       );
       const head = source.commits[0] as { sha?: string } | undefined;
       const baseSha = head?.sha ? String(head.sha) : new Date().toISOString();
+      // A CLI init has no app.db row for the repository yet; without one the
+      // dashboard never sees what it built. A dashboard job already has one.
+      registerCliRepo(options.repo);
       markKnowledgeBuilt(options.repo, baseSha);
     });
     await writeState({
@@ -498,14 +506,15 @@ export function optionsFromConfig(
         "co-maintainer set --token=... --low-model=... --high-model=...",
     );
   }
+  const concurrency = resolveConcurrency(repo, config);
   return {
     command,
     repo,
     debug: false,
     logTime: true,
     improveMatrix: 1,
-    ghConcurrent: 1,
-    aiConcurrent: 3,
+    ghConcurrent: concurrency.gh,
+    aiConcurrent: concurrency.ai,
     auth,
     githubPat: config.githubPat,
     ai,
@@ -591,10 +600,15 @@ export function enqueueSetup(
   command: "init" | "remake",
   overrides: Partial<Options> = {},
 ): { id: string; debounced: boolean } {
+  const concurrency = resolveConcurrency(repo);
   return enqueue({
     type: command,
     repo,
-    args: overrides,
+    args: {
+      ghConcurrent: concurrency.gh,
+      aiConcurrent: concurrency.ai,
+      ...overrides,
+    },
     queueKey: `setup:${repo}`,
   });
 }

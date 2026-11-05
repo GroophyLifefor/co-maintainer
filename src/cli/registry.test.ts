@@ -189,6 +189,39 @@ test("registry: the init help groups flags the way the docs describe", () => {
   }
 });
 
+test("registry: the set help names the server and repository scope of the concurrency flags", () => {
+  const help = renderCommandHelp("set");
+  if (!help) throw new Error("set has no help");
+  for (const flag of ["--gh-concurrent", "--ai-concurrent"]) {
+    if (!help.includes(flag)) throw new Error(`set help omits ${flag}`);
+  }
+  if (!/server default/i.test(help)) {
+    throw new Error(
+      `set help does not name the server default scope:\n${help}`,
+    );
+  }
+  if (!/repository/i.test(help)) {
+    throw new Error(`set help does not name the repository scope:\n${help}`);
+  }
+});
+
+test("registry: init and sync document the one-off concurrency flags", () => {
+  for (const command of ["init", "sync"]) {
+    const help = renderCommandHelp(command);
+    if (!help) throw new Error(`${command} has no help`);
+    for (const flag of ["--gh-concurrent", "--ai-concurrent"]) {
+      if (!help.includes(flag)) {
+        throw new Error(`${command} help omits ${flag}`);
+      }
+    }
+    if (!/(this run|one run|one-off|does not change the saved)/i.test(help)) {
+      throw new Error(
+        `${command} help does not say the flags are one-off:\n${help}`,
+      );
+    }
+  }
+});
+
 test("registry: review lists every provider and init lists every accepted one", () => {
   const review = renderCommandHelp("review");
   const init = renderCommandHelp("init");

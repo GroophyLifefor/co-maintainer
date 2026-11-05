@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.4] - 2026-10-28
+
+### Added
+
+- **A design-system component library for the dashboard.** `src/server/pages/ui.ts` builds the shared pieces (page headers, cards, tables, badges, alerts, fields, steps, timeline and more) as pure string builders, backed by one stylesheet, so a page composes components instead of hand-writing markup.
+- **An internal component gallery.** `serve --debug` (or `CM_DEBUG=1`) serves `/__ui`, a page that renders every component twice, light and dark. It is off by default, so a normal server never serves it.
+- **Embedded icons and self-hosted fonts.** Lucide icon SVGs under `src/server/pages/icons/` are embedded into an inline sprite, and the Outfit font files under `src/server/pages/fonts/` ship with the dashboard. The UI makes no external request for either.
+- **Copy buttons on code blocks.** A `Copy` button copies a command to the clipboard, with a hidden-textarea fallback so it also works on plain `http://localhost`.
+- **Third-party notices.** `THIRD_PARTY_NOTICES` reproduces the Outfit (SIL OFL 1.1) and Lucide (ISC) licenses for the bundled assets, and it is included in the published package.
+
+### Changed
+
+- **`serve` gains `--debug`.** The flag, and the `CM_DEBUG=1` environment variable, expose the internal component gallery without changing any other behavior.
+
 ## [0.6.3] - 2026-10-28
 
 ### Fixed

@@ -26,14 +26,7 @@ import { test } from "node:test";
 
 const PASSWORD = "page-pass";
 
-const PAGES = [
-  "/",
-  "/setup",
-  "/repos/new",
-  "/activity",
-  "/analytics",
-  "/settings",
-];
+const PAGES = ["/", "/setup", "/repos/new", "/activity", "/usage", "/settings"];
 
 const REPO_PAGES = [
   "/repos/acme/widgets",
@@ -304,7 +297,7 @@ test("each page renders 200 with empty data", async () => {
   });
 });
 
-test("the home page lists the remaining setup steps", async () => {
+test("the home page shows one setup banner that continues on /setup", async () => {
   await withEnv(async () => {
     const app = createApp({ password: PASSWORD });
     const cookie = await cookieSession(app);
@@ -312,24 +305,24 @@ test("the home page lists the remaining setup steps", async () => {
       await app.fetch(new Request("http://localhost/", { headers: { cookie } }))
     ).text();
     if (!html.includes('id="finish-setup"')) {
-      throw new Error("a fresh install has no Finish setup card");
+      throw new Error("a fresh install has no setup banner");
     }
-    for (const title of [
-      "Models and API key",
-      "GitHub App",
-      "Webhook reachable",
-      "First repository",
-      "First review",
-      "CLI connected",
-    ]) {
-      if (!html.includes(title)) throw new Error(`missing step: ${title}`);
+    const banner = html
+      .slice(html.indexOf('id="finish-setup"'))
+      .split("</div></div>")[0]!;
+    if (!banner.includes('class="alert')) {
+      throw new Error("the setup banner is not a compact alert");
     }
-    // Every step links somewhere actionable.
-    if (!html.includes("/settings#ai") || !html.includes("/settings#remote")) {
-      throw new Error("a step does not link to its settings card");
+    if (!/href="\/setup"[^>]*>[^<]*Continue/.test(banner)) {
+      throw new Error("the banner has no Continue link to /setup");
     }
-    if (!html.includes("0/6 done")) {
+    // `withEnv` saves auth "gh", so GitHub access is the one finished step.
+    if (!html.includes("1/4 done")) {
       throw new Error("the done counter is wrong for a fresh install");
+    }
+    // The long checklist lives on /setup only.
+    for (const gone of ["CLI connected", "First review", 'class="steps"']) {
+      if (html.includes(gone)) throw new Error(`home still lists: ${gone}`);
     }
   });
 });
@@ -1013,12 +1006,12 @@ test("usage breaks spend down by day, model and severity", async () => {
     const cookie = await cookieSession(app);
     const html = await (
       await app.fetch(
-        new Request("http://localhost/analytics?range=7d", {
+        new Request("http://localhost/usage?range=7d", {
           headers: { cookie },
         }),
       )
     ).text();
-    assertCleanCopy(html, "/analytics");
+    assertCleanCopy(html, "/usage");
     const visible = visibleText(html);
     for (const label of ["Cost per day", "By model", "Findings by severity"]) {
       if (!visible.includes(label)) throw new Error(`usage missed ${label}`);
@@ -1089,14 +1082,14 @@ test("activity lists a job as a link and the job page shows the error", async ()
     }
     const analytics = await (
       await app.fetch(
-        new Request("http://localhost/analytics", { headers: { cookie } }),
+        new Request("http://localhost/usage", { headers: { cookie } }),
       )
     ).text();
     if (
       !analytics.includes('data-worth-id="job-fail"') ||
       !analytics.includes('data-dismiss-worth="job-fail"')
     ) {
-      throw new Error("analytics missed dismissible failed job");
+      throw new Error("usage missed dismissible failed job");
     }
     const job = await app.fetch(
       new Request("http://localhost/activity/job-fail", {
@@ -1467,4 +1460,80 @@ test("settings names the key the jobs use, and the environment wins over the sav
       if (general !== undefined) setEnv("CO_MAINTAINER_TOKEN", general);
     }
   });
+});
+
+test("the component gallery is served only in debug mode, behind sign-in", async () => {
+  await withEnv(async () => {
+    // No session: `/__ui` is a page path, so it still redirects to sign-in.
+    const off = createApp({ password: PASSWORD });
+    const anonymous = await off.fetch(
+      new Request("http://localhost/__ui", { redirect: "manual" }),
+    );
+    if (
+      anonymous.status !== 303 ||
+      !anonymous.headers.get("location")?.includes("/login")
+    ) {
+      throw new Error(`anonymous /__ui status ${anonymous.status}`);
+    }
+    const offCookie = await cookieSession(off);
+    const hidden = await off.fetch(
+      new Request("http://localhost/__ui", { headers: { cookie: offCookie } }),
+    );
+    if (hidden.status !== 404) {
+      throw new Error(`debug-off /__ui status ${hidden.status}, want 404`);
+    }
+
+    const on = createApp({ password: PASSWORD, debug: true });
+    const cookie = await cookieSession(on);
+    const response = await on.fetch(
+      new Request("http://localhost/__ui", { headers: { cookie } }),
+    );
+    if (response.status !== 200) {
+      throw new Error(`debug-on /__ui status ${response.status}`);
+    }
+    const html = await response.text();
+    for (const needle of [
+      "Light theme",
+      "Dark theme",
+      '<div class="app">',
+      '<div class="dark">',
+      'id="l-f1"',
+      'id="d-f1"',
+      'href="#i-copy"',
+      '<symbol id="i-git-pull-request"',
+    ]) {
+      if (!html.includes(needle)) {
+        throw new Error(`the component gallery missed ${needle}`);
+      }
+    }
+    assertCleanCopy(html, "/__ui");
+    assertUniqueIds(html, "/__ui");
+  });
+});
+
+test("the stylesheet ships the design tokens, the embedded font and dark theme", async () => {
+  const app = createApp({ password: PASSWORD });
+  const css = await (
+    await app.fetch(new Request("http://localhost/styles.css"))
+  ).text();
+  for (const needle of [
+    "@font-face",
+    'font-family: "Outfit"',
+    "data:font/woff2;base64,",
+    "--em-bg",
+    ".dark .app",
+    "scrollbar-gutter: stable",
+    "svg.ic",
+  ]) {
+    if (!css.includes(needle)) throw new Error(`styles missed ${needle}`);
+  }
+  // The font is embedded, not linked: the served sheet carries its bytes.
+  if (css.length < 90_000) {
+    throw new Error(
+      `styles is only ${css.length} chars; the font was not inlined`,
+    );
+  }
+  if (css.includes("fonts.googleapis.com")) {
+    throw new Error("styles still points at a font CDN");
+  }
 });

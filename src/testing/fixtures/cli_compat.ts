@@ -322,9 +322,11 @@ export const PARSE_CASES: ParseCase[] = [
     },
   },
   {
-    name: "concurrency floors at one",
+    name: "concurrency below one is rejected",
     args: ["init", "owner/repo", "--ai=none", "--gh-concurrent=0"],
-    expect: { command: "init", repo: "owner/repo", ghConcurrent: 1 },
+    expect: {
+      error: "--gh-concurrent must be an integer between 1 and 16",
+    },
   },
   {
     name: "unknown command is rejected",

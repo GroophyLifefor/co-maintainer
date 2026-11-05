@@ -17,6 +17,9 @@ import { aiConfigured, readConfig, resolveAppPrivateKey } from "../config.ts";
 import { listJobs } from "../store/jobs.ts";
 import { handleJobsRoute } from "./api/jobs.ts";
 import { handleReposRoute } from "./api/repos.ts";
+import { searchAll } from "../services/search.ts";
+import { navCounts } from "../services/nav_counts.ts";
+import { setNavSource } from "./pages/layout.ts";
 import { handleKnowledgeRoute } from "./api/knowledge.ts";
 import { handleInstallationsRoute } from "./api/installations.ts";
 import { handleSettingsRoute } from "./api/settings.ts";
@@ -34,6 +37,8 @@ export type AppDeps = {
   passwordStore?: PasswordStore;
   webhookUrl?: string;
   secureCookie?: boolean;
+  /** The port `serve` is listening on, shown on the Server page. */
+  port?: number;
   /** Behind a reverse proxy this process trusts, the client address and the
    * scheme come from `x-forwarded-for` and `x-forwarded-proto`. */
   trustProxy?: boolean;
@@ -41,6 +46,9 @@ export type AppDeps = {
    * "printed when serve started" line. */
   loginHint?: string;
   inject500?: boolean;
+  /** Exposes the internal `/__ui` component gallery. `serve --debug` /
+   * `CM_DEBUG=1` sets it. */
+  debug?: boolean;
   /** Defaults to password-only when omitted, matching every caller that
    * pre-dates GitHub sign-in. */
   auth?: AuthMethods;
@@ -149,6 +157,7 @@ function liveGithubConfig() {
 
 export function createApp(deps: AppDeps): App {
   const passwords = deps.passwordStore ?? memoryPasswordStore(deps.password);
+  setNavSource(() => navCounts(deps.webhookUrl ?? ""));
   return {
     async fetch(
       request: Request,
@@ -226,6 +235,9 @@ export function createApp(deps: AppDeps): App {
             username: session.username,
             ...setupStatus(),
           });
+        }
+        if (url.pathname === "/api/search" && request.method === "GET") {
+          return Response.json(searchAll(url.searchParams.get("q") ?? ""));
         }
         if (url.pathname.startsWith("/api/jobs")) {
           return handleJobsRoute(request, url);

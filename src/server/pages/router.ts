@@ -27,14 +27,10 @@ import {
   skippedDeliveries,
   statsForRange,
 } from "../../services/dashboard.ts";
-import { escapeHtml, html } from "./layout.ts";
+import { escapeHtml, html, notFound } from "./layout.ts";
 import { formatCostTotal } from "./cost.ts";
-import {
-  readConfig,
-  resolveAppPrivateKey,
-  writeUserConfig,
-} from "../../config.ts";
-import { aiConfigured, type UserConfig } from "../../config.ts";
+import { readConfig, writeUserConfig } from "../../config.ts";
+import { type UserConfig } from "../../config.ts";
 import {
   appNameProblem,
   beginManifestState,
@@ -53,13 +49,21 @@ import { renderKnowledge } from "./knowledge.ts";
 import { renderRepoSettings } from "./repo_settings.ts";
 import { renderActivity, renderJob } from "./activity.ts";
 import { renderAnalytics } from "./analytics.ts";
-import { renderSettings } from "./settings.ts";
+import { renderSettings, renderSettingsPage } from "./settings.ts";
+import type { SettingsSection } from "./settings.ts";
+import { renderCatalog } from "./catalog.ts";
 import { getRepo } from "../../store/repos.ts";
+import { cacheGet } from "../../store/cache_db.ts";
 import { getJob } from "../../store/jobs.ts";
 import { getLogsSince } from "../../services/jobs.ts";
 import { listInstallationsWithRepos, listOpenPulls } from "../../github/app.ts";
 import type { OpenPull } from "../../github/app.ts";
 import { setupChecklist } from "../../services/setup_checklist.ts";
+import {
+  appReady,
+  filterRepoList,
+  repoState,
+} from "../../services/repo_list.ts";
 
 export type PageDeps = {
   passwordStore: PasswordStore;
@@ -71,9 +75,14 @@ export type PageDeps = {
   /** Behind a reverse proxy this process trusts, absolute URLs are built
    * from `x-forwarded-host` and `x-forwarded-proto`. */
   trustProxy?: boolean;
+  /** The port `serve` is listening on, shown on the Server page. */
+  port?: number;
   /** `CM_LOGIN_HINT`, shown on the sign-in page in place of the default
    * "printed when serve started" line. */
   loginHint?: string;
+  /** `serve --debug` / `CM_DEBUG=1`: exposes the internal `/__ui` component
+   * gallery. Off by default so a normal server never serves it. */
+  debug?: boolean;
 };
 
 const REPO =
@@ -179,23 +188,38 @@ export async function handlePageRequest(
 
   const username = session.username;
   try {
+    if (url.pathname === "/__ui" && request.method === "GET") {
+      if (!deps.debug) return undefined;
+      return renderCatalog();
+    }
     if (url.pathname === "/" && request.method === "GET") {
       const config = readConfig();
+      const all = listReposForHome();
+      const ready = appReady();
+      const q = url.searchParams.get("q") ?? "";
+      const status = url.searchParams.get("status") ?? "all";
       return renderHome(
         username,
-        listReposForHome().map(toHomeRow),
+        filterRepoList(all, { q, status }, ready).map((item) =>
+          toHomeRow(item, ready),
+        ),
         setupChecklist(config.webhookUrl || deps.webhookUrl || ""),
+        {
+          q,
+          status,
+          total: all.length,
+          reviewing: all.filter(
+            (item) => repoState(item, ready) === "reviewing",
+          ).length,
+        },
       );
     }
     if (url.pathname === "/setup" && request.method === "GET") {
       const config = readConfig();
-      return renderSetup(username, {
-        ai: aiConfigured(config),
-        github: Boolean(
-          config.auth === "gh" || (config.auth === "pat" && config.githubPat),
-        ),
-        app: Boolean(config.githubAppId && resolveAppPrivateKey(config)),
-      });
+      return renderSetup(
+        username,
+        setupChecklist(config.webhookUrl || deps.webhookUrl || ""),
+      );
     }
     if (url.pathname === "/repos/new" && request.method === "GET") {
       return renderAddRepo(username, await repoPicker(deps.githubApp));
@@ -221,10 +245,19 @@ export async function handlePageRequest(
     const jobMatch = /^\/activity\/([^/]+)$/.exec(url.pathname);
     if (jobMatch && request.method === "GET") {
       const job = getJob(jobMatch[1]);
-      if (!job) return new Response("not found", { status: 404 });
+      if (!job) {
+        return notFound(
+          username,
+          "That job is not on this server.",
+          "/activity",
+        );
+      }
       return renderJob(username, job, getLogsSince(job.id));
     }
     if (url.pathname === "/analytics" && request.method === "GET") {
+      return Response.redirect(`${url.origin}/usage${url.search}`, 303);
+    }
+    if (url.pathname === "/usage" && request.method === "GET") {
       const range = url.searchParams.get("range") ?? "30d";
       return renderAnalytics(username, range, statsForRange(range));
     }
@@ -235,7 +268,29 @@ export async function handlePageRequest(
         config,
         config.webhookUrl || deps.webhookUrl || "",
         requestBaseUrl(request, url, Boolean(deps.trustProxy)),
+        { port: deps.port, trustProxy: Boolean(deps.trustProxy) },
       );
+    }
+    const settingsMatch = /^\/settings\/([a-z-]+)$/.exec(url.pathname);
+    if (settingsMatch && request.method === "GET") {
+      const section = settingsMatch[1] as SettingsSection;
+      const config = readConfig();
+      const page = renderSettingsPage(
+        username,
+        config,
+        config.webhookUrl || deps.webhookUrl || "",
+        requestBaseUrl(request, url, Boolean(deps.trustProxy)),
+        section,
+        { port: deps.port, trustProxy: Boolean(deps.trustProxy) },
+      );
+      if (!page) {
+        return notFound(
+          username,
+          `There is no settings page called ${section}.`,
+          undefined,
+        );
+      }
+      return page;
     }
 
     const match = matchRepo(url.pathname);
@@ -272,41 +327,69 @@ export async function handlePageRequest(
         );
       }
       if (sub === "knowledge") {
-        return renderKnowledge(
-          username,
-          await repoKnowledge(fullName),
-          url.searchParams.get("view") ?? undefined,
-        );
+        const knowledge = await repoKnowledge(fullName);
+        const viewId = url.searchParams.get("view") ?? undefined;
+        const doc = viewId
+          ? knowledge.docs.find((item) => item.id === viewId)
+          : undefined;
+        if (viewId && !doc) {
+          return notFound(
+            username,
+            "That document is not on this server.",
+            `/repos/${fullName}/knowledge`,
+          );
+        }
+        if (doc && url.searchParams.get("download") === "1") {
+          return new Response(doc.text, {
+            status: 200,
+            headers: {
+              "content-type": "text/markdown; charset=utf-8",
+              "content-disposition": `attachment; filename="${doc.file}"`,
+            },
+          });
+        }
+        return renderKnowledge(username, knowledge, viewId);
       }
       if (sub === "settings") {
         const config = readConfig();
+        let probeReport: Record<string, unknown> | undefined;
+        try {
+          const raw = await cacheGet("probe", fullName);
+          const parsed = raw ? JSON.parse(raw) : undefined;
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            probeReport = parsed as Record<string, unknown>;
+          }
+        } catch {
+          // A missing or unreadable probe cache simply means no recommendation.
+        }
         return renderRepoSettings(
           username,
           row,
           config.repos?.[fullName] ?? {},
+          probeReport,
         );
       }
     }
   } catch (error) {
     if (error instanceof RepoNotFound) {
-      return new Response("not found", { status: 404 });
+      return notFound(
+        username,
+        `That repository is not on this server.`,
+        undefined,
+      );
     }
     throw error;
+  }
+  if (!url.pathname.startsWith("/api/")) {
+    return notFound(username, `Nothing is at ${url.pathname}.`, undefined);
   }
   return undefined;
 }
 
-function toHomeRow(item: ReturnType<typeof listReposForHome>[number]) {
-  const job = item.latestJob;
-  let statusKind: "ok" | "warn" | "err" | "run" = "ok";
-  let status = "Active";
-  if (job && (job.status === "running" || job.status === "queued")) {
-    statusKind = "run";
-    status = "Setting up";
-  } else if (job?.status === "failed" && !item.repo.knowledge_built_at) {
-    statusKind = "err";
-    status = "Setup failed";
-  }
+function toHomeRow(
+  item: ReturnType<typeof listReposForHome>[number],
+  ready: boolean,
+) {
   let knowledge = "Not built";
   let knowledgeAt: string | undefined;
   if (item.repo.knowledge_built_at) {
@@ -316,12 +399,13 @@ function toHomeRow(item: ReturnType<typeof listReposForHome>[number]) {
   }
   return {
     fullName: item.repo.full_name,
-    statusKind,
-    status,
+    state: repoState(item, ready),
+    autoOn: item.repo.auto_review === 1,
+    fromCli: item.repo.added_from === "cli",
     knowledge,
     knowledgeAt,
-    autoOn: item.repo.auto_review === 1,
     reviews: String(item.stats.reviews),
+    failed: item.stats.failed,
     cost: formatCostTotal(item.stats),
   };
 }
@@ -374,10 +458,13 @@ function isPagePath(pathname: string): boolean {
   return (
     pathname === "/" ||
     pathname === "/setup" ||
+    pathname === "/__ui" ||
     pathname === "/activity" ||
     pathname.startsWith("/activity/") ||
     pathname === "/analytics" ||
+    pathname === "/usage" ||
     pathname === "/settings" ||
+    pathname.startsWith("/settings/") ||
     pathname === "/repos/new" ||
     pathname.startsWith("/repos/")
   );

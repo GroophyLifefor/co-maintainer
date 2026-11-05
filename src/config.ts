@@ -29,6 +29,10 @@ export type RepoConfig = {
   maxPrMonths?: number;
   maxPullRequestChangeLines?: number;
   maxComments?: number;
+  /** Overrides the server default for this repository. 1..16. */
+  ghConcurrent?: number;
+  /** Overrides the server default for this repository. 1..16. */
+  aiConcurrent?: number;
   includeCodebase?: boolean;
   includePullRequests?: boolean;
   includePullRequestChanges?: boolean;
@@ -38,6 +42,12 @@ export type RepoConfig = {
   prState?: ("open" | "closed" | "merged")[];
   /** Five field cron in UTC, checked by `serve` to queue a remake. */
   remakeCron?: string;
+  /** A rejected custom schedule kept only so the settings form can show what
+   * was typed. Never read by the scheduler. */
+  remakeCronDraft?: string;
+  /** How a review decides a blocking finding for this repository. Unset
+   * follows the server default. */
+  reviewBlocking?: "model" | "severity";
   /** A repository's own review instructions, appended to the built-in
    * reviewer prompt as a `CUSTOM REVIEW INSTRUCTIONS` section. Unset or blank
    * means none. */
@@ -89,6 +99,10 @@ export type UserConfig = {
     maxCommits?: number;
     maxPrMonths?: number;
     maxPullRequestChangeLines?: number;
+    /** Server default for GitHub calls. 1..16. */
+    ghConcurrent?: number;
+    /** Server default for AI calls. 1..16. */
+    aiConcurrent?: number;
   };
   /** Cap on jobs running at once across all types. Unset means no limit. */
   maxConcurrentJobs?: number;

@@ -12,6 +12,7 @@ import {
 import { formatCostTotal } from "./cost.ts";
 import type { statsForRange } from "../../services/dashboard.ts";
 import { listJobs } from "../../store/jobs.ts";
+import { pageHeader, segmented, statCard } from "./ui.ts";
 
 export function renderAnalytics(
   username: string,
@@ -19,6 +20,59 @@ export function renderAnalytics(
   data: ReturnType<typeof statsForRange>,
 ): Response {
   const failed = listJobs({ status: "failed" }).slice(0, 5);
+  const current = ["7d", "30d", "90d"].includes(range) ? range : "30d";
+  const kind = (name: (typeof data.byKind)[number]["kind"]) =>
+    data.byKind.find((row) => row.kind === name)!;
+  // Every review kind costs money, so Spent sums all of them, not only the
+  // posted pull request reviews.
+  const spent = data.byKind.reduce(
+    (sum, row) => ({
+      cost: sum.cost + row.cost,
+      knownCount: sum.knownCount + row.knownCount,
+      unknownCount: sum.unknownCount + row.unknownCount,
+      byokUsd: sum.byokUsd + row.byokUsd,
+      byokKnownCount: sum.byokKnownCount + row.byokKnownCount,
+      byokUnknownCount: sum.byokUnknownCount + row.byokUnknownCount,
+    }),
+    {
+      cost: 0,
+      knownCount: 0,
+      unknownCount: 0,
+      byokUsd: 0,
+      byokKnownCount: 0,
+      byokUnknownCount: 0,
+    },
+  );
+  const kindRows: [string, string, string][] = [
+    ["init / sync", String(data.setupRuns), "Not recorded"],
+    [
+      "Pull request reviews",
+      String(kind("posted").runs),
+      formatCostTotal(kind("posted")),
+    ],
+    [
+      "Not posted reviews",
+      String(kind("not_posted").runs),
+      formatCostTotal(kind("not_posted")),
+    ],
+    [
+      "Failed attempts",
+      String(kind("failed").runs),
+      formatCostTotal(kind("failed")),
+    ],
+    ["CLI reviews", String(kind("cli").runs), formatCostTotal(kind("cli"))],
+  ];
+  const byKind = `<table>
+        <thead><tr><th>Kind</th><th class="num">Runs</th><th class="num">Cost</th></tr></thead>
+        <tbody>
+          ${kindRows
+            .map(
+              ([label, runs, cost]) =>
+                `<tr><td>${text(label)}</td><td class="num">${runs}</td><td class="num">${text(cost)}</td></tr>`,
+            )
+            .join("")}
+        </tbody>
+      </table>`;
   const totalFindings = data.bySeverity.reduce(
     (sum, row) => sum + row.findings,
     0,
@@ -158,51 +212,66 @@ export function renderAnalytics(
     layout({
       title: "Usage · co-maintainer",
       username,
-      active: "analytics",
+      active: "/usage",
       body: `<div class="wrap">
-  <div class="pagehead">
-    <div><h1>Usage</h1>
-      <p class="lead">Last ${data.days} days</p></div>
-    <div class="actions">
-      <select id="range" style="width:150px">
-        <option value="7d"${range === "7d" ? " selected" : ""}>Last 7 days</option>
-        <option value="30d"${range === "30d" ? " selected" : ""}>Last 30 days</option>
-        <option value="90d"${range === "90d" ? " selected" : ""}>Last 90 days</option>
-      </select>
+  ${pageHeader({
+    title: "Usage",
+    lead: `Last ${data.days} days`,
+    actions: segmented(
+      ["7d", "30d", "90d"].map((value) => ({
+        label: value,
+        href: `/usage?range=${value}`,
+        on: value === current,
+      })),
+    ),
+  })}
+  <div class="stats">
+    ${statCard({
+      label: "Spent",
+      value: formatCostTotal(spent),
+      hint: `${count(data.totals.tokensIn + data.totals.tokensOut)} tokens · ${count(
+        data.totals.tokensIn,
+      )} in and ${count(data.totals.tokensOut)} out${delta(data.change.cost, data.days, true)}`,
+      icon: "coins",
+    })}
+    ${statCard({
+      label: "Reviews",
+      value: String(kind("posted").runs + kind("not_posted").runs),
+      hint:
+        [
+          kind("failed").runs > 0
+            ? `${kind("failed").runs} failed ${kind("failed").runs === 1 ? "attempt" : "attempts"}`
+            : "",
+          kind("not_posted").runs > 0
+            ? `${kind("not_posted").runs} not posted`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" · ") || undefined,
+      icon: "git-pull-request",
+    })}
+    ${statCard({
+      label: "Findings",
+      value: String(data.totals.findings),
+      hint: `${data.totals.pullRequests} pull requests${delta(data.change.findings, data.days)}`,
+      icon: "flag",
+    })}
+    ${statCard({
+      label: "Avg. review",
+      value: duration(data.totals.avgDurationMs),
+      icon: "timer",
+    })}
+  </div>
+  <div class="cols c11">
+    <div class="card">
+      <div class="hd"><h2>By kind</h2></div>
+      <div class="bd flush">${byKind}</div>
+    </div>
+    <div class="card">
+      <div class="hd"><h2>By model</h2></div>
+      <div class="bd flush">${byModel}</div>
     </div>
   </div>
-  <div class="card"><div class="bd">
-    <div class="kfig wrap4">
-      <div><div class="k">Pull requests reviewed</div><div class="big">${data.totals.pullRequests}</div>${delta(
-        data.change.pullRequests,
-        data.days,
-      )}</div>
-      <div><div class="k">Findings</div><div class="big">${data.totals.findings}</div>${delta(
-        data.change.findings,
-        data.days,
-      )}</div>
-      <div><div class="k">Cost</div><div class="big">${formatCostTotal(
-        data.totals,
-      )}</div>${delta(data.change.cost, data.days, true)}</div>
-      <div><div class="k">Tokens</div><div class="big">${count(
-        data.totals.tokensIn + data.totals.tokensOut,
-      )}</div><div class="trend">${count(data.totals.tokensIn)} in and ${count(
-        data.totals.tokensOut,
-      )} out</div></div>
-      <div><div class="k">Average review</div><div class="big">${duration(
-        data.totals.avgDurationMs,
-      )}</div></div>
-      <div><div class="k">Rounds per pull request</div><div class="big">${
-        data.totals.pullRequests
-          ? (data.totals.reviews / data.totals.pullRequests).toFixed(1)
-          : "0"
-      }</div>${
-        data.totals.failed
-          ? `<div class="trend down">${data.totals.failed} failed</div>`
-          : ""
-      }</div>
-    </div>
-  </div></div>
   <div class="card">
     <div class="hd"><h2>Cost per day</h2></div>
     <div class="bd">
@@ -224,10 +293,6 @@ export function renderAnalytics(
     <div class="bd flush">${byRepo}</div>
   </div>
   <div class="card">
-    <div class="hd"><h2>By model</h2></div>
-    <div class="bd flush">${byModel}</div>
-  </div>
-  <div class="card">
     <div class="hd"><h2>By remote token</h2></div>
     <div class="bd flush">${byRemoteToken}</div>
   </div>
@@ -241,9 +306,6 @@ export function renderAnalytics(
   </div>
 </div>
 <script>
-document.getElementById("range").addEventListener("change", function() {
-  location.href = "/analytics?range=" + this.value;
-});
 (function() {
   var key = "co-maintainer:dismissed-worth";
   var read = function() {

@@ -5,6 +5,7 @@
 import { log } from "../util/log.ts";
 import { networkFailure } from "../cli/error.ts";
 import { missingHint, refusalHint } from "./permissions.ts";
+import { recordRateLimitWait } from "../services/rate_limit.ts";
 
 export class GitHubHttpError extends Error {
   readonly status: number;
@@ -136,6 +137,12 @@ export async function githubFetch(
       const retryAfter =
         retryAfterHeader === null ? NaN : Number(retryAfterHeader);
       if (Number.isFinite(retryAfter) && retryAfter >= 0 && attempt < 3) {
+        recordRateLimitWait({
+          service: "github",
+          stage: "GitHub request",
+          reason: `secondary rate limit (HTTP ${response.status})`,
+          seconds: retryAfter,
+        });
         console.log(
           `[github] secondary rate limit, waiting ${retryAfter}s (attempt ${attempt} of 3)`,
         );
@@ -156,6 +163,12 @@ export async function githubFetch(
       spun = true;
       continue;
     }
+    recordRateLimitWait({
+      service: "github",
+      stage: "GitHub request",
+      reason: `primary rate limit (HTTP ${response?.status ?? 403})`,
+      seconds: delay / 1000,
+    });
     spun = false;
     await waitForRateLimit(exhausted.resetAt, started);
   }

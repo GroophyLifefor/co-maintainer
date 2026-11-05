@@ -282,4 +282,11 @@ export const migrations: string[][] = [
     `ALTER TABLE remote_review_inputs ADD COLUMN system_prompt_add TEXT`,
     `ALTER TABLE remote_review_inputs ADD COLUMN system_prompt_override TEXT`,
   ],
+  // 13 — the one issue comment a failed review leaves on the pull request,
+  // kept so a retry edits that same note instead of opening a second one.
+  [`ALTER TABLE reviews ADD COLUMN note_comment_id TEXT`],
+  // 14 — where a repository came from. `'cli'` for one a CLI init built
+  // (registered by init itself, or found on disk by serve after an upgrade),
+  // NULL for one added from the dashboard.
+  [`ALTER TABLE repos ADD COLUMN added_from TEXT`],
 ];

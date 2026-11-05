@@ -11,6 +11,8 @@ import { cacheDelete } from "../store/cache_db.ts";
 import { readState } from "../store/skill_state.ts";
 import { testOptions } from "../testing/helpers.ts";
 import { claimAndRun, getLogsSince, registerHandler } from "./jobs.ts";
+import { getJob } from "../store/jobs.ts";
+import type { JobRow } from "../store/rows.ts";
 import type { Options } from "../types.ts";
 import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
 import { test } from "node:test";
@@ -86,6 +88,117 @@ test("optionsFromConfig prefers repo-level overrides over global config", async 
     const options = optionsFromConfig("acme/widgets", "init");
     if (options.auth !== "pat") {
       throw new Error("repo-level auth override was not honored");
+    }
+  });
+});
+
+test("optionsFromConfig resolves concurrency from repo, server default, then built-in", async () => {
+  await withTempConfigAndDb(async () => {
+    await writeUserConfig({
+      auth: "gh",
+      ai: "openrouter",
+      token: "tok",
+      lowModel: "low/model",
+      highModel: "high/model",
+    });
+
+    const builtin = optionsFromConfig("acme/widgets", "init");
+    if (builtin.ghConcurrent !== 1 || builtin.aiConcurrent !== 3) {
+      throw new Error(
+        `built-in concurrency: ${builtin.ghConcurrent}/${builtin.aiConcurrent} (want 1/3)`,
+      );
+    }
+
+    await writeUserConfig({
+      defaults: { ghConcurrent: 4, aiConcurrent: 2 },
+    } as never);
+    const server = optionsFromConfig("acme/widgets", "init");
+    if (server.ghConcurrent !== 4 || server.aiConcurrent !== 2) {
+      throw new Error(
+        `server concurrency: ${server.ghConcurrent}/${server.aiConcurrent} (want 4/2)`,
+      );
+    }
+
+    await writeRepoConfig("acme/widgets", {
+      ghConcurrent: 8,
+      aiConcurrent: 6,
+    } as never);
+    const repo = optionsFromConfig("acme/widgets", "init");
+    if (repo.ghConcurrent !== 8 || repo.aiConcurrent !== 6) {
+      throw new Error(
+        `repo concurrency: ${repo.ghConcurrent}/${repo.aiConcurrent} (want 8/6)`,
+      );
+    }
+  });
+});
+
+function jobConcurrency(job: JobRow): { gh?: number; ai?: number } {
+  const args = JSON.parse(job.args || "{}") as Record<string, unknown>;
+  const row = job as unknown as Record<string, unknown>;
+  const gh = row.gh_concurrent ?? row.ghConcurrent ?? args.ghConcurrent;
+  const ai = row.ai_concurrent ?? row.aiConcurrent ?? args.aiConcurrent;
+  return {
+    gh: typeof gh === "number" ? gh : undefined,
+    ai: typeof ai === "number" ? ai : undefined,
+  };
+}
+
+test("a setup job keeps the concurrency resolved when it started", async () => {
+  await withTempConfigAndDb(async () => {
+    await writeUserConfig({
+      auth: "gh",
+      ai: "openrouter",
+      token: "tok",
+      lowModel: "low/model",
+      highModel: "high/model",
+      defaults: { ghConcurrent: 4, aiConcurrent: 2 },
+    } as never);
+    await writeRepoConfig("acme/widgets", {
+      ghConcurrent: 8,
+      aiConcurrent: 6,
+    } as never);
+    activateRepo("acme/widgets", undefined);
+
+    let seen: Options | undefined;
+    const handler = buildSetupHandler((options) => {
+      seen = options;
+      return Promise.resolve();
+    });
+    registerHandler("init", handler);
+    const { id } = enqueueSetup("acme/widgets", "init");
+    await claimAndRun();
+
+    if (seen?.ghConcurrent !== 8 || seen?.aiConcurrent !== 6) {
+      throw new Error(
+        `the runner saw ${seen?.ghConcurrent}/${seen?.aiConcurrent} (want 8/6)`,
+      );
+    }
+    const stored = jobConcurrency(getJob(id)!);
+    if (stored.gh !== 8 || stored.ai !== 6) {
+      throw new Error(
+        `the job did not keep its concurrency: ${JSON.stringify(stored)}`,
+      );
+    }
+
+    await writeUserConfig({
+      defaults: { ghConcurrent: 1, aiConcurrent: 1 },
+    } as never);
+    await writeRepoConfig("acme/widgets", {
+      ghConcurrent: 1,
+      aiConcurrent: 1,
+    } as never);
+
+    const after = jobConcurrency(getJob(id)!);
+    if (after.gh !== 8 || after.ai !== 6) {
+      throw new Error(
+        `a later setting change rewrote the past job: ${JSON.stringify(after)}`,
+      );
+    }
+    const now = optionsFromConfig("acme/widgets", "init");
+    if (now.ghConcurrent !== 1 || now.aiConcurrent !== 1) {
+      throw new Error(
+        `the new setting did not apply to a new run: ${now.ghConcurrent}/${now.aiConcurrent}`,
+      );
     }
   });
 });

@@ -74,6 +74,7 @@ await writeTextFile(
     auth: "gh",
     ai: "openrouter",
     token: "fake",
+    lowModel: "fake/model",
     highModel: "fake/model",
   }),
 );

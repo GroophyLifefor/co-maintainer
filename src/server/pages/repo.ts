@@ -3,16 +3,74 @@ import {
   empty,
   html,
   layout,
-  repoNav,
+  repoTabs,
   skSlot,
   text,
   when,
 } from "./layout.ts";
+import {
+  badge,
+  crumb,
+  dl,
+  icon,
+  pageHeader,
+  section,
+  statCard,
+  type Tone,
+} from "./ui.ts";
 import { formatCostTotal } from "./cost.ts";
 import { COMPARE_FILE_CAP, MAX_COMMITS_COUNTED } from "../../services/drift.ts";
 import type { repoOverview } from "../../services/dashboard.ts";
+import { describePolicy } from "../../services/review_policy.ts";
+import { policyForRepo } from "../../services/webhook.ts";
+import { reviewBlockingFrom } from "../../review/blocking.ts";
+import { SEVERITY_LEGEND } from "../../pr/review_copy.ts";
+import { readConfig } from "../../config.ts";
 import { webhookReachabilityProblem } from "../../util/webhook_reachability.ts";
 import { lastDeliveryForRepo } from "../../store/deliveries.ts";
+
+/** P0..P3 in legend order, with the words the PR comment uses. */
+const SEVERITY_TONE: Record<string, Tone> = {
+  P0: "red",
+  P1: "red",
+  P2: "amber",
+  P3: "neutral",
+};
+
+function severityName(level: string): string {
+  return (
+    SEVERITY_LEGEND.find((entry) => entry.level === level)?.name ?? level
+  ).toLowerCase();
+}
+
+/** "1 high · 1 low", most severe first. */
+function severityHint(
+  counts: { severity: string; findings: number }[],
+): string {
+  return SEVERITY_LEGEND.map((entry) => {
+    const n = counts.find((c) => c.severity === entry.level)?.findings ?? 0;
+    return n > 0 ? `${n} ${entry.name.toLowerCase()}` : "";
+  })
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/** The most severe level among a review's findings, as a badge. */
+function topSeverity(levels: string[]): string {
+  const top = SEVERITY_LEGEND.find((entry) => levels.includes(entry.level));
+  if (!top) return "";
+  const n = levels.filter((level) => level === top.level).length;
+  return badge(
+    SEVERITY_TONE[top.level] ?? "neutral",
+    `${n} ${severityName(top.level)}`,
+  );
+}
+
+function seconds(ms: number): string {
+  if (!ms) return "None yet";
+  const s = Math.round(ms / 1000);
+  return s < 60 ? `${s} s` : `${Math.round(s / 60)} min`;
+}
 
 export function renderRepo(
   username: string,
@@ -31,8 +89,7 @@ export function renderRepo(
         ${drift.prs_since} new pull requests, ${drift.prs_updated} changed pull requests, ${capped(
           drift.commits_since,
           MAX_COMMITS_COUNTED,
-        )} commits, ${capped(drift.files_changed, COMPARE_FILE_CAP)} files changed.</div>
-      <button class="btn primary" id="remake">Sync now</button>
+        )} commits, ${capped(drift.files_changed, COMPARE_FILE_CAP)} files changed. Use Sync to update it.</div>
     </div>`
       : "";
   const pulls =
@@ -41,25 +98,23 @@ export function renderRepo(
           "No reviews yet",
           "Reviews appear here after a pull request is opened.",
         )
-      : `<table>
-          <thead><tr><th>Pull request</th><th>Reviewed</th><th class="num">Findings</th></tr></thead>
-          <tbody>
-            ${data.recentPulls
-              .map(
-                (review) =>
-                  `<tr><td><a href="/repos/${text(
-                    name,
-                  )}/pulls/${review.pr_number}">#${review.pr_number}</a></td>
-              <td class="muted">${when(review.created_at)}</td>
-              <td class="num">${review.findings_count}</td></tr>`,
-              )
-              .join("")}
-          </tbody>
-        </table>`;
+      : data.recentPulls
+          .map(
+            (review) =>
+              `<div class="row"><div class="b"><p class="strong"><a href="/repos/${text(
+                name,
+              )}/pulls/${review.pr_number}">#${review.pr_number}</a></p>
+          <p class="muted" style="font-size:13px">Reviewed ${when(review.created_at)} · ${
+            review.findings_count
+          } ${review.findings_count === 1 ? "finding" : "findings"}</p></div>${topSeverity(
+            review.severities,
+          )}</div>`,
+          )
+          .join("");
   const reach = webhookReachabilityProblem(webhookUrl);
   const last = lastDeliveryForRepo(name);
   const delivery = last ? when(last.received_at) : "never";
-  const webhook = reach
+  const webhookNotice = reach
     ? `<div class="notice bad">
       <div class="txt"><b>GitHub cannot reach this address, so automatic reviews will not arrive.</b>
         ${text(reach)} The webhook URL is <code>${text(
@@ -73,75 +128,81 @@ export function renderRepo(
         and the last webhook delivery is never. Open a pull request, or check the webhook URL
         <code>${text(webhookUrl)}</code> in <a href="/settings">Settings</a>.</div>
     </div>`
-      : `<p class="muted" style="margin:0 0 18px">Last webhook delivery: ${delivery}.</p>`;
+      : "";
+  const config = readConfig();
+  const blocking =
+    reviewBlockingFrom(
+      config.repos?.[name]?.reviewBlocking ?? config.reviewBlocking,
+    ) === "severity"
+      ? "Severity is Critical or High"
+      : "When the model says so";
+  const webhookRow =
+    last && !reach
+      ? `${badge("emerald", "Receiving", { icon: "circle-check" })} <span class="muted" style="font-size:13px">Last webhook delivery: ${delivery}</span>`
+      : `${badge("amber", "Not receiving", { icon: "triangle-alert" })} <span class="muted" style="font-size:13px">Last webhook delivery: ${delivery}</span>`;
+  const how = dl([
+    {
+      k: "Who",
+      v: describePolicy(policyForRepo(data.repo)).map(text).join(" "),
+    },
+    {
+      k: "Scope",
+      v:
+        data.repo.review_scope === "incremental"
+          ? "Only what changed since the last review"
+          : "The whole pull request every time",
+    },
+    { k: "Blocking", v: blocking },
+    { k: "Webhook", v: webhookRow },
+  ]);
   const auto = data.repo.auto_review === 1;
+  const lead = `${
+    auto ? "Reviewing pull requests automatically" : "Automatic review is off"
+  } · knowledge ${
+    data.repo.knowledge_built_at
+      ? when(data.repo.knowledge_built_at)
+      : "not built yet"
+  }`;
+  const failedHint =
+    stats.failed > 0
+      ? `${stats.failed} failed ${stats.failed === 1 ? "attempt" : "attempts"}`
+      : undefined;
   return html(
     layout({
       title: `${name} · co-maintainer`,
       username,
-      body: `<div class="wrap side">
-  ${repoNav(name, "overview")}
-  <div>
-    <div class="crumbs"><a href="/">Repositories</a> / ${text(name)}</div>
-    <div class="pagehead">
-      <div>
-        <h1>${text(name)}</h1>
-        <p class="lead">${
-          auto
-            ? "Reviewing pull requests automatically"
-            : "Automatic review is off"
-        } · knowledge ${
-          data.repo.knowledge_built_at
-            ? when(data.repo.knowledge_built_at)
-            : "not built yet"
-        }</p>
-      </div>
-      <div class="actions">
-        <a class="btn" href="https://github.com/${text(name)}">Open on GitHub</a>
-      </div>
-    </div>
-    ${notice}
-    ${webhook}
-    <div class="card">
-      <div class="hd"><h2>Last 30 days</h2></div>
-      <div class="bd">
-        <div class="kfig">
-          <div><div class="k">Pull requests reviewed</div><div class="big">${stats.pullRequests}</div></div>
-          <div><div class="k">Findings</div><div class="big">${stats.findings}</div></div>
-          <div><div class="k">Cost</div><div class="big">${formatCostTotal(stats)}</div></div>
-        </div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="hd"><h2>Recent pull requests</h2>
-        <a class="btn sm" style="margin-left:auto" href="/repos/${text(
-          name,
-        )}/pulls">View all</a></div>
-      <div class="bd flush">${pulls}</div>
-    </div>
-    <div class="card" data-async>
-      ${skSlot()}
-      <div class="hd"><h2>Automatic review</h2></div>
-      <div class="bd">
-        <div style="display:flex;align-items:center;gap:14px">
-          <button class="tg${auto ? " on" : ""}" id="auto"></button>
-          <div>
-            <div><b>${auto ? "On" : "Off"}</b>. ${
-              auto
-                ? "Every new push to an open pull request gets reviewed."
-                : "New pushes are not reviewed until you turn this on."
-            }</div>
-            <div class="hint" style="margin:2px 0 0">Drafts and bot pull requests follow the skip settings.
-              <a href="/repos/${text(name)}/settings">Change</a></div>
-          </div>
-        </div>
-      </div>
-    </div>
+      active: "/",
+      body: `<div class="wrap">
+  ${pageHeader({
+    title: name,
+    leadHtml: lead,
+    crumb: crumb([{ label: "Repositories", href: "/" }, { label: name }]),
+    actions: `<button type="button" class="btn out" id="remake">${icon("refresh-cw")}Sync</button><a class="btn out" href="https://github.com/${text(
+      name,
+    )}">${icon("external-link")}GitHub</a>`,
+  })}
+  ${repoTabs(name, "overview")}
+  ${notice}
+  ${webhookNotice}
+  <div class="stats">
+    ${statCard({ label: "Reviewed (30d)", value: String(stats.pullRequests), hint: failedHint, icon: "git-pull-request" })}
+    ${statCard({ label: "Findings", value: String(stats.findings), hint: severityHint(data.bySeverity) || undefined, icon: "flag" })}
+    ${statCard({ label: "Cost (30d)", value: formatCostTotal(stats), icon: "coins" })}
+    ${statCard({ label: "Avg. review", value: seconds(stats.avgDurationMs), icon: "timer" })}
+  </div>
+  <div class="cols c11">
+    <div class="card">${section(pulls, {
+      title: "Recent pull requests",
+      action: `<a class="btn gh sm" href="/repos/${text(name)}/pulls">View all</a>`,
+    })}</div>
+    <div class="card">${section(how, {
+      title: "How it reviews",
+      action: `<a class="btn gh sm" href="/repos/${text(name)}/settings">Change</a>`,
+    })}</div>
   </div>
 </div>
 <script>
 var repo = ${JSON.stringify(name)};
-bindToggle(document.getElementById("auto"), "/api/repos/" + repo, "autoReview");
 var remake = document.getElementById("remake");
 if (remake) remake.addEventListener("click", function() {
   postAndGo("/api/repos/" + repo + "/remake", {}, "/activity", remake);

@@ -2,6 +2,7 @@ import { cacheGet, cacheSet } from "../store/cache_db.ts";
 import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
 import { isNotFound, readTextFile } from "../util/runtime.ts";
 import { formatError } from "../cli/error.ts";
+import { recordRateLimitWait } from "../services/rate_limit.ts";
 
 type JobRecord = {
   status: "done" | "quarantine";
@@ -187,6 +188,12 @@ export class AiBatch {
         if (attempt < limit) {
           const wait = retryDelayMs(reason, attempt);
           if (wait > 0) {
+            recordRateLimitWait({
+              service: "openrouter",
+              stage: item.request.job,
+              reason,
+              seconds: wait / 1000,
+            });
             console.log(
               `[ai] waiting ${Math.round(wait / 1000)}s before retry (provider is rate limiting)`,
             );

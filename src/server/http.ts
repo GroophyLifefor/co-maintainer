@@ -21,6 +21,9 @@ export type HttpServer = {
   port: number;
   shutdown: () => Promise<void>;
   finished: Promise<void>;
+  /** Settles once the port is bound: rejects with the listen error (a busy
+   * port is `EADDRINUSE`), so nothing claims to listen before it does. */
+  ready: Promise<void>;
 };
 
 function requestHeaders(req: IncomingMessage): Headers {
@@ -117,9 +120,14 @@ export function serveHttp(app: FetchApp, port: number): HttpServer {
     })();
   });
 
+  const ready = new Promise<void>((resolve, reject) => {
+    server.once("listening", () => resolve());
+    server.once("error", reject);
+  });
   server.listen(port);
   return {
     port,
+    ready,
     shutdown: () =>
       new Promise<void>((resolve) => {
         // SSE streams never end on their own, so `close()` alone would wait

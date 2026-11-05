@@ -17,6 +17,24 @@ export function activateRepo(
     .run(fullName, installationId ?? null, nowIso());
 }
 
+/** Adds a repository a CLI init built, unless it is already known (active,
+ * or removed from the dashboard on purpose). It starts with automatic review
+ * off: building knowledge from the CLI never opts a repository into posting
+ * reviews. */
+export function registerCliRepo(
+  fullName: string,
+  knowledgeBuiltAt?: string,
+): boolean {
+  const result = getAppDb()
+    .prepare(
+      `INSERT INTO repos (full_name, installation_id, active, auto_review, created_at, added_from, knowledge_built_at)
+     VALUES (?, NULL, 1, 0, ?, 'cli', ?)
+     ON CONFLICT(full_name) DO NOTHING`,
+    )
+    .run(fullName, nowIso(), knowledgeBuiltAt ?? null);
+  return Number(result.changes) > 0;
+}
+
 export function deactivateRepo(fullName: string): void {
   getAppDb()
     .prepare(`UPDATE repos SET active = 0 WHERE full_name = ?`)

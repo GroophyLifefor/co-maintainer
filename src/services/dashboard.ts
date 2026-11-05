@@ -12,6 +12,7 @@ import {
   listReviewsForPr,
   reviewStats,
   reviewStatsByDay,
+  reviewStatsByKind,
   reviewStatsByModel,
   reviewStatsByRemoteToken,
   listRemoteReviewsForRepo,
@@ -100,6 +101,13 @@ export function statsForRange(range: string) {
     byModel: reviewStatsByModel(since),
     byRemoteToken: reviewStatsByRemoteToken(since),
     bySeverity: findingStatsBySeverity(since),
+    byKind: reviewStatsByKind(since),
+    // Init and sync record no cost, only that they ran.
+    setupRuns: listJobs().filter(
+      (job) =>
+        (job.type === "init" || job.type === "remake") &&
+        job.created_at >= since,
+    ).length,
   };
 }
 
@@ -133,7 +141,11 @@ export function repoOverview(fullName: string) {
     repo,
     drift: getDrift(fullName),
     stats: reviewStats(since, fullName),
-    recentPulls: listLatestReviewsForRepo(fullName, 8),
+    bySeverity: findingStatsBySeverity(since, fullName),
+    recentPulls: listLatestReviewsForRepo(fullName, 8).map((review) => ({
+      ...review,
+      severities: listFindingsForReview(review.id).map((f) => f.severity),
+    })),
     latestJob: latestSetupJob(fullName),
   };
 }
