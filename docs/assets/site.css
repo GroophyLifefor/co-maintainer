@@ -78,7 +78,6 @@ a:hover {
   width: 32px;
   height: 32px;
   border-radius: 6px;
-  image-rendering: pixelated;
 }
 .brand:hover {
   text-decoration: none;
@@ -527,6 +526,24 @@ body.layout-home {
 }
 .install-line code {
   white-space: nowrap;
+}
+.install-copy {
+  flex: none;
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.install-copy:hover {
+  color: var(--text);
+}
+.install-copy:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 .home-stats {
   display: flex;

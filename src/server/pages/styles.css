@@ -59,7 +59,6 @@ code,
   width: 32px;
   display: block;
   border-radius: 5px;
-  image-rendering: pixelated;
   object-fit: cover;
 }
 .brand {
@@ -68,7 +67,6 @@ code,
   display: block;
   margin: 0 0 14px;
   border-radius: 8px;
-  image-rendering: pixelated;
 }
 
 /* layout */
@@ -2056,7 +2054,6 @@ html.dark {
   justify-content: center;
   flex: none;
   object-fit: cover;
-  image-rendering: pixelated;
 }
 .app .side .logo .mark svg {
   width: 18px;
