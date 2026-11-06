@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.6] - 2026-11-06
+
+### Added
+
+- **A copy button for the install command.** The landing page's `npm install -g co-maintainer` line has a `Copy` button that shows `Copied` for a moment after it writes to the clipboard.
+- **Website analytics.** co-maintainer.com loads Umami for page analytics and session recordings, and counts copies of the install command and clicks on GitHub links. The CLI, `serve` and the dashboard send no telemetry.
+
 ## [0.6.5] - 2026-11-06
 
 ### Fixed

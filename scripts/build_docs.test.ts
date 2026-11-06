@@ -405,8 +405,14 @@ test("the landing page carries the live stats hooks", async () => {
       throw new Error(`the landing page lost ${needle}`);
     }
   }
-  if (/<script[^>]+src=/.test(html)) {
-    throw new Error("the landing page must not load external scripts");
+  const allowed = [
+    "https://umami.ordu.dev/script.js",
+    "https://umami.ordu.dev/recorder.js",
+  ];
+  for (const [, src] of html.matchAll(/<script[^>]+src=["']?([^"'\s>]+)/g)) {
+    if (!allowed.includes(src)) {
+      throw new Error(`the landing page must not load ${src}`);
+    }
   }
 });
 

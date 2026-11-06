@@ -491,7 +491,7 @@ function topBar(active: "home" | "docs"): string {
       <nav class="topnav" aria-label="Site">
         <a class="${docsClass}" href="getting-started.html">Documentation</a>
         <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
-        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer">GitHub</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer" data-umami-event="click-github">GitHub</a>
       </nav>
       <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
     </div>
@@ -545,6 +545,8 @@ export function docPageShell(
   <link rel="canonical" href="${canonical}">
   <link rel="stylesheet" href="${ASSET_PREFIX}site.css">
   <link rel="icon" href="${ASSET_PREFIX}logo.png">
+  <script defer src="https://umami.ordu.dev/script.js" data-website-id="5c8e6df5-063d-4031-9eb6-f43138e09e2d"></script>
+  <script defer src="https://umami.ordu.dev/recorder.js" data-website-id="5c8e6df5-063d-4031-9eb6-f43138e09e2d"></script>
 </head>
 <body class="layout-doc">
   ${topBar("docs")}
@@ -554,7 +556,7 @@ export function docPageShell(
       <main class="doc-main">
         <article class="markdown prose">${bodyHtml}</article>
         <footer class="doc-footer">
-          <a href="${GITHUB_REPO}/edit/${DOCS_EDIT_BRANCH}/docs/md/${activeSlug}.md">Edit this page</a> on GitHub
+          <a href="${GITHUB_REPO}/edit/${DOCS_EDIT_BRANCH}/docs/md/${activeSlug}.md" data-umami-event="click-github">Edit this page</a> on GitHub
         </footer>
       </main>
       ${toc}

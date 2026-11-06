@@ -17,6 +17,8 @@ Nothing is sent to the co-maintainer maintainers. There is no telemetry, no
 analytics endpoint, and no call home. The only outbound hosts are the ones you
 configured, plus the provider's price list when `probe` prices an estimate.
 
+That covers the product. The co-maintainer.com website uses Umami for page analytics and session recordings. The CLI, `serve` and the dashboard send no telemetry.
+
 `review --remote` prints a one-time notice per host the first time it connects,
 so it is clear where the diff is going.
 
