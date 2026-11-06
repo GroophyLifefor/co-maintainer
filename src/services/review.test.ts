@@ -1,7 +1,7 @@
 import { closeAppDb, openAppDb } from "../store/app_db.ts";
 import { writeUserConfig } from "../config.ts";
 import { activateRepo, markKnowledgeBuilt } from "../store/repos.ts";
-import { insertJob } from "../store/jobs.ts";
+import { insertJob, setJobStatus } from "../store/jobs.ts";
 import {
   getReviewByJobId,
   insertReview,
@@ -65,6 +65,10 @@ class FakeGithub implements GitHubClient {
   checkCreates: { endpoint: string; body: unknown }[] = [];
   checkUpdates: { endpoint: string; body: unknown }[] = [];
   listedReviews: Json[] = [];
+  listedComments: Json[] = [];
+  /** Lists what the review POST carried, the way GitHub would after it. */
+  echoPosted = false;
+  commentsError?: Error;
   files: Json[] = [{ filename: "src/app.ts", patch: "@@ -4 +4 @@" }];
   prFiles?: Json[];
   prExtra: Json = {};
@@ -97,7 +101,18 @@ class FakeGithub implements GitHubClient {
     if (endpoint.includes("/files")) {
       return Promise.resolve((this.prFiles ?? this.files) as T[]);
     }
-    if (endpoint.includes("/comments")) return Promise.resolve([]);
+    if (endpoint.includes("/comments")) {
+      if (this.commentsError) return Promise.reject(this.commentsError);
+      const posted = this.echoPosted
+        ? this.writes
+            .filter((write) => write.endpoint.includes("/reviews"))
+            .flatMap(
+              (write) => (write.body as { comments?: Json[] }).comments ?? [],
+            )
+            .map((comment) => ({ ...comment, id: 77 }))
+        : [];
+      return Promise.resolve([...this.listedComments, ...posted] as T[]);
+    }
     if (endpoint.includes("/reviews")) {
       return Promise.resolve(this.listedReviews as T[]);
     }
@@ -669,7 +684,91 @@ test("a denied incremental compare falls back to a whole-pr review", async () =>
   });
 });
 
-test("a finding that repeats a previous round replies in the thread", async () => {
+const DIFF = [{ filename: "src/app.ts", patch: "@@ -4 +4 @@\n-old\n+new" }];
+
+const SUGGESTING_REVIEW = `## Findings
+
+### [P2 · non-blocking] \`src/app.ts\`: \`helper()\`
+Location: \`src/app.ts:4\`
+
+The helper ignores its argument.
+
+Suggestion: \`src/app.ts:4\`
+\`\`\`suggestion
+newer
+\`\`\`
+`;
+
+/** The round's one POST to /reviews, after checking no comment went out on its
+ * own: GitHub would wrap that comment in a second review. */
+function theOneReview(github: FakeGithub): { comments: Json[]; body: string } {
+  const own = github.writes.filter((write) =>
+    write.endpoint.includes("/pulls/1/comments"),
+  );
+  const reviews = github.writes.filter((write) =>
+    write.endpoint.includes("/reviews"),
+  );
+  if (own.length !== 0 || reviews.length !== 1) {
+    throw new Error(
+      `expected one review, got ${JSON.stringify(github.writes)}`,
+    );
+  }
+  return reviews[0].body as { comments: Json[]; body: string };
+}
+
+function nextRound(job: JobRow): JobRow {
+  setJobStatus(job.id, "done");
+  insertJob({
+    id: "job-rev-2",
+    type: "review",
+    repo: "acme/widgets",
+    prNumber: 1,
+    args: { trigger: "synchronize" },
+  });
+  return { ...job, id: "job-rev-2" };
+}
+
+for (const [name, markdown, fence] of [
+  ["a repeat", FAKE_REVIEW_MARKDOWN, false],
+  ["a repeat first posted with a suggestion", SUGGESTING_REVIEW, true],
+] as const) {
+  test(`${name} stays on its thread and posts one review`, async () => {
+    await withEnv(async () => {
+      const job = seed();
+      const first = new FakeGithub();
+      first.files = DIFF;
+      const ai = new FakeAiProvider(markdown);
+      await runReviewJob(job, () => {}, first, ai);
+      const posted = theOneReview(first).comments[0];
+      if (String(posted.body).includes("```suggestion") !== fence) {
+        throw new Error(`unexpected first comment ${JSON.stringify(posted)}`);
+      }
+      const firstRow = listFindingsForReview(
+        getReviewByJobId("job-rev")!.id,
+      )[0];
+      setFindingPosted(firstRow.id, "42");
+
+      const github = new FakeGithub();
+      github.files = DIFF;
+      github.listedComments = [{ ...posted, id: 42 }];
+      await runReviewJob(nextRound(job), () => {}, github, ai);
+
+      const review = theOneReview(github);
+      if (review.comments.length !== 0) {
+        throw new Error(`repeat went inline: ${JSON.stringify(review)}`);
+      }
+      if (!review.body.includes("helper()")) {
+        throw new Error(`repeat left the summary: ${review.body}`);
+      }
+      const row = listFindingsForReview(getReviewByJobId("job-rev-2")!.id)[0];
+      if (row.posted_comment_id !== "42" || row.thread_comment_id !== "42") {
+        throw new Error(`thread chain broke: ${JSON.stringify(row)}`);
+      }
+    });
+  });
+}
+
+test("a repeat whose text changed goes inline on the one review", async () => {
   await withEnv(async () => {
     insertReview({
       id: "rev-prev",
@@ -695,24 +794,68 @@ test("a finding that repeats a previous round replies in the thread", async () =
     setFindingPosted("f-prev", "42");
     const job = seed();
     const github = new FakeGithub();
+    github.files = DIFF;
+    github.echoPosted = true;
+    github.listedComments = [
+      { id: 42, path: "src/app.ts", line: 4, body: "drop it" },
+    ];
     await runReviewJob(job, () => {}, github, new FakeAiProvider());
-    const reply = github.writes.find((write) =>
-      write.endpoint.includes("/comments"),
-    );
-    const payload = reply?.body as { in_reply_to?: number };
-    if (payload?.in_reply_to !== 42) {
-      throw new Error(`expected a reply, got ${JSON.stringify(github.writes)}`);
-    }
-    const reviewPost = github.writes.find((write) =>
-      write.endpoint.includes("/reviews"),
-    );
-    const comments = (reviewPost?.body as { comments?: unknown[] }).comments;
-    if (comments && comments.length !== 0) {
-      throw new Error("repeat should not also post a new inline comment");
+    const { comments } = theOneReview(github);
+    if (comments.length !== 1 || "in_reply_to" in comments[0]) {
+      throw new Error(`expected one new comment: ${JSON.stringify(comments)}`);
     }
     const findings = listFindingsForReview(getReviewByJobId("job-rev")!.id);
     if (findings[0]?.first_seen_review_id !== "rev-prev") {
       throw new Error(JSON.stringify(findings));
+    }
+    // The older comment sits on the same line, and must not be taken for it.
+    if (findings[0]?.posted_comment_id !== "77") {
+      throw new Error(`matched the old comment: ${JSON.stringify(findings)}`);
+    }
+  });
+});
+
+test("a repeat goes inline when the earlier comments cannot be read", async () => {
+  await withEnv(async () => {
+    insertReview({
+      id: "rev-prev",
+      repo: "acme/widgets",
+      prNumber: 1,
+      jobId: "job-prev",
+      headSha: "oldhead",
+      baseSha: "base1",
+      scope: "whole-pr",
+      model: "fake",
+    });
+    setReviewStatus("rev-prev", "posted");
+    insertFinding({
+      id: "f-prev",
+      reviewId: "rev-prev",
+      severity: "P2",
+      path: "src/app.ts",
+      lineFrom: 4,
+      lineTo: 4,
+      title: "unused",
+      bodyMd: "drop it",
+    });
+    setFindingPosted("f-prev", "42");
+    const job = seed();
+    const github = new FakeGithub();
+    github.files = DIFF;
+    // The engine reads the same list first, so the failure starts after it.
+    const fake = new FakeAiProvider();
+    const ai = {
+      complete(request: AiRequest): Promise<AiResponse> {
+        github.commentsError = new GitHubHttpError(500, "no list");
+        return fake.complete(request);
+      },
+    };
+    await runReviewJob(job, () => {}, github, ai);
+    if (theOneReview(github).comments.length !== 1) {
+      throw new Error(`repeat went unsaid: ${JSON.stringify(github.writes)}`);
+    }
+    if (getReviewByJobId("job-rev")?.status !== "posted") {
+      throw new Error("the review did not post");
     }
   });
 });
