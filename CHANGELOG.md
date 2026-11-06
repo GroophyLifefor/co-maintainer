@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.5] - 2026-11-06
+
+### Fixed
+
+- **A review round posts one review.** A finding that repeated an earlier round was posted as a thread reply, and GitHub wraps every reply in a review of its own, so one commit showed an empty extra review and the finding twice. A repeat with the same text now stays on its thread and in the summary, and a finding whose text changed goes inline on the round's single review, opening a new thread.
+
 ## [0.6.4] - 2026-10-28
 
 ### Added

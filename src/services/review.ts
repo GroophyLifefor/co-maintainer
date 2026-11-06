@@ -72,7 +72,7 @@ import {
 import { enqueue, type LogFn, registerHandler } from "./jobs.ts";
 import { requestedReviewBlocked } from "./webhook.ts";
 import type { AiProvider, GitHubClient, Json, Options } from "../types.ts";
-import type { JobRow } from "../store/rows.ts";
+import type { FindingRow, JobRow } from "../store/rows.ts";
 import { getEnv } from "../util/runtime.ts";
 
 const ACCESS_DENIED_BODY =
@@ -320,6 +320,54 @@ function inlineCommentBody(finding: ParsedFinding, suggestion = false): string {
   return `${heading}\n\n${rest}`;
 }
 
+function rowFinding(row: FindingRow): ParsedFinding {
+  return {
+    path: row.path ?? "",
+    from: row.line_from ?? 0,
+    to: row.line_to ?? row.line_from ?? 0,
+    heading: row.title,
+    excerpt: row.body_md,
+  };
+}
+
+function sameBody(a: string, b: string): boolean {
+  const clean = (text: string) => text.replace(/\r\n/g, "\n").trim();
+  return clean(a) === clean(b);
+}
+
+/** Whether a posted comment already says what this finding says. The comment
+ * may have gone out with its suggestion block, so both forms count. */
+function repeatsComment(row: FindingRow, posted: string): boolean {
+  const finding = rowFinding(row);
+  return (
+    sameBody(posted, inlineCommentBody(finding)) ||
+    sameBody(posted, inlineCommentBody(finding, true))
+  );
+}
+
+/** The pull request's review comments by id. An unreadable list comes back
+ * empty, so a repeat is posted again rather than going unsaid. */
+async function postedCommentBodies(
+  client: GitHubClient,
+  job: JobRow,
+  log: LogFn,
+): Promise<Map<string, string>> {
+  try {
+    const listed = await client.pages<Json>(
+      `repos/${job.repo}/pulls/${job.pr_number}/comments`,
+    );
+    return new Map(
+      listed.map((item) => [String(item.id ?? ""), String(item.body ?? "")]),
+    );
+  } catch (error) {
+    log(
+      "info",
+      `could not read the earlier comments: ${redact(String(error))}`,
+    );
+    return new Map();
+  }
+}
+
 /** A review job's options: the config, with the job's pinned model (a
  * "Retry with the same model") over the configured one. */
 export function reviewOptionsForJob(
@@ -553,27 +601,38 @@ async function publish(
   mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
 ): Promise<void> {
   const stored = listFindingsForReview(reviewId);
-  const replies = stored.filter((row) => row.thread_comment_id);
+  // GitHub wraps every `in_reply_to` comment in a review of its own, so a round
+  // posts no replies. A repeat stays on its thread and in the summary, and a
+  // finding whose text changed goes inline on the one review.
+  const threaded = stored.filter((row) => row.thread_comment_id);
+  const earlier =
+    threaded.length > 0
+      ? await postedCommentBodies(client, job, log)
+      : new Map<string, string>();
+  const repeats = threaded.filter((row) => {
+    const posted = earlier.get(row.thread_comment_id ?? "");
+    return posted !== undefined && repeatsComment(row, posted);
+  });
   const freshRows = stored.filter(
-    (row) => row.state === "new" && !row.thread_comment_id,
+    (row) =>
+      !repeats.includes(row) && (row.state === "new" || row.thread_comment_id),
   );
-  const fresh: ParsedFinding[] = freshRows.map((row) => ({
-    path: row.path ?? "",
-    from: row.line_from ?? 0,
-    to: row.line_to ?? row.line_from ?? 0,
-    heading: row.title,
-    excerpt: row.body_md,
-  }));
+  const fresh = freshRows.map(rowFinding);
   const { inline, leftover } = splitInline(fresh, files);
-  const anchorByRow = new Map<string, Anchor>();
-  for (const { finding, anchor } of inline) {
+  const commentByRow = new Map<string, { anchor: Anchor; body: string }>();
+  for (const { finding, anchor, suggestion } of inline) {
     const row = freshRows.find(
       (item) =>
         item.path === finding.path &&
         item.line_from === finding.from &&
         item.line_to === finding.to,
     );
-    if (row) anchorByRow.set(row.id, anchor);
+    if (row) {
+      commentByRow.set(row.id, {
+        anchor,
+        body: inlineCommentBody(finding, suggestion),
+      });
+    }
   }
   const freshSummaryKeys = new Set(
     [...leftover, ...inline.map(({ finding }) => finding)].map(
@@ -600,7 +659,7 @@ async function publish(
   const body = reviewBody(
     summaryFindings,
     metadata,
-    inline.length + replies.length,
+    inline.length + repeats.length,
   );
   const comments = inline.map(({ finding, anchor, suggestion }) => ({
     path: finding.path,
@@ -618,27 +677,8 @@ async function publish(
   ) {
     throw new Error("review body contains forbidden copy characters");
   }
-  for (const row of replies) {
-    const text = inlineCommentBody({
-      path: row.path ?? "",
-      from: row.line_from ?? 0,
-      to: row.line_to ?? row.line_from ?? 0,
-      heading: row.title,
-      excerpt: row.body_md,
-    });
-    const posted = await post(
-      client,
-      `repos/${job.repo}/pulls/${job.pr_number}/comments`,
-      {
-        body: text,
-        in_reply_to: Number(row.thread_comment_id),
-      },
-    );
-    setFindingPosted(
-      row.id,
-      String(posted.id ?? ""),
-      row.thread_comment_id ?? undefined,
-    );
+  for (const row of repeats) {
+    setFindingPosted(row.id, row.thread_comment_id ?? "");
   }
   const payload = {
     commit_id: headSha,
@@ -663,12 +703,14 @@ async function publish(
         `repos/${job.repo}/pulls/${job.pr_number}/comments`,
       );
       for (const row of stored) {
-        const anchor = anchorByRow.get(row.id);
-        if (row.posted_comment_id || !row.path || !anchor) continue;
+        const comment = commentByRow.get(row.id);
+        if (row.posted_comment_id || !row.path || !comment) continue;
         const hit = listed.find(
           (item) =>
             String(item.path ?? "") === row.path &&
-            Number(item.line ?? item.original_line ?? 0) === anchor.line,
+            Number(item.line ?? item.original_line ?? 0) ===
+              comment.anchor.line &&
+            sameBody(String(item.body ?? ""), comment.body),
         );
         if (hit?.id) setFindingPosted(row.id, String(hit.id));
       }
