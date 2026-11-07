@@ -209,6 +209,27 @@ Leave blank to keep the current key"></textarea></div>
           <input id="hook-secret" type="password" placeholder="Leave blank to keep the current secret"></div>
       </div>
       <div class="ft"><button class="primary" id="save-app">Save</button></div>
+    </div>
+    <div class="card" id="slack" data-async>
+      ${skSlot()}
+      <div class="hd"><h2>Slack</h2>
+        <span class="st ${config.slackWebhookUrl ? "ok" : "warn"}" style="margin-left:auto">${
+          config.slackWebhookUrl ? "Configured" : "Not set"
+        }</span></div>
+      <div class="bd">
+        <p class="muted" style="margin:0 0 16px">Posts one line to a channel after every review: the pull request, the number of findings and how long it took.</p>
+        <div class="field wide"><label>Incoming webhook URL</label>
+          <input id="slack-url" type="password" placeholder="${
+            config.slackWebhookUrl
+              ? "Leave blank to keep the current URL"
+              : "https://hooks.slack.com/services/..."
+          }">
+          <div class="hint"><a href="https://api.slack.com/messaging/webhooks" target="_blank" rel="noopener">Create an incoming webhook</a></div></div>
+      </div>
+      <div class="ft">
+        <button class="btn" id="test-slack">Send test</button>
+        <button class="primary" id="save-slack">Save</button>
+      </div>
     </div>`;
 }
 
@@ -571,6 +592,21 @@ document.getElementById("save-app").addEventListener("click", function() {
     githubAppPrivateKey: document.getElementById("app-key").value,
     githubWebhookSecret: document.getElementById("hook-secret").value,
     webhookUrl: document.getElementById("webhook-url").value
+  });
+});
+document.getElementById("save-slack").addEventListener("click", function() {
+  save(this, {
+    slackWebhookUrl: document.getElementById("slack-url").value.trim()
+  });
+});
+document.getElementById("test-slack").addEventListener("click", function() {
+  var btn = this;
+  var card = cardFor(btn);
+  run(btn, card, async function() {
+    await api("POST", "/api/slack/test", {
+      webhookUrl: document.getElementById("slack-url").value.trim()
+    });
+    toast("Test message sent to Slack.");
   });
 });
 document.getElementById("create-app").addEventListener("click", function() {

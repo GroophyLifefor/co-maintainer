@@ -23,6 +23,7 @@ import { setNavSource } from "./pages/layout.ts";
 import { handleKnowledgeRoute } from "./api/knowledge.ts";
 import { handleInstallationsRoute } from "./api/installations.ts";
 import { handleSettingsRoute } from "./api/settings.ts";
+import { handleSlackTestRoute } from "./api/slack.ts";
 import { handleActivityRoute } from "./api/activity.ts";
 import { handleAnalyticsRoute } from "./api/analytics.ts";
 import { handleRemoteTokensRoute } from "./api/remote_tokens.ts";
@@ -217,7 +218,6 @@ export function createApp(deps: AppDeps): App {
             remoteAddr,
           );
         }
-
         const session = await requireSession(request);
         if (!session) {
           return errorResponse(401, "unauthorized", "sign in required");
@@ -259,6 +259,9 @@ export function createApp(deps: AppDeps): App {
             passwords,
             remoteAddr,
           );
+        }
+        if (url.pathname === "/api/slack/test" && request.method === "POST") {
+          return await handleSlackTestRoute(request);
         }
         if (url.pathname.startsWith("/api/activity")) {
           return handleActivityRoute(request, url);

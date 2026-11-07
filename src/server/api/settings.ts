@@ -83,6 +83,7 @@ export async function handleSettingsRoute(
       hasAppKey: Boolean(config.githubAppPrivateKey),
       hasWebhookSecret: Boolean(config.githubWebhookSecret),
       webhookUrl: config.webhookUrl || webhookUrl,
+      hasSlackWebhook: Boolean(config.slackWebhookUrl),
       githubOAuthClientId: config.githubOAuthClientId ?? "",
       hasOAuthClientSecret: Boolean(config.githubOAuthClientSecret),
       githubOAuthAllowedUser: config.githubOAuthAllowedUser ?? "",
@@ -171,6 +172,24 @@ export async function handleSettingsRoute(
         return errorResponse(400, "invalid_webhook_url", webhookError);
       }
       patch.webhookUrl = (body.webhookUrl as string).trim();
+    }
+    // A blank field keeps the saved URL, like the other secret fields, and
+    // null clears it.
+    if ("slackWebhookUrl" in body && body.slackWebhookUrl !== "") {
+      const raw = body.slackWebhookUrl;
+      if (raw === null) {
+        patch.slackWebhookUrl = undefined;
+      } else {
+        const slackError = validateWebhookUrl(raw);
+        if (slackError) {
+          return errorResponse(
+            400,
+            "invalid_slack_webhook",
+            slackError.replace("webhook URL", "Slack webhook URL"),
+          );
+        }
+        patch.slackWebhookUrl = (raw as string).trim();
+      }
     }
     if ("maxConcurrentJobs" in body) {
       const raw = body.maxConcurrentJobs;

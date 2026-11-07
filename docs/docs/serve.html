@@ -322,6 +322,17 @@ when the repo is active and rules allow it. Enable <strong>Issue comments</stron
 <strong>Issues: write</strong> on the App if you want <code>@co-maintainer</code> conversation replies.</p>
 <p>Manual PR review from the UI when GitHub cannot reach your host:
 <a href="dashboard.html#routes">Dashboard: Pull requests</a>.</p>
+<h2 id="slack-notifications">Slack notifications</h2>
+<p><code>serve</code> can post one line to a Slack channel after every review it posts on
+GitHub: the pull request, the number of findings, and how long the review took.</p>
+<ol>
+<li>In Slack, create an <a href="https://api.slack.com/messaging/webhooks">incoming webhook</a>
+for the channel.</li>
+<li>In the dashboard, open <strong>Settings → GitHub</strong>, paste the URL into the
+<strong>Slack</strong> card, and press <strong>Send test</strong>.</li>
+<li>Press <strong>Save</strong>.</li>
+</ol>
+<p>A Slack error never fails a review. It is written to the job log instead.</p>
 <h2 id="behind-a-reverse-proxy">Behind a reverse proxy</h2>
 <p>Put <code>serve</code> behind nginx, Traefik, Caddy, or a load balancer and start it with
 <code>--trust-proxy</code> (or <code>CM_TRUST_PROXY=1</code>). Two things change:</p>
@@ -392,7 +403,7 @@ running. Same steps are listed on <a href="dashboard.html#updating">Dashboard: U
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#what-it-does">What it does</a></li><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#sign-in-to-the-dashboard">Sign in to the dashboard</a></li><li><a href="#create-the-app-from-the-dashboard">Create the App from the dashboard</a></li><li><a href="#webhook-url">Webhook URL</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li><li><a href="#run-with-docker">Run with Docker</a></li><li><a href="#updating">Updating</a></li></ul></nav>
+      <ul><li><a href="#what-it-does">What it does</a></li><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#sign-in-to-the-dashboard">Sign in to the dashboard</a></li><li><a href="#create-the-app-from-the-dashboard">Create the App from the dashboard</a></li><li><a href="#webhook-url">Webhook URL</a></li><li><a href="#slack-notifications">Slack notifications</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li><li><a href="#run-with-docker">Run with Docker</a></li><li><a href="#updating">Updating</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>
