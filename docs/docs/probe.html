@@ -163,6 +163,10 @@ you can copy, followed by an <strong>estimate</strong> and a <strong>next</stron
 <td>After printing the plan, run the recommended <code>init</code> in the same process</td>
 </tr>
 <tr>
+<td><code>--json</code></td>
+<td>One JSON document on stdout, no prompts. Cannot be used with <code>--run</code></td>
+</tr>
+<tr>
 <td><code>--debug</code></td>
 <td>Verbose logs on stderr</td>
 </tr>
@@ -190,6 +194,18 @@ says which one it used.</li>
 <p><code>--run</code> runs the recommended <code>init</code> in the same process after printing the
 plan, which is the &quot;look then do&quot; step in one command. It is the same code
 path the dashboard uses, not a re-spawn.</p>
+<h2 id="json-output">JSON output</h2>
+<p>With <code>--json</code>, stdout is a single JSON object (<code>schemaVersion</code> <code>1</code>) and the
+progress lines go to stderr. Fields: <code>command</code> (<code>probe</code>), <code>repo</code>,
+<code>recommended</code> (the <code>init</code> line), <code>research</code> (pull request and commit counts,
+the <code>maxPrMonths</code>, <code>maxCommits</code> and <code>maxPullRequestChangeLines</code> windows, with
+<code>null</code> for no limit, and <code>reasons[]</code>), <code>estimate</code> (<code>extract</code>, <code>synth</code>, and
+<code>[low, high]</code> ranges for <code>tokensIn</code>, <code>tokensOut</code>, <code>seconds</code> and <code>usd</code>, plus the
+<code>cost</code> line and its <code>basis</code>), and <code>durationMs</code>. <code>usd</code> is <code>null</code> when no price
+is known. Errors with <code>--json</code> are JSON on stdout as well.</p>
+<p><code>--run</code> with <code>--json</code> exits with code 2, because the probe and the <code>init</code>
+would be two documents on one stdout. Run <code>probe --json</code>, then the
+<code>recommended</code> line with <code>--json</code>.</p>
 <h2 id="what-it-looks-at">What it looks at</h2>
 <ul>
 <li>Repository metadata and latest release (if any)</li>
@@ -207,7 +223,7 @@ is huge and you want a cheaper <code>init</code>. Next step: <a href="init.html"
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#the-estimate">The estimate</a></li><li><a href="#what-it-looks-at">What it looks at</a></li></ul></nav>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#the-estimate">The estimate</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#what-it-looks-at">What it looks at</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

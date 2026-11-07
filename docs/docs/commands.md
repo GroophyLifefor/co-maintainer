@@ -73,7 +73,7 @@ co-maintainer init owner/repo [options]
 | Flag | Default | Description |
 |---|---|---|
 | `--pr-state=open,closed,merged` |  | Which pull request states to read. |
-| `--only-request-changed-pr` |  | Read only the pull requests that changed the requested files. |
+| `--only-request-changed-pr` |  | Read only the pull requests with at least one CHANGES_REQUESTED review. |
 
 ### AI
 
@@ -418,7 +418,6 @@ co-maintainer serve --port=N [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
 

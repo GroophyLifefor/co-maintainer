@@ -57,6 +57,7 @@ Values from `set`, `--env=PATH`, or flags are not asked again.
 | `--pr-state=open,closed,merged` | Keep a comma-separated subset of `open`, `closed`, and `merged` |
 | `--gh-concurrent=N` | Parallel GitHub fetches (default `1`) |
 | `--ai-concurrent=N` | Parallel AI jobs (default `3`) |
+| `--json` | One JSON document on stdout, no prompts (see [JSON output](#json-output)) |
 | `--debug` | Verbose logs on stderr |
 | `--log-time` | Print timing per phase |
 
@@ -131,5 +132,17 @@ The last line on stderr is the run's cost and time:
 
 When the provider does not report a price the dollar field is `cost unknown`,
 and a cache-hit [`sync`](sync.md) that made no AI call still prints the line
-with `0 in, 0 out tokens`. stdout is unchanged, so `--json` and piped output
-stay clean. [`review`](review.md) prints the same line.
+with `0 in, 0 out tokens`. stdout is unchanged, so piped output stays clean.
+[`review`](review.md) prints the same line.
+
+## JSON output
+
+With `--json`, stdout is a single JSON object (`schemaVersion` `1`) and every
+progress line goes to stderr. Fields: `command` (`init` or `sync`), `repo`,
+`skillPath`, `changed[]` (the sections this run rewrote, empty when the guide
+was already current), `facts`, `pullRequests`, `commits`, `reviewGuide`
+(`detailed`, `single`, or `skipped`), `validation` (`errors[]` and
+`warnings[]`), `usage` (`tokensIn`, `tokensOut`, `costUsd`, `costNote`), and
+`durationMs`. `costUsd` is `null` when the provider did not report a price.
+Without a terminal or saved config, `--json` exits with code 2 instead of
+prompting. Errors with `--json` are JSON on stdout as well.

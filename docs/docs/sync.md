@@ -64,6 +64,7 @@ On the [dashboard](dashboard.md), **Sync now** runs the same job as this command
 | `--pr-state=open,closed,merged` | Keep a comma-separated subset of `open`, `closed`, and `merged` |
 | `--gh-concurrent=N` | Parallel GitHub fetches (default `1`) |
 | `--ai-concurrent=N` | Parallel AI jobs (default `3`) |
+| `--json` | One JSON document on stdout, no prompts. Same fields as [`init --json`](init.md#json-output), with `command` `sync` |
 | `--debug` | Verbose logs on stderr |
 | `--log-time` | Print timing per phase |
 

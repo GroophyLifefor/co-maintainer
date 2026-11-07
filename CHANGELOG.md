@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.7] - 2026-11-07
+
+### Added
+
+- **`--json` for `probe`, `init` and `sync`.** Help and the docs listed the flag, but the parser refused it with `Unknown option: --json. Did you mean --json?`. Each command now prints one `schemaVersion 1` JSON document on stdout, with progress on stderr and no prompts. `probe --run --json` exits with code 2, because the probe and the `init` would be two documents on one stdout.
+
+### Changed
+
+- **AI and GitHub progress lines go through the shared logger.** The `[ai]` queue, retry and cache lines and the `[github]` rate-limit wait printed straight to stdout. They now follow the same rule as every other progress line, so they move to stderr under `--json` and land in a dashboard job's log.
+
+### Fixed
+
+- **`serve` no longer lists `--json`.** It prints no result, so the flag is gone from its help and `commands.md`.
+- **`--only-request-changed-pr` help says what it does.** It read "pull requests that changed the requested files". It now says it keeps pull requests with at least one `CHANGES_REQUESTED` review.
+
 ## [0.6.6] - 2026-11-06
 
 ### Added

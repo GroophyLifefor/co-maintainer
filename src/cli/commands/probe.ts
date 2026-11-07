@@ -1,6 +1,6 @@
 import { clientFor, runInitOrRemake } from "../../services/setup.ts";
 import { probePlan } from "../../services/probe.ts";
-import { log, startHeartbeat } from "../../util/log.ts";
+import { log, startHeartbeat, withCliLogsToStderr } from "../../util/log.ts";
 import {
   estimateCostLine,
   estimateInit,
@@ -8,9 +8,16 @@ import {
 } from "../../ai/estimate.ts";
 import { loadPrices } from "../../ai/pricing.ts";
 import { cacheSet } from "../../store/cache_db.ts";
+import { buildProbeJson } from "../command_json.ts";
 import type { Options } from "../../types.ts";
 
 export async function runProbe(options: Options): Promise<void> {
+  // With `--json` stdout carries the one document, so progress moves to stderr.
+  if (options.json) await withCliLogsToStderr(() => probe(options));
+  else await probe(options);
+}
+
+async function probe(options: Options): Promise<void> {
   const operationStarted = performance.now();
   const stopHeartbeat = startHeartbeat("probing repository");
   const client = clientFor(options);
@@ -23,20 +30,6 @@ export async function runProbe(options: Options): Promise<void> {
   const analysis = plan.analysis;
   const command = plan.command;
   await cacheSet("probe", options.repo, JSON.stringify(plan.report));
-  console.log(`\nrecommended\n  ${command}`);
-  console.log("\nresearch");
-  console.log(
-    `  PRs: ${analysis.report.pullRequests} · sampled: ${analysis.report.sampledPullRequests}`,
-  );
-  console.log(
-    `  commits: ${analysis.report.commits} · useful: ${analysis.report.usefulCommits}`,
-  );
-  console.log(
-    `  windows: PR months=${analysis.maxPrMonths ?? "all"} · commits=${
-      analysis.maxCommits ?? "all"
-    } · diff lines=${analysis.maxPullRequestChangeLines ?? "all"}`,
-  );
-  for (const reason of analysis.reasons) console.log(`  - ${reason}`);
 
   // The estimate is separate from the recommendation: the flags say what to
   // read, this says what that costs in time and dollars. Prices are
@@ -61,6 +54,48 @@ export async function runProbe(options: Options): Promise<void> {
     prices: prices.prices,
     history,
   });
+  const costLine = estimateCostLine(
+    estimate,
+    options.ai,
+    needsPrices && prices.source === "unavailable",
+  );
+  if (options.json) {
+    stopHeartbeat();
+    console.log(
+      buildProbeJson({
+        repo: options.repo,
+        recommended: command,
+        research: {
+          pullRequests: Number(analysis.report.pullRequests ?? 0),
+          sampledPullRequests: Number(analysis.report.sampledPullRequests ?? 0),
+          commits: Number(analysis.report.commits ?? 0),
+          usefulCommits: Number(analysis.report.usefulCommits ?? 0),
+          maxPrMonths: analysis.maxPrMonths ?? null,
+          maxCommits: analysis.maxCommits ?? null,
+          maxPullRequestChangeLines: analysis.maxPullRequestChangeLines ?? null,
+          reasons: analysis.reasons,
+        },
+        estimate,
+        costNote: costLine,
+        durationMs: Math.round(performance.now() - operationStarted),
+      }),
+    );
+    return;
+  }
+  console.log(`\nrecommended\n  ${command}`);
+  console.log("\nresearch");
+  console.log(
+    `  PRs: ${analysis.report.pullRequests} · sampled: ${analysis.report.sampledPullRequests}`,
+  );
+  console.log(
+    `  commits: ${analysis.report.commits} · useful: ${analysis.report.usefulCommits}`,
+  );
+  console.log(
+    `  windows: PR months=${analysis.maxPrMonths ?? "all"} · commits=${
+      analysis.maxCommits ?? "all"
+    } · diff lines=${analysis.maxPullRequestChangeLines ?? "all"}`,
+  );
+  for (const reason of analysis.reasons) console.log(`  - ${reason}`);
   console.log("\nestimate");
   console.log(
     `  AI jobs: ${estimate.extract} extract + ${estimate.synth} synth`,
@@ -69,13 +104,7 @@ export async function runProbe(options: Options): Promise<void> {
     `  tokens: ${range(estimate.tokensIn)} in · ${range(estimate.tokensOut)} out`,
   );
   console.log(`  time: ${secondsRange(estimate.seconds)}s`);
-  console.log(
-    `  cost: ${estimateCostLine(
-      estimate,
-      options.ai,
-      needsPrices && prices.source === "unavailable",
-    )}`,
-  );
+  console.log(`  cost: ${costLine}`);
   console.log(
     `  basis: ${
       estimate.basis === "history"

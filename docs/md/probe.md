@@ -40,6 +40,7 @@ you can copy, followed by an **estimate** and a **next** block.
 | `--env=PATH` | Load env vars from a file (see [Configuration](configuration.md)) |
 | `--gh-concurrent=N` | Parallel GitHub requests while sampling PR details (default `1`, minimum `1`) |
 | `--run` | After printing the plan, run the recommended `init` in the same process |
+| `--json` | One JSON document on stdout, no prompts. Cannot be used with `--run` |
 | `--debug` | Verbose logs on stderr |
 | `--log-time` | Print timing for each probe phase |
 
@@ -64,6 +65,21 @@ is a **planning estimate, not a bill**:
 `--run` runs the recommended `init` in the same process after printing the
 plan, which is the "look then do" step in one command. It is the same code
 path the dashboard uses, not a re-spawn.
+
+## JSON output
+
+With `--json`, stdout is a single JSON object (`schemaVersion` `1`) and the
+progress lines go to stderr. Fields: `command` (`probe`), `repo`,
+`recommended` (the `init` line), `research` (pull request and commit counts,
+the `maxPrMonths`, `maxCommits` and `maxPullRequestChangeLines` windows, with
+`null` for no limit, and `reasons[]`), `estimate` (`extract`, `synth`, and
+`[low, high]` ranges for `tokensIn`, `tokensOut`, `seconds` and `usd`, plus the
+`cost` line and its `basis`), and `durationMs`. `usd` is `null` when no price
+is known. Errors with `--json` are JSON on stdout as well.
+
+`--run` with `--json` exits with code 2, because the probe and the `init`
+would be two documents on one stdout. Run `probe --json`, then the
+`recommended` line with `--json`.
 
 ## What it looks at
 

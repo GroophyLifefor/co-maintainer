@@ -225,6 +225,10 @@ Values from <code>set</code>, <code>--env=PATH</code>, or flags are not asked ag
 <td>Parallel AI jobs (default <code>3</code>)</td>
 </tr>
 <tr>
+<td><code>--json</code></td>
+<td>One JSON document on stdout, no prompts (see <a href="#json-output">JSON output</a>)</td>
+</tr>
+<tr>
 <td><code>--debug</code></td>
 <td>Verbose logs on stderr</td>
 </tr>
@@ -289,8 +293,18 @@ are cached, so rerunning <a href="sync.html"><code>sync</code></a> continues wit
 </code></pre>
 <p>When the provider does not report a price the dollar field is <code>cost unknown</code>,
 and a cache-hit <a href="sync.html"><code>sync</code></a> that made no AI call still prints the line
-with <code>0 in, 0 out tokens</code>. stdout is unchanged, so <code>--json</code> and piped output
-stay clean. <a href="review.html"><code>review</code></a> prints the same line.</p>
+with <code>0 in, 0 out tokens</code>. stdout is unchanged, so piped output stays clean.
+<a href="review.html"><code>review</code></a> prints the same line.</p>
+<h2 id="json-output">JSON output</h2>
+<p>With <code>--json</code>, stdout is a single JSON object (<code>schemaVersion</code> <code>1</code>) and every
+progress line goes to stderr. Fields: <code>command</code> (<code>init</code> or <code>sync</code>), <code>repo</code>,
+<code>skillPath</code>, <code>changed[]</code> (the sections this run rewrote, empty when the guide
+was already current), <code>facts</code>, <code>pullRequests</code>, <code>commits</code>, <code>reviewGuide</code>
+(<code>detailed</code>, <code>single</code>, or <code>skipped</code>), <code>validation</code> (<code>errors[]</code> and
+<code>warnings[]</code>), <code>usage</code> (<code>tokensIn</code>, <code>tokensOut</code>, <code>costUsd</code>, <code>costNote</code>), and
+<code>durationMs</code>. <code>costUsd</code> is <code>null</code> when the provider did not report a price.
+Without a terminal or saved config, <code>--json</code> exits with code 2 instead of
+prompting. Errors with <code>--json</code> are JSON on stdout as well.</p>
 </article>
         <footer class="doc-footer">
           <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/init.md" data-umami-event="click-github">Edit this page</a> on GitHub
@@ -299,7 +313,7 @@ stay clean. <a href="review.html"><code>review</code></a> prints the same line.<
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#what-it-writes">What it writes</a></li><li><a href="#what-it-reports">What it reports</a></li></ul></nav>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#what-it-writes">What it writes</a></li><li><a href="#what-it-reports">What it reports</a></li><li><a href="#json-output">JSON output</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

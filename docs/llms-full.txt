@@ -95,6 +95,7 @@ you can copy, followed by an **estimate** and a **next** block.
 | `--env=PATH` | Load env vars from a file (see [Configuration](configuration.md)) |
 | `--gh-concurrent=N` | Parallel GitHub requests while sampling PR details (default `1`, minimum `1`) |
 | `--run` | After printing the plan, run the recommended `init` in the same process |
+| `--json` | One JSON document on stdout, no prompts. Cannot be used with `--run` |
 | `--debug` | Verbose logs on stderr |
 | `--log-time` | Print timing for each probe phase |
 
@@ -119,6 +120,21 @@ is a **planning estimate, not a bill**:
 `--run` runs the recommended `init` in the same process after printing the
 plan, which is the "look then do" step in one command. It is the same code
 path the dashboard uses, not a re-spawn.
+
+## JSON output
+
+With `--json`, stdout is a single JSON object (`schemaVersion` `1`) and the
+progress lines go to stderr. Fields: `command` (`probe`), `repo`,
+`recommended` (the `init` line), `research` (pull request and commit counts,
+the `maxPrMonths`, `maxCommits` and `maxPullRequestChangeLines` windows, with
+`null` for no limit, and `reasons[]`), `estimate` (`extract`, `synth`, and
+`[low, high]` ranges for `tokensIn`, `tokensOut`, `seconds` and `usd`, plus the
+`cost` line and its `basis`), and `durationMs`. `usd` is `null` when no price
+is known. Errors with `--json` are JSON on stdout as well.
+
+`--run` with `--json` exits with code 2, because the probe and the `init`
+would be two documents on one stdout. Run `probe --json`, then the
+`recommended` line with `--json`.
 
 ## What it looks at
 
@@ -193,6 +209,7 @@ Values from `set`, `--env=PATH`, or flags are not asked again.
 | `--pr-state=open,closed,merged` | Keep a comma-separated subset of `open`, `closed`, and `merged` |
 | `--gh-concurrent=N` | Parallel GitHub fetches (default `1`) |
 | `--ai-concurrent=N` | Parallel AI jobs (default `3`) |
+| `--json` | One JSON document on stdout, no prompts (see [JSON output](#json-output)) |
 | `--debug` | Verbose logs on stderr |
 | `--log-time` | Print timing per phase |
 
@@ -267,8 +284,20 @@ The last line on stderr is the run's cost and time:
 
 When the provider does not report a price the dollar field is `cost unknown`,
 and a cache-hit [`sync`](sync.md) that made no AI call still prints the line
-with `0 in, 0 out tokens`. stdout is unchanged, so `--json` and piped output
-stay clean. [`review`](review.md) prints the same line.
+with `0 in, 0 out tokens`. stdout is unchanged, so piped output stays clean.
+[`review`](review.md) prints the same line.
+
+## JSON output
+
+With `--json`, stdout is a single JSON object (`schemaVersion` `1`) and every
+progress line goes to stderr. Fields: `command` (`init` or `sync`), `repo`,
+`skillPath`, `changed[]` (the sections this run rewrote, empty when the guide
+was already current), `facts`, `pullRequests`, `commits`, `reviewGuide`
+(`detailed`, `single`, or `skipped`), `validation` (`errors[]` and
+`warnings[]`), `usage` (`tokensIn`, `tokensOut`, `costUsd`, `costNote`), and
+`durationMs`. `costUsd` is `null` when the provider did not report a price.
+Without a terminal or saved config, `--json` exits with code 2 instead of
+prompting. Errors with `--json` are JSON on stdout as well.
 
 ---
 
@@ -340,6 +369,7 @@ On the [dashboard](dashboard.md), **Sync now** runs the same job as this command
 | `--pr-state=open,closed,merged` | Keep a comma-separated subset of `open`, `closed`, and `merged` |
 | `--gh-concurrent=N` | Parallel GitHub fetches (default `1`) |
 | `--ai-concurrent=N` | Parallel AI jobs (default `3`) |
+| `--json` | One JSON document on stdout, no prompts. Same fields as [`init --json`](init.md#json-output), with `command` `sync` |
 | `--debug` | Verbose logs on stderr |
 | `--log-time` | Print timing per phase |
 
@@ -2210,7 +2240,7 @@ co-maintainer init owner/repo [options]
 | Flag | Default | Description |
 |---|---|---|
 | `--pr-state=open,closed,merged` |  | Which pull request states to read. |
-| `--only-request-changed-pr` |  | Read only the pull requests that changed the requested files. |
+| `--only-request-changed-pr` |  | Read only the pull requests with at least one CHANGES_REQUESTED review. |
 
 ### AI
 
@@ -2555,7 +2585,6 @@ co-maintainer serve --port=N [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
 

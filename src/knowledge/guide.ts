@@ -1,6 +1,7 @@
 import { AiBatch } from "../ai/batch.ts";
 import type { AiProvider, AiRequest, AiResponse, Options } from "../types.ts";
 import type { Fact } from "./types.ts";
+import { log } from "../util/log.ts";
 
 export type ReviewDocuments = {
   guide: string;
@@ -258,7 +259,7 @@ export async function synthesizeReviewGuides(
   const full = cleanGuide(fullResponse?.text ?? "");
   if (!full) {
     // Not a failure: SKILL.md and CODEBASE.md are written anyway.
-    console.log("[ai] synth_guide produced nothing usable; skipping the guide");
+    log("ai", "synth_guide produced nothing usable; skipping the guide");
     return undefined;
   }
 

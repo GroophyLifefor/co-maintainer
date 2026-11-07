@@ -4,6 +4,7 @@ import { isPullRequestFact } from "./guide.ts";
 import { sectionAllowsPrFacts, sectionTitles } from "./sections.ts";
 import type { AiProvider, AiRequest, AiResponse, Options } from "../types.ts";
 import type { Fact, PullRequest, Source } from "./types.ts";
+import { log } from "../util/log.ts";
 
 type UsageSink = (job: string, response: AiResponse) => Promise<void>;
 
@@ -471,7 +472,7 @@ ${files}`,
       }),
     );
     if (index % 10 === 0 || index === responses.length - 1) {
-      console.log(`[ai] extract units ${index + 1}/${responses.length}`);
+      log("ai", `extract units ${index + 1}/${responses.length}`);
     }
   }
   return facts;
