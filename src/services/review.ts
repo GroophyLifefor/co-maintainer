@@ -46,6 +46,7 @@ import {
   resolvedAiToken,
 } from "../config.ts";
 import { outsideCode, redact } from "../util/redact.ts";
+import { notifyReviewPosted } from "./slack_notify.ts";
 import { getRepo, setInstallationId } from "../store/repos.ts";
 import {
   findNoteCommentId,
@@ -1161,6 +1162,12 @@ async function runReviewJobCore(
     options.reviewBlocking,
   );
   await resolveFailureNote(github, job, reviewId, log);
+  await notifyReviewPosted({
+    repo: job.repo,
+    prNumber: job.pr_number,
+    findings: totalFindings,
+    durationMs: Date.now() - startedAt,
+  });
   await finishCheck(
     github,
     job,

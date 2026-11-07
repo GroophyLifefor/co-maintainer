@@ -1669,6 +1669,19 @@ when the repo is active and rules allow it. Enable **Issue comments** and
 Manual PR review from the UI when GitHub cannot reach your host:
 [Dashboard: Pull requests](dashboard.md#routes).
 
+## Slack notifications
+
+`serve` can post one line to a Slack channel after every review it posts on
+GitHub: the pull request, the number of findings, and how long the review took.
+
+1. In Slack, create an [incoming webhook](https://api.slack.com/messaging/webhooks)
+   for the channel.
+2. In the dashboard, open **Settings → GitHub**, paste the URL into the
+   **Slack** card, and press **Send test**.
+3. Press **Save**.
+
+A Slack error never fails a review. It is written to the job log instead.
+
 ## Behind a reverse proxy
 
 Put `serve` behind nginx, Traefik, Caddy, or a load balancer and start it with
