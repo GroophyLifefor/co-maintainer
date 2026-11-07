@@ -83,6 +83,9 @@ export type UserConfig = {
   githubAppPrivateKeyPath?: string;
   githubWebhookSecret?: string;
   webhookUrl?: string;
+  /** Slack incoming webhook that hears about every posted review. Unset
+   * means no notice is sent. */
+  slackWebhookUrl?: string;
   /** "Sign in with GitHub" for the dashboard, reusing the App's own OAuth
    * client — only `githubOAuthAllowedUser` may complete it. All three only
    * ever written by `set`. */
