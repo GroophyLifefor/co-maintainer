@@ -61,6 +61,9 @@ export type Options = {
   /** `probe --run`: after printing the plan, run the recommended init in the
    * same process. */
   run?: boolean;
+  /** `probe`, `init` and `sync --json`: one JSON document on stdout, progress
+   * on stderr, and no prompts. */
+  json?: boolean;
   /** How a review decides a blocking finding. `model` keeps the
    * 0.4.13 behavior, `severity` uses a fixed P0/P1 threshold. */
   reviewBlocking?: "model" | "severity";

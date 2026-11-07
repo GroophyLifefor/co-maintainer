@@ -265,7 +265,7 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <tr>
 <td><code>--only-request-changed-pr</code></td>
 <td></td>
-<td>Read only the pull requests that changed the requested files.</td>
+<td>Read only the pull requests with at least one CHANGES_REQUESTED review.</td>
 </tr>
 </tbody></table>
 <h3 id="ai">AI</h3>
@@ -1170,11 +1170,6 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 </tr>
 </thead>
 <tbody><tr>
-<td><code>--json</code></td>
-<td></td>
-<td>Print machine-readable JSON instead of prose.</td>
-</tr>
-<tr>
 <td><code>--debug</code></td>
 <td></td>
 <td>Print the underlying gh and HTTP calls.</td>

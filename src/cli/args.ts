@@ -227,11 +227,21 @@ export async function parseArgs(args: string[]): Promise<Options> {
       arg === "--review-upstream" ||
       arg === "--disable-codegraph" ||
       arg === "--run" ||
+      arg === "--json" ||
       arg === "--only-request-changed-pr" ||
       arg === "--experimental-siwc"
     )
       continue;
     if (arg.startsWith("--") && !known) die(unknownOptionMessage(arg, command));
+  }
+  // `--json` must not prompt. `review` strips the flag before this parse and
+  // sets the same switch itself.
+  const json = rest.includes("--json");
+  if (json) setCliInteractive(false);
+  // `probe --run` would print the probe and then the init on one stdout, which
+  // is not one JSON document.
+  if (json && rest.includes("--run")) {
+    die("--run cannot be used with --json");
   }
 
   const explicitAi = rest.some((arg) => arg.startsWith("--ai="));
@@ -360,6 +370,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
     logTime: rest.includes("--log-time"),
     reviewUpstream: rest.includes("--review-upstream"),
     run: rest.includes("--run"),
+    ...(json ? { json: true } : {}),
     useCodegraph:
       command === "review" ? !rest.includes("--disable-codegraph") : false,
     envPath,

@@ -48,6 +48,12 @@ const OUTPUT_FLAGS: FlagGroup = {
   ],
 };
 
+/** `serve` runs until stopped and prints no result, so it has no `--json`. */
+const SERVE_OUTPUT_FLAGS: FlagGroup = {
+  title: OUTPUT_FLAGS.title,
+  flags: OUTPUT_FLAGS.flags.filter((flag) => flag.name !== "json"),
+};
+
 /** `review` alone can print for a CI run. */
 const REVIEW_OUTPUT_FLAGS: FlagGroup = {
   title: OUTPUT_FLAGS.title,
@@ -249,7 +255,7 @@ export const COMMANDS: CommandSpec[] = [
           {
             name: "only-request-changed-pr",
             description:
-              "Read only the pull requests that changed the requested files.",
+              "Read only the pull requests with at least one CHANGES_REQUESTED review.",
           },
         ],
       },
@@ -831,7 +837,7 @@ export const COMMANDS: CommandSpec[] = [
           },
         ],
       },
-      OUTPUT_FLAGS,
+      SERVE_OUTPUT_FLAGS,
     ],
     examples: ["co-maintainer serve --port=5000"],
   },

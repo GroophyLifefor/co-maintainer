@@ -26,7 +26,7 @@ import {
 } from "../config.ts";
 import { readState, writeState } from "../store/skill_state.ts";
 import { cacheSet } from "../store/cache_db.ts";
-import { log, timed, withLogSink } from "../util/log.ts";
+import { log, timed, withCliLogsToStderr, withLogSink } from "../util/log.ts";
 import { printRunSummary, summaryFromMetrics } from "../util/run_summary.ts";
 import { enqueue, registerHandler } from "./jobs.ts";
 import { resolveConcurrency } from "./concurrency.ts";
@@ -45,6 +45,7 @@ import { mkdir, readTextFile, remove } from "../util/runtime.ts";
 import { addResponseCost, emptyTally, type CostTally } from "../util/cost.ts";
 import { costLabel } from "../util/run_summary.ts";
 import { formatError } from "../cli/error.ts";
+import { buildSetupJson } from "../cli/command_json.ts";
 
 export type AiMetrics = CostTally & {
   calls: number;
@@ -213,7 +214,10 @@ export async function runInitOrRemake(options: Options): Promise<void> {
   const openedAppDb = !isAppDbOpen();
   if (openedAppDb) await openAppDb();
   try {
-    await initOrRemake(options);
+    // With `--json` stdout carries the one document, so progress moves to
+    // stderr.
+    if (options.json) await withCliLogsToStderr(() => initOrRemake(options));
+    else await initOrRemake(options);
   } finally {
     if (openedAppDb) await closeAppDb();
   }
@@ -459,9 +463,34 @@ async function initOrRemake(options: Options): Promise<void> {
     "done",
     `${facts.length} facts · ${source.pullRequests.length} pull requests · ${source.commits.length} commits`,
   );
-  printRunSummary(
-    summaryFromMetrics(aiMetrics, performance.now() - operationStarted),
+  const summary = summaryFromMetrics(
+    aiMetrics,
+    performance.now() - operationStarted,
   );
+  printRunSummary(summary);
+  if (options.json) {
+    console.log(
+      buildSetupJson({
+        command: options.command === "remake" ? "sync" : "init",
+        repo: options.repo,
+        skillPath: path,
+        changed: result.changed,
+        facts: facts.length,
+        pullRequests: source.pullRequests.length,
+        commits: source.commits.length,
+        reviewGuide: reviewDocuments
+          ? reviewDocuments.detailed
+            ? "detailed"
+            : "single"
+          : "skipped",
+        validation: {
+          errors: finalValidation.errors,
+          warnings: finalValidation.warnings,
+        },
+        summary,
+      }),
+    );
+  }
   if (options.logTime) {
     log(
       "time",

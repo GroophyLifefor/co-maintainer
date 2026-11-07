@@ -3,6 +3,7 @@ import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
 import { isNotFound, readTextFile } from "../util/runtime.ts";
 import { formatError } from "../cli/error.ts";
 import { recordRateLimitWait } from "../services/rate_limit.ts";
+import { log } from "../util/log.ts";
 
 type JobRecord = {
   status: "done" | "quarantine";
@@ -110,12 +111,13 @@ export class AiBatch {
         const reason = this.validate?.(request, cached.response) ?? null;
         if (reason === null) {
           results[index] = cached.response;
-          console.log(`[ai] cache hit ${request.job} ${id.slice(0, 8)}`);
+          log("ai", `cache hit ${request.job} ${id.slice(0, 8)}`);
         } else {
           delete this.records[id];
           await this.persist();
-          console.log(
-            `[ai] dropped unusable cache record ${request.job} ${id.slice(0, 8)}: ${reason}`,
+          log(
+            "ai",
+            `dropped unusable cache record ${request.job} ${id.slice(0, 8)}: ${reason}`,
           );
           pending.push({ index, id, request });
         }
@@ -131,18 +133,20 @@ export class AiBatch {
     }
 
     let cursor = 0;
-    console.log(
-      `[ai] queue ${requests.length} jobs · ${pending.length} pending · concurrency ${this.concurrency}`,
+    log(
+      "ai",
+      `queue ${requests.length} jobs · ${pending.length} pending · concurrency ${this.concurrency}`,
     );
     const worker = async () => {
       while (cursor < pending.length) {
         const item = pending[cursor++];
         const startedAt = Date.now();
-        console.log(`[ai] start ${item.request.job} ${item.id.slice(0, 8)}`);
+        log("ai", `start ${item.request.job} ${item.id.slice(0, 8)}`);
         const heartbeat = setInterval(() => {
           const seconds = Math.round((Date.now() - startedAt) / 1000);
-          console.log(
-            `[ai] still running ${item.request.job} ${item.id.slice(0, 8)} · ${seconds}s`,
+          log(
+            "ai",
+            `still running ${item.request.job} ${item.id.slice(0, 8)} · ${seconds}s`,
           );
         }, 15_000);
         try {
@@ -182,8 +186,9 @@ export class AiBatch {
         const limit = isRateLimit(reason)
           ? MAX_RATE_LIMIT_ATTEMPTS
           : MAX_ATTEMPTS;
-        console.log(
-          `[ai] call failed ${attempt}/${limit} ${item.request.job} ${item.id.slice(0, 8)}: ${reason}`,
+        log(
+          "ai",
+          `call failed ${attempt}/${limit} ${item.request.job} ${item.id.slice(0, 8)}: ${reason}`,
         );
         if (attempt < limit) {
           const wait = retryDelayMs(reason, attempt);
@@ -194,22 +199,25 @@ export class AiBatch {
               reason,
               seconds: wait / 1000,
             });
-            console.log(
-              `[ai] waiting ${Math.round(wait / 1000)}s before retry (provider is rate limiting)`,
+            log(
+              "ai",
+              `waiting ${Math.round(wait / 1000)}s before retry (provider is rate limiting)`,
             );
             await new Promise((resolve) => setTimeout(resolve, wait));
           }
           continue;
         }
-        console.log(
-          `[ai] gave up ${item.request.job} ${item.id.slice(0, 8)} after ${attempt} attempts; continuing without it`,
+        log(
+          "ai",
+          `gave up ${item.request.job} ${item.id.slice(0, 8)} after ${attempt} attempts; continuing without it`,
         );
         return;
       }
       const reason = this.validate?.(item.request, response) ?? null;
       if (reason !== null && attempt < MAX_ATTEMPTS) {
-        console.log(
-          `[ai] output rejected ${attempt}/${MAX_ATTEMPTS} ${item.request.job} ${item.id.slice(0, 8)}: ${reason}`,
+        log(
+          "ai",
+          `output rejected ${attempt}/${MAX_ATTEMPTS} ${item.request.job} ${item.id.slice(0, 8)}: ${reason}`,
         );
         continue;
       }
@@ -217,8 +225,9 @@ export class AiBatch {
         // The last attempt still failed its contract. Do not cache it, so a
         // later sync retries instead of replaying the same unusable output, and
         // do not throw: the run keeps its other work.
-        console.log(
-          `[ai] dropping ${item.request.job} ${item.id.slice(0, 8)} after ${attempt} attempts: ${reason}`,
+        log(
+          "ai",
+          `dropping ${item.request.job} ${item.id.slice(0, 8)} after ${attempt} attempts: ${reason}`,
         );
         return;
       }
@@ -230,8 +239,9 @@ export class AiBatch {
       results[item.index] = response;
       await this.persist();
       if (usage) await usage(item.request.job, response);
-      console.log(
-        `[ai] ${attempt === 1 ? "done" : `retried (${attempt})`} ${item.request.job} ${item.id.slice(0, 8)} · ${Math.round(
+      log(
+        "ai",
+        `${attempt === 1 ? "done" : `retried (${attempt})`} ${item.request.job} ${item.id.slice(0, 8)} · ${Math.round(
           (Date.now() - startedAt) / 1000,
         )}s`,
       );

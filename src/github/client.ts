@@ -143,8 +143,9 @@ export async function githubFetch(
           reason: `secondary rate limit (HTTP ${response.status})`,
           seconds: retryAfter,
         });
-        console.log(
-          `[github] secondary rate limit, waiting ${retryAfter}s (attempt ${attempt} of 3)`,
+        log(
+          "github",
+          `secondary rate limit, waiting ${retryAfter}s (attempt ${attempt} of 3)`,
         );
         await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
         continue;
