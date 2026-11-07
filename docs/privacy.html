@@ -1,14 +1,201 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Moved · co-maintainer docs</title>
-  <meta name="robots" content="noindex">
-  <meta http-equiv="refresh" content="0; url=docs/privacy.html">
-  <link rel="canonical" href="https://co-maintainer.com/docs/privacy.html">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="What co-maintainer stores, where, and what leaves your machine.">
+<title>co-maintainer · privacy</title>
+<link rel="icon" href="assets/logo.png" type="image/png">
+<link rel="canonical" href="https://co-maintainer.com/privacy.html">
+<!-- Hand written, like index.html. The docs build does not touch this page. -->
+<style>
+  @font-face { font-family: "Outfit"; src: url("assets/fonts/outfit-latin.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+  @font-face { font-family: "JetBrains Mono"; src: url("assets/fonts/jetbrains-mono-latin.woff2") format("woff2"); font-weight: 100 800; font-display: swap; }
+
+  /* Tokens and header/footer: same as index.html */
+  :root {
+    --paper: #f3efe6;
+    --card: #ffffff;
+    --ink: #101215;
+    --ink-2: #4f5560;
+    --blue: #0969da;
+    --blue-deep: #063e86;
+    --sky: #d6e6fb;
+    --rule: rgba(16, 18, 21, .16);
+    --sans: "Outfit", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+    --w: 880px;
+    --gut: 24px;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--paper); }
+  body { margin: 0; color: var(--ink); font: 400 18px/1.6 var(--sans); }
+  a { color: var(--blue); text-decoration: none; background: linear-gradient(currentColor, currentColor) left bottom / 0% 1.5px no-repeat; padding-bottom: 1px; transition: background-size .25s ease; }
+  a:hover, a:focus-visible { background-size: 100% 1.5px; }
+  code { font: 14px var(--mono); background: var(--card); border: 1px solid var(--rule); padding: 1px 5px; }
+  .w { max-width: calc(var(--w) + 2 * var(--gut)); margin: 0 auto; padding: 0 var(--gut); }
+  .wide { max-width: calc(1160px + 2 * var(--gut)); }
+  .label { font: 500 12px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); }
+
+  .top { --rule-c: transparent; display: flex; align-items: center; gap: 12px; height: 76px; position: sticky; top: 0; z-index: 20; border-image: linear-gradient(to bottom, var(--paper) calc(100% - 2px), var(--rule-c) 0) fill 0 / 0 / 0 100vmax 2px; }
+  .top.scrolled { --rule-c: var(--ink); }
+  .top .home { display: flex; align-items: center; gap: 12px; color: var(--ink); background: none; }
+  .top b { font: 600 19px var(--sans); }
+  .top nav { margin-left: auto; display: flex; align-items: center; gap: 28px; font-size: 16px; }
+  .top nav a { color: var(--ink); }
+  .top nav a.gh { border: 2px solid var(--ink); padding: 6px 12px; font-weight: 500; background: linear-gradient(var(--ink), var(--ink)) left / 0% 100% no-repeat; transition: background-size .25s ease, color .25s ease; }
+  .top nav a.gh:hover, .top nav a.gh:focus-visible { background-size: 100% 100%; color: var(--paper); }
+  .bird { color: var(--ink); display: block; }
+
+  .head { padding: 72px 0 40px; }
+  h1 { font: 800 clamp(40px, 6vw, 68px)/1 var(--sans); letter-spacing: -.04em; margin: 14px 0 20px; }
+  h1 span { color: var(--blue); }
+  .lede { color: var(--ink-2); font-size: 20px; margin: 0; max-width: 36em; }
+  .updated { margin-top: 16px; font: 13px var(--mono); color: var(--ink-2); }
+
+  .promise { border: 2px solid var(--ink); background: var(--card); box-shadow: 6px 6px 0 var(--blue); padding: 22px 24px; margin: 8px 0 56px; }
+  .promise b { display: block; font: 600 20px/1.3 var(--sans); margin-bottom: 8px; }
+  .promise p { margin: 0; color: var(--ink-2); font-size: 16px; }
+
+  section.part { padding: 0 0 56px; }
+  h2 { font: 800 30px/1.1 var(--sans); letter-spacing: -.02em; margin: 0 0 18px; }
+  section.part > p { margin: 0 0 16px; }
+  .table { overflow-x: auto; border: 2px solid var(--ink); background: var(--card); }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; vertical-align: top; padding: 12px 14px; border-bottom: 1px solid var(--rule); }
+  tr:last-child td { border-bottom: 0; }
+  th { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); background: var(--paper); border-bottom: 2px solid var(--ink); }
+  td:first-child { white-space: nowrap; }
+  .del td:first-child { white-space: normal; }
+  .del .note { color: var(--ink-2); font: 12px var(--mono); }
+  @media (min-width: 760px) { .del td:last-child code { white-space: nowrap; } }
+  .yes { color: #a40e26; font-weight: 600; }
+  ul.points { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--rule); }
+  ul.points li { padding: 12px 0 12px 26px; border-bottom: 1px solid var(--rule); position: relative; }
+  ul.points li::before { content: ""; position: absolute; left: 2px; top: 20px; width: 12px; height: 6px; border-left: 2px solid var(--blue); border-bottom: 2px solid var(--blue); transform: rotate(-45deg); }
+
+  footer { padding: 36px 0 48px; border-top: 2px solid var(--ink); margin-top: 40px; }
+  footer .w { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: center; font-size: 15px; color: var(--ink-2); }
+  footer nav { margin-left: auto; display: flex; gap: 22px; }
+  footer a { color: var(--ink); }
+
+  @media (max-width: 560px) {
+    :root { --gut: 16px; }
+    body { font-size: 17px; }
+    .top nav a:not(.gh) { display: none; }
+    .head { padding-top: 40px; }
+    td:first-child { white-space: normal; }
+  }
+</style>
+<!-- Same Umami website and events as the live co-maintainer.com. data-domains keeps local previews out of the stats. -->
+<script defer src="https://umami.ordu.dev/script.js" data-website-id="5c8e6df5-063d-4031-9eb6-f43138e09e2d" data-domains="co-maintainer.com"></script>
+<script defer src="https://umami.ordu.dev/recorder.js" data-website-id="5c8e6df5-063d-4031-9eb6-f43138e09e2d" data-domains="co-maintainer.com"></script>
 </head>
 <body>
-  <p>This page moved to <a href="docs/privacy.html">docs/privacy.html</a>.</p>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mark" viewBox="0 0 100 100">
+    <path d="M78 28 A37 37 0 1 0 78 72" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round"/>
+    <path fill="currentColor" fill-rule="evenodd" d="M35 50 a15 15 0 1 0 30 0 a15 15 0 1 0 -30 0 Z M48.5 46 a3.5 3.5 0 1 0 7 0 a3.5 3.5 0 1 0 -7 0 Z"/>
+    <path fill="currentColor" d="M60 43 L90 50 L60 57 Z"/>
+  </symbol>
+</svg>
+
+<header class="w wide top">
+  <a class="home" href="index.html"><svg class="bird" width="30" height="30"><use href="#mark"/></svg><b>co-maintainer</b></a>
+  <nav><a href="docs/getting-started.html">Docs</a><a href="https://buttondown.com/murat" data-umami-event="newsletter-click">Newsletter</a><a class="gh" href="https://github.com/GroophyLifefor/co-maintainer" data-umami-event="click-github">GitHub</a></nav>
+</header>
+
+<main class="w">
+  <div class="head">
+    <div class="label">Privacy</div>
+    <h1>Nothing is sent <span>to us.</span></h1>
+    <p class="lede">co-maintainer runs on your machine or your own server. This page says what it stores, where, and what leaves the machine.</p>
+    <div class="updated">Last updated 2026-11-07 · To hear when this page changes, <a href="https://buttondown.com/murat" data-umami-event="newsletter-click">subscribe to the newsletter</a>.</div>
+  </div>
+
+  <div class="promise">
+    <b>No telemetry, no analytics endpoint, no call home.</b>
+    <p>The only hosts the product talks to are the ones you configured, plus your provider's price list when <code>probe</code> prices an estimate. This covers the CLI, <code>serve</code> and the dashboard.</p>
+  </div>
+
+  <section class="part">
+    <h2>What leaves your machine</h2>
+    <div class="table"><table>
+      <thead><tr><th>When</th><th>Sent to</th><th>What</th></tr></thead>
+      <tbody>
+        <tr><td><code>probe</code>, <code>init</code>, <code>sync</code></td><td>GitHub</td><td>API reads through <code>gh</code> or a personal access token</td></tr>
+        <tr><td><code>init</code>, <code>sync</code>, <code>review</code></td><td>Your AI provider: OpenRouter, OpenAI, Anthropic or OpenCode</td><td>The prompts: sampled code, pull request text, diffs and guides</td></tr>
+        <tr><td><code>review --remote</code></td><td>Your <code>serve</code> instance</td><td>The git diff, plus codegraph tool requests and results</td></tr>
+        <tr><td><code>review --remote</code> with your own key</td><td>Your <code>serve</code> instance</td><td>Your AI key, kept in memory for that review and never stored</td></tr>
+        <tr><td>GitHub App review</td><td>GitHub</td><td>The review comment, the check run and the inline comments</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="part">
+    <h2>This website</h2>
+    <p>co-maintainer.com uses Umami for page analytics and session recordings. If you sign up for the newsletter, your email is stored by Buttondown.</p>
+  </section>
+
+  <section class="part">
+    <h2>What is stored, and where</h2>
+    <p>Everything lives under the config and cache directories. Nothing is written into your git clone.</p>
+    <div class="table"><table>
+      <thead><tr><th>Item</th><th>Location</th><th>Secrets</th></tr></thead>
+      <tbody>
+        <tr><td><code>config.json</code></td><td>Config directory</td><td><span class="yes">Yes.</span> Tokens, access tokens, the App private key, webhook and OAuth secrets, a scrypt password hash. Plain text, <code>chmod 0600</code> where supported.</td></tr>
+        <tr><td><code>repos/&lt;slug&gt;/</code></td><td>Config directory</td><td>No. The generated guides: <code>SKILL.md</code>, <code>CODEBASE.md</code>, review guides.</td></tr>
+        <tr><td><code>cache.db</code></td><td>Cache directory</td><td>No. Evidence and AI job cache. It does hold sampled code and PR text from your repository.</td></tr>
+        <tr><td><code>app.db</code></td><td>Cache directory</td><td>No. Server state: repos, jobs, reviews, token hashes, webhook dedup.</td></tr>
+        <tr><td><code>clones/</code>, <code>wt/</code></td><td>Cache directory</td><td>No. Disposable clones and per-PR worktrees on a <code>serve</code> host.</td></tr>
+        <tr><td><code>tools/</code></td><td>Cache directory</td><td>No. Pinned helper binaries such as codegraph.</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="part">
+    <h2>Secrets</h2>
+    <ul class="points">
+      <li><code>config.json</code> is the one file with plain-text secrets. On a shared or CI machine, use <code>--env=PATH</code> or flags and keep the file out of version control.</li>
+      <li><code>--github-app-private-key-path</code> stores only the path to the App key, so the key never enters <code>config.json</code>.</li>
+      <li>Remote review tokens are stored as hashes. The dashboard shows a new token once and cannot show it again.</li>
+      <li><code>config list</code> masks secrets. <code>config get</code> prints the real value, so treat its output as a secret.</li>
+      <li>A review never prints a token. Known secret shapes are redacted from provider text before it is shown.</li>
+    </ul>
+  </section>
+
+  <section class="part">
+    <h2>What a review sends to the model</h2>
+    <p>The diff, the review guides, the codebase conventions, the pull request title and body, and any existing review comments. Codegraph results are added as text when a tool is used. It never contains your API keys, your <code>config.json</code> or your GitHub credentials.</p>
+  </section>
+
+  <section class="part">
+    <h2>Deleting data</h2>
+    <div class="table del"><table>
+      <thead><tr><th>To</th><th>Run</th></tr></thead>
+      <tbody>
+        <tr><td>Remove one repository's guides and settings</td><td><code>co-maintainer clear owner/repo</code></td></tr>
+        <tr><td>Also remove its fetched evidence, AI job cache, clones and worktrees</td><td><code>co-maintainer clear owner/repo --include-cache</code></td></tr>
+        <tr><td>Do that for every repository</td><td><code>co-maintainer clear all</code></td></tr>
+        <tr><td>Delete every co-maintainer data file on this machine</td><td><code>co-maintainer uninstall</code></td></tr>
+        <tr><td>Remove the CLI itself <span class="note">(not data, only CLI)</span></td><td><code>npm uninstall -g co-maintainer</code></td></tr>      </tbody>
+    </table></div>
+  </section>
+</main>
+
+<footer>
+  <div class="w wide">
+    <svg class="bird" width="22" height="22"><use href="#mark"/></svg>
+    <span>Made by <a href="https://muratkirazkaya.com" target="_blank" rel="noopener">Murat Kirazkaya</a></span>
+    <nav><a href="privacy.html">Privacy</a><a href="https://github.com/GroophyLifefor/co-maintainer/blob/main/LICENSE">MIT License</a></nav>
+  </div>
+</footer>
+
+<script>
+  const topBar = document.querySelector(".top");
+  const markScrolled = () => topBar.classList.toggle("scrolled", scrollY > 4);
+  window.addEventListener("scroll", markScrolled, { passive: true });
+  markScrolled();
+</script>
 </body>
 </html>

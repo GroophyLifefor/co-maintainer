@@ -2,9 +2,11 @@ This project bundles the following third-party assets. Their licenses are
 reproduced below and apply to those assets only, not to the rest of
 co-maintainer, which is distributed under the MIT License (see LICENSE).
 
-1. Outfit (font files under src/server/pages/fonts/)
+1. Outfit (font files under src/server/pages/fonts/ and docs/assets/fonts/)
 2. Lucide (icon SVGs under src/server/pages/icons/)
 3. Feather-derived icons (a subset of the Lucide icons listed below)
+4. JetBrains Mono (font file under docs/assets/fonts/)
+5. Simple Icons (brand SVGs under docs/assets/logos/)
 
 
 ================================================================================
@@ -159,3 +161,26 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+
+================================================================================
+4. JetBrains Mono
+================================================================================
+
+Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+The license text is reproduced in section 1 above, and is also available
+with a FAQ at: https://scripts.sil.org/OFL
+
+
+================================================================================
+5. Simple Icons
+================================================================================
+
+The Claude, OpenAI and Google Gemini marks under docs/assets/logos/ come from
+Simple Icons (https://simpleicons.org), whose SVG files are released under
+CC0 1.0 Universal (https://creativecommons.org/publicdomain/zero/1.0/).
+
+The marks themselves are trademarks of their owners. They are shown only to
+name AI tools that can read co-maintainer's output, and imply no endorsement.

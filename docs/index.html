@@ -1,272 +1,1485 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="co-maintainer: repository-specific AI guidance, PR review, and self-hosted dashboard.">
-  <title>co-maintainer</title>
-  <link rel="stylesheet" href="assets/site.css">
-  <link rel="icon" href="assets/logo.png" type="image/png">
-  <script defer src="https://umami.ordu.dev/script.js" data-website-id="5c8e6df5-063d-4031-9eb6-f43138e09e2d"></script>
-  <script defer src="https://umami.ordu.dev/recorder.js" data-website-id="5c8e6df5-063d-4031-9eb6-f43138e09e2d"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="co-maintainer: open source PR review that learns how your repository is reviewed. Runs on your machine or your own server.">
+<title>co-maintainer · it learns how you review</title>
+<link rel="icon" href="assets/logo.png" type="image/png">
+<link rel="preload" href="assets/fonts/outfit-latin.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+  /* Fonts are served from this site, so a visit reaches no font CDN.
+     Both are variable fonts, one file covers every weight used here. */
+  @font-face { font-family: "Outfit"; src: url("assets/fonts/outfit-latin.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+  @font-face { font-family: "JetBrains Mono"; src: url("assets/fonts/jetbrains-mono-latin.woff2") format("woff2"); font-weight: 100 800; font-display: swap; }
+
+  /* Design tokens: paper, ink, the brand blue, Outfit for words and
+     JetBrains Mono for code. Only speech bubbles are round. */
+  :root {
+    --paper: #f3efe6;
+    --card: #ffffff;
+    --ink: #101215;
+    --ink-2: #4f5560;
+    --blue: #0969da;
+    --blue-deep: #063e86;
+    --sky: #d6e6fb;
+    --rule: rgba(16, 18, 21, .16);
+    --sans: "Outfit", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+    --w: 1160px;
+    --gut: 24px;
+    --sec: 128px;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--paper); }
+  body { margin: 0; color: var(--ink); font: 400 19px/1.55 var(--sans); }
+  /* links: the underline draws in from the left on hover and focus */
+  a { color: var(--blue); text-decoration: none; background: linear-gradient(currentColor, currentColor) left bottom / 0% 1.5px no-repeat; padding-bottom: 1px; transition: background-size .25s ease; }
+  a:hover, a:focus-visible { background-size: 100% 1.5px; }
+  code { font: 15px var(--mono); }
+  .w { max-width: calc(var(--w) + 2 * var(--gut)); margin: 0 auto; padding: 0 var(--gut); }
+
+  .label { font: 500 12px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); }
+  h2 { font: 800 clamp(34px, 4vw, 52px)/1.02 var(--sans); letter-spacing: -.03em; margin: 12px 0 20px; max-width: 16em; }
+  h3 { font: 600 24px/1.2 var(--sans); margin: 0 0 8px; letter-spacing: -.01em; }
+  .lede { color: var(--ink-2); max-width: 34em; margin: 0; }
+
+  /* the bird */
+  .bird { display: block; color: var(--blue); }
+  .bird.ink { color: var(--ink); }
+  .bird.flip { transform: scaleX(-1); }
+
+  /* the signature component: speech */
+  .say { position: relative; background: var(--card); border: 2px solid var(--ink); border-radius: 22px; padding: 18px 20px; font-size: 16px; line-height: 1.5; box-shadow: 4px 4px 0 var(--ink); }
+  .say p { margin: 0 0 8px; }
+  .say p:last-child { margin: 0; }
+  .say code { font-size: 13px; background: var(--sky); color: var(--blue-deep); padding: 1px 5px; }
+  .say .sev { font: 500 12px var(--mono); display: inline-block; margin-bottom: 8px; color: var(--blue-deep); background: var(--sky); padding: 2px 8px; }
+  .say::after { content: ""; position: absolute; width: 22px; height: 22px; background: inherit; border: 2px solid var(--ink); border-top: 0; border-right: 0; }
+  /* Side tails sit between the two corner radii. A short bubble is held
+     tall enough for that, otherwise the tail lands on a corner and
+     flattens it. */
+  .say.tail-left, .say.tail-right { min-height: 70px; display: flex; flex-direction: column; justify-content: center; }
+  .say.tail-left::after, .say.tail-right::after { width: 18px; height: 18px; top: 24px; transform: rotate(45deg); }
+  .say.tail-left::after { left: -11px; border-bottom-left-radius: 3px; }
+  .say.tail-down::after { left: 46px; bottom: -13px; transform: rotate(-45deg); border-bottom-left-radius: 4px; }
+  .say.human { background: var(--ink); color: var(--paper); }
+  .say.human::after { border-color: var(--ink); }
+  .say.tail-right::after { right: -11px; left: auto; border: 2px solid var(--ink); border-left: 0; border-bottom: 0; border-top-right-radius: 3px; }
+  .src { font: 400 12px/1.5 var(--mono); color: var(--ink-2); margin-top: 14px; }
+  .src a { color: var(--ink-2); }
+
+  /* header */
+  /* Sticky. The header is only as wide as the content column, so its paper
+     background, and the rule under it once the page has scrolled, are painted
+     out to the window edges with border-image-outset. That paints past the
+     box without making the page any wider, which a wide ::after did. */
+  .top { --rule-c: transparent; display: flex; align-items: center; gap: 12px; height: 76px; position: sticky; top: 0; z-index: 20; border-image: linear-gradient(to bottom, var(--paper) calc(100% - 2px), var(--rule-c) 0) fill 0 / 0 / 0 100vmax 2px; }
+  .top.scrolled { --rule-c: var(--ink); }
+  [id] { scroll-margin-top: 92px; }
+  .top b { font: 600 19px var(--sans); }
+  .top nav { margin-left: auto; display: flex; align-items: center; gap: 28px; font-size: 16px; }
+  .top nav a { color: var(--ink); text-decoration: none; }
+  /* hover: black fills in from the left, the text turns white */
+  .top nav a.gh { border: 2px solid var(--ink); padding: 6px 12px; font-weight: 500; background: linear-gradient(var(--ink), var(--ink)) left / 0% 100% no-repeat; transition: background-size .25s ease, color .25s ease; }
+  .top nav a.gh:hover, .top nav a.gh:focus-visible { background-size: 100% 100%; color: var(--paper); }
+
+  /* hero */
+  .hero { padding: 56px 0 var(--sec); display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; }
+  .hero > * { min-width: 0; }
+  h1 { font: 800 clamp(46px, 6vw, 86px)/.96 var(--sans); letter-spacing: -.045em; margin: 18px 0 28px; }
+  h1 span { color: var(--blue); }
+  .hero .lede { font-size: 21px; }
+  .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 36px; }
+  .cmd { display: inline-flex; align-items: center; gap: 16px; background: var(--ink); color: var(--paper); font: 15px var(--mono); padding: 14px 16px; }
+  .cmd button { all: unset; cursor: pointer; font: 500 12px var(--mono); color: var(--ink); background: var(--paper); padding: 3px 9px; }
+  .cta small { font: 400 13px var(--mono); color: var(--ink-2); }
+  .home-stats { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 18px; font: 13px var(--mono); }
+  .home-stats a { color: var(--ink-2); }
+  .home-stats strong { color: var(--ink); font-weight: 500; }
+  /* hero scene: a diff the bird lands on */
+  .scene { position: relative; padding-top: 56px; }
+  .pdiff { background: var(--card); border: 2px solid var(--ink); font: 13px/1.95 var(--mono); }
+  .d-hd { padding: 8px 12px; border-bottom: 2px solid var(--ink); background: var(--paper); font-weight: 500; }
+  .d-row { display: flex; white-space: pre; transition: background .3s, box-shadow .3s; }
+  .d-row .n { flex: none; width: 46px; padding-right: 10px; text-align: right; color: var(--ink-2); user-select: none; }
+  .d-row .t { overflow: hidden; text-overflow: ellipsis; padding-right: 12px; }
+  .d-row.add { background: #e6ffec; }
+  .d-row.add .n { background: #ccffd8; }
+  .d-row.hit { background: #fff3c4; box-shadow: inset 4px 0 0 var(--blue); }
+  .d-comment { max-height: 0; overflow: hidden; padding: 0 14px 0 22px; transition: max-height .7s cubic-bezier(.3, 0, .2, 1), padding .7s cubic-bezier(.3, 0, .2, 1); }
+  /* right padding leaves the bird room, so it never sits on the bubble */
+  .d-comment.open { max-height: 560px; padding: 18px 104px 20px 22px; }
+  .d-comment .say { font: 400 15px/1.5 var(--sans); white-space: normal; }
+  .scene .walker { position: absolute; left: 0; top: 0; width: 88px; pointer-events: none; opacity: 0; transition: transform 1s cubic-bezier(.5, 0, .2, 1), opacity .35s; }
+  .scene .walker.in { opacity: 1; }
+  .scene .walker svg { transform: scaleX(-1); }
+  .mb.pecking .face { animation: mb-peck .8s 1; }
+  @keyframes mb-peck { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-3px); } 40% { transform: translateX(9px); } 55% { transform: translateX(0); } 75% { transform: translateX(7px); } }
+
+  /* field guide plate */
+
+  /* heard / wrote / said */
+  .song { padding: var(--sec) 0; border-top: 2px solid var(--ink); }
+  .say.tail-up::after { left: 34px; top: -11px; width: 18px; height: 18px; transform: rotate(135deg); border-bottom-left-radius: 3px; }
+
+  /* How to start: a terminal with one tab per step */
+  .tty { margin-top: 28px; background: var(--ink); color: var(--paper); border: 2px solid var(--ink); box-shadow: 6px 6px 0 var(--blue); }
+  .tty-tabs { display: flex; overflow-x: auto; background: #1b1e23; border-bottom: 1px solid #2c3138; }
+  .tty-tabs button { all: unset; cursor: pointer; font: 500 13px var(--mono); color: #8a929c; padding: 12px 20px; border-right: 1px solid #2c3138; white-space: nowrap; }
+  .tty-tabs button:hover { color: var(--paper); }
+  .tty-tabs button[aria-selected="true"] { color: var(--paper); background: var(--ink); box-shadow: inset 0 2px 0 var(--blue); }
+  .tty-tabs button:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+  .tty-tabs .tty-replay { margin-left: auto; border-right: 0; border-left: 1px solid #2c3138; color: #8a929c; }
+  .tty-pane { height: 420px; overflow-y: auto; padding: 20px 22px; font: 14px/1.7 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .tty-pane .dim { color: #7d8590; }
+  .tty-pane .warn { color: #e3b341; }
+  .tty-pane .sev-tag { color: #ff7b72; font-weight: 600; }
+  .tty-pane b { color: #fff; font-weight: 600; }
+  /* a block of its own, wrapping only between words, never inside a flag */
+  .tty-pane .cmdline { display: block; margin: 4px 0 4px 2ch; padding: 8px 12px; background: rgba(255,255,255,.07); box-shadow: inset 3px 0 0 #56d364; color: var(--paper); overflow-wrap: normal; }
+  .tty-pane .cmdline .tok { white-space: nowrap; }
+  .tty-pane .cmdline .sub { color: #56d364; }
+  .tty-pane .cmdline .flag { color: #79c0ff; }
+  .tty-pane .cmdline .val { color: #ffa657; }
+
+  .tty-note { margin-top: 20px; display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; background: var(--sky); border: 2px solid var(--blue); padding: 14px 18px; font-size: 16px; color: var(--blue-deep); }
+  .tty-note .label { color: var(--blue-deep); padding-top: 3px; }
+  .tty-note code { font: 14px var(--mono); background: var(--card); padding: 1px 6px; white-space: nowrap; }
+  .tty-note dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 10px 18px; }
+  .tty-note dt { margin: 0; }
+  .tty-note dd { margin: 0; }
+  @media (max-width: 560px) {
+    .tty-note { grid-template-columns: 1fr; }
+    .tty-note dl { grid-template-columns: 1fr; gap: 4px; }
+    .tty-note dd { margin-bottom: 10px; }
+  }
+  .tty-pane .ps { color: #56d364; user-select: none; }
+  .cur { display: inline-block; width: 8px; height: 1.1em; vertical-align: text-bottom; background: var(--paper); animation: cur 1.1s steps(1) infinite; }
+  @keyframes cur { 50% { opacity: 0; } }
+
+  /* conversation */
+  .talk { background: var(--sky); padding: var(--sec) 0; border-top: 2px solid var(--ink); border-bottom: 2px solid var(--ink); }
+  .talk-grid { display: grid; grid-template-columns: .8fr 1.2fr; gap: 64px; align-items: start; }
+  .talk-grid > * { min-width: 0; }
+  .thread { display: grid; gap: 28px; }
+  .row { display: grid; grid-template-columns: 56px 1fr; gap: 16px; align-items: start; }
+  .row.me { grid-template-columns: 1fr 56px; }
+  .avatar { width: 56px; height: 56px; border: 2px solid var(--ink); background: var(--card); display: grid; place-items: center; font: 600 18px var(--sans); }
+  .avatar.b { background: var(--blue); border-color: var(--blue); }
+  .say ul { margin: 6px 0 8px; padding-left: 18px; }
+  .say li { margin-bottom: 4px; }
+
+  /* pricing: three plans, one price */
+  .diet { padding: var(--sec) 0; border-top: 2px solid var(--ink); }
+  .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 48px; align-items: stretch; }
+  .plan { position: relative; border: 2px solid var(--ink); background: var(--card); padding: 28px; display: flex; flex-direction: column; }
+  .plan.pop { box-shadow: 6px 6px 0 var(--blue); border-color: var(--blue); }
+  .p-name { font: 500 13px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); }
+  .p-price { font: 800 64px/1 var(--sans); letter-spacing: -.04em; margin: 14px 0 6px; display: flex; align-items: baseline; gap: 10px; }
+  .p-price small { font: 400 14px var(--mono); letter-spacing: 0; color: var(--ink-2); }
+  .p-for { margin: 0 0 18px; color: var(--ink-2); font-size: 16px; }
+  .plan ul { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--rule); }
+  .plan li { padding: 10px 0 10px 26px; border-bottom: 1px solid var(--rule); position: relative; font-size: 16px; }
+  .plan li::before { content: ""; position: absolute; left: 2px; top: 17px; width: 12px; height: 6px; border-left: 2px solid var(--blue); border-bottom: 2px solid var(--blue); transform: rotate(-45deg); }
+  .plan li code { white-space: nowrap; }
+  .earn { margin-top: 32px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; border: 2px dashed var(--ink); padding: 16px 20px; }
+  .earn p { margin: 0; font-size: 17px; }
+  .plan .nap { position: absolute; right: 18px; top: -44px; width: 64px; --b-bg: var(--paper); }
+
+  /* last call */
+  /* newsletter: one card, the bird, the line, the button */
+  .news { padding: 0 0 var(--sec); }
+  .news-card { display: grid; grid-template-columns: auto 1fr auto; gap: 32px; align-items: center; }
+  .news-card > * { min-width: 0; }
+  .news .news-card { border: 2px solid var(--ink); background: var(--card); box-shadow: 6px 6px 0 var(--blue); padding: 36px 40px; max-width: calc(var(--w) + 2 * var(--gut) - 48px); }
+  .news-bird { width: 96px; --b-bg: var(--card); }
+  .news h2 { margin: 8px 0 10px; font-size: clamp(28px, 3vw, 40px); }
+  .news .lede { font-size: 17px; }
+  .news-btn { display: inline-flex; gap: 10px; align-items: center; white-space: nowrap; font: 600 16px var(--sans); color: #fff; background: var(--ink); border: 2px solid var(--ink); padding: 14px 20px; background-image: linear-gradient(var(--blue), var(--blue)); background-position: left; background-size: 0% 100%; background-repeat: no-repeat; transition: background-size .25s ease, border-color .25s ease; }
+  .news-btn:hover, .news-btn:focus-visible { background-size: 100% 100%; border-color: var(--blue); }
+  @media (max-width: 760px) {
+    .news-card { grid-template-columns: 1fr; gap: 20px; }
+    .news .news-card { padding: 24px; }
+    .news-bird { width: 72px; }
+  }
+
+  .last { background: var(--blue); color: #fff; padding: 112px 0; }
+  .last .w { display: grid; grid-template-columns: auto 1fr; gap: 48px; align-items: center; }
+  .last .bird { width: 220px; color: #fff; }
+  .last h2 { color: #fff; margin: 0 0 24px; max-width: 14em; }
+  .last .say { color: var(--ink); display: inline-block; margin-bottom: 32px; }
+  .last .cmd { background: var(--ink); }
+  .last small { display: block; margin-top: 14px; font: 13px var(--mono); color: rgba(255,255,255,.78); }
+
+  /* Animated bird. Built from parts by the script at the bottom. Its rest
+     pose is the logo exactly. */
+  .mb { display: block; position: relative; --b-fill: var(--blue); --b-bg: var(--paper); }
+  .mb svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .mb .c, .mb .run { fill: none; stroke-width: 12; stroke-linecap: round; }
+  .mb .c { stroke: var(--b-fill); }
+  .mb .head, .mb .bu, .mb .bl { fill: var(--b-fill); }
+  .mb .eye { fill: var(--b-bg); }
+  .mb .all, .mb .face, .mb .eye, .mb .bu, .mb .bl { transform-box: view-box; }
+  .mb .all { transform-origin: 50px 92px; }
+  .mb .face { transform-origin: 50px 50px; }
+  .mb .eye { transform-origin: 52px 46px; }
+  .mb .bu, .mb .bl { transform-origin: 60px 50px; }
+  .mb.look .face, .mb.look .eye { transition: transform .12s ease-out; }
+
+  .mb.talking .bu { animation: mb-up .9s infinite; }
+  .mb.talking .bl { animation: mb-lo .9s infinite; }
+  @keyframes mb-up { 0%, 100% { transform: rotate(0); } 25%, 55% { transform: rotate(-14deg); } 40% { transform: rotate(-6deg); } }
+  @keyframes mb-lo { 0%, 100% { transform: rotate(0); } 25%, 55% { transform: rotate(14deg); } 40% { transform: rotate(6deg); } }
+
+  .mb.curious .face { animation: mb-tilt 3.4s infinite ease-in-out; }
+  @keyframes mb-tilt { 0%, 20%, 100% { transform: rotate(0); } 35%, 55% { transform: rotate(-14deg); } 70%, 85% { transform: rotate(8deg); } }
+
+  .mb .run { stroke: var(--b-run, var(--blue-deep)); stroke-dasharray: 22 200; opacity: 0; }
+  .mb.reviewing .run { opacity: 1; animation: mb-run 1.8s infinite alternate cubic-bezier(.65, 0, .35, 1); }
+  .mb.reviewing .eye { animation: mb-scan 3.6s infinite cubic-bezier(.65, 0, .35, 1); }
+  @keyframes mb-run { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -78; } }
+  @keyframes mb-scan { 0%, 100% { transform: translate(2px, -3px); } 25% { transform: translate(-3px, 0); } 50% { transform: translate(2px, 3px); } 75% { transform: translate(-3px, 0); } }
+
+  .mb.sleeps .eye { transform: scaleY(.12); }
+  .mb.sleeps .face { animation: mb-breathe 3s infinite ease-in-out; }
+  @keyframes mb-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(2px); } }
+  .mb .z { position: absolute; left: 62%; top: 10%; font: 600 14px var(--mono); color: var(--b-fill); opacity: 0; animation: mb-z 3s infinite; }
+  .mb .z:nth-of-type(2) { animation-delay: 1s; }
+  .mb .z:nth-of-type(3) { animation-delay: 2s; }
+  @keyframes mb-z { 0% { transform: translate(0, 0) scale(.6); opacity: 0; } 30% { opacity: 1; } 100% { transform: translate(18px, -26px) scale(1.15); opacity: 0; } }
+
+  .mb.startled .all { animation: mb-jolt 2.8s infinite; }
+  .mb.startled .eye { animation: mb-wide 2.8s infinite; }
+  .mb .bang { position: absolute; right: -14%; top: -22%; font: 800 26px/1 var(--sans); color: var(--ink); opacity: 0; animation: mb-bang 2.8s infinite; }
+  @keyframes mb-jolt { 0%, 30%, 100% { transform: translateY(0); } 34% { transform: translateY(-8px) scale(1.04); } 40% { transform: translateY(0); } }
+  @keyframes mb-wide { 0%, 30%, 70%, 100% { transform: scale(1); } 34%, 62% { transform: scale(1.6); } }
+  @keyframes mb-bang { 0%, 30% { opacity: 0; transform: translateY(10px) scale(.5); } 36%, 70% { opacity: 1; transform: none; } 80%, 100% { opacity: 0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mb *, .mb { animation: none !important; transition: none !important; }
+  }
+
+
+  footer { padding: 36px 0 48px; }
+  footer .w { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: center; font-size: 15px; color: var(--ink-2); }
+  footer nav { margin-left: auto; display: flex; gap: 22px; }
+  footer a { color: var(--ink); text-decoration: none; }
+
+  /* On your server: the dashboard screenshot in a plain browser frame */
+  .serve { padding: var(--sec) 0; }
+  .serve .cmd { margin: 20px 0 40px; }
+  .shot { margin: 0; border: 2px solid var(--ink); background: var(--card); box-shadow: 6px 6px 0 var(--blue); }
+  .shot-bar { display: flex; align-items: center; gap: 6px; padding: 9px 12px; border-bottom: 2px solid var(--ink); background: var(--paper); font: 12px var(--mono); }
+  .shot-bar span { width: 9px; height: 9px; border: 1.5px solid var(--ink); border-radius: 50%; }
+  .shot-bar b { margin-left: 10px; font-weight: 400; color: var(--ink-2); }
+  /* the screenshot's lower half is empty, so show only its top */
+  .shot img { display: block; width: 100%; aspect-ratio: 1848 / 820; object-fit: cover; object-position: top left; cursor: zoom-in; }
+  .zoom { position: fixed; inset: 0; z-index: 50; background: rgba(16, 18, 21, .82); display: grid; place-items: center; padding: 24px; cursor: zoom-out; animation: zoom-in .2s ease-out; }
+  .zoom[hidden] { display: none; }
+  .zoom img { max-width: 100%; max-height: 100%; border: 2px solid var(--ink); box-shadow: 6px 6px 0 var(--blue); background: var(--card); }
+  @keyframes zoom-in { from { opacity: 0; } }
+
+  /* For agents: --json */
+  .agents { padding: var(--sec) 0; border-top: 2px solid var(--ink); }
+  .agents-grid { display: grid; grid-template-columns: .9fr 1.1fr; gap: 56px; align-items: start; }
+  .agents-grid > * { min-width: 0; }
+  .agents .cmd { margin: 20px 0 28px; }
+  /* relay: the bird carries the JSON from the CLI to an agent, on a loop.
+     Every part runs on the same 6s clock so they stay in step. */
+  .relay { position: relative; height: 340px; border: 2px solid var(--ink); background: var(--card); box-shadow: 6px 6px 0 var(--blue); overflow: hidden; --from: 0px; --to: 0px; }
+  .r-track { position: absolute; top: 62%; left: 24px; right: 24px; border-top: 2px dashed var(--rule); }
+  .r-node { position: absolute; top: 62%; transform: translateY(-50%); z-index: 1; font: 14px var(--mono); padding: 14px 16px; border: 2px solid var(--ink); white-space: nowrap; }
+  .r-cli { left: 24px; background: var(--ink); color: var(--paper); }
+  .r-cli .ps { color: #56d364; }
+  .r-agent { right: 24px; background: var(--paper); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .r-logos { display: flex; gap: 10px; }
+  /* monochrome brand marks from simple-icons, tinted with each brand colour */
+  .logo { display: block; width: 22px; height: 22px; background: var(--c); -webkit-mask: var(--src) center / contain no-repeat; mask: var(--src) center / contain no-repeat; }
+  .r-carrier { position: absolute; left: 0; top: calc(62% - 138px); width: 84px; z-index: 2; transform: translateX(var(--from)); }
+  .r-hop { position: relative; }
+  .r-carrier .mb { transform-origin: 50% 50%; }
+  .r-packet { position: absolute; left: 50%; bottom: 100%; margin-bottom: 6px; transform: translateX(-50%); font: 500 12px var(--mono); white-space: nowrap; background: var(--ink); color: #ffa657; padding: 5px 9px; opacity: 0; }
+  /* Sideways and up/down are two animations on two elements. With one
+     animation the easing restarts at every keyframe, so the bird slowed to
+     a stop at the top of the arc. Now it slides across in one eased move
+     while the hop rises and falls on its own. */
+  .agents.go .r-carrier { animation: carry 6s infinite; }
+  .agents.go .r-hop { animation: hop 6s infinite; }
+  .agents.go .r-carrier .mb { animation: face 6s infinite steps(1); }
+  .agents.go .r-packet { animation: packet 6s infinite; }
+  .agents.go .r-agent { animation: agent 6s infinite; }
+  @keyframes carry {
+    0% { transform: translateX(var(--from)); }
+    10% { transform: translateX(var(--from)); animation-timing-function: cubic-bezier(.45, 0, .3, 1); }
+    50% { transform: translateX(var(--to)); }
+    64% { transform: translateX(var(--to)); animation-timing-function: cubic-bezier(.45, 0, .3, 1); }
+    94%, 100% { transform: translateX(var(--from)); }
+  }
+  @keyframes hop {
+    0%, 10% { transform: translateY(0); animation-timing-function: cubic-bezier(.2, .6, .4, 1); }
+    30% { transform: translateY(-30px); animation-timing-function: cubic-bezier(.6, 0, .8, .4); }
+    50% { transform: translateY(0); }
+    64% { transform: translateY(0); animation-timing-function: cubic-bezier(.2, .6, .4, 1); }
+    79% { transform: translateY(-20px); animation-timing-function: cubic-bezier(.6, 0, .8, .4); }
+    94%, 100% { transform: translateY(0); }
+  }
+  @keyframes face { 0% { transform: scaleX(1); } 64% { transform: scaleX(-1); } 94% { transform: scaleX(1); } }
+  @keyframes packet {
+    0%, 4% { opacity: 0; transform: translate(-50%, 40px) scale(.5); }
+    10%, 54% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    62%, 100% { opacity: 0; transform: translate(-50%, 70px) scale(.5); }
+  }
+  /* the agent lights up without covering the logos: tint, blue edge */
+  @keyframes agent {
+    0%, 56%, 92%, 100% { background: var(--paper); border-color: var(--ink); box-shadow: none; }
+    62%, 84% { background: var(--sky); border-color: var(--blue); box-shadow: 0 0 0 4px rgba(9, 105, 218, .25); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .r-carrier { transform: translateX(var(--to)); }
+    .r-packet { opacity: 1; }
+  }
+  @media (max-width: 560px) {
+    .relay { height: 270px; }
+    .r-node { font-size: 12px; padding: 10px 10px; }
+    .r-track { left: 16px; right: 16px; }
+    .r-cli { left: 12px; } .r-agent { right: 12px; }
+    .r-carrier { width: 60px; top: calc(62% - 100px); }
+    .r-packet { font-size: 10px; padding: 4px 6px; }
+  }
+
+  @media (max-width: 960px) {
+    .agents-grid { grid-template-columns: 1fr; gap: 36px; }
+  }
+  @media (max-width: 960px) {
+    :root { --sec: 88px; }
+    .hero, .talk-grid { grid-template-columns: 1fr; }
+    .hero { gap: 64px; padding-top: 24px; }
+    .plans { grid-template-columns: 1fr; gap: 40px; }
+    .tty-pane { height: 360px; font-size: 12px; padding: 16px; }
+    .talk-grid { gap: 40px; }
+    .last .w { grid-template-columns: 1fr; }
+    .last .bird { width: 140px; }
+  }
+  @media (max-width: 560px) {
+    :root { --gut: 16px; --sec: 72px; }
+    body { font-size: 18px; }
+    .top nav a:not(.gh) { display: none; }
+    .scene .walker { width: 64px; }
+    .d-comment.open { padding-right: 78px; padding-left: 12px; }
+    .scene { padding-top: 44px; }
+    .cmd { font-size: 13px; width: 100%; justify-content: space-between; }
+    .row, .row.me { grid-template-columns: 1fr; }
+    .avatar { width: 40px; height: 40px; font-size: 14px; }
+    .row.me .avatar { order: -1; justify-self: end; }
+    .say.tail-right::after, .row .say.tail-left::after { display: none; }
+  }
+</style>
+<!-- Same Umami website and events as the live co-maintainer.com. data-domains keeps local previews out of the stats. -->
+<script defer src="https://umami.ordu.dev/script.js" data-website-id="5c8e6df5-063d-4031-9eb6-f43138e09e2d" data-domains="co-maintainer.com"></script>
+<script defer src="https://umami.ordu.dev/recorder.js" data-website-id="5c8e6df5-063d-4031-9eb6-f43138e09e2d" data-domains="co-maintainer.com"></script>
 </head>
-<body class="layout-home">
-  <header class="site-header">
-    <div class="site-header-inner">
-      <a class="brand site-brand" href="index.html">
-        <img src="assets/logo.png" alt="" width="32" height="32">
-        co-maintainer
-      </a>
-      <nav class="topnav" aria-label="Site">
-        <a class="toplink" href="docs/getting-started.html">Docs</a>
-        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
-        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer" data-umami-event="click-github">GitHub</a>
-      </nav>
-    </div>
-  </header>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mark" viewBox="0 0 100 100">
+    <path d="M78 28 A37 37 0 1 0 78 72" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round"/>
+    <path fill="currentColor" fill-rule="evenodd" d="M35 50 a15 15 0 1 0 30 0 a15 15 0 1 0 -30 0 Z M48.5 46 a3.5 3.5 0 1 0 7 0 a3.5 3.5 0 1 0 -7 0 Z"/>
+    <path fill="currentColor" d="M60 43 L90 50 L60 57 Z"/>
+  </symbol>
+</svg>
 
-  <main>
-    <section class="home-hero home-section">
-      <div class="home-kicker">Repository context for code review</div>
-      <h1>Review the change.<br><span>Know the codebase.</span></h1>
-      <p class="home-lead">
-        co-maintainer turns your code, pull requests, and commit history into
-        repository-specific guides. Every review starts with that context,
-        whether it runs on your laptop or on your server.
-      </p>
-      <div class="home-actions">
-        <a class="btn btn-primary" href="docs/getting-started.html">Get started <span aria-hidden="true">→</span></a>
-        <a class="btn" href="https://github.com/GroophyLifefor/co-maintainer" data-umami-event="click-github">View on GitHub</a>
+<header class="w top">
+  <svg class="bird ink" width="30" height="30"><use href="#mark"/></svg>
+  <b>co-maintainer</b>
+  <nav><a href="docs/getting-started.html">Docs</a><a href="https://buttondown.com/murat" data-umami-event="newsletter-click">Newsletter</a><a class="gh" href="https://github.com/GroophyLifefor/co-maintainer" data-umami-event="click-github">GitHub</a></nav>
+</header>
+
+<main>
+  <section class="w hero">
+    <div>
+      <div class="label">An imitator of yours, A PR review tool like co-maintainer.</div>
+      <h1>It learns how your repo is reviewed. <span>Then it reviews like that.</span></h1>
+      <p class="lede">An open source PR reviewer that runs on your machine or on your own server.</p>
+      <div class="cta">
+        <div class="cmd"><span>npm install -g co-maintainer</span><button type="button" data-umami-event="copy-install">copy</button></div>
       </div>
-      <div class="install-line" aria-label="Install command">
-        <span class="prompt">$</span>
-        <code>npm install -g co-maintainer</code>
-        <button type="button" class="install-copy" data-umami-event="copy-install" aria-label="Copy install command">Copy</button>
-      </div>
+      <!-- Live numbers. The markup carries the last known values, so the row
+           reads fine offline and without JS. The script below refreshes them. -->
       <div class="home-stats" id="home-stats">
-        <a class="home-stat" href="https://github.com/GroophyLifefor/co-maintainer" data-umami-event="click-github">
-          <svg class="stat-icon" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">
-            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
-          </svg>
-          <span class="stat-value">
-            <strong data-stat="stars" title="10">10</strong>
-            <span>GitHub stars</span>
-          </span>
-        </a>
-        <a class="home-stat" href="https://www.npmjs.com/package/co-maintainer">
-          <svg class="stat-icon" viewBox="0 0 16 16" aria-hidden="true" fill="currentColor">
-            <path d="M8 1a1 1 0 0 1 1 1v7.59l3.3-3.3 1.4 1.42L8 13.41 2.3 7.71l1.4-1.42L7 9.59V2a1 1 0 0 1 1-1ZM3 13a1 1 0 1 1 0 2h10a1 1 0 1 1 0-2H3Z"/>
-          </svg>
-          <span class="stat-value">
-            <strong data-stat="downloads" title="3,714">3.7k</strong>
-            <span>npm downloads this month</span>
-          </span>
-        </a>
+        <a href="https://github.com/GroophyLifefor/co-maintainer" data-umami-event="click-github"><strong data-stat="stars" title="10">10</strong> GitHub stars</a>
+        <a href="https://www.npmjs.com/package/co-maintainer"><strong data-stat="downloads" title="3,714">3.7k</strong> npm downloads this month</a>
       </div>
-    </section>
+    </div>
 
-    <section class="product-stage home-section" aria-label="Repository knowledge">
-      <div class="knowledge-board">
-        <header class="knowledge-head">
-          <div>
-            <span>Repository knowledge</span>
-            <h2>Built once. Available at review time.</h2>
+    <div class="scene" id="scene">
+      <!-- Real hunk and finding from PR 54 (src/server/app.ts at 4a3bbea). The bird lands on the line, pecks it, and the comment opens under the range. -->
+      <div class="pdiff">
+        <div class="d-hd">src/server/app.ts</div>
+        <div class="d-row"><span class="n">218</span><span class="t">            remoteAddr,</span></div>
+        <div class="d-row"><span class="n">219</span><span class="t">          );</span></div>
+        <div class="d-row"><span class="n">220</span><span class="t">        }</span></div>
+        <div class="d-row add" id="target" data-hit><span class="n">221</span><span class="t">+       if (url.pathname === "/api/slack/test" &amp;&amp; request.method === "POST") {</span></div>
+        <div class="d-row add" data-hit><span class="n">222</span><span class="t">+         return await handleSlackTestRoute(request);</span></div>
+        <div class="d-row add" data-hit><span class="n">223</span><span class="t">+       }</span></div>
+        <div class="d-comment" id="comment">
+          <div class="say tail-up">
+            <span class="sev">P1 · blocking</span>
+            <p>This dispatch returns before <code>requireSession</code>, allowing unauthenticated callers to send messages through the saved Slack webhook. The handler also accepts a caller-supplied URL and passes it directly to fetch, exposing server-side POST requests without dashboard authentication.</p>
+            <p>Move this route behind the session guard.</p>
           </div>
-          <a href="docs/dashboard.html">Open the dashboard guide →</a>
-        </header>
-
-        <div class="knowledge-flow">
-          <section class="knowledge-sources">
-            <h3>Reads from the repository</h3>
-            <div>
-              <strong>Codebase</strong>
-              <p>Current source, structure, and workflows</p>
-            </div>
-            <div>
-              <strong>Pull requests</strong>
-              <p>Decisions, diffs, and review discussions</p>
-            </div>
-            <div>
-              <strong>Commit history</strong>
-              <p>How the default branch changed over time</p>
-            </div>
-          </section>
-
-          <div class="knowledge-divider" aria-hidden="true">
-            <span></span>
-          </div>
-
-          <section class="knowledge-guides">
-            <h3>Writes repository-specific guides</h3>
-            <div>
-              <span>Contribution guidance</span>
-              <code>SKILL.md</code>
-            </div>
-            <div>
-              <span>Architecture and behavior</span>
-              <code>CODEBASE.md</code>
-            </div>
-            <div>
-              <span>Review decisions</span>
-              <code>PR_REVIEW_GUIDE.md</code>
-            </div>
-          </section>
         </div>
-
-        <div class="knowledge-uses">
-          <span>Used by every review</span>
-          <a href="docs/local-review.html">Local changes</a>
-          <a href="docs/local-pr-review.html">GitHub pull requests</a>
-          <a href="docs/remote-review.html">Shared server context</a>
-        </div>
+        <div class="d-row"><span class="n">224</span><span class="t"> </span></div>
+        <div class="d-row"><span class="n">225</span><span class="t">        const session = await requireSession(request);</span></div>
       </div>
-    </section>
-
-    <section class="home-section how">
-      <div class="section-intro">
-        <p class="eyebrow">How it works</p>
-        <h2>Context is built before review begins.</h2>
-        <p>Not a prompt pasted onto a diff. co-maintainer first learns the repository and keeps that knowledge available for later reviews.</p>
-      </div>
-      <ol class="steps">
-        <li>
-          <span>01</span>
-          <div><code>probe</code><p>Samples the repository and gives you a bounded <code>init</code> command.</p></div>
-        </li>
-        <li>
-          <span>02</span>
-          <div><code>init</code> / <code>remake</code><p>Builds and refreshes evidence-backed guides from code and project history.</p></div>
-        </li>
-        <li>
-          <span>03</span>
-          <div><code>review</code><p>Reviews a local diff or GitHub pull request against those guides.</p></div>
-        </li>
-      </ol>
-    </section>
-
-    <section class="home-section run-section">
-      <div class="section-intro">
-        <p class="eyebrow">One review, three paths</p>
-        <h2>Use the context where your team needs it.</h2>
-      </div>
-      <div class="run-grid">
-        <a href="docs/local-review.html">
-          <span class="run-number">01</span>
-          <h3>Local review</h3>
-          <p>Your working tree, your local guides, your OpenRouter account.</p>
-          <code>co-maintainer review</code>
-        </a>
-        <a href="docs/local-pr-review.html">
-          <span class="run-number">02</span>
-          <h3>PR review</h3>
-          <p>Review an open GitHub pull request by number through <code>gh</code>.</p>
-          <code>co-maintainer review owner/repo 123</code>
-        </a>
-        <a href="docs/remote-review.html">
-          <span class="run-number">03</span>
-          <h3>Shared context</h3>
-          <p>Initialize once on <code>serve</code>. Developers review without rebuilding guides.</p>
-          <code>co-maintainer review --remote</code>
-        </a>
-      </div>
-    </section>
-
-    <section class="home-section self-hosted">
-      <div>
-        <p class="eyebrow">Self-hosted</p>
-        <h2>One server for context, reviews, and operations.</h2>
-        <p><code>serve</code> runs the dashboard, GitHub App webhooks, background jobs, and the remote review API. Your repository context stays under your control.</p>
-      </div>
-      <div class="server-command">
-        <span class="prompt">$</span>
-        <code>co-maintainer serve --port=5000</code>
-        <a href="docs/serve.html">Read the guide →</a>
-      </div>
-    </section>
-
-    <section class="home-section final-cta">
-      <h2>Start with one repository.</h2>
-      <p>Install the CLI, run <code>probe</code>, and follow the command it gives you.</p>
-      <a class="btn btn-primary" href="docs/getting-started.html">Read the quickstart <span aria-hidden="true">→</span></a>
-    </section>
-  </main>
-
-  <section class="nl-band" aria-label="Newsletter">
-    <div class="nl-band-inner">
-      <div>
-        <p class="nl-kicker">Newsletter</p>
-        <h2>What shipped, and what we measured.</h2>
-        <p class="nl-text">Every two weeks. Release notes, benchmark changes and real review examples. Unsubscribe anytime.</p>
-      </div>
-      <a class="btn nl-btn" href="https://buttondown.com/murat" data-umami-event="newsletter-click">Get the newsletter <span aria-hidden="true">→</span></a>
+      <div class="walker" id="walker" data-bird=""></div>
+      <div class="src"><a href="https://github.com/GroophyLifefor/co-maintainer/pull/54">PR 54</a>, a demo PR · 2026-11-07 · openai/gpt-6.1-sol</div>
     </div>
   </section>
 
-  <footer class="home-footer">
-    <a class="brand site-brand" href="index.html"><img src="assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
-    <nav aria-label="Footer">
-      <a href="docs/getting-started.html">Documentation</a>
-      <a href="docs/commands.html">Commands</a>
-      <a href="docs/troubleshooting.html">Troubleshooting</a>
-      <a href="https://www.npmjs.com/package/co-maintainer">npm</a>
-      <a href="https://github.com/GroophyLifefor/co-maintainer" data-umami-event="click-github">GitHub</a>
-      <a href="https://buttondown.com/murat" data-umami-event="newsletter-click">Newsletter</a>
-      <a href="https://github.com/GroophyLifefor/co-maintainer/blob/main/LICENSE">MIT License</a>
-    </nav>
-  </footer>
-  <script>
-    // Live social proof. The markup already carries the last known numbers,
-    // so the cards stay readable offline and with no JS. These two public
-    // APIs refresh them on load and need no keys.
-    (function () {
-      var compact = function (value) {
-        var n = Number(value);
-        if (!Number.isFinite(n) || n < 0) return null;
-        return n >= 1000
-          ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k"
-          : String(n);
-      };
-      var set = function (key, value) {
-        var strong = document.querySelector('[data-stat="' + key + '"]');
-        var text = compact(value);
-        if (!strong || text === null) return;
-        strong.textContent = text;
-        strong.title = Number(value).toLocaleString("en-US");
-      };
-      fetch("https://api.github.com/repos/GroophyLifefor/co-maintainer")
-        .then(function (response) {
-          return response.json();
-        })
-        .then(function (data) {
-          set("stars", data.stargazers_count);
-        })
-        .catch(function () {});
-      fetch("https://api.npmjs.org/downloads/point/last-month/co-maintainer")
-        .then(function (response) {
-          return response.json();
-        })
-        .then(function (data) {
-          set("downloads", data.downloads);
-        })
-        .catch(function () {});
-    })();
+  <section class="song">
+    <div class="w">
+      <div class="label">How to start</div>
+      <!-- Tabs are the steps. The panes are left empty on purpose, to be filled with real output. -->
+      <div class="tty">
+        <div class="tty-tabs" role="tablist" aria-label="Steps">
+          <button type="button" role="tab" aria-selected="true" aria-controls="tty-1" id="tab-1">install</button>
+          <button type="button" role="tab" aria-selected="false" aria-controls="tty-2" id="tab-2">probe</button>
+          <button type="button" role="tab" aria-selected="false" aria-controls="tty-init" id="tab-init">init</button>
+          <button type="button" role="tab" aria-selected="false" aria-controls="tty-3" id="tab-3">sync</button>
+          <button type="button" role="tab" aria-selected="false" aria-controls="tty-local" id="tab-local">local review</button>
+          <button type="button" role="tab" aria-selected="false" aria-controls="tty-4" id="tab-4">pr review</button>
+          <button type="button" class="tty-replay" id="tty-replay" aria-label="Replay this tab">replay</button>
+        </div>
+        <!-- data-cmd is typed out, data-out (lines split by &#10;) follows it. A pane with neither shows only the prompt. -->
+        <div class="tty-pane" role="tabpanel" id="tty-1" aria-labelledby="tab-1" data-cmd="npm install -g co-maintainer" data-out="&#10;added 1 package in 185ms"></div>
+        <div class="tty-pane" role="tabpanel" id="tty-2" aria-labelledby="tab-2" hidden data-cmd="co-maintainer probe groophylifefor/co-maintainer --gh-concurrent=4" data-out="[probe] reading groophylifefor/co-maintainer via gh
+[probe] reading groophylifefor/co-maintainer metadata
+[probe] reading pull request list
+[probe] pull request listing · page 1 · fetched 41
+[probe] sampling 30 pull request details · concurrency=4
+[probe] PR detail sampling · 1/30
+[probe] PR detail sampling · 2/30
+[probe] PR detail sampling · 3/30
+[probe] PR detail sampling · 4/30
+[probe] PR detail sampling · 5/30
+[probe] PR detail sampling · 6/30
+[probe] PR detail sampling · 7/30
+[probe] PR detail sampling · 8/30
+[probe] PR detail sampling · 9/30
+[probe] PR detail sampling · 10/30
+[probe] PR detail sampling · 11/30
+[probe] PR detail sampling · 12/30
+[probe] PR detail sampling · 13/30
+[probe] PR detail sampling · 14/30
+[probe] PR detail sampling · 15/30
+[probe] PR detail sampling · 16/30
+[probe] PR detail sampling · 17/30
+[probe] PR detail sampling · 18/30
+[probe] PR detail sampling · 19/30
+[probe] PR detail sampling · 20/30
+[probe] PR detail sampling · 21/30
+[probe] PR detail sampling · 22/30
+[probe] PR detail sampling · 23/30
+[probe] PR detail sampling · 24/30
+[probe] PR detail sampling · 25/30
+[probe] PR detail sampling · 26/30
+[probe] PR detail sampling · 27/30
+[probe] PR detail sampling · 28/30
+[probe] PR detail sampling · 29/30
+[probe] PR detail sampling · 30/30
+[probe] sampled 30 PR details · reading main commits
+[probe] commit history · page 1 · fetched 100
+[probe] commit history · page 2 · fetched 200
+[probe] commit history · page 3 · fetched 300
+[probe] commit history · page 4 · fetched 306
 
-    (function () {
-      var button = document.querySelector(".install-copy");
-      var command = document.querySelector(".install-line code");
-      var timer;
-      button.addEventListener("click", function () {
-        navigator.clipboard.writeText(command.textContent).then(function () {
-          button.textContent = "Copied";
-          button.setAttribute("aria-label", "Copied");
-          clearTimeout(timer);
-          timer = setTimeout(function () {
-            button.textContent = "Copy";
-            button.setAttribute("aria-label", "Copy install command");
-          }, 1500);
-        });
+recommended
+  co-maintainer init groophylifefor/co-maintainer --include-codebase --include-pull-requests --include-pull-request-changes --include-commit-history --include-how-repo-works --max-pull-request-change-lines=14100 --max-commits=100
+
+research
+  PRs: 41 · sampled: 30
+  commits: 306 · useful: 267
+  windows: PR months=all · commits=100 · diff lines=14100
+  - Pull request volume or history span is small enough to keep all PR months.
+  - 267 non-merge commits contain enough signal to analyze commit conventions.
+  - The sampled diff p90 is 14100 lines. The cap keeps the largest outliers out while retaining about 90% of sampled diffs.
+
+estimate
+  AI jobs: 42 extract + 10 synth
+  tokens: 865,766-1,442,943 in · 37,839-63,065 out
+  time: 421-702s
+  cost: $0.4910-$0.8183
+  basis: this repository's recorded jobs; an estimate, not a bill
+
+next
+  co-maintainer init groophylifefor/co-maintainer --include-codebase --include-pull-requests --include-pull-request-changes --include-commit-history --include-how-repo-works --max-pull-request-change-lines=14100 --max-commits=100
+  or run it now: co-maintainer probe groophylifefor/co-maintainer --run
+  Probe only reads. It does not write guides."></div>
+        <div class="tty-pane" role="tabpanel" id="tty-init" aria-labelledby="tab-init" hidden data-cmd="co-maintainer init groophylifefor/co-maintainer --include-codebase --include-pull-requests --include-pull-request-changes --include-commit-history --include-how-repo-works --max-pull-request-change-lines=14100 --max-commits=100 --gh-concurrent=6 --ai-concurrent=8" data-out="[ai] openrouter providers configured · low=openai/gpt-6-luna · high=openai/gpt-6.1-sol
+[fetch] groophylifefor/co-maintainer via gh
+[fetch] codebase · 30 files · concurrency=6
+[fetch] codebase file 1/30 · 3%: README.md
+[fetch] codebase file 2/30 · 7%: benchmark/README.md
+[fetch] codebase file 3/30 · 10%: .github/workflows/publish-beta.yml
+[fetch] codebase file 4/30 · 13%: .github/workflows/ci.yml
+[fetch] codebase file 5/30 · 17%: .github/workflows/publish.yml
+[fetch] codebase file 6/30 · 20%: CHANGELOG.md
+[fetch] codebase file 7/30 · 23%: benchmark/core_v3/README.md
+[fetch] codebase file 8/30 · 27%: package.json
+[fetch] codebase file 9/30 · 30%: benchmark/core_v2/judge.ts
+[fetch] codebase file 10/30 · 33%: benchmark/swe-prbench/README.md
+[fetch] codebase file 11/30 · 37%: benchmark/core_v2/README.md
+[fetch] codebase file 12/30 · 40%: benchmark/core_v2/match.test.ts
+[fetch] codebase file 13/30 · 43%: benchmark/core_v2/match.ts
+[fetch] codebase file 14/30 · 47%: benchmark/core_v2/metrics.ts
+[fetch] codebase file 15/30 · 50%: benchmark/core_v2/run.ts
+[fetch] codebase file 16/30 · 53%: benchmark/core_v2/runners.test.ts
+[fetch] codebase file 17/30 · 57%: benchmark/core_v2/run_rereview.ts
+[fetch] codebase file 18/30 · 60%: benchmark/core_v2/runners.ts
+[fetch] codebase file 19/30 · 63%: benchmark/swe-prbench/prepare_dataset.ts
+[fetch] codebase file 20/30 · 67%: benchmark/core_v3/run.ts
+[fetch] codebase file 21/30 · 70%: docs/assets/docs.js
+[fetch] codebase file 22/30 · 73%: docs/assets/mermaid-init.js
+[fetch] codebase file 23/30 · 77%: benchmark/swe-prbench/run.ts
+[fetch] codebase file 24/30 · 80%: docs/assets/mermaid.min.js
+[fetch] codebase file 25/30 · 83%: mod.ts
+[fetch] codebase file 26/30 · 87%: scripts/action_run.test.ts
+[fetch] codebase file 27/30 · 90%: main.ts
+[fetch] codebase file 28/30 · 93%: docs/assets/svg-pan-zoom.min.js
+[fetch] codebase file 29/30 · 97%: scripts/build_docs.test.ts
+[fetch] codebase file 30/30 · 100%: scripts/build_docs.ts
+[fetch] pull request listing · all · concurrency=6
+[fetch] pull request listing · page 1 · fetched 1 · cache catch-up
+[fetch] pull request listing · reused 40 cached PRs · 41 total
+[fetch] 41 pull requests · concurrency=6
+[fetch] PR 1/41 · 2% #54 · comments/reviews cache · diff cache
+[fetch] PR 2/41 · 5% #44 · comments/reviews cache · diff cache
+[fetch] PR 3/41 · 7% #52 · comments/reviews cache · diff cache
+[fetch] PR 4/41 · 10% #51 · comments/reviews cache · diff cache
+[fetch] PR 5/41 · 12% #49 · comments/reviews cache · diff cache
+[fetch] PR 6/41 · 15% #42 · comments/reviews cache · diff cache
+[fetch] PR 7/41 · 17% #39 · comments/reviews cache · diff cache
+[fetch] PR 8/41 · 20% #38 · comments/reviews cache · diff cache
+[fetch] PR 9/41 · 22% #37 · comments/reviews cache · diff cache
+[fetch] PR 10/41 · 24% #29 · comments/reviews cache · diff cache
+[fetch] PR 11/41 · 27% #28 · comments/reviews cache · diff cache
+[fetch] PR 12/41 · 29% #27 · comments/reviews cache · diff cache
+[fetch] PR 13/41 · 32% #26 · comments/reviews cache · diff cache
+[fetch] PR 14/41 · 34% #25 · comments/reviews cache · diff cache
+[fetch] PR 15/41 · 37% #24 · comments/reviews cache · diff cache
+[fetch] PR 16/41 · 39% #23 · comments/reviews cache · diff cache
+[fetch] PR 17/41 · 41% #22 · comments/reviews cache · diff cache
+[fetch] PR 18/41 · 44% #21 · comments/reviews cache · diff cache
+[fetch] PR 19/41 · 46% #34 · comments/reviews cache · diff cache
+[fetch] PR 20/41 · 49% #31 · comments/reviews cache · diff cache
+[fetch] PR 21/41 · 51% #30 · comments/reviews cache · diff cache
+[fetch] PR 22/41 · 54% #16 · comments/reviews cache · diff cache
+[fetch] PR 23/41 · 56% #19 · comments/reviews cache · diff cache
+[fetch] PR 24/41 · 59% #18 · comments/reviews cache · diff cache
+[fetch] PR 25/41 · 61% #20 · comments/reviews cache · diff cache
+[fetch] PR 26/41 · 63% #1 · comments/reviews cache · diff cache
+[fetch] PR 27/41 · 66% #3 · comments/reviews cache · diff cache
+[fetch] PR 28/41 · 68% #2 · comments/reviews cache · diff cache
+[fetch] PR 29/41 · 71% #5 · comments/reviews cache · diff cache
+[fetch] PR 30/41 · 73% #4 · comments/reviews cache · diff cache
+[fetch] PR 31/41 · 76% #6 · comments/reviews cache · diff cache
+[fetch] PR 32/41 · 78% #8 · comments/reviews cache · diff cache
+[fetch] PR 33/41 · 80% #7 · comments/reviews cache · diff cache
+[fetch] PR 34/41 · 83% #10 · comments/reviews cache · diff cache
+[fetch] PR 35/41 · 85% #9 · comments/reviews cache · diff cache
+[fetch] PR 36/41 · 88% #15 · comments/reviews cache · diff cache
+[fetch] PR 37/41 · 90% #12 · comments/reviews cache · diff cache
+[fetch] PR 38/41 · 93% #11 · comments/reviews cache · diff cache
+[fetch] PR 39/41 · 95% #13 · comments/reviews cache · diff cache
+[fetch] PR 40/41 · 98% #14 · comments/reviews cache · diff cache
+[fetch] PR 41/41 · 100% #17 · comments/reviews cache · download diff
+[fetch] commit history · page 1 · fetched 100 · total unknown
+[fetch] source ready · 30 files · 41 PRs · 100 commits
+[ai] starting extract_unit jobs
+[ai] cache hit extract_unit 7c19c8ab
+[ai] cache hit extract_unit 0bc81b5f
+[ai] cache hit extract_unit 7c7b750f
+[ai] cache hit extract_unit 99124c2f
+[ai] cache hit extract_unit ac2cb646
+[ai] cache hit extract_unit c65ea209
+[ai] cache hit extract_unit 6247b18e
+[ai] cache hit extract_unit 02a12875
+[ai] cache hit extract_unit d16d399d
+[ai] cache hit extract_unit 6ab70ef2
+[ai] cache hit extract_unit 35622f76
+[ai] cache hit extract_unit 59d58dd8
+[ai] cache hit extract_unit 4b46f94e
+[ai] cache hit extract_unit ceb22702
+[ai] cache hit extract_unit cfc2e923
+[ai] cache hit extract_unit ef4ccbd8
+[ai] cache hit extract_unit fdf12a64
+[ai] cache hit extract_unit 9bedf098
+[ai] cache hit extract_unit d1560051
+[ai] cache hit extract_unit 293cff6b
+[ai] cache hit extract_unit d6242e7a
+[ai] cache hit extract_unit d56769a2
+[ai] cache hit extract_unit 30307fe8
+[ai] cache hit extract_unit 525414a4
+[ai] cache hit extract_unit f7da0b5e
+[ai] cache hit extract_unit 014de91e
+[ai] cache hit extract_unit e4c7a0f8
+[ai] cache hit extract_unit 5816a636
+[ai] cache hit extract_unit f321c627
+[ai] cache hit extract_unit 3c28f076
+[ai] cache hit extract_unit 34c4052b
+[ai] cache hit extract_unit 261e171f
+[ai] cache hit extract_unit a3c10ca1
+[ai] cache hit extract_unit 234f027e
+[ai] cache hit extract_unit cebbd422
+[ai] cache hit extract_unit 09588141
+[ai] cache hit extract_unit 3feae425
+[ai] cache hit extract_unit efa4e029
+[ai] cache hit extract_unit 2bae56ec
+[ai] cache hit extract_unit 6e740591
+[ai] queue 42 jobs · 2 pending · concurrency 8
+[ai] start extract_unit f6e1bf66
+[ai] start extract_unit b56165d7
+[ai] done extract_unit b56165d7 · 6s
+[ai] done extract_unit f6e1bf66 · 9s
+[ai] extract units 1/42
+[ai] extract units 11/42
+[ai] extract units 21/42
+[ai] extract units 31/42
+[ai] extract units 41/42
+[ai] extract units 42/42
+[ai] extract_unit complete · 114 facts
+[ai] starting synth_section jobs
+[ai] cache hit synth_section 9f03f25b
+[ai] cache hit synth_section 2f84c5f1
+[ai] cache hit synth_section 0ce046f4
+[ai] cache hit synth_section 2b6c3796
+[ai] cache hit synth_section c3781ad3
+[ai] cache hit synth_section 982412c0
+[ai] queue 10 jobs · 4 pending · concurrency 8
+[ai] start synth_section 8e06ee12
+[ai] start synth_section b5926a12
+[ai] start synth_section c63e7f99
+[ai] start synth_section aef8342a
+[ai] done synth_section 8e06ee12 · 3s
+[ai] done synth_section b5926a12 · 6s
+[ai] done synth_section c63e7f99 · 7s
+[ai] done synth_section aef8342a · 14s
+[ai] synth_section complete · 7 sections
+[ai] starting synth_guide jobs
+[ai] cache hit synth_guide 5279f5a0
+[ai] queue 1 jobs · 0 pending · concurrency 8
+[ai] cache hit synth_guide_short a1bce9b1
+[ai] queue 1 jobs · 0 pending · concurrency 8
+[ai] synth_guide complete · short + detailed
+[write] /home/muratkirazkaya/.config/co-maintainer/repos/groophylifefor/co-maintainer/SKILL.md · updated identity, devloop, ship, layout, style, tests, title-body, review-bar
+[done] 114 facts · 41 pull requests · 100 commits
+Done in 1m 22s · 28,244 in, 2,237 out tokens · $0.0270"></div>
+        <div class="tty-pane" role="tabpanel" id="tty-3" aria-labelledby="tab-3" hidden data-cmd="co-maintainer sync groophylifefor/co-maintainer --gh-concurrent=4 --ai-concurrent=8 --log-time" data-out="[ai] openrouter providers configured · low=openai/gpt-6-luna · high=openai/gpt-6.1-sol
+[fetch] groophylifefor/co-maintainer via gh
+[fetch] codebase · 30 files · concurrency=4
+[fetch] codebase cache 1/30 · 3%: .github/workflows/ci.yml
+[fetch] codebase cache 2/30 · 7%: .github/workflows/publish-beta.yml
+[fetch] codebase cache 3/30 · 10%: .github/workflows/publish.yml
+[fetch] codebase cache 4/30 · 13%: CHANGELOG.md
+[fetch] codebase cache 5/30 · 17%: README.md
+[fetch] codebase cache 6/30 · 20%: benchmark/README.md
+[fetch] codebase cache 7/30 · 23%: benchmark/core_v2/README.md
+[fetch] codebase cache 8/30 · 27%: benchmark/core_v3/README.md
+[fetch] codebase cache 9/30 · 30%: benchmark/swe-prbench/README.md
+[fetch] codebase cache 10/30 · 33%: package.json
+[fetch] codebase cache 11/30 · 37%: benchmark/core_v2/judge.ts
+[fetch] codebase cache 12/30 · 40%: benchmark/core_v2/match.test.ts
+[fetch] codebase cache 13/30 · 43%: benchmark/core_v2/match.ts
+[fetch] codebase cache 14/30 · 47%: benchmark/core_v2/metrics.ts
+[fetch] codebase cache 15/30 · 50%: benchmark/core_v2/run.ts
+[fetch] codebase cache 16/30 · 53%: benchmark/core_v2/run_rereview.ts
+[fetch] codebase cache 17/30 · 57%: benchmark/core_v2/runners.test.ts
+[fetch] codebase cache 18/30 · 60%: benchmark/core_v2/runners.ts
+[fetch] codebase cache 19/30 · 63%: benchmark/core_v3/run.ts
+[fetch] codebase cache 20/30 · 67%: benchmark/swe-prbench/prepare_dataset.ts
+[fetch] codebase cache 21/30 · 70%: benchmark/swe-prbench/run.ts
+[fetch] codebase cache 22/30 · 73%: docs/assets/docs.js
+[fetch] codebase cache 23/30 · 77%: docs/assets/mermaid-init.js
+[fetch] codebase cache 24/30 · 80%: docs/assets/mermaid.min.js
+[fetch] codebase cache 25/30 · 83%: docs/assets/svg-pan-zoom.min.js
+[fetch] codebase cache 26/30 · 87%: main.ts
+[fetch] codebase cache 27/30 · 90%: mod.ts
+[fetch] codebase cache 28/30 · 93%: scripts/action_run.test.ts
+[fetch] codebase cache 29/30 · 97%: scripts/build_docs.test.ts
+[fetch] codebase cache 30/30 · 100%: scripts/build_docs.ts
+[fetch] pull request listing · all · concurrency=4
+[fetch] pull request listing · page 1 · fetched 1 · cache catch-up
+[fetch] pull request listing · reused 40 cached PRs · 41 total
+[fetch] 41 pull requests · concurrency=4
+[fetch] PR 1/41 · 2% #54 · comments/reviews cache · diff cache
+[fetch] PR 2/41 · 5% #44 · comments/reviews cache · diff cache
+[fetch] PR 3/41 · 7% #52 · comments/reviews cache · diff cache
+[fetch] PR 4/41 · 10% #51 · comments/reviews cache · diff cache
+[fetch] PR 5/41 · 12% #49 · comments/reviews cache · diff cache
+[fetch] PR 6/41 · 15% #42 · comments/reviews cache · diff cache
+[fetch] PR 7/41 · 17% #39 · comments/reviews cache · diff cache
+[fetch] PR 8/41 · 20% #38 · comments/reviews cache · diff cache
+[fetch] PR 9/41 · 22% #37 · comments/reviews cache · diff cache
+[fetch] PR 10/41 · 24% #29 · comments/reviews cache · diff cache
+[fetch] PR 11/41 · 27% #28 · comments/reviews cache · diff cache
+[fetch] PR 12/41 · 29% #27 · comments/reviews cache · diff cache
+[fetch] PR 13/41 · 32% #26 · comments/reviews cache · diff cache
+[fetch] PR 14/41 · 34% #25 · comments/reviews cache · diff cache
+[fetch] PR 15/41 · 37% #24 · comments/reviews cache · diff cache
+[fetch] PR 16/41 · 39% #23 · comments/reviews cache · diff cache
+[fetch] PR 17/41 · 41% #22 · comments/reviews cache · diff cache
+[fetch] PR 18/41 · 44% #21 · comments/reviews cache · diff cache
+[fetch] PR 19/41 · 46% #34 · comments/reviews cache · diff cache
+[fetch] PR 20/41 · 49% #31 · comments/reviews cache · diff cache
+[fetch] PR 21/41 · 51% #30 · comments/reviews cache · diff cache
+[fetch] PR 22/41 · 54% #16 · comments/reviews cache · diff cache
+[fetch] PR 23/41 · 56% #19 · comments/reviews cache · diff cache
+[fetch] PR 24/41 · 59% #18 · comments/reviews cache · diff cache
+[fetch] PR 25/41 · 61% #20 · comments/reviews cache · diff cache
+[fetch] PR 26/41 · 63% #1 · comments/reviews cache · diff cache
+[fetch] PR 27/41 · 66% #3 · comments/reviews cache · diff cache
+[fetch] PR 28/41 · 68% #2 · comments/reviews cache · diff cache
+[fetch] PR 29/41 · 71% #5 · comments/reviews cache · diff cache
+[fetch] PR 30/41 · 73% #4 · comments/reviews cache · diff cache
+[fetch] PR 31/41 · 76% #6 · comments/reviews cache · diff cache
+[fetch] PR 32/41 · 78% #8 · comments/reviews cache · diff cache
+[fetch] PR 33/41 · 80% #7 · comments/reviews cache · diff cache
+[fetch] PR 34/41 · 83% #10 · comments/reviews cache · diff cache
+[fetch] PR 35/41 · 85% #9 · comments/reviews cache · diff cache
+[fetch] PR 36/41 · 88% #15 · comments/reviews cache · diff cache
+[fetch] PR 37/41 · 90% #12 · comments/reviews cache · diff cache
+[fetch] PR 38/41 · 93% #11 · comments/reviews cache · diff cache
+[fetch] PR 39/41 · 95% #13 · comments/reviews cache · diff cache
+[fetch] PR 40/41 · 98% #14 · comments/reviews cache · diff cache
+[fetch] PR 41/41 · 100% #17 · comments/reviews cache · download diff
+[fetch] commit history · page 1 · fetched 11 · total unknown
+[fetch] commit history · reused 295 cached commits · 306 total
+[time] fetch repository data · 3.90s
+[fetch] source ready · 30 files · 41 PRs · 306 commits
+[time] extract deterministic facts · 0.02s
+[ai] starting extract_unit jobs
+[ai] cache hit extract_unit c65ea209
+[ai] cache hit extract_unit 6247b18e
+[ai] cache hit extract_unit 02a12875
+[ai] cache hit extract_unit d16d399d
+[ai] cache hit extract_unit 6ab70ef2
+[ai] cache hit extract_unit 35622f76
+[ai] cache hit extract_unit 59d58dd8
+[ai] cache hit extract_unit 4b46f94e
+[ai] cache hit extract_unit ceb22702
+[ai] cache hit extract_unit cfc2e923
+[ai] cache hit extract_unit ef4ccbd8
+[ai] cache hit extract_unit fdf12a64
+[ai] cache hit extract_unit 9bedf098
+[ai] cache hit extract_unit d1560051
+[ai] cache hit extract_unit 293cff6b
+[ai] cache hit extract_unit d6242e7a
+[ai] cache hit extract_unit d56769a2
+[ai] cache hit extract_unit 30307fe8
+[ai] cache hit extract_unit 525414a4
+[ai] cache hit extract_unit f7da0b5e
+[ai] cache hit extract_unit 014de91e
+[ai] cache hit extract_unit e4c7a0f8
+[ai] cache hit extract_unit 5816a636
+[ai] cache hit extract_unit f321c627
+[ai] cache hit extract_unit 3c28f076
+[ai] cache hit extract_unit 34c4052b
+[ai] cache hit extract_unit 261e171f
+[ai] cache hit extract_unit a3c10ca1
+[ai] cache hit extract_unit 234f027e
+[ai] cache hit extract_unit cebbd422
+[ai] cache hit extract_unit 09588141
+[ai] cache hit extract_unit 3feae425
+[ai] cache hit extract_unit efa4e029
+[ai] cache hit extract_unit 2bae56ec
+[ai] cache hit extract_unit 6e740591
+[ai] queue 42 jobs · 7 pending · concurrency 8
+[ai] start extract_unit 7c19c8ab
+[ai] start extract_unit 0bc81b5f
+[ai] start extract_unit 7c7b750f
+[ai] start extract_unit 99124c2f
+[ai] start extract_unit ac2cb646
+[ai] start extract_unit f6e1bf66
+[ai] start extract_unit f599bbf7
+[ai] done extract_unit 7c7b750f · 1s
+[ai] done extract_unit 7c19c8ab · 2s
+[ai] done extract_unit 99124c2f · 4s
+[ai] done extract_unit ac2cb646 · 5s
+[ai] done extract_unit 0bc81b5f · 6s
+[ai] done extract_unit f599bbf7 · 6s
+[ai] done extract_unit f6e1bf66 · 9s
+[ai] extract units 1/42
+[ai] extract units 11/42
+[ai] extract units 21/42
+[ai] extract units 31/42
+[ai] extract units 41/42
+[ai] extract units 42/42
+[time] extract_unit AI · 58.39s
+[ai] extract_unit complete · 115 facts
+[ai] starting synth_section jobs · 9 dirty sections
+[ai] queue 8 jobs · 8 pending · concurrency 8
+[ai] start synth_section b51bd260
+[ai] start synth_section c5f40340
+[ai] start synth_section 9f03f25b
+[ai] start synth_section 9e6f671a
+[ai] start synth_section 041df9e4
+[ai] start synth_section 2f84c5f1
+[ai] start synth_section c3781ad3
+[ai] start synth_section 982412c0
+[ai] done synth_section 2f84c5f1 · 2s
+[ai] done synth_section 982412c0 · 4s
+[ai] done synth_section b51bd260 · 5s
+[ai] done synth_section c5f40340 · 5s
+[ai] done synth_section c3781ad3 · 5s
+[ai] done synth_section 9e6f671a · 8s
+[ai] done synth_section 9f03f25b · 8s
+[ai] done synth_section 041df9e4 · 14s
+[time] synth_section AI · 13.62s
+[ai] synth_section complete · 6 sections
+[ai] starting synth_guide jobs
+[ai] queue 1 jobs · 1 pending · concurrency 8
+[ai] start synth_guide 5279f5a0
+[ai] still running synth_guide 5279f5a0 · 15s
+[ai] still running synth_guide 5279f5a0 · 30s
+[ai] still running synth_guide 5279f5a0 · 45s
+[ai] still running synth_guide 5279f5a0 · 60s
+[ai] still running synth_guide 5279f5a0 · 75s
+[ai] still running synth_guide 5279f5a0 · 90s
+[ai] still running synth_guide 5279f5a0 · 105s
+[ai] done synth_guide 5279f5a0 · 110s
+[ai] queue 1 jobs · 1 pending · concurrency 8
+[ai] start synth_guide_short a1bce9b1
+[ai] still running synth_guide_short a1bce9b1 · 15s
+[ai] still running synth_guide_short a1bce9b1 · 30s
+[ai] still running synth_guide_short a1bce9b1 · 45s
+[ai] done synth_guide_short a1bce9b1 · 58s
+[time] synth_guide AI · 167.48s
+[ai] synth_guide complete · short + detailed
+[time] assemble skill · 0.00s
+[time] validate skill · 0.00s
+[time] final skill validation · 0.00s
+[time] write skill and state · 0.05s
+[write] /home/muratkirazkaya/.config/co-maintainer/repos/groophylifefor/co-maintainer/SKILL.md · updated identity, devloop, ship, layout, style, tests, review-bar
+[done] 115 facts · 41 pull requests · 306 commits
+Done in 4m 03s · 70,303 in, 14,814 out tokens · $0.2076
+[time] AI total · calls=16 · input=70303 tokens · output=14814 tokens · cost=0.2076
+[time] total init/sync · 243.49s"></div>
+        <!-- Written from the log formats in src/local/review_local.ts and the human output in docs/md/review.md. Both findings point at real lines of 4a3bbea. -->
+        <div class="tty-pane" role="tabpanel" id="tty-local" aria-labelledby="tab-local" hidden data-cmd="co-maintainer review" data-out="[review] models · provider=openrouter · low=openai/gpt-6-luna · high=openai/gpt-6.1-sol
+[codegraph] init · 409 files · 1.5s
+[review-tools] round 1/7 · 4 call(s): codegraph-node, codegraph-node, codegraph-node, codegraph-callers
+[review-tools] codegraph-node({&quot;file&quot;:&quot;src/services/slack_notify.ts&quot;}) → 2223 chars
+[review-tools] codegraph-node({&quot;file&quot;:&quot;src/util/redact.ts&quot;}) → 1891 chars
+[review-tools] codegraph-node({&quot;file&quot;:&quot;src/util/log.ts&quot;}) → 2958 chars
+[review-tools] codegraph-callers({&quot;symbol&quot;:&quot;postSlack&quot;}) → 278 chars
+[progress] still running reviewing local changes · 15s elapsed
+[review-tools] round 2/7 · 3 call(s): codegraph-node, codegraph-callers, codegraph-query
+[review-tools] codegraph-node({&quot;name&quot;:&quot;runReviewJobCore&quot;}) → 13596 chars
+[review-tools] codegraph-callers({&quot;symbol&quot;:&quot;notifyReviewPosted&quot;}) → 145 chars
+[review-tools] codegraph-query({&quot;search&quot;:&quot;AbortSignal.timeout&quot;,&quot;limit&quot;:20}) → 1102 chars
+[progress] still running reviewing local changes · 30s elapsed
+
+co-maintainer review · groophylifefor/co-maintainer · showcase-07-11-26 → origin/main
+13 files · +279 −2 · guide built 2026-11-07 · codegraph used
+
+New (2)
+  • src/services/slack_notify.ts:40-51  [P2 · non-blocking] postSlack() logs the webhook URL
+    Both failure paths write webhookUrl into the job log. A Slack incoming
+    webhook URL is the credential itself, and redact() has no pattern for
+    hooks.slack.com, so anyone who can read job logs can post to the channel.
+  • src/services/slack_notify.ts:34  [P2 · non-blocking] postSlack() has no timeout
+    notifyReviewPosted() is awaited before finishCheck(), so a Slack endpoint
+    that never answers leaves the check run in progress. Pass
+    signal: AbortSignal.timeout(...) to fetch.
+
+Summary: 2 new · 0 open · 0 closed · 0 blocking
+
+Done in 41s · 61,218 in, 2,904 out tokens · $0.0812"></div>
+        <div class="tty-pane" role="tabpanel" id="tty-4" aria-labelledby="tab-4" hidden data-cmd="co-maintainer review groophylifefor/co-maintainer 54" data-out="[review] reading PR #54 in groophylifefor/co-maintainer via gh
+[review] models · provider=openrouter · low=openai/gpt-6-luna · high=openai/gpt-6.1-sol
+[scope] 293 own files · 0 upstream files · 25 commits · 9 merges · default=refs/remotes/origin/main
+[checkout] creating worktree /home/muratkirazkaya/.cache/co-maintainer/wt/17a75f6a/54 at 4a3bbeac24
+[codegraph] init · 409 files · 1.6s
+[review-tools] round 1/7 · 6 call(s): codegraph-node, codegraph-node, codegraph-node, codegraph-node, codegraph-node, codegraph-node
+[review-tools] codegraph-node({&quot;name&quot;:&quot;validateWebhookUrl&quot;}) → 756 chars
+[review-tools] codegraph-node({&quot;file&quot;:&quot;src/config.ts&quot;}) → 19391 chars
+[review-tools] codegraph-node({&quot;file&quot;:&quot;src/services/slack_notify.ts&quot;}) → 2223 chars
+[review-tools] codegraph-node({&quot;name&quot;:&quot;log&quot;}) → 3224 chars
+[review-tools] codegraph-node({&quot;file&quot;:&quot;src/server/pages/settings.ts&quot;}) → 37920 chars
+[review-tools] codegraph-node({&quot;name&quot;:&quot;runReviewJobCore&quot;}) → 13596 chars
+[progress] still running reviewing pull request · 15s elapsed
+[review-tools] round 2/7 · 6 call(s): codegraph-node, codegraph-node, codegraph-node, codegraph-node, codegraph-node, codegraph-node
+[review-tools] codegraph-node({&quot;file&quot;:&quot;src/util/redact.ts&quot;}) → 1891 chars
+[review-tools] codegraph-node({&quot;name&quot;:&quot;publish&quot;}) → 7236 chars
+[review-tools] codegraph-node({&quot;file&quot;:&quot;src/server/app.ts&quot;}) → 10519 chars
+[review-tools] codegraph-node({&quot;file&quot;:&quot;src/util/log.ts&quot;}) → 2958 chars
+[review-tools] codegraph-node({&quot;name&quot;:&quot;runReviewJob&quot;}) → 1923 chars
+[review-tools] codegraph-node({&quot;name&quot;:&quot;runJob&quot;}) → 2308 chars
+[review-tools] round 3/7 · 6 call(s): codegraph-callers, codegraph-callees, codegraph-impact, codegraph-affected, codegraph-node, codegraph-explore
+[review-tools] codegraph-callers({&quot;symbol&quot;:&quot;postSlack&quot;}) → 278 chars
+[review-tools] codegraph-callees({&quot;symbol&quot;:&quot;postSlack&quot;}) → 125 chars
+[review-tools] codegraph-affected({&quot;files&quot;:[&quot;src/services/slack_notify.ts&quot;,&quot;src/services/review.ts&quot;,&quot;src/server/api/slack.ts&quot;,&quot;src/server/api/settings.ts&quot;,&quot;src/server/pages/settings.ts&quot;,&quot;src/server/app.ts&quot;]}) → 2492 chars
+[progress] still running reviewing pull request · 30s elapsed
+[review-tools] codegraph-impact({&quot;symbol&quot;:&quot;postSlack&quot;,&quot;depth&quot;:3}) → 2903 chars
+[review-tools] codegraph-node({&quot;name&quot;:&quot;registerReviewJobHandler&quot;}) → 1084 chars
+[review-tools] codegraph-explore({&quot;query&quot;:&quot;HTTP fetch calls with timeouts AbortSignal.timeout and safe logging secrets URLs network integrations&quot;,&quot;maxFiles&quot;:5}) → 20931 chars
+[review-tools] round 4/7 · 6 call(s): codegraph-callers, codegraph-node, codegraph-node, codegraph-node, codegraph-query, codegraph-node
+[review-tools] codegraph-query({&quot;search&quot;:&quot;timeout&quot;,&quot;limit&quot;:40}) → 1588 chars
+[review-tools] codegraph-node({&quot;name&quot;:&quot;githubFetch&quot;}) → 3124 chars
+[review-tools] codegraph-node({&quot;name&quot;:&quot;tick&quot;}) → 2149 chars
+[review-tools] codegraph-node({&quot;file&quot;:&quot;src/server/api/settings.ts&quot;}) → 13226 chars
+[review-tools] codegraph-callers({&quot;symbol&quot;:&quot;withLogSink&quot;,&quot;limit&quot;:40}) → 387 chars
+[review-tools] codegraph-node({&quot;name&quot;:&quot;runReviewEngine&quot;}) → 1457 chars
+[progress] still running reviewing pull request · 45s elapsed
+[review-tools] round 5/7 · 7 call(s): codegraph-node, codegraph-node, codegraph-node, codegraph-node, codegraph-node, codegraph-node, codegraph-node
+[review-tools] codegraph-node({&quot;name&quot;:&quot;buildSetupHandler&quot;}) → 1933 chars
+[review-tools] codegraph-node({&quot;name&quot;:&quot;resolveFailureNote&quot;}) → 1348 chars
+[review-tools] codegraph-node({&quot;file&quot;:&quot;src/services/review.test.ts&quot;,&quot;symbolsOnly&quot;:true}) → 2331 chars
+[review-tools] codegraph-node({&quot;name&quot;:&quot;withRateLimitJob&quot;}) → 602 chars
+[review-tools] codegraph-node({&quot;file&quot;:&quot;src/services/slack_notify.test.ts&quot;}) → 2218 chars
+[review-tools] codegraph-node({&quot;name&quot;:&quot;finishCheck&quot;}) → 1608 chars
+[review-tools] codegraph-node({&quot;name&quot;:&quot;reconcileReview&quot;}) → 2060 chars
+[progress] still running reviewing pull request · 60s elapsed
+[review-tools] round 6/7 · 7 call(s): codegraph-node, codegraph-node, codegraph-node, codegraph-node, codegraph-node, codegraph-node, codegraph-node
+[review-tools] codegraph-node({&quot;name&quot;:&quot;resolveCarryOutcomes&quot;}) → 6163 chars
+[review-tools] codegraph-node({&quot;file&quot;:&quot;src/server/api/settings.test.ts&quot;,&quot;symbolsOnly&quot;:true}) → 786 chars
+[review-tools] codegraph-node({&quot;file&quot;:&quot;src/server/api/slack.ts&quot;}) → 1329 chars
+[review-tools] codegraph-node({&quot;name&quot;:&quot;saved&quot;}) → 699 chars
+[review-tools] codegraph-node({&quot;name&quot;:&quot;reviewBody&quot;}) → 1391 chars
+[review-tools] codegraph-node({&quot;file&quot;:&quot;src/services/review.test.ts&quot;}) → 33459 chars
+[review-tools] codegraph-node({&quot;name&quot;:&quot;appReviewEvent&quot;}) → 1030 chars
+[progress] still running reviewing pull request · 75s elapsed
+[review-tools] round 7/7 · 8 call(s): codegraph-callers, codegraph-callees, codegraph-impact, codegraph-callers, codegraph-callees, codegraph-impact, codegraph-node, read-mermaid-syntaxes
+[review-tools] read-mermaid-syntaxes({&quot;tools&quot;: [&quot;sequenceDiagram&quot;]}) → 882 chars
+[review-tools] codegraph-callees({&quot;symbol&quot;: &quot;runReviewJobCore&quot;, &quot;limit&quot;: 80}) → 3207 chars
+[review-tools] codegraph-impact({&quot;symbol&quot;: &quot;runReviewJobCore&quot;, &quot;depth&quot;: 3}) → 392 chars
+[review-tools] codegraph-impact({&quot;symbol&quot;: &quot;notifyReviewPosted&quot;, &quot;depth&quot;: 3}) → 486 chars
+[review-tools] codegraph-callers({&quot;symbol&quot;: &quot;notifyReviewPosted&quot;}) → 145 chars
+[review-tools] codegraph-callees({&quot;symbol&quot;: &quot;notifyReviewPosted&quot;}) → 256 chars
+[review-tools] codegraph-node({&quot;file&quot;: &quot;src/util/redact.test.ts&quot;}) → 3103 chars
+[review-tools] codegraph-callers({&quot;symbol&quot;: &quot;resolveCarryOutcomes&quot;}) → 266 chars
+[review-tools] round budget (7) exhausted with the model still requesting tools
+[progress] still running reviewing pull request · 90s elapsed
+[progress] still running reviewing pull request · 105s elapsed
+[progress] still running reviewing pull request · 120s elapsed
+
+co-maintainer review · groophylifefor/co-maintainer · PR #54
+guide built 2026-11-07 · codegraph used
+
+New (1)
+  • src/server/app.ts:221-223  [P1 · blocking] createApp()
+    This dispatch returns before requireSession, allowing unauthenticated
+    callers to send messages through the saved Slack webhook. The handler
+    also accepts a caller-supplied URL and passes it directly to fetch.
+    Move this route behind the session guard.
+
+Summary: 1 new · 0 open · 0 closed · 1 blocking
+
+Done in 2m 14s · 429,644 in, 6,413 out tokens · $0.4696"></div>
+      </div>
+      <div class="tty-note">
+        <span class="label">Flags</span>
+        <dl>
+          <dt><code>--gh-concurrent=N</code></dt>
+          <dd>Runs GitHub requests in parallel. The default is <code>1</code>. Pick a number that keeps you under your GitHub rate limit.</dd>
+          <dt><code>--ai-concurrent=N</code></dt>
+          <dd>Runs AI jobs in parallel. The default is <code>3</code>. Pick a number your model provider's rate limit allows.</dd>
+          <dt><code>--log-time</code></dt>
+          <dd>Prints how long each phase took. Useful when a run feels slower than its estimate.</dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <section class="agents">
+    <div class="w agents-grid">
+      <div>
+        <div class="label">For agents</div>
+        <h2>Agent friendly by default.</h2>
+        <p class="lede">The <code>--json</code> flag prints the whole review as JSON.</p>
+        <div class="cmd"><span>co-maintainer review --json</span><button type="button" data-umami-event="copy-json">copy</button></div>
+      </div>
+      <!-- The bird picks up the review's JSON and carries it to an agent, the agent takes it, exit 0 lights up. Loops. -->
+      <div class="relay" id="relay" aria-hidden="true">
+        <div class="r-node r-cli"><span class="ps">$</span> review --json</div>
+        <div class="r-track"></div>
+        <div class="r-node r-agent">
+          <span>your agent</span>
+          <span class="r-logos">
+            <i class="logo" style="--src:url(assets/logos/claude.svg);--c:#d97757" title="Claude"></i>
+            <i class="logo" style="--src:url(assets/logos/openai.svg);--c:#101215" title="OpenAI"></i>
+            <i class="logo" style="--src:url(assets/logos/googlegemini.svg);--c:#8e75b2" title="Gemini"></i>
+          </span>
+        </div>
+        <div class="r-carrier" id="carrier">
+          <div class="r-hop">
+            <div class="r-packet">{ "blocking": 0 }</div>
+            <div data-bird=""></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="talk">
+    <div class="w talk-grid">
+      <div>
+        <div class="label">In the pull request</div>
+        <h2>Ask it what it meant.</h2>
+        <p class="lede">Reply to a finding and it answers on the same thread. This works when co-maintainer runs on <a href="#serve">your own server</a> and is connected to your GitHub repository.</p>
+      </div>
+      <div class="thread">
+        <div class="row me">
+          <div>
+            <div class="say human tail-right"><p>I don't understand the problem</p></div>
+            <div class="src" style="text-align:right">Replying to the finding above</div>
+          </div>
+          <div class="avatar">M</div>
+        </div>
+        <div class="row">
+          <div class="avatar b"><div data-bird="" data-talk="view" data-fill="#fff" data-bg="#0969da" style="width:34px"></div></div>
+          <div>
+            <div class="say tail-left">
+              <p>The concern was <b>bypassing dashboard sign-in</b>: if <code>/api/slack/test</code> runs before <code>requireSession</code>, someone who can reach the server could trigger Slack test messages without logging in.</p>
+              <p>However, <b>the current diff already places this route after the session check</b>:</p>
+              <ul>
+                <li><code>requireSession(request)</code> runs first.</li>
+                <li>Missing sessions receive <code>401</code> and return.</li>
+                <li>Only then can the request reach <code>handleSlackTestRoute</code>.</li>
+              </ul>
+              <p>So the authentication-bypass finding does <b>not</b> apply to the code shown now.</p>
+            </div>
+            <div class="src">same PR, 12 seconds later · shortened</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="serve" id="serve">
+    <div class="w">
+      <div class="label">On your server</div>
+      <h2>One dashboard for every repository.</h2>
+      <p class="lede"><code>co-maintainer serve</code> starts it. Add a repository and every new pull request gets reviewed.</p>
+      <div class="cmd"><span>co-maintainer serve</span><button type="button" data-umami-event="copy-serve">copy</button></div>
+      <figure class="shot">
+        <div class="shot-bar"><span></span><span></span><span></span><b>localhost:5000</b></div>
+        <img src="assets/dashboard-repositories.png" alt="The co-maintainer dashboard, listing repositories with their status, knowledge, reviews and cost" loading="lazy">
+      </figure>
+    </div>
+  </section>
+
+  <section class="diet">
+    <div class="w">
+      <div class="label">Pricing</div>
+      <h2>You're shocked, aren't you?</h2>
+      <div class="plans">
+        <div class="plan">
+          <div class="p-name">Solo</div>
+          <div class="p-price">$0<small>per month</small></div>
+          <p class="p-for">One developer, the CLI on a laptop.</p>
+          <ul>
+            <li>Local and PR review</li>
+            <li>Any model on your own key</li>
+            <li>Cost estimate before the first run</li>
+            <li>Guides as plain Markdown you can read</li>
+          </ul>
+        </div>
+        <div class="plan pop">
+          <div class="nap" data-bird="sleeps"></div>
+          <div class="p-name">Team</div>
+          <div class="p-price">$0<small>per seat</small></div>
+          <p class="p-for">A team sharing one server.</p>
+          <ul>
+            <li>Guides built once, shared with <code>--remote</code></li>
+            <li>Nobody rebuilds them on their laptop</li>
+            <li>One token per developer, with its own usage and cost</li>
+            <li>Dashboard sign-in with GitHub</li>
+          </ul>
+        </div>
+        <div class="plan">
+          <div class="p-name">Company</div>
+          <div class="p-price">$0<small>forever</small></div>
+          <p class="p-for">Your infrastructure, your rules.</p>
+          <ul>
+            <li>MIT licensed</li>
+            <li>No telemetry from the CLI, <code>serve</code> or the dashboard</li>
+            <li>Runs in Docker or behind your reverse proxy</li>
+            <li>OpenRouter, OpenAI, Anthropic or OpenCode</li>
+          </ul>
+        </div>
+      </div>
+      <div class="earn">
+        <span class="label">How we earn</span>
+        <p>Donations and thanks. If you have no money to donate, you can pay with a thank you.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Newsletter: a link, not a form. Buttondown's embed form needs a paid
+       plan, so the signup lives on its own page. -->
+  <section class="news">
+    <div class="w news-card">
+      <div class="news-bird" data-bird="" data-talk="view"></div>
+      <div class="news-text">
+        <div class="label">Newsletter</div>
+        <h2>Watch the mockingbird.</h2>
+        <p class="lede">No spam. A meaningful newsletter, written by a human: new features, CVE fixes and privacy changes.</p>
+      </div>
+      <a class="news-btn" href="https://buttondown.com/murat" data-umami-event="newsletter-click">Send me the next one <span aria-hidden="true">→</span></a>
+    </div>
+  </section>
+
+  <section class="last">
+    <div class="w">
+      <div class="bird" data-bird="look" data-fill="#fff" data-bg="#0969da"></div>
+      <div>
+        <h2>Start with <code style="font:inherit">probe</code>.</h2>
+        <div class="cmd"><span>co-maintainer probe owner/repo</span><button type="button" data-umami-event="copy-probe">copy</button></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="w">
+    <svg class="bird ink" width="22" height="22"><use href="#mark"/></svg>
+    <span>Made by <a href="https://muratkirazkaya.com" target="_blank" rel="noopener">Murat Kirazkaya</a></span>
+    <nav><a href="privacy.html">Privacy</a><a href="https://github.com/GroophyLifefor/co-maintainer/blob/main/LICENSE">MIT License</a></nav>
+  </div>
+</footer>
+<script>
+  // The bird in parts, so the eye, head and beak can move. A head circle
+  // with a background-coloured eye looks the same as the logo's hole. The
+  // beak is two halves that meet on the logo's triangle when closed.
+  const PARTS = `<svg viewBox="0 0 100 100" aria-hidden="true"><g class="all">
+    <path class="c" d="M78 28 A37 37 0 1 0 78 72"/>
+    <path class="run" pathLength="100" d="M78 28 A37 37 0 1 0 78 72"/>
+    <g class="face">
+      <circle class="head" cx="50" cy="50" r="15"/>
+      <path class="bu" d="M60 43 L90 50 L60 50 Z"/>
+      <path class="bl" d="M60 50 L90 50 L60 57 Z"/>
+      <circle class="eye" cx="52" cy="46" r="3.5"/>
+    </g></g></svg>`;
+
+  document.querySelectorAll("[data-bird]").forEach((el) => {
+    el.classList.add("mb", ...el.dataset.bird.split(" ").filter(Boolean));
+    if (el.dataset.fill) el.style.setProperty("--b-fill", el.dataset.fill);
+    if (el.dataset.bg) el.style.setProperty("--b-bg", el.dataset.bg);
+    let extra = "";
+    if (el.classList.contains("sleeps")) extra = '<span class="z">z</span><span class="z">z</span><span class="z">z</span>';
+    if (el.classList.contains("startled")) extra = '<span class="bang">!</span>';
+    el.innerHTML = PARTS + extra;
+  });
+
+  // Talks: the beak moves for a moment, on load or when it scrolls into view.
+  const talk = (el, ms) => {
+    el.classList.add("talking");
+    setTimeout(() => el.classList.remove("talking"), ms);
+  };
+  document.querySelectorAll('[data-talk="load"]').forEach((el) => setTimeout(() => talk(el, 2200), 500));
+  const seen = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      talk(entry.target, 2600);
+      seen.unobserve(entry.target);
+    }
+  }, { threshold: 0.6 });
+  document.querySelectorAll('[data-talk="view"]').forEach((el) => seen.observe(el));
+
+  // Hero scene: the bird drops onto the target line, pecks it, the line
+  // lights up and the comment opens under it while the bird talks.
+  (function () {
+    const scene = document.getElementById("scene");
+    const walker = document.getElementById("walker");
+    const target = document.getElementById("target");
+    const comment = document.getElementById("comment");
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const timers = [];
+    const spot = () => {
+      const s = scene.getBoundingClientRect();
+      const t = target.getBoundingClientRect();
+      const w = walker.getBoundingClientRect().width;
+      return { x: t.right - s.left - w - 10, y: t.top - s.top + t.height / 2 - w * 0.5 };
+    };
+    function land(animate) {
+      const p = spot();
+      walker.style.transition = animate ? "" : "none";
+      walker.style.transform = `translate(${p.x}px, ${p.y}px)`;
+    }
+    function play() {
+      timers.splice(0).forEach(clearTimeout);
+      const hits = scene.querySelectorAll("[data-hit]");
+      hits.forEach((row) => row.classList.remove("hit"));
+      comment.classList.remove("open");
+      walker.classList.remove("pecking", "talking", "in");
+      if (still) {
+        land(false);
+        walker.classList.add("in");
+        hits.forEach((row) => row.classList.add("hit"));
+        comment.classList.add("open");
+        return;
+      }
+      const p = spot();
+      walker.style.transition = "none";
+      walker.style.transform = `translate(${p.x}px, ${p.y - 70}px)`;
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        walker.classList.add("in");
+        land(true);
+      }));
+      timers.push(setTimeout(() => walker.classList.add("pecking"), 1100));
+      timers.push(setTimeout(() => hits.forEach((row) => row.classList.add("hit")), 1500));
+      timers.push(setTimeout(() => {
+        walker.classList.remove("pecking");
+        comment.classList.add("open");
+        walker.classList.add("talking");
+      }, 1950));
+      timers.push(setTimeout(() => walker.classList.remove("talking"), 4200));
+    }
+    // Plays once each time the page is shown. No replay on click.
+    // pageshow, not load: a refresh or back that the browser serves from its
+    // page cache fires no load event, and the scene would stay on its last
+    // frame.
+    window.addEventListener("pageshow", () => setTimeout(play, 300));
+    let r;
+    window.addEventListener("resize", () => { clearTimeout(r); r = setTimeout(() => land(false), 150); });
+  })();
+
+  // How to start: switch terminal tabs (arrow keys too). Each tab types its
+  // command, then prints its output. Replay types the open tab again.
+  (function () {
+    const tabs = [...document.querySelectorAll('.tty-tabs [role="tab"]')];
+    const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let run = 0;
+    let seen = false;
+    const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    const prompt = '<span class="ps">$</span> ';
+    // Progress lines dim, section headings (a bare word on its own line) bold.
+    // A co-maintainer command inside the output gets its own block, with the
+    // subcommand and each flag coloured, so it reads as something to run.
+    const command = (text) => text.split(" ").map((w, i) => {
+      if (i === 0) return `<b>${esc(w)}</b>`;
+      if (i === 1) return `<span class="sub">${esc(w)}</span>`;
+      if (w.startsWith("--")) {
+        const [k, v] = w.split("=");
+        return `<span class="tok"><span class="flag">${esc(k)}</span>${v === undefined ? "" : `=<span class="val">${esc(v)}</span>`}</span>`;
+      }
+      return esc(w);
+    }).join(" ");
+    const paint = (line) => {
+      if (/output rejected|dropping/.test(line)) return `<span class="warn">${esc(line)}</span>`;
+      if (line.startsWith("[")) return `<span class="dim">${esc(line)}</span>`;
+      if (/^[a-z]+$/.test(line) || /^(Done in |No actionable findings|co-maintainer review · |New \(|Summary: )/.test(line)) return `<b>${esc(line)}</b>`;
+      // A finding line: location plain, severity tag in red.
+      const f = line.match(/^(\s*• \S+\s+)(\[P\d · [a-z-]+\])(.*)$/);
+      if (f) return esc(f[1]) + `<span class="sev-tag">${esc(f[2])}</span><b>${esc(f[3])}</b>`;
+      const at = line.indexOf("co-maintainer ");
+      if (at !== -1 && /^\s*(or run it now: )?co-maintainer /.test(line)) {
+        return esc(line.slice(0, at)) + `<span class="cmdline">${command(line.slice(at))}</span>`;
+      }
+      return esc(line);
+    };
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    async function type(pane) {
+      const me = ++run;
+      const cmd = pane.dataset.cmd || "";
+      const out = pane.dataset.out || "";
+      if (!cmd || still) {
+        const body = out ? out.split("\n").map(paint).join("\n") + "\n" : "";
+        pane.innerHTML = cmd ? prompt + esc(cmd) + "\n" + body + prompt + '<span class="cur"></span>' : prompt + '<span class="cur"></span>';
+        return;
+      }
+      pane.innerHTML = prompt + '<span class="typed"></span><span class="cur"></span>';
+      const typed = pane.querySelector(".typed");
+      await wait(350);
+      // A short command types at a human pace, a long one speeds up so it
+      // still takes about three seconds.
+      const scale = Math.min(1, 3200 / (cmd.length * 60));
+      for (const ch of cmd) {
+        if (me !== run) return;
+        typed.textContent += ch;
+        await wait((38 + Math.random() * 45) * scale);
+      }
+      await wait(420);
+      if (me !== run) return;
+      pane.querySelector(".cur").remove();
+      pane.insertAdjacentHTML("beforeend", "\n");
+      const lines = out.split("\n");
+      // GitHub fetches land --gh-concurrent at a time and AI job starts
+      // --ai-concurrent at a time, the way the real run printed them.
+      const flag = (name) => Number((cmd.match(new RegExp(`--${name}=(\\d+)`)) || [])[1]) || 1;
+      const gh = flag("gh-concurrent");
+      const ai = flag("ai-concurrent");
+      // Review tool calls land one round at a time, as many as the round
+      // header announced.
+      let calls = 1;
+      const group = (l) =>
+        /^\[review-tools\] (codegraph|read)-/.test(l) ? ["tool", calls]
+        : /PR detail sampling|codebase (cache|file) \d|\] PR \d+\/\d+/.test(l) ? ["gh", gh]
+        : /^\[ai\] start /.test(l) ? ["ai", ai]
+        : /^\[ai\] cache hit /.test(l) ? ["hit", 12]
+        : null;
+      // How long each kind of line holds the screen, compressed from the
+      // real run so the whole thing plays in seconds, not minutes.
+      const pause = (l, n) =>
+        n > 1 ? 240
+        : /still running/.test(l) ? 420
+        : /output rejected|dropping/.test(l) ? 300
+        : /^\[ai\] done /.test(l) ? 110
+        : /^\[time\]|round \d+\/\d+/.test(l) ? 140
+        : l.startsWith("[") ? 28
+        : l ? 90 : 160;
+      for (let i = 0; i < lines.length; ) {
+        if (me !== run) return;
+        const round = lines[i].match(/round \d+\/\d+ · (\d+) call/);
+        if (round) calls = Number(round[1]);
+        const g = group(lines[i]);
+        let n = 1;
+        if (g) {
+          while (n < g[1] && i + n < lines.length && (group(lines[i + n]) || [])[0] === g[0]) n++;
+        }
+        pane.insertAdjacentHTML("beforeend", lines.slice(i, i + n).map((l) => paint(l) + "\n").join(""));
+        pane.scrollTop = pane.scrollHeight;
+        await wait(pause(lines[i], n));
+        i += n;
+      }
+      if (me !== run) return;
+      pane.insertAdjacentHTML("beforeend", prompt + '<span class="cur"></span>');
+      pane.scrollTop = pane.scrollHeight;
+    }
+
+    const current = () => document.getElementById(tabs.find((t) => t.getAttribute("aria-selected") === "true").getAttribute("aria-controls"));
+    const show = (tab) => {
+      for (const t of tabs) {
+        const on = t === tab;
+        t.setAttribute("aria-selected", String(on));
+        t.tabIndex = on ? 0 : -1;
+        document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+      }
+      if (seen) type(current());
+    };
+    document.getElementById("tty-replay").addEventListener("click", () => type(current()));
+    // Start typing the first time the terminal is on screen.
+    new IntersectionObserver((entries, obs) => {
+      if (!entries[0].isIntersecting) return;
+      seen = true;
+      obs.disconnect();
+      type(current());
+    }, { threshold: 0.4 }).observe(document.querySelector(".tty"));
+    // Until then, every pane shows its prompt.
+    document.querySelectorAll(".tty-pane").forEach((p) => { p.innerHTML = prompt + '<span class="cur"></span>'; });
+    tabs.forEach((tab, i) => {
+      tab.addEventListener("click", () => show(tab));
+      tab.addEventListener("keydown", (e) => {
+        if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+        const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+        show(next);
+        next.focus();
       });
-    })();
-  </script>
+    });
+    show(tabs[0]);
+  })();
+
+  // For agents: put the carrier's start and end over the two nodes, then
+  // start the shared 6s loop once the section is on screen.
+  (function () {
+    const section = document.querySelector(".agents");
+    const relay = document.getElementById("relay");
+    const carrier = document.getElementById("carrier");
+    const place = () => {
+      const w = carrier.offsetWidth;
+      // The packet is wider than the bird. Keep its edges 12px inside the box
+      // at both ends, even when that moves the bird off a node's centre.
+      const half = carrier.querySelector(".r-packet").offsetWidth / 2;
+      const min = half - w / 2 + 12;
+      const max = relay.clientWidth - 12 - half - w / 2;
+      const mid = (el) => Math.min(max, Math.max(min, el.offsetLeft + el.offsetWidth / 2 - w / 2));
+      relay.style.setProperty("--from", mid(relay.querySelector(".r-cli")) + "px");
+      relay.style.setProperty("--to", mid(relay.querySelector(".r-agent")) + "px");
+    };
+    place();
+    window.addEventListener("resize", place);
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    new IntersectionObserver((entries, obs) => {
+      if (!entries[0].isIntersecting) return;
+      obs.disconnect();
+      section.classList.add("go");
+    }, { threshold: 0.35 }).observe(section);
+  })();
+
+  // Live stats: two public APIs that need no keys refresh the numbers.
+  (function () {
+    const compact = (value) => {
+      const n = Number(value);
+      if (!Number.isFinite(n) || n < 0) return null;
+      return n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(n);
+    };
+    const set = (key, value) => {
+      const strong = document.querySelector(`[data-stat="${key}"]`);
+      const text = compact(value);
+      if (!strong || text === null) return;
+      strong.textContent = text;
+      strong.title = Number(value).toLocaleString("en-US");
+    };
+    fetch("https://api.github.com/repos/GroophyLifefor/co-maintainer")
+      .then((r) => r.json()).then((d) => set("stars", d.stargazers_count)).catch(() => {});
+    fetch("https://api.npmjs.org/downloads/point/last-month/co-maintainer")
+      .then((r) => r.json()).then((d) => set("downloads", d.downloads)).catch(() => {});
+  })();
+
+  // Sticky header: draw its bottom rule once the page has scrolled.
+  const topBar = document.querySelector(".top");
+  const markScrolled = () => topBar.classList.toggle("scrolled", scrollY > 4);
+  window.addEventListener("scroll", markScrolled, { passive: true });
+  markScrolled();
+
+  // Copy buttons: copy the command next to them, say "copied" for 2s.
+  document.querySelectorAll(".cmd button").forEach((btn) => {
+    let timer;
+    btn.addEventListener("click", async () => {
+      const text = btn.parentElement.querySelector("span").textContent.trim();
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = "copied";
+      } catch {
+        btn.textContent = "select it";
+      }
+      clearTimeout(timer);
+      timer = setTimeout(() => { btn.textContent = "copy"; }, 2000);
+    });
+  });
+
+  // Dashboard screenshot: click to see it full size, click again or Esc to close.
+  (function () {
+    const img = document.querySelector(".shot img");
+    if (!img) return;
+    const box = document.createElement("div");
+    box.className = "zoom";
+    box.hidden = true;
+    box.innerHTML = `<img src="${img.getAttribute("src")}" alt="${img.alt}">`;
+    document.body.appendChild(box);
+    const close = () => { box.hidden = true; document.body.style.overflow = ""; };
+    img.addEventListener("click", () => { box.hidden = false; document.body.style.overflow = "hidden"; });
+    box.addEventListener("click", close);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !box.hidden) close(); });
+  })();
+
+  // Follows you: the eye slides toward the pointer and the head turns after
+  // it, never past 18 degrees, where the beak tip would touch the ring.
+  const lookers = [...document.querySelectorAll(".mb.look")];
+  window.addEventListener("pointermove", (e) => {
+    for (const el of lookers) {
+      const r = el.getBoundingClientRect();
+      const dx = e.clientX - (r.left + r.width / 2);
+      const dy = e.clientY - (r.top + r.height / 2);
+      const len = Math.hypot(dx, dy) || 1;
+      const reach = Math.min(1, len / 160);
+      el.querySelector(".eye").style.transform = `translate(${(dx / len) * 6 * reach}px, ${(dy / len) * 6 * reach}px)`;
+      const angle = Math.max(-18, Math.min(18, Math.atan2(dy, Math.abs(dx)) * 180 / Math.PI));
+      el.querySelector(".face").style.transform = `rotate(${angle * reach}deg)`;
+    }
+  });
+</script>
 </body>
 </html>
