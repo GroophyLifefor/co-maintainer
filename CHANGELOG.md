@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.8] - 2026-11-07
+
+### Fixed
+
+- **A review with no open finding approves.** The review type was computed from every stored finding, closed ones included, so a re-review that confirmed the last finding was fixed still requested changes while its body said "No actionable findings". Only open findings count now, and a review with none open, the first round included, posts `APPROVE` instead of `COMMENT`.
+- **The check run counts only open findings.** A re-review whose findings were all closed ended `neutral` with "N finding(s) reported" and annotations on fixed lines. It now ends `success` with "No actionable findings."
+
 ## [0.6.7] - 2026-11-07
 
 ### Added

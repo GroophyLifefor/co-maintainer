@@ -663,6 +663,11 @@ co-maintainer config set --review-blocking=model      # back to the default
 
 `CO_MAINTAINER_REVIEW_BLOCKING` overrides it for one environment.
 
+The automatic GitHub App review picks its type from the open findings only.
+With none open, including a re-review whose earlier findings were all fixed, it
+approves. With open findings, `model` requests changes, and `severity` requests
+changes for a P0 or P1 and comments otherwise.
+
 ## JSON output
 
 With `--json`, stdout is a single JSON object (`schemaVersion` `1`). Fields

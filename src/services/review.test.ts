@@ -425,7 +425,7 @@ test("reconcile after a crash between posting and posted does not post again", a
   });
 });
 
-test("zero findings post COMMENT with a short body", async () => {
+test("zero findings post APPROVE with a short body", async () => {
   await withEnv(async () => {
     const job = seed();
     const github = new FakeGithub();
@@ -440,7 +440,7 @@ test("zero findings post COMMENT with a short body", async () => {
       body: string;
       comments: unknown[];
     };
-    if (posted.event !== "COMMENT") {
+    if (posted.event !== "APPROVE") {
       throw new Error(`event ${posted.event}`);
     }
     if (!posted.body.startsWith("No actionable findings.\n\n<details>")) {
@@ -767,6 +767,52 @@ for (const [name, markdown, fence] of [
     });
   });
 }
+
+test("a re-review that closes the last finding approves (#45)", async () => {
+  await withEnv(async () => {
+    const job = seed();
+    const first = new FakeGithub();
+    first.files = DIFF;
+    await runReviewJob(job, () => {}, first, new FakeAiProvider());
+
+    // The push that fixes it changes the flagged line.
+    const github = new FakeGithub();
+    github.files = [
+      { filename: "src/app.ts", patch: "@@ -4 +4 @@\n-old\n+fixed" },
+    ];
+    await runReviewJob(
+      nextRound(job),
+      () => {},
+      github,
+      new FakeAiProvider(
+        "## Findings\n\nNo actionable findings.\n\n## Previous findings\n\n- F1: closed\n",
+      ),
+    );
+    const rows = listFindingsForReview(getReviewByJobId("job-rev-2")!.id);
+    if (!rows.some((row) => row.state === "closed")) {
+      throw new Error(
+        `the earlier finding was not closed: ${JSON.stringify(rows)}`,
+      );
+    }
+    const review = github.writes.find((write) =>
+      write.endpoint.includes("/reviews"),
+    )?.body as { event: string; body: string };
+    if (review.event !== "APPROVE") {
+      throw new Error(`event ${review.event}: ${review.body}`);
+    }
+    const check = github.checkUpdates.find(
+      (item) => (item.body as Json).status === "completed",
+    )?.body as Json;
+    const output = check?.output as Json | undefined;
+    if (
+      check?.conclusion !== "success" ||
+      output?.summary !== "No actionable findings." ||
+      (output.annotations as Json[]).length !== 0
+    ) {
+      throw new Error(`check ${JSON.stringify(check)}`);
+    }
+  });
+});
 
 test("a repeat whose text changed goes inline on the one review", async () => {
   await withEnv(async () => {

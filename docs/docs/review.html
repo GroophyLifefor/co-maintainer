@@ -305,6 +305,10 @@ review type.</p>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">set</span> <span class="sh-flag">--review-blocking=model</span>      <span class="sh-comment"># back to the default</span>
 </code></pre>
 <p><code>CO_MAINTAINER_REVIEW_BLOCKING</code> overrides it for one environment.</p>
+<p>The automatic GitHub App review picks its type from the open findings only.
+With none open, including a re-review whose earlier findings were all fixed, it
+approves. With open findings, <code>model</code> requests changes, and <code>severity</code> requests
+changes for a P0 or P1 and comments otherwise.</p>
 <h2 id="json-output">JSON output</h2>
 <p>With <code>--json</code>, stdout is a single JSON object (<code>schemaVersion</code> <code>1</code>). Fields
 include <code>mode</code> (<code>local</code>, <code>remote</code>, or <code>pr</code>), <code>subject</code>, <code>summary</code>, <code>findings[]</code>,

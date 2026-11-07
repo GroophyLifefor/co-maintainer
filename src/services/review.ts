@@ -239,17 +239,22 @@ export function reviewEvent(
 
 /** The GitHub review event for a set of stored findings.
  *
- * `model` keeps the 0.4.13 behavior: any finding requests changes, because the
- * model's label already decided. `severity` ignores that label and requests
- * changes only for a P0 or P1, so the same finding set always yields the same
- * event. */
+ * Only open findings count. A re-review that closed the last finding used to
+ * request changes from the closed row while its body said "No actionable
+ * findings", so a review with no open finding approves.
+ *
+ * `model` keeps the 0.4.13 behavior: any open finding requests changes, because
+ * the model's label already decided. `severity` ignores that label and
+ * requests changes only for a P0 or P1, so the same finding set always yields
+ * the same event. */
 export function appReviewEvent(
-  findings: { severity: string; title: string }[],
+  findings: { severity: string; title: string; state?: string }[],
   mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
-): "REQUEST_CHANGES" | "COMMENT" {
-  if (findings.length === 0) return "COMMENT";
+): "REQUEST_CHANGES" | "COMMENT" | "APPROVE" {
+  const open = findings.filter((row) => row.state !== "closed");
+  if (open.length === 0) return "APPROVE";
   if (mode === "model") return "REQUEST_CHANGES";
-  const blocking = findings.some((row) =>
+  const blocking = open.some((row) =>
     isBlocking(mode, { severity: row.severity, text: row.title }),
   );
   return reviewEvent(blocking ? 1 : 0);
@@ -568,6 +573,8 @@ async function finishCheck(
   findings: ReturnType<typeof listFindingsForReview>,
   log: LogFn,
 ): Promise<void> {
+  // A closed finding was fixed; counting it would report work that is done.
+  const open = findings.filter((finding) => finding.state !== "closed");
   await updateCheck(
     client,
     job,
@@ -579,11 +586,11 @@ async function finishCheck(
       output: {
         title: humanCopy(title),
         summary: humanCopy(
-          findings.length === 0
+          open.length === 0
             ? "No actionable findings."
-            : `${findings.length} finding(s) reported.`,
+            : `${open.length} finding(s) reported.`,
         ),
-        annotations: checkAnnotations(findings),
+        annotations: checkAnnotations(open),
       },
     },
     log,
@@ -1161,12 +1168,13 @@ async function runReviewJobCore(
     options.reviewBlocking,
   );
   await resolveFailureNote(github, job, reviewId, log);
+  const openFindings = totalFindings - closedCount;
   await finishCheck(
     github,
     job,
     checkRunId,
-    totalFindings === 0 ? "success" : "neutral",
-    totalFindings === 0 ? "Review completed" : "Review findings",
+    openFindings === 0 ? "success" : "neutral",
+    openFindings === 0 ? "Review completed" : "Review findings",
     listFindingsForReview(reviewId),
     log,
   );
