@@ -122,11 +122,16 @@ test("the App review event follows the mode", () => {
     appReviewEvent(high, "severity") === "REQUEST_CHANGES",
     "severity requests changes for a P1",
   );
-  must(
-    appReviewEvent([], "severity") === "COMMENT",
-    "an empty review never requests changes",
-  );
-  // A clean review still comments, exactly as before.
+  for (const mode of ["model", "severity"] as const) {
+    must(appReviewEvent([], mode) === "APPROVE", `${mode}: empty approves`);
+    // #45: a re-review that closed the last finding approves.
+    const closed = [{ ...high[0], state: "closed" }];
+    must(
+      appReviewEvent(closed, mode) === "APPROVE",
+      `${mode}: closed findings approve`,
+    );
+  }
+  // The old count-based rule is kept for its callers.
   must(reviewEvent(0) === "COMMENT", "the old event rule is unchanged");
   must(reviewEvent(1) === "REQUEST_CHANGES", "the old event rule is unchanged");
 });
