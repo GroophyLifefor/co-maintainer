@@ -848,6 +848,59 @@ body.layout-home {
   margin: 20px 0 28px;
   color: var(--text-secondary);
 }
+.layout-home:has(.nl-band) .final-cta {
+  padding-bottom: 110px;
+}
+.nl-band {
+  background: #111;
+  color: #fff;
+}
+.nl-band-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 40px;
+  max-width: var(--home-max);
+  margin-inline: auto;
+  padding: 72px 28px;
+}
+.nl-band h2 {
+  margin: 8px 0 0;
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+  font-weight: 620;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+}
+.nl-kicker {
+  margin: 0;
+  color: #8b949e;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.nl-text {
+  max-width: 560px;
+  margin: 14px 0 0;
+  color: #b6bdc6;
+}
+.nl-band .nl-btn {
+  flex: none;
+  border-color: #fff;
+  background: #fff;
+  color: #111;
+}
+.nl-band .nl-btn:hover {
+  border-color: #e9ecef;
+  background: #e9ecef;
+}
+@media (max-width: 720px) {
+  .nl-band-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 56px 24px;
+  }
+}
 .home-footer {
   min-height: 100px;
   padding: 30px 28px;

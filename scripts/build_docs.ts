@@ -557,6 +557,7 @@ export function docPageShell(
         <article class="markdown prose">${bodyHtml}</article>
         <footer class="doc-footer">
           <a href="${GITHUB_REPO}/edit/${DOCS_EDIT_BRANCH}/docs/md/${activeSlug}.md" data-umami-event="click-github">Edit this page</a> on GitHub
+          · <a href="https://buttondown.com/murat" data-umami-event="newsletter-click">Get the newsletter</a>
         </footer>
       </main>
       ${toc}
