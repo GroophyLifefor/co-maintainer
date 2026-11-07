@@ -218,10 +218,6 @@ export function createApp(deps: AppDeps): App {
             remoteAddr,
           );
         }
-        if (url.pathname === "/api/slack/test" && request.method === "POST") {
-          return await handleSlackTestRoute(request);
-        }
-
         const session = await requireSession(request);
         if (!session) {
           return errorResponse(401, "unauthorized", "sign in required");
@@ -263,6 +259,9 @@ export function createApp(deps: AppDeps): App {
             passwords,
             remoteAddr,
           );
+        }
+        if (url.pathname === "/api/slack/test" && request.method === "POST") {
+          return await handleSlackTestRoute(request);
         }
         if (url.pathname.startsWith("/api/activity")) {
           return handleActivityRoute(request, url);

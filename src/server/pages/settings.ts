@@ -595,9 +595,9 @@ document.getElementById("save-app").addEventListener("click", function() {
   });
 });
 document.getElementById("save-slack").addEventListener("click", function() {
-  var value = document.getElementById("slack-url").value.trim();
-  if (!value) return;
-  save(this, { slackWebhookUrl: value });
+  save(this, {
+    slackWebhookUrl: document.getElementById("slack-url").value.trim()
+  });
 });
 document.getElementById("test-slack").addEventListener("click", function() {
   var btn = this;

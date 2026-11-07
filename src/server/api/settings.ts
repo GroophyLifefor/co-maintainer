@@ -173,9 +173,11 @@ export async function handleSettingsRoute(
       }
       patch.webhookUrl = (body.webhookUrl as string).trim();
     }
-    if ("slackWebhookUrl" in body) {
+    // A blank field keeps the saved URL, like the other secret fields, and
+    // null clears it.
+    if ("slackWebhookUrl" in body && body.slackWebhookUrl !== "") {
       const raw = body.slackWebhookUrl;
-      if (raw === null || raw === "") {
+      if (raw === null) {
         patch.slackWebhookUrl = undefined;
       } else {
         const slackError = validateWebhookUrl(raw);
