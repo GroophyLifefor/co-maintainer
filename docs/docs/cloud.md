@@ -68,5 +68,5 @@ co-maintainer maintainers. For a self-hosted deployment, the same pages under
 [Serve](serve.md) and the [Dashboard](dashboard.md) apply.
 
 If a remote review fails, [Troubleshooting](troubleshooting.md) lists the token
-and connectivity messages, and [Data and privacy](privacy.md) says what the
+and connectivity messages, and [Data and privacy](../privacy.html) says what the
 instance stores.

@@ -100,5 +100,5 @@ full flag list.
 - Serving the dashboard and the webhook receiver.
 - Reading guides with [`view`](configuration.md) or `view --remote`.
 
-Next: [Data and privacy](privacy.md) for where the keys and the generated files
+Next: [Data and privacy](../privacy.html) for where the keys and the generated files
 live.

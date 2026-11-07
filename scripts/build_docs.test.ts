@@ -28,6 +28,7 @@ import {
   CNAME,
   commandsMarkdown,
   LEGACY_REDIRECTS,
+  MOVED_TO_ROOT,
   LLMS_SUMMARY,
   SITE_ORIGIN,
   sitemapXml,
@@ -50,10 +51,10 @@ async function copyStatic(from: string, to: string): Promise<void> {
 
 async function buildInto(): Promise<string> {
   const outDir = await makeTempDir({ prefix: "cm-docs-" });
-  await writeFile(
-    join(outDir, "index.html"),
-    await readFile(join(docsRoot, "index.html")),
-  );
+  // The hand written root pages are not built, so copy them like the assets.
+  for (const page of ["index.html", "privacy.html"]) {
+    await writeFile(join(outDir, page), await readFile(join(docsRoot, page)));
+  }
   await copyStatic(join(docsRoot, "assets"), join(outDir, "assets"));
   await buildDocs({
     outDir: new URL(`file://${outDir.replaceAll("\\", "/")}/`),
@@ -115,12 +116,16 @@ async function deadLinks(
 test("every page is written under docs/ with a description and canonical", async () => {
   const outDir = await buildInto();
   try {
-    const pages = await htmlFiles(join(outDir, "docs"));
-    if (pages.length !== 25) {
-      throw new Error(`expected 25 doc pages, found ${pages.length}`);
-    }
-    for (const page of pages) {
+    const pages = [];
+    for (const page of await htmlFiles(join(outDir, "docs"))) {
+      // Stubs for pages that moved to the site root are checked elsewhere.
       const html = await readTextFile(page);
+      if (!html.includes('http-equiv="refresh"')) pages.push({ page, html });
+    }
+    if (pages.length !== 24) {
+      throw new Error(`expected 24 doc pages, found ${pages.length}`);
+    }
+    for (const { page, html } of pages) {
       if (!html.includes('name="description"')) {
         throw new Error(`${page} has no meta description`);
       }
@@ -184,6 +189,16 @@ test("every old flat address redirects to its new page", async () => {
     if (!remake.includes("url=docs/sync.html")) {
       throw new Error("remake.html does not point at the sync page");
     }
+    // A page that moved to the site root keeps its old docs address.
+    for (const slug of MOVED_TO_ROOT) {
+      const stub = await readTextFile(join(outDir, "docs", `${slug}.html`));
+      if (!stub.includes(`url=../${slug}.html`)) {
+        throw new Error(`docs/${slug}.html does not point at ${slug}.html`);
+      }
+      if (!stub.includes(`${SITE_ORIGIN}/${slug}.html`)) {
+        throw new Error(`docs/${slug}.html has no canonical to ${slug}.html`);
+      }
+    }
   } finally {
     await remove(outDir, { recursive: true });
   }
@@ -244,10 +259,11 @@ test("the repository docs/ tree is the built layout, not the flat one", async ()
 });
 
 test("sitemapXml lists the landing page first, then every slug", () => {
-  const xml = sitemapXml(["a", "b"]);
+  const xml = sitemapXml(["a", "b"], ["privacy"]);
   const first = xml.indexOf(`${SITE_ORIGIN}/`);
+  const root = xml.indexOf(`${SITE_ORIGIN}/privacy.html`);
   const second = xml.indexOf(`${SITE_ORIGIN}/docs/a.html`);
-  if (first < 0 || second < 0 || first > second) {
+  if (first < 0 || root < 0 || second < 0 || first > root || root > second) {
     throw new Error(`sitemap order is wrong:\n${xml}`);
   }
 });
@@ -302,14 +318,7 @@ test("the search index covers every page and is well formed", async () => {
 test("the new reference pages are in the navigation and the index", async () => {
   const outDir = await buildInto();
   try {
-    const required = [
-      "troubleshooting",
-      "cost",
-      "privacy",
-      "cloud",
-      "github-app",
-      "view",
-    ];
+    const required = ["troubleshooting", "cost", "cloud", "github-app", "view"];
     for (const slug of required) {
       const page = join(outDir, "docs", `${slug}.html`);
       if (!existsSync(page)) throw new Error(`docs/${slug}.html is missing`);
@@ -450,7 +459,6 @@ test("llms.txt lists every page and llms-full.txt inlines them", async () => {
       "caching",
       "codegraph",
       "cost",
-      "privacy",
       "troubleshooting",
     ];
     for (const slug of slugs) {
@@ -486,6 +494,8 @@ test("each page has a .md copy beside its .html", async () => {
   try {
     const htmlPages = await htmlFiles(join(outDir, "docs"));
     for (const page of htmlPages) {
+      // A stub for a page that moved out of the docs has no copy to carry.
+      if ((await readTextFile(page)).includes('http-equiv="refresh"')) continue;
       const mdPath = page.replace(/\.html$/, ".md");
       if (!existsSync(mdPath)) {
         throw new Error(`${basename(page)} has no .md copy`);

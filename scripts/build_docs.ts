@@ -4,6 +4,7 @@
  *
  * Layout for co-maintainer.com:
  *   docs/index.html          the landing page (hand written, not built here)
+ *   docs/privacy.html        the privacy page (hand written, not built here)
  *   docs/docs/<slug>.html    one page per docs/md/<slug>.md
  *   docs/docs/<slug>.md      the Markdown copy of that page
  *   docs/docs/search-index.json  the client-side search rows
@@ -96,7 +97,6 @@ const NAV: NavSection[] = [
       { slug: "caching", label: "Caching" },
       { slug: "codegraph", label: "Codegraph" },
       { slug: "cost", label: "Cost" },
-      { slug: "privacy", label: "Data and privacy" },
       { slug: "troubleshooting", label: "Troubleshooting" },
     ],
   },
@@ -208,6 +208,11 @@ export const LEGACY_REDIRECTS: ReadonlyArray<{ from: string; to: string }> = [
   ...ALL_PAGES.map(({ slug }) => ({ from: slug, to: slug })),
   { from: "remake", to: "sync" },
 ];
+
+/** Pages that left the docs for a hand written page at the site root, like
+ * the landing page. Their old `docs/<slug>.html` address stays as a stub that
+ * points there, and the sitemap lists the root page instead. */
+export const MOVED_TO_ROOT: readonly string[] = ["privacy"];
 
 const GITHUB_REPO = "https://github.com/GroophyLifefor/co-maintainer";
 const DOCS_EDIT_BRANCH = "main";
@@ -591,9 +596,34 @@ export function redirectStub(from: string, to: string): string {
 </html>`;
 }
 
-/** Every indexable address, for sitemap.xml. */
-export function sitemapXml(slugs: readonly string[]): string {
+/** The stub left at `docs/<slug>.html` for a page in MOVED_TO_ROOT. It sits in
+ * the docs folder, so it reaches the root page through `../`. */
+export function movedToRootStub(slug: string): string {
+  const target = `../${slug}.html`;
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Moved · co-maintainer</title>
+  <meta name="robots" content="noindex">
+  <meta http-equiv="refresh" content="0; url=${target}">
+  <link rel="canonical" href="${SITE_ORIGIN}/${slug}.html">
+</head>
+<body>
+  <p>This page moved to <a href="${target}">${slug}.html</a>.</p>
+</body>
+</html>`;
+}
+
+/** Every indexable address, for sitemap.xml: the landing page, the hand
+ * written root pages, then every doc page. */
+export function sitemapXml(
+  slugs: readonly string[],
+  rootPages: readonly string[] = [],
+): string {
   const urls = [`${SITE_ORIGIN}/`];
+  for (const page of rootPages) urls.push(`${SITE_ORIGIN}/${page}.html`);
   for (const slug of slugs) urls.push(`${SITE_ORIGIN}/docs/${slug}.html`);
   const entries = urls.map((url) => `  <url><loc>${esc(url)}</loc></url>`);
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -683,9 +713,20 @@ export async function buildDocs(options: BuildOptions = {}): Promise<void> {
     log(`wrote ${from}.html (redirect to docs/${to}.html)`);
   }
 
+  for (const slug of MOVED_TO_ROOT) {
+    await writeTextFile(
+      new URL(`${slug}.html`, pagesDir),
+      movedToRootStub(slug),
+    );
+    log(`wrote docs/${slug}.html (redirect to ${slug}.html)`);
+  }
+
   await writeTextFile(
     new URL("sitemap.xml", out),
-    sitemapXml(ALL_PAGES.map(({ slug }) => slug)),
+    sitemapXml(
+      ALL_PAGES.map(({ slug }) => slug),
+      MOVED_TO_ROOT,
+    ),
   );
   log("wrote sitemap.xml");
 }
