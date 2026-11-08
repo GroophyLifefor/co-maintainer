@@ -85,8 +85,16 @@ if [ -n "${REMOTE_BYOK}" ]; then
   ARGS+=(--remote-byok)
 fi
 
+# Install the reviewer OUTSIDE the checkout. The pull request controls every
+# file in the workspace, so running `npx`/`npm` there let a committed `.npmrc`
+# redirect the registry, an install script run with the secrets in scope, or a
+# committed `node_modules` be picked up in place of the real package.
+CM_RUN_DIR="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/co-maintainer-run"
+CM_ENTRY="${CM_RUN_DIR}/node_modules/co-maintainer/dist/main.js"
+
 if [ -n "${CM_ACTION_DRY_RUN:-}" ]; then
-  echo "npx --yes -p ${PACKAGE} co-maintainer ${ARGS[*]}"
+  echo "install ${PACKAGE} into ${CM_RUN_DIR}"
+  echo "run node ${CM_ENTRY} ${ARGS[*]}"
   exit 0
 fi
 
@@ -97,8 +105,16 @@ export CM_REMOTE_TOKEN="${REMOTE_TOKEN}"
 if [ -n "${REMOTE_BYOK}" ]; then
   export CM_REMOTE_BYOK="${REMOTE_BYOK}"
 fi
-# Not `exec`: on a Windows runner `npx` is a .cmd shim, and bash replacing itself
-# with one returns before it has printed anything or set its exit code.
-# `-p` names the package and the command apart: given only a tarball path, npx on
-# Windows ran nothing at all and still exited 0.
-npx --yes -p "${PACKAGE}" co-maintainer "${ARGS[@]}"
+
+# Install into a throwaway dir with a neutral npm config and no lifecycle
+# scripts, then run the installed entry point with `node` directly (no npx, no
+# `.cmd` shim). The pull request's files are only ever read as review data.
+rm -rf "${CM_RUN_DIR}"
+mkdir -p "${CM_RUN_DIR}"
+: > "${CM_RUN_DIR}/.npmrc"
+if ! ( cd "${CM_RUN_DIR}" \
+  && npm install --prefix "${CM_RUN_DIR}" --no-save --no-audit --no-fund \
+       --ignore-scripts --userconfig "${CM_RUN_DIR}/.npmrc" "${PACKAGE}" ); then
+  fail 4 "Could not install ${PACKAGE}."
+fi
+node "${CM_ENTRY}" "${ARGS[@]}"

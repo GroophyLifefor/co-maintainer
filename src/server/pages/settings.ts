@@ -308,7 +308,7 @@ function remoteCard(config: UserConfig): string {
       ${skSlot()}
       <div class="hd"><h2>Remote review tokens</h2></div>
       <div class="bd">
-        <p class="muted" style="margin:0 0 16px">Bearer tokens for <code>co-maintainer review --remote</code>. The secret is shown once when created.</p>
+        <p class="muted" style="margin:0 0 16px">Bearer tokens for <code>co-maintainer review --remote</code>. The secret is shown once when created. Each token can review and read the guides of <strong>every active repository</strong> on this server, so treat a token as server-wide and revoke a leaked one.</p>
         <div id="remote-token-secret" class="secret" hidden></div>
         <div id="remote-token-list" class="muted">Loading…</div>
         <div class="two" style="max-width:none;margin-top:16px">

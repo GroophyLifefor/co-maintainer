@@ -1,5 +1,6 @@
 import { parseFindings, type ParsedFinding } from "../pr/findings.ts";
 import { readSuggestion, stripSuggestion } from "../pr/suggestion.ts";
+import { stripControlChars } from "../util/sanitize.ts";
 import {
   anchorTextFromPatch,
   type ResolvedFinding,
@@ -329,28 +330,30 @@ export function formatHumanReview(input: HumanReviewInput): string {
     any = true;
     lines.push(`${group.label} (${rows.length})`);
     for (const row of rows) {
-      const loc = humanLocation(row);
+      const loc = stripControlChars(humanLocation(row));
       const label = `[${row.severity} · ${
         row.blocking ? "blocking" : "non-blocking"
       }]`;
-      const short = humanShortTitle(row);
+      const short = stripControlChars(humanShortTitle(row));
       const head = `${group.bullet} ${loc}  ${label}${
         short ? ` \`${short}\`` : ""
       }`;
       lines.push(`  ${head}`);
       if (row.state === "closed") continue;
       if (row.body) {
-        for (const part of row.body.split("\n")) lines.push(`    ${part}`);
+        for (const part of row.body.split("\n"))
+          lines.push(`    ${stripControlChars(part)}`);
       }
       if (row.suggestion && row.path) {
         const { lineFrom, lineTo, text } = row.suggestion;
         lines.push(
-          `    Suggested replacement for ${row.path}:${lineFrom}${
+          `    Suggested replacement for ${stripControlChars(row.path)}:${lineFrom}${
             lineTo !== lineFrom ? `-${lineTo}` : ""
           }`,
         );
         lines.push("    ```");
-        for (const part of text.split("\n")) lines.push(`    ${part}`);
+        for (const part of text.split("\n"))
+          lines.push(`    ${stripControlChars(part)}`);
         lines.push("    ```");
       }
     }

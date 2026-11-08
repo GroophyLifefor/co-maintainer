@@ -124,6 +124,11 @@ export function serveHttp(app: FetchApp, port: number): HttpServer {
     server.once("listening", () => resolve());
     server.once("error", reject);
   });
+  // Slow-loris defence: cap how long a client may take to send headers and
+  // the full request. Responses (SSE) are unaffected — those are measured on
+  // the response side, not here.
+  server.headersTimeout = 20_000;
+  server.requestTimeout = 120_000;
   server.listen(port);
   return {
     port,

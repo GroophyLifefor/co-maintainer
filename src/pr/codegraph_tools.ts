@@ -255,8 +255,10 @@ export function codegraphTools(
           return Promise.resolve("codegraph-node requires 'name' or 'file'.");
         }
         if (name) {
-          const flag = rejectFlagLike(name, "name");
-          if (flag) return Promise.resolve(flag);
+          // codegraph reads `name` as a file when it contains a slash, so hold
+          // it to the same in-repo check as `file`.
+          const nameErr = rejectEscapingPath(name);
+          if (nameErr) return Promise.resolve(nameErr);
         }
         if (file) {
           const pathErr = rejectEscapingPath(file);

@@ -10,6 +10,7 @@
  * end the step's commands. Every finding is one escaped line, and nothing else
  * from the review is printed to stdout in this mode. */
 import { appendFileSync } from "node:fs";
+import { stripControlChars } from "../util/sanitize.ts";
 import { formatRunSummary, type RunSummary } from "../util/run_summary.ts";
 import {
   humanShortTitle,
@@ -117,7 +118,7 @@ export function githubSummary(input: GithubSummaryInput): string {
         .filter(Boolean)
         .join(": ");
       lines.push(
-        `| ${cell(row.severity, 10)}${row.blocking ? " (blocking)" : ""} | ${row.state} | ${where(row)} | ${cell(text || row.title)} |`,
+        `| ${cell(row.severity, 10)}${row.blocking ? " (blocking)" : ""} | ${stripControlChars(row.state)} | ${where(row)} | ${cell(text || row.title)} |`,
       );
     }
   }
@@ -153,9 +154,12 @@ export function emitGithubOutput(input: GithubSummaryInput): void {
  * printed on stderr, and the runner reads workflow commands from stderr too.
  * A line that would start one is given a prefix so it stays plain text. */
 export function neutralizeCommands(text: string): string {
-  // The runner also ends a line at a bare carriage return.
+  // The runner also ends a line at a bare carriage return. Split first so a
+  // `\r` still ends a line, then strip any other control characters (ESC/OSC)
+  // from each line before neutralising a leading `::` workflow command.
   return text
     .split(/\r\n|\r|\n/)
+    .map((line) => stripControlChars(line))
     .map((line) => (line.trimStart().startsWith("::") ? `[log] ${line}` : line))
     .join("\n");
 }

@@ -37,6 +37,14 @@ export function isWindows(): boolean {
   return process.platform === "win32";
 }
 
+// Windows only: keep the current working directory out of the executable search
+// path, so a `git.cmd` / `gh.exe` committed in a reviewed repository cannot run
+// in place of the real tool. Set once at module load — before any child spawn —
+// and inherited by every child process we start.
+if (isWindows() && !process.env.NoDefaultCurrentDirectoryInExePath) {
+  process.env.NoDefaultCurrentDirectoryInExePath = "1";
+}
+
 export type Platform = "windows" | "darwin" | "linux";
 
 /** The current OS in the vocabulary the config paths already used under Deno

@@ -2,6 +2,7 @@
  * with a plain `Request`. */
 import { VERSION } from "../version.ts";
 import { errorResponse } from "./errors.ts";
+import { readBoundedJson } from "../remote/server/body.ts";
 import {
   hasCsrfHeader,
   login,
@@ -95,12 +96,11 @@ async function handleLogin(
       "password sign-in is disabled",
     );
   }
-  let body: { password?: unknown };
-  try {
-    body = await request.json();
-  } catch {
-    return errorResponse(400, "bad_request", "expected a JSON body");
+  const parsed = await readBoundedJson(request, 64 * 1024);
+  if (!parsed.ok) {
+    return errorResponse(parsed.status, parsed.code, parsed.message);
   }
+  const body = parsed.value as { password?: unknown };
   const result = await login(String(body.password ?? ""), passwords, ip);
   if (!result) return errorResponse(401, "unauthorized", "wrong password");
   return Response.json(result, {

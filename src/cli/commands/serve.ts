@@ -28,6 +28,7 @@ import {
 import { registerRemoteReviewHandler } from "../../services/remote_review.ts";
 import { startRemoteWatchdog } from "../../remote/server/sessions.ts";
 import { passwordProblem } from "../../util/password.ts";
+import { deleteAllSessions } from "../../store/sessions.ts";
 import { serveHttp } from "../../server/http.ts";
 import { currentPlatform, getEnv, type Platform } from "../../util/runtime.ts";
 import { die } from "../error.ts";
@@ -220,6 +221,11 @@ export async function runServe(args: string[]): Promise<void> {
 
   await openAppDb();
   console.log(`[serve] app.db ready at ${appDbPath()}`);
+  if (args.some((arg) => arg.startsWith("--password="))) {
+    // A password reset on the command line revokes every existing session, so a
+    // leaked cookie cannot outlive it.
+    deleteAllSessions();
+  }
   const fromCli = await discoverCliRepos();
   if (fromCli.length > 0) {
     console.log(

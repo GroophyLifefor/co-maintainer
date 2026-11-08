@@ -27,6 +27,11 @@ export type JobHandler = {
 
 const handlers = new Map<string, JobHandler>();
 
+// Default caps so an unconfigured server is not a free-for-all. An operator can
+// still set 0 in config to opt back into unlimited.
+const DEFAULT_MAX_CONCURRENT_JOBS = 4;
+const DEFAULT_MAX_REMOTE_REVIEWS_PER_TOKEN = 2;
+
 export function registerHandler(type: string, handler: JobHandler): void {
   handlers.set(type, handler);
 }
@@ -156,7 +161,9 @@ function runningRemoteReviewsPerToken(): Map<string, number> {
 
 function claimNextEligible(): JobRow | undefined {
   const config = readConfig();
-  const perTokenLimit = config.maxConcurrentRemoteReviewsPerToken;
+  const perTokenLimit =
+    config.maxConcurrentRemoteReviewsPerToken ??
+    DEFAULT_MAX_REMOTE_REVIEWS_PER_TOKEN;
   const remoteRunning = perTokenLimit
     ? runningRemoteReviewsPerToken()
     : undefined;
@@ -190,7 +197,7 @@ function claimNextEligible(): JobRow | undefined {
 }
 
 export async function claimAndRun(): Promise<boolean> {
-  const limit = readConfig().maxConcurrentJobs;
+  const limit = readConfig().maxConcurrentJobs ?? DEFAULT_MAX_CONCURRENT_JOBS;
   if (limit && inFlight.size >= limit) return false;
   const job = claimNextEligible();
   if (!job) return false;
@@ -204,7 +211,7 @@ const inFlight = new Set<Promise<void>>();
 let workerTimer: ReturnType<typeof setInterval> | undefined;
 
 function tick(): void {
-  const limit = readConfig().maxConcurrentJobs;
+  const limit = readConfig().maxConcurrentJobs ?? DEFAULT_MAX_CONCURRENT_JOBS;
   while (!limit || inFlight.size < limit) {
     const job = claimNextEligible();
     if (!job) break;

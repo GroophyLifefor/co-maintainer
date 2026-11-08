@@ -1,7 +1,7 @@
 import { cloneDir, worktreeDir } from "../config.ts";
 import { log } from "../util/log.ts";
 import { withKeyedLock } from "../util/keyed_lock.ts";
-import { commandOutput, isWindows, stat } from "../util/runtime.ts";
+import { commandOutput, stat } from "../util/runtime.ts";
 
 export function withCloneLock<T>(
   repo: string,
@@ -29,10 +29,13 @@ export async function runCommand(
   args: string[],
   cwd?: string,
 ): Promise<CommandResult> {
-  // Windows resolves git and other shims through the shell, not as bare exes.
-  const windows = isWindows();
-  const output = await commandOutput(windows ? "cmd" : command, {
-    args: windows ? ["/c", command, ...args] : args,
+  // Spawn the executable directly, never through `cmd /c`. git is a real .exe
+  // on Windows, so cmd is unnecessary, and routing a pull request's file paths
+  // through cmd let a path like `x&evil` run as a second command. `runtime.ts`
+  // also sets NoDefaultCurrentDirectoryInExePath=1 so the working directory is
+  // never searched for the executable.
+  const output = await commandOutput(command, {
+    args,
     cwd,
     stdout: "piped",
     stderr: "piped",
@@ -62,6 +65,8 @@ async function cloneInto(repo: string, dir: string, run: Run): Promise<string> {
   const result = await run("git", [
     "-c",
     "core.longpaths=true",
+    "-c",
+    "core.symlinks=false",
     "clone",
     "--filter=blob:none",
     `https://github.com/${repo}`,
@@ -81,6 +86,10 @@ async function cloneInto(repo: string, dir: string, run: Run): Promise<string> {
         (firstLine ? `: ${firstLine}` : ""),
     );
   }
+  // A pull request may ship symlinks; without this a codegraph tool could read
+  // through one to a file outside the tree. Persist it in the clone so every
+  // worktree checkout writes symlinks as plain files instead of following them.
+  await run("git", ["config", "core.symlinks", "false"], dir);
   log(
     "checkout",
     `cloned in ${((performance.now() - started) / 1000).toFixed(1)}s`,

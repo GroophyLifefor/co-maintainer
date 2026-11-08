@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.9] - 2026-11-08
+
+### Security
+
+- **Windows command execution from a reviewed pull request.** git now runs directly instead of through `cmd /c`, and `NoDefaultCurrentDirectoryInExePath` is set, so a `git.cmd` planted in a repository or a path such as `x&...` in a diff can no longer run a command.
+- **Unauthenticated request size limits.** The webhook, the login API and the sign-in form read a bounded body, and the server sets header and request timeouts, so a single large or slow request can no longer exhaust memory.
+- **The GitHub Action installs outside the checkout.** The reviewer is installed into a directory outside the workspace with a neutral npm config and no install scripts, so a committed `.npmrc`, `node_modules` or install script in a pull request cannot run with the job's secrets.
+- **Signed webhooks are required.** When no webhook secret is configured the server rejects the delivery instead of trusting it.
+- **Open redirect after sign-in.** The post-sign-in redirect rejects a backslash or a control character, so it can only point inside the dashboard.
+- **Session invalidation on a credential change.** Resetting the password or the sign-in settings from the CLI drops every existing dashboard session.
+- **Control characters are stripped** from model and server output before it is printed, so a finding or a remote server cannot inject terminal escape sequences.
+- **Review clones disable symlinks** and the codegraph file argument is held inside the repository, so a tool call cannot read a file outside the tree.
+- **Default concurrency limits** cap how many reviews a single remote token can run at once.
+
 ## [0.6.8] - 2026-11-07
 
 ### Fixed

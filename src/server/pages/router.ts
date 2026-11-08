@@ -13,6 +13,7 @@ import {
 } from "../auth.ts";
 import type { AuthMethods, PasswordStore } from "../auth.ts";
 import { githubAuthorizeUrl, githubLoginFromCode } from "../../github/oauth.ts";
+import { readBoundedUtf8 } from "../../remote/server/body.ts";
 import { handleClient, handleLogo, handleStyles } from "../assets.ts";
 import {
   activityFeed,
@@ -501,7 +502,14 @@ async function sessionOf(request: Request) {
 }
 
 function safeNext(value: string | null): string {
+  // A path-only redirect. It must start with a single "/", and may not hold a
+  // backslash (browsers read "/\host" as "//host") or a control character (a
+  // tab or newline is stripped, turning "/\t/host" into "//host") — both would
+  // send the browser to another origin.
   if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";
+  for (let i = 0; i < value.length; i++) {
+    if (value.charCodeAt(i) <= 0x1f || value[i] === "\\") return "/";
+  }
   return value;
 }
 
@@ -627,7 +635,8 @@ async function handleLoginForm(
   ip: string,
   auth: AuthMethods,
 ): Promise<Response> {
-  const form = await request.formData();
+  const bounded = await readBoundedUtf8(request, 64 * 1024);
+  const form = new URLSearchParams(bounded.ok ? bounded.text : "");
   const password = String(form.get("password") ?? "");
   const next = safeNext(String(form.get("next") ?? "/"));
   if (!auth.password) {
@@ -698,7 +707,7 @@ async function handleGithubCallback(
   return new Response(null, {
     status: 303,
     headers: {
-      location: saved.next,
+      location: safeNext(saved.next),
       "set-cookie": sessionCookieHeader(
         result.token,
         Boolean(deps.secureCookie),

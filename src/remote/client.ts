@@ -17,6 +17,7 @@ import {
 } from "./http.ts";
 import { readConfig, writeUserConfig, type ByokPolicy } from "../config.ts";
 import { getEnv } from "../util/runtime.ts";
+import { stripControlChars } from "../util/sanitize.ts";
 import { prepareLocalCodegraph } from "../local/codegraph_prepare.ts";
 import { canPrompt } from "../tools/codegraph.ts";
 import {
@@ -221,8 +222,9 @@ export async function runRemoteReview(
     const shown = config.remoteNoticeShownFor ?? [];
     if (!shown.includes(hostKey) && !cli.json) {
       console.error(
-        "Remote review sends your unpublished diff to the server you configured. " +
-          "Use a host you trust.",
+        "Remote review sends your unpublished diff to the server you configured, " +
+          "and the server may ask it to read other files in this repository while " +
+          "reviewing. Use a host you trust.",
       );
       await writeUserConfig({
         remoteNoticeShownFor: [...shown, hostKey],
@@ -291,6 +293,10 @@ export async function runRemoteReview(
 
     let afterLogSeq = 0;
     let toolResults: Awaited<ReturnType<typeof runRemoteToolCalls>> = [];
+    let toolCallsRun = 0;
+    // A trustworthy server drives at most a few tool rounds; cap the total so a
+    // malicious one cannot make the client read its tree without limit.
+    const MAX_REMOTE_TOOL_CALLS = 200;
     const intervalMs = hs.sync.intervalSeconds * 1000;
     while (true) {
       const sync = await remoteFetch(
@@ -323,11 +329,18 @@ export async function runRemoteReview(
           console.error(
             cli.output === "github"
               ? neutralizeCommands(line.message)
-              : line.message,
+              : stripControlChars(line.message),
           );
         }
       }
       if (payload.toolCalls?.length) {
+        toolCallsRun += payload.toolCalls.length;
+        if (toolCallsRun > MAX_REMOTE_TOOL_CALLS) {
+          die(
+            "remote_tool_calls_exceeded",
+            `the server asked for more than ${MAX_REMOTE_TOOL_CALLS} tool calls`,
+          );
+        }
         toolResults = await runRemoteToolCalls(payload.toolCalls, localTools);
         continue;
       }
@@ -398,8 +411,10 @@ export async function runRemoteReview(
       }
       if (payload.status === "failed" || payload.status === "canceled") {
         die(
-          payload.abort?.reason ?? "remote_failed",
-          payload.abort?.message ?? "Remote review did not complete.",
+          stripControlChars(payload.abort?.reason ?? "remote_failed"),
+          stripControlChars(
+            payload.abort?.message ?? "Remote review did not complete.",
+          ),
         );
       }
       await new Promise((resolve) => setTimeout(resolve, intervalMs));

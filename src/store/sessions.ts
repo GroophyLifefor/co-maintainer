@@ -51,3 +51,9 @@ export function deleteOtherSessions(keepTokenHash: string): void {
     .prepare(`DELETE FROM sessions WHERE token_hash != ?`)
     .run(keepTokenHash);
 }
+
+/** Drop every dashboard session. Used when a credential is reset from the CLI,
+ * so a leaked cookie cannot outlive the password it was issued under. */
+export function deleteAllSessions(): void {
+  getAppDb().prepare(`DELETE FROM sessions`).run();
+}
