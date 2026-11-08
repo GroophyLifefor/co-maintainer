@@ -1,13 +1,20 @@
 /** Bounded request body read (bytes, streaming). */
 
+export type BoundedBytesResult =
+  | { ok: true; bytes: Uint8Array }
+  | { ok: false; reason: "too_large" };
+
 export type BoundedBodyResult =
   | { ok: true; text: string }
   | { ok: false; reason: "too_large" | "empty" };
 
-export async function readBoundedUtf8(
+/** Reads the raw body, streaming, and refuses once more than `maxBytes` have
+ * arrived — this holds with no Content-Length (chunked) too. The caller gets
+ * the exact bytes, which the webhook HMAC needs. */
+export async function readBoundedBytes(
   request: Request,
   maxBytes: number,
-): Promise<BoundedBodyResult> {
+): Promise<BoundedBytesResult> {
   const lengthHeader = request.headers.get("content-length");
   if (lengthHeader !== null) {
     const declared = Number(lengthHeader);
@@ -17,7 +24,7 @@ export async function readBoundedUtf8(
   }
 
   const stream = request.body;
-  if (!stream) return { ok: true, text: "" };
+  if (!stream) return { ok: true, bytes: new Uint8Array(0) };
 
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
@@ -38,15 +45,23 @@ export async function readBoundedUtf8(
     reader.releaseLock();
   }
 
-  if (total === 0) return { ok: true, text: "" };
-
   const merged = new Uint8Array(total);
   let offset = 0;
   for (const chunk of chunks) {
     merged.set(chunk, offset);
     offset += chunk.length;
   }
-  return { ok: true, text: new TextDecoder().decode(merged) };
+  return { ok: true, bytes: merged };
+}
+
+export async function readBoundedUtf8(
+  request: Request,
+  maxBytes: number,
+): Promise<BoundedBodyResult> {
+  const body = await readBoundedBytes(request, maxBytes);
+  if (!body.ok) return { ok: false, reason: "too_large" };
+  if (body.bytes.length === 0) return { ok: true, text: "" };
+  return { ok: true, text: new TextDecoder().decode(body.bytes) };
 }
 
 export async function readBoundedJson(

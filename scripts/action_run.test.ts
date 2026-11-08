@@ -1,5 +1,5 @@
 /** The GitHub Action's script and its manifest. The script runs for
- * real here, against a fake `npx` and a real `git`, so what the action does
+ * real here, against a fake `npm` and a real `git`, so what the action does
  * with its inputs is checked without a GitHub runner. */
 import { test } from "node:test";
 import { spawnSync } from "node:child_process";
@@ -40,10 +40,21 @@ const base = {
   CM_ACTION_DRY_RUN: "1",
 };
 
-function commandOf(result: Run): string {
-  const line = result.stdout.split("\n").find((l) => l.startsWith("npx "));
+/** The `node <entry> …args` line the dry run prints. */
+function runLine(result: Run): string {
+  const line = result.stdout.split("\n").find((l) => l.startsWith("run node "));
   if (!line)
-    throw new Error(`no command printed:\n${result.stdout}${result.stderr}`);
+    throw new Error(`no run line printed:\n${result.stdout}${result.stderr}`);
+  return line;
+}
+
+/** The `install <package> into <dir>` line the dry run prints. */
+function installLine(result: Run): string {
+  const line = result.stdout.split("\n").find((l) => l.startsWith("install "));
+  if (!line)
+    throw new Error(
+      `no install line printed:\n${result.stdout}${result.stderr}`,
+    );
   return line;
 }
 
@@ -55,7 +66,7 @@ test("an empty remote-token stops the step with exit 2 and says why", () => {
   if (!result.stdout.includes(`::error title=co-maintainer::${want}`)) {
     throw new Error(`the annotation is missing:\n${result.stdout}`);
   }
-  if (result.stdout.includes("npx")) throw new Error("nothing may run");
+  if (result.stdout.includes("run node")) throw new Error("nothing may run");
 });
 
 test("an empty remote-host stops the step the same way", () => {
@@ -71,17 +82,14 @@ test("the token and the key are masked before anything else is printed", () => {
   const lines = result.stdout.split("\n");
   const token = lines.indexOf("::add-mask::cmr_secret_token");
   const key = lines.indexOf("::add-mask::sk-my-own-key");
-  const command = lines.findIndex((l) => l.startsWith("npx "));
+  const command = lines.findIndex((l) => l.startsWith("run node "));
   if (token === -1 || key === -1) throw new Error(result.stdout);
   if (!(token < command && key < command)) {
     throw new Error("secrets must be masked before the command is shown");
   }
-  const command_ = commandOf(result);
-  if (
-    command_.includes("cmr_secret_token") ||
-    command_.includes("sk-my-own-key")
-  ) {
-    throw new Error(`a secret is on the command line: ${command_}`);
+  const line = runLine(result);
+  if (line.includes("cmr_secret_token") || line.includes("sk-my-own-key")) {
+    throw new Error(`a secret is on the command line: ${line}`);
   }
 });
 
@@ -93,18 +101,22 @@ test("the command is review --remote --output=github with the branches it was gi
     HEAD_REF: "feature/x",
   });
   if (full.code !== 0) throw new Error(`exit ${full.code}\n${full.stderr}`);
+  const line = runLine(full);
+  if (!line.includes("/node_modules/co-maintainer/dist/main.js")) {
+    throw new Error(
+      `the entry point is installed outside the checkout: ${line}`,
+    );
+  }
   if (
-    commandOf(full) !==
-    "npx --yes -p co-maintainer@0.5.1 co-maintainer review --remote --output=github --to-branch=main --branch=feature/x"
+    !line.endsWith(
+      "review --remote --output=github --to-branch=main --branch=feature/x",
+    )
   ) {
-    throw new Error(commandOf(full));
+    throw new Error(line);
   }
   const bare = run({ ...base, VERSION: "0.5.1" });
-  if (
-    commandOf(bare) !==
-    "npx --yes -p co-maintainer@0.5.1 co-maintainer review --remote --output=github"
-  ) {
-    throw new Error(`a push has no base or head branch: ${commandOf(bare)}`);
+  if (!runLine(bare).endsWith("review --remote --output=github")) {
+    throw new Error(`a push has no base or head branch: ${runLine(bare)}`);
   }
 });
 
@@ -115,25 +127,20 @@ test("the version defaults to the one in the action's own package.json", () => {
     }
   ).version;
   const result = run(base);
-  if (!commandOf(result).includes(`co-maintainer@${wanted} `)) {
-    throw new Error(commandOf(result));
+  if (!installLine(result).includes(`co-maintainer@${wanted} `)) {
+    throw new Error(installLine(result));
   }
 });
 
 test("the key adds --remote-byok, and the test hook replaces the package", () => {
   const byok = run({ ...base, VERSION: "0.5.1", REMOTE_BYOK: "sk-k" });
-  if (!commandOf(byok).endsWith(" --remote-byok"))
-    throw new Error(commandOf(byok));
+  if (!runLine(byok).endsWith(" --remote-byok")) throw new Error(runLine(byok));
   const local = run({
     ...base,
     CM_ACTION_PACKAGE: "/tmp/co-maintainer-0.5.1.tgz",
   });
-  if (
-    !commandOf(local).startsWith(
-      "npx --yes -p /tmp/co-maintainer-0.5.1.tgz co-maintainer review",
-    )
-  ) {
-    throw new Error(commandOf(local));
+  if (!installLine(local).includes("/tmp/co-maintainer-0.5.1.tgz")) {
+    throw new Error(installLine(local));
   }
 });
 
@@ -185,20 +192,43 @@ test("the base branch is fetched first, and a failed fetch is a runtime error", 
   }
 });
 
-test("a real run hands the host and keys over by environment and passes the exit code through", () => {
+test("a real run installs outside the checkout, passes host and keys by env, and passes the exit code through", () => {
   const bin = tempDirSync();
   const record = join(bin, "record");
   mkdirSync(record);
-  const npx = join(bin, "npx");
+  // A fake `npm install` that writes the entry point the action then runs. The
+  // entry records what it was called with so we can see the review got the
+  // host and keys by environment and no secret on its argv.
+  const npm = join(bin, "npm");
   writeFileSync(
-    npx,
+    npm,
     `#!/usr/bin/env bash
-printf '%s\\n' "$@" > "${record.replace(/\\/g, "/")}/argv.txt"
-env | grep '^CM_REMOTE' | sort > "${record.replace(/\\/g, "/")}/env.txt"
-exit 7
+dest=""
+prev=""
+for a in "$@"; do
+  if [ "$prev" = "--prefix" ]; then dest="$a"; fi
+  prev="$a"
+done
+mkdir -p "$dest/node_modules/co-maintainer/dist"
+printf '{"type":"commonjs","main":"dist/main.js"}' > "$dest/node_modules/co-maintainer/package.json"
+cat > "$dest/node_modules/co-maintainer/dist/main.js" <<'JS'
+const fs = require("fs");
+const rec = process.env.CM_TEST_RECORD;
+fs.writeFileSync(rec + "/argv.txt", process.argv.slice(2).join("\\n"));
+fs.writeFileSync(
+  rec + "/env.txt",
+  Object.keys(process.env)
+    .filter((k) => k.startsWith("CM_REMOTE"))
+    .sort()
+    .map((k) => k + "=" + process.env[k])
+    .join("\\n"),
+);
+process.exit(7);
+JS
+exit 0
 `,
   );
-  chmodSync(npx, 0o755);
+  chmodSync(npm, 0o755);
   const sep = process.platform === "win32" ? ";" : ":";
   const result = run(
     {
@@ -206,6 +236,7 @@ exit 7
       CM_ACTION_DRY_RUN: "",
       VERSION: "0.5.1",
       REMOTE_BYOK: "sk-my-own-key",
+      CM_TEST_RECORD: record,
     },
     { path: `${bin}${sep}${process.env.PATH ?? ""}` },
   );
@@ -218,12 +249,7 @@ exit 7
   if (argv.includes("cmr_secret_token") || argv.includes("sk-my-own-key")) {
     throw new Error(`a secret reached the arguments:\n${argv}`);
   }
-  if (
-    !argv.includes("--remote-byok") ||
-    !argv.includes("co-maintainer@0.5.1")
-  ) {
-    throw new Error(argv);
-  }
+  if (!argv.includes("--remote-byok")) throw new Error(argv);
   const env = readFileSync(join(record, "env.txt"), "utf8");
   for (const line of [
     "CM_REMOTE_BYOK=sk-my-own-key",

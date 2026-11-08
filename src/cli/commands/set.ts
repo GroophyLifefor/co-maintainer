@@ -11,6 +11,9 @@ import {
 } from "../../review/system_prompt.ts";
 import type { RepoConfig } from "../../config.ts";
 import { hashPassword, passwordProblem } from "../../util/password.ts";
+import { deleteAllSessions } from "../../store/sessions.ts";
+import { appDbPath, closeAppDb, openAppDb } from "../../store/app_db.ts";
+import { existsSync } from "node:fs";
 import { readTextFile } from "../../util/runtime.ts";
 import {
   verifyAnthropic,
@@ -382,6 +385,22 @@ export async function runSet(args: string[]): Promise<void> {
   }
 
   await writeUserConfig(patch);
+  // A changed password, allowed user, or sign-in method must not leave old
+  // dashboard sessions valid. Only touch the session store if it already
+  // exists (a server has run); never create it just to clear it.
+  const credentialChanged =
+    patch.dashboardPasswordHash !== undefined ||
+    patch.passwordAuthDisabled !== undefined ||
+    patch.githubAuthEnabled !== undefined ||
+    patch.githubOAuthAllowedUser !== undefined;
+  if (credentialChanged && existsSync(appDbPath())) {
+    await openAppDb();
+    try {
+      deleteAllSessions();
+    } finally {
+      await closeAppDb();
+    }
+  }
   const summary = Object.entries(patch).map(([key, value]) =>
     value === undefined
       ? `${key} (unset)`

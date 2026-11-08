@@ -89,22 +89,40 @@ test("POST /github/webhook rejects a bad HMAC when a secret is configured", asyn
   });
 });
 
-test("POST /github/webhook does not need a session or CSRF header", async () => {
+test("POST /github/webhook is rejected when no secret is configured", async () => {
   await withTempEnv(async () => {
     activateRepo("acme/widgets", 1);
     markKnowledgeBuilt("acme/widgets", "sha");
     const app = createApp({ password: PASSWORD });
-    const body = prBody();
     const response = await app.fetch(
       new Request("http://localhost/github/webhook", {
         method: "POST",
         headers: {
           "content-type": "application/json",
           "x-github-event": "pull_request",
-          "x-github-delivery": "del-open-1",
+          "x-github-delivery": "del-nosecret",
         },
-        body,
+        body: prBody(),
       }),
+    );
+    if (response.status !== 401) {
+      throw new Error(`expected 401 without a secret, got ${response.status}`);
+    }
+    if (getQueuedJob("acme/widgets", 11)) {
+      throw new Error("a review was enqueued without signature verification");
+    }
+  });
+});
+
+test("POST /github/webhook does not need a session or CSRF header", async () => {
+  await withTempEnv(async () => {
+    activateRepo("acme/widgets", 1);
+    markKnowledgeBuilt("acme/widgets", "sha");
+    await writeUserConfig({ githubWebhookSecret: SECRET });
+    const app = createApp({ password: PASSWORD });
+    const body = prBody();
+    const response = await app.fetch(
+      await signedRequest(body, { "x-github-delivery": "del-open-1" }),
     );
     if (response.status !== 200) {
       throw new Error(`status ${response.status}: ${await response.text()}`);
@@ -151,16 +169,11 @@ test("a draft pull request is recorded as skipped, not enqueued", async () => {
   await withTempEnv(async () => {
     activateRepo("acme/widgets", 1);
     markKnowledgeBuilt("acme/widgets", "sha");
+    await writeUserConfig({ githubWebhookSecret: SECRET });
     const app = createApp({ password: PASSWORD });
     const response = await app.fetch(
-      new Request("http://localhost/github/webhook", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-github-event": "pull_request",
-          "x-github-delivery": "del-draft",
-        },
-        body: prBody({
+      await signedRequest(
+        prBody({
           pull_request: {
             number: 11,
             draft: true,
@@ -170,7 +183,8 @@ test("a draft pull request is recorded as skipped, not enqueued", async () => {
             changed_files: 1,
           },
         }),
-      }),
+        { "x-github-delivery": "del-draft" },
+      ),
     );
     const result = await response.json();
     if (result.outcome !== "skipped" || result.reason !== "draft") {
@@ -188,23 +202,20 @@ test("a draft pull request is recorded as skipped, not enqueued", async () => {
 
 test("unparseable JSON is 400 and a missing delivery header is 400", async () => {
   await withTempEnv(async () => {
+    await writeUserConfig({ githubWebhookSecret: SECRET });
     const app = createApp({ password: PASSWORD });
     const badJson = await app.fetch(
-      new Request("http://localhost/github/webhook", {
-        method: "POST",
-        headers: {
-          "x-github-event": "pull_request",
-          "x-github-delivery": "del-bad",
-        },
-        body: "not-json",
-      }),
+      await signedRequest("not-json", { "x-github-delivery": "del-bad" }),
     );
     if (badJson.status !== 400) {
       throw new Error(`bad json status ${badJson.status}`);
     }
+    const bytes = new TextEncoder().encode("{}");
+    const hex = await hmacSha256Hex(SECRET, bytes);
     const missing = await app.fetch(
       new Request("http://localhost/github/webhook", {
         method: "POST",
+        headers: { "x-hub-signature-256": `sha256=${hex}` },
         body: "{}",
       }),
     );
@@ -217,16 +228,11 @@ test("unparseable JSON is 400 and a missing delivery header is 400", async () =>
 test("a PR mention enqueues a conversation reply job", async () => {
   await withTempEnv(async () => {
     activateRepo("acme/widgets", 1);
+    await writeUserConfig({ githubWebhookSecret: SECRET });
     const app = createApp({ password: PASSWORD });
     const response = await app.fetch(
-      new Request("http://localhost/github/webhook", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-github-event": "issue_comment",
-          "x-github-delivery": "del-reply",
-        },
-        body: JSON.stringify({
+      await signedRequest(
+        JSON.stringify({
           action: "created",
           repository: { full_name: "acme/widgets" },
           issue: { number: 11, pull_request: { url: "pr" } },
@@ -236,7 +242,8 @@ test("a PR mention enqueues a conversation reply job", async () => {
             user: { login: "octocat", type: "User" },
           },
         }),
-      }),
+        { "x-github-event": "issue_comment", "x-github-delivery": "del-reply" },
+      ),
     );
     const result = await response.json();
     if (result.outcome !== "enqueued" || !result.jobId) {
@@ -253,17 +260,10 @@ test("auto-review-off is skipped when the repo setting is off", async () => {
     activateRepo("acme/widgets", 1);
     updateRepoSettings("acme/widgets", { auto_review: 0 });
     markKnowledgeBuilt("acme/widgets", "sha");
+    await writeUserConfig({ githubWebhookSecret: SECRET });
     const app = createApp({ password: PASSWORD });
     const response = await app.fetch(
-      new Request("http://localhost/github/webhook", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-github-event": "pull_request",
-          "x-github-delivery": "del-off",
-        },
-        body: prBody(),
-      }),
+      await signedRequest(prBody(), { "x-github-delivery": "del-off" }),
     );
     const result = await response.json();
     if (result.reason !== "auto-review-off") {

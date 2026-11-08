@@ -2,7 +2,11 @@ import { readConfig } from "../../config.ts";
 import { errorResponse } from "../errors.ts";
 import { hasDelivery, recordDelivery } from "../../store/deliveries.ts";
 import { dispatchGithubEvent } from "../../services/webhook.ts";
+import { readBoundedBytes } from "../../remote/server/body.ts";
 import { verifySignature } from "./signature.ts";
+
+/** GitHub caps a webhook payload at 25 MB; nothing larger is genuine. */
+const WEBHOOK_MAX_BODY_BYTES = 25 * 1024 * 1024;
 
 function json(status: number, body: unknown): Response {
   return Response.json(body, { status });
@@ -12,12 +16,23 @@ export async function handleWebhookRequest(
   request: Request,
   secret?: string,
 ): Promise<Response> {
-  const raw = new Uint8Array(await request.arrayBuffer());
-  if (secret) {
-    const header = request.headers.get("x-hub-signature-256");
-    if (!(await verifySignature(secret, raw, header))) {
-      return errorResponse(401, "unauthorized", "bad webhook signature");
-    }
+  const bounded = await readBoundedBytes(request, WEBHOOK_MAX_BODY_BYTES);
+  if (!bounded.ok) {
+    return errorResponse(413, "payload_too_large", "request body too large");
+  }
+  const raw = bounded.bytes;
+  // Fail closed: with no secret configured there is no way to tell a real
+  // delivery from a forged one, so reject rather than trust the payload.
+  if (!secret) {
+    return errorResponse(
+      401,
+      "unauthorized",
+      "webhook secret is not configured, so deliveries cannot be verified",
+    );
+  }
+  const header = request.headers.get("x-hub-signature-256");
+  if (!(await verifySignature(secret, raw, header))) {
+    return errorResponse(401, "unauthorized", "bad webhook signature");
   }
 
   const deliveryId = request.headers.get("x-github-delivery");
