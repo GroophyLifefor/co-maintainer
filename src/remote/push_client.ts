@@ -121,7 +121,13 @@ async function diffBase(
   console.error(
     `Warning: could not fetch ${before.slice(0, 7)}, so only the last commit of this push is reviewed.`,
   );
-  const parent = await ensureCommit(root, remote, `${after}^`);
+  // `after^` is no refspec git can fetch, so a depth-one checkout is deepened
+  // by one commit to bring the parent in.
+  let parent = await resolveCommit(root, `${after}^`);
+  if (!parent) {
+    await git(root, ["fetch", "--quiet", "--no-tags", "--deepen=1", remote]);
+    parent = await resolveCommit(root, `${after}^`);
+  }
   if (!parent) {
     die(
       "push_base_missing",
@@ -292,6 +298,14 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
         notice(
           cli,
           `${error.message ?? "This repository is not initialized."} The commit got a skipped check run.`,
+        );
+        exitWith(0);
+        return;
+      }
+      if (error.code === "not_default_branch") {
+        notice(
+          cli,
+          error.message ?? "Commit watch reviews the default branch only.",
         );
         exitWith(0);
         return;

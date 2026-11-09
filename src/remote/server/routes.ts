@@ -171,7 +171,7 @@ async function handleSubmit(request: Request, ip: string): Promise<Response> {
   }
 
   const record = parsed.value as Record<string, unknown>;
-  if (record.push !== undefined) return submitPush(record);
+  if (record.push !== undefined) return await submitPush(record);
 
   const result = submitRemoteReview(auth, record);
   if ("error" in result) {
@@ -190,11 +190,21 @@ async function handleSubmit(request: Request, ip: string): Promise<Response> {
 /** `review --remote --range`: a push to review on the server. The review
  * does not depend on this client staying connected, so it opens no remote
  * session and offers no tool bridge. */
-function submitPush(record: Record<string, unknown>): Response {
+async function submitPush(record: Record<string, unknown>): Promise<Response> {
   const push = record.push as { before: string; after: string; ref: string };
   const repoRow = findRepoByFullName(String(record.repo));
   if (!repoRow || repoRow.active !== 1) {
     return errorResponse(404, "repo_unavailable", REPO_UNAVAILABLE);
+  }
+  // Commit watch reviews the default branch only, as the App webhook does.
+  // A feature branch would open and close issues against unmerged code.
+  const defaultBranch = await defaultBranchForRepo(repoRow.full_name);
+  if (defaultBranch && push.ref !== `refs/heads/${defaultBranch}`) {
+    return errorResponse(
+      409,
+      "not_default_branch",
+      `Commit watch reviews pushes to ${defaultBranch} only.`,
+    );
   }
   let revision;
   try {

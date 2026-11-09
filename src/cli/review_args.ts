@@ -52,11 +52,15 @@ export type ReviewCliArgs =
 /** `before..after`. Each side is any revision git can resolve. */
 function parseRange(value: string | undefined): ReviewFlags["range"] {
   if (value === undefined) return undefined;
-  const match = /^([^.\s]+)\.\.([^.\s]+)$/.exec(value);
-  if (!match || match[1]!.startsWith("-") || match[2]!.startsWith("-")) {
+  // A side may hold single dots (v0.6.9), never two in a row, so `..` splits
+  // once and `a...b` is refused.
+  const sides = value.split("..");
+  const valid = (side: string | undefined): side is string =>
+    Boolean(side) && /^[^\s-][^\s]*$/.test(side!) && !/^\.|\.$/.test(side!);
+  if (sides.length !== 2 || !valid(sides[0]) || !valid(sides[1])) {
     die("--range must look like <before>..<after>");
   }
-  return { before: match[1]!, after: match[2]! };
+  return { before: sides[0], after: sides[1] };
 }
 
 function parseTimeout(value: string | undefined): number | undefined {

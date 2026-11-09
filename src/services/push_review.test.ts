@@ -461,7 +461,17 @@ test("--range needs --remote, and --timeout-minutes needs --range", async () => 
     "range",
   );
   expect(ok.timeoutMinutes === 15, "timeout");
+  for (const range of ["v0.6.9..v0.6.10", "release/1.2..HEAD"]) {
+    const dotted = await parseReviewArgs(["--remote", `--range=${range}`]);
+    expect(
+      dotted.mode === "remote" &&
+        `${dotted.range?.before}..${dotted.range?.after}` === range,
+      `dotted ${range}`,
+    );
+  }
   for (const args of [
+    ["--remote", "--range=a...b"],
+    ["--remote", "--range=a..-b"],
     [`--range=${BEFORE}..${AFTER}`],
     ["--remote", "--timeout-minutes=5"],
     ["--remote", "--range=abc"],

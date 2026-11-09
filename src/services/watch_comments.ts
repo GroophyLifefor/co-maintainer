@@ -199,10 +199,10 @@ ${(guides.shortGuide || guides.skill || "").slice(0, 20_000)}`,
 ${issue.body_md.slice(0, 6000)}
 
 CURRENT CODE:
-${code}
+${code.slice(0, 20_000)}
 
 QUESTION from ${args.author ?? "a maintainer"}:
-${args.body}`,
+${args.body.slice(0, 6000)}`,
     },
     5,
   );

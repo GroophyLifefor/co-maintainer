@@ -1045,10 +1045,7 @@ async function runPushReview(
             after: args.after,
             reviewId: review.id,
             checkRunId,
-            title: signal.aborted ? "Review canceled" : "Review did not finish",
-            summary: signal.aborted
-              ? `The review of ${range} was canceled. When a newer push was merged into it, that review covers this push.`
-              : `The review of ${range} did not finish. The dashboard has the reason.`,
+            ...stoppedCheckText(signal.aborted, range),
             findings: [],
           },
           log,
@@ -1056,6 +1053,21 @@ async function runPushReview(
       }
     }
   }
+}
+
+function stoppedCheckText(
+  aborted: boolean,
+  range: string,
+): { title: string; summary: string } {
+  return aborted
+    ? {
+        title: "Review canceled",
+        summary: `The review of ${range} was canceled. When a newer push was merged into it, that review covers this push.`,
+      }
+    : {
+        title: "Review did not finish",
+        summary: `The review of ${range} did not finish. The dashboard has the reason.`,
+      };
 }
 
 function resultCheckText(
@@ -1137,9 +1149,29 @@ export function registerPushReviewHandlers(): void {
     run: runPushReview,
     // A push review that was running when the server stopped may have opened
     // issues already. Running it again could open them twice, so it ends.
-    async reconcile(job) {
+    // The check it started is completed here, since its finally never ran.
+    async reconcile(job, log) {
       const review = getReviewByJobId(job.id);
-      if (review) setReviewStatus(review.id, "failed");
+      if (!review) return "canceled";
+      setReviewStatus(review.id, "failed");
+      if (review.check_run_id) {
+        const args = JSON.parse(job.args) as { before: string; after: string };
+        const client = await appClientFor(job.repo);
+        if (client) {
+          await completeCheckRun(
+            client,
+            job.repo,
+            {
+              after: args.after,
+              reviewId: review.id,
+              checkRunId: review.check_run_id,
+              ...stoppedCheckText(false, pushRange(args.before, args.after)),
+              findings: [],
+            },
+            log,
+          );
+        }
+      }
       return "canceled";
     },
   });
