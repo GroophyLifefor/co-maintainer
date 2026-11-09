@@ -343,6 +343,25 @@ export function renderRepoSettings(
       </div>
       <div class="ft"><button class="primary" id="save-auto">Save</button></div>
     </div>
+    <div class="card" data-async id="commit-watch-settings">
+      ${skSlot()}
+      <div class="hd"><h2>Commit watch</h2></div>
+      <div class="bd">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:22px">
+          <button class="tg${repo.watch_open_issues === 0 ? "" : " on"}" id="watch-issues"></button>
+          <div>Open a GitHub issue for each P0 and P1 finding</div>
+        </div>
+        <div class="field">
+          <label>When pushes come in a row</label>
+          <div class="seg" id="watch-mode-seg">
+            <button type="button" data-v="queue" class="${repo.watch_push_mode === "cancel-and-merge" ? "" : "on"}">Review each push in turn</button>
+            <button type="button" data-v="cancel-and-merge" class="${repo.watch_push_mode === "cancel-and-merge" ? "on" : ""}">Cancel and merge into the newest</button>
+          </div>
+          <div class="hint">Cancel and merge stops a waiting or running review and reviews the pushes together.</div>
+        </div>
+      </div>
+      <div class="ft"><button class="primary" id="save-watch">Save</button></div>
+    </div>
     <div class="card" data-async>
       ${skSlot()}
       <div class="hd"><h2>Custom review instructions</h2></div>
@@ -847,6 +866,29 @@ if (document.getElementById("auto")) {
 document.getElementById("codegraph").addEventListener("click", function() {
   this.classList.toggle("on");
 });
+document.getElementById("watch-issues").addEventListener("click", function() {
+  this.classList.toggle("on");
+});
+function selectedWatchMode() {
+  var on = document.querySelector("#watch-mode-seg button.on");
+  return on ? on.getAttribute("data-v") : "queue";
+}
+document.querySelectorAll("#watch-mode-seg button").forEach(function(btn) {
+  btn.addEventListener("click", function() {
+    document.querySelectorAll("#watch-mode-seg button").forEach(function(b) {
+      b.classList.toggle("on", b === btn);
+    });
+  });
+});
+function watchBody() {
+  return {
+    watchOpenIssues: document.getElementById("watch-issues").classList.contains("on"),
+    watchPushMode: selectedWatchMode()
+  };
+}
+document.getElementById("save-watch").addEventListener("click", function() {
+  save(this, watchBody());
+});
 document.getElementById("save-init").addEventListener("click", function() {
   save(this, {
     maxPrMonths: initNumber("months"),
@@ -901,7 +943,9 @@ document.getElementById("save-changes").addEventListener("click", function() {
     maxPrMonths: initNumber("months"),
     maxCommits: initNumber("commits"),
     maxPullRequestChangeLines: initNumber("lines"),
-    maxComments: initNumber("comments")
+    maxComments: initNumber("comments"),
+    watchOpenIssues: watchBody().watchOpenIssues,
+    watchPushMode: watchBody().watchPushMode
   };
   if (select.value === "legacy") {
     var auto = document.getElementById("auto");

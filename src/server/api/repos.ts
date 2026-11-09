@@ -1,4 +1,5 @@
 import { errorResponse } from "../errors.ts";
+import { canonicalRepoName } from "../../util/repo_name.ts";
 import { AppClient, findInstallationForRepo } from "../../github/app.ts";
 import {
   activateRepo,
@@ -94,7 +95,7 @@ export async function handleReposRoute(
     } catch {
       return errorResponse(400, "bad_request", "expected a JSON body");
     }
-    const repo = String(body.repo ?? "");
+    const repo = canonicalRepoName(String(body.repo ?? ""));
     if (!/^[^/]+\/[^/]+$/.test(repo)) {
       return errorResponse(
         400,
@@ -185,7 +186,7 @@ export async function handleReposRoute(
     } catch {
       return errorResponse(400, "bad_request", "expected a JSON body");
     }
-    const repo = String(body.repo ?? "");
+    const repo = canonicalRepoName(String(body.repo ?? ""));
     if (!/^[^/]+\/[^/]+$/.test(repo)) {
       return errorResponse(
         400,
@@ -442,6 +443,22 @@ export async function handleReposRoute(
         body.reviewScope === "incremental"
       ) {
         patch.review_scope = body.reviewScope;
+      }
+      if (typeof body.watchOpenIssues === "boolean") {
+        patch.watch_open_issues = body.watchOpenIssues ? 1 : 0;
+      }
+      if (body.watchPushMode !== undefined) {
+        if (
+          body.watchPushMode !== "queue" &&
+          body.watchPushMode !== "cancel-and-merge"
+        ) {
+          return errorResponse(
+            422,
+            "invalid_watch_push_mode",
+            "watchPushMode must be queue or cancel-and-merge.",
+          );
+        }
+        patch.watch_push_mode = body.watchPushMode;
       }
       updateRepoSettings(fullName, patch);
       const init: Record<string, number | undefined> = {};

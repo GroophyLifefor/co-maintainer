@@ -289,4 +289,67 @@ export const migrations: string[][] = [
   // (registered by init itself, or found on disk by serve after an upgrade),
   // NULL for one added from the dashboard.
   [`ALTER TABLE repos ADD COLUMN added_from TEXT`],
+  // 15 — commit watch: pushes to the default branch, the issues opened for
+  // their P0/P1 findings, and the maintainer notes left on those issues.
+  [
+    `ALTER TABLE repos ADD COLUMN watch_open_issues INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE repos ADD COLUMN watch_push_mode TEXT NOT NULL DEFAULT 'queue'`,
+    `CREATE TABLE push_events (
+      repo TEXT NOT NULL,
+      after_sha TEXT NOT NULL,
+      before_sha TEXT NOT NULL,
+      ref TEXT NOT NULL,
+      sources TEXT NOT NULL DEFAULT '[]',
+      review_id TEXT,
+      job_id TEXT,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (repo, after_sha)
+    )`,
+    `CREATE INDEX idx_push_events_review ON push_events(review_id)`,
+    `CREATE TABLE push_inputs (
+      job_id TEXT PRIMARY KEY,
+      revision_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )`,
+    `CREATE TABLE push_results (
+      review_id TEXT PRIMARY KEY,
+      result_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )`,
+    `CREATE TABLE watch_issues (
+      id TEXT PRIMARY KEY,
+      repo TEXT NOT NULL,
+      issue_number INTEGER NOT NULL,
+      severity TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body_md TEXT NOT NULL,
+      path TEXT,
+      line_from INTEGER,
+      line_to INTEGER,
+      anchor_text TEXT,
+      state TEXT NOT NULL,
+      closed_check TEXT,
+      opened_review_id TEXT NOT NULL,
+      last_review_id TEXT,
+      last_check TEXT,
+      last_check_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    `CREATE UNIQUE INDEX idx_watch_issues_number
+     ON watch_issues(repo, issue_number)`,
+    `CREATE TABLE watch_notes (
+      id TEXT PRIMARY KEY,
+      repo TEXT NOT NULL,
+      issue_number INTEGER NOT NULL,
+      comment_id TEXT NOT NULL,
+      author TEXT,
+      kind TEXT NOT NULL,
+      body TEXT NOT NULL,
+      note TEXT,
+      created_at TEXT NOT NULL,
+      applied_at TEXT,
+      UNIQUE(repo, comment_id)
+    )`,
+  ],
 ];

@@ -12,6 +12,12 @@
 #   VERSION       version input, may be empty
 #   HEAD_REF      github.head_ref, empty outside a pull request
 #   ACTION_PATH   github.action_path
+#   EVENT_NAME    github.event_name. On `push` the step reviews the push
+#                 (commit watch) instead of a pull request:
+#   PUSH_BEFORE   github.event.before
+#   PUSH_AFTER    github.event.after
+#   REF_NAME      github.ref_name, the pushed branch
+#   TIMEOUT_MINUTES  timeout-minutes input, how long a push review is waited on
 #
 # For tests only: CM_ACTION_PACKAGE replaces `co-maintainer@<version>`, and
 # CM_ACTION_DRY_RUN prints the command instead of running it.
@@ -32,6 +38,11 @@ TO_BRANCH="${TO_BRANCH:-}"
 VERSION="${VERSION:-}"
 HEAD_REF="${HEAD_REF:-}"
 ACTION_PATH="${ACTION_PATH:-$(cd "$(dirname "$0")/.." && pwd)}"
+EVENT_NAME="${EVENT_NAME:-}"
+PUSH_BEFORE="${PUSH_BEFORE:-}"
+PUSH_AFTER="${PUSH_AFTER:-}"
+REF_NAME="${REF_NAME:-}"
+TIMEOUT_MINUTES="${TIMEOUT_MINUTES:-10}"
 
 if [ -z "${REMOTE_HOST}" ]; then
   fail 2 "remote-host is empty. ${SECRETS_NOTE}"
@@ -60,6 +71,26 @@ if ! [[ "${VERSION}" =~ ^[0-9A-Za-z][0-9A-Za-z._+-]*$ ]]; then
 fi
 PACKAGE="${CM_ACTION_PACKAGE:-co-maintainer@${VERSION}}"
 
+PUSH_MODE=""
+if [ "${EVENT_NAME}" = "push" ]; then
+  PUSH_MODE=1
+  # The shas come from GitHub's event payload, but they still go into an
+  # argument, so only a full hex sha is accepted.
+  for name in PUSH_BEFORE PUSH_AFTER; do
+    if ! [[ "${!name}" =~ ^[0-9a-f]{40}$ ]]; then
+      fail 2 "${name//_/-} \"${!name}\" is not a commit sha."
+    fi
+  done
+  if [ -z "${REF_NAME}" ] || [[ "${REF_NAME}" == -* ]]; then
+    fail 2 "ref-name \"${REF_NAME}\" is not a branch name."
+  fi
+  if ! [[ "${TIMEOUT_MINUTES}" =~ ^[0-9]+$ ]] || [ "${TIMEOUT_MINUTES}" -lt 1 ]; then
+    fail 2 "timeout-minutes \"${TIMEOUT_MINUTES}\" is not a whole number of minutes."
+  fi
+  # A pull request's base branch means nothing for a push.
+  TO_BRANCH=""
+fi
+
 if [ -n "${TO_BRANCH}" ]; then
   if [[ "${TO_BRANCH}" == -* ]]; then
     fail 2 "to-branch \"${TO_BRANCH}\" is not a branch name."
@@ -75,6 +106,9 @@ if [ -n "${TO_BRANCH}" ]; then
 fi
 
 ARGS=(review --remote --output=github)
+if [ -n "${PUSH_MODE}" ]; then
+  ARGS+=("--range=${PUSH_BEFORE}..${PUSH_AFTER}" "--branch=${REF_NAME}" "--timeout-minutes=${TIMEOUT_MINUTES}")
+fi
 if [ -n "${TO_BRANCH}" ]; then
   ARGS+=("--to-branch=${TO_BRANCH}")
 fi

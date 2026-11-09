@@ -23,6 +23,8 @@ import {
   listFindingsForReview,
 } from "../store/findings.ts";
 import { daysAgoIso } from "../util/time.ts";
+import { listPushReviewsForRepo, listWatchIssues } from "../store/watch.ts";
+import { pushVia } from "./watch_status.ts";
 import type { DeliveryRow, JobRow, RepoRow, ReviewRow } from "../store/rows.ts";
 import { isNotFound, readTextFile } from "../util/runtime.ts";
 
@@ -156,6 +158,34 @@ export function repoRemoteReviews(fullName: string, limit = 30) {
   return {
     items: listRemoteReviewsForRepo(fullName, limit, 0, since),
     stats: reviewStats(since, fullName),
+  };
+}
+
+/** The Pushes tab: each commit watch review with its findings by severity,
+ * how the push arrived, and the issues it opened. */
+export function repoPushes(fullName: string, limit = 50) {
+  requireActiveRepo(fullName);
+  const issues = listWatchIssues(fullName);
+  return {
+    items: listPushReviewsForRepo(fullName, limit).map((review) => {
+      const severities = listFindingsForReview(review.id).map(
+        (f) => f.severity,
+      );
+      const count = (severity: string) =>
+        severities.filter((s) => s === severity).length;
+      return {
+        ...review,
+        via: pushVia(fullName, review),
+        p0: count("P0"),
+        p1: count("P1"),
+        p2: count("P2"),
+        p3: count("P3"),
+        issuesOpened: issues.filter(
+          (issue) => issue.opened_review_id === review.id,
+        ).length,
+      };
+    }),
+    openIssues: issues.filter((issue) => issue.state === "open").length,
   };
 }
 

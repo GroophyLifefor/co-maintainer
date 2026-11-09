@@ -8,7 +8,7 @@ Overview: [`review`](review.md). This is not the same as
 present).
 
 Pushing straight to `main` without PRs: see
-[commit watch review](commit-watch-review.md) (coming soon).
+[commit watch review](commit-watch-review.md).
 
 ## Before you run
 

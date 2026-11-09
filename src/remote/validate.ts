@@ -222,6 +222,22 @@ export function validateSubmitRequest(body: unknown): string | null {
   const revisionErr = validateRevisionPayload(body.revision);
   if (revisionErr) return revisionErr;
 
+  if (body.push !== undefined) {
+    if (!isRecord(body.push)) return bad("push", "must be an object");
+    for (const field of ["before", "after"] as const) {
+      const value = body.push[field];
+      if (typeof value !== "string" || !/^[0-9a-f]{40}$/.test(value)) {
+        return bad(`push.${field}`, "must be a full commit sha");
+      }
+    }
+    const ref = body.push.ref;
+    if (typeof ref !== "string" || !ref.startsWith("refs/heads/")) {
+      return bad("push.ref", "must be refs/heads/<branch>");
+    }
+    const refErr = validateBranch("push.ref", ref.slice("refs/heads/".length));
+    if (refErr) return refErr;
+  }
+
   for (const field of ["systemPromptAdd", "systemPromptOverride"] as const) {
     const value = body[field];
     if (value === undefined) continue;

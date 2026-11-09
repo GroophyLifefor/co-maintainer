@@ -84,6 +84,7 @@ const REPO_PAGES = [
   `/repos/${REPO}/knowledge`,
   `/repos/${REPO}/settings`,
   `/repos/${REPO}/remote`,
+  `/repos/${REPO}/pushes`,
 ];
 
 const SETTINGS_PAGES = [

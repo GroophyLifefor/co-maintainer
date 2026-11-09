@@ -85,6 +85,8 @@ export type ReviewExtras = {
   carryPrompt?: string;
   unchangedPaths?: string[];
   prepareCodegraphTools?: () => Promise<ToolHandler[]>;
+  /** The request's job name, `review_local` when left out. */
+  job?: string;
 };
 
 const MAX_REVIEW_DIFF_CHARS = 240_000;
@@ -787,7 +789,7 @@ ${ownDiff}${unchangedListing}`;
 
   const matrix = clampImproveMatrix(options.improveMatrix);
   const request: AiRequest = {
-    job: "review_local",
+    job: extras?.job ?? "review_local",
     system: `${reviewSystemPrompt(diagrams)}\n\n${reviewGuidesBlock(guide, detailed, codebase)}${reviewSystemPromptBlock(options)}`,
     prompt,
     maxTokens: 24_000 * matrix,

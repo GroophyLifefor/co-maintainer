@@ -109,13 +109,14 @@ Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
 | `/repos/:owner/:repo/pulls/:n` | Findings and cost for one PR |
 | `/repos/:owner/:repo/remote` | Remote CLI reviews for this repo (last 30 days) |
 | `/repos/:owner/:repo/knowledge` | Generated guides, **Sync**, **Clear** |
-| `/repos/:owner/:repo/settings` | **Who gets a review** (the [review policy](review-policy.md)), review scope, codegraph, analysis limits, schedule, remove repo |
+| `/repos/:owner/:repo/settings` | **Who gets a review** (the [review policy](review-policy.md)), review scope, codegraph, [commit watch](commit-watch-review.md) issues and pushes in a row, analysis limits, schedule, remove repo |
+| `/repos/:owner/:repo/pushes` | [Commit watch](commit-watch-review.md) push reviews: range, App or CI, status, findings by severity, issues opened, cost |
 | `/activity` | Live and recent jobs (refreshes about every 5 seconds) and **Pull requests we skipped**, with the rule that skipped each and **Review now** for one that is waiting |
 | `/activity/:id` | Single job log |
 | `/analytics` | Usage for 7, 30, or 90 days |
 | `/settings` | Global models, GitHub, App (**Create GitHub App**), webhook URL, review policy default, remote limits, tokens and key policy |
 
-Per-repo sidebar: **Overview**, **Pull requests**, **Remote**, **Knowledge**, **Settings**.
+Per-repo tabs: **Overview**, **Pull requests**, **Knowledge**, **Remote reviews**, **Pushes**, **Repository settings**. The overview carries the **Commit watch** card.
 
 PR titles are not stored in `app.db`, so lists show `#number` only.
 

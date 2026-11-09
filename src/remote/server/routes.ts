@@ -21,6 +21,8 @@ import {
 } from "../schema.ts";
 import { readBoundedJson } from "./body.ts";
 import { submitRemoteReview } from "../../services/remote_review.ts";
+import { queuePush } from "../../services/push_review.ts";
+import { revisionFromSubmitJson } from "../revision_from_submit.ts";
 import { handleRemoteCancel, handleRemoteSync } from "./sync.ts";
 import { parseRepoQuery, readRemoteGuides } from "./guides.ts";
 import {
@@ -54,7 +56,9 @@ async function authenticateRemote(
   return status;
 }
 
-async function defaultBranchForRepo(fullName: string): Promise<string | null> {
+export async function defaultBranchForRepo(
+  fullName: string,
+): Promise<string | null> {
   try {
     const dir = cloneDir(fullName);
     await stat(dir);
@@ -100,7 +104,9 @@ async function handleHandshake(
     return errorResponse(404, "repo_unavailable", REPO_UNAVAILABLE);
   }
   const guides = await loadGuides(repoRow.full_name);
-  if (!guides.shortGuide && !guides.skill) {
+  // A push review decides about a repository with no guides itself, so the
+  // commit can get a skipped check run when the App covers it.
+  if (!guides.shortGuide && !guides.skill && record.purpose !== "push") {
     return errorResponse(409, "not_initialized", REPO_UNAVAILABLE);
   }
 
@@ -130,7 +136,7 @@ async function handleHandshake(
     // Additive advertisement: a 0.5.0 client ignores these, and an
     // older server never sends them, so the client gates on `features`. No key,
     // model, or other secret is ever echoed here.
-    features: ["byok"],
+    features: ["byok", "push"],
     byok: { policy },
     ai: { provider: config.ai ?? "openrouter" },
   });
@@ -164,10 +170,10 @@ async function handleSubmit(request: Request, ip: string): Promise<Response> {
     return errorResponse(400, "bad_request", validation);
   }
 
-  const result = submitRemoteReview(
-    auth,
-    parsed.value as Record<string, unknown>,
-  );
+  const record = parsed.value as Record<string, unknown>;
+  if (record.push !== undefined) return submitPush(record);
+
+  const result = submitRemoteReview(auth, record);
   if ("error" in result) {
     return errorResponse(result.status, result.code, result.error);
   }
@@ -179,6 +185,65 @@ async function handleSubmit(request: Request, ip: string): Promise<Response> {
     },
     { status: 202 },
   );
+}
+
+/** `review --remote --range`: a push to review on the server. The review
+ * does not depend on this client staying connected, so it opens no remote
+ * session and offers no tool bridge. */
+function submitPush(record: Record<string, unknown>): Response {
+  const push = record.push as { before: string; after: string; ref: string };
+  const repoRow = findRepoByFullName(String(record.repo));
+  if (!repoRow || repoRow.active !== 1) {
+    return errorResponse(404, "repo_unavailable", REPO_UNAVAILABLE);
+  }
+  let revision;
+  try {
+    revision = revisionFromSubmitJson(record.revision);
+  } catch (error) {
+    return errorResponse(400, "bad_request", String(error));
+  }
+  const outcome = queuePush({
+    repo: repoRow.full_name,
+    before: push.before,
+    after: push.after,
+    ref: push.ref,
+    source: "ci",
+    revision,
+  });
+  switch (outcome.kind) {
+    case "enqueued":
+    case "attached":
+      return Response.json(
+        {
+          schemaVersion: REMOTE_SCHEMA_VERSION,
+          jobId: outcome.jobId,
+          reviewId: outcome.reviewId,
+          attached: outcome.kind === "attached",
+        },
+        { status: 202 },
+      );
+    case "no_changes":
+      return Response.json(
+        { schemaVersion: REMOTE_SCHEMA_VERSION, noChanges: true },
+        { status: 200 },
+      );
+    case "extend":
+      return errorResponse(
+        409,
+        "range_extend",
+        "A waiting push review was merged into this one. Send the wider range.",
+        { before: outcome.before },
+      );
+    case "skipped":
+      if (outcome.reason === "not-initialized") {
+        return errorResponse(
+          409,
+          outcome.checkRun ? "not_initialized_skipped" : "not_initialized",
+          outcome.message,
+        );
+      }
+      return errorResponse(409, "push_skipped", outcome.message);
+  }
 }
 
 async function handleGuides(

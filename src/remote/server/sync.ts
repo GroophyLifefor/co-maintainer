@@ -3,6 +3,7 @@ import { errorResponse } from "../../server/errors.ts";
 import { redact } from "../../util/redact.ts";
 import { getJob } from "../../store/jobs.ts";
 import { getReviewByJobId } from "../../store/reviews.ts";
+import { getPushResult } from "../../store/watch.ts";
 import type { RemoteTokenRow } from "../../store/rows.ts";
 import { REMOTE_SCHEMA_VERSION } from "../schema.ts";
 import {
@@ -47,7 +48,10 @@ export function handleRemoteSync(
 
   const job = getJob(jobId);
   const review = getReviewByJobId(jobId);
-  if (!job || !review || review.token_id !== token.id) {
+  // A push review belongs to the repository, not to one token: the App may
+  // have started it and a CI step waits on it.
+  const push = review?.kind === "push";
+  if (!job || !review || (!push && review.token_id !== token.id)) {
     return errorResponse(404, "not_found", "review not found");
   }
 
@@ -79,7 +83,9 @@ export function handleRemoteSync(
   let result: RemoteSyncResult | null = null;
 
   if (status === "done") {
-    result = getRemoteSyncResult(jobId) ?? null;
+    result = push
+      ? (getPushResult(review.id) ?? null)
+      : (getRemoteSyncResult(jobId) ?? null);
   } else if (status === "canceled") {
     const reason = job.cancel_reason ?? "canceled";
     abort = {
@@ -87,7 +93,9 @@ export function handleRemoteSync(
       message:
         reason === "client_timeout"
           ? "No sync received for the configured timeout."
-          : "Review was canceled.",
+          : reason === "merged"
+            ? "This push was merged into the review of a newer push."
+            : "Review was canceled.",
     };
   } else if (status === "failed") {
     abort = {

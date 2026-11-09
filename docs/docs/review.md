@@ -29,6 +29,7 @@ flowchart TD
 | You are in a clone and want feedback on your branch or working tree before you open a PR | [Local review](local-review.md) | Your AI provider on your machine, guides on disk |
 | Same as local review, but the repo is already inited on [`serve`](serve.md) and you skip per-laptop init/sync | [Remote review](remote-review.md) | Shared context on the server, diff from your clone |
 | You have a PR number and do not need to check out that branch locally | [PR review](local-pr-review.md) | `gh` only, guides on disk, AI on your machine |
+| You push straight to `main` with no pull request | [Commit watch](commit-watch-review.md) | The server reviews each push, from the GitHub App or CI (`review --remote --range`) |
 
 PR review and remote review **do not combine**: `--remote` is only for a local
 diff with no PR positional arguments.

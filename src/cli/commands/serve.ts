@@ -26,6 +26,8 @@ import {
   stopRemakeScheduler,
 } from "../../services/remake_cron.ts";
 import { registerRemoteReviewHandler } from "../../services/remote_review.ts";
+import { registerPushReviewHandlers } from "../../services/push_review.ts";
+import { registerWatchCommentHandler } from "../../services/watch_comments.ts";
 import { startRemoteWatchdog } from "../../remote/server/sessions.ts";
 import { passwordProblem } from "../../util/password.ts";
 import { deleteAllSessions } from "../../store/sessions.ts";
@@ -236,6 +238,8 @@ export async function runServe(args: string[]): Promise<void> {
   registerReviewJobHandler();
   registerRemoteReviewHandler();
   registerReplyJobHandler();
+  registerPushReviewHandlers();
+  registerWatchCommentHandler();
   const recovered = await recoverOrphans();
   if (recovered > 0) {
     console.log(

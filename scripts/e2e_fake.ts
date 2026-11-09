@@ -40,6 +40,11 @@ const steps: { name: string; args: string[]; env?: Record<string, string> }[] =
       args: ["scripts/job_refresh_smoke.ts"],
       env: { CM_FAKE_AI: "1" },
     },
+    {
+      name: "commit watch smoke",
+      args: ["scripts/commit_watch_smoke.ts"],
+      env: { CM_FAKE_AI: "1" },
+    },
   ];
 
 let failed = false;

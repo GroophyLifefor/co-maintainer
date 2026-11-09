@@ -10,6 +10,7 @@ import {
   reviewSystemPromptLimit,
 } from "../../review/system_prompt.ts";
 import type { RepoConfig } from "../../config.ts";
+import { canonicalRepoName } from "../../util/repo_name.ts";
 import { hashPassword, passwordProblem } from "../../util/password.ts";
 import { deleteAllSessions } from "../../store/sessions.ts";
 import { appDbPath, closeAppDb, openAppDb } from "../../store/app_db.ts";
@@ -438,8 +439,9 @@ const REPO_SCOPED_UNSET = new Set([
 /** `set --repo=owner/repo [--review-system-prompt=... | --review-system-prompt-max-chars=N | --unset=name]`
  * writes the repository-scoped settings to `repos[owner/repo]` in config.json
  * instead of the global config. */
-async function runSetRepo(repo: string, args: string[]): Promise<void> {
-  if (!/^[^/]+\/[^/]+$/.test(repo)) die("--repo must look like owner/repo");
+async function runSetRepo(typed: string, args: string[]): Promise<void> {
+  if (!/^[^/]+\/[^/]+$/.test(typed)) die("--repo must look like owner/repo");
+  const repo = canonicalRepoName(typed);
   for (const arg of args) {
     if (!arg.startsWith("--")) continue;
     const name = arg.slice(2).split("=")[0]!;

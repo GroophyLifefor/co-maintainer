@@ -42,6 +42,7 @@ import type { Source, State } from "../knowledge/types.ts";
 import type { LogFn } from "./jobs.ts";
 import type { JobRow } from "../store/rows.ts";
 import { mkdir, readTextFile, remove } from "../util/runtime.ts";
+import { applyWatchNotes, withMaintainerNotes } from "./watch_notes.ts";
 import { addResponseCost, emptyTally, type CostTally } from "../util/cost.ts";
 import { costLabel } from "../util/run_summary.ts";
 import { formatError } from "../cli/error.ts";
@@ -169,6 +170,24 @@ async function writeReviewDocuments(
   } else {
     await remove(`${directory}/PR_REVIEW_DETAILED_GUIDE.md`).catch(() => {});
   }
+}
+
+/** Puts the commit watch maintainer notes at the end of the detailed guide,
+ * which every review reads. Called after the guides are written, so a guide
+ * the AI just rebuilt keeps them. */
+async function writeMaintainerNotes(
+  repo: string,
+  lines: string[],
+): Promise<void> {
+  const path = `${reposDir()}/${repo}/PR_REVIEW_DETAILED_GUIDE.md`;
+  let current = "";
+  try {
+    current = await readTextFile(path);
+  } catch {
+    // No detailed guide yet: the notes start one.
+  }
+  const { writeTextFileAtomic } = await import("../util/atomic.ts");
+  await writeTextFileAtomic(path, withMaintainerNotes(current, lines));
 }
 
 /** Writes the codebase-description sections (layout/style/tests/devloop) to
@@ -374,6 +393,10 @@ async function initOrRemake(options: Options): Promise<void> {
     ),
   );
   result.markdown = addReviewLink(result.markdown, reviewDocuments);
+  // What maintainers said on commit watch issues since the last sync.
+  const noteLines = await applyWatchNotes(options.repo, lowAi, (response) =>
+    usage("watch_note", response),
+  );
   const validation = await timed("validate skill", options.logTime, () =>
     validateSkill(result.markdown, source),
   );
@@ -410,6 +433,9 @@ async function initOrRemake(options: Options): Promise<void> {
         reviewDocuments,
         reviewSignalCount(facts),
       );
+      if (noteLines.length > 0) {
+        await writeMaintainerNotes(options.repo, noteLines);
+      }
       const head = source.commits[0] as { sha?: string } | undefined;
       const baseSha = head?.sha ? String(head.sha) : new Date().toISOString();
       // A CLI init has no app.db row for the repository yet; without one the

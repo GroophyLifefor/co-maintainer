@@ -23,6 +23,7 @@ import {
   RepoNotFound,
   repoOverview,
   repoPulls,
+  repoPushes,
   repoRemoteReviews,
   runningJobs,
   skippedDeliveries,
@@ -45,6 +46,9 @@ import { renderAddRepo } from "./add_repo.ts";
 import { renderRepo } from "./repo.ts";
 import { renderRepoPulls } from "./repo_prs.ts";
 import { renderRepoRemote } from "./repo_remote.ts";
+import { commitWatchCard, renderRepoPushes } from "./repo_pushes.ts";
+import { watchStatus } from "../../services/watch_status.ts";
+import { defaultBranchForRepo } from "../../remote/server/routes.ts";
 import { renderPr } from "./pr.ts";
 import { renderKnowledge } from "./knowledge.ts";
 import { renderRepoSettings } from "./repo_settings.ts";
@@ -86,8 +90,19 @@ export type PageDeps = {
   debug?: boolean;
 };
 
+/** The address a CI step reaches this server at: the saved webhook URL's
+ * origin, otherwise the address this page was opened at. */
+function serverOrigin(webhookUrl: string, url: URL): string {
+  try {
+    if (webhookUrl) return new URL(webhookUrl).origin;
+  } catch {
+    // fall through to the page's own origin
+  }
+  return url.origin;
+}
+
 const REPO =
-  /^\/repos\/([^/]+)\/([^/]+)(?:\/(pulls|knowledge|settings|remote)(?:\/(\d+))?)?$/;
+  /^\/repos\/([^/]+)\/([^/]+)(?:\/(pulls|knowledge|settings|remote|pushes)(?:\/(\d+))?)?$/;
 
 /** Matches a repository page URL. Only `pulls` is keyed by a number, so a stray
  * suffix such as `/repos/o/r/remote/7` must fall through to a 404 rather than
@@ -302,10 +317,25 @@ export async function handlePageRequest(
       const pr = match[4] ? Number(match[4]) : undefined;
       if (!sub) {
         const config = readConfig();
+        const webhookUrl = config.webhookUrl || deps.webhookUrl || "";
         return renderRepo(
           username,
           repoOverview(fullName),
-          config.webhookUrl || deps.webhookUrl || "",
+          webhookUrl,
+          commitWatchCard(
+            fullName,
+            await watchStatus(fullName),
+            serverOrigin(webhookUrl, url),
+            (await defaultBranchForRepo(fullName)) ?? "main",
+          ),
+        );
+      }
+      if (sub === "pushes") {
+        return renderRepoPushes(
+          username,
+          fullName,
+          repoPushes(fullName),
+          await watchStatus(fullName),
         );
       }
       if (sub === "pulls" && pr) {

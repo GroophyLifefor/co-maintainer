@@ -4,6 +4,7 @@ import { hasDelivery, recordDelivery } from "../../store/deliveries.ts";
 import { dispatchGithubEvent } from "../../services/webhook.ts";
 import { readBoundedBytes } from "../../remote/server/body.ts";
 import { verifySignature } from "./signature.ts";
+import { canonicalRepoName } from "../../util/repo_name.ts";
 
 /** GitHub caps a webhook payload at 25 MB; nothing larger is genuine. */
 const WEBHOOK_MAX_BODY_BYTES = 25 * 1024 * 1024;
@@ -62,10 +63,14 @@ export async function handleWebhookRequest(
     return errorResponse(400, "bad_request", "body is not a JSON object");
   }
 
+  // GitHub sends the owner's own spelling, which may not be the one this
+  // server stored the repository under (issue #67).
+  const repository = payload.repository as { full_name?: unknown } | undefined;
+  if (repository && typeof repository.full_name === "string") {
+    repository.full_name = canonicalRepoName(repository.full_name);
+  }
   const config = readConfig();
-  const repoFullName = (
-    payload.repository as { full_name?: unknown } | undefined
-  )?.full_name;
+  const repoFullName = repository?.full_name;
   const repoName = typeof repoFullName === "string" ? repoFullName : undefined;
   const repoConfig = repoName ? config.repos?.[repoName] : undefined;
   const maxDiffLines =

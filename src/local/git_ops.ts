@@ -2,6 +2,7 @@ import { runCommand, type Run } from "../pr/checkout.ts";
 import { normalizeGithubRemote } from "./git_parse.ts";
 import { stat } from "../util/runtime.ts";
 import { CliError, EXIT_USAGE } from "../cli/error.ts";
+import { canonicalRepoName } from "../util/repo_name.ts";
 
 export async function gitRoot(
   cwd: string,
@@ -87,7 +88,7 @@ export async function detectRemoteRepo(
     if (!/^[^/]+\/[^/]+$/.test(override)) {
       throw new ReviewCliError("usage", "Repository must look like owner/repo");
     }
-    return override;
+    return canonicalRepoName(override);
   }
   const remotes = await run("git", ["remote"], cwd);
   const names = remotes.stdout
@@ -118,7 +119,7 @@ export async function detectRemoteRepo(
       "Only github.com remotes are supported for local review.",
     );
   }
-  return normalized.fullName;
+  return canonicalRepoName(normalized.fullName);
 }
 
 export async function currentBranch(

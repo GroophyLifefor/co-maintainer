@@ -43,7 +43,7 @@ The manifest requests exactly the permissions the code uses, not a superset.
 | Permission | Access | Why |
 | ---------- | ------ | --- |
 | Contents | Read | Read files and PR_REVIEW_GUIDE.md, read the file tree, read commit history, compare two commits, read releases in the probe |
-| Issues | Read and write | Read the conversation on a pull request, post a conversation comment, acknowledge a review request on the pull request, edit the failure note left on a pull request, acknowledge a review request in a comment |
+| Issues | Read and write | Read the conversation on a pull request, post a conversation comment, open an issue for a P0 or P1 commit watch finding, see whether a commit watch issue was closed, close a commit watch issue once its finding is fixed, create the co-maintainer and cm-P0 / cm-P1 labels, acknowledge a review request on the pull request, edit the failure note left on a pull request, acknowledge a review request in a comment |
 | Pull requests | Read and write | List pull requests, read a pull request, read the files a pull request changes, read earlier reviews, read review comment threads, post a review, reply in a review comment thread |
 | Checks | Read and write | Create the review check run, update the review check run |
 | Metadata | Read | Read the repository and its default branch |
@@ -61,7 +61,12 @@ No `administration`, no `actions`, and no `packages` access is requested.
 | `pull_request` | Open, synchronize, and close decide whether a review runs |
 | `pull_request_review` | Tracks review state for the auto-review rules |
 | `pull_request_review_comment` | Delivers a reply in an existing review comment thread |
-| `issue_comment` | Delivers a reply in a pull request conversation |
+| `issue_comment` | Delivers a reply in a pull request conversation, and a comment on a [commit watch](commit-watch-review.md) issue |
+
+`push` is **not** subscribed by default. Tick it under **Subscribe to events**
+in the App's settings to turn on [commit watch](commit-watch-review.md) through
+the App. That applies to every repository the App is installed on, and the App
+reviews pushes to each repository's default branch only.
 
 `installation` and `installation_repositories` are handled too, but they are
 **not** in the subscription list: GitHub delivers both to every App without a

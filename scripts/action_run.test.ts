@@ -120,6 +120,67 @@ test("the command is review --remote --output=github with the branches it was gi
   }
 });
 
+const BEFORE = "a".repeat(40);
+const AFTER = "b".repeat(40);
+
+test("on a push the step reviews the push: --range, the branch and the timeout", () => {
+  const result = run({
+    ...base,
+    VERSION: "0.6.10",
+    EVENT_NAME: "push",
+    PUSH_BEFORE: BEFORE,
+    PUSH_AFTER: AFTER,
+    REF_NAME: "main",
+    TIMEOUT_MINUTES: "15",
+    // A push has no pull request base, whatever the input says.
+    TO_BRANCH: "main",
+  });
+  if (result.code !== 0)
+    throw new Error(`exit ${result.code}\n${result.stderr}`);
+  const line = runLine(result);
+  if (
+    !line.endsWith(
+      `review --remote --output=github --range=${BEFORE}..${AFTER} --branch=main --timeout-minutes=15`,
+    )
+  ) {
+    throw new Error(line);
+  }
+  const fallback = run({
+    ...base,
+    VERSION: "0.6.10",
+    EVENT_NAME: "push",
+    PUSH_BEFORE: BEFORE,
+    PUSH_AFTER: AFTER,
+    REF_NAME: "main",
+  });
+  if (!runLine(fallback).endsWith("--timeout-minutes=10")) {
+    throw new Error(`the timeout defaults to 10: ${runLine(fallback)}`);
+  }
+});
+
+test("a push with a bad sha, branch or timeout stops the step with exit 2", () => {
+  const push = {
+    ...base,
+    EVENT_NAME: "push",
+    PUSH_BEFORE: BEFORE,
+    PUSH_AFTER: AFTER,
+    REF_NAME: "main",
+  };
+  const bads: Record<string, string>[] = [
+    { PUSH_AFTER: "--help" },
+    { PUSH_BEFORE: "HEAD~1" },
+    { REF_NAME: "-x" },
+    { TIMEOUT_MINUTES: "soon" },
+    { TIMEOUT_MINUTES: "0" },
+  ];
+  for (const bad of bads) {
+    const result = run({ ...push, ...bad });
+    if (result.code !== 2) {
+      throw new Error(`${JSON.stringify(bad)} gave exit ${result.code}`);
+    }
+  }
+});
+
 test("the version defaults to the one in the action's own package.json", () => {
   const wanted = (
     JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
@@ -270,6 +331,7 @@ test("action.yml keeps every documented input, with the documented defaults", ()
     "to-branch",
     "version",
     "node-version",
+    "timeout-minutes",
   ]) {
     if (!new RegExp(`^  ${input}:`, "m").test(manifest)) {
       throw new Error(`the ${input} input is missing`);

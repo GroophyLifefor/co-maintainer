@@ -34,10 +34,11 @@ export async function perFileUnifiedPatch(
   base: string,
   path: string,
   run: Run,
+  to?: string,
 ): Promise<string> {
   const result = await run(
     "git",
-    [...diffEnv, ...unifiedDiffArgs, base, "--", path],
+    [...diffEnv, ...unifiedDiffArgs, base, ...(to ? [to] : []), "--", path],
     cwd,
   );
   if (result.code !== 0 || !result.stdout.trim()) return "";
@@ -117,13 +118,19 @@ export type LocalRevisionBuild = {
   warnings: UntrackedWarning[];
 };
 
+/** The diff from `mergeBaseSha` to the working tree, untracked files
+ * included. With `to`, the diff between two commits instead, which is what a
+ * push review sends: nothing in the working tree is part of a push. */
 export async function buildLocalRevision(
   cwd: string,
   mergeBaseSha: string,
   baseLabel: string,
   run: Run,
+  to?: string,
 ): Promise<LocalRevisionBuild> {
-  const base = mergeBaseSha;
+  // `git diff <base>` compares with the working tree, `git diff <base> <to>`
+  // compares two commits. Every call below takes the same refs.
+  const refs = to ? [mergeBaseSha, to] : [mergeBaseSha];
   const nameStatus = await run(
     "git",
     [
@@ -135,7 +142,7 @@ export async function buildLocalRevision(
       "-M",
       "--name-status",
       "-z",
-      base,
+      ...refs,
     ],
     cwd,
   );
@@ -150,11 +157,15 @@ export async function buildLocalRevision(
       "-M",
       "--numstat",
       "-z",
-      base,
+      ...refs,
     ],
     cwd,
   );
-  const unified = await run("git", [...diffEnv, ...unifiedDiffArgs, base], cwd);
+  const unified = await run(
+    "git",
+    [...diffEnv, ...unifiedDiffArgs, ...refs],
+    cwd,
+  );
   if (nameStatus.code !== 0) {
     throw new ReviewCliError("internal", "git diff failed.");
   }
@@ -188,18 +199,26 @@ export async function buildLocalRevision(
       file.status !== "removed" &&
       !file.binary
     ) {
-      file.patch = await perFileUnifiedPatch(cwd, base, entry.path, run);
+      file.patch = await perFileUnifiedPatch(
+        cwd,
+        mergeBaseSha,
+        entry.path,
+        run,
+        to,
+      );
     }
     files.push(file);
   }
   const warnings: UntrackedWarning[] = [];
   const tracked = new Set(files.map((f) => f.path));
-  const untracked = await run(
-    "git",
-    [...diffEnv, "ls-files", "--others", "--exclude-standard", "-z"],
-    cwd,
-  );
-  if (untracked.code === 0 && untracked.stdout) {
+  const untracked = to
+    ? undefined
+    : await run(
+        "git",
+        [...diffEnv, "ls-files", "--others", "--exclude-standard", "-z"],
+        cwd,
+      );
+  if (untracked && untracked.code === 0 && untracked.stdout) {
     for (const rel of untracked.stdout.split("\0").filter(Boolean)) {
       const path = normalizePath(rel);
       if (tracked.has(path)) continue;

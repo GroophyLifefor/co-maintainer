@@ -418,6 +418,7 @@ export function repoTabs(fullName: string, on: string): string {
     { id: "pulls", label: "Pull requests", path: `${href}/pulls` },
     { id: "knowledge", label: "Knowledge", path: `${href}/knowledge` },
     { id: "remote", label: "Remote reviews", path: `${href}/remote` },
+    { id: "pushes", label: "Pushes", path: `${href}/pushes` },
     {
       id: "settings",
       label: "Repository settings",

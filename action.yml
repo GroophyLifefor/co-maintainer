@@ -5,7 +5,7 @@
 # old behavior. `@v0` moves to every stable release, so pin `@v0.5.1` or a full
 # commit SHA when a workflow must not change on its own.
 name: co-maintainer review
-description: Review a pull request with a co-maintainer server and show the findings as annotations.
+description: Review a pull request, or a push to the default branch, with a co-maintainer server and show the findings as annotations.
 branding:
   icon: eye
   color: green
@@ -33,6 +33,10 @@ inputs:
     description: The Node.js version to run co-maintainer with.
     required: false
     default: "24"
+  timeout-minutes:
+    description: On a push, how long to wait for the review. After that the step ends green with a notice, and the review finishes on the server.
+    required: false
+    default: "10"
 
 runs:
   using: composite
@@ -52,4 +56,9 @@ runs:
         VERSION: ${{ inputs.version }}
         HEAD_REF: ${{ github.head_ref }}
         ACTION_PATH: ${{ github.action_path }}
+        EVENT_NAME: ${{ github.event_name }}
+        PUSH_BEFORE: ${{ github.event.before }}
+        PUSH_AFTER: ${{ github.event.after }}
+        REF_NAME: ${{ github.ref_name }}
+        TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
       run: bash "$ACTION_PATH/scripts/action_run.sh"

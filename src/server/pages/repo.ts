@@ -76,6 +76,8 @@ export function renderRepo(
   username: string,
   data: ReturnType<typeof repoOverview>,
   webhookUrl: string,
+  /** The commit watch card, rendered by `repo_pushes.ts`. */
+  commitWatch = "",
 ): Response {
   const name = data.repo.full_name;
   const stats = data.stats;
@@ -200,6 +202,7 @@ export function renderRepo(
       action: `<a class="btn gh sm" href="/repos/${text(name)}/settings">Change</a>`,
     })}</div>
   </div>
+  ${commitWatch}
 </div>
 <script>
 var repo = ${JSON.stringify(name)};

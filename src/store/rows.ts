@@ -32,6 +32,12 @@ export type RepoRow = {
   /** `'cli'` when a CLI init built it, NULL when added from the dashboard.
    * Optional so a row built by hand (a test fixture) need not name it. */
   added_from?: string | null;
+  /** Commit watch: 1 opens an issue for each P0/P1 finding. Optional so a
+   * hand-built fixture need not name it; missing means on. */
+  watch_open_issues?: number;
+  /** Commit watch: `queue` reviews pushes in a row one by one,
+   * `cancel-and-merge` folds a waiting or running review into the next. */
+  watch_push_mode?: string;
 };
 
 export type JobRow = {

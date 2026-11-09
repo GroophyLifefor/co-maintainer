@@ -250,7 +250,11 @@ You can skip it and configure the same items under <strong>Settings</strong> at 
 </tr>
 <tr>
 <td><code>/repos/:owner/:repo/settings</code></td>
-<td><strong>Who gets a review</strong> (the <a href="review-policy.html">review policy</a>), review scope, codegraph, analysis limits, schedule, remove repo</td>
+<td><strong>Who gets a review</strong> (the <a href="review-policy.html">review policy</a>), review scope, codegraph, <a href="commit-watch-review.html">commit watch</a> issues and pushes in a row, analysis limits, schedule, remove repo</td>
+</tr>
+<tr>
+<td><code>/repos/:owner/:repo/pushes</code></td>
+<td><a href="commit-watch-review.html">Commit watch</a> push reviews: range, App or CI, status, findings by severity, issues opened, cost</td>
 </tr>
 <tr>
 <td><code>/activity</code></td>
@@ -269,7 +273,7 @@ You can skip it and configure the same items under <strong>Settings</strong> at 
 <td>Global models, GitHub, App (<strong>Create GitHub App</strong>), webhook URL, review policy default, remote limits, tokens and key policy</td>
 </tr>
 </tbody></table>
-<p>Per-repo sidebar: <strong>Overview</strong>, <strong>Pull requests</strong>, <strong>Remote</strong>, <strong>Knowledge</strong>, <strong>Settings</strong>.</p>
+<p>Per-repo tabs: <strong>Overview</strong>, <strong>Pull requests</strong>, <strong>Knowledge</strong>, <strong>Remote reviews</strong>, <strong>Pushes</strong>, <strong>Repository settings</strong>. The overview carries the <strong>Commit watch</strong> card.</p>
 <p>PR titles are not stored in <code>app.db</code>, so lists show <code>#number</code> only.</p>
 <h2 id="settings-global">Settings (global)</h2>
 <p>Single page with sections (anchor links in the sidebar):</p>
