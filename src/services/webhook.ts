@@ -289,9 +289,7 @@ export function maybeEnqueueReview(input: {
       `Round limit reached: ${earlier.round} of ${policy.maxRounds} reviews.`,
     );
   }
-  const last = earlier;
-  const incremental =
-    row.review_scope === "incremental" && Boolean(last?.head_sha);
+  // Round, scope and base are worked out when the job starts.
   const { id } = enqueue({
     type: "review",
     repo: input.repo,
@@ -300,9 +298,6 @@ export function maybeEnqueueReview(input: {
     debounceMs: REVIEW_DEBOUNCE_MS,
     args: {
       trigger: input.trigger,
-      scope: incremental ? "incremental" : "whole-pr",
-      sinceCommit: incremental ? last!.head_sha : undefined,
-      round: last ? last.round + 1 : 1,
       requestReaction: input.request?.reaction,
     },
   });

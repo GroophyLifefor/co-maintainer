@@ -143,7 +143,7 @@ export const ENDPOINTS: readonly Endpoint[] = [
     permission: "metadata",
     level: "read",
     identities: APP_ONLY,
-    feature: "Check a commenter on a commit watch issue has write access",
+    feature: "Check a commenter has write access before acting on a comment",
   },
   {
     method: "PATCH",

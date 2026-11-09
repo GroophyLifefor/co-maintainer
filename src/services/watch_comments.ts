@@ -13,6 +13,7 @@ import { FakeAiProvider } from "../ai/fake.ts";
 import { completeWithMermaidTools } from "../ai/mermaid_loop.ts";
 import { loadGuides } from "../review/guides.ts";
 import { getEnv } from "../util/runtime.ts";
+import { hasWriteAccess } from "../github/write_access.ts";
 import { getWatchIssue, insertWatchNote } from "../store/watch.ts";
 import { registerHandler, type LogFn } from "./jobs.ts";
 import { recordAiCost } from "./setup.ts";
@@ -111,27 +112,6 @@ async function alreadyAnswered(
     const marker = replyMarker(commentId);
     return comments.some((comment) =>
       String(comment.body ?? "").includes(marker),
-    );
-  } catch {
-    return false;
-  }
-}
-
-/** True when `login` can write to the repository. The webhook's
- * author_association is only a first filter: MEMBER means a member of the
- * organization and COLLABORATOR may be read-only. Any error counts as no. */
-async function hasWriteAccess(
-  client: ReturnType<typeof clientFor>,
-  repo: string,
-  login: string | null,
-): Promise<boolean> {
-  if (!login) return false;
-  try {
-    const result = await client.request<Json>(
-      `repos/${repo}/collaborators/${encodeURIComponent(login)}/permission`,
-    );
-    return ["admin", "maintain", "write"].includes(
-      String(result.role_name ?? result.permission ?? ""),
     );
   } catch {
     return false;

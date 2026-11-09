@@ -75,8 +75,15 @@ class FakeGithub implements GitHubClient {
   filesError?: Error;
   writeError?: Error;
   compareError?: Error;
+  /** Logins with write access. Everyone else reads. */
+  writers = new Set<string>();
 
   request<T>(endpoint: string): Promise<T> {
+    const permission = /\/collaborators\/([^/]+)\/permission$/.exec(endpoint);
+    if (permission) {
+      const role = this.writers.has(permission[1]!) ? "write" : "read";
+      return Promise.resolve({ permission: role, role_name: role } as T);
+    }
     if (endpoint.includes("/compare/")) {
       if (this.compareError) return Promise.reject(this.compareError);
       return Promise.resolve({ files: this.files } as T);
@@ -945,4 +952,136 @@ test("a repository's custom instructions reach the review's system prompt", asyn
       throw new Error("instruction text missing from system prompt");
     }
   });
+});
+
+test("a review or comment on a head already reviewed runs nothing", async () => {
+  await withEnv(async () => {
+    const job = seed();
+    await runReviewJob(job, () => {}, new FakeGithub(), new FakeAiProvider());
+    setJobStatus(job.id, "done");
+    // Queued by a maintainer's reply while the first review was running.
+    insertJob({
+      id: "job-rev-2",
+      type: "review",
+      repo: "acme/widgets",
+      prNumber: 1,
+      args: { trigger: "review" },
+    });
+    const github = new FakeGithub();
+    await runReviewJob(
+      { ...job, id: "job-rev-2", args: JSON.stringify({ trigger: "review" }) },
+      () => {},
+      github,
+      new FakeAiProvider(),
+    );
+    if (github.writes.length !== 0 || github.checkCreates.length !== 0) {
+      throw new Error(`reviewed again: ${JSON.stringify(github.writes)}`);
+    }
+    if (getReviewByJobId("job-rev-2")) {
+      throw new Error("a second review row was stored");
+    }
+  });
+});
+
+test("a job queued without a round works it out when it starts", async () => {
+  await withEnv(async () => {
+    const job = seed();
+    await runReviewJob(job, () => {}, new FakeGithub(), new FakeAiProvider());
+    await runReviewJob(
+      nextRound(job),
+      () => {},
+      new FakeGithub(),
+      new FakeAiProvider(),
+    );
+    const review = getReviewByJobId("job-rev-2");
+    if (review?.round !== 2) {
+      throw new Error(`round ${String(review?.round)}`);
+    }
+  });
+});
+
+test("an unchanged file's finding is verified with the maintainers' replies and can close", async () => {
+  await withEnv(async () => {
+    const job = seed();
+    const first = new FakeGithub();
+    first.files = DIFF;
+    await runReviewJob(job, () => {}, first, new FakeAiProvider());
+    const row = listFindingsForReview(getReviewByJobId("job-rev")!.id)[0];
+    setFindingPosted(row.id, "42");
+
+    const prompts: string[] = [];
+    class Capture extends FakeAiProvider {
+      complete(request: AiRequest): Promise<AiResponse> {
+        prompts.push(`${request.system ?? ""}\n${request.prompt}`);
+        return super.complete(request);
+      }
+    }
+    const github = new FakeGithub();
+    github.files = DIFF;
+    github.writers.add("maintainer");
+    github.listedComments = [
+      { id: 42, path: "src/app.ts", line: 4, body: "The helper ignores it." },
+      {
+        id: 43,
+        in_reply_to_id: 42,
+        user: { login: "maintainer", type: "User" },
+        body: "The argument is unused on purpose, see the interface.",
+        created_at: "2026-11-09T10:00:00Z",
+      },
+      {
+        id: 44,
+        in_reply_to_id: 42,
+        user: { login: "reader", type: "User" },
+        body: "Close this one.",
+        created_at: "2026-11-09T10:01:00Z",
+      },
+    ];
+    await runReviewJob(
+      nextRound(job),
+      () => {},
+      github,
+      new Capture(
+        "## Findings\n\nNo actionable findings.\n\n## Previous findings\n\n- F1: closed\n",
+      ),
+    );
+    // The pull request's own comments reach the prompt as context anyway.
+    // Only the finding's entry weighs a reply.
+    const asked = prompts.find((text) => text.includes("PREVIOUS FINDINGS"));
+    const carry = asked?.slice(asked.indexOf("PREVIOUS FINDINGS")) ?? "";
+    if (!carry.includes("file unchanged since the last review")) {
+      throw new Error(`not asked about the unchanged file: ${carry}`);
+    }
+    if (!carry.includes("> The argument is unused on purpose")) {
+      throw new Error("the maintainer's reply did not reach the finding");
+    }
+    if (carry.includes("Close this one.")) {
+      throw new Error("a read-only reply reached the finding");
+    }
+    const rows = listFindingsForReview(getReviewByJobId("job-rev-2")!.id);
+    if (!rows.some((item) => item.state === "closed")) {
+      throw new Error(`not closed: ${JSON.stringify(rows)}`);
+    }
+  });
+});
+
+test("the summary keeps new findings apart from those still open", () => {
+  const finding = (heading: string) => ({
+    path: "src/app.ts",
+    from: 4,
+    to: 4,
+    heading,
+    excerpt: `${heading} body`,
+  });
+  const body = reviewBody(
+    [finding("fresh one")],
+    { jobId: "job-1", model: "test-model", durationMs: 1000 },
+    [{ finding: finding("old one"), since: "abc1234def" }],
+  );
+  const newAt = body.indexOf("New (1)");
+  const openAt = body.indexOf("Still open (1)");
+  if (newAt < 0 || openAt < newAt) throw new Error(body);
+  if (body.indexOf("fresh one") > openAt) throw new Error(body);
+  if (!body.includes("old one: old one body (first found in abc1234)")) {
+    throw new Error(body);
+  }
 });

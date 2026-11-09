@@ -20,6 +20,8 @@ export type StoredFinding = {
   anchorText: string | null;
   severity: string;
   firstSeenReviewId: string | null;
+  /** What maintainers wrote on the finding's inline thread, oldest first. */
+  replies?: string[];
 };
 
 export type CarryPrevious = {
@@ -242,7 +244,8 @@ const VERIFY_HINT: Record<CarryClass, string> = {
   file_removed: "",
   unverifiable: "",
   verify_guide_changed: "review guide was rebuilt",
-  unchanged: "",
+  unchanged:
+    "file unchanged since the last review, the fix may be in another file",
   verify_present: "still present in changed code",
   verify_likely_fixed: "anchored code no longer found",
   verify_unlocated: "could not locate",
@@ -253,12 +256,20 @@ export function buildCarryPromptSection(
   current: Revision,
 ): string {
   const verify: string[] = [];
-  const unchanged: string[] = [];
   let index = 0;
   for (const item of items) {
-    if (item.class === "file_reverted" || item.class === "file_removed") {
+    if (
+      item.class === "file_reverted" ||
+      item.class === "file_removed" ||
+      item.class === "unverifiable"
+    ) {
       continue;
     }
+    index++;
+    const label = `F${index}`;
+    (item as CarryItem & { promptId?: string }).promptId = label;
+    let from = item.lineFrom;
+    let to = item.lineTo;
     if (item.class === "unchanged") {
       const file = current.files.find(
         (f) => normalizePath(f.path) === normalizePath(item.targetPath ?? ""),
@@ -266,30 +277,18 @@ export function buildCarryPromptSection(
       const relocated = file
         ? relocate(item.finding.anchorText, item.lineFrom, file.patch)
         : null;
-      const from = relocated?.from ?? item.lineFrom;
-      const to = relocated?.to ?? item.lineTo;
-      unchanged.push(
-        `- ${item.targetPath}:${from}${to !== from ? `-${to}` : ""} · ${item.finding.title}`,
-      );
-      continue;
+      from = relocated?.from ?? from;
+      to = relocated?.to ?? to;
     }
-    if (item.class === "unverifiable") {
-      continue;
-    }
-    index++;
-    const label = `F${index}`;
-    (item as CarryItem & { promptId?: string }).promptId = label;
     const loc = item.targetPath
-      ? `${item.targetPath}:${item.lineFrom}${
-          item.lineTo !== item.lineFrom ? `-${item.lineTo}` : ""
-        }`
+      ? `${item.targetPath}:${from}${to !== from ? `-${to}` : ""}`
       : "";
     const body = item.finding.bodyMd.slice(0, 600);
     verify.push(
-      `${label} · ${VERIFY_HINT[item.class]} · ${loc}\n${item.finding.title}\n${body}`,
+      `${label} · ${VERIFY_HINT[item.class]} · ${loc}\n${item.finding.title}\n${body}${repliesBlock(item.finding.replies)}`,
     );
   }
-  if (verify.length === 0 && unchanged.length === 0) return "";
+  if (verify.length === 0) return "";
   const lines = [
     "PREVIOUS FINDINGS (this run has two separate jobs):",
     "1. Scan the DIFF from scratch for every actionable violation under the",
@@ -297,24 +296,27 @@ export function buildCarryPromptSection(
     "   list below shorten or replace that scan. A changed file can contain a",
     "   new finding even when a previous finding already covers its location.",
     "2. For each entry under VERIFY, decide whether the code in the DIFF still",
-    "   has that problem. Report every decision in a final section headed",
+    "   has that problem. An entry whose file is unchanged stays open unless",
+    "   the DIFF fixes it in another file. A maintainer reply that shows the",
+    "   finding is wrong is a reason to close it, an unexplained objection is",
+    "   not. Report every decision in a final section headed",
     '   exactly "## Previous findings", one line per id, exactly as',
     '   "- F1: open path:from-to" or "- F1: closed".',
     'Do not repeat an open previous finding under "## Findings"; report there',
     "only findings from job 1 that are not already covered below.",
     "",
   ];
-  if (verify.length) {
-    lines.push("VERIFY:", verify.join("\n\n"), "");
-  }
-  if (unchanged.length) {
-    lines.push(
-      "STILL OPEN, UNCHANGED (do not report again):",
-      unchanged.join("\n"),
-      "",
-    );
-  }
+  lines.push("VERIFY:", verify.join("\n\n"), "");
   return lines.join("\n");
+}
+
+/** At most the last three replies, 1000 characters each. */
+function repliesBlock(replies: string[] | undefined): string {
+  if (!replies?.length) return "";
+  const quoted = replies
+    .slice(-3)
+    .map((reply) => `> ${reply.slice(0, 1000).replace(/\n/g, "\n> ")}`);
+  return `\nMaintainer replies on this finding:\n${quoted.join("\n\n")}`;
 }
 
 export type PreviousVerdict = {
@@ -365,7 +367,6 @@ export function resolveCarryOutcomes(
     if (
       item.class === "file_reverted" ||
       item.class === "file_removed" ||
-      item.class === "unchanged" ||
       item.class === "unverifiable"
     ) {
       continue;
@@ -429,7 +430,7 @@ export function resolveCarryOutcomes(
       }
     }
 
-    if (item.class === "unchanged" || item.class === "unverifiable") {
+    if (item.class === "unverifiable") {
       const row: ResolvedFinding = {
         id: crypto.randomUUID(),
         state: "open",
@@ -453,6 +454,7 @@ export function resolveCarryOutcomes(
     const promptId = promptIds.get(base.id);
     const verdict = promptId ? verdictByPromptId.get(promptId) : undefined;
     const state = verdict?.state ?? "open";
+    // An unchanged file's anchor is read again at the relocated lines.
     const anchor =
       file && verdict?.path
         ? anchorTextFromPatch(
@@ -460,7 +462,9 @@ export function resolveCarryOutcomes(
             verdict.from ?? lineFrom,
             verdict.to ?? verdict.from ?? lineTo,
           )
-        : base.anchorText;
+        : item.class === "unchanged" && file
+          ? anchorTextFromPatch(file.patch, lineFrom, lineTo)
+          : base.anchorText;
     const row: ResolvedFinding = {
       id: crypto.randomUUID(),
       state,
