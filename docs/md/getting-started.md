@@ -39,4 +39,4 @@ co-maintainer review
 | Operate repos, tokens, concurrency | Browser on the server | Dashboard after `serve` | [dashboard](dashboard.md) |
 | Review a local diff without every developer running init/sync | Laptop + server | `set --remote-host` then `review --remote` | [remote-review](remote-review.md) |
 | Refresh guides after main moves | Same place as `init` | `sync owner/repo` | [sync](sync.md) |
-| Review pushes to `main` without PRs (coming soon) | Your server (`serve`) and CI | Coming soon | [commit-watch-review](commit-watch-review.md) |
+| Review pushes to `main` without PRs | Your server (`serve`), with the GitHub App or CI | Tick **Push** in the App's events, or add the CI workflow | [commit-watch-review](commit-watch-review.md) |

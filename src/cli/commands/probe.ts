@@ -9,7 +9,8 @@ import {
 import { loadPrices } from "../../ai/pricing.ts";
 import { cacheSet } from "../../store/cache_db.ts";
 import { buildProbeJson } from "../command_json.ts";
-import type { Options } from "../../types.ts";
+import { appPushStateWithoutDb } from "../../services/watch_status.ts";
+import type { GitHubClient, Json, Options } from "../../types.ts";
 
 export async function runProbe(options: Options): Promise<void> {
   // With `--json` stdout carries the one document, so progress moves to stderr.
@@ -59,6 +60,7 @@ async function probe(options: Options): Promise<void> {
     options.ai,
     needsPrices && prices.source === "unavailable",
   );
+  const commitWatch = await commitWatchState(client, options.repo);
   if (options.json) {
     stopHeartbeat();
     console.log(
@@ -78,6 +80,7 @@ async function probe(options: Options): Promise<void> {
         estimate,
         costNote: costLine,
         durationMs: Math.round(performance.now() - operationStarted),
+        commitWatch,
       }),
     );
     return;
@@ -112,6 +115,15 @@ async function probe(options: Options): Promise<void> {
         : "the cm-dx-lab calibration"
     }; an estimate, not a bill`,
   );
+  if (commitWatch) {
+    console.log(
+      `\ncommit watch   ${
+        commitWatch.app === "on"
+          ? "✓ App (push event on)"
+          : "○ App (push event off)"
+      }   ${commitWatch.branch ?? ""}`.trimEnd(),
+    );
+  }
   console.log("\nnext");
   console.log(`  ${command}`);
   console.log(`  or run it now: co-maintainer probe ${options.repo} --run`);
@@ -130,6 +142,25 @@ async function probe(options: Options): Promise<void> {
     options.command = "init";
     await runInitOrRemake(options);
   }
+}
+
+/** Commit watch through the App, when this machine has the App configured.
+ * Without it there is nothing to say and the line is left out. */
+async function commitWatchState(
+  client: GitHubClient,
+  repo: string,
+): Promise<{ app: "on" | "off"; branch: string | null } | undefined> {
+  const app = await appPushStateWithoutDb(repo);
+  if (!app) return undefined;
+  let branch: string | null = null;
+  try {
+    const info = await client.request<Json>(`repos/${repo}`);
+    branch =
+      typeof info.default_branch === "string" ? info.default_branch : null;
+  } catch {
+    // The line still says whether the App watches.
+  }
+  return { app, branch };
 }
 
 /** `120-190` for a token range, rounded to whole tokens. */

@@ -58,6 +58,8 @@ export function updateRepoSettings(
       | "skip_bots"
       | "use_codegraph"
       | "review_policy_json"
+      | "watch_open_issues"
+      | "watch_push_mode"
     >
   >,
 ): void {

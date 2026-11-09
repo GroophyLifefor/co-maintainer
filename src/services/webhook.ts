@@ -21,6 +21,10 @@ import {
   upsertInstallation,
 } from "../store/installations.ts";
 import { readConfig } from "../config.ts";
+import { getWatchIssue } from "../store/watch.ts";
+import { canonicalRepoName } from "../util/repo_name.ts";
+import { isSha, isZeroSha, queuePush } from "./push_review.ts";
+import { WATCH_COMMENT_JOB } from "./watch_comments.ts";
 import {
   carriesEarlierRequest,
   evaluatePolicy,
@@ -32,6 +36,9 @@ import {
 } from "./review_policy.ts";
 
 export const REVIEW_DEBOUNCE_MS = 20_000;
+
+/** Who may talk to commit watch on its issues: people with write access. */
+const WRITE_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
 const PR_ACTIONS = new Set([
   "opened",
@@ -351,7 +358,9 @@ function applyInstallationRepositories(
     if (Array.isArray(added)) {
       for (const item of added) {
         const fullName = asString(asRecord(item)?.full_name);
-        if (fullName) setInstallationId(fullName, installationId);
+        if (fullName) {
+          setInstallationId(canonicalRepoName(fullName), installationId);
+        }
       }
     }
     return { outcome: "ignored", reason: "repositories-added" };
@@ -361,7 +370,7 @@ function applyInstallationRepositories(
     if (Array.isArray(removed)) {
       for (const item of removed) {
         const fullName = asString(asRecord(item)?.full_name);
-        if (fullName) deactivateRepo(fullName);
+        if (fullName) deactivateRepo(canonicalRepoName(fullName));
       }
     }
     return { outcome: "ignored", reason: "repositories-removed" };
@@ -676,6 +685,104 @@ function issueCommentEvent(
   );
 }
 
+/** Commit watch through the App: a push to the repository's default branch.
+ * Any other branch, a deleted branch and a tag are ignored. */
+function pushEvent(
+  payload: Record<string, unknown>,
+  deliveryId: string,
+): WebhookResult {
+  const repository = asRecord(payload.repository);
+  const repo = asString(repository?.full_name);
+  const ref = asString(payload.ref) ?? "";
+  const before = asString(payload.before) ?? "";
+  const after = asString(payload.after) ?? "";
+  const defaultBranch = asString(repository?.default_branch);
+  if (!repo || !defaultBranch || ref !== `refs/heads/${defaultBranch}`) {
+    return { outcome: "ignored", reason: "not-default-branch", repo };
+  }
+  if (asBool(payload.deleted) || !isSha(after) || isZeroSha(after)) {
+    return { outcome: "ignored", reason: "branch-deleted", repo };
+  }
+  if (!isSha(before)) return { outcome: "ignored", repo };
+  const installationId = asNumber(asRecord(payload.installation)?.id);
+  if (installationId !== undefined) setInstallationId(repo, installationId);
+  const outcome = queuePush({
+    repo,
+    before,
+    after,
+    ref,
+    source: "app",
+    deliveryId,
+  });
+  switch (outcome.kind) {
+    case "enqueued":
+    case "attached":
+      return { outcome: "enqueued", repo, jobId: outcome.jobId };
+    case "no_changes":
+      return { outcome: "skipped", reason: "no-changes", repo };
+    case "extend":
+      // Only a CI diff can need a wider range, and this push has none.
+      return { outcome: "skipped", reason: "range-extend", repo };
+    case "skipped":
+      return { outcome: "skipped", reason: outcome.reason, repo };
+  }
+}
+
+/** A comment on an issue commit watch opened. Only someone with write access
+ * is listened to, and the comment job decides whether it was meant for us. */
+function watchIssueCommentEvent(
+  payload: Record<string, unknown>,
+  deliveryId: string,
+): WebhookResult {
+  const issue = asRecord(payload.issue);
+  const comment = asRecord(payload.comment);
+  const repo = asString(asRecord(payload.repository)?.full_name);
+  const number = asNumber(issue?.number);
+  const commentId = comment?.id;
+  if (
+    asString(payload.action) !== "created" ||
+    !repo ||
+    number === undefined ||
+    (typeof commentId !== "number" && typeof commentId !== "string")
+  ) {
+    return { outcome: "ignored", repo };
+  }
+  if (!getWatchIssue(repo, number)) {
+    return { outcome: "ignored", reason: "not-a-watch-issue", repo };
+  }
+  const author = asRecord(comment?.user);
+  if (isBot(author)) {
+    return { outcome: "skipped", reason: "own-comment", repo };
+  }
+  const association = asString(comment?.author_association) ?? "NONE";
+  if (!WRITE_ASSOCIATIONS.has(association)) {
+    return {
+      outcome: "skipped",
+      reason: `no-write-access: ${association}`,
+      repo,
+    };
+  }
+  const row = getRepo(repo);
+  if (!row || row.active !== 1) {
+    return { outcome: "skipped", reason: "repo-not-active", repo };
+  }
+  const installationId = asNumber(asRecord(payload.installation)?.id);
+  if (installationId !== undefined) setInstallationId(repo, installationId);
+  const { id } = enqueue({
+    type: WATCH_COMMENT_JOB,
+    repo,
+    deliveryId,
+    queueKey: `watch-comment:${repo}:${String(commentId)}`,
+    args: {
+      issueNumber: number,
+      commentId: String(commentId),
+      author: asString(author?.login) ?? null,
+      body: (asString(comment?.body) ?? "").slice(0, 20_000),
+    },
+  });
+  return { outcome: "enqueued", repo, jobId: id };
+}
+
 export function dispatchGithubEvent(
   event: string,
   payload: Record<string, unknown>,
@@ -683,6 +790,13 @@ export function dispatchGithubEvent(
   maxDiffLines?: number,
 ): WebhookResult {
   if (event === "installation") return applyInstallation(payload);
+  if (event === "push") return pushEvent(payload, deliveryId);
+  if (
+    event === "issue_comment" &&
+    !asRecord(asRecord(payload.issue)?.pull_request)
+  ) {
+    return watchIssueCommentEvent(payload, deliveryId);
+  }
   if (event === "installation_repositories") {
     return applyInstallationRepositories(payload);
   }

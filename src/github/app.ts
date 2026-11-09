@@ -1,15 +1,23 @@
 import { githubFetch, httpError, paginate } from "./client.ts";
 import { importAppPrivateKey, signAppJwt } from "./jwt.ts";
 import type { GitHubClient, Json } from "../types.ts";
+import { getEnv } from "../util/runtime.ts";
 
 export type Installation = {
   id: number;
   account: { login: string; type: string } | null;
   suspended_at: string | null;
   permissions?: Record<string, string>;
+  /** The webhook events this installation receives. `push` is here only when
+   * the owner turned it on in the App's settings. */
+  events?: string[];
 };
 
-const API = "https://api.github.com";
+/** `CM_GITHUB_API_URL` points the App at a fake GitHub in the smoke tests. */
+const API = (getEnv("CM_GITHUB_API_URL") ?? "https://api.github.com").replace(
+  /\/+$/,
+  "",
+);
 
 function headers(token: string): HeadersInit {
   return {
@@ -130,6 +138,18 @@ export class AppClient implements GitHubClient {
       await this.app.installationToken(this.installationId),
       {
         method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+  }
+
+  async patch<T>(endpoint: string, body: unknown): Promise<T> {
+    return await call<T>(
+      endpoint,
+      await this.app.installationToken(this.installationId),
+      {
+        method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       },

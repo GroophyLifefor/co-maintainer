@@ -36,6 +36,12 @@ type ReviewFlags = {
   /** `--system-prompt-override-file`: a file whose contents replace the
    * repository's custom review section for this run only. */
   systemPromptOverrideFile?: string;
+  /** `--range=<before>..<after>`: review a push instead of the working tree
+   * (commit watch). Only with `--remote`. */
+  range?: { before: string; after: string };
+  /** `--timeout-minutes`: how long a `--range` review waits for the server
+   * before it leaves the result to the dashboard. */
+  timeoutMinutes?: number;
 };
 
 export type ReviewCliArgs =
@@ -43,23 +49,30 @@ export type ReviewCliArgs =
   | ({ mode: "local"; rawArgs: string[] } & ReviewFlags)
   | ({ mode: "remote"; rawArgs: string[] } & ReviewFlags);
 
-function reviewFlags(rest: string[]): {
-  json: boolean;
-  remote: boolean;
-  disableCodegraph: boolean;
-  allowToolInstall: boolean;
-  fresh: boolean;
-  toBranch?: string;
-  branch?: string;
-  repoOverride?: string;
-  remakeBeforeReview: boolean;
-  remoteHost?: string;
-  remoteToken?: string;
-  remoteByok?: boolean;
-  output?: "github";
-  systemPromptFile?: string;
-  systemPromptOverrideFile?: string;
-} {
+/** `before..after`. Each side is any revision git can resolve. */
+function parseRange(value: string | undefined): ReviewFlags["range"] {
+  if (value === undefined) return undefined;
+  // A side may hold single dots (v0.6.9), never two in a row, so `..` splits
+  // once and `a...b` is refused.
+  const sides = value.split("..");
+  const valid = (side: string | undefined): side is string =>
+    Boolean(side) && /^[^\s-][^\s]*$/.test(side!) && !/^\.|\.$/.test(side!);
+  if (sides.length !== 2 || !valid(sides[0]) || !valid(sides[1])) {
+    die("--range must look like <before>..<after>");
+  }
+  return { before: sides[0], after: sides[1] };
+}
+
+function parseTimeout(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const minutes = Number(value);
+  if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 360) {
+    die("--timeout-minutes must be a number of minutes between 1 and 360");
+  }
+  return minutes;
+}
+
+function reviewFlags(rest: string[]): ReviewFlags {
   const text = (name: string) =>
     rest.find((item) => item.startsWith(`--${name}=`))?.slice(name.length + 3);
   // `--remake-before-review` is the 0.4.13 spelling; both names mean the same
@@ -103,6 +116,8 @@ function reviewFlags(rest: string[]): {
     output,
     systemPromptFile: text("system-prompt-file"),
     systemPromptOverrideFile: text("system-prompt-override-file"),
+    range: parseRange(text("range")),
+    timeoutMinutes: parseTimeout(text("timeout-minutes")),
   };
 }
 
@@ -130,7 +145,9 @@ export function filterReviewConfigArgs(raw: string[]): string[] {
       arg.startsWith("--remote-token=") ||
       arg.startsWith("--output=") ||
       arg.startsWith("--system-prompt-file=") ||
-      arg.startsWith("--system-prompt-override-file=")
+      arg.startsWith("--system-prompt-override-file=") ||
+      arg.startsWith("--range=") ||
+      arg.startsWith("--timeout-minutes=")
     ) {
       return false;
     }
@@ -190,6 +207,15 @@ export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
   }
   if (flags.remoteByok !== undefined && !flags.remote) {
     die("--remote-byok requires --remote");
+  }
+  if (flags.range && !flags.remote) {
+    die("--range requires --remote");
+  }
+  if (flags.timeoutMinutes !== undefined && !flags.range) {
+    die("--timeout-minutes requires --range");
+  }
+  if (flags.range && (flags.fresh || flags.toBranch)) {
+    die("--range cannot be used with --fresh or --to-branch");
   }
   // `--json` must never prompt. `parseArgs` only receives the
   // filtered args, and `--json` is stripped before it sees them, so the flag

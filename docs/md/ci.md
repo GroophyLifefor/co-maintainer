@@ -53,6 +53,7 @@ slower.
 | `to-branch` | no | the pull request base branch | The branch the pull request merges into |
 | `version` | no | the version at the action's own commit | The co-maintainer version to run |
 | `node-version` | no | `24` | The Node.js version to run it with |
+| `timeout-minutes` | no | `10` | On a push, how long to wait for the review, see [review pushes](#review-pushes-commit-watch) |
 
 Inputs are never removed or renamed within `v0`. A new input is only ever added,
 with a default that keeps the old behavior.
@@ -94,6 +95,40 @@ pull request. Choose in the workflow instead:
     # Only people with a stake in the repository.
     if: contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
 ```
+
+## Review pushes (commit watch)
+
+The same action reviews a push when the workflow runs on `push`. It sends the
+diff from the commit before the push to the commit after it. This is
+[commit watch](commit-watch-review.md).
+
+```yaml
+name: co-maintainer commit watch
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: GroophyLifefor/co-maintainer@v0
+        with:
+          remote-host: ${{ secrets.CO_MAINTAINER_HOST }}
+          remote-token: ${{ secrets.CO_MAINTAINER_TOKEN }}
+```
+
+On a push the step never fails because of a finding. Findings are warnings, and
+after `timeout-minutes` the step ends green with a notice while the review
+finishes on the server. It fails when the server cannot be reached, the token
+is refused, or the repository is not initialized and no GitHub App could give
+the commit a skipped check run. The action runs
+`review --remote --range=<before>..<after>`, which you can run from any other
+CI the same way.
 
 ## Pull requests from forks
 

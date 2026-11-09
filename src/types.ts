@@ -90,6 +90,8 @@ export type GitHubClient = {
   /** POST JSON. Optional so collect-test fakes stay GET-only. Review
    * posting requires it. */
   write?<T>(endpoint: string, body: unknown): Promise<T>;
+  /** PATCH JSON, for closing an issue. Only the App client has it. */
+  patch?<T>(endpoint: string, body: unknown): Promise<T>;
   /** GitHub Checks API operations. Optional so read-only test clients and
    * older integrations can continue to review without check runs. */
   createCheckRun?<T>(endpoint: string, body: unknown): Promise<T>;

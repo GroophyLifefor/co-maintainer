@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.10] - 2026-11-08
+
+### Added
+
+- **Commit watch review.** Pushes to the default branch are reviewed when there is no pull request. The server gets a push from the GitHub App's `push` event (off by default, the owner ticks it in the App's settings) or from CI running `review --remote --range=<before>..<after>`. When both report the same push it is reviewed once. A finding never blocks: the App's check run always succeeds, and in CI findings are warnings and the step stays green, with a notice after `timeout-minutes` (default 10) while the review finishes on the server. See the commit watch review docs page.
+- **Issues for P0 and P1 commit watch findings.** Opened by the GitHub App as `[P1] <what is wrong>` with the `co-maintainer` and `cm-P1` labels, on by default per repository. A push that changes a finding's lines comments `change in <commit>: changed, still found by the review of <range>`, and when the review says that known issue is fixed co-maintainer closes it. An issue a maintainer closed is checked once on the next push review.
+- **Comments on commit watch issues.** From people with write access, and only when meant for co-maintainer: a question gets an answer in its language, and "ignore" or information gets "Noted", then the next sync adds the note to the detailed review guide and stops reporting an ignored finding.
+- **Dashboard.** A Commit watch card on each repository's overview with the App and CI setup (the CI workflow carries the server's address), a Pushes tab with each push review, its findings by severity, the issues it opened and its cost, and two repository settings: issues for P0/P1 and what happens to pushes in a row (review each in turn, or cancel and merge into the newest).
+- **The GitHub Action reviews pushes.** On a `push` event the action runs a commit watch review. New input `timeout-minutes`.
+- **`probe` shows a `commit watch` line** when the machine has the GitHub App configured.
+
+### Fixed
+
+- **`owner/repo` in another case is the same repository** (#67). `init groophylifefor/co-maintainer` and `init GroophyLifefor/co-maintainer` made two repositories, each with its own config entry, guide folder and dashboard row, and a webhook in the owner's spelling missed a repository stored in another. A name is now matched against what is already stored, ignoring case, and the stored spelling is used, so existing repositories keep theirs. A repository seen for the first time is stored in lower case.
+
 ## [0.6.9] - 2026-11-08
 
 ### Security

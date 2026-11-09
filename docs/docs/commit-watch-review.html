@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Commit watch review · co-maintainer docs</title>
-  <meta name="description" content="Review pushes to a branch without a pull request. It is a sub-page of PR review, for the case where PR review cannot apply.">
+  <meta name="description" content="Review pushes to your default branch when there is no pull request. It is a sub-page of PR review, for the case where PR review cannot apply.">
   <link rel="canonical" href="https://co-maintainer.com/docs/commit-watch-review.html">
   <link rel="stylesheet" href="../assets/site.css">
   <link rel="icon" href="../assets/logo.png">
@@ -87,59 +87,110 @@
     <div class="content-column">
       <main class="doc-main">
         <article class="markdown prose"><h1>Commit watch review</h1>
-<blockquote>
-<p><strong>Coming soon.</strong> This feature is planned and not available yet. This page
-describes what it is meant to do.</p>
-</blockquote>
-<p>Review pushes to a branch without a pull request. It is a sub-page of
-<a href="local-pr-review.html">PR review</a>, for the case where PR review cannot apply.</p>
+<p>Review pushes to your default branch when there is no pull request. It is a
+sub-page of <a href="local-pr-review.html">PR review</a>, for the case where PR review
+cannot apply.</p>
 <h2 id="why">Why</h2>
 <p>If you push straight to <code>main</code> and do not use branches or pull requests,
 nothing gets reviewed. <a href="local-pr-review.html">PR review</a> needs a PR, so it never
 runs for you.</p>
-<h2 id="what-it-is">What it is</h2>
-<p>A feature of <a href="serve.html"><code>serve</code></a>, not a new CLI command.</p>
-<h2 id="how-it-works">How it works</h2>
-<ol>
-<li>You push.</li>
-<li>Your CI starts.</li>
-<li>CI asks the server to run the review.</li>
-<li>The result returns to CI.</li>
-</ol>
-<p>Which branch is watched is decided in the CI setup. See <a href="ci.html">CI</a>.</p>
+<h2 id="turn-it-on">Turn it on</h2>
+<p>Commit watch is a feature of <a href="serve.html"><code>serve</code></a>. The repository must be added
+and initialized on the server. On the repository&#39;s page in the
+<a href="dashboard.html">dashboard</a>, the <strong>Commit watch</strong> card shows whether pushes are
+watched and the two ways to turn it on. Use either one, or both.</p>
+<p><strong>GitHub App.</strong> In the App&#39;s settings on GitHub open <strong>Permissions &amp; events</strong>
+and tick <strong>Push</strong> under <strong>Subscribe to events</strong>. That is your explicit yes, and
+it applies to every repository the App is installed on. The App watches the
+default branch only. See <a href="github-app.html">GitHub App</a>.</p>
+<p><strong>CI.</strong> Add a workflow that runs the co-maintainer action on a push. The card
+gives you the workflow with your server&#39;s address filled in. See
+<a href="ci.html#review-pushes-commit-watch">CI</a>.</p>
+<p>When both report the same push, it is reviewed once and the CI step waits for
+that review.</p>
+<p><code>co-maintainer probe</code> shows a <code>commit watch</code> line when the machine it runs on
+has the GitHub App configured.</p>
+<h2 id="how-a-push-is-reviewed">How a push is reviewed</h2>
 <p>One push is reviewed as a single diff, from the commit before the push to the
-commit after it. It is not reviewed commit by commit.</p>
-<h2 id="it-never-blocks-you">It never blocks you</h2>
-<p>CI does not fail because of findings. A timeout keeps a slow review from
-holding up the push. A result that arrives late still shows on the
-<a href="dashboard.html">dashboard</a>.</p>
-<h2 id="findings">Findings</h2>
+commit after it. It is not reviewed commit by commit. A push that merges a pull
+request is reviewed too.</p>
+<ul>
+<li>A push that creates the branch has nothing to compare with, so it is not
+reviewed.</li>
+<li>After a force-push or a rebase, open issues stay and the new commits are
+reviewed.</li>
+<li>Only pushes after you turn it on are reviewed. History is not scanned, and a
+push the server missed while it was down is not reviewed later.</li>
+<li>A repository that is not initialized is not reviewed. With the App, the
+commit gets a skipped check run that says so. With CI and no App, the step
+fails.</li>
+</ul>
+<p>When pushes come in a row, the repository settings decide what happens:</p>
 <table>
 <thead>
 <tr>
-<th>Severity</th>
-<th>Where it shows</th>
+<th>Setting</th>
+<th>What happens</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>P0, P1</td>
-<td>A GitHub issue, when the token has permission. On by default, and it can be turned off in settings.</td>
+<td>Review each push in turn (default)</td>
+<td>Every push gets its own review, oldest first.</td>
 </tr>
 <tr>
-<td>P2, P3</td>
-<td>The website only.</td>
+<td>Cancel and merge into the newest</td>
+<td>A waiting or running review is canceled and its range is reviewed together with the newest push.</td>
 </tr>
 </tbody></table>
-<h2 id="tracking">Tracking</h2>
-<p>Issues are stored in the <code>serve</code> SQLite database, so the same finding is not
-opened twice.</p>
-<p>When a later commit changes the related code, a comment <code>change in &lt;COMMIT-HASH&gt;</code>
-is added to the issue. It does not claim the issue is fixed.</p>
-<h2 id="scope">Scope</h2>
+<h2 id="it-never-blocks-you">It never blocks you</h2>
+<p>The push is already in, so a finding never fails anything.</p>
 <ul>
-<li>Only new pushes after you enable it are reviewed. History is not scanned.</li>
-<li>After a force-push or a rebase, open issues stay and the new range is
-reviewed normally.</li>
+<li><strong>With the App</strong> the commit gets a check run that always succeeds, with the
+findings as annotations.</li>
+<li><strong>With CI</strong> findings are warnings and the step stays green. After the
+<code>timeout-minutes</code> input (10 by default) the step ends green with a notice,
+and the review finishes on the server. The step fails only when it cannot
+reach the server or the token is refused.</li>
+</ul>
+<p>Every push review, its findings by severity and its cost are on the
+<strong>Pushes</strong> tab of the repository.</p>
+<h2 id="issues-for-p0-and-p1">Issues for P0 and P1</h2>
+<p>Each P0 and P1 finding becomes a GitHub issue. Issues are opened by the GitHub
+App, so without the App there are none. It is on by default and can be turned
+off per repository in its settings. P2 and P3 findings are annotations and on
+the dashboard only.</p>
+<p>An issue is titled <code>[P1] &lt;what is wrong&gt;</code> and labeled <code>co-maintainer</code> and
+<code>cm-P1</code> (the labels are created when missing). The body says where the problem
+is, with a link to the code at the pushed commit, and which push found it.
+Issues are written in English.</p>
+<p>The server keeps track of each issue, and a finding with the same file and code
+as an earlier one is not opened again.</p>
+<h3 id="when-the-code-changes">When the code changes</h3>
+<p>A push that changes the lines of an open issue&#39;s finding gets a comment, and
+the review is asked about that issue explicitly:</p>
+<ul>
+<li>Still there: <code>change in &lt;commit&gt; (push &lt;after&gt;): changed, still found by the review of &lt;range&gt;</code>. When the commit is the push, its hash is written once.</li>
+<li>Fixed: <code>change in &lt;commit&gt;: changed, no longer found by the review of &lt;range&gt;. Closing.</code>, and co-maintainer closes the issue. It closes an issue
+only when a push changed those lines and the review said that problem is
+fixed. If it is not allowed to close issues, it says so in a comment.</li>
+</ul>
+<h3 id="when-you-close-an-issue-yourself">When you close an issue yourself</h3>
+<p>The first push review after you close it checks the problem once, even when the
+push does not touch that file. If the problem is still there, co-maintainer
+says so on the same issue and asks you to leave a comment if there is something
+it should know. The issue stays closed, and it says this once per closing.</p>
+<p>If that review finds it solved and the problem comes back later, a new issue is
+opened.</p>
+<h3 id="talking-to-it-on-an-issue">Talking to it on an issue</h3>
+<p>co-maintainer reads comments on the issues it opened, from people with write
+access, and only when the comment is meant for it. &quot;@someone can you take a
+look&quot; is not.</p>
+<ul>
+<li>A question gets an answer, in the language of the question.</li>
+<li>A comment that says to ignore the finding, or that tells it something, gets
+&quot;Noted, I will take this into account on the next sync.&quot; The next
+<a href="sync.html">sync</a> adds the note to the detailed review guide, and a finding you
+said to ignore is not reported, commented on or opened as an issue again.</li>
 </ul>
 </article>
         <footer class="doc-footer">
@@ -149,7 +200,7 @@ reviewed normally.</li>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#why">Why</a></li><li><a href="#what-it-is">What it is</a></li><li><a href="#how-it-works">How it works</a></li><li><a href="#it-never-blocks-you">It never blocks you</a></li><li><a href="#findings">Findings</a></li><li><a href="#tracking">Tracking</a></li><li><a href="#scope">Scope</a></li></ul></nav>
+      <ul><li><a href="#why">Why</a></li><li><a href="#turn-it-on">Turn it on</a></li><li><a href="#how-a-push-is-reviewed">How a push is reviewed</a></li><li><a href="#it-never-blocks-you">It never blocks you</a></li><li><a href="#issues-for-p0-and-p1">Issues for P0 and P1</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

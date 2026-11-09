@@ -171,6 +171,12 @@ slower.</p>
 <td><code>24</code></td>
 <td>The Node.js version to run it with</td>
 </tr>
+<tr>
+<td><code>timeout-minutes</code></td>
+<td>no</td>
+<td><code>10</code></td>
+<td>On a push, how long to wait for the review, see <a href="#review-pushes-commit-watch">review pushes</a></td>
+</tr>
 </tbody></table>
 <p>Inputs are never removed or renamed within <code>v0</code>. A new input is only ever added,
 with a default that keeps the old behavior.</p>
@@ -207,6 +213,35 @@ pull request. Choose in the workflow instead:</p>
     # Only people with a stake in the repository.
     if: contains(fromJSON(&#39;[&quot;OWNER&quot;,&quot;MEMBER&quot;,&quot;COLLABORATOR&quot;]&#39;), github.event.pull_request.author_association)
 </code></pre>
+<h2 id="review-pushes-commit-watch">Review pushes (commit watch)</h2>
+<p>The same action reviews a push when the workflow runs on <code>push</code>. It sends the
+diff from the commit before the push to the commit after it. This is
+<a href="commit-watch-review.html">commit watch</a>.</p>
+<pre><code class="language-yaml">name: co-maintainer commit watch
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: GroophyLifefor/co-maintainer@v0
+        with:
+          remote-host: ${{ secrets.CO_MAINTAINER_HOST }}
+          remote-token: ${{ secrets.CO_MAINTAINER_TOKEN }}
+</code></pre>
+<p>On a push the step never fails because of a finding. Findings are warnings, and
+after <code>timeout-minutes</code> the step ends green with a notice while the review
+finishes on the server. It fails when the server cannot be reached, the token
+is refused, or the repository is not initialized and no GitHub App could give
+the commit a skipped check run. The action runs
+<code>review --remote --range=&lt;before&gt;..&lt;after&gt;</code>, which you can run from any other
+CI the same way.</p>
 <h2 id="pull-requests-from-forks">Pull requests from forks</h2>
 <p>GitHub does not give repository secrets to a workflow started by a pull request
 from a fork. The action then sees an empty <code>remote-token</code>, stops, and the step
@@ -302,7 +337,7 @@ counts as not set.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#set-it-up">Set it up</a></li><li><a href="#inputs">Inputs</a></li><li><a href="#what-you-see">What you see</a></li><li><a href="#choose-which-pull-requests-get-reviewed">Choose which pull requests get reviewed</a></li><li><a href="#pull-requests-from-forks">Pull requests from forks</a></li><li><a href="#pin-a-version">Pin a version</a></li><li><a href="#your-own-ai-key">Your own AI key</a></li><li><a href="#environment-variables">Environment variables</a></li><li><a href="#when-it-fails">When it fails</a></li></ul></nav>
+      <ul><li><a href="#set-it-up">Set it up</a></li><li><a href="#inputs">Inputs</a></li><li><a href="#what-you-see">What you see</a></li><li><a href="#choose-which-pull-requests-get-reviewed">Choose which pull requests get reviewed</a></li><li><a href="#review-pushes-commit-watch">Review pushes (commit watch)</a></li><li><a href="#pull-requests-from-forks">Pull requests from forks</a></li><li><a href="#pin-a-version">Pin a version</a></li><li><a href="#your-own-ai-key">Your own AI key</a></li><li><a href="#environment-variables">Environment variables</a></li><li><a href="#when-it-fails">When it fails</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

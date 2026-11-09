@@ -473,6 +473,18 @@ export const COMMANDS: CommandSpec[] = [
             description:
               "Replace the repository's review instructions with this file for this run only. The built-in instructions are kept.",
           },
+          {
+            name: "range",
+            value: "BEFORE..AFTER",
+            description:
+              "With --remote: review a push (commit watch). The server keeps the review going if this run stops waiting.",
+          },
+          {
+            name: "timeout-minutes",
+            value: "N",
+            description:
+              "With --range: stop waiting after N minutes and leave the result to the dashboard. Default 10.",
+          },
         ],
       },
       AI_FLAGS,
@@ -487,6 +499,7 @@ export const COMMANDS: CommandSpec[] = [
       "co-maintainer review --remote --remote-host=https://review.example.com --remote-token=cmr_...",
       "co-maintainer review --remote --remote-byok --json",
       "co-maintainer review --remote --output=github",
+      "co-maintainer review --remote --range=abc1234..def5678 --output=github",
       "co-maintainer review owner/repo 42 --system-prompt-file=extra.md",
       "co-maintainer review --system-prompt-override-file=strict.md",
     ],

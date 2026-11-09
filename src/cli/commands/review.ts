@@ -18,6 +18,7 @@ import {
 import type { Options } from "../../types.ts";
 import { runLocalReview } from "../../local/review_local.ts";
 import { runRemoteReview } from "../../remote/client.ts";
+import { runRemotePushReview } from "../../remote/push_client.ts";
 import { reviewExitCode } from "../review_output.ts";
 import {
   buildPrReviewJson,
@@ -40,7 +41,8 @@ export async function runReviewFromCli(args: string[]): Promise<void> {
     return;
   }
   if (parsed.mode === "remote") {
-    await runRemoteReview(parsed);
+    if (parsed.range) await runRemotePushReview(parsed);
+    else await runRemoteReview(parsed);
     return;
   }
   await runReviewPr(parsed.options, parsed);

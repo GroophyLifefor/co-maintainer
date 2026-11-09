@@ -68,6 +68,13 @@ are the same as [local review](local-review.md#codegraph).
 Not supported with `--remote`: `--sync-before-review` (run
 [`sync`](sync.md) on the server instead).
 
+## Token scope
+
+A remote token is not tied to one repository: any token can review, and read
+the guides of, every active repository on the server. Hand a token only to
+people you trust with all of them, and revoke a leaked one from **Settings →
+Remote review tokens**.
+
 ## Reading the server's guides
 
 The same token that authorizes a review also reads the guides the server holds,

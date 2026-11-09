@@ -25,6 +25,9 @@ export type ProbeJsonInput = {
   /** The prose cost line, kept so a missing dollar range still says why. */
   costNote: string;
   durationMs: number;
+  /** Commit watch through the GitHub App. Left out when this machine has no
+   * App configured, since nothing can be said then. */
+  commitWatch?: { app: "on" | "off"; branch: string | null };
 };
 
 export function buildProbeJson(input: ProbeJsonInput): string {
@@ -46,6 +49,7 @@ export function buildProbeJson(input: ProbeJsonInput): string {
       cost: input.costNote,
       basis: estimate.basis,
     },
+    ...(input.commitWatch ? { commitWatch: input.commitWatch } : {}),
     durationMs: input.durationMs,
   });
 }

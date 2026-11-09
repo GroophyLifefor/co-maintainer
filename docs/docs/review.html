@@ -131,6 +131,11 @@ linked pages below.</p>
 <td><a href="local-pr-review.html">PR review</a></td>
 <td><code>gh</code> only, guides on disk, AI on your machine</td>
 </tr>
+<tr>
+<td>You push straight to <code>main</code> with no pull request</td>
+<td><a href="commit-watch-review.html">Commit watch</a></td>
+<td>The server reviews each push, from the GitHub App or CI (<code>review --remote --range</code>)</td>
+</tr>
 </tbody></table>
 <p>PR review and remote review <strong>do not combine</strong>: <code>--remote</code> is only for a local
 diff with no PR positional arguments.</p>

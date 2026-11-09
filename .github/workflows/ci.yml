@@ -54,6 +54,12 @@ jobs:
       - name: Dashboard smoke
         if: runner.os == 'Linux'
         run: npm run dashboard:smoke
+      # Real git, serve and CLI against a fake GitHub and a fake AI.
+      - name: Commit watch smoke
+        if: runner.os == 'Linux'
+        run: node scripts/commit_watch_smoke.ts
+        env:
+          CM_FAKE_AI: "1"
 
   # Its own job on Linux only: `npx` and the fake `gh` both need a POSIX
   # spawn, and it downloads the published 0.4.13, so it must not slow the

@@ -168,11 +168,22 @@ function claimNextEligible(): JobRow | undefined {
     ? runningRemoteReviewsPerToken()
     : undefined;
   const oldestFirst = listJobs({ status: "queued" }).slice().reverse();
+  // Push reviews of one repository run one after another, oldest first, so a
+  // later push sees the issues an earlier one opened.
+  const pushRepos = new Set(
+    listJobs({ status: "running" })
+      .filter((job) => job.type === "push_review")
+      .map((job) => job.repo),
+  );
   for (const candidate of oldestFirst) {
     if (!handlers.has(candidate.type)) continue;
     if (candidate.queue_key) {
       const busy = getRunningJobByKey(candidate.queue_key);
       if (busy) continue;
+    }
+    if (candidate.type === "push_review") {
+      if (pushRepos.has(candidate.repo)) continue;
+      pushRepos.add(candidate.repo);
     }
     if (perTokenLimit && candidate.type === "remote_review") {
       const review = getReviewByJobId(candidate.id);

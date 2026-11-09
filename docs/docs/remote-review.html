@@ -208,6 +208,11 @@ cd your/clone
 are the same as <a href="local-review.html#codegraph">local review</a>.</p>
 <p>Not supported with <code>--remote</code>: <code>--sync-before-review</code> (run
 <a href="sync.html"><code>sync</code></a> on the server instead).</p>
+<h2 id="token-scope">Token scope</h2>
+<p>A remote token is not tied to one repository: any token can review, and read
+the guides of, every active repository on the server. Hand a token only to
+people you trust with all of them, and revoke a leaked one from <strong>Settings →
+Remote review tokens</strong>.</p>
 <h2 id="reading-the-servers-guides">Reading the server&#39;s guides</h2>
 <p>The same token that authorizes a review also reads the guides the server holds,
 so you can inspect what your review will be judged against without downloading
@@ -344,7 +349,7 @@ sign. See <a href="cost.html">Cost</a>.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#reading-the-servers-guides">Reading the server&#39;s guides</a></li><li><a href="#your-own-ai-key">Your own AI key</a></li><li><a href="#limits">Limits</a></li><li><a href="#security">Security</a></li></ul></nav>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#token-scope">Token scope</a></li><li><a href="#reading-the-servers-guides">Reading the server&#39;s guides</a></li><li><a href="#your-own-ai-key">Your own AI key</a></li><li><a href="#limits">Limits</a></li><li><a href="#security">Security</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

@@ -47,7 +47,7 @@ co-maintainer review
 | Operate repos, tokens, concurrency | Browser on the server | Dashboard after `serve` | [dashboard](dashboard.md) |
 | Review a local diff without every developer running init/sync | Laptop + server | `set --remote-host` then `review --remote` | [remote-review](remote-review.md) |
 | Refresh guides after main moves | Same place as `init` | `sync owner/repo` | [sync](sync.md) |
-| Review pushes to `main` without PRs (coming soon) | Your server (`serve`) and CI | Coming soon | [commit-watch-review](commit-watch-review.md) |
+| Review pushes to `main` without PRs | Your server (`serve`), with the GitHub App or CI | Tick **Push** in the App's events, or add the CI workflow | [commit-watch-review](commit-watch-review.md) |
 
 ---
 
@@ -540,6 +540,7 @@ flowchart TD
 | You are in a clone and want feedback on your branch or working tree before you open a PR | [Local review](local-review.md) | Your AI provider on your machine, guides on disk |
 | Same as local review, but the repo is already inited on [`serve`](serve.md) and you skip per-laptop init/sync | [Remote review](remote-review.md) | Shared context on the server, diff from your clone |
 | You have a PR number and do not need to check out that branch locally | [PR review](local-pr-review.md) | `gh` only, guides on disk, AI on your machine |
+| You push straight to `main` with no pull request | [Commit watch](commit-watch-review.md) | The server reviews each push, from the GitHub App or CI (`review --remote --range`) |
 
 PR review and remote review **do not combine**: `--remote` is only for a local
 diff with no PR positional arguments.
@@ -931,6 +932,13 @@ are the same as [local review](local-review.md#codegraph).
 Not supported with `--remote`: `--sync-before-review` (run
 [`sync`](sync.md) on the server instead).
 
+## Token scope
+
+A remote token is not tied to one repository: any token can review, and read
+the guides of, every active repository on the server. Hand a token only to
+people you trust with all of them, and revoke a leaked one from **Settings →
+Remote review tokens**.
+
 ## Reading the server's guides
 
 The same token that authorizes a review also reads the guides the server holds,
@@ -1097,6 +1105,7 @@ slower.
 | `to-branch` | no | the pull request base branch | The branch the pull request merges into |
 | `version` | no | the version at the action's own commit | The co-maintainer version to run |
 | `node-version` | no | `24` | The Node.js version to run it with |
+| `timeout-minutes` | no | `10` | On a push, how long to wait for the review, see [review pushes](#review-pushes-commit-watch) |
 
 Inputs are never removed or renamed within `v0`. A new input is only ever added,
 with a default that keeps the old behavior.
@@ -1138,6 +1147,40 @@ pull request. Choose in the workflow instead:
     # Only people with a stake in the repository.
     if: contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
 ```
+
+## Review pushes (commit watch)
+
+The same action reviews a push when the workflow runs on `push`. It sends the
+diff from the commit before the push to the commit after it. This is
+[commit watch](commit-watch-review.md).
+
+```yaml
+name: co-maintainer commit watch
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: GroophyLifefor/co-maintainer@v0
+        with:
+          remote-host: ${{ secrets.CO_MAINTAINER_HOST }}
+          remote-token: ${{ secrets.CO_MAINTAINER_TOKEN }}
+```
+
+On a push the step never fails because of a finding. Findings are warnings, and
+after `timeout-minutes` the step ends green with a notice while the review
+finishes on the server. It fails when the server cannot be reached, the token
+is refused, or the repository is not initialized and no GitHub App could give
+the commit a skipped check run. The action runs
+`review --remote --range=<before>..<after>`, which you can run from any other
+CI the same way.
 
 ## Pull requests from forks
 
@@ -1421,7 +1464,7 @@ Overview: [`review`](review.md). This is not the same as
 present).
 
 Pushing straight to `main` without PRs: see
-[commit watch review](commit-watch-review.md) (coming soon).
+[commit watch review](commit-watch-review.md).
 
 ## Before you run
 
@@ -1472,11 +1515,9 @@ Source: https://co-maintainer.com/docs/commit-watch-review.md
 
 # Commit watch review
 
-> **Coming soon.** This feature is planned and not available yet. This page
-> describes what it is meant to do.
-
-Review pushes to a branch without a pull request. It is a sub-page of
-[PR review](local-pr-review.md), for the case where PR review cannot apply.
+Review pushes to your default branch when there is no pull request. It is a
+sub-page of [PR review](local-pr-review.md), for the case where PR review
+cannot apply.
 
 ## Why
 
@@ -1484,48 +1525,113 @@ If you push straight to `main` and do not use branches or pull requests,
 nothing gets reviewed. [PR review](local-pr-review.md) needs a PR, so it never
 runs for you.
 
-## What it is
+## Turn it on
 
-A feature of [`serve`](serve.md), not a new CLI command.
+Commit watch is a feature of [`serve`](serve.md). The repository must be added
+and initialized on the server. On the repository's page in the
+[dashboard](dashboard.md), the **Commit watch** card shows whether pushes are
+watched and the two ways to turn it on. Use either one, or both.
 
-## How it works
+**GitHub App.** In the App's settings on GitHub open **Permissions & events**
+and tick **Push** under **Subscribe to events**. That is your explicit yes, and
+it applies to every repository the App is installed on. The App watches the
+default branch only. See [GitHub App](github-app.md).
 
-1. You push.
-2. Your CI starts.
-3. CI asks the server to run the review.
-4. The result returns to CI.
+**CI.** Add a workflow that runs the co-maintainer action on a push. The card
+gives you the workflow with your server's address filled in. See
+[CI](ci.md#review-pushes-commit-watch).
 
-Which branch is watched is decided in the CI setup. See [CI](ci.md).
+When both report the same push, it is reviewed once and the CI step waits for
+that review.
+
+`co-maintainer probe` shows a `commit watch` line when the machine it runs on
+has the GitHub App configured.
+
+## How a push is reviewed
 
 One push is reviewed as a single diff, from the commit before the push to the
-commit after it. It is not reviewed commit by commit.
+commit after it. It is not reviewed commit by commit. A push that merges a pull
+request is reviewed too.
+
+- A push that creates the branch has nothing to compare with, so it is not
+  reviewed.
+- After a force-push or a rebase, open issues stay and the new commits are
+  reviewed.
+- Only pushes after you turn it on are reviewed. History is not scanned, and a
+  push the server missed while it was down is not reviewed later.
+- A repository that is not initialized is not reviewed. With the App, the
+  commit gets a skipped check run that says so. With CI and no App, the step
+  fails.
+
+When pushes come in a row, the repository settings decide what happens:
+
+| Setting | What happens |
+| ------- | ------------ |
+| Review each push in turn (default) | Every push gets its own review, oldest first. |
+| Cancel and merge into the newest | A waiting or running review is canceled and its range is reviewed together with the newest push. |
 
 ## It never blocks you
 
-CI does not fail because of findings. A timeout keeps a slow review from
-holding up the push. A result that arrives late still shows on the
-[dashboard](dashboard.md).
+The push is already in, so a finding never fails anything.
 
-## Findings
+- **With the App** the commit gets a check run that always succeeds, with the
+  findings as annotations.
+- **With CI** findings are warnings and the step stays green. After the
+  `timeout-minutes` input (10 by default) the step ends green with a notice,
+  and the review finishes on the server. The step fails only when it cannot
+  reach the server or the token is refused.
 
-| Severity | Where it shows |
-| -------- | -------------- |
-| P0, P1 | A GitHub issue, when the token has permission. On by default, and it can be turned off in settings. |
-| P2, P3 | The website only. |
+Every push review, its findings by severity and its cost are on the
+**Pushes** tab of the repository.
 
-## Tracking
+## Issues for P0 and P1
 
-Issues are stored in the `serve` SQLite database, so the same finding is not
-opened twice.
+Each P0 and P1 finding becomes a GitHub issue. Issues are opened by the GitHub
+App, so without the App there are none. It is on by default and can be turned
+off per repository in its settings. P2 and P3 findings are annotations and on
+the dashboard only.
 
-When a later commit changes the related code, a comment `change in <COMMIT-HASH>`
-is added to the issue. It does not claim the issue is fixed.
+An issue is titled `[P1] <what is wrong>` and labeled `co-maintainer` and
+`cm-P1` (the labels are created when missing). The body says where the problem
+is, with a link to the code at the pushed commit, and which push found it.
+Issues are written in English.
 
-## Scope
+The server keeps track of each issue, and a finding with the same file and code
+as an earlier one is not opened again.
 
-- Only new pushes after you enable it are reviewed. History is not scanned.
-- After a force-push or a rebase, open issues stay and the new range is
-  reviewed normally.
+### When the code changes
+
+A push that changes the lines of an open issue's finding gets a comment, and
+the review is asked about that issue explicitly:
+
+- Still there: `change in <commit> (push <after>): changed, still found by the
+  review of <range>`. When the commit is the push, its hash is written once.
+- Fixed: `change in <commit>: changed, no longer found by the review of
+  <range>. Closing.`, and co-maintainer closes the issue. It closes an issue
+  only when a push changed those lines and the review said that problem is
+  fixed. If it is not allowed to close issues, it says so in a comment.
+
+### When you close an issue yourself
+
+The first push review after you close it checks the problem once, even when the
+push does not touch that file. If the problem is still there, co-maintainer
+says so on the same issue and asks you to leave a comment if there is something
+it should know. The issue stays closed, and it says this once per closing.
+
+If that review finds it solved and the problem comes back later, a new issue is
+opened.
+
+### Talking to it on an issue
+
+co-maintainer reads comments on the issues it opened, from people with write
+access, and only when the comment is meant for it. "@someone can you take a
+look" is not.
+
+- A question gets an answer, in the language of the question.
+- A comment that says to ignore the finding, or that tells it something, gets
+  "Noted, I will take this into account on the next sync." The next
+  [sync](sync.md) adds the note to the detailed review guide, and a finding you
+  said to ignore is not reported, commented on or opened as an issue again.
 
 ---
 
@@ -1886,13 +1992,14 @@ Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
 | `/repos/:owner/:repo/pulls/:n` | Findings and cost for one PR |
 | `/repos/:owner/:repo/remote` | Remote CLI reviews for this repo (last 30 days) |
 | `/repos/:owner/:repo/knowledge` | Generated guides, **Sync**, **Clear** |
-| `/repos/:owner/:repo/settings` | **Who gets a review** (the [review policy](review-policy.md)), review scope, codegraph, analysis limits, schedule, remove repo |
+| `/repos/:owner/:repo/settings` | **Who gets a review** (the [review policy](review-policy.md)), review scope, codegraph, [commit watch](commit-watch-review.md) issues and pushes in a row, analysis limits, schedule, remove repo |
+| `/repos/:owner/:repo/pushes` | [Commit watch](commit-watch-review.md) push reviews: range, App or CI, status, findings by severity, issues opened, cost |
 | `/activity` | Live and recent jobs (refreshes about every 5 seconds) and **Pull requests we skipped**, with the rule that skipped each and **Review now** for one that is waiting |
 | `/activity/:id` | Single job log |
 | `/analytics` | Usage for 7, 30, or 90 days |
 | `/settings` | Global models, GitHub, App (**Create GitHub App**), webhook URL, review policy default, remote limits, tokens and key policy |
 
-Per-repo sidebar: **Overview**, **Pull requests**, **Remote**, **Knowledge**, **Settings**.
+Per-repo tabs: **Overview**, **Pull requests**, **Knowledge**, **Remote reviews**, **Pushes**, **Repository settings**. The overview carries the **Commit watch** card.
 
 PR titles are not stored in `app.db`, so lists show `#number` only.
 
@@ -2025,10 +2132,10 @@ The manifest requests exactly the permissions the code uses, not a superset.
 | Permission | Access | Why |
 | ---------- | ------ | --- |
 | Contents | Read | Read files and PR_REVIEW_GUIDE.md, read the file tree, read commit history, compare two commits, read releases in the probe |
-| Issues | Read and write | Read the conversation on a pull request, post a conversation comment, acknowledge a review request on the pull request, edit the failure note left on a pull request, acknowledge a review request in a comment |
+| Issues | Read and write | Read the conversation on a pull request, post a conversation comment, open an issue for a P0 or P1 commit watch finding, see whether a commit watch issue was closed, close a commit watch issue once its finding is fixed, create the co-maintainer and cm-P0 / cm-P1 labels, acknowledge a review request on the pull request, edit the failure note left on a pull request, acknowledge a review request in a comment |
 | Pull requests | Read and write | List pull requests, read a pull request, read the files a pull request changes, read earlier reviews, read review comment threads, post a review, reply in a review comment thread |
 | Checks | Read and write | Create the review check run, update the review check run |
-| Metadata | Read | Read the repository and its default branch |
+| Metadata | Read | Read the repository and its default branch, check a commenter on a commit watch issue has write access |
 <!-- permissions:app:end -->
 
 Metadata is required by every GitHub App. The review check run is created
@@ -2043,7 +2150,12 @@ No `administration`, no `actions`, and no `packages` access is requested.
 | `pull_request` | Open, synchronize, and close decide whether a review runs |
 | `pull_request_review` | Tracks review state for the auto-review rules |
 | `pull_request_review_comment` | Delivers a reply in an existing review comment thread |
-| `issue_comment` | Delivers a reply in a pull request conversation |
+| `issue_comment` | Delivers a reply in a pull request conversation, and a comment on a [commit watch](commit-watch-review.md) issue |
+
+`push` is **not** subscribed by default. Tick it under **Subscribe to events**
+in the App's settings to turn on [commit watch](commit-watch-review.md) through
+the App. That applies to every repository the App is installed on, and the App
+reviews pushes to each repository's default branch only.
 
 `installation` and `installation_repositories` are handled too, but they are
 **not** in the subscription list: GitHub delivers both to every App without a
@@ -2393,6 +2505,8 @@ co-maintainer review [options]
 |---|---|---|
 | `--system-prompt-file=PATH` |  | Append this file's contents to the review instructions for this run only. |
 | `--system-prompt-override-file=PATH` |  | Replace the repository's review instructions with this file for this run only. The built-in instructions are kept. |
+| `--range=BEFORE..AFTER` |  | With --remote: review a push (commit watch). The server keeps the review going if this run stops waiting. |
+| `--timeout-minutes=N` |  | With --range: stop waiting after N minutes and leave the result to the dashboard. Default 10. |
 
 ### AI
 

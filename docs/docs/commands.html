@@ -686,6 +686,16 @@ co-maintainer review [options]
 <td></td>
 <td>Replace the repository&#39;s review instructions with this file for this run only. The built-in instructions are kept.</td>
 </tr>
+<tr>
+<td><code>--range=BEFORE..AFTER</code></td>
+<td></td>
+<td>With --remote: review a push (commit watch). The server keeps the review going if this run stops waiting.</td>
+</tr>
+<tr>
+<td><code>--timeout-minutes=N</code></td>
+<td></td>
+<td>With --range: stop waiting after N minutes and leave the result to the dashboard. Default 10.</td>
+</tr>
 </tbody></table>
 <h3 id="ai-3">AI</h3>
 <table>

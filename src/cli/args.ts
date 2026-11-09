@@ -15,6 +15,7 @@ import {
 } from "../ai/provider.ts";
 import { availableModelSlugs } from "../ai/oauth/sign-in-with-chatgpt.ts";
 import { detectRemoteRepo } from "../local/git_ops.ts";
+import { canonicalRepoName } from "../util/repo_name.ts";
 import { reviewBlockingFrom } from "../review/blocking.ts";
 import {
   renderCommandHelp,
@@ -94,6 +95,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
   if (!repoName || !/^[^/]+\/[^/]+$/.test(repoName)) {
     die("Repository must look like owner/repo");
   }
+  repoName = canonicalRepoName(repoName);
 
   const { config, envPath } = prepareConfig(args);
   const env = (name: string): string | undefined => getEnv(name);
