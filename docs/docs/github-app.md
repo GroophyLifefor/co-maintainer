@@ -46,7 +46,7 @@ The manifest requests exactly the permissions the code uses, not a superset.
 | Issues | Read and write | Read the conversation on a pull request, post a conversation comment, open an issue for a P0 or P1 commit watch finding, see whether a commit watch issue was closed, close a commit watch issue once its finding is fixed, create the co-maintainer and cm-P0 / cm-P1 labels, acknowledge a review request on the pull request, edit the failure note left on a pull request, acknowledge a review request in a comment |
 | Pull requests | Read and write | List pull requests, read a pull request, read the files a pull request changes, read earlier reviews, read review comment threads, post a review, reply in a review comment thread |
 | Checks | Read and write | Create the review check run, update the review check run |
-| Metadata | Read | Read the repository and its default branch |
+| Metadata | Read | Read the repository and its default branch, check a commenter on a commit watch issue has write access |
 <!-- permissions:app:end -->
 
 Metadata is required by every GitHub App. The review check run is created

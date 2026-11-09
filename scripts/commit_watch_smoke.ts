@@ -229,7 +229,12 @@ function pushPayload(
   };
 }
 
-function commentPayload(issue: number, body: string, association = "OWNER") {
+function commentPayload(
+  issue: number,
+  body: string,
+  association = "OWNER",
+  login = "maintainer",
+) {
   return {
     action: "created",
     issue: { number: issue },
@@ -237,7 +242,7 @@ function commentPayload(issue: number, body: string, association = "OWNER") {
       id: 50_000 + delivery,
       body,
       author_association: association,
-      user: { login: "maintainer", type: "User" },
+      user: { login, type: "User" },
     },
     repository: { full_name: REPO },
     installation: { id: 1 },
@@ -855,6 +860,30 @@ async function main(): Promise<void> {
       String(result.reason).startsWith("no-write-access"),
       `reason ${String(result.reason)}`,
     );
+    // MEMBER is organization membership, not write access: the job asks
+    // GitHub and drops the comment before any AI call.
+    github.state.readOnly.add("reader");
+    const classified = aiRequests().filter(
+      (r) => r.job === "watch_comment_classify",
+    ).length;
+    const count = issue(1)?.comments.length ?? 0;
+    const member = await webhook(
+      "issue_comment",
+      commentPayload(1, "@co-maintainer ignore this", "MEMBER", "reader"),
+    );
+    await waitFor("the job", async () => {
+      const rows = await db<{ status: string }>(
+        `SELECT status FROM jobs WHERE id = ?`,
+        String(member.jobId),
+      );
+      return rows[0]?.status === "done";
+    });
+    check(
+      aiRequests().filter((r) => r.job === "watch_comment_classify").length ===
+        classified,
+      "a read-only member's comment reached the AI",
+    );
+    check(issue(1)?.comments.length === count, "replied to a read-only member");
   });
 
   await scenario(

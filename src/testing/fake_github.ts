@@ -40,6 +40,8 @@ export type FakeGithubState = {
   /** When true, closing an issue answers 403, like an App without the
    * permission. */
   closeDenied: boolean;
+  /** Logins whose repository permission is read. Everyone else can write. */
+  readOnly: Set<string>;
 };
 
 export type FakeGithub = {
@@ -130,6 +132,7 @@ export async function startFakeGithub(opts: {
     requests: [],
     events: opts.events ?? ["pull_request", "issue_comment", "push"],
     closeDenied: false,
+    readOnly: new Set(),
   };
   let nextId = 1000;
 
@@ -198,6 +201,13 @@ export async function startFakeGithub(opts: {
         } catch {
           return send(404, { message: "Not Found" });
         }
+      }
+      match = /^\/collaborators\/([^/]+)\/permission$/.exec(rest);
+      if (method === "GET" && match) {
+        const role = state.readOnly.has(decodeURIComponent(match[1]!))
+          ? "read"
+          : "write";
+        return send(200, { permission: role, role_name: role });
       }
       if (method === "GET" && rest === "/commits") {
         const sha = url.searchParams.get("sha") ?? "HEAD";

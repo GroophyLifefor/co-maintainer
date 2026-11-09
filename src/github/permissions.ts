@@ -138,6 +138,14 @@ export const ENDPOINTS: readonly Endpoint[] = [
     feature: "See whether a commit watch issue was closed",
   },
   {
+    method: "GET",
+    pattern: "repos/{repo}/collaborators/{name}/permission",
+    permission: "metadata",
+    level: "read",
+    identities: APP_ONLY,
+    feature: "Check a commenter on a commit watch issue has write access",
+  },
+  {
     method: "PATCH",
     pattern: "repos/{repo}/issues/{n}",
     permission: "issues",
