@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.11] - 2026-11-09
+
+### Fixed
+
+- **One review per commit.** A review submitted or a review comment written while a review of the same commit was running queued a second review of that commit, which posted the same findings again. The queued review now checks when it starts and runs nothing when that commit is already reviewed. Its round and the commit an incremental review starts from are also worked out when it starts, not when it was queued.
+- **A finding in a file that did not change is checked again.** It used to stay open without being looked at, so a fix made in another file never closed it. The next round now asks about it too, with what maintainers with write access replied on its thread, and a reply that shows the finding is wrong can close it.
+- **The review summary tells new findings from old ones.** Open findings are listed under `New` and `Still open`, and a still open one says which commit first found it, so a finding from an earlier round no longer reads as a new problem.
+
 ## [0.6.10] - 2026-11-08
 
 ### Added

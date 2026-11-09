@@ -49,6 +49,7 @@ import { outsideCode, redact } from "../util/redact.ts";
 import { getRepo, setInstallationId } from "../store/repos.ts";
 import {
   findNoteCommentId,
+  getReview,
   getReviewByJobId,
   insertReview,
   latestPostedReview,
@@ -74,6 +75,7 @@ import { requestedReviewBlocked } from "./webhook.ts";
 import type { AiProvider, GitHubClient, Json, Options } from "../types.ts";
 import type { FindingRow, JobRow } from "../store/rows.ts";
 import { getEnv } from "../util/runtime.ts";
+import { hasWriteAccess } from "../github/write_access.ts";
 
 const ACCESS_DENIED_BODY =
   "The App does not have access to review this pull request.";
@@ -287,25 +289,42 @@ function metadataBlock({ jobId, model, durationMs }: ReviewMetadata): string {
   );
 }
 
-/** Short summary on the review itself. Findings that map to the diff go
- * inline. Leftovers are listed here as one line each, not as a CLI dump. */
+/** A finding an earlier round reported that this round still finds, with the
+ * commit that first found it when known. */
+export type StillOpenFinding = { finding: ParsedFinding; since?: string };
+
+function summaryLine(finding: ParsedFinding, since?: string): string {
+  const title = humanCopy(finding.heading || finding.path);
+  const summary = humanCopy(
+    finding.summary ??
+      finding.excerpt.split(/\r?\n/).find((line) => line.trim()) ??
+      "",
+  );
+  const first = since ? ` (first found in ${since.slice(0, 7)})` : "";
+  return `- ${title}${summary ? `: ${summary}` : ""}${first}`;
+}
+
+/** Short summary on the review itself, one line per open finding, split
+ * into what this round found and what earlier rounds found that still
+ * holds, so a repeat never reads as a new problem. */
 export function reviewBody(
   findings: ParsedFinding[],
   metadata: ReviewMetadata,
-  _inlineCount = 0,
+  stillOpen: StillOpenFinding[] = [],
 ): string {
-  if (findings.length === 0) {
+  if (findings.length === 0 && stillOpen.length === 0) {
     return `No actionable findings.${metadataBlock(metadata)}`;
   }
-  const lines: string[] = ["Review summary", ""];
-  for (const finding of findings) {
-    const title = humanCopy(finding.heading || finding.path);
-    const summary = humanCopy(
-      finding.summary ??
-        finding.excerpt.split(/\r?\n/).find((line) => line.trim()) ??
-        "",
-    );
-    lines.push(`- ${title}${summary ? `: ${summary}` : ""}`);
+  const lines: string[] = ["Review summary"];
+  if (findings.length) {
+    lines.push("", `New (${findings.length})`);
+    for (const finding of findings) lines.push(summaryLine(finding));
+  }
+  if (stillOpen.length) {
+    lines.push("", `Still open (${stillOpen.length})`);
+    for (const { finding, since } of stillOpen) {
+      lines.push(summaryLine(finding, since));
+    }
   }
   return lines.join("\n") + metadataBlock(metadata);
 }
@@ -371,6 +390,53 @@ async function postedCommentBodies(
     );
     return new Map();
   }
+}
+
+/** What people with write access replied on each finding's inline thread,
+ * oldest first, keyed by finding id. The next round weighs them when it
+ * decides whether the finding still holds. */
+async function findingReplies(
+  client: GitHubClient,
+  job: JobRow,
+  rows: FindingRow[],
+  log: LogFn,
+): Promise<Map<string, string[]>> {
+  const byThread = new Map<string, string>();
+  for (const row of rows) {
+    for (const id of [row.posted_comment_id, row.thread_comment_id]) {
+      if (id) byThread.set(id, row.id);
+    }
+  }
+  const replies = new Map<string, string[]>();
+  if (byThread.size === 0) return replies;
+  let listed: Json[];
+  try {
+    listed = await client.pages<Json>(
+      `repos/${job.repo}/pulls/${job.pr_number}/comments`,
+    );
+  } catch (error) {
+    log("info", `could not read the review threads: ${redact(String(error))}`);
+    return replies;
+  }
+  const access = new Map<string, Promise<boolean>>();
+  const sorted = [...listed].sort((a, b) =>
+    String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")),
+  );
+  for (const comment of sorted) {
+    const findingId = byThread.get(String(comment.in_reply_to_id ?? ""));
+    const user = comment.user as Json | undefined;
+    const login = String(user?.login ?? "");
+    if (!findingId || !login) continue;
+    if (user?.type === "Bot" || login.endsWith("[bot]")) continue;
+    if (!access.has(login)) {
+      access.set(login, hasWriteAccess(client, job.repo, login));
+    }
+    if (!(await access.get(login))) continue;
+    const list = replies.get(findingId) ?? [];
+    list.push(String(comment.body ?? ""));
+    replies.set(findingId, list);
+  }
+  return replies;
 }
 
 /** A review job's options: the config, with the job's pinned model (a
@@ -625,7 +691,7 @@ async function publish(
       !repeats.includes(row) && (row.state === "new" || row.thread_comment_id),
   );
   const fresh = freshRows.map(rowFinding);
-  const { inline, leftover } = splitInline(fresh, files);
+  const { inline } = splitInline(fresh, files);
   const commentByRow = new Map<string, { anchor: Anchor; body: string }>();
   for (const { finding, anchor, suggestion } of inline) {
     const row = freshRows.find(
@@ -641,33 +707,20 @@ async function publish(
       });
     }
   }
-  const freshSummaryKeys = new Set(
-    [...leftover, ...inline.map(({ finding }) => finding)].map(
-      (finding) => `${finding.path}\0${finding.from}\0${finding.to}`,
-    ),
-  );
-  const summaryFindings = [
-    ...leftover,
-    ...inline.map(({ finding }) => finding),
-    ...stored
-      .filter((row) => row.state !== "closed")
-      .filter((row) => {
-        const key = `${row.path ?? ""}\0${row.line_from ?? 0}\0${row.line_to ?? row.line_from ?? 0}`;
-        return !freshSummaryKeys.has(key);
-      })
-      .map((row) => ({
-        path: row.path ?? "",
-        from: row.line_from ?? 0,
-        to: row.line_to ?? row.line_from ?? 0,
-        heading: row.title,
-        excerpt: row.body_md,
-      })),
-  ];
-  const body = reviewBody(
-    summaryFindings,
-    metadata,
-    inline.length + repeats.length,
-  );
+  // The summary lists every open finding once, by what this round made of
+  // it: found now, or found by an earlier round and still there.
+  const summaryFindings = stored
+    .filter((row) => row.state === "new")
+    .map(rowFinding);
+  const stillOpen = stored
+    .filter((row) => row.state === "open")
+    .map((row) => ({
+      finding: rowFinding(row),
+      since: row.first_seen_review_id
+        ? (getReview(row.first_seen_review_id)?.head_sha ?? undefined)
+        : undefined,
+    }));
+  const body = reviewBody(summaryFindings, metadata, stillOpen);
   const comments = inline.map(({ finding, anchor, suggestion }) => ({
     path: finding.path,
     body: inlineCommentBody(finding, suggestion),
@@ -733,7 +786,7 @@ async function publish(
         client,
         `repos/${job.repo}/issues/${job.pr_number}/comments`,
         {
-          body: reviewBody(summaryFindings, metadata),
+          body: reviewBody(summaryFindings, metadata, stillOpen),
         },
       );
       setReviewStatus(reviewId, "posted", {
@@ -888,6 +941,23 @@ async function runReviewJobCore(
   }
   const headSha = String((pr.head as Json | undefined)?.sha ?? "");
   const mergeBase = String((pr.base as Json | undefined)?.sha ?? "");
+  if (!existing) {
+    const last = latestPostedReview(job.repo, job.pr_number);
+    // A review or comment that arrived while a review of this head was
+    // running queued this job. That review has posted by now.
+    if (
+      (args.trigger === "review" || args.trigger === "review-comment") &&
+      last?.head_sha === headSha
+    ) {
+      log("info", "this head was already reviewed, nothing new to review");
+      return;
+    }
+    // Round and base come from the review that posted last, read now rather
+    // than when the job was queued: a review may have posted in between.
+    if (args.round === undefined) {
+      Object.assign(args, roundArgs(job.repo, last));
+    }
+  }
   let scope = args.scope === "incremental" ? "incremental" : "whole-pr";
   if (scope === "incremental" && !args.sinceCommit) {
     scope = "whole-pr";
@@ -1006,6 +1076,7 @@ async function runReviewJobCore(
     const storedRows = listCarryableFindingsForReview(
       subjectRevision.review_id,
     );
+    const replies = await findingReplies(github, job, storedRows, log);
     carryPrevious = {
       files: prevFiles,
       visiblePaths: parseVisiblePaths(subjectRevision),
@@ -1020,6 +1091,7 @@ async function runReviewJobCore(
         severity: row.severity,
         firstSeenReviewId:
           row.first_seen_review_id ?? subjectRevision.review_id,
+        replies: replies.get(row.id),
       })),
       guideBuiltAt: subjectRevision.guide_built_at,
     };
@@ -1204,20 +1276,28 @@ export function enqueueManualReview(
   prNumber: number,
   pin: { model?: string } = {},
 ): { id: string; debounced: boolean } {
-  const last = latestPostedReview(repo, prNumber);
-  const row = getRepo(repo);
-  const incremental =
-    row?.review_scope === "incremental" && Boolean(last?.head_sha);
   return enqueue({
     type: "review",
     repo,
     prNumber,
     args: {
       trigger: "manual",
-      scope: incremental ? "incremental" : "whole-pr",
-      sinceCommit: incremental ? last!.head_sha : undefined,
-      round: last ? last.round + 1 : 1,
       ...(pin.model ? { model: pin.model } : {}),
     },
   });
+}
+
+/** The round, scope and base of the next review after `last`. A job queued
+ * without them works them out when it starts. */
+export function roundArgs(
+  repo: string,
+  last: { head_sha: string | null; round: number } | undefined,
+): { scope: string; sinceCommit?: string; round: number } {
+  const incremental =
+    getRepo(repo)?.review_scope === "incremental" && Boolean(last?.head_sha);
+  return {
+    scope: incremental ? "incremental" : "whole-pr",
+    sinceCommit: incremental ? last!.head_sha! : undefined,
+    round: last ? last.round + 1 : 1,
+  };
 }
