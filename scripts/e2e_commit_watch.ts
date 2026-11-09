@@ -295,8 +295,9 @@ if (!ping.ok && ping.status !== 303)
 await confirmCost();
 
 // The seeded defect must break a rule the guide names, or a review that
-// follows the guide rightly reports nothing. The repository's own guide is
-// put back at the end, the same way `e2e.ts` does it.
+// follows the guide rightly reports nothing. The rule is added to the
+// repository's own guide, which stays as it is otherwise, and the guide is
+// put back at the end.
 const guidePath = join(repos, repo, "PR_REVIEW_GUIDE.md");
 let originalGuide: string | undefined;
 try {
@@ -306,7 +307,7 @@ try {
 }
 writeFileSync(
   guidePath,
-  "# PR review guide\n\n## Before requesting review\n\n- Do not pass untrusted input to eval. This is P1.\n",
+  `${(originalGuide ?? "# PR review guide\n").trimEnd()}\n\n## Commit watch e2e\n\n- Do not pass untrusted input to eval. This is P1.\n`,
 );
 
 let opened: Issue | undefined;

@@ -41,7 +41,7 @@ import {
 } from "../util/cost.ts";
 import { getRepo } from "../store/repos.ts";
 import { getJob, insertJob, listJobs, setJobStatus } from "../store/jobs.ts";
-import { insertFinding } from "../store/findings.ts";
+import { insertFinding, listFindingsForReview } from "../store/findings.ts";
 import {
   getReview,
   getReviewByJobId,
@@ -200,6 +200,23 @@ export function queuePush(req: PushRequest): PushOutcome {
       : undefined;
     if (req.source === "ci" && review) {
       return { kind: "attached", jobId: existing.job_id, reviewId: review.id };
+    }
+    // The App joins a review CI started. A queued or running review reads
+    // the sources again when it ends. One that already ended gets its check
+    // from a job of its own.
+    const sources = pushSources(existing);
+    if (
+      req.source === "app" &&
+      review?.status === "done" &&
+      !review.check_run_id &&
+      !sources.includes("app")
+    ) {
+      insertJob({
+        id: crypto.randomUUID(),
+        type: PUSH_CHECK_JOB,
+        repo: req.repo,
+        args: { after: req.after, reviewId: review.id },
+      });
     }
     return {
       kind: "skipped",
@@ -372,6 +389,16 @@ async function knownChecks(
   const checks: KnownCheck[] = [];
   const byPath = new Map(revision.files.map((file) => [file.path, file]));
   for (const issue of listWatchIssues(repo)) {
+    // A renamed file takes its issue along, whatever the issue's state, so an
+    // ignored or closed finding is still recognized under the new name. That
+    // is following the code, not a verdict on it.
+    const renamed = revision.files.find(
+      (f) => f.status === "renamed" && samePath(f.previousPath, issue.path),
+    );
+    if (renamed) {
+      updateWatchIssue(issue.id, { path: renamed.path });
+      issue.path = renamed.path;
+    }
     if (issue.state === "ignored") continue;
     if (issue.state === "open" || issue.state === "closed_by_user") {
       const state = await readIssueState(client, repo, issue.issue_number);
@@ -394,15 +421,6 @@ async function knownChecks(
       issue.state === "closed_by_user" && issue.closed_check === "pending";
     if (issue.state !== "open" && !closedOnce) continue;
     if (!issue.path) continue;
-    // A renamed file takes its issue along. That is following the code, not
-    // a verdict on it.
-    const renamed = revision.files.find(
-      (f) => f.status === "renamed" && samePath(f.previousPath, issue.path),
-    );
-    if (renamed) {
-      updateWatchIssue(issue.id, { path: renamed.path });
-      issue.path = renamed.path;
-    }
     const file = byPath.get(issue.path);
     if (!file && !closedOnce) continue;
     const content = await fileAt(client, repo, issue.path, after);
@@ -555,44 +573,79 @@ async function startCheckRun(
   }
 }
 
-async function finishCheckRun(
+type CheckFinding = Pick<
+  ResolvedFinding,
+  "path" | "lineFrom" | "lineTo" | "severity" | "title" | "bodyMd"
+>;
+
+/** Completes the App's check run: the one this review started, or a new one
+ * already completed when the App's delivery arrived after the review began.
+ * Every end goes through here, canceled and failed included, so no check is
+ * left in progress. */
+async function completeCheckRun(
   client: GitHubClient,
   repo: string,
-  checkRunId: string | undefined,
-  title: string,
-  summary: string,
-  findings: ResolvedFinding[],
+  input: {
+    after: string;
+    reviewId: string;
+    checkRunId: string | undefined;
+    title: string;
+    summary: string;
+    findings: CheckFinding[];
+  },
   log: LogFn,
 ): Promise<void> {
-  if (!checkRunId || !client.updateCheckRun) return;
+  const body = {
+    status: "completed",
+    // Commit watch reports, it never blocks: the push is already in.
+    conclusion: "success",
+    completed_at: new Date().toISOString(),
+    output: {
+      title: humanCopy(input.title),
+      summary: humanCopy(input.summary),
+      annotations: input.findings
+        .filter((finding) => finding.path)
+        .slice(0, 50)
+        .map((finding) => {
+          const start = Math.max(1, finding.lineFrom ?? 1);
+          return {
+            path: finding.path,
+            start_line: start,
+            end_line: Math.max(start, finding.lineTo ?? start),
+            annotation_level: annotationLevel(finding.severity),
+            title: humanCopy(`${finding.severity}: ${finding.title}`),
+            message: humanCopy(finding.bodyMd),
+          };
+        }),
+    },
+  };
   try {
-    await client.updateCheckRun<Json>(
-      `repos/${repo}/check-runs/${checkRunId}`,
+    if (input.checkRunId) {
+      if (!client.updateCheckRun) return;
+      await client.updateCheckRun<Json>(
+        `repos/${repo}/check-runs/${input.checkRunId}`,
+        body,
+      );
+      return;
+    }
+    if (!client.createCheckRun) return;
+    const check = await client.createCheckRun<Json>(
+      `repos/${repo}/check-runs`,
       {
-        status: "completed",
-        // Commit watch reports, it never blocks: the push is already in.
-        conclusion: "success",
-        completed_at: new Date().toISOString(),
-        output: {
-          title: humanCopy(title),
-          summary: humanCopy(summary),
-          annotations: findings
-            .filter((finding) => finding.path)
-            .slice(0, 50)
-            .map((finding) => {
-              const start = Math.max(1, finding.lineFrom ?? 1);
-              return {
-                path: finding.path,
-                start_line: start,
-                end_line: Math.max(start, finding.lineTo ?? start),
-                annotation_level: annotationLevel(finding.severity),
-                title: humanCopy(`${finding.severity}: ${finding.title}`),
-                message: humanCopy(finding.bodyMd),
-              };
-            }),
-        },
+        ...body,
+        name: CHECK_NAME,
+        head_sha: input.after,
+        external_id: input.reviewId,
       },
     );
+    const id = String(check.id ?? "");
+    if (id) {
+      setReviewStatus(
+        input.reviewId,
+        getReview(input.reviewId)?.status ?? "done",
+        { check_run_id: id },
+      );
+    }
   } catch (error) {
     log("info", `GitHub Check Run update failed: ${redact(String(error))}`);
   }
@@ -714,9 +767,11 @@ async function applyIssues(input: {
       (closed ? activity.closed : activity.closeDenied).push(
         issue.issue_number,
       );
+      // An issue it could not close is still open on GitHub, so it stays open
+      // here too: counted on the dashboard, and no duplicate is opened.
       updateWatchIssue(issue.id, {
         ...location,
-        state: "closed_by_us",
+        state: closed ? "closed_by_us" : "open",
         last_review_id: input.reviewId,
         last_check: `fixed in ${range}`,
         last_check_at: now,
@@ -827,8 +882,14 @@ async function runPushReview(
   log("info", `push review started for ${job.repo} ${range} on ${args.branch}`);
 
   let completed = false;
+  let client: GitHubClient | undefined;
+  let checkRunId: string | undefined;
   try {
-    const client = await appClientFor(job.repo);
+    client = await appClientFor(job.repo);
+    checkRunId =
+      client && sources.includes("app")
+        ? await startCheckRun(client, job.repo, args.after, review.id, log)
+        : undefined;
     const revision = await pushRevision(
       job,
       client,
@@ -836,10 +897,6 @@ async function runPushReview(
       args.after,
       args.branch,
     );
-    const checkRunId =
-      client && sources.includes("app")
-        ? await startCheckRun(client, job.repo, args.after, review.id, log)
-        : undefined;
 
     const checks = client
       ? await knownChecks(client, job.repo, revision, args.after, log)
@@ -921,21 +978,6 @@ async function runPushReview(
         state: "new",
       });
     }
-    if (client) {
-      await finishCheckRun(
-        client,
-        job.repo,
-        checkRunId,
-        report.length === 0
-          ? `No findings in ${range}`
-          : `${report.length} finding${report.length === 1 ? "" : "s"} in ${range}`,
-        report.length === 0
-          ? "No actionable findings."
-          : `${report.length} finding(s) reported.`,
-        report,
-        log,
-      );
-    }
 
     const blockingMode = reviewBlockingFrom(options.reviewBlocking);
     const settled = settle(costTally);
@@ -969,17 +1011,112 @@ async function runPushReview(
     });
     deletePushInput(job.id);
     completed = true;
+    // The App's delivery may have joined this review while it ran (CI came
+    // first). Read the sources again now that the review is done: a later
+    // delivery sees "done" and queues the check itself.
+    const joined = getPushEvent(job.repo, args.after);
+    if (
+      client &&
+      (checkRunId || (joined && pushSources(joined).includes("app")))
+    ) {
+      await completeCheckRun(
+        client,
+        job.repo,
+        {
+          after: args.after,
+          reviewId: review.id,
+          checkRunId,
+          ...resultCheckText(report.length, range),
+          findings: report,
+        },
+        log,
+      );
+    }
     log("info", `push review finished (${report.length} findings)`);
   } finally {
     if (!completed) {
       setReviewStatus(review.id, signal.aborted ? "canceled" : "failed");
       if (!signal.aborted) deletePushInput(job.id);
+      if (client && checkRunId) {
+        await completeCheckRun(
+          client,
+          job.repo,
+          {
+            after: args.after,
+            reviewId: review.id,
+            checkRunId,
+            title: signal.aborted ? "Review canceled" : "Review did not finish",
+            summary: signal.aborted
+              ? `The review of ${range} was canceled. When a newer push was merged into it, that review covers this push.`
+              : `The review of ${range} did not finish. The dashboard has the reason.`,
+            findings: [],
+          },
+          log,
+        );
+      }
     }
   }
 }
 
+function resultCheckText(
+  count: number,
+  range: string,
+): { title: string; summary: string } {
+  return count === 0
+    ? { title: `No findings in ${range}`, summary: "No actionable findings." }
+    : {
+        title: `${count} finding${count === 1 ? "" : "s"} in ${range}`,
+        summary: `${count} finding(s) reported.`,
+      };
+}
+
+/** The App's check for a review that finished before the App's delivery
+ * arrived, built from what the review stored. */
+async function publishLateCheck(
+  job: JobRow,
+  reviewId: string,
+  after: string,
+  log: LogFn,
+): Promise<void> {
+  const review = getReview(reviewId);
+  if (!review || review.check_run_id) return;
+  const client = await appClientFor(job.repo);
+  if (!client) return;
+  const findings = listFindingsForReview(reviewId).map((row) => ({
+    path: row.path,
+    lineFrom: row.line_from,
+    lineTo: row.line_to,
+    severity: row.severity,
+    title: row.title,
+    bodyMd: row.body_md,
+  }));
+  await completeCheckRun(
+    client,
+    job.repo,
+    {
+      after,
+      reviewId,
+      checkRunId: undefined,
+      ...resultCheckText(
+        findings.length,
+        pushRange(review.base_sha ?? after, after),
+      ),
+      findings,
+    },
+    log,
+  );
+}
+
 async function runSkippedCheck(job: JobRow, log: LogFn): Promise<void> {
-  const args = JSON.parse(job.args) as { after: string; title: string };
+  const args = JSON.parse(job.args) as {
+    after: string;
+    title?: string;
+    reviewId?: string;
+  };
+  if (args.reviewId) {
+    await publishLateCheck(job, args.reviewId, args.after, log);
+    return;
+  }
   const client = await appClientFor(job.repo);
   if (!client?.createCheckRun) {
     log("info", "no GitHub App covers this repository, no check run");
@@ -991,7 +1128,7 @@ async function runSkippedCheck(job: JobRow, log: LogFn): Promise<void> {
     status: "completed",
     conclusion: "skipped",
     completed_at: new Date().toISOString(),
-    output: { title: args.title, summary: args.title },
+    output: { title: args.title ?? "", summary: args.title ?? "" },
   });
 }
 

@@ -944,6 +944,18 @@ async function main(): Promise<void> {
         merged.base_sha === c.before,
         `the merged review starts at ${merged.base_sha.slice(0, 7)}, not ${c.before.slice(0, 7)}`,
       );
+      const canceledCheck = await waitFor(
+        "the canceled check to complete",
+        () =>
+          github.state.checkRuns.find(
+            (r) => r.head_sha === c.after && r.status === "completed",
+          ),
+      );
+      check(
+        canceledCheck.conclusion === "success" &&
+          canceledCheck.output?.title === "Review canceled",
+        `the canceled review left its check ${canceledCheck.status}/${canceledCheck.output?.title}`,
+      );
       const old = await db<{ status: string; cancel_reason: string }>(
         `SELECT j.status, j.cancel_reason FROM jobs j JOIN reviews r ON r.job_id = j.id
        WHERE r.kind = 'push' AND r.head_sha = ?`,
@@ -1162,6 +1174,14 @@ async function main(): Promise<void> {
       issue(number)?.state === "open",
       "the issue closed without permission",
     );
+    const tracked = await db<{ state: string }>(
+      `SELECT state FROM watch_issues WHERE issue_number = ?`,
+      number,
+    );
+    check(
+      tracked[0]?.state === "open",
+      `an issue it could not close is tracked as ${tracked[0]?.state}`,
+    );
     github.state.closeDenied = false;
   });
 
@@ -1253,6 +1273,67 @@ async function main(): Promise<void> {
       check(
         issue(number)?.comments.length === count,
         "a plain rename commented on the issue",
+      );
+    },
+  );
+
+  await scenario(
+    "25 the App's delivery after CI's review still gets the check",
+    async () => {
+      setAi("review_push", review([]));
+      const next = push({ "late.txt": "1\n" }, "late app");
+      const run = await ci(next.before, next.after);
+      check(run.code === 0, `CI exit ${run.code}`);
+      await reviewDone(next.after);
+      check(
+        !github.state.checkRuns.some((r) => r.head_sha === next.after),
+        "a CI-only review created an App check",
+      );
+      await webhook("push", pushPayload(REPO, next.before, next.after));
+      const late = await waitFor("the late App check", () =>
+        github.state.checkRuns.find((r) => r.head_sha === next.after),
+      );
+      check(
+        late.status === "completed" && late.conclusion === "success",
+        `late check ${late.status}/${late.conclusion}`,
+      );
+      const rows = await db<{ n: number }>(
+        `SELECT COUNT(*) AS n FROM reviews WHERE kind = 'push' AND head_sha = ?`,
+        next.after,
+      );
+      check(
+        Number(rows[0]?.n) === 1,
+        "the late delivery reviewed the push again",
+      );
+    },
+  );
+
+  await scenario(
+    "26 an ignored finding stays ignored after a rename",
+    async () => {
+      git(work, ["mv", "src/net/retry.ts", "src/net/loop.ts"]);
+      git(work, ["commit", "-q", "-m", "rename retry"]);
+      const renameBefore = git(work, ["rev-parse", "HEAD~1"]);
+      git(work, ["push", "-q", "origin", "HEAD:main"]);
+      const renameAfter = git(work, ["rev-parse", "HEAD"]);
+      setAi("review_push", review([]));
+      await webhook("push", pushPayload(REPO, renameBefore, renameAfter));
+      await reviewDone(renameAfter);
+      setAi(
+        "review_push",
+        review([finding("P1", "src/net/loop.ts", 2, 2, "retry never stops")]),
+      );
+      const count = github.state.issues.length;
+      const touch = push({ "src/net/loop.ts": RETRY_BUG }, "touch loop");
+      const run = await ci(touch.before, touch.after);
+      check(run.code === 0, `CI exit ${run.code}`);
+      check(
+        !run.stdout.includes("retry never stops"),
+        "the ignored finding was reported after the rename",
+      );
+      check(
+        github.state.issues.length === count,
+        "an issue was opened for an ignored finding after the rename",
       );
     },
   );
