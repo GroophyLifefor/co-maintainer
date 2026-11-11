@@ -240,11 +240,6 @@ try {
         }
       : undefined,
   };
-  const checks = initChecks(context);
-  for (const check of checks) {
-    printCheck(check);
-    if (!check.ok) failed = true;
-  }
   // Its own step, so the judge's time shows apart from init's.
   at = performance.now();
   trace.step = "judge";
@@ -256,6 +251,13 @@ try {
     true,
     judged?.skipped ? `skipped · ${judged.skipped}` : (judged?.detail ?? ""),
   );
+  // After the judge, so a call the judge sent out of the simulation fails the
+  // run too, even when its score is only skipped.
+  const checks = initChecks(context);
+  for (const check of checks) {
+    printCheck(check);
+    if (!check.ok) failed = true;
+  }
   for (const score of scores) printScore(score);
 
   if (flags.output) {

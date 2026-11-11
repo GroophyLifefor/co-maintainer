@@ -208,6 +208,45 @@ function aiCost(context: InitContext): Score {
   };
 }
 
+export type Verdict = { n: number; supported: boolean; reason?: string };
+
+/** The judge's verdicts that can be counted: `n` names one of the claims,
+ * `supported` is a boolean, and the first verdict for a claim wins. Anything
+ * else is dropped, so a claim is never counted twice. */
+export function judgeVerdicts(text: string, claims: number): Verdict[] {
+  const match = /\{[\s\S]*\}/.exec(text);
+  let parsed: unknown;
+  try {
+    parsed = (JSON.parse(match?.[0] ?? "{}") as { verdicts?: unknown })
+      .verdicts;
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const seen = new Set<number>();
+  const verdicts: Verdict[] = [];
+  for (const item of parsed) {
+    if (!item || typeof item !== "object") continue;
+    const { n, supported, reason } = item as Partial<Verdict>;
+    if (
+      typeof n !== "number" ||
+      !Number.isInteger(n) ||
+      n < 1 ||
+      n > claims ||
+      typeof supported !== "boolean" ||
+      seen.has(n)
+    )
+      continue;
+    seen.add(n);
+    verdicts.push({
+      n,
+      supported,
+      ...(typeof reason === "string" ? { reason } : {}),
+    });
+  }
+  return verdicts;
+}
+
 /** Whether each bullet says what the repository files show. The files are the
  * evidence: a fact the AI extracted from the codebase names no single file. */
 async function claimEvidence(context: InitContext): Promise<Score> {
@@ -262,21 +301,14 @@ ${lines.map((line, index) => `${index + 1}. ${line}`).join("\n")}
 FILES:
 ${files}`,
   });
-  const match = /\{[\s\S]*\}/.exec(response.text);
-  let verdicts: { n: number; supported: boolean; reason?: string }[] = [];
-  try {
-    verdicts =
-      (JSON.parse(match?.[0] ?? "{}") as { verdicts?: typeof verdicts })
-        .verdicts ?? [];
-  } catch {
-    // Reported below as no verdicts.
-  }
+  const verdicts = judgeVerdicts(response.text, lines.length);
   const supported = verdicts.filter((verdict) => verdict.supported).length;
+  const missing = lines.length - verdicts.length;
   return {
     name,
     value: verdicts.length ? supported / lines.length : null,
     detail: verdicts.length
-      ? `${supported} of ${lines.length} bullets supported`
+      ? `${supported} of ${lines.length} bullets supported${missing ? ` · ${missing} without a verdict` : ""}`
       : "the judge returned no verdicts",
     fakeAi,
     data: {
