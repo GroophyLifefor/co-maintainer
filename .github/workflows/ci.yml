@@ -60,6 +60,11 @@ jobs:
         run: node scripts/commit_watch_smoke.ts
         env:
           CM_FAKE_AI: "1"
+      # init in a simulated GitHub, in one process, with the fake AI. Windows
+      # runs it only on a pull request labeled `e2e:windows`.
+      - name: e2e simulate
+        if: runner.os == 'Linux' || contains(github.event.pull_request.labels.*.name, 'e2e:windows')
+        run: npm run e2e:simulate
 
   # Its own job on Linux only: `npx` and the fake `gh` both need a POSIX
   # spawn, and it downloads the published 0.4.13, so it must not slow the
