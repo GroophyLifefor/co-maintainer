@@ -54,6 +54,7 @@
     "swe-prbench-prepare": "node benchmark/swe-prbench/prepare_dataset.ts",
     "e2e": "node scripts/e2e.ts",
     "e2e:fake": "node scripts/e2e_fake.ts",
+    "e2e:simulate": "node scripts/e2e_simulate.ts",
     "review-local-e2e": "node scripts/review_local_e2e.ts",
     "docs:build": "node scripts/build_docs.ts",
     "pack:smoke": "node scripts/pack_smoke.ts",
