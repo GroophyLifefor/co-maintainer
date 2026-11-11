@@ -70,9 +70,9 @@ guides and does the review. You pick both models. Read what it learned with
 
 ## Pricing
 
-| Solo | Team | Company |
-| ---- | ---- | ------- |
-| $0 | $0 per seat | $0 forever |
+| Solo                | Team                                      | Company                           |
+| ------------------- | ----------------------------------------- | --------------------------------- |
+| $0                  | $0 per seat                               | $0 forever                        |
 | The CLI on a laptop | One server, guides shared with `--remote` | Your infrastructure, MIT licensed |
 
 You only pay your model provider. No telemetry from the CLI, `serve` or the
@@ -85,9 +85,9 @@ dashboard. How we earn: donations and thanks.
 `core_v3`: 30 PRs in one target repo, 14 with seeded defects and 16 clean
 controls, so precision is measured too.
 
-| Recall | Precision | F1 | Cost / PR | Time / PR |
-| ------ | --------- | -- | --------- | --------- |
-| 0.857 | 0.353 | 0.500 | $0.0045 | 28.9s |
+| Recall | Precision | F1    | Cost / PR | Time / PR |
+| ------ | --------- | ----- | --------- | --------- |
+| 0.857  | 0.353     | 0.500 | $0.0045   | 28.9s     |
 
 deepseek-v4-flash + gpt-5.6-luna, judge gpt-5.6-luna, 2026-09-14. A small
 dataset, read it as a signal. Details: [`benchmark/core_v3`](benchmark/core_v3/README.md).
