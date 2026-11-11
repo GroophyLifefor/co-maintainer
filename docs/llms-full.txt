@@ -310,7 +310,7 @@ Refresh repository knowledge after the default branch or pull requests move on.
 [cache](caching.md), and regenerates `SKILL.md` and review guides. It costs
 less time and API usage than a full [`init`](init.md) when little changed.
 
-> Earlier releases called this command `sync`. That spelling still runs the
+> Earlier releases called this command `remake`. That spelling still runs the
 > same job, but it is no longer shown in help.
 
 ## Before you run
