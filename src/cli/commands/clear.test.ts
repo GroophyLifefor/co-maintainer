@@ -168,7 +168,7 @@ test("clear suggests the closest flag for a typo", async () => {
 
 test("clear refuses while a live serve holds the lock", async () => {
   await sandbox(async () => {
-    await writeTextFile(`${appDbPath()}.lock`, String(process.pid));
+    await writeTextFile(`${appDbPath()}.lock`, String(process.ppid));
     const result = await capture(["clear", "acme/widgets"]);
     if (result.exitCode !== 2) throw new Error(`exit ${result.exitCode}`);
     if (!result.stderr.includes("serve process")) {
