@@ -40,7 +40,9 @@ import {
   CliError,
   EXIT_RUNTIME,
   EXIT_USAGE,
+  connectionCut,
   networkFailure,
+  readBody,
 } from "../cli/error.ts";
 
 /** `CM_OPENAI_URL` points at a local fake in tests. Unset means the real
@@ -279,8 +281,11 @@ export function parseResponsesBody(
  * fills it). The terminal response supplies `usage` and `status`; the
  * collected items supply `output`, so the shared {@link parseResponsesBody}
  * sees the same shape on both routes. A stream with no terminal response
- * throws. */
-export async function readResponsesStream(response: Response): Promise<Json> {
+ * throws, and one cut mid-way names `url`'s host. */
+export async function readResponsesStream(
+  response: Response,
+  url: string,
+): Promise<Json> {
   if (!response.body) {
     throw new Error("OpenAI returned no response body to stream");
   }
@@ -290,7 +295,14 @@ export async function readResponsesStream(response: Response): Promise<Json> {
   let terminal: Json | undefined;
   const items: Json[] = [];
   for (;;) {
-    const { done, value } = await reader.read();
+    let chunk: ReadableStreamReadResult<Uint8Array>;
+    try {
+      chunk = await reader.read();
+    } catch (error) {
+      if (error instanceof TypeError) throw connectionCut(url, error);
+      throw error;
+    }
+    const { done, value } = chunk;
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
     // SSE events are separated by a blank line; tolerate CRLF.
@@ -361,9 +373,12 @@ export class OpenAiProvider implements AiProvider {
     for (;;) {
       const response = await this.post(responsesBody(this.model, current));
       if (response.ok) {
-        return parseResponsesBody((await response.json()) as Json, this.model);
+        return parseResponsesBody(
+          JSON.parse(await readBody(this.endpoint, response)) as Json,
+          this.model,
+        );
       }
-      const detail = await response.text();
+      const detail = await readBody(this.endpoint, response);
       const lighter =
         response.status === 400
           ? withoutRefusedPart(

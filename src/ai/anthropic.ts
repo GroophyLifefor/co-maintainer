@@ -46,6 +46,7 @@ import {
   EXIT_RUNTIME,
   EXIT_USAGE,
   networkFailure,
+  readBody,
 } from "../cli/error.ts";
 
 /** Required on every Messages request and the only version the errors below
@@ -356,24 +357,34 @@ export class AnthropicProvider implements AiProvider {
     // only a hint (the prompt also asks for a fenced JSON block), so one retry
     // without it beats failing the review outright.
     if (response.status === 400 && request.responseFormat) {
-      const detail = await response.text();
+      const detail = await readBody(this.endpoint, response);
       if (/output_config|json_schema|structured/i.test(detail)) {
         const { responseFormat: _dropped, ...withoutSchema } = request;
         response = await this.post(messagesBody(this.model, withoutSchema));
         if (response.ok) {
-          return parseMessagesBody((await response.json()) as Json, this.model);
+          return parseMessagesBody(
+            JSON.parse(await readBody(this.endpoint, response)) as Json,
+            this.model,
+          );
         }
         throw anthropicError(
           this.model,
           response.status,
-          await response.text(),
+          await readBody(this.endpoint, response),
         );
       }
       throw anthropicError(this.model, response.status, detail);
     }
     if (!response.ok) {
-      throw anthropicError(this.model, response.status, await response.text());
+      throw anthropicError(
+        this.model,
+        response.status,
+        await readBody(this.endpoint, response),
+      );
     }
-    return parseMessagesBody((await response.json()) as Json, this.model);
+    return parseMessagesBody(
+      JSON.parse(await readBody(this.endpoint, response)) as Json,
+      this.model,
+    );
   }
 }

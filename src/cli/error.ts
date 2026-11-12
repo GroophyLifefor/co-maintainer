@@ -60,20 +60,54 @@ export function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    // Keep the raw value when it does not parse.
+    return url;
+  }
+}
+
 /** A failed `fetch` as a message that names the host and the cause.
  * Node's own text is only `fetch failed`, which says neither. */
 export function networkFailure(url: string, error: unknown): CliError {
   const code = (error as { cause?: { code?: string } }).cause?.code;
-  let host = url;
-  try {
-    host = new URL(url).host;
-  } catch {
-    // Keep the raw value when it does not parse.
-  }
   return new CliError(
     "network_failed",
-    `Could not reach ${host}${code ? `: ${code}` : "."}`,
+    `Could not reach ${hostOf(url)}${code ? `: ${code}` : "."}`,
     undefined,
     EXIT_RUNTIME,
   );
+}
+
+/** A response whose body stopped arriving, as a message that names the host
+ * and the cause. The host was reached, so "Could not reach" would be wrong,
+ * and Node's own text is only `terminated`, which says neither. */
+export function connectionCut(url: string, error: unknown): CliError {
+  const cause = (error as { cause?: { code?: string; message?: string } })
+    .cause;
+  const detail = [cause?.code, cause?.message].filter(Boolean).join(": ");
+  return new CliError(
+    "connection_cut",
+    `${hostOf(url)} closed the connection before the answer was complete${
+      detail ? ` (${detail}).` : "."
+    }`,
+    "The request reached the provider and the answer was cut off. Run the command again.",
+    EXIT_RUNTIME,
+  );
+}
+
+/** Reads a response body. fetch rejects with a `TypeError` when the
+ * connection closes mid-body; that becomes {@link connectionCut}. */
+export async function readBody(
+  url: string,
+  response: Response,
+): Promise<string> {
+  try {
+    return await response.text();
+  } catch (error) {
+    if (error instanceof TypeError) throw connectionCut(url, error);
+    throw error;
+  }
 }

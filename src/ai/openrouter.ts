@@ -6,6 +6,7 @@ import {
   EXIT_RUNTIME,
   EXIT_USAGE,
   networkFailure,
+  readBody,
 } from "../cli/error.ts";
 
 /** A service that speaks OpenAI-compatible Chat Completions. OpenRouter is
@@ -131,12 +132,12 @@ export class OpenRouterProvider implements AiProvider {
       const response = await this.post(chatBody(this.model, current));
       if (response.ok) {
         return parseChatResponse(
-          (await response.json()) as Json,
+          JSON.parse(await readBody(this.host.endpoint, response)) as Json,
           this.host.provider,
           this.model,
         );
       }
-      const detail = await response.text();
+      const detail = await readBody(this.host.endpoint, response);
       const lighter =
         response.status === 400
           ? withoutRefusedPart(

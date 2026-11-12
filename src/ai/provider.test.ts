@@ -4,9 +4,13 @@ import {
   rejectRetiredProvider,
 } from "./provider.ts";
 import { OpenRouterProvider } from "./openrouter.ts";
-import { OpenAiProvider } from "./openai.ts";
+import { OpenAiProvider, readResponsesStream } from "./openai.ts";
 import { AnthropicProvider, parseMessagesBody } from "./anthropic.ts";
+import { CliError } from "../cli/error.ts";
+import { deleteEnv, getEnv, setEnv } from "../util/runtime.ts";
 import type { AiRequest, Options } from "../types.ts";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { test } from "node:test";
 
 const request: AiRequest = {
@@ -187,4 +191,75 @@ test("an answer cut off before its first word says so", async () => {
     message = (error as Error).message;
   }
   if (!message.includes("reached its output limit")) throw new Error(message);
+});
+
+test("an answer whose connection closes mid-body names the host and the cause", async () => {
+  // A real socket, so the error is the one fetch throws, not a stand-in.
+  const server = createServer((_req, res) => {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.write('{"choices":');
+    setTimeout(() => res.socket?.destroy(), 20);
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const host = `127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const names = ["CM_OPENROUTER_URL", "CM_OPENAI_URL", "CM_ANTHROPIC_URL"];
+  const originals = names.map((name) => getEnv(name));
+  setEnv("CM_OPENROUTER_URL", `http://${host}/api/v1/chat/completions`);
+  setEnv("CM_OPENAI_URL", `http://${host}/v1/responses`);
+  setEnv("CM_ANTHROPIC_URL", `http://${host}/v1`);
+  const expected = `${host} closed the connection before the answer was complete (UND_ERR_SOCKET: other side closed).`;
+  try {
+    const calls: [string, () => Promise<unknown>][] = [
+      ["OpenRouter", () => new OpenRouterProvider("k", "m").complete(request)],
+      ["OpenAI", () => new OpenAiProvider("k", "m").complete(request)],
+      ["Anthropic", () => new AnthropicProvider("k", "m").complete(request)],
+      [
+        "Responses stream",
+        async () =>
+          readResponsesStream(
+            await fetch(`http://${host}/v1/responses`),
+            `http://${host}/v1/responses`,
+          ),
+      ],
+    ];
+    for (const [name, call] of calls) {
+      let caught: unknown;
+      try {
+        await call();
+      } catch (error) {
+        caught = error;
+      }
+      if (
+        !(caught instanceof CliError) ||
+        caught.code !== "connection_cut" ||
+        caught.message !== expected ||
+        !caught.hint?.includes("Run the command again")
+      ) {
+        throw new Error(`${name}: ${String(caught)}`);
+      }
+    }
+  } finally {
+    names.forEach((name, index) => {
+      const original = originals[index];
+      if (original === undefined) deleteEnv(name);
+      else setEnv(name, original);
+    });
+    server.close();
+  }
+});
+
+test("a body that is not JSON is not reported as a closed connection", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => new Response("not json", { status: 200 });
+    let caught: unknown;
+    try {
+      await new OpenRouterProvider("test-key", "test-model").complete(request);
+    } catch (error) {
+      caught = error;
+    }
+    if (!(caught instanceof SyntaxError)) throw new Error(String(caught));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
