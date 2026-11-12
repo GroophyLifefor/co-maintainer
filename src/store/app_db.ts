@@ -61,7 +61,9 @@ async function lastVersion(): Promise<string | null> {
   }
 }
 
-/** The pid holding the database lock, or `undefined` when nothing live does. */
+/** The pid holding the database lock, or `undefined` when nothing live does.
+ * Our own pid is never another holder: in a container `serve` gets the same
+ * pid on every start, so a lock left by a hard stop names the new process. */
 export async function liveLockPid(): Promise<number | undefined> {
   let pid: number | undefined;
   try {
@@ -69,7 +71,10 @@ export async function liveLockPid(): Promise<number | undefined> {
   } catch (error) {
     if (!isNotFound(error)) throw error;
   }
-  return pid !== undefined && Number.isInteger(pid) && isProcessAlive(pid)
+  return pid !== undefined &&
+    Number.isInteger(pid) &&
+    pid !== process.pid &&
+    isProcessAlive(pid)
     ? pid
     : undefined;
 }

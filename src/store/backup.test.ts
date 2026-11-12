@@ -339,7 +339,7 @@ test("the rollback command restores with --yes and refuses when serve is running
     }
 
     // A live process holding the lock.
-    await writeTextFile(`${dir}/app.db.lock`, String(process.pid));
+    await writeTextFile(`${dir}/app.db.lock`, String(process.ppid));
     try {
       await runRollback(["--yes"]);
       throw new Error("rolled back under a running serve");

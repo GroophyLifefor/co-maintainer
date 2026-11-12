@@ -181,7 +181,12 @@ export async function verifySession(
   token: string,
 ): Promise<{ username: string } | undefined> {
   const session = getSession(await sha256Hex(token));
-  return session ? { username: session.username } : undefined;
+  if (!session) return undefined;
+  // Read per check, like the password hash, so a credential changed with
+  // `co-maintainer set` signs everyone out without restarting `serve`.
+  const changedAt = readConfig().credentialsChangedAt;
+  if (changedAt && session.created_at < changedAt) return undefined;
+  return { username: session.username };
 }
 
 export async function logout(token: string): Promise<void> {

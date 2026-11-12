@@ -115,9 +115,10 @@ test("a second serve process refuses to start while the first holds the lock", a
   const original = getEnv("CM_APP_DB");
   setEnv("CM_APP_DB", path);
   try {
-    // process.pid is genuinely alive (it's this test process), so writing it
-    // into the lock file simulates another serve process already running.
-    await writeTextFile(`${path}.lock`, String(process.pid));
+    // The parent (the test runner) is genuinely alive and is not this
+    // process, so writing it into the lock file simulates another serve
+    // process already running.
+    await writeTextFile(`${path}.lock`, String(process.ppid));
     let threw = false;
     try {
       await openAppDb();
@@ -127,7 +128,7 @@ test("a second serve process refuses to start while the first holds the lock", a
       // `String(error)` only carries the message, so read both fields.
       const message = (error as { message?: string }).message ?? String(error);
       const hint = (error as { hint?: string }).hint ?? "";
-      if (!message.includes(String(process.pid))) {
+      if (!message.includes(String(process.ppid))) {
         throw new Error(`refusal did not name the pid: ${message}`);
       }
       if (!message.includes("is using this data directory")) {
@@ -152,6 +153,22 @@ test("a stale lock from a dead process is taken over automatically", async () =>
   try {
     // A PID this high is exceedingly unlikely to be alive on any platform.
     await writeTextFile(`${path}.lock`, "999999999");
+    await openAppDb();
+  } finally {
+    await closeAppDb();
+    if (original === undefined) deleteEnv("CM_APP_DB");
+    else setEnv("CM_APP_DB", original);
+  }
+});
+
+test("a lock naming this process's own pid is taken over", async () => {
+  const path = tempDbPath();
+  const original = getEnv("CM_APP_DB");
+  setEnv("CM_APP_DB", path);
+  try {
+    // In a container serve starts with the same pid every time, so a lock
+    // left by a hard stop names the new process itself.
+    await writeTextFile(`${path}.lock`, String(process.pid));
     await openAppDb();
   } finally {
     await closeAppDb();

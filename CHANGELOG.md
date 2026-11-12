@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.13] - 2026-11-12
+
+### Fixed
+
+- **`set --password` works while `serve` is running.** It saved the new password, then failed with `A co-maintainer serve process (pid N) is using this data directory.` because it opened `app.db` to delete the old dashboard sessions. It no longer opens `app.db`. It saves the time of the change in `config.json`, and `serve` refuses every session started before it. The same holds for `--disable-auth`, `--enable-auth` and `--github-oauth-allowed-user`.
+- **`serve` starts after a hard stop in a container.** A lock left behind named pid 2, and `serve` gets pid 2 on every container start, so it read its own pid as another `serve` and refused to start. A lock that names the process's own pid is now taken over.
+
 ## [0.6.12] - 2026-11-12
 
 ### Fixed

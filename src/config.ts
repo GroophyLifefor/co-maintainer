@@ -95,6 +95,9 @@ export type UserConfig = {
   githubAuthEnabled?: boolean;
   /** scrypt hash of the dashboard password, never the password itself. */
   dashboardPasswordHash?: string;
+  /** When `set` last changed a sign-in credential. Dashboard sessions issued
+   * before it are refused. */
+  credentialsChangedAt?: string;
   defaults?: {
     maxCommits?: number;
     maxPrMonths?: number;
