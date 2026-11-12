@@ -26,6 +26,7 @@ import {
   EXIT_RUNTIME,
   EXIT_USAGE,
   networkFailure,
+  readBody,
 } from "../../cli/error.ts";
 import { getConfigDir } from "../../config.ts";
 import {
@@ -79,6 +80,10 @@ function apiBase(): string {
     /\/$/,
     "",
   );
+}
+
+function responsesEndpoint(): string {
+  return `${apiBase()}/responses`;
 }
 
 export function credentialsDir(): string {
@@ -714,7 +719,7 @@ export class SignInWithChatGptProvider implements AiProvider {
     accessToken: string,
     request: AiRequest,
   ): Promise<Response> {
-    const endpoint = `${apiBase()}/responses`;
+    const endpoint = responsesEndpoint();
     try {
       return await fetch(endpoint, {
         method: "POST",
@@ -739,10 +744,10 @@ export class SignInWithChatGptProvider implements AiProvider {
       response = await this.post(creds.access_token, request);
     }
     if (!response.ok) {
-      const detail = await response.text();
+      const detail = await readBody(responsesEndpoint(), response);
       throw await planError(creds, this.model, response.status, detail);
     }
-    const json = await readResponsesStream(response);
+    const json = await readResponsesStream(response, responsesEndpoint());
     if (json.status === "failed") {
       const error = (json.error ?? {}) as Json;
       throw await planError(

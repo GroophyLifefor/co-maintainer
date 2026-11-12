@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.12] - 2026-11-12
+
+### Fixed
+
+- **A connection closed mid-answer names the host and the cause.** When a provider closed the connection while its answer was arriving, the run ended with only `[error] terminated`. It now says `<host> closed the connection before the answer was complete (UND_ERR_SOCKET: other side closed).` with a hint to run the command again. This covers OpenRouter, OpenCode Zen and Go, OpenAI, Anthropic and Sign in with ChatGPT. The call is still not retried.
+
 ## [0.6.11] - 2026-11-09
 
 ### Fixed

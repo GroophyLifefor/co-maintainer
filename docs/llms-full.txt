@@ -3790,6 +3790,7 @@ missing value with no default becomes a `2` with a message naming the flag.
 | Message starts with | What happened | Fix |
 | ------------------- | ------------- | --- |
 | `Could not reach <host>` | The network failed. The cause code follows the host | Check connectivity, proxy, or the host name. `ENOTFOUND` means DNS |
+| `<host> closed the connection before the answer was complete` | The request reached the provider, then the connection closed while the answer was arriving. The cause code follows | Run the command again. It is not retried, so the next run sends the request again |
 | `OpenRouter returned an empty review` | The model produced no text | Usually a reasoning budget or a provider hiccup. Retry, or use a different high model |
 | `OpenRouter request failed` | The provider returned an unclassified error | The raw body is never printed. Retry, then check `--debug` for the call |
 | `OpenAI failed with` or `Anthropic failed with` | The provider returned an error that is not about the key or the model | The message carries the status. Retry, then check the provider's status page |

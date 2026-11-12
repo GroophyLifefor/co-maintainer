@@ -312,6 +312,11 @@ missing value with no default becomes a <code>2</code> with a message naming the
 <td>Check connectivity, proxy, or the host name. <code>ENOTFOUND</code> means DNS</td>
 </tr>
 <tr>
+<td><code>&lt;host&gt; closed the connection before the answer was complete</code></td>
+<td>The request reached the provider, then the connection closed while the answer was arriving. The cause code follows</td>
+<td>Run the command again. It is not retried, so the next run sends the request again</td>
+</tr>
+<tr>
 <td><code>OpenRouter returned an empty review</code></td>
 <td>The model produced no text</td>
 <td>Usually a reasoning budget or a provider hiccup. Retry, or use a different high model</td>
