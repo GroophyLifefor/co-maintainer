@@ -6,6 +6,7 @@ import { verifyPasswordHash } from "../../util/password.ts";
 import {
   deleteEnv,
   getEnv,
+  removePath,
   setEnv,
   tempDirSync,
   writeTextFile,
@@ -26,6 +27,7 @@ async function withSandbox(fn: () => Promise<void>): Promise<void> {
     else setEnv("CM_CONFIG_PATH", originalConfig);
     if (originalDb === undefined) deleteEnv("CM_APP_DB");
     else setEnv("CM_APP_DB", originalDb);
+    await removePath(dir, { recursive: true }).catch(() => {});
   }
 }
 
