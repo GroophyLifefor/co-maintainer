@@ -18,7 +18,10 @@ export type GuideRule = {
 
 export type GuideFileCount = { file: string; rules: number; withIds: number };
 
-const FINDING_BRACKET = /\s*\[\s*\d+(?:\s*,\s*\d+)*\s*\]/g;
+/** The source list the prompt asks for: one bracket of numbers at the very
+ * end of the line, after a space. `items[3]` has no space before it, so it is
+ * never taken. */
+const SOURCE_BRACKET = /\s+\[\s*(\d+(?:\s*,\s*\d+)*)\s*\]\s*$/;
 
 /** A top-level `rule · why` bullet, the guide's unit of a check. The link to
  * the detailed file is not a check. */
@@ -26,26 +29,18 @@ function isCheckLine(line: string): boolean {
   return line.startsWith("- ") && line.includes(" · ") && !line.includes("](");
 }
 
-/** Runs `fn` on the parts of a line outside inline code, so `items[0]` in
- * backticks is never read as a finding bracket. */
-function outsideCode(line: string, fn: (part: string) => string): string {
-  return line
-    .split("`")
-    .map((part, index) => (index % 2 === 0 ? fn(part) : part))
-    .join("`");
-}
-
-/** The finding numbers on a line, and the line without them. */
-function takeBrackets(line: string): { numbers: number[]; line: string } {
-  const numbers: number[] = [];
-  const stripped = outsideCode(line, (part) =>
-    part.replace(FINDING_BRACKET, (match) => {
-      for (const value of match.match(/\d+/g) ?? [])
-        numbers.push(Number(value));
-      return "";
-    }),
-  );
-  return { numbers, line: stripped.trimEnd() };
+/** The finding numbers at the end of a check line and the line without them,
+ * or `null` when the line does not end in a source list. A bracket inside
+ * inline code is code, not a source list. Every other bracket on the line is
+ * left exactly as the model wrote it. */
+function takeSourceBracket(
+  line: string,
+): { numbers: number[]; line: string } | null {
+  const match = SOURCE_BRACKET.exec(line);
+  if (!match) return null;
+  const before = line.slice(0, match.index);
+  if ((before.split("`").length - 1) % 2 === 1) return null;
+  return { numbers: match[1].split(",").map(Number), line: before };
 }
 
 function setKey(numbers: number[]): string {
@@ -69,23 +64,25 @@ function rewrite(
   let rules = 0;
   let withIds = 0;
   const lines = text.split("\n").map((raw) => {
-    const { numbers, line } = takeBrackets(raw);
-    if (!isCheckLine(raw)) return numbers.length > 0 ? line : raw;
+    if (!isCheckLine(raw)) return raw;
     rules++;
+    const taken = takeSourceBracket(raw);
+    if (!taken) return raw;
     const valid = [
-      ...new Set(numbers.filter((n) => n >= 1 && n <= findingCount)),
+      ...new Set(taken.numbers.filter((n) => n >= 1 && n <= findingCount)),
     ].sort((a, b) => a - b);
-    if (valid.length === 0) return line;
+    // A source list that names no real finding is dropped with no id.
+    if (valid.length === 0) return taken.line;
     withIds++;
-    return `${line} [${idFor(valid, line)}]`;
+    return `${taken.line} [${idFor(valid, taken.line)}]`;
   });
   return { text: lines.join("\n"), count: { file, rules, withIds } };
 }
 
-/** Gives every check line with a usable bracket an `R` id, numbered in file
- * order. With a detailed guide, its lines are numbered first and a short-guide
- * line with the same finding set shares that id. A line with no usable bracket
- * keeps no id. Brackets on any other line are removed. */
+/** Gives every check line that ends in a usable source list an `R` id,
+ * numbered in file order. With a detailed guide, its lines are numbered first
+ * and a short-guide line with the same finding set shares that id. A line with
+ * no usable source list keeps no id. No other line is changed. */
 export function assignGuideIds(
   guide: string,
   detailed: string | undefined,

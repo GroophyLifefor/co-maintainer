@@ -11,69 +11,75 @@ How to review a change here.
 
 - Update every caller of a changed symbol · a stale caller keeps the old behavior [3, 1]
   - The \`items[0]\` read in \`src/app.ts\` was missed [2]
+- Never read items[3] directly · it skips the bounds check [5]
+- Keep the tuple [0, 1] normalized · callers compare it by value [2]
 - Pin the regression with a test · CI stays green otherwise
 - Keep error bodies shape-stable · a 400 turned into a 500 [99]
+- Mark docs-only commits · see footnote [1] [4]
+- Skip CI only for docs · tag the commit [skip ci]
+  - config[2] in src/a.ts was read twice
 
-**Exit check:** \`src/app.ts\` → every caller updated [1]
+See footnote [1].
+
+**Exit check:** keep args[0] as the path → every caller updated [1]
 `;
 
-test("a check line's bracket becomes an R id in file order, and other brackets go", () => {
+test("only a bracket at the end of a check line is a source list, every other bracket stays", () => {
   const result = assignGuideIds(SINGLE, undefined, 5);
-  if (
-    !result.guide.includes(
-      "- Update every caller of a changed symbol · a stale caller keeps the old behavior [R1]",
-    )
-  ) {
-    throw new Error(`no id:\n${result.guide}`);
+  const want = `# Review method
+
+How to review a change here.
+
+## Call sites
+
+**Goal:** keep callers correct.
+
+- Update every caller of a changed symbol · a stale caller keeps the old behavior [R1]
+  - The \`items[0]\` read in \`src/app.ts\` was missed [2]
+- Never read items[3] directly · it skips the bounds check [R2]
+- Keep the tuple [0, 1] normalized · callers compare it by value [R3]
+- Pin the regression with a test · CI stays green otherwise
+- Keep error bodies shape-stable · a 400 turned into a 500
+- Mark docs-only commits · see footnote [1] [R4]
+- Skip CI only for docs · tag the commit [skip ci]
+  - config[2] in src/a.ts was read twice
+
+See footnote [1].
+
+**Exit check:** keep args[0] as the path → every caller updated [1]
+`;
+  if (result.guide !== want) {
+    throw new Error(`guide:\n${result.guide}`);
+  }
+  const sources = result.rules.map(
+    (rule) => `${rule.id}=${rule.findings.join(",")}`,
+  );
+  if (sources.join(" ") !== "R1=1,3 R2=5 R3=2 R4=4") {
+    throw new Error(`sources: ${sources.join(" ")}`);
   }
   if (
-    !result.guide.includes(
-      "  - The `items[0]` read in `src/app.ts` was missed\n",
-    )
+    result.rules[1].text !==
+    "Never read items[3] directly · it skips the bounds check"
   ) {
-    throw new Error(
-      `the example line kept its bracket or lost its code:\n${result.guide}`,
-    );
-  }
-  if (
-    !result.guide.includes(
-      "- Pin the regression with a test · CI stays green otherwise\n",
-    )
-  ) {
-    throw new Error("a line with no bracket changed");
-  }
-  if (
-    !result.guide.includes(
-      "- Keep error bodies shape-stable · a 400 turned into a 500\n",
-    )
-  ) {
-    throw new Error("an out-of-range bracket was kept or got an id");
-  }
-  if (
-    !result.guide.includes(
-      "**Exit check:** `src/app.ts` → every caller updated\n",
-    )
-  ) {
-    throw new Error("the exit check kept its bracket");
-  }
-  if (result.rules.length !== 1) {
-    throw new Error(`rules: ${JSON.stringify(result.rules)}`);
-  }
-  const rule = result.rules[0];
-  if (
-    rule.id !== "R1" ||
-    rule.file !== "PR_REVIEW_GUIDE.md" ||
-    rule.findings.join(",") !== "1,3" ||
-    rule.text !==
-      "Update every caller of a changed symbol · a stale caller keeps the old behavior"
-  ) {
-    throw new Error(`rule: ${JSON.stringify(rule)}`);
+    throw new Error(`text: ${result.rules[1].text}`);
   }
   if (
     guideWriteLine(result.counts[0]) !==
-    "PR_REVIEW_GUIDE.md · 3 rules · 1 with sources"
+    "PR_REVIEW_GUIDE.md · 7 rules · 4 with sources"
   ) {
     throw new Error(`count: ${guideWriteLine(result.counts[0])}`);
+  }
+});
+
+test("a source list inside inline code is code, not a source list", () => {
+  const guide =
+    "# G\n\n## A\n\n- Call it as `f [1]` · it breaks [2]\n- Write `g [3]` · it fails\n";
+  const result = assignGuideIds(guide, undefined, 5);
+  if (
+    result.guide !==
+    "# G\n\n## A\n\n- Call it as `f [1]` · it breaks [R1]\n- Write `g [3]` · it fails\n"
+  ) {
+    throw new Error(`guide:\n${result.guide}`);
   }
 });
 
