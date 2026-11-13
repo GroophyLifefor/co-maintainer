@@ -10,7 +10,7 @@
  * and App clients) and the in-process `gh` stand-in. A call with no route is
  * answered 404 and marked unhandled, which fails a check. */
 import { spawnSync } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 import type { SimRepo, World } from "./world.ts";
@@ -171,9 +171,12 @@ export class SimGithub {
   readonly labels = new Map<string, Set<string>>();
   readonly reactions: { path: string; content: string }[] = [];
   readonly writes: GithubWrite[] = [];
-  /** The App installation every simulated repository belongs to. */
+  /** The App installation every simulated repository belongs to. Its id is
+   * random per world: the product caches installation tokens by id for an
+   * hour, and a fixed id would hand a later flow an earlier flow's token
+   * without a call to GitHub. */
   readonly installation = {
-    id: 7001,
+    id: 100_000 + randomInt(900_000_000),
     account: "sim",
     permissions: {
       contents: "read",

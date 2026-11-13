@@ -208,6 +208,19 @@ function baseOptions(settings: RunSettings, world: World): Options {
   };
 }
 
+/** Product state kept in modules, not in the sandbox, that would reach the
+ * next flow in this process. Each item here has a clear function the product
+ * already exports. What is left is named in CONTRIBUTING.md: it is keyed by
+ * something new in every world (installation id, job id, sandbox path) or
+ * clears itself. */
+async function resetProductState(): Promise<void> {
+  (await import("../../remote/server/byok_keys.ts")).clearByokKeysForTest();
+  (await import("../../services/watch_status.ts")).clearWatchStatusCache();
+  // `--json` turns prompts off for the process. The next flow starts as a
+  // fresh CLI would.
+  (await import("../../cli/args.ts")).setCliInteractive(true);
+}
+
 const message = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
 
@@ -460,6 +473,7 @@ export async function runFlow(
       },
     };
   } finally {
+    await resetProductState();
     await server.stop();
     restoreAi();
     setGhRunner(undefined);
