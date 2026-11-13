@@ -58,7 +58,11 @@ export function startCarryRun(
     findings: previous.findings,
     guideBuiltAt: previous.guideBuiltAt,
   };
-  const { unchanged } = incrementalDiffPaths(revision, previous.files);
+  const { unchanged } = incrementalDiffPaths(
+    revision,
+    previous.files,
+    carryPrevious.visiblePaths,
+  );
   const items = classifyCarryItems(
     carryPrevious,
     revision,

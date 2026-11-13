@@ -414,7 +414,11 @@ export function registerRemoteReviewHandler(): void {
             );
           if (subjectRevision && !guideRebuilt) {
             const prevFiles = parseRevisionFiles(subjectRevision);
-            const { unchanged } = incrementalDiffPaths(revision, prevFiles);
+            const { unchanged } = incrementalDiffPaths(
+              revision,
+              prevFiles,
+              parseVisiblePaths(subjectRevision),
+            );
             extras.unchangedPaths = unchanged;
             const storedRows = listCarryableFindingsForReview(
               subjectRevision.review_id,

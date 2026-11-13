@@ -2,6 +2,7 @@ import {
   buildCarryPromptSection,
   findingsMarkdownForParse,
   guideRebuiltSince,
+  incrementalDiffPaths,
   parsePreviousVerdicts,
   type CarryItem,
   type StoredFinding,
@@ -138,4 +139,68 @@ test("buildCarryPromptSection: asks for a fresh scan as well as the verdicts", (
 test("buildCarryPromptSection: no carry items means no section", () => {
   const section = buildCarryPromptSection([], revisionWith("src/a.ts", ""));
   if (section !== "") throw new Error(`expected empty, got:\n${section}`);
+});
+
+function twoFiles(): Revision {
+  const base = revisionWith("src/a.ts", "@@ -1 +1 @@\n-a\n+b");
+  return {
+    ...base,
+    files: [
+      ...base.files,
+      { ...base.files[0]!, path: "src/z.ts", patch: "@@ -1 +1 @@\n-y\n+z" },
+    ],
+  };
+}
+
+test("incrementalDiffPaths: an unchanged file outside the seen set is sent again", () => {
+  const current = twoFiles();
+  // Last round dropped src/z.ts: same patch, but the model never received it.
+  const { changed, unchanged } = incrementalDiffPaths(
+    current,
+    current.files,
+    new Set(["src/a.ts"]),
+  );
+  if (JSON.stringify(unchanged) !== JSON.stringify(["src/a.ts"])) {
+    throw new Error(`unchanged: ${JSON.stringify(unchanged)}`);
+  }
+  if (changed.map((file) => file.path).join() !== "src/z.ts") {
+    throw new Error(`changed: ${changed.map((file) => file.path).join()}`);
+  }
+});
+
+test("incrementalDiffPaths: a seen file with a new patch is still sent", () => {
+  const current = twoFiles();
+  const previous = current.files.map((file) =>
+    file.path === "src/a.ts" ? { ...file, patch: "@@ -1 +1 @@\n-a\n+c" } : file,
+  );
+  const { unchanged } = incrementalDiffPaths(
+    current,
+    previous,
+    new Set(["src/a.ts", "src/z.ts"]),
+  );
+  if (JSON.stringify(unchanged) !== JSON.stringify(["src/z.ts"])) {
+    throw new Error(`unchanged: ${JSON.stringify(unchanged)}`);
+  }
+});
+
+test("the seen set carries forward: a dropped file is covered in the next round and then stays covered", () => {
+  const current = twoFiles();
+  // Round 1: src/z.ts was dropped, so only src/a.ts was seen.
+  const round1Seen = new Set(["src/a.ts"]);
+  const round2 = incrementalDiffPaths(current, current.files, round1Seen);
+  if (round2.changed.map((file) => file.path).join() !== "src/z.ts") {
+    throw new Error("round 2 must send the dropped file");
+  }
+  // Round 2 sends src/z.ts in full. Its seen set is what it received plus
+  // the unchanged files it carried, which is what the reviewer stores.
+  const round2Seen = new Set([
+    ...round2.changed.map((file) => file.path),
+    ...round2.unchanged,
+  ]);
+  const round3 = incrementalDiffPaths(current, current.files, round2Seen);
+  if (round3.changed.length !== 0) {
+    throw new Error(
+      `round 3 has nothing new: ${round3.changed.map((f) => f.path).join()}`,
+    );
+  }
 });

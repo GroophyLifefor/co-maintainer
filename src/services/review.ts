@@ -1113,7 +1113,11 @@ async function runReviewJobCore(
     );
   if (subjectRevision && !guideRebuilt) {
     const prevFiles = parseRevisionFiles(subjectRevision);
-    const { unchanged } = incrementalDiffPaths(revision, prevFiles);
+    const { unchanged } = incrementalDiffPaths(
+      revision,
+      prevFiles,
+      parseVisiblePaths(subjectRevision),
+    );
     extras.unchangedPaths = scope === "incremental" ? unchanged : undefined;
     const storedRows = listCarryableFindingsForReview(
       subjectRevision.review_id,
