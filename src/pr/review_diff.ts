@@ -85,9 +85,12 @@ export async function prepareReviewDiff(
   const summaries = new Map<string, string>();
   const failed: string[] = [];
   if (summarize.length > 0) {
-    const provider = input.summaryProvider();
+    // Built inside the try, so a provider that cannot be built fails each
+    // summary the same way a failed call does, and the review goes on.
+    let provider: AiProvider | undefined;
     await mapWithLimit(summarize, input.concurrency, async (file) => {
       try {
+        provider ??= input.summaryProvider();
         const text = await summarizeDiff(
           file.path,
           file.patch,

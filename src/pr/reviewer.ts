@@ -128,11 +128,21 @@ export type ReviewOutcome = AiResponse & {
   diffStats: { files: number; additions: number; deletions: number };
 };
 
-/** Summaries always run on the low model, whatever provider the caller
- * handed in for the review itself. */
-function summaryProvider(options: Options, extras?: ReviewExtras): AiProvider {
+/** Summaries run on the low model, whatever provider the caller handed in for
+ * the review itself. A server with no low model configured summarized with
+ * the review's provider before, and still does, so no review fails for it. */
+export function summaryProvider(
+  options: Options,
+  reviewAi: AiProvider,
+  report: ProgressSink,
+  extras?: ReviewExtras,
+): AiProvider {
   if (extras?.summaryAi) return extras.summaryAi;
   if (getEnv("CM_FAKE_AI") === "1") return new FakeAiProvider();
+  if (!options.lowModel) {
+    report("no low model is configured · summaries use the review model");
+    return reviewAi;
+  }
   return reviewProvider(options, options.lowModel, "low");
 }
 
@@ -425,7 +435,7 @@ export async function reviewPullRequest(
       tools: diagrams,
       concurrency: options.aiConcurrent,
       readDiffMaxChars: readDiffMaxChars(readConfig().repos?.[options.repo]),
-      summaryProvider: () => summaryProvider(options, extras),
+      summaryProvider: () => summaryProvider(options, provider, report, extras),
       usage,
       report,
     }),
@@ -696,7 +706,7 @@ export async function reviewWorkspaceRevision(
     tools: diagrams,
     concurrency: options.aiConcurrent,
     readDiffMaxChars: readDiffMaxChars(readConfig().repos?.[options.repo]),
-    summaryProvider: () => summaryProvider(options, extras),
+    summaryProvider: () => summaryProvider(options, provider, report, extras),
     usage,
     report,
   });

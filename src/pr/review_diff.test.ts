@@ -133,6 +133,18 @@ test("a failed summary turns its file partial and the review goes on", async () 
   same(prepared.seenPaths.sort(), ["a.ts", "b.ts"], "both were seen");
 });
 
+test("a summary provider that cannot be built fails the summaries, not the review", async () => {
+  const prepared = await prepareReviewDiff({
+    ...input([file("a.ts", 501), file("b.ts", 3)], summaries()),
+    summaryProvider: () => {
+      throw new Error("No low model is configured.");
+    },
+  });
+  same(prepared.coverage.partial, ["a.ts"], "partial");
+  same(prepared.coverage.full, 1, "the other file is untouched");
+  same(prepared.warnings[0]?.code, "summary_failed", "warning");
+});
+
 test("an empty summary counts as a failed one", async () => {
   const prepared = await prepareReviewDiff(
     input(

@@ -2,9 +2,60 @@ import {
   clampImproveMatrix,
   clampToolRounds,
   modelSummary,
+  summaryProvider,
 } from "./reviewer.ts";
 import { test } from "node:test";
-import type { Options } from "../types.ts";
+import type { AiProvider, Options } from "../types.ts";
+import { deleteEnv, getEnv, setEnv } from "../testing/runtime.ts";
+
+/** Runs `fn` with the fake AI switched off, so the real provider choice is
+ * what gets tested. */
+function withoutFakeAi(fn: () => void): void {
+  const original = getEnv("CM_FAKE_AI");
+  deleteEnv("CM_FAKE_AI");
+  try {
+    fn();
+  } finally {
+    if (original !== undefined) setEnv("CM_FAKE_AI", original);
+  }
+}
+
+const REVIEW_AI = {
+  complete: async () => {
+    throw new Error("not called");
+  },
+} as unknown as AiProvider;
+
+test("with no low model configured, summaries use the review's provider and say so", () => {
+  withoutFakeAi(() => {
+    const lines: string[] = [];
+    const options = {
+      ai: "openrouter",
+      aiToken: "key",
+      highModel: "high/model",
+    } as unknown as Options;
+    const chosen = summaryProvider(options, REVIEW_AI, (line) =>
+      lines.push(line),
+    );
+    if (chosen !== REVIEW_AI) throw new Error("expected the review provider");
+    if (!lines.some((line) => line.includes("no low model is configured"))) {
+      throw new Error(JSON.stringify(lines));
+    }
+  });
+});
+
+test("with a low model configured, summaries get their own provider", () => {
+  withoutFakeAi(() => {
+    const options = {
+      ai: "openrouter",
+      aiToken: "key",
+      lowModel: "low/model",
+      highModel: "high/model",
+    } as unknown as Options;
+    const chosen = summaryProvider(options, REVIEW_AI, () => {});
+    if (chosen === REVIEW_AI) throw new Error("expected a low-model provider");
+  });
+});
 
 function contains(haystack: string, needle: string, what: string): void {
   if (!haystack.includes(needle)) {
