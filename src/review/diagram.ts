@@ -216,14 +216,20 @@ export function plantumlImageUrl(
 }
 
 /** The link for one diagram, or `undefined` when it cannot be a safe link.
- * The encoded text is base64, so now and then it spells something that looks
- * like an API key, and review text passes through the secret redactor before
- * it is posted. A link the redactor would cut is encoded again with a little
- * padding until it is left alone. */
+ *
+ * The source is redacted first. Once it is deflated and base64 encoded the
+ * redactor that cleans review text can no longer see a token inside it, and
+ * the link would carry the token to the pull request and to the PlantUML
+ * server. After that the encoded text, which is base64, now and then spells
+ * something that looks like an API key, and the redactor would cut the link.
+ * Such a link is encoded again with blank lines after `@enduml`. The source
+ * stays the redacted one on every try, so this can only get around a false
+ * match on the encoding and never lets a real secret through. */
 function imageUrlFor(
-  source: string,
+  rawSource: string,
   settings: DiagramSettings,
 ): string | undefined {
+  const source = redact(rawSource);
   for (let padding = 0; padding < 16; padding++) {
     const url = plantumlImageUrl(
       source,
