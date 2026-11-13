@@ -27,6 +27,10 @@ function run(
       PATH: options.path ?? process.env.PATH ?? "",
       HOME: process.env.HOME ?? "",
       SYSTEMROOT: process.env.SYSTEMROOT ?? "",
+      // The script installs into $RUNNER_TEMP/co-maintainer-run, which is
+      // /tmp/co-maintainer-run when it is unset. Two suites running at once
+      // would then install into and run from the same directory.
+      RUNNER_TEMP: tempDirSync(),
       ...env,
     },
   });
