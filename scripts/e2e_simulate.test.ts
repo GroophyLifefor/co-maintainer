@@ -19,7 +19,8 @@ test("an unknown flow is a usage error that lists the flows", () => {
   const { code, out } = simulate("--flow=init,nope");
   assert.equal(code, 2);
   assert.match(out, /Unknown flow: nope/);
-  assert.match(out, /Flows: init/);
+  // Flows are listed in file name order, so init is not always first.
+  assert.match(out, /Flows: (.*, )?init(,|\n)/);
 });
 
 test("--flow with no name is a usage error, not every flow", () => {
