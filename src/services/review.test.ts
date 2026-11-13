@@ -1128,3 +1128,70 @@ test("an incremental round keeps the files it skipped as unchanged in the seen p
     }
   });
 });
+
+test("a first-round finding keeps its line text and round 2 finds it again", async () => {
+  await withEnv(async () => {
+    const job = seed();
+    const first = new FakeGithub();
+    first.files = DIFF;
+    await runReviewJob(job, () => {}, first, new FakeAiProvider());
+    const row = listFindingsForReview(getReviewByJobId("job-rev")!.id)[0];
+    if (!row?.anchor_text) {
+      throw new Error(`no anchor text stored: ${JSON.stringify(row)}`);
+    }
+
+    const prompts: string[] = [];
+    class Capture extends FakeAiProvider {
+      complete(request: AiRequest): Promise<AiResponse> {
+        prompts.push(request.prompt);
+        return super.complete(request);
+      }
+    }
+    // A line added above moves the flagged line from 4 to 5.
+    const github = new FakeGithub();
+    github.files = [
+      { filename: "src/app.ts", patch: "@@ -4 +4,2 @@\n-old\n+// note\n+new" },
+    ];
+    await runReviewJob(nextRound(job), () => {}, github, new Capture());
+    const asked = prompts.find((text) => text.includes("PREVIOUS FINDINGS"));
+    const carry = asked?.slice(asked.indexOf("PREVIOUS FINDINGS")) ?? "";
+    if (
+      !carry.includes("still present in changed code") ||
+      carry.includes("could not locate")
+    ) {
+      throw new Error(`round 2 did not find the finding again:\n${carry}`);
+    }
+  });
+});
+
+test("an App review's token count includes its JSON retry", async () => {
+  await withEnv(async () => {
+    const calls: { job: string; tokensIn: number; tokensOut: number }[] = [];
+    // The fake answers in Markdown, which is not JSON, so the review asks once
+    // more. Each call gets its own counts so a missing one shows in the sum.
+    class Counting extends FakeAiProvider {
+      async complete(request: AiRequest): Promise<AiResponse> {
+        const response = await super.complete(request);
+        const counted = {
+          job: request.job,
+          tokensIn: 100 + calls.length,
+          tokensOut: 7 + calls.length,
+        };
+        calls.push(counted);
+        return { ...response, ...counted };
+      }
+    }
+    await runReviewJob(seed(), () => {}, new FakeGithub(), new Counting());
+    if (!calls.some((call) => call.job === "review_pull_request_retry")) {
+      throw new Error(`no JSON retry: ${JSON.stringify(calls)}`);
+    }
+    const tokensIn = calls.reduce((sum, call) => sum + call.tokensIn, 0);
+    const tokensOut = calls.reduce((sum, call) => sum + call.tokensOut, 0);
+    const review = getReviewByJobId("job-rev");
+    if (review?.tokens_in !== tokensIn || review.tokens_out !== tokensOut) {
+      throw new Error(
+        `stored ${review?.tokens_in} in, ${review?.tokens_out} out · calls made ${tokensIn} in, ${tokensOut} out: ${JSON.stringify(calls)}`,
+      );
+    }
+  });
+});

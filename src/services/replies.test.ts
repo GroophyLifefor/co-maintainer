@@ -7,6 +7,7 @@ import {
 } from "../store/replies.ts";
 import { getJob } from "../store/jobs.ts";
 import { runReplyJob } from "./replies.ts";
+import { cacheValues } from "../store/cache_db.ts";
 import type { AiProvider, GitHubClient, Json } from "../types.ts";
 import type { JobRow } from "../store/rows.ts";
 import {
@@ -27,9 +28,12 @@ isolateTestFile();
 async function withEnv(fn: () => Promise<void>): Promise<void> {
   const originalDb = getEnv("CM_APP_DB");
   const originalRepos = getEnv("CM_REPOS_DIR");
+  const originalCache = getEnv("XDG_CACHE_HOME");
   const dir = tempDirSync();
   setEnv("CM_APP_DB", `${dir}/app.db`);
   setEnv("CM_REPOS_DIR", `${dir}/repos`);
+  // A reply records its AI cost in cache.db. Keep it out of the real cache.
+  setEnv("XDG_CACHE_HOME", `${dir}/cache`);
   await mkdirPath(`${dir}/repos/acme/widgets`, { recursive: true });
   await writeTextFile(
     `${dir}/repos/acme/widgets/PR_REVIEW_GUIDE.md`,
@@ -45,6 +49,8 @@ async function withEnv(fn: () => Promise<void>): Promise<void> {
     else setEnv("CM_APP_DB", originalDb);
     if (originalRepos === undefined) deleteEnv("CM_REPOS_DIR");
     else setEnv("CM_REPOS_DIR", originalRepos);
+    if (originalCache === undefined) deleteEnv("XDG_CACHE_HOME");
+    else setEnv("XDG_CACHE_HOME", originalCache);
   }
 }
 
@@ -195,6 +201,38 @@ test("a persisted answer is posted without calling the AI again", async () => {
     const body = (github.writes[0].body as Json).body;
     if (typeof body !== "string" || !body.includes("Persisted answer.")) {
       throw new Error(`persisted answer was not posted: ${String(body)}`);
+    }
+  });
+});
+
+test("a reply records its AI cost once, and a rerun with the answer saved records none", async () => {
+  await withEnv(async () => {
+    const job = requestJob("review_comment", "106", "10");
+    const ai: AiProvider = {
+      complete: () =>
+        Promise.resolve({
+          text: "The finding blocks the unsafe branch.",
+          tokensIn: 1207,
+          tokensOut: 17,
+          cost: 0.0004,
+          model: "fake",
+          provider: "openrouter",
+        }),
+    };
+    await runReplyJob(job, () => {}, new FakeGithub(), ai);
+    // The same job again: the answer is saved, so nothing is asked or paid.
+    await runReplyJob(job, () => {}, new FakeGithub(), ai);
+    const rows = (await cacheValues("cost", "acme/widgets:")).map(
+      (value) =>
+        JSON.parse(value) as { job: string; tokensIn: number; usd: number },
+    );
+    if (
+      rows.length !== 1 ||
+      rows[0]!.job !== "reply_to_github_comment" ||
+      rows[0]!.tokensIn !== 1207 ||
+      rows[0]!.usd !== 0.0004
+    ) {
+      throw new Error(`cost rows: ${JSON.stringify(rows)}`);
     }
   });
 });

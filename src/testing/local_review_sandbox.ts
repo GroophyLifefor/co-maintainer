@@ -16,6 +16,8 @@ import {
 const projectRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 
 export type LocalReviewSandbox = {
+  /** The temp directory everything lives in, removed by `cleanup`. */
+  home: string;
   repo: string;
   worktree: string;
   /** Where the local review lock files go. Empty when no review holds one. */
@@ -88,6 +90,7 @@ export async function createLocalReviewSandbox(
     await git(worktree, ["commit", "-m", "change"]);
   }
   return {
+    home,
     repo,
     worktree,
     locksDir: `${home}/cache/co-maintainer/locks`,
