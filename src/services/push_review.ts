@@ -901,7 +901,7 @@ async function runPushReview(
     const checks = client
       ? await knownChecks(client, job.repo, revision, args.after, log)
       : [];
-    const options = reviewOptions(job.repo, 0);
+    const options = reviewOptions(job.repo, 0, (text) => log("info", text));
     const ai = aiFor(options);
     const costTally = emptyTally();
     let tokensIn = 0;

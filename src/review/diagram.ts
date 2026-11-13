@@ -11,6 +11,7 @@
 import { deflateRawSync } from "node:zlib";
 import type { RepoConfig } from "../config.ts";
 import type { Options } from "../types.ts";
+import { log } from "../util/log.ts";
 import { redact } from "../util/redact.ts";
 
 export const DIAGRAM_RUNTIMES = [
@@ -142,6 +143,32 @@ export function diagramOptionsFrom(
     ...(server ? { plantumlServer: server } : {}),
     ...(format ? { plantumlOutputFormat: format as PlantumlFormat } : {}),
   };
+}
+
+/** The repository's stored settings for a background job. A bad stored value
+ * is not allowed to stop the job, because nobody is at a terminal to read the
+ * error and the pull request would get no trace. The job falls back to
+ * `mermaid`, which sends nothing anywhere, and says so once through `warn`.
+ * The fallback is never a lone default for one field, since a good
+ * `plantuml-server` runtime next to a bad server must not send the diagram
+ * source to a server the owner did not choose. */
+export function serverDiagramOptions(
+  stored: Pick<
+    RepoConfig,
+    "diagramRuntime" | "plantumlServer" | "plantumlOutputFormat"
+  >,
+  repo: string,
+  warn: (message: string) => void = (message) => log("diagram", message),
+): DiagramOptions {
+  try {
+    return diagramOptionsFrom({}, stored, repo);
+  } catch (error) {
+    if (!(error instanceof DiagramSettingError)) throw error;
+    warn(
+      `${error.message}. The diagram settings are ignored and this job uses mermaid.`,
+    );
+    return {};
+  }
 }
 
 /** The settings with their defaults filled in. */

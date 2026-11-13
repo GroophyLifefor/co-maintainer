@@ -32,7 +32,7 @@ import {
   type CostTally,
 } from "../util/cost.ts";
 import { loadGuides } from "../review/guides.ts";
-import { diagramOptionsFrom } from "../review/diagram.ts";
+import { serverDiagramOptions } from "../review/diagram.ts";
 import {
   reviewBlockingFrom,
   isBlocking,
@@ -450,12 +450,17 @@ export function reviewOptionsForJob(
   repo: string,
   prNumber: number,
   args: { model?: string },
+  warn?: (message: string) => void,
 ): Options {
-  const options = reviewOptions(repo, prNumber);
+  const options = reviewOptions(repo, prNumber, warn);
   return args.model ? { ...options, highModel: args.model } : options;
 }
 
-export function reviewOptions(repo: string, prNumber: number): Options {
+export function reviewOptions(
+  repo: string,
+  prNumber: number,
+  warn?: (message: string) => void,
+): Options {
   const config = readConfig();
   return {
     command: "review",
@@ -488,7 +493,7 @@ export function reviewOptions(repo: string, prNumber: number): Options {
       config.repos?.[repo]?.reviewBlocking ?? config.reviewBlocking,
     ),
     reviewSystemPrompt: config.repos?.[repo]?.reviewSystemPrompt,
-    ...diagramOptionsFrom({}, config.repos?.[repo], repo),
+    ...serverDiagramOptions(config.repos?.[repo] ?? {}, repo, warn),
   };
 }
 
@@ -925,7 +930,9 @@ async function runReviewJobCore(
     requestReaction?: string;
     model?: string;
   };
-  const options = reviewOptionsForJob(job.repo, job.pr_number, args);
+  const options = reviewOptionsForJob(job.repo, job.pr_number, args, (text) =>
+    log("info", text),
+  );
   const pr = await github.request<Json>(
     `repos/${job.repo}/pulls/${job.pr_number}`,
   );

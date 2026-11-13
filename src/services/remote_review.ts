@@ -37,7 +37,7 @@ import {
   reviewSystemPromptLimit,
 } from "../review/system_prompt.ts";
 import { loadGuides } from "../review/guides.ts";
-import { diagramOptionsFrom } from "../review/diagram.ts";
+import { serverDiagramOptions } from "../review/diagram.ts";
 import type { Options } from "../types.ts";
 import { withLogSink } from "../util/log.ts";
 import { cancel, registerHandler, type LogFn } from "./jobs.ts";
@@ -117,6 +117,7 @@ function reviewOptionsForRepo(
   repo: string,
   useCodegraph: boolean,
   aiToken?: string,
+  warn?: (message: string) => void,
 ): Options {
   const config = readConfig();
   return {
@@ -143,7 +144,7 @@ function reviewOptionsForRepo(
     onlyRequestChangedPr: false,
     reviewBlocking: reviewBlockingFrom(config.reviewBlocking),
     reviewSystemPrompt: config.repos?.[repo]?.reviewSystemPrompt,
-    ...diagramOptionsFrom({}, config.repos?.[repo], repo),
+    ...serverDiagramOptions(config.repos?.[repo] ?? {}, repo, warn),
   };
 }
 
@@ -373,7 +374,12 @@ export function registerRemoteReviewHandler(): void {
             .filter((name) => typeof name === "string" && name),
         );
         const useCodegraph = allowed.size > 0;
-        const options = reviewOptionsForRepo(job.repo, useCodegraph, byokKey);
+        const options = reviewOptionsForRepo(
+          job.repo,
+          useCodegraph,
+          byokKey,
+          (text) => log("info", text),
+        );
         // The client's one-run instructions travel with the job, so a retry
         // keeps them. They apply on top of the server's per-repo prompt.
         options.reviewSystemPromptAdd = input.system_prompt_add ?? undefined;
