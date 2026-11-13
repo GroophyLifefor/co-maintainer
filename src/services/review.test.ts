@@ -32,6 +32,11 @@ import {
   writeTextFile,
 } from "../testing/runtime.ts";
 import { test } from "node:test";
+import {
+  getOrCreatePrSubject,
+  getSubjectRevision,
+  parseVisiblePaths,
+} from "../store/subjects.ts";
 import { isolateTestFile } from "../testing/locations.ts";
 
 // These tests resolve the config or cache directory. Keep both in a temp
@@ -1089,4 +1094,37 @@ test("the summary keeps new findings apart from those still open", () => {
   if (!body.includes("old one: old one body (first found in abc1234)")) {
     throw new Error(body);
   }
+});
+
+test("an incremental round keeps the files it skipped as unchanged in the seen paths", async () => {
+  await withEnv(async () => {
+    const job = seed();
+    const other = {
+      filename: "src/other.ts",
+      patch: "@@ -1 +1 @@\n-a\n+b",
+    };
+    const first = new FakeGithub();
+    first.files = [...DIFF, other];
+    await runReviewJob(job, () => {}, first, new FakeAiProvider());
+
+    // The push touches only other.ts, so the compare lists only that file. The
+    // pull request's own file list still has both, and app.ts has not changed.
+    const second = nextRound(job);
+    second.args = JSON.stringify({
+      trigger: "synchronize",
+      scope: "incremental",
+      sinceCommit: "oldsha",
+      round: 2,
+    });
+    const github = new FakeGithub();
+    github.files = [{ ...other, patch: "@@ -1 +1 @@\n-a\n+c" }];
+    github.prFiles = [...DIFF, { ...other, patch: "@@ -1 +1 @@\n-a\n+c" }];
+    await runReviewJob(second, () => {}, github, new FakeAiProvider());
+
+    const subject = getOrCreatePrSubject("acme/widgets", 1);
+    const saved = [...parseVisiblePaths(getSubjectRevision(subject.id)!)];
+    if (saved.sort().join() !== "src/app.ts,src/other.ts") {
+      throw new Error(`saved ${saved.join()}`);
+    }
+  });
 });

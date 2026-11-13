@@ -12,6 +12,7 @@ import {
   withoutSuggestionLine,
 } from "../pr/suggestion.ts";
 import { githubPullRequestToRevision } from "../pr/github_revision.ts";
+import { visiblePathsToSave } from "../review/visible_paths.ts";
 import {
   anchorTextFromPatch,
   buildCarryPromptSection,
@@ -1246,7 +1247,14 @@ async function runReviewJobCore(
     subjectId: subject.id,
     reviewId,
     files: revision.files,
-    visiblePaths: [...visiblePaths],
+    // A file skipped as unchanged this round stays judged for the next one.
+    visiblePaths: [
+      ...visiblePathsToSave(
+        carryPrevious?.visiblePaths,
+        extras.unchangedPaths,
+        visiblePaths,
+      ),
+    ],
     guideBuiltAt,
   });
   log("info", `publishing ${totalFindings} finding(s) to GitHub`);

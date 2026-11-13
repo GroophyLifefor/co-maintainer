@@ -17,6 +17,7 @@ import {
   incrementalDiffPaths,
   type CarryPrevious,
 } from "../review/carry_over.ts";
+import { visiblePathsToSave } from "../review/visible_paths.ts";
 import { remoteBridgeToolHandlers } from "../remote/tool_bridge.ts";
 import { revisionFromSubmitJson } from "../remote/revision_from_submit.ts";
 import {
@@ -399,6 +400,7 @@ export function registerRemoteReviewHandler(): void {
           byokKey !== undefined ? "byok" : "server";
 
         const extras: ReviewExtras = {};
+        let previousVisible: Set<string> | undefined;
         if (subjectId) {
           const subjectRevision = getSubjectRevision(subjectId);
           // A guide rebuilt after the previous review invalidates its verdicts
@@ -417,9 +419,10 @@ export function registerRemoteReviewHandler(): void {
             const storedRows = listCarryableFindingsForReview(
               subjectRevision.review_id,
             );
+            previousVisible = parseVisiblePaths(subjectRevision);
             const carryPrevious: CarryPrevious = {
               files: prevFiles,
-              visiblePaths: parseVisiblePaths(subjectRevision),
+              visiblePaths: previousVisible,
               findings: storedRows.map((row) => ({
                 id: row.id,
                 path: row.path,
@@ -518,7 +521,13 @@ export function registerRemoteReviewHandler(): void {
             subjectId,
             reviewId,
             files: revision.files,
-            visiblePaths: [...result.visiblePaths],
+            visiblePaths: [
+              ...visiblePathsToSave(
+                previousVisible,
+                extras.unchangedPaths,
+                result.visiblePaths,
+              ),
+            ],
             guideBuiltAt: result.guideBuiltAt,
           });
           for (const row of findings) {
