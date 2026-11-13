@@ -61,6 +61,12 @@ shared context. The two do not conflict:
 | A PR reviewed automatically | The GitHub App on the instance |
 | A repository onboarded once for everyone | Dashboard **Add repository** |
 
+## Extensions are off
+
+[Extensions](extensions.md) are always off in the cloud. The hosted service sets
+`CM_EXTENSIONS_DISABLED=1` from outside the container, so nothing in your data
+can turn them on.
+
 ## Support and status
 
 The instance list, uptime, and any incident notes are published by the

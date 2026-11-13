@@ -56,6 +56,8 @@ On the [dashboard](dashboard.md), **Sync now** runs the same job as this command
 | `--include-pull-request-changes` | Include PR diffs |
 | `--include-commit-history` | Include commit messages on the default branch |
 | `--include-how-repo-works` | Include issues / workflow signals when available |
+| `--agent-instructions=REGEX` | Files to read as agent instruction files for `INSTRUCTIONS.md`. A blank value turns it off. Left out, the last run's value is kept, see [Agent instruction files](init.md#agent-instruction-files) |
+| `--agent-instructions-max-chars=N` | Cap on `INSTRUCTIONS.md` in characters, `0` or below for no limit. Left out, the last run's value is kept |
 | `--max-pr-months=N` | Limit how far back PR history goes |
 | `--max-commits=N` | Limit commits scanned on the default branch |
 | `--max-pull-request-change-lines=N` | Skip oversized PR diffs |
@@ -89,6 +91,52 @@ is not filled from the previous listing. `--only-request-changed-pr` does not
 turn itself off. To collect every state again, pass
 `--pr-state=open,closed,merged`.
 
+## What `sync` says about instruction rules
+
+When the repository has agent instruction files, `sync` rebuilds
+[`INSTRUCTIONS.md`](init.md#agent-instruction-files) the way `init` does, and
+after the second build it says what changed. The line appears when an earlier
+`RULES.json` exists:
+
+    [instructions] 1 rule added (AGENTS.md:40) · 1 rewritten (I3, AGENTS.md:12 joined) · 1 dropped (AGENTS.md:9)
+
+or `[instructions] no rule changed`. Rules are matched by the instruction file
+lines they cite, not by their text:
+
+| Change | Meaning |
+| ------ | ------- |
+| Added | The rule shares no source with any old rule |
+| Rewritten | The rule shares a source with an old rule, and its sources or its text changed |
+| Dropped | None of the old rule's sources is in any new rule |
+
+The line lists at most 5 sources for added or dropped rules and at most 3
+rewritten rules, then `, and N more`. Because a rule is matched by `path:line`, a line inserted at
+the top of `AGENTS.md` shifts every line number, so every rule shows as dropped
+and added.
+
+A plain `sync` of a repository with no instruction file changes nothing about its
+output.
+
+## JSON output
+
+`sync --json` prints the same document as [`init --json`](init.md#json-output),
+with `command` `sync`. When the instruction files did something it also has
+`ruleChanges`. It is `null` without an earlier `RULES.json`, otherwise it lists
+the same three kinds of change in full. `previous` holds the ids of the old
+rules a rewritten rule came from, `joined` the sources it gained and `left` the
+sources it lost:
+
+```json
+{
+  "instructions": {
+    "added": [{ "id": "I4", "text": "...", "sources": ["AGENTS.md:40"] }],
+    "rewritten": [{ "id": "I3", "text": "...", "previous": ["I2"], "joined": ["AGENTS.md:12"], "left": [] }],
+    "dropped": [{ "id": "I2", "text": "...", "sources": ["AGENTS.md:9"] }],
+    "unchanged": 11
+  }
+}
+```
+
 ## What gets reused
 
 - Unchanged files on the default branch (tree SHA in cache)
@@ -99,6 +147,21 @@ turn itself off. To collect every state again, pass
 Changed evidence invalidates only the facts and skill sections that depend on
 it. Outputs still land under `<config dir>/repos/owner/repo/` (see
 [Caching](caching.md)).
+
+`CODEBASE.md` is rebuilt section by section, and a section keeps what it had
+unless this run has a reason to change it:
+
+- A section whose facts did not change keeps its text. A rebuilt section takes
+  the new text, and one the model had nothing durable to say about is dropped.
+- A section whose AI call failed after its retries keeps its old text.
+- A section that has facts but is missing from the file is rebuilt, which also
+  repairs a `CODEBASE.md` that an earlier version cut short.
+- After a full rebuild, for a new high model or a new synthesis version, no old
+  text is kept.
+
+When the guide call fails, `sync` keeps the review guides the last run wrote,
+`SKILL.md` keeps its link to them, and `--json` says `reviewGuide` `kept`, see
+[`init --json`](init.md#json-output).
 
 ## Scheduled sync
 

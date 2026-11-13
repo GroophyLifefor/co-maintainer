@@ -53,6 +53,7 @@
           <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           <li><a href="commit-watch-review.html">Commit watch review</a></li>
+          <li><a href="extensions.html">Extensions</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -238,7 +239,7 @@ You can skip it and configure the same items under <strong>Settings</strong> at 
 </tr>
 <tr>
 <td><code>/repos/:owner/:repo/pulls/:n</code></td>
-<td>Findings and cost for one PR</td>
+<td>Findings and cost for one PR, and each round&#39;s <a href="extensions.html">extension</a> results</td>
 </tr>
 <tr>
 <td><code>/repos/:owner/:repo/remote</code></td>
@@ -246,7 +247,7 @@ You can skip it and configure the same items under <strong>Settings</strong> at 
 </tr>
 <tr>
 <td><code>/repos/:owner/:repo/knowledge</code></td>
-<td>Generated guides, <strong>Sync</strong>, <strong>Clear</strong></td>
+<td>Generated guides (including <strong>Repository instructions</strong> when the repository has an <code>INSTRUCTIONS.md</code>), <strong>Sync</strong>, <strong>Clear</strong></td>
 </tr>
 <tr>
 <td><code>/repos/:owner/:repo/settings</code></td>
@@ -336,6 +337,12 @@ every review of that repository, as a <code>CUSTOM REVIEW INSTRUCTIONS</code> se
 Leave it blank for none. <strong>Maximum characters</strong> caps the text, defaults to 8000,
 and <code>0</code> or <code>-1</code> means no limit. The command line form and the per-run flags are
 on <a href="review.html#repository-review-instructions">Review</a>.</p>
+<h2 id="extension-results">Extension results</h2>
+<p>Each round on the pull request page lists the <a href="extensions.html">extensions</a> that
+ran in it. For each one the page shows the outcome, the reason when it failed or
+skipped, media links, metrics, its findings with their state (<code>new</code>, <code>still open</code>
+or <code>closed</code>), its Markdown, and the captured output of a failure. The round&#39;s
+cost column notes <code>incl. $X extensions</code> when an extension reported a cost.</p>
 <h2 id="clearing-knowledge">Clearing knowledge</h2>
 <p><strong>Knowledge</strong> carries a <strong>Clear knowledge</strong> card: it deletes that repository&#39;s
 guides and saved settings, and a checkbox also drops the cached evidence
@@ -378,7 +385,7 @@ has run.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#what-it-is-for">What it is for</a></li><li><a href="#before-you-open">Before you open</a></li><li><a href="#webhook-reachability">Webhook reachability</a></li><li><a href="#adding-a-repository">Adding a repository</a></li><li><a href="#sign-in">Sign in</a></li><li><a href="#get-started-setup">Get started (/setup)</a></li><li><a href="#routes">Routes</a></li><li><a href="#settings-global">Settings (global)</a></li><li><a href="#who-gets-a-review">Who gets a review</a></li><li><a href="#custom-review-instructions">Custom review instructions</a></li><li><a href="#clearing-knowledge">Clearing knowledge</a></li><li><a href="#ui-behavior">UI behavior</a></li><li><a href="#linux">Linux</a></li><li><a href="#updating">Updating</a></li></ul></nav>
+      <ul><li><a href="#what-it-is-for">What it is for</a></li><li><a href="#before-you-open">Before you open</a></li><li><a href="#webhook-reachability">Webhook reachability</a></li><li><a href="#adding-a-repository">Adding a repository</a></li><li><a href="#sign-in">Sign in</a></li><li><a href="#get-started-setup">Get started (/setup)</a></li><li><a href="#routes">Routes</a></li><li><a href="#settings-global">Settings (global)</a></li><li><a href="#who-gets-a-review">Who gets a review</a></li><li><a href="#custom-review-instructions">Custom review instructions</a></li><li><a href="#extension-results">Extension results</a></li><li><a href="#clearing-knowledge">Clearing knowledge</a></li><li><a href="#ui-behavior">UI behavior</a></li><li><a href="#linux">Linux</a></li><li><a href="#updating">Updating</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

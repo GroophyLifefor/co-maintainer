@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Extensions · co-maintainer docs</title>
+  <meta name="description" content="An extension is a command you register. co-maintainer runs it around a review, reads one JSON document from its stdout, and joins its findings, verdict,...">
+  <link rel="canonical" href="https://co-maintainer.com/docs/extensions.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+  <script defer src="https://umami.ordu.dev/script.js" data-website-id="5c8e6df5-063d-4031-9eb6-f43138e09e2d"></script>
+  <script defer src="https://umami.ordu.dev/recorder.js" data-website-id="5c8e6df5-063d-4031-9eb6-f43138e09e2d"></script>
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer" data-umami-event="click-github">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="ci.html">CI</a></li>
+          <li><a href="review-policy.html">Review policy</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          <li><a href="commit-watch-review.html">Commit watch review</a></li>
+          <li><a href="extensions.html" class="active">Extensions</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="providers.html">AI providers</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          <li><a href="codegraph.html">Codegraph</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>Extensions</h1>
+<p>An extension is a command you register. co-maintainer runs it around a
+review, reads one JSON document from its stdout, and joins its findings,
+verdict, Markdown and cost into the review. Nothing is built in. Any check
+can plug in without changing co-maintainer: a linter, a secret scanner, a
+browser QA run that records videos.</p>
+<p>Extensions run in every review type: a <a href="local-review.html">local review</a>, a
+<a href="local-pr-review.html">PR review</a> from the CLI, the reviews
+<a href="serve.html"><code>serve</code></a> posts as the <a href="github-app.html">GitHub App</a>, and a
+<a href="remote-review.html">remote review</a>, where <code>serve</code> runs the extensions
+registered on <code>serve</code>. A <a href="commit-watch-review.html">commit watch</a> push review runs
+none.</p>
+<h2 id="register-one">Register one</h2>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">extension</span> <span class="sh-arg">register</span> <span class="sh-flag">--name=qa-vision</span> <span class="sh-arg">\</span>
+  <span class="sh-flag">--command=&#39;HOME=/home/me</span> <span class="sh-arg">/usr/bin/node</span> <span class="sh-arg">/opt/qa-vision.mjs</span> <span class="sh-arg">{{details_path}}</span> <span class="sh-flag">--json</span><span class="sh-arg">&#39;</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">extension</span> <span class="sh-arg">debug-run</span> <span class="sh-flag">--name=qa-vision</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">extension</span> <span class="sh-arg">list</span>
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--name</code></td>
+<td>required</td>
+<td>The extension&#39;s name, its id in every output</td>
+</tr>
+<tr>
+<td><code>--command</code></td>
+<td>required</td>
+<td>The shell command, with <code>{{variable}}</code> paths</td>
+</tr>
+<tr>
+<td><code>--repos</code></td>
+<td><code>*</code></td>
+<td><code>owner/repo</code>, <code>a/b,a/c</code>, <code>a/*</code>, <code>*/a</code></td>
+</tr>
+<tr>
+<td><code>--review-types</code></td>
+<td>all</td>
+<td><code>local</code>, <code>pr</code>, <code>remote</code>, comma separated</td>
+</tr>
+<tr>
+<td><code>--run-after</code></td>
+<td>none</td>
+<td>An extension name, or <code>review</code></td>
+</tr>
+<tr>
+<td><code>--parallelism=true|false</code></td>
+<td><code>true</code></td>
+<td><code>false</code> with no <code>--run-after</code> runs after the review</td>
+</tr>
+<tr>
+<td><code>--priority</code></td>
+<td><code>0</code></td>
+<td><code>0</code> to <code>3</code>, 3 starts first, ties keep registration order</td>
+</tr>
+<tr>
+<td><code>--fail-fast</code></td>
+<td>off</td>
+<td>On failure, what waits on it through <code>--run-after</code> does not run</td>
+</tr>
+<tr>
+<td><code>--retry-on-fail-times</code></td>
+<td><code>0</code></td>
+<td>Runs again when the response does not match the schema</td>
+</tr>
+<tr>
+<td><code>--max-requested-retries</code></td>
+<td><code>3</code></td>
+<td>How many <code>status: retry</code> responses are honoured</td>
+</tr>
+<tr>
+<td><code>--timeout</code></td>
+<td><code>10m</code></td>
+<td>Such as <code>30s</code>, <code>10m</code> or <code>1h</code>, at most <code>6h</code></td>
+</tr>
+<tr>
+<td><code>--rerun-on-restart=true|false</code></td>
+<td><code>true</code></td>
+<td>Overrides the <code>extension-rerun-on-restart</code> config key</td>
+</tr>
+</tbody></table>
+<p><code>update</code> takes the same flags and changes only the ones given. <code>remove</code>,
+<code>disable</code> and <code>enable</code> take <code>--name</code>. Registrations live in <code>config.json</code> as an
+<code>extensions</code> array, and the array order is the registration order.</p>
+<p><code>register</code> and <code>update</code> refuse a <code>--run-after</code> cycle. A <code>--run-after</code> name that
+nobody registered asks &quot;Are you sure?&quot; first. Without a terminal, pass <code>--yes</code>.</p>
+<h2 id="the-command">The command</h2>
+<p>co-maintainer runs your command through <code>/bin/sh -c</code> (<code>cmd /d /s /c</code> on Windows) and
+replaces three variables with quoted paths:</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>What it points at</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>{{details_path}}</code></td>
+<td><code>details.json</code>, the review&#39;s context</td>
+</tr>
+<tr>
+<td><code>{{review_result_path}}</code></td>
+<td><code>cm-review.json</code>, the AI review&#39;s findings. Empty for an extension that starts before the review finishes</td>
+</tr>
+<tr>
+<td><code>{{diff_path}}</code></td>
+<td><code>diff.patch</code>, the unified diff, in every review type</td>
+</tr>
+</tbody></table>
+<p>Write a variable bare, <code>{{details_path}}</code>, never inside your own quotes. Only
+paths are substituted, so nothing a pull request author wrote, such as a
+branch name or a title, ever reaches the shell. Any other <code>{{name}}</code> is
+refused when you register.</p>
+<p>The command starts with an empty environment. No token or key co-maintainer
+holds is passed to it. Set what the command needs inside the command itself,
+<code>HOME=/home/me /usr/bin/node ...</code>, and use absolute paths. Credentials in a
+command are the extension&#39;s responsibility, and so is checking out or running
+pull request code.</p>
+<p>The command runs as the user that runs co-maintainer, <code>serve</code> included, and
+can read every file that user can read. That includes <code>config.json</code>, which
+holds co-maintainer&#39;s keys. An extension that runs pull request code must
+sandbox that code itself. Outside a local review the command runs in its run
+folder.</p>
+<p>The three files sit in one folder per review, shared by its extensions:</p>
+<pre><code>&lt;config dir&gt;/co-maintainer/extensions/&lt;run-id&gt;/details.json
+&lt;config dir&gt;/co-maintainer/extensions/&lt;run-id&gt;/cm-review.json
+&lt;config dir&gt;/co-maintainer/extensions/&lt;run-id&gt;/diff.patch
+</code></pre>
+<p>With <code>CM_CONFIG_PATH</code> set, the run folders live in
+<code>co-maintainer-extensions</code> next to that <code>config.json</code> instead.</p>
+<p>The folder is removed however the review ends. <code>serve</code> removes the folders of
+jobs no longer running when it starts, and the CLI removes those of runs whose
+process is gone on its next review.</p>
+<h3 id="detailsjson">details.json</h3>
+<pre><code class="language-json">{
+  &quot;schemaVersion&quot;: 1,
+  &quot;reviewType&quot;: &quot;pr&quot;,
+  &quot;repo&quot;: &quot;owner/repo&quot;,
+  &quot;prNumber&quot;: 45,
+  &quot;branch&quot;: &quot;feature&quot;,
+  &quot;workdir&quot;: &quot;&quot;,
+  &quot;headSha&quot;: &quot;4f1c2d9a...&quot;,
+  &quot;baseSha&quot;: &quot;9a8b7c6d...&quot;,
+  &quot;scope&quot;: &quot;incremental&quot;,
+  &quot;sinceCommit&quot;: &quot;1e2d3c4b...&quot;,
+  &quot;trigger&quot;: &quot;synchronize&quot;,
+  &quot;round&quot;: 2,
+  &quot;reviewResultPath&quot;: &quot;&quot;,
+  &quot;diffPath&quot;: &quot;/home/me/.config/co-maintainer/extensions/9f.../diff.patch&quot;
+}
+</code></pre>
+<p>In a local review <code>prNumber</code> is null, <code>branch</code> and <code>workdir</code> are set, and the
+command runs in <code>workdir</code>. In a PR review and in <code>serve</code>, <code>workdir</code> is empty
+and the extension makes its own checkout if it needs one. A remote review has
+no <code>workdir</code> either, because the checkout is on the client&#39;s machine.
+<code>reviewResultPath</code> is filled in once the AI review has finished.</p>
+<p><code>cm-review.json</code> holds <code>schemaVersion</code>, <code>summary</code> and <code>findings</code>, in the same
+finding shape <code>review --json</code> prints.</p>
+<h2 id="the-response">The response</h2>
+<p>Print exactly one JSON document on stdout. Log lines go to stderr.</p>
+<pre><code class="language-json">{
+  &quot;schemaVersion&quot;: 1,
+  &quot;name&quot;: &quot;qa-vision&quot;,
+  &quot;status&quot;: &quot;ok&quot;,
+  &quot;verdict&quot;: &quot;request_changes&quot;,
+  &quot;markdown&quot;: &quot;**QA vision (beta)** found one problem.&quot;,
+  &quot;findings&quot;: [
+    {
+      &quot;key&quot;: &quot;snapshot-button&quot;,
+      &quot;severity&quot;: &quot;P2&quot;,
+      &quot;blocking&quot;: true,
+      &quot;title&quot;: &quot;Snapshot button missing&quot;,
+      &quot;body&quot;: &quot;The toolbar hides the button while a snapshot runs.&quot;,
+      &quot;path&quot;: &quot;src/snapshot/toolbar.tsx&quot;,
+      &quot;lineFrom&quot;: 15,
+      &quot;lineTo&quot;: 21
+    }
+  ],
+  &quot;data&quot;: {
+    &quot;media&quot;: [{ &quot;kind&quot;: &quot;video&quot;, &quot;label&quot;: &quot;main&quot;, &quot;url&quot;: &quot;https://cdn.example.com/main.mp4&quot; }],
+    &quot;metrics&quot;: [{ &quot;name&quot;: &quot;cases&quot;, &quot;value&quot;: 4 }]
+  },
+  &quot;extraData&quot;: { &quot;cases&quot;: [] },
+  &quot;usage&quot;: { &quot;costUsd&quot;: 0.42, &quot;tokensIn&quot;: 0, &quot;tokensOut&quot;: 0 }
+}
+</code></pre>
+<!-- extension-schema:start -->
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>schemaVersion</code></td>
+<td>integer</td>
+<td>yes</td>
+<td>Must be 1. Any other value is Failed, with that as the reason.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The extension&#39;s own name, for its logs. (at most 100 characters)</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td><code>ok</code>, <code>failed</code>, <code>skipped</code>, <code>retry</code></td>
+<td>yes</td>
+<td>How the run ended.</td>
+</tr>
+<tr>
+<td><code>verdict</code></td>
+<td><code>request_changes</code>, <code>comment</code></td>
+<td>with <code>ok</code>, absent otherwise</td>
+<td><code>request_changes</code> makes the whole review Request changes. It always wins over a finding&#39;s <code>blocking</code>.</td>
+</tr>
+<tr>
+<td><code>reason</code></td>
+<td>string</td>
+<td>with <code>skipped</code> and <code>retry</code></td>
+<td>Why the extension skipped, failed or wants a retry. (at most 2000 characters)</td>
+</tr>
+<tr>
+<td><code>retryAfterSeconds</code></td>
+<td>integer</td>
+<td>with <code>retry</code></td>
+<td>How long to wait before the next run. (min 0, max 180)</td>
+</tr>
+<tr>
+<td><code>markdown</code></td>
+<td>string</td>
+<td>no</td>
+<td>Shown in the GitHub review and the job summary, inside a <code>&lt;details&gt;</code> block named after the extension. (at most 200000 characters)</td>
+</tr>
+<tr>
+<td><code>findings</code></td>
+<td>array of objects</td>
+<td>no</td>
+<td>Findings that join the review.</td>
+</tr>
+<tr>
+<td><code>findings[].key</code></td>
+<td>string</td>
+<td>no</td>
+<td>A stable id. With one, the finding is tracked across rounds: seen again means still open, missing means closed. (at most 200 characters)</td>
+</tr>
+<tr>
+<td><code>findings[].severity</code></td>
+<td><code>P0</code>, <code>P1</code>, <code>P2</code>, <code>P3</code></td>
+<td>yes</td>
+<td>P0 is the most severe.</td>
+</tr>
+<tr>
+<td><code>findings[].blocking</code></td>
+<td>boolean</td>
+<td>yes</td>
+<td>Whether this finding alone should block the merge.</td>
+</tr>
+<tr>
+<td><code>findings[].title</code></td>
+<td>string</td>
+<td>yes</td>
+<td>One line. (at most 500 characters)</td>
+</tr>
+<tr>
+<td><code>findings[].body</code></td>
+<td>string</td>
+<td>yes</td>
+<td>The explanation, in Markdown. (at most 20000 characters)</td>
+</tr>
+<tr>
+<td><code>findings[].path</code></td>
+<td>string</td>
+<td>no</td>
+<td>A file path relative to the repository root. (at most 1000 characters)</td>
+</tr>
+<tr>
+<td><code>findings[].lineFrom</code></td>
+<td>integer</td>
+<td>no</td>
+<td>First line in the new file. (min 1)</td>
+</tr>
+<tr>
+<td><code>findings[].lineTo</code></td>
+<td>integer</td>
+<td>no</td>
+<td>Last line in the new file. (min 1)</td>
+</tr>
+<tr>
+<td><code>data</code></td>
+<td>object</td>
+<td>no</td>
+<td>Results with a fixed shape co-maintainer can show.</td>
+</tr>
+<tr>
+<td><code>data.media</code></td>
+<td>array of objects</td>
+<td>no</td>
+<td>Files the extension uploaded itself. co-maintainer uploads nothing.</td>
+</tr>
+<tr>
+<td><code>data.media[].kind</code></td>
+<td><code>image</code>, <code>video</code>, <code>link</code></td>
+<td>yes</td>
+<td>What the URL points at.</td>
+</tr>
+<tr>
+<td><code>data.media[].label</code></td>
+<td>string</td>
+<td>yes</td>
+<td>A short name, such as <code>main</code> or <code>pr</code>. (at most 100 characters)</td>
+</tr>
+<tr>
+<td><code>data.media[].url</code></td>
+<td>string (URL)</td>
+<td>yes</td>
+<td>An http or https URL.</td>
+</tr>
+<tr>
+<td><code>data.metrics</code></td>
+<td>array of objects</td>
+<td>no</td>
+<td>Numbers worth showing next to the result.</td>
+</tr>
+<tr>
+<td><code>data.metrics[].name</code></td>
+<td>string</td>
+<td>yes</td>
+<td>What was measured.</td>
+</tr>
+<tr>
+<td><code>data.metrics[].value</code></td>
+<td>number</td>
+<td>yes</td>
+<td>The measurement.</td>
+</tr>
+<tr>
+<td><code>data.metrics[].unit</code></td>
+<td>string</td>
+<td>no</td>
+<td>Such as <code>ms</code> or <code>MB</code>.</td>
+</tr>
+<tr>
+<td><code>extraData</code></td>
+<td>any</td>
+<td>no</td>
+<td>Free-form. Passed through to <code>--json</code> and never read by co-maintainer.</td>
+</tr>
+<tr>
+<td><code>usage</code></td>
+<td>object</td>
+<td>no</td>
+<td>What the run cost, when it used AI.</td>
+</tr>
+<tr>
+<td><code>usage.costUsd</code></td>
+<td>number</td>
+<td>no</td>
+<td>Joins the review&#39;s total cost. (min 0, max 10000)</td>
+</tr>
+<tr>
+<td><code>usage.tokensIn</code></td>
+<td>integer</td>
+<td>no</td>
+<td>Input tokens. (min 0, max 10000000000)</td>
+</tr>
+<tr>
+<td><code>usage.tokensOut</code></td>
+<td>integer</td>
+<td>no</td>
+<td>Output tokens. (min 0, max 10000000000)</td>
+</tr>
+<tr>
+<td><code>usage.cachedIn</code></td>
+<td>integer</td>
+<td>no</td>
+<td>Cached input tokens. (min 0, max 10000000000)</td>
+</tr>
+<tr>
+<td><code>usage.cachedOut</code></td>
+<td>integer</td>
+<td>no</td>
+<td>Cached output tokens. (min 0, max 10000000000)</td>
+</tr>
+</tbody></table>
+<!-- extension-schema:end -->
+
+<ul>
+<li>Unknown fields are ignored.</li>
+<li>An unsupported <code>schemaVersion</code> is Failed, with that as the reason.</li>
+<li>A response that does not match the schema is Failed. With
+<code>--retry-on-fail-times</code>, the command runs again first.</li>
+<li><code>retry</code> waits <code>retryAfterSeconds</code> and runs the command again, up to
+<code>--max-requested-retries</code> times. After that the result is Failed.</li>
+<li>Each attempt gets the full <code>--timeout</code>. The longest an extension can take is
+one attempt, plus <code>--retry-on-fail-times</code> attempts, plus
+<code>--max-requested-retries</code> attempts with their waits.</li>
+<li>Inside the <code>&lt;details&gt;</code> block, <code>details</code> and <code>summary</code> tags in <code>markdown</code> are
+shown as text, and a heading named like one of the review&#39;s own sections is
+escaped. Mentions and images are posted as written: the extension owner is
+responsible for them, even when a pull request shaped them.</li>
+<li>Media is always a URL the extension uploaded itself. co-maintainer uploads
+nothing.</li>
+</ul>
+<h2 id="order-and-failures">Order and failures</h2>
+<ul>
+<li>The AI review is the start point and never waits for an extension or reads
+its output. The review is posted only after every extension has finished.</li>
+<li>Extensions run on every review, incremental ones included. There is no
+trigger filter: <code>details.json</code> has the fields to decide, and an extension can
+return <code>skipped</code>.</li>
+<li>A <code>--run-after</code> target that does not exist, or does not run for this review,
+skips the extension that waits on it. So does a target that returns
+<code>skipped</code>.</li>
+<li>A <code>--fail-fast</code> failure skips what waits on it. Extensions not connected to
+it are not affected.</li>
+<li>A timeout or a cancel sends SIGTERM to the command&#39;s process group and
+SIGKILL 30 seconds later. The result is Failed.</li>
+<li>When co-maintainer restarts while an extension runs, the extension runs
+again. With <code>--rerun-on-restart=false</code> the result is Failed instead.</li>
+<li>Failures do not block. A failed extension is named in the summary and its
+reason, with stdout and stderr and the exit code (at most 128 KB), is kept
+for the dashboard.</li>
+</ul>
+<h2 id="what-the-review-shows">What the review shows</h2>
+<ul>
+<li>One extension&#39;s <code>request_changes</code> makes the whole review Request changes
+and the CLI exit code blocking (1). A verdict always wins over a finding&#39;s
+own <code>blocking</code>.</li>
+<li>In the GitHub review, a finding on a diff line is posted inline, headed
+<code>[P2 · blocking] · extension: name</code>. A finding off the diff, or with no
+location, goes in the summary list with the same label. At most 50
+extension comments go inline and 50 findings are listed, then a line says
+how many more the dashboard holds.</li>
+<li>An <code>#### Extensions</code> section follows the review summary, with each
+extension&#39;s <code>markdown</code> inside a <code>&lt;details&gt;</code> block. The whole review body is
+capped at 250,000 characters. Over it, the longest <code>markdown</code> is replaced
+with &quot;Not added to this comment because of the length limit, see the
+dashboard.&quot;, then the next longest, until it fits. The AI review is never
+cut.</li>
+<li>Metadata lists <code>Extensions</code>, <code>Failed Extensions</code>, <code>Skipped Extensions</code> and
+<code>Requested changes</code>.</li>
+<li>The terminal shows each extension&#39;s findings and <code>data</code>, never its
+<code>markdown</code>.</li>
+<li><code>review --json</code> adds <code>extensions[]</code> and puts extension findings into
+<code>findings[]</code> with <code>extensionId</code>. AI findings have <code>extensionId: null</code>.
+<code>markdown</code> is empty unless you pass <code>--include-extension-markdowns</code>.</li>
+<li><code>review --output=github</code> annotates located findings with the extension
+label, within the 10 per level GitHub shows, and the job summary lists all
+of them with each <code>markdown</code>. The job summary is capped at 1 MiB, by the
+same longest first rule.</li>
+<li>The dashboard shows each result with its fail or skip reason.</li>
+</ul>
+<p>A finding with a <code>key</code> is tracked across rounds: seen again means still open,
+missing means closed. A finding without a <code>key</code> is shown fresh each run and
+never closed.</p>
+<p>The total cost of a review includes its extensions. The review&#39;s own cost is
+the total minus the extensions, and each extension&#39;s cost comes from its
+<code>usage</code>.</p>
+<h2 id="try-it-with-debug-run">Try it with debug-run</h2>
+<p><code>co-maintainer extension debug-run --name=NAME</code> runs one extension against a
+built-in mock of pull request 45 of <code>GroophyLifefor/heap-analysis</code>: its
+context, its diff and a finished AI review. There is no AI call, no network
+and nothing is posted. Pass <code>--command=...</code> to try a command before you
+register it. The run prints what the terminal output of a review would show,
+and the full output when the extension failed.</p>
+<h2 id="turning-extensions-off">Turning extensions off</h2>
+<p><code>CM_EXTENSIONS_DISABLED=1</code> turns extensions off. <code>register</code> and <code>debug-run</code>
+refuse, and no review runs an extension. The hosted cloud sets it from
+outside the container, so extensions are always off there. On a self-hosted
+Docker image, tools an extension needs, such as ffmpeg or a browser, are for
+the extension owner to add with their own image.</p>
+<h2 id="changing-the-schema">Changing the schema</h2>
+<p>This part is for people changing co-maintainer itself.</p>
+<ul>
+<li>The response schema lives in <code>src/extensions/schema.ts</code> as one list of
+field specs. The validator reads it, and the table on this page is generated
+from it. <code>npm run docs:build</code> rewrites the table, and a test fails when the
+table here is older than the code.</li>
+<li>Adding an optional field, or a new value an extension may send, keeps
+<code>schemaVersion</code> at 1. Old extensions keep working because unknown fields
+are ignored.</li>
+<li>Removing a field, renaming one, making one required, or changing what a
+value means is a new <code>schemaVersion</code>. An extension built for a version this
+build does not read gets Failed with that reason, so the reason tells its
+owner what to change.</li>
+<li><code>details.json</code> follows the same rules with its own <code>schemaVersion</code>.</li>
+</ul>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/extensions.md" data-umami-event="click-github">Edit this page</a> on GitHub
+          · <a href="https://buttondown.com/murat" data-umami-event="newsletter-click">Get the newsletter</a>
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#register-one">Register one</a></li><li><a href="#the-command">The command</a></li><li><a href="#the-response">The response</a></li><li><a href="#order-and-failures">Order and failures</a></li><li><a href="#what-the-review-shows">What the review shows</a></li><li><a href="#try-it-with-debug-run">Try it with debug-run</a></li><li><a href="#turning-extensions-off">Turning extensions off</a></li><li><a href="#changing-the-schema">Changing the schema</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

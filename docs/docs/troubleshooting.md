@@ -26,7 +26,8 @@ is the safe default.
 | `GitHub CLI (gh) was not found` | `--auth=gh` needs the `gh` binary on `PATH` | Install it from [cli.github.com](https://cli.github.com/), or use `--auth=pat` |
 | `owner/repo was not found, or your GitHub account cannot read it` | The repository does not exist, or your identity cannot see it | Check the spelling, then `gh auth login` or a PAT with repo scope |
 | `--auth=pat requires a GitHub token` | `--auth=pat` with no token anywhere | Pass `--github-pat=...`, set `GITHUB_TOKEN` or `GH_TOKEN`, or `co-maintainer set --github-pat=...` |
-| `repos/owner/repo/PR_REVIEW_GUIDE.md was not found` | Review without guides | Run [`init`](init.md) for that repo, or [`sync`](sync.md) if it was inited before |
+| `Review guides are missing for owner/repo` | A review of a repository that has no guides. The code is `not_initialized`, in local, PR and remote review and in every output | Run [`init`](init.md) for that repo, or [`sync`](sync.md) if it was inited before. For `--remote` the text ends `on <host>` and the guides live on that server, so run `init` there. See [Errors](review.md#a-repository-without-guides) |
+| `The server at <host> does not have owner/repo available for review` | `review --remote` named a repository the server does not know, or one that is switched off. The code is `repo_unavailable` | Check the `owner/repo` name, or add the repository on that server first |
 | `Unknown command` / `Unknown option` | A typo in the command or flag | The message names the closest match. `co-maintainer help` lists every command |
 | `OpenRouter rejected the API key`, `OpenAI rejected the API key`, `Anthropic rejected the API key` | The provider refused the key | Replace it with `co-maintainer set --token=...`. See [AI providers](providers.md#keys) |
 | `does not know the model <name>` | The provider refused the model, for OpenRouter with `400` | Check the name on the provider's model list: [OpenRouter](https://openrouter.ai/models), [OpenAI](https://platform.openai.com/docs/models), [Anthropic](https://docs.anthropic.com/en/docs/about-claude/models) |
@@ -46,6 +47,7 @@ is the safe default.
 | `Your key was not kept across a server restart.` | The server restarted while your review was waiting | Run the review again. The server's own key is never used instead |
 | `The AI provider rejected your own key.` | The provider refused the key you sent | Check the key. See [your own key](remote-review.md#your-own-ai-key) |
 | `remote-token is empty` | The GitHub Action had no token, which is what a fork pull request gets | See [CI](ci.md#pull-requests-from-forks) |
+| `Extensions are turned off on this machine (CM_EXTENSIONS_DISABLED=1).` | `extension register` or `extension debug-run` with the off switch set | Unset `CM_EXTENSIONS_DISABLED`. The hosted cloud sets it on purpose, see [Cloud](cloud.md#extensions-are-off) |
 | `Nothing to set` | `set` was called with no values | Pass at least one flag, for example `--token=...` |
 | `There is no backup to roll back to` | `rollback` found no backup, or it is incomplete | A backup exists only after an upgrade migrated the database. See [Going back after an upgrade](#going-back-after-an-upgrade) |
 | `The backup was taken when upgrading to` | The installed version is not the one that made the backup | Install that version and run `rollback` again |

@@ -53,6 +53,7 @@
           <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           <li><a href="commit-watch-review.html">Commit watch review</a></li>
+          <li><a href="extensions.html">Extensions</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -228,6 +229,10 @@ starts keep it.</p>
 <td>Whether a remote review may bring its own AI key: <code>off</code> (the default), <code>allow</code> or <code>require</code>, see <a href="remote-review.html#your-own-ai-key">your own key</a></td>
 </tr>
 <tr>
+<td><code>CM_EXTENSIONS_DISABLED</code></td>
+<td><code>1</code> turns <a href="extensions.html">extensions</a> off: <code>register</code> refuses and no review runs one. The Cloud image sets it from outside the container</td>
+</tr>
+<tr>
 <td><code>CM_LOGIN_HINT</code></td>
 <td>Text shown on the sign-in page instead of the default &quot;printed when <code>serve</code> started&quot; line. Useful when a deployment hands out its own password, as the Cloud image does. Escaped as plain text</td>
 </tr>
@@ -373,6 +378,13 @@ inline, as file contents, or as a path. The path form keeps the key out of
 <a href="configuration.html#app-private-key-inline-file-contents-or-path">Configuration: App private key</a>.</p>
 </li>
 </ul>
+<h2 id="extensions">Extensions</h2>
+<p><code>serve</code> runs the <a href="extensions.html">extensions</a> registered in its own <code>config.json</code>
+in the reviews it posts as the GitHub App and in remote reviews. Register them on
+the <code>serve</code> host with <code>co-maintainer extension register</code>. The command runs as the
+user that runs <code>serve</code> and can read that user&#39;s files, <code>config.json</code> included.
+<code>CM_EXTENSIONS_DISABLED=1</code> turns them off. On start, <code>serve</code> removes the run
+folders of extensions that are no longer running, and nothing else.</p>
 <h2 id="updating">Updating</h2>
 <p>Forward-only migrations: do not install an older CLI after a newer one has
 opened <code>app.db</code>.</p>
@@ -391,7 +403,7 @@ running. Same steps are listed on <a href="dashboard.html#updating">Dashboard: U
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#what-it-does">What it does</a></li><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#sign-in-to-the-dashboard">Sign in to the dashboard</a></li><li><a href="#create-the-app-from-the-dashboard">Create the App from the dashboard</a></li><li><a href="#webhook-url">Webhook URL</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li><li><a href="#run-with-docker">Run with Docker</a></li><li><a href="#updating">Updating</a></li></ul></nav>
+      <ul><li><a href="#what-it-does">What it does</a></li><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#sign-in-to-the-dashboard">Sign in to the dashboard</a></li><li><a href="#create-the-app-from-the-dashboard">Create the App from the dashboard</a></li><li><a href="#webhook-url">Webhook URL</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li><li><a href="#run-with-docker">Run with Docker</a></li><li><a href="#extensions">Extensions</a></li><li><a href="#updating">Updating</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>
