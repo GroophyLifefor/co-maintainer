@@ -291,7 +291,8 @@ test("guide lines cite numbered findings and code turns them into ids with pull 
     );
     if (!documents?.rules) throw new Error("no rules were returned");
     const prompt = provider.requests[0]?.prompt ?? "";
-    if (!prompt.includes('"number": 1') || prompt.includes("PR #212")) {
+    // The pull request numbers live outside the prompt in any spelling.
+    if (!prompt.includes('"number": 1') || /\b(212|340|198)\b/.test(prompt)) {
       throw new Error("findings are not numbered, or a pull request leaked");
     }
     if (!/\[3, 17\]/.test(prompt)) {
