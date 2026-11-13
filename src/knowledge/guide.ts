@@ -2,10 +2,20 @@ import { AiBatch } from "../ai/batch.ts";
 import type { AiProvider, AiRequest, AiResponse, Options } from "../types.ts";
 import type { Fact } from "./types.ts";
 import { log } from "../util/log.ts";
+import {
+  assignGuideIds,
+  type GuideFileCount,
+  type GuideRule,
+} from "./guide_ids.ts";
 
 export type ReviewDocuments = {
   guide: string;
   detailed?: string;
+  /** Every check line that got an `R` id, with the pull requests of the
+   * findings it merges. */
+  rules?: (GuideRule & { pullRequests: number[] })[];
+  /** Check lines and how many of them got an id, per file. */
+  counts?: GuideFileCount[];
 };
 
 type UsageSink = (job: string, response: AiResponse) => Promise<void>;
@@ -158,7 +168,10 @@ export function validateGuide(
 function guideMaterial(facts: Fact[]): string {
   const findings = guideFindings(facts)
     .slice(0, MAX_FINDINGS)
-    .map((item) => ({
+    .map((item, index) => ({
+      // The number the guide lines cite. The pull requests behind it stay
+      // out of the prompt, in `findingPullRequests`.
+      number: index + 1,
       class: (item.class ?? "general").trim() || "general",
       rule: item.claim,
       ...(item.trigger ? { trigger: item.trigger } : {}),
@@ -170,6 +183,21 @@ function guideMaterial(facts: Fact[]): string {
   return JSON.stringify(findings, null, 2);
 }
 
+/** The pull requests behind each finding in `guideMaterial`, by position, so
+ * finding `n` is `[n - 1]`. A review finding's evidence is `PR #12`. */
+export function findingPullRequests(facts: Fact[]): number[][] {
+  return guideFindings(facts)
+    .slice(0, MAX_FINDINGS)
+    .map((item) => [
+      ...new Set(
+        item.evidence.flatMap((evidence) => {
+          const match = /^PR #(\d+)$/.exec(evidence.trim());
+          return match ? [Number(match[1])] : [];
+        }),
+      ),
+    ]);
+}
+
 const GUIDE_SYSTEM = `You write a code-review method for an unfamiliar open-source repository.
 Ground every check in the supplied findings. Never invent a file, path, command, or policy. Never write a pull-request number, a commit id, a reviewer name, a mention, a quoted comment, or an attribution. Never add a priority tag. Never tell the reader to run a command.`;
 
@@ -178,7 +206,7 @@ const CONSOLIDATE = `- Consolidate the findings into a small set of coherent pas
 - Every rule is a general invariant a future change must satisfy, not a description of one past fix. Keep the specific case only as the example under it.`;
 
 const CHECK_SHAPE = `- Under each pass, write each rule as one general invariant line, then its concrete case indented under it:
-  - <when <trigger> changes, <obligation>, or every <surface> must ...> · <why it matters here>
+  - <when <trigger> changes, <obligation>, or every <surface> must ...> · <why it matters here> [<finding numbers>]
     - <the concrete case: what changed and where>
 - Give each pass a \`**Goal:**\` line and an \`**Applies to:**\` line.
 - End each pass with \`**Exit check:**\` followed by its obligations, one per line, so a reviewer who sees only a diff can apply the rule:
@@ -195,6 +223,7 @@ function fullGuideRequest(material: string): AiRequest {
 - Start with one \`#\` title, one sentence of purpose, and one line on how to use the method.
 ${CONSOLIDATE}
 ${CHECK_SHAPE}
+- End every rule line with the numbers of the findings it merges, in square brackets, for example [3, 17]. Each finding has a "number". Put these brackets on no other line.
 - No priority tags. No commands. No code fences. Return only the Markdown.
 
 FINDINGS:
@@ -213,9 +242,10 @@ function shortGuideRequest(material: string, full: string): AiRequest {
   [PR_REVIEW_DETAILED_GUIDE.md](PR_REVIEW_DETAILED_GUIDE.md) for the full method.
 ${CONSOLIDATE}
 - Keep the highest-value checks, one per line, in the same shape:
-  - <what to check or require> · <why it matters here>
+  - <what to check or require> · <why it matters here> [<finding numbers>]
+- End every check line with the bracketed finding numbers of the full-method lines it summarizes, joined into one bracket, for example [3, 17]. Put these brackets on no other line.
 - End every pass with \`**Exit check:** <one line>\`.
-- No priority tags, commands, pull-request numbers, ids, names, mentions or quotes.
+- No priority tags, commands, pull-request numbers, names, mentions or quotes.
 - Do not use fenced code blocks. Return only the Markdown.
 
 FULL METHOD:
@@ -263,17 +293,41 @@ export async function synthesizeReviewGuides(
     return undefined;
   }
 
+  const sources = findingPullRequests(facts);
   const fullLines = full.split("\n").length;
   if (fullLines <= DETAIL_THRESHOLD_LINES) {
-    return { guide: withTrailingNewline(full) };
+    return withRuleIds(withTrailingNewline(full), undefined, sources);
   }
+  // The short guide is asked from the full method with its finding brackets
+  // still on, so it can carry them over to the lines it summarizes.
   const [shortResponse] = await queue.run(
     [shortGuideRequest(material, full)],
     usage,
   );
   const short = cleanGuide(shortResponse?.text ?? "");
-  if (!short) return { guide: withTrailingNewline(full) };
-  return { guide: withTrailingNewline(short), detailed: full };
+  if (!short) return withRuleIds(withTrailingNewline(full), undefined, sources);
+  return withRuleIds(withTrailingNewline(short), full, sources);
+}
+
+/** Replaces the finding brackets with `R` ids and attaches each id's pull
+ * requests. */
+function withRuleIds(
+  guide: string,
+  detailed: string | undefined,
+  sources: number[][],
+): ReviewDocuments {
+  const assigned = assignGuideIds(guide, detailed, sources.length);
+  return {
+    guide: assigned.guide,
+    ...(assigned.detailed !== undefined ? { detailed: assigned.detailed } : {}),
+    rules: assigned.rules.map((rule) => ({
+      ...rule,
+      pullRequests: [
+        ...new Set(rule.findings.flatMap((n) => sources[n - 1] ?? [])),
+      ].sort((a, b) => a - b),
+    })),
+    counts: assigned.counts,
+  };
 }
 
 /** Strips a wrapping code fence and the tokens a guide must never carry (a

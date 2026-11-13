@@ -545,6 +545,7 @@ async function pullRequests(
       body: String(pr.body ?? ""),
       state: String(pr.state ?? ""),
       merged: Boolean(pr.merged_at),
+      ...(pr.merged_at ? { mergedAt: String(pr.merged_at) } : {}),
       updatedAt: String(pr.updated_at ?? ""),
       headSha: String((pr.head as Json | undefined)?.sha ?? ""),
       labels: Array.isArray(pr.labels)
