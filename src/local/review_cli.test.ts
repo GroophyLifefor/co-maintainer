@@ -26,12 +26,17 @@ async function git(cwd: string, args: string[]): Promise<void> {
   }
 }
 
-test("review_cli: not_initialized without guides (E159)", async () => {
+const NO_GUIDES_REPO = "e2e-local/no-guides";
+
+/** Runs `review` in a checkout whose repository has no guides. */
+async function reviewWithoutGuides(
+  extraArgs: string[],
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
   const tmp = await tempDir({ prefix: "cm-not-init-" });
   const configPath = `${tmp}/config.json`;
   const reposDir = `${tmp}/repos`;
   const worktree = `${tmp}/worktree`;
-  const repo = "e2e-local/no-guides";
+  const repo = NO_GUIDES_REPO;
   await mkdirPath(worktree, { recursive: true });
   await writeTextFile(
     configPath,
@@ -65,7 +70,7 @@ test("review_cli: not_initialized without guides (E159)", async () => {
     const result = await new Command(runtimeExecPath(), {
       args: runtimeRunArgs(join(projectRoot, "main.ts"), [
         "review",
-        "--json",
+        ...extraArgs,
         `--repo=${repo}`,
         "--disable-codegraph",
         "--token=fake",
@@ -86,21 +91,48 @@ test("review_cli: not_initialized without guides (E159)", async () => {
       stdout: "piped",
       stderr: "piped",
     }).output();
-    const body = JSON.parse(new TextDecoder().decode(result.stdout));
-    if (body.ok !== false || body.error?.code !== "not_initialized") {
-      throw new Error(JSON.stringify(body));
-    }
-    if (body.exitCode !== 2) {
-      throw new Error(`exitCode ${body.exitCode}`);
-    }
-    // The same hint as pull request and remote review.
-    if (body.error.hint !== `co-maintainer init ${repo}`) {
-      throw new Error(JSON.stringify(body));
-    }
+    return {
+      code: result.code,
+      stdout: new TextDecoder().decode(result.stdout),
+      stderr: new TextDecoder().decode(result.stderr),
+    };
   } finally {
     await removePath(tmp, { recursive: true });
   }
+}
+
+test("review_cli: not_initialized without guides (E159)", async () => {
+  const result = await reviewWithoutGuides(["--json"]);
+  const body = JSON.parse(result.stdout);
+  if (body.ok !== false || body.error?.code !== "not_initialized") {
+    throw new Error(JSON.stringify(body));
+  }
+  if (body.exitCode !== 2) {
+    throw new Error(`exitCode ${body.exitCode}`);
+  }
+  // The same hint as pull request and remote review.
+  if (body.error.hint !== `co-maintainer init ${NO_GUIDES_REPO}`) {
+    throw new Error(JSON.stringify(body));
+  }
 });
+
+// Local review prints this error itself, without the `[error] ` prefix the
+// top level adds. These pin the exact text, which did not change.
+for (const extra of [[], ["--output=github"]]) {
+  test(`review_cli: not_initialized in ${extra.length ? "github" : "human"} output is the plain two lines`, async () => {
+    const result = await reviewWithoutGuides(extra);
+    if (result.code !== 2) {
+      throw new Error(`exit ${result.code}\n${result.stdout}${result.stderr}`);
+    }
+    if (result.stdout !== "") throw new Error(`stdout:\n${result.stdout}`);
+    const want =
+      `Review guides are missing for ${NO_GUIDES_REPO}.\n` +
+      `Hint: co-maintainer init ${NO_GUIDES_REPO}\n`;
+    if (result.stderr !== want) {
+      throw new Error(`stderr:\n${result.stderr}`);
+    }
+  });
+}
 
 test("review_cli: remake-before-review requires gh auth (E160)", async () => {
   const tmp = await tempDir({ prefix: "cm-remake-" });
