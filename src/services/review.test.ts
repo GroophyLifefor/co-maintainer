@@ -37,6 +37,7 @@ import {
   getSubjectRevision,
   parseVisiblePaths,
 } from "../store/subjects.ts";
+import { offlineEnv } from "../testing/offline_env.ts";
 import { isolateTestFile } from "../testing/locations.ts";
 
 // These tests resolve the config or cache directory. Keep both in a temp
@@ -51,6 +52,7 @@ async function withEnv(fn: () => Promise<void>): Promise<void> {
   setEnv("CM_APP_DB", `${dir}/app.db`);
   setEnv("CM_REPOS_DIR", `${dir}/repos`);
   setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
+  const offline = offlineEnv(dir);
   await mkdirPath(`${dir}/repos/acme/widgets`, { recursive: true });
   await writeTextFile(
     `${dir}/repos/acme/widgets/PR_REVIEW_GUIDE.md`,
@@ -59,8 +61,15 @@ async function withEnv(fn: () => Promise<void>): Promise<void> {
   try {
     await openAppDb();
     await fn();
+    if (offline.fetched.length) {
+      throw new Error(
+        `the test used the network: ${offline.fetched.join(", ")}`,
+      );
+    }
   } finally {
     await closeAppDb();
+    offline.restore();
+    await removePath(dir, { recursive: true });
     if (originalDb === undefined) deleteEnv("CM_APP_DB");
     else setEnv("CM_APP_DB", originalDb);
     if (originalRepos === undefined) deleteEnv("CM_REPOS_DIR");
