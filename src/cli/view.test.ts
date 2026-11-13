@@ -209,19 +209,6 @@ const RULES = JSON.stringify({
   schemaVersion: 1,
   builtAt: "2026-11-13T09:00:00Z",
   rules: {
-    R12: {
-      file: "PR_REVIEW_GUIDE.md",
-      text: "Money formatting goes through formatMoney() · rounding differs per currency",
-      sources: [
-        { pr: 212, mergedAt: "2026-01-20" },
-        { pr: 340, mergedAt: "2026-03-04" },
-      ],
-    },
-    R13: {
-      file: "PR_REVIEW_GUIDE.md",
-      text: "New endpoints declare their rate limit · unlisted routes bypass the limiter",
-      sources: [{ pr: 198, mergedAt: "2025-11-02" }],
-    },
     I1: {
       file: "INSTRUCTIONS.md",
       text: "Format amounts with formatMoney(), never with number methods",
@@ -241,14 +228,9 @@ test("view --sources lists every rule by file with its sources", async () => {
         runView(["acme/widgets", "--sources"]),
       );
       if (code !== 0) throw new Error(`exit ${code}`);
-      const want = `PR_REVIEW_GUIDE.md
-  R12  Money formatting goes through formatMoney() · rounding differs per currency
-       #212, #340 · newest 2026-03
-  R13  New endpoints declare their rate limit · unlisted routes bypass the limiter
-       #198 · 2025-11 · 1 PR
-INSTRUCTIONS.md
-  I1   Format amounts with formatMoney(), never with number methods
-       AGENTS.md:31 · packages/billing/AGENTS.md:8
+      const want = `INSTRUCTIONS.md
+  I1  Format amounts with formatMoney(), never with number methods
+      AGENTS.md:31 · packages/billing/AGENTS.md:8
 `;
       if (stdout !== want) throw new Error(`output:\n${stdout}`);
     },

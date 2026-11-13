@@ -609,7 +609,7 @@ export const COMMANDS: CommandSpec[] = [
           {
             name: "sources",
             description:
-              "List every guide and instruction rule by id, with the pull requests or instruction file lines it came from.",
+              "List every instruction rule by id, with the instruction file lines it came from.",
           },
           {
             name: "json",

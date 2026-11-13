@@ -1,9 +1,8 @@
 import { test } from "node:test";
 import { collectSource } from "./collect.ts";
-import { cacheDeletePrefix } from "../store/cache_db.ts";
 import { testOptions } from "../testing/helpers.ts";
 import { withLogSink } from "../util/log.ts";
-import type { GitHubClient, Json } from "../types.ts";
+import type { GitHubClient } from "../types.ts";
 
 /** A repository with many source files, so the 80-file codebase cap is full,
  * plus instruction files at several depths. */
@@ -172,29 +171,5 @@ test("past 50 files the deepest ones are left out and named", async () => {
   );
   if (!leftOut?.includes("deep/pkg59/AGENTS.md (over the 50-file cap)")) {
     throw new Error(`the left-out files are not named: ${leftOut}`);
-  }
-});
-
-test("a pull request keeps its merge time from the listing", async () => {
-  await cacheDeletePrefix("pr", "fixture/repo:");
-  await cacheDeletePrefix("pr-listing", "fixture/repo");
-  try {
-    const { result: source } = await quietly(() =>
-      collectSource(
-        new InstructionsClient(),
-        testOptions({
-          repo: "fixture/repo",
-          includeCodebase: false,
-          includePullRequests: true,
-        }),
-      ),
-    );
-    const pr = source.pullRequests[0] as { mergedAt?: string } & Json;
-    if (pr?.mergedAt !== "2026-03-04T10:00:00Z") {
-      throw new Error(`mergedAt: ${JSON.stringify(pr)}`);
-    }
-  } finally {
-    await cacheDeletePrefix("pr", "fixture/repo:");
-    await cacheDeletePrefix("pr-listing", "fixture/repo");
   }
 });

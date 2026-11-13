@@ -4,8 +4,6 @@
  * instructions and one call, under the knowledge lock, to write them with the
  * rules. */
 import { reposDir } from "../config.ts";
-import type { ReviewDocuments } from "../knowledge/guide.ts";
-import { guideWriteLine } from "../knowledge/guide_ids.ts";
 import {
   agentInstructionsLimit,
   DEFAULT_AGENT_INSTRUCTIONS,
@@ -24,7 +22,6 @@ import {
 } from "../knowledge/rule_changes.ts";
 import {
   INSTRUCTIONS_FILE,
-  mergedDate,
   parseRules,
   RULES_FILE,
   rulesFileText,
@@ -103,7 +100,7 @@ export function instructionsJson(outcome: InstructionsOutcome): {
 export type RulesWriteResult = {
   rules: number;
   /** `null` when there was no earlier `RULES.json` to compare with. */
-  changes: { guide: RuleChanges; instructions: RuleChanges } | null;
+  changes: { instructions: RuleChanges } | null;
 };
 
 async function readRulesFile(repo: string) {
@@ -116,36 +113,6 @@ async function readRulesFile(repo: string) {
   }
 }
 
-/** The `R` entries for this build. A guide this run wrote brings its own. A
- * guide kept from the last run (the AI produced none) keeps the last run's
- * ids. A guide that was removed has none. */
-function guideEntries(
-  documents: ReviewDocuments | undefined,
-  signalCount: number,
-  previous: Record<string, RuleEntry> | undefined,
-  source: Source,
-): Record<string, RuleEntry> {
-  if (!documents) {
-    return signalCount > 2 ? rulesOfKind(previous, "R") : {};
-  }
-  const mergedAt = new Map(
-    source.pullRequests.map((pr) => [pr.number, mergedDate(pr.mergedAt)]),
-  );
-  return Object.fromEntries(
-    (documents.rules ?? []).map((rule) => [
-      rule.id,
-      {
-        file: rule.file,
-        text: rule.text,
-        sources: rule.pullRequests.map((pr) => {
-          const date = mergedAt.get(pr);
-          return date ? { pr, mergedAt: date } : { pr };
-        }),
-      },
-    ]),
-  );
-}
-
 function instructionsLine(counts: InstructionCounts): string {
   const dropped = counts.unsupportedSource + counts.unknownName;
   return `${INSTRUCTIONS_FILE} skipped: the instruction files hold no rule a reviewer can check · ${dropped} dropped · ${counts.overCap} over the cap`;
@@ -153,22 +120,16 @@ function instructionsLine(counts: InstructionCounts): string {
 
 /** Writes or removes `INSTRUCTIONS.md`, writes `RULES.json`, and reports
  * what changed since the last build. The caller holds the knowledge lock, so
- * the ids here and the guides just written belong to one build. */
+ * the ids here and the files beside them belong to one build. */
 export async function writeInstructionsAndRules(input: {
   repo: string;
-  documents: ReviewDocuments | undefined;
-  signalCount: number;
   instructions: InstructionsOutcome;
   source: Source;
 }): Promise<RulesWriteResult> {
-  const { repo, documents, instructions, source } = input;
+  const { repo, instructions, source } = input;
   const directory = `${reposDir()}/${repo}`;
   const { writeTextFileAtomic } = await import("../util/atomic.ts");
   const previous = await readRulesFile(repo);
-
-  for (const count of documents?.counts ?? []) {
-    log("write", guideWriteLine(count));
-  }
 
   let instructionRules: Record<string, RuleEntry> = {};
   switch (instructions.status) {
@@ -207,10 +168,7 @@ export async function writeInstructionsAndRules(input: {
       break;
   }
 
-  const rules = {
-    ...guideEntries(documents, input.signalCount, previous?.rules, source),
-    ...instructionRules,
-  };
+  const rules = { ...instructionRules };
   await writeTextFileAtomic(
     `${directory}/${RULES_FILE}`,
     rulesFileText({
@@ -221,19 +179,14 @@ export async function writeInstructionsAndRules(input: {
   );
 
   if (!previous) return { rules: Object.keys(rules).length, changes: null };
-  const inWindow = new Set(source.pullRequests.map((pr) => pr.number));
   const changes = {
-    guide: compareRules(previous.rules, rules, "R", inWindow),
     instructions: compareRules(previous.rules, rules, "I"),
   };
-  for (const [phase, kind, change] of [
-    ["guide", "R", changes.guide],
-    ["instructions", "I", changes.instructions],
-  ] as const) {
-    const any =
-      Object.keys(rulesOfKind(previous.rules, kind)).length > 0 ||
-      Object.keys(rulesOfKind(rules, kind)).length > 0;
-    if (any) log(phase, ruleChangeLine(change));
+  if (
+    Object.keys(rulesOfKind(previous.rules, "I")).length > 0 ||
+    Object.keys(rules).length > 0
+  ) {
+    log("instructions", ruleChangeLine(changes.instructions));
   }
   return { rules: Object.keys(rules).length, changes };
 }

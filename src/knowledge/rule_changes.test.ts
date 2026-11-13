@@ -2,90 +2,58 @@ import { test } from "node:test";
 import { compareRules, ruleChangeLine } from "./rule_changes.ts";
 import type { RuleEntry } from "./rules.ts";
 
-function guide(text: string, prs: number[]): RuleEntry {
+function rule(text: string, lines: number[]): RuleEntry {
   return {
-    file: "PR_REVIEW_GUIDE.md",
+    file: "INSTRUCTIONS.md",
     text,
-    sources: prs.map((pr) => ({ pr })),
+    sources: lines.map((line) => ({ path: "AGENTS.md", line })),
   };
 }
 
-test("rules are matched by their pull requests, not their text", () => {
+test("rules are matched by their file lines, not their text", () => {
   const previous = {
-    R1: guide("Money goes through formatMoney · rounding differs", [212]),
-    R2: guide(
-      "Endpoints declare a rate limit · the limiter is bypassed",
-      [198],
-    ),
-    R3: guide("Old rule · gone now", [101]),
-    R4: guide("Tests sit next to modules · they get lost", [150]),
-    I1: {
-      file: "INSTRUCTIONS.md",
-      text: "Keep it",
-      sources: [{ path: "AGENTS.md", line: 3 }],
-    },
+    I1: rule("Format amounts with formatMoney()", [31]),
+    I2: rule("Routes declare a rate limit", [12]),
+    I3: rule("Old rule", [9]),
+    I4: rule("Tests sit next to modules", [20]),
   };
   const next = {
-    R1: guide(
-      "Endpoints declare a rate limit · the limiter is bypassed",
-      [198],
-    ),
-    R2: guide(
-      "Money formatting goes through formatMoney · rounding differs per currency",
-      [212, 340],
-    ),
-    R3: guide("Tests sit next to modules · they get lost", [150]),
-    R4: guide(
-      "New migrations are reversible · a rollback fails otherwise",
-      [402],
-    ),
-    R5: guide("Workflows pin actions · a moved tag runs with secrets", [407]),
-    R6: guide("A line with no bracket · it has no sources", []),
+    I1: rule("Routes declare a rate limit", [12]),
+    I2: rule("Format every amount with formatMoney()", [31, 32]),
+    I3: rule("Tests sit next to modules", [20]),
+    I4: rule("Migrations are reversible", [40]),
+    I5: rule("Workflows pin actions", [41]),
+    I6: rule("A rule with no source", []),
   };
-  const changes = compareRules(
-    previous,
-    next,
-    "R",
-    new Set([198, 212, 340, 150, 402, 407]),
-  );
+  const changes = compareRules(previous, next, "I");
   if (changes.unchanged !== 2) {
     throw new Error(`unchanged ${changes.unchanged}`);
   }
-  if (changes.added.map((rule) => rule.id).join(",") !== "R4,R5") {
+  if (changes.added.map((item) => item.id).join(",") !== "I4,I5") {
     throw new Error(`added ${JSON.stringify(changes.added)}`);
   }
   if (
     changes.rewritten.length !== 1 ||
-    changes.rewritten[0].id !== "R2" ||
-    changes.rewritten[0].previous.join(",") !== "R1" ||
-    changes.rewritten[0].joined.join(",") !== "#340"
+    changes.rewritten[0].id !== "I2" ||
+    changes.rewritten[0].previous.join(",") !== "I1" ||
+    changes.rewritten[0].joined.join(",") !== "AGENTS.md:32"
   ) {
     throw new Error(`rewritten ${JSON.stringify(changes.rewritten)}`);
   }
-  if (
-    changes.dropped.length !== 1 ||
-    changes.dropped[0].id !== "R3" ||
-    changes.dropped[0].leftWindow.join(",") !== "#101"
-  ) {
+  if (changes.dropped.length !== 1 || changes.dropped[0].id !== "I3") {
     throw new Error(`dropped ${JSON.stringify(changes.dropped)}`);
   }
   const line = ruleChangeLine(changes);
   if (
     line !==
-    "2 rules added (#402, #407) · 1 rewritten (R2, #340 joined) · 1 dropped (#101 left the window)"
+    "2 rules added (AGENTS.md:40, AGENTS.md:41) · 1 rewritten (I2, AGENTS.md:32 joined) · 1 dropped (AGENTS.md:9)"
   ) {
     throw new Error(`line: ${line}`);
   }
 });
 
-test("instruction rules compare by their file lines, and an identical build changes nothing", () => {
-  const rules = {
-    I1: {
-      file: "INSTRUCTIONS.md",
-      text: "Format amounts with formatMoney().",
-      sources: [{ path: "AGENTS.md", line: 31 }],
-    },
-  };
+test("an identical build changes nothing, and a reworded rule is rewritten", () => {
+  const rules = { I1: rule("Format amounts with formatMoney().", [31]) };
   const same = compareRules(rules, rules, "I");
   if (ruleChangeLine(same) !== "no rule changed" || same.unchanged !== 1) {
     throw new Error(`same: ${JSON.stringify(same)}`);
@@ -93,16 +61,8 @@ test("instruction rules compare by their file lines, and an identical build chan
   const moved = compareRules(
     rules,
     {
-      I1: {
-        file: "INSTRUCTIONS.md",
-        text: "Format every amount with formatMoney().",
-        sources: [{ path: "AGENTS.md", line: 31 }],
-      },
-      I2: {
-        file: "INSTRUCTIONS.md",
-        text: "New rule.",
-        sources: [{ path: "AGENTS.md", line: 40 }],
-      },
+      I1: rule("Format every amount with formatMoney().", [31]),
+      I2: rule("New rule.", [40]),
     },
     "I",
   );

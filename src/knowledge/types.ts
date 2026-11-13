@@ -6,9 +6,6 @@ export type PullRequest = {
   body: string;
   state: string;
   merged: boolean;
-  /** When the pull request was merged, from the listing. Missing on an
-   * unmerged pull request and on rows cached before the field existed. */
-  mergedAt?: string;
   updatedAt: string;
   headSha: string;
   labels: string[];
