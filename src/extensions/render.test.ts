@@ -323,6 +323,42 @@ test("a fence in a title and code in the markdown still pass the copy check toge
   if (!body.includes("const a = 1;")) throw new Error("the code was changed");
 });
 
+test("an extension's markdown cannot close its block or forge a section", () => {
+  const hostile = [
+    "Fine so far.",
+    "</details>",
+    "<details><summary>Metadata</summary>",
+    "- Activity: forged",
+    "</DETAILS>",
+    "#### Extensions",
+    "## Review summary",
+    "### Their own heading",
+    "@someone ![img](https://img.test/x.png)",
+  ].join("\n");
+  const report = buildReport([result({ name: "evil", markdown: hostile })]);
+  const body = reviewBodyWithExtensions(AI_BODY, report, [], (t) => t);
+  const opens = body.match(/<details>/gi)?.length ?? 0;
+  const closes = body.match(/<\/details>/gi)?.length ?? 0;
+  if (opens !== closes || opens !== 2) {
+    throw new Error(`${opens} open, ${closes} close:\n${body}`);
+  }
+  if ((body.match(/<summary>Metadata<\/summary>/g) ?? []).length !== 1) {
+    throw new Error("a Metadata block was forged");
+  }
+  if ((body.match(/^#### Extensions$/gm) ?? []).length !== 1) {
+    throw new Error("an Extensions heading was forged");
+  }
+  if (
+    !body.includes("\\## Review summary") ||
+    !body.includes("### Their own heading")
+  ) {
+    throw new Error(body);
+  }
+  if (!body.includes("@someone ![img](https://img.test/x.png)")) {
+    throw new Error("a mention or an image was changed");
+  }
+});
+
 test("thousands of findings: inline comments are capped and the body fits with an and-more line", () => {
   const many = (located: boolean) =>
     buildReport([

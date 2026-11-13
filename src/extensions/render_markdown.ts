@@ -35,6 +35,45 @@ function summaryName(name: string): string {
   return stripControlChars(name).replace(/[<>&]/g, "");
 }
 
+/** The titles of the sections a review body is made of. A heading in an
+ * extension's `markdown` with one of these names could pass for a
+ * co-maintainer section. */
+const SECTION_TITLES = [
+  "extensions",
+  "extension findings",
+  "review summary",
+  "metadata",
+  "new",
+  "still open",
+  "closed",
+  "not reviewed",
+  "coverage",
+];
+
+/** An extension's `markdown` made unable to leave the `<details>` block
+ * co-maintainer puts it in, or to forge a co-maintainer section. What it
+ * prints is shaped by a stranger's pull request. Mentions and images stay:
+ * they are the extension owner's responsibility. */
+export function containMarkdown(markdown: string): string {
+  return closeFences(
+    markdown
+      .replace(/<(\/?)(details|summary)\b/gi, "&lt;$1$2")
+      .split("\n")
+      .map((line) => {
+        const heading = line.match(/^(\s{0,3})(#{1,6})(\s+)(.*)$/);
+        if (!heading) return line;
+        const title = heading[4]!.replace(/[#\s]+$/, "").toLowerCase();
+        const own = SECTION_TITLES.some(
+          (name) => title === name || title.startsWith(`${name} (`),
+        );
+        return own
+          ? `${heading[1]}\\${heading[2]}${heading[3]}${heading[4]}`
+          : line;
+      })
+      .join("\n"),
+  );
+}
+
 /** The `#### Extensions` section from each extension's `markdown`, or "" when
  * no extension sent any. `markdowns` holds what is shown, which the length
  * limit may have replaced. */
@@ -46,7 +85,7 @@ export function extensionsSection(
     .filter((result) => markdowns.has(result.name))
     .map(
       (result) =>
-        `<details><summary>${summaryName(result.name)}</summary>\n\n${closeFences(markdowns.get(result.name)!.trim())}\n\n</details>`,
+        `<details><summary>${summaryName(result.name)}</summary>\n\n${containMarkdown(markdowns.get(result.name)!.trim())}\n\n</details>`,
     );
   if (blocks.length === 0) return "";
   return `#### Extensions\n\n${blocks.join("\n\n")}`;
