@@ -54,6 +54,14 @@ export type RepoConfig = {
   /** Cap on `reviewSystemPrompt` in characters for this repository. Unset
    * means the default; `0` or a negative number means no limit. */
   reviewSystemPromptMaxChars?: number;
+  /** Which diagram language this repository's reviews use. Unset means
+   * `mermaid`. `set --repo` writes it, so App reviews can use it too. */
+  diagramRuntime?: "mermaid" | "plantuml" | "plantuml-server";
+  /** The PlantUML server `plantuml-server` links to. Unset means the public
+   * one. */
+  plantumlServer?: string;
+  /** `svg` or `png`. Unset means `svg`. */
+  plantumlOutputFormat?: "svg" | "png";
 };
 
 export type UserConfig = {

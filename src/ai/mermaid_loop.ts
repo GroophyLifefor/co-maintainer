@@ -63,7 +63,7 @@ export async function completeWithMermaidTools(
     ]),
   ];
   const tools = [
-    MERMAID_TOOL as unknown as Json,
+    ...(request.withoutMermaidTool ? [] : [MERMAID_TOOL as unknown as Json]),
     ...extraTools.map((item) => item.tool),
   ];
   const totals = {

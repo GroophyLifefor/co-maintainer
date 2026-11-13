@@ -487,6 +487,31 @@ export const COMMANDS: CommandSpec[] = [
           },
         ],
       },
+      {
+        title: "Diagrams",
+        flags: [
+          {
+            name: "diagram-runtime",
+            value: "mermaid|plantuml|plantuml-server",
+            default: "mermaid",
+            description:
+              "The diagram language the review uses. plantuml keeps the PlantUML source. plantuml-server turns it into an image link on a PlantUML server. Not with --remote.",
+          },
+          {
+            name: "plantuml-server",
+            value: "URL",
+            default: "https://www.plantuml.com",
+            description:
+              "The PlantUML server for plantuml-server. An http or https URL. The diagram source travels in the image link.",
+          },
+          {
+            name: "plantuml-output-format",
+            value: "svg|png",
+            default: "svg",
+            description: "The image format for plantuml-server.",
+          },
+        ],
+      },
       AI_FLAGS,
       EXPERIMENTAL_FLAGS,
       GITHUB_FLAGS,
@@ -502,6 +527,7 @@ export const COMMANDS: CommandSpec[] = [
       "co-maintainer review --remote --range=abc1234..def5678 --output=github",
       "co-maintainer review owner/repo 42 --system-prompt-file=extra.md",
       "co-maintainer review --system-prompt-override-file=strict.md",
+      "co-maintainer review owner/repo 42 --diagram-runtime=plantuml-server --plantuml-output-format=png",
     ],
   },
   {
@@ -762,6 +788,26 @@ export const COMMANDS: CommandSpec[] = [
               "Cap the repository's review instructions in characters. Needs --repo. 0 or -1 means no limit.",
           },
           {
+            name: "diagram-runtime",
+            value: "mermaid|plantuml|plantuml-server",
+            default: "mermaid",
+            description:
+              "The diagram language for a repository's reviews, including App reviews. Needs --repo.",
+          },
+          {
+            name: "plantuml-server",
+            value: "URL",
+            default: "https://www.plantuml.com",
+            description:
+              "The PlantUML server for plantuml-server. An http or https URL. Needs --repo.",
+          },
+          {
+            name: "plantuml-output-format",
+            value: "svg|png",
+            default: "svg",
+            description: "The image format for plantuml-server. Needs --repo.",
+          },
+          {
             name: "review-blocking",
             value: "model|severity",
             default: "model",
@@ -804,6 +850,7 @@ export const COMMANDS: CommandSpec[] = [
       "co-maintainer set --ai=openrouter --ai-key=... --low-model=... --high-model=...",
       "co-maintainer set --remote-host=https://review.example.com --remote-token=...",
       "co-maintainer set --repo=owner/repo --review-system-prompt='Focus on the parser.'",
+      "co-maintainer set --repo=owner/repo --diagram-runtime=plantuml-server",
       "co-maintainer set --unset=token",
     ],
   },

@@ -12,6 +12,12 @@ import { prepareCodegraphTools } from "./codegraph_tools.ts";
 import { REVIEW_COPY_RULE, severitySection } from "./review_copy.ts";
 import { reviewSystemPromptBlock } from "../review/system_prompt.ts";
 import {
+  mermaidToolFields,
+  plantumlPromptRules,
+  plantumlSystemRules,
+  renderDiagrams,
+} from "../review/diagram.ts";
+import {
   needsSummary,
   READ_FULL_DIFF_TOOL,
   readFullDiff,
@@ -143,9 +149,12 @@ instructions. Keep labels short and grounded in the supplied evidence. A
 one-line fix or an obvious, single-step cause and effect genuinely needs no
 diagram. That is the only reason to omit one. Close every fenced block.`;
 
-export function reviewSystemPrompt(diagrams: boolean): string {
+export function reviewSystemPrompt(
+  diagrams: boolean,
+  options?: Options,
+): string {
   return `${REVIEW_ROLE}
-${diagrams ? REVIEW_DIAGRAM_RULES : NO_DIAGRAM_RULES}`;
+${diagrams ? (plantumlSystemRules(options) ?? REVIEW_DIAGRAM_RULES) : NO_DIAGRAM_RULES}`;
 }
 
 /** The guide block every review sends, kept as the stable head of the system
@@ -525,7 +534,7 @@ Every diff line in the DIFF section starts with its line number in the new
 file. Copy "lineFrom" and "lineTo" from that column instead of counting from
 the @@ header. Removed lines have no number, so anchor a finding about removed
 code to the nearest numbered line.
-${diagrams ? DIAGRAM_PROMPT_RULES : NO_DIAGRAM_RULES}
+${diagrams ? (plantumlPromptRules(options) ?? DIAGRAM_PROMPT_RULES) : NO_DIAGRAM_RULES}
 ${FINDINGS_JSON_INSTRUCTIONS}
 
 PULL REQUEST:
@@ -547,11 +556,12 @@ ${diff}`;
   const matrix = clampImproveMatrix(options.improveMatrix);
   const request: AiRequest = {
     job: "review_pull_request",
-    system: `${reviewSystemPrompt(diagrams)}\n\n${reviewGuidesBlock(guide, detailed, codebase)}${reviewSystemPromptBlock(options)}`,
+    system: `${reviewSystemPrompt(diagrams, options)}\n\n${reviewGuidesBlock(guide, detailed, codebase)}${reviewSystemPromptBlock(options)}`,
     prompt,
     maxTokens: 24_000 * matrix,
     reasoningEffort: "high",
     responseFormat: FINDINGS_JSON_SCHEMA,
+    ...mermaidToolFields(options),
   };
   report(
     `AI request · ${options.ai} · model=${options.highModel ?? "unset"} · ` +
@@ -665,7 +675,7 @@ ${reviewText}`,
   const visiblePaths = ownFiles.map(({ path }) => path);
   return {
     ...response,
-    text: `${severitySection()}\n${reviewText}`,
+    text: `${severitySection()}\n${renderDiagrams(reviewText, options)}`,
     visiblePaths,
     guideBuiltAt: guides.guideBuiltAt,
     codegraphState: !options.useCodegraph
@@ -772,7 +782,7 @@ Do not invent low-value findings. If the diff contains a truncation marker or a
 file is summarized, limit claims to the supplied text and use read-full-diff or
 codegraph tools before asserting behavior outside what was shown.
 ${CODEGRAPH_DIFF_VERIFICATION}
-${diagrams ? DIAGRAM_PROMPT_RULES : NO_DIAGRAM_RULES}
+${diagrams ? (plantumlPromptRules(options) ?? DIAGRAM_PROMPT_RULES) : NO_DIAGRAM_RULES}
 ${FINDINGS_JSON_INSTRUCTIONS}
 
 WORKSPACE:
@@ -787,11 +797,12 @@ ${ownDiff}${unchangedListing}`;
   const matrix = clampImproveMatrix(options.improveMatrix);
   const request: AiRequest = {
     job: extras?.job ?? "review_local",
-    system: `${reviewSystemPrompt(diagrams)}\n\n${reviewGuidesBlock(guide, detailed, codebase)}${reviewSystemPromptBlock(options)}`,
+    system: `${reviewSystemPrompt(diagrams, options)}\n\n${reviewGuidesBlock(guide, detailed, codebase)}${reviewSystemPromptBlock(options)}`,
     prompt,
     maxTokens: 24_000 * matrix,
     reasoningEffort: "high",
     responseFormat: FINDINGS_JSON_SCHEMA,
+    ...mermaidToolFields(options),
   };
   report(`AI request · prompt=${prompt.length} chars`);
   let response = await completeWithMermaidTools(
@@ -858,7 +869,7 @@ ${reviewText}`,
       : "unavailable";
   return {
     ...response,
-    text: `${severitySection()}\n${reviewText}`,
+    text: `${severitySection()}\n${renderDiagrams(reviewText, options)}`,
     visiblePaths: ownFiles.map(({ path }) => path),
     guideBuiltAt: guides.guideBuiltAt,
     codegraphState,

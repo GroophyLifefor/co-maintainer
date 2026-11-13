@@ -208,6 +208,19 @@ export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
   if (flags.remoteByok !== undefined && !flags.remote) {
     die("--remote-byok requires --remote");
   }
+  // The server reviews with the repository's saved diagram settings, so a flag
+  // here would be dropped without a word.
+  const diagramFlag = args.find((arg) =>
+    /^--(diagram-runtime|plantuml-server|plantuml-output-format)(=|$)/.test(
+      arg,
+    ),
+  );
+  if (flags.remote && diagramFlag) {
+    die(
+      `${diagramFlag.split("=")[0]} cannot be used with --remote. ` +
+        "The server uses the diagram settings saved for the repository.",
+    );
+  }
   if (flags.range && !flags.remote) {
     die("--range requires --remote");
   }

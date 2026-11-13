@@ -11,6 +11,10 @@ import {
 } from "../../review/system_prompt.ts";
 import type { RepoConfig } from "../../config.ts";
 import { canonicalRepoName } from "../../util/repo_name.ts";
+import {
+  DiagramSettingError,
+  diagramOptionsFrom,
+} from "../../review/diagram.ts";
 import { hashPassword, passwordProblem } from "../../util/password.ts";
 import { nowIso } from "../../util/time.ts";
 import { readTextFile } from "../../util/runtime.ts";
@@ -107,6 +111,7 @@ export async function runSet(args: string[]): Promise<void> {
     "repo",
     "review-system-prompt",
     "review-system-prompt-max-chars",
+    ...DIAGRAM_FLAGS,
     "password",
     "unset",
   ];
@@ -127,6 +132,9 @@ export async function runSet(args: string[]): Promise<void> {
   if (repoArg !== undefined) {
     await runSetRepo(repoArg, args);
     return;
+  }
+  for (const name of DIAGRAM_FLAGS) {
+    if (text(args, name) !== undefined) die(`--${name} needs --repo`);
   }
 
   const ai = text(args, "ai");
@@ -404,6 +412,14 @@ export async function runSet(args: string[]): Promise<void> {
   console.log(`Saved to ${configPath()}`);
 }
 
+/** The diagram settings. They are repository settings only, so the App
+ * reviews `serve` runs can read them too. */
+const DIAGRAM_FLAGS = [
+  "diagram-runtime",
+  "plantuml-server",
+  "plantuml-output-format",
+];
+
 /** Flag names that make sense together with `--repo`. Anything else is a
  * global setting and is refused rather than silently written to the wrong
  * place. */
@@ -411,6 +427,7 @@ const REPO_SCOPED_FLAGS = new Set([
   "repo",
   "review-system-prompt",
   "review-system-prompt-max-chars",
+  ...DIAGRAM_FLAGS,
   "gh-concurrent",
   "ai-concurrent",
   "unset",
@@ -423,6 +440,10 @@ const REPO_SCOPED_UNSET = new Set([
   "reviewSystemPrompt",
   "review-system-prompt-max-chars",
   "reviewSystemPromptMaxChars",
+  ...DIAGRAM_FLAGS,
+  "diagramRuntime",
+  "plantumlServer",
+  "plantumlOutputFormat",
   "gh-concurrent",
   "ghConcurrent",
   "ai-concurrent",
@@ -471,6 +492,26 @@ async function runSetRepo(typed: string, args: string[]): Promise<void> {
   if (unset.has("ai-concurrent") || unset.has("aiConcurrent")) {
     patch.aiConcurrent = undefined;
   }
+  for (const [flag, field] of [
+    ["diagram-runtime", "diagramRuntime"],
+    ["plantuml-server", "plantumlServer"],
+    ["plantuml-output-format", "plantumlOutputFormat"],
+  ] as const) {
+    if (unset.has(flag) || unset.has(field)) patch[field] = undefined;
+  }
+  try {
+    Object.assign(
+      patch,
+      diagramOptionsFrom({
+        runtime: text(args, "diagram-runtime"),
+        server: text(args, "plantuml-server"),
+        format: text(args, "plantuml-output-format"),
+      }),
+    );
+  } catch (error) {
+    if (error instanceof DiagramSettingError) die(error.message);
+    throw error;
+  }
   const ghRaw = text(args, "gh-concurrent");
   if (ghRaw !== undefined) {
     patch.ghConcurrent = concurrencyValue(ghRaw, "--gh-concurrent");
@@ -500,7 +541,7 @@ async function runSetRepo(typed: string, args: string[]): Promise<void> {
   }
   if (Object.keys(patch).length === 0) {
     die(
-      "Nothing to set. Pass --review-system-prompt=, --review-system-prompt-max-chars=N, or --unset=name with --repo.",
+      "Nothing to set. Pass --review-system-prompt=, --review-system-prompt-max-chars=N, --diagram-runtime=, --plantuml-server=, --plantuml-output-format=, or --unset=name with --repo.",
     );
   }
   // The values after this write are the ones given here, or the stored ones.

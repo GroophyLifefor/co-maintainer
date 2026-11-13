@@ -32,6 +32,7 @@ import {
   type CostTally,
 } from "../util/cost.ts";
 import { loadGuides } from "../review/guides.ts";
+import { diagramOptionsFrom } from "../review/diagram.ts";
 import {
   reviewBlockingFrom,
   isBlocking,
@@ -487,6 +488,7 @@ export function reviewOptions(repo: string, prNumber: number): Options {
       config.repos?.[repo]?.reviewBlocking ?? config.reviewBlocking,
     ),
     reviewSystemPrompt: config.repos?.[repo]?.reviewSystemPrompt,
+    ...diagramOptionsFrom({}, config.repos?.[repo], repo),
   };
 }
 

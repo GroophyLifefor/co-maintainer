@@ -78,6 +78,13 @@ export type Options = {
    * (`review --system-prompt-override-file`). The built-in role, diagram
    * rules and guide block are still kept. */
   reviewSystemPromptOverride?: string;
+  /** The diagram language a review asks for (`review --diagram-runtime`, or
+   * the repository's `diagramRuntime`). Unset means `mermaid`. */
+  diagramRuntime?: "mermaid" | "plantuml" | "plantuml-server";
+  /** Only read by `plantuml-server`. Unset means the public server. */
+  plantumlServer?: string;
+  /** Only read by `plantuml-server`. Unset means `svg`. */
+  plantumlOutputFormat?: "svg" | "png";
 };
 
 export type GitHubClient = {
@@ -126,6 +133,9 @@ export type AiRequest = {
    * `response_format`. Providers without structured output ignore it, so the
    * model is also asked for a fenced JSON block in the prompt. */
   responseFormat?: Json;
+  /** Leave the Mermaid syntax tool out of the tool list. Set when the review
+   * asks for PlantUML, which needs no syntax lookup. */
+  withoutMermaidTool?: boolean;
   // The full scale OpenRouter exposes for models that support it (see a
   // model's `reasoning.supported_efforts`), highest first. Not every model
   // supports every level — "max"/"xhigh" are newer additions some models

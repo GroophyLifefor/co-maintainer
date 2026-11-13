@@ -37,6 +37,7 @@ import {
   reviewSystemPromptLimit,
 } from "../review/system_prompt.ts";
 import { loadGuides } from "../review/guides.ts";
+import { diagramOptionsFrom } from "../review/diagram.ts";
 import type { Options } from "../types.ts";
 import { withLogSink } from "../util/log.ts";
 import { cancel, registerHandler, type LogFn } from "./jobs.ts";
@@ -142,6 +143,7 @@ function reviewOptionsForRepo(
     onlyRequestChangedPr: false,
     reviewBlocking: reviewBlockingFrom(config.reviewBlocking),
     reviewSystemPrompt: config.repos?.[repo]?.reviewSystemPrompt,
+    ...diagramOptionsFrom({}, config.repos?.[repo], repo),
   };
 }
 
