@@ -158,6 +158,10 @@ export async function runRemoteReview(
         console.log("No changes to review.");
       }
       exitWith(0);
+      // `exitWith` only sets the exit code. Without this return the client
+      // went on to submit an empty change, the server refused it, and the
+      // run ended with exit 2 after saying there was nothing to review.
+      return;
     }
 
     const handshake = await remoteFetch(host, token, "/api/remote/handshake", {
