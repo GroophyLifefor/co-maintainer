@@ -357,6 +357,7 @@ const STEP = {
   second: "second round, carry-over, human output",
   byok: "own key (BYOK)",
   push: "push review --range",
+  clean: "clean tree",
   badToken: "refused: bad token",
   unknownRepo: "refused: unknown repository",
   noGuides: "refused: repository without guides",
@@ -475,6 +476,7 @@ function remoteChecks(sim: Sim): CheckResult[] {
     (call) => call.step === STEP.push && call.kind === "ai",
   );
 
+  const clean = runOf(sim, STEP.clean);
   const refusals = [
     STEP.badToken,
     STEP.unknownRepo,
@@ -708,6 +710,15 @@ function remoteChecks(sim: Sim): CheckResult[] {
         pushReview.status === "done" &&
         pushReview.billed_to === "server",
       `${issues.length} issues · review ${pushReview?.kind ?? "?"} ${pushReview?.status ?? "missing"}`,
+    ),
+    check(
+      "a clean tree says so and sends nothing to the server",
+      clean?.exitCode === 0 &&
+        clean.stdout.trim().split("\n").length === 1 &&
+        clean.json?.message === "No changes to review." &&
+        remoteCalls(sim, STEP.clean).length === 0 &&
+        sim.trace.ai.filter((call) => call.step === STEP.clean).length === 0,
+      `exit ${clean?.exitCode} · ${clean?.stdout.trim().split("\n").length ?? 0} output lines · ${remoteCalls(sim, STEP.clean).length} remote calls · ${sim.trace.ai.filter((call) => call.step === STEP.clean).length} AI calls`,
     ),
     check(
       "a bad token is refused with exit 2 and a hint",
@@ -965,6 +976,15 @@ export default defineFlow({
         const ci = clientCheckout(sim, SAMPLE_REPO_NAME, "ci");
         const run = await runPushReview(sim, ci, range, ["--json"]);
         return `exit ${run.exitCode} · ${range.before.slice(0, 7)}..${range.after.slice(0, 7)}`;
+      },
+    },
+    {
+      name: STEP.clean,
+      async run(sim) {
+        const clean = clientCheckout(sim, SAMPLE_REPO_NAME, "clean");
+        clean.git(["switch", "-q", "-c", "sim/clean"]);
+        const run = await runRemoteReview(sim, clean, ["--json"]);
+        return `exit ${run.exitCode} · ${remoteCalls(sim, STEP.clean).length} remote calls`;
       },
     },
     {
