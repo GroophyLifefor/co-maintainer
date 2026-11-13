@@ -304,22 +304,28 @@ export function buildHistory(
 export type Moved = {
   /** Merged after `init`, with a new rule and requested changes. */
   negative: SimPull;
+  /** The line `negative` added, where its line comments sit. */
+  negateLine: number;
 };
 
 /** The world after `init`: a new pull request with review comments is
  * merged, and the rule in an old line comment is edited. */
 export function moveWorld(sim: Sim, history: History): Moved {
   const { github } = sim;
+  const math = `${github.world
+    .git(github.world.repos.get(HISTORY_REPO)!, ["show", "main:src/math.ts"])
+    .toString()}\nexport const negate = (value: number): number => -value;\n`;
+  // A line comment must sit on a line of the diff, so it goes on the line
+  // this pull request adds.
+  const negateLine = math.trimEnd().split("\n").length;
   const negative = github.openPull(HISTORY_REPO, {
     title: "Handle negative numbers in add",
     body: "`add(-1, -2)` is covered now, and the docs say negative input is fine.",
-    files: {
-      "src/math.ts": `${github.world.git(github.world.repos.get(HISTORY_REPO)!, ["show", "main:src/math.ts"]).toString()}\nexport const negate = (value: number): number => -value;\n`,
-    },
+    files: { "src/math.ts": math },
   });
   github.reviewComment(negative, {
     path: "src/math.ts",
-    line: 1,
+    line: negateLine,
     body: `${rule(RULES.addNegative)} Negative input was never tested.`,
   });
   review(github, negative, {
@@ -333,7 +339,7 @@ export function moveWorld(sim: Sim, history: History): Moved {
     history.percentComment,
     rule(RULES.percentRounding),
   );
-  return { negative };
+  return { negative, negateLine };
 }
 
 // The fake AI. Each answer is read out of the prompt the product sent.
@@ -696,10 +702,10 @@ export const viewStep: Step = {
 export const failedGuideStep: Step = {
   name: STEP.failed,
   async run(sim) {
-    const { negative } = sim.state.moved as Moved;
+    const { negative, negateLine } = sim.state.moved as Moved;
     sim.github.reviewComment(negative, {
       path: "src/math.ts",
-      line: 1,
+      line: negateLine,
       body: rule(RULES.formatTest),
     });
     touch(negative);
