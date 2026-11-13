@@ -19,7 +19,13 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { check, defineFlow, type CheckResult, type Sim } from "../flow.ts";
+import {
+  check,
+  defineFlow,
+  scriptedCheck,
+  type CheckResult,
+  type Sim,
+} from "../flow.ts";
 import type { AiRule } from "../fake_ai.ts";
 import { REMOTE_HOST } from "../fetch.ts";
 import type { SimPull } from "../github.ts";
@@ -729,7 +735,8 @@ export default defineFlow({
       tracked.find((row) => row.key === key)?.state;
     const posted2 = postedReview(sim, STEP.app2);
     results.push(
-      check(
+      scriptedCheck(
+        sim,
         "a keyed finding seen again stays open, one that is gone is closed",
         stateOf("k-off") === "open" &&
           stateOf("k-diff") === "closed" &&
@@ -737,6 +744,16 @@ export default defineFlow({
             "Extension finding off the diff (README.md) (still open)",
           ) === true &&
           posted2.event !== "REQUEST_CHANGES",
+        `${JSON.stringify(tracked)} · round 2 ${posted2?.event ?? "not posted"}`,
+        "the review event also follows the findings the model reports",
+      ),
+      check(
+        "a keyed finding seen again stays open, one that is gone is closed, in the posted review",
+        stateOf("k-off") === "open" &&
+          stateOf("k-diff") === "closed" &&
+          posted2?.body.includes(
+            "Extension finding off the diff (README.md) (still open)",
+          ) === true,
         `${JSON.stringify(tracked)} · round 2 ${posted2?.event ?? "not posted"}`,
       ),
     );
@@ -884,9 +901,24 @@ export default defineFlow({
     const remoteRecords = recordsIn(sim, STEP.remote);
     const remoteFindings = (remote?.json?.findings as Json[] | undefined) ?? [];
     results.push(
-      check(
+      scriptedCheck(
+        sim,
         "a remote review runs the server's extension on the server and the client sees its result",
         remote?.exitCode === 0 &&
+          remoteRecords.length === 1 &&
+          remoteRecords[0]!.details.reviewType === "remote" &&
+          remoteRecords[0]!.details.workdir === "" &&
+          remoteFindings.some(
+            (item) =>
+              item.extensionId === "remote-probe" &&
+              item.title === "Remote extension note",
+          ),
+        `exit ${remote?.exitCode} · ${remoteRecords.length} server runs · ${remoteFindings.length} findings`,
+        "the exit code follows the findings the model reports",
+      ),
+      check(
+        "a remote review runs the server's extension once on the server, and the client sees its finding",
+        (remote?.exitCode === 0 || remote?.exitCode === 1) &&
           remoteRecords.length === 1 &&
           remoteRecords[0]!.details.reviewType === "remote" &&
           remoteRecords[0]!.details.workdir === "" &&
