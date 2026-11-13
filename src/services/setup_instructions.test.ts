@@ -300,3 +300,28 @@ test("a sync that fails after the codebase checkpoint does not leave old instruc
     }
   });
 });
+
+test("when a matched file cannot be fetched, the last INSTRUCTIONS.md and its ids stay", async () => {
+  await withSandbox(async ({ dir, world, run }) => {
+    const first = await run({ command: "init" });
+    if (first.error) throw first.error;
+    const before = await readTextFile(`${dir}/INSTRUCTIONS.md`);
+    // A new blob, so there is no cached copy, and GitHub fails to serve it.
+    world.agentsSha = "sha-agents-2";
+    world.failAgents = true;
+    const second = await run({ command: "remake" });
+    if (second.error) throw second.error;
+    if (
+      !second.lines.includes(
+        "[write] INSTRUCTIONS.md not regenerated: no matched instruction file could be read, keeping any existing file",
+      )
+    ) {
+      throw new Error(`no keep line:\n${second.lines.join("\n")}`);
+    }
+    if ((await readTextFile(`${dir}/INSTRUCTIONS.md`)) !== before) {
+      throw new Error("INSTRUCTIONS.md changed after a failed fetch");
+    }
+    const rules = parseRules(await readTextFile(`${dir}/RULES.json`));
+    if (!rules?.rules.I1) throw new Error("the ids were dropped");
+  });
+});

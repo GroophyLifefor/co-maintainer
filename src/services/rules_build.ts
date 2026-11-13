@@ -35,7 +35,10 @@ import { readTextFile, remove, stat } from "../util/runtime.ts";
 
 export type InstructionsOutcome =
   | InstructionsResult
-  | { status: "skipped"; reason: string };
+  | { status: "skipped"; reason: string }
+  /** Files matched but none could be read: a GitHub hiccup, not a removed
+   * file, so the previous file and its ids are kept. */
+  | { status: "unreadable" };
 
 /** Why no instructions are built this run, or `null` when they are. */
 function skipReason(options: Options, source: Source): string | null {
@@ -43,7 +46,9 @@ function skipReason(options: Options, source: Source): string | null {
   if (options.agentInstructions?.trim() === "") {
     return "--agent-instructions is blank";
   }
-  if (Object.keys(source.instructionFiles ?? {}).length === 0) {
+  // `collect` leaves the field out when nothing matched, and leaves it empty
+  // when files matched but none could be read.
+  if (source.instructionFiles === undefined) {
     return `no file matches ${options.agentInstructions ?? DEFAULT_AGENT_INSTRUCTIONS}`;
   }
   return null;
@@ -59,6 +64,9 @@ export async function buildInstructions(
 ): Promise<InstructionsOutcome> {
   const reason = skipReason(options, source);
   if (reason) return { status: "skipped", reason };
+  if (Object.keys(source.instructionFiles ?? {}).length === 0) {
+    return { status: "unreadable" };
+  }
   log("ai", "starting synth_instructions job");
   // Timed only when it runs, so a repository with no instruction file gets
   // no extra `--log-time` line.
@@ -94,6 +102,12 @@ export function instructionsJson(outcome: InstructionsOutcome): {
       };
     case "failed":
       return { status: "kept", rules: 0 };
+    case "unreadable":
+      return {
+        status: "kept",
+        rules: 0,
+        reason: "no matched instruction file could be read",
+      };
     case "empty":
       return { status: "empty", rules: 0, counts: outcome.counts };
     case "skipped":
@@ -185,6 +199,14 @@ export async function writeInstructionsAndRules(input: {
       log(
         "write",
         `${INSTRUCTIONS_FILE} not regenerated: the AI produced no usable rules, keeping any existing file`,
+      );
+      break;
+    case "unreadable":
+      // A failed fetch is not a removed file: keep what the last run wrote.
+      instructionRules = rulesOfKind(previous?.rules, "I");
+      log(
+        "write",
+        `${INSTRUCTIONS_FILE} not regenerated: no matched instruction file could be read, keeping any existing file`,
       );
       break;
     case "empty":
