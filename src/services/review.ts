@@ -1199,6 +1199,10 @@ async function runReviewJobCore(
     );
     for (const finding of parsed) {
       const repeat = matchRepeat(finding, previous);
+      // The next round finds the line again by this text, as the carry-over
+      // branch above stores it for its own new findings.
+      const patch =
+        revision.files.find((file) => file.path === finding.path)?.patch ?? "";
       insertFinding({
         id: crypto.randomUUID(),
         reviewId,
@@ -1208,6 +1212,7 @@ async function runReviewJobCore(
         lineTo: finding.to,
         title: finding.heading || finding.path,
         bodyMd: redact(finding.excerpt),
+        anchorText: anchorTextFromPatch(patch, finding.from, finding.to),
         state: "new",
         firstSeenReviewId: repeat
           ? (repeat.first_seen_review_id ?? repeat.review_id)
