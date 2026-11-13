@@ -19,6 +19,7 @@ import {
   factSectionHashes,
 } from "../knowledge/skill.ts";
 import { validateSkill } from "../knowledge/validate.ts";
+import { codebaseSectionKeys } from "../knowledge/sections.ts";
 import {
   readConfig,
   reposDir,
@@ -193,21 +194,30 @@ async function writeMaintainerNotes(
 
 /** The sections this run rebuilds. With no previous state, or after the high
  * model or the synthesis version changed, that is every section: `undefined`
- * on a first run, all keys after a change. Otherwise only the sections whose
- * facts changed. */
+ * on a first run, all keys after a change. Otherwise the sections whose facts
+ * changed, and every codebase section that has facts but is missing from the
+ * CODEBASE.md on disk. That last rule rebuilds a section an earlier run lost,
+ * for example one 0.6.13 dropped on a sync, instead of keeping it missing
+ * until its facts change. */
 export function dirtySectionKeys(
   previous: State | undefined,
   options: Pick<Options, "highModel" | "synthesisVersion">,
   hashes: Record<string, string>,
+  previousCodebase?: string,
 ): Set<string> | undefined {
   if (!previous) return undefined;
   const synthesisChanged =
     previous.options.highModel !== options.highModel ||
     previous.options.synthesisVersion !== options.synthesisVersion;
   if (synthesisChanged) return new Set(Object.keys(hashes));
+  const onDisk = previousCodebase ? extractSections(previousCodebase) : {};
   return new Set(
     Object.entries(hashes)
-      .filter(([key, hash]) => previous.sectionHashes[key] !== hash)
+      .filter(
+        ([key, hash]) =>
+          previous.sectionHashes[key] !== hash ||
+          (codebaseSectionKeys.has(key) && !onDisk[key]),
+      )
       .map(([key]) => key),
   );
 }
@@ -223,20 +233,30 @@ export function unchangedSectionKeys(
 }
 
 /** The CODEBASE.md body. A sync rebuilds only the sections whose facts
- * changed, so a section in `unchanged` keeps the text the last run wrote, the
- * way `assembleSkill` keeps an unchanged skill section. A rebuilt section
- * takes its new text, and one that came back empty is dropped: the old text
- * was written from facts that are gone. */
+ * changed, so a section in `keep` keeps the text the last run wrote, the way
+ * `assembleSkill` keeps an unchanged skill section. `keep` holds the
+ * unchanged sections and those whose synthesis call failed: a failed call is
+ * not an answer. A rebuilt section takes its new text, and one that came back
+ * empty is dropped: the old text was written from facts that are gone. */
 export function mergeCodebaseSections(
   previousMarkdown: string | undefined,
   overrides: Record<string, string>,
-  unchanged: Set<string>,
+  keep: Set<string>,
 ): string {
   const previous = previousMarkdown ? extractSections(previousMarkdown) : {};
   const kept = Object.fromEntries(
-    Object.entries(previous).filter(([key]) => unchanged.has(key)),
+    Object.entries(previous).filter(([key]) => keep.has(key)),
   );
   return codebaseBody({ ...kept, ...overrides });
+}
+
+async function readCodebaseDocument(repo: string): Promise<string | undefined> {
+  try {
+    return await readTextFile(`${reposDir()}/${repo}/CODEBASE.md`);
+  } catch {
+    // No CODEBASE.md yet.
+    return undefined;
+  }
 }
 
 /** Writes the codebase-description sections (layout/style/tests/devloop) to
@@ -247,16 +267,11 @@ export function mergeCodebaseSections(
 async function writeCodebaseDocument(
   repo: string,
   overrides: Record<string, string> = {},
-  unchanged: Set<string> = new Set(),
+  keep: Set<string> = new Set(),
 ): Promise<void> {
   const path = `${reposDir()}/${repo}/CODEBASE.md`;
-  let previous: string | undefined;
-  try {
-    previous = await readTextFile(path);
-  } catch {
-    // No CODEBASE.md yet.
-  }
-  const body = mergeCodebaseSections(previous, overrides, unchanged);
+  const previous = await readCodebaseDocument(repo);
+  const body = mergeCodebaseSections(previous, overrides, keep);
   if (!body) {
     // Keep any existing file: `SKILL.md` links to it, and removing it would
     // leave that link dangling. A guide the last run wrote is better than a
@@ -413,7 +428,12 @@ async function initOrRemake(options: Options): Promise<void> {
     );
     log("ai", `extract_unit complete · ${facts.length} facts`);
     const hashes = await factSectionHashes(facts);
-    const dirtySections = dirtySectionKeys(previous, options, hashes);
+    const dirtySections = dirtySectionKeys(
+      previous,
+      options,
+      hashes,
+      await readCodebaseDocument(options.repo),
+    );
     unchangedSections = unchangedSectionKeys(hashes, dirtySections);
     log(
       "ai",
@@ -435,6 +455,9 @@ async function initOrRemake(options: Options): Promise<void> {
       ),
     );
     overrides = synth.overrides;
+    // A section whose call failed keeps its CODEBASE.md text, as SKILL.md
+    // keeps a dropped unit's text.
+    for (const key of synth.failed) unchangedSections.add(key);
     log(
       "ai",
       `synth_section complete · ${Object.keys(overrides).length} sections`,

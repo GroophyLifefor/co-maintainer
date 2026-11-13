@@ -56,20 +56,49 @@ function previousState(
 }
 
 /** What a sync writes, from the previous state and this run's fact hashes and
- * synthesized sections. */
+ * synthesized sections. `failed` are the sections whose call failed. */
 function sync(
   previous: State | undefined,
   hashes: Record<string, string>,
   overrides: Record<string, string>,
   options = { highModel: "high/model", synthesisVersion: 17 },
+  failed: string[] = [],
 ): string {
-  const dirty = dirtySectionKeys(previous, options, hashes);
+  const dirty = dirtySectionKeys(previous, options, hashes, PREVIOUS);
   return mergeCodebaseSections(
     PREVIOUS,
     overrides,
-    unchangedSectionKeys(hashes, dirty),
+    new Set([...unchangedSectionKeys(hashes, dirty), ...failed]),
   );
 }
+
+const SAME_RUN = { highModel: "high/model", synthesisVersion: 17 };
+
+test("a rebuilt section whose call failed keeps its old text", () => {
+  const body = sync(
+    previousState(),
+    { style: "style-2", tests: "tests-1" },
+    {},
+    SAME_RUN,
+    ["style"],
+  );
+  expect(body, ["## Code style", "- Old style rule.", "- Old test rule."], []);
+});
+
+test("a codebase section missing from CODEBASE.md is rebuilt though its facts did not change", () => {
+  // `layout` has facts and the same hash as last time, but the file on disk
+  // has no Code layout section, as after a 0.6.13 sync that lost it.
+  const hashes = { ...HASHES, layout: "layout-1" };
+  const dirty = dirtySectionKeys(
+    previousState({}, hashes),
+    SAME_RUN,
+    hashes,
+    PREVIOUS,
+  );
+  if (!dirty || [...dirty].join() !== "layout") {
+    throw new Error(`dirty: ${JSON.stringify(dirty && [...dirty])}`);
+  }
+});
 
 function expect(body: string, want: string[], unwanted: string[]): void {
   const missing = want.filter((text) => !body.includes(text));
