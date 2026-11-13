@@ -49,8 +49,9 @@ export function printScore(score: Score): void {
  * 1: the first report. 2: `startMs` on steps, calls, leaks, logs and git
  * commands, and the judge as its own step. 3: one entry per flow in `flows`,
  * each with its own steps, checks, scores and trace. The trace adds remote
- * calls, webhook deliveries, GitHub writes, completions, server jobs and
- * faults. A check can be skipped with a reason. */
+ * calls, webhook deliveries, GitHub writes, completions, server jobs, CLI
+ * runs, which secret each request header carried, and faults. A check can be
+ * skipped with a reason. */
 export const REPORT_SCHEMA_VERSION = 3;
 
 /** Writes `<dir>/<time>_<sha>.json` and returns its path. A new file per run,
