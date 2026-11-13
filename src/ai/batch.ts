@@ -4,6 +4,7 @@ import { isNotFound, readTextFile } from "../util/runtime.ts";
 import { formatError } from "../cli/error.ts";
 import { recordRateLimitWait } from "../services/rate_limit.ts";
 import { log } from "../util/log.ts";
+import { interrupted } from "../util/interrupt.ts";
 
 type JobRecord = {
   status: "done" | "quarantine";
@@ -170,7 +171,9 @@ export class AiBatch {
    * rejects. It never throws: a provider error that outlives its retries drops
    * the unit, and a response that still does not validate is used anyway. A run
    * that has already paid for extraction must still write what it has; a format
-   * deviation is not worth losing the whole run over. */
+   * deviation is not worth losing the whole run over. The one exception is
+   * Ctrl-C: every call then fails at once, and a run that went on without
+   * them would write guides with every section dropped. */
   private async completeUnit(
     item: { index: number; id: string; request: AiRequest },
     results: (AiResponse | undefined)[],
@@ -182,6 +185,7 @@ export class AiBatch {
       try {
         response = await this.provider.complete(item.request);
       } catch (error) {
+        if (interrupted()) throw error;
         const reason = formatError(error);
         const limit = isRateLimit(reason)
           ? MAX_RATE_LIMIT_ATTEMPTS

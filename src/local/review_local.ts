@@ -52,6 +52,11 @@ import {
 } from "./git_ops.ts";
 import { EXIT_RUNTIME, exitWith } from "../cli/error.ts";
 import {
+  armInterrupt,
+  disarmInterrupt,
+  interrupted,
+} from "../util/interrupt.ts";
+import {
   buildLocalRevision,
   mergeBase,
   resolveBaseRef,
@@ -83,11 +88,28 @@ function fail(error: ReviewCliError, json: boolean): void {
   exitWith(error.exitCode);
 }
 
+/** Ctrl-C stops the review: the lock is released, `--json` gets the one
+ * "aborted" document, the exit code is 3, and the armed interrupt aborts the
+ * model call in flight so the event loop drains and the process ends. The
+ * review checks `interrupted()` before it prints or saves anything, so no
+ * second output follows. A second Ctrl-C meets Node's default and ends the
+ * process at once, as it does for `review --remote`. */
 function installInterruptCleanup(
   releaseSync: () => (() => void) | null,
   json: boolean,
 ): () => void {
+  const controller = armInterrupt();
+  const remove = () => {
+    for (const signal of ["SIGINT", "SIGTERM"] as const) {
+      try {
+        process.removeListener(signal, onSignal);
+      } catch {
+        // ignore
+      }
+    }
+  };
   const onSignal = () => {
+    remove();
     releaseSync()?.();
     if (json) {
       console.log(
@@ -103,6 +125,7 @@ function installInterruptCleanup(
       );
     }
     exitWith(EXIT_RUNTIME);
+    controller.abort();
   };
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     try {
@@ -112,13 +135,8 @@ function installInterruptCleanup(
     }
   }
   return () => {
-    for (const signal of ["SIGINT", "SIGTERM"] as const) {
-      try {
-        process.removeListener(signal, onSignal);
-      } catch {
-        // ignore
-      }
-    }
+    remove();
+    disarmInterrupt();
   };
 }
 
@@ -172,6 +190,7 @@ export async function runLocalReview(
           );
         }
         await runInitOrRemake({ ...options, command: "remake" });
+        if (interrupted()) return;
       }
 
       const remotes = await runCommand("git", ["remote"], root);
@@ -204,6 +223,7 @@ export async function runLocalReview(
         code: w.code,
         message: w.message,
       }));
+      if (interrupted()) return;
       if (revision.files.length === 0) {
         if (json) {
           console.log(
@@ -286,6 +306,9 @@ export async function runLocalReview(
         await lock?.release();
         lock = null;
       }
+      // Ctrl-C during the model call: the handler has printed the one output
+      // and set the exit code, so nothing is saved or printed after it.
+      if (interrupted()) return;
       const codegraphState = codegraphPrep.state;
 
       const { resolved: allResolved, visiblePaths } = finishCarryRun(
@@ -302,6 +325,7 @@ export async function runLocalReview(
         runCommand,
       );
       const revisionHashAfter = await revisionHash(afterBuilt.revision);
+      if (interrupted()) return;
       if (revisionHashAfter !== revisionHashBefore) {
         warnings.push({
           code: "working_tree_changed",
@@ -325,6 +349,7 @@ export async function runLocalReview(
         });
       }
 
+      if (interrupted()) return;
       const header = `co-maintainer review · ${repo} · ${branch} → ${base.label}`;
       const durationMs = Math.round(performance.now() - started);
       const usage = {
@@ -378,6 +403,9 @@ export async function runLocalReview(
       }
       exitWith(reviewExitCodeFromResolved(allResolved, options.reviewBlocking));
     } catch (error) {
+      // After Ctrl-C the aborted model call or sync throws. The handler has
+      // already printed the one output and set the exit code.
+      if (interrupted()) return;
       if (error instanceof ReviewCliError) {
         fail(error, json);
         return;

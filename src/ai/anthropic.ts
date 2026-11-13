@@ -41,6 +41,7 @@ import type {
 } from "../types.ts";
 import { getEnv } from "../util/runtime.ts";
 import { outputLimitError } from "./provider.ts";
+import { interruptSignal } from "../util/interrupt.ts";
 import {
   CliError,
   EXIT_RUNTIME,
@@ -345,6 +346,7 @@ export class AnthropicProvider implements AiProvider {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(body),
+        signal: interruptSignal(),
       });
     } catch (error) {
       throw networkFailure(this.endpoint, error);

@@ -43,6 +43,7 @@ import {
 } from "../openai.ts";
 import type { AiProvider, AiRequest, AiResponse, Json } from "../../types.ts";
 import { SIWC_ALIAS, SIWC_LABEL, SIWC_PROVIDER } from "./ids.ts";
+import { interruptSignal } from "../../util/interrupt.ts";
 
 export { SIWC_ALIAS, SIWC_LABEL, SIWC_PROVIDER };
 
@@ -728,6 +729,7 @@ export class SignInWithChatGptProvider implements AiProvider {
         body: JSON.stringify(
           responsesBody(this.model, request, { planUsage: true }),
         ),
+        signal: interruptSignal(),
       });
     } catch (error) {
       throw networkFailure(endpoint, error);
