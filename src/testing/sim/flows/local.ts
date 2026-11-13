@@ -27,6 +27,7 @@ import {
   type CliRun,
   defineFlow,
   type Score,
+  scriptedCheck,
   type Sim,
   type Step,
 } from "../flow.ts";
@@ -1112,6 +1113,19 @@ function result(name: string, problems: string[], good: string): CheckResult {
   return check(name, ok, detail);
 }
 
+/** What a live run skips: a result that holds only for the fake reviewer's
+ * scripted findings, so the problems are listed only with the fake AI. */
+function scriptedResult(
+  sim: Sim,
+  name: string,
+  problems: string[],
+  good: string,
+  why = "the findings are the model's",
+): CheckResult {
+  const { ok, detail } = fail(problems, good);
+  return scriptedCheck(sim, name, ok, detail, why);
+}
+
 /** The top-level fields `--json` documents (docs/md/review.md). */
 const JSON_FIELDS = [
   "schemaVersion",
@@ -1140,6 +1154,8 @@ function round1Checks(sim: Sim): CheckResult[] {
   const chat = firstChat(human);
   const problems: string[] = [];
 
+  // What the product prints around the findings, and what the findings give.
+  const headerProblems: string[] = [];
   const humanProblems: string[] = [];
   if (human.cli.exitCode !== 1)
     humanProblems.push(`exit ${human.cli.exitCode}`);
@@ -1151,7 +1167,12 @@ function round1Checks(sim: Sim): CheckResult[] {
     "[P2 · non-blocking]",
     "Summary: 2 new · 0 open · 0 closed · 1 blocking",
   ]) {
-    if (!out.includes(text)) humanProblems.push(`missing "${text}"`);
+    if (!out.includes(text)) {
+      (text.startsWith("[") || text.startsWith("Summary")
+        ? humanProblems
+        : headerProblems
+      ).push(`missing "${text}"`);
+    }
   }
   if (!same(groups.New, ["src/math.ts:10", "src/stats.ts:4"])) {
     humanProblems.push(`New group ${JSON.stringify(groups.New)}`);
@@ -1221,16 +1242,23 @@ function round1Checks(sim: Sim): CheckResult[] {
     findingProblems.push("a body differs from the model's");
   }
   const expected = ["src/math.ts:10-10:P1:true", "src/stats.ts:4-4:P2:false"];
+  const scriptedProblems: string[] = [];
   if (!same(reported.map(keyOf), expected)) {
-    findingProblems.push(`expected ${expected.join(", ")}`);
+    scriptedProblems.push(`expected ${expected.join(", ")}`);
   }
 
   void problems;
   return [
-    result(
+    scriptedResult(
+      sim,
       "round 1 human output",
       humanProblems,
-      "header, stats, group and summary",
+      "exit code, blocking and non-blocking marks, group and summary",
+    ),
+    result(
+      "round 1 human output names the branch, the stats and the codegraph state",
+      headerProblems,
+      "header, stats and codegraph state",
     ),
     result(
       "the prompt holds the diff of exactly the changed files",
@@ -1251,6 +1279,12 @@ function round1Checks(sim: Sim): CheckResult[] {
       "findings in the output are the ones the model returned",
       findingProblems,
       `${reported.length} findings, path, lines, severity and blocking agree`,
+    ),
+    scriptedResult(
+      sim,
+      "round 1 reports the two findings the fake reviewer returns",
+      scriptedProblems,
+      "src/math.ts P1 blocking, src/stats.ts P2 non-blocking",
     ),
   ];
 }
@@ -1307,8 +1341,9 @@ function jsonChecks(sim: Sim): CheckResult[] {
   ) {
     problems.push(`codegraph ${JSON.stringify(codegraph)}`);
   }
+  const summaryProblems: string[] = [];
   if (!same(out.summary, { new: 2, open: 0, closed: 0, blocking: 1 })) {
-    problems.push(`summary ${JSON.stringify(out.summary)}`);
+    summaryProblems.push(`summary ${JSON.stringify(out.summary)}`);
   }
   if (!same(out.warnings, [])) problems.push("warnings");
   const usage = out.usage as
@@ -1342,7 +1377,13 @@ function jsonChecks(sim: Sim): CheckResult[] {
     result(
       "--json is one document with the documented fields",
       problems,
-      "13 top-level fields, subject, base, revision, codegraph, summary and usage",
+      "13 top-level fields, subject, base, revision, codegraph and usage",
+    ),
+    scriptedResult(
+      sim,
+      "--json summary counts the two scripted findings",
+      summaryProblems,
+      "2 new, 1 blocking",
     ),
   ];
 }
@@ -1351,23 +1392,27 @@ function githubChecks(sim: Sim): CheckResult[] {
   const run = runOf(sim, L.r1g);
   const lines = run.cli.stdout.split("\n").filter(Boolean);
   const problems: string[] = [];
-  if (run.cli.exitCode !== 1) problems.push(`exit ${run.cli.exitCode}`);
-  if (lines.length !== 2 || lines.some((line) => !line.startsWith("::"))) {
-    problems.push(`stdout is not two workflow commands: ${run.cli.stdout}`);
+  const scriptedProblems: string[] = [];
+  if (run.cli.exitCode !== 1) scriptedProblems.push(`exit ${run.cli.exitCode}`);
+  if (lines.some((line) => !line.startsWith("::"))) {
+    problems.push(`stdout is not workflow commands only: ${run.cli.stdout}`);
+  }
+  if (lines.length !== 2) {
+    scriptedProblems.push("stdout is not two workflow commands");
   }
   if (
     !lines[0]?.startsWith(
       "::error file=src/math.ts,line=10,title=P1%3A average::",
     )
   ) {
-    problems.push(`first line ${lines[0]}`);
+    scriptedProblems.push(`first line ${lines[0]}`);
   }
   if (
     !lines[1]?.startsWith(
       "::warning file=src/stats.ts,line=4,title=P2%3A describe::",
     )
   ) {
-    problems.push(`second line ${lines[1]}`);
+    scriptedProblems.push(`second line ${lines[1]}`);
   }
   const path = join(sim.world.root, "step-summary.md");
   const summary = existsSync(path) ? readFileSync(path, "utf8") : "";
@@ -1377,7 +1422,11 @@ function githubChecks(sim: Sim): CheckResult[] {
     "| P2 | new | src/stats.ts:4 |",
     "2 new · 0 open · 0 closed · 1 blocking",
   ]) {
-    if (!summary.includes(text)) problems.push(`job summary lacks "${text}"`);
+    if (!summary.includes(text)) {
+      (text.startsWith("##") ? problems : scriptedProblems).push(
+        `job summary lacks "${text}"`,
+      );
+    }
   }
   for (const secret of sim.world.secretValues()) {
     if (summary.includes(secret.value))
@@ -1387,7 +1436,13 @@ function githubChecks(sim: Sim): CheckResult[] {
     result(
       "--output=github prints workflow commands only, and a job summary",
       problems,
-      "error first, then warning, 2 commands and the summary table",
+      "workflow commands only, and the job summary with its heading",
+    ),
+    scriptedResult(
+      sim,
+      "--output=github annotates the two scripted findings, error first, and sums them up",
+      scriptedProblems,
+      "error first, then warning, 2 commands, the summary table and exit 1",
     ),
   ];
 }
@@ -1401,20 +1456,25 @@ function exitChecks(sim: Sim): CheckResult[] {
   const prose = runOf(sim, L.prose);
   const r5 = runOf(sim, L.r5);
   const clean = [r5, tools, prose, runOf(sim, L.cleanH), runOf(sim, L.cleanJ)];
+  const why = "which findings are blocking is the model's call";
   return [
-    check(
+    scriptedCheck(
+      sim,
       "exit 1 while a blocking finding is open",
       wrong.length === 0,
       wrong.length
         ? `not 1: ${wrong.join(", ")}`
         : `${blocking.length} reviews`,
+      why,
     ),
-    check(
+    scriptedCheck(
+      sim,
       "exit 0 when no blocking finding is open, even with findings",
       clean.every((run) => run.cli.exitCode === 0) &&
         summaryOf(tools).blocking === 0 &&
         summaryOf(tools).new === 1,
       clean.map((run) => `${run.label} ${run.cli.exitCode}`).join(", "),
+      why,
     ),
   ];
 }
@@ -1427,7 +1487,13 @@ function carryChecks(sim: Sim): CheckResult[] {
   const r5 = runOf(sim, L.r5);
   const out: CheckResult[] = [];
 
+  // From here the carry-over follows the findings: which files have a record,
+  // which are asked about again, what is closed. The model decides all of it,
+  // so what the scripted reviewer's findings lead to is skipped live. What the
+  // product keeps whatever it found has a check of its own.
+  const carryWhy = "the carry-over follows the findings the model reports";
   const round1: string[] = [];
+  const round1Seen: string[] = [];
   const record = r1h.carry;
   if (!same(carryPaths(r1h), ["src/math.ts", "src/stats.ts"])) {
     round1.push(`findings ${JSON.stringify(carryPaths(r1h))}`);
@@ -1438,28 +1504,37 @@ function carryChecks(sim: Sim): CheckResult[] {
   if (!same(lines, ["10:P1", "4:P2"]))
     round1.push(`lines ${JSON.stringify(lines)}`);
   if (!same(paths(record?.files as Json[]), LOCAL_CHANGED))
-    round1.push("files");
+    round1Seen.push("files");
   if (!same([...(record?.visiblePaths ?? [])].sort(), LOCAL_CHANGED))
-    round1.push("visiblePaths");
+    round1Seen.push("visiblePaths");
   if (new Set((record?.findings ?? []).map((item) => item.id)).size !== 2)
     round1.push("ids");
   if (r1h.carryBefore !== null)
-    round1.push("a record existed before the first review");
+    round1Seen.push("a record existed before the first review");
   out.push(
-    result(
+    scriptedResult(
+      sim,
       "carry record after round 1 holds both findings and the four files",
-      round1,
+      [...round1, ...round1Seen],
       "2 findings with ids and lines, 4 files, 4 visible paths",
+      carryWhy,
+    ),
+    result(
+      "carry record after round 1 holds the four files it saw, and none was there before",
+      round1Seen,
+      "4 files, 4 visible paths, no earlier record",
     ),
   );
 
   const fresh: string[] = [];
+  const freshSent: string[] = [];
   const chat = firstChat(r1j);
   if (r1j.carryBefore?.findings.length !== 2) fresh.push("no record to ignore");
   for (const text of ["PREVIOUS FINDINGS", "UNCHANGED SINCE LAST REVIEW"]) {
-    if (chat.user.includes(text)) fresh.push(`prompt holds "${text}"`);
+    if (chat.user.includes(text)) freshSent.push(`prompt holds "${text}"`);
   }
-  if (!same(sentFiles(chat), LOCAL_CHANGED)) fresh.push("not the whole diff");
+  if (!same(sentFiles(chat), LOCAL_CHANGED))
+    freshSent.push("not the whole diff");
   if (!same(summaryOf(r1j), { new: 2, open: 0, closed: 0, blocking: 1 })) {
     fresh.push(`summary ${JSON.stringify(summaryOf(r1j))}`);
   }
@@ -1473,10 +1548,17 @@ function carryChecks(sim: Sim): CheckResult[] {
     fresh.push("the record was not replaced");
   }
   out.push(
-    result(
+    scriptedResult(
+      sim,
       "--fresh ignores the record, reviews the whole diff and replaces the record",
-      fresh,
+      [...fresh, ...freshSent],
       "no carry text, 4 files, 2 new findings, 2 new ids in the record",
+      carryWhy,
+    ),
+    result(
+      "--fresh sends the whole diff and no carry text",
+      freshSent,
+      "no carry text, 4 files",
     ),
   );
 
@@ -1504,10 +1586,12 @@ function carryChecks(sim: Sim): CheckResult[] {
     two.push("the open finding lost its line, severity or blocking");
   }
   out.push(
-    result(
+    scriptedResult(
+      sim,
       "round 2 reports one closed and one open finding",
       two,
       "stats.ts closed, math.ts open, still blocking",
+      carryWhy,
     ),
   );
 
@@ -1538,10 +1622,12 @@ function carryChecks(sim: Sim): CheckResult[] {
     prompt2.push(`unchanged list ${JSON.stringify(unchangedFiles(chat2))}`);
   }
   out.push(
-    result(
+    scriptedResult(
+      sim,
       "round 2 asks about the old findings and sends only the changed file",
       prompt2,
       "2 VERIFY entries, 1 file in the diff, 3 listed as unchanged",
+      carryWhy,
     ),
   );
 
@@ -1554,10 +1640,12 @@ function carryChecks(sim: Sim): CheckResult[] {
   if (!same(kept, LOCAL_CHANGED))
     record2.push(`visiblePaths ${JSON.stringify(kept)}`);
   out.push(
-    result(
+    scriptedResult(
+      sim,
       "carry record after round 2 drops the closed finding and keeps what was seen",
       record2,
       "1 finding, 4 visible paths",
+      carryWhy,
     ),
   );
 
@@ -1583,15 +1671,18 @@ function carryChecks(sim: Sim): CheckResult[] {
     three.push("record after round 3");
   }
   out.push(
-    result(
+    scriptedResult(
+      sim,
       "round 3 re-checks a finding in a file skipped last round and follows it to its new line",
       three,
       "still open at src/math.ts:11, nothing reported twice",
+      carryWhy,
     ),
   );
 
   const unreadable = runOf(sim, L.r3b);
   const warn: string[] = [];
+  const warnScripted: string[] = [];
   if (
     !same(unreadable.json?.warnings, [
       {
@@ -1604,26 +1695,35 @@ function carryChecks(sim: Sim): CheckResult[] {
     warn.push(`warnings ${JSON.stringify(unreadable.json?.warnings)}`);
   if (firstChat(unreadable).user.includes("PREVIOUS FINDINGS"))
     warn.push("carry text sent");
+  if (unreadable.json?.ok !== true) warn.push("the review did not go on");
   if (unreadable.cli.exitCode !== 1 || summaryOf(unreadable).new !== 1)
-    warn.push("review did not go on");
+    warnScripted.push("review did not go on with its one finding");
   if (unreadable.carry?.findings.length !== 1)
-    warn.push("the record was not rewritten");
+    warnScripted.push("the record was not rewritten");
   out.push(
     result(
       "an unreadable carry cache warns and the review goes on",
       warn,
-      "carry_over_unavailable, 1 new finding, record rewritten",
+      "carry_over_unavailable, no carry text, the review finished",
+    ),
+    scriptedResult(
+      sim,
+      "after an unreadable carry cache the review reports its finding and rewrites the record",
+      warnScripted,
+      "exit 1, 1 new finding, record rewritten",
+      carryWhy,
     ),
   );
 
   const r4 = runOf(sim, L.r4);
   const rebuilt: string[] = [];
+  const rebuiltScripted: string[] = [];
   if (r4.carryBefore?.findings.length !== 1)
-    rebuilt.push("no record to ignore");
+    rebuiltScripted.push("no record to ignore");
   if (firstChat(r4).user.includes("PREVIOUS FINDINGS"))
     rebuilt.push("carry text sent");
   if (!same(summaryOf(r4), { new: 1, open: 0, closed: 0, blocking: 1 })) {
-    rebuilt.push(`summary ${JSON.stringify(summaryOf(r4))}`);
+    rebuiltScripted.push(`summary ${JSON.stringify(summaryOf(r4))}`);
   }
   const was = (unreadable.json!.guide as { builtAt: string }).builtAt;
   const now = (r4.json!.guide as { builtAt: string }).builtAt;
@@ -1633,7 +1733,14 @@ function carryChecks(sim: Sim): CheckResult[] {
     result(
       "a guide rebuilt after the last review starts the next one fresh",
       rebuilt,
-      "record ignored, no carry text, new guide date",
+      "no carry text, new guide date",
+    ),
+    scriptedResult(
+      sim,
+      "after the rebuild the old record is ignored and the finding is new",
+      rebuiltScripted,
+      "record ignored, 1 new finding",
+      carryWhy,
     ),
   );
 
@@ -1655,10 +1762,12 @@ function carryChecks(sim: Sim): CheckResult[] {
   if (r5.carry === null || r5.carry.findings.length !== 0)
     closed.push("the record still holds findings");
   out.push(
-    result(
+    scriptedResult(
+      sim,
       "round 5: the fixed finding is closed, the exit code is 0 and the record is empty",
       closed,
       "1 closed, 0 blocking, no findings stored",
+      carryWhy,
     ),
   );
   return out;
@@ -1865,11 +1974,27 @@ async function toolChecks(sim: Sim): Promise<CheckResult[]> {
       line.phase === "review-tools" && line.message.includes("round 1/"),
   );
   if (!logged) problems.push("no review-tools log line for round 1");
+  // Whatever rounds the model took, the prompt stays one and the usage adds up.
+  const prompt = chats.every(
+    (chat) => chat.system === first?.system && chat.user === first?.user,
+  );
+  const any: string[] = [];
+  if (chats.length === 0) any.push("no review request");
+  if (!prompt) any.push("system or user prompt changed between rounds");
+  if (usage?.tokensIn !== sent)
+    any.push(`usage ${usage?.tokensIn} vs ${sent} tokens`);
   return [
-    result(
+    scriptedResult(
+      sim,
       "a tool round: the product runs the tools, answers the model and keeps one prompt",
       problems,
       "2 requests, flowchart docs and a tool error sent back, 1 finding",
+      "a real model may answer without calling the tools",
+    ),
+    result(
+      "the tool step keeps one prompt across its requests and its usage adds up",
+      any,
+      `${chats.length} requests, one system prompt and one first message`,
     ),
   ];
 }
@@ -1897,10 +2022,12 @@ function proseChecks(sim: Sim): CheckResult[] {
     problems.push(`findings ${JSON.stringify(jsonFindings(run).map(keyOf))}`);
   }
   return [
-    result(
+    scriptedResult(
+      sim,
       "an answer that is not JSON is asked for again once",
       problems,
       "prose, then one retry with the reminder, 1 finding",
+      "a real model answers in JSON, so there is no retry to see",
     ),
   ];
 }

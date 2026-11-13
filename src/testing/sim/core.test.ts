@@ -13,6 +13,7 @@ import {
   type Printer,
   type RunSettings,
   runFlow,
+  scriptedCheck,
   type Sim,
 } from "./flow.ts";
 import { INIT_AI } from "./flows/init.ts";
@@ -885,4 +886,17 @@ test("a GitHub route the simulation does not know fails the flow", async () => {
   assert.equal(result.steps[1]!.detail, "404");
   assert.equal(checkNamed(result, "every GitHub call answered").ok, false);
   assert.equal(result.passed, false);
+});
+
+test("scriptedCheck: a plain check with the fake AI, skipped with a reason when a real model answers", () => {
+  const fake = scriptedCheck({ mode: "fake" }, "name", false, "detail", "why");
+  assert.deepEqual(fake, { name: "name", ok: false, detail: "detail" });
+  const passing = scriptedCheck({ mode: "fake" }, "name", true, "ok", "why");
+  assert.equal(passing.ok, true);
+  assert.equal(passing.skipped, undefined);
+  // A live run never fails it, whatever the answer was, and says why.
+  const live = scriptedCheck({ mode: "live" }, "name", false, "detail", "why");
+  assert.equal(live.ok, true);
+  assert.equal(live.skipped, "live AI: why");
+  assert.equal(live.detail, "detail");
 });
