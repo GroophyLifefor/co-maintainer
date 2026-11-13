@@ -340,6 +340,31 @@ own, and the per-run file travels with the job so a retry keeps it.
 | 2 | Usage or precondition error (init missing, not a git repo, etc.) |
 | 3 | Runtime failure or abort |
 
+### A tree with no changes
+
+A local or remote review of a tree with no changes prints `No changes to review.`
+and stops. With `--json` it prints one JSON document instead. It makes no model
+call, sends nothing to the server and exits 0.
+
+### Stopping a local review with Ctrl-C
+
+Ctrl-C or SIGTERM stops a local review. The model call in flight is stopped and
+no new one is sent, also during a rate-limit wait and at the codegraph install
+prompt. The review saves nothing, releases its lock and exits with code 3. With
+`--json`, stdout is this one document, and without it nothing more is printed:
+
+```json
+{"schemaVersion":1,"ok":false,"error":{"code":"aborted","message":"Review canceled."},"exitCode":3}
+```
+
+A second Ctrl-C ends the process at once. A [`sync`](sync.md) run before the
+review with `--sync-before-review` stops at its next AI call. Its GitHub reads
+and the codegraph index step are not interrupted, so the review stops after them.
+
+Ctrl-C at any other prompt, in `init`, `sync`, `clear`, `rollback`, `uninstall` or
+a review asking for a missing model or key, ends the command as Ctrl-C ends it
+anywhere else. It is never read as an answer.
+
 ### A repository without guides
 
 A repository that was never initialized has no guides, and no review can run.
