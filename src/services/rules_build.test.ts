@@ -7,6 +7,7 @@ import {
 } from "./rules_build.ts";
 import { loadGuides, withKnowledgeLock } from "../review/guides.ts";
 import { parseRules } from "../knowledge/rules.ts";
+import type { ReviewDocuments } from "../knowledge/guide.ts";
 import { testOptions, testSource } from "../testing/helpers.ts";
 import { withLogSink } from "../util/log.ts";
 import type { AiProvider, AiResponse } from "../types.ts";
@@ -32,34 +33,54 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-function written(
-  rules: { id: string; text: string; line: number }[],
-): InstructionsOutcome {
-  return {
-    status: "written",
-    markdown: `# Repository instructions\n\nRules.\n\n${rules
-      .map((rule) => `- ${rule.text} [${rule.id}]\n`)
-      .join("")}`,
-    rules: rules.map((rule) => ({
-      id: rule.id,
-      text: rule.text,
+const WRITTEN: InstructionsOutcome = {
+  status: "written",
+  markdown:
+    "# Repository instructions\n\nRules.\n\n- Format amounts with `formatMoney()`. [I1]\n",
+  rules: [
+    {
+      id: "I1",
+      text: "Format amounts with `formatMoney()`.",
       scope: "",
-      sources: [{ path: "AGENTS.md", line: rule.line }],
+      sources: [{ path: "AGENTS.md", line: 31 }],
+    },
+  ],
+  counts: { unsupportedSource: 2, unknownName: 0, overCap: 0 },
+};
+
+function documents(
+  rules: { id: string; prs: number[]; text: string }[],
+): ReviewDocuments {
+  return {
+    guide: "# Guide\n",
+    rules: rules.map((rule, index) => ({
+      id: rule.id,
+      file: "PR_REVIEW_GUIDE.md",
+      text: rule.text,
+      findings: [index + 1],
+      pullRequests: rule.prs,
     })),
-    counts: { unsupportedSource: 2, unknownName: 0, overCap: 0 },
+    counts: [{ file: "PR_REVIEW_GUIDE.md", rules: 4, withIds: rules.length }],
   };
 }
 
-const WRITTEN = written([
-  { id: "I1", text: "Format amounts with `formatMoney()`.", line: 31 },
-]);
-
 async function write(
+  docs: ReviewDocuments | undefined,
   instructions: InstructionsOutcome,
+  signalCount = 5,
   command: "init" | "remake" = "remake",
 ) {
   const lines: string[] = [];
-  const source = testSource({ commits: [{ sha: "abc123" }] });
+  const source = testSource({
+    commits: [{ sha: "abc123" }],
+    pullRequests: [
+      {
+        number: 212,
+        mergedAt: "2026-01-20T08:00:00Z",
+      },
+      { number: 340 },
+    ] as never,
+  });
   const result = await withLogSink(
     (phase, message) => void lines.push(`[${phase}] ${message}`),
     () =>
@@ -67,6 +88,8 @@ async function write(
         writeInstructionsAndRules({
           repo: REPO,
           command,
+          documents: docs,
+          signalCount,
           instructions,
           source,
         }),
@@ -81,14 +104,14 @@ test("a sync with no instruction file and nothing from before writes and says no
       status: "skipped",
       reason: "no file matches (^|/)AGENTS\\.md$",
     };
-    const sync = await write(skipped);
+    const sync = await write(undefined, skipped);
     if (sync.lines.length > 0 || sync.result.reported) {
       throw new Error(`a quiet sync spoke: ${sync.lines.join("\n")}`);
     }
     if (await exists(`${dir}/RULES.json`)) {
       throw new Error("RULES.json was written with no rule");
     }
-    const init = await write(skipped, "init");
+    const init = await write(undefined, skipped, 5, "init");
     if (
       init.lines.join("\n") !==
       "[write] INSTRUCTIONS.md skipped: no file matches (^|/)AGENTS\\.md$"
@@ -100,28 +123,32 @@ test("a sync with no instruction file and nothing from before writes and says no
 
 test("a build writes INSTRUCTIONS.md and RULES.json, and the loader reads both", async () => {
   await withReposDir(async (dir) => {
-    const { result, lines } = await write(WRITTEN);
+    const { result, lines } = await write(
+      documents([{ id: "R1", prs: [212, 340], text: "Money · rounding" }]),
+      WRITTEN,
+    );
     if (result.changes !== null) {
       throw new Error("a first build reported changes");
     }
     if (
       !lines.includes(
         "[write] INSTRUCTIONS.md · 1 rule · 2 dropped (unsupported source) · 0 over the cap",
-      )
+      ) ||
+      !lines.includes("[write] PR_REVIEW_GUIDE.md · 4 rules · 1 with sources")
     ) {
       throw new Error(`build output:\n${lines.join("\n")}`);
     }
     const rules = parseRules(await readTextFile(`${dir}/RULES.json`));
     if (
+      JSON.stringify(rules?.rules.R1.sources) !==
+        '[{"pr":212,"mergedAt":"2026-01-20"},{"pr":340}]' ||
       rules?.rules.I1.commit !== "abc123" ||
-      rules?.rules.I1.text !== "Format amounts with formatMoney()." ||
-      JSON.stringify(rules?.rules.I1.sources) !==
-        '[{"path":"AGENTS.md","line":31}]'
+      rules?.rules.I1.text !== "Format amounts with formatMoney()."
     ) {
       throw new Error(`RULES.json: ${JSON.stringify(rules)}`);
     }
     const loaded = await loadGuides(REPO);
-    if (!loaded.instructions.includes("[I1]") || !loaded.rules?.rules.I1) {
+    if (!loaded.instructions.includes("[I1]") || !loaded.rules?.rules.R1) {
       throw new Error("loadGuides did not read the new files");
     }
   });
@@ -129,8 +156,8 @@ test("a build writes INSTRUCTIONS.md and RULES.json, and the loader reads both",
 
 test("a failed call keeps the file and its ids, a skipped one removes them", async () => {
   await withReposDir(async (dir) => {
-    await write(WRITTEN);
-    const kept = await write({ status: "failed" });
+    await write(undefined, WRITTEN);
+    const kept = await write(undefined, { status: "failed" });
     if (!(await exists(`${dir}/INSTRUCTIONS.md`))) {
       throw new Error("a failed call removed INSTRUCTIONS.md");
     }
@@ -140,7 +167,7 @@ test("a failed call keeps the file and its ids, a skipped one removes them", asy
     const rules = parseRules(await readTextFile(`${dir}/RULES.json`));
     if (!rules?.rules.I1) throw new Error("a failed call dropped I1");
 
-    const skipped = await write({
+    const skipped = await write(undefined, {
       status: "skipped",
       reason: "--include-codebase is off",
     });
@@ -160,28 +187,63 @@ test("a failed call keeps the file and its ids, a skipped one removes them", asy
   });
 });
 
+test("guide rules alone write RULES.json, and a sync does not name a skip it had no file for", async () => {
+  await withReposDir(async (dir) => {
+    const skipped: InstructionsOutcome = {
+      status: "skipped",
+      reason: "no file matches (^|/)AGENTS\\.md$",
+    };
+    const { lines } = await write(
+      documents([{ id: "R1", prs: [212], text: "A · b" }]),
+      skipped,
+    );
+    if (lines.some((line) => line.includes("INSTRUCTIONS.md"))) {
+      throw new Error(`a sync named a skip:\n${lines.join("\n")}`);
+    }
+    const rules = parseRules(await readTextFile(`${dir}/RULES.json`));
+    if (!rules?.rules.R1) throw new Error("guide rules were not written");
+  });
+});
+
+test("a guide kept from the last run keeps its R ids, a removed one loses them", async () => {
+  await withReposDir(async (dir) => {
+    await write(documents([{ id: "R1", prs: [212], text: "A · b" }]), WRITTEN);
+    await write(undefined, WRITTEN, 5);
+    let rules = parseRules(await readTextFile(`${dir}/RULES.json`));
+    if (!rules?.rules.R1) throw new Error("a kept guide lost its ids");
+    await write(undefined, WRITTEN, 1);
+    rules = parseRules(await readTextFile(`${dir}/RULES.json`));
+    if (rules?.rules.R1) throw new Error("a removed guide kept its ids");
+  });
+});
+
 test("a later build reports what changed by source", async () => {
   await withReposDir(async () => {
     await write(
-      written([
-        { id: "I1", text: "Format amounts.", line: 31 },
-        { id: "I2", text: "Old rule.", line: 9 },
+      documents([
+        { id: "R1", prs: [212], text: "Money · rounding" },
+        { id: "R2", prs: [101], text: "Old · gone" },
       ]),
+      WRITTEN,
     );
     const { result, lines } = await write(
-      written([
-        { id: "I1", text: "Format every amount.", line: 31 },
-        { id: "I2", text: "New rule.", line: 40 },
+      documents([
+        { id: "R1", prs: [212, 340], text: "Money formatting · rounding" },
+        { id: "R2", prs: [402], text: "New · rule" },
       ]),
+      WRITTEN,
     );
+    const guideLine = lines.find((line) => line.startsWith("[guide]"));
     if (
-      !lines.includes(
-        "[instructions] 1 rule added (AGENTS.md:40) · 1 rewritten (I1) · 1 dropped (AGENTS.md:9)",
-      )
+      guideLine !==
+      "[guide] 1 rule added (#402) · 1 rewritten (R1, #340 joined) · 1 dropped (#101 left the window)"
     ) {
+      throw new Error(`guide line: ${guideLine}`);
+    }
+    if (!lines.includes("[instructions] no rule changed")) {
       throw new Error(`instructions line:\n${lines.join("\n")}`);
     }
-    if (result.changes?.instructions.dropped[0]?.id !== "I2") {
+    if (result.changes?.guide.dropped[0]?.id !== "R2") {
       throw new Error(`json lists: ${JSON.stringify(result.changes)}`);
     }
   });

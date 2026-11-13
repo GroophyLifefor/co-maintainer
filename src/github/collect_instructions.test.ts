@@ -2,7 +2,7 @@ import { test } from "node:test";
 import { collectSource } from "./collect.ts";
 import { testOptions } from "../testing/helpers.ts";
 import { withLogSink } from "../util/log.ts";
-import type { GitHubClient } from "../types.ts";
+import type { GitHubClient, Json } from "../types.ts";
 import { withIsolatedHome } from "../testing/isolated_home.ts";
 
 /** A name no other test uses, so no cache row is ever shared. */
@@ -42,6 +42,23 @@ class InstructionsClient implements GitHubClient {
       const path = match[1].split("/").map(decodeURIComponent).join("/");
       this.contentPaths.push(path);
       return { content: btoa(`content of ${path}\n`) } as T;
+    }
+    if (endpoint.startsWith(`repos/${REPO}/pulls?`)) {
+      const page = Number(/[?&]page=(\d+)/.exec(endpoint)?.[1] ?? 1);
+      if (page > 1) return [] as T;
+      return [
+        {
+          number: 7,
+          title: "Merged one",
+          state: "closed",
+          merged_at: "2026-03-04T10:00:00Z",
+          updated_at: new Date().toISOString(),
+          head: { sha: "head-7" },
+          additions: 1,
+          deletions: 1,
+          labels: [],
+        },
+      ] as T;
     }
     throw new Error(`unexpected endpoint: ${endpoint}`);
   }
@@ -189,5 +206,23 @@ test("a matched file the caps left out is still read by the codebase extraction"
   const both = asInstructions.filter((path) => path in source.files);
   if (both.length > 0) {
     throw new Error(`read twice: ${both.join(", ")}`);
+  }
+});
+
+test("a pull request keeps its merge time from the listing", async () => {
+  // The cache rows live in the isolated home, under a name no other test uses.
+  const { result: source } = await quietly(() =>
+    collectSource(
+      new InstructionsClient(),
+      testOptions({
+        repo: REPO,
+        includeCodebase: false,
+        includePullRequests: true,
+      }),
+    ),
+  );
+  const pr = source.pullRequests[0] as { mergedAt?: string } & Json;
+  if (pr?.mergedAt !== "2026-03-04T10:00:00Z") {
+    throw new Error(`mergedAt: ${JSON.stringify(pr)}`);
   }
 });

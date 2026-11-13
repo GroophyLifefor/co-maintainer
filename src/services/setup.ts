@@ -566,6 +566,8 @@ async function initOrRemake(options: Options): Promise<void> {
       rulesResult = await writeInstructionsAndRules({
         repo: options.repo,
         command: options.command,
+        documents: reviewDocuments,
+        signalCount: reviewSignalCount(facts),
         instructions,
         source,
       });
