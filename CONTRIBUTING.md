@@ -139,6 +139,25 @@ file. The sandbox sets the environment first.
   status such as `422`. After an AI rate limit the product's backoff wait is
   skipped, so the flow does not sit through it.
 
+#### Checks and a real model
+
+With `--ai`, a real model answers and `sim.mode` is `"live"`. A deterministic
+check must then hold whatever the model says: what the product sent, what it
+wrote to GitHub, exit code 2 for a usage error, no secret leaked, a file
+exists. A check that holds only for the scripted answers is written with
+`scriptedCheck(sim, name, ok, detail, why)`. With the fake AI it is a plain
+check. Live it is skipped, and the report says `live AI: <why>`. That covers
+exact findings, counts, severities, states such as open or closed, exit codes
+that follow from what was found, the text the model wrote, and the number of AI
+calls, since a real model may retry or call a tool.
+
+Split a check that mixes both: the half that holds for any answer stays a plain
+`check` and keeps running live. A check that fails live for a reason that is
+not the model's answer is a finding. Do not skip it. `npm test` runs every flow
+and judges its checks as a live run would (`src/testing/sim/live_probe.ts`), so
+the skips cannot drift: a new `scriptedCheck` changes `SKIPPED_LIVE` in
+`src/testing/sim/flows/live_checks.test.ts`, on purpose.
+
 #### Inherited checks and scores
 
 Every flow gets these checks:
