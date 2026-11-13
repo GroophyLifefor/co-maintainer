@@ -1,8 +1,8 @@
 /** The folder one review shares with its extensions.
  *
- *   <config dir>/extensions/<run-id>/details.json     context
- *   <config dir>/extensions/<run-id>/cm-review.json   AI review results
- *   <config dir>/extensions/<run-id>/diff.patch       the diff
+ *   <config dir>/co-maintainer/extensions/<run-id>/details.json     context
+ *   <config dir>/co-maintainer/extensions/<run-id>/cm-review.json   AI results
+ *   <config dir>/co-maintainer/extensions/<run-id>/diff.patch       the diff
  *
  * The folder is removed however the review ends. A process that dies cannot
  * remove its own, so `serve` removes the folders of jobs no longer running at
@@ -14,6 +14,7 @@
 import { dirname } from "node:path";
 import { configPath } from "../config.ts";
 import {
+  getEnv,
   isNotFound,
   isProcessAlive,
   mkdir,
@@ -60,17 +61,35 @@ export type RunFolder = {
   details: ExtensionDetails;
 };
 
+/** `<config dir>/co-maintainer/extensions`. A `config.json` moved elsewhere
+ * with `CM_CONFIG_PATH` may sit in a folder that holds anything, such as the
+ * home folder, so the run folders go under a name of their own there:
+ * `co-maintainer-extensions` next to that file. */
 export function extensionsRoot(): string {
-  return `${dirname(configPath())}/extensions`;
+  if (getEnv("CM_CONFIG_PATH") === undefined) {
+    return `${dirname(configPath())}/extensions`;
+  }
+  return `${dirname(configPath())}/co-maintainer-extensions`;
 }
 
-/** A run id becomes a directory name, so only plain characters pass. */
+/** Every run id is a UUID, or `debug-` and a UUID. Nothing else is ever made
+ * or removed under the extensions folder. */
+const RUN_ID =
+  /^(?:debug-)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+export function isRunId(value: string | undefined): value is string {
+  return value !== undefined && RUN_ID.test(value);
+}
+
 function safeRunId(runId: string): string {
-  if (!/^[A-Za-z0-9_-]{1,80}$/.test(runId)) {
+  if (!RUN_ID.test(runId)) {
     throw new Error(`invalid extension run id: ${runId}`);
   }
   return runId;
 }
+
+/** Marks `owner.json` as co-maintainer's own. */
+const OWNER_TOOL = "co-maintainer-extension-run";
 
 async function readJson<T>(path: string): Promise<T | undefined> {
   try {
@@ -81,7 +100,7 @@ async function readJson<T>(path: string): Promise<T | undefined> {
 }
 
 type State = { started: string[] };
-type Owner = { pid: number; kind: RunOwner };
+type Owner = { tool: typeof OWNER_TOOL; pid: number; kind: RunOwner };
 
 export async function openRunFolder(input: {
   runId: string;
@@ -103,7 +122,11 @@ export async function openRunFolder(input: {
     details: { ...input.details, reviewResultPath: "", diffPath: "" },
   };
   folder.details.diffPath = folder.diffPath;
-  const owner: Owner = { pid: process.pid, kind: input.owner };
+  const owner: Owner = {
+    tool: OWNER_TOOL,
+    pid: process.pid,
+    kind: input.owner,
+  };
   await writeTextFile(`${dir}/owner.json`, JSON.stringify(owner));
   await writeTextFile(folder.diffPath, input.diff);
   await writeDetails(folder);
@@ -162,17 +185,20 @@ export async function removeRunFolder(folder: RunFolder): Promise<void> {
   await remove(folder.dir, { recursive: true }).catch(() => {});
 }
 
-/** Removes the folders `keep` does not claim. `serve` keeps its running jobs,
- * the CLI keeps every folder whose process is alive. */
+/** Removes the run folders `keep` does not claim. Only a folder named like a
+ * run id that holds co-maintainer's own `owner.json` is ever a candidate:
+ * anything else under the folder is someone else's and stays. */
 export async function removeStaleRunFolders(
-  keep: (runId: string, owner: Owner | undefined) => boolean,
+  keep: (runId: string, owner: Owner) => boolean,
 ): Promise<number> {
   const root = extensionsRoot();
   let removed = 0;
   try {
     for await (const entry of readDir(root)) {
-      if (!entry.isDirectory) continue;
+      if (!entry.isDirectory || entry.isSymlink) continue;
+      if (!RUN_ID.test(entry.name)) continue;
       const owner = await readJson<Owner>(`${root}/${entry.name}/owner.json`);
+      if (owner?.tool !== OWNER_TOOL) continue;
       if (keep(entry.name, owner)) continue;
       await remove(`${root}/${entry.name}`, { recursive: true }).catch(
         () => {},
@@ -189,7 +215,7 @@ export async function removeStaleRunFolders(
  * every CLI run whose process is gone. */
 export function removeServeRunFolders(running: Set<string>): Promise<number> {
   return removeStaleRunFolders((runId, owner) =>
-    owner?.kind === "cli"
+    owner.kind === "cli"
       ? owner.pid === process.pid || isProcessAlive(owner.pid)
       : running.has(runId),
   );
@@ -200,7 +226,6 @@ export function removeServeRunFolders(running: Set<string>): Promise<number> {
 export function removeDeadCliRunFolders(): Promise<number> {
   return removeStaleRunFolders(
     (_, owner) =>
-      owner === undefined ||
       owner.kind !== "cli" ||
       owner.pid === process.pid ||
       isProcessAlive(owner.pid),

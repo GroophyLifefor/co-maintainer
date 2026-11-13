@@ -21,6 +21,7 @@ import {
 import {
   openRunFolder,
   removeDeadCliRunFolders,
+  isRunId,
   removeRunFolder,
   writeReviewResult,
   type ExtensionDetails,
@@ -137,7 +138,9 @@ export async function withExtensions<T>(
     round: tracked.round ?? context.round,
   };
   const folder = await openRunFolder({
-    runId: context.runId ?? crypto.randomUUID(),
+    // A job id that is not a UUID cannot name a run folder. Such a run only
+    // loses its restart record.
+    runId: isRunId(context.runId) ? context.runId : crypto.randomUUID(),
     owner: context.owner,
     details,
     diff,
