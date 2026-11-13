@@ -16,6 +16,7 @@ import {
   type PlannedFile,
 } from "./diff_plan.ts";
 import type { RevisionFile } from "../review/revision.ts";
+import { coverageTruncated } from "../review/coverage.ts";
 
 function same(actual: unknown, expected: unknown, what: string): void {
   const a = JSON.stringify(actual);
@@ -166,6 +167,41 @@ test("a file GitHub sent no patch for is withheld, and says so", () => {
   contains(rendered, "+900 -233", "split");
   contains(rendered, "withheld by GitHub", "reason");
   contains(rendered, "Do not treat this file as unchanged", "instruction");
+});
+
+test("a pure rename on GitHub is full, not withheld", () => {
+  const renamed = diffFileFromGithub({
+    filename: "src/new.ts",
+    previous_filename: "src/old.ts",
+    status: "renamed",
+    additions: 0,
+    deletions: 0,
+    changes: 0,
+  });
+  const planned = planDiff([renamed]);
+  same(states(planned), { "src/new.ts": "full" }, "state");
+  const rendered = renderSection(planned[0]!, { tools: true });
+  contains(rendered, "renamed without changes from src/old.ts", "label");
+  if (rendered.includes("withheld")) throw new Error(rendered);
+  same(coverageTruncated(coverageFromPlan(planned)), false, "not truncated");
+  // A push review built from GitHub's compare API gets the same answer.
+  const pushed = diffFileFromRevision(
+    revisionFile({
+      path: "src/new.ts",
+      previousPath: "src/old.ts",
+      status: "renamed",
+    }),
+    "github",
+  );
+  same(planDiff([pushed])[0]!.state, "full", "push revision");
+  // A rename with changes but no patch is still withheld.
+  const changed = diffFileFromGithub({
+    filename: "big.min.js",
+    previous_filename: "old.min.js",
+    status: "renamed",
+    changes: 4,
+  });
+  same(planDiff([changed])[0]!.state, "withheld", "renamed with changes");
 });
 
 test("a withheld file with no counts still says what is missing", () => {

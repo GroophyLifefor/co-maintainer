@@ -53,22 +53,37 @@ function count(value: unknown): number {
   return Number.isFinite(number) ? number : 0;
 }
 
+/** A pure rename: GitHub reports it as `renamed` with no changed lines and
+ * sends no patch, because there is none. */
+function pureRename(status: string, changes: number): boolean {
+  return status === "renamed" && changes === 0;
+}
+
 /** A file from GitHub's pull request or compare API. GitHub leaves `patch`
  * out for a file it considers too large or binary and gives no reason, so an
- * empty patch is always `withheld`. */
+ * empty patch is `withheld`. The one exception is a pure rename, which has
+ * nothing to withhold. */
 export function diffFileFromGithub(file: Json): DiffFile {
   const patch = String(file.patch ?? "");
+  const status = String(file.status ?? "modified");
+  const changes = count(file.changes);
+  const empty: EmptyPatch | undefined =
+    patch !== ""
+      ? undefined
+      : pureRename(status, changes)
+        ? "renamed"
+        : "withheld";
   return {
     path: String(file.filename ?? ""),
     previousPath: file.previous_filename
       ? String(file.previous_filename)
       : null,
-    status: String(file.status ?? "modified"),
+    status,
     additions: count(file.additions),
     deletions: count(file.deletions),
-    changes: count(file.changes),
+    changes,
     patch,
-    ...(patch === "" ? { empty: "withheld" as const } : {}),
+    ...(empty ? { empty } : {}),
   };
 }
 
@@ -83,12 +98,12 @@ export function diffFileFromRevision(
   const empty: EmptyPatch | undefined =
     file.patch !== ""
       ? undefined
-      : producer === "github"
-        ? "withheld"
-        : file.binary
-          ? "binary"
-          : file.status === "renamed" && changes === 0
-            ? "renamed"
+      : file.binary
+        ? "binary"
+        : pureRename(file.status, changes)
+          ? "renamed"
+          : producer === "github"
+            ? "withheld"
             : "no_changes";
   return {
     path: file.path,
