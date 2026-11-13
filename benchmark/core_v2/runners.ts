@@ -24,6 +24,8 @@ export type RunResult = {
    * compare across tools, so the caller reports it separately rather than
    * folding it into the headline time. 0 when a runner cannot separate it. */
   prepMs: number;
+  /** What the review reached for codegraph. Unset when a runner cannot say. */
+  codegraphState?: "used" | "disabled" | "unavailable";
 };
 
 /** One PR review by one tool. A one-time global setup (a cloned repo, an
@@ -70,6 +72,7 @@ export const comaintainerRunner: Runner = async (client, options, snapshot) => {
     prepMs,
     cost,
     costKnown,
+    codegraphState: response.codegraphState,
   };
 };
 

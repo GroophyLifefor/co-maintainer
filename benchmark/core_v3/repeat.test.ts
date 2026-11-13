@@ -21,10 +21,41 @@ function near(actual: number, expected: number, what: string): void {
 }
 
 test("checkLabel accepts plain names and refuses anything that is a path", () => {
-  for (const ok of ["checks", "checks-v2", "a.b_c", "3rd"]) {
+  // "runner" and "rerun1" are not run-shaped: only a whole word after a dash.
+  for (const ok of [
+    "checks",
+    "checks-v2",
+    "a.b_c",
+    "3rd",
+    "runner",
+    "rerun1",
+    "checks-runner",
+  ]) {
     same(checkLabel(ok), ok, ok);
   }
-  for (const bad of ["", "../x", "a/b", "a\\b", ".hidden", "-x", "a b", ".."]) {
+  const bads = [
+    "",
+    "../x",
+    "a/b",
+    "a\\b",
+    ".hidden",
+    "-x",
+    "a b",
+    "..",
+    // A trailing dot is dropped by Windows, so it would reach another label.
+    "checks.",
+    // These are the names of repeated runs and of their summary.
+    "run",
+    "runs",
+    "run1",
+    "run12",
+    "RUN1",
+    "checks-run",
+    "checks-run1",
+    "checks-runs",
+    "a-b-run3",
+  ];
+  for (const bad of bads) {
     let threw = false;
     try {
       checkLabel(bad);
@@ -56,19 +87,58 @@ test("spread gives mean, sample standard deviation, min and max", () => {
   same(spread([]), { mean: 0, stddev: 0, min: 0, max: 0 }, "no values");
 });
 
+function at(
+  summary: ReturnType<typeof summarizeRuns>,
+  metric: keyof ReturnType<typeof summarizeRuns>,
+) {
+  const row = summary[metric];
+  if (row === null) throw new Error(`${metric} is unknown`);
+  return row;
+}
+
 test("summarizeRuns reads each metric across runs", () => {
   const summary = summarizeRuns([
     { precision: 0.4, controlFalsePositiveTotal: 10, totalCost: 0.1 },
     { precision: 0.6, controlFalsePositiveTotal: 14, totalCost: 0.3 },
     { precision: 0.5, controlFalsePositiveTotal: 12 },
   ]);
-  near(summary.precision.mean, 0.5, "precision mean");
-  near(summary.precision.stddev, 0.1, "precision stddev");
-  near(summary.controlFalsePositiveTotal.mean, 12, "fp mean");
-  near(summary.controlFalsePositiveTotal.min, 10, "fp min");
-  near(summary.controlFalsePositiveTotal.max, 14, "fp max");
+  near(at(summary, "precision").mean, 0.5, "precision mean");
+  near(at(summary, "precision").stddev, 0.1, "precision stddev");
+  near(at(summary, "controlFalsePositiveTotal").mean, 12, "fp mean");
+  near(at(summary, "controlFalsePositiveTotal").min, 10, "fp min");
+  near(at(summary, "controlFalsePositiveTotal").max, 14, "fp max");
   // A missing field counts as 0, so it widens the spread.
-  near(summary.totalCost.min, 0, "missing cost counts as 0");
+  near(at(summary, "totalCost").min, 0, "missing cost counts as 0");
+});
+
+test("an unknown cost in any run makes the cost unknown", () => {
+  const summary = summarizeRuns([
+    { totalCost: 0.1, costKnown: true },
+    { totalCost: 0.05, costKnown: false },
+  ]);
+  same(summary.totalCost, null, "cost is unknown, not the known part");
+  near(at(summary, "recall").mean, 0, "other metrics are unaffected");
+  const text = formatSummary(summary, 2);
+  if (!/totalCost\s+unknown/.test(text)) throw new Error(text);
+  const known = summarizeRuns([
+    { totalCost: 0.1, costKnown: true },
+    { totalCost: 0.3, costKnown: true },
+  ]);
+  near(at(known, "totalCost").mean, 0.2, "known cost is averaged");
+});
+
+test("failed reviews and codegraph states are summarized", () => {
+  const summary = summarizeRuns([
+    { failedDefectivePrs: 0, codegraphUsedPrs: 30 },
+    {
+      failedDefectivePrs: 2,
+      codegraphUsedPrs: 20,
+      codegraphUnavailablePrs: 10,
+    },
+  ]);
+  near(at(summary, "failedDefectivePrs").max, 2, "failed defective reviews");
+  near(at(summary, "codegraphUsedPrs").min, 20, "a mixed set shows in the min");
+  near(at(summary, "codegraphUnavailablePrs").max, 10, "unavailable count");
 });
 
 test("formatSummary names every metric once", () => {

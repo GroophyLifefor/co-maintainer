@@ -274,6 +274,19 @@ test("--runs=2 writes each run and reports mean and spread", async () => {
     must(summary.summary.controlFalsePositiveTotal.mean === 1, "control fp");
     must(summary.summary.controlNiceToHaveTotal.mean === 0, "P3 counted apart");
     must(run.out.includes("MEAN AND SPREAD over 2 runs"), "console summary");
+    // The run turned codegraph off, and the result says so for the run and
+    // for each pull request.
+    must(summary.perRun[0].codegraphRequested === false, "codegraph asked");
+    must(
+      summary.perRun[0].reports.every(
+        (r: { codegraphState: string }) => r.codegraphState === "disabled",
+      ),
+      "per pull request codegraph state",
+    );
+    must(summary.summary.codegraphDisabledPrs.mean === 2, "disabled count");
+    must(summary.summary.codegraphUsedPrs.mean === 0, "used count");
+    must(summary.summary.failedDefectivePrs.max === 0, "no failed review");
+    must(summary.summary.totalCost !== null, "cost is known with a fake AI");
     // The single-run names are not used when the run repeats.
     must(!(await box.exists(`${BASE}-twice.json`)), "no unnumbered result");
   } finally {
@@ -296,6 +309,7 @@ test("--system-prompt-file reaches every review in the run", async () => {
 
     const run = await box.run([
       `--system-prompt-file=${join(box.root, "checks.md")}`,
+      "--label=withprompt",
       "--runs=2",
     ]);
     must(run.code === 0, `run failed: ${run.err}${run.out}`);
@@ -309,7 +323,7 @@ test("--system-prompt-file reaches every review in the run", async () => {
       );
       must(system.includes("Be terse."), "the guide is still in the prompt");
     }
-    const result = JSON.parse(await box.read(`${BASE}-run1.json`));
+    const result = JSON.parse(await box.read(`${BASE}-withprompt-run1.json`));
     must(
       String(result.systemPromptFile).endsWith("checks.md"),
       "the result names the prompt file",
@@ -330,7 +344,10 @@ test("a bad label, a bad run count, a missing prompt file and ocr with a prompt 
     must(runs.code !== 0, "--runs=0 is refused");
     must(runs.err.includes("--runs"), `runs error: ${runs.err}`);
 
-    const missing = await box.run([`--system-prompt-file=${box.root}/nope.md`]);
+    const missing = await box.run([
+      "--label=x",
+      `--system-prompt-file=${box.root}/nope.md`,
+    ]);
     must(missing.code !== 0, "a missing prompt file is refused");
     must(
       missing.err.includes("--system-prompt-file"),
@@ -339,6 +356,7 @@ test("a bad label, a bad run count, a missing prompt file and ocr with a prompt 
 
     const ocr = await box.run([
       "--runner=ocr",
+      "--label=x",
       `--system-prompt-file=${join(box.root, "checks.md")}`,
     ]);
     must(ocr.code !== 0, "ocr with a prompt file is refused");
@@ -351,6 +369,44 @@ test("a bad label, a bad run count, a missing prompt file and ocr with a prompt 
       box.server.requests.length === 0,
       "a refused run sends no request to the AI",
     );
+  } finally {
+    await box.cleanup();
+  }
+});
+
+test("a prompt file needs a label, so the baseline is never overwritten", async () => {
+  const box = await sandbox();
+  try {
+    const checks = join(box.root, "checks.md");
+    for (const extra of [[], ["--runs=2"]]) {
+      const run = await box.run([`--system-prompt-file=${checks}`, ...extra]);
+      must(run.code !== 0, `refused without a label (${extra})`);
+      must(run.err.includes("needs --label"), `label error: ${run.err}`);
+    }
+    must(!(await box.exists(`${BASE}.json`)), "no baseline file written");
+    must(!(await box.exists(`${BASE}-run1.json`)), "no repeat file written");
+    must(!(await box.exists(`${BASE}-runs.json`)), "no summary written");
+    must(box.server.requests.length === 0, "no request reached the AI");
+  } finally {
+    await box.cleanup();
+  }
+});
+
+test("an empty prompt path or an empty prompt file is a usage error", async () => {
+  const box = await sandbox();
+  try {
+    await writeTextFile(join(box.root, "blank.md"), "  \n\t\n");
+    const empty = await box.run(["--label=x", "--system-prompt-file="]);
+    must(empty.code !== 0, "an empty path is refused");
+    must(empty.err.includes("needs a path"), `empty path error: ${empty.err}`);
+    const blank = await box.run([
+      "--label=x",
+      `--system-prompt-file=${join(box.root, "blank.md")}`,
+    ]);
+    must(blank.code !== 0, "a blank file is refused");
+    must(blank.err.includes("is empty"), `blank file error: ${blank.err}`);
+    must(!(await box.exists(`${BASE}-x.json`)), "nothing written");
+    must(box.server.requests.length === 0, "no request reached the AI");
   } finally {
     await box.cleanup();
   }

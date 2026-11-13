@@ -171,11 +171,11 @@ does. Leave it out to measure the current default, and expect different numbers.
 These options belong to the benchmark runner. They are not passed on to the
 review.
 
-| Option                      | Meaning                                                                                                                                                       |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--label=NAME`              | Writes the results next to the unlabelled ones instead of over them. Use letters, digits, `.`, `_` and `-`. Running the same label again replaces that label. |
-| `--system-prompt-file=PATH` | Adds the file to the system prompt of every review in the run, like `review --system-prompt-file` does for one review. Not available with `--runner=ocr`.     |
-| `--runs=N`                  | Repeats the whole run N times and reports the mean and the spread of each metric. The default is 1.                                                           |
+| Option                      | Meaning                                                                                                                                                                                                                                                                                                 |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--label=NAME`              | Writes the results next to the unlabelled ones instead of over them. Use letters, digits, `.`, `_` and `-`. It must not end with a dot, and it must not be or end with `-run`, `-runs` or `-run` and a number, because repeated runs use those names. Running the same label again replaces that label. |
+| `--system-prompt-file=PATH` | Adds the file to the system prompt of every review in the run, like `review --system-prompt-file` does for one review. Needs `--label`, so the run cannot replace the baseline files. The file must not be empty. Not available with `--runner=ocr`.                                                    |
+| `--runs=N`                  | Repeats the whole run N times and reports the mean and the spread of each metric. The default is 1.                                                                                                                                                                                                     |
 
 A run without a label writes `results/<repo>-comaintainer.json` and the folder
 `results/<repo>-comaintainer/`, as before. With `--label=checks` the names
@@ -189,9 +189,21 @@ holds the mean, the sample standard deviation (n - 1), the minimum and the
 maximum of each metric, and the three full results. The same table is printed at
 the end of the run. The metrics are F1, precision, recall, the counts behind
 them, the severe false findings on the control pull requests (total and per
-pull request), the P3 findings on them counted apart, the control pull requests
-whose review failed, the total cost and the average time. Every run is a
-complete, paid pass over the ledger, so `--runs=3` costs three times one run.
+pull request), the P3 findings on them counted apart, the control and the
+defective pull requests whose review failed, the total cost and the average
+time. When any run has a call without a cost, the total cost is `unknown` in
+the table and `null` in the file instead of an average of the known ones. Every
+run is a complete, paid pass over the ledger, so `--runs=3` costs three times
+one run.
+
+Each result file also says whether the run asked for codegraph
+(`codegraphRequested`). Each pull request in `reports` carries the codegraph
+state its review reached: `used`, `disabled`, `unavailable` (asked for and not
+there, for example when the tool is not installed) or `failed` (the review
+errored). The result and the repeat table count them as `codegraphUsedPrs`,
+`codegraphDisabledPrs` and `codegraphUnavailablePrs`. Compare these counts before
+you compare a baseline and a labelled run. A mix of states means the two sets
+did not measure the same thing.
 
 `checks.md` in this folder is the text of the review checks tried in the
 experiment. To measure it against the baseline:

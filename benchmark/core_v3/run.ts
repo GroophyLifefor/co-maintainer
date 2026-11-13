@@ -177,6 +177,18 @@ if (systemPromptFile !== undefined && runnerName === "ocr") {
   // while the result file claimed otherwise.
   throw new Error("--system-prompt-file cannot be used with --runner=ocr");
 }
+if (systemPromptFile !== undefined && systemPromptFile.trim() === "") {
+  // An empty path loads nothing, so the run would be measured without a
+  // prompt while the result file claimed one.
+  throw new Error("--system-prompt-file needs a path");
+}
+if (systemPromptFile !== undefined && label === undefined) {
+  // Without a label the result names are the baseline's, so the run would
+  // replace the baseline files.
+  throw new Error(
+    "--system-prompt-file needs --label so the baseline results are not overwritten",
+  );
+}
 const runner =
   runnerName === "ocr" ? ocrRunner(ocrCloneRoot, ocrBin) : comaintainerRunner;
 
@@ -235,6 +247,12 @@ if (runnerName === "comaintainer") {
 }
 
 const client = new GhClient();
+type CodegraphState =
+  | "used"
+  | "disabled"
+  | "unavailable"
+  | "failed"
+  | "not_reported";
 type Report = {
   repo: string;
   pr: number;
@@ -257,6 +275,10 @@ type Report = {
   ms: number;
   prepMs: number;
   timeKnown: boolean;
+  /** What the review reached: codegraph tools in use, switched off by the
+   * run, or asked for and not available. `failed` is a review that errored.
+   * `not_reported` is a runner that does not say (ocr). */
+  codegraphState: CodegraphState;
   tokensIn: number;
   tokensOut: number;
   tokens: number;
@@ -309,16 +331,26 @@ const baseByRepo = new Map(
         { systemPromptFile },
         reviewSystemPromptLimitFor(name),
       );
+      if (systemPromptFile !== undefined && !prompt.add?.trim()) {
+        // A blank prompt adds nothing to the review.
+        throw new Error(`--system-prompt-file: ${systemPromptFile} is empty`);
+      }
       return [name, { ...options, reviewSystemPromptAdd: prompt.add }] as const;
     }),
   ),
+);
+
+// Whether the run asked for codegraph. The review can still reach
+// "unavailable", which the per-PR states and counts show.
+const codegraphRequested = [...baseByRepo.values()].every(
+  (options) => options.useCodegraph,
 );
 
 if (label || systemPromptFile || runs > 1) {
   console.log(
     `[bench-core-v3] label=${label ?? "(none)"} · system-prompt-file=${
       systemPromptFile ?? "(none)"
-    } · runs=${runs}`,
+    } · runs=${runs} · codegraph=${codegraphRequested ? "on" : "off"}`,
   );
 }
 
@@ -376,6 +408,7 @@ async function runOnce(run: number) {
         ms,
         prepMs: 0,
         timeKnown: false,
+        codegraphState: "failed",
         tokensIn,
         tokensOut,
         tokens: tokensIn + tokensOut,
@@ -406,6 +439,8 @@ async function runOnce(run: number) {
       return;
     }
     const prepMs = result.prepMs;
+    const codegraphState: CodegraphState =
+      result.codegraphState ?? "not_reported";
     const ms = performance.now() - started - prepMs;
     const predicted = result.findings;
     const suggestions = await suggestionStats(client, row, predicted).catch(
@@ -443,6 +478,7 @@ async function runOnce(run: number) {
         ms,
         prepMs,
         timeKnown: true,
+        codegraphState,
         tokensIn,
         tokensOut,
         tokens: tokensIn + tokensOut,
@@ -522,6 +558,7 @@ async function runOnce(run: number) {
       ms,
       prepMs,
       timeKnown: true,
+      codegraphState,
       tokensIn,
       tokensOut,
       tokens: tokensIn + tokensOut,
@@ -632,6 +669,8 @@ async function runOnce(run: number) {
   const costKnown = reports.every((row) => row.costKnown);
   const totalCost = reports.reduce((sum, row) => sum + row.cost, 0);
 
+  const countState = (state: CodegraphState) =>
+    reports.filter((r) => r.codegraphState === state).length;
   const result = {
     repos,
     runner: runnerName,
@@ -644,6 +683,11 @@ async function runOnce(run: number) {
     defectivePrs: defectiveReports.length,
     controlPrs: controlReports.length,
     failedControlPrs: failedControlReports,
+    failedDefectivePrs: defectiveReports.filter((r) => !r.timeKnown).length,
+    codegraphRequested,
+    codegraphUsedPrs: countState("used"),
+    codegraphDisabledPrs: countState("disabled"),
+    codegraphUnavailablePrs: countState("unavailable"),
     f1,
     precision,
     recall,

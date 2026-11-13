@@ -7,10 +7,26 @@
  * the results folder. */
 const LABEL = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
+/** A run number or the summary is appended to the label with a dash, so a
+ * label that looks like one would give a labelled run the file names of
+ * another label's repeat. Windows and macOS ignore case in file names. */
+const RUN_SHAPED = /(^|-)runs?\d*$/i;
+
 export function checkLabel(label: string): string {
   if (!LABEL.test(label)) {
     throw new Error(
       `--label must start with a letter or digit and use only letters, digits, ".", "_" and "-", got ${JSON.stringify(label)}`,
+    );
+  }
+  // Windows drops a trailing dot from a name, so "checks." would be "checks".
+  if (label.endsWith(".")) {
+    throw new Error(
+      `--label must not end with ".", got ${JSON.stringify(label)}`,
+    );
+  }
+  if (RUN_SHAPED.test(label)) {
+    throw new Error(
+      `--label must not be, or end with a dash and, "run", "runs" or "run" and a number, because repeated runs use those names, got ${JSON.stringify(label)}`,
     );
   }
   return label;
@@ -72,33 +88,51 @@ export const REPEATED_METRICS = [
   "controlFalsePositiveRate",
   "controlNiceToHaveTotal",
   "failedControlPrs",
+  "failedDefectivePrs",
+  "codegraphUsedPrs",
+  "codegraphDisabledPrs",
+  "codegraphUnavailablePrs",
   "totalCost",
   "avgTimeMs",
 ] as const;
 
 export type RepeatedMetric = (typeof REPEATED_METRICS)[number];
 
+export type RunMetrics = Partial<Record<RepeatedMetric, number>> & {
+  /** False when a call in the run reported no cost. */
+  costKnown?: boolean;
+};
+
 /** Mean and spread of each metric over the runs. A metric a run does not
  * carry counts as 0 for that run, so a missing field shows up as a wide
- * spread instead of being dropped. */
+ * spread instead of being dropped. The cost is `null` when any run has an
+ * unknown cost, because the known part of it is not the cost. */
 export function summarizeRuns(
-  runs: Partial<Record<RepeatedMetric, number>>[],
-): Record<RepeatedMetric, Spread> {
-  const summary = {} as Record<RepeatedMetric, Spread>;
+  runs: RunMetrics[],
+): Record<RepeatedMetric, Spread | null> {
+  const summary = {} as Record<RepeatedMetric, Spread | null>;
   for (const metric of REPEATED_METRICS) {
     summary[metric] = spread(runs.map((run) => run[metric] ?? 0));
   }
+  if (runs.some((run) => run.costKnown === false)) summary.totalCost = null;
   return summary;
 }
 
 /** One line per metric for the console. */
 export function formatSummary(
-  summary: Record<RepeatedMetric, Spread>,
+  summary: Record<RepeatedMetric, Spread | null>,
   runs: number,
 ): string {
   const lines = [`MEAN AND SPREAD over ${runs} runs (stddev is n - 1)`];
   for (const metric of REPEATED_METRICS) {
-    const { mean, stddev, min, max } = summary[metric];
+    const row = summary[metric];
+    if (row === null) {
+      lines.push(
+        `  ${metric.padEnd(26)} unknown (a run has calls without a cost)`,
+      );
+      continue;
+    }
+    const { mean, stddev, min, max } = row;
     lines.push(
       `  ${metric.padEnd(26)} mean=${mean.toFixed(3)}  stddev=${stddev.toFixed(3)}  min=${min.toFixed(3)}  max=${max.toFixed(3)}`,
     );
