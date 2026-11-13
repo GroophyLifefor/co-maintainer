@@ -12,6 +12,11 @@ import { withLogSink } from "../util/log.ts";
 import { readTextFile, stat } from "../util/runtime.ts";
 import { parseRules } from "../knowledge/rules.ts";
 import type { Options } from "../types.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 const AGENTS = [
   "# Agent notes",

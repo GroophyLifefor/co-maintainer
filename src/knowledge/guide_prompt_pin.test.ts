@@ -23,6 +23,11 @@ import {
   setEnv,
 } from "../util/runtime.ts";
 import { withLogSink } from "../util/log.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 const fixture = join(
   dirname(fileURLToPath(import.meta.url)),
