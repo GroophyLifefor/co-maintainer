@@ -152,28 +152,118 @@ export function parseBoolean(value: string, flag: string): boolean | string {
   return `${flag} must be true or false`;
 }
 
-/** The registrations in config.json, oldest first. A malformed entry is
- * dropped rather than failing every review. */
-export function readRegistrations(
-  config: Pick<UserConfig, "extensions"> = readConfig(),
-): ExtensionRegistration[] {
-  const raw = config.extensions;
-  if (!Array.isArray(raw)) return [];
-  return raw.filter(
-    (entry): entry is ExtensionRegistration =>
-      typeof entry === "object" &&
-      entry !== null &&
-      typeof entry.name === "string" &&
-      typeof entry.command === "string",
-  );
+function whole(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(value)));
 }
 
+/** `review`, in any case, is the AI review. */
+export function normalRunAfter(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.trim() === "") return undefined;
+  return value.toLowerCase() === REVIEW_TARGET ? REVIEW_TARGET : value;
+}
+
+/** Why an entry from config.json cannot run, or its normal form. A hand edit
+ * gets the same defaults and limits `register` applies, so a missing timeout
+ * or retry limit cannot turn into an instant timeout or an endless loop. */
+export function normalizeRegistration(
+  entry: unknown,
+): ExtensionRegistration | string {
+  if (typeof entry !== "object" || entry === null) return "it is not an object";
+  const raw = entry as Record<string, unknown>;
+  if (typeof raw.name !== "string") return "it has no name";
+  const problem = nameProblem(raw.name);
+  if (problem) return problem.replace("--name", "its name");
+  if (typeof raw.command !== "string" || raw.command.trim() === "") {
+    return "it has no command";
+  }
+  const repos = typeof raw.repos === "string" ? raw.repos : "*";
+  const reposIssue = reposProblem(repos);
+  if (reposIssue) return reposIssue.replace("--repos", "its repos");
+  const types = Array.isArray(raw.reviewTypes)
+    ? raw.reviewTypes.filter((type): type is ReviewType =>
+        (REVIEW_TYPES as readonly unknown[]).includes(type),
+      )
+    : [];
+  const registration: ExtensionRegistration = {
+    name: raw.name,
+    command: raw.command,
+    repos,
+    ...(types.length > 0 ? { reviewTypes: [...new Set(types)] } : {}),
+    parallelism: raw.parallelism !== false,
+    priority: whole(raw.priority, 0, 0, MAX_PRIORITY),
+    failFast: raw.failFast === true,
+    retryOnFailTimes: whole(raw.retryOnFailTimes, 0, 0, MAX_RETRIES),
+    maxRequestedRetries: whole(
+      raw.maxRequestedRetries,
+      DEFAULT_MAX_REQUESTED_RETRIES,
+      0,
+      MAX_RETRIES,
+    ),
+    timeoutSeconds:
+      typeof raw.timeoutSeconds === "number" &&
+      Number.isFinite(raw.timeoutSeconds)
+        ? Math.min(MAX_TIMEOUT_SECONDS, Math.max(1, raw.timeoutSeconds))
+        : DEFAULT_TIMEOUT_SECONDS,
+  };
+  const runAfter = normalRunAfter(raw.runAfter);
+  if (runAfter) registration.runAfter = runAfter;
+  if (typeof raw.rerunOnRestart === "boolean") {
+    registration.rerunOnRestart = raw.rerunOnRestart;
+  }
+  if (raw.disabled === true) registration.disabled = true;
+  return registration;
+}
+
+const warned = new Set<string>();
+
+/** The registrations in config.json, oldest first, in their normal form. An
+ * entry that cannot run is left out with a warning that names it, rather than
+ * failing every review. */
+export function readRegistrations(
+  config: Pick<UserConfig, "extensions"> = readConfig(),
+  warn: (message: string) => void = (message) => console.error(message),
+): ExtensionRegistration[] {
+  const raw = config.extensions as unknown;
+  if (!Array.isArray(raw)) return [];
+  const registrations: ExtensionRegistration[] = [];
+  raw.forEach((entry: unknown, index) => {
+    const normal = normalizeRegistration(entry);
+    if (typeof normal !== "string") {
+      registrations.push(normal);
+      return;
+    }
+    const name =
+      typeof (entry as { name?: unknown } | null)?.name === "string"
+        ? JSON.stringify((entry as { name: string }).name)
+        : `number ${index + 1}`;
+    const message = `[extension] the entry ${name} in config.json is ignored: ${normal}.`;
+    if (!warned.has(message)) {
+      warned.add(message);
+      warn(message);
+    }
+  });
+  return registrations;
+}
+
+/** Writes the registrations. Entries `readRegistrations` ignored stay in the
+ * file as they were, so a command never deletes what someone wrote by hand. */
 export async function writeRegistrations(
   registrations: ExtensionRegistration[],
 ): Promise<void> {
-  await writeUserConfig({
-    extensions: registrations.length > 0 ? registrations : undefined,
-  });
+  const raw = readConfig().extensions as unknown;
+  const ignored = Array.isArray(raw)
+    ? raw.filter(
+        (entry: unknown) => typeof normalizeRegistration(entry) === "string",
+      )
+    : [];
+  const all = [...registrations, ...ignored] as ExtensionRegistration[];
+  await writeUserConfig({ extensions: all.length > 0 ? all : undefined });
 }
 
 /** The first cycle the run-after links form, as `a -> b -> a`, or undefined.

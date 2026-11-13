@@ -7,6 +7,7 @@ import {
   matchesRepo,
   parseReviewTypes,
   parseTimeout,
+  readRegistrations,
   reposProblem,
   rerunsOnRestart,
   runAfterCycle,
@@ -108,5 +109,55 @@ test("rerun on restart: the registration wins, then the config key, then on", ()
     )
   ) {
     throw new Error("the registration did not win");
+  }
+});
+
+test("a hand-edited registration gets the register defaults and limits", () => {
+  const warnings: string[] = [];
+  const read = readRegistrations(
+    {
+      extensions: [
+        { name: "bare", command: "true" },
+        {
+          name: "wild",
+          command: "true",
+          timeoutSeconds: 999_999,
+          maxRequestedRetries: 500,
+          priority: 9,
+          retryOnFailTimes: -3,
+          reviewTypes: ["pr", "nope"],
+          runAfter: "Review",
+        },
+        { name: "bad name!", command: "true" },
+        { name: "nocommand" },
+        "not an object",
+      ] as unknown as ExtensionRegistration[],
+    },
+    (message) => warnings.push(message),
+  );
+  const [bare, wild] = read;
+  if (read.length !== 2) throw new Error(JSON.stringify(read));
+  if (
+    bare?.timeoutSeconds !== 600 ||
+    bare.maxRequestedRetries !== 3 ||
+    bare.retryOnFailTimes !== 0 ||
+    bare.priority !== 0 ||
+    bare.parallelism !== true ||
+    bare.repos !== "*"
+  ) {
+    throw new Error(JSON.stringify(bare));
+  }
+  if (
+    wild?.timeoutSeconds !== 21_600 ||
+    wild.maxRequestedRetries !== 10 ||
+    wild.priority !== 3 ||
+    wild.retryOnFailTimes !== 0 ||
+    wild.reviewTypes?.join() !== "pr" ||
+    wild.runAfter !== "review"
+  ) {
+    throw new Error(JSON.stringify(wild));
+  }
+  if (warnings.length !== 3 || !warnings[0]!.includes('"bad name!"')) {
+    throw new Error(warnings.join("\n"));
   }
 });
