@@ -87,9 +87,14 @@ provider, so both models are saved the first time. See
 | `--remote-byok-policy=off\|allow\|require` | `remoteByokPolicy` | `serve`, whether remote clients may send their own key |
 | `--review-policy=everyone\|trusted-auto\|on-request-only` | `reviewPolicy` | `serve`, the [review policy](review-policy.md) new repositories start with |
 | `--review-policy-file=PATH` | `reviewPolicy` (the parsed policy) | The same, from a JSON file. A bad policy is refused and nothing is saved |
+| `--extension-rerun-on-restart=true\|false` | `extensionRerunOnRestart` | `serve` and the CLI, whether an [extension](extensions.md) cut off by a restart runs again. A registration's own `--rerun-on-restart` wins. Unset means `true` |
 | `--repo=owner/repo` | `repos[owner/repo]` | Write the repository-scoped flags below to that repository, not the global config |
 | `--review-system-prompt=TEXT` | `repos[owner/repo].reviewSystemPrompt` | A repository's own review instructions. Needs `--repo`. A blank value clears it |
 | `--review-system-prompt-max-chars=N` | `repos[owner/repo].reviewSystemPromptMaxChars` | Cap those instructions in characters. Needs `--repo`. `0` or `-1` means no limit |
+| `--diagram-runtime=mermaid\|plantuml\|plantuml-server` | `repos[owner/repo].diagramRuntime` | The diagram language of a repository's reviews, App reviews included. Needs `--repo`. See [Diagram settings](#diagram-settings) |
+| `--plantuml-server=URL` | `repos[owner/repo].plantumlServer` | The PlantUML server for `plantuml-server`. Needs `--repo`. Default `https://www.plantuml.com` |
+| `--plantuml-output-format=svg\|png` | `repos[owner/repo].plantumlOutputFormat` | The image format for `plantuml-server`. Needs `--repo`. Default `svg` |
+| `--review-read-diff-max-chars=N` | `repos[owner/repo].reviewReadDiffMaxChars` | Most characters one `read-full-diff` answer returns. Needs `--repo`. `0` or `-1` means no limit. Default `20000` |
 
 ### App private key: inline, file contents, or path
 
@@ -185,6 +190,8 @@ hides the value.
 | `remote-tool-output-max-chars` | number | Settings | no |
 | `remote-notice-shown-for` | list of hosts | Written by `review --remote` | no |
 | `repos` | object | Written by `init` and `sync` | no |
+| `extensions` | list of registrations | Written only by `co-maintainer extension`, see [Extensions in config.json](#extensions-in-configjson) | no |
+| `extension-rerun-on-restart` | boolean | `--extension-rerun-on-restart` | no |
 
 `config get` prints the real value even for a masked key, so treat its output as
 a secret.
@@ -215,24 +222,110 @@ After each successful [`init`](init.md) or [`sync`](sync.md),
 | `max-*` limits | GitHub PAT (global only) |
 | `include-*` flags | |
 | `only-request-changed-pr`, `pr-state` | |
+| `agent-instructions`, `agent-instructions-max-chars` | |
 | `review-system-prompt`, `review-system-prompt-max-chars` | |
+| `diagram-runtime`, `plantuml-server`, `plantuml-output-format` | |
+| `review-read-diff-max-chars` | |
 
 A plain `co-maintainer sync owner/repo` reuses those values. Pass new flags
 on `sync` or run `init` again to change includes, limits, or pull request
 filters permanently. `--only-request-changed-pr` stays on once saved. To
 collect every pull request state again, pass `--pr-state=open,closed,merged`.
 [`clear owner/repo`](caching.md#clearing) deletes this entry, so the repository
-goes back to "never inited" and the next build is an `init`.
+goes back to "never inited" and the next build is an `init`. The two
+`agent-instructions` values are saved the same way, see
+[Agent instruction files](init.md#agent-instruction-files).
 
 [`review-system-prompt`](review.md#repository-review-instructions) and its cap
 are the exception: `init` and `sync` never write them. Set them with
-`co-maintainer set --repo=owner/repo` or the repository **Settings** page.
+`co-maintainer set --repo=owner/repo` or the repository **Settings** page. The
+[diagram settings](#diagram-settings) and the `read-full-diff` cap are set only
+with `co-maintainer set --repo=owner/repo`, and the dashboard has no field for
+them.
 
 Guide files (`SKILL.md`, `CODEBASE.md`, review guides) live under
 `<config>/co-maintainer/repos/<owner>/<repo>/`, not in your git clone. See
 [Caching](caching.md#generated-guides). `co-maintainer view` prints them
 locally, and `view --remote` prints the copies a configured review server holds
 (see [Remote review](remote-review.md#reading-the-servers-guides)).
+
+## Diagram settings
+
+A repository can save the three [diagram](review.md#diagrams) settings, which is
+how reviews with no command line get them: App reviews, commit watch reviews,
+replies to review comments and `review --remote`, where the server reads them.
+
+```sh
+co-maintainer set --repo=owner/repo --diagram-runtime=plantuml-server --plantuml-server=https://uml.example.com
+co-maintainer set --repo=owner/repo --plantuml-output-format=png
+co-maintainer set --repo=owner/repo --unset=diagram-runtime --unset=plantuml-server
+```
+
+They are stored in `config.json` under `repos["owner/repo"]` as `diagramRuntime`,
+`plantumlServer` and `plantumlOutputFormat`. `--unset=` takes the flag name or
+the field name and removes one of them. Without `--repo` the three flags are
+refused, for example `--diagram-runtime needs --repo`.
+
+For a `review` run the order is the flag, then the repository setting, then the
+default (`mermaid`, `https://www.plantuml.com`, `svg`). The privacy note in
+[Diagrams](review.md#with-plantuml-server-the-diagram-source-leaves-your-machine)
+applies to a saved `plantuml-server` runtime too.
+
+A value edited by hand into `config.json` is checked each time it is read.
+
+- A CLI `review` stops with a usage error that names the key, for example
+  `config.json repos[owner/repo].plantumlServer must be an http or https URL`
+  and the rest of the reason.
+- A background job does not stop. It uses `mermaid` with the default server and
+  format, and writes one line to the job log: the same message, then
+  "The diagram settings are ignored and this job uses mermaid." The three
+  settings fall back together, so a good `plantuml-server` runtime next to a bad
+  server never sends the diagram source to a server the owner did not choose.
+
+## The `read-full-diff` cap
+
+When a large diff is cut, the model can read the rest with the `read-full-diff`
+tool, see [Large diffs](review.md#large-diffs). One answer stops at
+`reviewReadDiffMaxChars` characters, `20000` by default, because every tool
+answer is sent again in each later round.
+
+```sh
+co-maintainer set --repo=owner/repo --review-read-diff-max-chars=40000
+co-maintainer set --repo=owner/repo --review-read-diff-max-chars=0   # no limit
+co-maintainer set --repo=owner/repo --unset=review-read-diff-max-chars
+```
+
+`0` or `-1` means no limit. A blank value or `--unset=` goes back to the
+default. A value that is not an integer is refused with "must be an integer (0 or
+-1 for no limit)". It needs `--repo`, like the other repository settings, and is
+stored as `repos["owner/repo"].reviewReadDiffMaxChars`.
+
+## Extensions in config.json
+
+`co-maintainer extension register` and `update` write the `extensions` array.
+Do not edit it by hand: a registration edited by hand gets the same defaults and
+limits as `register`, and a bad entry is dropped with a warning. The array order
+is the registration order. The fields, in the same terms as the
+[Extensions](extensions.md#register-one) flags:
+
+| Field | Default | Meaning |
+| ----- | ------- | ------- |
+| `name`, `command` | required | The extension's name and its shell command |
+| `repos` | `*` | `owner/repo`, `a/b,a/c`, `a/*` or `*/a` |
+| `reviewTypes` | all of `local`, `pr`, `remote` | Left out means all |
+| `runAfter` | none | An extension name, or `review` |
+| `parallelism` | `true` | `false` with no `runAfter` runs after the review |
+| `priority` | `0` | `0` to `3`, 3 starts first |
+| `failFast` | `false` | On failure, what waits on it does not run |
+| `retryOnFailTimes` | `0` | `0` to `10` |
+| `maxRequestedRetries` | `3` | `0` to `10` |
+| `timeoutSeconds` | `600` | `1` to `21600` |
+| `rerunOnRestart` | follows the global key | `extensionRerunOnRestart` when unset |
+| `disabled` | `false` | Set by `extension disable` and `enable` |
+
+`extensionRerunOnRestart` is a global boolean, `true` when unset. Set it with
+`co-maintainer set --extension-rerun-on-restart=false` or
+`co-maintainer config set extension-rerun-on-restart false`.
 
 ## Secrets on disk
 
@@ -273,3 +366,9 @@ An empty value counts as not set.
 
 `config list` shows `env` as the source of `remote-host` and `remote-token` when
 their variable is set.
+
+## Extension variables
+
+| Variable | Effect |
+| -------- | ------ |
+| `CM_EXTENSIONS_DISABLED` | The exact value `1` turns [extensions](extensions.md) off. `register` and `debug-run` refuse, and no review runs an extension. The hosted cloud sets it from outside the container |

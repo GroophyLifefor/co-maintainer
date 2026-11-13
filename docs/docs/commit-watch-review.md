@@ -47,6 +47,11 @@ request is reviewed too.
 - A repository that is not initialized is not reviewed. With the App, the
   commit gets a skipped check run that says so. With CI and no App, the step
   fails.
+- A push review runs no [extensions](extensions.md).
+- A push with a very large diff is reviewed within the diff budget. A push review
+  does not carry its seen files into the next push, so files that did not fit are
+  dropped again, and the review's warning says so. See
+  [Large diffs](review.md#large-diffs).
 
 When pushes come in a row, the repository settings decide what happens:
 

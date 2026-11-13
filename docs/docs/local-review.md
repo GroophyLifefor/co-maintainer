@@ -34,12 +34,18 @@ co-maintainer review --to-branch=main --sync-before-review
 | `--disable-codegraph` | Skip codegraph tools (default is on) |
 | `--allow-tool-install` | Install pinned codegraph without a prompt when missing |
 | `--fresh` | Ignore carry-over from the previous local review on this branch |
+| `--intent-file=PATH` | What the change is for, from a file or `-` for standard input. Context only, read into the `WORKSPACE` block, see [Intent](review.md#intent) |
+| `--diagram-runtime`, `--plantuml-server`, `--plantuml-output-format` | The diagram language of the review, see [Diagrams](review.md#diagrams) |
 | `--to-branch=<name>` | Base branch for the diff (default: remote default branch) |
 | `--branch=<name>` | Branch name when HEAD is detached |
 | `--repo=owner/repo` | Override GitHub remote detection |
 | `--sync-before-review` | Run [`sync`](sync.md) before reviewing (requires `gh`) |
+| `--include-extension-markdowns` | With `--json`, keep each extension's Markdown, which is empty otherwise |
 | `--debug` | Verbose logs on stderr |
 | `--log-time` | Print timing per phase |
+
+Registered [extensions](extensions.md) run in a local review too, in your working
+directory, and their findings join the result.
 
 Do not pass `owner/repo` or a PR number. That selects [PR review](local-pr-review.md)
 instead.
@@ -80,6 +86,10 @@ start clean. If the cache cannot be read or written, review continues with a
 Carry-over never replaces the review. Every run scans the whole diff for new
 violations **and** re-checks the previous findings. A finding that is still open
 is reported as such rather than suppressing a new one nearby.
+
+A change too large for one review is covered over the next runs. A file the model
+did not receive is sent again, so run `review` again and read the `Coverage:`
+line, see [Large diffs](review.md#large-diffs).
 
 When a guide is rebuilt (`init` / `sync`) after your last review on this branch,
 that review's verdicts were made against rules that no longer exist. The next

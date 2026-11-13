@@ -53,6 +53,7 @@
           <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           <li><a href="commit-watch-review.html">Commit watch review</a></li>
+          <li><a href="extensions.html">Extensions</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -90,14 +91,17 @@
 <p>Print the guides co-maintainer generated for a repository. This is the way to
 see exactly what a review will be judged against, without starting a review.</p>
 <p>The guides are the output of <a href="init.html"><code>init</code></a> / <a href="sync.html"><code>sync</code></a>:
-<code>SKILL.md</code>, <code>CODEBASE.md</code>, and the review guides. They live under the config
+<code>SKILL.md</code>, <code>CODEBASE.md</code>, the review guides, and <code>INSTRUCTIONS.md</code> when the
+repository has agent instruction files. They live under the config
 directory, not in your clone. See <a href="caching.html#generated-guides">Caching: Generated guides</a>.</p>
 <h2 id="usage">Usage</h2>
 <pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span>                                  <span class="sh-comment"># every guide for the detected repo</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span>                       <span class="sh-comment"># every guide, with headers</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span> <span class="sh-arg">review-guide</span>          <span class="sh-comment"># one guide, raw</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span> <span class="sh-arg">instructions</span>          <span class="sh-comment"># INSTRUCTIONS.md, raw</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--list</span>                <span class="sh-comment"># file, size, build date</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--path</span>                <span class="sh-comment"># the directory they live in</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--sources</span>             <span class="sh-comment"># each instruction rule and its source lines</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--remote</span>              <span class="sh-comment"># read from the review server</span>
 </code></pre>
 <p>With no repository argument, the name is detected from the <code>git</code> remote in the
@@ -111,6 +115,43 @@ file raw, with no header, so the output can be redirected straight to a file:</p
 <p>A guide name is matched case-insensitively as either the page name
 (<code>review-guide</code>) or the file or body name. <code>--list</code> lists every file in the
 folder, including any file co-maintainer did not write, with its size and date.</p>
+<h2 id="sources">Sources</h2>
+<p><a href="init.html#agent-instruction-files"><code>INSTRUCTIONS.md</code></a> is built from the repository&#39;s
+agent instruction files, and each rule in it ends with an id such as <code>[I1]</code>.
+<code>--sources</code> lists every rule by id with the file lines it came from:</p>
+<pre><code>$ co-maintainer view owner/repo --sources
+INSTRUCTIONS.md
+  I1  Format amounts with formatMoney(), never with number methods
+      AGENTS.md:31 · packages/billing/AGENTS.md:8
+</code></pre>
+<p><code>--sources --json</code> prints <code>RULES.json</code> as it is. <code>RULES.json</code> is the data behind
+this view. It is never printed by plain <code>view</code>, by <code>--list</code> or by a single-guide
+view. <code>--sources</code> works with <code>--remote</code>, which reads the copy the server holds.</p>
+<p>These are usage errors with exit code 2:</p>
+<table>
+<thead>
+<tr>
+<th>Message</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--json needs --sources.</code></td>
+<td><code>--json</code> without <code>--sources</code></td>
+</tr>
+<tr>
+<td><code>--sources cannot be combined with --list or --path.</code></td>
+<td>Both given</td>
+</tr>
+<tr>
+<td><code>&lt;owner/repo&gt; has no RULES.json.</code></td>
+<td>No rule was built. The hint is <code>co-maintainer sync &lt;owner/repo&gt;</code></td>
+</tr>
+<tr>
+<td><code>RULES.json for &lt;owner/repo&gt; could not be read.</code></td>
+<td>The file is not valid. The hint is the same</td>
+</tr>
+</tbody></table>
 <h2 id="reading-from-the-server">Reading from the server</h2>
 <p><code>--remote</code> reads the copies a configured <a href="serve.html"><code>serve</code></a> instance holds,
 using the same remote token as <a href="remote-review.html"><code>review --remote</code></a>. The output
@@ -152,7 +193,7 @@ hint that <code>review --remote</code> prints.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#usage">Usage</a></li><li><a href="#what-it-prints">What it prints</a></li><li><a href="#reading-from-the-server">Reading from the server</a></li><li><a href="#before-you-run">Before you run</a></li><li><a href="#related">Related</a></li></ul></nav>
+      <ul><li><a href="#usage">Usage</a></li><li><a href="#what-it-prints">What it prints</a></li><li><a href="#sources">Sources</a></li><li><a href="#reading-from-the-server">Reading from the server</a></li><li><a href="#before-you-run">Before you run</a></li><li><a href="#related">Related</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

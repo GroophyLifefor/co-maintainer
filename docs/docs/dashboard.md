@@ -106,9 +106,9 @@ Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
 | `/repos/new` | Pick an App-installed repo, **Preview** the plan, then confirm to start **init** |
 | `/repos/:owner/:repo` | Overview, 30-day stats, drift **Update now**, recent PRs, webhook reachability and last delivery |
 | `/repos/:owner/:repo/pulls` | Open PR list with a **Review** button each, paged review history, manual **Review** by number when webhooks fail |
-| `/repos/:owner/:repo/pulls/:n` | Findings and cost for one PR |
+| `/repos/:owner/:repo/pulls/:n` | Findings and cost for one PR, and each round's [extension](extensions.md) results |
 | `/repos/:owner/:repo/remote` | Remote CLI reviews for this repo (last 30 days) |
-| `/repos/:owner/:repo/knowledge` | Generated guides, **Sync**, **Clear** |
+| `/repos/:owner/:repo/knowledge` | Generated guides (including **Repository instructions** when the repository has an `INSTRUCTIONS.md`), **Sync**, **Clear** |
 | `/repos/:owner/:repo/settings` | **Who gets a review** (the [review policy](review-policy.md)), review scope, codegraph, [commit watch](commit-watch-review.md) issues and pushes in a row, analysis limits, schedule, remove repo |
 | `/repos/:owner/:repo/pushes` | [Commit watch](commit-watch-review.md) push reviews: range, App or CI, status, findings by severity, issues opened, cost |
 | `/activity` | Live and recent jobs (refreshes about every 5 seconds) and **Pull requests we skipped**, with the rule that skipped each and **Review now** for one that is waiting |
@@ -159,6 +159,14 @@ every review of that repository, as a `CUSTOM REVIEW INSTRUCTIONS` section.
 Leave it blank for none. **Maximum characters** caps the text, defaults to 8000,
 and `0` or `-1` means no limit. The command line form and the per-run flags are
 on [Review](review.md#repository-review-instructions).
+
+## Extension results
+
+Each round on the pull request page lists the [extensions](extensions.md) that
+ran in it. For each one the page shows the outcome, the reason when it failed or
+skipped, media links, metrics, its findings with their state (`new`, `still open`
+or `closed`), its Markdown, and the captured output of a failure. The round's
+cost column notes `incl. $X extensions` when an extension reported a cost.
 
 ## Clearing knowledge
 

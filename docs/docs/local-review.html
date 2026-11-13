@@ -53,6 +53,7 @@
           <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           <li><a href="commit-watch-review.html">Commit watch review</a></li>
+          <li><a href="extensions.html">Extensions</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -152,6 +153,14 @@ base branch. AI and guides run on <strong>your machine</strong>, with the
 <td>Ignore carry-over from the previous local review on this branch</td>
 </tr>
 <tr>
+<td><code>--intent-file=PATH</code></td>
+<td>What the change is for, from a file or <code>-</code> for standard input. Context only, read into the <code>WORKSPACE</code> block, see <a href="review.html#intent">Intent</a></td>
+</tr>
+<tr>
+<td><code>--diagram-runtime</code>, <code>--plantuml-server</code>, <code>--plantuml-output-format</code></td>
+<td>The diagram language of the review, see <a href="review.html#diagrams">Diagrams</a></td>
+</tr>
+<tr>
 <td><code>--to-branch=&lt;name&gt;</code></td>
 <td>Base branch for the diff (default: remote default branch)</td>
 </tr>
@@ -168,6 +177,10 @@ base branch. AI and guides run on <strong>your machine</strong>, with the
 <td>Run <a href="sync.html"><code>sync</code></a> before reviewing (requires <code>gh</code>)</td>
 </tr>
 <tr>
+<td><code>--include-extension-markdowns</code></td>
+<td>With <code>--json</code>, keep each extension&#39;s Markdown, which is empty otherwise</td>
+</tr>
+<tr>
 <td><code>--debug</code></td>
 <td>Verbose logs on stderr</td>
 </tr>
@@ -176,6 +189,8 @@ base branch. AI and guides run on <strong>your machine</strong>, with the
 <td>Print timing per phase</td>
 </tr>
 </tbody></table>
+<p>Registered <a href="extensions.html">extensions</a> run in a local review too, in your working
+directory, and their findings join the result.</p>
 <p>Do not pass <code>owner/repo</code> or a PR number. That selects <a href="local-pr-review.html">PR review</a>
 instead.</p>
 <h2 id="codegraph">Codegraph</h2>
@@ -204,6 +219,9 @@ start clean. If the cache cannot be read or written, review continues with a
 <p>Carry-over never replaces the review. Every run scans the whole diff for new
 violations <strong>and</strong> re-checks the previous findings. A finding that is still open
 is reported as such rather than suppressing a new one nearby.</p>
+<p>A change too large for one review is covered over the next runs. A file the model
+did not receive is sent again, so run <code>review</code> again and read the <code>Coverage:</code>
+line, see <a href="review.html#large-diffs">Large diffs</a>.</p>
 <p>When a guide is rebuilt (<code>init</code> / <code>sync</code>) after your last review on this branch,
 that review&#39;s verdicts were made against rules that no longer exist. The next
 review therefore starts fresh on its own (no <code>--fresh</code> needed), so a stale
