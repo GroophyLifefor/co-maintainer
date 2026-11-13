@@ -219,6 +219,7 @@ After each successful [`init`](init.md) or [`sync`](sync.md),
 | `max-*` limits | GitHub PAT (global only) |
 | `include-*` flags | |
 | `only-request-changed-pr`, `pr-state` | |
+| `agent-instructions`, `agent-instructions-max-chars` | |
 | `review-system-prompt`, `review-system-prompt-max-chars` | |
 | `diagram-runtime`, `plantuml-server`, `plantuml-output-format` | |
 | `review-read-diff-max-chars` | |
@@ -228,7 +229,9 @@ on `sync` or run `init` again to change includes, limits, or pull request
 filters permanently. `--only-request-changed-pr` stays on once saved. To
 collect every pull request state again, pass `--pr-state=open,closed,merged`.
 [`clear owner/repo`](caching.md#clearing) deletes this entry, so the repository
-goes back to "never inited" and the next build is an `init`.
+goes back to "never inited" and the next build is an `init`. The two
+`agent-instructions` values are saved the same way, see
+[Agent instruction files](init.md#agent-instruction-files).
 
 [`review-system-prompt`](review.md#repository-review-instructions) and its cap
 are the exception: `init` and `sync` never write them. Set them with

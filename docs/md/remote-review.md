@@ -88,6 +88,7 @@ anything:
 co-maintainer view owner/repo --remote            # every guide, with headers
 co-maintainer view owner/repo review-guide --remote   # one guide, raw
 co-maintainer view owner/repo --list --remote     # file, size, build date
+co-maintainer view owner/repo --sources --remote  # the instruction rules and their source lines
 ```
 
 The output is the same format as a local `co-maintainer view`, with the same

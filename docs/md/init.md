@@ -49,6 +49,8 @@ Values from `set`, `--env=PATH`, or flags are not asked again.
 | `--include-pull-request-changes` | Include PR diffs |
 | `--include-commit-history` | Include commit messages on the default branch |
 | `--include-how-repo-works` | Include issues / workflow signals when available |
+| `--agent-instructions=REGEX` | Files to read as agent instruction files for `INSTRUCTIONS.md`. Default `(^\|/)AGENTS\.md$`. A blank value turns it off, see [Agent instruction files](#agent-instruction-files) |
+| `--agent-instructions-max-chars=N` | Cap on `INSTRUCTIONS.md` in characters. Default `6000`, `0` or below for no limit |
 | `--max-pr-months=N` | Limit how far back PR history goes |
 | `--max-commits=N` | Limit commits scanned on the default branch |
 | `--max-pull-request-change-lines=N` | Skip oversized PR diffs |
@@ -86,6 +88,8 @@ Under `<config dir>/repos/owner/repo/` (see [Caching](caching.md)):
 
 - `SKILL.md` and `CODEBASE.md`
 - `PR_REVIEW_GUIDE.md` and related review guides when PR sources were included
+- `INSTRUCTIONS.md` and `RULES.json`, only when an agent instruction file matches
+  (see [Agent instruction files](#agent-instruction-files))
 
 Every file is written by the AI provider. There is no offline or AI-free build,
 so `init` and [`sync`](sync.md) refuse to run when no provider is configured.
@@ -124,6 +128,115 @@ still written, and a guide the last run wrote is kept. Fetching and extraction
 are cached, so rerunning [`sync`](sync.md) continues without re-fetching. After
 `init` succeeds, run [`review`](review.md) on a PR or local changes.
 
+## Agent instruction files
+
+Many repositories keep rules for coding agents in files such as `AGENTS.md`.
+Those files are written for an agent that writes code, not for a reviewer, and
+they are long. `init` and [`sync`](sync.md) read them and write one short file,
+`INSTRUCTIONS.md`, that every review reads with the other guides. A `sync` of a
+repository with no matching file sees no change: no new file, no new log line, no
+new `--json` field and no extra call. `init` prints one `skipped` line that says
+why, see [What the run prints](#what-the-run-prints).
+
+```sh
+co-maintainer init owner/repo --max-pr-months=12 --agent-instructions='(^|/)(AGENTS|CLAUDE)\.md$'
+```
+
+- **Which files.** `--agent-instructions=REGEX` is a JavaScript regular
+  expression matched against the full path of every file on the default branch.
+  The default `(^|/)AGENTS\.md$` matches every `AGENTS.md` at any depth. A blank
+  value, `--agent-instructions=`, turns the file off and removes an existing one.
+- **How much.** `--agent-instructions-max-chars=N` caps the whole file in
+  characters. The default is 6000, and `0` or below means no limit. Rules are
+  kept in the model's order until the next one would cross the cap.
+- **Saved.** Both flags are saved for the repository, as `agentInstructions` and
+  `agentInstructionsMaxChars` under `repos["owner/repo"]`, and a later
+  [`sync`](sync.md) without them keeps the saved values.
+- **Needs the codebase.** It works only with `--include-codebase`. With it off,
+  `init` prints `[write] INSTRUCTIONS.md skipped: --include-codebase is off`, and
+  an existing file is removed. `--include-how-repo-works` alone does not build it.
+
+The files are read first and in full, outside the cap on codebase files. At most
+50 files and 400,000 characters in total are read, root files first, then deeper
+ones, alphabetical within a depth. A file that would cross the character cap is
+left out, and a later smaller one can still fit. Each file left out is named,
+at most 20, then `, and N more`:
+
+    [fetch] instruction files left out: deep/x/AGENTS.md (over the 50-file cap), big/AGENTS.md (over the 400,000-character cap)
+
+A file the caps left out is still read by the codebase step. Only the files
+actually read as instructions leave the codebase input.
+
+### What a rule is
+
+One call to the high model, job `synth_instructions`, reads the files with line
+numbers. It keeps only rules about code, tests, docs, configuration,
+dependencies and security. Setup steps, commands to run, tool and MCP use, how to
+search, and the agent's own behavior or permissions are dropped.
+
+Code then checks every rule. A rule is dropped whole, and counted, when:
+
+- a source is not a real, non-blank line of a file that was read (`path:line`,
+  or `path:12-14`, which is recorded as its first line and whose end must be
+  inside the file), or
+- a name or path in backticks appears in none of those files and is not a path
+  in the tree.
+
+Rules with the same text and scope are merged and their sources joined. The same
+sentence in two folders stays two rules. A rule's scope is the model's folder
+when it is a real folder in the tree, otherwise the folder all its sources share,
+otherwise the whole repository. The guard checks that a rule cites a real line,
+not what the rule says. The review prompt frames the file as rules about the
+code that never change how the review is done, and the instruction files come
+from the default branch, so a pull request cannot change them before it merges.
+
+The call is cached by its input, and the instruction files are cached by blob
+SHA, so an unchanged file costs nothing on the next `sync`.
+
+### The files
+
+Both are written by code, never by the model.
+
+```markdown
+# Repository instructions
+
+Rules from this repository's agent instruction files that a reviewer can check in a diff.
+
+- Format amounts with `formatMoney()`, never with number methods. [I1]
+- In `packages/api/`: every new route declares its rate limit in `limits.ts`. [I2]
+```
+
+Every rule ends with an id such as `[I1]`. Ids are renumbered on every build.
+`RULES.json`, next to the guides, records each id's text, scope, the commit it
+was read at (when commit history was read) and the file lines it came from. It
+is written only when it has a rule, and it is never sent to the model.
+[`view --sources`](view.md#sources) prints it. One entry looks like this:
+
+```json
+{ "file": "INSTRUCTIONS.md", "text": "Format amounts with formatMoney(), never with number methods.", "scope": "", "sources": [{ "path": "AGENTS.md", "line": 31 }] }
+```
+
+### What the run prints
+
+| Line | When |
+| ---- | ---- |
+| `[write] INSTRUCTIONS.md · 14 rules · 2 dropped (unsupported source) · 0 over the cap` | The file was written. `N dropped (unknown name)` comes before the cap part when a backticked name was unknown |
+| `[write] INSTRUCTIONS.md skipped: --agent-instructions is blank` | The pattern is blank. Other reasons are `--include-codebase is off` and `no file matches (^\|/)AGENTS\.md$`, with the pattern in use. Printed by `init` always, and by `sync` only when it removed an existing file |
+| `[write] INSTRUCTIONS.md skipped: the instruction files hold no rule a reviewer can check · N dropped · M over the cap` | No rule survived. The file and `RULES.json` are removed |
+| `[write] INSTRUCTIONS.md not regenerated: the AI produced no usable rules, keeping any existing file` | The call failed or returned nothing usable |
+| `[write] INSTRUCTIONS.md not regenerated: no matched instruction file could be read, keeping any existing file` | Files matched but every fetch failed |
+
+When only some of the files fail to read, the rules are built from the ones that
+were read, so a rule from a failed file drops out of that run.
+
+### Flag errors
+
+All are usage errors with exit code 2.
+
+- `--agent-instructions is not a valid regular expression: <the parse error>`
+- `--agent-instructions-max-chars must be an integer`
+- A saved pattern edited by hand that does not compile: `The saved agentInstructions pattern is not a valid regular expression: <error>` with the hint `Pass --agent-instructions=REGEX to sync to replace it.`
+
 ## What it reports
 
 The last line on stderr is the run's cost and time:
@@ -141,8 +254,24 @@ With `--json`, stdout is a single JSON object (`schemaVersion` `1`) and every
 progress line goes to stderr. Fields: `command` (`init` or `sync`), `repo`,
 `skillPath`, `changed[]` (the sections this run rewrote, empty when the guide
 was already current), `facts`, `pullRequests`, `commits`, `reviewGuide`
-(`detailed`, `single`, or `skipped`), `validation` (`errors[]` and
+(`detailed`, `single`, `kept`, or `skipped`), `validation` (`errors[]` and
 `warnings[]`), `usage` (`tokensIn`, `tokensOut`, `costUsd`, `costNote`), and
 `durationMs`. `costUsd` is `null` when the provider did not report a price.
+
+`reviewGuide` says what happened to the review guides in this run:
+
+| Value | Meaning |
+| ----- | ------- |
+| `detailed` | This run wrote `PR_REVIEW_GUIDE.md` and `PR_REVIEW_DETAILED_GUIDE.md` |
+| `single` | This run wrote `PR_REVIEW_GUIDE.md` only |
+| `kept` | This run had 3 or more review signals but got no usable guide from the AI. The guide files the last run wrote are kept, and `SKILL.md` still links them |
+| `skipped` | No guide was written and none is kept. With fewer than 3 review signals, the guide files are removed |
+
+Two more fields appear only when the instruction files did something, see
+[Agent instruction files](#agent-instruction-files). `instructions` is
+`{ "status": "written" | "kept" | "empty" | "skipped", "rules": N }`, with
+`reason` and `counts` (`unsupportedSource`, `unknownName`, `overCap`) when there
+is something to say. `ruleChanges` is described on [`sync`](sync.md#json-output).
+
 Without a terminal or saved config, `--json` exits with code 2 instead of
 prompting. Errors with `--json` are JSON on stdout as well.
