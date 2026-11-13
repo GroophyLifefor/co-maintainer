@@ -58,6 +58,13 @@ export type Options = {
   maxPrMonths?: number;
   maxPullRequestChangeLines?: number;
   maxComments?: number;
+  /** `--agent-instructions`: a JavaScript regex matched against every path on
+   * the default branch to find the agent instruction files. Unset means the
+   * default, blank turns the feature off. */
+  agentInstructions?: string;
+  /** `--agent-instructions-max-chars`: the cap on `INSTRUCTIONS.md`. Unset
+   * means the default, 0 or below means no limit. */
+  agentInstructionsMaxChars?: number;
   /** `probe --run`: after printing the plan, run the recommended init in the
    * same process. */
   run?: boolean;

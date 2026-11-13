@@ -18,6 +18,7 @@ import { detectRemoteRepo } from "../local/git_ops.ts";
 import { canonicalRepoName } from "../util/repo_name.ts";
 import { reviewBlockingFrom } from "../review/blocking.ts";
 import { DiagramSettingError, diagramOptionsFrom } from "../review/diagram.ts";
+import { agentInstructionsError } from "../knowledge/instruction_files.ts";
 import {
   renderCommandHelp,
   renderGlobalHelp,
@@ -229,6 +230,8 @@ export async function parseArgs(args: string[]): Promise<Options> {
         "low-model",
         "high-model",
         ...(command === "review" ? REVIEW_DIAGRAM_FLAGS : []),
+        "agent-instructions",
+        "agent-instructions-max-chars",
       ].some((name) => arg.startsWith(`--${name}=`));
     if (arg === "--codegraph") die("Unknown option: --codegraph");
     if (
@@ -390,6 +393,25 @@ export async function parseArgs(args: string[]): Promise<Options> {
     );
   }
 
+  // A blank value is kept: it turns the instructions off and is remembered
+  // that way, unlike a missing flag, which keeps the saved value.
+  const agentInstructionsFlag = text("agent-instructions");
+  const agentInstructions =
+    agentInstructionsFlag ?? repoConfig.agentInstructions;
+  if (agentInstructionsFlag !== undefined && agentInstructionsFlag.trim()) {
+    const error = agentInstructionsError(agentInstructionsFlag);
+    if (error) {
+      die(`--agent-instructions is not a valid regular expression: ${error}`);
+    }
+  }
+  const rawMaxChars = text("agent-instructions-max-chars");
+  if (
+    rawMaxChars !== undefined &&
+    (rawMaxChars.trim() === "" || !Number.isInteger(Number(rawMaxChars)))
+  ) {
+    die("--agent-instructions-max-chars must be an integer");
+  }
+
   const resolvedConcurrency = resolveConcurrency(repoName, config);
   return {
     command: command === "sync" ? "remake" : (command as Options["command"]),
@@ -434,6 +456,11 @@ export async function parseArgs(args: string[]): Promise<Options> {
       repoConfig.maxPullRequestChangeLines ??
       configDefault.maxPullRequestChangeLines,
     maxComments: value("max-comment") ?? repoConfig.maxComments,
+    agentInstructions,
+    agentInstructionsMaxChars:
+      rawMaxChars !== undefined
+        ? Number(rawMaxChars)
+        : repoConfig.agentInstructionsMaxChars,
     reviewBlocking,
     reviewSystemPrompt: repoConfig.reviewSystemPrompt,
     ...diagram,

@@ -10,7 +10,10 @@ import type { Revision } from "../review/revision.ts";
 import { computeScope } from "./scope.ts";
 import { prepareCodegraphTools } from "./codegraph_tools.ts";
 import { REVIEW_COPY_RULE, severitySection } from "./review_copy.ts";
-import { reviewSystemPromptBlock } from "../review/system_prompt.ts";
+import {
+  repositoryInstructionsBlock,
+  reviewSystemPromptBlock,
+} from "../review/system_prompt.ts";
 import {
   mermaidToolFields,
   plantumlPromptRules,
@@ -169,6 +172,7 @@ export function reviewGuidesBlock(
   guide: string,
   detailed: string,
   codebase: string,
+  instructions = "",
 ): string {
   return `REVIEW GUIDE:
 ${guide}
@@ -177,7 +181,7 @@ DETAILED GUIDE:
 ${detailed}
 
 CODEBASE CONVENTIONS:
-${codebase || "None recorded."}`;
+${codebase || "None recorded."}${repositoryInstructionsBlock(instructions)}`;
 }
 
 /** Shared PR and local/remote workspace review instructions: confirm claims
@@ -563,7 +567,7 @@ ${diff}`;
   const matrix = clampImproveMatrix(options.improveMatrix);
   const request: AiRequest = {
     job: "review_pull_request",
-    system: `${reviewSystemPrompt(diagrams, options)}\n\n${reviewGuidesBlock(guide, detailed, codebase)}${reviewSystemPromptBlock(options)}`,
+    system: `${reviewSystemPrompt(diagrams, options)}\n\n${reviewGuidesBlock(guide, detailed, codebase, guides.instructions)}${reviewSystemPromptBlock(options)}`,
     prompt,
     maxTokens: 24_000 * matrix,
     reasoningEffort: "high",
@@ -804,7 +808,7 @@ ${ownDiff}${unchangedListing}`;
   const matrix = clampImproveMatrix(options.improveMatrix);
   const request: AiRequest = {
     job: extras?.job ?? "review_local",
-    system: `${reviewSystemPrompt(diagrams, options)}\n\n${reviewGuidesBlock(guide, detailed, codebase)}${reviewSystemPromptBlock(options)}`,
+    system: `${reviewSystemPrompt(diagrams, options)}\n\n${reviewGuidesBlock(guide, detailed, codebase, guides.instructions)}${reviewSystemPromptBlock(options)}`,
     prompt,
     maxTokens: 24_000 * matrix,
     reasoningEffort: "high",

@@ -49,6 +49,13 @@ import { addResponseCost, emptyTally, type CostTally } from "../util/cost.ts";
 import { costLabel } from "../util/run_summary.ts";
 import { formatError } from "../cli/error.ts";
 import { buildSetupJson } from "../cli/command_json.ts";
+import {
+  buildInstructions,
+  instructionsJson,
+  writeInstructionsAndRules,
+  type InstructionsOutcome,
+  type RulesWriteResult,
+} from "./rules_build.ts";
 
 export type AiMetrics = CostTally & {
   calls: number;
@@ -421,6 +428,8 @@ async function initOrRemake(options: Options): Promise<void> {
   let overrides: Record<string, string> = {};
   let reviewDocuments: ReviewDocuments | undefined;
   let unchangedSections = new Set<string>();
+  let instructions: InstructionsOutcome = { status: "failed" };
+  let rulesResult: RulesWriteResult | undefined;
   try {
     log("ai", "starting extract_unit jobs");
     facts = await timed("extract_unit AI", options.logTime, () =>
@@ -483,6 +492,9 @@ async function initOrRemake(options: Options): Promise<void> {
         : reviewSignalCount(facts) > 2
           ? "synth_guide produced no guide"
           : "synth_guide skipped · fewer than 3 review signals",
+    );
+    instructions = await timed("synth_instructions AI", options.logTime, () =>
+      buildInstructions(highAi, options, source, usage),
     );
   } catch (error) {
     // Nothing is written on an AI failure. Fetching and extraction are cached,
@@ -550,6 +562,13 @@ async function initOrRemake(options: Options): Promise<void> {
       if (noteLines.length > 0) {
         await writeMaintainerNotes(options.repo, noteLines);
       }
+      rulesResult = await writeInstructionsAndRules({
+        repo: options.repo,
+        documents: reviewDocuments,
+        signalCount: reviewSignalCount(facts),
+        instructions,
+        source,
+      });
       const head = source.commits[0] as { sha?: string } | undefined;
       const baseSha = head?.sha ? String(head.sha) : new Date().toISOString();
       // A CLI init has no app.db row for the repository yet; without one the
@@ -589,6 +608,8 @@ async function initOrRemake(options: Options): Promise<void> {
       includeHowRepoWorks: options.includeHowRepoWorks,
       onlyRequestChangedPr: options.onlyRequestChangedPr,
       prState: options.prState,
+      agentInstructions: options.agentInstructions,
+      agentInstructionsMaxChars: options.agentInstructionsMaxChars,
     });
   });
   log(
@@ -623,6 +644,8 @@ async function initOrRemake(options: Options): Promise<void> {
           errors: finalValidation.errors,
           warnings: finalValidation.warnings,
         },
+        instructions: instructionsJson(instructions),
+        ruleChanges: rulesResult?.changes ?? null,
         summary,
       }),
     );
@@ -700,6 +723,8 @@ export function optionsFromConfig(
       repoConfig.maxPullRequestChangeLines ??
       config.defaults?.maxPullRequestChangeLines,
     maxComments: repoConfig.maxComments,
+    agentInstructions: repoConfig.agentInstructions,
+    agentInstructionsMaxChars: repoConfig.agentInstructionsMaxChars,
   };
 }
 

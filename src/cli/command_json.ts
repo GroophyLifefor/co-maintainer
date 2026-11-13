@@ -7,6 +7,7 @@
  */
 import type { Estimate } from "../ai/estimate.ts";
 import type { RunSummary } from "../util/run_summary.ts";
+import type { RuleChanges } from "../knowledge/rule_changes.ts";
 
 export type ProbeJsonInput = {
   repo: string;
@@ -66,6 +67,21 @@ export type SetupJsonInput = {
   /** `kept` when this run could not rebuild the guide and kept the last one. */
   reviewGuide: "detailed" | "single" | "kept" | "skipped";
   validation: { errors: string[]; warnings: string[] };
+  /** What happened to `INSTRUCTIONS.md`. `kept` means the AI gave no usable
+   * answer and any earlier file stays. */
+  instructions?: {
+    status: "written" | "kept" | "empty" | "skipped";
+    rules: number;
+    reason?: string;
+    counts?: {
+      unsupportedSource: number;
+      unknownName: number;
+      overCap: number;
+    };
+  };
+  /** The full change lists behind the `[guide]` and `[instructions]` lines,
+   * or `null` when there was no earlier `RULES.json`. */
+  ruleChanges?: { guide: RuleChanges; instructions: RuleChanges } | null;
   summary: RunSummary;
 };
 
@@ -83,6 +99,10 @@ export function buildSetupJson(input: SetupJsonInput): string {
     commits: input.commits,
     reviewGuide: input.reviewGuide,
     validation: input.validation,
+    ...(input.instructions ? { instructions: input.instructions } : {}),
+    ...(input.ruleChanges !== undefined
+      ? { ruleChanges: input.ruleChanges }
+      : {}),
     usage: {
       tokensIn: summary.tokensIn,
       tokensOut: summary.tokensOut,

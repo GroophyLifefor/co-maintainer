@@ -242,6 +242,12 @@ const KNOWLEDGE_DOCS = [
     covers: "Layout, style and test conventions",
   },
   {
+    id: "instructions",
+    file: "INSTRUCTIONS.md",
+    title: "Repository instructions",
+    covers: "Rules from the agent instruction files",
+  },
+  {
     id: "skill",
     file: "SKILL.md",
     title: "Contribution skill",

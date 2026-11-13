@@ -39,6 +39,12 @@ export type RepoConfig = {
   includeHowRepoWorks?: boolean;
   onlyRequestChangedPr?: boolean;
   prState?: ("open" | "closed" | "merged")[];
+  /** The regex that finds the agent instruction files. Blank turns
+   * `INSTRUCTIONS.md` off, unset means the default. */
+  agentInstructions?: string;
+  /** Cap on `INSTRUCTIONS.md` in characters. Unset means the default, `0` or
+   * a negative number means no limit. */
+  agentInstructionsMaxChars?: number;
   /** Five field cron in UTC, checked by `serve` to queue a remake. */
   remakeCron?: string;
   /** A rejected custom schedule kept only so the settings form can show what

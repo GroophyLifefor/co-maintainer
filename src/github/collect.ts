@@ -2,6 +2,13 @@ import { log, startHeartbeat } from "../util/log.ts";
 import { cacheGet, cacheSet, cacheValues } from "../store/cache_db.ts";
 import type { GitHubClient, Json, Options } from "../types.ts";
 import type { PullRequest, Source, State } from "../knowledge/types.ts";
+import {
+  agentInstructionsPattern,
+  capInstructionFiles,
+  leftOutLine,
+  matchInstructionPaths,
+  MAX_INSTRUCTION_FILES,
+} from "../knowledge/instruction_files.ts";
 
 function decodeBase64(value: string): string {
   const binary = atob(value.replaceAll("\n", ""));
@@ -255,10 +262,12 @@ async function codebase(
     treeSha: Record<string, string>;
     files: Record<string, string>;
   }) => Promise<void>,
+  instructionPattern: RegExp | null = null,
 ): Promise<{
   tree: string[];
   treeSha: Record<string, string>;
   files: Record<string, string>;
+  instructionFiles?: Record<string, string>;
 }> {
   const branch = String(meta.default_branch ?? "main");
   const response = await client.request<Json>(
@@ -274,14 +283,23 @@ async function codebase(
       return [String(value.path), String(value.sha ?? "")];
     }),
   );
-  const canonical = tree.filter((path) =>
-    /(^|\/)(README|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY|CHANGELOG)(\.[^/]*)?$|(^|\/)(package\.json|deno\.json|Cargo\.toml|Makefile|justfile|CODEOWNERS|build\.rs)$|^\.github\/(workflows\/.+\.(yml|yaml)|PULL_REQUEST_TEMPLATE.*)$/i.test(
-      path,
-    ),
+  // Instruction files are read in full below, so the codebase extraction does
+  // not get them a second time.
+  const instructionPaths = instructionPattern
+    ? matchInstructionPaths(tree, instructionPattern)
+    : [];
+  const isInstruction = new Set(instructionPaths);
+  const canonical = tree.filter(
+    (path) =>
+      !isInstruction.has(path) &&
+      /(^|\/)(README|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY|CHANGELOG)(\.[^/]*)?$|(^|\/)(package\.json|deno\.json|Cargo\.toml|Makefile|justfile|CODEOWNERS|build\.rs)$|^\.github\/(workflows\/.+\.(yml|yaml)|PULL_REQUEST_TEMPLATE.*)$/i.test(
+        path,
+      ),
   );
   const representative = tree
     .filter(
       (path) =>
+        !isInstruction.has(path) &&
         /\.(rs|ts|tsx|js|jsx|py|go|java|cs|cpp|c|swift)$/i.test(path) &&
         !/(^|\/)(test|tests|vendor|dist|target)\//i.test(path),
     )
@@ -349,7 +367,52 @@ async function codebase(
     );
     await checkpoint();
   });
-  return { tree, treeSha, files };
+  if (!instructionPattern) return { tree, treeSha, files };
+  const instructionFiles = await readInstructionFiles(
+    client,
+    repo,
+    branch,
+    instructionPaths,
+    treeSha,
+    concurrency,
+    previous,
+  );
+  return { tree, treeSha, files, instructionFiles };
+}
+
+/** Reads the matched instruction files in full, reusing a cached copy whose
+ * blob SHA has not moved, and applies the count and size caps. Every file left
+ * out is named in the build output. */
+async function readInstructionFiles(
+  client: GitHubClient,
+  repo: string,
+  branch: string,
+  paths: string[],
+  treeSha: Record<string, string>,
+  concurrency: number,
+  previous?: Source,
+): Promise<Record<string, string>> {
+  const wanted = paths.slice(0, MAX_INSTRUCTION_FILES);
+  const overCount = paths.slice(MAX_INSTRUCTION_FILES).map((path) => ({
+    path,
+    reason: `over the ${MAX_INSTRUCTION_FILES}-file cap`,
+  }));
+  log("fetch", `instruction files · ${wanted.length} matched`);
+  const contents = await mapPool(wanted, concurrency, async (path) => {
+    const cached = previous?.instructionFiles?.[path];
+    if (
+      cached !== undefined &&
+      previous?.treeSha?.[path] &&
+      previous.treeSha[path] === treeSha[path]
+    ) {
+      return { path, content: cached };
+    }
+    return { path, content: await file(client, repo, path, branch) };
+  });
+  const selection = capInstructionFiles(contents);
+  const leftOut = [...selection.leftOut, ...overCount];
+  if (leftOut.length > 0) log("fetch", leftOutLine(leftOut));
+  return selection.files;
 }
 
 /** One pull request's cached evidence, keyed by number. `cacheValues` returns
@@ -459,6 +522,7 @@ async function pullRequests(
       body: String(pr.body ?? ""),
       state: String(pr.state ?? ""),
       merged: Boolean(pr.merged_at),
+      ...(pr.merged_at ? { mergedAt: String(pr.merged_at) } : {}),
       updatedAt: String(pr.updated_at ?? ""),
       headSha: String((pr.head as Json | undefined)?.sha ?? ""),
       labels: Array.isArray(pr.labels)
@@ -714,7 +778,17 @@ export async function collectSource(
     const repo = await client.request<Json>(`repos/${options.repo}`);
     const includeCodebase =
       options.includeCodebase || options.includeHowRepoWorks;
-    const files = includeCodebase
+    // Instruction files belong to `--include-codebase` alone: with it off
+    // there is no `INSTRUCTIONS.md`.
+    const instructionPattern = options.includeCodebase
+      ? agentInstructionsPattern(options.agentInstructions)
+      : null;
+    const files: {
+      tree: string[];
+      treeSha: Record<string, string>;
+      files: Record<string, string>;
+      instructionFiles?: Record<string, string>;
+    } = includeCodebase
       ? await codebase(
           client,
           options.repo,
@@ -723,6 +797,7 @@ export async function collectSource(
           previous?.source,
           phase,
           codebaseProgress,
+          instructionPattern,
         )
       : { tree: [], treeSha: {}, files: {} };
     const selectedPullRequests = options.includePullRequests
@@ -736,6 +811,9 @@ export async function collectSource(
       tree: files.tree,
       treeSha: files.treeSha,
       files: files.files,
+      ...(files.instructionFiles
+        ? { instructionFiles: files.instructionFiles }
+        : {}),
       pullRequests: selectedPullRequests,
       commits: commitData,
     };

@@ -214,6 +214,13 @@ export const COMMANDS: CommandSpec[] = [
             name: "include-how-repo-works",
             description: "Read the docs and layout.",
           },
+          {
+            name: "agent-instructions",
+            value: "REGEX",
+            default: "(^|/)AGENTS\\.md$",
+            description:
+              "Paths on the default branch to read as agent instruction files for INSTRUCTIONS.md. Needs --include-codebase. A blank value turns it off. Saved for later syncs.",
+          },
         ],
       },
       {
@@ -224,6 +231,13 @@ export const COMMANDS: CommandSpec[] = [
             value: "N",
             default: "all",
             description: "Cap how many commits are read.",
+          },
+          {
+            name: "agent-instructions-max-chars",
+            value: "N",
+            default: "6000",
+            description:
+              "Cap on INSTRUCTIONS.md in characters. 0 or below means no limit. Saved for later syncs.",
           },
           {
             name: "max-pr-months",
@@ -293,6 +307,7 @@ export const COMMANDS: CommandSpec[] = [
     examples: [
       "co-maintainer init owner/repo --include-codebase --include-pull-requests",
       "co-maintainer init owner/repo --include-codebase --ai=openrouter --token=...",
+      "co-maintainer init owner/repo --max-pr-months=12 --agent-instructions='(^|/)(AGENTS|CLAUDE)\\.md$'",
     ],
   },
   {
@@ -324,6 +339,12 @@ export const COMMANDS: CommandSpec[] = [
             name: "include-how-repo-works",
             description: "Read the docs and layout.",
           },
+          {
+            name: "agent-instructions",
+            value: "REGEX",
+            description:
+              "Paths on the default branch to read as agent instruction files for INSTRUCTIONS.md. Needs --include-codebase. A blank value turns it off. Left out, the last run's value is kept.",
+          },
         ],
       },
       {
@@ -333,6 +354,12 @@ export const COMMANDS: CommandSpec[] = [
             name: "max-commits",
             value: "N",
             description: "Cap how many commits are read.",
+          },
+          {
+            name: "agent-instructions-max-chars",
+            value: "N",
+            description:
+              "Cap on INSTRUCTIONS.md in characters. 0 or below means no limit. Left out, the last run's value is kept.",
           },
           {
             name: "max-pr-months",
@@ -375,7 +402,10 @@ export const COMMANDS: CommandSpec[] = [
         ],
       },
     ],
-    examples: ["co-maintainer sync owner/repo --include-codebase"],
+    examples: [
+      "co-maintainer sync owner/repo --include-codebase",
+      "co-maintainer sync owner/repo --agent-instructions-max-chars=8000",
+    ],
   },
   {
     name: "review",
@@ -566,6 +596,7 @@ export const COMMANDS: CommandSpec[] = [
       "co-maintainer view [owner/repo] [guide]",
       "co-maintainer view [owner/repo] --list",
       "co-maintainer view [owner/repo] --path",
+      "co-maintainer view [owner/repo] --sources [--json]",
     ],
     groups: [
       {
@@ -574,6 +605,15 @@ export const COMMANDS: CommandSpec[] = [
           {
             name: "list",
             description: "List the guide files with their size and build date.",
+          },
+          {
+            name: "sources",
+            description:
+              "List every guide and instruction rule by id, with the pull requests or instruction file lines it came from.",
+          },
+          {
+            name: "json",
+            description: "With --sources, print RULES.json as it is.",
           },
           {
             name: "path",
@@ -592,6 +632,7 @@ export const COMMANDS: CommandSpec[] = [
       "co-maintainer view owner/repo review-guide",
       "co-maintainer view owner/repo --list",
       "co-maintainer view owner/repo --remote",
+      "co-maintainer view owner/repo --sources",
     ],
   },
   {

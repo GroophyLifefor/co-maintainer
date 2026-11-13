@@ -12,12 +12,16 @@ import { loadGuides } from "../../review/guides.ts";
 import { readDir, readTextFile, stat } from "../../util/runtime.ts";
 import { validateRemotePath } from "../validate.ts";
 
-/** The four generated guides, in the order a reader wants them. */
+/** The generated guides, in the order a reader wants them. `RULES.json`
+ * comes back too, with kind `rules`, so `view --remote --sources` needs no
+ * second endpoint. */
 const GUIDES: { kind: string; file: string }[] = [
   { kind: "skill", file: "SKILL.md" },
   { kind: "codebase", file: "CODEBASE.md" },
   { kind: "review-guide", file: "PR_REVIEW_GUIDE.md" },
   { kind: "detailed-guide", file: "PR_REVIEW_DETAILED_GUIDE.md" },
+  { kind: "instructions", file: "INSTRUCTIONS.md" },
+  { kind: "rules", file: "RULES.json" },
 ];
 
 export type RemoteGuide = {
@@ -55,6 +59,7 @@ export async function readRemoteGuides(
     ["PR_REVIEW_DETAILED_GUIDE.md", loaded.detailed],
     ["CODEBASE.md", loaded.codebase],
     ["SKILL.md", loaded.skill],
+    ["INSTRUCTIONS.md", loaded.instructions],
   ]);
   const dir = `${reposDir()}/${repo}`;
   const names: string[] = [];

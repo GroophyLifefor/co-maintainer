@@ -16,6 +16,8 @@ import { detectRemoteRepo } from "../../local/git_ops.ts";
 import { CliError, EXIT_USAGE } from "../error.ts";
 import { renderCommandHelp, unknownOptionMessage } from "./registry.ts";
 import { readDir, readTextFile, stat } from "../../util/runtime.ts";
+import { parseRules, RULES_FILE } from "../../knowledge/rules.ts";
+import { renderSources } from "./view_sources.ts";
 import {
   baseUrl,
   die,
@@ -24,16 +26,22 @@ import {
   remoteFromEnv,
 } from "../../remote/http.ts";
 
-type Kind = "skill" | "codebase" | "review-guide" | "detailed-guide";
+type Kind =
+  | "skill"
+  | "codebase"
+  | "review-guide"
+  | "detailed-guide"
+  | "instructions";
 
-/** The four generated guides, in the order a reader wants them: the
- * contribution skill first, then the codebase notes, then the two review
- * guides (short, then the evidence behind it). */
+/** The generated guides, in the order a reader wants them: the contribution
+ * skill first, then the codebase notes, then the two review guides (short,
+ * then the evidence behind it), then the repository instructions. */
 const GUIDES: { kind: Kind; file: string }[] = [
   { kind: "skill", file: "SKILL.md" },
   { kind: "codebase", file: "CODEBASE.md" },
   { kind: "review-guide", file: "PR_REVIEW_GUIDE.md" },
   { kind: "detailed-guide", file: "PR_REVIEW_DETAILED_GUIDE.md" },
+  { kind: "instructions", file: "INSTRUCTIONS.md" },
 ];
 
 /** One guide, from either source. `builtAt` is an ISO timestamp so a local
@@ -210,6 +218,36 @@ function printGuides(
   );
 }
 
+/** `--sources`: the rules in `RULES.json`, by file, or the file itself with
+ * `--json`. */
+function printSources(repo: string, guides: ViewGuide[], json: boolean): void {
+  const found = guides.find((guide) => guide.file === RULES_FILE);
+  if (!found) {
+    throw new CliError(
+      "no_rules",
+      `${repo} has no ${RULES_FILE}.`,
+      `co-maintainer sync ${repo}`,
+      EXIT_USAGE,
+    );
+  }
+  const rules = parseRules(found.content);
+  if (!rules) {
+    throw new CliError(
+      "rules_unreadable",
+      `${RULES_FILE} for ${repo} could not be read.`,
+      `co-maintainer sync ${repo}`,
+      EXIT_USAGE,
+    );
+  }
+  if (json) {
+    process.stdout.write(
+      found.content.endsWith("\n") ? found.content : `${found.content}\n`,
+    );
+    return;
+  }
+  console.log(renderSources(rules));
+}
+
 export async function runView(args: string[]): Promise<void> {
   if (args.includes("--help") || args.includes("-h")) {
     console.log(
@@ -222,10 +260,35 @@ export async function runView(args: string[]): Promise<void> {
   for (const arg of args) {
     if (
       arg.startsWith("--") &&
-      !["--list", "--path", "--remote", "--help", "-h"].includes(arg)
+      ![
+        "--list",
+        "--path",
+        "--remote",
+        "--sources",
+        "--json",
+        "--help",
+        "-h",
+      ].includes(arg)
     ) {
       throw new CliError("usage", unknownOptionMessage(arg, "view"));
     }
+  }
+  const sources = args.includes("--sources");
+  if (args.includes("--json") && !sources) {
+    throw new CliError(
+      "usage",
+      "--json needs --sources.",
+      "co-maintainer view owner/repo --sources --json",
+      EXIT_USAGE,
+    );
+  }
+  if (sources && (args.includes("--list") || args.includes("--path"))) {
+    throw new CliError(
+      "usage",
+      "--sources cannot be combined with --list or --path.",
+      undefined,
+      EXIT_USAGE,
+    );
   }
   // The directory belongs to this machine, so it cannot answer for a server.
   if (remote && args.includes("--path")) {
@@ -244,9 +307,15 @@ export async function runView(args: string[]): Promise<void> {
     return;
   }
 
-  const guides = remote
+  const all = remote
     ? await readRemoteGuides(repo)
     : await readLocalGuides(repo);
+  if (sources) {
+    printSources(repo, all, args.includes("--json"));
+    return;
+  }
+  // `RULES.json` is the data behind `--sources`, not a guide to read.
+  const guides = all.filter((guide) => guide.file !== RULES_FILE);
   if (guides.length === 0) {
     throw new CliError(
       "no_guides",
