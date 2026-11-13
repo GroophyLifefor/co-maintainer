@@ -90,7 +90,7 @@ export function withExtensionsJson<
   doc: T,
   report: ExtensionReport = EMPTY_REPORT,
   includeMarkdown = false,
-): T & { extensions: unknown[] } {
+): Omit<T, "findings"> & { findings: object[]; extensions: unknown[] } {
   const extra = extensionCounts(report);
   return {
     ...doc,
