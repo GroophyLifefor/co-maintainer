@@ -98,7 +98,12 @@ const REMOTE_FILES = generated("src/remote", 500, 8);
 const APP_FILES = generated("src/a", 170, 50, 60);
 /** A dropped file whose name tries to inject Markdown and a mention into the
  * review body. It sorts last, so the plan drops it. */
-const HOSTILE = "src/zz`x @octo-org see [here](javascript:alert)`.ts";
+const HOSTILE_LINK =
+  // Windows refuses a ":" in a path, and git on Windows refuses to index one,
+  // so there the link has no scheme separator. The name keeps the backticks,
+  // the mention and the link brackets the check is about.
+  process.platform === "win32" ? "](javascript-alert)" : "](javascript:alert)";
+const HOSTILE = `src/zz\`x @octo-org see [here${HOSTILE_LINK}\`.ts`;
 /** What the product puts after an `@` in a posted path. Built from its code,
  * because an escape in a string literal is rewritten by the formatter into
  * the invisible character itself. */
@@ -854,7 +859,7 @@ function appChecks(sim: Sim): CheckResult[] {
         (hostileRow.match(/`/g) ?? []).length === 2 &&
         !/@octo-org/.test(hostile) &&
         hostileRow.includes(`@${ZERO_WIDTH_SPACE}octo-org`) &&
-        hostileRow.includes("](javascript:alert)") &&
+        hostileRow.includes(HOSTILE_LINK) &&
         !/^#/m.test(hostile),
       JSON.stringify(hostileRow),
     ),
