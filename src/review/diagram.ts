@@ -81,6 +81,11 @@ export function plantumlServerProblem(value: string): string | null {
   if (url.search || url.hash) {
     return "must not contain a query string or a fragment";
   }
+  // The link is posted as Markdown, so a path that can end it early or be
+  // rewritten as prose would break every diagram.
+  if (/\s/.test(value) || /[()[\]<>`\\;"]/.test(url.pathname)) {
+    return 'must not contain spaces or any of ( ) [ ] < > ` \\ ; " in its path';
+  }
   return null;
 }
 
@@ -222,7 +227,8 @@ export function encodePlantuml(source: string): string {
 function serverBase(server: string): string {
   const url = new URL(server);
   const path = url.pathname.replace(/\/+$/, "");
-  const isPublic = url.origin === new URL(DEFAULT_PLANTUML_SERVER).origin;
+  // The public server under any scheme and with or without `www`.
+  const isPublic = /^(www\.)?plantuml\.com$/.test(url.hostname);
   return `${url.origin}${path === "" && isPublic ? "/plantuml" : path}`;
 }
 
@@ -274,12 +280,15 @@ function imageUrlFor(
  * source rather than becoming a broken image. */
 const MAX_IMAGE_URL_CHARS = 7500;
 
-const OPEN_FENCE = /^( {0,3})(`{3,}|~{3,})[ \t]*(plantuml|puml)\b.*$/i;
+const ANY_FENCE = /^( {0,3})(`{3,}|~{3,})(.*)$/;
+const PLANTUML_TAG = /^[ \t]*(plantuml|puml)\b/i;
 
 /** With `plantuml-server`, replaces every fenced PlantUML block by an image
- * link to the configured server. Any other runtime, and any other fence, is
- * returned untouched. A block that is never closed, or whose link would be too
- * long, stays as the model wrote it. */
+ * link to the configured server. Any other runtime is returned untouched.
+ * Every fence is walked the way Markdown reads it, so a PlantUML block inside
+ * another fence (a suggestion, or a longer fence that quotes an example) is
+ * content of that fence and stays as written. So does a block that is never
+ * closed, and a block whose link would be too long. */
 export function renderDiagrams(
   markdown: string,
   options: Partial<DiagramOptions> | undefined,
@@ -290,8 +299,10 @@ export function renderDiagrams(
   const out: string[] = [];
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
-    const open = OPEN_FENCE.exec(line.replace(/\r$/, ""));
-    if (!open) {
+    const open = ANY_FENCE.exec(line.replace(/\r$/, ""));
+    // A backtick fence's info text cannot hold a backtick, so a line like
+    // ```code``` is inline code and not a fence.
+    if (!open || (open[2]![0] === "`" && open[3]!.includes("`"))) {
       out.push(line);
       continue;
     }
@@ -307,14 +318,17 @@ export function renderDiagrams(
       }
     }
     if (end === -1) {
-      out.push(line);
-      continue;
+      // Never closed: the rest of the text belongs to this fence.
+      out.push(...lines.slice(i));
+      break;
     }
-    const source = lines
-      .slice(i + 1, end)
-      .join("\n")
-      .replace(/\r/g, "")
-      .trim();
+    const source = PLANTUML_TAG.test(open[3]!)
+      ? lines
+          .slice(i + 1, end)
+          .join("\n")
+          .replace(/\r/g, "")
+          .trim()
+      : "";
     const url = source ? imageUrlFor(source, settings) : undefined;
     if (!url) {
       out.push(...lines.slice(i, end + 1));
