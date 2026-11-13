@@ -228,6 +228,12 @@ co-maintainer review [options]
 | `--range=BEFORE..AFTER` |  | With --remote: review a push (commit watch). The server keeps the review going if this run stops waiting. |
 | `--timeout-minutes=N` |  | With --range: stop waiting after N minutes and leave the result to the dashboard. Default 10. |
 
+### Intent
+
+| Flag | Default | Description |
+|---|---|---|
+| `--intent-file=PATH` |  | Tell the review what the change is for, from a file or from standard input with -. It is context only, never a rule. Up to the repository's custom prompt cap. Not with --range. |
+
 ### Diagrams
 
 | Flag | Default | Description |
