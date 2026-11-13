@@ -41,6 +41,15 @@ const result = await runFlow(
 
 // The checks the flow itself returned come first, then the inherited ones.
 const fake = result.checks.slice(0, live.length);
+// What made the flow fail, for the test to name: a probe has no other output.
+const failed = [
+  ...result.steps
+    .filter((step) => !step.ok)
+    .map((step) => `step ${step.name}: ${step.detail}`),
+  ...result.checks
+    .filter((item) => !item.ok && item.skipped === undefined)
+    .map((item) => `check ${item.name}: ${item.detail}`),
+];
 console.log(
-  `LIVE_PROBE ${JSON.stringify({ passed: result.passed, fake, live })}`,
+  `LIVE_PROBE ${JSON.stringify({ passed: result.passed, failed, fake, live })}`,
 );

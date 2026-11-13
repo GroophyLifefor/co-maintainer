@@ -17,7 +17,12 @@ import { FLOWS } from "./index.ts";
 
 const PROBE = join(import.meta.dirname, "..", "live_probe.ts");
 
-type Probe = { passed: boolean; fake: CheckResult[]; live: CheckResult[] };
+type Probe = {
+  passed: boolean;
+  failed: string[];
+  fake: CheckResult[];
+  live: CheckResult[];
+};
 
 /** The probe of one flow, in its own process. All of them start at once. */
 function probe(name: string): Promise<Probe> {
@@ -70,8 +75,8 @@ const SKIPPED_LIVE: Record<string, number> = {
 
 for (const [name, pending] of probes) {
   test(`live checks of ${name}: the same checks, skipped with a reason or unchanged`, async () => {
-    const { passed, fake, live } = await pending;
-    assert.equal(passed, true);
+    const { passed, failed, fake, live } = await pending;
+    assert.equal(passed, true, failed.join("\n"));
     assert.deepEqual(
       live.map((item) => item.name),
       fake.map((item) => item.name),
