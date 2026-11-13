@@ -116,7 +116,7 @@ async function runReviewPr(
       // stderr said codegraph was missing.
       const codegraphState = result.codegraphState;
       const resolved = await carry.finish(result);
-      const warnings = carry.warnings;
+      const warnings = [...carry.warnings, ...result.warnings];
       if (cli.json) {
         console.log(
           buildPrReviewJson({
@@ -131,6 +131,8 @@ async function runReviewPr(
             usage,
             durationMs,
             reviewBlocking: options.reviewBlocking,
+            diffStats: result.diffStats,
+            coverage: result.coverage,
           }),
         );
       } else if (cli.output === "github") {
@@ -141,6 +143,7 @@ async function runReviewPr(
             aiMetrics,
             performance.now() - operationStarted,
           ),
+          coverage: result.coverage,
         });
       } else {
         // One presentation layer for local, PR and remote reviews.
@@ -155,6 +158,7 @@ async function runReviewPr(
                 options.reviewBlocking,
               ),
               warnings,
+              coverage: result.coverage,
             }) +
             "\n",
         );

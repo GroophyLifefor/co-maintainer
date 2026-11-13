@@ -26,6 +26,11 @@ import {
 } from "../review/carry_over.ts";
 import { runReviewEngine } from "../review/engine.ts";
 import {
+  coverageCounts,
+  notReviewedLines,
+  type Coverage,
+} from "../review/coverage.ts";
+import {
   addResponseCost,
   costColumns,
   emptyTally,
@@ -274,6 +279,9 @@ export interface ReviewMetadata {
   jobId: string;
   model: string;
   durationMs: number;
+  /** What the model received, for the coverage line and the not-reviewed
+   * list. */
+  coverage?: Coverage;
 }
 
 export function formatDuration(ms: number): string {
@@ -286,15 +294,29 @@ export function formatDuration(ms: number): string {
   return `${seconds}s`;
 }
 
-function metadataBlock({ jobId, model, durationMs }: ReviewMetadata): string {
+function metadataBlock({
+  jobId,
+  model,
+  durationMs,
+  coverage,
+}: ReviewMetadata): string {
   return (
     `\n\n<details>\n<summary>Metadata</summary>\n\n` +
     `- Activity: ${jobId}\n` +
     `- co-maintainer version: ${VERSION}\n` +
     `- Model: ${model}\n` +
     `- Duration: ${formatDuration(durationMs)}\n` +
+    (coverage ? `- Coverage: ${coverageCounts(coverage)}\n` : "") +
     `</details>`
   );
+}
+
+/** The files this round never sent to the model, as a list under the
+ * findings. Paths are code spans: a path is not prose, and the copy guard
+ * must not read a semicolon in one as a sentence. */
+function notReviewedBlock(coverage: Coverage | undefined): string {
+  const lines = notReviewedLines(coverage, (path) => `\`${path}\``);
+  return lines.length > 0 ? `\n\n${lines.join("\n")}` : "";
 }
 
 /** A finding an earlier round reported that this round still finds, with the
@@ -320,8 +342,12 @@ export function reviewBody(
   metadata: ReviewMetadata,
   stillOpen: StillOpenFinding[] = [],
 ): string {
+  const notReviewed = notReviewedBlock(metadata.coverage);
   if (findings.length === 0 && stillOpen.length === 0) {
-    return `No actionable findings.${metadataBlock(metadata)}`;
+    const none = notReviewed
+      ? "No actionable findings in the files reviewed."
+      : "No actionable findings.";
+    return `${none}${notReviewed}${metadataBlock(metadata)}`;
   }
   const lines: string[] = ["Review summary"];
   if (findings.length) {
@@ -334,7 +360,7 @@ export function reviewBody(
       lines.push(summaryLine(finding, since));
     }
   }
-  return lines.join("\n") + metadataBlock(metadata);
+  return lines.join("\n") + notReviewed + metadataBlock(metadata);
 }
 
 function inlineCommentBody(finding: ParsedFinding, suggestion = false): string {
@@ -1271,6 +1297,7 @@ async function runReviewJobCore(
       jobId: job.id,
       model: options.highModel ?? "unknown",
       durationMs: Date.now() - startedAt,
+      coverage: response.coverage,
     },
     options.reviewBlocking,
   );

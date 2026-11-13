@@ -1204,3 +1204,45 @@ test("an App review's token count includes its JSON retry", async () => {
     }
   });
 });
+
+test("the review names files it never reviewed and always reports coverage", () => {
+  const metadata = { jobId: "job-1", model: "test-model", durationMs: 1000 };
+  const full = reviewBody([], {
+    ...metadata,
+    coverage: {
+      full: 3,
+      partial: [],
+      summarized: [],
+      dropped: [],
+      withheld: [],
+    },
+  });
+  if (!full.startsWith("No actionable findings.")) throw new Error(full);
+  if (
+    !full.includes("- Coverage: 3 full · 0 partial · 0 summarized · 0 dropped")
+  ) {
+    throw new Error(full);
+  }
+  if (full.includes("Not reviewed")) throw new Error(full);
+  const missing = reviewBody([], {
+    ...metadata,
+    coverage: {
+      full: 58,
+      partial: ["src/store/reads.ts"],
+      summarized: [],
+      dropped: ["src/a;b.ts"],
+      withheld: ["package-lock.json"],
+    },
+  });
+  for (const want of [
+    "No actionable findings in the files reviewed.",
+    "Not reviewed (2)",
+    "- `src/a;b.ts`: the diff was too large for this round",
+    "- `package-lock.json`: GitHub sent no diff",
+    "- Coverage: 58 full · 1 partial · 0 summarized · 1 dropped · 1 withheld",
+  ]) {
+    if (!missing.includes(want)) throw new Error(`${want}\n${missing}`);
+  }
+  // A path is a code span, so a semicolon in one is not read as prose.
+  if (humanCopy(missing) !== missing) throw new Error(humanCopy(missing));
+});

@@ -14,6 +14,7 @@ import {
   repositoryInstructionsBlock,
   reviewSystemPromptBlock,
 } from "../review/system_prompt.ts";
+import { readDiffMaxChars } from "./diff_summary.ts";
 import {
   mermaidToolFields,
   plantumlPromptRules,
@@ -21,12 +22,20 @@ import {
   renderDiagrams,
 } from "../review/diagram.ts";
 import {
-  needsSummary,
-  READ_FULL_DIFF_TOOL,
-  readFullDiff,
-  summarizeDiff,
-} from "./diff_summary.ts";
-import { numberPatch } from "./hunks.ts";
+  diffFileFromGithub,
+  diffFileFromRevision,
+  type DiffFile,
+} from "./diff_plan.ts";
+import { prepareReviewDiff } from "./review_diff.ts";
+import {
+  coverageCounts,
+  coverageTruncated,
+  type Coverage,
+  type CoverageWarning,
+} from "../review/coverage.ts";
+import { readConfig } from "../config.ts";
+import { FakeAiProvider } from "../ai/fake.ts";
+import { getEnv } from "../util/runtime.ts";
 import {
   FINDINGS_JSON_INSTRUCTIONS,
   FINDINGS_JSON_SCHEMA,
@@ -100,9 +109,48 @@ export type ReviewExtras = {
   prefetched?: { pull: Json; files: Json[] };
   /** The request's job name, `review_local` when left out. */
   job?: string;
+  /** The provider that summarizes large diffs. Left out, a low-model provider
+   * is built from the options. */
+  summaryAi?: AiProvider;
 };
 
-const MAX_REVIEW_DIFF_CHARS = 240_000;
+/** What a review run returns to every flow. */
+export type ReviewOutcome = AiResponse & {
+  /** The seen set: files the model received this round, plus unchanged
+   * files it received in an earlier round. Stored for the next round. */
+  visiblePaths: string[];
+  guideBuiltAt: string | null;
+  codegraphState: "used" | "disabled" | "unavailable";
+  coverage: Coverage;
+  /** `diff_dropped`, `diff_withheld` and `summary_failed`. */
+  warnings: CoverageWarning[];
+  /** Every changed file of the subject, for the result's `revision` block. */
+  diffStats: { files: number; additions: number; deletions: number };
+};
+
+/** Summaries always run on the low model, whatever provider the caller
+ * handed in for the review itself. */
+function summaryProvider(options: Options, extras?: ReviewExtras): AiProvider {
+  if (extras?.summaryAi) return extras.summaryAi;
+  if (getEnv("CM_FAKE_AI") === "1") return new FakeAiProvider();
+  return reviewProvider(options, options.lowModel, "low");
+}
+
+function diffStats(files: DiffFile[]): ReviewOutcome["diffStats"] {
+  return {
+    files: files.length,
+    additions: files.reduce((sum, file) => sum + file.additions, 0),
+    deletions: files.reduce((sum, file) => sum + file.deletions, 0),
+  };
+}
+
+/** One progress line for the prepared diff, naming what did not go in whole. */
+function diffReport(chars: number, coverage: Coverage): string {
+  return `diff prepared · ${chars} chars${
+    coverageTruncated(coverage) ? ` · ${coverageCounts(coverage)}` : ""
+  }`;
+}
+
 export const MERMAID_GUIDANCE = `Mermaid selection and minimal syntax:
 flowchart = decisions, branches, pipelines, and fallback paths;
 swimlane-beta = work crossing owners, actors, services, teams, or layers;
@@ -198,13 +246,6 @@ a test reaches the path. Do not guess coverage or impact from the diff alone
 when a tool can answer. A missing regression test is not a substitute for
 identifying the concrete input or code path that misbehaves when you can.`;
 
-function text(value: unknown, limit = 20_000): string {
-  const result = String(value ?? "");
-  return result.length > limit
-    ? `${result.slice(0, limit)}\n[truncated]`
-    : result;
-}
-
 type UsageSinkForNormalize = UsageSink;
 
 /** Turns a model reply into the Markdown every consumer already parses.
@@ -249,40 +290,6 @@ async function normalizeReviewResponse(
   return response.text.trim();
 }
 
-const MAX_FILE_PATCH_CHARS = 12_000;
-
-/** GitHub omits `patch` entirely for files it considers too large, and the file
- * still appears in the compare response with only its counts. Rendering that as
- * an empty body reads as "this file did not change", and a reviewer then
- * reports the absence as a finding (a lockfile that was in fact regenerated,
- * say). Say plainly that the hunks are missing, and mark a per-file truncation
- * for the same reason. */
-export function filePatch(file: Json): string {
-  const patch = String(file.patch ?? "");
-  const status = String(file.status ?? "modified");
-  const changes = Number(file.changes ?? 0);
-  const additions = Number(file.additions ?? 0);
-  const deletions = Number(file.deletions ?? 0);
-  if (patch === "") {
-    const counts =
-      Number.isFinite(changes) && changes > 0
-        ? `${changes} changed lines (+${additions} -${deletions})`
-        : "an unreported number of changed lines";
-    return (
-      `[${status}: ${counts}, diff withheld by GitHub, not shown here. ` +
-      `Do not treat this file as unchanged and do not report its contents.]`
-    );
-  }
-  if (patch.length > MAX_FILE_PATCH_CHARS) {
-    return (
-      `${numberPatch(patch.slice(0, MAX_FILE_PATCH_CHARS))}\n[${status}: ${changes} ` +
-      `changed lines total. This file's diff is cut off here, later hunks are ` +
-      `not shown.]`
-    );
-  }
-  return numberPatch(patch);
-}
-
 // Uncapped, a 100,000-line diff would ask for 1,000+ tool-loop rounds, each
 // able to spend multiple external calls.
 export function clampToolRounds(totalDiffLines: number): number {
@@ -321,13 +328,7 @@ export async function reviewPullRequest(
   ai?: AiProvider,
   progress?: ProgressSink,
   extras?: ReviewExtras,
-): Promise<
-  AiResponse & {
-    visiblePaths: string[];
-    guideBuiltAt: string | null;
-    codegraphState: "used" | "disabled" | "unavailable";
-  }
-> {
+): Promise<ReviewOutcome> {
   if (!options.prNumber) throw new Error("review requires a PR number");
   const number = options.prNumber;
   const report = progress ?? (() => {});
@@ -415,37 +416,19 @@ export async function reviewPullRequest(
     );
   }
 
-  // Built only if needed, see reviewProvider.
-  const filesNeedSummary = ownFiles.some(({ file }) =>
-    needsSummary(Number(file.changes ?? 0), String(file.patch ?? "")),
-  );
-  const lowProvider = filesNeedSummary
-    ? (ai ?? reviewProvider(options, options.lowModel, "low"))
-    : undefined;
-  const patchByPath = new Map<string, string>();
-  const [ownSections, codegraphTools] = await Promise.all([
-    Promise.all(
-      ownFiles.map(async ({ file, path }) => {
-        const changes = Number(file.changes ?? 0);
-        const patch = String(file.patch ?? "");
-        if (!needsSummary(changes, patch)) {
-          return `FILE: ${path}\n${filePatch(file)}`;
-        }
-        patchByPath.set(path, patch);
-        const description = await summarizeDiff(
-          path,
-          patch,
-          lowProvider!,
-          usage,
-        );
-        report(`summarized large diff · ${path} · ${changes} changed lines`);
-        return (
-          `FILE: ${path}\n[${changes} changed lines, summarized below. ` +
-          `call read-full-diff("${path}") for the complete diff if this is not ` +
-          `enough]\n${description}`
-        );
-      }),
-    ),
+  const provider = ai ?? reviewProvider(options, options.highModel, "high");
+  const diagrams = provider.supportsTools !== false;
+  const [prepared, codegraphTools] = await Promise.all([
+    prepareReviewDiff({
+      files: ownFiles.map(({ file }) => diffFileFromGithub(file)),
+      unchangedPaths: extras?.unchangedPaths,
+      tools: diagrams,
+      concurrency: options.aiConcurrent,
+      readDiffMaxChars: readDiffMaxChars(readConfig().repos?.[options.repo]),
+      summaryProvider: () => summaryProvider(options, extras),
+      usage,
+      report,
+    }),
     options.useCodegraph && headSha
       ? prepareCodegraphTools(options.repo, number, headSha, {
           allowInstall: options.allowToolInstall,
@@ -457,18 +440,7 @@ export async function reviewPullRequest(
       `codegraph tools · ${codegraphTools.length > 0 ? "ready" : "unavailable"}`,
     );
   }
-  const extraTools: ToolHandler[] = [
-    ...codegraphTools,
-    ...(patchByPath.size > 0
-      ? [
-          {
-            name: "read-full-diff",
-            tool: READ_FULL_DIFF_TOOL,
-            run: (args: unknown) => readFullDiff(patchByPath, args),
-          },
-        ]
-      : []),
-  ];
+  const extraTools: ToolHandler[] = [...codegraphTools, ...prepared.tools];
 
   // Bigger own-scope diffs need more codegraph round-trips to trace — fixed
   // at 3 rounds regardless of size caused the model to run out mid-review on
@@ -483,9 +455,9 @@ export async function reviewPullRequest(
     `tool rounds · ${maxToolRounds} (own diff ${totalDiffLines} changed lines)`,
   );
 
-  const ownPatch = ownSections.join("\n\n");
-  const diffWasTruncated = ownPatch.length > MAX_REVIEW_DIFF_CHARS;
-  const ownDiff = text(ownPatch, MAX_REVIEW_DIFF_CHARS);
+  const ownDiff = prepared.notShown
+    ? `${prepared.sections}\n\n${prepared.notShown}`
+    : prepared.sections;
   const unchangedListing = extras?.unchangedPaths?.length
     ? `\nUNCHANGED SINCE LAST REVIEW (paths only, do not re-report findings here):\n${extras.unchangedPaths
         .map((path) => `- ${path}`)
@@ -508,13 +480,7 @@ interaction if the pull request's own change above relies on or conflicts with
 one of these files, and never mark that finding blocking:
 ${upstreamListing}${unchangedListing}`;
 
-  report(
-    `diff prepared · ${ownPatch.length} chars${
-      diffWasTruncated ? " · truncated for model context" : ""
-    }`,
-  );
-  const provider = ai ?? reviewProvider(options, options.highModel, "high");
-  const diagrams = provider.supportsTools !== false;
+  report(diffReport(prepared.sections.length, prepared.coverage));
   const carryBlock = extras?.carryPrompt ? `${extras.carryPrompt}\n` : "";
   const prompt = `Review this pull request against the repository's review guide and
 codebase conventions. Find only actionable code-level violations supported by
@@ -683,30 +649,20 @@ ${reviewText}`,
       console.log(`\n----- IMPROVED REVIEW ${pass - 1} -----\n${reviewText}\n`);
     }
   }
-  const visiblePaths = ownFiles.map(({ path }) => path);
   return {
     ...response,
     text: `${severitySection()}\n${renderDiagrams(reviewText, options)}`,
-    visiblePaths,
+    visiblePaths: prepared.seenPaths,
     guideBuiltAt: guides.guideBuiltAt,
     codegraphState: !options.useCodegraph
       ? "disabled"
       : codegraphTools.length > 0
         ? "used"
         : "unavailable",
+    coverage: prepared.coverage,
+    warnings: prepared.warnings,
+    diffStats: diffStats(named.map(({ file }) => diffFileFromGithub(file))),
   };
-}
-
-function revisionToGithubFiles(revision: Revision): Json[] {
-  return revision.files.map((file) => ({
-    filename: file.path,
-    status: file.status === "renamed" ? "renamed" : file.status,
-    previous_filename: file.previousPath,
-    additions: file.additions,
-    deletions: file.deletions,
-    changes: file.additions + file.deletions,
-    patch: file.patch,
-  }));
 }
 
 /** Local workspace review — same prompt loop as PR review without GitHub. */
@@ -718,13 +674,7 @@ export async function reviewWorkspaceRevision(
   ai?: AiProvider,
   progress?: ProgressSink,
   extras?: ReviewExtras,
-): Promise<
-  AiResponse & {
-    visiblePaths: string[];
-    guideBuiltAt: string | null;
-    codegraphState: "used" | "disabled" | "unavailable";
-  }
-> {
+): Promise<ReviewOutcome> {
   const report = progress ?? (() => {});
   report(modelSummary(options));
   const guides = await loadGuides(options.repo);
@@ -733,59 +683,41 @@ export async function reviewWorkspaceRevision(
   if (!guide) {
     throw notInitializedError(options.repo);
   }
-  const files = revisionToGithubFiles(revision);
-  const unchanged = new Set(extras?.unchangedPaths ?? []);
-  const ownFiles = files
-    .map((file) => ({
-      file,
-      path: String(file.filename ?? ""),
-    }))
-    .filter(({ path }) => !unchanged.has(path));
-  const patchByPath = new Map<string, string>();
-  const ownSections = await Promise.all(
-    ownFiles.map(async ({ file, path }) => {
-      const changes = Number(file.changes ?? 0);
-      const patch = String(file.patch ?? "");
-      const lowProvider = needsSummary(changes, patch)
-        ? (ai ?? reviewProvider(options, options.lowModel, "low"))
-        : undefined;
-      if (!lowProvider) return `FILE: ${path}\n${filePatch(file)}`;
-      patchByPath.set(path, patch);
-      const description = await summarizeDiff(path, patch, lowProvider, usage);
-      return `FILE: ${path}\n[${changes} changed lines, summarized below]\n${description}`;
-    }),
+  const files = revision.files.map((file) =>
+    diffFileFromRevision(file, revision.producer),
   );
+  const unchanged = new Set(extras?.unchangedPaths ?? []);
+  const ownFiles = files.filter(({ path }) => !unchanged.has(path));
+  const provider = ai ?? reviewProvider(options, options.highModel, "high");
+  const diagrams = provider.supportsTools !== false;
+  const prepared = await prepareReviewDiff({
+    files: ownFiles,
+    unchangedPaths: extras?.unchangedPaths,
+    tools: diagrams,
+    concurrency: options.aiConcurrent,
+    readDiffMaxChars: readDiffMaxChars(readConfig().repos?.[options.repo]),
+    summaryProvider: () => summaryProvider(options, extras),
+    usage,
+    report,
+  });
   const codegraphTools = options.useCodegraph
     ? extras?.prepareCodegraphTools
       ? await extras.prepareCodegraphTools()
       : await prepareCodegraphTools(options.repo, 0, headSha)
     : [];
-  const extraTools: ToolHandler[] = [
-    ...codegraphTools,
-    ...(patchByPath.size > 0
-      ? [
-          {
-            name: "read-full-diff",
-            tool: READ_FULL_DIFF_TOOL,
-            run: (args: unknown) => readFullDiff(patchByPath, args),
-          },
-        ]
-      : []),
-  ];
-  const totalDiffLines = ownFiles.reduce(
-    (sum, { file }) => sum + Number(file.changes ?? 0),
-    0,
-  );
+  const extraTools: ToolHandler[] = [...codegraphTools, ...prepared.tools];
+  const totalDiffLines = ownFiles.reduce((sum, file) => sum + file.changes, 0);
   const maxToolRounds = clampToolRounds(totalDiffLines);
-  const ownDiff = text(ownSections.join("\n\n"), MAX_REVIEW_DIFF_CHARS);
+  const ownDiff = prepared.notShown
+    ? `${prepared.sections}\n\n${prepared.notShown}`
+    : prepared.sections;
+  report(diffReport(prepared.sections.length, prepared.coverage));
   const unchangedListing = extras?.unchangedPaths?.length
     ? `\nUNCHANGED SINCE LAST REVIEW (paths only):\n${extras.unchangedPaths
         .map((path) => `- ${path}`)
         .join("\n")}`
     : "";
   const carryBlock = extras?.carryPrompt ? `${extras.carryPrompt}\n` : "";
-  const provider = ai ?? reviewProvider(options, options.highModel, "high");
-  const diagrams = provider.supportsTools !== false;
   const prompt = `Review these local changes against the repository's review guide and
 codebase conventions. Find only actionable code-level violations supported by
 the diff and either the guide or the codebase conventions.
@@ -881,8 +813,11 @@ ${reviewText}`,
   return {
     ...response,
     text: `${severitySection()}\n${renderDiagrams(reviewText, options)}`,
-    visiblePaths: ownFiles.map(({ path }) => path),
+    visiblePaths: prepared.seenPaths,
     guideBuiltAt: guides.guideBuiltAt,
     codegraphState,
+    coverage: prepared.coverage,
+    warnings: prepared.warnings,
+    diffStats: diffStats(files),
   };
 }

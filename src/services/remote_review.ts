@@ -2,7 +2,7 @@ import { VERSION } from "../version.ts";
 import { CliError } from "../cli/error.ts";
 import {
   resolvedFromFirstReview,
-  revisionStats,
+  reviewCoverageFields,
   sortResolvedFindings,
   summaryCounts,
   toJsonFinding,
@@ -487,17 +487,25 @@ export function registerRemoteReviewHandler(): void {
         const durationMs = Math.round(performance.now() - started);
         const blockingMode = reviewBlockingFrom(options.reviewBlocking);
 
+        // The plan ran here, on the patches the client submitted, so the
+        // coverage travels back in the result. An older client ignores it.
+        const covered = reviewCoverageFields(
+          revision,
+          result.coverage,
+          result.warnings,
+        );
         setRemoteSyncResult(job.id, {
           subject: {
             repo: job.repo,
             branch: review.branch,
             prNumber: null,
           },
-          revision: revisionStats(revision),
+          revision: covered.revision,
           guide: { builtAt: result.guideBuiltAt },
           codegraph: { state: result.codegraphState },
           summary: summaryCounts(findings, blockingMode),
           findings: findings.map((row) => toJsonFinding(row, blockingMode)),
+          warnings: covered.warnings,
           usage: {
             tokensIn,
             tokensOut,

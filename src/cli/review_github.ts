@@ -13,6 +13,12 @@ import { appendFileSync } from "node:fs";
 import { stripControlChars } from "../util/sanitize.ts";
 import { formatRunSummary, type RunSummary } from "../util/run_summary.ts";
 import {
+  coverageLine,
+  coverageMissing,
+  notReviewedLines,
+  type Coverage,
+} from "../review/coverage.ts";
+import {
   humanShortTitle,
   sortHumanFindings,
   type HumanFinding,
@@ -56,17 +62,34 @@ function active(findings: HumanFinding[]): HumanFinding[] {
   return sortHumanFindings(findings).filter((row) => row.state !== "closed");
 }
 
+/** One warning without a file when the diff plan dropped files, so a pull
+ * request shows that part of the change went unreviewed. */
+function droppedAnnotation(coverage: Coverage | undefined): string | null {
+  const dropped = coverage?.dropped.length ?? 0;
+  if (dropped === 0) return null;
+  const files = dropped === 1 ? "1 file was" : `${dropped} files were`;
+  return `::warning title=co-maintainer::${escapeData(
+    `${files} not reviewed because the diff is too large. The job summary lists them.`,
+  )}`;
+}
+
 /** One workflow command per finding still standing, errors first. A finding
- * that was closed since the last review needs no annotation. */
-export function githubAnnotations(findings: HumanFinding[]): string[] {
+ * that was closed since the last review needs no annotation. The dropped
+ * files warning takes one of the warning slots. */
+export function githubAnnotations(
+  findings: HumanFinding[],
+  coverage?: Coverage,
+): string[] {
   const rows = active(findings);
   const errors = rows.filter((row) => row.blocking);
   const warnings = rows.filter((row) => !row.blocking);
+  const dropped = droppedAnnotation(coverage);
   const shown = [
     ...errors.slice(0, MAX_ANNOTATIONS_PER_LEVEL),
-    ...warnings.slice(0, MAX_ANNOTATIONS_PER_LEVEL),
+    ...warnings.slice(0, MAX_ANNOTATIONS_PER_LEVEL - (dropped ? 1 : 0)),
   ];
   const lines = shown.map(annotation);
+  if (dropped) lines.push(dropped);
   const left = rows.length - shown.length;
   if (left > 0) {
     lines.push(
@@ -101,6 +124,9 @@ export type GithubSummaryInput = {
   /** Cost and time, in the same words the terminal uses. Left out when the run
    * cannot say. */
   run?: RunSummary;
+  /** What the model received. Left out by a remote server older than this
+   * field. */
+  coverage?: Coverage;
 };
 
 export function githubSummary(input: GithubSummaryInput): string {
@@ -109,7 +135,11 @@ export function githubSummary(input: GithubSummaryInput): string {
   const blocking = rows.filter((row) => row.blocking).length;
   const lines = ["## co-maintainer review", "", cell(input.title, 200), ""];
   if (rows.length === 0) {
-    lines.push("No actionable findings.");
+    lines.push(
+      input.coverage && coverageMissing(input.coverage) > 0
+        ? "No actionable findings in the files reviewed."
+        : "No actionable findings.",
+    );
   } else {
     lines.push("| Severity | State | Where | Finding |", "|---|---|---|---|");
     for (const row of rows) {
@@ -126,6 +156,12 @@ export function githubSummary(input: GithubSummaryInput): string {
     "",
     `**Summary:** ${rows.filter((r) => r.state === "new").length} new · ${rows.filter((r) => r.state === "open").length} open · ${closed} closed · ${blocking} blocking`,
   );
+  const coverage = coverageLine(input.coverage);
+  if (coverage) lines.push("", cell(coverage, 200));
+  const notReviewed = notReviewedLines(input.coverage, (path) =>
+    cell(path, 200),
+  );
+  if (notReviewed.length > 0) lines.push("", ...notReviewed);
   if (input.run) lines.push("", formatRunSummary(input.run));
   return lines.join("\n");
 }
@@ -146,7 +182,9 @@ export function appendStepSummary(
 
 /** The whole `--output=github` output of one finished review. */
 export function emitGithubOutput(input: GithubSummaryInput): void {
-  for (const line of githubAnnotations(input.findings)) console.log(line);
+  for (const line of githubAnnotations(input.findings, input.coverage)) {
+    console.log(line);
+  }
   appendStepSummary(githubSummary(input));
 }
 

@@ -68,6 +68,9 @@ export type RepoConfig = {
   plantumlServer?: string;
   /** `svg` or `png`. Unset means `svg`. */
   plantumlOutputFormat?: "svg" | "png";
+  /** Cap on one `read-full-diff` answer in characters for this repository.
+   * Unset means the default; `0` or a negative number means no limit. */
+  reviewReadDiffMaxChars?: number;
 };
 
 export type UserConfig = {

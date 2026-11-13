@@ -8,6 +8,7 @@ import {
   type JsonReviewFinding,
   reviewExitCodeFromJsonFindings,
 } from "../cli/review_result.ts";
+import { coverageFromResult, warningsFromJson } from "../review/coverage.ts";
 import {
   baseUrl,
   die,
@@ -388,6 +389,7 @@ export async function runRemoteReview(
             title: `${repo} · ${branch} (remote)`,
             findings: humanFindingsFromJson(findings),
             run,
+            coverage: coverageFromResult(payload.result),
           });
         } else {
           const resultGuide = payload.result.guide as
@@ -403,6 +405,8 @@ export async function runRemoteReview(
                 guideBuiltAt: resultGuide?.builtAt ?? null,
                 codegraphState: resultCodegraph?.state ?? null,
                 findings: humanFindingsFromJson(findings),
+                warnings: warningsFromJson(payload.result.warnings),
+                coverage: coverageFromResult(payload.result),
               }) +
               "\n",
           );

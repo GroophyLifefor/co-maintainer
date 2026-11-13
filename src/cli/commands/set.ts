@@ -112,6 +112,7 @@ export async function runSet(args: string[]): Promise<void> {
     "review-system-prompt",
     "review-system-prompt-max-chars",
     ...DIAGRAM_FLAGS,
+    "review-read-diff-max-chars",
     "password",
     "unset",
   ];
@@ -428,6 +429,7 @@ const REPO_SCOPED_FLAGS = new Set([
   "review-system-prompt",
   "review-system-prompt-max-chars",
   ...DIAGRAM_FLAGS,
+  "review-read-diff-max-chars",
   "gh-concurrent",
   "ai-concurrent",
   "unset",
@@ -444,13 +446,15 @@ const REPO_SCOPED_UNSET = new Set([
   "diagramRuntime",
   "plantumlServer",
   "plantumlOutputFormat",
+  "review-read-diff-max-chars",
+  "reviewReadDiffMaxChars",
   "gh-concurrent",
   "ghConcurrent",
   "ai-concurrent",
   "aiConcurrent",
 ]);
 
-/** `set --repo=owner/repo [--review-system-prompt=... | --review-system-prompt-max-chars=N | --unset=name]`
+/** `set --repo=owner/repo [--review-system-prompt=... | --review-system-prompt-max-chars=N | --review-read-diff-max-chars=N | --unset=name]`
  * writes the repository-scoped settings to `repos[owner/repo]` in config.json
  * instead of the global config. */
 async function runSetRepo(typed: string, args: string[]): Promise<void> {
@@ -485,6 +489,12 @@ async function runSetRepo(typed: string, args: string[]): Promise<void> {
     unset.has("reviewSystemPromptMaxChars")
   ) {
     patch.reviewSystemPromptMaxChars = undefined;
+  }
+  if (
+    unset.has("review-read-diff-max-chars") ||
+    unset.has("reviewReadDiffMaxChars")
+  ) {
+    patch.reviewReadDiffMaxChars = undefined;
   }
   if (unset.has("gh-concurrent") || unset.has("ghConcurrent")) {
     patch.ghConcurrent = undefined;
@@ -535,13 +545,27 @@ async function runSetRepo(typed: string, args: string[]): Promise<void> {
       patch.reviewSystemPromptMaxChars = value;
     }
   }
+  const readDiffRaw = text(args, "review-read-diff-max-chars");
+  if (readDiffRaw !== undefined) {
+    if (readDiffRaw.trim() === "") {
+      patch.reviewReadDiffMaxChars = undefined;
+    } else {
+      const value = Number(readDiffRaw);
+      if (!Number.isInteger(value)) {
+        die(
+          "--review-read-diff-max-chars must be an integer (0 or -1 for no limit)",
+        );
+      }
+      patch.reviewReadDiffMaxChars = value;
+    }
+  }
   const prompt = text(args, "review-system-prompt");
   if (prompt !== undefined) {
     patch.reviewSystemPrompt = prompt.trim() === "" ? undefined : prompt;
   }
   if (Object.keys(patch).length === 0) {
     die(
-      "Nothing to set. Pass --review-system-prompt=, --review-system-prompt-max-chars=N, --diagram-runtime=, --plantuml-server=, --plantuml-output-format=, or --unset=name with --repo.",
+      "Nothing to set. Pass --review-system-prompt=, --review-system-prompt-max-chars=N, --diagram-runtime=, --plantuml-server=, --plantuml-output-format=, --review-read-diff-max-chars=N, or --unset=name with --repo.",
     );
   }
   // The values after this write are the ones given here, or the stored ones.

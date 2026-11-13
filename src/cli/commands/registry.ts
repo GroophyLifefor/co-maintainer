@@ -849,6 +849,13 @@ export const COMMANDS: CommandSpec[] = [
             description: "The image format for plantuml-server. Needs --repo.",
           },
           {
+            name: "review-read-diff-max-chars",
+            value: "N",
+            default: "20000",
+            description:
+              "The most characters one read-full-diff answer returns in a review of this repository. Needs --repo. 0 or -1 means no limit.",
+          },
+          {
             name: "review-blocking",
             value: "model|severity",
             default: "model",

@@ -313,6 +313,7 @@ export async function runLocalReview(
       // and set the exit code, so nothing is saved or printed after it.
       if (interrupted()) return;
       const codegraphState = codegraphPrep.state;
+      warnings.push(...response.warnings);
 
       const { resolved: allResolved, visiblePaths } = finishCarryRun(
         carryRun,
@@ -375,6 +376,7 @@ export async function runLocalReview(
             usage,
             durationMs,
             reviewBlocking: options.reviewBlocking,
+            coverage: response.coverage,
           }),
         );
       } else if (cli.output === "github") {
@@ -385,6 +387,7 @@ export async function runLocalReview(
             options.reviewBlocking,
           ),
           run: summaryFromMetrics(aiMetrics, performance.now() - started),
+          coverage: response.coverage,
         });
       } else {
         console.log(
@@ -397,6 +400,7 @@ export async function runLocalReview(
               allResolved,
               warnings,
               options.reviewBlocking,
+              response.coverage,
             ) +
             "\n",
         );

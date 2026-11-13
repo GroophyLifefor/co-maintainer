@@ -19,6 +19,7 @@ import {
   humanFindingsFromJson,
   type JsonReviewFinding,
 } from "../cli/review_result.ts";
+import { coverageFromResult, warningsFromJson } from "../review/coverage.ts";
 import {
   baseUrl,
   die,
@@ -380,7 +381,11 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
             }),
           );
         } else if (cli.output === "github") {
-          emitGithubOutput({ title, findings: human });
+          emitGithubOutput({
+            title,
+            findings: human,
+            coverage: coverageFromResult(payload.result),
+          });
         } else {
           console.log(
             "\n" +
@@ -389,6 +394,8 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
                 guideBuiltAt: null,
                 codegraphState: null,
                 findings: human,
+                warnings: warningsFromJson(payload.result.warnings),
+                coverage: coverageFromResult(payload.result),
               }) +
               "\n",
           );

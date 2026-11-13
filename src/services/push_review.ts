@@ -23,7 +23,7 @@ import {
 import { normalizeAnchor, type Revision } from "../review/revision.ts";
 import { revisionFromSubmitJson } from "../remote/revision_from_submit.ts";
 import {
-  revisionStats,
+  reviewCoverageFields,
   sortResolvedFindings,
   summaryCounts,
   toJsonFinding,
@@ -981,14 +981,20 @@ async function runPushReview(
 
     const blockingMode = reviewBlockingFrom(options.reviewBlocking);
     const settled = settle(costTally);
+    const covered = reviewCoverageFields(
+      revision,
+      response?.coverage,
+      response?.warnings ?? [],
+    );
     const result = {
       subject: { repo: job.repo, branch: args.branch, prNumber: null },
       push: { before: args.before, after: args.after, range },
-      revision: revisionStats(revision),
+      revision: covered.revision,
       guide: { builtAt: response?.guideBuiltAt ?? null },
       codegraph: { state: response?.codegraphState ?? "disabled" },
       summary: summaryCounts(report, blockingMode),
       findings: report.map((finding) => toJsonFinding(finding, blockingMode)),
+      warnings: covered.warnings,
       issues: activity,
       usage: {
         tokensIn,
