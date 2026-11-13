@@ -18,6 +18,7 @@ import {
   type CheckResult,
   defineFlow,
   type Score,
+  scriptedCheck,
   type Sim,
   type Step,
 } from "../flow.ts";
@@ -356,6 +357,22 @@ function jobLogs(sim: Sim): string[] {
 const result = (name: string, problems: string[], good: string): CheckResult =>
   check(name, problems.length === 0, problems.join(" · ") || good);
 
+/** What a live run skips: it holds for the diagrams the fake model draws. */
+const scriptedResult = (
+  sim: Sim,
+  name: string,
+  problems: string[],
+  good: string,
+  why = "the diagrams are the model's",
+): CheckResult =>
+  scriptedCheck(
+    sim,
+    name,
+    problems.length === 0,
+    problems.join(" · ") || good,
+    why,
+  );
+
 /** The fenced PlantUML blocks a model answer holds. */
 const plantumlBlocks = (text: string): string[] =>
   [...text.matchAll(/```plantuml\n([\s\S]*?)\n```/g)].map((m) => m[1]!);
@@ -391,14 +408,20 @@ function localChecks(sim: Sim): CheckResult[] {
       problems.push("PlantUML wording in a default review");
     }
   }
-  if (bodiesOf(base).some((body) => body.includes("plantuml"))) {
-    problems.push("a PlantUML block in a default review");
-  }
   out.push(
     result(
       "the default runtime asks for Mermaid exactly as before",
       problems,
       "Mermaid wording in system and review prompt, only the Mermaid syntax tool, no PlantUML word",
+    ),
+    scriptedResult(
+      sim,
+      "a default review holds no PlantUML block",
+      bodiesOf(base).some((body) => body.includes("plantuml"))
+        ? ["a PlantUML block in a default review"]
+        : [],
+      "no PlantUML block in the output",
+      "what the model writes is its answer",
     ),
   );
 
@@ -421,17 +444,35 @@ function localChecks(sim: Sim): CheckResult[] {
     }
   }
   const bodies = bodiesOf(plantuml);
+  const keptFence: string[] = [];
   if (!bodies.some((body) => body.includes(fence(LOCAL_SOURCE)))) {
-    asked.push("the fenced source is not in the output");
+    keptFence.push("the fenced source is not in the output");
   }
-  if (bodies.some((body) => body.includes("![PlantUML diagram]"))) {
-    asked.push("plantuml turned the source into an image");
-  }
+  // Whatever PlantUML the model wrote stays in the output as it wrote it.
+  const drawn = modelFindings(plantuml).flatMap((item) =>
+    plantumlBlocks(String(item.body)),
+  );
+  const lost = drawn.filter(
+    (source) => !bodies.some((body) => body.includes(fence(source))),
+  );
+  const image = bodies.some((body) => body.includes("![PlantUML diagram]"))
+    ? ["plantuml turned the source into an image"]
+    : [];
   out.push(
-    result(
+    scriptedResult(
+      sim,
       "plantuml asks for PlantUML, offers no Mermaid tool and keeps the fenced source",
-      asked,
+      [...asked, ...keptFence, ...image],
       "PlantUML wording, no tools, the model's fence is in the output unchanged",
+    ),
+    result(
+      "plantuml asks for PlantUML, offers no Mermaid tool and keeps every fence the model wrote",
+      [
+        ...asked,
+        ...image,
+        ...lost.map(() => "a fence the model wrote is not in the output"),
+      ],
+      "PlantUML wording, no tools, each of the model's fences is in the output unchanged",
     ),
   );
 
@@ -440,16 +481,18 @@ function localChecks(sim: Sim): CheckResult[] {
   const linked: string[] = [];
   const serverBodies = bodiesOf(server);
   const links = serverBodies.flatMap(linksIn);
-  if (links.length !== 1) linked.push(`${links.length} links in the output`);
-  else {
-    const link = links[0]!;
+  // What holds for whatever the model drew: each link is on the chosen
+  // server and format, and decodes to a diagram the model wrote.
+  const modelSources = modelFindings(server).flatMap((item) =>
+    plantumlBlocks(String(item.body)),
+  );
+  for (const link of links) {
     if (!link.startsWith(`${SERVER}/png/`)) linked.push(`link ${link}`);
-    if (decodeLink(link).trim() !== LOCAL_SOURCE) {
-      linked.push("the link does not decode to the model's source");
+    else if (
+      !modelSources.some((source) => source.trim() === decodeLink(link).trim())
+    ) {
+      linked.push("a link does not decode to a diagram the model wrote");
     }
-  }
-  if (serverBodies.some((body) => body.includes("```plantuml"))) {
-    linked.push("a fence is left next to the link");
   }
   if (serverChat && chat && serverChat.system !== chat.system) {
     linked.push("plantuml-server asked for something other than plantuml");
@@ -462,11 +505,25 @@ function localChecks(sim: Sim): CheckResult[] {
   ) {
     linked.push("the model was shown or wrote a link");
   }
+  const oneLink: string[] = [];
+  if (links.length !== 1) oneLink.push(`${links.length} links in the output`);
+  else if (decodeLink(links[0]!).trim() !== LOCAL_SOURCE) {
+    oneLink.push("the link does not decode to the model's source");
+  }
+  if (serverBodies.some((body) => body.includes("```plantuml"))) {
+    oneLink.push("a fence is left next to the link");
+  }
   out.push(
-    result(
+    scriptedResult(
+      sim,
       "plantuml-server turns the diagram into one image link on the chosen server and format",
-      linked,
+      [...linked, ...oneLink],
       `one ${SERVER}/png link that decodes to the model's source, no fence`,
+    ),
+    result(
+      "plantuml-server puts each link on the chosen server and format, and it decodes to the model's diagram",
+      linked,
+      `${links.length} ${SERVER}/png links, each decoding to a diagram the model wrote`,
     ),
   );
 
@@ -475,9 +532,6 @@ function localChecks(sim: Sim): CheckResult[] {
   const fromSetting: string[] = [];
   if (!storedChat || !chat || storedChat.system !== chat.system) {
     fromSetting.push("the request differs from --diagram-runtime=plantuml");
-  }
-  if (!bodiesOf(stored).some((body) => body.includes(fence(LOCAL_SOURCE)))) {
-    fromSetting.push("the fenced source is not in the output");
   }
   const repo = configRepo(sim, LOCAL_REPO_NAME);
   if (repo.diagramRuntime !== "plantuml") {
@@ -488,6 +542,14 @@ function localChecks(sim: Sim): CheckResult[] {
       "set --repo stores the runtime and a review without the flag uses it",
       fromSetting,
       "config.json has diagramRuntime plantuml, the request is the same as with the flag",
+    ),
+    scriptedResult(
+      sim,
+      "a review that uses the stored runtime keeps the model's fenced source",
+      bodiesOf(stored).some((body) => body.includes(fence(LOCAL_SOURCE)))
+        ? []
+        : ["the fenced source is not in the output"],
+      "the fence is in the output",
     ),
   );
 
@@ -534,6 +596,7 @@ function appChecks(sim: Sim): CheckResult[] {
     ),
   ];
   const problems: string[] = [];
+  const drawn: string[] = [];
   if (
     stored?.diagramRuntime !== "plantuml-server" ||
     stored.plantumlServer !== SERVER
@@ -541,24 +604,26 @@ function appChecks(sim: Sim): CheckResult[] {
     problems.push(`set --repo stored ${JSON.stringify(stored)}`);
   }
   if (posts.length !== 1) problems.push(`${posts.length} reviews posted`);
-  if (links.length !== 1)
-    problems.push(`${links.length} different image links posted`);
-  else {
-    const link = links[0]!;
+  for (const link of links) {
     if (!link.startsWith(`${SERVER}/svg/`)) problems.push(`link ${link}`);
     const source = decodeLink(link);
     if (source.includes(DRAWN_TOKEN) || source.includes("ghp_")) {
       problems.push("the link carries the token");
     }
+  }
+  if (links.length !== 1)
+    drawn.push(`${links.length} different image links posted`);
+  else {
+    const source = decodeLink(links[0]!);
     if (!source.includes("[redacted]")) {
-      problems.push("the link source does not show the redaction");
+      drawn.push("the link source does not show the redaction");
     }
     if (!source.includes("Caller -> divide : a / 0")) {
-      problems.push("the rest of the diagram is gone");
+      drawn.push("the rest of the diagram is gone");
     }
   }
   if (posted.includes("```plantuml") || posted.includes("```\\nplantuml")) {
-    problems.push("a fence was posted");
+    drawn.push("a fence was posted");
   }
   if (posted.includes(DRAWN_TOKEN) || /ghp_[A-Za-z0-9]{20,}/.test(posted)) {
     problems.push("the token was posted");
@@ -567,7 +632,7 @@ function appChecks(sim: Sim): CheckResult[] {
     (item) => item.step === APP.server && item.job === "review_pull_request",
   );
   if (!JSON.stringify(answer?.response ?? "").includes(DRAWN_TOKEN)) {
-    problems.push("the model never quoted the token, so this proves nothing");
+    drawn.push("the model never quoted the token, so this proves nothing");
   }
   if (!served) problems.push("no review request");
   else {
@@ -582,10 +647,17 @@ function appChecks(sim: Sim): CheckResult[] {
     }
   }
   out.push(
-    result(
+    scriptedResult(
+      sim,
       "an App review with plantuml-server posts an image link, no fence and no secret",
-      problems,
+      [...problems, ...drawn],
       "one review, one svg link on the chosen server, the token cut before it was encoded, PlantUML wording, no tools",
+      "the diagram, and the token it quotes, are the model's",
+    ),
+    result(
+      "an App review with plantuml-server posts one review, its links on the chosen server, and no token",
+      problems,
+      "one review, every link on the chosen server, no token in a link or a post, PlantUML wording, no tools",
     ),
   );
 
