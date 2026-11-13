@@ -391,11 +391,14 @@ async function initOrRemake(options: Options): Promise<void> {
   log("fetch", `${options.repo} via ${options.auth}`);
   const source = await timed("fetch repository data", options.logTime, () =>
     collectSource(client, options, previous, async (codebase) => {
+      // `instructionFiles` is set even when missing: it is checked against
+      // the blob SHAs saved here, so the old contents must not survive them.
       checkpoint.source = {
         ...checkpoint.source,
         tree: codebase.tree,
         treeSha: codebase.treeSha,
         files: codebase.files,
+        instructionFiles: codebase.instructionFiles,
       };
       await writeState(checkpoint);
     }),

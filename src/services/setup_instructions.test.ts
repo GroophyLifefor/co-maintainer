@@ -275,3 +275,28 @@ test("a sync of a repository with no instruction file prints, writes and asks no
     }
   });
 });
+
+test("a sync that fails after the codebase checkpoint does not leave old instruction text behind", async () => {
+  await withSandbox(async ({ dir, world, run }) => {
+    const runOptions = { includePullRequests: true };
+    // Run 1 reads A: the rule is on line 3.
+    const first = await run({ ...runOptions, command: "init" });
+    if (first.error) throw first.error;
+    // Upstream moves the rule to line 4 (content B, a new blob).
+    world.agents = `# Agent notes\n\nRun \`npm install\` first.\nEvery exported function in \`src/app.ts\` has a test.\n`;
+    world.agentsSha = "sha-agents-2";
+    // Run 2 stops after the codebase checkpoint was saved.
+    world.failPulls = true;
+    const second = await run({ ...runOptions, command: "remake" });
+    if (!second.error) throw new Error("run 2 was meant to fail");
+    // Run 3 must read B.
+    world.failPulls = false;
+    const third = await run({ ...runOptions, command: "remake" });
+    if (third.error) throw third.error;
+    const rules = parseRules(await readTextFile(`${dir}/RULES.json`));
+    const sources = JSON.stringify(rules?.rules.I1?.sources);
+    if (sources !== '[{"path":"AGENTS.md","line":4}]') {
+      throw new Error(`run 3 used old instruction text: ${sources}`);
+    }
+  });
+});

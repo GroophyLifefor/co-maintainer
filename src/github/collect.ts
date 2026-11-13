@@ -250,6 +250,16 @@ async function file(
   }
 }
 
+/** What the codebase fetch saves while it runs. `instructionFiles` is always
+ * named, even when missing: the blob SHAs it is checked against are saved in
+ * the same write, so a checkpoint never pairs new SHAs with old contents. */
+export type CodebaseCheckpoint = {
+  tree: string[];
+  treeSha: Record<string, string>;
+  files: Record<string, string>;
+  instructionFiles: Record<string, string> | undefined;
+};
+
 async function codebase(
   client: GitHubClient,
   repo: string,
@@ -257,11 +267,7 @@ async function codebase(
   concurrency: number,
   previous?: Source,
   phase?: FetchPhase,
-  progress?: (data: {
-    tree: string[];
-    treeSha: Record<string, string>;
-    files: Record<string, string>;
-  }) => Promise<void>,
+  progress?: (data: CodebaseCheckpoint) => Promise<void>,
   instructionPattern: RegExp | null = null,
 ): Promise<{
   tree: string[];
@@ -318,9 +324,20 @@ async function codebase(
     "fetch",
     `codebase · ${important.length} files · concurrency=${concurrency}`,
   );
+  // The instruction files are not read yet, so a checkpoint here saves none:
+  // a run that stops now reads them again rather than trusting old text under
+  // the new blob SHAs.
+  let instructionFiles: Record<string, string> | undefined;
   const checkpoint = () => {
     if (!progress) return Promise.resolve();
-    save = save.then(() => progress({ tree, treeSha, files: { ...files } }));
+    save = save.then(() =>
+      progress({
+        tree,
+        treeSha,
+        files: { ...files },
+        instructionFiles: instructionFiles && { ...instructionFiles },
+      }),
+    );
     return save;
   };
   await mapPool(important, concurrency, async (path) => {
@@ -370,7 +387,7 @@ async function codebase(
   // Nothing matched: no log line and no new state field, so a repository
   // without instruction files is fetched exactly as before.
   if (instructionPaths.length === 0) return { tree, treeSha, files };
-  const instructionFiles = await readInstructionFiles(
+  instructionFiles = await readInstructionFiles(
     client,
     repo,
     branch,
@@ -379,6 +396,7 @@ async function codebase(
     concurrency,
     previous,
   );
+  await checkpoint();
   return { tree, treeSha, files, instructionFiles };
 }
 
@@ -767,11 +785,7 @@ export async function collectSource(
   client: GitHubClient,
   options: Options,
   previous?: State,
-  codebaseProgress?: (data: {
-    tree: string[];
-    treeSha: Record<string, string>;
-    files: Record<string, string>;
-  }) => Promise<void>,
+  codebaseProgress?: (data: CodebaseCheckpoint) => Promise<void>,
 ): Promise<Source> {
   const phase: FetchPhase = { text: "reading repository metadata" };
   const stopHeartbeat = startHeartbeat(() => phase.text);
