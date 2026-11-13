@@ -191,9 +191,13 @@ async function resolveFailureNote(
   const noteId = existingNoteId(job);
   if (!noteId) return;
   try {
-    await post(github, `repos/${job.repo}/issues/comments/${noteId}`, {
-      body: REVIEWED_NOTE,
-    });
+    // An edit is a PATCH, the method the App's permission table names. A
+    // client without it (a test double) still gets the old POST.
+    const endpoint = `repos/${job.repo}/issues/comments/${noteId}`;
+    const body = { body: REVIEWED_NOTE };
+    await (github.patch
+      ? github.patch<Json>(endpoint, body)
+      : post(github, endpoint, body));
     setReviewStatus(reviewId, "posted", { note_comment_id: noteId });
   } catch (error) {
     log("info", `could not update the failure note: ${redact(String(error))}`);
