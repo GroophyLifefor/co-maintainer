@@ -279,6 +279,9 @@ export async function runLocalReview(
         // `canPrompt` adds the TTY and CI checks.
         interactive: !json && canPrompt(),
       });
+      // Ctrl-C at the install prompt or during the index: stop before the
+      // model call. The handler has released the lock.
+      if (interrupted()) return;
       extras.prepareCodegraphTools = () => Promise.resolve(codegraphPrep.tools);
       const stopHeartbeat = startHeartbeat("reviewing local changes");
       const started = performance.now();

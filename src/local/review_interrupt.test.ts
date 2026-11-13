@@ -6,7 +6,7 @@
  * only honest way to see this, so the test runs `main.ts` and sends SIGINT
  * while the model call is in flight.
  */
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { test } from "node:test";
 import { readDir, runtimeExecPath } from "../testing/runtime.ts";
 import { startFakeOpenRouter } from "../testing/fake_openrouter.ts";
@@ -108,3 +108,56 @@ for (const signal of ["SIGINT", "SIGTERM"] as const)
       }
     },
   );
+
+const hasScript =
+  process.platform === "linux" &&
+  spawnSync("script", ["--version"]).status === 0;
+
+test(
+  "Ctrl-C at the codegraph install prompt stops a local review before the model",
+  { skip: !hasScript && "needs util-linux script for a pseudo-terminal" },
+  async () => {
+    // A terminal, no CI and no codegraph installed: the review asks whether to
+    // install it. While readline holds the terminal, Ctrl-C is a key press.
+    const sandbox = await createLocalReviewSandbox();
+    const server = await startFakeOpenRouter("success");
+    const command = [runtimeExecPath(), ...sandbox.reviewArgs([], true)]
+      .map((arg) => `'${arg}'`)
+      .join(" ");
+    const child = spawn("script", ["-qfec", command, "/dev/null"], {
+      cwd: sandbox.worktree,
+      env: { ...sandbox.env(server.url), CI: undefined } as NodeJS.ProcessEnv,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let output = "";
+    child.stdout.on("data", (chunk: Buffer) => (output += chunk));
+    child.stderr.on("data", (chunk: Buffer) => (output += chunk));
+    const exited = new Promise<number | null>((resolve) =>
+      child.on("close", (code) => resolve(code)),
+    );
+    const timeout = setTimeout(() => child.kill("SIGKILL"), 30_000);
+    try {
+      await until("the install prompt", () => output.includes("[y/N]"));
+      child.stdin.write("\x03");
+      const code = await exited;
+      if (code !== 3) throw new Error(`exit ${code}, want 3:\n${output}`);
+      if (chatCalls(server.requests) !== 0) {
+        throw new Error(
+          `${chatCalls(server.requests)} model calls after Ctrl-C:\n${output}`,
+        );
+      }
+      if (output.includes("co-maintainer review ·")) {
+        throw new Error(`a report was printed after Ctrl-C:\n${output}`);
+      }
+      const locks = await lockFiles(sandbox.locksDir);
+      if (locks.length) {
+        throw new Error(`lock left behind: ${locks.join(", ")}\n${output}`);
+      }
+    } finally {
+      clearTimeout(timeout);
+      child.kill("SIGKILL");
+      await server.close();
+      await sandbox.cleanup();
+    }
+  },
+);

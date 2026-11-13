@@ -24,8 +24,9 @@ export type LocalReviewSandbox = {
   locksDir: string;
   /** The child's environment, with the AI calls sent to `openrouterUrl`. */
   env: (openrouterUrl: string) => Record<string, string | undefined>;
-  /** `main.ts review ...extra` as runtime arguments. */
-  reviewArgs: (extra?: string[]) => string[];
+  /** `main.ts review ...extra` as runtime arguments, with codegraph off
+   * unless `codegraph` is set. */
+  reviewArgs: (extra?: string[], codegraph?: boolean) => string[];
   cleanup: () => Promise<void>;
 };
 
@@ -111,11 +112,11 @@ export async function createLocalReviewSandbox(
       CM_FAKE_REVIEW_FILE: undefined,
       CI: "1",
     }),
-    reviewArgs: (extra = []) =>
+    reviewArgs: (extra = [], codegraph = false) =>
       runtimeRunArgs(join(projectRoot, "main.ts"), [
         "review",
         `--repo=${repo}`,
-        "--disable-codegraph",
+        ...(codegraph ? [] : ["--disable-codegraph"]),
         ...extra,
       ]),
     cleanup: () => removePath(home, { recursive: true }),
