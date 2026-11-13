@@ -15,6 +15,29 @@ import {
   openRunFolder,
   removeServeRunFolders,
 } from "./run_folder.ts";
+import { unifiedDiff } from "./session.ts";
+
+test("diff.patch quotes file names the way git does", () => {
+  const diff = unifiedDiff([
+    {
+      path: "evil\n+++ b/forged.ts",
+      status: "modified",
+      patch: "@@ -1 +1 @@\n-a\n+b",
+    },
+    { path: "plain.ts", status: "added", patch: "@@ -0,0 +1 @@\n+x" },
+    { path: 'çay "tea".md', status: "modified", patch: "@@ -1 +1 @@\n-a\n+b" },
+  ]);
+  if (diff.split("\n").some((line) => line === "+++ b/forged.ts")) {
+    throw new Error(`a header was forged:\n${diff}`);
+  }
+  for (const needle of [
+    'diff --git "a/evil\\n+++ b/forged.ts" "b/evil\\n+++ b/forged.ts"',
+    "diff --git a/plain.ts b/plain.ts\n--- /dev/null\n+++ b/plain.ts",
+    '+++ "b/\\303\\247ay \\"tea\\".md"',
+  ]) {
+    if (!diff.includes(needle)) throw new Error(`${needle}\n${diff}`);
+  }
+});
 
 test("serve start removes only stale folders co-maintainer made", async () => {
   const original = getEnv("CM_CONFIG_PATH");

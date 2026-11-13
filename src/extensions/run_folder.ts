@@ -23,6 +23,7 @@ import {
   remove,
   writeTextFile,
 } from "../util/runtime.ts";
+import { writeTextFileAtomic } from "../util/atomic.ts";
 import type { ReviewType } from "./registry.ts";
 
 export type RunOwner = "cli" | "serve";
@@ -136,8 +137,10 @@ export async function openRunFolder(input: {
   return folder;
 }
 
+/** Written through a temporary file and a rename: an extension that is
+ * already running may read it while it is rewritten. */
 async function writeDetails(folder: RunFolder): Promise<void> {
-  await writeTextFile(
+  await writeTextFileAtomic(
     folder.detailsPath,
     `${JSON.stringify(folder.details, null, 2)}\n`,
   );
@@ -172,7 +175,7 @@ export async function writeReviewResult(
   folder: RunFolder,
   result: unknown,
 ): Promise<void> {
-  await writeTextFile(
+  await writeTextFileAtomic(
     folder.reviewResultPath,
     `${JSON.stringify(result, null, 2)}\n`,
   );

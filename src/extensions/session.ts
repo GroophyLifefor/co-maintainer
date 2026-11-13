@@ -86,16 +86,51 @@ export type DiffFile = {
   patch: string;
 };
 
+const C_ESCAPES: Record<number, string> = {
+  7: "\\a",
+  8: "\\b",
+  9: "\\t",
+  10: "\\n",
+  11: "\\v",
+  12: "\\f",
+  13: "\\r",
+  34: '\\"',
+  92: "\\\\",
+};
+
+/** A path in a diff header, quoted the way git quotes it. A file name may
+ * hold a newline, and unquoted it could forge a `+++` header in the patch an
+ * extension reads. */
+export function quotePath(path: string): string {
+  const bytes = Buffer.from(path, "utf8");
+  if (
+    !bytes.some(
+      (byte) => byte < 32 || byte >= 127 || byte === 34 || byte === 92,
+    )
+  ) {
+    return path;
+  }
+  let out = "";
+  for (const byte of bytes) {
+    if (C_ESCAPES[byte]) out += C_ESCAPES[byte];
+    else if (byte < 32 || byte >= 127)
+      out += `\\${byte.toString(8).padStart(3, "0")}`;
+    else out += String.fromCharCode(byte);
+  }
+  return `"${out}"`;
+}
+
 /** A unified diff from the per-file patches every review type already has. */
 export function unifiedDiff(files: DiffFile[]): string {
   return files
     .map((file) => {
       const before = file.previousPath ?? file.path;
-      const oldName = file.status === "added" ? "/dev/null" : `a/${before}`;
+      const oldName =
+        file.status === "added" ? "/dev/null" : quotePath(`a/${before}`);
       const newName =
-        file.status === "removed" ? "/dev/null" : `b/${file.path}`;
+        file.status === "removed" ? "/dev/null" : quotePath(`b/${file.path}`);
       const body = file.patch.endsWith("\n") ? file.patch : `${file.patch}\n`;
-      return `diff --git a/${before} b/${file.path}\n--- ${oldName}\n+++ ${newName}\n${file.patch ? body : ""}`;
+      return `diff --git ${quotePath(`a/${before}`)} ${quotePath(`b/${file.path}`)}\n--- ${oldName}\n+++ ${newName}\n${file.patch ? body : ""}`;
     })
     .join("");
 }
