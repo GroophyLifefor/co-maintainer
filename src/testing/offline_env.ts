@@ -1,25 +1,23 @@
 /** Keeps an in-process test off the developer's machine state and off the
  * network. Shared by tests only.
  *
- * The cache, clone and home directories move into `dir`, so cache.db, clones,
- * worktrees and locks land there on Linux (XDG), Windows (LOCALAPPDATA) and
- * macOS (HOME). git may only use `file` URLs, and `https://github.com/` is
+ * The config, cache, clone and home directories move into `dir`, so
+ * config.json, cache.db, clones, worktrees and locks land there on Linux
+ * (XDG), Windows (APPDATA, LOCALAPPDATA) and macOS (HOME). git may only use `file` URLs, and `https://github.com/` is
  * rewritten to a directory that does not exist, so a clone the product starts
  * fails at once instead of reaching GitHub. `fetch` refuses every request and
  * records its URL in `fetched`, so a test can assert it made none. `restore`
  * puts the environment and `fetch` back. */
 import { pathToFileURL } from "node:url";
 import { deleteEnv, getEnv, setEnv } from "./runtime.ts";
+import { locationEnv } from "./locations.ts";
 
 export type OfflineEnv = { fetched: string[]; restore: () => void };
 
 export function offlineEnv(dir: string): OfflineEnv {
   const values: Record<string, string> = {
     CM_CLONES_DIR: `${dir}/clones`,
-    XDG_CACHE_HOME: `${dir}/cache`,
-    LOCALAPPDATA: `${dir}/cache`,
-    HOME: dir,
-    USERPROFILE: dir,
+    ...locationEnv(dir),
     GIT_CONFIG_COUNT: "1",
     GIT_CONFIG_KEY_0: `url.${pathToFileURL(`${dir}/no-github`).href}/.insteadOf`,
     GIT_CONFIG_VALUE_0: "https://github.com/",
