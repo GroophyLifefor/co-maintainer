@@ -42,13 +42,38 @@ export type InlineComment = {
   start_side?: "RIGHT";
 };
 
+/** At most this many extension comments go inline in one review. The rest
+ * join the summary list. A linter run over a generated pull request can
+ * return thousands, and GitHub refuses a review that size. */
+export const MAX_INLINE_EXTENSION_COMMENTS = 50;
+
+/** At most this many extension findings are listed in the summary, then one
+ * "and N more" line points at the dashboard, which keeps every one. */
+export const MAX_LISTED_EXTENSION_FINDINGS = 50;
+
+/** A title is one line in a list: longer ones are cut. */
+export const MAX_TITLE_CHARS = 200;
+
+/** An inline comment's body past this is cut. */
+export const MAX_INLINE_BODY_CHARS = 4_000;
+
+/** Text cut to `max` characters, ending in an ellipsis when it was cut. */
+export function cut(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+/** A title as one line of a list. */
+function titleLine(title: string): string {
+  return cut(title.replace(/\s+/g, " ").trim(), MAX_TITLE_CHARS);
+}
+
 function inlineBody(
   report: ExtensionReport,
   finding: ExtensionFinding,
   copy: Copy,
 ): string {
-  const body = copy(finding.body).trim();
-  return `${extensionLabel(report, finding)}\n\n**${copy(finding.title)}**${body ? `\n\n${body}` : ""}`;
+  const body = copy(cut(finding.body, MAX_INLINE_BODY_CHARS)).trim();
+  return `${extensionLabel(report, finding)}\n\n**${copy(titleLine(finding.title))}**${body ? `\n\n${body}` : ""}`;
 }
 
 /** Splits the findings still standing into inline comments and the ones the
@@ -74,7 +99,11 @@ export function splitExtensionFindings(
       finding.state === "new" && patch !== undefined && finding.lineFrom
         ? anchorFor(patch, finding.lineFrom, finding.lineTo ?? finding.lineFrom)
         : undefined;
-    if (!anchor || !finding.path) {
+    if (
+      !anchor ||
+      !finding.path ||
+      comments.length >= MAX_INLINE_EXTENSION_COMMENTS
+    ) {
       listed.push(finding);
       continue;
     }
@@ -134,47 +163,51 @@ export function reviewBodyWithExtensions(
       "The AI review found nothing to fix.",
     );
   }
-  const parts: string[] = [];
-  if (listed.length > 0) {
-    parts.push(
-      [
-        `Extension findings (${listed.length})`,
-        ...listed.map((row) => {
-          const where = locationOf(row);
-          return `- ${extensionLabel(report, row)}: ${copy(row.title)}${where ? ` (${copy(where)})` : ""}${row.state === "open" ? " (still open)" : ""}`;
-        }),
-      ].join("\n"),
-    );
-  }
-  const failed = namesWith(report, "failed");
-  if (failed.length > 0) {
-    parts.push(
-      failed
-        .map(
-          (name) =>
-            `${name} extension failed, you can see details in dashboard`,
-        )
-        .join("\n"),
-    );
-  }
+  const listBlock = (shown: number): string => {
+    if (listed.length === 0) return "";
+    const lines = [
+      `Extension findings (${listed.length})`,
+      ...listed.slice(0, shown).map((row) => {
+        const where = locationOf(row);
+        return `- ${extensionLabel(report, row)}: ${copy(titleLine(row.title))}${where ? ` (${copy(cut(where, MAX_TITLE_CHARS))})` : ""}${row.state === "open" ? " (still open)" : ""}`;
+      }),
+    ];
+    const more = listed.length - shown;
+    if (more > 0) lines.push(`- and ${more} more, see the dashboard`);
+    return lines.join("\n");
+  };
+  const failures = namesWith(report, "failed")
+    .map((name) => `${name} extension failed, you can see details in dashboard`)
+    .join("\n");
   const withMetadata = metadata.replace(
     /\n<\/details>$/,
     `\n${extensionMetadataLines(report).join("\n")}\n</details>`,
   );
-  return fitMarkdowns(
-    report,
-    (markdowns) => {
-      const section = extensionsSection(report, markdowns);
-      const sanitized = section ? copy(section) : "";
-      return (
-        [summary, ...parts, ...(sanitized ? [sanitized] : [])].join("\n\n") +
-        withMetadata
-      );
-    },
-    REVIEW_BODY_MAX_CHARS,
-    (text) => text.length,
-    REVIEW_LIMIT_NOTE,
-  );
+  const render = (shown: number) =>
+    fitMarkdowns(
+      report,
+      (markdowns) => {
+        const section = extensionsSection(report, markdowns);
+        const sanitized = section ? copy(section) : "";
+        return (
+          [summary, listBlock(shown), failures, sanitized]
+            .filter((part) => part !== "")
+            .join("\n\n") + withMetadata
+        );
+      },
+      REVIEW_BODY_MAX_CHARS,
+      (text) => text.length,
+      REVIEW_LIMIT_NOTE,
+    );
+  // Every markdown dropped and still too long: the list gets shorter too,
+  // down to its "and N more" line. The AI review is never cut.
+  let shown = Math.min(listed.length, MAX_LISTED_EXTENSION_FINDINGS);
+  let text = render(shown);
+  while (text.length > REVIEW_BODY_MAX_CHARS && shown > 0) {
+    shown = Math.floor(shown / 2);
+    text = render(shown);
+  }
+  return text;
 }
 
 /** One extension's `request_changes` makes the review Request changes. A

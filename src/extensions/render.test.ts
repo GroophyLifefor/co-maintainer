@@ -2,7 +2,11 @@
 import { test } from "node:test";
 import { buildReport, type ExtensionReport } from "./report.ts";
 import type { ExtensionResult } from "./runner.ts";
-import { reviewBodyWithExtensions } from "./render_review.ts";
+import {
+  MAX_INLINE_EXTENSION_COMMENTS,
+  reviewBodyWithExtensions,
+  splitExtensionFindings,
+} from "./render_review.ts";
 import {
   JOB_SUMMARY_LIMIT_NOTE,
   JOB_SUMMARY_MAX_BYTES,
@@ -277,4 +281,55 @@ test("a remote result splits back into AI findings and extensions", () => {
   if (old.report.results.length !== 0 || old.aiFindings.length !== 1) {
     throw new Error("an older server's result was misread");
   }
+});
+
+test("thousands of findings: inline comments are capped and the body fits with an and-more line", () => {
+  const many = (located: boolean) =>
+    buildReport([
+      result({
+        name: "lint",
+        markdown: "m".repeat(100_000),
+        findings: Array.from({ length: 5_000 }, (_, index) => ({
+          severity: "P3" as const,
+          blocking: false,
+          title: `Finding ${index} ${"t".repeat(300)}`,
+          body: "b".repeat(10_000),
+          ...(located ? { path: "a.ts", lineFrom: 1 } : {}),
+        })),
+      }),
+    ]);
+  const files = [{ filename: "a.ts", patch: "@@ -1 +1 @@\n-a\n+b" }];
+  const onDiff = many(true);
+  const split = splitExtensionFindings(onDiff, files, (text) => text);
+  if (split.comments.length !== MAX_INLINE_EXTENSION_COMMENTS) {
+    throw new Error(`${split.comments.length} inline comments`);
+  }
+  if (split.comments.some((comment) => comment.body.length > 5_000)) {
+    throw new Error("an inline body was not cut");
+  }
+  const offDiff = many(false);
+  const listed = splitExtensionFindings(offDiff, files, (text) => text).listed;
+  const body = reviewBodyWithExtensions(AI_BODY, offDiff, listed, (t) => t);
+  if (body.length > REVIEW_BODY_MAX_CHARS) throw new Error(`${body.length}`);
+  if (!body.includes("- and 4950 more, see the dashboard")) {
+    throw new Error(body.slice(0, 2_000));
+  }
+  if (!body.startsWith("Review summary\n\nNew (1)\n- finding")) {
+    throw new Error("the AI review changed");
+  }
+  // A body that only fits with a shorter list still keeps the AI review.
+  const tight = reviewBodyWithExtensions(
+    `${"A".repeat(240_000)}${AI_BODY}`,
+    offDiff,
+    listed,
+    (t) => t,
+  );
+  if (
+    tight.length > REVIEW_BODY_MAX_CHARS ||
+    !tight.startsWith("A".repeat(240_000))
+  ) {
+    throw new Error(`tight body ${tight.length}`);
+  }
+  if (!tight.includes("more, see the dashboard"))
+    throw new Error("no and-more line");
 });
