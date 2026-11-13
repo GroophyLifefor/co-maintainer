@@ -53,6 +53,7 @@
           <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           <li><a href="commit-watch-review.html">Commit watch review</a></li>
+          <li><a href="extensions.html">Extensions</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -149,9 +150,14 @@ is the safe default.</p>
 <td>Pass <code>--github-pat=...</code>, set <code>GITHUB_TOKEN</code> or <code>GH_TOKEN</code>, or <code>co-maintainer set --github-pat=...</code></td>
 </tr>
 <tr>
-<td><code>repos/owner/repo/PR_REVIEW_GUIDE.md was not found</code></td>
-<td>Review without guides</td>
-<td>Run <a href="init.html"><code>init</code></a> for that repo, or <a href="sync.html"><code>sync</code></a> if it was inited before</td>
+<td><code>Review guides are missing for owner/repo</code></td>
+<td>A review of a repository that has no guides. The code is <code>not_initialized</code>, in local, PR and remote review and in every output</td>
+<td>Run <a href="init.html"><code>init</code></a> for that repo, or <a href="sync.html"><code>sync</code></a> if it was inited before. For <code>--remote</code> the text ends <code>on &lt;host&gt;</code> and the guides live on that server, so run <code>init</code> there. See <a href="review.html#a-repository-without-guides">Errors</a></td>
+</tr>
+<tr>
+<td><code>The server at &lt;host&gt; does not have owner/repo available for review</code></td>
+<td><code>review --remote</code> named a repository the server does not know, or one that is switched off. The code is <code>repo_unavailable</code></td>
+<td>Check the <code>owner/repo</code> name, or add the repository on that server first</td>
 </tr>
 <tr>
 <td><code>Unknown command</code> / <code>Unknown option</code></td>
@@ -247,6 +253,11 @@ is the safe default.</p>
 <td><code>remote-token is empty</code></td>
 <td>The GitHub Action had no token, which is what a fork pull request gets</td>
 <td>See <a href="ci.html#pull-requests-from-forks">CI</a></td>
+</tr>
+<tr>
+<td><code>Extensions are turned off on this machine (CM_EXTENSIONS_DISABLED=1).</code></td>
+<td><code>extension register</code> or <code>extension debug-run</code> with the off switch set</td>
+<td>Unset <code>CM_EXTENSIONS_DISABLED</code>. The hosted cloud sets it on purpose, see <a href="cloud.html#extensions-are-off">Cloud</a></td>
 </tr>
 <tr>
 <td><code>Nothing to set</code></td>

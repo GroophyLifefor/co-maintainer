@@ -58,12 +58,14 @@ co-maintainer init owner/repo [options]
 | `--include-pull-request-changes` |  | Read the diffs of those pull requests. |
 | `--include-commit-history` |  | Read commit history. |
 | `--include-how-repo-works` |  | Read the docs and layout. |
+| `--agent-instructions=REGEX` | (^\|/)AGENTS\.md$ | Paths on the default branch to read as agent instruction files for INSTRUCTIONS.md. Needs --include-codebase. A blank value turns it off. Saved for later syncs. |
 
 ### Limits
 
 | Flag | Default | Description |
 |---|---|---|
 | `--max-commits=N` | all | Cap how many commits are read. |
+| `--agent-instructions-max-chars=N` | 6000 | Cap on INSTRUCTIONS.md in characters. 0 or below means no limit. Saved for later syncs. |
 | `--max-pr-months=N` | all | Cap how far back pull requests are read. |
 | `--max-pull-request-change-lines=N` | all | Cap the diff size read. |
 | `--max-comment=N` |  | Cap the comments read per pull request. |
@@ -131,12 +133,14 @@ co-maintainer sync owner/repo [options]
 | `--include-pull-request-changes` |  | Read the diffs of those pull requests. |
 | `--include-commit-history` |  | Read commit history. |
 | `--include-how-repo-works` |  | Read the docs and layout. |
+| `--agent-instructions=REGEX` |  | Paths on the default branch to read as agent instruction files for INSTRUCTIONS.md. Needs --include-codebase. A blank value turns it off. Left out, the last run's value is kept. |
 
 ### Limits
 
 | Flag | Default | Description |
 |---|---|---|
 | `--max-commits=N` |  | Cap how many commits are read. |
+| `--agent-instructions-max-chars=N` |  | Cap on INSTRUCTIONS.md in characters. 0 or below means no limit. Left out, the last run's value is kept. |
 | `--max-pr-months=N` |  | Cap how far back pull requests are read. |
 | `--max-pull-request-change-lines=N` |  | Cap the diff size read. |
 | `--max-comment=N` |  | Cap the comments read per pull request. |
@@ -224,6 +228,20 @@ co-maintainer review [options]
 | `--range=BEFORE..AFTER` |  | With --remote: review a push (commit watch). The server keeps the review going if this run stops waiting. |
 | `--timeout-minutes=N` |  | With --range: stop waiting after N minutes and leave the result to the dashboard. Default 10. |
 
+### Intent
+
+| Flag | Default | Description |
+|---|---|---|
+| `--intent-file=PATH` |  | Tell the review what the change is for, from a file or from standard input with -. It is context only, never a rule. Up to the repository's custom prompt cap. Not with --range. |
+
+### Diagrams
+
+| Flag | Default | Description |
+|---|---|---|
+| `--diagram-runtime=mermaid\|plantuml\|plantuml-server` | mermaid | The diagram language the review uses. plantuml keeps the PlantUML source. plantuml-server turns it into an image link on a PlantUML server. Not with --remote. |
+| `--plantuml-server=URL` | https://www.plantuml.com | The PlantUML server for plantuml-server. An http or https URL. The diagram source travels in the image link. |
+| `--plantuml-output-format=svg\|png` | svg | The image format for plantuml-server. |
+
 ### AI
 
 | Flag | Default | Description |
@@ -255,6 +273,7 @@ co-maintainer review [options]
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
 | `--output=github` |  | Print GitHub workflow annotations and write the job summary instead of prose. Cannot be used with --json. |
+| `--include-extension-markdowns` |  | With --json, keep each extension's markdown. It is empty otherwise. |
 
 ## `co-maintainer config`
 
@@ -282,6 +301,7 @@ Print the guides co-maintainer generated for a repository.
 co-maintainer view [owner/repo] [guide]
 co-maintainer view [owner/repo] --list
 co-maintainer view [owner/repo] --path
+co-maintainer view [owner/repo] --sources [--json]
 ```
 
 ### Guides
@@ -289,6 +309,8 @@ co-maintainer view [owner/repo] --path
 | Flag | Default | Description |
 |---|---|---|
 | `--list` |  | List the guide files with their size and build date. |
+| `--sources` |  | List every instruction rule by id, with the instruction file lines it came from. |
+| `--json` |  | With --sources, print RULES.json as it is. |
 | `--path` |  | Print the directory the guides live in. |
 | `--remote` |  | Read the guides from the configured remote review server instead. |
 
@@ -388,9 +410,14 @@ co-maintainer set [options]
 | `--ai-concurrent=N` |  | Server default for concurrent AI calls. With --repo, the repository override. 1..16. |
 | `--review-system-prompt=TEXT` |  | A repository's own review instructions. Needs --repo. Empty clears it. |
 | `--review-system-prompt-max-chars=N` |  | Cap the repository's review instructions in characters. Needs --repo. 0 or -1 means no limit. |
+| `--diagram-runtime=mermaid\|plantuml\|plantuml-server` | mermaid | The diagram language for a repository's reviews, including App reviews. Needs --repo. |
+| `--plantuml-server=URL` | https://www.plantuml.com | The PlantUML server for plantuml-server. An http or https URL. Needs --repo. |
+| `--plantuml-output-format=svg\|png` | svg | The image format for plantuml-server. Needs --repo. |
+| `--review-read-diff-max-chars=N` | 20000 | The most characters one read-full-diff answer returns in a review of this repository. Needs --repo. 0 or -1 means no limit. |
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |
 | `--codegraph-version=SEMVER` |  | The pinned codegraph version, overriding the built-in one. For a security fix without a release. |
 | `--password=TEXT` |  | Replace the dashboard password. |
+| `--extension-rerun-on-restart=true\|false` | true | Run an extension again when co-maintainer restarted while it ran. A registration's --rerun-on-restart wins. |
 | `--disable-auth=password` |  | Turn the dashboard password off. |
 | `--enable-auth=github` |  | Turn GitHub sign-in on. |
 | `--no-verify` |  | Do not check the key and model against the provider. |
@@ -422,6 +449,54 @@ co-maintainer serve --port=N [options]
 |---|---|---|
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+
+## `co-maintainer extension`
+
+Register external commands whose results join every review.
+
+```
+co-maintainer extension register --name=NAME --command=COMMAND [options]
+co-maintainer extension update --name=NAME [options]
+co-maintainer extension list [--json]
+co-maintainer extension remove --name=NAME
+co-maintainer extension disable --name=NAME
+co-maintainer extension enable --name=NAME
+co-maintainer extension debug-run --name=NAME [--command=COMMAND]
+```
+
+### Extension
+
+| Flag | Default | Description |
+|---|---|---|
+| `--name=NAME` |  | The extension's name. Required. |
+| `--command=COMMAND` |  | The shell command to run. {{details_path}}, {{review_result_path}} and {{diff_path}} are replaced with quoted paths. Required for register. |
+| `--repos=PATTERNS` | * | Where it runs: owner/repo, a/b,a/c, a/*, */a or *. |
+| `--review-types=local,pr,remote` | all | Only run in these review types. The extension can also check the type itself and return skipped. |
+
+### Order
+
+| Flag | Default | Description |
+|---|---|---|
+| `--run-after=NAME\|review` |  | Start when this extension, or the AI review, has finished. A name nobody registered asks first. |
+| `--parallelism=true\|false` | true | false with no --run-after means it runs after the review. |
+| `--priority=0-3` | 0 | Start order among extensions ready at the same time. 3 runs first, ties keep registration order. |
+| `--fail-fast` |  | On failure, the extensions waiting on this one through --run-after do not run. |
+
+### Retries and limits
+
+| Flag | Default | Description |
+|---|---|---|
+| `--retry-on-fail-times=N` | 0 | Run again when the response does not match the schema. |
+| `--max-requested-retries=N` | 3 | How many status retry responses are honoured. |
+| `--timeout=DURATION` | 10m | Stop a run after this long, such as 30s, 10m or 1h. The result is Failed. |
+| `--rerun-on-restart=true\|false` | true | Run again when co-maintainer restarted mid-run. Overrides the extension-rerun-on-restart config key. |
+| `--yes` |  | Save a --run-after that names an unregistered extension without asking. |
+
+### Output
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | With list, print the registrations as JSON. |
 
 ## `co-maintainer rollback`
 

@@ -53,6 +53,7 @@
           <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           <li><a href="commit-watch-review.html">Commit watch review</a></li>
+          <li><a href="extensions.html">Extensions</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -217,6 +218,11 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td></td>
 <td>Read the docs and layout.</td>
 </tr>
+<tr>
+<td><code>--agent-instructions=REGEX</code></td>
+<td>(^|/)AGENTS.md$</td>
+<td>Paths on the default branch to read as agent instruction files for INSTRUCTIONS.md. Needs --include-codebase. A blank value turns it off. Saved for later syncs.</td>
+</tr>
 </tbody></table>
 <h3 id="limits-2">Limits</h3>
 <table>
@@ -231,6 +237,11 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td><code>--max-commits=N</code></td>
 <td>all</td>
 <td>Cap how many commits are read.</td>
+</tr>
+<tr>
+<td><code>--agent-instructions-max-chars=N</code></td>
+<td>6000</td>
+<td>Cap on INSTRUCTIONS.md in characters. 0 or below means no limit. Saved for later syncs.</td>
 </tr>
 <tr>
 <td><code>--max-pr-months=N</code></td>
@@ -426,6 +437,11 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td></td>
 <td>Read the docs and layout.</td>
 </tr>
+<tr>
+<td><code>--agent-instructions=REGEX</code></td>
+<td></td>
+<td>Paths on the default branch to read as agent instruction files for INSTRUCTIONS.md. Needs --include-codebase. A blank value turns it off. Left out, the last run&#39;s value is kept.</td>
+</tr>
 </tbody></table>
 <h3 id="limits-3">Limits</h3>
 <table>
@@ -440,6 +456,11 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td><code>--max-commits=N</code></td>
 <td></td>
 <td>Cap how many commits are read.</td>
+</tr>
+<tr>
+<td><code>--agent-instructions-max-chars=N</code></td>
+<td></td>
+<td>Cap on INSTRUCTIONS.md in characters. 0 or below means no limit. Left out, the last run&#39;s value is kept.</td>
 </tr>
 <tr>
 <td><code>--max-pr-months=N</code></td>
@@ -697,6 +718,46 @@ co-maintainer review [options]
 <td>With --range: stop waiting after N minutes and leave the result to the dashboard. Default 10.</td>
 </tr>
 </tbody></table>
+<h3 id="intent">Intent</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--intent-file=PATH</code></td>
+<td></td>
+<td>Tell the review what the change is for, from a file or from standard input with -. It is context only, never a rule. Up to the repository&#39;s custom prompt cap. Not with --range.</td>
+</tr>
+</tbody></table>
+<h3 id="diagrams">Diagrams</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--diagram-runtime=mermaid|plantuml|plantuml-server</code></td>
+<td>mermaid</td>
+<td>The diagram language the review uses. plantuml keeps the PlantUML source. plantuml-server turns it into an image link on a PlantUML server. Not with --remote.</td>
+</tr>
+<tr>
+<td><code>--plantuml-server=URL</code></td>
+<td><a href="https://www.plantuml.com">https://www.plantuml.com</a></td>
+<td>The PlantUML server for plantuml-server. An http or https URL. The diagram source travels in the image link.</td>
+</tr>
+<tr>
+<td><code>--plantuml-output-format=svg|png</code></td>
+<td>svg</td>
+<td>The image format for plantuml-server.</td>
+</tr>
+</tbody></table>
 <h3 id="ai-3">AI</h3>
 <table>
 <thead>
@@ -796,6 +857,11 @@ co-maintainer review [options]
 <td></td>
 <td>Print GitHub workflow annotations and write the job summary instead of prose. Cannot be used with --json.</td>
 </tr>
+<tr>
+<td><code>--include-extension-markdowns</code></td>
+<td></td>
+<td>With --json, keep each extension&#39;s markdown. It is empty otherwise.</td>
+</tr>
 </tbody></table>
 <h2 id="co-maintainer-config"><code>co-maintainer config</code></h2>
 <p>Read and edit the user config without opening the file.</p>
@@ -825,6 +891,7 @@ co-maintainer config path [--all]
 <pre><code>co-maintainer view [owner/repo] [guide]
 co-maintainer view [owner/repo] --list
 co-maintainer view [owner/repo] --path
+co-maintainer view [owner/repo] --sources [--json]
 </code></pre>
 <h3 id="guides">Guides</h3>
 <table>
@@ -839,6 +906,16 @@ co-maintainer view [owner/repo] --path
 <td><code>--list</code></td>
 <td></td>
 <td>List the guide files with their size and build date.</td>
+</tr>
+<tr>
+<td><code>--sources</code></td>
+<td></td>
+<td>List every instruction rule by id, with the instruction file lines it came from.</td>
+</tr>
+<tr>
+<td><code>--json</code></td>
+<td></td>
+<td>With --sources, print RULES.json as it is.</td>
 </tr>
 <tr>
 <td><code>--path</code></td>
@@ -1086,6 +1163,26 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td>Cap the repository&#39;s review instructions in characters. Needs --repo. 0 or -1 means no limit.</td>
 </tr>
 <tr>
+<td><code>--diagram-runtime=mermaid|plantuml|plantuml-server</code></td>
+<td>mermaid</td>
+<td>The diagram language for a repository&#39;s reviews, including App reviews. Needs --repo.</td>
+</tr>
+<tr>
+<td><code>--plantuml-server=URL</code></td>
+<td><a href="https://www.plantuml.com">https://www.plantuml.com</a></td>
+<td>The PlantUML server for plantuml-server. An http or https URL. Needs --repo.</td>
+</tr>
+<tr>
+<td><code>--plantuml-output-format=svg|png</code></td>
+<td>svg</td>
+<td>The image format for plantuml-server. Needs --repo.</td>
+</tr>
+<tr>
+<td><code>--review-read-diff-max-chars=N</code></td>
+<td>20000</td>
+<td>The most characters one read-full-diff answer returns in a review of this repository. Needs --repo. 0 or -1 means no limit.</td>
+</tr>
+<tr>
 <td><code>--review-blocking=model|severity</code></td>
 <td>model</td>
 <td>How a review decides a blocking finding.</td>
@@ -1099,6 +1196,11 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td><code>--password=TEXT</code></td>
 <td></td>
 <td>Replace the dashboard password.</td>
+</tr>
+<tr>
+<td><code>--extension-rerun-on-restart=true|false</code></td>
+<td>true</td>
+<td>Run an extension again when co-maintainer restarted while it ran. A registration&#39;s --rerun-on-restart wins.</td>
 </tr>
 <tr>
 <td><code>--disable-auth=password</code></td>
@@ -1190,6 +1292,126 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td>Print how long each phase took.</td>
 </tr>
 </tbody></table>
+<h2 id="co-maintainer-extension"><code>co-maintainer extension</code></h2>
+<p>Register external commands whose results join every review.</p>
+<pre><code>co-maintainer extension register --name=NAME --command=COMMAND [options]
+co-maintainer extension update --name=NAME [options]
+co-maintainer extension list [--json]
+co-maintainer extension remove --name=NAME
+co-maintainer extension disable --name=NAME
+co-maintainer extension enable --name=NAME
+co-maintainer extension debug-run --name=NAME [--command=COMMAND]
+</code></pre>
+<h3 id="extension">Extension</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--name=NAME</code></td>
+<td></td>
+<td>The extension&#39;s name. Required.</td>
+</tr>
+<tr>
+<td><code>--command=COMMAND</code></td>
+<td></td>
+<td>The shell command to run. {{details_path}}, {{review_result_path}} and {{diff_path}} are replaced with quoted paths. Required for register.</td>
+</tr>
+<tr>
+<td><code>--repos=PATTERNS</code></td>
+<td>*</td>
+<td>Where it runs: owner/repo, a/b,a/c, a/*, */a or *.</td>
+</tr>
+<tr>
+<td><code>--review-types=local,pr,remote</code></td>
+<td>all</td>
+<td>Only run in these review types. The extension can also check the type itself and return skipped.</td>
+</tr>
+</tbody></table>
+<h3 id="order">Order</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--run-after=NAME|review</code></td>
+<td></td>
+<td>Start when this extension, or the AI review, has finished. A name nobody registered asks first.</td>
+</tr>
+<tr>
+<td><code>--parallelism=true|false</code></td>
+<td>true</td>
+<td>false with no --run-after means it runs after the review.</td>
+</tr>
+<tr>
+<td><code>--priority=0-3</code></td>
+<td>0</td>
+<td>Start order among extensions ready at the same time. 3 runs first, ties keep registration order.</td>
+</tr>
+<tr>
+<td><code>--fail-fast</code></td>
+<td></td>
+<td>On failure, the extensions waiting on this one through --run-after do not run.</td>
+</tr>
+</tbody></table>
+<h3 id="retries-and-limits">Retries and limits</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--retry-on-fail-times=N</code></td>
+<td>0</td>
+<td>Run again when the response does not match the schema.</td>
+</tr>
+<tr>
+<td><code>--max-requested-retries=N</code></td>
+<td>3</td>
+<td>How many status retry responses are honoured.</td>
+</tr>
+<tr>
+<td><code>--timeout=DURATION</code></td>
+<td>10m</td>
+<td>Stop a run after this long, such as 30s, 10m or 1h. The result is Failed.</td>
+</tr>
+<tr>
+<td><code>--rerun-on-restart=true|false</code></td>
+<td>true</td>
+<td>Run again when co-maintainer restarted mid-run. Overrides the extension-rerun-on-restart config key.</td>
+</tr>
+<tr>
+<td><code>--yes</code></td>
+<td></td>
+<td>Save a --run-after that names an unregistered extension without asking.</td>
+</tr>
+</tbody></table>
+<h3 id="output">Output</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--json</code></td>
+<td></td>
+<td>With list, print the registrations as JSON.</td>
+</tr>
+</tbody></table>
 <h2 id="co-maintainer-rollback"><code>co-maintainer rollback</code></h2>
 <p>Go back to the version before the last upgrade, restoring its data.</p>
 <pre><code>co-maintainer rollback [--yes]
@@ -1223,7 +1445,7 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#co-maintainer-probe">co-maintainer probe</a></li><li><a href="#co-maintainer-init">co-maintainer init</a></li><li><a href="#co-maintainer-sync">co-maintainer sync</a></li><li><a href="#co-maintainer-review">co-maintainer review</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#co-maintainer-view">co-maintainer view</a></li><li><a href="#co-maintainer-clear">co-maintainer clear</a></li><li><a href="#co-maintainer-uninstall">co-maintainer uninstall</a></li><li><a href="#co-maintainer-oauth">co-maintainer oauth</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-serve">co-maintainer serve</a></li><li><a href="#co-maintainer-rollback">co-maintainer rollback</a></li><li><a href="#co-maintainer-version">co-maintainer version</a></li></ul></nav>
+      <ul><li><a href="#co-maintainer-probe">co-maintainer probe</a></li><li><a href="#co-maintainer-init">co-maintainer init</a></li><li><a href="#co-maintainer-sync">co-maintainer sync</a></li><li><a href="#co-maintainer-review">co-maintainer review</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#co-maintainer-view">co-maintainer view</a></li><li><a href="#co-maintainer-clear">co-maintainer clear</a></li><li><a href="#co-maintainer-uninstall">co-maintainer uninstall</a></li><li><a href="#co-maintainer-oauth">co-maintainer oauth</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-serve">co-maintainer serve</a></li><li><a href="#co-maintainer-extension">co-maintainer extension</a></li><li><a href="#co-maintainer-rollback">co-maintainer rollback</a></li><li><a href="#co-maintainer-version">co-maintainer version</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

@@ -53,6 +53,7 @@
           <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           <li><a href="commit-watch-review.html">Commit watch review</a></li>
+          <li><a href="extensions.html">Extensions</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -190,6 +191,38 @@ reviews pushes to each repository&#39;s default branch only.</p>
 <p><code>installation</code> and <code>installation_repositories</code> are handled too, but they are
 <strong>not</strong> in the subscription list: GitHub delivers both to every App without a
 subscription, which is why the webhook handler accepts them.</p>
+<h2 id="diagrams-in-app-reviews">Diagrams in App reviews</h2>
+<p>An App review has no command line, so it reads the diagram settings saved for the
+repository: <code>co-maintainer set --repo=owner/repo --diagram-runtime=...</code>. With
+<code>plantuml-server</code> the diagram source of a private repository is in a URL that
+readers&#39; browsers send to that server, see
+<a href="review.html#with-plantuml-server-the-diagram-source-leaves-your-machine">Diagrams</a>.
+See <a href="configuration.html#diagram-settings">Configuration</a> for the settings and for
+what happens to a bad stored value.</p>
+<h2 id="extensions-in-app-reviews">Extensions in App reviews</h2>
+<p>An App review runs the <a href="extensions.html">extensions</a> registered on this <code>serve</code>
+host, and the review body shows their results.</p>
+<ul>
+<li>A finding on a diff line is posted inline, headed
+<code>[P1 · blocking] · extension: NAME</code>. A finding off the diff goes in the summary
+list. At most 50 extension comments go inline and 50 findings are listed, then
+<code>- and N more, see the dashboard</code>. A title is cut at 200 characters in the list
+and a body at 4,000 characters inline.</li>
+<li>An <code>#### Extensions</code> section comes before Metadata, with each extension&#39;s
+Markdown in a <code>&lt;details&gt;</code> block. Metadata gains <code>- Extensions: [..]</code>,
+<code>- Failed Extensions: [..]</code>, <code>- Skipped Extensions: [..]</code> and
+<code>- Requested changes: [..]</code>.</li>
+<li>A failed extension is named as &quot;NAME extension failed, you can see details in
+dashboard&quot;. It never blocks the review.</li>
+<li>One extension&#39;s <code>request_changes</code> makes the review type Request changes.</li>
+<li>The review body stays under 250,000 characters. Over that, the longest
+extension Markdown is replaced with &quot;Not added to this comment because of the
+length limit, see the dashboard.&quot;, then the next longest, until it fits. The AI
+review is never cut.</li>
+<li><code>serve</code> removes the extension run folders of jobs that are not running when it
+starts, and only folders co-maintainer made.</li>
+</ul>
+<p><code>CM_EXTENSIONS_DISABLED=1</code> on the host turns all of this off.</p>
 <h2 id="manual-setup">Manual setup</h2>
 <p>If you would rather create the App by hand, use the same values:</p>
 <pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-app-id=...</span> <span class="sh-flag">--github-app-private-key-path=./app.pem</span>
@@ -245,7 +278,7 @@ See <a href="dashboard.html#webhook-reachability">Dashboard: Webhook reachabilit
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#create-it-from-the-dashboard">Create it from the dashboard</a></li><li><a href="#install-it-on-repositories">Install it on repositories</a></li><li><a href="#permissions">Permissions</a></li><li><a href="#events">Events</a></li><li><a href="#manual-setup">Manual setup</a></li><li><a href="#rotating-and-moving-the-key">Rotating and moving the key</a></li><li><a href="#troubleshooting">Troubleshooting</a></li></ul></nav>
+      <ul><li><a href="#create-it-from-the-dashboard">Create it from the dashboard</a></li><li><a href="#install-it-on-repositories">Install it on repositories</a></li><li><a href="#permissions">Permissions</a></li><li><a href="#events">Events</a></li><li><a href="#diagrams-in-app-reviews">Diagrams in App reviews</a></li><li><a href="#extensions-in-app-reviews">Extensions in App reviews</a></li><li><a href="#manual-setup">Manual setup</a></li><li><a href="#rotating-and-moving-the-key">Rotating and moving the key</a></li><li><a href="#troubleshooting">Troubleshooting</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>
