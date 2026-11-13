@@ -109,6 +109,10 @@ export type ReviewExtras = {
   prefetched?: { pull: Json; files: Json[] };
   /** The request's job name, `review_local` when left out. */
   job?: string;
+  /** Pull request files to review although the compare of this round does
+   * not list them: files an earlier round dropped or withheld and nobody
+   * touched since. A file the compare lists is not added twice. */
+  resend?: Json[];
   /** The provider that summarizes large diffs. Left out, a low-model provider
    * is built from the options. */
   summaryAi?: AiProvider;
@@ -149,6 +153,16 @@ export function summaryProvider(
     return reviewAi;
   }
   return reviewProvider(options, options.lowModel, "low");
+}
+
+/** The listed files, then each of `resend` the list does not have. */
+function withResent(listed: Json[], resend: Json[] | undefined): Json[] {
+  if (!resend?.length) return listed;
+  const names = new Set(listed.map((file) => String(file.filename ?? "")));
+  return [
+    ...listed,
+    ...resend.filter((file) => !names.has(String(file.filename ?? ""))),
+  ];
 }
 
 function diffStats(files: DiffFile[]): ReviewOutcome["diffStats"] {
@@ -366,7 +380,7 @@ export async function reviewPullRequest(
     !snapshot || String(item.created_at ?? "") < snapshot.before;
   const comments = allComments.filter(before);
   const reviews = allReviews.filter(before);
-  const files = snapshot
+  const listedFiles = snapshot
     ? (((
         await client.request<Json>(
           `repos/${options.repo}/compare/${
@@ -379,6 +393,7 @@ export async function reviewPullRequest(
       (await client.pages<Json>(
         `repos/${options.repo}/pulls/${number}/files`,
       )));
+  const files = withResent(listedFiles, extras?.resend);
   report(`diff files loaded · ${files.length} files`);
   if (!guide) {
     throw notInitializedError(options.repo);

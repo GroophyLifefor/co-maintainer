@@ -1138,6 +1138,56 @@ test("an incremental round keeps the files it skipped as unchanged in the seen p
   });
 });
 
+test("an incremental round sends a file the last round dropped, though the compare does not list it", async () => {
+  await withEnv(async () => {
+    const job = seed();
+    // 500 small files are over the diff budget, so round 1 drops the last
+    // ones in path order.
+    const line = `+${"x".repeat(60)}`;
+    const many = Array.from({ length: 500 }, (_, i) => ({
+      filename: `src/f${String(i).padStart(3, "0")}.ts`,
+      patch: `@@ -0,0 +1,8 @@\n${Array(8).fill(line).join("\n")}`,
+      additions: 8,
+      changes: 8,
+    }));
+    const prompts: string[] = [];
+    class Capture extends FakeAiProvider {
+      complete(request: AiRequest): Promise<AiResponse> {
+        if (request.job === "review_pull_request") prompts.push(request.prompt);
+        return super.complete(request);
+      }
+    }
+    const first = new FakeGithub();
+    first.files = many;
+    await runReviewJob(job, () => {}, first, new Capture());
+    const last = "src/f499.ts";
+    if (prompts[0]?.includes(`FILE: ${last}\n`)) {
+      throw new Error("round 1 was expected to drop the last file");
+    }
+
+    // One file changes. The compare lists only it, the pull request all 500.
+    const second = nextRound(job);
+    second.args = JSON.stringify({
+      trigger: "synchronize",
+      scope: "incremental",
+      sinceCommit: "oldsha",
+      round: 2,
+    });
+    const touched = { ...many[0]!, patch: `${many[0]!.patch}\n+changed` };
+    const github = new FakeGithub();
+    github.files = [touched];
+    github.prFiles = [touched, ...many.slice(1)];
+    await runReviewJob(second, () => {}, github, new Capture());
+    const round2 = prompts.at(-1) ?? "";
+    if (!round2.includes(`FILE: ${last}\n`)) {
+      throw new Error("round 2 did not send the file round 1 dropped");
+    }
+    if (round2.includes("FILE: src/f001.ts\n")) {
+      throw new Error("round 2 sent a file round 1 already saw");
+    }
+  });
+});
+
 test("a first-round finding keeps its line text and round 2 finds it again", async () => {
   await withEnv(async () => {
     const job = seed();

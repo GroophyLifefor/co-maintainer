@@ -1115,6 +1115,7 @@ async function runReviewJobCore(
     carryPrompt?: string;
     unchangedPaths?: string[];
     catchesUp?: boolean;
+    resend?: Json[];
   } = { catchesUp };
   // A guide rebuilt after the previous review invalidates that review's
   // verdicts and its "unchanged" suppression. Treat the run as
@@ -1128,12 +1129,23 @@ async function runReviewJobCore(
     );
   if (subjectRevision && !guideRebuilt) {
     const prevFiles = parseRevisionFiles(subjectRevision);
-    const { unchanged } = incrementalDiffPaths(
+    const { changed, unchanged } = incrementalDiffPaths(
       revision,
       prevFiles,
       parseVisiblePaths(subjectRevision),
     );
     extras.unchangedPaths = scope === "incremental" ? unchanged : undefined;
+    if (scope === "incremental") {
+      // The compare lists only what changed since the last round. A file
+      // that round dropped or withheld is not in it when nobody touched it
+      // since, so it is sent from the pull request's own file list.
+      const due = new Set(changed.map((file) => file.path));
+      const compared = new Set(files.map((file) => String(file.filename)));
+      extras.resend = publishFiles.filter((file) => {
+        const path = String(file.filename ?? "");
+        return due.has(path) && !compared.has(path);
+      });
+    }
     const storedRows = listCarryableFindingsForReview(
       subjectRevision.review_id,
     );
