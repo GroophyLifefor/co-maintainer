@@ -4,6 +4,7 @@ import {
   cutAtLine,
   diffFileFromGithub,
   diffFileFromRevision,
+  byPath,
   dropUntilFits,
   MAX_FILE_PATCH_CHARS,
   MAX_REVIEW_DIFF_CHARS,
@@ -300,6 +301,24 @@ test("the NOT SHOWN list names each dropped file with its counts", () => {
     notShownBlock([{ ...file("b.ts", 3), state: "full" }], { tools: true }),
     "",
     "none",
+  );
+});
+
+test("drop order is plain code-point order, the same on every machine", () => {
+  same(
+    ["b.ts", "_x.ts", "a.ts", "C.ts"].sort(byPath),
+    ["C.ts", "_x.ts", "a.ts", "b.ts"],
+    "code points",
+  );
+  const planned: PlannedFile[] = ["b.ts", "_x.ts", "a.ts", "C.ts"].map(
+    (path) => ({ ...file(path, 3), state: "full" }),
+  );
+  // Room for three of four: the last in code-point order goes.
+  dropUntilFits(planned, () => 100, 3 * 100 + 2 * 2);
+  same(
+    planned.filter((item) => item.state === "dropped").map((item) => item.path),
+    ["b.ts"],
+    "dropped",
   );
 });
 

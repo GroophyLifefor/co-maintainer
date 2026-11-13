@@ -233,6 +233,12 @@ function totalChars(
 
 const DROPPABLE = new Set<FileState>(["full", "partial", "summarized"]);
 
+/** Plain code-point order. `localeCompare` follows the process locale, so a
+ * server and a laptop could drop different files from the same diff. */
+export function byPath(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 /** Drops files from the end of path order until the DIFF section fits. Both
  * the plan and the pass after the real summaries use it. Mutates `files`. */
 export function dropUntilFits(
@@ -242,7 +248,7 @@ export function dropUntilFits(
 ): void {
   let total = totalChars(files, size);
   if (total <= max) return;
-  const fromEnd = [...files].sort((a, b) => b.path.localeCompare(a.path));
+  const fromEnd = [...files].sort((a, b) => byPath(b.path, a.path));
   for (const file of fromEnd) {
     if (total <= max) return;
     if (!DROPPABLE.has(file.state)) continue;
