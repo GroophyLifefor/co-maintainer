@@ -159,12 +159,13 @@ test("an empty summary counts as a failed one", async () => {
 
 test("summaries longer than planned are caught by the last pass", async () => {
   // Each summary is far over the 700 characters the plan counted, so the
-  // real total does not fit and files are dropped from the end.
-  const provider = summaries(() => "y".repeat(60_000));
+  // real total does not fit and files are dropped from the end. Three
+  // summaries leave too little room to bring a dropped file back.
+  const provider = summaries(() => "y".repeat(79_000));
   const files = Array.from({ length: 6 }, (_, i) => file(`big${i}.ts`, 501));
   const prepared = await prepareReviewDiff(input(files, provider));
-  if (prepared.sections.length > 240_000) {
-    throw new Error(`over budget: ${prepared.sections.length}`);
+  if (prepared.diff.length > 240_000) {
+    throw new Error(`over budget: ${prepared.diff.length}`);
   }
   same(prepared.coverage.dropped, ["big3.ts", "big4.ts", "big5.ts"], "dropped");
   same(
@@ -177,6 +178,27 @@ test("summaries longer than planned are caught by the last pass", async () => {
   }
   if (prepared.seenPaths.includes("big5.ts")) {
     throw new Error("a dropped file is never seen");
+  }
+});
+
+test("room left by long real summaries brings dropped files back in full", async () => {
+  // 60,000 characters each: three summaries fit, and the room left holds the
+  // three dropped files in full, which beats leaving them out.
+  const provider = summaries(() => "y".repeat(60_000));
+  const files = Array.from({ length: 6 }, (_, i) => file(`big${i}.ts`, 501));
+  const prepared = await prepareReviewDiff(input(files, provider));
+  if (prepared.diff.length > 240_000) {
+    throw new Error(`over budget: ${prepared.diff.length}`);
+  }
+  same(
+    prepared.coverage.summarized,
+    ["big0.ts", "big1.ts", "big2.ts"],
+    "summarized",
+  );
+  same(prepared.coverage.full, 3, "restored in full");
+  same(prepared.coverage.dropped, [], "dropped");
+  if (prepared.diff.split("y".repeat(60_000)).length - 1 !== 3) {
+    throw new Error("a restored file must not reuse its summary");
   }
 });
 

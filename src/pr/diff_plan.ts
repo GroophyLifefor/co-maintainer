@@ -22,6 +22,13 @@ export const MAX_REVIEW_DIFF_CHARS = 240_000;
 /** What the plan counts for one summary before the summary exists. The real
  * length is checked again once the summaries come back. */
 export const PLANNED_SUMMARY_CHARS = 700;
+/** Only a patch longer than this is summarized. A shorter one saves too little
+ * room to be worth a model call and the loss of its code, so it is shown in
+ * full or dropped. */
+export const SUMMARY_MIN_PATCH_CHARS = 4_000;
+/** At most this many summaries per review, largest files first. Each is one
+ * low-model call, and a review made of summaries has no code to judge. */
+export const MAX_SUMMARIES = 40;
 
 export type FileState =
   | "full"
@@ -357,6 +364,12 @@ class Budget {
     this.dropped.add(droppedLine(file).length);
   }
 
+  restore(file: PlannedFile, state: FileState): void {
+    this.dropped.remove(droppedLine(file).length);
+    file.state = state;
+    this.show(file);
+  }
+
   total(): number {
     const parts = [
       this.shown > 0 ? this.sections + SEPARATOR * (this.shown - 1) : 0,
@@ -413,32 +426,74 @@ export function dropUntilFits(
   }
 }
 
+/** The state a file has without a summary: its whole patch, or the first
+ * `MAX_FILE_PATCH_CHARS` of it. */
+function shownState(file: DiffFile): FileState {
+  if (file.patch === "") {
+    return file.empty === "withheld" || file.empty === undefined
+      ? "withheld"
+      : "full";
+  }
+  return file.patch.length > MAX_FILE_PATCH_CHARS ? "partial" : "full";
+}
+
+function summaryCandidate(file: DiffFile): boolean {
+  return file.patch.length > SUMMARY_MIN_PATCH_CHARS;
+}
+
+/** After the drop pass the budget can have room left, because a large file
+ * went where several small ones would have fit. Dropped files that fit come
+ * back, smallest first, without a summary. Mutates `files`. */
+export function restoreIntoRoom(
+  files: PlannedFile[],
+  size: (file: PlannedFile) => number,
+  max = MAX_REVIEW_DIFF_CHARS,
+): void {
+  const budget = new Budget(files, size);
+  if (budget.total() >= max) return;
+  const dropped = files
+    .filter((file) => file.state === "dropped")
+    .map((file) => ({ file, state: shownState(file) }))
+    .map((item) => ({
+      ...item,
+      chars: size({ ...item.file, state: item.state }),
+    }))
+    .sort((a, b) => a.chars - b.chars || byPath(a.file.path, b.file.path));
+  for (const { file, state } of dropped) {
+    budget.restore(file, state);
+    if (budget.total() > max) budget.drop(file);
+  }
+}
+
 /** The plan. Files keep their input order, and only dropping looks at path
- * order.
+ * order. Preference is always full, then partial or summarized, then
+ * dropped.
  *
  * 1. A file over `DIFF_SUMMARY_THRESHOLD` changed lines is summarized.
  * 2. A patch over `MAX_FILE_PATCH_CHARS` is partial.
  * 3. While the total is over `MAX_REVIEW_DIFF_CHARS`, the largest full or
- *    partial file is summarized. A file already smaller than its summary
- *    would be is left alone, since summarizing it would only grow the total.
- * 4. If that is not enough, files are dropped from the end of path order. */
+ *    partial file is summarized.
+ * 4. If that is not enough, files are dropped from the end of path order.
+ * 5. Dropped files that fit in the room left come back, smallest first.
+ *
+ * Only a patch over `SUMMARY_MIN_PATCH_CHARS` is ever summarized, by rule 1
+ * or 3, and at most `MAX_SUMMARIES` per review, largest first. */
 export function planDiff(
   files: DiffFile[],
   max = MAX_REVIEW_DIFF_CHARS,
 ): PlannedFile[] {
   const planned: PlannedFile[] = files.map((file) => ({
     ...file,
-    state:
-      file.patch === ""
-        ? file.empty === "withheld" || file.empty === undefined
-          ? "withheld"
-          : "full"
-        : file.changes > DIFF_SUMMARY_THRESHOLD
-          ? "summarized"
-          : file.patch.length > MAX_FILE_PATCH_CHARS
-            ? "partial"
-            : "full",
+    state: shownState(file),
   }));
+  const overThreshold = planned
+    .filter(
+      (file) => file.changes > DIFF_SUMMARY_THRESHOLD && summaryCandidate(file),
+    )
+    .sort((a, b) => b.patch.length - a.patch.length)
+    .slice(0, MAX_SUMMARIES);
+  for (const file of overThreshold) file.state = "summarized";
+  let summaries = overThreshold.length;
   const cache = new Map<string, number>();
   const size = (file: PlannedFile): number => {
     const key = `${file.state}\0${file.path}`;
@@ -455,19 +510,21 @@ export function planDiff(
     size({ ...file, state: "summarized" });
   const budget = new Budget(planned, size);
   listPatchless(planned, budget, max);
-  while (budget.total() > max) {
+  while (budget.total() > max && summaries < MAX_SUMMARIES) {
     let largest: PlannedFile | undefined;
     for (const file of planned) {
       if (file.state !== "full" && file.state !== "partial") continue;
-      if (file.patch === "") continue;
+      if (!summaryCandidate(file)) continue;
       if (!largest || size(file) > size(largest)) largest = file;
     }
     if (!largest || size(largest) <= asSummary(largest)) break;
     budget.hide(largest);
     largest.state = "summarized";
     budget.show(largest);
+    summaries++;
   }
   dropUntilFits(planned, size, max);
+  restoreIntoRoom(planned, size, max);
   return planned;
 }
 

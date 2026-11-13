@@ -22,6 +22,7 @@ import {
   notShownBlock,
   planDiff,
   renderSection,
+  restoreIntoRoom,
   seenPaths,
   type DiffFile,
   type PlannedFile,
@@ -125,20 +126,26 @@ export async function prepareReviewDiff(
       summary: summaries.get(file.path),
     });
   // The plan counted a fixed size per summary. The real ones, and any file
-  // that fell back to partial, may not fit, so check once more.
-  const rendered = new Map<PlannedFile, string>();
-  const sizeOf = (file: PlannedFile) => {
-    let text = rendered.get(file);
+  // that fell back to partial, may not fit, so check once more. Real
+  // summaries can also be shorter, which leaves room for a dropped file.
+  // Keyed by state too: a file restored from dropped renders differently
+  // from the summary it was measured as.
+  const rendered = new Map<string, string>();
+  const textOf = (file: PlannedFile) => {
+    const key = `${file.state}\0${file.path}`;
+    let text = rendered.get(key);
     if (text === undefined) {
       text = render(file);
-      rendered.set(file, text);
+      rendered.set(key, text);
     }
-    return text.length;
+    return text;
   };
+  const sizeOf = (file: PlannedFile) => textOf(file).length;
   dropUntilFits(planned, sizeOf);
+  restoreIntoRoom(planned, sizeOf);
   const sections = planned
     .filter((file) => file.state !== "dropped" && !file.listed)
-    .map((file) => rendered.get(file) ?? render(file))
+    .map(textOf)
     .join("\n\n");
   const lists = [
     noDiffBlock(planned),

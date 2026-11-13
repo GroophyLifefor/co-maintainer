@@ -9,6 +9,8 @@ import {
   MAX_FILE_PATCH_CHARS,
   MAX_LISTED_FILES,
   MAX_REVIEW_DIFF_CHARS,
+  MAX_SUMMARIES,
+  SUMMARY_MIN_PATCH_CHARS,
   noDiffBlock,
   notShownBlock,
   planDiff,
@@ -346,6 +348,72 @@ test("the NOT SHOWN list names at most 200 files and counts in the budget", () =
   if (whole.length > MAX_REVIEW_DIFF_CHARS) {
     throw new Error(`over budget with the list: ${whole.length}`);
   }
+});
+
+test("many medium files: the budget goes to files in full, none is summarized", () => {
+  // 1,000 files of about 1,500 characters: each saves too little room to be
+  // worth a summary, so the plan shows as many in full as fit.
+  const files = Array.from({ length: 1_000 }, (_, i) =>
+    file(`src/m${String(i).padStart(4, "0")}.ts`, 30, 50),
+  );
+  if (Math.abs(files[0]!.patch.length - 1_500) > 100) {
+    throw new Error(`fixture: ${files[0]!.patch.length}`);
+  }
+  const planned = planDiff(files);
+  const count = (state: FileState) =>
+    planned.filter((item) => item.state === state).length;
+  same(count("summarized"), 0, "summarized");
+  // 240,000 / 1,500 is 160. Each of the 30 lines also gets a 7 character
+  // line-number gutter and each file a FILE header, so about 135 fit.
+  if (count("full") < 125 || count("full") > 170) {
+    throw new Error(`expected about 135 to 160 in full, got ${count("full")}`);
+  }
+  same(count("full") + count("dropped"), 1_000, "the rest are dropped");
+});
+
+test("at most 40 summaries, largest first", () => {
+  // 60 files over 500 changed lines and over 4,000 characters each.
+  const files = Array.from({ length: 60 }, (_, i) =>
+    file(`src/s${String(i).padStart(2, "0")}.ts`, 501 + i, 10),
+  );
+  const planned = planDiff(files);
+  const summarized = planned.filter((item) => item.state === "summarized");
+  same(summarized.length, MAX_SUMMARIES, "cap");
+  const smallestSummarized = Math.min(
+    ...summarized.map((item) => item.patch.length),
+  );
+  for (const item of planned) {
+    if (item.state === "summarized") continue;
+    if (item.patch.length > smallestSummarized) {
+      throw new Error(`a larger file was not summarized: ${item.path}`);
+    }
+  }
+});
+
+test("a patch of 4,000 characters or less is never summarized", () => {
+  const small = file("small.ts", 600, 5);
+  if (small.patch.length > SUMMARY_MIN_PATCH_CHARS) {
+    throw new Error(`fixture: ${small.patch.length}`);
+  }
+  same(planDiff([small])[0]!.state, "full", "over 500 lines but short");
+});
+
+test("room left after dropping is filled with dropped files that fit, smallest first", () => {
+  const a = file("a.ts", 20, 50);
+  const y = file("y.ts", 70, 50);
+  const z = file("z.ts", 5, 50);
+  const rendered = (item: DiffFile) =>
+    renderSection({ ...item, state: "full" }, { tools: true }).length;
+  // Room for a.ts, z.ts and the NOT SHOWN list, but not y.ts as well.
+  const max = rendered(a) + rendered(z) + 4 + 400;
+  if (rendered(y) < 600) throw new Error("fixture: y.ts must not fit");
+  const planned = planDiff([a, y, z], max);
+  // Dropping from the end takes z.ts, then y.ts. z.ts then fits again.
+  same(
+    states(planned),
+    { "a.ts": "full", "y.ts": "dropped", "z.ts": "full" },
+    "states",
+  );
 });
 
 test("dropUntilFits drops nothing when the diff fits", () => {
