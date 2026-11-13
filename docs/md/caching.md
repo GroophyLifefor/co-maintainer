@@ -75,7 +75,8 @@ size and this directory. Non-interactive runs (closed stdin, piped output, or
 
 ## `cache.db` (CLI)
 
-Used by [`init`](init.md) and [`sync`](sync.md):
+Used by [`init`](init.md) and [`sync`](sync.md), and by local and PR reviews for
+their carry-over:
 
 | Kind of data | Cache key idea |
 | ------------ | -------------- |
@@ -85,6 +86,7 @@ Used by [`init`](init.md) and [`sync`](sync.md):
 | PR diffs | PR number + head SHA |
 | AI synthesis jobs | Input hash + model profile |
 | Agent instruction files | Path + blob SHA, saved in the state together with their contents |
+| Review carry-over | Namespace `local-review`. A local review is keyed by repository, repository root and branch. A [PR review](local-pr-review.md#carry-over) is keyed by repository and pull request number, as `<repo>\0pull-request\0<number>` |
 
 The `synth_instructions` job that builds [`INSTRUCTIONS.md`](init.md#agent-instruction-files)
 is an AI synthesis job like the others, so the same input is not paid for twice.
@@ -139,7 +141,7 @@ skill state and `repos["owner/repo"]` settings are gone, so the next build is
 everything, and `--yes` skips that question when there is no terminal.
 
 `--include-cache` also drops the fetched evidence for the repository (pull
-request listings, AI job cache, costs, local review carry-over) plus its clones
+request listings, AI job cache, costs, local and PR review carry-over) plus its clones
 and worktrees. The next `init` is then a cold build that pays for everything
 again. Without the flag, only the knowledge is gone and the next build still
 reuses the files and pull requests it already collected.
