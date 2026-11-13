@@ -82,6 +82,32 @@ readers' browsers send to that server, see
 See [Configuration](configuration.md#diagram-settings) for the settings and for
 what happens to a bad stored value.
 
+## Extensions in App reviews
+
+An App review runs the [extensions](extensions.md) registered on this `serve`
+host, and the review body shows their results.
+
+- A finding on a diff line is posted inline, headed
+  `[P1 · blocking] · extension: NAME`. A finding off the diff goes in the summary
+  list. At most 50 extension comments go inline and 50 findings are listed, then
+  `- and N more, see the dashboard`. A title is cut at 200 characters in the list
+  and a body at 4,000 characters inline.
+- An `#### Extensions` section comes before Metadata, with each extension's
+  Markdown in a `<details>` block. Metadata gains `- Extensions: [..]`,
+  `- Failed Extensions: [..]`, `- Skipped Extensions: [..]` and
+  `- Requested changes: [..]`.
+- A failed extension is named as "NAME extension failed, you can see details in
+  dashboard". It never blocks the review.
+- One extension's `request_changes` makes the review type Request changes.
+- The review body stays under 250,000 characters. Over that, the longest
+  extension Markdown is replaced with "Not added to this comment because of the
+  length limit, see the dashboard.", then the next longest, until it fits. The AI
+  review is never cut.
+- `serve` removes the extension run folders of jobs that are not running when it
+  starts, and only folders co-maintainer made.
+
+`CM_EXTENSIONS_DISABLED=1` on the host turns all of this off.
+
 ## Manual setup
 
 If you would rather create the App by hand, use the same values:
