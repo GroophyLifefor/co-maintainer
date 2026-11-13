@@ -289,12 +289,25 @@ async function codebase(
       return [String(value.path), String(value.sha ?? "")];
     }),
   );
-  // Instruction files are read in full below, so the codebase extraction does
-  // not get them a second time.
+  // Instruction files are read first and in full, and only the ones actually
+  // read leave the codebase extraction input. A file a cap left out stays
+  // there, so a broad pattern never hides a file from both steps.
   const instructionPaths = instructionPattern
     ? matchInstructionPaths(tree, instructionPattern)
     : [];
-  const isInstruction = new Set(instructionPaths);
+  let instructionFiles: Record<string, string> | undefined;
+  if (instructionPaths.length > 0) {
+    instructionFiles = await readInstructionFiles(
+      client,
+      repo,
+      branch,
+      instructionPaths,
+      treeSha,
+      concurrency,
+      previous,
+    );
+  }
+  const isInstruction = new Set(Object.keys(instructionFiles ?? {}));
   const canonical = tree.filter(
     (path) =>
       !isInstruction.has(path) &&
@@ -324,10 +337,8 @@ async function codebase(
     "fetch",
     `codebase · ${important.length} files · concurrency=${concurrency}`,
   );
-  // The instruction files are not read yet, so a checkpoint here saves none:
-  // a run that stops now reads them again rather than trusting old text under
-  // the new blob SHAs.
-  let instructionFiles: Record<string, string> | undefined;
+  // Every checkpoint saves the instruction files read above with the blob
+  // SHAs they were checked against, never old text under new SHAs.
   const checkpoint = () => {
     if (!progress) return Promise.resolve();
     save = save.then(() =>
@@ -340,6 +351,7 @@ async function codebase(
     );
     return save;
   };
+  if (instructionFiles) await checkpoint();
   await mapPool(important, concurrency, async (path) => {
     if (
       previous?.treeSha?.[path] &&
@@ -386,18 +398,9 @@ async function codebase(
   });
   // Nothing matched: no log line and no new state field, so a repository
   // without instruction files is fetched exactly as before.
-  if (instructionPaths.length === 0) return { tree, treeSha, files };
-  instructionFiles = await readInstructionFiles(
-    client,
-    repo,
-    branch,
-    instructionPaths,
-    treeSha,
-    concurrency,
-    previous,
-  );
-  await checkpoint();
-  return { tree, treeSha, files, instructionFiles };
+  return instructionFiles
+    ? { tree, treeSha, files, instructionFiles }
+    : { tree, treeSha, files };
 }
 
 /** Reads the matched instruction files in full, reusing a cached copy whose

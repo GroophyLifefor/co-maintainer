@@ -173,3 +173,32 @@ test("past 50 files the deepest ones are left out and named", async () => {
     throw new Error(`the left-out files are not named: ${leftOut}`);
   }
 });
+
+test("a matched file the caps left out is still read by the codebase extraction", async () => {
+  const extra = Array.from({ length: 60 }, (_, index) => ({
+    path: `pkg${String(index).padStart(2, "0")}/README.md`,
+    sha: `sha-readme-${index}`,
+  }));
+  const client = new InstructionsClient(extra);
+  const { result: source } = await quietly(() =>
+    collectSource(
+      client,
+      testOptions({ repo: "fixture/repo", agentInstructions: "README\\.md$" }),
+    ),
+  );
+  const asInstructions = Object.keys(source.instructionFiles ?? {});
+  if (asInstructions.length !== 50) {
+    throw new Error(`read ${asInstructions.length} as instructions`);
+  }
+  const all = ["README.md", ...extra.map((item) => item.path)];
+  const neither = all.filter(
+    (path) => !asInstructions.includes(path) && !(path in source.files),
+  );
+  if (neither.length > 0) {
+    throw new Error(`read by neither step: ${neither.join(", ")}`);
+  }
+  const both = asInstructions.filter((path) => path in source.files);
+  if (both.length > 0) {
+    throw new Error(`read twice: ${both.join(", ")}`);
+  }
+});
