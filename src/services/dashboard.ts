@@ -23,6 +23,7 @@ import {
   listFindingsForReview,
 } from "../store/findings.ts";
 import { daysAgoIso } from "../util/time.ts";
+import { loadExtensionReport } from "../store/extensions.ts";
 import { listPushReviewsForRepo, listWatchIssues } from "../store/watch.ts";
 import { pushVia } from "./watch_status.ts";
 import type { DeliveryRow, JobRow, RepoRow, ReviewRow } from "../store/rows.ts";
@@ -218,6 +219,7 @@ export function prDetail(fullName: string, prNumber: number) {
         ...finding,
         repeatOf: finding.first_seen_review_id ?? undefined,
       })),
+      extensions: loadExtensionReport(review.id),
     })),
   };
 }
