@@ -165,14 +165,31 @@ function hookExit(): void {
   }
 }
 
+/** How long the pipes may stay open once the shell has exited. Whatever the
+ * command left behind in its group is killed at that moment. A process that
+ * left the group (`setsid`, a daemon) cannot be reached, so its pipes are
+ * closed from this side after this window and the run ends with what it read. */
+export const DRAIN_MS = 250;
+
+export function shellArgs(
+  command: string,
+  windows: boolean = isWindows(),
+): [string, string[]] {
+  return windows
+    ? [getEnv("ComSpec") ?? "cmd.exe", ["/d", "/s", "/c", command]]
+    : ["/bin/sh", ["-c", command]];
+}
+
 export function runCommandOnce(input: {
   command: string;
   cwd?: string;
   timeoutMs: number;
   signal?: AbortSignal;
   killGraceMs?: number;
+  drainMs?: number;
 }): Promise<ProcessOutcome> {
   const grace = input.killGraceMs ?? KILL_GRACE_MS;
+  const drain = input.drainMs ?? DRAIN_MS;
   return new Promise((resolve) => {
     const details = new HeadTail();
     const stdout: Buffer[] = [];
@@ -181,9 +198,7 @@ export function runCommandOnce(input: {
     let timedOut = false;
     let canceled = false;
     let settled = false;
-    const [shell, args] = isWindows()
-      ? [getEnv("ComSpec") ?? "cmd.exe", ["/d", "/s", "/c", input.command]]
-      : ["/bin/sh", ["-c", input.command]];
+    const [shell, args] = shellArgs(input.command);
     let child: ReturnType<typeof spawn>;
     try {
       child = spawn(shell, args, {
@@ -191,6 +206,7 @@ export function runCommandOnce(input: {
         env: commandEnv(),
         detached: !isWindows(),
         windowsVerbatimArguments: isWindows(),
+        windowsHide: true,
         stdio: ["ignore", "pipe", "pipe"],
       });
     } catch (error) {
@@ -212,12 +228,11 @@ export function runCommandOnce(input: {
       liveGroups.add(pid);
     }
     let killTimer: ReturnType<typeof setTimeout> | undefined;
+    let drainTimer: ReturnType<typeof setTimeout> | undefined;
     const stop = () => {
-      if (child.pid === undefined || killTimer) return;
-      killGroup(child.pid, "SIGTERM");
-      killTimer = setTimeout(() => {
-        if (child.pid !== undefined) killGroup(child.pid, "SIGKILL");
-      }, grace);
+      if (pid === undefined || killTimer) return;
+      killGroup(pid, "SIGTERM");
+      killTimer = setTimeout(() => killGroup(pid, "SIGKILL"), grace);
     };
     const timer = setTimeout(() => {
       timedOut = true;
@@ -250,7 +265,10 @@ export function runCommandOnce(input: {
       if (pid !== undefined) liveGroups.delete(pid);
       clearTimeout(timer);
       if (killTimer) clearTimeout(killTimer);
+      if (drainTimer) clearTimeout(drainTimer);
       input.signal?.removeEventListener("abort", onAbort);
+      child.stdout?.destroy();
+      child.stderr?.destroy();
       const exit = spawnError
         ? `could not start: ${spawnError}`
         : signal
@@ -270,5 +288,12 @@ export function runCommandOnce(input: {
     };
     child.on("error", (error) => finish(null, null, error.message));
     child.on("close", (code, signal) => finish(code, signal));
+    // `close` waits for every holder of the pipes. Once the shell itself has
+    // exited, what is left of its group is killed and the pipes get a short
+    // window to drain, so a background child cannot hold the run open.
+    child.on("exit", (code, signal) => {
+      if (pid !== undefined) killGroup(pid, "SIGKILL");
+      drainTimer = setTimeout(() => finish(code, signal), drain);
+    });
   });
 }
