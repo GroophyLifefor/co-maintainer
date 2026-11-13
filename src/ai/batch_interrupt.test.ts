@@ -34,6 +34,36 @@ async function interruptible(
   }
 }
 
+class RateLimitedProvider implements AiProvider {
+  calls = 0;
+  complete(): Promise<AiResponse> {
+    this.calls++;
+    return Promise.reject(new Error("OpenRouter failed with 429: rate limit"));
+  }
+}
+
+test("Ctrl-C during a rate-limit wait stops the batch at once", async () => {
+  await interruptible(async (controller) => {
+    const provider = new RateLimitedProvider();
+    const queue = new AiBatch(provider, "acme/app", 1, "mock:v1");
+    // The first wait is 5 seconds. Ctrl-C comes 100 ms into it.
+    setTimeout(() => controller.abort(), 100);
+    const started = Date.now();
+    let threw = false;
+    try {
+      await queue.run([{ job: "test", prompt: "p", maxTokens: 10 }]);
+    } catch {
+      threw = true;
+    }
+    const took = Date.now() - started;
+    if (!threw) throw new Error("the interrupted batch went on without it");
+    if (took > 2000) throw new Error(`stopped after ${took} ms`);
+    if (provider.calls !== 1) {
+      throw new Error(`${provider.calls} calls, want 1 with no retry`);
+    }
+  });
+});
+
 test("an interrupted batch throws at once instead of dropping the unit", async () => {
   await interruptible(async (controller) => {
     controller.abort();

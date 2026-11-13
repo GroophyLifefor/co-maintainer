@@ -4,7 +4,7 @@ import { isNotFound, readTextFile } from "../util/runtime.ts";
 import { formatError } from "../cli/error.ts";
 import { recordRateLimitWait } from "../services/rate_limit.ts";
 import { log } from "../util/log.ts";
-import { interrupted } from "../util/interrupt.ts";
+import { interrupted, interruptSignal } from "../util/interrupt.ts";
 
 type JobRecord = {
   status: "done" | "quarantine";
@@ -49,6 +49,21 @@ export function retryDelayMs(reason: string, attempt: number): number {
   return RATE_LIMIT_BACKOFF_MS[
     Math.min(attempt - 1, RATE_LIMIT_BACKOFF_MS.length - 1)
   ]!;
+}
+
+/** Waits `ms`, or less when Ctrl-C comes first. A rate-limit wait is up to a
+ * minute, and an interrupted run should not sit through it. */
+function pause(ms: number): Promise<void> {
+  const signal = interruptSignal();
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    signal?.addEventListener("abort", done, { once: true });
+  });
 }
 
 async function digest(value: string): Promise<string> {
@@ -207,7 +222,8 @@ export class AiBatch {
               "ai",
               `waiting ${Math.round(wait / 1000)}s before retry (provider is rate limiting)`,
             );
-            await new Promise((resolve) => setTimeout(resolve, wait));
+            await pause(wait);
+            if (interrupted()) throw error;
           }
           continue;
         }
