@@ -32,6 +32,11 @@ import {
   REVIEW_MODE_CASES,
   SET_CASES,
 } from "../testing/fixtures/cli_compat.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 /** Env vars the parser reads, cleared so a developer's own shell cannot turn
  * a golden case green or red. */

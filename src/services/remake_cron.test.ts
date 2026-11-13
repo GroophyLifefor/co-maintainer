@@ -5,6 +5,11 @@ import { getRunningJobByKey, listJobs, setJobStatus } from "../store/jobs.ts";
 import { writeRepoConfig, writeUserConfig } from "../config.ts";
 import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
 import { createRemakeCronTicker, parseRemakeCron } from "./remake_cron.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 async function withTempEnv(fn: () => Promise<void>): Promise<void> {
   const originalDb = getEnv("CM_APP_DB");

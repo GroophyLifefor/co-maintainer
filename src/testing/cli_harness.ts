@@ -87,6 +87,11 @@ export async function createCliHarness(): Promise<CliHarness> {
       XDG_CONFIG_HOME: `${home}/config`,
       XDG_CACHE_HOME: `${home}/cache`,
       XDG_DATA_HOME: `${home}/data`,
+      // macOS keeps config and cache under the home directory, not XDG, and
+      // every platform falls back to it. Without these a run on a Mac shares
+      // the developer's real cache.db with every other test process.
+      HOME: `${home}/home`,
+      USERPROFILE: `${home}/home`,
       GIT_CONFIG_COUNT: "1",
       GIT_CONFIG_KEY_0: "core.longpaths",
       GIT_CONFIG_VALUE_0: "true",

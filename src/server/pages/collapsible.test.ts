@@ -2,6 +2,11 @@
  * disclosure, so a keyboard user can open it and a screen reader announces it. */
 import { test } from "node:test";
 import { renderAddRepo } from "./add_repo.ts";
+import { isolateTestFile } from "../../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 type Disclosure = { open: boolean; summary: string; body: string };
 

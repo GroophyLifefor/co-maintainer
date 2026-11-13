@@ -24,6 +24,11 @@ import {
   setEnv,
   tempDirSync,
 } from "../../testing/runtime.ts";
+import { isolateTestFile } from "../../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 const PASSWORD = "repo-settings-vision";
 const REPO = "acme/widgets";

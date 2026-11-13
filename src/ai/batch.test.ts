@@ -2,6 +2,11 @@ import { AiBatch, retryDelayMs } from "./batch.ts";
 import { cacheDeletePrefix } from "../store/cache_db.ts";
 import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
 import { test } from "node:test";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 class MockProvider implements AiProvider {
   calls = 0;

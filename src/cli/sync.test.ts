@@ -10,6 +10,11 @@ import { run } from "./main.ts";
 import { parseArgs } from "./args.ts";
 import { renderGlobalHelp } from "./commands/registry.ts";
 import { setCliInteractive } from "./args.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 async function parse(args: string[]): Promise<Record<string, unknown>> {
   setCliInteractive(false);

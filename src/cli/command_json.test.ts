@@ -14,6 +14,11 @@ import {
   writeHarnessConfig,
 } from "../testing/cli_harness.ts";
 import { startFakeOpenRouter } from "../testing/fake_openrouter.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 function parseJson(stdout: string): Record<string, unknown> {
   try {

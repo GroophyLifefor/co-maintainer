@@ -43,6 +43,11 @@ import {
   listStoredRepos,
   uninstallData,
 } from "./clear.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 const ENV_NAMES = [
   "CM_CONFIG_PATH",

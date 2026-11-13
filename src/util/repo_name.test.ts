@@ -6,6 +6,11 @@ import { writeRepoConfig } from "../config.ts";
 import { closeAppDb, openAppDb } from "../store/app_db.ts";
 import { activateRepo } from "../store/repos.ts";
 import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 async function sandbox(
   fn: (dir: string) => Promise<void> | void,

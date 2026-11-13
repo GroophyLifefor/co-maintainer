@@ -5,6 +5,11 @@ import { withLogSink } from "../util/log.ts";
 import type { PullRequest, State } from "../knowledge/types.ts";
 import type { GitHubClient } from "../types.ts";
 import { test } from "node:test";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 class CacheClient implements GitHubClient {
   contentRequests = 0;

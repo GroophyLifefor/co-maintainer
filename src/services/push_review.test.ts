@@ -36,6 +36,11 @@ import { applyWatchNotes, withMaintainerNotes } from "./watch_notes.ts";
 import { FakeAiProvider } from "../ai/fake.ts";
 import { parseReviewArgs } from "../cli/review_args.ts";
 import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 const BEFORE = "1".repeat(40);
 const AFTER = "2".repeat(40);

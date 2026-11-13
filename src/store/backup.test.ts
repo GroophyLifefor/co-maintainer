@@ -20,6 +20,11 @@ import {
   writeTextFile,
 } from "../testing/runtime.ts";
 import { chmod, readFile, readTextFile, stat } from "../util/runtime.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 const ENV = ["CM_APP_DB", "CM_CONFIG_PATH", "LOCALAPPDATA", "XDG_CACHE_HOME"];
 

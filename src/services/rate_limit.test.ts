@@ -9,6 +9,11 @@ import { writeUserConfig } from "../config.ts";
 import { claimAndRun, enqueue, getLogsSince, registerHandler } from "./jobs.ts";
 import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
 import type { AiProvider, AiResponse } from "../types.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 const WAIT_LOG_TYPE = "rate_limit_wait";
 
