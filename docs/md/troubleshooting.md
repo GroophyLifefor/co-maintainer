@@ -47,6 +47,7 @@ is the safe default.
 | `Your key was not kept across a server restart.` | The server restarted while your review was waiting | Run the review again. The server's own key is never used instead |
 | `The AI provider rejected your own key.` | The provider refused the key you sent | Check the key. See [your own key](remote-review.md#your-own-ai-key) |
 | `remote-token is empty` | The GitHub Action had no token, which is what a fork pull request gets | See [CI](ci.md#pull-requests-from-forks) |
+| `Extensions are turned off on this machine (CM_EXTENSIONS_DISABLED=1).` | `extension register` or `extension debug-run` with the off switch set | Unset `CM_EXTENSIONS_DISABLED`. The hosted cloud sets it on purpose, see [Cloud](cloud.md#extensions-are-off) |
 | `Nothing to set` | `set` was called with no values | Pass at least one flag, for example `--token=...` |
 | `There is no backup to roll back to` | `rollback` found no backup, or it is incomplete | A backup exists only after an upgrade migrated the database. See [Going back after an upgrade](#going-back-after-an-upgrade) |
 | `The backup was taken when upgrading to` | The installed version is not the one that made the backup | Install that version and run `rollback` again |
