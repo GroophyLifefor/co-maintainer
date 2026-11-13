@@ -1,7 +1,8 @@
-/** Everything a simulated run did, so the checks and the report can look at
- * every call instead of only the final files: GitHub and AI calls as they
- * happen, product log lines, and after the run the git commands, the files
- * written and the database rows. */
+/** Everything a simulated flow did, so the checks and the report can look at
+ * every call instead of only the final files: GitHub, AI and remote calls as
+ * they happen, each provider `complete()`, webhook deliveries, server jobs,
+ * product log lines, and after the run the git commands, the files written
+ * and the database rows. */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { DatabaseSync } from "node:sqlite";
