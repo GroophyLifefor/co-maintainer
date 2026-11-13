@@ -100,6 +100,12 @@ test("push, force-push, merge and close move the pull request like GitHub", () =
   assert.equal(json.merge_commit_sha, merge);
   const main = world.git(repo, ["rev-parse", "main"]).toString().trim();
   assert.equal(main, merge);
+  // A merged pull request keeps its files and diff, as on GitHub.
+  const merged = (
+    call("GET", `${BASE}/pulls/${pull.number}/files`).body as Json[]
+  ).map((file) => file.filename);
+  assert.deepEqual(merged, ["c.txt"]);
+  assert.equal(json.additions, 1);
 
   const other = github.openPull(SAMPLE_REPO_NAME, {
     title: "Closed",

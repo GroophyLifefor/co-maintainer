@@ -507,14 +507,21 @@ export class SimGithub {
     return this.git(repo, ["merge-base", base, head]).trim();
   }
 
+  /** Where a pull request's diff starts. Once merged, the base branch holds
+   * the head, so the diff is taken against the base as it was at the merge,
+   * the way GitHub keeps a merged pull request's files. */
+  private diffBase(repo: SimRepo, pull: SimPull): string {
+    const base = pull.mergeCommitSha
+      ? this.sha(repo, `${pull.mergeCommitSha}^1`)
+      : this.sha(repo, pull.baseRef);
+    return this.mergeBase(repo, base, pull.headSha);
+  }
+
   pullJson(pull: SimPull): Json {
     const repo = this.repo(pull.repo);
     const baseSha = this.sha(repo, pull.baseRef);
-    const stats = this.diffStats(
-      repo,
-      this.mergeBase(repo, baseSha, pull.headSha),
-      pull.headSha,
-    );
+    const diffBase = this.diffBase(repo, pull);
+    const stats = this.diffStats(repo, diffBase, pull.headSha);
     const [, name] = pull.repo.split("/");
     const headRepo = pull.fork ? `${pull.author}/${name}` : pull.repo;
     return {
@@ -553,7 +560,7 @@ export class SimGithub {
         this.git(repo, [
           "rev-list",
           "--count",
-          `${this.mergeBase(repo, baseSha, pull.headSha)}..${pull.headSha}`,
+          `${diffBase}..${pull.headSha}`,
         ]).trim(),
       ),
       html_url: `https://github.com/${pull.repo}/pull/${pull.number}`,
@@ -663,7 +670,13 @@ export class SimGithub {
         },
       };
     }
-    const base = this.mergeBase(repo, this.sha(repo, pull.baseRef), commit);
+    const base = this.mergeBase(
+      repo,
+      pull.mergeCommitSha
+        ? this.sha(repo, `${pull.mergeCommitSha}^1`)
+        : this.sha(repo, pull.baseRef),
+      commit,
+    );
     const path = String(comment.path ?? "");
     const wanted = [
       [asNumber(comment.line), String(comment.side ?? "RIGHT")],
@@ -1227,11 +1240,7 @@ export class SimGithub {
     let m: RegExpExecArray | null;
     if (get && rest === "") return ok(this.pullJson(pull));
     if (get && rest === "/files") {
-      const base = this.mergeBase(
-        repo,
-        this.sha(repo, pull.baseRef),
-        pull.headSha,
-      );
+      const base = this.diffBase(repo, pull);
       return ok(
         this.page(
           this.files(repo, base, pull.headSha).slice(0, MAX_PULL_FILES),
@@ -1240,11 +1249,7 @@ export class SimGithub {
       );
     }
     if (get && rest === "/commits") {
-      const base = this.mergeBase(
-        repo,
-        this.sha(repo, pull.baseRef),
-        pull.headSha,
-      );
+      const base = this.diffBase(repo, pull);
       const shas = this.git(repo, [
         "rev-list",
         "--reverse",
