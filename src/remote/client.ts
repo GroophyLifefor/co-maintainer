@@ -390,6 +390,9 @@ export async function runRemoteReview(
             findings: humanFindingsFromJson(findings),
             run,
             coverage: coverageFromResult(payload.result),
+            // The server keeps this branch's carry-over, so its next run
+            // sends the files this one dropped.
+            catchesUp: true,
           });
         } else {
           const resultGuide = payload.result.guide as

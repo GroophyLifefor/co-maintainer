@@ -399,7 +399,9 @@ export function registerRemoteReviewHandler(): void {
         const billed: "server" | "byok" =
           byokKey !== undefined ? "byok" : "server";
 
-        const extras: ReviewExtras = {};
+        // The subject's carry-over leaves out what the last run saw, so a
+        // file this run drops is sent by the next one.
+        const extras: ReviewExtras = { catchesUp: true };
         let previousVisible: Set<string> | undefined;
         if (subjectId) {
           const subjectRevision = getSubjectRevision(subjectId);

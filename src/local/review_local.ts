@@ -266,7 +266,9 @@ export async function runLocalReview(
         previous = null;
       }
       const carryRun = startCarryRun(previous, revision, guides.guideBuiltAt);
-      const extras: ReviewExtras = { ...carryRun.extras };
+      // Local carry-over leaves out what the last run saw, so a file this
+      // run drops is sent by the next one.
+      const extras: ReviewExtras = { ...carryRun.extras, catchesUp: true };
 
       const sha = await headSha(root);
       const revisionHashBefore = await revisionHash(revision);
@@ -388,6 +390,7 @@ export async function runLocalReview(
           ),
           run: summaryFromMetrics(aiMetrics, performance.now() - started),
           coverage: response.coverage,
+          catchesUp: true,
         });
       } else {
         console.log(

@@ -299,7 +299,21 @@ test("the job summary carries the coverage line and the not-reviewed list", () =
     title: "o/r · main",
     findings: [],
     coverage: DROPPED,
+    catchesUp: true,
   });
+  const noCatchUp = githubSummary({
+    title: "o/r · PR #1",
+    findings: [],
+    coverage: DROPPED,
+  });
+  if (
+    !noCatchUp.includes(
+      "- src/z.ts: the diff was too large, not reviewed in this mode",
+    ) ||
+    noCatchUp.includes("this round")
+  ) {
+    throw new Error(noCatchUp);
+  }
   for (const want of [
     "No actionable findings in the files reviewed.",
     "Coverage: 2 full · 0 partial · 1 summarized · 2 dropped · 1 withheld",

@@ -1224,16 +1224,22 @@ test("the review names files it never reviewed and always reports coverage", () 
     throw new Error(full);
   }
   if (full.includes("Not reviewed")) throw new Error(full);
-  const missing = reviewBody([], {
-    ...metadata,
-    coverage: {
-      full: 58,
-      partial: ["src/store/reads.ts"],
-      summarized: [],
-      dropped: ["src/a;b.ts"],
-      withheld: ["package-lock.json"],
-    },
-  });
+  const coverage = {
+    full: 58,
+    partial: ["src/store/reads.ts"],
+    summarized: [],
+    dropped: ["src/a;b.ts"],
+    withheld: ["package-lock.json"],
+  };
+  const missing = reviewBody([], { ...metadata, coverage, catchesUp: true });
+  // A whole-pr round sends every file again, so it promises no later round.
+  const wholePr = reviewBody([], { ...metadata, coverage });
+  if (
+    !wholePr.includes("the diff was too large, not reviewed in this mode") ||
+    wholePr.includes("this round")
+  ) {
+    throw new Error(wholePr);
+  }
   for (const want of [
     "No actionable findings in the files reviewed.",
     "Not reviewed (2)",

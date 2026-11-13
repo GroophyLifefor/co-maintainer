@@ -282,6 +282,8 @@ export interface ReviewMetadata {
   /** What the model received, for the coverage line and the not-reviewed
    * list. */
   coverage?: Coverage;
+  /** Whether the next round sends the files this round dropped. */
+  catchesUp?: boolean;
 }
 
 export function formatDuration(ms: number): string {
@@ -314,8 +316,12 @@ function metadataBlock({
 /** The files this round never sent to the model, as a list under the
  * findings. Paths are code spans: a path is not prose, and the copy guard
  * must not read a semicolon in one as a sentence. */
-function notReviewedBlock(coverage: Coverage | undefined): string {
-  const lines = notReviewedLines(coverage, (path) => `\`${path}\``);
+function notReviewedBlock(metadata: ReviewMetadata): string {
+  const lines = notReviewedLines(
+    metadata.coverage,
+    metadata.catchesUp ?? false,
+    (path) => `\`${path}\``,
+  );
   return lines.length > 0 ? `\n\n${lines.join("\n")}` : "";
 }
 
@@ -342,7 +348,7 @@ export function reviewBody(
   metadata: ReviewMetadata,
   stillOpen: StillOpenFinding[] = [],
 ): string {
-  const notReviewed = notReviewedBlock(metadata.coverage);
+  const notReviewed = notReviewedBlock(metadata);
   if (findings.length === 0 && stillOpen.length === 0) {
     const none = notReviewed
       ? "No actionable findings in the files reviewed."
@@ -1100,7 +1106,14 @@ async function runReviewJobCore(
   const subjectRevision = getSubjectRevision(subject.id);
   let carryItems: CarryItem[] = [];
   let carryPrevious: CarryPrevious | null = null;
-  const extras: { carryPrompt?: string; unchangedPaths?: string[] } = {};
+  // Only an incremental round leaves out what the last round saw, so only
+  // it sends the files the last round dropped.
+  const catchesUp = scope === "incremental";
+  const extras: {
+    carryPrompt?: string;
+    unchangedPaths?: string[];
+    catchesUp?: boolean;
+  } = { catchesUp };
   // A guide rebuilt after the previous review invalidates that review's
   // verdicts and its "unchanged" suppression. Treat the run as
   // if it had started fresh: carry-over off, every changed file back in scope,
@@ -1302,6 +1315,7 @@ async function runReviewJobCore(
       model: options.highModel ?? "unknown",
       durationMs: Date.now() - startedAt,
       coverage: response.coverage,
+      catchesUp,
     },
     options.reviewBlocking,
   );

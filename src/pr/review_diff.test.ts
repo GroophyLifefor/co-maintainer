@@ -60,6 +60,7 @@ function input(files: DiffFile[], provider: AiProvider, concurrency = 3) {
   return {
     files,
     tools: true,
+    catchesUp: true,
     concurrency,
     readDiffMaxChars: 20_000,
     summaryProvider: () => provider,

@@ -58,6 +58,7 @@ test("warnings name dropped, withheld and failed files with their codes", () => 
       dropped: Array.from({ length: 14 }, (_, i) => `d${i}.ts`),
       withheld: ["package-lock.json"],
     },
+    true,
     ["x.ts"],
   );
   same(
@@ -76,7 +77,29 @@ test("warnings name dropped, withheld and failed files with their codes", () => 
     "withheld",
   );
   if (!warnings[2]!.message.includes("x.ts")) throw new Error("failed path");
-  same(coverageWarnings(SAMPLE), [], "no warning for partial or summarized");
+  same(
+    coverageWarnings(SAMPLE, true),
+    [],
+    "no warning for partial or summarized",
+  );
+});
+
+test("a mode that does not catch up never promises a later round", () => {
+  const coverage = { ...fullCoverage(1), dropped: ["a.ts", "b.ts"] };
+  const [warning] = coverageWarnings(coverage, false);
+  same(
+    warning!.message,
+    "2 files were not reviewed because the diff is too large. This review mode does not cover them in a later run.",
+    "warning",
+  );
+  same(
+    notReviewedLines(coverage, false)[1],
+    "- a.ts: the diff was too large, not reviewed in this mode",
+    "row",
+  );
+  for (const text of [warning!.message, ...notReviewedLines(coverage, false)]) {
+    if (/again|round/.test(text)) throw new Error(text);
+  }
 });
 
 test("warning text has no semicolon and no em dash", () => {
@@ -86,9 +109,13 @@ test("warning text has no semicolon and no em dash", () => {
       dropped: ["a.ts"],
       withheld: ["b.ts", "c.ts"],
     },
+    false,
     ["d.ts", "e.ts", "f.ts", "g.ts", "h.ts", "i.ts"],
   );
-  for (const { message } of warnings) {
+  for (const { message } of [
+    ...warnings,
+    ...coverageWarnings({ ...fullCoverage(1), dropped: ["a.ts"] }, true),
+  ]) {
     if (message.includes(";") || message.includes("—")) {
       throw new Error(message);
     }
@@ -101,21 +128,21 @@ test("the not-reviewed list is cut at 20 entries", () => {
     dropped: Array.from({ length: 24 }, (_, i) => `src/f${i}.ts`),
     withheld: ["package-lock.json"],
   };
-  const lines = notReviewedLines(coverage);
+  const lines = notReviewedLines(coverage, true);
   same(lines[0], "Not reviewed (25)", "heading");
   same(lines[1], "- src/f0.ts: the diff was too large for this round", "row");
   same(lines.length, 1 + 20 + 1, "heading, 20 rows and the rest");
   same(lines.at(-1), "- and 5 more", "rest");
-  const short = notReviewedLines({
-    ...fullCoverage(0),
-    withheld: ["package-lock.json"],
-  });
+  const short = notReviewedLines(
+    { ...fullCoverage(0), withheld: ["package-lock.json"] },
+    true,
+  );
   same(
     short,
     ["Not reviewed (1)", "- package-lock.json: GitHub sent no diff"],
     "withheld row",
   );
-  same(notReviewedLines(SAMPLE), [], "nothing missing");
+  same(notReviewedLines(SAMPLE, true), [], "nothing missing");
 });
 
 test("a coverage block from an older or broken server is ignored", () => {

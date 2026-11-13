@@ -112,6 +112,10 @@ export type ReviewExtras = {
   /** The provider that summarizes large diffs. Left out, a low-model provider
    * is built from the options. */
   summaryAi?: AiProvider;
+  /** True when this mode's next run leaves out the files this run saw, so it
+   * sends the ones this run dropped. Only then do the warnings promise a
+   * later round. Left out, they do not. */
+  catchesUp?: boolean;
 };
 
 /** What a review run returns to every flow. */
@@ -432,6 +436,7 @@ export async function reviewPullRequest(
     prepareReviewDiff({
       files: ownFiles.map(({ file }) => diffFileFromGithub(file)),
       unchangedPaths: extras?.unchangedPaths,
+      catchesUp: extras?.catchesUp ?? false,
       tools: diagrams,
       concurrency: options.aiConcurrent,
       readDiffMaxChars: readDiffMaxChars(readConfig().repos?.[options.repo]),
@@ -703,6 +708,7 @@ export async function reviewWorkspaceRevision(
   const prepared = await prepareReviewDiff({
     files: ownFiles,
     unchangedPaths: extras?.unchangedPaths,
+    catchesUp: extras?.catchesUp ?? false,
     tools: diagrams,
     concurrency: options.aiConcurrent,
     readDiffMaxChars: readDiffMaxChars(readConfig().repos?.[options.repo]),

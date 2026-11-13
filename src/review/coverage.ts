@@ -71,17 +71,26 @@ function files(count: number): string {
 
 /** The warnings a diff plan leaves behind, in the order a reader needs them:
  * what was not reviewed first, then what was reviewed from less text than
- * planned. */
+ * planned.
+ *
+ * `catchesUp` is the caller's word that its next run leaves out the files
+ * this one saw, so it sends the dropped ones. Only then does the warning
+ * promise a later round. A mode without carry-over drops the same files on
+ * every run, and the warning says so instead. */
 export function coverageWarnings(
   coverage: Coverage,
+  catchesUp: boolean,
   summaryFailed: string[] = [],
 ): CoverageWarning[] {
   const warnings: CoverageWarning[] = [];
   const dropped = coverage.dropped.length;
   if (dropped > 0) {
+    const them = dropped === 1 ? "it" : "them";
     warnings.push({
       code: "diff_dropped",
-      message: `${files(dropped)} not reviewed because the diff is too large. Run review again to cover ${dropped === 1 ? "it" : "them"}.`,
+      message: catchesUp
+        ? `${files(dropped)} not reviewed because the diff is too large. Run review again to cover ${them}.`
+        : `${files(dropped)} not reviewed because the diff is too large. This review mode does not cover ${them} in a later run.`,
     });
   }
   const withheld = coverage.withheld.length;
@@ -112,17 +121,20 @@ export function coverageWarnings(
 export const NOT_REVIEWED_LIST_LIMIT = 20;
 
 /** The `Not reviewed (N)` list for a GitHub review or a job summary, empty
- * when every file reached the model. `formatPath` lets each caller escape a
- * path for where it lands. */
+ * when every file reached the model. `catchesUp` is the same promise as in
+ * `coverageWarnings`. `formatPath` lets each caller escape a path for where
+ * it lands. */
 export function notReviewedLines(
   coverage: Coverage | undefined,
+  catchesUp: boolean,
   formatPath: (path: string) => string = (path) => path,
 ): string[] {
   if (!coverage || coverageMissing(coverage) === 0) return [];
+  const why = catchesUp
+    ? "the diff was too large for this round"
+    : "the diff was too large, not reviewed in this mode";
   const rows = [
-    ...coverage.dropped.map(
-      (path) => `- ${formatPath(path)}: the diff was too large for this round`,
-    ),
+    ...coverage.dropped.map((path) => `- ${formatPath(path)}: ${why}`),
     ...coverage.withheld.map(
       (path) => `- ${formatPath(path)}: GitHub sent no diff`,
     ),

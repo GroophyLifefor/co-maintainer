@@ -127,6 +127,9 @@ export type GithubSummaryInput = {
   /** What the model received. Left out by a remote server older than this
    * field. */
   coverage?: Coverage;
+  /** Whether this mode's next run covers the files this one dropped, see
+   * `coverageWarnings`. */
+  catchesUp?: boolean;
 };
 
 export function githubSummary(input: GithubSummaryInput): string {
@@ -158,8 +161,10 @@ export function githubSummary(input: GithubSummaryInput): string {
   );
   const coverage = coverageLine(input.coverage);
   if (coverage) lines.push("", cell(coverage, 200));
-  const notReviewed = notReviewedLines(input.coverage, (path) =>
-    cell(path, 200),
+  const notReviewed = notReviewedLines(
+    input.coverage,
+    input.catchesUp ?? false,
+    (path) => cell(path, 200),
   );
   if (notReviewed.length > 0) lines.push("", ...notReviewed);
   if (input.run) lines.push("", formatRunSummary(input.run));

@@ -44,6 +44,9 @@ export type PrepareDiffInput = {
   files: DiffFile[];
   /** Files left out because an earlier round saw the same patch. */
   unchangedPaths?: string[];
+  /** Whether the next run of this mode sends the files this run dropped,
+   * see `coverageWarnings`. */
+  catchesUp: boolean;
   /** Whether the review model can call tools. */
   tools: boolean;
   /** The most summary calls in flight at once, `--ai-concurrent`. */
@@ -169,7 +172,7 @@ export async function prepareReviewDiff(
     notShown: notShownBlock(planned, { tools: input.tools }),
     tools,
     coverage,
-    warnings: coverageWarnings(coverage, stillPartial),
+    warnings: coverageWarnings(coverage, input.catchesUp, stillPartial),
     seenPaths: seenPaths(planned, unchanged),
     planned,
   };
