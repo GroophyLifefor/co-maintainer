@@ -466,6 +466,67 @@ test("a fault can carry any status", async () => {
   assert.match(result.steps[1]!.detail, /^GitHub API 422, GitHub API 403, ok$/);
 });
 
+test("an AI rate-limit fault does not make the flow sit through the backoff", async () => {
+  const started = performance.now();
+  const result = await run({
+    name: "fast-rate-limit-fixture",
+    description: "test fixture",
+    ai: INIT_AI,
+    steps: [
+      {
+        name: "plan",
+        run(sim) {
+          sim.faults.add({
+            target: "ai",
+            kind: "rate-limit",
+            job: "synth_section",
+          });
+        },
+      },
+      initStep,
+    ],
+  });
+  assert.ok(result.passed, failures(result));
+  assert.ok(performance.now() - started < 4000, "the 5 s backoff was skipped");
+  const logs = (result.trace as { logs: { message: string }[] }).logs;
+  assert.ok(logs.some((line) => /skipped a 5000 ms wait/.test(line.message)));
+});
+
+test("a hung step fails as timed out, naming the flow and the step", async () => {
+  const result = await run({
+    name: "hung-fixture",
+    description: "test fixture",
+    steps: [
+      {
+        name: "hangs",
+        timeoutMs: 50,
+        run: () => new Promise(() => {}),
+      },
+    ],
+  });
+  assert.equal(result.passed, false);
+  assert.match(
+    result.steps[1]!.detail,
+    /timed out after 0.05s in flow hung-fixture, step hangs/,
+  );
+});
+
+test("a flow check with an inherited check's name is an error", async () => {
+  const result = await run({
+    name: "name-fixture",
+    description: "test fixture",
+    steps: [],
+    checks: () => [
+      { name: "every GitHub call answered", ok: true, detail: "" },
+    ],
+  });
+  assert.equal(result.passed, false);
+  assert.equal(
+    checkNamed(result, "flow checks have their own names").ok,
+    false,
+  );
+});
+
 test("a fault that never happened fails the flow", async () => {
   const result = await run({
     name: "unused-fault-fixture",

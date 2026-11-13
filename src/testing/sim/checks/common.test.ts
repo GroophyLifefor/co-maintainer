@@ -33,7 +33,10 @@ function cacheDb(rows: { tokensIn: number; tokensOut: number }[]): string {
   return path;
 }
 
+/** A call that answered: what it billed is what the product got. */
 function completion(patch: Partial<Completion> = {}): Completion {
+  const tokensIn = patch.tokensIn ?? 10;
+  const tokensOut = patch.tokensOut ?? 2;
   return {
     step: "s",
     startMs: 0,
@@ -41,10 +44,14 @@ function completion(patch: Partial<Completion> = {}): Completion {
     ok: true,
     system: "be careful",
     firstUser: "review this",
-    tokensIn: 10,
-    tokensOut: 2,
+    tokensIn,
+    tokensOut,
+    billedIn: tokensIn,
+    billedOut: tokensOut,
     cost: 0,
     toolCalls: 0,
+    toolCallIds: [],
+    answers: [],
     ...patch,
   };
 }
@@ -190,6 +197,27 @@ test("AI usage missing from the cost records fails", () => {
   assert.equal(merged.ok, true);
 });
 
+test("a call the product threw on after the provider billed it still counts", () => {
+  const trace = new Trace(0);
+  trace.completions.push(
+    completion(),
+    completion({
+      ok: false,
+      tokensIn: 0,
+      tokensOut: 0,
+      billedIn: 7,
+      billedOut: 3,
+    }),
+  );
+  const check = result(
+    "cost recorded for every AI call",
+    input({ trace, cacheDbPath: cacheDb([{ tokensIn: 10, tokensOut: 2 }]) }),
+  );
+  assert.equal(check.ok, false);
+  assert.match(check.detail, /totals compared/);
+  assert.match(check.detail, /1 of them threw/);
+});
+
 test("the judge's own calls are not the product's to record", () => {
   const trace = new Trace(0);
   trace.completions.push(completion({ job: "sim_judge" }));
@@ -212,6 +240,14 @@ test("a system prompt that changes between rounds fails", () => {
     check.detail,
     /review_pull_request: 2 system prompts over 2 rounds/,
   );
+  // A round that changes its system prompt and its first message is still
+  // tied to the round whose tool calls it answers.
+  const both = new Trace(0);
+  both.completions.push(
+    completion({ toolCalls: 1, toolCallIds: ["call_9"] }),
+    completion({ system: "new", firstUser: "new", answers: ["call_9"] }),
+  );
+  assert.equal(result(name, input({ trace: both })).ok, false);
   // Another conversation may have its own system prompt.
   const other = new Trace(0);
   other.completions.push(

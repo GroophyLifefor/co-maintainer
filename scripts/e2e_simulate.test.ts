@@ -22,6 +22,12 @@ test("an unknown flow is a usage error that lists the flows", () => {
   assert.match(out, /Flows: init/);
 });
 
+test("--flow with no name is a usage error, not every flow", () => {
+  const { code, out } = simulate("--flow=,");
+  assert.equal(code, 2);
+  assert.match(out, /--flow names no flow/);
+});
+
 test("--flow=init runs init alone and passes", () => {
   const { code, out } = simulate("--flow=init");
   assert.equal(code, 0, out);

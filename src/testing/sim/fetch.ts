@@ -9,7 +9,7 @@
  * is refused and recorded as a leak, so a run can never reach the network by
  * accident. A fault a flow asked for is applied here before the answer. */
 import { promptOf } from "../fake_openrouter.ts";
-import { currentAiJob } from "./ai_watch.ts";
+import { currentAiJob, recordBilledUsage } from "./ai_watch.ts";
 import type { FakeAi } from "./fake_ai.ts";
 import {
   describeFault,
@@ -251,6 +251,7 @@ export function installFetch({
       if (ai === "live") {
         const response = await original(input, init);
         const text = await response.clone().text();
+        recordBilledUsage(parseBody(text));
         trace.ai.push({
           ...base,
           mode: "live",
@@ -279,6 +280,7 @@ export function installFetch({
             (body ?? {}) as Record<string, unknown>,
             job,
           );
+          recordBilledUsage(answer.body);
           trace.ai.push({
             ...base,
             mode: "fake",

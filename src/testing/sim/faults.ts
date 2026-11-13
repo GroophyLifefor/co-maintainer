@@ -58,6 +58,10 @@ function matches(pattern: string | RegExp | undefined, value?: string) {
 export class Faults {
   private readonly pending: { fault: Fault; left: number }[] = [];
   readonly fired: FiredFault[] = [];
+  /** Waits of a second or more the product starts after an AI rate limit,
+   * still to be skipped. The product backs off for seconds after a 429, and
+   * a flow should not sit through them. */
+  waitsToSkip = 0;
 
   add(fault: Fault): void {
     this.pending.push({ fault, left: fault.times ?? 1 });
@@ -77,6 +81,12 @@ export class Faults {
     );
     if (!entry) return undefined;
     entry.left--;
+    if (
+      entry.fault.target === "ai" &&
+      (entry.fault.kind === "rate-limit" || entry.fault.kind === 429)
+    ) {
+      this.waitsToSkip++;
+    }
     this.fired.push({
       fault: entry.fault,
       step,

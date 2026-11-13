@@ -12,6 +12,7 @@
 import type { Options } from "../../types.ts";
 import { watchAi } from "./ai_watch.ts";
 import {
+  INHERITED_CHECKS,
   commonChecks,
   commonScores,
   type CheckResult,
@@ -43,7 +44,14 @@ export type Step = {
   /** The step is meant to fail: it passes when `run` throws. The error is
    * kept in `sim.errors` either way. */
   expectError?: boolean;
+  /** How long the step may run before it fails as timed out. Defaults to
+   * `STEP_TIMEOUT_MS`. */
+  timeoutMs?: number;
 };
+
+/** A step that runs longer than this fails, naming the flow and the step,
+ * instead of holding CI until its job limit. */
+export const STEP_TIMEOUT_MS = 120_000;
 
 export type Flow = {
   name: string;
@@ -208,6 +216,29 @@ function baseOptions(settings: RunSettings, world: World): Options {
   };
 }
 
+/** The timer the runner itself uses, never shortened. */
+const realSetTimeout = globalThis.setTimeout;
+
+/** After an AI rate-limit fault the product backs off for seconds before it
+ * tries again. This makes the next wait of a second or more it starts fire
+ * at once, once per fault, and logs the skip. Every other timer is left
+ * alone, so a timeout racing real work keeps its length. */
+function installFastWaits(faults: Faults, trace: Trace): () => void {
+  const fast = ((callback: () => void, ms?: number, ...args: unknown[]) => {
+    if (faults.waitsToSkip > 0 && Number(ms) >= 1000) {
+      faults.waitsToSkip--;
+      trace.log("simulate", `skipped a ${ms} ms wait after a rate-limit fault`);
+      return realSetTimeout(callback, 0, ...args);
+    }
+    return realSetTimeout(callback, ms, ...args);
+  }) as typeof setTimeout;
+  Object.assign(fast, realSetTimeout);
+  globalThis.setTimeout = fast;
+  return () => {
+    globalThis.setTimeout = realSetTimeout;
+  };
+}
+
 /** Product state kept in modules, not in the sandbox, that would reach the
  * next flow in this process. Each item here has a clear function the product
  * already exports. What is left is named in CONTRIBUTING.md: it is keyed by
@@ -253,232 +284,278 @@ export async function runFlow(
 
   let at = performance.now();
   const world = createWorld({ aiKey: settings.aiKey });
-  if (settings.judge?.key) {
-    world.addSecret("judge key", settings.judge.key, AI_HOSTS);
-  }
-  const fakeAi = new FakeAi();
-  fakeAi.use(...(flow.ai ?? []));
-  const faults = new Faults();
-  const restoreFetch = installFetch({
-    world,
-    trace,
-    ai: settings.mode,
-    fakeAi,
-    faults,
-  });
-  // Product modules load only now, after the world has set the env.
-  const { setGhRunner } = await import("../../github/gh.ts");
-  setGhRunner(ghStandIn({ github: world.github, trace, faults }));
-  const restoreAi = await watchAi(trace);
-  const server = new SimServer(world, trace, {
-    ai: settings.provider,
-    token: world.secrets.aiKey,
-    lowModel: settings.lowModel,
-    highModel: settings.highModel,
-  });
-  const { reposDir, cacheDbPath } = await import("../../config.ts");
-  const { appDbPath } = await import("../../store/app_db.ts");
-  const { withLogSink } = await import("../../util/log.ts");
-  const sim: Sim = {
-    flow: flow.name,
-    mode: settings.mode,
-    world,
-    github: world.github,
-    trace,
-    ai: fakeAi,
-    faults,
-    server,
-    options: (patch = {}) => ({ ...baseOptions(settings, world), ...patch }),
-    repo: (fullName, files = SAMPLE_REPO) => world.createRepo(fullName, files),
-    cli: async (args) => {
-      const { run, reportCliError } = await import("../../cli/main.ts");
-      const argv = process.argv;
-      const exitCode = process.exitCode;
-      process.argv = [argv[0]!, "co-maintainer", ...args];
-      process.exitCode = 0;
-      try {
-        const output = await captured(async () => {
-          try {
-            await run(args);
-          } catch (error) {
-            reportCliError(error);
-            throw error;
-          }
-        });
-        const exit = Number(process.exitCode ?? 0);
-        // What the CLI printed is searched for secrets like any other place.
-        // The arguments keep only the names of the secrets they carried.
-        let shown = args;
-        for (const secret of world.secretValues()) {
-          shown = shown.map((arg) =>
-            arg.replaceAll(secret.value, `[${secret.name}]`),
-          );
-        }
-        trace.cli.push({
-          step: trace.step,
-          startMs: trace.now(),
-          args: shown,
-          stdout: output.stdout,
-          stderr: output.stderr,
-          exitCode: exit,
-        });
-        return {
-          stdout: output.stdout,
-          stderr: output.stderr,
-          exitCode: exit,
-          ...(output.error === undefined ? {} : { error: output.error }),
-        };
-      } finally {
-        process.argv = argv;
-        process.exitCode = exitCode;
-      }
-    },
-    paths: {
-      reposDir: reposDir(),
-      appDb: appDbPath(),
-      cacheDb: cacheDbPath(),
-      clonesDir: process.env.CM_CLONES_DIR ?? "",
-    },
-    errors: new Map(),
-    state: {},
-    judge: settings.judge
-      ? {
-          options: {
-            ...baseOptions(settings, world),
-            ai: settings.judge.provider,
-            aiToken: settings.judge.key,
-          },
-          model: settings.judge.model,
-        }
-      : undefined,
-  };
-  finishStep("sandbox ready", at, true, world.root);
-
-  let checks: CheckResult[] = [];
-  let scores: Score[] = [];
+  // Everything installed from here on is undone in `finally`, in reverse,
+  // even when a later line of the setup throws.
+  const undo: (() => void | Promise<void>)[] = [];
   try {
-    let stopped = false;
-    for (const step of flow.steps) {
-      if (stopped) break;
-      at = performance.now();
-      trace.step = step.name;
-      let error: unknown;
-      let detail = "";
-      try {
-        const result = await withLogSink(
-          (phase, text) => trace.log(phase, text),
-          async () => step.run(sim),
-        );
-        detail = typeof result === "string" ? result : "";
-      } catch (caught) {
-        error = caught;
-        sim.errors.set(step.name, caught);
-      }
-      const ok = step.expectError ? error !== undefined : error === undefined;
-      if (error !== undefined) {
-        detail = detail || message(error);
-      } else if (step.expectError) {
-        detail = detail || "no error, one was expected";
-      }
-      finishStep(step.name, at, ok, detail);
-      // Later steps build on this one, so after an unexpected failure they
-      // would only fail for the same reason.
-      if (!ok) stopped = true;
+    if (settings.judge?.key) {
+      world.addSecret("judge key", settings.judge.key, AI_HOSTS);
     }
-
-    at = performance.now();
-    trace.step = "scores";
-    try {
-      scores = [...((await flow.scores?.(sim)) ?? [])];
-    } catch (error) {
-      // A score never fails the run, a judge that could not answer included.
-      scores = [
-        {
-          name: "flow scores",
-          value: null,
-          detail: "",
-          fakeAi: settings.mode === "fake",
-          skipped: `failed: ${message(error)}`,
-        },
-      ];
-    }
-    scores.push(...commonScores(trace, settings.mode));
-    finishStep("scores", at, true, `${scores.length} scores`);
-
-    trace.step = "checks";
-    try {
-      checks = [...((await flow.checks?.(sim)) ?? [])];
-    } catch (error) {
-      checks = [check("flow checks ran", false, message(error))];
-    }
-    const inherited = commonChecks({
-      trace,
-      mode: settings.mode,
-      github: world.github,
-      secrets: world.secretValues(),
-      files: readSandbox(world.root),
-      appDbPath: appDbPath(),
-      cacheDbPath: cacheDbPath(),
-      unusedFaults: faults.unused(),
-      unusedRules: fakeAi.unused().map((rule) => rule.name ?? ""),
-    }).map((result) => {
-      const reason = flow.skipInherited?.[result.name];
-      return reason ? { ...result, ok: true, skipped: reason } : result;
+    const fakeAi = new FakeAi();
+    fakeAi.use(...(flow.ai ?? []));
+    const faults = new Faults();
+    undo.push(
+      installFetch({
+        world,
+        trace,
+        ai: settings.mode,
+        fakeAi,
+        faults,
+      }),
+    );
+    undo.push(installFastWaits(faults, trace));
+    // Product modules load only now, after the world has set the env.
+    const { setGhRunner } = await import("../../github/gh.ts");
+    setGhRunner(ghStandIn({ github: world.github, trace, faults }));
+    undo.push(() => setGhRunner(undefined));
+    undo.push(await watchAi(trace));
+    undo.push(resetProductState);
+    const server = new SimServer(world, trace, {
+      ai: settings.provider,
+      token: world.secrets.aiKey,
+      lowModel: settings.lowModel,
+      highModel: settings.highModel,
     });
-    // A flow check with the same name as an inherited one replaces it.
-    const own = new Set(checks.map((result) => result.name));
-    checks.push(...inherited.filter((result) => !own.has(result.name)));
-    for (const result of checks) print.check(result);
-    for (const score of scores) print.score(score);
-
-    return {
-      name: flow.name,
-      description: flow.description,
-      passed:
-        steps.every((step) => step.ok) &&
-        checks.every((result) => result.ok || result.skipped !== undefined),
-      startMs: Math.round(flowStarted - settings.origin),
-      durationMs: Math.round(performance.now() - flowStarted),
-      steps,
-      checks,
-      scores,
-      trace: {
-        github: trace.github,
-        githubWrites: world.github.writes,
-        ai: trace.ai,
-        completions: trace.completions,
-        remote: trace.remote,
-        webhooks: trace.webhooks,
-        jobs: trace.jobs,
-        cli: trace.cli,
-        credentials: trace.credentials,
-        faults: {
-          fired: faults.fired.map((fired) => ({
-            ...fired,
-            fault: { ...fired.fault, path: String(fired.fault.path ?? "") },
-          })),
-          unused: faults.unused().map((fault) => ({
-            ...fault,
-            path: String(fault.path ?? ""),
-          })),
-        },
-        unusedAiRules: fakeAi.unused().map((rule) => rule.name ?? ""),
-        leaks: trace.leaks,
-        logs: trace.logs,
-        git: readGitTrace(world.gitTracePath, Date.now() - trace.now()),
-        files: readFiles(reposDir()),
-        databases: {
-          app: dumpDatabase(appDbPath()),
-          cache: dumpDatabase(cacheDbPath()),
-        },
+    const { reposDir, cacheDbPath } = await import("../../config.ts");
+    const { appDbPath } = await import("../../store/app_db.ts");
+    const { withLogSink } = await import("../../util/log.ts");
+    const sim: Sim = {
+      flow: flow.name,
+      mode: settings.mode,
+      world,
+      github: world.github,
+      trace,
+      ai: fakeAi,
+      faults,
+      server,
+      options: (patch = {}) => ({ ...baseOptions(settings, world), ...patch }),
+      repo: (fullName, files = SAMPLE_REPO) =>
+        world.createRepo(fullName, files),
+      cli: async (args) => {
+        const { run, reportCliError } = await import("../../cli/main.ts");
+        const argv = process.argv;
+        const exitCode = process.exitCode;
+        process.argv = [argv[0]!, "co-maintainer", ...args];
+        process.exitCode = 0;
+        try {
+          const output = await captured(async () => {
+            try {
+              await run(args);
+            } catch (error) {
+              reportCliError(error);
+              throw error;
+            }
+          });
+          const exit = Number(process.exitCode ?? 0);
+          // What the CLI printed is searched for secrets like any other place.
+          // The arguments keep only the names of the secrets they carried.
+          let shown = args;
+          for (const secret of world.secretValues()) {
+            shown = shown.map((arg) =>
+              arg.replaceAll(secret.value, `[${secret.name}]`),
+            );
+          }
+          trace.cli.push({
+            step: trace.step,
+            startMs: trace.now(),
+            args: shown,
+            stdout: output.stdout,
+            stderr: output.stderr,
+            exitCode: exit,
+          });
+          return {
+            stdout: output.stdout,
+            stderr: output.stderr,
+            exitCode: exit,
+            ...(output.error === undefined ? {} : { error: output.error }),
+          };
+        } finally {
+          process.argv = argv;
+          process.exitCode = exitCode;
+        }
       },
+      paths: {
+        reposDir: reposDir(),
+        appDb: appDbPath(),
+        cacheDb: cacheDbPath(),
+        clonesDir: process.env.CM_CLONES_DIR ?? "",
+      },
+      errors: new Map(),
+      state: {},
+      judge: settings.judge
+        ? {
+            options: {
+              ...baseOptions(settings, world),
+              ai: settings.judge.provider,
+              aiToken: settings.judge.key,
+            },
+            model: settings.judge.model,
+          }
+        : undefined,
     };
+    undo.push(() => server.stop());
+    finishStep("sandbox ready", at, true, world.root);
+
+    let checks: CheckResult[] = [];
+    let scores: Score[] = [];
+    {
+      let stopped = false;
+      for (const step of flow.steps) {
+        if (stopped) break;
+        at = performance.now();
+        trace.step = step.name;
+        let error: unknown;
+        let detail = "";
+        let timedOut = false;
+        const limit = step.timeoutMs ?? STEP_TIMEOUT_MS;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          const work = withLogSink(
+            (phase, text) => trace.log(phase, text),
+            async () => step.run(sim),
+          );
+          const timeout = new Promise<never>((_, reject) => {
+            timer = realSetTimeout(() => {
+              timedOut = true;
+              reject(
+                new Error(
+                  `timed out after ${limit / 1000}s in flow ${flow.name}, step ${step.name}`,
+                ),
+              );
+            }, limit);
+          });
+          const result = await Promise.race([work, timeout]);
+          detail = typeof result === "string" ? result : "";
+        } catch (caught) {
+          error = caught;
+          sim.errors.set(step.name, caught);
+        } finally {
+          clearTimeout(timer);
+        }
+        const ok =
+          !timedOut &&
+          (step.expectError ? error !== undefined : error === undefined);
+        if (error !== undefined) {
+          detail = detail || message(error);
+        } else if (step.expectError) {
+          detail = detail || "no error, one was expected";
+        }
+        finishStep(step.name, at, ok, detail);
+        // Later steps build on this one, so after an unexpected failure they
+        // would only fail for the same reason.
+        if (!ok) stopped = true;
+      }
+
+      at = performance.now();
+      trace.step = "scores";
+      try {
+        scores = [...((await flow.scores?.(sim)) ?? [])];
+      } catch (error) {
+        // A score never fails the run, a judge that could not answer included.
+        scores = [
+          {
+            name: "flow scores",
+            value: null,
+            detail: "",
+            fakeAi: settings.mode === "fake",
+            skipped: `failed: ${message(error)}`,
+          },
+        ];
+      }
+      scores.push(...commonScores(trace, settings.mode));
+      finishStep("scores", at, true, `${scores.length} scores`);
+
+      trace.step = "checks";
+      try {
+        checks = [...((await flow.checks?.(sim)) ?? [])];
+      } catch (error) {
+        checks = [check("flow checks ran", false, message(error))];
+      }
+      const inherited = commonChecks({
+        trace,
+        mode: settings.mode,
+        github: world.github,
+        secrets: world.secretValues(),
+        files: readSandbox(world.root),
+        appDbPath: appDbPath(),
+        cacheDbPath: cacheDbPath(),
+        unusedFaults: faults.unused(),
+        unusedRules: fakeAi.unused().map((rule) => rule.name ?? ""),
+      }).map((result) => {
+        const reason = flow.skipInherited?.[result.name];
+        return reason ? { ...result, ok: true, skipped: reason } : result;
+      });
+      // A flow check may not take an inherited check's name: it would hide the
+      // inherited one. `skipInherited` with a reason is the way to turn one off.
+      const taken = checks
+        .map((result) => result.name)
+        .filter((name) =>
+          (INHERITED_CHECKS as readonly string[]).includes(name),
+        );
+      if (taken.length) {
+        checks.push(
+          check(
+            "flow checks have their own names",
+            false,
+            `${taken.join(", ")} is an inherited check. Rename it, or turn the inherited one off with skipInherited and a reason.`,
+          ),
+        );
+      }
+      checks.push(...inherited);
+      for (const result of checks) print.check(result);
+      for (const score of scores) print.score(score);
+
+      return {
+        name: flow.name,
+        description: flow.description,
+        passed:
+          steps.every((step) => step.ok) &&
+          checks.every((result) => result.ok || result.skipped !== undefined),
+        startMs: Math.round(flowStarted - settings.origin),
+        durationMs: Math.round(performance.now() - flowStarted),
+        steps,
+        checks,
+        scores,
+        trace: {
+          github: trace.github,
+          githubWrites: world.github.writes,
+          ai: trace.ai,
+          completions: trace.completions,
+          remote: trace.remote,
+          webhooks: trace.webhooks,
+          jobs: trace.jobs,
+          cli: trace.cli,
+          credentials: trace.credentials,
+          faults: {
+            fired: faults.fired.map((fired) => ({
+              ...fired,
+              fault: { ...fired.fault, path: String(fired.fault.path ?? "") },
+            })),
+            unused: faults.unused().map((fault) => ({
+              ...fault,
+              path: String(fault.path ?? ""),
+            })),
+          },
+          unusedAiRules: fakeAi.unused().map((rule) => rule.name ?? ""),
+          leaks: trace.leaks,
+          logs: trace.logs,
+          git: readGitTrace(world.gitTracePath, Date.now() - trace.now()),
+          files: readFiles(reposDir()),
+          databases: {
+            app: dumpDatabase(appDbPath()),
+            cache: dumpDatabase(cacheDbPath()),
+          },
+        },
+      };
+    }
   } finally {
-    await resetProductState();
-    await server.stop();
-    restoreAi();
-    setGhRunner(undefined);
-    restoreFetch();
+    for (const step of undo.reverse()) {
+      try {
+        await step();
+      } catch {
+        // The rest still has to be undone.
+      }
+    }
     if (!keepSandbox) world.dispose();
   }
 }

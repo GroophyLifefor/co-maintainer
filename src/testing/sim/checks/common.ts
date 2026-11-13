@@ -177,16 +177,23 @@ function leakCheck(input: CommonInput): CheckResult {
   };
 }
 
-/** The usage every AI call reported must be in the product's own records:
- * the cost rows in cache.db (`recordAiCost`), plus the reviews table for a
- * review the server ran, which keeps one total per review. A call whose
- * tokens are in neither was not recorded. */
+/** The usage the provider billed for every AI call must be in the product's
+ * own records: the cost rows in cache.db (`recordAiCost`), plus the reviews
+ * table for a review the server ran, which keeps one total per review. A call
+ * the product threw on after the provider answered (an output limit, a body
+ * cut off) still counts: it was billed.
+ *
+ * It compares totals, not calls. The cost rows are labelled by the caller,
+ * not by the request's job, the reviews table has no job at all, and a tool
+ * loop records one merged row for several calls, so no call can be matched
+ * to its row. Totals catch a missing row unless another error makes up for
+ * it exactly. */
 function costCheck(input: CommonInput): CheckResult {
   const name = "cost recorded for every AI call";
-  const calls = productCompletions(input.trace).filter((call) => call.ok);
+  const calls = productCompletions(input.trace);
   const reported = {
-    in: calls.reduce((sum, call) => sum + call.tokensIn, 0),
-    out: calls.reduce((sum, call) => sum + call.tokensOut, 0),
+    in: calls.reduce((sum, call) => sum + call.billedIn, 0),
+    out: calls.reduce((sum, call) => sum + call.billedOut, 0),
   };
   if (!calls.length) return { name, ok: true, detail: "no AI calls" };
   const rows = readRows<{ value: string }>(
@@ -214,7 +221,11 @@ function costCheck(input: CommonInput): CheckResult {
   return {
     name,
     ok,
-    detail: `${calls.length} calls reported ${reported.in} in, ${reported.out} out · ${rows.length} cost rows hold ${cost.in} in, ${cost.out} out${
+    detail: `totals compared · ${calls.length} calls billed ${reported.in} in, ${reported.out} out${
+      calls.some((call) => !call.ok)
+        ? ` (${calls.filter((call) => !call.ok).length} of them threw)`
+        : ""
+    } · ${rows.length} cost rows hold ${cost.in} in, ${cost.out} out${
       reviews.length
         ? ` · ${reviews.length} reviews hold ${review.in} in, ${review.out} out`
         : ""
@@ -222,32 +233,67 @@ function costCheck(input: CommonInput): CheckResult {
   };
 }
 
-/** A conversation is one job and one first user message: every tool round
- * resends both. Its system prompt must not change between rounds, or a
- * provider's prompt cache misses on every round. */
+/** Calls are one conversation when they share a job and a first user message
+ * (every tool round resends both), or when a call answers tool calls an
+ * earlier call asked for. The second tie holds even when a round changes
+ * both its system prompt and its first message. A conversation's system
+ * prompt must not change between rounds, or a provider's prompt cache misses
+ * on every round. */
 function systemPromptCheck(input: CommonInput): CheckResult {
-  const groups = new Map<string, Set<string>>();
-  const rounds = new Map<string, number>();
-  for (const call of productCompletions(input.trace)) {
+  const calls = productCompletions(input.trace);
+  const parent = calls.map((_, index) => index);
+  const find = (index: number): number => {
+    while (parent[index] !== index) index = parent[index]!;
+    return index;
+  };
+  const join = (a: number, b: number) => {
+    parent[find(a)] = find(b);
+  };
+  const byKey = new Map<string, number>();
+  const byToolCall = new Map<string, number>();
+  let tied = 0;
+  calls.forEach((call, index) => {
     const key = `${call.job}\u0000${call.firstUser}`;
-    const set = groups.get(key) ?? new Set<string>();
-    set.add(call.system);
-    groups.set(key, set);
-    rounds.set(key, (rounds.get(key) ?? 0) + 1);
-  }
-  const changed = [...groups.entries()].filter(([, set]) => set.size > 1);
-  const multi = [...rounds.values()].filter((count) => count > 1).length;
+    const same = byKey.get(key);
+    if (same === undefined) byKey.set(key, index);
+    else join(index, same);
+    for (const id of call.answers) {
+      const asked = byToolCall.get(id);
+      if (asked !== undefined) {
+        join(index, asked);
+        tied++;
+      }
+    }
+    for (const id of call.toolCallIds) byToolCall.set(id, index);
+  });
+  const groups = new Map<
+    number,
+    { job: string; systems: Set<string>; rounds: number }
+  >();
+  calls.forEach((call, index) => {
+    const root = find(index);
+    const group = groups.get(root) ?? {
+      job: call.job,
+      systems: new Set<string>(),
+      rounds: 0,
+    };
+    group.systems.add(call.system);
+    group.rounds++;
+    groups.set(root, group);
+  });
+  const changed = [...groups.values()].filter((g) => g.systems.size > 1);
+  const multi = [...groups.values()].filter((g) => g.rounds > 1).length;
   return {
     name: "one system prompt per conversation",
     ok: changed.length === 0,
     detail: changed.length
       ? changed
           .map(
-            ([key, set]) =>
-              `${key.split("\u0000")[0]}: ${set.size} system prompts over ${rounds.get(key)} rounds`,
+            (group) =>
+              `${group.job}: ${group.systems.size} system prompts over ${group.rounds} rounds`,
           )
           .join(", ")
-      : `${groups.size} conversations, ${multi} with more than one round`,
+      : `${groups.size} conversations, ${multi} with more than one round, ${tied} rounds tied by tool call ids`,
   };
 }
 

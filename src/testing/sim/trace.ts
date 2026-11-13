@@ -66,11 +66,20 @@ export type Completion = {
   system: string;
   /** The first user message: one conversation keeps it across rounds. */
   firstUser: string;
+  /** What the product got back. Zero when the call threw. */
   tokensIn: number;
   tokensOut: number;
+  /** What the provider reported on the wire for this call, every HTTP answer
+   * included: the spend, even for a call the product then threw on. */
+  billedIn: number;
+  billedOut: number;
   cost: number | null;
   /** Tools the model asked for in this answer. */
   toolCalls: number;
+  /** Their ids. A later round answers them, which ties it to this one. */
+  toolCallIds: string[];
+  /** The tool call ids this request answers with results. */
+  answers: string[];
   error?: string;
 };
 

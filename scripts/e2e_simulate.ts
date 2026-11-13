@@ -103,12 +103,14 @@ function parseFlags(args: string[]): {
     const at = arg.indexOf("=");
     const name = at > 0 ? arg.slice(0, at) : arg;
     if (name === "--flow" && at > 0 && at < arg.length - 1) {
-      flows.push(
-        ...arg
-          .slice(at + 1)
-          .split(",")
-          .filter(Boolean),
-      );
+      const names = arg
+        .slice(at + 1)
+        .split(",")
+        .filter(Boolean);
+      // `--flow=,` names no flow. Running all of them would be the opposite
+      // of what was asked, and a live run is paid.
+      if (!names.length) usageError(`--flow names no flow: ${arg}`);
+      flows.push(...names);
       continue;
     }
     const key = FLAG_NAMES[name];
