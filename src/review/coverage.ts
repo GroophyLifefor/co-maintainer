@@ -155,10 +155,15 @@ export function notReviewedLines(
 export function postedPathSpan(path: string): string {
   const flat = stripControlChars(path)
     .replace(/[\n\t]+/g, " ")
-    .replaceAll("`", "ˋ")
-    .replaceAll("@", "@​");
+    .replaceAll("`", MODIFIER_GRAVE)
+    .replaceAll("@", `@${ZERO_WIDTH_SPACE}`);
   return `\`${flat}\``;
 }
+
+// Built from their codes: the formatter rewrites a `\u` escape in a string
+// into the character itself, and both are invisible or look like others.
+const MODIFIER_GRAVE = String.fromCharCode(0x02cb);
+const ZERO_WIDTH_SPACE = String.fromCharCode(0x200b);
 
 function pathList(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;

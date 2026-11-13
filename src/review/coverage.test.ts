@@ -150,7 +150,7 @@ test("postedPathSpan keeps a hostile path inside one inert code span", () => {
   same(postedPathSpan("src/a.ts"), "`src/a.ts`", "ordinary path");
   same(
     postedPathSpan("a`b\nc @org/team ](x)\u001b.ts"),
-    "`aˋb c @​org/team ](x).ts`",
+    `\`a${String.fromCharCode(0x02cb)}b c @${String.fromCharCode(0x200b)}org/team ](x).ts\``,
     "backtick, newline, mention, link and control character",
   );
 });
