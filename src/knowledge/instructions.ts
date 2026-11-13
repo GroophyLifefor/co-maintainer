@@ -231,10 +231,19 @@ export function checkInstructionRules(
       continue;
     }
     const checkedSources = sources as { path: string; line: number }[];
-    const key = mergeKey(text);
+    const unique = checkedSources.filter(
+      (source, index) =>
+        checkedSources.findIndex(
+          (item) => item.path === source.path && item.line === source.line,
+        ) === index,
+    );
+    const scope = resolveScope(candidate.scope, unique, paths);
+    // The scope is part of the key: the same sentence in two folders is two
+    // rules, and merging them would leave one folder uncovered.
+    const key = `${scope}\n${mergeKey(text)}`;
     const existing = byKey.get(key);
     if (existing) {
-      for (const source of checkedSources) {
+      for (const source of unique) {
         if (
           !existing.sources.some(
             (item) => item.path === source.path && item.line === source.line,
@@ -245,17 +254,7 @@ export function checkInstructionRules(
       }
       continue;
     }
-    const unique = checkedSources.filter(
-      (source, index) =>
-        checkedSources.findIndex(
-          (item) => item.path === source.path && item.line === source.line,
-        ) === index,
-    );
-    const rule: Checked = {
-      text,
-      scope: resolveScope(candidate.scope, unique, paths),
-      sources: unique,
-    };
+    const rule: Checked = { text, scope, sources: unique };
     byKey.set(key, rule);
     rules.push(rule);
   }

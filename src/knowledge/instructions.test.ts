@@ -142,6 +142,33 @@ test("a path in backticks passes when it is in the tree, and rules with the same
   }
 });
 
+test("the same rule in two folders stays two rules, one per folder", () => {
+  const files = {
+    "packages/a/AGENTS.md": "# A\nEvery route declares a limit.\n",
+    "packages/b/AGENTS.md": "# B\nEvery route declares a limit.\n",
+  };
+  const { rules } = checkInstructionRules(
+    [
+      {
+        rule: "Every route declares a limit.",
+        scope: "",
+        sources: ["packages/a/AGENTS.md:2"],
+      },
+      {
+        rule: "Every route declares a limit.",
+        scope: "",
+        sources: ["packages/b/AGENTS.md:2"],
+      },
+    ],
+    files,
+    Object.keys(files),
+  );
+  const scopes = rules.map((rule) => rule.scope).join(",");
+  if (scopes !== "packages/a/,packages/b/") {
+    throw new Error(`scopes: ${scopes}`);
+  }
+});
+
 test("a rule from a nested file gets that file's folder unless the model named a real one", () => {
   const { rules } = checkInstructionRules(
     [
