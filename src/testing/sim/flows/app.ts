@@ -338,7 +338,7 @@ export function pullFilesAt(
 }
 
 const METADATA =
-  /\n\n<details>\n<summary>Metadata<\/summary>\n\n- Activity: (\S+)\n- co-maintainer version: (\S+)\n- Model: (.+)\n- Duration: (\d+s|\d+m \d+s|\d+h \d+m \d+s)\n<\/details>$/;
+  /\n\n<details>\n<summary>Metadata<\/summary>\n\n- Activity: (\S+)\n- co-maintainer version: (\S+)\n- Model: (.+)\n- Duration: (\d+s|\d+m \d+s|\d+h \d+m \d+s)\n- Coverage: \d+ full · \d+ partial · \d+ summarized · \d+ dropped(?: · \d+ withheld)?\n<\/details>$/;
 
 /** The review's Metadata block, or undefined when it is missing or out of
  * shape. */

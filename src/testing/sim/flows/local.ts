@@ -1283,6 +1283,13 @@ function jsonChecks(sim: Sim): CheckResult[] {
       additions: 13,
       deletions: 2,
       truncated: false,
+      coverage: {
+        full: 4,
+        partial: [],
+        summarized: [],
+        dropped: [],
+        withheld: [],
+      },
     })
   ) {
     problems.push(`revision ${JSON.stringify(out.revision)}`);
