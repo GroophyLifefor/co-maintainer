@@ -267,6 +267,7 @@ co-maintainer review [options]
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
 | `--output=github` |  | Print GitHub workflow annotations and write the job summary instead of prose. Cannot be used with --json. |
+| `--include-extension-markdowns` |  | With --json, keep each extension's markdown. It is empty otherwise. |
 
 ## `co-maintainer config`
 

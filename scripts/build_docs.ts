@@ -19,6 +19,7 @@
 import { marked } from "marked";
 import { pathToFileURL } from "node:url";
 import { registryToMarkdown } from "../src/cli/commands/registry.ts";
+import { applySchemaBlock } from "../src/extensions/schema.ts";
 import { logo } from "../src/server/logo.ts";
 import { permissionTable, type TableKind } from "../src/github/permissions.ts";
 import {
@@ -73,6 +74,7 @@ const NAV: NavSection[] = [
       { slug: "review-policy", label: "Review policy" },
       { slug: "local-pr-review", label: "PR review" },
       { slug: "commit-watch-review", label: "Commit watch review" },
+      { slug: "extensions", label: "Extensions" },
     ],
   },
   {
@@ -668,7 +670,7 @@ export async function buildDocs(options: BuildOptions = {}): Promise<void> {
   for (const { slug } of ALL_PAGES) {
     const mdPath = new URL(`${slug}.md`, MD_DIR);
     const source = await readTextFile(mdPath);
-    let md = applyPermissionBlocks(source);
+    let md = applySchemaBlock(applyPermissionBlocks(source));
     if (md !== source) await writeTextFile(mdPath, md);
     lintDocMd(md, `${slug}.md`);
     md = fixMdSourceLinks(md);
