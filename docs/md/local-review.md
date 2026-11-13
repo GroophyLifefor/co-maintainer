@@ -34,6 +34,7 @@ co-maintainer review --to-branch=main --sync-before-review
 | `--disable-codegraph` | Skip codegraph tools (default is on) |
 | `--allow-tool-install` | Install pinned codegraph without a prompt when missing |
 | `--fresh` | Ignore carry-over from the previous local review on this branch |
+| `--diagram-runtime`, `--plantuml-server`, `--plantuml-output-format` | The diagram language of the review, see [Diagrams](review.md#diagrams) |
 | `--to-branch=<name>` | Base branch for the diff (default: remote default branch) |
 | `--branch=<name>` | Branch name when HEAD is detached |
 | `--repo=owner/repo` | Override GitHub remote detection |
