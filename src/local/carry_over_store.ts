@@ -10,6 +10,9 @@ export type LocalCarrySnapshot = {
   visiblePaths: string[];
   findings: StoredFinding[];
   guideBuiltAt: string | null;
+  /** The pull request head the findings were judged against. Only a pull
+   * request snapshot has one: it is how a force-push is told from a push. */
+  headSha?: string | null;
 };
 
 function key(repo: string, root: string, branch: string): string {
@@ -73,4 +76,32 @@ export async function clearLocalCarry(
   branch: string,
 ): Promise<void> {
   await cacheDelete(NS, key(repo, root, branch));
+}
+
+// A pull request run lives in the same namespace under a second key shape,
+// `${repo}\0pull-request\0${number}`. The middle part cannot be a git root,
+// which is always an absolute path, so the two shapes never collide, and
+// `clear` already removes every row that starts with `${repo}\0`.
+const PR_PART = "pull-request";
+
+export function prSubjectId(repo: string, prNumber: number): string {
+  return key(repo, PR_PART, String(prNumber));
+}
+
+export async function tryLoadPrCarry(
+  repo: string,
+  prNumber: number,
+): Promise<{ data: LocalCarrySnapshot | null; unavailable: boolean }> {
+  return tryLoadLocalCarry(repo, PR_PART, String(prNumber));
+}
+
+export async function savePrCarry(snapshot: LocalCarrySnapshot): Promise<void> {
+  await saveLocalCarry(snapshot);
+}
+
+export async function clearPrCarry(
+  repo: string,
+  prNumber: number,
+): Promise<void> {
+  await clearLocalCarry(repo, PR_PART, String(prNumber));
 }

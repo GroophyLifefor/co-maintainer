@@ -67,6 +67,34 @@ test("buildPrReviewJson: parses findings from markdown", () => {
   if (json.findings.length !== 1) throw new Error(String(json.findings.length));
 });
 
+test("buildPrReviewJson: carried findings keep their state and the summary counts them", () => {
+  const json = JSON.parse(
+    buildPrReviewJson({
+      repo: "o/r",
+      prNumber: 9,
+      markdown: "",
+      findings: [
+        row({ state: "new", title: "n" }),
+        row({ state: "open", title: "o" }),
+        row({ state: "closed", title: "c", closeReason: "fixed" }),
+      ],
+      warnings: [{ code: "carry_over_unavailable", message: "cache" }],
+      guideBuiltAt: null,
+      codegraphState: "disabled",
+      codegraphReason: null,
+      usage: { tokensIn: 1, tokensOut: 2, costUsd: 0.01 },
+      durationMs: 100,
+    }),
+  );
+  const { new: fresh, open, closed } = json.summary;
+  if (fresh !== 1 || open !== 1 || closed !== 1) {
+    throw new Error(JSON.stringify(json.summary));
+  }
+  if (json.warnings[0]?.code !== "carry_over_unavailable") {
+    throw new Error(JSON.stringify(json.warnings));
+  }
+});
+
 test("sortResolvedFindings: new before open before closed", () => {
   const sorted = sortResolvedFindings([
     row({ state: "closed", title: "c" }),

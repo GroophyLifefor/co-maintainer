@@ -442,6 +442,10 @@ export type PrReviewJsonInput = {
   repo: string;
   prNumber: number;
   markdown: string;
+  /** The findings with their `new`, `open` and `closed` state. Without them
+   * every finding in `markdown` counts as new. */
+  findings?: ResolvedFinding[];
+  warnings?: ReviewWarning[];
   guideBuiltAt: string | null;
   codegraphState: "used" | "disabled" | "unavailable";
   codegraphReason: string | null;
@@ -452,10 +456,9 @@ export type PrReviewJsonInput = {
 
 export function buildPrReviewJson(input: PrReviewJsonInput): string {
   const mode = input.reviewBlocking ?? DEFAULT_REVIEW_BLOCKING;
-  const findings = resolvedFromFirstReview(
-    parseFindings(input.markdown),
-    new Map(),
-  );
+  const findings =
+    input.findings ??
+    resolvedFromFirstReview(parseFindings(input.markdown), new Map());
   const sorted = sortResolvedFindings(findings);
   return JSON.stringify({
     schemaVersion: 1,
@@ -469,7 +472,7 @@ export function buildPrReviewJson(input: PrReviewJsonInput): string {
     },
     summary: summaryCounts(findings, mode),
     findings: sorted.map((row) => toJsonFinding(row, mode)),
-    warnings: [],
+    warnings: input.warnings ?? [],
     usage: input.usage,
     durationMs: input.durationMs,
   });

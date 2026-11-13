@@ -22,10 +22,9 @@ import { runRemotePushReview } from "../../remote/push_client.ts";
 import { reviewExitCode } from "../review_output.ts";
 import {
   buildPrReviewJson,
-  resolvedFromFirstReview,
   reviewExitCodeFromResolved,
 } from "../review_result.ts";
-import { parseFindings } from "../../pr/findings.ts";
+import { startPrCarry } from "../pr_carry.ts";
 import { exitWith } from "../error.ts";
 import { printRunSummary, summaryFromMetrics } from "../../util/run_summary.ts";
 import { emitGithubOutput } from "../review_github.ts";
@@ -55,6 +54,7 @@ export async function runReview(options: Options): Promise<void> {
     disableCodegraph: false,
     allowToolInstall: false,
     remakeBeforeReview: false,
+    fresh: false,
   });
 }
 
@@ -67,6 +67,7 @@ async function runReviewPr(
     | "allowToolInstall"
     | "remakeBeforeReview"
     | "output"
+    | "fresh"
   >,
 ): Promise<void> {
   setCliInteractive(!cli.json);
@@ -83,17 +84,25 @@ async function runReviewPr(
         `reading PR #${options.prNumber} in ${options.repo} via gh`,
       );
       log("review", modelSummary(options));
+      const client = new GhClient(options.debug);
+      const carry = await startPrCarry(client, options, cli.fresh, (message) =>
+        log("review", message),
+      );
       const result = await timed(
         "review GitHub collection and AI",
         options.logTime,
         () =>
           reviewPullRequest(
-            new GhClient(options.debug),
+            client,
             options,
             async (response) => {
               addAiMetrics(aiMetrics, response);
               await recordAiCost(options.repo, "review_pull_request", response);
             },
+            undefined,
+            undefined,
+            undefined,
+            carry.extras,
           ),
       );
       const durationMs = Math.round(performance.now() - operationStarted);
@@ -106,16 +115,16 @@ async function runReviewPr(
       // the old `useCodegraph ? "used" : "disabled"` that claimed "used" while
       // stderr said codegraph was missing.
       const codegraphState = result.codegraphState;
-      const resolved = resolvedFromFirstReview(
-        parseFindings(result.text),
-        new Map(),
-      );
+      const resolved = await carry.finish(result);
+      const warnings = carry.warnings;
       if (cli.json) {
         console.log(
           buildPrReviewJson({
             repo: options.repo,
             prNumber: options.prNumber!,
             markdown: result.text,
+            findings: resolved,
+            warnings,
             guideBuiltAt: result.guideBuiltAt,
             codegraphState,
             codegraphReason: null,
@@ -145,6 +154,7 @@ async function runReviewPr(
                 resolved,
                 options.reviewBlocking,
               ),
+              warnings,
             }) +
             "\n",
         );
@@ -163,10 +173,15 @@ async function runReviewPr(
           );
         }
       }
+      // A blocking finding carried over from an earlier run still blocks, so
+      // the resolved rows decide as well as the model's own text.
       exitWith(
         cli.json
           ? reviewExitCodeFromResolved(resolved, options.reviewBlocking)
-          : reviewExitCode(result.text, options.reviewBlocking),
+          : Math.max(
+              reviewExitCode(result.text, options.reviewBlocking),
+              reviewExitCodeFromResolved(resolved, options.reviewBlocking),
+            ),
       );
     } finally {
       // A heartbeat left running on the error path keeps the event loop alive

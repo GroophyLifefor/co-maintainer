@@ -112,6 +112,7 @@ async function seedCache(repo: string): Promise<void> {
   await cacheSet("ai-jobs", `${repo}:low`, "{}");
   await cacheSet("cost", `${repo}:job`, "{}");
   await cacheSet("local-review", `${repo}\u0000/root\u0000main`, "{}");
+  await cacheSet("local-review", `${repo}\u0000pull-request\u000012`, "{}");
 }
 
 test("clearRepo forgets knowledge and settings and keeps fetched evidence", async () => {
@@ -174,7 +175,7 @@ test("includeCache removes evidence, clones, worktrees and the legacy state", as
       await writeTextFile(".cache/acme/widgets/state.json", "{}");
 
       const result = await clearRepo("acme/widgets", { includeCache: true });
-      if (result.cacheRows !== 7) throw new Error(`rows ${result.cacheRows}`);
+      if (result.cacheRows !== 8) throw new Error(`rows ${result.cacheRows}`);
       if (!result.clones || !result.worktrees) {
         throw new Error("clone or worktree was not reported");
       }
@@ -186,6 +187,7 @@ test("includeCache removes evidence, clones, worktrees and the legacy state", as
         ["ai-jobs", "acme/widgets:low"],
         ["cost", "acme/widgets:job"],
         ["local-review", "acme/widgets\u0000/root\u0000main"],
+        ["local-review", "acme/widgets\u0000pull-request\u000012"],
       ] as const) {
         if ((await cacheGet(namespace, key)) !== undefined) {
           throw new Error(`${namespace} row survived`);

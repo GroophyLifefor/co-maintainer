@@ -9,7 +9,6 @@ import {
   buildLocalReviewJson,
   formatHumanLocalReview,
   humanFindingsFromResolved,
-  resolvedFromFirstReview,
   reviewExitCodeFromResolved,
   type ReviewWarning,
 } from "../cli/review_result.ts";
@@ -22,19 +21,13 @@ import {
 import { aiFor } from "../services/review.ts";
 import { loadGuides } from "../review/guides.ts";
 import { hasGuides, notInitializedError } from "../review/not_initialized.ts";
+import { guideRebuiltSince } from "../review/carry_over.ts";
 import {
-  buildCarryPromptSection,
-  classifyCarryItems,
-  guideRebuiltSince,
-  incrementalDiffPaths,
-  parsePreviousVerdicts,
-  resolveCarryOutcomes,
-  type CarryPrevious,
-  type ResolvedFinding,
-  type StoredFinding,
-} from "../review/carry_over.ts";
+  finishCarryRun,
+  startCarryRun,
+  storedFindings,
+} from "../cli/review_carry.ts";
 import { revisionHash } from "../review/revision.ts";
-import { parseFindings } from "../pr/findings.ts";
 import { type ReviewExtras, reviewWorkspaceRevision } from "../pr/reviewer.ts";
 import { runCommand } from "../pr/checkout.ts";
 import {
@@ -70,22 +63,6 @@ import {
   tryLoadLocalCarry,
 } from "./carry_over_store.ts";
 import { costUsage } from "../util/cost.ts";
-
-function storedFindings(resolved: ResolvedFinding[]): StoredFinding[] {
-  return resolved
-    .filter((row) => row.state === "new" || row.state === "open")
-    .map((row) => ({
-      id: row.id,
-      path: row.path,
-      lineFrom: row.lineFrom,
-      lineTo: row.lineTo,
-      title: row.title,
-      bodyMd: row.bodyMd,
-      anchorText: row.anchorText,
-      severity: row.severity,
-      firstSeenReviewId: row.firstSeenReviewId,
-    }));
-}
 
 function fail(error: ReviewCliError, json: boolean): void {
   if (json) {
@@ -268,26 +245,8 @@ export async function runLocalReview(
         await clearLocalCarry(repo, root, branch).catch(() => {});
         previous = null;
       }
-      let carryPrevious: CarryPrevious | null = null;
-      let carryItems: ReturnType<typeof classifyCarryItems> = [];
-      const extras: ReviewExtras = {};
-      if (previous) {
-        carryPrevious = {
-          files: previous.files,
-          visiblePaths: new Set(previous.visiblePaths),
-          findings: previous.findings,
-          guideBuiltAt: previous.guideBuiltAt,
-        };
-        const { unchanged } = incrementalDiffPaths(revision, previous.files);
-        extras.unchangedPaths = unchanged;
-        carryItems = classifyCarryItems(
-          carryPrevious,
-          revision,
-          carryPrevious.visiblePaths,
-          guides.guideBuiltAt,
-        );
-        extras.carryPrompt = buildCarryPromptSection(carryItems, revision);
-      }
+      const carryRun = startCarryRun(previous, revision, guides.guideBuiltAt);
+      const extras: ReviewExtras = { ...carryRun.extras };
 
       const sha = await headSha(root);
       const revisionHashBefore = await revisionHash(revision);
@@ -329,26 +288,11 @@ export async function runLocalReview(
       }
       const codegraphState = codegraphPrep.state;
 
-      const visiblePaths = new Set(response.visiblePaths);
-      if (carryPrevious) {
-        carryItems = classifyCarryItems(
-          carryPrevious,
-          revision,
-          visiblePaths,
-          response.guideBuiltAt,
-        );
-      }
-      const parsed = parseFindings(response.text);
-      const filesByPath = new Map(revision.files.map((f) => [f.path, f]));
-      const allResolved = carryPrevious
-        ? resolveCarryOutcomes(
-            carryItems,
-            revision,
-            visiblePaths,
-            parsePreviousVerdicts(response.text),
-            parsed,
-          )
-        : resolvedFromFirstReview(parsed, filesByPath);
+      const { resolved: allResolved, visiblePaths } = finishCarryRun(
+        carryRun,
+        revision,
+        response,
+      );
       const findingsToStore = storedFindings(allResolved);
 
       const afterBuilt = await buildLocalRevision(
