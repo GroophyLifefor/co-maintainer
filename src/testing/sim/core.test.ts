@@ -489,3 +489,60 @@ test("steps stop after an unexpected failure, and a skipped inherited check says
   assert.equal(skipped.skipped, "not this flow's concern");
   assert.equal(result.passed, false);
 });
+
+test("a webhook signed with the wrong secret is refused by the real handler", async () => {
+  const result = await run({
+    name: "signature-fixture",
+    description: "test fixture",
+    steps: [
+      {
+        name: "deliver",
+        async run(sim) {
+          sim.repo(SAMPLE_REPO_NAME);
+          await sim.server.start();
+          const pull = sim.github.openPull(SAMPLE_REPO_NAME, {
+            title: "t",
+            files: { "x.txt": "x\n" },
+          });
+          const payload = sim.server.payloads.pullRequest(pull, "opened");
+          await sim.server.deliver("pull_request", payload, {
+            secret: "not-the-secret",
+          });
+          await sim.server.deliver("pull_request", payload);
+        },
+      },
+    ],
+  });
+  assert.ok(result.passed, failures(result));
+  const trace = result.trace as {
+    webhooks: { status: number; response: { outcome?: string } }[];
+  };
+  assert.deepEqual(
+    trace.webhooks.map((delivery) => delivery.status),
+    [401, 200],
+  );
+  // No repository is active on this server, so the review is skipped.
+  assert.equal(trace.webhooks[1]!.response.outcome, "skipped");
+});
+
+test("a GitHub route the simulation does not know fails the flow", async () => {
+  const result = await run({
+    name: "unknown-route-fixture",
+    description: "test fixture",
+    steps: [
+      {
+        name: "call",
+        async run(sim) {
+          sim.repo(SAMPLE_REPO_NAME);
+          const response = await fetch(
+            "https://api.github.com/repos/sim/sample/deployments",
+          );
+          return String(response.status);
+        },
+      },
+    ],
+  });
+  assert.equal(result.steps[1]!.detail, "404");
+  assert.equal(checkNamed(result, "every GitHub call answered").ok, false);
+  assert.equal(result.passed, false);
+});
