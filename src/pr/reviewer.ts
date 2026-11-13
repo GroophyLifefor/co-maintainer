@@ -470,9 +470,7 @@ export async function reviewPullRequest(
     `tool rounds · ${maxToolRounds} (own diff ${totalDiffLines} changed lines)`,
   );
 
-  const ownDiff = prepared.notShown
-    ? `${prepared.sections}\n\n${prepared.notShown}`
-    : prepared.sections;
+  const ownDiff = prepared.diff;
   const unchangedListing = extras?.unchangedPaths?.length
     ? `\nUNCHANGED SINCE LAST REVIEW (paths only, do not re-report findings here):\n${extras.unchangedPaths
         .map((path) => `- ${path}`)
@@ -724,9 +722,7 @@ export async function reviewWorkspaceRevision(
   const extraTools: ToolHandler[] = [...codegraphTools, ...prepared.tools];
   const totalDiffLines = ownFiles.reduce((sum, file) => sum + file.changes, 0);
   const maxToolRounds = clampToolRounds(totalDiffLines);
-  const ownDiff = prepared.notShown
-    ? `${prepared.sections}\n\n${prepared.notShown}`
-    : prepared.sections;
+  const ownDiff = prepared.diff;
   report(diffReport(prepared.sections.length, prepared.coverage));
   const unchangedListing = extras?.unchangedPaths?.length
     ? `\nUNCHANGED SINCE LAST REVIEW (paths only):\n${extras.unchangedPaths

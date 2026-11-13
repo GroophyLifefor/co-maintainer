@@ -18,6 +18,7 @@ import {
 import {
   coverageFromPlan,
   dropUntilFits,
+  noDiffBlock,
   notShownBlock,
   planDiff,
   renderSection,
@@ -29,8 +30,10 @@ import {
 export type PreparedDiff = {
   /** The joined file sections, in the order the files came in. */
   sections: string;
-  /** The NOT SHOWN list, or `""` when nothing was dropped. */
+  /** The NO DIFF TEXT and NOT SHOWN lists, or `""` when no file is listed. */
   notShown: string;
+  /** The whole DIFF section: the sections, then the lists. */
+  diff: string;
   /** `read-full-diff`, present when any file can be read with it. */
   tools: ToolHandler[];
   coverage: Coverage;
@@ -134,8 +137,14 @@ export async function prepareReviewDiff(
   };
   dropUntilFits(planned, sizeOf);
   const sections = planned
-    .filter((file) => file.state !== "dropped")
+    .filter((file) => file.state !== "dropped" && !file.listed)
     .map((file) => rendered.get(file) ?? render(file))
+    .join("\n\n");
+  const lists = [
+    noDiffBlock(planned),
+    notShownBlock(planned, { tools: input.tools }),
+  ]
+    .filter(Boolean)
     .join("\n\n");
 
   const readable = new Map<string, ReadableDiff>(
@@ -169,7 +178,8 @@ export async function prepareReviewDiff(
     .sort();
   return {
     sections,
-    notShown: notShownBlock(planned, { tools: input.tools }),
+    notShown: lists,
+    diff: [sections, lists].filter(Boolean).join("\n\n"),
     tools,
     coverage,
     warnings: coverageWarnings(coverage, input.catchesUp, stillPartial),

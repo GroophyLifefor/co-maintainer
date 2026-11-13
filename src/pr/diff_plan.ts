@@ -46,7 +46,13 @@ export type DiffFile = {
   empty?: EmptyPatch;
 };
 
-export type PlannedFile = DiffFile & { state: FileState };
+export type PlannedFile = DiffFile & {
+  state: FileState;
+  /** A file with no patch text shown only as one line of the NO DIFF TEXT
+   * list instead of its own block, which happens when the diff is over
+   * budget. Its state does not change. */
+  listed?: boolean;
+};
 
 function count(value: unknown): number {
   const number = Number(value ?? 0);
@@ -160,13 +166,41 @@ function emptyLabel(file: DiffFile): string {
   }
 }
 
+/** The same facts as `emptyLabel`, as one line of the NO DIFF TEXT list. */
+function noDiffLine(file: DiffFile): string {
+  switch (file.empty) {
+    case "binary":
+      return `- ${file.path}: binary file`;
+    case "renamed":
+      return `- ${file.path}: renamed without changes${file.previousPath ? ` from ${file.previousPath}` : ""}`;
+    case "no_changes":
+      return `- ${file.path}: no changed lines`;
+    default:
+      return `- ${file.path}: diff withheld by GitHub (+${file.additions} -${file.deletions})`;
+  }
+}
+
+const NO_DIFF_HEAD = [
+  "NO DIFF TEXT: these files changed, but there is no diff text to show for",
+  "them. Do not treat a withheld file as unchanged and do not report its contents.",
+].join("\n");
+
+/** The NO DIFF TEXT list, or `""` when no file is listed. */
+export function noDiffBlock(files: PlannedFile[]): string {
+  const listed = files.filter((file) => file.listed);
+  if (listed.length === 0) return "";
+  return [NO_DIFF_HEAD, ...capped(listed.map(noDiffLine))].join("\n");
+}
+
 /** One file's block in the DIFF section, or `""` for a dropped file, which
- * is listed under NOT SHOWN instead. */
+ * is listed under NOT SHOWN instead, and for a listed file, which is one line
+ * of NO DIFF TEXT. */
 export function renderSection(
   file: PlannedFile,
   options: RenderOptions,
 ): string {
   const head = `FILE: ${file.path}\n`;
+  if (file.listed) return "";
   switch (file.state) {
     case "dropped":
       return "";
@@ -277,7 +311,8 @@ class ListBound {
 }
 
 /** What the DIFF section will weigh: the file sections joined by blank lines,
- * then the NOT SHOWN list. Both count against `MAX_REVIEW_DIFF_CHARS`. */
+ * then the NO DIFF TEXT and NOT SHOWN lists. All of it counts against
+ * `MAX_REVIEW_DIFF_CHARS`. */
 class Budget {
   private sections = 0;
   private shown = 0;
@@ -286,6 +321,7 @@ class Budget {
       Math.max(NOT_SHOWN_HOW.tools.length, NOT_SHOWN_HOW.none.length) +
       2,
   );
+  private readonly noDiff = new ListBound(NO_DIFF_HEAD.length);
 
   private readonly size: (file: PlannedFile) => number;
 
@@ -293,8 +329,16 @@ class Budget {
     this.size = size;
     for (const file of files) {
       if (file.state === "dropped") this.dropped.add(droppedLine(file).length);
+      else if (file.listed) this.noDiff.add(noDiffLine(file).length);
       else this.show(file);
     }
+  }
+
+  /** Moves a file with no patch text from its own block into the list. */
+  list(file: PlannedFile): void {
+    this.hide(file);
+    file.listed = true;
+    this.noDiff.add(noDiffLine(file).length);
   }
 
   show(file: PlannedFile): void {
@@ -316,6 +360,7 @@ class Budget {
   total(): number {
     const parts = [
       this.shown > 0 ? this.sections + SEPARATOR * (this.shown - 1) : 0,
+      this.noDiff.size(),
       this.dropped.size(),
     ].filter((part) => part > 0);
     return (
@@ -333,19 +378,37 @@ export function byPath(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+/** Over budget, every file with no patch text becomes one line of the capped
+ * NO DIFF TEXT list. Its marker carries no code, so it goes before any file
+ * that has a patch loses room. */
+function listPatchless(
+  files: PlannedFile[],
+  budget: Budget,
+  max: number,
+): void {
+  if (budget.total() <= max) return;
+  for (const file of files) {
+    if (file.patch === "" && !file.listed && file.state !== "dropped") {
+      budget.list(file);
+    }
+  }
+}
+
 /** Drops files from the end of path order until the DIFF section fits. Both
- * the plan and the pass after the real summaries use it. Mutates `files`. */
+ * the plan and the pass after the real summaries use it. Only a file with a
+ * patch is dropped: files without one are listed first. Mutates `files`. */
 export function dropUntilFits(
   files: PlannedFile[],
   size: (file: PlannedFile) => number,
   max = MAX_REVIEW_DIFF_CHARS,
 ): void {
   const budget = new Budget(files, size);
+  listPatchless(files, budget, max);
   if (budget.total() <= max) return;
   const fromEnd = [...files].sort((a, b) => byPath(b.path, a.path));
   for (const file of fromEnd) {
     if (budget.total() <= max) return;
-    if (!DROPPABLE.has(file.state)) continue;
+    if (!DROPPABLE.has(file.state) || file.patch === "") continue;
     budget.drop(file);
   }
 }
@@ -391,6 +454,7 @@ export function planDiff(
   const asSummary = (file: PlannedFile) =>
     size({ ...file, state: "summarized" });
   const budget = new Budget(planned, size);
+  listPatchless(planned, budget, max);
   while (budget.total() > max) {
     let largest: PlannedFile | undefined;
     for (const file of planned) {

@@ -9,6 +9,7 @@ import {
   MAX_FILE_PATCH_CHARS,
   MAX_LISTED_FILES,
   MAX_REVIEW_DIFF_CHARS,
+  noDiffBlock,
   notShownBlock,
   planDiff,
   renderSection,
@@ -353,13 +354,63 @@ test("dropUntilFits drops nothing when the diff fits", () => {
   same(planned[0]!.state, "full", "kept");
 });
 
-test("dropUntilFits never drops a withheld file", () => {
+function withheld(path: string): DiffFile {
+  return diffFileFromGithub({
+    filename: path,
+    status: "modified",
+    additions: 10,
+    deletions: 2,
+    changes: 12,
+  });
+}
+
+test("over budget, a withheld file is listed instead of pushing a real file out", () => {
   const planned: PlannedFile[] = [
     { ...file("a.ts", 3), state: "full" },
-    { ...file("z.ts", 3), state: "withheld" },
+    { ...withheld("z.ts"), state: "withheld" },
   ];
-  dropUntilFits(planned, () => 600, 1_000);
-  same(states(planned), { "a.ts": "dropped", "z.ts": "withheld" }, "states");
+  dropUntilFits(planned, (item) => (item.patch === "" ? 600 : 500), 1_000);
+  same(states(planned), { "a.ts": "full", "z.ts": "withheld" }, "states");
+  same(planned[1]!.listed, true, "listed");
+});
+
+test("2,000 patchless files never push the one real file out, and the total fits", () => {
+  const files = Array.from({ length: 2_000 }, (_, i) =>
+    withheld(`vendor/w${String(i).padStart(4, "0")}.bin`),
+  );
+  files.push(file("src/real.ts", 20));
+  const planned = planDiff(files);
+  same(states(planned)["src/real.ts"], "full", "the real file stays full");
+  same(
+    planned.filter((item) => item.state === "withheld").length,
+    2_000,
+    "every patchless file keeps its state",
+  );
+  const block = noDiffBlock(planned);
+  const rows = block.split("\n").filter((line) => line.startsWith("- "));
+  same(rows.length, MAX_LISTED_FILES + 1, "200 names and the rest");
+  same(rows.at(-1), "- and 1800 more", "the rest line");
+  contains(
+    block,
+    "- vendor/w0000.bin: diff withheld by GitHub (+10 -2)",
+    "row",
+  );
+  const whole = [
+    renderSection(
+      planned.find((item) => item.path === "src/real.ts")!,
+      { tools: true },
+    ),
+    block,
+  ].join("\n\n");
+  if (whole.length > MAX_REVIEW_DIFF_CHARS) {
+    throw new Error(`over budget: ${whole.length}`);
+  }
+});
+
+test("a diff that fits keeps every patchless file in its own block", () => {
+  const planned = planDiff([withheld("lock.json"), file("a.ts", 3)]);
+  if (planned.some((item) => item.listed)) throw new Error("nothing to list");
+  same(noDiffBlock(planned), "", "no list");
 });
 
 test("the seen set holds what the model received plus unchanged files", () => {
