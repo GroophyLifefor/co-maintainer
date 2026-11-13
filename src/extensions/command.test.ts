@@ -230,10 +230,9 @@ console.log(JSON.stringify({
           "--name=probe",
           `--command=${process.execPath} ${script} {{details_path}} {{review_result_path}} {{diff_path}}`,
         ]);
-        if (
-          !output.includes("[P2 · blocking] env \n") &&
-          !output.includes("[P2 · blocking] env")
-        ) {
+        // The title lists every variable the command saw besides the ones
+        // the shell sets itself. An empty environment leaves none.
+        if (!/\[P2 · blocking\] env$/m.test(output)) {
           throw new Error(output);
         }
         if (output.includes("CM_TEST_SECRET") || output.includes("HOME")) {

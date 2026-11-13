@@ -65,6 +65,12 @@ holds is passed to it. Set what the command needs inside the command itself,
 command are the extension's responsibility, and so is checking out or running
 pull request code.
 
+The command runs as the user that runs co-maintainer, `serve` included, and
+can read every file that user can read. That includes `config.json`, which
+holds co-maintainer's keys. An extension that runs pull request code must
+sandbox that code itself. Outside a local review the command runs in its run
+folder.
+
 The three files sit in one folder per review, shared by its extensions:
 
 ```
@@ -72,6 +78,9 @@ The three files sit in one folder per review, shared by its extensions:
 <config dir>/co-maintainer/extensions/<run-id>/cm-review.json
 <config dir>/co-maintainer/extensions/<run-id>/diff.patch
 ```
+
+With `CM_CONFIG_PATH` set, the run folders live in
+`co-maintainer-extensions` next to that `config.json` instead.
 
 The folder is removed however the review ends. `serve` removes the folders of
 jobs no longer running when it starts, and the CLI removes those of runs whose
@@ -182,6 +191,13 @@ Print exactly one JSON document on stdout. Log lines go to stderr.
   `--retry-on-fail-times`, the command runs again first.
 - `retry` waits `retryAfterSeconds` and runs the command again, up to
   `--max-requested-retries` times. After that the result is Failed.
+- Each attempt gets the full `--timeout`. The longest an extension can take is
+  one attempt, plus `--retry-on-fail-times` attempts, plus
+  `--max-requested-retries` attempts with their waits.
+- Inside the `<details>` block, `details` and `summary` tags in `markdown` are
+  shown as text, and a heading named like one of the review's own sections is
+  escaped. Mentions and images are posted as written: the extension owner is
+  responsible for them, even when a pull request shaped them.
 - Media is always a URL the extension uploaded itself. co-maintainer uploads
   nothing.
 
@@ -212,7 +228,9 @@ Print exactly one JSON document on stdout. Log lines go to stderr.
   own `blocking`.
 - In the GitHub review, a finding on a diff line is posted inline, headed
   `[P2 · blocking] · extension: name`. A finding off the diff, or with no
-  location, goes in the summary list with the same label.
+  location, goes in the summary list with the same label. At most 50
+  extension comments go inline and 50 findings are listed, then a line says
+  how many more the dashboard holds.
 - An `#### Extensions` section follows the review summary, with each
   extension's `markdown` inside a `<details>` block. The whole review body is
   capped at 250,000 characters. Over it, the longest `markdown` is replaced
