@@ -562,3 +562,71 @@ test("pull request runs are keyed by number", async () => {
   const other = await cacheGet("local-review", prSubjectId(REPO, 8));
   if (other) throw new Error("pull request 8 shares pull request 7's key");
 });
+
+/** A GitHub that keeps every endpoint it was asked for. */
+function loggedGithub(state: Pull): { client: GitHubClient; asked: string[] } {
+  const inner = fakeGithub(state);
+  const asked: string[] = [];
+  return {
+    asked,
+    client: {
+      request: (endpoint) => {
+        asked.push(endpoint);
+        return inner.request(endpoint);
+      },
+      pages: (endpoint, limit, progress) => {
+        asked.push(endpoint);
+        return inner.pages(endpoint, limit, progress);
+      },
+    },
+  };
+}
+
+const isPullRead = (endpoint: string) =>
+  endpoint.endsWith("/pulls/7") || endpoint.endsWith("/pulls/7/files");
+
+test("with the pull request and its files given, the review does not read them again", async () => {
+  await writeGuide("# Guide\n\nValidate values.\n");
+  const state: Pull = {
+    head: "sha1",
+    files: [file("a.ts", A_LINES)],
+    compare: "ahead",
+  };
+  const { client, asked } = loggedGithub(state);
+  const carry = await startPrCarry(client, await options(), false);
+  const afterCarry = asked.filter(isPullRead).length;
+  await reviewPullRequest(
+    client,
+    await options(),
+    undefined,
+    undefined,
+    scriptedModel(() => ({ findings: [] })).ai,
+    undefined,
+    carry.extras,
+  );
+  if (afterCarry !== 2) throw new Error(`carry read ${afterCarry}`);
+  const total = asked.filter(isPullRead);
+  if (total.length !== 2) {
+    throw new Error(`the pull request was read again: ${total.join(", ")}`);
+  }
+});
+
+test("without them the review reads the pull request and its files itself", async () => {
+  await writeGuide("# Guide\n\nValidate values.\n");
+  const { client, asked } = loggedGithub({
+    head: "sha1",
+    files: [file("a.ts", A_LINES)],
+    compare: "ahead",
+  });
+  await reviewPullRequest(
+    client,
+    await options(),
+    undefined,
+    undefined,
+    scriptedModel(() => ({ findings: [] })).ai,
+  );
+  const reads = asked.filter(isPullRead).sort();
+  if (reads.length !== 2 || !reads[0]!.endsWith("/pulls/7")) {
+    throw new Error(`reads: ${reads.join(", ")}`);
+  }
+});

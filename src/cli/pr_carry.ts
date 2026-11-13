@@ -88,11 +88,15 @@ export async function startPrCarry(
 
   let current: Revision;
   let headSha: string;
+  let prefetched: { pull: Json; files: Json[] };
   try {
     const [pr, files] = await Promise.all([
       client.request<Json>(`repos/${repo}/pulls/${prNumber}`),
       client.pages<Json>(`repos/${repo}/pulls/${prNumber}/files`),
     ]);
+    // The review judges exactly what is stored, so it does not read these
+    // again. A push between two reads can no longer split them.
+    prefetched = { pull: pr, files };
     headSha = String((pr.head as Json | undefined)?.sha ?? "");
     const baseLabel = `origin/${String((pr.base as Json | undefined)?.ref ?? "main")}`;
     current = githubPullRequestToRevision(files, pr, baseLabel);
@@ -151,7 +155,7 @@ export async function startPrCarry(
 
   const run: CarryRun = startCarryRun(previous, current, guides.guideBuiltAt);
   return {
-    extras: { ...run.extras },
+    extras: { ...run.extras, prefetched },
     warnings,
     finish: async (response) => {
       const { resolved, visiblePaths } = finishCarryRun(run, current, response);

@@ -92,6 +92,9 @@ export type ReviewExtras = {
   carryPrompt?: string;
   unchangedPaths?: string[];
   prepareCodegraphTools?: () => Promise<ToolHandler[]>;
+  /** The pull request and its files, already read by the caller. The review
+   * then makes neither request, so it judges what the caller stored. */
+  prefetched?: { pull: Json; files: Json[] };
   /** The request's job name, `review_local` when left out. */
   job?: string;
 };
@@ -327,7 +330,8 @@ export async function reviewPullRequest(
   report(modelSummary(options));
   report(`loading PR context for ${options.repo}#${number}`);
   const [pr, allComments, allReviews, guides] = await Promise.all([
-    client.request<Json>(`repos/${options.repo}/pulls/${number}`),
+    extras?.prefetched?.pull ??
+      client.request<Json>(`repos/${options.repo}/pulls/${number}`),
     client.pages<Json>(`repos/${options.repo}/issues/${number}/comments`),
     client.pages<Json>(`repos/${options.repo}/pulls/${number}/reviews`),
     loadGuides(options.repo),
@@ -351,7 +355,10 @@ export async function reviewPullRequest(
           }...${snapshot.commit}`,
         )
       ).files as Json[]) ?? [])
-    : await client.pages<Json>(`repos/${options.repo}/pulls/${number}/files`);
+    : (extras?.prefetched?.files ??
+      (await client.pages<Json>(
+        `repos/${options.repo}/pulls/${number}/files`,
+      )));
   report(`diff files loaded · ${files.length} files`);
   if (!guide) {
     throw notInitializedError(options.repo);
