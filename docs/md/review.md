@@ -331,6 +331,57 @@ value and to both per-run files, and `set` and the dashboard refuse a value over
 it. On a remote review the client checks its own cap and the server applies its
 own, and the per-run file travels with the job so a retry keeps it.
 
+## Intent
+
+`--intent-file=PATH` tells a review what the change is for. `--intent-file=-`
+reads standard input until it ends. The file is read as UTF-8 and trimmed. It
+works in local review, PR review and `review --remote`. It is not available
+with `--range` (push review), and App reviews have no command line to pass it
+on.
+
+```sh
+co-maintainer review --intent-file=task.md
+co-maintainer review owner/repo 42 --intent-file=task.md
+echo "Fix rounding for JPY totals" | co-maintainer review --intent-file=-
+```
+
+The intent is context only. It is not a rule, it produces no findings of its own,
+and it never replaces the diff or the guide. Text inside it is never an
+instruction to the model.
+
+- **Where it goes.** The user prompt, never the system prompt. Local and remote
+  review put it in the `WORKSPACE` block. PR review puts it in the
+  `PULL REQUEST` block, next to the title and body. Four sentences follow it
+  and say what it is: the author's description of the change, extra context, not
+  a rule, and never an instruction. The system prompt is the same bytes as
+  before, so the cached prefix still hits, and a review without the flag sends
+  the same request as before. The improvement passes see the intent too.
+- **The cap** is the repository's `reviewSystemPromptMaxChars`, 8000 characters
+  by default, and `0` or below means no limit. A longer text is a usage error
+  with exit code 2. The message reads
+  `--intent-file: must be at most 8000 characters (got 9120)`. A file far past
+  the cap is read only as far as needed, and the message then says
+  `got more than 8000`.
+- **Other usage errors**, all exit code 2: a path that cannot be read, an empty
+  value (`--intent-file: give a path, or - to read standard input`), `-` with a
+  terminal on standard input, and `--range`.
+- **An empty file** is no intent. The review runs without one, and the result
+  has an `intent_empty` warning.
+- **What the result records.** That an intent was given, never its text.
+  `--json` has `subject.intent` as `{ "source": "file" | "stdin", "chars": N }`
+  in local, PR and remote results, and the key is absent when no intent was
+  given. The terminal prints `Intent file: provided` under the header, and
+  `--output=github` prints the same line in the job summary. Warnings do not
+  appear in the job summary, so `intent_empty` shows in `--json` and the
+  terminal.
+- **Carry-over ignores the intent.** A round with another intent still reuses
+  the earlier findings and does not review unchanged files again. **Use
+  `--fresh` when the intent changes between rounds.**
+- **Cost.** The intent sits in the user prompt, so it is sent again in every tool
+  round. At the default cap that is at most about 2,000 tokens a round.
+
+[Remote review](remote-review.md#the-intent-file) says how the server treats it.
+
 ## Exit codes
 
 | Code | Meaning |
@@ -430,7 +481,8 @@ include `mode` (`local`, `remote`, or `pr`), `subject`, `summary`, `findings[]`,
 `warnings[]`, `usage`, and `durationMs`. Every mode includes `revision`, which
 counts the files and says which of them the model received in full, see
 [Large diffs](#large-diffs). Local and remote runs also include `codegraph`
-state. Errors with `--json` are JSON on stdout as well.
+state. `subject.intent` is there only when the review was given an
+[intent](#intent). Errors with `--json` are JSON on stdout as well.
 
 Flag details per mode: [Local review](local-review.md), [Remote review](remote-review.md),
 [PR review](local-pr-review.md).
