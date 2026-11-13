@@ -6,7 +6,13 @@
  */
 import { test } from "node:test";
 import { addReviewLink, reviewGuideStatus } from "./setup.ts";
-import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
+import {
+  deleteEnv,
+  getEnv,
+  removePath,
+  setEnv,
+  tempDirSync,
+} from "../testing/runtime.ts";
 import { mkdir, writeTextFile } from "../util/runtime.ts";
 
 const SKILL = "# acme/app\n\n## Tests\n\n- Run the tests.\n";
@@ -31,6 +37,7 @@ async function withReposDir(
   } finally {
     if (original === undefined) deleteEnv("CM_REPOS_DIR");
     else setEnv("CM_REPOS_DIR", original);
+    await removePath(root, { recursive: true });
   }
 }
 

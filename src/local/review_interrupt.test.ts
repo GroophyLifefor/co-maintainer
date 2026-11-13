@@ -93,9 +93,8 @@ for (const signal of ["SIGINT", "SIGTERM"] as const)
         if (locks.length) {
           throw new Error(`lock left behind: ${locks.join(", ")}\n${output}`);
         }
-        // Wait out the held answer: a review still running would now send its
-        // next call.
-        await new Promise((resolve) => setTimeout(resolve, 3500));
+        // The child has exited, so this count is final: the call in flight
+        // and nothing after it.
         if (chatCalls(server.requests) !== 1) {
           throw new Error(
             `${chatCalls(server.requests)} model calls, want 1\n${output}`,

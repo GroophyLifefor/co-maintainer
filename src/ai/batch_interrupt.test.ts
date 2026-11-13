@@ -6,7 +6,8 @@
 import { test } from "node:test";
 import { AiBatch } from "./batch.ts";
 import { armInterrupt, disarmInterrupt } from "../util/interrupt.ts";
-import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
+import { offlineEnv } from "../testing/offline_env.ts";
+import { removePath, tempDir } from "../testing/runtime.ts";
 import type { AiProvider, AiResponse } from "../types.ts";
 
 class AbortedProvider implements AiProvider {
@@ -17,16 +18,24 @@ class AbortedProvider implements AiProvider {
   }
 }
 
-test("an interrupted batch throws at once instead of dropping the unit", async () => {
-  const names = ["XDG_CACHE_HOME", "LOCALAPPDATA", "HOME"] as const;
-  const original = names.map((name) => getEnv(name));
-  const home = tempDirSync();
-  // The batch caches its units in cache.db. Keep it out of the real cache.
-  setEnv("XDG_CACHE_HOME", `${home}/cache`);
-  setEnv("LOCALAPPDATA", `${home}/cache`);
-  setEnv("HOME", home);
+/** Runs `fn` with cache.db in a temp directory and an armed interrupt. */
+async function interruptible(
+  fn: (controller: AbortController) => Promise<void>,
+): Promise<void> {
+  const dir = await tempDir({ prefix: "cm-batch-" });
+  const offline = offlineEnv(dir);
   const controller = armInterrupt();
   try {
+    await fn(controller);
+  } finally {
+    disarmInterrupt();
+    offline.restore();
+    await removePath(dir, { recursive: true });
+  }
+}
+
+test("an interrupted batch throws at once instead of dropping the unit", async () => {
+  await interruptible(async (controller) => {
     controller.abort();
     const provider = new AbortedProvider();
     const queue = new AiBatch(provider, "acme/app", 1, "mock:v1");
@@ -40,12 +49,5 @@ test("an interrupted batch throws at once instead of dropping the unit", async (
     if (provider.calls !== 1) {
       throw new Error(`${provider.calls} calls, want 1 with no retry`);
     }
-  } finally {
-    disarmInterrupt();
-    names.forEach((name, index) => {
-      const value = original[index];
-      if (value === undefined) deleteEnv(name);
-      else setEnv(name, value);
-    });
-  }
+  });
 });

@@ -105,6 +105,9 @@ export async function createLocalReviewSandbox(
       XDG_CONFIG_HOME: `${home}/config`,
       XDG_CACHE_HOME: `${home}/cache`,
       XDG_DATA_HOME: `${home}/data`,
+      // macOS keeps the cache under the home directory, not XDG.
+      HOME: home,
+      USERPROFILE: home,
       CM_OPENROUTER_URL: openrouterUrl,
       // The suite runs with the fake AI on. These tests count the calls that
       // reach the fake OpenRouter server, so the real provider path is used.
