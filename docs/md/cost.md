@@ -11,7 +11,7 @@ estimate it before you start.
 | `probe` | No | Reads the repository through `gh` only |
 | `init` | Yes | Extraction and synthesis jobs over code, pull requests, and history |
 | `sync` | Yes, but less | Reuses unchanged evidence from [cache](caching.md), so only changed inputs rebuild |
-| Large-file diff summary | Yes, small | A diff over 500 changed lines is summarized with the low model instead of being sent whole |
+| Large-diff summary | Yes, small | A big file in a large diff is summarized with the low model instead of being sent whole, see [Large diffs](#large-diffs) |
 | Local and PR `review` | Yes | Runs on your provider's key, see [AI providers](providers.md) |
 | Remote `review` | On the server | The server's key pays, not the laptop's, unless you [send your own key](remote-review.md#your-own-ai-key) |
 | GitHub App auto-review | On the server | Same as remote |
@@ -77,6 +77,25 @@ A remote review is paid by the server's key unless the client sends its own (see
 key is kept out of the server's own spend and shown after a plus sign, so a total
 reads `$1.23 + $0.40 BYOK`. If the cost of those reviews is unknown, it reads
 `4 reviews with unknown cost BYOK` in the same place.
+
+## Large diffs
+
+A diff that fits in the review budget costs what it always did. When it does
+not, [Large diffs](review.md#large-diffs) explains what the model receives. The
+cost side is short:
+
+- A summary is one low-model call, and it is made only for a patch over 4,000
+  characters, at most 40 per review. Local, GitHub App and push review used the
+  high model for it before. They all use the low model now. A server with no low
+  model configured summarizes with the review's model.
+- Summary calls run at most `--ai-concurrent` at a time. App and push review use
+  1, and remote review uses the server's 3.
+- A file the review dropped is sent in a later round, so covering a very large
+  change takes more than one review. A later round sends only the files that were
+  left out or changed, so it costs less than the first.
+- Each `read-full-diff` answer is capped at `reviewReadDiffMaxChars` characters
+  (20000 by default) because every tool answer is sent again in each later
+  round. See [Configuration](configuration.md#the-read-full-diff-cap).
 
 ## Keeping the cost down
 
