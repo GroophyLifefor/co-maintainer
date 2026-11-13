@@ -28,6 +28,7 @@ import {
   storedFindings,
 } from "../cli/review_carry.ts";
 import { revisionHash } from "../review/revision.ts";
+import { intentRecord, loadIntentFlag } from "../cli/review_intent.ts";
 import { type ReviewExtras, reviewWorkspaceRevision } from "../pr/reviewer.ts";
 import { runCommand } from "../pr/checkout.ts";
 import {
@@ -177,6 +178,10 @@ export async function runLocalReview(
       );
       options.reviewSystemPromptAdd = promptFlags.add;
       options.reviewSystemPromptOverride = promptFlags.override;
+      const intentLoad = await loadIntentFlag(
+        cli.intentFile,
+        reviewSystemPromptLimitFor(repo),
+      );
 
       const guides = await loadGuides(repo);
       if (!hasGuides(guides)) {
@@ -227,10 +232,15 @@ export async function runLocalReview(
         runCommand,
       );
       let revision = built.revision;
-      const warnings: ReviewWarning[] = built.warnings.map((w) => ({
-        code: w.code,
-        message: w.message,
-      }));
+      // The intent rides in the revision's description, which a local
+      // revision leaves empty, and the prompt's WORKSPACE block carries it.
+      if (intentLoad.intent) {
+        revision = { ...revision, description: intentLoad.intent.text };
+      }
+      const warnings: ReviewWarning[] = [
+        ...built.warnings.map((w) => ({ code: w.code, message: w.message })),
+        ...intentLoad.warnings,
+      ];
       if (interrupted()) return;
       if (revision.files.length === 0) {
         if (json) {
@@ -407,6 +417,7 @@ export async function runLocalReview(
             coverage: response.coverage,
             extensions,
             includeExtensionMarkdowns: cli.includeExtensionMarkdowns,
+            intent: intentRecord(intentLoad.intent),
           }),
         );
       } else if (cli.output === "github") {
@@ -420,6 +431,7 @@ export async function runLocalReview(
           coverage: response.coverage,
           catchesUp: true,
           extensions,
+          intent: Boolean(intentLoad.intent),
         });
       } else {
         console.log(
@@ -434,6 +446,7 @@ export async function runLocalReview(
               options.reviewBlocking,
               response.coverage,
               extensions,
+              Boolean(intentLoad.intent),
             ) +
             "\n",
         );

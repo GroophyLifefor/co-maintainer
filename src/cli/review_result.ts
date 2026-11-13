@@ -11,6 +11,7 @@ import {
   type ReviewBlocking,
 } from "../review/blocking.ts";
 import type { Revision } from "../review/revision.ts";
+import type { IntentRecord } from "../review/intent.ts";
 import {
   coverageLine,
   coverageMissing,
@@ -28,6 +29,10 @@ import {
   extensionCounts,
 } from "../extensions/render_cli.ts";
 export type ReviewWarning = { code: string; message: string };
+
+/** The line a review prints, in the terminal and in the job summary, when it
+ * was given an intent. */
+export const INTENT_LINE = "Intent file: provided";
 
 export type JsonReviewFinding = {
   id: string;
@@ -341,6 +346,8 @@ export type HumanReviewInput = {
   coverage?: Coverage;
   /** The extensions' results. Absent or empty prints nothing extra. */
   extensions?: ExtensionReport;
+  /** An intent file was given. The line says so and never shows the text. */
+  intent?: boolean;
 };
 
 /** The single human-readable review format. Local,
@@ -363,7 +370,9 @@ export function formatHumanReview(input: HumanReviewInput): string {
           ? "codegraph unavailable"
           : "codegraph unknown";
   const meta = [input.stats, guideBit, cgBit].filter(Boolean).join(" · ");
-  const lines: string[] = [input.title, meta, ""];
+  const lines: string[] = [input.title, meta];
+  if (input.intent) lines.push(INTENT_LINE);
+  lines.push("");
 
   const sorted = sortHumanFindings(input.findings);
   const groups: Array<{
@@ -467,6 +476,7 @@ export function formatHumanLocalReview(
   mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
   coverage?: Coverage,
   extensions?: ExtensionReport,
+  intent?: boolean,
 ): string {
   const stats = revisionStats(revision);
   return formatHumanReview({
@@ -478,6 +488,7 @@ export function formatHumanLocalReview(
     warnings,
     coverage,
     extensions,
+    intent,
   });
 }
 
@@ -518,6 +529,8 @@ export type LocalReviewJsonInput = {
   coverage?: Coverage;
   extensions?: ExtensionReport;
   includeExtensionMarkdowns?: boolean;
+  /** `subject.intent`: how the intent came in, `null` when none was given. */
+  intent?: IntentRecord | null;
 };
 
 export type PrReviewJsonInput = {
@@ -538,6 +551,8 @@ export type PrReviewJsonInput = {
   coverage?: Coverage;
   extensions?: ExtensionReport;
   includeExtensionMarkdowns?: boolean;
+  /** `subject.intent`: how the intent came in, `null` when none was given. */
+  intent?: IntentRecord | null;
 };
 
 /** The review JSON with the extensions joined in, serialised. */
@@ -572,7 +587,12 @@ export function buildPrReviewJson(input: PrReviewJsonInput): string {
     schemaVersion: 1,
     ok: true,
     mode: "pr",
-    subject: { repo: input.repo, branch: null, prNumber: input.prNumber },
+    subject: {
+      repo: input.repo,
+      branch: null,
+      prNumber: input.prNumber,
+      intent: input.intent ?? null,
+    },
     revision,
     guide: { builtAt: input.guideBuiltAt },
     codegraph: {
@@ -599,7 +619,12 @@ export function buildLocalReviewJson(input: LocalReviewJsonInput): string {
     schemaVersion: 1,
     ok: true,
     mode: "local",
-    subject: { repo: input.repo, branch: input.branch, prNumber: null },
+    subject: {
+      repo: input.repo,
+      branch: input.branch,
+      prNumber: null,
+      intent: input.intent ?? null,
+    },
     base: { toBranch: input.baseLabel, label: input.baseLabel },
     revision,
     guide: { builtAt: input.guideBuiltAt },

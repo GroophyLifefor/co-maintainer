@@ -15,6 +15,7 @@ import {
   reviewSystemPromptBlock,
 } from "../review/system_prompt.ts";
 import { readDiffMaxChars } from "./diff_summary.ts";
+import { intentField, intentPromptNote } from "../review/intent.ts";
 import {
   mermaidToolFields,
   plantumlPromptRules,
@@ -548,13 +549,14 @@ ${JSON.stringify({
   number,
   title: String(pr.title ?? ""),
   body: String(pr.body ?? ""),
+  ...intentField(options.reviewIntent),
   state: pr.state,
   changedFiles: files.map((file) => String((file as Json).filename ?? "")),
   existingComments: comments.map((comment) =>
     String((comment as Json).body ?? ""),
   ),
   existingReviews: reviews.map((review) => String((review as Json).body ?? "")),
-})}
+})}${intentPromptNote(options.reviewIntent)}
 
 ${carryBlock}DIFF:
 ${diff}`;
@@ -759,8 +761,9 @@ ${FINDINGS_JSON_INSTRUCTIONS}
 WORKSPACE:
 ${JSON.stringify({
   branch: revision.baseLabel,
+  ...intentField(revision.description),
   changedFiles: ownFiles.map(({ path }) => path),
-})}
+})}${intentPromptNote(revision.description)}
 
 ${carryBlock}DIFF:
 ${ownDiff}${unchangedListing}`;

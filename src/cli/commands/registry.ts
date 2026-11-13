@@ -651,6 +651,17 @@ export const COMMANDS: CommandSpec[] = [
         ],
       },
       {
+        title: "Intent",
+        flags: [
+          {
+            name: "intent-file",
+            value: "PATH",
+            description:
+              "Tell the review what the change is for, from a file or from standard input with -. It is context only, never a rule. Up to the repository's custom prompt cap. Not with --range.",
+          },
+        ],
+      },
+      {
         title: "Diagrams",
         flags: [
           {
@@ -690,6 +701,7 @@ export const COMMANDS: CommandSpec[] = [
       "co-maintainer review --remote --range=abc1234..def5678 --output=github",
       "co-maintainer review owner/repo 42 --system-prompt-file=extra.md",
       "co-maintainer review --system-prompt-override-file=strict.md",
+      "co-maintainer review --intent-file=task.md",
       "co-maintainer review owner/repo 42 --diagram-runtime=plantuml-server --plantuml-output-format=png",
     ],
   },

@@ -85,6 +85,9 @@ export type Options = {
    * (`review --system-prompt-override-file`). The built-in role, diagram
    * rules and guide block are still kept. */
   reviewSystemPromptOverride?: string;
+  /** What a pull request review is for (`review --intent-file`), added to the
+   * PULL REQUEST block of the prompt as context, never as a rule. */
+  reviewIntent?: string;
   /** The diagram language a review asks for (`review --diagram-runtime`, or
    * the repository's `diagramRuntime`). Unset means `mermaid`. */
   diagramRuntime?: "mermaid" | "plantuml" | "plantuml-server";

@@ -24,6 +24,7 @@ import {
   buildPrReviewJson,
   reviewExitCodeFromResolved,
 } from "../review_result.ts";
+import { intentRecord, type IntentLoad } from "../review_intent.ts";
 import { startPrCarry } from "../pr_carry.ts";
 import { exitWith } from "../error.ts";
 import { printRunSummary, summaryFromMetrics } from "../../util/run_summary.ts";
@@ -75,7 +76,7 @@ async function runReviewPr(
     | "output"
     | "fresh"
     | "includeExtensionMarkdowns"
-  >,
+  > & { intentLoad?: IntentLoad },
 ): Promise<void> {
   setCliInteractive(!cli.json);
   await withCliLogsToStderr(async () => {
@@ -136,7 +137,12 @@ async function runReviewPr(
       // stderr said codegraph was missing.
       const codegraphState = result.codegraphState;
       const resolved = await carry.finish(result);
-      const warnings = [...carry.warnings, ...result.warnings];
+      const intent = cli.intentLoad?.intent ?? null;
+      const warnings = [
+        ...carry.warnings,
+        ...(cli.intentLoad?.warnings ?? []),
+        ...result.warnings,
+      ];
       if (cli.json) {
         console.log(
           buildPrReviewJson({
@@ -155,6 +161,7 @@ async function runReviewPr(
             coverage: result.coverage,
             extensions,
             includeExtensionMarkdowns: cli.includeExtensionMarkdowns,
+            intent: intentRecord(intent),
           }),
         );
       } else if (cli.output === "github") {
@@ -168,6 +175,7 @@ async function runReviewPr(
           coverage: result.coverage,
           catchesUp: true,
           extensions,
+          intent: intent !== null,
         });
       } else {
         // One presentation layer for local, PR and remote reviews.
@@ -184,6 +192,7 @@ async function runReviewPr(
               warnings,
               coverage: result.coverage,
               extensions,
+              intent: intent !== null,
             }) +
             "\n",
         );

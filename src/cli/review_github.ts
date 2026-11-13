@@ -19,6 +19,7 @@ import {
   type Coverage,
 } from "../review/coverage.ts";
 import {
+  INTENT_LINE,
   humanShortTitle,
   sortHumanFindings,
   type HumanFinding,
@@ -144,6 +145,8 @@ export type GithubSummaryInput = {
   /** The extensions' results. Their findings join the table, and their
    * `markdown` follows the AI part. */
   extensions?: ExtensionReport;
+  /** An intent file was given. The summary says so and never shows the text. */
+  intent?: boolean;
 };
 
 export function githubSummary(input: GithubSummaryInput): string {
@@ -151,7 +154,9 @@ export function githubSummary(input: GithubSummaryInput): string {
   const rows = active(all);
   const closed = all.filter((row) => row.state === "closed").length;
   const blocking = rows.filter((row) => row.blocking).length;
-  const lines = ["## co-maintainer review", "", cell(input.title, 200), ""];
+  const lines = ["## co-maintainer review", "", cell(input.title, 200)];
+  if (input.intent) lines.push("", INTENT_LINE);
+  lines.push("");
   if (rows.length === 0) {
     lines.push(
       input.coverage && coverageMissing(input.coverage) > 0
