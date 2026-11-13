@@ -22,6 +22,7 @@ import {
   type CliRun,
   defineFlow,
   type Score,
+  scriptedCheck,
   type Sim,
   type Step,
 } from "../flow.ts";
@@ -665,12 +666,6 @@ const steps: Step[] = [
   },
 ];
 
-function skipLive(sim: Sim, result: CheckResult): CheckResult {
-  return sim.mode === "live"
-    ? { ...result, ok: true, skipped: "live AI: the answers are the model's" }
-    : result;
-}
-
 /** A check about what the scripted answers must lead to. With a live model
  * the findings are the model's, so these are skipped. */
 function scripted(
@@ -679,7 +674,7 @@ function scripted(
   ok: boolean,
   detail: string,
 ): CheckResult {
-  return skipLive(sim, check(name, ok, detail));
+  return scriptedCheck(sim, name, ok, detail, "the answers are the model's");
 }
 
 /** A check something fails today, the product or the core. It is kept, and
@@ -860,10 +855,12 @@ function flowChecks(sim: Sim): CheckResult[] {
       })(),
       "model, response_format and tools of the first request",
     ),
-    check(
+    scriptedCheck(
+      sim,
       "the review is one AI call, with no retry and no summary call",
       human?.completions().length === 1,
       "review_pull_request only",
+      "a real model may need a retry or call a tool",
     ),
   );
 
@@ -1009,15 +1006,23 @@ function flowChecks(sim: Sim): CheckResult[] {
       "--json usage equals what the AI calls used",
       (() => {
         if (!parsed) return false;
-        const used = reviewCompletions(sim, STEP.json);
+        // Every answered call of the run, a retry or a tool round included.
+        const used = (json?.completions() ?? []).filter((call) => call.ok);
         const usage = parsed.usage as Json;
         return (
+          used.length > 0 &&
           usage?.tokensIn === used.reduce((sum, c) => sum + c.tokensIn, 0) &&
-          usage?.tokensOut === used.reduce((sum, c) => sum + c.tokensOut, 0) &&
-          used.length === 1
+          usage?.tokensOut === used.reduce((sum, c) => sum + c.tokensOut, 0)
         );
       })(),
-      "tokensIn and tokensOut of the review call",
+      "tokensIn and tokensOut of the run's answered calls",
+    ),
+    scripted(
+      sim,
+      "--json review is one AI call",
+      reviewCompletions(sim, STEP.json).length === 1 &&
+        json?.completions().length === 1,
+      `${json?.completions().length ?? 0} calls`,
     ),
   );
 
@@ -1130,9 +1135,14 @@ function flowChecks(sim: Sim): CheckResult[] {
     check(
       "a merged pull request is read and reviewed, and the prompt says it is closed",
       merged?.error === undefined &&
-        promptOf(STEP.merged).includes('"state":"closed"') &&
-        reviewCompletions(sim, STEP.merged).length === 1,
+        promptOf(STEP.merged).includes('"state":"closed"'),
       merged ? code(merged) : "no run",
+    ),
+    scripted(
+      sim,
+      "a merged pull request is reviewed in one AI call",
+      reviewCompletions(sim, STEP.merged).length === 1,
+      `${reviewCompletions(sim, STEP.merged).length} review calls`,
     ),
     check(
       "a merged pull request still shows its files in the prompt",
@@ -1226,6 +1236,12 @@ function flowChecks(sim: Sim): CheckResult[] {
       "the second prompt holds the guard, the first does not",
     ),
     check(
+      "after a push the review sends the same system prompt",
+      second !== undefined && second.system === firstPrompt?.system,
+      "the guides did not change",
+    ),
+    scripted(
+      sim,
       "after a push the review is one more AI call with the same system prompt",
       reviewCompletions(sim, STEP.push).length === 1 &&
         second?.system === firstPrompt?.system,
@@ -1267,8 +1283,10 @@ function flowChecks(sim: Sim): CheckResult[] {
   );
   const secondMessages = (toolRequests[1]?.request as Json | undefined)
     ?.messages as Json[] | undefined;
+  const toolWhy = "a real model may answer without calling the tool";
   add(
-    check(
+    scriptedCheck(
+      sim,
       "a tool round: the model asks for a syntax page, gets it, and answers in a second call",
       toolCalls.length === 2 &&
         toolCalls[0]?.toolCalls === 1 &&
@@ -1283,15 +1301,29 @@ function flowChecks(sim: Sim): CheckResult[] {
             message.role === "assistant" && Array.isArray(message.tool_calls),
         ),
       `${toolCalls.length} calls, tool calls ${toolCalls.map((call) => call.toolCalls).join("+")}`,
+      toolWhy,
     ),
-    check(
+    scriptedCheck(
+      sim,
       "a tool round keeps one system prompt and one first message across rounds",
       toolCalls.length === 2 &&
         toolCalls[0]?.system === toolCalls[1]?.system &&
         toolCalls[0]?.firstUser === toolCalls[1]?.firstUser,
       "the prompt cache stays valid",
+      toolWhy,
     ),
     check(
+      "the review calls of the tool step share one system prompt and one first message",
+      reviewCompletions(sim, STEP.tools).length > 0 &&
+        reviewCompletions(sim, STEP.tools).every(
+          (call, _, all) =>
+            call.system === all[0]!.system &&
+            call.firstUser === all[0]!.firstUser,
+        ),
+      "the prompt cache stays valid, whatever number of rounds the model took",
+    ),
+    scriptedCheck(
+      sim,
       "a tool round is logged and its tokens add up in the run line",
       (toolRun?.logs() ?? []).some(
         (entry) =>
@@ -1304,6 +1336,12 @@ function flowChecks(sim: Sim): CheckResult[] {
         toolCalls.length === 2 &&
         runLineMatches(toolRun),
       "round 1 logged, both calls counted in tokens in and out",
+      toolWhy,
+    ),
+    check(
+      "the tool step's run line adds up the tokens of all its calls",
+      runLineMatches(toolRun),
+      "the Done line on stderr matches the step's completions",
     ),
     scripted(
       sim,

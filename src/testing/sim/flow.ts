@@ -89,6 +89,26 @@ export function check(name: string, ok: boolean, detail = ""): CheckResult {
   return { name, ok, detail };
 }
 
+/** A check that holds only for the fake AI's scripted answers: exact findings,
+ * counts, states, exit codes that follow from what was found, the text the
+ * model wrote. With the fake AI it is a plain check. With a live model it is
+ * skipped and says why, so a real answer never fails it. `why` names what
+ * the check relies on, e.g. "the findings are the model's". A check that
+ * holds for any answer, such as what the product sent or wrote, stays a
+ * plain `check`. A check that holds for both kinds is split in two. */
+export function scriptedCheck(
+  sim: Pick<Sim, "mode">,
+  name: string,
+  ok: boolean,
+  detail: string,
+  why: string,
+): CheckResult {
+  const result = check(name, ok, detail);
+  return sim.mode === "live"
+    ? { ...result, ok: true, skipped: `live AI: ${why}` }
+    : result;
+}
+
 /** What the runner was told on the command line. */
 export type RunSettings = {
   mode: "fake" | "live";
