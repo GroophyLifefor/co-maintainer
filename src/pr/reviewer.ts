@@ -120,8 +120,9 @@ export type ReviewExtras = {
 
 /** What a review run returns to every flow. */
 export type ReviewOutcome = AiResponse & {
-  /** The seen set: files the model received this round, plus unchanged
-   * files it received in an earlier round. Stored for the next round. */
+  /** The files the model received this round (`pathsSeenInRound`). A flow
+   * that saves a round saves them through `visiblePathsToSave`, which adds
+   * the files it skipped as unchanged. */
   visiblePaths: string[];
   guideBuiltAt: string | null;
   codegraphState: "used" | "disabled" | "unavailable";

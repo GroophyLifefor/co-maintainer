@@ -528,19 +528,6 @@ export function planDiff(
   return planned;
 }
 
-/** The files the model received in some form this round, plus the files it
- * received in an earlier round whose patch has not changed since. Only these
- * count as reviewed when the next round decides what to send again. */
-export function seenPaths(
-  planned: PlannedFile[],
-  unchangedPaths: string[] = [],
-): string[] {
-  const seen = planned
-    .filter((file) => DROPPABLE.has(file.state))
-    .map((file) => file.path);
-  return [...new Set([...seen, ...unchangedPaths])];
-}
-
 /** The coverage block for a planned round. A file carried over unchanged from
  * an earlier round counts as full: it needs no new review. */
 export function coverageFromPlan(

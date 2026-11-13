@@ -3,6 +3,7 @@
  * local, remote and push review all call this one function, so the states a
  * file can reach and the warnings they leave are the same everywhere. */
 import type { ToolHandler } from "../ai/mermaid_loop.ts";
+import { pathsSeenInRound } from "../review/visible_paths.ts";
 import {
   coverageWarnings,
   type Coverage,
@@ -23,7 +24,6 @@ import {
   planDiff,
   renderSection,
   restoreIntoRoom,
-  seenPaths,
   type DiffFile,
   type PlannedFile,
 } from "./diff_plan.ts";
@@ -39,7 +39,8 @@ export type PreparedDiff = {
   tools: ToolHandler[];
   coverage: Coverage;
   warnings: CoverageWarning[];
-  /** What counts as reviewed for the next round, see `seenPaths`. */
+  /** The files the model received this round. Callers save them through
+   * `visiblePathsToSave`, which adds the files skipped as unchanged. */
   seenPaths: string[];
   planned: PlannedFile[];
 };
@@ -190,7 +191,7 @@ export async function prepareReviewDiff(
     tools,
     coverage,
     warnings: coverageWarnings(coverage, input.catchesUp, stillPartial),
-    seenPaths: seenPaths(planned, unchanged),
+    seenPaths: pathsSeenInRound(planned),
     planned,
   };
 }

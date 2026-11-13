@@ -12,8 +12,8 @@ import {
   diffFileFromRevision,
   planDiff,
   renderSection,
-  seenPaths,
 } from "../pr/diff_plan.ts";
+import { pathsSeenInRound, visiblePathsToSave } from "./visible_paths.ts";
 import { test } from "node:test";
 
 test("carry_over: parse previous verdict lines", () => {
@@ -190,7 +190,7 @@ test("incrementalDiffPaths: a seen file with a new patch is still sent", () => {
 });
 
 /** One round as the reviewer runs it: plan the changed files under `max`,
- * and return the seen set the reviewer stores (`seenPaths`). */
+ * and return the seen paths a flow saves (`visiblePathsToSave`). */
 function round(
   revision: Revision,
   previousSeen: Set<string> | null,
@@ -212,7 +212,11 @@ function round(
     dropped: planned
       .filter((file) => file.state === "dropped")
       .map((file) => file.path),
-    seen: new Set(seenPaths(planned, unchanged)),
+    seen: visiblePathsToSave(
+      previousSeen,
+      unchanged,
+      pathsSeenInRound(planned),
+    ),
   };
 }
 

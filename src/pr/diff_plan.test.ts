@@ -15,7 +15,6 @@ import {
   notShownBlock,
   planDiff,
   renderSection,
-  seenPaths,
   type DiffFile,
   type FileState,
   type PlannedFile,
@@ -481,7 +480,7 @@ test("a diff that fits keeps every patchless file in its own block", () => {
   same(noDiffBlock(planned), "", "no list");
 });
 
-test("the seen set holds what the model received plus unchanged files", () => {
+test("coverage counts every state and carried unchanged files as full", () => {
   const planned: PlannedFile[] = [
     { ...file("full.ts", 1), state: "full" },
     { ...file("partial.ts", 1), state: "partial" },
@@ -489,11 +488,6 @@ test("the seen set holds what the model received plus unchanged files", () => {
     { ...file("dropped.ts", 1), state: "dropped" },
     { ...file("withheld.ts", 1), state: "withheld" },
   ];
-  same(
-    seenPaths(planned, ["old.ts"]).sort(),
-    ["full.ts", "old.ts", "partial.ts", "summary.ts"],
-    "seen",
-  );
   same(
     coverageFromPlan(planned, ["old.ts"]),
     {

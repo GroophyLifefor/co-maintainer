@@ -102,7 +102,9 @@ async function runReviewPr(
             undefined,
             undefined,
             undefined,
-            carry.extras,
+            // The stored run leaves out what it saw, so the next run sends
+            // the files this one dropped.
+            { ...carry.extras, catchesUp: true },
           ),
       );
       const durationMs = Math.round(performance.now() - operationStarted);
@@ -144,6 +146,7 @@ async function runReviewPr(
             performance.now() - operationStarted,
           ),
           coverage: result.coverage,
+          catchesUp: true,
         });
       } else {
         // One presentation layer for local, PR and remote reviews.

@@ -223,11 +223,12 @@ test("read-full-diff pages a partial file under the configured cap", async () =>
   if (!full.includes("already shown")) throw new Error(full);
 });
 
-test("unchanged files count as full and stay in the seen set", async () => {
+test("unchanged files count as full, and only received files are returned as seen", async () => {
   const prepared = await prepareReviewDiff({
     ...input([file("a.ts", 3)], summaries()),
     unchangedPaths: ["old.ts"],
   });
   same(prepared.coverage.full, 2, "full");
-  same(prepared.seenPaths.sort(), ["a.ts", "old.ts"], "seen");
+  // visiblePathsToSave adds the unchanged files when the round is saved.
+  same(prepared.seenPaths, ["a.ts"], "seen");
 });
