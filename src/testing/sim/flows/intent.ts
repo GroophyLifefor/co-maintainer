@@ -101,6 +101,7 @@ const FILES = {
   missing: "missing.md",
 };
 const INTENT_DIR = "intent-files";
+const EXT_DIR = "ext";
 
 const fileOf = (sim: Sim, name: string) =>
   join(sim.world.root, INTENT_DIR, name);
@@ -344,6 +345,10 @@ const exitCode = (run: CliRun | undefined) => run?.exitCode;
 const ran = (run: CliRun | undefined) =>
   run?.exitCode === 0 || run?.exitCode === 1;
 
+/** A text without whitespace and without the escapes JSON writes for it, so a
+ * text split over lines is still one string. */
+const squeeze = (text: string): string => text.replaceAll(/\\[nrt]|\s+/g, "");
+
 /** Where a text turned up outside the model's request, by place. Searches what
  * the inherited secret check searches, minus the requests a model receives and
  * the submit a client sends, which hold the intent on purpose. */
@@ -375,8 +380,12 @@ function leaksOf(sim: Sim, texts: string[]): string[] {
   for (const text of texts) {
     const forms = secretForms(text);
     for (const [place, content] of places) {
-      const flat = content.replaceAll(/\\[nrt]|\s+/g, "");
-      if (forms.some((form) => content.includes(form) || flat.includes(form))) {
+      const flat = squeeze(content);
+      if (
+        forms.some(
+          (form) => content.includes(form) || flat.includes(squeeze(form)),
+        )
+      ) {
         found.push(`${text.slice(0, 20)}... in ${place}`);
       }
     }
@@ -395,7 +404,53 @@ function writeIntentFiles(sim: Sim): string {
   writeFileSync(join(dir, FILES.hostile), `${INTENT_HOSTILE}\n`);
   writeFileSync(join(dir, FILES.empty), " \n\n");
   writeFileSync(join(dir, FILES.big), "x".repeat(DEFAULT_CAP + 1));
-  return `${Object.keys(FILES).length} files`;
+  registerProbe(sim);
+  return `${Object.keys(FILES).length} files and an extension`;
+}
+
+/** The extension every review of this flow runs. It copies what it was handed
+ * (the run folder's files) into a log in the sandbox, and answers with a bare
+ * comment. The leak check reads the log, so what an extension could see of an
+ * intent is searched like everything else. */
+const PROBE = String.raw`import { appendFileSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+const [detailsPath, , , log] = process.argv.slice(2);
+const folder = dirname(detailsPath);
+const files = {};
+for (const name of readdirSync(folder)) {
+  try { files[name] = readFileSync(join(folder, name), "utf8"); } catch {}
+}
+appendFileSync(log, JSON.stringify({ files }) + "\n");
+console.log(JSON.stringify({ schemaVersion: 1, name: "intent-probe", status: "ok", verdict: "comment" }));
+`;
+
+const probePaths = (sim: Sim) => ({
+  script: join(sim.world.root, EXT_DIR, "probe.mjs"),
+  log: join(sim.world.root, EXT_DIR, "log.jsonl"),
+});
+
+function registerProbe(sim: Sim): void {
+  const { script, log } = probePaths(sim);
+  mkdirSync(join(sim.world.root, EXT_DIR), { recursive: true });
+  writeFileSync(script, PROBE);
+  sim.world.writeConfig({
+    extensions: [
+      {
+        name: "intent-probe",
+        command: `${process.execPath} ${script} {{details_path}} {{review_result_path}} {{diff_path}} ${log}`,
+      },
+    ],
+  });
+}
+
+/** The run folders the probe read, one record per review. */
+function probeRecords(sim: Sim): { files: Record<string, string> }[] {
+  const { log } = probePaths(sim);
+  if (!existsSync(log)) return [];
+  return readFileSync(log, "utf8")
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as { files: Record<string, string> });
 }
 
 /** One local review under a label. */
@@ -1008,11 +1063,30 @@ function leakChecks(sim: Sim): CheckResult[] {
   const found = leaksOf(sim, texts);
   // The text must reach the model, or the search above proves nothing.
   const requests = JSON.stringify(sim.trace.ai.map((call) => call.request));
+  // An extension is handed details.json, cm-review.json and diff.patch for
+  // every review. The probe copied them, so none can hold an intent.
+  const records = probeRecords(sim);
+  const complete = records.filter((record) =>
+    ["details.json", "cm-review.json", "diff.patch"].every(
+      (name) => name in record.files,
+    ),
+  );
+  const seen = records.filter((record) => {
+    const flat = squeeze(JSON.stringify(record.files));
+    return texts.some((text) =>
+      secretForms(text).some((form) => flat.includes(squeeze(form))),
+    );
+  });
   return [
     check(
       "the intent text is in no log, result, output, app.db, cache.db, file or write to GitHub, only in the model's request",
       found.length === 0 && texts.every((text) => requests.includes(text)),
       found.join(", ") || `${texts.length} texts searched`,
+    ),
+    check(
+      "an extension's run folder (details.json, cm-review.json, diff.patch) never holds the intent",
+      complete.length >= 10 && seen.length === 0,
+      `${complete.length} run folders read, ${seen.length} with the text`,
     ),
   ];
 }
