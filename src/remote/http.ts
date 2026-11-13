@@ -10,6 +10,7 @@ import {
   notInitializedError,
 } from "../review/not_initialized.ts";
 import { getEnv } from "../util/runtime.ts";
+import { stripControlChars } from "../util/sanitize.ts";
 
 /** Where the remote server is, as an environment variable can say it.
  * A CI job has no config file, and a token on the command line
@@ -121,9 +122,10 @@ export async function handshakeFailure(
       EXIT_USAGE,
     );
   }
+  // The text is the server's own, and it reaches a terminal or a CI log.
   return new CliError(
     "remote_handshake_failed",
-    message,
+    stripControlChars(message),
     undefined,
     EXIT_USAGE,
   );

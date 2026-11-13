@@ -21,7 +21,7 @@ import {
 } from "../services/setup.ts";
 import { aiFor } from "../services/review.ts";
 import { loadGuides } from "../review/guides.ts";
-import { assertGuides } from "../review/not_initialized.ts";
+import { hasGuides, notInitializedError } from "../review/not_initialized.ts";
 import {
   buildCarryPromptSection,
   classifyCarryItems,
@@ -176,7 +176,17 @@ export async function runLocalReview(
       options.reviewSystemPromptOverride = promptFlags.override;
 
       const guides = await loadGuides(repo);
-      assertGuides(repo, guides);
+      if (!hasGuides(guides)) {
+        // A `ReviewCliError`, so `fail()` below prints it the way local review
+        // always has, without the `[error] ` prefix the top level adds.
+        const missing = notInitializedError(repo);
+        throw new ReviewCliError(
+          missing.code,
+          missing.message,
+          missing.hint,
+          missing.exitCode,
+        );
+      }
       if (cli.remakeBeforeReview) {
         if (options.auth !== "gh") {
           throw new ReviewCliError(

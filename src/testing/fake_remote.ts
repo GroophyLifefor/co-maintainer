@@ -43,6 +43,9 @@ export type FakeRemoteOptions = {
   /** Refuses the handshake with this status and error. A missing `code` leaves
    * it out, the way a proxy or a very old server would. */
   handshakeRefusal?: { status: number; code?: string; message: string };
+  /** Refuses the submit of a review with this status and error, the way a
+   * server refuses a push for a repository without guides. */
+  submitRefusal?: { status: number; code: string; message: string };
 };
 
 const SYNC_DONE = {
@@ -125,6 +128,17 @@ export async function startFakeRemote(
           return;
         }
         if (req.url === "/api/remote/reviews") {
+          const refusal = options.submitRefusal;
+          if (refusal) {
+            send(refusal.status, {
+              error: {
+                code: refusal.code,
+                message: refusal.message,
+                requestId: "fake",
+              },
+            });
+            return;
+          }
           send(202, { schemaVersion: 1, jobId: "job_1", reviewId: "rev_1" });
           return;
         }
