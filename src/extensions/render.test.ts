@@ -23,6 +23,8 @@ import {
 import { githubAnnotations, githubSummary } from "../cli/review_github.ts";
 import { extensionHumanFindings } from "./render_actions.ts";
 import { cliExtensionFooter, cliExtensionLines } from "./render_cli.ts";
+import { humanCopy } from "../services/review.ts";
+import { outsideCode } from "../util/redact.ts";
 
 function result(overrides: Partial<ExtensionResult>): ExtensionResult {
   return {
@@ -281,6 +283,44 @@ test("a remote result splits back into AI findings and extensions", () => {
   if (old.report.results.length !== 0 || old.aiFindings.length !== 1) {
     throw new Error("an older server's result was misread");
   }
+});
+
+/** The check `publish` runs on everything it posts. */
+function forbidden(text: string): boolean {
+  return outsideCode(text, (prose) => prose.replaceAll(";", "")) !== text;
+}
+
+test("a fence in a title and code in the markdown still pass the copy check together", () => {
+  const report = buildReport([
+    result({
+      name: "lint",
+      markdown: "Example:\n\n```\nconst a = 1;\n```",
+      findings: [
+        { severity: "P2", blocking: false, title: "Use ``` fences", body: "b" },
+        {
+          severity: "P2",
+          blocking: false,
+          title: "Odd `tick",
+          body: "```\nopen fence; never closed",
+          path: "a.ts",
+          lineFrom: 1,
+        },
+      ],
+    }),
+  ]);
+  const files = [{ filename: "a.ts", patch: "@@ -1 +1 @@\n-a\n+b" }];
+  const split = splitExtensionFindings(report, files, humanCopy);
+  const body = reviewBodyWithExtensions(
+    AI_BODY,
+    report,
+    split.listed,
+    humanCopy,
+  );
+  if (forbidden(body)) throw new Error(`publish would refuse:\n${body}`);
+  for (const comment of split.comments) {
+    if (forbidden(comment.body)) throw new Error(comment.body);
+  }
+  if (!body.includes("const a = 1;")) throw new Error("the code was changed");
 });
 
 test("thousands of findings: inline comments are capped and the body fits with an and-more line", () => {

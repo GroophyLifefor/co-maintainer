@@ -23,6 +23,7 @@ import {
   type ExtensionReport,
 } from "./report.ts";
 import {
+  closeFences,
   extensionsSection,
   fitMarkdowns,
   REVIEW_BODY_MAX_CHARS,
@@ -62,9 +63,13 @@ export function cut(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
-/** A title as one line of a list. */
+/** A title as one line of a list. A backtick could open a code span or a
+ * fence that pairs with one in another part of the body, so none is kept. */
 function titleLine(title: string): string {
-  return cut(title.replace(/\s+/g, " ").trim(), MAX_TITLE_CHARS);
+  return cut(
+    title.replace(/\s+/g, " ").replace(/`/g, "'").trim(),
+    MAX_TITLE_CHARS,
+  );
 }
 
 function inlineBody(
@@ -72,8 +77,11 @@ function inlineBody(
   finding: ExtensionFinding,
   copy: Copy,
 ): string {
-  const body = copy(cut(finding.body, MAX_INLINE_BODY_CHARS)).trim();
-  return `${extensionLabel(report, finding)}\n\n**${copy(titleLine(finding.title))}**${body ? `\n\n${body}` : ""}`;
+  const body = closeFences(cut(finding.body, MAX_INLINE_BODY_CHARS)).trim();
+  // One pass over the whole comment, which is what `publish` checks.
+  return copy(
+    `${extensionLabel(report, finding)}\n\n**${titleLine(finding.title)}**${body ? `\n\n${body}` : ""}`,
+  );
 }
 
 /** Splits the findings still standing into inline comments and the ones the
@@ -169,7 +177,7 @@ export function reviewBodyWithExtensions(
       `Extension findings (${listed.length})`,
       ...listed.slice(0, shown).map((row) => {
         const where = locationOf(row);
-        return `- ${extensionLabel(report, row)}: ${copy(titleLine(row.title))}${where ? ` (${copy(cut(where, MAX_TITLE_CHARS))})` : ""}${row.state === "open" ? " (still open)" : ""}`;
+        return `- ${extensionLabel(report, row)}: ${titleLine(row.title)}${where ? ` (${titleLine(where)})` : ""}${row.state === "open" ? " (still open)" : ""}`;
       }),
     ];
     const more = listed.length - shown;
@@ -187,11 +195,18 @@ export function reviewBodyWithExtensions(
     fitMarkdowns(
       report,
       (markdowns) => {
-        const section = extensionsSection(report, markdowns);
-        const sanitized = section ? copy(section) : "";
+        // The extension part passes the copy rule as one text: a fence in one
+        // piece pairs with one in another, so piece by piece is not enough.
+        const part = [
+          listBlock(shown),
+          failures,
+          extensionsSection(report, markdowns),
+        ]
+          .filter((piece) => piece !== "")
+          .join("\n\n");
         return (
-          [summary, listBlock(shown), failures, sanitized]
-            .filter((part) => part !== "")
+          [summary, part ? copy(part) : ""]
+            .filter((piece) => piece !== "")
             .join("\n\n") + withMetadata
         );
       },

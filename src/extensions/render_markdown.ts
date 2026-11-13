@@ -22,6 +22,14 @@ export function utf8Bytes(text: string): number {
   return Buffer.byteLength(text, "utf8");
 }
 
+/** Closes a fence left open, so it cannot swallow what follows it. */
+export function closeFences(text: string): string {
+  const fences = text
+    .split("\n")
+    .filter((line) => /^\s*(?:```|~~~)/.test(line));
+  return fences.length % 2 === 1 ? `${text.trimEnd()}\n\`\`\`` : text;
+}
+
 /** A name inside `<summary>`: no tag can open or close there. */
 function summaryName(name: string): string {
   return stripControlChars(name).replace(/[<>&]/g, "");
@@ -38,7 +46,7 @@ export function extensionsSection(
     .filter((result) => markdowns.has(result.name))
     .map(
       (result) =>
-        `<details><summary>${summaryName(result.name)}</summary>\n\n${markdowns.get(result.name)!.trim()}\n\n</details>`,
+        `<details><summary>${summaryName(result.name)}</summary>\n\n${closeFences(markdowns.get(result.name)!.trim())}\n\n</details>`,
     );
   if (blocks.length === 0) return "";
   return `#### Extensions\n\n${blocks.join("\n\n")}`;
