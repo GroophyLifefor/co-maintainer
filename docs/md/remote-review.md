@@ -51,6 +51,7 @@ Same as [local review](local-review.md) for diff and output flags:
 | `--disable-codegraph` | Skip local codegraph |
 | `--allow-tool-install` | Allow codegraph install without a prompt |
 | `--fresh` | No carry-over from a prior remote run |
+| `--intent-file=PATH` | What the change is for, from a file or `-` for standard input. Context only, see [The intent file](#the-intent-file). Not with `--range` |
 | `--to-branch=<name>` | Diff base branch |
 | `--branch=<name>` | Branch when HEAD is detached |
 | `--repo=owner/repo` | Override remote detection |
@@ -171,6 +172,32 @@ A review sent with a key is recorded as billed to the key's owner. The dashboard
 keeps it out of the server's own spend. A total reads `$1.23 + $0.40 BYOK`, the
 server's cost first and what clients paid with their own keys after the plus
 sign. See [Cost](cost.md).
+
+## The intent file
+
+`review --remote --intent-file=PATH` sends the text with the review. What it is
+and how the result records it is on [Review](review.md#intent). On a server the
+text comes from a client, so it is treated as untrusted.
+
+- **The cap.** The client checks the repository's `reviewSystemPromptMaxChars`
+  from its own config (8000 by default) before it sends. The server applies its
+  own cap to the trimmed text again. A longer text is refused with 400,
+  `revision.description: must be at most N characters (got M)`, and the client
+  says `--intent-file was refused by the server:` followed by that. A description
+  over 200,000 characters is refused with `revision.description: too long`.
+- **A refused submit changes nothing.** The branch's running review and its
+  carry-over stay as they were.
+- **An older server.** The handshake lists `intent` among its features. A client
+  that does not find it does not send the text and adds the warning
+  `intent_unsupported`, which says "This server (version X) does not support an
+  intent, so the review ran without one." The review runs. An older client with
+  a newer server sends nothing, and nothing changes.
+- **What the server keeps.** Only the trimmed text, in the job's input row until
+  the review ends, the same as the diff. It is never written to a log or a
+  result. The client sets `subject.intent` itself, so a server cannot change it.
+  The characters U+2028 and U+2029 reach the prompt as a newline escape.
+- **Push reviews** (`--range`) take no intent, and the server ignores a
+  description sent with one.
 
 ## Errors from the server
 
