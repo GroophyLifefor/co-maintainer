@@ -235,7 +235,10 @@ export async function runLocalReview(
         } else {
           console.log("No changes to review.");
         }
+        // `exitWith` only sets the code. Without the return the review went
+        // on with an empty diff, called the model and printed a second report.
         exitWith(0);
+        return;
       }
 
       const subjectId = localSubjectId(repo, root, branch);
