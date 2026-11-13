@@ -25,9 +25,10 @@ import {
   removeRunFolder,
   writeReviewResult,
   type ExtensionDetails,
+  type RunFolder,
   type RunOwner,
 } from "./run_folder.ts";
-import { runExtensions } from "./runner.ts";
+import { failedResult, runExtensions } from "./runner.ts";
 import {
   buildReport,
   EMPTY_REPORT,
@@ -156,30 +157,45 @@ export async function withExtensions<T>(
   const tracked = (await context.tracking?.load().catch(() => undefined)) ?? {
     previous: [],
   };
-  // The diff first: building it may fill in the context's shas.
-  const diff = await context.diff();
-  const details: Omit<ExtensionDetails, "reviewResultPath" | "diffPath"> = {
-    schemaVersion: 1,
-    reviewType: context.reviewType,
-    repo: context.repo,
-    prNumber: context.prNumber,
-    branch: context.branch,
-    workdir: context.workdir,
-    headSha: context.headSha,
-    baseSha: context.baseSha,
-    scope: context.scope,
-    sinceCommit: context.sinceCommit,
-    trigger: context.trigger,
-    round: tracked.round ?? context.round,
-  };
-  const folder = await openRunFolder({
-    // A job id that is not a UUID cannot name a run folder. Such a run only
-    // loses its restart record.
-    runId: isRunId(context.runId) ? context.runId : crypto.randomUUID(),
-    owner: context.owner,
-    details,
-    diff,
-  });
+  let folder: RunFolder;
+  try {
+    // The diff first: building it may fill in the context's shas.
+    const diff = await context.diff();
+    const details: Omit<ExtensionDetails, "reviewResultPath" | "diffPath"> = {
+      schemaVersion: 1,
+      reviewType: context.reviewType,
+      repo: context.repo,
+      prNumber: context.prNumber,
+      branch: context.branch,
+      workdir: context.workdir,
+      headSha: context.headSha,
+      baseSha: context.baseSha,
+      scope: context.scope,
+      sinceCommit: context.sinceCommit,
+      trigger: context.trigger,
+      round: tracked.round ?? context.round,
+    };
+    folder = await openRunFolder({
+      // A job id that is not a UUID cannot name a run folder. Such a run only
+      // loses its restart record.
+      runId: isRunId(context.runId) ? context.runId : crypto.randomUUID(),
+      owner: context.owner,
+      details,
+      diff,
+    });
+  } catch (error) {
+    // An extension failure never blocks a review, and neither does failing
+    // to prepare for one: the review runs alone and says why.
+    const reason = `co-maintainer could not prepare the run: ${error instanceof Error ? error.message : String(error)}`;
+    context.log?.(`extensions: ${reason}`);
+    const result = await review();
+    return {
+      review: result,
+      extensions: buildReport(
+        registrations.map((entry) => failedResult(entry.name, reason)),
+      ),
+    };
+  }
   const controller = new AbortController();
   const onAbort = () => controller.abort();
   if (context.signal?.aborted) controller.abort();
@@ -194,7 +210,9 @@ export async function withExtensions<T>(
   const running = runExtensions({
     registrations,
     folder,
-    cwd: context.workdir || undefined,
+    // A local review runs in its checkout. Everywhere else the run folder is
+    // the working directory, not wherever `serve` was started.
+    cwd: context.workdir || folder.dir,
     reviewDone,
     signal: controller.signal,
     rerunOnRestart: (entry) => rerunsOnRestart(entry, config),
@@ -204,14 +222,23 @@ export async function withExtensions<T>(
     let result: T;
     try {
       result = await review();
-      await writeReviewResult(folder, await reviewResult(result));
     } catch (error) {
       controller.abort();
       reviewSettled(false);
       await running;
       throw error;
     }
-    reviewSettled(true);
+    try {
+      await writeReviewResult(folder, await reviewResult(result));
+      reviewSettled(true);
+    } catch (error) {
+      // The extensions that wait for the results cannot run. The review
+      // itself is done and is not lost for it.
+      context.log?.(
+        `extensions: could not write the review results: ${String(error)}`,
+      );
+      reviewSettled(false);
+    }
     const results = await running;
     for (const entry of results) {
       context.log?.(

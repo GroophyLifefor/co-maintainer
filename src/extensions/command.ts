@@ -17,6 +17,7 @@ import {
   LIMITS,
   MAX_PRIORITY,
   nameProblem,
+  normalRunAfter,
   parseBoolean,
   parseCount,
   parseReviewTypes,
@@ -144,8 +145,7 @@ function applySettings(
   }
   const runAfter = stringFlag(flags, "run-after");
   if (runAfter !== undefined) {
-    next.runAfter =
-      runAfter === "" || runAfter === "none" ? undefined : runAfter;
+    next.runAfter = runAfter === "none" ? undefined : normalRunAfter(runAfter);
   }
   const parallelism = stringFlag(flags, "parallelism");
   if (parallelism !== undefined) {

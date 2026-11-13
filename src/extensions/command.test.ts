@@ -128,6 +128,20 @@ test("register refuses a duplicate, a cycle, a bad name and an unknown variable"
   });
 });
 
+test("--run-after=Review means the review, in any case", async () => {
+  await withConfig(async () => {
+    await captured([
+      "register",
+      "--name=a",
+      "--command=true",
+      "--run-after=Review",
+    ]);
+    if (readRegistrations()[0]?.runAfter !== "review") {
+      throw new Error(JSON.stringify(readRegistrations()));
+    }
+  });
+});
+
 test("an unregistered run-after target needs --yes when nobody can be asked", async () => {
   await withConfig(async () => {
     const message = await refused([

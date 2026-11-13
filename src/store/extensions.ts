@@ -150,7 +150,9 @@ function toFinding(row: ExtensionFindingRow): ExtensionFinding {
 }
 
 /** The keyed findings still standing from the last review of `subjectId` in
- * which each extension returned `ok`, other than `excludeReviewId`. */
+ * which each extension returned `ok`, other than `excludeReviewId`. Only a
+ * review that reached the pull request or the client counts: after a failed
+ * post, the next round treats its findings as new and comments on them. */
 export function previousExtensionFindings(
   subjectId: string,
   excludeReviewId: string,
@@ -162,6 +164,7 @@ export function previousExtensionFindings(
        FROM extension_results er
        JOIN reviews r ON r.id = er.review_id
        WHERE r.subject_id = ? AND er.review_id != ? AND er.status = 'ok'
+         AND r.status IN ('posted', 'done')
        ORDER BY er.created_at DESC, er.rowid DESC`,
     )
     .all(subjectId, excludeReviewId);

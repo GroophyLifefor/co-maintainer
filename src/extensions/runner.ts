@@ -23,7 +23,7 @@ import {
   type ExtensionUsage,
   type ExtensionVerdict,
 } from "./schema.ts";
-import { markStarted, type RunFolder } from "./run_folder.ts";
+import { markFinished, markStarted, type RunFolder } from "./run_folder.ts";
 
 export type ExtensionResult = {
   /** The registered name, which is the extension's id in every output. */
@@ -80,6 +80,11 @@ function blank(
     durationMs: 0,
     attempts: 0,
   };
+}
+
+/** A Failed result for an extension that never ran. */
+export function failedResult(name: string, reason: string): ExtensionResult {
+  return blank(name, "failed", reason);
 }
 
 function defaultSleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -318,6 +323,7 @@ export async function runExtensions(
     if (
       input.folder.restarted &&
       input.folder.startedBefore.has(name) &&
+      !input.folder.finishedBefore.has(name) &&
       !input.rerunOnRestart(registration)
     ) {
       return blank(
@@ -332,7 +338,7 @@ export async function runExtensions(
       review_result_path: reviewFinished ? input.folder.reviewResultPath : "",
       diff_path: input.folder.diffPath,
     });
-    return runAttempts({
+    const result = await runAttempts({
       registration,
       command,
       cwd: input.cwd,
@@ -341,6 +347,11 @@ export async function runExtensions(
       sleep: input.sleep,
       log: input.log,
     });
+    // A cancel is not a finish: a restart after it reruns the extension.
+    if (!input.signal?.aborted) {
+      await markFinished(input.folder, name).catch(() => {});
+    }
+    return result;
   };
 
   // Every promise is in the map before any of them looks a target up, and the

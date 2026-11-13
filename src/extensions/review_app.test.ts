@@ -65,7 +65,12 @@ class FakeGithub implements GitHubClient {
       return Promise.resolve(this.files() as T[]);
     return Promise.resolve([]);
   }
+  /** Every post fails, the review and its issue comment fallback alike. */
+  failPosts = false;
   write<T>(endpoint: string, body: unknown): Promise<T> {
+    if (this.failPosts && /\/(reviews|comments)$/.test(endpoint)) {
+      return Promise.reject(new Error("GitHub is down"));
+    }
     this.writes.push({ endpoint, body: body as Json });
     return Promise.resolve({ id: 1000 + this.writes.length } as T);
   }
@@ -248,6 +253,40 @@ test(
       )!.body as unknown as Posted;
       if (!repost.body.includes("Token in README (README.md:1) (still open)")) {
         throw new Error(repost.body);
+      }
+    });
+  },
+);
+
+test(
+  "findings of a review that failed to post are new again next round",
+  posixOnly,
+  async () => {
+    await withServe(async () => {
+      const failing = new FakeGithub();
+      failing.failPosts = true;
+      await runReviewJob(
+        job("job-fail", "opened"),
+        () => {},
+        failing,
+        new FakeAiProvider(),
+      ).catch(() => {});
+      setJobStatus("job-fail", "failed");
+      const second = new FakeGithub();
+      await runReviewJob(
+        job("job-next", "synchronize"),
+        () => {},
+        second,
+        new FakeAiProvider(),
+      );
+      const next = loadExtensionReport(getReviewByJobId("job-next")!.id);
+      const aws = next.findings.find((row) => row.key === "aws");
+      if (aws?.state !== "new") throw new Error(JSON.stringify(next.findings));
+      const posted = second.writes.find((write) =>
+        write.endpoint.endsWith("/reviews"),
+      )!.body as unknown as Posted;
+      if (!posted.comments.some((c) => c.body.includes("AWS key in code"))) {
+        throw new Error("the inline comment was lost");
       }
     });
   },

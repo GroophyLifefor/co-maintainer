@@ -371,7 +371,10 @@ test(
     await withFolder(async (folder) => {
       await writeTextFile(
         `${folder.dir}/state.json`,
-        JSON.stringify({ started: ["keep-going", "stop"] }),
+        JSON.stringify({
+          started: ["keep-going", "stop", "done-before"],
+          finished: ["done-before"],
+        }),
       );
       const again = await openRunFolder({
         runId,
@@ -388,6 +391,7 @@ test(
             registration({ name: "keep-going" }),
             registration({ name: "stop", rerunOnRestart: false }),
             registration({ name: "never-started", rerunOnRestart: false }),
+            registration({ name: "done-before", rerunOnRestart: false }),
           ],
           folder: again,
           reviewDone: done.promise,
@@ -398,6 +402,9 @@ test(
         throw new Error("keep-going");
       if (results.get("never-started")?.status !== "ok") {
         throw new Error("an extension that never started was failed");
+      }
+      if (results.get("done-before")?.status !== "ok") {
+        throw new Error("an extension that had finished was called cut off");
       }
       const stop = results.get("stop");
       if (stop?.status !== "failed" || !stop.reason?.includes("restarted")) {

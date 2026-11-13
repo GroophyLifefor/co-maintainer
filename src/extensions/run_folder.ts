@@ -59,6 +59,8 @@ export type RunFolder = {
   restarted: boolean;
   /** Extensions that had started before the restart. */
   startedBefore: Set<string>;
+  /** Extensions that had also finished before it. */
+  finishedBefore: Set<string>;
   details: ExtensionDetails;
 };
 
@@ -100,7 +102,7 @@ async function readJson<T>(path: string): Promise<T | undefined> {
   }
 }
 
-type State = { started: string[] };
+type State = { started: string[]; finished?: string[] };
 type Owner = { tool: typeof OWNER_TOOL; pid: number; kind: RunOwner };
 
 export async function openRunFolder(input: {
@@ -120,6 +122,7 @@ export async function openRunFolder(input: {
     diffPath: `${dir}/diff.patch`,
     restarted: state !== undefined,
     startedBefore: new Set(state?.started ?? []),
+    finishedBefore: new Set(state?.finished ?? []),
     details: { ...input.details, reviewResultPath: "", diffPath: "" },
   };
   folder.details.diffPath = folder.diffPath;
@@ -133,7 +136,7 @@ export async function openRunFolder(input: {
   await writeDetails(folder);
   // A rerun keeps the old record until each extension starts again, so a
   // second restart still knows what the first one cut off.
-  if (!state) await writeState(folder, []);
+  if (!state) await writeState(folder, { started: [], finished: [] });
   return folder;
 }
 
@@ -146,28 +149,46 @@ async function writeDetails(folder: RunFolder): Promise<void> {
   );
 }
 
-async function writeState(folder: RunFolder, started: string[]): Promise<void> {
-  await writeTextFile(
-    `${folder.dir}/state.json`,
-    JSON.stringify({ started } satisfies State),
-  );
+async function writeState(folder: RunFolder, state: State): Promise<void> {
+  await writeTextFileAtomic(`${folder.dir}/state.json`, JSON.stringify(state));
 }
 
-/** Records that an extension started. Calls for one folder are serialised,
- * so two extensions starting together cannot drop each other's entry. */
+/** Calls for one folder are serialised, so two extensions starting or
+ * finishing together cannot drop each other's entry. */
 const startedLocks = new Map<string, Promise<void>>();
-export function markStarted(folder: RunFolder, name: string): Promise<void> {
+function updateState(
+  folder: RunFolder,
+  change: (state: Required<State>) => void,
+): Promise<void> {
   const previous = startedLocks.get(folder.dir) ?? Promise.resolve();
   const next = previous.then(async () => {
-    const state = (await readJson<State>(`${folder.dir}/state.json`)) ?? {
-      started: [],
+    const stored = await readJson<State>(`${folder.dir}/state.json`);
+    const state = {
+      started: stored?.started ?? [],
+      finished: stored?.finished ?? [],
     };
-    if (!state.started.includes(name)) state.started.push(name);
-    await writeState(folder, state.started);
+    change(state);
+    await writeState(folder, state);
   });
   const settled = next.catch(() => {});
   startedLocks.set(folder.dir, settled);
   return next;
+}
+
+/** Records that an extension started. A rerun clears its earlier finish. */
+export function markStarted(folder: RunFolder, name: string): Promise<void> {
+  return updateState(folder, (state) => {
+    if (!state.started.includes(name)) state.started.push(name);
+    state.finished = state.finished.filter((entry) => entry !== name);
+  });
+}
+
+/** Records that an extension finished, so a restart after it does not count
+ * it as cut off. */
+export function markFinished(folder: RunFolder, name: string): Promise<void> {
+  return updateState(folder, (state) => {
+    if (!state.finished.includes(name)) state.finished.push(name);
+  });
 }
 
 /** Writes the AI review results and points `details.json` at them. */
