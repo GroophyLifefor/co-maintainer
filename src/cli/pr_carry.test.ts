@@ -394,7 +394,160 @@ test("an unreadable cache row warns and still reviews", async () => {
   }
 });
 
-test("a pull request run is stored under its own key, apart from a local one", async () => {
+/** A model that closes a VERIFY entry only when the entry's file is in `fixed`
+ * and the prompt does not say the file is unchanged, as a real model would
+ * with the changed code in front of it. Everything else stays open. */
+function closingFixed(fixed: string[]): (prompt: string) => Answer {
+  return (prompt) => ({
+    findings: [],
+    previousFindings: [
+      ...prompt.matchAll(/^(F\d+) · ([^\n]*?) · (\S+?):\d+/gm),
+    ].map((m) => ({
+      id: m[1]!,
+      state:
+        !m[2]!.startsWith("file unchanged") && fixed.includes(m[3]!)
+          ? ("closed" as const)
+          : ("open" as const),
+    })),
+  });
+}
+
+test("a fix is judged after a run that did not show its file", async () => {
+  await writeGuide("# Guide\n\nValidate values.\n");
+  const A_FIXED = ["const a = validate(read())", "use(a.value)", "done()"];
+  const B_FIXED = ["const b = validate(read())", "use(b.value)", "done()"];
+
+  // Run 1: two new findings.
+  const r1 = await run(
+    {
+      head: "sha1",
+      files: [file("a.ts", A_LINES), file("b.ts", B_LINES)],
+      compare: "ahead",
+    },
+    scriptedModel(FIRST).ai,
+  );
+  if (summaryCounts(r1.resolved).new !== 2) throw new Error("run 1");
+
+  // Run 2: the same head again. Nothing is shown to the model.
+  const r2 = await run(
+    {
+      head: "sha1",
+      files: [file("a.ts", A_LINES), file("b.ts", B_LINES)],
+      compare: "ahead",
+    },
+    scriptedModel(closingFixed([])).ai,
+  );
+  if (summaryCounts(r2.resolved).open !== 2) {
+    throw new Error(`run 2: ${JSON.stringify(states(r2.resolved))}`);
+  }
+
+  // Run 3: the author fixes a.ts. The model sees it and closes it.
+  const model3 = scriptedModel(closingFixed(["a.ts"]));
+  const r3 = await run(
+    {
+      head: "sha2",
+      files: [file("a.ts", A_FIXED), file("b.ts", B_LINES)],
+      compare: "ahead",
+    },
+    model3.ai,
+  );
+  if (states(r3.resolved)["a.ts"] !== "closed") {
+    throw new Error(`run 3: ${JSON.stringify(states(r3.resolved))}`);
+  }
+  if (states(r3.resolved)["b.ts"] !== "open") throw new Error("run 3 b.ts");
+
+  // Run 4: the author fixes b.ts. a.ts is unchanged and already closed.
+  const r4 = await run(
+    {
+      head: "sha3",
+      files: [file("a.ts", A_FIXED), file("b.ts", B_FIXED)],
+      compare: "ahead",
+    },
+    scriptedModel(closingFixed(["b.ts"])).ai,
+  );
+  const got = states(r4.resolved);
+  if (got["b.ts"] !== "closed") {
+    throw new Error(`run 4: ${JSON.stringify(got)}`);
+  }
+  if (summaryCounts(r4.resolved).open !== 0) {
+    throw new Error(`run 4 left a finding open: ${JSON.stringify(got)}`);
+  }
+});
+
+test("a same-head re-run carries every finding and does not compare", async () => {
+  await writeGuide("# Guide\n\nValidate values.\n");
+  const files = [file("a.ts", A_LINES), file("b.ts", B_LINES)];
+  await run({ head: "sha1", files, compare: "ahead" }, scriptedModel(FIRST).ai);
+  // `throws` proves the same head is decided without asking GitHub.
+  const model = scriptedModel(closingFixed([]));
+  const { resolved } = await run(
+    { head: "sha1", files, compare: "throws" },
+    model.ai,
+  );
+  const counts = summaryCounts(resolved);
+  if (counts.open !== 2 || counts.new !== 0 || counts.closed !== 0) {
+    throw new Error(JSON.stringify(counts));
+  }
+  if (!/UNCHANGED SINCE LAST REVIEW/.test(model.prompts[0] ?? "")) {
+    throw new Error("the files were not listed as unchanged");
+  }
+});
+
+test("a head GitHub calls identical keeps the carry-over", async () => {
+  const result = await secondRunWithRestart(async () => {}, {
+    ...SECOND_PUSH,
+    compare: "identical",
+  });
+  if (!/PREVIOUS FINDINGS/.test(result.prompt)) {
+    throw new Error("an identical head dropped the carry-over");
+  }
+});
+
+test("a head behind the last reviewed head starts fresh", async () => {
+  const result = await secondRunWithRestart(async () => {}, {
+    ...SECOND_PUSH,
+    compare: "behind",
+  });
+  assertFresh(result);
+});
+
+test("a failed compare says so in the log, not that the head was rewritten", async () => {
+  await writeGuide("# Guide\n\nValidate values.\n");
+  const files = [file("a.ts", A_LINES), file("b.ts", B_LINES)];
+  await run({ head: "sha1", files, compare: "ahead" }, scriptedModel(FIRST).ai);
+  const lines: string[] = [];
+  await startPrCarry(
+    fakeGithub({ head: "sha2", files, compare: "throws" }),
+    await options(),
+    false,
+    (line) => lines.push(line),
+  );
+  const said = lines.join("\n");
+  if (!/could not compare/i.test(said) || !/HTTP 404/.test(said)) {
+    throw new Error(`log: ${said}`);
+  }
+  if (/does not contain/i.test(said)) {
+    throw new Error(`the log blames a force-push: ${said}`);
+  }
+});
+
+test("a force-push says so in the log", async () => {
+  await writeGuide("# Guide\n\nValidate values.\n");
+  const files = [file("a.ts", A_LINES), file("b.ts", B_LINES)];
+  await run({ head: "sha1", files, compare: "ahead" }, scriptedModel(FIRST).ai);
+  const lines: string[] = [];
+  await startPrCarry(
+    fakeGithub({ head: "sha2", files, compare: "diverged" }),
+    await options(),
+    false,
+    (line) => lines.push(line),
+  );
+  if (!/does not contain/i.test(lines.join("\n"))) {
+    throw new Error(`log: ${lines.join("\n")}`);
+  }
+});
+
+test("pull request runs are keyed by number", async () => {
   await writeGuide("# Guide\n\nValidate values.\n");
   await run(
     {

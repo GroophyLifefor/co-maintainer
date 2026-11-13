@@ -41,20 +41,27 @@ export type PrCarry = {
  * findings point at code that no longer exists. Any doubt counts as a
  * force-push, because starting fresh costs one scan and a wrong match hides a
  * real finding. */
-async function headContains(
+/** Null when the stored run may be used, otherwise the reason it may not. */
+async function whyNotContained(
   client: GitHubClient,
   repo: string,
-  last: string,
+  last: string | null | undefined,
   head: string,
-): Promise<boolean> {
-  if (last === head) return true;
+): Promise<string | null> {
+  if (!last) return "the last run did not record its head";
+  if (!head) return "GitHub gave no head for this pull request";
+  if (last === head) return null;
   try {
     const compare = await client.request<Json>(
       `repos/${repo}/compare/${last}...${head}?per_page=1`,
     );
-    return compare.status === "ahead" || compare.status === "identical";
-  } catch {
-    return false;
+    if (compare.status === "ahead" || compare.status === "identical") {
+      return null;
+    }
+    return `the head does not contain the last reviewed head (${String(compare.status)})`;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    return `could not compare the heads (${reason})`;
   }
 }
 
@@ -133,15 +140,13 @@ export async function startPrCarry(
     await forget();
     previous = null;
   }
-  if (
-    previous &&
-    (!previous.headSha ||
-      !headSha ||
-      !(await headContains(client, repo, previous.headSha, headSha)))
-  ) {
-    log("the head does not contain the last reviewed head, starting fresh");
-    await forget();
-    previous = null;
+  if (previous) {
+    const why = await whyNotContained(client, repo, previous.headSha, headSha);
+    if (why) {
+      log(`${why}, starting fresh`);
+      await forget();
+      previous = null;
+    }
   }
 
   const run: CarryRun = startCarryRun(previous, current, guides.guideBuiltAt);
