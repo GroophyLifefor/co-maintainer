@@ -15,6 +15,7 @@ import {
   type CliRun,
   defineFlow,
   type Score,
+  scriptedCheck,
   type Sim,
   type Step,
 } from "../flow.ts";
@@ -561,7 +562,8 @@ function localChecks(sim: Sim): CheckResult[] {
         warningCodes(one?.json).includes("diff_dropped"),
       `truncated ${String(truncated(one?.json))} · ${warningCodes(one?.json).join(", ")}`,
     ),
-    check(
+    scriptedCheck(
+      sim,
       "human output has the coverage line and the files-reviewed wording",
       /^Coverage: \d+ full · 0 partial · 0 summarized · \d+ dropped$/m.test(
         human,
@@ -571,6 +573,17 @@ function localChecks(sim: Sim): CheckResult[] {
       human
         .split("\n")
         .filter((line) => /Coverage|findings|again/.test(line))
+        .join(" | "),
+      "the wording for no findings needs a model that reports none",
+    ),
+    check(
+      "human output has the coverage line",
+      /^Coverage: \d+ full · 0 partial · 0 summarized · \d+ dropped$/m.test(
+        human,
+      ),
+      human
+        .split("\n")
+        .filter((line) => /Coverage/.test(line))
         .join(" | "),
     ),
     check(
@@ -642,7 +655,8 @@ function mediumAndBigChecks(sim: Sim): CheckResult[] {
         summaryModel === sim.options().lowModel,
       `summarized ${JSON.stringify(bcov?.summarized)} · summary on ${summaryModel}`,
     ),
-    check(
+    scriptedCheck(
+      sim,
       "the model reads the big file with offset and limit, and a second page is served",
       asked.length === OFFSETS.length &&
         asked.every((call) => call.includes(`"limit":${PAGE}`)) &&
@@ -650,11 +664,14 @@ function mediumAndBigChecks(sim: Sim): CheckResult[] {
         pages[0]?.endsWith("[more: call again with offset=300]") === true &&
         bodies[1]?.startsWith(`   300 +${BIG_LINES[299]}`) === true,
       `${asked.length} reads · page 2 starts ${JSON.stringify(bodies[1]?.slice(0, 30))}`,
+      "which pages the model asks for is its call",
     ),
-    check(
+    scriptedCheck(
+      sim,
       "the pages join to the real patch",
       JSON.stringify(joined) === JSON.stringify(BIG_NUMBERED),
       `${joined.length} lines read · ${BIG_NUMBERED.length} in the patch`,
+      "which pages the model asks for is its call",
     ),
   ];
 }
@@ -663,13 +680,24 @@ function smallChecks(sim: Sim): CheckResult[] {
   const json = run(sim, STEP.small)?.json;
   const human = run(sim, STEP.smallHuman)?.cli.stdout ?? "";
   return [
-    check(
+    scriptedCheck(
+      sim,
       "a small ordinary change: truncated false, all full, no coverage line",
       truncated(json) === false &&
         coverageOf(json)?.full === 4 &&
         warningCodes(json).length === 0 &&
         !human.includes("Coverage:") &&
         human.includes("No actionable findings.") &&
+        !human.includes("in the files reviewed"),
+      `truncated ${String(truncated(json))} · ${JSON.stringify(coverageOf(json))}`,
+      "the wording for no findings needs a model that reports none",
+    ),
+    check(
+      "a small ordinary change is not truncated, all full, with no coverage line",
+      truncated(json) === false &&
+        coverageOf(json)?.full === 4 &&
+        warningCodes(json).length === 0 &&
+        !human.includes("Coverage:") &&
         !human.includes("in the files reviewed"),
       `truncated ${String(truncated(json))} · ${JSON.stringify(coverageOf(json))}`,
     ),
@@ -737,7 +765,8 @@ function remoteChecks(sim: Sim): CheckResult[] {
         warningCodes(json).includes("diff_dropped"),
       `truncated ${String(truncated(json))} · states ${stateCount(cov)}`,
     ),
-    check(
+    scriptedCheck(
+      sim,
       "remote: the client prints the coverage line",
       /^Coverage: \d+ full · 0 partial · 0 summarized · \d+ dropped$/m.test(
         human,
@@ -746,13 +775,33 @@ function remoteChecks(sim: Sim): CheckResult[] {
         .split("\n")
         .filter((line) => line.startsWith("Coverage"))
         .join(""),
+      "the wording for no findings needs a model that reports none",
     ),
     check(
+      "remote: the client prints the coverage line the server sent",
+      /^Coverage: \d+ full · 0 partial · 0 summarized · \d+ dropped$/m.test(
+        human,
+      ),
+      human
+        .split("\n")
+        .filter((line) => line.startsWith("Coverage"))
+        .join(""),
+    ),
+    scriptedCheck(
+      sim,
       "remote: a result without coverage, as an older server sends it, prints without one",
       s.oldShapeRewrites > 0 &&
         old?.exitCode === 0 &&
         !old.stdout.includes("Coverage:") &&
         old.stdout.includes("No actionable findings."),
+      `${s.oldShapeRewrites} rewritten · exit ${old?.exitCode}`,
+      "the exit code and the wording for no findings need a model that reports none",
+    ),
+    check(
+      "remote: a result without coverage, as an older server sends it, prints no coverage line",
+      s.oldShapeRewrites > 0 &&
+        (old?.exitCode === 0 || old?.exitCode === 1) &&
+        !old.stdout.includes("Coverage:"),
       `${s.oldShapeRewrites} rewritten · exit ${old?.exitCode}`,
     ),
   ];
