@@ -451,6 +451,9 @@ const steps: Step[] = [
       const run = await reviewCli(sim, pullOf(sim, "main").number, [
         "--json",
         "--disable-codegraph",
+        // Review runs on one pull request carry findings over, so this flow
+        // starts each of them fresh to keep its checks about a first review.
+        "--fresh",
       ]);
       return code(run);
     },
@@ -458,9 +461,11 @@ const steps: Step[] = [
   {
     name: STEP.github,
     async run(sim) {
+      // Fresh, so it is a first review of the pull request again.
       const { run, summary } = await reviewWithSummary(
         sim,
         pullOf(sim, "main").number,
+        ["--fresh"],
       );
       sim.state.mainSummary = summary;
       return code(run);
@@ -572,7 +577,8 @@ const steps: Step[] = [
       const pull = pullOf(sim, "main");
       const sha = pushFix(sim, pull);
       sim.state.pushedSha = sha;
-      const run = await reviewCli(sim, pull.number);
+      // Fresh: this flow checks the pushed diff, not the carry-over.
+      const run = await reviewCli(sim, pull.number, ["--fresh"]);
       return `${sha.slice(0, 7)} · ${code(run)}`;
     },
   },
