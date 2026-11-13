@@ -87,7 +87,11 @@ import { hasWriteAccess } from "../github/write_access.ts";
 import { withExtensions } from "../extensions/session.ts";
 import { appPrContext } from "../extensions/contexts.ts";
 import { reviewResultJson } from "../extensions/review_result.ts";
-import { EMPTY_REPORT, type ExtensionReport } from "../extensions/report.ts";
+import {
+  EMPTY_REPORT,
+  hasExtensions,
+  type ExtensionReport,
+} from "../extensions/report.ts";
 import {
   reviewBodyWithExtensions,
   reviewEventWithExtensions,
@@ -1244,6 +1248,9 @@ async function runReviewJobCore(
     await recordFailedReview(github, job, reviewId, costTally, log);
     throw error;
   }
+  // A Stop while extensions ran cut them short: posting would name them as
+  // failed. The remote job returns the same way.
+  if (signal?.aborted && hasExtensions(extensions)) return;
   guideBuiltAt = response.guideBuiltAt;
   const visiblePaths = new Set(response.visiblePaths);
   if (carryPrevious) {

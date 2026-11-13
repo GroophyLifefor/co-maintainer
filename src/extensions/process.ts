@@ -135,34 +135,19 @@ function killGroup(pid: number, signal: NodeJS.Signals): void {
 
 /** Process groups still running. An extension runs in its own group, so a
  * Ctrl-C in the terminal, which signals the terminal's group, never reaches
- * it. co-maintainer ending for any reason ends them too. */
+ * it. co-maintainer exiting ends them. A signal is left alone: `serve` shuts
+ * down gracefully on one and waits for its jobs, and an extension killed then
+ * would be reported as failed instead of running again after the restart. */
 const liveGroups = new Set<number>();
 let exitHooked = false;
 
 function hookExit(): void {
   if (exitHooked) return;
   exitHooked = true;
-  const killAll = () => {
-    for (const pid of liveGroups) killGroup(pid, "SIGTERM");
+  process.on("exit", () => {
+    for (const pid of liveGroups) killGroup(pid, "SIGKILL");
     liveGroups.clear();
-  };
-  process.on("exit", killAll);
-  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
-    const onSignal = () => {
-      killAll();
-      // Alone on this signal, the listener must not swallow it: it steps
-      // aside and raises it again, so the default exit still happens.
-      if (process.listenerCount(signal) === 1) {
-        process.removeListener(signal, onSignal);
-        process.kill(process.pid, signal);
-      }
-    };
-    try {
-      process.on(signal, onSignal);
-    } catch {
-      // Not every platform has every signal.
-    }
-  }
+  });
 }
 
 /** How long the pipes may stay open once the shell has exited. Whatever the

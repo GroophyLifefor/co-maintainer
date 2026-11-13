@@ -18,6 +18,23 @@ test("on Windows the command is wrapped in one more pair of quotes for cmd /s", 
 });
 
 const posixOnly = { skip: process.platform === "win32" };
+
+test(
+  "running an extension adds no signal listener, so serve's own shutdown decides",
+  posixOnly,
+  async () => {
+    const before = ["SIGINT", "SIGTERM", "SIGHUP"].map((signal) =>
+      process.listenerCount(signal),
+    );
+    await runCommandOnce({ command: "true", timeoutMs: 5_000 });
+    const after = ["SIGINT", "SIGTERM", "SIGHUP"].map((signal) =>
+      process.listenerCount(signal),
+    );
+    if (before.join() !== after.join()) {
+      throw new Error(`${before} became ${after}`);
+    }
+  },
+);
 const OK = `{"schemaVersion":1,"name":"p","status":"ok","verdict":"comment"}`;
 
 test(

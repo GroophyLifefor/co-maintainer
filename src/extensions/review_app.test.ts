@@ -98,7 +98,10 @@ function job(id: string, trigger: string): JobRow {
   };
 }
 
-async function withServe(fn: () => Promise<void>): Promise<void> {
+async function withServe(
+  fn: () => Promise<void>,
+  extensions?: object[],
+): Promise<void> {
   const saved = [
     "CM_APP_DB",
     "CM_REPOS_DIR",
@@ -119,7 +122,7 @@ async function withServe(fn: () => Promise<void>): Promise<void> {
   await writeTextFile(
     `${dir}/config.json`,
     JSON.stringify({
-      extensions: [
+      extensions: extensions ?? [
         {
           name: "secret",
           command: `${process.execPath} ${dir}/ext.mjs {{details_path}}`,
@@ -249,3 +252,35 @@ test(
     });
   },
 );
+
+test("a Stop while extensions run posts nothing", posixOnly, async () => {
+  await withServe(async () => {
+    const github = new FakeGithub();
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 300);
+    const started = performance.now();
+    await runReviewJob(
+      job("job-stop", "opened"),
+      () => {},
+      github,
+      new FakeAiProvider(),
+      controller.signal,
+    );
+    if (performance.now() - started > 8_000) throw new Error("waited");
+    if (github.writes.some((write) => write.endpoint.endsWith("/reviews"))) {
+      throw new Error("a review was posted with cut-off extensions");
+    }
+  }, [
+    {
+      name: "slow",
+      command: "sleep 20",
+      repos: "*",
+      parallelism: true,
+      priority: 0,
+      failFast: false,
+      retryOnFailTimes: 0,
+      maxRequestedRetries: 3,
+      timeoutSeconds: 60,
+    },
+  ]);
+});
