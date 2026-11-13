@@ -21,10 +21,17 @@ export function cleanIntent(text: string | undefined): string {
   return text?.trim() ?? "";
 }
 
+/** U+2028 and U+2029 are line breaks to some readers and JSON leaves them as
+ * they are, so they become a newline, which JSON writes as an escape. */
+const LINE_SEPARATORS = new RegExp(
+  `[${String.fromCharCode(0x2028)}${String.fromCharCode(0x2029)}]`,
+  "g",
+);
+
 /** The `"intent"` field of a prompt block, an empty object when there is no
  * intent so the block keeps its old bytes. */
 export function intentField(text: string | undefined): { intent?: string } {
-  const intent = cleanIntent(text);
+  const intent = cleanIntent(text).replace(LINE_SEPARATORS, "\n");
   return intent ? { intent } : {};
 }
 

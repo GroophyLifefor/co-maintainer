@@ -324,7 +324,14 @@ export async function runRemoteReview(
       body: serialized,
     });
     if (submit.status !== 202) {
-      die("remote_submit_failed", await readApiError(submit));
+      const why = await readApiError(submit);
+      // The user typed the flag, so a refusal of the text names it.
+      die(
+        "remote_submit_failed",
+        intent && /revision\.description/.test(why)
+          ? `--intent-file was refused by the server: ${why}`
+          : why,
+      );
     }
     const { jobId } = (await submit.json()) as { jobId: string };
 

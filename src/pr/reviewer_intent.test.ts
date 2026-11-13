@@ -350,3 +350,40 @@ test("every round of a tool loop and every improvement pass carries the same sys
     );
   }
 });
+
+test("a review without an intent sends exactly the block it always did", async () => {
+  // These are the bytes of the block before there was an intent. A change that
+  // moved the plain request and the intent request together would pass the
+  // comparison above and fail here.
+  const local = promptOf((await workspaceRequests(""))[0]!);
+  must(
+    local.includes(
+      'WORKSPACE:\n{"branch":"main","changedFiles":["src/app.ts"]}\n\nDIFF:\n',
+    ),
+    local.slice(local.indexOf("WORKSPACE:"), local.indexOf("WORKSPACE:") + 200),
+  );
+  const pull = promptOf((await pullRequests(undefined))[0]!);
+  must(
+    pull.includes(
+      'PULL REQUEST:\n{"number":1,"title":"Retry the call","body":"Adds a retry.","state":"open","changedFiles":["src/app.ts"],"existingComments":[],"existingReviews":[]}\n\nDIFF:\n',
+    ),
+    pull.slice(
+      pull.indexOf("PULL REQUEST:"),
+      pull.indexOf("PULL REQUEST:") + 300,
+    ),
+  );
+});
+
+test("the line separators U+2028 and U+2029 reach the prompt as escapes, never as themselves", async () => {
+  const separators = `${String.fromCharCode(0x2028)}${String.fromCharCode(0x2029)}`;
+  const text = `first${separators}second`;
+  for (const requests of [
+    await workspaceRequests(text),
+    await pullRequests(text),
+  ]) {
+    const prompt = promptOf(requests[0]!);
+    must(!prompt.includes(String.fromCharCode(0x2028)), "U+2028 in the prompt");
+    must(!prompt.includes(String.fromCharCode(0x2029)), "U+2029 in the prompt");
+    must(prompt.includes('"intent":"first\\n\\nsecond"'), "not escaped");
+  }
+});

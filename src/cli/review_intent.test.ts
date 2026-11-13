@@ -17,14 +17,8 @@ import {
   intentField,
   intentPromptNote,
 } from "../review/intent.ts";
-import {
-  deleteEnv,
-  getEnv,
-  makeTempDir,
-  remove,
-  setEnv,
-  writeTextFile,
-} from "../util/runtime.ts";
+import { withIsolatedHome } from "../testing/isolated_home.ts";
+import { writeTextFile } from "../util/runtime.ts";
 
 const PR_ARGS = [
   "owner/repo",
@@ -48,15 +42,9 @@ async function messageOf(run: () => Promise<unknown>): Promise<string> {
 }
 
 async function withConfig<T>(fn: (dir: string) => Promise<T>): Promise<T> {
-  const dir = await makeTempDir({ prefix: "cm-intent-" });
-  const previous = getEnv("CM_CONFIG_PATH");
-  setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
   try {
-    return await fn(dir);
+    return await withIsolatedHome(fn);
   } finally {
-    if (previous === undefined) deleteEnv("CM_CONFIG_PATH");
-    else setEnv("CM_CONFIG_PATH", previous);
-    await remove(dir, { recursive: true });
     setCliInteractive(true);
   }
 }
@@ -176,19 +164,89 @@ test("an unreadable file and a missing value are usage errors that name the flag
   });
 });
 
-test("- on a terminal is a usage error and never waits for input", async () => {
-  const descriptor = Object.getOwnPropertyDescriptor(process.stdin, "isTTY");
-  Object.defineProperty(process.stdin, "isTTY", {
-    value: true,
-    configurable: true,
-  });
-  try {
-    const message = await messageOf(() => loadIntentFlag("-", 8000));
+/** A stream that gives text the way standard input would, and ends. */
+function fakeInput(chunks: string[], isTTY = false) {
+  return {
+    isTTY,
+    async *[Symbol.asyncIterator]() {
+      for (const chunk of chunks) yield chunk;
+    },
+  };
+}
+
+/** A stream that never ends and has a lot to say. */
+function endlessInput() {
+  return {
+    async *[Symbol.asyncIterator]() {
+      while (true) yield "x".repeat(65_536);
+    },
+  };
+}
+
+test(
+  "- on a terminal is a usage error and never reads it",
+  { timeout: 5000 },
+  async () => {
+    // If the guard is gone, this stream answers at once and the test fails on
+    // the missing error. It never waits on the real standard input.
+    const message = await messageOf(() =>
+      loadIntentFlag("-", 8000, fakeInput(["a task"], true)),
+    );
     must(message === "--intent-file=-: nothing on standard input", message);
-  } finally {
-    if (descriptor) Object.defineProperty(process.stdin, "isTTY", descriptor);
-    else delete (process.stdin as { isTTY?: boolean }).isTTY;
-  }
+  },
+);
+
+test(
+  "- reads a stream to its end and trims it",
+  { timeout: 5000 },
+  async () => {
+    const loaded = await loadIntentFlag(
+      "-",
+      8000,
+      fakeInput(["  Fix ", "JPY\n"]),
+    );
+    must(loaded.intent?.text === "Fix JPY", String(loaded.intent?.text));
+    must(loaded.intent?.source === "stdin", "source");
+  },
+);
+
+test(
+  "a source over the cap stops being read: an endless one is a quick usage error",
+  { timeout: 10_000 },
+  async () => {
+    const message = await messageOf(() =>
+      loadIntentFlag("-", 100, endlessInput()),
+    );
+    must(
+      message ===
+        "--intent-file: must be at most 100 characters (got more than 100)",
+      message,
+    );
+    // A text a little over the cap is read to its end, so it says how long.
+    const near = await messageOf(() =>
+      loadIntentFlag("-", 100, fakeInput(["x".repeat(130)])),
+    );
+    must(
+      near === "--intent-file: must be at most 100 characters (got 130)",
+      near,
+    );
+  },
+);
+
+test("a huge file and a device that never ends are quick usage errors", async () => {
+  await withConfig(async (dir) => {
+    await writeTextFile(`${dir}/huge.md`, "y".repeat(5_000_000));
+    const huge = await messageOf(() => loadIntentFlag(`${dir}/huge.md`, 100));
+    must(
+      huge ===
+        "--intent-file: must be at most 100 characters (got more than 100)",
+      huge,
+    );
+    if (process.platform === "linux") {
+      const zero = await messageOf(() => loadIntentFlag("/dev/zero", 100));
+      must(zero.includes("got more than 100"), zero);
+    }
+  });
 });
 
 test("the record holds the source and the length, never the text", () => {

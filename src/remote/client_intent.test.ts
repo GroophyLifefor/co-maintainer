@@ -19,7 +19,11 @@ const INTENT = "Fix rounding for JPY totals, amounts have no decimals.";
 type Run = { code: number; stdout: string; stderr: string };
 
 async function withRemote(
-  options: { features?: string[]; sync?: unknown[] },
+  options: {
+    features?: string[];
+    sync?: unknown[];
+    submitRefusal?: { status: number; code: string; message: string };
+  },
   fn: (ctx: {
     sandbox: LocalReviewSandbox;
     remote: FakeRemote;
@@ -33,6 +37,7 @@ async function withRemote(
   const remote = await startFakeRemote({
     repo: sandbox.repo,
     sync: options.sync,
+    submitRefusal: options.submitRefusal,
     handshake:
       options.features === undefined ? {} : { features: options.features },
   });
@@ -219,4 +224,34 @@ test("a text over the cap is refused before anything is sent", async () => {
     );
     must(ctx.remote.requests.length === 0, "a refused run reached the server");
   });
+});
+
+test("a server that refuses the text is named with the flag and the server's reason", async () => {
+  const message =
+    "revision.description: must be at most 100 characters (got 130)";
+  await withRemote(
+    {
+      features: ["intent"],
+      submitRefusal: { status: 400, code: "bad_request", message },
+    },
+    async (ctx) => {
+      await writeTextFile(`${ctx.sandbox.home}/task.md`, "x".repeat(130));
+      const result = await ctx.run([
+        `--intent-file=${ctx.sandbox.home}/task.md`,
+      ]);
+      must(result.code === 2, `exit ${result.code}`);
+      must(
+        `${result.stdout}${result.stderr}`.includes(
+          `--intent-file was refused by the server: ${message}`,
+        ),
+        `${result.stdout}\n${result.stderr}`,
+      );
+      // A refusal that has nothing to do with the text is reported as it was.
+      const other = await ctx.run([]);
+      must(
+        !`${other.stdout}${other.stderr}`.includes("--intent-file was refused"),
+        "named the flag without one",
+      );
+    },
+  );
 });
