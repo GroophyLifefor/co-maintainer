@@ -135,7 +135,29 @@ test("no cap returns the whole patch, and a single long line is cut to the cap",
   ]);
   const cut = readFullDiff(long, { path: "b.ts", offset: 1 }, 100);
   same(cut.split("\n")[0]!.length, 100, "cut to the cap");
+  same(
+    cut.split("\n")[1],
+    "[line cut at 100 characters, the rest of this line cannot be read]",
+    "the cut is marked",
+  );
   if (!cut.endsWith("[more: call again with offset=2]")) throw new Error(cut);
+});
+
+test("a long last line is marked as cut even with no more lines after it", () => {
+  // A minified bundle: one line of 500,000 characters.
+  const files = readable([
+    ["bundle.min.js", "dropped", `@@ -0,0 +1 @@\n+${"z".repeat(500_000)}`],
+  ]);
+  const answer = readFullDiff(files, { path: "bundle.min.js", offset: 1 });
+  if (
+    !answer.endsWith(
+      "[line cut at 20000 characters, the rest of this line cannot be read]",
+    )
+  ) {
+    throw new Error(answer.slice(-200));
+  }
+  if (answer.includes("[more:")) throw new Error("there is no next line");
+  if (answer.length > 20_000 + 100) throw new Error(`size: ${answer.length}`);
 });
 
 test("bad paging arguments get a plain answer instead of a throw", () => {

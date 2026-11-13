@@ -136,9 +136,12 @@ export function readFullDiff(
     const add = line.length + (out.length > 0 ? 1 : 0);
     if (maxChars !== null && used + add > maxChars) {
       // A single line longer than the cap is cut rather than returned whole,
-      // so no answer goes past the cap.
+      // so no answer goes past the cap. The marker says so, because the rest
+      // of that line cannot be read with any offset.
       if (out.length === 0) {
-        out.push(line.slice(0, maxChars));
+        out.push(
+          `${line.slice(0, maxChars)}\n[line cut at ${maxChars} characters, the rest of this line cannot be read]`,
+        );
         next++;
       }
       break;
