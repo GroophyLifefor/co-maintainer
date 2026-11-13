@@ -13,11 +13,13 @@ const github = world.github;
 
 type Json = Record<string, any>;
 
+/** A call as the PAT client makes it, with the world's token unless another
+ * is given. `null` sends none. */
 function call(
   method: string,
   path: string,
   body?: unknown,
-  token?: string,
+  token: string | null = world.secrets.pat,
 ): { status: number; body: Json } {
   const request: RouteRequest = {
     method,
@@ -133,7 +135,9 @@ test("comments, reviews and check runs are listed and created, every write in or
   });
   const n = pull.number;
   const before = github.writes.length;
+  // An installation token this GitHub minted is the App.
   const bot = "ghs_test";
+  github.tokens.add(bot);
 
   const comment = call(
     "POST",
@@ -176,15 +180,18 @@ test("comments, reviews and check runs are listed and created, every write in or
   assert.equal(reply.body.in_reply_to_id, inline[0]!.id);
   assert.equal(reply.body.path, "src/math.ts");
 
-  const run = call("POST", `${BASE}/check-runs`, {
-    name: "co-maintainer",
-    head_sha: pull.headSha,
-    status: "in_progress",
-  });
-  call("PATCH", `${BASE}/check-runs/${run.body.id}`, {
-    conclusion: "success",
-    output: { title: "done", summary: "ok" },
-  });
+  const run = call(
+    "POST",
+    `${BASE}/check-runs`,
+    { name: "co-maintainer", head_sha: pull.headSha, status: "in_progress" },
+    bot,
+  );
+  call(
+    "PATCH",
+    `${BASE}/check-runs/${run.body.id}`,
+    { conclusion: "success", output: { title: "done", summary: "ok" } },
+    bot,
+  );
   const runs = call("GET", `${BASE}/commits/${pull.headSha}/check-runs`).body;
   assert.equal(runs.check_runs[0].status, "completed");
   assert.equal(runs.check_runs[0].conclusion, "success");
@@ -253,14 +260,34 @@ test("a missing resource is a 404 GitHub answers, an unknown route is no answer"
   assert.equal(otherRepo, undefined);
 });
 
-test("the App installation and its token", () => {
-  const installations = call("GET", "app/installations")
+async function appJwt(appId = world.secrets.appId): Promise<string> {
+  const { importAppPrivateKey, signAppJwt } =
+    await import("../../github/jwt.ts");
+  return signAppJwt(
+    appId,
+    await importAppPrivateKey(world.secrets.appPrivateKey),
+  );
+}
+
+test("the App installation and its token", async () => {
+  const jwt = await appJwt();
+  const installations = call("GET", "app/installations", null, jwt)
     .body as unknown as Json[];
   const id = installations[0]!.id;
-  const token = call("POST", `app/installations/${id}/access_tokens`);
+  const token = call(
+    "POST",
+    `app/installations/${id}/access_tokens`,
+    null,
+    jwt,
+  );
   assert.equal(token.status, 201);
   assert.match(token.body.token, /^ghs_/);
-  const repos = call("GET", "installation/repositories").body;
+  const repos = call(
+    "GET",
+    "installation/repositories",
+    null,
+    token.body.token,
+  ).body;
   assert.deepEqual(
     (repos.repositories as Json[]).map((row) => row.full_name),
     [SAMPLE_REPO_NAME],
@@ -269,4 +296,95 @@ test("the App installation and its token", () => {
     !github.writes.some((write) => write.path.includes("access_tokens")),
     "minting a token is not a write anyone sees",
   );
+});
+
+test("GitHub refuses what it refuses: off-diff comments, person check runs, bad tokens", async () => {
+  const pull = github.openPull(SAMPLE_REPO_NAME, {
+    title: "Refusals",
+    files: { "src/math.ts": "export const add = 2;\n" },
+  });
+  const n = pull.number;
+  const bot = "ghs_refusals";
+  github.tokens.add(bot);
+  const offDiff = call(
+    "POST",
+    `${BASE}/pulls/${n}/reviews`,
+    {
+      event: "COMMENT",
+      body: "s",
+      comments: [{ path: "src/math.ts", line: 999, body: "nowhere" }],
+    },
+    bot,
+  );
+  assert.equal(offDiff.status, 422);
+  assert.equal(
+    github.reviews.filter((review) => review.number === n).length,
+    0,
+    "the whole review is rejected",
+  );
+  const single = call("POST", `${BASE}/pulls/${n}/comments`, {
+    path: "src/math.ts",
+    line: 50,
+    body: "nowhere",
+    commit_id: pull.headSha,
+  });
+  assert.equal(single.status, 422);
+  const placed = call("POST", `${BASE}/pulls/${n}/comments`, {
+    path: "src/math.ts",
+    line: 1,
+    body: "here",
+    commit_id: pull.headSha,
+  });
+  assert.equal(placed.status, 201);
+
+  const personRun = call("POST", `${BASE}/check-runs`, {
+    name: "x",
+    head_sha: pull.headSha,
+  });
+  assert.equal(personRun.status, 403);
+  assert.equal(
+    call("GET", `${BASE}/pulls/${n}`, null, "ghp_not_a_real_token").status,
+    401,
+  );
+  assert.equal(call("GET", `${BASE}/pulls/${n}`, null, null).status, 200);
+  assert.equal(
+    call("POST", `${BASE}/issues/${n}/comments`, { body: "x" }, null).status,
+    401,
+  );
+  assert.equal(
+    call("GET", "app/installations", null, await appJwt("999")).status,
+    401,
+    "a JWT for another App",
+  );
+  assert.equal(
+    call("GET", "app/installations").status,
+    401,
+    "a PAT on App routes",
+  );
+  const json = call("GET", `${BASE}/pulls/${n}`).body;
+  assert.notEqual(json.id, json.number);
+});
+
+test("paging stops at 100, and a binary or huge diff has no patch", () => {
+  const big = Array.from({ length: 3100 }, (_, i) => `line ${i}`).join("\n");
+  const pull = github.openPull(SAMPLE_REPO_NAME, {
+    title: "Big",
+    files: {
+      "big.txt": `${big}\n`,
+      "logo.bin": "\u0000\u0001\u0002binary\u0000",
+      "small.txt": "small\n",
+    },
+  });
+  const files = call("GET", `${BASE}/pulls/${pull.number}/files`)
+    .body as Json[];
+  const byName = Object.fromEntries(files.map((file) => [file.filename, file]));
+  assert.ok(!("patch" in byName["big.txt"]), "too large");
+  assert.equal(byName["big.txt"].additions, 3100);
+  assert.ok(!("patch" in byName["logo.bin"]), "binary");
+  assert.ok("patch" in byName["small.txt"]);
+  for (let index = 0; index < 101; index++) {
+    github.commitToDefault(SAMPLE_REPO_NAME, { "count.txt": `${index}\n` });
+  }
+  const commits = call("GET", `${BASE}/commits?per_page=500`).body as Json[];
+  assert.equal(commits.length, 100);
 });

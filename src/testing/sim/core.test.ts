@@ -14,7 +14,9 @@ import {
   type Sim,
 } from "./flow.ts";
 import { INIT_AI } from "./flows/init.ts";
-import { SAMPLE_REPO_NAME } from "./sample_repo.ts";
+import { SAMPLE_REPO, SAMPLE_REPO_NAME } from "./sample_repo.ts";
+
+const SAMPLE_REPO_MATH = SAMPLE_REPO["src/math.ts"]!;
 
 const quiet: Printer = { step() {}, check() {}, score() {} };
 
@@ -64,6 +66,94 @@ const REVIEW_FINDING = finding({
   title: "The sum ignores its second argument",
   severity: "P1",
   blocking: true,
+});
+
+/** init, serve with automatic review, a pull request changing `src/math.ts`
+ * line 2, its webhook, and the jobs it queued. */
+function appReview(reply: Flow["ai"]): Flow {
+  return {
+    name: "app-review-helper",
+    description: "test fixture",
+    ai: [...INIT_AI, ...(reply ?? [])],
+    steps: [
+      initStep,
+      {
+        name: "review",
+        async run(sim) {
+          await sim.server.start();
+          const { updateRepoSettings } = await import("../../store/repos.ts");
+          updateRepoSettings(SAMPLE_REPO_NAME, { auto_review: 1 });
+          const pull = sim.github.openPull(SAMPLE_REPO_NAME, {
+            title: "Change add",
+            files: {
+              "src/math.ts": SAMPLE_REPO_MATH.replace("a + b", "a"),
+            },
+          });
+          await sim.server.deliver(
+            "pull_request",
+            sim.server.payloads.pullRequest(pull, "opened"),
+          );
+          await sim.server.runJobs();
+        },
+      },
+    ],
+  };
+}
+
+type Writes = {
+  githubWrites: { method: string; path: string; status: number }[];
+};
+
+test("a finding off the diff is kept out of the inline comments GitHub would refuse", async () => {
+  // `src/math.ts` has 7 lines and the change is on line 2, so line 7 is
+  // outside the diff's hunk. The product checks that itself, so GitHub
+  // never has to refuse the review.
+  const result = await run(
+    appReview([
+      {
+        job: "review_pull_request",
+        reply: {
+          findings: [
+            finding({ path: "src/math.ts", line: 7, title: "Off the diff" }),
+          ],
+        },
+      },
+    ]),
+  );
+  assert.ok(result.passed, failures(result));
+  const reviews = (result.trace as Writes).githubWrites.filter((write) =>
+    write.path.endsWith("/reviews"),
+  );
+  assert.deepEqual(
+    reviews.map((write) => write.status),
+    [200],
+  );
+});
+
+test("a review GitHub refuses with 422 falls back to an issue comment", async () => {
+  const flow = appReview([
+    {
+      job: "review_pull_request",
+      reply: { findings: [REVIEW_FINDING] },
+    },
+  ]);
+  flow.steps.unshift({
+    name: "plan",
+    run(sim) {
+      sim.faults.add({
+        target: "github",
+        kind: 422,
+        method: "POST",
+        path: /\/reviews$/,
+      });
+    },
+  });
+  const result = await run(flow);
+  assert.ok(result.passed, failures(result));
+  const writes = (result.trace as Writes).githubWrites.map(
+    (write) => `${write.method} ${write.path.replace("repos/sim/sample/", "")}`,
+  );
+  assert.ok(writes.includes("POST issues/1/comments"), writes.join(", "));
 });
 
 test("an opened pull request reaches the App review through a signed webhook", async () => {
@@ -343,6 +433,37 @@ test("a GitHub fault fails the next matching call once, then GitHub answers", as
   };
   const result = await run(flow);
   assert.ok(result.passed, failures(result));
+});
+
+test("a fault can carry any status", async () => {
+  const result = await run({
+    name: "status-fault-fixture",
+    description: "test fixture",
+    steps: [
+      {
+        name: "read",
+        async run(sim) {
+          sim.repo(SAMPLE_REPO_NAME);
+          const { PatClient } = await import("../../github/pat.ts");
+          sim.faults.add({ target: "github", kind: 422, path: "/releases" });
+          sim.faults.add({ target: "github", kind: 403, path: "/releases" });
+          const client = new PatClient(sim.world.secrets.pat);
+          const seen: string[] = [];
+          for (let index = 0; index < 3; index++) {
+            seen.push(
+              await client.request("repos/sim/sample/releases").then(
+                () => "ok",
+                (error: Error) => error.message.slice(0, 14),
+              ),
+            );
+          }
+          return seen.join(", ");
+        },
+      },
+    ],
+  });
+  assert.ok(result.passed, failures(result));
+  assert.match(result.steps[1]!.detail, /^GitHub API 422, GitHub API 403, ok$/);
 });
 
 test("a fault that never happened fails the flow", async () => {

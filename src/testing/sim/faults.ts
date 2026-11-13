@@ -19,7 +19,8 @@ export type FaultKind =
 
 export type Fault = {
   target: "github" | "ai" | "remote";
-  kind: FaultKind;
+  /** One of the named kinds, or any HTTP status, e.g. `422` or `403`. */
+  kind: FaultKind | number;
   /** GitHub and remote: the HTTP method, e.g. `POST`. */
   method?: string;
   /** GitHub and remote: the endpoint, e.g. `/check-runs` or
@@ -102,6 +103,32 @@ export function timeoutError(): TypeError {
       code: "UND_ERR_CONNECT_TIMEOUT",
     }),
   });
+}
+
+/** The plain HTTP status a fault answers with, or undefined for a rate
+ * limit, a timeout or a slow answer. */
+export function faultStatus(fault: Fault): number | undefined {
+  if (typeof fault.kind === "number") return fault.kind;
+  if (fault.kind === "404") return 404;
+  if (fault.kind === "500") return 500;
+  return undefined;
+}
+
+/** The message GitHub sends with a status. */
+export function statusMessage(status: number): string {
+  return (
+    {
+      400: "Bad Request",
+      401: "Bad credentials",
+      403: "Forbidden",
+      404: "Not Found",
+      409: "Conflict",
+      422: "Unprocessable Entity",
+      500: "Server Error",
+      502: "Bad Gateway",
+      503: "Service Unavailable",
+    }[status] ?? `HTTP ${status}`
+  );
 }
 
 /** One line naming a fault, for reports and check details. */

@@ -10,7 +10,13 @@
  * and App clients) and the in-process `gh` stand-in. A call with no route is
  * answered 404 and marked unhandled, which fails a check. */
 import { spawnSync } from "node:child_process";
-import { randomBytes, randomInt } from "node:crypto";
+import {
+  createPrivateKey,
+  createPublicKey,
+  randomBytes,
+  randomInt,
+  verify,
+} from "node:crypto";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 import type { SimRepo, World } from "./world.ts";
@@ -20,6 +26,8 @@ type Json = Record<string, unknown>;
 export type SimUser = { login: string; type: "User" | "Bot" };
 
 export type SimPull = {
+  /** GitHub's id for the pull request, never equal to its number. */
+  id: number;
   number: number;
   repo: string;
   title: string;
@@ -127,6 +135,15 @@ export type RouteRequest = {
   token?: string;
   step: string;
 };
+
+/** A file whose diff is longer than this has no `patch`, as on GitHub, which
+ * withholds large diffs. GitHub does not document its exact limit. */
+export const MAX_PATCH_LINES = 3000;
+/** GitHub lists at most this many files of a pull request. */
+const MAX_PULL_FILES = 3000;
+/** A compare lists at most this many files and commits. */
+const MAX_COMPARE_FILES = 300;
+const MAX_COMPARE_COMMITS = 250;
 
 const notFound = (): RouteResult => ({
   status: 404,
@@ -279,6 +296,7 @@ export class SimGithub {
     );
     const at = this.now();
     const pull: SimPull = {
+      id: 2_000_000_000 + this.id(),
       number,
       repo: repoName,
       title: input.title,
@@ -500,7 +518,7 @@ export class SimGithub {
     const [, name] = pull.repo.split("/");
     const headRepo = pull.fork ? `${pull.author}/${name}` : pull.repo;
     return {
-      id: pull.number,
+      id: pull.id,
       number: pull.number,
       title: pull.title,
       body: pull.body,
@@ -543,7 +561,9 @@ export class SimGithub {
   }
 
   /** GitHub's per-file listing of a diff, from `git diff`. `patch` starts at
-   * the first hunk, without the diff header, as GitHub sends it. */
+   * the first hunk, without the diff header, as GitHub sends it, and is left
+   * out the way GitHub leaves it out: for a binary file, a rename with no
+   * change, and a diff too large to show (`MAX_PATCH_LINES`). */
   files(repo: SimRepo, base: string, head: string) {
     const status = this.git(repo, ["diff", "--name-status", "-M", base, head])
       .split("\n")
@@ -581,9 +601,96 @@ export class SimGithub {
         additions,
         deletions,
         changes: additions + deletions,
-        patch: body,
+        ...(body && lines.length <= MAX_PATCH_LINES ? { patch: body } : {}),
       };
     });
+  }
+
+  /** Line numbers a review comment may sit on in one file of a diff: on the
+   * RIGHT side the new file's added and context lines, on the LEFT the old
+   * file's removed and context lines. */
+  private commentableLines(
+    repo: SimRepo,
+    base: string,
+    head: string,
+    path: string,
+    side: string,
+  ): Set<number> {
+    const file = this.files(repo, base, head).find((f) => f.filename === path);
+    const lines = new Set<number>();
+    let oldLine = 0;
+    let newLine = 0;
+    for (const line of (file?.patch ?? "").split("\n")) {
+      const hunk = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line);
+      if (hunk) {
+        oldLine = Number(hunk[1]);
+        newLine = Number(hunk[2]);
+        continue;
+      }
+      if (line.startsWith("+")) {
+        if (side === "RIGHT") lines.add(newLine);
+        newLine++;
+      } else if (line.startsWith("-")) {
+        if (side === "LEFT") lines.add(oldLine);
+        oldLine++;
+      } else if (!line.startsWith("\\")) {
+        lines.add(side === "RIGHT" ? newLine : oldLine);
+        oldLine++;
+        newLine++;
+      }
+    }
+    return lines;
+  }
+
+  /** GitHub's 422 for a review comment it cannot place: its line, or its
+   * first line, is not in the diff of that file at that commit. */
+  private unplaceable(
+    repo: SimRepo,
+    pull: SimPull,
+    comment: Json,
+  ): RouteResult | undefined {
+    let commit = pull.headSha;
+    try {
+      if (typeof comment.commit_id === "string") {
+        commit = this.sha(repo, `${comment.commit_id}^{commit}`);
+      }
+    } catch {
+      return {
+        status: 422,
+        body: {
+          message: "Validation Failed",
+          errors: ["commit_id is not part of the pull request"],
+        },
+      };
+    }
+    const base = this.mergeBase(repo, this.sha(repo, pull.baseRef), commit);
+    const path = String(comment.path ?? "");
+    const wanted = [
+      [asNumber(comment.line), String(comment.side ?? "RIGHT")],
+      [
+        asNumber(comment.start_line),
+        String(comment.start_side ?? comment.side ?? "RIGHT"),
+      ],
+    ] as const;
+    if (wanted[0][0] === undefined) {
+      return {
+        status: 422,
+        body: { message: "Validation Failed", errors: ["line is required"] },
+      };
+    }
+    for (const [line, side] of wanted) {
+      if (line === undefined) continue;
+      if (!this.commentableLines(repo, base, commit, path, side).has(line)) {
+        return {
+          status: 422,
+          body: {
+            message: "Unprocessable Entity",
+            errors: ["Line could not be resolved"],
+          },
+        };
+      }
+    }
+    return undefined;
   }
 
   private commitJson(repo: SimRepo, sha: string): Json {
@@ -676,8 +783,12 @@ export class SimGithub {
     };
   }
 
+  /** GitHub's paging: 30 by default, never more than 100 a page. */
   private page<T>(items: T[], url: URL): T[] {
-    const perPage = asNumber(url.searchParams.get("per_page")) ?? 30;
+    const perPage = Math.min(
+      asNumber(url.searchParams.get("per_page")) ?? 30,
+      100,
+    );
     const page = asNumber(url.searchParams.get("page")) ?? 1;
     return items.slice((page - 1) * perPage, page * perPage);
   }
@@ -685,7 +796,7 @@ export class SimGithub {
   /** Answers one REST call. `undefined` means no route: the caller answers
    * 404 and marks the call unhandled. */
   route(request: RouteRequest): RouteResult | undefined {
-    const result = this.answer(request);
+    const result = this.authenticate(request) ?? this.answer(request);
     const method = request.method;
     const path = request.url.pathname.replace(/^\/+/, "");
     // Minting an installation token changes nothing anyone can see.
@@ -709,6 +820,60 @@ export class SimGithub {
       });
     }
     return result;
+  }
+
+  /** GitHub's answer to a request it does not accept the credentials of, or
+   * undefined when it does. `gh` carries its own login, so a call through it
+   * is the person. Without a token GitHub still answers a read of a public
+   * repository. The App's own routes take only a JWT the App's key signed,
+   * every other route the world's token or an installation token this
+   * GitHub minted. */
+  private authenticate(request: RouteRequest): RouteResult | undefined {
+    if (request.via === "gh") return undefined;
+    const path = request.url.pathname.replace(/^\/+/, "");
+    const appRoute = /^app(\/|$)/.test(path);
+    const token = request.token;
+    const refuse = (message: string): RouteResult => ({
+      status: 401,
+      body: { message },
+    });
+    if (token === undefined) {
+      return request.method === "GET" && !appRoute
+        ? undefined
+        : refuse("Requires authentication");
+    }
+    if (appRoute) {
+      return this.validJwt(token)
+        ? undefined
+        : refuse("A JSON web token could not be decoded");
+    }
+    if (token === this.world.secrets.pat || this.tokens.has(token)) {
+      return undefined;
+    }
+    return refuse("Bad credentials");
+  }
+
+  /** A JWT signed with the App's private key, issued for the App. */
+  private validJwt(token: string): boolean {
+    const parts = token.split(".");
+    if (parts.length !== 3) return false;
+    try {
+      const key = createPublicKey(
+        createPrivateKey(this.world.secrets.appPrivateKey),
+      );
+      const signed = verify(
+        "sha256",
+        Buffer.from(`${parts[0]}.${parts[1]}`),
+        key,
+        Buffer.from(parts[2]!, "base64url"),
+      );
+      const claims = JSON.parse(
+        Buffer.from(parts[1]!, "base64url").toString(),
+      ) as { iss?: unknown };
+      return signed && String(claims.iss) === this.world.secrets.appId;
+    } catch {
+      return false;
+    }
   }
 
   /** An installation token (`ghs_`) is the App, anything else a person. */
@@ -909,8 +1074,10 @@ export class SimGithub {
         total_commits: commits.length,
         base_commit: this.commitJson(repo, base),
         merge_base_commit: this.commitJson(repo, mergeBase),
-        commits: commits.map((sha) => this.commitJson(repo, sha)),
-        files: this.files(repo, mergeBase, head),
+        commits: commits
+          .slice(0, MAX_COMPARE_COMMITS)
+          .map((sha) => this.commitJson(repo, sha)),
+        files: this.files(repo, mergeBase, head).slice(0, MAX_COMPARE_FILES),
       });
     }
 
@@ -997,6 +1164,19 @@ export class SimGithub {
       return this.issueRoute(request, name, Number(m[1]), m[2] ?? "", body);
     }
 
+    // Check runs belong to GitHub Apps. A person's token, `gh` included, is
+    // refused.
+    if (
+      (rest === "/check-runs" || /^\/check-runs\/\d+$/.test(rest)) &&
+      !get &&
+      (request.via === "gh" || !request.token?.startsWith("ghs_"))
+    ) {
+      return {
+        status: 403,
+        body: { message: "You must authenticate via a GitHub App." },
+      };
+    }
+
     if (method === "POST" && rest === "/check-runs") {
       const run: SimCheckRun = {
         id: this.id(),
@@ -1052,7 +1232,12 @@ export class SimGithub {
         this.sha(repo, pull.baseRef),
         pull.headSha,
       );
-      return ok(this.page(this.files(repo, base, pull.headSha), url));
+      return ok(
+        this.page(
+          this.files(repo, base, pull.headSha).slice(0, MAX_PULL_FILES),
+          url,
+        ),
+      );
     }
     if (get && rest === "/commits") {
       const base = this.mergeBase(
@@ -1083,6 +1268,8 @@ export class SimGithub {
             ? undefined
             : this.comments.find((c) => c.id === asNumber(body.in_reply_to));
         if (body.in_reply_to !== undefined && !parent) return notFound();
+        const refused = parent ? undefined : this.unplaceable(repo, pull, body);
+        if (refused) return refused;
         const comment = this.addComment(request, pull, "review", body, parent);
         return ok(this.commentJson(comment), 201);
       }
@@ -1103,6 +1290,31 @@ export class SimGithub {
         return ok(this.page(reviews, url).map((r) => this.reviewJson(r)));
       }
       if (method === "POST") {
+        // One comment GitHub cannot place rejects the whole review.
+        const inline = Array.isArray(body.comments)
+          ? (body.comments as Json[])
+          : [];
+        for (const item of inline) {
+          const refused = this.unplaceable(repo, pull, {
+            ...item,
+            commit_id: body.commit_id,
+          });
+          if (refused) return refused;
+        }
+        const event = String(body.event ?? "");
+        if (
+          (event === "COMMENT" || event === "REQUEST_CHANGES") &&
+          !String(body.body ?? "").trim() &&
+          inline.length === 0
+        ) {
+          return {
+            status: 422,
+            body: {
+              message: "Unprocessable Entity",
+              errors: ["Review body is required"],
+            },
+          };
+        }
         const review: SimReview = {
           id: this.id(),
           repo: pull.repo,
@@ -1121,8 +1333,7 @@ export class SimGithub {
           submittedAt: this.now(),
         };
         this.reviews.push(review);
-        const inline = Array.isArray(body.comments) ? body.comments : [];
-        for (const item of inline as Json[]) {
+        for (const item of inline) {
           const comment = this.addComment(request, pull, "review", {
             ...item,
             commit_id: review.commitId,

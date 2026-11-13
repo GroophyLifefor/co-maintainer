@@ -6,7 +6,13 @@
  * simulated GitHub as the PAT and App clients. The product still builds the
  * arguments, parses the output and maps the errors itself. */
 import type { CommandOutput } from "../../util/runtime.ts";
-import { describeFault, type Faults, sleep } from "./faults.ts";
+import {
+  describeFault,
+  faultStatus,
+  type Faults,
+  sleep,
+  statusMessage,
+} from "./faults.ts";
 import type { SimGithub } from "./github.ts";
 import type { Trace } from "./trace.ts";
 
@@ -120,15 +126,12 @@ export function ghStandIn(options: {
         return output(1, "", message);
       }
       if (fault.kind === "rate-limit") limited = true;
-      const status =
-        fault.kind === "404" ? 404 : fault.kind === "500" ? 500 : 403;
+      const status = faultStatus(fault) ?? 403;
       const message =
         fault.kind === "rate-limit"
           ? "API rate limit exceeded"
-          : fault.kind === "404"
-            ? "Not Found"
-            : "Server Error";
-      record(status, { message, fault: label }, true, fault.kind);
+          : statusMessage(status);
+      record(status, { message, fault: label }, true, String(fault.kind));
       return output(1, "", `gh: ${message} (HTTP ${status})`);
     }
 

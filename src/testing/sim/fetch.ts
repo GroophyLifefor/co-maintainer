@@ -13,6 +13,8 @@ import { currentAiJob } from "./ai_watch.ts";
 import type { FakeAi } from "./fake_ai.ts";
 import {
   describeFault,
+  faultStatus,
+  statusMessage,
   type Fault,
   type Faults,
   sleep,
@@ -79,9 +81,9 @@ function cutResponse(body: unknown, text: string): Response {
 
 /** What a GitHub or remote fault answers with. */
 function faultResponse(fault: Fault, label: string): Response {
-  if (fault.kind === "404") return json(404, { message: "Not Found", label });
-  if (fault.kind === "500") {
-    return json(500, { message: "Server Error", label });
+  const status = faultStatus(fault);
+  if (status !== undefined) {
+    return json(status, { message: statusMessage(status), label });
   }
   // A primary limit at zero that resets now: GitHub's client retries at once.
   return json(
@@ -95,7 +97,7 @@ function faultResponse(fault: Fault, label: string): Response {
 }
 
 function aiFaultResponse(fault: Fault, label: string): Response {
-  const status = fault.kind === "404" ? 404 : fault.kind === "500" ? 500 : 429;
+  const status = faultStatus(fault) ?? 429;
   const message =
     fault.kind === "rate-limit" ? "Rate limit exceeded" : `HTTP ${status}`;
   return json(status, { error: { message, label } });
@@ -166,7 +168,7 @@ export function installFetch({
           request: body,
           handled: true,
           via: "fetch" as const,
-          fault: fault.kind,
+          fault: String(fault.kind),
         };
         if (fault.kind === "timeout") {
           trace.github.push({ ...record, status: 0, ms: ms(), response: null });
@@ -230,7 +232,7 @@ export function installFetch({
             ms: ms(),
             request: body,
             response: null,
-            fault: fault.kind,
+            fault: String(fault.kind),
           });
           throw timeoutError();
         }
@@ -242,7 +244,7 @@ export function installFetch({
           ms: ms(),
           request: body,
           response: await response.clone().json(),
-          fault: fault.kind,
+          fault: String(fault.kind),
         });
         return response;
       }
@@ -315,7 +317,7 @@ export function installFetch({
             status: 0,
             ms: ms(),
             response: null,
-            fault: fault.kind,
+            fault: String(fault.kind),
           });
           throw timeoutError();
         }
@@ -325,7 +327,7 @@ export function installFetch({
           status: response.status,
           ms: ms(),
           response: await response.clone().json(),
-          fault: fault.kind,
+          fault: String(fault.kind),
         });
         return response;
       }
