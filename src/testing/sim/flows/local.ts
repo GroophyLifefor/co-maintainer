@@ -288,43 +288,60 @@ const PROSE_SMELL: Smell = {
 export const PROSE_FILE =
   "export const never = (): number => {\n  return 1 / 0;\n};\n";
 
-/** What the model answers a review with. */
+/** The reviewer as a rule: it reports each of `smells` that is in the diff,
+ * and judges carried findings by the hints the product gave. It answers the
+ * review call and its JSON retry. Put rules of your own before it. */
+export const reviewerRule = (smells: Smell[] = LOCAL_REPO_SMELLS): AiRule => ({
+  name: "reviewer",
+  job: /^review_(local|pull_request_retry)$/,
+  reply: (call) => reviewerReply(smells, call),
+});
+
+/** A change that touches `PIPELINE_PATH` makes the model read two Mermaid
+ * syntax docs, one of them unknown, before it answers. */
+export const TOOL_ROUND_RULE: AiRule = {
+  name: "tool round",
+  job: "review_local",
+  prompt: PIPELINE_PATH,
+  reply: (call) =>
+    call.round === 0
+      ? {
+          toolCalls: [
+            {
+              name: "read-mermaid-syntaxes",
+              arguments: { tools: ["flowchart"] },
+            },
+            // A name the product does not know: the tool answers with an
+            // error text and the review goes on.
+            {
+              name: "read-mermaid-syntaxes",
+              arguments: { tools: ["gantt"] },
+            },
+          ],
+        }
+      : reviewerReply([PIPELINE_SMELL], call),
+};
+
+/** A change that touches `PROSE_PATH` gets prose first, JSON on the retry. */
+export const PROSE_RULE: AiRule = {
+  name: "prose answer",
+  job: "review_local",
+  prompt: PROSE_PATH,
+  times: 1,
+  reply: "I read the change and nothing in it needs a comment.",
+};
+
+const LOCAL_REPO_SMELLS = [...LOCAL_SMELLS, PROSE_SMELL];
+
+/** What a feature flow needs: init, and a reviewer for `LOCAL_CHANGE`. A
+ * rule of its own goes before these, because the first match answers. */
+export const LOCAL_BASE_AI: AiRule[] = [...INIT_AI, reviewerRule()];
+
+/** What this flow needs: the base, and the two special answers. */
 export const LOCAL_AI: AiRule[] = [
-  ...INIT_AI,
-  {
-    name: "tool round",
-    job: "review_local",
-    prompt: PIPELINE_PATH,
-    reply: (call) =>
-      call.round === 0
-        ? {
-            toolCalls: [
-              {
-                name: "read-mermaid-syntaxes",
-                arguments: { tools: ["flowchart"] },
-              },
-              // A name the product does not know: the tool answers with an
-              // error text and the review goes on.
-              {
-                name: "read-mermaid-syntaxes",
-                arguments: { tools: ["gantt"] },
-              },
-            ],
-          }
-        : reviewerReply([PIPELINE_SMELL], call),
-  },
-  {
-    name: "prose answer",
-    job: "review_local",
-    prompt: PROSE_PATH,
-    times: 1,
-    reply: "I read the change and nothing in it needs a comment.",
-  },
-  {
-    name: "reviewer",
-    job: /^review_(local|pull_request_retry)$/,
-    reply: (call) => reviewerReply([...LOCAL_SMELLS, PROSE_SMELL], call),
-  },
+  TOOL_ROUND_RULE,
+  PROSE_RULE,
+  ...LOCAL_BASE_AI,
 ];
 
 // --------------------------------------------------------------- git helpers
@@ -801,13 +818,14 @@ const keyOf = (item: Json) =>
   `${item.path}:${item.lineFrom}-${item.lineTo}:${item.severity}:${item.blocking}`;
 
 /** The changed files with the debug line gone, for round 2. */
-const STATS_CLEAN = LOCAL_CHANGE.untracked["src/stats.ts"]!.replace(
+export const STATS_CLEAN = LOCAL_CHANGE.untracked["src/stats.ts"]!.replace(
   '  console.log("describing", values.length);\n',
   "",
 );
 
-/** One review at the base of a fresh checkout, saved under `label`. */
-const checkoutStep = (
+/** A step that clones the repository into a checkout called `name`, on a
+ * branch with the changes of `spec`. */
+export const checkoutStep = (
   name: string,
   spec: Omit<CheckoutSpec, "name">,
 ): Step => ({
@@ -818,7 +836,12 @@ const checkoutStep = (
   },
 });
 
-const editStep = (name: string, checkout: string, files: Files): Step => ({
+/** A step where the author edits files in a checkout. */
+export const editStep = (
+  name: string,
+  checkout: string,
+  files: Files,
+): Step => ({
   name,
   run(sim) {
     changeCheckout(localState(sim).checkouts.get(checkout)!, files);
