@@ -25,8 +25,14 @@ import type { SimGithub } from "./github.ts";
 import type { StepResult } from "./report.ts";
 import { SAMPLE_REPO } from "./sample_repo.ts";
 import { SimServer } from "./server.ts";
-import { dumpDatabase, readFiles, readGitTrace, Trace } from "./trace.ts";
-import { createWorld, type SimRepo, type World } from "./world.ts";
+import {
+  dumpDatabase,
+  readFiles,
+  readGitTrace,
+  readSandbox,
+  Trace,
+} from "./trace.ts";
+import { AI_HOSTS, createWorld, type SimRepo, type World } from "./world.ts";
 
 export type { CheckResult, Score };
 
@@ -234,6 +240,9 @@ export async function runFlow(
 
   let at = performance.now();
   const world = createWorld({ aiKey: settings.aiKey });
+  if (settings.judge?.key) {
+    world.addSecret("judge key", settings.judge.key, AI_HOSTS);
+  }
   const fakeAi = new FakeAi();
   fakeAi.use(...(flow.ai ?? []));
   const faults = new Faults();
@@ -283,10 +292,27 @@ export async function runFlow(
             throw error;
           }
         });
+        const exit = Number(process.exitCode ?? 0);
+        // What the CLI printed is searched for secrets like any other place.
+        // The arguments keep only the names of the secrets they carried.
+        let shown = args;
+        for (const secret of world.secretValues()) {
+          shown = shown.map((arg) =>
+            arg.replaceAll(secret.value, `[${secret.name}]`),
+          );
+        }
+        trace.cli.push({
+          step: trace.step,
+          startMs: trace.now(),
+          args: shown,
+          stdout: output.stdout,
+          stderr: output.stderr,
+          exitCode: exit,
+        });
         return {
           stdout: output.stdout,
           stderr: output.stderr,
-          exitCode: Number(process.exitCode ?? 0),
+          exitCode: exit,
           ...(output.error === undefined ? {} : { error: output.error }),
         };
       } finally {
@@ -377,7 +403,7 @@ export async function runFlow(
       mode: settings.mode,
       github: world.github,
       secrets: world.secretValues(),
-      files: readFiles(reposDir()),
+      files: readSandbox(world.root),
       appDbPath: appDbPath(),
       cacheDbPath: cacheDbPath(),
       unusedFaults: faults.unused(),
@@ -410,6 +436,8 @@ export async function runFlow(
         remote: trace.remote,
         webhooks: trace.webhooks,
         jobs: trace.jobs,
+        cli: trace.cli,
+        credentials: trace.credentials,
         faults: {
           fired: faults.fired.map((fired) => ({
             ...fired,

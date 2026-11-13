@@ -74,6 +74,26 @@ export type Completion = {
   error?: string;
 };
 
+/** A request that carried a secret in a header. Only the secret's name is
+ * kept. */
+export type CredentialUse = {
+  step: string;
+  startMs: number;
+  host: string;
+  secret: string;
+};
+
+/** One `sim.cli()` run: what the CLI printed. Secrets in the arguments are
+ * replaced by their names. */
+export type CliOutput = {
+  step: string;
+  startMs: number;
+  args: string[];
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+};
+
 /** A server job the flow ran to its end. */
 export type JobRun = {
   step: string;
@@ -101,6 +121,8 @@ export class Trace {
   readonly webhooks: WebhookDelivery[] = [];
   readonly completions: Completion[] = [];
   readonly jobs: JobRun[] = [];
+  readonly credentials: CredentialUse[] = [];
+  readonly cli: CliOutput[] = [];
   /** Network calls the simulation refused: neither GitHub nor an allowed AI
    * host. */
   readonly leaks: {
@@ -190,6 +212,41 @@ export function readFiles(dir: string): FileEntry[] {
   };
   walk(dir);
   return entries.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/** Files in the sandbox that hold secrets on purpose, or are read another
+ * way, and so are not searched as files: config.json is where the product
+ * keeps its credentials, `github/` is the simulated GitHub's own copy of the
+ * repositories, the databases are searched row by row, and git's object
+ * store is compressed. */
+export const NOT_SEARCHED = [
+  "config.json",
+  "github/",
+  "*.db, *.db-wal, *.db-shm",
+  ".git/objects/",
+];
+
+/** Every file in the sandbox a leak could land in. */
+export function readSandbox(root: string): FileEntry[] {
+  if (!existsSync(root)) return [];
+  const entries: FileEntry[] = [];
+  const walk = (current: string) => {
+    for (const name of readdirSync(current)) {
+      const path = join(current, name);
+      const rel = relative(root, path).replaceAll("\\", "/");
+      if (rel === "config.json" || rel === "github") continue;
+      if (/\.db(-wal|-shm)?$/.test(rel) || /\.git\/objects$/.test(rel)) {
+        continue;
+      }
+      if (statSync(path).isDirectory()) walk(path);
+      else {
+        const content = readFileSync(path, "utf8");
+        entries.push({ path: rel, bytes: Buffer.byteLength(content), content });
+      }
+    }
+  };
+  walk(root);
+  return entries;
 }
 
 /** Every row of every table, read-only. */

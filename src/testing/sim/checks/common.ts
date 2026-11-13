@@ -10,7 +10,14 @@ import { DatabaseSync } from "node:sqlite";
 import type { Fault } from "../faults.ts";
 import { describeFault } from "../faults.ts";
 import type { SimGithub } from "../github.ts";
-import type { Completion, FileEntry, Trace } from "../trace.ts";
+import {
+  type Completion,
+  dumpDatabase,
+  type FileEntry,
+  NOT_SEARCHED,
+  type Trace,
+} from "../trace.ts";
+import type { Secret } from "../world.ts";
 
 export type CheckResult = {
   name: string;
@@ -37,8 +44,8 @@ export type CommonInput = {
   trace: Trace;
   mode: "fake" | "live";
   github: SimGithub;
-  secrets: { name: string; value: string }[];
-  /** The files the product wrote (the repos directory). */
+  secrets: Secret[];
+  /** Every file in the sandbox a leak could land in (`readSandbox`). */
   files: FileEntry[];
   appDbPath: string;
   cacheDbPath: string;
@@ -78,18 +85,51 @@ function readRows<T>(path: string, sql: string): T[] {
   }
 }
 
+/** The base64 of `value` wherever it starts in a longer encoded text. Base64
+ * packs 3 bytes into 4 characters, so the secret's characters depend on its
+ * offset: each of the three offsets gives the run of characters that only the
+ * secret decides. */
+function base64Forms(value: string): string[] {
+  const bytes = Buffer.from(value);
+  const forms: string[] = [];
+  for (let pad = 0; pad < 3; pad++) {
+    const encoded = Buffer.concat([Buffer.alloc(pad), bytes]).toString(
+      "base64",
+    );
+    const start = [0, 2, 3][pad]!;
+    const end = Math.floor((pad + bytes.length) / 3) * 4;
+    const form = encoded.slice(start, end);
+    forms.push(form, form.replaceAll("+", "-").replaceAll("/", "_"));
+  }
+  return forms;
+}
+
+/** Every way a secret is searched for: as is, URL encoded, and base64 at
+ * each offset. Forms too short to mean anything are left out. */
+export function secretForms(value: string): string[] {
+  return [
+    ...new Set([value, encodeURIComponent(value), ...base64Forms(value)]),
+  ].filter((form) => form.length >= 8);
+}
+
+/** A text with its whitespace, and the escapes JSON writes for it, taken
+ * out, so a secret split across lines is still one string. */
+function squeezed(text: string): string {
+  return text.replaceAll(/\\[nrt]|\s+/g, "");
+}
+
 function leakCheck(input: CommonInput): CheckResult {
   const { trace, github } = input;
   const places: [string, string][] = [
     ["GitHub calls", JSON.stringify(trace.github)],
     ["AI calls", JSON.stringify(trace.ai)],
+    ["provider calls", JSON.stringify(trace.completions)],
     ["remote calls", JSON.stringify(trace.remote)],
     ["webhooks", JSON.stringify(trace.webhooks)],
     ["logs", JSON.stringify(trace.logs)],
-    [
-      "job logs",
-      JSON.stringify(readRows(input.appDbPath, "SELECT message FROM job_logs")),
-    ],
+    ["CLI output", JSON.stringify(trace.cli)],
+    ["app.db", JSON.stringify(dumpDatabase(input.appDbPath))],
+    ["cache.db", JSON.stringify(dumpDatabase(input.cacheDbPath))],
     [
       "posted to GitHub",
       JSON.stringify([
@@ -105,17 +145,32 @@ function leakCheck(input: CommonInput): CheckResult {
     ),
   ];
   const found: string[] = [];
+  const searched = places.map(
+    ([place, text]) => [place, text, squeezed(text)] as const,
+  );
   for (const secret of input.secrets) {
-    for (const [place, text] of places) {
-      if (text.includes(secret.value)) found.push(`${secret.name} in ${place}`);
+    const forms = secretForms(secret.value);
+    for (const [place, text, flat] of searched) {
+      if (forms.some((form) => text.includes(form) || flat.includes(form))) {
+        found.push(`${secret.name} in ${place}`);
+      }
     }
   }
+  // A secret in a request header may only go to its own hosts: the GitHub
+  // token to GitHub, the AI key to the AI provider.
+  const allowed = new Map(input.secrets.map((s) => [s.name, s.hosts]));
+  for (const use of trace.credentials) {
+    if (!(allowed.get(use.secret) ?? []).includes(use.host)) {
+      found.push(`${use.secret} sent to ${use.host}`);
+    }
+  }
+  const unique = [...new Set(found)];
   return {
     name: "no secret in the trace, logs, files or GitHub",
-    ok: found.length === 0,
-    detail: found.length
-      ? found.join(", ")
-      : `${input.secrets.length} secrets, ${places.length} places`,
+    ok: unique.length === 0,
+    detail: unique.length
+      ? unique.join(", ")
+      : `${input.secrets.length} secrets, ${places.length} places, ${trace.credentials.length} requests with a credential · not searched: ${NOT_SEARCHED.join(", ")}`,
   };
 }
 

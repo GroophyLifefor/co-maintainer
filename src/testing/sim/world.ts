@@ -41,9 +41,22 @@ export type Secrets = {
   webhookSecret: string;
   appId: string;
   appPrivateKey: string;
-  /** Any further secret a flow hands the product, such as a remote token. */
-  extra: Record<string, string>;
+  /** Any further secret: a remote token, a minted installation token, the
+   * judge's key. Add one with `addSecret`. */
+  extra: Record<string, Secret>;
 };
+
+/** A secret and the hosts it may be sent to in a request header. An empty
+ * list means it never leaves the process. */
+export type Secret = { name: string; value: string; hosts: string[] };
+
+/** Where the AI key may go. */
+export const AI_HOSTS = [
+  "openrouter.ai",
+  "api.openai.com",
+  "api.anthropic.com",
+  "opencode.ai",
+];
 
 export type World = {
   root: string;
@@ -57,8 +70,11 @@ export type World = {
   /** Merges `patch` into the product's `config.json`. */
   writeConfig(patch: Record<string, unknown>): void;
   readConfig(): Record<string, unknown>;
-  /** Name and value of every secret, for the leak check. */
-  secretValues(): { name: string; value: string }[];
+  /** Every secret with the hosts it may go to, for the leak check. */
+  secretValues(): Secret[];
+  /** Adds a secret the leak check looks for. `hosts` are where a request
+   * header may carry it. */
+  addSecret(name: string, value: string, hosts?: string[]): void;
   /** Points `GITHUB_STEP_SUMMARY` at a file in the sandbox, for a flow that
    * checks what `--output=github` writes there, and returns its path. */
   useStepSummary(): string;
@@ -210,20 +226,26 @@ export function createWorld(worldOptions: WorldOptions = {}): World {
     readConfig,
     secretValues() {
       return [
-        { name: "GitHub token", value: secrets.pat },
-        { name: "AI key", value: secrets.aiKey },
-        { name: "webhook secret", value: secrets.webhookSecret },
+        {
+          name: "GitHub token",
+          value: secrets.pat,
+          hosts: ["api.github.com"],
+        },
+        { name: "AI key", value: secrets.aiKey, hosts: AI_HOSTS },
+        // The webhook secret only signs. It is never sent.
+        { name: "webhook secret", value: secrets.webhookSecret, hosts: [] },
         // One line of the key body: the whole PEM is rarely copied intact,
-        // and the header line is not secret.
+        // and the header line is not secret. The App sends a JWT it signs.
         {
           name: "App private key",
           value: secrets.appPrivateKey.split("\n")[1] ?? "",
+          hosts: [],
         },
-        ...Object.entries(secrets.extra).map(([name, value]) => ({
-          name,
-          value,
-        })),
+        ...Object.values(secrets.extra),
       ].filter((secret) => secret.value.length >= 8);
+    },
+    addSecret(name, value, hosts = []) {
+      secrets.extra[name] = { name, value, hosts };
     },
     useStepSummary() {
       const path = join(root, "github-step-summary.md");

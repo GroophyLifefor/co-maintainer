@@ -55,7 +55,9 @@ function input(patch: Partial<CommonInput> = {}): CommonInput {
     trace,
     mode: "fake",
     github: new SimGithub({ repos: new Map() } as unknown as World),
-    secrets: [{ name: "GitHub token", value: SECRET }],
+    secrets: [
+      { name: "GitHub token", value: SECRET, hosts: ["api.github.com"] },
+    ],
     files: [],
     appDbPath: join(dir, "missing-app.db"),
     cacheDbPath: cacheDb([]),
@@ -149,6 +151,17 @@ test("a secret in a log line, a posted comment or a written file fails", () => {
     updatedAt: "",
   });
   assert.match(result(name, value).detail, /posted to GitHub/);
+
+  const printed = new Trace(0);
+  printed.cli.push({
+    step: "s",
+    startMs: 0,
+    args: ["review"],
+    stdout: `token=${encodeURIComponent(SECRET)}`,
+    stderr: "",
+    exitCode: 0,
+  });
+  assert.match(result(name, input({ trace: printed })).detail, /CLI output/);
 
   const inFile = result(
     name,

@@ -10,6 +10,7 @@
  * and App clients) and the in-process `gh` stand-in. A call with no route is
  * answered 404 and marked unhandled, which fails a check. */
 import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 import type { SimRepo, World } from "./world.ts";
@@ -188,6 +189,8 @@ export class SimGithub {
   /** The bot the App posts as, and the user a token or `gh` posts as. */
   readonly bot: SimUser = { login: "co-maintainer-sim[bot]", type: "Bot" };
   readonly tokenUser: SimUser = { login: "sim-maintainer", type: "User" };
+  /** Installation tokens this GitHub minted. */
+  readonly tokens = new Set<string>();
   private nextId = 1000;
   private readonly numbers = new Map<string, number>();
 
@@ -729,9 +732,16 @@ export class SimGithub {
     const tokenMatch = /^app\/installations\/(\d+)\/access_tokens$/.exec(path);
     if (method === "POST" && tokenMatch) {
       if (Number(tokenMatch[1]) !== this.installation.id) return notFound();
+      const token = `ghs_sim${randomBytes(12).toString("hex")}`;
+      this.tokens.add(token);
+      // A real installation token is a secret, so the leak check holds it to
+      // GitHub too.
+      this.world.addSecret(`installation token ${this.tokens.size}`, token, [
+        "api.github.com",
+      ]);
       return ok(
         {
-          token: `ghs_sim${this.id()}`,
+          token,
           expires_at: new Date(Date.now() + 3_600_000).toISOString(),
         },
         201,

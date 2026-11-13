@@ -220,7 +220,9 @@ export class SimServer {
     const { createRemoteToken } =
       await import("../../services/remote_tokens.ts");
     const { token } = await createRemoteToken(name);
-    this.world.secrets.extra[`remote token ${name}`] = token;
+    this.world.addSecret(`remote token ${name}`, token, [
+      new URL(REMOTE_URL).hostname,
+    ]);
     return token;
   }
 

@@ -19,14 +19,16 @@ import {
   timeoutError,
 } from "./faults.ts";
 import type { Trace } from "./trace.ts";
-import type { World } from "./world.ts";
+import { AI_HOSTS, type World } from "./world.ts";
 
-const AI_HOSTS = new Set([
-  "openrouter.ai",
-  "api.openai.com",
-  "api.anthropic.com",
-  "opencode.ai",
-]);
+const AI_HOST_SET = new Set(AI_HOSTS);
+
+/** The trace keeps no minted installation token: the product needs it in
+ * the answer, the report does not. */
+function traced(url: URL, response: unknown): unknown {
+  if (!/\/access_tokens$/.test(url.pathname)) return response;
+  return { ...(response as Record<string, unknown>), token: "[minted]" };
+}
 
 /** The simulated remote server. `.test` is reserved, so it can never be a
  * real host. */
@@ -135,6 +137,19 @@ export function installFetch({
     const startMs = trace.now();
     const step = trace.step;
     const ms = () => Math.round(performance.now() - started);
+    // Which secret each request carried in a header, by name. The leak check
+    // holds every secret to its own hosts.
+    const headerText = [...headers.values()].join("\n");
+    for (const secret of world.secretValues()) {
+      if (headerText.includes(secret.value)) {
+        trace.credentials.push({
+          step,
+          startMs,
+          host: url.hostname,
+          secret: secret.name,
+        });
+      }
+    }
 
     if (url.hostname === "api.github.com") {
       const fault = faults.take(
@@ -186,14 +201,14 @@ export function installFetch({
         status,
         ms: ms(),
         request: body,
-        response,
+        response: traced(url, response),
         handled: route !== undefined,
         via: "fetch",
       });
       return json(status, response, route?.headers);
     }
 
-    if (AI_HOSTS.has(url.hostname)) {
+    if (AI_HOST_SET.has(url.hostname)) {
       const job = currentAiJob();
       const prompt =
         body && typeof body === "object"
