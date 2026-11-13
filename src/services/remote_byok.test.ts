@@ -961,3 +961,54 @@ test("a failed job insert leaves no orphan review row", async () => {
     { policy: "allow" },
   );
 });
+
+test("the remote result carries the coverage and warnings of the server's diff plan", async () => {
+  await withServer(async ({ app, token }) => {
+    const big = Array.from({ length: 600 }, (_, i) => `+const v${i} = ${i};`);
+    const base = await submitBody();
+    const revision = base.revision as { files: unknown[] };
+    const response = await post(app, token, "/api/remote/reviews", {
+      ...base,
+      revision: {
+        ...revision,
+        files: [
+          ...revision.files,
+          {
+            path: "src/big.ts",
+            previousPath: null,
+            status: "added",
+            binary: false,
+            additions: 600,
+            deletions: 0,
+            patch: `@@ -0,0 +1,600 @@\n${big.join("\n")}`,
+          },
+        ],
+      },
+    });
+    if (response.status !== 202) throw new Error(`submit ${response.status}`);
+    const { jobId } = (await response.json()) as { jobId: string };
+    if (!(await claimAndRun())) throw new Error("the review job never ran");
+    const result = getRemoteSyncResult(jobId) as
+      | {
+          revision?: {
+            files: number;
+            truncated: boolean;
+            coverage: { full: number; summarized: string[] };
+          };
+          warnings?: unknown[];
+        }
+      | undefined;
+    if (!result?.revision) throw new Error("no result revision");
+    if (result.revision.files !== 2 || !result.revision.truncated) {
+      throw new Error(JSON.stringify(result.revision));
+    }
+    if (
+      JSON.stringify(result.revision.coverage.summarized) !==
+        JSON.stringify(["src/big.ts"]) ||
+      result.revision.coverage.full !== 1
+    ) {
+      throw new Error(JSON.stringify(result.revision.coverage));
+    }
+    if (!Array.isArray(result.warnings)) throw new Error("no warnings key");
+  });
+});
