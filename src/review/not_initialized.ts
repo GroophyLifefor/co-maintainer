@@ -27,11 +27,3 @@ export function hasGuides(
 ): boolean {
   return Boolean(guides.shortGuide || guides.skill);
 }
-
-/** Stops before any work when the repository has no guides. */
-export function assertGuides(
-  repo: string,
-  guides: Pick<LoadedGuides, "shortGuide" | "skill">,
-): void {
-  if (!hasGuides(guides)) throw notInitializedError(repo);
-}

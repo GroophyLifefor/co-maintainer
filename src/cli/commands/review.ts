@@ -9,8 +9,6 @@ import { costUsage } from "../../util/cost.ts";
 import { costLabel } from "../../util/run_summary.ts";
 import { modelSummary, reviewPullRequest } from "../../pr/reviewer.ts";
 import { GhClient } from "../../github/gh.ts";
-import { loadGuides } from "../../review/guides.ts";
-import { assertGuides } from "../../review/not_initialized.ts";
 import {
   log,
   startHeartbeat,
@@ -80,8 +78,6 @@ async function runReviewPr(
       if (options.auth !== "gh") {
         throw new Error("review supports gh authentication only");
       }
-      // Without guides the review cannot run, so say so before any GitHub call.
-      assertGuides(options.repo, await loadGuides(options.repo));
       log(
         "review",
         `reading PR #${options.prNumber} in ${options.repo} via gh`,

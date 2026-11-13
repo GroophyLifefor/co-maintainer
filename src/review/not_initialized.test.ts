@@ -1,12 +1,11 @@
 import { test } from "node:test";
-import { CliError, EXIT_USAGE } from "../cli/error.ts";
+import { EXIT_USAGE } from "../cli/error.ts";
 import { handshakeFailure } from "../remote/http.ts";
 import {
   createCliHarness,
   writeHarnessConfig,
 } from "../testing/cli_harness.ts";
-import { readTextFile } from "../util/runtime.ts";
-import { assertGuides, notInitializedError } from "./not_initialized.ts";
+import { hasGuides, notInitializedError } from "./not_initialized.ts";
 
 test("not_initialized: one code, exit code 2 and the init hint", () => {
   const error = notInitializedError("acme/widgets");
@@ -37,17 +36,11 @@ test("not_initialized: a server is named, and the hint says to run init there", 
 });
 
 test("not_initialized: either the short guide or the skill is enough", () => {
-  assertGuides("acme/widgets", { shortGuide: "# Guide", skill: "" });
-  assertGuides("acme/widgets", { shortGuide: "", skill: "# Skill" });
-  let error: unknown;
-  try {
-    assertGuides("acme/widgets", { shortGuide: "", skill: "" });
-  } catch (thrown) {
-    error = thrown;
-  }
-  if (!(error instanceof CliError) || error.code !== "not_initialized") {
-    throw new Error(`${error}`);
-  }
+  if (!hasGuides({ shortGuide: "# Guide", skill: "" }))
+    throw new Error("guide");
+  if (!hasGuides({ shortGuide: "", skill: "# Skill" }))
+    throw new Error("skill");
+  if (hasGuides({ shortGuide: "", skill: "" })) throw new Error("neither");
 });
 
 function refusal(status: number, body: unknown): Response {
@@ -123,7 +116,7 @@ test("handshake refusal: the server's text loses its control characters", async 
 });
 
 // Pull request review, as a real process against the fake gh. The repository
-// has no guides, so the run has to stop before it asks GitHub for anything.
+// has no guides, so the run has to stop before any model call.
 for (const mode of ["json", "github", "human"] as const) {
   test(`pull request review: missing guides stop with not_initialized (${mode})`, async () => {
     const harness = await createCliHarness();
@@ -171,15 +164,6 @@ for (const mode of ["json", "github", "human"] as const) {
         if (result.stdout.trim() !== "") {
           throw new Error(`stdout must stay empty:\n${result.stdout}`);
         }
-      }
-      let calls = "";
-      try {
-        calls = await readTextFile(`${harness.home}/gh-calls.log`);
-      } catch {
-        // no log file means gh was never started
-      }
-      if (calls.trim() !== "") {
-        throw new Error(`GitHub was called before the guide check:\n${calls}`);
       }
     } finally {
       await harness.cleanup();

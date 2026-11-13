@@ -1186,21 +1186,19 @@ function flowChecks(sim: Sim): CheckResult[] {
         : "no run",
     ),
     check(
-      "no guides: no AI call, nothing read past the pull request and the message says to run init",
+      "no guides: no AI call, no write and the message says to run init",
       bare !== undefined &&
         bare.exitCode !== 0 &&
         bare.stdout === "" &&
-        /PR_REVIEW_GUIDE\.md was not found\. Run init first/.test(
-          bare.stderr,
-        ) &&
+        bare.stderr.includes(`Review guides are missing for ${BARE_REPO}.`) &&
+        bare.stderr.includes(`Hint: co-maintainer init ${BARE_REPO}`) &&
         noWork(STEP.bare),
       bare ? `${code(bare)}: ${bare.stderr.split("\n")[0]}` : "no run",
     ),
-    knownBug(
+    check(
       "no guides: the exit code is the documented 2 for a missing init",
       bare?.exitCode === 2,
       bare ? code(bare) : "no run",
-      "product bug: reviewer.ts throws a plain Error, so the CLI exits 3, and docs/md/review.md says init missing exits 2",
     ),
   );
 
