@@ -8,7 +8,7 @@
  * redelivered webhook and a failed AI call show what must not be posted.
  *
  * Feature flows build on the exports: `serveRepo`, `openPull`,
- * `deliverOpened`, `pushRound`, `APP_AI` and the read helpers. */
+ * `deliverOpened`, `pushRound`, the AI groups and the read helpers. */
 import { DatabaseSync } from "node:sqlite";
 import { finding } from "../fake_ai.ts";
 import type { AiRule } from "../fake_ai.ts";
@@ -50,13 +50,13 @@ export function average(values: number[]): number {
 
 /** The author fixes the divide finding: one line in, so `average`'s reduce
  * moves from line 14 to 15. */
-const FIXED_MATH = OPENED_MATH.replace(
+export const FIXED_MATH = OPENED_MATH.replace(
   "  return a / b;\n",
   '  if (b === 0) throw new RangeError("b is zero");\n  return a / b;\n',
 );
 
 /** One more commit: `median` at lines 18 to 20. */
-const MEDIAN_MATH = `${FIXED_MATH}
+export const MEDIAN_MATH = `${FIXED_MATH}
 export function median(values: number[]): number {
   return values.sort()[Math.floor(values.length / 2)]!;
 }
@@ -85,10 +85,12 @@ export function verdicts(
     .map((entry) => ({ id: /^F\d+/.exec(entry)![0], ...decide(entry) }));
 }
 
-/** What the model answers the App review flow with. Init's answers come
- * first, so a feature flow that spreads this gets a served repository. */
-export const APP_AI: AiRule[] = [
-  ...INIT_AI,
+// Each review rule matches one round only, so the rules answer the same
+// whatever order they are added in.
+
+/** Round 3 on `MEDIAN_MATH`: every earlier finding still open, one new P2
+ * on line 19. */
+export const INCREMENTAL_ROUND_AI: AiRule[] = [
   {
     name: "review round 3",
     job: "review_pull_request",
@@ -111,10 +113,15 @@ export const APP_AI: AiRule[] = [
       },
     }),
   },
+];
+
+/** Round 2 on `FIXED_MATH`: the divide finding is closed, the reduce one is
+ * still open at its new line 15, nothing new. */
+export const WHOLE_ROUND_AI: AiRule[] = [
   {
     name: "review round 2",
     job: "review_pull_request",
-    prompt: "PREVIOUS FINDINGS",
+    prompt: /^(?![\s\S]*export function median)[\s\S]*PREVIOUS FINDINGS/,
     reply: ({ prompt }) => ({
       json: {
         findings: [],
@@ -126,10 +133,15 @@ export const APP_AI: AiRule[] = [
       },
     }),
   },
+];
+
+/** Round 1 on `OPENED_MATH`: a blocking P1 on line 10, a P2 on line 14 that
+ * quotes a token, and a P2 on a file outside the diff. */
+export const OPENED_AI: AiRule[] = [
   {
     name: "review round 1",
     job: "review_pull_request",
-    prompt: "export function average",
+    prompt: /^(?![\s\S]*PREVIOUS FINDINGS)[\s\S]*export function average/,
     reply: {
       findings: [
         finding({
@@ -155,8 +167,12 @@ export const APP_AI: AiRule[] = [
       ],
     },
   },
+];
+
+/** A pull request that adds `src/strings.ts`: the model first answers in
+ * prose, not JSON, so the product asks once more and gets a clean review. */
+export const RETRY_AI: AiRule[] = [
   {
-    // Not JSON, so the product asks once more.
     name: "slugify, prose answer",
     job: "review_pull_request",
     prompt: "src/strings.ts",
@@ -168,11 +184,23 @@ export const APP_AI: AiRule[] = [
     prompt: "src/strings.ts",
     reply: { findings: [] },
   },
-  {
-    name: "reply",
-    job: "reply_to_github_comment",
-    reply: REPLY_TEXT,
-  },
+];
+
+/** The answer in a finding's thread. */
+export const REPLY_AI: AiRule[] = [
+  { name: "reply", job: "reply_to_github_comment", reply: REPLY_TEXT },
+];
+
+/** Everything this flow's model answers. A feature flow takes only the
+ * groups it uses, `INIT_AI` first for `serveRepo`, since a rule that never
+ * answers is reported. */
+export const APP_AI: AiRule[] = [
+  ...INIT_AI,
+  ...OPENED_AI,
+  ...WHOLE_ROUND_AI,
+  ...INCREMENTAL_ROUND_AI,
+  ...REPLY_AI,
+  ...RETRY_AI,
 ];
 
 /** A repository with guides built by `init`, served by the App with
@@ -979,7 +1007,9 @@ function costPerReview(sim: Sim): CheckResult {
               `round ${row.round} ${row.status}: ${row.cost_status} ${row.cost}`,
           )
           .join(", ")
-      : `${rows.length} reviews · 4 posted with a known cost · the failed one unknown, not recorded`,
+      : rows.length === 5
+        ? "5 reviews · 4 posted with a known cost · the failed one unknown, not recorded"
+        : `${rows.length} reviews, 5 expected`,
   );
 }
 
