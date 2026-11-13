@@ -809,7 +809,7 @@ function flowChecks(sim: Sim): CheckResult[] {
       `${counts(fr2)} · exit ${fr2?.exitCode}`,
     ),
     check(
-      "--fresh replaces the stored run: one finding, new ids, the new head",
+      "--fresh stores this run: its one finding, under new ids, and the new head",
       frS2 !== null &&
         frS2.findings.length === 1 &&
         !frS2.findings.some((row) =>
@@ -979,7 +979,7 @@ function flowChecks(sim: Sim): CheckResult[] {
       sim.github.writes.length === 0 &&
         sim.github.reviews.length === 0 &&
         cliCalls.every((call) => call.method === "GET"),
-      `${prRuns.length} reviews, ${cliCalls.length} GitHub calls, all reads`,
+      `${prRuns.length} reviews, ${cliCalls.length} GitHub calls, ${cliCalls.filter((call) => call.method !== "GET").length} not reads, ${sim.github.writes.length} writes recorded`,
     ),
     check(
       "a pull request review reaches GitHub only through gh",
