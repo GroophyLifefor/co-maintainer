@@ -148,6 +148,21 @@ Changed evidence invalidates only the facts and skill sections that depend on
 it. Outputs still land under `<config dir>/repos/owner/repo/` (see
 [Caching](caching.md)).
 
+`CODEBASE.md` is rebuilt section by section, and a section keeps what it had
+unless this run has a reason to change it:
+
+- A section whose facts did not change keeps its text. A rebuilt section takes
+  the new text, and one the model had nothing durable to say about is dropped.
+- A section whose AI call failed after its retries keeps its old text.
+- A section that has facts but is missing from the file is rebuilt, which also
+  repairs a `CODEBASE.md` that an earlier version cut short.
+- After a full rebuild, for a new high model or a new synthesis version, no old
+  text is kept.
+
+When the guide call fails, `sync` keeps the review guides the last run wrote,
+`SKILL.md` keeps its link to them, and `--json` says `reviewGuide` `kept`, see
+[`init --json`](init.md#json-output).
+
 ## Scheduled sync
 
 A [`serve`](serve.md) instance can run `sync` for you. Open a repository in the
