@@ -1,12 +1,24 @@
 /** The CLI review flow's own helpers, and the flow run end to end. */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { type Printer, type RunSettings, runFlow } from "../flow.ts";
+import type { AiRule } from "../fake_ai.ts";
+import {
+  defineFlow,
+  type Flow,
+  type FlowResult,
+  type Printer,
+  type RunSettings,
+  runFlow,
+} from "../flow.ts";
 import cliPr, {
+  CLI_PR_AI,
   cliPrAi,
+  guidesStep,
   lineOf,
   mainFiles,
+  openChangePull,
   parseJsonOutput,
+  reviewCli,
   TITLES,
 } from "./cli_pr.ts";
 
@@ -58,4 +70,45 @@ test("mainFiles: the guard changes only the math file", () => {
   const after = mainFiles(true);
   assert.notEqual(before["src/math.ts"], after["src/math.ts"]);
   assert.equal(before["scripts/deploy.sh"], after["scripts/deploy.sh"]);
+});
+
+function onlyMainFlow(ai: AiRule[]): Flow {
+  return defineFlow({
+    name: "only-main",
+    description: "opens only the standard pull request",
+    ai,
+    steps: [
+      guidesStep,
+      {
+        name: "review",
+        async run(sim) {
+          await reviewCli(sim, openChangePull(sim).number, ["--json"]);
+        },
+      },
+    ],
+  });
+}
+
+const answered = (result: FlowResult) =>
+  result.checks.find((check) => check.name === "every AI rule answered");
+
+test("CLI_PR_AI: a flow that opens one pull request is not failed for the rest", async () => {
+  const result = await runFlow(onlyMainFlow(CLI_PR_AI), settings(), quiet);
+  assert.equal(answered(result)?.ok, true, JSON.stringify(answered(result)));
+  assert.equal(result.passed, true);
+});
+
+test("cliPrAi: a title a flow names and never opens is reported", async () => {
+  const exact = await runFlow(
+    onlyMainFlow(cliPrAi(TITLES.main)),
+    settings(),
+    quiet,
+  );
+  assert.equal(exact.passed, true);
+  const unused = await runFlow(
+    onlyMainFlow(cliPrAi(TITLES.main, TITLES.clean)),
+    settings(),
+    quiet,
+  );
+  assert.equal(answered(unused)?.ok, false);
 });
