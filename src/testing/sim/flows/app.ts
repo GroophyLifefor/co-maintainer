@@ -328,7 +328,7 @@ export function pullFilesAt(
   sim: Sim,
   pull: SimPull,
   commit: string,
-): { filename: string; patch: string }[] {
+): { filename: string; patch?: string }[] {
   const repo = sim.world.repos.get(pull.repo)!;
   const base = sim.world
     .git(repo, ["merge-base", repo.defaultBranch, commit])
