@@ -143,25 +143,25 @@ Print exactly one JSON document on stdout. Log lines go to stderr.
 | Field | Type | Required | Meaning |
 |---|---|---|---|
 | `schemaVersion` | integer | yes | Must be 1. Any other value is Failed, with that as the reason. |
-| `name` | string | yes | The extension's own name, for its logs. |
+| `name` | string | yes | The extension's own name, for its logs. (at most 100 characters) |
 | `status` | `ok`, `failed`, `skipped`, `retry` | yes | How the run ended. |
 | `verdict` | `request_changes`, `comment` | with `ok`, absent otherwise | `request_changes` makes the whole review Request changes. It always wins over a finding's `blocking`. |
-| `reason` | string | with `skipped` and `retry` | Why the extension skipped, failed or wants a retry. |
+| `reason` | string | with `skipped` and `retry` | Why the extension skipped, failed or wants a retry. (at most 2000 characters) |
 | `retryAfterSeconds` | integer | with `retry` | How long to wait before the next run. (min 0, max 180) |
-| `markdown` | string | no | Shown in the GitHub review and the job summary, inside a `<details>` block named after the extension. |
+| `markdown` | string | no | Shown in the GitHub review and the job summary, inside a `<details>` block named after the extension. (at most 200000 characters) |
 | `findings` | array of objects | no | Findings that join the review. |
-| `findings[].key` | string | no | A stable id. With one, the finding is tracked across rounds: seen again means still open, missing means closed. |
+| `findings[].key` | string | no | A stable id. With one, the finding is tracked across rounds: seen again means still open, missing means closed. (at most 200 characters) |
 | `findings[].severity` | `P0`, `P1`, `P2`, `P3` | yes | P0 is the most severe. |
 | `findings[].blocking` | boolean | yes | Whether this finding alone should block the merge. |
-| `findings[].title` | string | yes | One line. |
-| `findings[].body` | string | yes | The explanation, in Markdown. |
-| `findings[].path` | string | no | A file path relative to the repository root. |
+| `findings[].title` | string | yes | One line. (at most 500 characters) |
+| `findings[].body` | string | yes | The explanation, in Markdown. (at most 20000 characters) |
+| `findings[].path` | string | no | A file path relative to the repository root. (at most 1000 characters) |
 | `findings[].lineFrom` | integer | no | First line in the new file. (min 1) |
 | `findings[].lineTo` | integer | no | Last line in the new file. (min 1) |
 | `data` | object | no | Results with a fixed shape co-maintainer can show. |
 | `data.media` | array of objects | no | Files the extension uploaded itself. co-maintainer uploads nothing. |
 | `data.media[].kind` | `image`, `video`, `link` | yes | What the URL points at. |
-| `data.media[].label` | string | yes | A short name, such as `main` or `pr`. |
+| `data.media[].label` | string | yes | A short name, such as `main` or `pr`. (at most 100 characters) |
 | `data.media[].url` | string (URL) | yes | An http or https URL. |
 | `data.metrics` | array of objects | no | Numbers worth showing next to the result. |
 | `data.metrics[].name` | string | yes | What was measured. |
@@ -169,11 +169,11 @@ Print exactly one JSON document on stdout. Log lines go to stderr.
 | `data.metrics[].unit` | string | no | Such as `ms` or `MB`. |
 | `extraData` | any | no | Free-form. Passed through to `--json` and never read by co-maintainer. |
 | `usage` | object | no | What the run cost, when it used AI. |
-| `usage.costUsd` | number | no | Joins the review's total cost. (min 0) |
-| `usage.tokensIn` | integer | no | Input tokens. (min 0) |
-| `usage.tokensOut` | integer | no | Output tokens. (min 0) |
-| `usage.cachedIn` | integer | no | Cached input tokens. (min 0) |
-| `usage.cachedOut` | integer | no | Cached output tokens. (min 0) |
+| `usage.costUsd` | number | no | Joins the review's total cost. (min 0, max 10000) |
+| `usage.tokensIn` | integer | no | Input tokens. (min 0, max 10000000000) |
+| `usage.tokensOut` | integer | no | Output tokens. (min 0, max 10000000000) |
+| `usage.cachedIn` | integer | no | Cached input tokens. (min 0, max 10000000000) |
+| `usage.cachedOut` | integer | no | Cached output tokens. (min 0, max 10000000000) |
 <!-- extension-schema:end -->
 
 - Unknown fields are ignored.

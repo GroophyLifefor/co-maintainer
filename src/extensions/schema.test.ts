@@ -180,3 +180,59 @@ test("the docs table lists every field the validator knows", () => {
     }
   }
 });
+
+test("absurd costs, token counts and lengths are a schema failure", () => {
+  const cases: [Record<string, unknown>, string][] = [
+    [ok({ usage: { costUsd: 1e308 } }), "usage.costUsd must be at most"],
+    [ok({ usage: { costUsd: -1 } }), "usage.costUsd must be at least 0"],
+    [ok({ usage: { tokensIn: 1e15 } }), "usage.tokensIn must be at most"],
+    [ok({ markdown: "m".repeat(200_001) }), "markdown must be at most"],
+    [
+      ok({
+        findings: [
+          {
+            severity: "P1",
+            blocking: false,
+            title: "t".repeat(501),
+            body: "b",
+          },
+        ],
+      }),
+      "findings[0].title must be at most 500 characters",
+    ],
+    [
+      ok({
+        findings: [
+          {
+            key: "k".repeat(201),
+            severity: "P1",
+            blocking: false,
+            title: "t",
+            body: "b",
+          },
+        ],
+      }),
+      "findings[0].key must be at most",
+    ],
+    [
+      ok({
+        findings: [
+          {
+            severity: "P1",
+            blocking: false,
+            title: "t",
+            body: "b".repeat(20_001),
+          },
+        ],
+      }),
+      "findings[0].body must be at most",
+    ],
+  ];
+  for (const [value, want] of cases) {
+    const reason = reasonOf(value);
+    if (!reason.startsWith(want)) throw new Error(`${want}: got ${reason}`);
+  }
+  if (!responseSchemaTable().includes("at most 500 characters")) {
+    throw new Error("the docs table does not show the limits");
+  }
+});

@@ -13,6 +13,19 @@ export const EXTENSION_SCHEMA_VERSION = 1;
 /** The longest wait a `retry` response may ask for. */
 export const MAX_RETRY_AFTER_SECONDS = 180;
 
+/** Limits that keep one response from filling app.db, the dashboard and a
+ * remote client's output. */
+const MAX_TITLE_CHARS = 500;
+const MAX_BODY_CHARS = 20_000;
+const MAX_KEY_CHARS = 200;
+const MAX_LABEL_CHARS = 100;
+const MAX_PATH_CHARS = 1_000;
+const MAX_REASON_CHARS = 2_000;
+export const MAX_MARKDOWN_CHARS = 200_000;
+/** A cost or a token count past these is a bug, not a bill. */
+const MAX_COST_USD = 10_000;
+const MAX_TOKENS = 10_000_000_000;
+
 export const SEVERITIES = ["P0", "P1", "P2", "P3"] as const;
 export const STATUSES = ["ok", "failed", "skipped", "retry"] as const;
 export const VERDICTS = ["request_changes", "comment"] as const;
@@ -86,6 +99,8 @@ export type FieldSpec = {
   required: string;
   enum?: readonly string[];
   min?: number;
+  /** For a string, its longest length in characters. */
+  maxLength?: number;
   max?: number;
   /** The fields of an object, or of each object in an array. */
   fields?: FieldSpec[];
@@ -102,6 +117,7 @@ export const RESPONSE_FIELDS: FieldSpec[] = [
   {
     name: "name",
     type: "string",
+    maxLength: MAX_LABEL_CHARS,
     required: "yes",
     description: "The extension's own name, for its logs.",
   },
@@ -123,6 +139,7 @@ export const RESPONSE_FIELDS: FieldSpec[] = [
   {
     name: "reason",
     type: "string",
+    maxLength: MAX_REASON_CHARS,
     required: "with `skipped` and `retry`",
     description: "Why the extension skipped, failed or wants a retry.",
   },
@@ -137,6 +154,7 @@ export const RESPONSE_FIELDS: FieldSpec[] = [
   {
     name: "markdown",
     type: "string",
+    maxLength: MAX_MARKDOWN_CHARS,
     required: "no",
     description:
       "Shown in the GitHub review and the job summary, inside a `<details>` block named after the extension.",
@@ -150,6 +168,7 @@ export const RESPONSE_FIELDS: FieldSpec[] = [
       {
         name: "key",
         type: "string",
+        maxLength: MAX_KEY_CHARS,
         required: "no",
         description:
           "A stable id. With one, the finding is tracked across rounds: seen again means still open, missing means closed.",
@@ -170,18 +189,21 @@ export const RESPONSE_FIELDS: FieldSpec[] = [
       {
         name: "title",
         type: "string",
+        maxLength: MAX_TITLE_CHARS,
         required: "yes",
         description: "One line.",
       },
       {
         name: "body",
         type: "string",
+        maxLength: MAX_BODY_CHARS,
         required: "yes",
         description: "The explanation, in Markdown.",
       },
       {
         name: "path",
         type: "string",
+        maxLength: MAX_PATH_CHARS,
         required: "no",
         description: "A file path relative to the repository root.",
       },
@@ -224,6 +246,7 @@ export const RESPONSE_FIELDS: FieldSpec[] = [
           {
             name: "label",
             type: "string",
+            maxLength: MAX_LABEL_CHARS,
             required: "yes",
             description: "A short name, such as `main` or `pr`.",
           },
@@ -281,6 +304,7 @@ export const RESPONSE_FIELDS: FieldSpec[] = [
         type: "number",
         required: "no",
         min: 0,
+        max: MAX_COST_USD,
         description: "Joins the review's total cost.",
       },
       {
@@ -288,6 +312,7 @@ export const RESPONSE_FIELDS: FieldSpec[] = [
         type: "integer",
         required: "no",
         min: 0,
+        max: MAX_TOKENS,
         description: "Input tokens.",
       },
       {
@@ -295,6 +320,7 @@ export const RESPONSE_FIELDS: FieldSpec[] = [
         type: "integer",
         required: "no",
         min: 0,
+        max: MAX_TOKENS,
         description: "Output tokens.",
       },
       {
@@ -302,6 +328,7 @@ export const RESPONSE_FIELDS: FieldSpec[] = [
         type: "integer",
         required: "no",
         min: 0,
+        max: MAX_TOKENS,
         description: "Cached input tokens.",
       },
       {
@@ -309,6 +336,7 @@ export const RESPONSE_FIELDS: FieldSpec[] = [
         type: "integer",
         required: "no",
         min: 0,
+        max: MAX_TOKENS,
         description: "Cached output tokens.",
       },
     ],
@@ -358,6 +386,13 @@ function typeProblem(spec: FieldSpec, value: unknown): string | undefined {
       break;
     case "any":
       break;
+  }
+  if (
+    spec.maxLength !== undefined &&
+    typeof value === "string" &&
+    value.length > spec.maxLength
+  ) {
+    return `must be at most ${spec.maxLength} characters`;
   }
   if (spec.enum && !spec.enum.includes(value as string)) {
     return `must be one of ${spec.enum.join(", ")}`;
@@ -563,6 +598,9 @@ function tableRows(fields: FieldSpec[], prefix: string, rows: string[]): void {
     const limits: string[] = [];
     if (spec.min !== undefined) limits.push(`min ${spec.min}`);
     if (spec.max !== undefined) limits.push(`max ${spec.max}`);
+    if (spec.maxLength !== undefined) {
+      limits.push(`at most ${spec.maxLength} characters`);
+    }
     const description = limits.length
       ? `${spec.description} (${limits.join(", ")})`
       : spec.description;
