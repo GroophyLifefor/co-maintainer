@@ -176,6 +176,8 @@ sign. See [Cost](cost.md).
 - Submit body size is capped (handshake `limits.maxBodyBytes`).
 - Concurrent remote reviews per token and job queue limits in dashboard Settings.
 - If sync stops longer than `remoteSyncTimeoutSeconds`, the server cancels the job.
+- The server plans a large diff, and a file it dropped is sent again in your next
+  `review --remote`. See [Large diffs](review.md#large-diffs).
 
 ## Security
 
