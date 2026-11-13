@@ -142,7 +142,7 @@ async function handleHandshake(
     // Additive advertisement: a 0.5.0 client ignores these, and an
     // older server never sends them, so the client gates on `features`. No key,
     // model, or other secret is ever echoed here.
-    features: ["byok", "push"],
+    features: ["byok", "push", "intent"],
     byok: { policy },
     ai: { provider: config.ai ?? "openrouter" },
   });

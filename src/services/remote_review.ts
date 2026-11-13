@@ -271,6 +271,19 @@ export function submitRemoteReview(
       };
     }
   }
+  // The intent comes from a client, so the repository's cap applies to it
+  // here as well, whatever the client checked.
+  const description = (revision as { description?: unknown }).description;
+  if (typeof description === "string") {
+    const problem = checkReviewSystemPrompt(description.trim(), promptLimit);
+    if (problem) {
+      return {
+        error: `revision.description: ${problem}`,
+        status: 400,
+        code: "bad_request",
+      };
+    }
+  }
   insertRemoteReviewInput({
     jobId,
     revisionJson: JSON.stringify(revision),

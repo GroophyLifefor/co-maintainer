@@ -340,7 +340,13 @@ async function pushRevision(
   const input = getPushInput(job.id);
   if (input) {
     const revision = revisionFromSubmitJson(JSON.parse(input));
-    return { ...revision, baseLabel: revision.baseLabel || branch };
+    // This review takes no intent, so a description a client sent with the
+    // diff never reaches the prompt.
+    return {
+      ...revision,
+      description: "",
+      baseLabel: revision.baseLabel || branch,
+    };
   }
   if (!client) {
     throw new Error(

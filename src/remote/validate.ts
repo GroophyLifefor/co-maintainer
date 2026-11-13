@@ -155,6 +155,17 @@ export function validateRevisionPayload(revision: unknown): string | null {
   if (!Array.isArray(files) || files.length < 1) {
     return bad("revision.files", "must have at least one file");
   }
+  // The description carries a client's intent. The repository's own cap is
+  // applied when the review is submitted, this is the ceiling before it.
+  const description = revision.description;
+  if (description !== undefined) {
+    if (typeof description !== "string") {
+      return bad("revision.description", "must be a string");
+    }
+    if (description.length > REMOTE_MAX_SYSTEM_PROMPT_CHARS) {
+      return bad("revision.description", "too long");
+    }
+  }
   const paths = new Set<string>();
   for (let i = 0; i < files.length; i++) {
     const err = validateRevisionFile(files[i], i, paths);

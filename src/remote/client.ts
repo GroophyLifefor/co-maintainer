@@ -1,6 +1,10 @@
 import { VERSION } from "../version.ts";
 import type { ReviewCliArgs } from "../cli/review_args.ts";
-import { loadReviewSystemPromptFlags } from "../cli/review_args.ts";
+import {
+  loadReviewSystemPromptFlags,
+  reviewSystemPromptLimitFor,
+} from "../cli/review_args.ts";
+import { intentRecord, loadIntentFlag } from "../cli/review_intent.ts";
 import { exitWith } from "../cli/error.ts";
 import {
   formatHumanReview,
@@ -125,6 +129,10 @@ export async function runRemoteReview(
     await assertGitQuiet(root);
     const repo = await detectRemoteRepo(root, cli.repoOverride);
     const branch = await currentBranch(root, cli.branch);
+    const intentLoad = await loadIntentFlag(
+      cli.intentFile,
+      reviewSystemPromptLimitFor(repo),
+    );
 
     const remotes = await runCommand("git", ["remote"], root);
     const remoteName =
@@ -221,6 +229,17 @@ export async function runRemoteReview(
         "co-maintainer review --remote --remote-byok",
       );
     }
+    // A server that predates intent would never use the text, so it is not
+    // sent, and the run says it went without.
+    const serverSupportsIntent = hs.features?.includes("intent") ?? false;
+    const intent = serverSupportsIntent ? intentLoad.intent : null;
+    const clientWarnings = [...intentLoad.warnings];
+    if (intentLoad.intent && !serverSupportsIntent) {
+      clientWarnings.push({
+        code: "intent_unsupported",
+        message: `This server (version ${hs.serverVersion}) does not support an intent, so the review ran without one.`,
+      });
+    }
     if (byokEnabled && !cli.json) {
       const warning = byokHttpWarning(host);
       if (warning) console.error(warning);
@@ -268,7 +287,7 @@ export async function runRemoteReview(
       fresh: cli.fresh,
       revision: {
         title: built.revision.title,
-        description: built.revision.description,
+        description: intent?.text ?? built.revision.description,
         baseLabel: built.revision.baseLabel,
         files: built.revision.files,
       },
@@ -393,6 +412,20 @@ export async function runRemoteReview(
                 payload.result,
                 cli.includeExtensionMarkdowns ?? false,
               ),
+              // The client knows how the intent came in, so a server cannot
+              // say otherwise.
+              subject: {
+                ...(payload.result.subject as object | undefined),
+                intent: intentRecord(intent),
+              },
+              ...(clientWarnings.length > 0
+                ? {
+                    warnings: [
+                      ...warningsFromJson(payload.result.warnings),
+                      ...clientWarnings,
+                    ],
+                  }
+                : {}),
             }),
           );
         } else if (cli.output === "github") {
@@ -405,6 +438,7 @@ export async function runRemoteReview(
             // sends the files this one dropped.
             catchesUp: true,
             extensions,
+            intent: intent !== null,
           });
         } else {
           const resultGuide = payload.result.guide as
@@ -420,9 +454,13 @@ export async function runRemoteReview(
                 guideBuiltAt: resultGuide?.builtAt ?? null,
                 codegraphState: resultCodegraph?.state ?? null,
                 findings: humanFindingsFromJson(findings),
-                warnings: warningsFromJson(payload.result.warnings),
+                warnings: [
+                  ...warningsFromJson(payload.result.warnings),
+                  ...clientWarnings,
+                ],
                 coverage: coverageFromResult(payload.result),
                 extensions,
+                intent: intent !== null,
               }) +
               "\n",
           );
