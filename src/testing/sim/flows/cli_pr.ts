@@ -1332,8 +1332,8 @@ function flowChecks(sim: Sim): CheckResult[] {
     ),
     check(
       "a failed AI call names the provider and the status",
-      /^OpenRouter failed with 500/.test(
-        String((failedBody?.error as Json | undefined)?.message ?? ""),
+      String((failedBody?.error as Json | undefined)?.message ?? "").startsWith(
+        "OpenRouter failed with 500",
       ),
       String((failedBody?.error as Json | undefined)?.message ?? ""),
     ),
