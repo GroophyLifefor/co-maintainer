@@ -85,6 +85,136 @@ first pass missed. More passes cost more tokens and take longer. `2` is a
 reasonable step up when a change is high risk or the repository is large. The
 value is capped at `4`. See [Cost](cost.md) for what a pass costs.
 
+## Large diffs
+
+A review never cuts a diff without saying so. Each changed file ends in one of
+five states, and every output reports them.
+
+| State | What the model received |
+| ----- | ----------------------- |
+| `full` | The whole patch |
+| `partial` | The first 12,000 characters of the patch, cut at a line end |
+| `summarized` | A low-model summary of the patch |
+| `dropped` | Only the path and the line counts, under `NOT SHOWN (diff budget)` in the prompt. The file is not reviewed this round |
+| `withheld` | Nothing, because GitHub sent no patch for it |
+
+A diff that fits is sent exactly as it was before this existed. The limits are
+constants, not settings:
+
+- A patch over 12,000 characters is `partial`.
+- The whole DIFF section, its lists included, never passes 240,000 characters.
+- Only a patch over 4,000 characters is summarized, and at most 40 files per
+  review. A file over 500 changed lines is summarized when its patch is over
+  4,000 characters.
+- A list in the prompt names at most 200 files, then `- and N more`.
+
+### How a diff is planned
+
+The preference is always `full`, then `partial` or `summarized`, then `dropped`.
+
+1. A file over 500 changed lines, with a patch over 4,000 characters, is
+   summarized, the 40 largest first.
+2. A patch over 12,000 characters is `partial`.
+3. Over budget, every file with no patch text moves into one `NO DIFF TEXT` list.
+   Their states do not change, and they never push a file with a patch out.
+4. Still over budget and under 40 summaries, the largest `full` or `partial`
+   file with a patch over 4,000 characters is summarized.
+5. Still over budget, files with a patch are dropped from the end of path order,
+   in plain code point order, so a plan is the same on every machine.
+6. Room left goes back to dropped files that fit, smallest first. This runs again
+   after the real summaries come back.
+
+Files keep their input order in the prompt. A binary file and a pure rename
+have no patch text, so each shows one line instead:
+
+- `[<status>: binary file]`
+- `[renamed without changes from <old path>]`
+
+Both are `full`, and so is a pure rename on GitHub. The exception is PR review
+and push review, where GitHub sends no patch for a binary file and does not say
+why, so a binary file there is `withheld`.
+
+### Reading the rest of a file
+
+The model has a `read-full-diff` tool for `partial`, `summarized` and `dropped`
+files. It takes `path` (required), `offset` (a diff line, from 0) and `limit`
+(at least 1, default to the end), and lines keep their new-file numbers. A
+`full` file answers that it is already in the prompt, and a `withheld` one that
+there is no diff text.
+
+One answer stops at `reviewReadDiffMaxChars` characters, 20000 by default, and
+ends with `[more: call again with offset=N]`. A single line over the cap ends
+with `[line cut at N characters, the rest of this line cannot be read]`. Set the
+cap with `set --repo=owner/repo --review-read-diff-max-chars=N`, see
+[Configuration](configuration.md#the-read-full-diff-cap). A model with no tool
+support cannot call the tool. Its prompt says the dropped files cannot be read
+here and must not be reported on.
+
+### Which modes catch up on dropped files
+
+A file counts as seen only when the model received it as `full`, `partial` or
+`summarized`. A `dropped` or `withheld` file is never seen, so the next round
+sends it again. That works only where a review carries its seen files into the
+next one.
+
+| Mode | A dropped file in a later run |
+| ---- | ----------------------------- |
+| Local review | Covered. Run `review` again |
+| PR review | Covered. Run `review` again |
+| Remote review | Covered. Run `review --remote` again |
+| App review, incremental scope | Covered. The round also sends a file the last round dropped when nobody touched it since |
+| Push review (commit watch) | Not covered. Every run sends every file again, so the same files are dropped again |
+| App review, whole-pr scope | Not covered, for the same reason |
+
+The warning in each result says which case it is.
+
+### Where the result says it
+
+`--json` has `revision.truncated`, true when any file is not `full`, and
+`revision.coverage` in every mode:
+
+```json
+"revision": {
+  "files": 62, "additions": 4184, "deletions": 335, "truncated": true,
+  "coverage": {
+    "full": 58, "partial": ["src/store/reads.ts"],
+    "summarized": ["src/api/routes.ts", "src/store/schema.ts", "src/store/metrics.ts"],
+    "dropped": [], "withheld": []
+  }
+},
+"warnings": []
+```
+
+`full` is a count and the others are lists of paths. A file carried over
+unchanged from the previous round counts as `full`. In PR review, files that
+arrived by a merge are not in `coverage`, so the states can add up to less than
+`files`. `warnings` has one entry per case:
+
+| Code | Text |
+| ---- | ---- |
+| `diff_dropped` | `N files were not reviewed because the diff is too large. Run review again to cover them.` in a mode that covers them later, otherwise `... This review mode does not cover them in a later run.` |
+| `diff_withheld` | `N files were not reviewed because GitHub sent no diff for them.` |
+| `summary_failed` | `The summary of <path> failed, so the review saw its diff instead, up to the first 12,000 characters.` |
+
+A single file reads `1 file was` and `it`. A failed summary does not fail the
+review: that file is `partial`.
+
+- **Terminal.** `Coverage: 58 full · 1 partial · 3 summarized · 0 dropped` comes
+  after `Summary:` only when a file is not `full`, with `· N withheld` added when
+  there is one. With a dropped or withheld file, "No actionable findings." reads
+  "No actionable findings in the files reviewed."
+- **GitHub review** (the App). The summary gains `Not reviewed (N)` with one row
+  per file, at most 20 and then `- and N more`. The metadata always has a
+  `Coverage` line. A file name is shown as a code span with its control
+  characters removed, so it cannot add Markdown or a mention. Exit codes and the
+  verdict do not change.
+- **`--output=github`.** The job summary gets the coverage line and the list.
+  Dropped files give one `::warning` that points at the job summary. Withheld
+  files give no annotation.
+- **Remote review.** The server plans the diff. A newer client with an older
+  server prints no coverage line, and an older client with a newer server gets
+  the new fields in `--json` and ignores them elsewhere.
+
 ## Diagrams
 
 A review can include a diagram when a finding is about a flow, a lifecycle or a
@@ -233,8 +363,10 @@ changes for a P0 or P1 and comments otherwise.
 
 With `--json`, stdout is a single JSON object (`schemaVersion` `1`). Fields
 include `mode` (`local`, `remote`, or `pr`), `subject`, `summary`, `findings[]`,
-`warnings[]`, `usage`, and `durationMs`. Local and remote runs also include diff
-metadata and `codegraph` state. Errors with `--json` are JSON on stdout as well.
+`warnings[]`, `usage`, and `durationMs`. Every mode includes `revision`, which
+counts the files and says which of them the model received in full, see
+[Large diffs](#large-diffs). Local and remote runs also include `codegraph`
+state. Errors with `--json` are JSON on stdout as well.
 
 Flag details per mode: [Local review](local-review.md), [Remote review](remote-review.md),
 [PR review](local-pr-review.md).
@@ -286,7 +418,9 @@ Findings are grouped `Closed`, `Still open`, `New`, each labeled with the same
 date (`guide unknown` only when no guide timestamp can be read) and the state
 the run actually reached: `codegraph used`, `codegraph disabled`, or
 `codegraph unavailable`: the last one when codegraph was requested but could
-not be prepared, which is also what `--json` reports.
+not be prepared, which is also what `--json` reports. When a file did not reach
+the model in full, a `Coverage:` line follows the summary, see
+[Large diffs](#where-the-result-says-it).
 
 The severity legend and the "If you'd like me to explain it in more detail,
 please ask." sentence are **not** in terminal output: a terminal has nobody to

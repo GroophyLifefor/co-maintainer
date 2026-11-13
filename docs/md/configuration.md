@@ -93,6 +93,7 @@ provider, so both models are saved the first time. See
 | `--diagram-runtime=mermaid\|plantuml\|plantuml-server` | `repos[owner/repo].diagramRuntime` | The diagram language of a repository's reviews, App reviews included. Needs `--repo`. See [Diagram settings](#diagram-settings) |
 | `--plantuml-server=URL` | `repos[owner/repo].plantumlServer` | The PlantUML server for `plantuml-server`. Needs `--repo`. Default `https://www.plantuml.com` |
 | `--plantuml-output-format=svg\|png` | `repos[owner/repo].plantumlOutputFormat` | The image format for `plantuml-server`. Needs `--repo`. Default `svg` |
+| `--review-read-diff-max-chars=N` | `repos[owner/repo].reviewReadDiffMaxChars` | Most characters one `read-full-diff` answer returns. Needs `--repo`. `0` or `-1` means no limit. Default `20000` |
 
 ### App private key: inline, file contents, or path
 
@@ -220,6 +221,7 @@ After each successful [`init`](init.md) or [`sync`](sync.md),
 | `only-request-changed-pr`, `pr-state` | |
 | `review-system-prompt`, `review-system-prompt-max-chars` | |
 | `diagram-runtime`, `plantuml-server`, `plantuml-output-format` | |
+| `review-read-diff-max-chars` | |
 
 A plain `co-maintainer sync owner/repo` reuses those values. Pass new flags
 on `sync` or run `init` again to change includes, limits, or pull request
@@ -231,8 +233,9 @@ goes back to "never inited" and the next build is an `init`.
 [`review-system-prompt`](review.md#repository-review-instructions) and its cap
 are the exception: `init` and `sync` never write them. Set them with
 `co-maintainer set --repo=owner/repo` or the repository **Settings** page. The
-[diagram settings](#diagram-settings) are set only with
-`co-maintainer set --repo=owner/repo`, and the dashboard has no field for them.
+[diagram settings](#diagram-settings) and the `read-full-diff` cap are set only
+with `co-maintainer set --repo=owner/repo`, and the dashboard has no field for
+them.
 
 Guide files (`SKILL.md`, `CODEBASE.md`, review guides) live under
 `<config>/co-maintainer/repos/<owner>/<repo>/`, not in your git clone. See
@@ -272,6 +275,24 @@ A value edited by hand into `config.json` is checked each time it is read.
   "The diagram settings are ignored and this job uses mermaid." The three
   settings fall back together, so a good `plantuml-server` runtime next to a bad
   server never sends the diagram source to a server the owner did not choose.
+
+## The `read-full-diff` cap
+
+When a large diff is cut, the model can read the rest with the `read-full-diff`
+tool, see [Large diffs](review.md#large-diffs). One answer stops at
+`reviewReadDiffMaxChars` characters, `20000` by default, because every tool
+answer is sent again in each later round.
+
+```sh
+co-maintainer set --repo=owner/repo --review-read-diff-max-chars=40000
+co-maintainer set --repo=owner/repo --review-read-diff-max-chars=0   # no limit
+co-maintainer set --repo=owner/repo --unset=review-read-diff-max-chars
+```
+
+`0` or `-1` means no limit. A blank value or `--unset=` goes back to the
+default. A value that is not an integer is refused with "must be an integer (0 or
+-1 for no limit)". It needs `--repo`, like the other repository settings, and is
+stored as `repos["owner/repo"].reviewReadDiffMaxChars`.
 
 ## Secrets on disk
 

@@ -82,6 +82,10 @@ Carry-over never replaces the review. Every run scans the whole diff for new
 violations **and** re-checks the previous findings. A finding that is still open
 is reported as such rather than suppressing a new one nearby.
 
+A change too large for one review is covered over the next runs. A file the model
+did not receive is sent again, so run `review` again and read the `Coverage:`
+line, see [Large diffs](review.md#large-diffs).
+
 When a guide is rebuilt (`init` / `sync`) after your last review on this branch,
 that review's verdicts were made against rules that no longer exist. The next
 review therefore starts fresh on its own (no `--fresh` needed), so a stale
