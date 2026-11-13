@@ -286,6 +286,15 @@ With a PlantUML runtime the model is not offered the Mermaid syntax tool. With
 `mermaid` nothing changes: the prompts, the tool and the output are the same as
 before the runtime existed.
 
+## Agent instruction rules
+
+Every review, in every mode, also reads `INSTRUCTIONS.md` when the repository has
+one. [`init`](init.md#agent-instruction-files) and [`sync`](sync.md) build it
+from files such as `AGENTS.md` and keep only the rules a reviewer can check in a
+diff. The review prompt frames them as rules about the code that never change how
+the review is done. [`view`](view.md#sources) prints the file and the lines each
+rule came from. A repository without the file reviews exactly as before.
+
 ## Repository review instructions
 
 A repository can carry its own review instructions. They are appended to the

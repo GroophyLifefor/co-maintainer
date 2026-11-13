@@ -11,6 +11,7 @@ estimate it before you start.
 | `probe` | No | Reads the repository through `gh` only |
 | `init` | Yes | Extraction and synthesis jobs over code, pull requests, and history |
 | `sync` | Yes, but less | Reuses unchanged evidence from [cache](caching.md), so only changed inputs rebuild |
+| `INSTRUCTIONS.md` | Yes, one call | One high-model call in `init` or `sync`, only when a file matches `--agent-instructions`. It is cached by its input, so unchanged instruction files cost nothing on the next `sync` |
 | Large-diff summary | Yes, small | A big file in a large diff is summarized with the low model instead of being sent whole, see [Large diffs](#large-diffs) |
 | Local and PR `review` | Yes | Runs on your provider's key, see [AI providers](providers.md) |
 | Remote `review` | On the server | The server's key pays, not the laptop's, unless you [send your own key](remote-review.md#your-own-ai-key) |

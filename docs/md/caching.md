@@ -84,6 +84,12 @@ Used by [`init`](init.md) and [`sync`](sync.md):
 | PR discussions | PR number + update time |
 | PR diffs | PR number + head SHA |
 | AI synthesis jobs | Input hash + model profile |
+| Agent instruction files | Path + blob SHA, saved in the state together with their contents |
+
+The `synth_instructions` job that builds [`INSTRUCTIONS.md`](init.md#agent-instruction-files)
+is an AI synthesis job like the others, so the same input is not paid for twice.
+The state saves the instruction file hashes and contents together, so a failed
+run never leaves old text under new hashes.
 
 [`sync`](sync.md) reuses unchanged rows so a moving default branch costs
 less than a full [`init`](init.md). Delete `cache.db` only if you want a cold
@@ -104,6 +110,13 @@ Under `repos/<owner>/<repo>/` (the literal repository name, so `repos/acme/widge
 
 - `SKILL.md`, `CODEBASE.md`
 - `PR_REVIEW_GUIDE.md` and related review guides when PR sources were included
+- `INSTRUCTIONS.md` and `RULES.json` when the repository has agent instruction
+  files, see [`init`](init.md#agent-instruction-files)
+
+A review reads `INSTRUCTIONS.md` inside the cached guide block of its system
+prompt, as a `REPOSITORY INSTRUCTIONS` section after the codebase conventions.
+Without the file the system prompt is what it was before. `RULES.json` never
+enters a prompt.
 
 Evidence for all repos shares one `cache.db` at the cache root (see above).
 
