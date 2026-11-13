@@ -28,12 +28,15 @@ isolateTestFile();
 async function withEnv(fn: () => Promise<void>): Promise<void> {
   const originalDb = getEnv("CM_APP_DB");
   const originalRepos = getEnv("CM_REPOS_DIR");
-  const originalCache = getEnv("XDG_CACHE_HOME");
+  // A reply records its AI cost in cache.db. Keep it out of the real cache:
+  // the cache directory comes from XDG_CACHE_HOME on Linux, LOCALAPPDATA on
+  // Windows and HOME on macOS.
+  const cacheKeys = ["XDG_CACHE_HOME", "LOCALAPPDATA", "HOME", "USERPROFILE"];
+  const originalCache = cacheKeys.map((key) => getEnv(key));
   const dir = tempDirSync();
   setEnv("CM_APP_DB", `${dir}/app.db`);
   setEnv("CM_REPOS_DIR", `${dir}/repos`);
-  // A reply records its AI cost in cache.db. Keep it out of the real cache.
-  setEnv("XDG_CACHE_HOME", `${dir}/cache`);
+  for (const key of cacheKeys) setEnv(key, `${dir}/cache`);
   await mkdirPath(`${dir}/repos/acme/widgets`, { recursive: true });
   await writeTextFile(
     `${dir}/repos/acme/widgets/PR_REVIEW_GUIDE.md`,
@@ -49,8 +52,11 @@ async function withEnv(fn: () => Promise<void>): Promise<void> {
     else setEnv("CM_APP_DB", originalDb);
     if (originalRepos === undefined) deleteEnv("CM_REPOS_DIR");
     else setEnv("CM_REPOS_DIR", originalRepos);
-    if (originalCache === undefined) deleteEnv("XDG_CACHE_HOME");
-    else setEnv("XDG_CACHE_HOME", originalCache);
+    cacheKeys.forEach((key, index) => {
+      const value = originalCache[index];
+      if (value === undefined) deleteEnv(key);
+      else setEnv(key, value);
+    });
   }
 }
 
