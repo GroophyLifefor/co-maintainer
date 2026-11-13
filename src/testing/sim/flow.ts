@@ -57,6 +57,10 @@ export type Step = {
  * instead of holding CI until its job limit. */
 export const STEP_TIMEOUT_MS = 120_000;
 
+/** The same limit when a real model answers. One `init` or `sync` step makes
+ * dozens of calls, and a slow model with retries needs minutes for them. */
+export const LIVE_STEP_TIMEOUT_MS = 1_800_000;
+
 export type Flow = {
   name: string;
   /** One sentence for `--help` and the report. */
@@ -486,7 +490,9 @@ export async function runFlow(
         let error: unknown;
         let detail = "";
         let timedOut = false;
-        const limit = step.timeoutMs ?? STEP_TIMEOUT_MS;
+        const limit =
+          step.timeoutMs ??
+          (settings.mode === "live" ? LIVE_STEP_TIMEOUT_MS : STEP_TIMEOUT_MS);
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
           const work = withLogSink(
