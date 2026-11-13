@@ -33,6 +33,8 @@ import { INIT_AI } from "./init.ts";
 export const CLI_PR_REPO = SAMPLE_REPO_NAME;
 /** A repository GitHub knows and `init` never ran on. */
 export const BARE_REPO = "sim/bare";
+/** A repository GitHub answers 404 for. */
+export const UNKNOWN_REPO = "sim/nowhere";
 
 /** The title each scenario's pull request carries. The fake AI tells the
  * pull requests apart by title, so a feature flow that opens one of these
@@ -252,13 +254,18 @@ const REVIEW_RULES: AiRule[] = [
   reviewRule(TITLES.many, { findings: manyFindings() }),
 ];
 
-/** Every answer this flow needs: the reviews above and the init flow's, for
- * the step that builds the guides. */
-export const CLI_PR_AI: AiRule[] = [...REVIEW_RULES, ...INIT_AI];
+/** Every answer in this file: the reviews above, each `optional` so a flow
+ * that opens only some of the pull requests is not failed for the rest, and
+ * the init flow's, which `guidesStep` always uses. A flow that wants the
+ * unused-rule check on its own pull requests uses `cliPrAi` instead. */
+export const CLI_PR_AI: AiRule[] = [
+  ...REVIEW_RULES.map((rule) => ({ ...rule, optional: true })),
+  ...INIT_AI,
+];
 
-/** The answers for only the pull requests with these titles, plus init's. A
- * flow that never opens the others should use this, since a rule that no
- * call used is reported. */
+/** The answers for only the pull requests with these titles, plus init's.
+ * None is optional: a title that the flow names and never opens is a rule
+ * nothing used, and the run reports it. */
 export function cliPrAi(...titles: string[]): AiRule[] {
   const wanted = titles.map((title) => `"title":${JSON.stringify(title)}`);
   return [
@@ -319,66 +326,48 @@ export function aiFlags(sim: Sim): string[] {
   ];
 }
 
-/** Runs `co-maintainer review <repo> <number> ...` and keeps the run under
- * the step that is running, so a check can find it. */
-export async function reviewCli(
+/** Runs `co-maintainer review <repo> <number> ...`. The core keeps the run's
+ * record in `sim.cliRuns`. */
+export function reviewCli(
   sim: Sim,
   number: number,
   extra: string[] = [],
   repo = CLI_PR_REPO,
 ): Promise<CliRun> {
-  const run = await sim.cli([
-    "review",
-    repo,
-    String(number),
-    ...aiFlags(sim),
-    ...extra,
-  ]);
-  const runs = (sim.state.cliRuns ??= {}) as Record<string, CliRun[]>;
-  (runs[sim.trace.step] ??= []).push(run);
-  return run;
+  return sim.cli(["review", repo, String(number), ...aiFlags(sim), ...extra]);
 }
 
 /** The CLI runs a step made, in order. */
 export function runsOf(sim: Sim, step: string): CliRun[] {
-  return ((sim.state.cliRuns ?? {}) as Record<string, CliRun[]>)[step] ?? [];
+  return sim.cliRuns.filter((run) => run.step === step);
 }
 
 /** Runs the review with `GITHUB_STEP_SUMMARY` pointing at a file in the
- * sandbox, as a workflow step has it. Returns the run and the summary. */
+ * sandbox, as a workflow step has it. Returns the run and the summary this
+ * run wrote. */
 export async function reviewWithSummary(
   sim: Sim,
   number: number,
   extra: string[] = [],
 ): Promise<{ run: CliRun; summary: string }> {
-  const path = `${sim.world.root}/step-summary-${number}.md`;
+  const path = sim.world.useStepSummary();
   rmSync(path, { force: true });
-  const before = process.env.GITHUB_STEP_SUMMARY;
-  process.env.GITHUB_STEP_SUMMARY = path;
-  try {
-    const run = await reviewCli(sim, number, ["--output=github", ...extra]);
-    return {
-      run,
-      summary: existsSync(path) ? readFileSync(path, "utf8") : "",
-    };
-  } finally {
-    if (before === undefined) delete process.env.GITHUB_STEP_SUMMARY;
-    else process.env.GITHUB_STEP_SUMMARY = before;
-  }
+  const run = await reviewCli(sim, number, ["--output=github", ...extra]);
+  return { run, summary: existsSync(path) ? readFileSync(path, "utf8") : "" };
 }
 
-/** What the review's model call received, from the trace. */
+/** What the review's model calls received, from the step's CLI runs. */
 export function reviewCompletions(sim: Sim, step: string) {
-  return sim.trace.completions.filter(
-    (completion) =>
-      completion.step === step && completion.job === "review_pull_request",
-  );
+  return runsOf(sim, step)
+    .flatMap((run) => run.completions())
+    .filter((completion) => completion.job === "review_pull_request");
 }
 
-/** The GitHub calls a step made, as `METHOD endpoint` without host or query. */
+/** The GitHub calls a step's CLI runs made, as `METHOD endpoint` without
+ * host or query. */
 export function githubCalls(sim: Sim, step: string): string[] {
-  return sim.trace.github
-    .filter((call) => call.step === step)
+  return runsOf(sim, step)
+    .flatMap((run) => run.github())
     .map((call) => `${call.method} ${new URL(call.url).pathname.slice(1)}`);
 }
 
@@ -430,7 +419,7 @@ const STEP = {
   closed: "review a closed pull request",
   merged: "review a merged pull request",
   missing: "review a pull request that does not exist",
-  unreadable: "review in a repository gh cannot read",
+  unreadable: "review in a repository GitHub does not know",
   bare: "review in a repository with no guides",
   push: "review again after a push",
   tools: "review with a tool round",
@@ -558,9 +547,9 @@ const steps: Step[] = [
   {
     name: STEP.unreadable,
     async run(sim) {
-      // What gh says about a repository the logged-in user cannot read.
-      sim.faults.add({ target: "github", kind: "404", path: /\/pulls\/1$/ });
-      const run = await reviewCli(sim, 1);
+      // What gh says about a repository that does not exist, or one the
+      // logged-in user cannot read.
+      const run = await reviewCli(sim, 1, [], UNKNOWN_REPO);
       return code(run);
     },
   },
@@ -700,6 +689,33 @@ function knownBug(
     : { name, ok: true, detail, skipped: reason };
 }
 
+/** The "Done in 0.1s · 2,306 in, 67 out tokens · $0.0000" line the CLI puts
+ * on stderr must carry the sum of the tokens the run's AI calls used, tool
+ * rounds included, and the cost the same calls reported. */
+export function runLineMatches(run: CliRun | undefined): boolean {
+  if (!run) return false;
+  const calls = run.completions().filter((call) => call.ok);
+  const tokensIn = calls.reduce((sum, call) => sum + call.tokensIn, 0);
+  const tokensOut = calls.reduce((sum, call) => sum + call.tokensOut, 0);
+  const cost = calls.reduce((sum, call) => sum + (call.cost ?? 0), 0);
+  const line = run.stderr.split("\n").find((row) => row.startsWith("Done in "));
+  return (
+    calls.length > 0 &&
+    tokensIn > 0 &&
+    line?.includes(
+      ` · ${tokensIn.toLocaleString("en-US")} in, ${tokensOut.toLocaleString("en-US")} out tokens · $${cost.toFixed(4)}`,
+    ) === true
+  );
+}
+
+/** The product's `scope` log line of one run, such as `1 own files · ...`. */
+function scopeLine(run: CliRun | undefined): string {
+  return (
+    run?.logs().find((entry) => entry.phase === "scope")?.message ??
+    "no scope line"
+  );
+}
+
 function lines(run: CliRun | undefined): string[] {
   return (run?.stdout ?? "").split("\n");
 }
@@ -757,23 +773,20 @@ function flowChecks(sim: Sim): CheckResult[] {
       "stdout holds the review only",
     ),
     check(
+      "human review keeps the progress lines and the run line on stderr",
+      (human?.stderr ?? "").includes(
+        `[review] reading PR #${main.number} in ${CLI_PR_REPO} via gh`,
+      ) &&
+        /\[scope\] .* · default=/.test(human?.stderr ?? "") &&
+        /^Done in .+ · [\d,]+ in, [\d,]+ out tokens · \$\d/m.test(
+          human?.stderr ?? "",
+        ),
+      "stderr is what a terminal shows next to the review",
+    ),
+    check(
       "the run line reports the tokens the AI calls used",
-      (() => {
-        const used = reviewCompletions(sim, STEP.human).reduce(
-          (sum, call) => [sum[0] + call.tokensIn, sum[1] + call.tokensOut],
-          [0, 0],
-        );
-        const line = sim.trace.logs.find(
-          (entry) => entry.step === STEP.human && entry.phase === "done",
-        );
-        return (
-          used[0] > 0 &&
-          line?.message.includes(
-            `${used[0].toLocaleString("en-US")} in, ${used[1].toLocaleString("en-US")} out tokens`,
-          ) === true
-        );
-      })(),
-      "the done line matches the completions of the step",
+      runLineMatches(human),
+      "the Done line on stderr matches the run's completions",
     ),
   );
 
@@ -822,10 +835,11 @@ function flowChecks(sim: Sim): CheckResult[] {
     check(
       "the review asks the high model for structured JSON and offers the diagram tool",
       (() => {
-        const request = sim.trace.ai.find(
-          (call) =>
-            call.step === STEP.human && call.job === "review_pull_request",
-        )?.request as Json | undefined;
+        const request = human
+          ?.ai()
+          .find((call) => call.job === "review_pull_request")?.request as
+          | Json
+          | undefined;
         const tools = ((request?.tools ?? []) as Json[]).map(
           (tool) => (tool.function as Json | undefined)?.name,
         );
@@ -842,8 +856,7 @@ function flowChecks(sim: Sim): CheckResult[] {
     ),
     check(
       "the review is one AI call, with no retry and no summary call",
-      sim.trace.completions.filter((call) => call.step === STEP.human)
-        .length === 1,
+      human?.completions().length === 1,
       "review_pull_request only",
     ),
   );
@@ -871,10 +884,8 @@ function flowChecks(sim: Sim): CheckResult[] {
     [STEP.severity]: pullOf(sim, "severity").number,
     [STEP.many]: pullOf(sim, "many").number,
   };
-  // init reads GitHub with the token, so only the steps after it count.
-  const reviewCalls = sim.trace.github.filter(
-    (call) => call.step !== guidesStep.name && call.step !== "setup",
-  );
+  // init reads GitHub with the token, so only what the CLI runs did counts.
+  const reviewCalls = sim.cliRuns.flatMap((run) => run.github());
   const wrong = reviewSteps.flatMap((step) => {
     const expected = reviewReads(numbers[step]!);
     const calls = githubCalls(sim, step).filter(
@@ -913,9 +924,9 @@ function flowChecks(sim: Sim): CheckResult[] {
     check(
       "a review that finished answered every GitHub call with 200",
       reviewSteps.every((step) =>
-        sim.trace.github
-          .filter((call) => call.step === step)
-          .every((call) => call.status === 200),
+        runsOf(sim, step).every((run) =>
+          run.github().every((call) => call.status === 200),
+        ),
       ),
       "no error status in the finished reviews",
     ),
@@ -1117,11 +1128,11 @@ function flowChecks(sim: Sim): CheckResult[] {
         reviewCompletions(sim, STEP.merged).length === 1,
       merged ? code(merged) : "no run",
     ),
-    knownBug(
+    check(
       "a merged pull request still shows its files in the prompt",
-      promptOf(STEP.merged).includes("FILE: src/format.ts"),
+      promptOf(STEP.merged).includes('"changedFiles":["src/format.ts"]') &&
+        promptOf(STEP.merged).includes("FILE: src/format.ts\n"),
       `${(promptOf(STEP.merged).match(/"changedFiles":\[[^\]]*\]/) ?? ["no changedFiles"])[0]}`,
-      "core gap: the simulated /pulls/N/files diffs against the merge base after the merge, so a merged pull request lists no files, and GitHub keeps them",
     ),
   );
 
@@ -1129,9 +1140,13 @@ function flowChecks(sim: Sim): CheckResult[] {
   const [missing, missingJson] = runsOf(sim, STEP.missing);
   const [unreadable] = runsOf(sim, STEP.unreadable);
   const [bare] = runsOf(sim, STEP.bare);
+  // A run that failed before the model answered did no AI call and no write.
   const noWork = (step: string) =>
-    sim.trace.completions.filter((call) => call.step === step).length === 0 &&
-    sim.github.writes.filter((write) => write.step === step).length === 0;
+    runsOf(sim, step).every(
+      (run) =>
+        run.completions().length === 0 &&
+        run.github().every((call) => call.method === "GET"),
+    );
   const missingBody = missingJson
     ? parseJsonOutput(missingJson.stdout)
     : undefined;
@@ -1153,10 +1168,18 @@ function flowChecks(sim: Sim): CheckResult[] {
       missingBody ? JSON.stringify(missingBody.error) : "stdout is not JSON",
     ),
     check(
-      "a repository gh cannot read exits 2 with the gh hint and calls no AI",
+      "a repository GitHub does not know exits 2 with the gh hint and calls no AI",
       unreadable?.exitCode === 2 &&
         unreadable.stdout === "" &&
+        unreadable.stderr.includes(`${UNKNOWN_REPO} was not found`) &&
         unreadable.stderr.includes("Hint: ") &&
+        unreadable
+          .github()
+          .some(
+            (call) =>
+              call.status === 404 &&
+              call.url.includes(`/repos/${UNKNOWN_REPO}/pulls/1`),
+          ) &&
         noWork(STEP.unreadable),
       unreadable
         ? `${code(unreadable)}: ${unreadable.stderr.split("\n")[0]}`
@@ -1216,46 +1239,30 @@ function flowChecks(sim: Sim): CheckResult[] {
     ),
     check(
       "the review looks at the pushed commit: the scope step counts two commits",
-      sim.trace.logs.some(
-        (entry) =>
-          entry.step === STEP.push &&
-          entry.phase === "scope" &&
-          /2 commits/.test(entry.message),
-      ) &&
-        sim.trace.logs.some(
-          (entry) =>
-            entry.step === STEP.human &&
-            entry.phase === "scope" &&
-            /1 commits/.test(entry.message),
-        ),
+      /2 commits/.test(scopeLine(again)) && /1 commits/.test(scopeLine(human)),
       "the push step saw 2 commits, the first review 1",
     ),
   );
 
   // A pull request opened after the default branch moved on.
-  const scopeLine = (step: string) =>
-    sim.trace.logs.find(
-      (entry) => entry.step === step && entry.phase === "scope",
-    )?.message ?? "no scope line";
+  const [failedForScope] = runsOf(sim, STEP.fails);
   add(
     knownBug(
       "after the default branch moved, the scope step counts only the pull request's own commit",
-      /· 1 commits · 0 merges ·/.test(scopeLine(STEP.fails)),
-      scopeLine(STEP.fails),
+      /· 1 commits · 0 merges ·/.test(scopeLine(failedForScope)),
+      scopeLine(failedForScope),
       "product bug: the cached clone is never fetched, so its local main is the old one and commits merged since count as the pull request's own",
     ),
   );
 
   // A tool round.
-  const toolCalls = sim.trace.completions.filter(
-    (call) => call.step === STEP.tools,
-  );
-  const toolRequests = sim.trace.ai.filter(
-    (call) => call.step === STEP.tools && call.job === "review_pull_request",
+  const [toolRun] = runsOf(sim, STEP.tools);
+  const toolCalls = toolRun?.completions() ?? [];
+  const toolRequests = (toolRun?.ai() ?? []).filter(
+    (call) => call.job === "review_pull_request",
   );
   const secondMessages = (toolRequests[1]?.request as Json | undefined)
     ?.messages as Json[] | undefined;
-  const [toolRun] = runsOf(sim, STEP.tools);
   add(
     check(
       "a tool round: the model asks for a syntax page, gets it, and answers in a second call",
@@ -1282,28 +1289,17 @@ function flowChecks(sim: Sim): CheckResult[] {
     ),
     check(
       "a tool round is logged and its tokens add up in the run line",
-      sim.trace.logs.some(
+      (toolRun?.logs() ?? []).some(
         (entry) =>
-          entry.step === STEP.tools &&
           entry.phase === "review-tools" &&
           /round 1\/\d+ · 1 call\(s\): read-mermaid-syntaxes/.test(
             entry.message,
           ),
       ) &&
-        (() => {
-          const line = sim.trace.logs.find(
-            (entry) => entry.step === STEP.tools && entry.phase === "done",
-          );
-          const tokens = toolCalls.reduce(
-            (sum, call) => sum + call.tokensIn,
-            0,
-          );
-          return (
-            line?.message.includes(`${tokens.toLocaleString("en-US")} in,`) ===
-            true
-          );
-        })(),
-      "round 1 logged, both calls counted",
+        (toolRun?.stderr ?? "").includes("[review-tools] round 1/") &&
+        toolCalls.length === 2 &&
+        runLineMatches(toolRun),
+      "round 1 logged, both calls counted in tokens in and out",
     ),
     scripted(
       sim,
@@ -1339,15 +1335,10 @@ function flowChecks(sim: Sim): CheckResult[] {
     ),
     check(
       "a failed AI call writes nothing to GitHub and the failures are in the trace",
-      sim.github.writes.filter((write) => write.step === STEP.fails).length ===
-        0 &&
-        sim.trace.ai.some(
-          (call) => call.step === STEP.fails && call.fault === "500",
-        ) &&
-        sim.trace.completions.some(
-          (call) => call.step === STEP.fails && !call.ok,
-        ),
-      `${sim.trace.ai.filter((call) => call.step === STEP.fails).length} AI requests`,
+      (failed?.github() ?? []).every((call) => call.method === "GET") &&
+        (failed?.ai() ?? []).some((call) => call.fault === "500") &&
+        (failed?.completions() ?? []).some((call) => !call.ok),
+      `${failed?.ai().length ?? 0} AI requests`,
     ),
   );
 
@@ -1372,16 +1363,13 @@ function flowChecks(sim: Sim): CheckResult[] {
   add(
     check(
       "exit codes stay in the documented set",
-      Object.values((sim.state.cliRuns ?? {}) as Record<string, CliRun[]>)
-        .flat()
-        .every((run) => [0, 1, 2, 3].includes(run.exitCode)),
+      sim.cliRuns.every((run) => [0, 1, 2, 3].includes(run.exitCode)),
       "0, 1, 2 or 3 for every run",
     ),
     scripted(
       sim,
       "the exit code is 1 exactly when a blocking finding was printed",
-      Object.values((sim.state.cliRuns ?? {}) as Record<string, CliRun[]>)
-        .flat()
+      sim.cliRuns
         .filter((run) => run.exitCode === 0 || run.exitCode === 1)
         .every((run) => {
           const text = run.stdout;
@@ -1410,10 +1398,9 @@ function scores(sim: Sim): Score[] {
   // A finding is anchored when its file is in the pull request and its line
   // is inside the new file.
   const rows: { ok: boolean }[] = [];
-  const runs = (sim.state.cliRuns ?? {}) as Record<string, CliRun[]>;
   const main = (sim.state.pulls as Record<string, SimPull> | undefined)?.main;
   const files = main ? mainFiles() : {};
-  for (const run of Object.values(runs).flat()) {
+  for (const run of sim.cliRuns) {
     const parsed = parseJsonOutput(run.stdout);
     for (const row of (parsed?.findings ?? []) as Json[]) {
       const path = String(row.path ?? "");
@@ -1458,7 +1445,8 @@ export default defineFlow({
   name: "cli-pr",
   description:
     "co-maintainer review owner/repo N: three output formats, blocking and clean pull requests, edge cases, a push, a tool round and a failed AI call",
-  ai: CLI_PR_AI,
+  // Every title: this flow opens them all, so a rule it never used is a bug.
+  ai: cliPrAi(...Object.values(TITLES)),
   steps,
   checks: flowChecks,
   scores,
