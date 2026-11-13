@@ -191,6 +191,54 @@ async function writeMaintainerNotes(
   await writeTextFileAtomic(path, withMaintainerNotes(current, lines));
 }
 
+/** The sections this run rebuilds. With no previous state, or after the high
+ * model or the synthesis version changed, that is every section: `undefined`
+ * on a first run, all keys after a change. Otherwise only the sections whose
+ * facts changed. */
+export function dirtySectionKeys(
+  previous: State | undefined,
+  options: Pick<Options, "highModel" | "synthesisVersion">,
+  hashes: Record<string, string>,
+): Set<string> | undefined {
+  if (!previous) return undefined;
+  const synthesisChanged =
+    previous.options.highModel !== options.highModel ||
+    previous.options.synthesisVersion !== options.synthesisVersion;
+  if (synthesisChanged) return new Set(Object.keys(hashes));
+  return new Set(
+    Object.entries(hashes)
+      .filter(([key, hash]) => previous.sectionHashes[key] !== hash)
+      .map(([key]) => key),
+  );
+}
+
+/** The sections that still have facts and that this run did not rebuild, so
+ * their previous text is still right. */
+export function unchangedSectionKeys(
+  hashes: Record<string, string>,
+  dirty: Set<string> | undefined,
+): Set<string> {
+  if (!dirty) return new Set();
+  return new Set(Object.keys(hashes).filter((key) => !dirty.has(key)));
+}
+
+/** The CODEBASE.md body. A sync rebuilds only the sections whose facts
+ * changed, so a section in `unchanged` keeps the text the last run wrote, the
+ * way `assembleSkill` keeps an unchanged skill section. A rebuilt section
+ * takes its new text, and one that came back empty is dropped: the old text
+ * was written from facts that are gone. */
+export function mergeCodebaseSections(
+  previousMarkdown: string | undefined,
+  overrides: Record<string, string>,
+  unchanged: Set<string>,
+): string {
+  const previous = previousMarkdown ? extractSections(previousMarkdown) : {};
+  const kept = Object.fromEntries(
+    Object.entries(previous).filter(([key]) => unchanged.has(key)),
+  );
+  return codebaseBody({ ...kept, ...overrides });
+}
+
 /** Writes the codebase-description sections (layout/style/tests/devloop) to
  * their own file, so `review` can check a pull request against how this
  * repository's code actually looks, not just the review-bar checklist. Every
@@ -199,22 +247,16 @@ async function writeMaintainerNotes(
 async function writeCodebaseDocument(
   repo: string,
   overrides: Record<string, string> = {},
-  current: Set<string> = new Set(),
+  unchanged: Set<string> = new Set(),
 ): Promise<void> {
   const path = `${reposDir()}/${repo}/CODEBASE.md`;
-  // A sync rebuilds only the sections whose facts changed. A section in
-  // `current` still has facts, so it keeps the text the last run wrote, the
-  // same way `assembleSkill` keeps an unchanged skill section.
-  let previous: Record<string, string> = {};
+  let previous: string | undefined;
   try {
-    previous = extractSections(await readTextFile(path));
+    previous = await readTextFile(path);
   } catch {
     // No CODEBASE.md yet.
   }
-  const kept = Object.fromEntries(
-    Object.entries(previous).filter(([key]) => current.has(key)),
-  );
-  const body = codebaseBody({ ...kept, ...overrides });
+  const body = mergeCodebaseSections(previous, overrides, unchanged);
   if (!body) {
     // Keep any existing file: `SKILL.md` links to it, and removing it would
     // leave that link dangling. A guide the last run wrote is better than a
@@ -325,6 +367,7 @@ async function initOrRemake(options: Options): Promise<void> {
   };
   let overrides: Record<string, string> = {};
   let reviewDocuments: ReviewDocuments | undefined;
+  let unchangedSections = new Set<string>();
   try {
     log("ai", "starting extract_unit jobs");
     facts = await timed("extract_unit AI", options.logTime, () =>
@@ -332,19 +375,8 @@ async function initOrRemake(options: Options): Promise<void> {
     );
     log("ai", `extract_unit complete · ${facts.length} facts`);
     const hashes = await factSectionHashes(facts);
-    const synthesisChanged =
-      previous &&
-      (previous.options.highModel !== options.highModel ||
-        previous.options.synthesisVersion !== options.synthesisVersion);
-    const dirtySections = previous
-      ? synthesisChanged
-        ? new Set(Object.keys(hashes))
-        : new Set(
-            Object.entries(hashes)
-              .filter(([key, hash]) => previous.sectionHashes[key] !== hash)
-              .map(([key]) => key),
-          )
-      : undefined;
+    const dirtySections = dirtySectionKeys(previous, options, hashes);
+    unchangedSections = unchangedSectionKeys(hashes, dirtySections);
     log(
       "ai",
       `starting synth_section jobs${
@@ -441,11 +473,7 @@ async function initOrRemake(options: Options): Promise<void> {
     const { writeTextFileAtomic } = await import("../util/atomic.ts");
     await withKnowledgeLock(options.repo, async () => {
       await writeTextFileAtomic(path, result.markdown);
-      await writeCodebaseDocument(
-        options.repo,
-        overrides,
-        new Set(Object.keys(result.hashes)),
-      );
+      await writeCodebaseDocument(options.repo, overrides, unchangedSections);
       await writeReviewDocuments(
         options.repo,
         reviewDocuments,
