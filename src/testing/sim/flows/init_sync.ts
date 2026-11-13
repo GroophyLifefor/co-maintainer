@@ -21,6 +21,7 @@ import {
   check,
   defineFlow,
   type Score,
+  scriptedCheck,
   type Sim,
   type Step,
 } from "../flow.ts";
@@ -720,12 +721,6 @@ export const failedGuideStep: Step = {
 
 const listOf = (items: unknown[]) => items.join(", ") || "none";
 
-function fakeOnly(sim: Sim, result: CheckResult): CheckResult {
-  return sim.mode === "fake"
-    ? result
-    : { ...result, ok: true, skipped: "reads the fake AI's answers" };
-}
-
 /** Lines of the form `- rule · why`: the guide's checks. */
 function checkLines(text = ""): string[] {
   return text
@@ -751,45 +746,67 @@ function initChecks(sim: Sim): CheckResult[] {
     RULES.testNames,
     RULES.generated,
   ];
+  // The two review guides are written only when the model found at least
+  // three review signals, and a rule is a `- rule · why` line only when the
+  // model words it so.
+  const alwaysWritten = ["SKILL.md", "CODEBASE.md"].filter(
+    (name) => !after[name]?.trim(),
+  );
+  const filesDetail = missing.length
+    ? `missing or empty: ${listOf(missing)}`
+    : GUIDE_FILES.map(
+        (name) =>
+          `${name} ${Buffer.byteLength(after[name]!).toLocaleString("en-US")} bytes`,
+      ).join(" · ");
   return [
     check(
       "init finished with every source on",
       run?.exitCode === 0 &&
         run.json.ok === true &&
         run.json.command === "init" &&
-        run.json.reviewGuide === "detailed" &&
         run.json.pullRequests === 4,
       run
         ? `exit ${run.exitCode} · ${run.json.pullRequests} pull requests · ${run.json.commits} commits · ${run.json.facts} facts · guide ${run.json.reviewGuide}`
         : "init did not run",
     ),
+    scriptedCheck(
+      sim,
+      "init built the detailed review guide",
+      run?.json.reviewGuide === "detailed",
+      `guide ${String(run?.json.reviewGuide ?? "none")}`,
+      "the guide is built only from the review signals the model finds",
+    ),
     check(
+      "init wrote SKILL.md and CODEBASE.md, and SKILL.md links CODEBASE.md",
+      alwaysWritten.length === 0 &&
+        skill.includes("[CODEBASE.md](CODEBASE.md)"),
+      alwaysWritten.length
+        ? `missing or empty: ${listOf(alwaysWritten)}`
+        : "SKILL.md links CODEBASE.md",
+    ),
+    scriptedCheck(
+      sim,
       "every guide file written by init",
       missing.length === 0 &&
         skill.includes("[PR_REVIEW_GUIDE.md](PR_REVIEW_GUIDE.md)") &&
         skill.includes("[CODEBASE.md](CODEBASE.md)") &&
         detailedChecks.length > 0,
-      missing.length
-        ? `missing or empty: ${listOf(missing)}`
-        : GUIDE_FILES.map(
-            (name) =>
-              `${name} ${Buffer.byteLength(after[name]!).toLocaleString("en-US")} bytes`,
-          ).join(" · "),
+      filesDetail,
+      "the review guides and their rule lines come from the model's answers",
     ),
-    fakeOnly(
+    scriptedCheck(
       sim,
-      check(
-        "init's guide holds every rule put in",
-        inWindow.every((text) => detailedChecks.includes(text)),
-        `${inWindow.filter((text) => detailedChecks.includes(text)).length} of ${inWindow.length} rules · missing: ${listOf(inWindow.filter((text) => !detailedChecks.includes(text)))}`,
-      ),
+      "init's guide holds every rule put in",
+      inWindow.every((text) => detailedChecks.includes(text)),
+      `${inWindow.filter((text) => detailedChecks.includes(text)).length} of ${inWindow.length} rules · missing: ${listOf(inWindow.filter((text) => !detailedChecks.includes(text)))}`,
+      "the guide is the model's wording",
     ),
   ];
 }
 
 /** Every review fact points at pull requests that were sent to the model,
  * and every check line in the guides is one of those facts. */
-function traceCheck(sim: Sim): CheckResult {
+function traceCheck(sim: Sim): CheckResult[] {
   const state = knowledgeState(sim);
   const prompts = new Map<number, string[]>();
   for (const call of completions(sim, { job: "extract_unit" })) {
@@ -831,13 +848,22 @@ function traceCheck(sim: Sim): CheckResult {
       }
     }
   }
-  return check(
-    "guide facts trace to the evidence sent",
-    reviewFacts.length > 0 && problems.length === 0,
-    problems.length
-      ? problems.slice(0, 5).join(" · ")
-      : `${reviewFacts.length} review facts from ${prompts.size} pull requests sent`,
-  );
+  return [
+    check(
+      "guide facts trace to the evidence sent",
+      problems.length === 0,
+      problems.length
+        ? problems.slice(0, 5).join(" · ")
+        : `${reviewFacts.length} review facts from ${prompts.size} pull requests sent`,
+    ),
+    scriptedCheck(
+      sim,
+      "init extracts review facts from the pull requests",
+      reviewFacts.length > 0,
+      `${reviewFacts.length} review facts from ${prompts.size} pull requests sent`,
+      "which facts the model finds is its answer",
+    ),
+  ];
 }
 
 function capChecks(sim: Sim): CheckResult[] {
@@ -912,6 +938,9 @@ function syncChecks(sim: Sim): CheckResult[] {
     .map((call) => prNumberOf(call.firstUser))
     .filter((number): number is number => number !== undefined)
     .sort();
+  // A real model's call can fail and be asked again: that is one pull
+  // request sent twice, not two sent.
+  const syncPrSet = [...new Set(syncPrs)];
   const sentBefore = new Set(
     initCalls.map((call) => `${call.job}\0${call.system}\0${call.firstUser}`),
   );
@@ -958,18 +987,24 @@ function syncChecks(sim: Sim): CheckResult[] {
     ),
     check(
       "no AI call for unchanged evidence",
-      JSON.stringify(syncPrs) === JSON.stringify(changed) &&
+      JSON.stringify(syncPrSet) === JSON.stringify(changed) &&
         repeated.length === 0,
-      `pull requests sent again: #${listOf(syncPrs)} · calls repeated from init: ${repeated.length ? repeated.map((call) => call.job).join(", ") : "none"}`,
+      `pull requests sent again: #${listOf(syncPrSet)} · calls repeated from init: ${repeated.length ? repeated.map((call) => call.job).join(", ") : "none"}`,
     ),
-    fakeOnly(
+    scriptedCheck(
       sim,
-      check(
-        "sync's guide holds the new and edited rules, not the old text",
-        wanted.every((text) => detailed.includes(text)) &&
-          !detailed.includes(RULES.percentRange),
-        `missing: ${listOf(wanted.filter((text) => !detailed.includes(text)))} · old text ${detailed.includes(RULES.percentRange) ? "still there" : "gone"}`,
-      ),
+      "sync asks the model about each changed pull request once",
+      JSON.stringify(syncPrs) === JSON.stringify(changed),
+      `pull requests sent: #${listOf(syncPrs)} · changed #${listOf(changed)}`,
+      "a real model's call may fail and be asked again",
+    ),
+    scriptedCheck(
+      sim,
+      "sync's guide holds the new and edited rules, not the old text",
+      wanted.every((text) => detailed.includes(text)) &&
+        !detailed.includes(RULES.percentRange),
+      `missing: ${listOf(wanted.filter((text) => !detailed.includes(text)))} · old text ${detailed.includes(RULES.percentRange) ? "still there" : "gone"}`,
+      "the guide is the model's wording",
     ),
   ];
 }
@@ -995,11 +1030,12 @@ function codebaseCheck(sim: Sim): CheckResult {
   );
 }
 
-function viewCheck(sim: Sim): CheckResult {
+function viewCheck(sim: Sim): CheckResult[] {
   const view = sim.state.view as { all: CliRun; list: CliRun } | undefined;
   const files = (sim.state.afterSync ?? {}) as Record<string, string>;
-  if (!view)
-    return check("view printed every guide", false, "view did not run");
+  if (!view) {
+    return [check("view printed every guide", false, "view did not run")];
+  }
   const headers = [...view.all.stdout.matchAll(/^== (\S+) · built /gm)].map(
     (match) => match[1],
   );
@@ -1010,16 +1046,30 @@ function viewCheck(sim: Sim): CheckResult {
   const bodies = GUIDE_FILES.filter(
     (name) => files[name] && view.all.stdout.includes(files[name]!.trimEnd()),
   );
-  return check(
-    "view printed every guide",
-    JSON.stringify(headers) === JSON.stringify(GUIDE_FILES) &&
-      JSON.stringify(listed) === JSON.stringify(GUIDE_FILES) &&
-      bodies.length === GUIDE_FILES.length,
-    `headers ${listOf(headers)} · listed ${listOf(listed)} · ${bodies.length} of ${GUIDE_FILES.length} bodies match the files`,
-  );
+  // The review guides exist only when the model found enough review signals,
+  // so what view must print is what is on disk.
+  const onDisk = GUIDE_FILES.filter((name) => files[name]);
+  return [
+    check(
+      "view printed every guide on disk",
+      JSON.stringify(headers) === JSON.stringify(onDisk) &&
+        JSON.stringify(listed) === JSON.stringify(onDisk) &&
+        bodies.length === onDisk.length,
+      `headers ${listOf(headers)} · listed ${listOf(listed)} · ${bodies.length} of ${onDisk.length} bodies match the files`,
+    ),
+    scriptedCheck(
+      sim,
+      "view printed every guide",
+      JSON.stringify(headers) === JSON.stringify(GUIDE_FILES) &&
+        JSON.stringify(listed) === JSON.stringify(GUIDE_FILES) &&
+        bodies.length === GUIDE_FILES.length,
+      `headers ${listOf(headers)} · listed ${listOf(listed)} · ${bodies.length} of ${GUIDE_FILES.length} bodies match the files`,
+      "the review guides exist only when the model finds enough review signals",
+    ),
+  ];
 }
 
-function failedGuideCheck(sim: Sim): CheckResult {
+function failedGuideCheck(sim: Sim): CheckResult[] {
   const run = sim.state.failed as SetupRun | undefined;
   const before = (sim.state.afterSync ?? {}) as Record<string, string>;
   const now = guides(sim);
@@ -1033,20 +1083,32 @@ function failedGuideCheck(sim: Sim): CheckResult {
   const kept = sim.trace.logs.some(
     (line) => line.step === STEP.failed && /not regenerated/.test(line.message),
   );
-  return check(
-    "a failed guide call keeps the previous guides",
-    run?.exitCode === 0 &&
-      guideCalls.length > 0 &&
-      guideCalls.every((call) => !call.ok) &&
-      same.length === 2 &&
-      kept,
-    `exit ${run?.exitCode ?? "none"} · ${guideCalls.length} guide calls, ${guideCalls.filter((call) => !call.ok).length} failed · ${same.length} of 2 guides unchanged · ${kept ? "logged as kept" : "no log line"}`,
-  );
+  const detail = `exit ${run?.exitCode ?? "none"} · ${guideCalls.length} guide calls, ${guideCalls.filter((call) => !call.ok).length} failed · ${same.length} of 2 guides unchanged · ${kept ? "logged as kept" : "no log line"}`;
+  return [
+    scriptedCheck(
+      sim,
+      "a failed guide call keeps the previous guides",
+      run?.exitCode === 0 &&
+        guideCalls.length > 0 &&
+        guideCalls.every((call) => !call.ok) &&
+        same.length === 2 &&
+        kept,
+      detail,
+      "whether the new rule makes sync rebuild the guide depends on what the model finds in it",
+    ),
+    check(
+      "a failed guide call leaves the guides on disk as they were",
+      run?.exitCode === 0 &&
+        guideCalls.every((call) => !call.ok) &&
+        same.length === 2,
+      detail,
+    ),
+  ];
 }
 
 /** A guide the failed run kept is still a guide every review reads, so the
  * skill must keep pointing at it. */
-function keptLinkCheck(sim: Sim): CheckResult {
+function keptLinkCheck(sim: Sim): CheckResult[] {
   const now = guides(sim);
   const run = sim.state.failed as SetupRun | undefined;
   const linked = (now["SKILL.md"] ?? "").includes(
@@ -1057,14 +1119,24 @@ function keptLinkCheck(sim: Sim): CheckResult {
     (line) =>
       line.step === STEP.failed && /fewer than 3 review/.test(line.message),
   );
-  return check(
-    "SKILL.md still links the guide a failed run kept",
-    Boolean(now["PR_REVIEW_GUIDE.md"]) &&
-      linked &&
-      run?.json.reviewGuide === "kept" &&
-      !blamesSignals,
-    `PR_REVIEW_GUIDE.md ${now["PR_REVIEW_GUIDE.md"] ? "on disk" : "missing"} · SKILL.md ${linked ? "links it" : "has no link"} · --json says ${String(run?.json.reviewGuide ?? "nothing")}${blamesSignals ? " · the log blames too few review signals" : ""}`,
-  );
+  const detail = `PR_REVIEW_GUIDE.md ${now["PR_REVIEW_GUIDE.md"] ? "on disk" : "missing"} · SKILL.md ${linked ? "links it" : "has no link"} · --json says ${String(run?.json.reviewGuide ?? "nothing")}${blamesSignals ? " · the log blames too few review signals" : ""}`;
+  return [
+    scriptedCheck(
+      sim,
+      "SKILL.md still links the guide a failed run kept",
+      Boolean(now["PR_REVIEW_GUIDE.md"]) &&
+        linked &&
+        run?.json.reviewGuide === "kept" &&
+        !blamesSignals,
+      detail,
+      "whether the guide exists and was rebuilt depends on what the model finds",
+    ),
+    check(
+      "SKILL.md links the review guide exactly when it is on disk",
+      Boolean(now["PR_REVIEW_GUIDE.md"]) === linked,
+      detail,
+    ),
+  ];
 }
 
 /** The detailed guide keeps each rule's example nested under it, as the
@@ -1080,13 +1152,12 @@ function nestingCheck(sim: Sim): CheckResult {
   const flat = detailed
     .split("\n")
     .filter((line) => line.startsWith(" - ")).length;
-  return fakeOnly(
+  return scriptedCheck(
     sim,
-    check(
-      "the guide keeps examples nested under their rule",
-      nested > 0 && flat === 0,
-      `${nested} nested example lines · ${flat} flattened to one space`,
-    ),
+    "the guide keeps examples nested under their rule",
+    nested > 0 && flat === 0,
+    `${nested} nested example lines · ${flat} flattened to one space`,
+    "the guide's examples are the model's wording",
   );
 }
 
@@ -1122,14 +1193,14 @@ function builtCheck(sim: Sim): CheckResult {
 export async function initSyncChecks(sim: Sim): Promise<CheckResult[]> {
   return [
     ...initChecks(sim),
-    traceCheck(sim),
+    ...traceCheck(sim),
     ...capChecks(sim),
     ...syncChecks(sim),
     codebaseCheck(sim),
-    viewCheck(sim),
+    ...viewCheck(sim),
     nestingCheck(sim),
-    failedGuideCheck(sim),
-    keptLinkCheck(sim),
+    ...failedGuideCheck(sim),
+    ...keptLinkCheck(sim),
     builtCheck(sim),
     check(
       "init and sync only read GitHub",
