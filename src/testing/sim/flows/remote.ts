@@ -421,9 +421,9 @@ function remoteChecks(sim: Sim): CheckResult[] {
   const asked = askedTools(sim, STEP.first);
   const delivered = deliveredTools(sim, STEP.first);
   const ran = ranTools(first?.toolRuns ?? []);
-  const allDelivered = sim.trace.remote.flatMap((call) =>
-    SYNC.test(new URL(call.url).pathname) ? deliveredTools(sim, call.step) : [],
-  );
+  const allDelivered = [
+    ...new Set(sim.trace.remote.map((call) => call.step)),
+  ].flatMap((step) => deliveredTools(sim, step));
   const allRan = ranTools([...s.runs.values()].flatMap((run) => run.toolRuns));
   const toolAnswer = sim.trace.ai
     .filter((call) => call.step === STEP.first && call.job === "review_local")
