@@ -361,7 +361,9 @@ const steps: Step[] = [
       );
     },
   },
-  reviewStep(S.guideTwo, "guide"),
+  // The author also pushes, so a run that kept the carry-over would compare
+  // the heads, and one that started fresh for the guide would not.
+  reviewStep(S.guideTwo, "guide", undefined, pushFormat),
   reviewStep(S.forceOne, "force"),
   reviewStep(S.forceTwo, "force", undefined, (sim, pull) => {
     // The author rebases: one new commit straight on the base, with the
@@ -838,10 +840,11 @@ function flowChecks(sim: Sim): CheckResult[] {
     ),
     scripted(
       sim,
-      "a guide rebuilt since the last run calls both findings new again",
-      counts(g2) === "2 new · 0 open · 0 closed · 1 blocking" &&
+      "a guide rebuilt since the last run judges the pull request as a first review",
+      counts(g2) === "1 new · 0 open · 0 closed · 1 blocking" &&
+        stateOf(g2, MATH_PATH) === "new" &&
         g2?.exitCode === 1,
-      counts(g2),
+      `${counts(g2)} · ${statesText(g2)}`,
     ),
     check(
       "a guide rebuilt since the last run stores the new guide time and new ids",
