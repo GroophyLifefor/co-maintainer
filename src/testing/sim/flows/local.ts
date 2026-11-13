@@ -1127,6 +1127,7 @@ const JSON_FIELDS = [
   "warnings",
   "usage",
   "durationMs",
+  "extensions",
 ];
 
 function round1Checks(sim: Sim): CheckResult[] {
