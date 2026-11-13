@@ -1,9 +1,9 @@
 /** What a `sync` changed in the rules, compared by their sources.
  *
- * A rebuilt `INSTRUCTIONS.md` can reword every rule, so text alone cannot say
- * which rule became which. Sources survive a rewrite: an instruction rule
- * keeps resting on the same file lines. A new rule that shares a source with
- * an old one is that rule, rewritten. */
+ * A rebuilt guide can reword every line, so text alone cannot say which line
+ * became which. Sources survive a rewrite: a guide line keeps resting on the
+ * same pull requests, an instruction rule on the same file lines. A new rule
+ * that shares a source with an old one is that rule, rewritten. */
 import { rulesOfKind, sourceLabel, type RuleEntry } from "./rules.ts";
 
 export type AddedRule = { id: string; text: string; sources: string[] };
@@ -21,6 +21,8 @@ export type DroppedRule = {
   id: string;
   text: string;
   sources: string[];
+  /** Pull requests that are no longer in the window this sync read. */
+  leftWindow: string[];
 };
 
 export type RuleChanges = {
@@ -34,12 +36,14 @@ function labels(entry: RuleEntry): string[] {
   return [...new Set(entry.sources.map(sourceLabel))];
 }
 
-/** Compares one kind of rule. A rule with no source cannot be matched and is
- * left out of the report. */
+/** Compares one kind of rule, `R` or `I`. A rule with no source cannot be
+ * matched and is left out of the report. `inWindow` names the pull requests
+ * the sync read, so a dropped rule can say its pull request left the window. */
 export function compareRules(
   previous: Record<string, RuleEntry> | undefined,
   next: Record<string, RuleEntry>,
-  kind: "I",
+  kind: "R" | "I",
+  inWindow?: Set<number>,
 ): RuleChanges {
   const old = Object.entries(rulesOfKind(previous, kind))
     .map(([id, entry]) => ({ id, entry, sources: labels(entry) }))
@@ -92,6 +96,12 @@ export function compareRules(
       id: rule.id,
       text: rule.entry.text,
       sources: rule.sources,
+      leftWindow: inWindow
+        ? rule.sources.filter((source) => {
+            const match = /^#(\d+)$/.exec(source);
+            return match !== null && !inWindow.has(Number(match[1]));
+          })
+        : [],
     });
   }
   return changes;
@@ -104,8 +114,8 @@ function listed(items: string[], max = 5): string {
   return `${unique.slice(0, max).join(", ")}, and ${unique.length - max} more`;
 }
 
-/** `1 rule added (AGENTS.md:40) · 1 rewritten (I3, AGENTS.md:12 joined) · 1
- * dropped (AGENTS.md:9)`, or `no rule changed`. */
+/** `2 rules added (#402, #407) · 1 rewritten (R12, #340 joined) · 1 dropped
+ * (#101 left the window)`, or `no rule changed`. */
 export function ruleChangeLine(changes: RuleChanges): string {
   const parts: string[] = [];
   if (changes.added.length > 0) {
@@ -125,11 +135,12 @@ export function ruleChangeLine(changes: RuleChanges): string {
     parts.push(`${changes.rewritten.length} rewritten (${listed(items, 3)})`);
   }
   if (changes.dropped.length > 0) {
-    parts.push(
-      `${changes.dropped.length} dropped (${listed(
-        changes.dropped.flatMap((rule) => rule.sources),
-      )})`,
+    const items = changes.dropped.flatMap((rule) =>
+      rule.sources.map((source) =>
+        rule.leftWindow.includes(source) ? `${source} left the window` : source,
+      ),
     );
+    parts.push(`${changes.dropped.length} dropped (${listed(items)})`);
   }
   return parts.length > 0 ? parts.join(" · ") : "no rule changed";
 }

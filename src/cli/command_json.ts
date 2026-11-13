@@ -79,9 +79,9 @@ export type SetupJsonInput = {
       overCap: number;
     };
   };
-  /** The full change lists behind the `[instructions]` line, or `null` when
-   * there was no earlier `RULES.json`. */
-  ruleChanges?: { instructions: RuleChanges } | null;
+  /** The full change lists behind the `[guide]` and `[instructions]` lines,
+   * or `null` when there was no earlier `RULES.json`. */
+  ruleChanges?: { guide: RuleChanges; instructions: RuleChanges } | null;
   summary: RunSummary;
 };
 
