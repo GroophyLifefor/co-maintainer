@@ -5,20 +5,11 @@ import { test } from "node:test";
 import { parseArgs, setCliInteractive } from "./args.ts";
 import { renderCommandHelp } from "./commands/registry.ts";
 import { writeRepoConfig, writeUserConfig } from "../config.ts";
-import {
-  deleteEnv,
-  getEnv,
-  makeTempDir,
-  remove,
-  setEnv,
-} from "../util/runtime.ts";
+import { withIsolatedHome } from "../testing/isolated_home.ts";
 
 async function withConfig(fn: () => Promise<void>): Promise<void> {
-  const root = await makeTempDir({ prefix: "cm-agent-args-" });
-  const previous = getEnv("CM_CONFIG_PATH");
-  setEnv("CM_CONFIG_PATH", `${root}/config.json`);
   setCliInteractive(false);
-  try {
+  await withIsolatedHome(async () => {
     await writeUserConfig({
       ai: "openrouter",
       token: "fake",
@@ -26,11 +17,7 @@ async function withConfig(fn: () => Promise<void>): Promise<void> {
       highModel: "high/model",
     });
     await fn();
-  } finally {
-    if (previous === undefined) deleteEnv("CM_CONFIG_PATH");
-    else setEnv("CM_CONFIG_PATH", previous);
-    await remove(root, { recursive: true });
-  }
+  });
 }
 
 async function exitCode(fn: () => Promise<unknown>): Promise<number> {

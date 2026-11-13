@@ -8,7 +8,7 @@ import {
   renderInstructions,
   synthesizeInstructions,
 } from "./instructions.ts";
-import { cacheDeletePrefix } from "../store/cache_db.ts";
+import { withIsolatedHome } from "../testing/isolated_home.ts";
 import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
 
 const FILES = {
@@ -273,7 +273,7 @@ test("rules stop at the cap in the model's order and the rest are counted", () =
 
 test("synthesis writes the checked rules, and is failed or empty when it should be", async () => {
   const repo = `instructions-${crypto.randomUUID()}`;
-  try {
+  await withIsolatedHome(async () => {
     const good = await synthesizeInstructions(
       new Answer(
         JSON.stringify({
@@ -326,11 +326,7 @@ test("synthesis writes the checked rules, and is failed or empty when it should 
       6000,
     );
     if (none.status !== "empty") throw new Error(`none: ${none.status}`);
-  } finally {
-    for (const suffix of ["", "-prose", "-none"]) {
-      await cacheDeletePrefix("ai-jobs", `${repo}${suffix}:`);
-    }
-  }
+  });
 });
 
 test("an unchanged input is answered from the cache on the next build", async () => {
@@ -338,7 +334,7 @@ test("an unchanged input is answered from the cache on the next build", async ()
   const answer = new Answer(
     '{"rules":[{"rule":"Every test lives next to its module.","scope":"","sources":["AGENTS.md:5"]}]}',
   );
-  try {
+  await withIsolatedHome(async () => {
     for (let run = 0; run < 2; run++) {
       const result = await synthesizeInstructions(
         answer,
@@ -354,7 +350,5 @@ test("an unchanged input is answered from the cache on the next build", async ()
     if (answer.requests.length !== 1) {
       throw new Error(`the model was asked ${answer.requests.length} times`);
     }
-  } finally {
-    await cacheDeletePrefix("ai-jobs", `${repo}:`);
-  }
+  });
 });

@@ -4,15 +4,8 @@ import { test } from "node:test";
 import { reviewWorkspaceRevision } from "./reviewer.ts";
 import { testOptions } from "../testing/helpers.ts";
 import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
-import {
-  deleteEnv,
-  getEnv,
-  makeTempDir,
-  mkdir,
-  remove,
-  setEnv,
-  writeTextFile,
-} from "../util/runtime.ts";
+import { mkdir, writeTextFile } from "../util/runtime.ts";
+import { withIsolatedHome } from "../testing/isolated_home.ts";
 
 class Recorder implements AiProvider {
   supportsTools = false;
@@ -29,12 +22,11 @@ class Recorder implements AiProvider {
   }
 }
 
+const REPO = `acme/review-${crypto.randomUUID()}`;
+
 async function systemPrompt(files: Record<string, string>): Promise<string> {
-  const root = await makeTempDir({ prefix: "cm-review-instructions-" });
-  const previous = getEnv("CM_REPOS_DIR");
-  setEnv("CM_REPOS_DIR", root);
-  try {
-    const dir = `${root}/acme/widgets`;
+  return withIsolatedHome(async (root) => {
+    const dir = `${root}/repos/${REPO}`;
     await mkdir(dir, { recursive: true });
     for (const [name, body] of Object.entries(files)) {
       await writeTextFile(`${dir}/${name}`, body);
@@ -58,17 +50,13 @@ async function systemPrompt(files: Record<string, string>): Promise<string> {
         baseLabel: "main",
         producer: "local",
       },
-      testOptions({ repo: "acme/widgets", ai: "openrouter" }),
+      testOptions({ repo: REPO, ai: "openrouter" }),
       "head",
       undefined,
       provider,
     );
     return provider.requests[0]?.system ?? "";
-  } finally {
-    if (previous === undefined) deleteEnv("CM_REPOS_DIR");
-    else setEnv("CM_REPOS_DIR", previous);
-    await remove(root, { recursive: true });
-  }
+  });
 }
 
 test("a review's system prompt carries INSTRUCTIONS.md and never RULES.json", async () => {

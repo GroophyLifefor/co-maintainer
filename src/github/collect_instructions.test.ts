@@ -3,6 +3,10 @@ import { collectSource } from "./collect.ts";
 import { testOptions } from "../testing/helpers.ts";
 import { withLogSink } from "../util/log.ts";
 import type { GitHubClient } from "../types.ts";
+import { withIsolatedHome } from "../testing/isolated_home.ts";
+
+/** A name no other test uses, so no cache row is ever shared. */
+const REPO = `fixture/instructions-${crypto.randomUUID()}`;
 
 /** A repository with many source files, so the 80-file codebase cap is full,
  * plus instruction files at several depths. */
@@ -25,10 +29,10 @@ class InstructionsClient implements GitHubClient {
   }
 
   async request<T>(endpoint: string): Promise<T> {
-    if (endpoint === "repos/fixture/repo") {
-      return { default_branch: "main", full_name: "fixture/repo" } as T;
+    if (endpoint === `repos/${REPO}`) {
+      return { default_branch: "main", full_name: REPO } as T;
     }
-    if (endpoint.startsWith("repos/fixture/repo/git/trees/")) {
+    if (endpoint.startsWith(`repos/${REPO}/git/trees/`)) {
       return {
         tree: this.tree.map((item) => ({ type: "blob", ...item })),
       } as T;
@@ -38,23 +42,6 @@ class InstructionsClient implements GitHubClient {
       const path = match[1].split("/").map(decodeURIComponent).join("/");
       this.contentPaths.push(path);
       return { content: btoa(`content of ${path}\n`) } as T;
-    }
-    if (endpoint.includes("/pulls?")) {
-      const page = Number(/[?&]page=(\d+)/.exec(endpoint)?.[1] ?? 1);
-      if (page > 1) return [] as T;
-      return [
-        {
-          number: 7,
-          title: "Merged one",
-          state: "closed",
-          merged_at: "2026-03-04T10:00:00Z",
-          updated_at: new Date().toISOString(),
-          head: { sha: "head-7" },
-          additions: 1,
-          deletions: 1,
-          labels: [],
-        },
-      ] as T;
     }
     throw new Error(`unexpected endpoint: ${endpoint}`);
   }
@@ -68,9 +55,11 @@ async function quietly<T>(
   fn: () => Promise<T>,
 ): Promise<{ result: T; lines: string[] }> {
   const lines: string[] = [];
-  const result = await withLogSink(
-    (phase, message) => void lines.push(`[${phase}] ${message}`),
-    fn,
+  const result = await withIsolatedHome(() =>
+    withLogSink(
+      (phase, message) => void lines.push(`[${phase}] ${message}`),
+      fn,
+    ),
   );
   return { result, lines };
 }
@@ -84,7 +73,7 @@ test("instruction files are read outside the codebase cap and kept out of the co
     })),
   );
   const { result: source } = await quietly(() =>
-    collectSource(client, testOptions({ repo: "fixture/repo" })),
+    collectSource(client, testOptions({ repo: REPO })),
   );
   if (Object.keys(source.files).length !== 80) {
     throw new Error(
@@ -105,7 +94,7 @@ test("instruction files are read outside the codebase cap and kept out of the co
 
 test("a custom pattern picks other files and an unchanged blob is not fetched again", async () => {
   const options = testOptions({
-    repo: "fixture/repo",
+    repo: REPO,
     agentInstructions: "(^|/)(AGENTS|CLAUDE)\\.md$",
   });
   const client = new InstructionsClient();
@@ -130,11 +119,11 @@ test("a custom pattern picks other files and an unchanged blob is not fetched ag
 test("with --include-codebase off, or a blank pattern, no instruction file is read", async () => {
   for (const options of [
     testOptions({
-      repo: "fixture/repo",
+      repo: REPO,
       includeCodebase: false,
       includeHowRepoWorks: true,
     }),
-    testOptions({ repo: "fixture/repo", agentInstructions: "" }),
+    testOptions({ repo: REPO, agentInstructions: "" }),
   ]) {
     const client = new InstructionsClient();
     const { result: source } = await quietly(() =>
@@ -158,7 +147,7 @@ test("past 50 files the deepest ones are left out and named", async () => {
   }));
   const client = new InstructionsClient(extra);
   const { result: source, lines } = await quietly(() =>
-    collectSource(client, testOptions({ repo: "fixture/repo" })),
+    collectSource(client, testOptions({ repo: REPO })),
   );
   const read = Object.keys(source.instructionFiles ?? {});
   if (read.length !== 50 || !read.includes("AGENTS.md")) {
@@ -183,7 +172,7 @@ test("a matched file the caps left out is still read by the codebase extraction"
   const { result: source } = await quietly(() =>
     collectSource(
       client,
-      testOptions({ repo: "fixture/repo", agentInstructions: "README\\.md$" }),
+      testOptions({ repo: REPO, agentInstructions: "README\\.md$" }),
     ),
   );
   const asInstructions = Object.keys(source.instructionFiles ?? {});

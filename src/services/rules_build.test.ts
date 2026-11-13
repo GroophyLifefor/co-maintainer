@@ -10,31 +10,17 @@ import { parseRules } from "../knowledge/rules.ts";
 import { testOptions, testSource } from "../testing/helpers.ts";
 import { withLogSink } from "../util/log.ts";
 import type { AiProvider, AiResponse } from "../types.ts";
-import {
-  deleteEnv,
-  getEnv,
-  makeTempDir,
-  mkdir,
-  readTextFile,
-  remove,
-  setEnv,
-  stat,
-} from "../util/runtime.ts";
+import { mkdir, readTextFile, stat } from "../util/runtime.ts";
+import { withIsolatedHome } from "../testing/isolated_home.ts";
 
-const REPO = "acme/widgets";
+const REPO = `acme/rules-${crypto.randomUUID()}`;
 
 async function withReposDir(fn: (dir: string) => Promise<void>): Promise<void> {
-  const root = await makeTempDir({ prefix: "cm-rules-" });
-  const previous = getEnv("CM_REPOS_DIR");
-  setEnv("CM_REPOS_DIR", root);
-  await mkdir(`${root}/${REPO}`, { recursive: true });
-  try {
-    await fn(`${root}/${REPO}`);
-  } finally {
-    if (previous === undefined) deleteEnv("CM_REPOS_DIR");
-    else setEnv("CM_REPOS_DIR", previous);
-    await remove(root, { recursive: true });
-  }
+  await withIsolatedHome(async (root) => {
+    const dir = `${root}/repos/${REPO}`;
+    await mkdir(dir, { recursive: true });
+    await fn(dir);
+  });
 }
 
 async function exists(path: string): Promise<boolean> {
