@@ -20,6 +20,7 @@ import {
   type CliRun,
   type Score,
   type Sim,
+  type Step,
 } from "../flow.ts";
 import { SAMPLE_REPO, SAMPLE_REPO_NAME } from "../sample_repo.ts";
 import { dumpDatabase, readFiles } from "../trace.ts";
@@ -34,7 +35,13 @@ import {
   serveWhile,
 } from "./remote_support.ts";
 
-export { type Checkout, remoteWire, serveWhile } from "./remote_support.ts";
+export {
+  type Checkout,
+  clientCheckout,
+  installCodegraphStandIn,
+  remoteWire,
+  serveWhile,
+} from "./remote_support.ts";
 
 type Json = Record<string, unknown>;
 
@@ -892,7 +899,41 @@ function remoteScores(sim: Sim): Score[] {
   ];
 }
 
-const percentOf = `${SAMPLE_REPO["src/format.ts"]}\nexport function percentOf(part: number, total: number): string {\n  return formatPercent(part / total);\n}\n`;
+/** The first change the client reviews: `percentOf` in `src/format.ts`,
+ * which `REMOTE_AI` answers with a codegraph round and one P1. */
+export const PERCENT_OF_CHANGE: Record<string, string> = {
+  "src/format.ts": `${SAMPLE_REPO["src/format.ts"]}\nexport function percentOf(part: number, total: number): string {\n  return formatPercent(part / total);\n}\n`,
+};
+
+/** The token and the client checkout the setup steps made. */
+export function remoteState(sim: Sim): { token: string; dev: Checkout } {
+  return state(sim);
+}
+
+/** The two steps every remote flow starts with: a server with guides, and
+ * a client checkout (`dev`, branch `sim/feature`) with `files` committed.
+ * `remoteState(sim)` then holds the token and the checkout. */
+export function remoteSetupSteps(
+  files: Record<string, string> = PERCENT_OF_CHANGE,
+  config: Record<string, unknown> = { remoteByokPolicy: "allow" },
+): Step[] {
+  return [
+    {
+      name: "server with guides",
+      async run(sim) {
+        state(sim).token = await startRemoteServer(sim, config);
+        return `${SAMPLE_REPO_NAME} initialized · token created · codegraph stand-in`;
+      },
+    },
+    {
+      name: "client checkout with a change",
+      run(sim) {
+        state(sim).dev = clientChange(sim, "dev", "sim/feature", files);
+        return `sim/feature changes ${Object.keys(files).join(", ")}`;
+      },
+    },
+  ];
+}
 
 export default defineFlow({
   name: "remote",
@@ -900,24 +941,7 @@ export default defineFlow({
     "remote review and push review, with the client and the server in one process",
   ai: [...INIT_AI, ...REMOTE_AI, ...PUSH_AI],
   steps: [
-    {
-      name: "server with guides",
-      async run(sim) {
-        state(sim).token = await startRemoteServer(sim, {
-          remoteByokPolicy: "allow",
-        });
-        return `${SAMPLE_REPO_NAME} initialized · token created · codegraph stand-in`;
-      },
-    },
-    {
-      name: "client checkout with a change",
-      run(sim) {
-        state(sim).dev = clientChange(sim, "dev", "sim/feature", {
-          "src/format.ts": percentOf,
-        });
-        return "sim/feature adds percentOf";
-      },
-    },
+    ...remoteSetupSteps(),
     {
       name: STEP.first,
       async run(sim) {
