@@ -410,6 +410,7 @@ co-maintainer set [options]
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |
 | `--codegraph-version=SEMVER` |  | The pinned codegraph version, overriding the built-in one. For a security fix without a release. |
 | `--password=TEXT` |  | Replace the dashboard password. |
+| `--extension-rerun-on-restart=true\|false` | true | Run an extension again when co-maintainer restarted while it ran. A registration's --rerun-on-restart wins. |
 | `--disable-auth=password` |  | Turn the dashboard password off. |
 | `--enable-auth=github` |  | Turn GitHub sign-in on. |
 | `--no-verify` |  | Do not check the key and model against the provider. |
@@ -441,6 +442,54 @@ co-maintainer serve --port=N [options]
 |---|---|---|
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+
+## `co-maintainer extension`
+
+Register external commands whose results join every review.
+
+```
+co-maintainer extension register --name=NAME --command=COMMAND [options]
+co-maintainer extension update --name=NAME [options]
+co-maintainer extension list [--json]
+co-maintainer extension remove --name=NAME
+co-maintainer extension disable --name=NAME
+co-maintainer extension enable --name=NAME
+co-maintainer extension debug-run --name=NAME [--command=COMMAND]
+```
+
+### Extension
+
+| Flag | Default | Description |
+|---|---|---|
+| `--name=NAME` |  | The extension's name. Required. |
+| `--command=COMMAND` |  | The shell command to run. {{details_path}}, {{review_result_path}} and {{diff_path}} are replaced with quoted paths. Required for register. |
+| `--repos=PATTERNS` | * | Where it runs: owner/repo, a/b,a/c, a/*, */a or *. |
+| `--review-types=local,pr,remote` | all | Only run in these review types. The extension can also check the type itself and return skipped. |
+
+### Order
+
+| Flag | Default | Description |
+|---|---|---|
+| `--run-after=NAME\|review` |  | Start when this extension, or the AI review, has finished. A name nobody registered asks first. |
+| `--parallelism=true\|false` | true | false with no --run-after means it runs after the review. |
+| `--priority=0-3` | 0 | Start order among extensions ready at the same time. 3 runs first, ties keep registration order. |
+| `--fail-fast` |  | On failure, the extensions waiting on this one through --run-after do not run. |
+
+### Retries and limits
+
+| Flag | Default | Description |
+|---|---|---|
+| `--retry-on-fail-times=N` | 0 | Run again when the response does not match the schema. |
+| `--max-requested-retries=N` | 3 | How many status retry responses are honoured. |
+| `--timeout=DURATION` | 10m | Stop a run after this long, such as 30s, 10m or 1h. The result is Failed. |
+| `--rerun-on-restart=true\|false` | true | Run again when co-maintainer restarted mid-run. Overrides the extension-rerun-on-restart config key. |
+| `--yes` |  | Save a --run-after that names an unregistered extension without asking. |
+
+### Output
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | With list, print the registrations as JSON. |
 
 ## `co-maintainer rollback`
 

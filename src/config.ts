@@ -8,6 +8,7 @@ import {
   setEnv,
   type Platform,
 } from "./util/runtime.ts";
+import type { ExtensionRegistration } from "./extensions/registry.ts";
 
 /** Everything init/remake resolved for one repo, except secrets — an API
  * token is never written to config.json, only ever taken from --token or
@@ -159,6 +160,12 @@ export type UserConfig = {
    * `--no-remote-byok` turns it off for one run without unsetting this. */
   remoteByokDefault?: boolean;
   repos?: Record<string, RepoConfig>;
+  /** Registered extensions, oldest first. Only `co-maintainer extension`
+   * writes it. */
+  extensions?: ExtensionRegistration[];
+  /** Whether an extension that was running when co-maintainer restarted runs
+   * again. Unset means it does. A registration's own value wins. */
+  extensionRerunOnRestart?: boolean;
 };
 
 export type ByokPolicy = "off" | "allow" | "require";

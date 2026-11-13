@@ -178,6 +178,7 @@ export const KNOWN_FIELDS = [
   "remoteByokDefault",
   "remoteByokPolicy",
   "reviewPolicy",
+  "extensionRerunOnRestart",
 ] as const satisfies readonly (keyof UserConfig)[];
 
 /** `co-maintainer config <sub> ...`. `set` is handled by runSet, which this

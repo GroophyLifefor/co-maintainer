@@ -145,6 +145,134 @@ const GITHUB_FLAGS: FlagGroup = {
   ],
 };
 
+/** `extension`: register external commands whose results join a review. */
+const EXTENSION_COMMAND: CommandSpec = {
+  name: "extension",
+  summary: "Register external commands whose results join every review.",
+  usage: [
+    "co-maintainer extension register --name=NAME --command=COMMAND [options]",
+    "co-maintainer extension update --name=NAME [options]",
+    "co-maintainer extension list [--json]",
+    "co-maintainer extension remove --name=NAME",
+    "co-maintainer extension disable --name=NAME",
+    "co-maintainer extension enable --name=NAME",
+    "co-maintainer extension debug-run --name=NAME [--command=COMMAND]",
+  ],
+  groups: [
+    {
+      title: "Extension",
+      flags: [
+        {
+          name: "name",
+          value: "NAME",
+          description: "The extension's name. Required.",
+        },
+        {
+          name: "command",
+          value: "COMMAND",
+          description:
+            "The shell command to run. {{details_path}}, {{review_result_path}} and {{diff_path}} are replaced with quoted paths. Required for register.",
+        },
+        {
+          name: "repos",
+          value: "PATTERNS",
+          default: "*",
+          description: "Where it runs: owner/repo, a/b,a/c, a/*, */a or *.",
+        },
+        {
+          name: "review-types",
+          value: "local,pr,remote",
+          default: "all",
+          description:
+            "Only run in these review types. The extension can also check the type itself and return skipped.",
+        },
+      ],
+    },
+    {
+      title: "Order",
+      flags: [
+        {
+          name: "run-after",
+          value: "NAME|review",
+          description:
+            "Start when this extension, or the AI review, has finished. A name nobody registered asks first.",
+        },
+        {
+          name: "parallelism",
+          value: "true|false",
+          default: "true",
+          description:
+            "false with no --run-after means it runs after the review.",
+        },
+        {
+          name: "priority",
+          value: "0-3",
+          default: "0",
+          description:
+            "Start order among extensions ready at the same time. 3 runs first, ties keep registration order.",
+        },
+        {
+          name: "fail-fast",
+          description:
+            "On failure, the extensions waiting on this one through --run-after do not run.",
+        },
+      ],
+    },
+    {
+      title: "Retries and limits",
+      flags: [
+        {
+          name: "retry-on-fail-times",
+          value: "N",
+          default: "0",
+          description: "Run again when the response does not match the schema.",
+        },
+        {
+          name: "max-requested-retries",
+          value: "N",
+          default: "3",
+          description: "How many status retry responses are honoured.",
+        },
+        {
+          name: "timeout",
+          value: "DURATION",
+          default: "10m",
+          description:
+            "Stop a run after this long, such as 30s, 10m or 1h. The result is Failed.",
+        },
+        {
+          name: "rerun-on-restart",
+          value: "true|false",
+          default: "true",
+          description:
+            "Run again when co-maintainer restarted mid-run. Overrides the extension-rerun-on-restart config key.",
+        },
+        {
+          name: "yes",
+          description:
+            "Save a --run-after that names an unregistered extension without asking.",
+        },
+      ],
+    },
+    {
+      title: "Output",
+      flags: [
+        {
+          name: "json",
+          description: "With list, print the registrations as JSON.",
+        },
+      ],
+    },
+  ],
+  examples: [
+    "co-maintainer extension register --name=qa-vision --command='HOME=/home/me /usr/bin/node /opt/qa-vision.mjs {{details_path}} --json'",
+    "co-maintainer extension register --name=lint --command='/opt/lint.sh {{diff_path}}' --review-types=pr --fail-fast",
+    "co-maintainer extension update --name=lint --run-after=review --priority=3",
+    "co-maintainer extension debug-run --name=qa-vision",
+    "co-maintainer extension list",
+  ],
+};
+
 export const COMMANDS: CommandSpec[] = [
   {
     name: "probe",
@@ -873,6 +1001,13 @@ export const COMMANDS: CommandSpec[] = [
             description: "Replace the dashboard password.",
           },
           {
+            name: "extension-rerun-on-restart",
+            value: "true|false",
+            default: "true",
+            description:
+              "Run an extension again when co-maintainer restarted while it ran. A registration's --rerun-on-restart wins.",
+          },
+          {
             name: "disable-auth",
             value: "password",
             description: "Turn the dashboard password off.",
@@ -949,6 +1084,7 @@ export const COMMANDS: CommandSpec[] = [
     ],
     examples: ["co-maintainer serve --port=5000"],
   },
+  EXTENSION_COMMAND,
   {
     name: "rollback",
     summary:

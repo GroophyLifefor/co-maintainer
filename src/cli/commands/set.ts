@@ -114,6 +114,7 @@ export async function runSet(args: string[]): Promise<void> {
     ...DIAGRAM_FLAGS,
     "review-read-diff-max-chars",
     "password",
+    "extension-rerun-on-restart",
     "unset",
   ];
   const verify = !args.includes("--no-verify");
@@ -184,6 +185,7 @@ export async function runSet(args: string[]): Promise<void> {
     "review-blocking": "reviewBlocking",
     "codegraph-version": "codegraphVersion",
     password: "dashboardPasswordHash",
+    "extension-rerun-on-restart": "extensionRerunOnRestart",
   };
   const unset = new Set(
     args
@@ -325,6 +327,13 @@ export async function runSet(args: string[]): Promise<void> {
       defaults.aiConcurrent = concurrencyValue(aiConcurrent, "--ai-concurrent");
     }
     patch.defaults = defaults;
+  }
+  const rerunOnRestart = text(args, "extension-rerun-on-restart");
+  if (rerunOnRestart !== undefined) {
+    if (!["true", "false"].includes(rerunOnRestart)) {
+      die("--extension-rerun-on-restart must be true or false");
+    }
+    patch.extensionRerunOnRestart = rerunOnRestart === "true";
   }
   const password = text(args, "password");
   if (password) {
