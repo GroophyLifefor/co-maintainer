@@ -62,6 +62,7 @@ function input(patch: Partial<CommonInput> = {}): CommonInput {
     appDbPath: join(dir, "missing-app.db"),
     cacheDbPath: cacheDb([]),
     unusedFaults: [],
+    unusedRules: [],
     ...patch,
   };
 }
@@ -78,7 +79,7 @@ test("a clean trace passes every inherited check", () => {
     checks.filter((check) => !check.ok),
     [],
   );
-  assert.equal(checks.length, 7);
+  assert.equal(checks.length, 8);
 });
 
 test("a call that left the simulation fails", () => {
@@ -218,6 +219,20 @@ test("a system prompt that changes between rounds fails", () => {
     completion({ firstUser: "another pull request", system: "different" }),
   );
   assert.equal(result(name, input({ trace: other })).ok, true);
+});
+
+test("an AI rule that answered nothing fails, and a live run skips the check", () => {
+  const check = result(
+    "every AI rule answered",
+    input({ unusedRules: ["second round"] }),
+  );
+  assert.equal(check.ok, false);
+  assert.match(check.detail, /second round/);
+  const live = result(
+    "every AI rule answered",
+    input({ unusedRules: ["second round"], mode: "live" }),
+  );
+  assert.equal(live.skipped, "live AI");
 });
 
 test("a planned fault that never happened fails", () => {

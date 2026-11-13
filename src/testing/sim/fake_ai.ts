@@ -56,6 +56,9 @@ export type AiRule = {
   reply: AiReply | AiReply[] | ((call: AiCall) => AiReply);
   /** How many calls the rule answers. Unlimited by default. */
   times?: number;
+  /** The flow may never reach this rule. Without it, a rule that answered
+   * nothing fails the "every AI rule answered" check. */
+  optional?: boolean;
 };
 
 export type FakeAnswer = {
@@ -108,15 +111,17 @@ export class FakeAi {
   private readonly rules: { rule: AiRule; used: number }[] = [];
   private nextToolCall = 1;
 
-  /** Adds rules. Earlier rules win, so add the specific ones first. */
+  /** Adds rules ahead of the ones already there, so a rule added in the
+   * middle of a flow wins over the flow's script. Within one call the first
+   * rule listed wins, so list the specific ones first. */
   use(...rules: AiRule[]): void {
-    for (const rule of rules) this.rules.push({ rule, used: 0 });
+    this.rules.unshift(...rules.map((rule) => ({ rule, used: 0 })));
   }
 
-  /** Rules a flow wrote that never answered a call. */
+  /** Rules that never answered a call, `optional` ones left out. */
   unused(): AiRule[] {
     return this.rules
-      .filter((entry) => entry.used === 0)
+      .filter((entry) => entry.used === 0 && !entry.rule.optional)
       .map((entry) => entry.rule);
   }
 

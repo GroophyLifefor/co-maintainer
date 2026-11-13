@@ -34,6 +34,18 @@ test("a list answers one call each, then the rule stops matching", () => {
   assert.deepEqual(answers, ["one", "two", "after"]);
 });
 
+test("a rule added later wins, and an optional rule is never unused", () => {
+  const ai = new FakeAi();
+  ai.use({ name: "script", job: "a", reply: "A" });
+  ai.use({ name: "later", job: "a", reply: "B" });
+  ai.use({ name: "maybe", job: "never", reply: "x", optional: true });
+  assert.equal(text(ai.answer(body("x"), "a")), "B");
+  assert.deepEqual(
+    ai.unused().map((rule) => rule.name),
+    ["script"],
+  );
+});
+
 test("times limits a rule, and a function sees the round", () => {
   const ai = new FakeAi();
   ai.use(

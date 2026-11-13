@@ -420,6 +420,7 @@ export async function runFlow(
       appDbPath: appDbPath(),
       cacheDbPath: cacheDbPath(),
       unusedFaults: faults.unused(),
+      unusedRules: fakeAi.unused().map((rule) => rule.name ?? ""),
     }).map((result) => {
       const reason = flow.skipInherited?.[result.name];
       return reason ? { ...result, ok: true, skipped: reason } : result;

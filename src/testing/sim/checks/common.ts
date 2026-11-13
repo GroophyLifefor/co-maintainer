@@ -50,6 +50,8 @@ export type CommonInput = {
   appDbPath: string;
   cacheDbPath: string;
   unusedFaults: Fault[];
+  /** Fake AI rules that answered nothing and are not `optional`, by name. */
+  unusedRules: string[];
 };
 
 export const INHERITED_CHECKS = [
@@ -60,6 +62,7 @@ export const INHERITED_CHECKS = [
   "cost recorded for every AI call",
   "one system prompt per conversation",
   "every planned fault happened",
+  "every AI rule answered",
 ] as const;
 
 export type InheritedCheck = (typeof INHERITED_CHECKS)[number];
@@ -293,6 +296,23 @@ export function commonChecks(input: CommonInput): CheckResult[] {
         ? input.unusedFaults.map(describeFault).join(", ")
         : "none left",
     },
+    // A rule nothing reached means the flow never tested what it scripted.
+    input.mode === "live"
+      ? {
+          name: "every AI rule answered",
+          ok: true,
+          detail: "",
+          skipped: "live AI",
+        }
+      : {
+          name: "every AI rule answered",
+          ok: input.unusedRules.length === 0,
+          detail: input.unusedRules.length
+            ? input.unusedRules
+                .map((rule) => rule || "(unnamed rule)")
+                .join(", ")
+            : "all answered or optional",
+        },
   ];
 }
 
