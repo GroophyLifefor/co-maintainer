@@ -303,7 +303,11 @@ export function queuePush(req: PushRequest): PushOutcome {
     // builds the merged diff from GitHub instead.
     const clientDiffFits = !req.revision ? false : before === req.before;
     if (req.revision && clientDiffFits) {
-      savePushInput(jobId, JSON.stringify(req.revision));
+      // A push review takes no intent, so a description is never stored.
+      savePushInput(
+        jobId,
+        JSON.stringify({ ...req.revision, description: "" }),
+      );
     }
     db.exec("COMMIT");
   } catch (error) {

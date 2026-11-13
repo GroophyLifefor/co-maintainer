@@ -17,13 +17,19 @@ import { validateSubmitRequest } from "../remote/validate.ts";
 import { REMOTE_MAX_SYSTEM_PROMPT_CHARS } from "../remote/schema.ts";
 import { INTENT_PROMPT_NOTE } from "../review/intent.ts";
 import { createApp } from "../server/app.ts";
+import { withIsolatedHome } from "../testing/isolated_home.ts";
+import { getJob } from "../store/jobs.ts";
+import { getPushInput } from "../store/watch.ts";
+import {
+  getOrCreateRemoteSubject,
+  getSubjectRevision,
+} from "../store/subjects.ts";
 import {
   deleteEnv,
   getEnv,
   mkdirPath,
   readTextFile,
   setEnv,
-  tempDirSync,
   writeTextFile,
 } from "../testing/runtime.ts";
 
@@ -84,6 +90,7 @@ function startFake(): Promise<Fake> {
 type Ctx = {
   app: ReturnType<typeof createApp>;
   token: string;
+  tokenId: string;
   fake: Fake;
 };
 
@@ -91,48 +98,43 @@ async function withServer(
   fn: (ctx: Ctx) => Promise<void>,
   config: Record<string, unknown> = {},
 ): Promise<void> {
-  const root = tempDirSync();
   const fake = await startFake();
-  const names = [
-    "CM_APP_DB",
-    "CM_CONFIG_PATH",
-    "CM_REPOS_DIR",
-    "CM_OPENROUTER_URL",
-    "LOCALAPPDATA",
-    "XDG_CACHE_HOME",
-    "CM_FAKE_AI",
-    "CM_REMOTE_BYOK_POLICY",
-  ];
+  const names = ["CM_OPENROUTER_URL", "CM_FAKE_AI", "CM_REMOTE_BYOK_POLICY"];
   const saved = new Map(names.map((name) => [name, getEnv(name)]));
-  setEnv("CM_APP_DB", `${root}/app.db`);
-  setEnv("CM_CONFIG_PATH", `${root}/config.json`);
-  setEnv("CM_REPOS_DIR", `${root}/repos`);
-  setEnv("CM_OPENROUTER_URL", fake.url);
-  setEnv("LOCALAPPDATA", `${root}/cache`);
-  setEnv("XDG_CACHE_HOME", `${root}/cache`);
-  deleteEnv("CM_FAKE_AI");
-  deleteEnv("CM_REMOTE_BYOK_POLICY");
-  await openAppDb();
-  registerRemoteReviewHandler();
-  registerPushReviewHandlers();
-  await writeUserConfig({
-    ai: "openrouter",
-    token: "server-key",
-    lowModel: "fake/model",
-    highModel: "fake/model",
-    auth: "gh",
-    ...config,
-  });
-  activateRepo(REPO, undefined);
-  markKnowledgeBuilt(REPO, "abc");
-  await mkdirPath(`${reposDir()}/${REPO}`, { recursive: true });
-  await writeTextFile(`${reposDir()}/${REPO}/PR_REVIEW_GUIDE.md`, "# Guide\n");
-  const { token } = await createRemoteToken("cli");
   try {
-    await fn({ app: createApp({ password: "pw" }), token, fake });
+    // Config, app.db, guides and caches all live in a temp folder, so the
+    // developer's own are never read or made.
+    await withIsolatedHome(async () => {
+      setEnv("CM_OPENROUTER_URL", fake.url);
+      deleteEnv("CM_FAKE_AI");
+      deleteEnv("CM_REMOTE_BYOK_POLICY");
+      await openAppDb();
+      registerRemoteReviewHandler();
+      registerPushReviewHandlers();
+      await writeUserConfig({
+        ai: "openrouter",
+        token: "server-key",
+        lowModel: "fake/model",
+        highModel: "fake/model",
+        auth: "gh",
+        ...config,
+      });
+      activateRepo(REPO, undefined);
+      markKnowledgeBuilt(REPO, "abc");
+      await mkdirPath(`${reposDir()}/${REPO}`, { recursive: true });
+      await writeTextFile(
+        `${reposDir()}/${REPO}/PR_REVIEW_GUIDE.md`,
+        "# Guide\n",
+      );
+      const { id: tokenId, token } = await createRemoteToken("cli");
+      try {
+        await fn({ app: createApp({ password: "pw" }), token, tokenId, fake });
+      } finally {
+        clearByokKeysForTest();
+        await closeAppDb();
+      }
+    });
   } finally {
-    clearByokKeysForTest();
-    await closeAppDb();
     await fake.close();
     for (const [name, value] of saved) {
       if (value === undefined) deleteEnv(name);
@@ -270,11 +272,19 @@ test("the server applies the repository's cap again, and a hard limit above it",
       ctx,
       "/api/remote/reviews",
       await submitBody(
-        ` ${"x".repeat(8000)}\n\n`,
+        ` ${"x".repeat(8000)}${" ".repeat(150_000)}\n\n`,
         "550e8400-e29b-41d4-a716-446655440003",
       ),
     );
     must(padded.status === 202, `padded ${padded.status}`);
+    // Only the text is kept, not the space around it.
+    const { jobId } = (await padded.json()) as { jobId: string };
+    const stored = getRemoteReviewInput(jobId)?.revision_json ?? "";
+    const description = (
+      JSON.parse(stored) as { revision?: unknown; description?: string }
+    ).description;
+    must(description === "x".repeat(8000), `stored ${stored.length} chars`);
+    must(stored.length < 20_000, `stored ${stored.length} chars`);
   });
 
   await withServer(
@@ -363,11 +373,68 @@ test("a push review ignores a description a client sent with its diff", async ()
         ],
       },
     });
-    must(queued.kind === "enqueued", queued.kind);
+    if (queued.kind !== "enqueued") throw new Error(queued.kind);
+    // Blanked before it is stored, not only when it is read back.
+    must(
+      !(getPushInput(queued.jobId) ?? "").includes(INTENT),
+      "the description was stored",
+    );
+    must(getPushInput(queued.jobId) !== undefined, "no stored diff to check");
     must(await claimAndRun(), "the push review never ran");
     must(ctx.fake.bodies.length > 0, "the provider was never called");
     for (const body of ctx.fake.bodies) {
       must(!body.includes(INTENT), "the intent reached a push review prompt");
+    }
+  });
+});
+
+const ID = {
+  first: "550e8400-e29b-41d4-a716-446655440011",
+  queued: "550e8400-e29b-41d4-a716-446655440012",
+  long: "550e8400-e29b-41d4-a716-446655440013",
+  add: "550e8400-e29b-41d4-a716-446655440014",
+  override: "550e8400-e29b-41d4-a716-446655440015",
+};
+
+test("a refused submit changes nothing: the branch's queued review and its carry-over remain", async () => {
+  await withServer(async (ctx) => {
+    const send = (body: Record<string, unknown>) =>
+      post(ctx, "/api/remote/reviews", body);
+    // One review ran, so the branch has carry-over, and a second waits.
+    const first = await send(await submitBody("", ID.first));
+    must(first.status === 202, `first ${first.status}`);
+    must(await claimAndRun(), "the first review never ran");
+    const queued = await send(await submitBody("", ID.queued));
+    must(queued.status === 202, `queued ${queued.status}`);
+    const { jobId } = (await queued.json()) as { jobId: string };
+    const subject = getOrCreateRemoteSubject(
+      REPO,
+      "feature/login",
+      ctx.tokenId,
+    );
+    must(getSubjectRevision(subject.id) !== undefined, "no carry-over to keep");
+
+    // Each refusal comes with --fresh, which would wipe the carry-over, and
+    // each would supersede the queued job if the refusal came late.
+    const refused: Record<string, unknown>[] = [
+      { ...(await submitBody("x".repeat(8001), ID.long)), fresh: true },
+      {
+        ...(await submitBody("", ID.add)),
+        fresh: true,
+        systemPromptAdd: "x".repeat(8001),
+      },
+      {
+        ...(await submitBody("", ID.override)),
+        fresh: true,
+        systemPromptOverride: "x".repeat(8001),
+      },
+    ];
+    for (const body of refused) {
+      const response = await send(body);
+      must(response.status === 400, `refused ${response.status}`);
+      must(getJob(jobId)?.status === "queued", `job ${getJob(jobId)?.status}`);
+      must(getRemoteReviewInput(jobId) !== undefined, "the input row went");
+      must(getSubjectRevision(subject.id) !== undefined, "carry-over wiped");
     }
   });
 });

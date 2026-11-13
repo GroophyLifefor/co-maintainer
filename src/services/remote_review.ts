@@ -237,14 +237,10 @@ export function submitRemoteReview(
   }
   const branch = body.branch;
   const fresh = body.fresh === true;
-  const subject = getOrCreateRemoteSubject(repoRow.full_name, branch, token.id);
-  if (fresh) deleteSubjectRevision(subject.id);
 
-  const jobId = crypto.randomUUID();
-  const reviewId = crypto.randomUUID();
-  const queueKey = remoteQueueKey(repoRow.full_name, branch, token.id);
-  supersedeActiveRemoteJobs(queueKey, jobId);
-
+  // Every check that can refuse the submit comes before anything is changed,
+  // so a refused submit leaves the branch's running review and its carry-over
+  // as they were.
   const revision = body.revision ?? {};
   const capabilities = body.capabilities ?? { tools: [] };
   const config = readConfig();
@@ -272,10 +268,13 @@ export function submitRemoteReview(
     }
   }
   // The intent comes from a client, so the repository's cap applies to it
-  // here as well, whatever the client checked.
+  // here as well, whatever the client checked. The cap counts the text, and
+  // only the text is kept.
   const description = (revision as { description?: unknown }).description;
+  let storedRevision: unknown = revision;
   if (typeof description === "string") {
-    const problem = checkReviewSystemPrompt(description.trim(), promptLimit);
+    const text = description.trim();
+    const problem = checkReviewSystemPrompt(text, promptLimit);
     if (problem) {
       return {
         error: `revision.description: ${problem}`,
@@ -283,10 +282,20 @@ export function submitRemoteReview(
         code: "bad_request",
       };
     }
+    storedRevision = { ...(revision as object), description: text };
   }
+
+  const subject = getOrCreateRemoteSubject(repoRow.full_name, branch, token.id);
+  if (fresh) deleteSubjectRevision(subject.id);
+
+  const jobId = crypto.randomUUID();
+  const reviewId = crypto.randomUUID();
+  const queueKey = remoteQueueKey(repoRow.full_name, branch, token.id);
+  supersedeActiveRemoteJobs(queueKey, jobId);
+
   insertRemoteReviewInput({
     jobId,
-    revisionJson: JSON.stringify(revision),
+    revisionJson: JSON.stringify(storedRevision),
     capabilitiesJson: JSON.stringify(capabilities),
     requestId,
     tokenId: token.id,
