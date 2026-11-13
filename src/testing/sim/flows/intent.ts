@@ -28,6 +28,7 @@ import {
   type CliRun,
   defineFlow,
   type Score,
+  scriptedCheck,
   type Sim,
   type Step,
 } from "../flow.ts";
@@ -774,9 +775,16 @@ function localChecks(sim: Sim): CheckResult[] {
   const otherJson = other?.json;
   const carried = carryEntries(otherCalls[0]?.firstUser ?? "");
   return [
-    check(
+    scriptedCheck(
+      sim,
       "local: the intent is in WORKSPACE with the four sentences after it, in every round",
       givenCalls.length >= 2 && allCarry(givenCalls, "WORKSPACE", INTENT),
+      `${givenCalls.length} requests · ${JSON.stringify(blocks(givenCalls, "WORKSPACE")[0]?.json)}`,
+      "the fake model reads a syntax page first, so there are two requests",
+    ),
+    check(
+      "local: the intent is in WORKSPACE with the four sentences after it, in every request",
+      allCarry(givenCalls, "WORKSPACE", INTENT),
       `${givenCalls.length} requests · ${JSON.stringify(blocks(givenCalls, "WORKSPACE")[0]?.json)}`,
     ),
     check(
@@ -861,7 +869,8 @@ function localChecks(sim: Sim): CheckResult[] {
         }),
       "documents where the text ends up, the fake model does not obey it and a real one is not proven to resist",
     ),
-    check(
+    scriptedCheck(
+      sim,
       "local: a second round with another intent still carries the earlier findings over",
       titles(givenJson).length >= 3 &&
         JSON.stringify(titles(otherJson)) ===
@@ -872,6 +881,14 @@ function localChecks(sim: Sim): CheckResult[] {
         JSON.stringify(intentOf(otherJson)) ===
           JSON.stringify({ source: "file", chars: INTENT_OTHER.length }),
       `round 1 ${titles(givenJson).length} findings · round 2 ${findingsOf(otherJson).map((item) => item.state)} · ${carried.length} carried`,
+      "the carry-over follows the findings the model reports",
+    ),
+    check(
+      "local: a second round sends the other intent and records it",
+      allCarry(otherCalls, "WORKSPACE", INTENT_OTHER) &&
+        JSON.stringify(intentOf(otherJson)) ===
+          JSON.stringify({ source: "file", chars: INTENT_OTHER.length }),
+      `${otherCalls.length} requests · ${JSON.stringify(intentOf(otherJson))}`,
     ),
   ];
 }
@@ -890,10 +907,19 @@ function prChecks(sim: Sim): CheckResult[] {
   const keys = Object.keys(block ?? {});
   const carried = carryEntries(otherCalls[0]?.firstUser ?? "");
   return [
-    check(
+    scriptedCheck(
+      sim,
       "pull request: the intent is in PULL REQUEST next to the title and body, with the four sentences after it, in every round",
       givenCalls.length >= 2 &&
         allCarry(givenCalls, "PULL REQUEST", INTENT) &&
+        keys.indexOf("intent") === keys.indexOf("body") + 1 &&
+        block?.title === "Round the yen totals",
+      `${givenCalls.length} requests · keys ${keys}`,
+      "the fake model reads a syntax page first, so there are two requests",
+    ),
+    check(
+      "pull request: the intent is in PULL REQUEST next to the title and body, with the four sentences after it, in every request",
+      allCarry(givenCalls, "PULL REQUEST", INTENT) &&
         keys.indexOf("intent") === keys.indexOf("body") + 1 &&
         block?.title === "Round the yen totals",
       `${givenCalls.length} requests · keys ${keys}`,
@@ -932,7 +958,8 @@ function prChecks(sim: Sim): CheckResult[] {
         big.ai().length === 0,
       `exit ${big?.exitCode} · ${big?.ai().length} AI calls`,
     ),
-    check(
+    scriptedCheck(
+      sim,
       "pull request: a second round with another intent still carries the earlier findings over",
       titles(given?.json).length >= 3 &&
         JSON.stringify(titles(other?.json)) ===
@@ -941,6 +968,12 @@ function prChecks(sim: Sim): CheckResult[] {
         carried.length === titles(given?.json).length &&
         allCarry(otherCalls, "PULL REQUEST", INTENT_OTHER),
       `round 1 ${titles(given?.json).length} findings · round 2 ${findingsOf(other?.json).map((item) => item.state)} · ${carried.length} carried`,
+      "the carry-over follows the findings the model reports",
+    ),
+    check(
+      "pull request: a second round sends the other intent",
+      allCarry(otherCalls, "PULL REQUEST", INTENT_OTHER),
+      `${otherCalls.length} requests`,
     ),
   ];
 }
@@ -984,9 +1017,16 @@ function remoteChecks(sim: Sim): CheckResult[] {
         submitted(sim, STEP.remotePlain) === "",
       `with ${JSON.stringify(submitted(sim, STEP.remoteIntent))?.slice(0, 30)} · without ${JSON.stringify(submitted(sim, STEP.remotePlain))}`,
     ),
-    check(
+    scriptedCheck(
+      sim,
       "remote: the server's prompt has the intent in WORKSPACE with the four sentences after it, in every round",
       givenCalls.length >= 2 && allCarry(givenCalls, "WORKSPACE", INTENT),
+      `${givenCalls.length} requests`,
+      "the fake model reads a syntax page first, so there are two requests",
+    ),
+    check(
+      "remote: the server's prompt has the intent in WORKSPACE with the four sentences after it, in every request",
+      allCarry(givenCalls, "WORKSPACE", INTENT),
       `${givenCalls.length} requests`,
     ),
     check(
@@ -1045,7 +1085,8 @@ function remoteChecks(sim: Sim): CheckResult[] {
     // The server keeps the carried findings in the prompt only: its result
     // lists what the model reports this round, so the finding states are
     // not compared here.
-    check(
+    scriptedCheck(
+      sim,
       "remote: a second round with another intent still carries the earlier findings over",
       titles(given?.json).length >= 3 &&
         carried.length === titles(given?.json).length &&
@@ -1054,6 +1095,12 @@ function remoteChecks(sim: Sim): CheckResult[] {
         ) &&
         allCarry(otherCalls, "WORKSPACE", INTENT_OTHER),
       `round 1 ${titles(given?.json).length} findings · ${carried.length} carried into round 2`,
+      "the carry-over follows the findings the model reports",
+    ),
+    check(
+      "remote: a second round sends the other intent",
+      allCarry(otherCalls, "WORKSPACE", INTENT_OTHER),
+      `${otherCalls.length} requests`,
     ),
   ];
 }
