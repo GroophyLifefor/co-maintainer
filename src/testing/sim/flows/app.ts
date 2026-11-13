@@ -17,6 +17,7 @@ import {
   type CheckResult,
   defineFlow,
   type Score,
+  scriptedCheck,
   type Sim,
 } from "../flow.ts";
 import type {
@@ -463,7 +464,7 @@ function writesInOrder(sim: Sim): CheckResult {
   );
 }
 
-function inlineOnDiff(sim: Sim): CheckResult {
+function inlineOnDiff(sim: Sim): CheckResult[] {
   const pull = pullOf(sim);
   const bad: string[] = [];
   let count = 0;
@@ -489,18 +490,30 @@ function inlineOnDiff(sim: Sim): CheckResult {
         (comment) => comment.path === "src/format.ts",
       ) || !String(bodyOf(first).body).includes(OUT_OF_DIFF)
     : true;
-  return check(
-    "inline comments only on lines in the diff",
-    count > 0 && bad.length === 0 && !outside,
-    bad.length
-      ? `off the diff: ${bad.join(", ")}`
-      : outside
-        ? "the finding outside the diff is inline or missing from the summary"
-        : `${count} inline comments, all on diff lines · the one outside the diff is in the summary only`,
-  );
+  const detail = bad.length
+    ? `off the diff: ${bad.join(", ")}`
+    : outside
+      ? "the finding outside the diff is inline or missing from the summary"
+      : `${count} inline comments, all on diff lines · the one outside the diff is in the summary only`;
+  return [
+    scriptedCheck(
+      sim,
+      "inline comments only on lines in the diff",
+      count > 0 && bad.length === 0 && !outside,
+      detail,
+      "which findings the model reports, and where, is its answer",
+    ),
+    check(
+      "no inline comment is on a line outside the diff",
+      bad.length === 0,
+      bad.length
+        ? `off the diff: ${bad.join(", ")}`
+        : `${count} inline comments`,
+    ),
+  ];
 }
 
-function firstRound(sim: Sim): CheckResult {
+function firstRound(sim: Sim): CheckResult[] {
   const pull = pullOf(sim);
   const opened = sim.state.opened as Round | undefined;
   const review = reviewRows(sim, pull.number)[0];
@@ -519,7 +532,7 @@ function firstRound(sim: Sim): CheckResult {
           comment.line === row.line_from,
       ),
     );
-  const problems = [
+  const product = [
     opened?.delivery.body.outcome === "enqueued" ? "" : "not enqueued",
     opened?.jobs.length === 1 && opened.jobs[0]!.status === "done"
       ? ""
@@ -530,18 +543,31 @@ function firstRound(sim: Sim): CheckResult {
     review?.status === "posted" && review.posted_review_id === String(write?.id)
       ? ""
       : `review row ${review?.status}`,
-    rows.length === 3 ? "" : `${rows.length} finding rows`,
-    comments.length === 2 && linked
-      ? ""
-      : `${comments.length} inline, linked ${linked}`,
+    linked ? "" : "a finding row does not know its inline comment",
   ].filter(Boolean);
-  return check(
-    "opened: one job, one review, findings stored and linked",
-    problems.length === 0,
-    problems.length
-      ? problems.join(", ")
-      : `job ${String(opened?.delivery.body.jobId).slice(0, 8)} · 3 findings · 2 inline, each row knows its comment`,
-  );
+  const scriptedProblems = [
+    rows.length === 3 ? "" : `${rows.length} finding rows`,
+    comments.length === 2 ? "" : `${comments.length} inline`,
+  ].filter(Boolean);
+  const all = [...product, ...scriptedProblems];
+  return [
+    scriptedCheck(
+      sim,
+      "opened: one job, one review, findings stored and linked",
+      all.length === 0,
+      all.length
+        ? all.join(", ")
+        : `job ${String(opened?.delivery.body.jobId).slice(0, 8)} · 3 findings · 2 inline, each row knows its comment`,
+      "how many findings the model reports, and where, is its answer",
+    ),
+    check(
+      "opened: one job, one posted review, and each inline finding knows its comment",
+      product.length === 0,
+      product.length
+        ? product.join(", ")
+        : `job ${String(opened?.delivery.body.jobId).slice(0, 8)} · review posted · each row knows its comment`,
+    ),
+  ];
 }
 
 /** The documented rule (docs/md/review.md): no open finding approves.
@@ -556,7 +582,7 @@ function expectedEvent(rows: FindingRow[], mode: string): string {
     : "COMMENT";
 }
 
-function eventRule(sim: Sim): CheckResult {
+function eventRule(sim: Sim): CheckResult[] {
   const modes = (sim.state.modes ?? {}) as Record<string, string>;
   const steps = [...REVIEW_STEPS, STEP.retry];
   const seen: string[] = [];
@@ -572,11 +598,21 @@ function eventRule(sim: Sim): CheckResult {
     if (got !== want) wrong.push(`${write.step}: ${got}, rule says ${want}`);
   }
   const all = new Set(seen.map((item) => item.split(" ")[0]));
-  return check(
-    "review event follows the blocking rule",
-    wrong.length === 0 && seen.length === steps.length && all.size === 3,
-    wrong.length ? wrong.join(" · ") : seen.join(", "),
-  );
+  const detail = wrong.length ? wrong.join(" · ") : seen.join(", ");
+  return [
+    scriptedCheck(
+      sim,
+      "review event follows the blocking rule",
+      wrong.length === 0 && seen.length === steps.length && all.size === 3,
+      detail,
+      "the scripted findings make a review of each kind, and a real model's may not",
+    ),
+    check(
+      "every review's event follows the blocking rule for the findings it holds",
+      wrong.length === 0 && seen.length === steps.length,
+      detail,
+    ),
+  ];
 }
 
 async function metadataBlock(sim: Sim): Promise<CheckResult> {
@@ -649,7 +685,7 @@ function checkRuns(sim: Sim): CheckResult {
   );
 }
 
-function secondRound(sim: Sim): CheckResult {
+function secondRound(sim: Sim): CheckResult[] {
   const pull = pullOf(sim);
   const [first, second] = reviewRows(sim, pull.number);
   const write = reviewPosts(sim, [STEP.whole])[0];
@@ -678,16 +714,25 @@ function secondRound(sim: Sim): CheckResult {
       ? ""
       : "a still-open finding was posted again",
   ].filter(Boolean);
-  return check(
-    "second round carries findings over and posts nothing twice",
-    problems.length === 0,
-    problems.length
-      ? problems.join(", ")
-      : "fixed one closed · other still open at its new line 15 · no inline comment repeated",
-  );
+  return [
+    scriptedCheck(
+      sim,
+      "second round carries findings over and posts nothing twice",
+      problems.length === 0,
+      problems.length
+        ? problems.join(", ")
+        : "fixed one closed · other still open at its new line 15 · no inline comment repeated",
+      "which earlier findings the model closes is its answer",
+    ),
+    check(
+      "the second review is round 2 and covers the whole pull request",
+      second?.round === 2 && second.scope === "whole-pr",
+      `round ${second?.round} ${second?.scope}`,
+    ),
+  ];
 }
 
-function incrementalRound(sim: Sim): CheckResult {
+function incrementalRound(sim: Sim): CheckResult[] {
   const pull = pullOf(sim);
   const [, second, third] = reviewRows(sim, pull.number);
   const prompt =
@@ -702,7 +747,7 @@ function incrementalRound(sim: Sim): CheckResult {
   const inline = ((write ? bodyOf(write).comments : []) as Json[]).map(
     (comment) => comment.line,
   );
-  const problems = [
+  const product = [
     third?.scope === "incremental" && third.base_sha === second?.head_sha
       ? ""
       : `scope ${third?.scope} base ${third?.base_sha?.slice(0, 7)}`,
@@ -711,17 +756,30 @@ function incrementalRound(sim: Sim): CheckResult {
     !diff.includes("+export function divide")
       ? ""
       : "the diff sent is not only the new commit",
-    JSON.stringify(inline) === "[19]"
-      ? ""
-      : `inline at ${JSON.stringify(inline)}`,
   ].filter(Boolean);
-  return check(
-    "incremental round reviews only the new commit",
-    problems.length === 0,
-    problems.length
-      ? problems.join(", ")
-      : `compare ${second?.head_sha.slice(0, 7)}...${third?.head_sha.slice(0, 7)} · only median sent · new finding inline at 19`,
-  );
+  const scriptedProblems =
+    JSON.stringify(inline) === "[19]"
+      ? []
+      : [`inline at ${JSON.stringify(inline)}`];
+  const all = [...product, ...scriptedProblems];
+  return [
+    scriptedCheck(
+      sim,
+      "incremental round reviews only the new commit",
+      all.length === 0,
+      all.length
+        ? all.join(", ")
+        : `compare ${second?.head_sha.slice(0, 7)}...${third?.head_sha.slice(0, 7)} · only median sent · new finding inline at 19`,
+      "where the model puts its new finding is its answer",
+    ),
+    check(
+      "incremental round sends only the new commit, compared from the last reviewed head",
+      product.length === 0,
+      product.length
+        ? product.join(", ")
+        : `compare ${second?.head_sha.slice(0, 7)}...${third?.head_sha.slice(0, 7)} · only median sent`,
+    ),
+  ];
 }
 
 function anchors(sim: Sim): CheckResult {
@@ -822,8 +880,20 @@ function skips(sim: Sim): CheckResult {
   );
 }
 
-function reply(sim: Sim): CheckResult {
+function reply(sim: Sim): CheckResult[] {
   const question = sim.state.question as SimComment | undefined;
+  // The question goes into the thread of an inline finding. A live model may
+  // post none, and then there is nothing to ask about.
+  if (!question && sim.mode === "live") {
+    return [
+      {
+        name: "a reply in a finding's thread is answered in that thread",
+        ok: true,
+        detail: "no question was asked",
+        skipped: "live AI: the model posted no inline finding to ask about",
+      },
+    ];
+  }
   const request = appRows<{
     id: string;
     status: string;
@@ -839,7 +909,7 @@ function reply(sim: Sim): CheckResult {
   const body = write ? bodyOf(write) : {};
   const prompt = promptsIn(sim, STEP.reply, "reply_to_github_comment")[0] ?? "";
   const root = question?.inReplyTo;
-  const problems = [
+  const product = [
     writes.length === 1 &&
     write!.path === `repos/${APP_REPO}/pulls/${pullOf(sim).number}/comments`
       ? ""
@@ -849,28 +919,50 @@ function reply(sim: Sim): CheckResult {
       : `in_reply_to ${String(body.in_reply_to)}, thread ${root}`,
     String(body.body).startsWith(
       `<!-- co-maintainer:reply:${request?.id} -->\n`,
-    ) && String(body.body).includes(REPLY_TEXT)
+    )
       ? ""
-      : "body lacks the marker or the answer",
+      : "body lacks the marker",
     request?.status === "posted" &&
     request.posted_comment_id === String(write?.id)
       ? ""
       : `request ${request?.status}`,
-    prompt.includes(QUESTION) && prompt.includes(EMPTY_LIST)
-      ? ""
-      : "the prompt lacks the question or its finding",
+    prompt.includes(QUESTION) ? "" : "the prompt lacks the question",
   ].filter(Boolean);
-  return check(
-    "a reply in a finding's thread is answered in that thread",
-    problems.length === 0,
-    problems.length
-      ? problems.join(", ")
-      : `one reply to comment ${root} · request posted · prompt has the question and the finding`,
-  );
+  const scriptedProblems = [
+    String(body.body).includes(REPLY_TEXT) ? "" : "body lacks the answer",
+    prompt.includes(EMPTY_LIST) ? "" : "the prompt lacks the finding",
+  ].filter(Boolean);
+  const all = [...product, ...scriptedProblems];
+  return [
+    scriptedCheck(
+      sim,
+      "a reply in a finding's thread is answered in that thread",
+      all.length === 0,
+      all.length
+        ? all.join(", ")
+        : `one reply to comment ${root} · request posted · prompt has the question and the finding`,
+      "the thread belongs to a finding the model reported, and the answer is its text",
+    ),
+    check(
+      "a reply in a thread is posted in that thread, marked, with the question in its prompt",
+      product.length === 0,
+      product.length
+        ? product.join(", ")
+        : `one reply to comment ${root} · request posted · prompt has the question`,
+    ),
+  ];
 }
 
 function ownReply(sim: Sim): CheckResult {
   const delivery = sim.state.ownReply as Delivery | undefined;
+  if (!delivery && !sim.state.question && sim.mode === "live") {
+    return {
+      name: "the App's own reply is not answered",
+      ok: true,
+      detail: "no question was asked",
+      skipped: "live AI: the model posted no inline finding to ask about",
+    };
+  }
   const jobs = sim.trace.jobs.filter(
     (job) => job.step === STEP.reply && job.type === "reply",
   );
@@ -935,7 +1027,7 @@ async function failure(sim: Sim): Promise<CheckResult> {
   );
 }
 
-async function retry(sim: Sim): Promise<CheckResult> {
+async function retry(sim: Sim): Promise<CheckResult[]> {
   const { REVIEWED_NOTE } = await import("../../../services/review.ts");
   const pull = sim.state.failedPull as SimPull | undefined;
   const notes = sim.github.comments.filter(
@@ -946,25 +1038,39 @@ async function retry(sim: Sim): Promise<CheckResult> {
   );
   const reviews = reviewRows(sim, pull?.number ?? 0);
   const posted = reviewPosts(sim, [STEP.retry]);
-  const problems = [
+  const product = [
     notes.length === 1 && notes[0]!.body === REVIEWED_NOTE
       ? ""
       : `notes ${JSON.stringify(notes.map((note) => note.body))}`,
     reviews.length === 2 && reviews[1]!.status === "posted"
       ? ""
       : `reviews ${reviews.map((row) => row.status).join(", ")}`,
+    posted.length === 1 ? "" : `${posted.length} reviews posted`,
+  ].filter(Boolean);
+  const scriptedProblems =
     posted.length === 1 &&
     String(bodyOf(posted[0]!).body).startsWith("No actionable findings.")
-      ? ""
-      : "no clean review posted",
-  ].filter(Boolean);
-  return check(
-    "a retry posts the review and rewrites the same note",
-    problems.length === 0,
-    problems.length
-      ? problems.join(", ")
-      : "one note, now saying the review is below · second attempt posted",
-  );
+      ? []
+      : ["no clean review posted"];
+  const all = [...product, ...scriptedProblems];
+  return [
+    scriptedCheck(
+      sim,
+      "a retry posts the review and rewrites the same note",
+      all.length === 0,
+      all.length
+        ? all.join(", ")
+        : "one note, now saying the review is below · second attempt posted",
+      "whether the model finds anything in the retried pull request is its answer",
+    ),
+    check(
+      "a retry posts one review and rewrites the same note",
+      product.length === 0,
+      product.length
+        ? product.join(", ")
+        : "one note, now saying the review is below · second attempt posted",
+    ),
+  ];
 }
 
 function jobStates(sim: Sim): CheckResult {
@@ -1017,7 +1123,7 @@ function costPerReview(sim: Sim): CheckResult {
   );
 }
 
-function noTokens(sim: Sim): CheckResult {
+function noTokens(sim: Sim): CheckResult[] {
   const minted = sim.trace.github
     .filter(
       (call) => call.url.endsWith("/access_tokens") && call.status === 201,
@@ -1041,36 +1147,50 @@ function noTokens(sim: Sim): CheckResult {
   const redacted = String(first ? bodyOf(first).body : "").includes(
     "[redacted]",
   );
-  return check(
-    "no token in anything posted",
-    minted.length > 0 && shaped.length === 0 && leaked.length === 0 && redacted,
+  const detail =
     shaped.length || leaked.length || !redacted
       ? `token shapes ${shaped.length} · installation token in ${leaked.join(", ") || "nothing"} · quoted token redacted ${redacted}`
-      : `${minted.length} installation tokens kept out of 4 places · the quoted token posted as [redacted]`,
-  );
+      : `${minted.length} installation tokens kept out of 4 places · the quoted token posted as [redacted]`;
+  return [
+    scriptedCheck(
+      sim,
+      "no token in anything posted",
+      minted.length > 0 &&
+        shaped.length === 0 &&
+        leaked.length === 0 &&
+        redacted,
+      detail,
+      "only the scripted model quotes a token back to be redacted",
+    ),
+    check(
+      "no installation token and no token-shaped text in anything posted",
+      minted.length > 0 && shaped.length === 0 && leaked.length === 0,
+      `token shapes ${shaped.length} · installation token in ${leaked.join(", ") || "nothing"}`,
+    ),
+  ];
 }
 
 function appChecks(sim: Sim): Promise<CheckResult[]> | CheckResult[] {
   return (async () => [
     forged(sim),
-    firstRound(sim),
+    ...firstRound(sim),
     writesInOrder(sim),
-    inlineOnDiff(sim),
-    eventRule(sim),
+    ...inlineOnDiff(sim),
+    ...eventRule(sim),
     await metadataBlock(sim),
     checkRuns(sim),
     anchors(sim),
     redelivery(sim),
-    secondRound(sim),
-    incrementalRound(sim),
-    reply(sim),
+    ...secondRound(sim),
+    ...incrementalRound(sim),
+    ...reply(sim),
     ownReply(sim),
     skips(sim),
     await failure(sim),
-    await retry(sim),
+    ...(await retry(sim)),
     jobStates(sim),
     costPerReview(sim),
-    noTokens(sim),
+    ...noTokens(sim),
   ])();
 }
 
@@ -1224,9 +1344,14 @@ export default defineFlow({
         const pull = pullOf(sim);
         const first = appRows<{ posted_comment_id: string }>(
           sim,
-          "SELECT posted_comment_id FROM findings WHERE body_md LIKE ? AND posted_comment_id IS NOT NULL",
+          // The finding the scripted model reports first. A live model words
+          // its own, so any inline finding will do.
+          "SELECT posted_comment_id FROM findings WHERE posted_comment_id IS NOT NULL ORDER BY body_md LIKE ? DESC, rowid",
           `${EMPTY_LIST}%`,
         )[0];
+        if (!first && sim.mode === "live") {
+          return "no inline finding to ask about";
+        }
         const question = sim.github.reviewComment(pull, {
           body: QUESTION,
           inReplyTo: Number(first?.posted_comment_id),
