@@ -90,6 +90,9 @@ provider, so both models are saved the first time. See
 | `--repo=owner/repo` | `repos[owner/repo]` | Write the repository-scoped flags below to that repository, not the global config |
 | `--review-system-prompt=TEXT` | `repos[owner/repo].reviewSystemPrompt` | A repository's own review instructions. Needs `--repo`. A blank value clears it |
 | `--review-system-prompt-max-chars=N` | `repos[owner/repo].reviewSystemPromptMaxChars` | Cap those instructions in characters. Needs `--repo`. `0` or `-1` means no limit |
+| `--diagram-runtime=mermaid\|plantuml\|plantuml-server` | `repos[owner/repo].diagramRuntime` | The diagram language of a repository's reviews, App reviews included. Needs `--repo`. See [Diagram settings](#diagram-settings) |
+| `--plantuml-server=URL` | `repos[owner/repo].plantumlServer` | The PlantUML server for `plantuml-server`. Needs `--repo`. Default `https://www.plantuml.com` |
+| `--plantuml-output-format=svg\|png` | `repos[owner/repo].plantumlOutputFormat` | The image format for `plantuml-server`. Needs `--repo`. Default `svg` |
 
 ### App private key: inline, file contents, or path
 
@@ -216,6 +219,7 @@ After each successful [`init`](init.md) or [`sync`](sync.md),
 | `include-*` flags | |
 | `only-request-changed-pr`, `pr-state` | |
 | `review-system-prompt`, `review-system-prompt-max-chars` | |
+| `diagram-runtime`, `plantuml-server`, `plantuml-output-format` | |
 
 A plain `co-maintainer sync owner/repo` reuses those values. Pass new flags
 on `sync` or run `init` again to change includes, limits, or pull request
@@ -226,13 +230,48 @@ goes back to "never inited" and the next build is an `init`.
 
 [`review-system-prompt`](review.md#repository-review-instructions) and its cap
 are the exception: `init` and `sync` never write them. Set them with
-`co-maintainer set --repo=owner/repo` or the repository **Settings** page.
+`co-maintainer set --repo=owner/repo` or the repository **Settings** page. The
+[diagram settings](#diagram-settings) are set only with
+`co-maintainer set --repo=owner/repo`, and the dashboard has no field for them.
 
 Guide files (`SKILL.md`, `CODEBASE.md`, review guides) live under
 `<config>/co-maintainer/repos/<owner>/<repo>/`, not in your git clone. See
 [Caching](caching.md#generated-guides). `co-maintainer view` prints them
 locally, and `view --remote` prints the copies a configured review server holds
 (see [Remote review](remote-review.md#reading-the-servers-guides)).
+
+## Diagram settings
+
+A repository can save the three [diagram](review.md#diagrams) settings, which is
+how reviews with no command line get them: App reviews, commit watch reviews,
+replies to review comments and `review --remote`, where the server reads them.
+
+```sh
+co-maintainer set --repo=owner/repo --diagram-runtime=plantuml-server --plantuml-server=https://uml.example.com
+co-maintainer set --repo=owner/repo --plantuml-output-format=png
+co-maintainer set --repo=owner/repo --unset=diagram-runtime --unset=plantuml-server
+```
+
+They are stored in `config.json` under `repos["owner/repo"]` as `diagramRuntime`,
+`plantumlServer` and `plantumlOutputFormat`. `--unset=` takes the flag name or
+the field name and removes one of them. Without `--repo` the three flags are
+refused, for example `--diagram-runtime needs --repo`.
+
+For a `review` run the order is the flag, then the repository setting, then the
+default (`mermaid`, `https://www.plantuml.com`, `svg`). The privacy note in
+[Diagrams](review.md#with-plantuml-server-the-diagram-source-leaves-your-machine)
+applies to a saved `plantuml-server` runtime too.
+
+A value edited by hand into `config.json` is checked each time it is read.
+
+- A CLI `review` stops with a usage error that names the key, for example
+  `config.json repos[owner/repo].plantumlServer must be an http or https URL`
+  and the rest of the reason.
+- A background job does not stop. It uses `mermaid` with the default server and
+  format, and writes one line to the job log: the same message, then
+  "The diagram settings are ignored and this job uses mermaid." The three
+  settings fall back together, so a good `plantuml-server` runtime next to a bad
+  server never sends the diagram source to a server the owner did not choose.
 
 ## Secrets on disk
 

@@ -66,7 +66,10 @@ The codegraph question, and the conditions under which co-maintainer skips it,
 are the same as [local review](local-review.md#codegraph).
 
 Not supported with `--remote`: `--sync-before-review` (run
-[`sync`](sync.md) on the server instead).
+[`sync`](sync.md) on the server instead), and `--diagram-runtime`,
+`--plantuml-server` and `--plantuml-output-format`. Each is refused with exit
+code 2, because the server reviews with the diagram settings saved for the
+repository, see [Configuration](configuration.md#diagram-settings).
 
 ## Token scope
 
