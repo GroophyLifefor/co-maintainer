@@ -1104,12 +1104,19 @@ async function runReviewJobCore(
     extras.carryPrompt = buildCarryPromptSection(carryItems, revision);
   }
   const costTally = emptyTally();
+  // The engine's answer carries the last review call's tokens only. A JSON
+  // retry and a large diff summary are calls of this review too.
+  const tokens = { in: 0, out: 0 };
   let response: Awaited<ReturnType<typeof runReviewEngine>>;
   try {
     response = await runReviewEngine(
       github,
       options,
-      async (call) => addResponseCost(costTally, call),
+      async (call) => {
+        addResponseCost(costTally, call);
+        tokens.in += call.tokensIn;
+        tokens.out += call.tokensOut;
+      },
       snapshot,
       ai ?? aiFor(options),
       (message) => log("info", message),
@@ -1213,8 +1220,8 @@ async function runReviewJobCore(
     findings_count: totalFindings,
     open_count: openCount,
     closed_count: closedCount,
-    tokens_in: response.tokensIn,
-    tokens_out: response.tokensOut,
+    tokens_in: tokens.in,
+    tokens_out: tokens.out,
     ...costColumns(settle(costTally)),
   });
   saveSubjectRevision({
