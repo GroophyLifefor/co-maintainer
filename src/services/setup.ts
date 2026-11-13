@@ -15,6 +15,7 @@ import type { ReviewDocuments } from "../knowledge/guide.ts";
 import {
   assembleSkill,
   codebaseBody,
+  extractSections,
   factSectionHashes,
 } from "../knowledge/skill.ts";
 import { validateSkill } from "../knowledge/validate.ts";
@@ -198,9 +199,22 @@ async function writeMaintainerNotes(
 async function writeCodebaseDocument(
   repo: string,
   overrides: Record<string, string> = {},
+  current: Set<string> = new Set(),
 ): Promise<void> {
   const path = `${reposDir()}/${repo}/CODEBASE.md`;
-  const body = codebaseBody(overrides);
+  // A sync rebuilds only the sections whose facts changed. A section in
+  // `current` still has facts, so it keeps the text the last run wrote, the
+  // same way `assembleSkill` keeps an unchanged skill section.
+  let previous: Record<string, string> = {};
+  try {
+    previous = extractSections(await readTextFile(path));
+  } catch {
+    // No CODEBASE.md yet.
+  }
+  const kept = Object.fromEntries(
+    Object.entries(previous).filter(([key]) => current.has(key)),
+  );
+  const body = codebaseBody({ ...kept, ...overrides });
   if (!body) {
     // Keep any existing file: `SKILL.md` links to it, and removing it would
     // leave that link dangling. A guide the last run wrote is better than a
@@ -427,7 +441,11 @@ async function initOrRemake(options: Options): Promise<void> {
     const { writeTextFileAtomic } = await import("../util/atomic.ts");
     await withKnowledgeLock(options.repo, async () => {
       await writeTextFileAtomic(path, result.markdown);
-      await writeCodebaseDocument(options.repo, overrides);
+      await writeCodebaseDocument(
+        options.repo,
+        overrides,
+        new Set(Object.keys(result.hashes)),
+      );
       await writeReviewDocuments(
         options.repo,
         reviewDocuments,
