@@ -33,6 +33,7 @@ flowchart TB
 | ------------- | ------- |
 | `config.json` | Global `set` values and `repos["owner/repo"]` memory |
 | `repos/<owner>/<repo>/` | Generated guides for one GitHub repo (see below) |
+| `extensions/<run-id>/` | Short-lived folder of one review's [extension](extensions.md) files, removed when the review ends |
 
 Override: `CM_CONFIG_PATH` points at a different `config.json`.
 Override guides root: `CM_REPOS_DIR` (must match on laptops and `serve` when

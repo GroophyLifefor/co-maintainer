@@ -40,8 +40,12 @@ co-maintainer review --to-branch=main --sync-before-review
 | `--branch=<name>` | Branch name when HEAD is detached |
 | `--repo=owner/repo` | Override GitHub remote detection |
 | `--sync-before-review` | Run [`sync`](sync.md) before reviewing (requires `gh`) |
+| `--include-extension-markdowns` | With `--json`, keep each extension's Markdown, which is empty otherwise |
 | `--debug` | Verbose logs on stderr |
 | `--log-time` | Print timing per phase |
+
+Registered [extensions](extensions.md) run in a local review too, in your working
+directory, and their findings join the result.
 
 Do not pass `owner/repo` or a PR number. That selects [PR review](local-pr-review.md)
 instead.
