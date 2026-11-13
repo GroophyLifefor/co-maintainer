@@ -1252,3 +1252,32 @@ test("the review names files it never reviewed and always reports coverage", () 
   // A path is a code span, so a semicolon in one is not read as prose.
   if (humanCopy(missing) !== missing) throw new Error(humanCopy(missing));
 });
+
+test("a file name cannot inject Markdown or a mention into the review body", () => {
+  const hostile =
+    "x`\n\n## Approved by maintainers\n\n@octo-org/admins see [here](https://example.invalid)\n`.ts";
+  const body = reviewBody([], {
+    jobId: "job-1",
+    model: "test-model",
+    durationMs: 1000,
+    coverage: {
+      full: 0,
+      partial: [],
+      summarized: [],
+      dropped: [hostile, "a`b @someone`c;d.png"],
+      withheld: [],
+    },
+  });
+  const rows = body.split("\n").filter((line) => line.startsWith("- `"));
+  if (rows.length !== 2) throw new Error(`one line per file:\n${body}`);
+  for (const row of rows) {
+    // Exactly one code span per row: the opening and the closing backtick.
+    if ((row.match(/`/g) ?? []).length !== 2) throw new Error(row);
+    if (/@[A-Za-z]/.test(row)) throw new Error(`a mention survived: ${row}`);
+  }
+  if (/^#/m.test(body)) throw new Error(`a heading got in:\n${body}`);
+  // The link text and the path stay inside the code span.
+  if (!rows[0]!.includes("](https://example.invalid)"))
+    throw new Error(rows[0]);
+  if (humanCopy(body) !== body) throw new Error("the copy guard must pass");
+});

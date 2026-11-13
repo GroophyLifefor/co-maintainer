@@ -28,6 +28,7 @@ import { runReviewEngine } from "../review/engine.ts";
 import {
   coverageCounts,
   notReviewedLines,
+  postedPathSpan,
   type Coverage,
 } from "../review/coverage.ts";
 import {
@@ -314,13 +315,14 @@ function metadataBlock({
 }
 
 /** The files this round never sent to the model, as a list under the
- * findings. Paths are code spans: a path is not prose, and the copy guard
- * must not read a semicolon in one as a sentence. */
+ * findings. Paths are made safe code spans: a path is not prose, the copy
+ * guard must not read a semicolon in one as a sentence, and the author's file
+ * names must not inject Markdown or mentions. */
 function notReviewedBlock(metadata: ReviewMetadata): string {
   const lines = notReviewedLines(
     metadata.coverage,
     metadata.catchesUp ?? false,
-    (path) => `\`${path}\``,
+    postedPathSpan,
   );
   return lines.length > 0 ? `\n\n${lines.join("\n")}` : "";
 }

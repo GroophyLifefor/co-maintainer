@@ -425,7 +425,11 @@ export function formatHumanReview(input: HumanReviewInput): string {
   if (coverage) lines.push(coverage);
   if (input.warnings?.length) {
     lines.push("Warnings:");
-    for (const w of input.warnings) lines.push(`  - ${w.message}`);
+    // A diff warning can name a file, and a pull request's author chooses
+    // file names.
+    for (const w of input.warnings) {
+      lines.push(`  - ${stripControlChars(w.message)}`);
+    }
   }
   return lines.join("\n");
 }

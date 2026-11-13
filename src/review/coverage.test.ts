@@ -7,6 +7,7 @@ import {
   coverageWarnings,
   fullCoverage,
   notReviewedLines,
+  postedPathSpan,
   warningsFromJson,
   type Coverage,
 } from "./coverage.ts";
@@ -143,6 +144,15 @@ test("the not-reviewed list is cut at 20 entries", () => {
     "withheld row",
   );
   same(notReviewedLines(SAMPLE, true), [], "nothing missing");
+});
+
+test("postedPathSpan keeps a hostile path inside one inert code span", () => {
+  same(postedPathSpan("src/a.ts"), "`src/a.ts`", "ordinary path");
+  same(
+    postedPathSpan("a`b\nc @org/team ](x)\u001b.ts"),
+    "`aˋb c @​org/team ](x).ts`",
+    "backtick, newline, mention, link and control character",
+  );
 });
 
 test("a coverage block from an older or broken server is ignored", () => {

@@ -146,6 +146,20 @@ export function notReviewedLines(
   return [`Not reviewed (${rows.length})`, ...shown];
 }
 
+/** A file path as an inline code span in a body co-maintainer posts to GitHub.
+ * The pull request's author chooses file names, so a name must not end the
+ * span, start a heading or a link, or mention someone. Control characters and
+ * line breaks go. A backtick becomes the look-alike `ˋ`, so the span stays the
+ * plain one-backtick form the copy guard in `outsideCode` recognizes. An `@`
+ * gets a zero-width space after it, so it can never be read as a mention. */
+export function postedPathSpan(path: string): string {
+  const flat = stripControlChars(path)
+    .replace(/[\n\t]+/g, " ")
+    .replaceAll("`", "ˋ")
+    .replaceAll("@", "@​");
+  return `\`${flat}\``;
+}
+
 function pathList(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   if (!value.every((item) => typeof item === "string")) return undefined;
