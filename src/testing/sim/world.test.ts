@@ -7,6 +7,10 @@ import { test } from "node:test";
 import { runFlow } from "./flow.ts";
 import { PRODUCT_ENV_NAMES, PRODUCT_ENV_PREFIXES } from "./world.ts";
 
+/** Read only by the test location guard, which is off outside `node --test`.
+ * The world keeps it, so the guard also checks the product inside a flow. */
+const TEST_GUARD_NAMES = ["NODE_TEST_CONTEXT"];
+
 const SRC = join(import.meta.dirname, "..", "..");
 
 function productFiles(dir: string): string[] {
@@ -31,6 +35,7 @@ test("every environment variable the product reads is one the world clears", () 
   assert.ok(read.has("OPENROUTER_API_KEY"), "the grep finds the key reads");
   const uncovered = [...read].filter(
     (name) =>
+      !TEST_GUARD_NAMES.includes(name) &&
       !PRODUCT_ENV_NAMES.includes(name) &&
       !PRODUCT_ENV_PREFIXES.some((prefix) => name.startsWith(prefix)),
   );
