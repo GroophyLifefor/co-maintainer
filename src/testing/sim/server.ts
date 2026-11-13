@@ -105,23 +105,28 @@ export class SimServer {
   readonly payloads: Payloads;
   private readonly world: World;
   private readonly trace: Trace;
+  private readonly aiConfig: Record<string, unknown>;
   private started = false;
 
-  constructor(world: World, trace: Trace) {
+  /** `aiConfig` is the run's AI provider, key and models, as config.json
+   * names them (`ai`, `token`, `lowModel`, `highModel`). */
+  constructor(world: World, trace: Trace, aiConfig: Record<string, unknown>) {
     this.world = world;
     this.trace = trace;
+    this.aiConfig = aiConfig;
     this.payloads = new Payloads(world.github);
   }
 
   /** What `serve` does before it listens. `config` is merged into
-   * config.json after the App credentials, so a flow can set the AI
-   * provider, a policy default, or leave the webhook secret out. */
+   * config.json after the App credentials and the run's AI settings, so a
+   * flow can set a policy default or leave the webhook secret out. */
   async start(config: Record<string, unknown> = {}): Promise<void> {
     const { secrets } = this.world;
     this.world.writeConfig({
       githubAppId: secrets.appId,
       githubAppPrivateKey: secrets.appPrivateKey,
       githubWebhookSecret: secrets.webhookSecret,
+      ...this.aiConfig,
       ...config,
     });
     const { openAppDb } = await import("../../store/app_db.ts");

@@ -248,7 +248,12 @@ export async function runFlow(
   const { setGhRunner } = await import("../../github/gh.ts");
   setGhRunner(ghStandIn({ github: world.github, trace, faults }));
   const restoreAi = await watchAi(trace);
-  const server = new SimServer(world, trace);
+  const server = new SimServer(world, trace, {
+    ai: settings.provider,
+    token: world.secrets.aiKey,
+    lowModel: settings.lowModel,
+    highModel: settings.highModel,
+  });
   const { reposDir, cacheDbPath } = await import("../../config.ts");
   const { appDbPath } = await import("../../store/app_db.ts");
   const { withLogSink } = await import("../../util/log.ts");
