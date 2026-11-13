@@ -22,7 +22,7 @@ runners.
 | high-model        | `openai/gpt-5.6-luna`                                    |
 | judge-model       | `openai/gpt-5.6-luna`                                    |
 | review-concurrent | 4                                                        |
-| `--codegraph`     | off (default)                                            |
+| codegraph         | off (`--disable-codegraph`, see the note below)          |
 | PRs               | 30 (14 defective, 16 control)                            |
 | results file      | `results/GroophyLifefor-heap-analysis-comaintainer.json` |
 | run date          | 2026-09-14                                               |
@@ -151,13 +151,59 @@ npm run bench-core-v3 -- --repo=GroophyLifefor/heap-analysis \
   --review-concurrent=4 \
   --ai=openrouter --low-model=deepseek/deepseek-v4-flash-0731 --high-model=openai/gpt-5.6-luna \
   --judge-model=openai/gpt-5.6-luna \
-  --gh-concurrent=8 --ai-concurrent=10 --auth=gh --log-time
+  --gh-concurrent=8 --ai-concurrent=10 --auth=gh --log-time \
+  --disable-codegraph
 ```
 
 Requires the guide frozen at
 `%APPDATA%/co-maintainer/repos/GroophyLifefor/heap-analysis/`
 (`SKILL.md`/`CODEBASE.md`, see `guide_v1/` for the archived copy), build it
 once with `npm run init` per `plan.md` §11.1 before running this.
+
+**Codegraph note.** Both runs above happened when codegraph was off unless you
+asked for it. There was a `--codegraph` flag for that. The flag is gone and
+`review` now turns codegraph on by default, so the benchmark does too. Pass
+`--disable-codegraph` to match the numbers in this file, as the command above
+does. Leave it out to measure the current default, and expect different numbers.
+
+## Run options
+
+These options belong to the benchmark runner. They are not passed on to the
+review.
+
+| Option                      | Meaning                                                                                                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--label=NAME`              | Writes the results next to the unlabelled ones instead of over them. Use letters, digits, `.`, `_` and `-`. Running the same label again replaces that label. |
+| `--system-prompt-file=PATH` | Adds the file to the system prompt of every review in the run, like `review --system-prompt-file` does for one review. Not available with `--runner=ocr`.     |
+| `--runs=N`                  | Repeats the whole run N times and reports the mean and the spread of each metric. The default is 1.                                                           |
+
+A run without a label writes `results/<repo>-comaintainer.json` and the folder
+`results/<repo>-comaintainer/`, as before. With `--label=checks` the names
+become `results/<repo>-comaintainer-checks.json` and
+`results/<repo>-comaintainer-checks/`. Each result file also records the label,
+the prompt file path and the run number.
+
+With `--runs=3` every run keeps its own files, numbered `-run1`, `-run2` and
+`-run3` after the label. One more file, `results/<repo>-comaintainer-checks-runs.json`,
+holds the mean, the sample standard deviation (n - 1), the minimum and the
+maximum of each metric, and the three full results. The same table is printed at
+the end of the run. The metrics are F1, precision, recall, the counts behind
+them, the severe false findings on the control pull requests (total and per
+pull request), the P3 findings on them counted apart, the control pull requests
+whose review failed, the total cost and the average time. Every run is a
+complete, paid pass over the ledger, so `--runs=3` costs three times one run.
+
+`checks.md` in this folder is the text of the review checks tried in the
+experiment. To measure it against the baseline:
+
+```sh
+npm run bench-core-v3 -- --repo=GroophyLifefor/heap-analysis \
+  --review-concurrent=4 \
+  --ai=openrouter --low-model=deepseek/deepseek-v4-flash-0731 --high-model=openai/gpt-5.6-luna \
+  --judge-model=openai/gpt-5.6-luna \
+  --gh-concurrent=8 --ai-concurrent=10 --auth=gh --log-time \
+  --disable-codegraph --label=checks --system-prompt-file=benchmark/core_v3/checks.md --runs=3
+```
 
 ---
 
@@ -171,18 +217,18 @@ from extracted facts. `low-model` for `extract_unit` stayed
 
 ### Run config
 
-|                   |                                               |
-| ----------------- | --------------------------------------------- |
-| repo              | `GroophyLifefor/heap-analysis`                |
-| runner            | `co-maintainer`                               |
-| guide             | `guide_v2/` (synthesized with `z-ai/glm-5.3`) |
-| low-model         | `deepseek/deepseek-v4-flash-0731`             |
-| high-model        | `openai/gpt-5.6-luna`                         |
-| judge-model       | `openai/gpt-5.6-luna`                         |
-| review-concurrent | 4                                             |
-| `--codegraph`     | off (default)                                 |
-| PRs               | 30 (14 defective, 16 control)                 |
-| run date          | 2026-09-14                                    |
+|                   |                                                 |
+| ----------------- | ----------------------------------------------- |
+| repo              | `GroophyLifefor/heap-analysis`                  |
+| runner            | `co-maintainer`                                 |
+| guide             | `guide_v2/` (synthesized with `z-ai/glm-5.3`)   |
+| low-model         | `deepseek/deepseek-v4-flash-0731`               |
+| high-model        | `openai/gpt-5.6-luna`                           |
+| judge-model       | `openai/gpt-5.6-luna`                           |
+| review-concurrent | 4                                               |
+| codegraph         | off (`--disable-codegraph`, see the note below) |
+| PRs               | 30 (14 defective, 16 control)                   |
+| run date          | 2026-09-14                                      |
 
 ### Headline
 
