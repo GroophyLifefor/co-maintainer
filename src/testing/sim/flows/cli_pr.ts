@@ -965,8 +965,8 @@ function flowChecks(sim: Sim): CheckResult[] {
           summary.closed === 0 &&
           summary.blocking === 1 &&
           blocking.length === 1 &&
-          blocking[0]!.path === "src/math.ts" &&
-          blocking[0]!.severity === "P1" &&
+          blocking[0]?.path === "src/math.ts" &&
+          blocking[0]?.severity === "P1" &&
           findings.every((row) => row.state === "new") &&
           findings.map((row) => row.severity).join() === "P1,P2,P3" &&
           json?.exitCode === 1
@@ -999,13 +999,13 @@ function flowChecks(sim: Sim): CheckResult[] {
       "--output=github prints one annotation per finding, errors first, and nothing else",
       github?.exitCode === 1 &&
         annotations.length === 3 &&
-        annotations[0]!.startsWith(
+        annotations[0]?.startsWith(
           `::error file=src/math.ts,line=${DIVIDE_LINE},title=P1%3A divide::`,
         ) &&
-        annotations[1]!.startsWith(
+        annotations[1]?.startsWith(
           "::warning file=scripts/deploy.sh,line=3,title=P2 finding::",
         ) &&
-        annotations[2]!.startsWith(
+        annotations[2]?.startsWith(
           "::warning file=src/format.ts,line=4,title=P3%3A formatPercent::",
         ),
       `${annotations.length} lines, ${github ? code(github) : "no run"}`,
@@ -1037,7 +1037,8 @@ function flowChecks(sim: Sim): CheckResult[] {
         manyLines.filter((line) => line.startsWith("::warning ")).length ===
           10 &&
         manyLines.filter((line) => line.startsWith("::notice ")).length === 1 &&
-        manyLines.at(-1)!.includes("4 more findings are not annotated") &&
+        manyLines.at(-1)?.includes("4 more findings are not annotated") ===
+          true &&
         manyLines.length === 21 &&
         many?.exitCode === 1,
       `${manyLines.length} lines`,
@@ -1046,7 +1047,7 @@ function flowChecks(sim: Sim): CheckResult[] {
       sim,
       "a finding's text cannot start a workflow command or a link",
       manyLines.every((line) => /^::(error|warning|notice) /.test(line)) &&
-        manyLines[0]!.includes("::set-output name=x::y%0Alast line") &&
+        manyLines[0]?.includes("::set-output name=x::y%0Alast line") &&
         manySummary.includes("a \\| b \\[link\\]") &&
         !/[^\\]\]\(http/.test(manySummary),
       "every stdout line is an annotation, the text is escaped",
@@ -1245,8 +1246,8 @@ function flowChecks(sim: Sim): CheckResult[] {
     check(
       "a tool round: the model asks for a syntax page, gets it, and answers in a second call",
       toolCalls.length === 2 &&
-        toolCalls[0]!.toolCalls === 1 &&
-        toolCalls[1]!.toolCalls === 0 &&
+        toolCalls[0]?.toolCalls === 1 &&
+        toolCalls[1]?.toolCalls === 0 &&
         (secondMessages ?? []).some(
           (message) =>
             message.role === "tool" &&
@@ -1261,8 +1262,8 @@ function flowChecks(sim: Sim): CheckResult[] {
     check(
       "a tool round keeps one system prompt and one first message across rounds",
       toolCalls.length === 2 &&
-        toolCalls[0]!.system === toolCalls[1]!.system &&
-        toolCalls[0]!.firstUser === toolCalls[1]!.firstUser,
+        toolCalls[0]?.system === toolCalls[1]?.system &&
+        toolCalls[0]?.firstUser === toolCalls[1]?.firstUser,
       "the prompt cache stays valid",
     ),
     check(
@@ -1317,7 +1318,7 @@ function flowChecks(sim: Sim): CheckResult[] {
     ),
     check(
       "a failed AI call names the provider and the status",
-      /500/.test(
+      /^OpenRouter failed with 500/.test(
         String((failedBody?.error as Json | undefined)?.message ?? ""),
       ),
       String((failedBody?.error as Json | undefined)?.message ?? ""),
