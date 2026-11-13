@@ -314,18 +314,7 @@ export async function runLocalReview(
         await saveLocalCarry({
           subjectId,
           files: revision.files,
-          // A file left out of this diff because it did not change was still
-          // seen by the round before. Forgetting it made a finding in it
-          // unverifiable the next time the file changed, so the old finding
-          // stayed open and the model reported the same problem again.
-          visiblePaths: [
-            ...new Set([
-              ...visiblePaths,
-              ...(extras.unchangedPaths ?? []).filter((path) =>
-                previous?.visiblePaths.includes(path),
-              ),
-            ]),
-          ],
+          visiblePaths: [...visiblePaths],
           findings: findingsToStore,
           guideBuiltAt: response.guideBuiltAt,
         });
