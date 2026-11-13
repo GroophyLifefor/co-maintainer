@@ -32,6 +32,11 @@ import type {
   Options,
 } from "../types.ts";
 import type { ResolvedFinding } from "../review/carry_over.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 // Each test file runs in its own process, so pointing the environment at one
 // throwaway directory here cannot reach the real cache or guides.

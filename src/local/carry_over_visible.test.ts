@@ -20,6 +20,11 @@ import {
   writeTextFile,
 } from "../testing/runtime.ts";
 import { startFakeOpenRouter } from "../testing/fake_openrouter.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 const projectRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 
