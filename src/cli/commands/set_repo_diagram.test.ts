@@ -11,6 +11,11 @@ import {
   tempDirSync,
 } from "../../testing/runtime.ts";
 import { runSet } from "./set.ts";
+import { isolateTestFile } from "../../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 async function withConfig(fn: () => Promise<void>): Promise<void> {
   const original = getEnv("CM_CONFIG_PATH");
