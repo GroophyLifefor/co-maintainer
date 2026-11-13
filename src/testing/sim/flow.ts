@@ -27,7 +27,11 @@ import type { StepResult } from "./report.ts";
 import { SAMPLE_REPO } from "./sample_repo.ts";
 import { SimServer } from "./server.ts";
 import {
+  type AiCall,
+  type Completion,
   dumpDatabase,
+  type GitCommand,
+  type GithubCall,
   readFiles,
   readGitTrace,
   readSandbox,
@@ -113,9 +117,13 @@ export type Sim = {
   options(patch?: Partial<Options>): Options;
   /** Creates a repository GitHub knows, the sample one by default. */
   repo(fullName: string, files?: Record<string, string>): SimRepo;
-  /** Runs the CLI in this process, as `co-maintainer <args>`, and returns
-   * what it printed and its exit code. */
-  cli(args: string[]): Promise<CliRun>;
+  /** Runs the CLI in this process, as `co-maintainer <args>`, the way a
+   * terminal runs it: stdout and stderr hold what a user would see, log lines
+   * and the run summary included. `cwd` and `env` apply to this run only.
+   * Returns the run's record, also kept in `cliRuns`. */
+  cli(args: string[], options?: CliOptions): Promise<CliRun>;
+  /** Every `cli()` run so far, in order. */
+  cliRuns: CliRun[];
   paths: {
     reposDir: string;
     appDb: string;
@@ -130,12 +138,34 @@ export type Sim = {
   judge?: { options: Options; model: string };
 };
 
+export type CliOptions = {
+  /** The directory the CLI runs in, as `process.cwd()`. */
+  cwd?: string;
+  /** Environment variables for this run. `undefined` removes one. */
+  env?: Record<string, string | undefined>;
+};
+
+/** One `sim.cli()` run, and what it did. */
 export type CliRun = {
+  /** The arguments, each secret replaced by its name. */
+  args: string[];
+  /** The step it ran in. */
+  step: string;
   stdout: string;
   stderr: string;
   exitCode: number;
   /** What `run` threw, after the CLI reported it. */
   error?: unknown;
+  /** When it started and ended, in ms since the run started. */
+  startMs: number;
+  endMs: number;
+  /** What happened during this run, from the trace. */
+  github(): GithubCall[];
+  ai(): AiCall[];
+  completions(): Completion[];
+  logs(): Trace["logs"];
+  /** The git commands it ran, the product's clones and fetches included. */
+  git(): GitCommand[];
 };
 
 export type FlowResult = {
@@ -284,6 +314,8 @@ export async function runFlow(
 
   let at = performance.now();
   const world = createWorld({ aiKey: settings.aiKey });
+  // The run's start on the wall clock, which git's trace events use.
+  const epoch = Date.now() - trace.now();
   // Everything installed from here on is undone in `finally`, in reverse,
   // even when a later line of the setup throws.
   const undo: (() => void | Promise<void>)[] = [];
@@ -331,22 +363,45 @@ export async function runFlow(
       options: (patch = {}) => ({ ...baseOptions(settings, world), ...patch }),
       repo: (fullName, files = SAMPLE_REPO) =>
         world.createRepo(fullName, files),
-      cli: async (args) => {
+      cli: async (args, options = {}) => {
         const { run, reportCliError } = await import("../../cli/main.ts");
         const argv = process.argv;
         const exitCode = process.exitCode;
+        const cwd = process.cwd();
+        const env = Object.fromEntries(
+          Object.keys(options.env ?? {}).map((key) => [key, process.env[key]]),
+        );
+        const step = trace.step;
+        const startMs = trace.now();
         process.argv = [argv[0]!, "co-maintainer", ...args];
         process.exitCode = 0;
+        for (const [key, value] of Object.entries(options.env ?? {})) {
+          if (value === undefined) delete process.env[key];
+          else process.env[key] = value;
+        }
+        if (options.cwd) process.chdir(options.cwd);
         try {
-          const output = await captured(async () => {
-            try {
-              await run(args);
-            } catch (error) {
-              reportCliError(error);
-              throw error;
-            }
-          });
+          // No log sink here: the product prints its log lines the way it
+          // does in a terminal, so stderr holds what a user would see.
+          const output = await captured(() =>
+            withLogSink(
+              undefined as unknown as Parameters<typeof withLogSink>[0],
+              async () => {
+                try {
+                  await run(args);
+                } catch (error) {
+                  reportCliError(error);
+                  throw error;
+                }
+              },
+            ),
+          );
           const exit = Number(process.exitCode ?? 0);
+          // The same log lines join the trace, under this step.
+          for (const line of `${output.stdout}\n${output.stderr}`.split("\n")) {
+            const parsed = /^\[([\w-]+)\] (.*)$/.exec(line);
+            if (parsed) trace.log(parsed[1]!, parsed[2]!);
+          }
           // What the CLI printed is searched for secrets like any other place.
           // The arguments keep only the names of the secrets they carried.
           let shown = args;
@@ -355,25 +410,49 @@ export async function runFlow(
               arg.replaceAll(secret.value, `[${secret.name}]`),
             );
           }
+          const endMs = trace.now();
           trace.cli.push({
-            step: trace.step,
-            startMs: trace.now(),
+            step,
+            startMs,
             args: shown,
             stdout: output.stdout,
             stderr: output.stderr,
             exitCode: exit,
           });
-          return {
+          const during = <T extends { startMs: number }>(list: T[]) =>
+            list.filter(
+              (item) => item.startMs >= startMs && item.startMs <= endMs,
+            );
+          // Read now: the trace file goes with the sandbox when the flow ends.
+          const gitCommands = during(readGitTrace(world.gitTracePath, epoch));
+          const record: CliRun = {
+            args: shown,
+            step,
             stdout: output.stdout,
             stderr: output.stderr,
             exitCode: exit,
             ...(output.error === undefined ? {} : { error: output.error }),
+            startMs,
+            endMs,
+            github: () => during(trace.github),
+            ai: () => during(trace.ai),
+            completions: () => during(trace.completions),
+            logs: () => during(trace.logs),
+            git: () => gitCommands,
           };
+          sim.cliRuns.push(record);
+          return record;
         } finally {
+          process.chdir(cwd);
+          for (const [key, value] of Object.entries(env)) {
+            if (value === undefined) delete process.env[key];
+            else process.env[key] = value;
+          }
           process.argv = argv;
           process.exitCode = exitCode;
         }
       },
+      cliRuns: [],
       paths: {
         reposDir: reposDir(),
         appDb: appDbPath(),
@@ -539,7 +618,7 @@ export async function runFlow(
           unusedAiRules: fakeAi.unused().map((rule) => rule.name ?? ""),
           leaks: trace.leaks,
           logs: trace.logs,
-          git: readGitTrace(world.gitTracePath, Date.now() - trace.now()),
+          git: readGitTrace(world.gitTracePath, epoch),
           files: readFiles(reposDir()),
           databases: {
             app: dumpDatabase(appDbPath()),

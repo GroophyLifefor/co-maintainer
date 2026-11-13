@@ -66,6 +66,16 @@ export type World = {
   github: SimGithub;
   secrets: Secrets;
   createRepo(fullName: string, files: Record<string, string>): SimRepo;
+  /** A working checkout of a simulated repository, as a developer has one,
+   * under `<root>/work/<name>`. Its `origin` is the SSH form
+   * `git@github.com:<repo>.git`, which the product reads as GitHub and which
+   * no git process can reach. `remote: null` leaves no remote, a string sets
+   * another. `branch` creates and switches to a new branch. Returns its
+   * directory. */
+  checkout(
+    fullName: string,
+    options?: { name?: string; branch?: string; remote?: string | null },
+  ): string;
   git(repo: SimRepo, args: string[]): Buffer;
   /** Merges `patch` into the product's `config.json`. */
   writeConfig(patch: Record<string, unknown>): void;
@@ -165,6 +175,12 @@ export function createWorld(worldOptions: WorldOptions = {}): World {
     GIT_CONFIG_COUNT: "1",
     GIT_CONFIG_KEY_0: `url.${pathToFileURL(githubDir).href}/.insteadOf`,
     GIT_CONFIG_VALUE_0: "https://github.com/",
+    // No git process can reach a real host: only `file` transport is
+    // allowed (the rewrite above turns GitHub into a file URL first), ssh
+    // fails at once, and git never asks for a password.
+    GIT_ALLOW_PROTOCOL: "file",
+    GIT_SSH_COMMAND: "false",
+    GIT_TERMINAL_PROMPT: "0",
   });
 
   const repos = new Map<string, SimRepo>();
@@ -216,6 +232,31 @@ export function createWorld(worldOptions: WorldOptions = {}): World {
       git(repo, ["commit", "-q", "-m", "initial"]);
       repos.set(fullName, repo);
       return repo;
+    },
+    checkout(fullName, options = {}) {
+      const name = options.name ?? fullName.replace("/", "-");
+      const dir = join(root, "work", name);
+      mkdirSync(dirname(dir), { recursive: true });
+      const run = (cwd: string, args: string[]) => {
+        const result = spawnSync("git", args, { cwd });
+        if (result.status !== 0) {
+          throw new Error(`git ${args.join(" ")}: ${result.stderr.toString()}`);
+        }
+      };
+      // Cloned through the GitHub URL, so `origin/main` and the other
+      // remote branches exist as they would in a real clone.
+      run(dirname(dir), ["clone", "-q", `https://github.com/${fullName}`, dir]);
+      if (options.remote === null) run(dir, ["remote", "remove", "origin"]);
+      else {
+        run(dir, [
+          "remote",
+          "set-url",
+          "origin",
+          options.remote ?? `git@github.com:${fullName}.git`,
+        ]);
+      }
+      if (options.branch) run(dir, ["switch", "-q", "-c", options.branch]);
+      return dir;
     },
     writeConfig(patch) {
       writeFileSync(

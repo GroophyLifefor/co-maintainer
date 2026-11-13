@@ -3,6 +3,8 @@
  * stand-in, the remote server answered in process, faults, and how the
  * runner treats steps and inherited checks. */
 import assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
 import { finding } from "./fake_ai.ts";
 import {
@@ -325,6 +327,125 @@ test("CLI review of a pull request reads GitHub through the gh stand-in", async 
     },
   };
   const result = await run(flow);
+  assert.ok(result.passed, failures(result));
+});
+
+test("a CLI run is a record: terminal output, its own calls, cwd and env", async () => {
+  const flow: Flow = {
+    name: "cli-record-fixture",
+    description: "test fixture",
+    ai: [
+      ...INIT_AI,
+      { job: "review_pull_request", reply: { findings: [REVIEW_FINDING] } },
+      { job: "review_local", reply: { findings: [] } },
+    ],
+    steps: [
+      initStep,
+      {
+        name: "runs",
+        async run(sim) {
+          sim.github.openPull(SAMPLE_REPO_NAME, {
+            title: "Change add",
+            files: { "src/math.ts": "export const add = (a: number) => a;\n" },
+          });
+          await sim.cli([
+            "review",
+            SAMPLE_REPO_NAME,
+            "1",
+            "--auth=gh",
+            "--ai=openrouter",
+            `--token=${sim.world.secrets.aiKey}`,
+            "--low-model=simulate/low",
+            "--high-model=simulate/high",
+            "--disable-codegraph",
+          ]);
+          await sim.cli(["config", "get", "low-model"], {
+            env: { LOW_MODEL: "from-the-run-env" },
+          });
+          // Local review in a checkout: it finds the repository from the SSH
+          // remote of the directory it runs in.
+          const dir = sim.world.checkout(SAMPLE_REPO_NAME, {
+            name: "local",
+            branch: "feature",
+          });
+          writeFileSync(join(dir, "src", "math.ts"), "export const add = 3;\n");
+          sim.state.cwd = process.cwd();
+          await sim.cli(
+            [
+              "review",
+              "--json",
+              "--auth=gh",
+              `--token=${sim.world.secrets.aiKey}`,
+            ],
+            { cwd: dir },
+          );
+        },
+      },
+    ],
+  };
+  const sim = await (async () => {
+    let seen: Sim | undefined;
+    flow.checks = (s) => {
+      seen = s;
+      return [];
+    };
+    const result = await run(flow);
+    assert.ok(result.passed, failures(result));
+    return seen!;
+  })();
+  const [review, config, local] = sim.cliRuns;
+  assert.equal(review!.step, "runs");
+  assert.ok(review!.args.includes("--token=[AI key]"), "the key is named");
+  assert.match(review!.stderr, /\[review\]/, "log lines reach stderr");
+  assert.ok(review!.github().length > 0);
+  assert.ok(review!.github().every((call) => call.via === "gh"));
+  assert.equal(
+    review!.completions().filter((c) => c.job === "review_pull_request").length,
+    1,
+  );
+  assert.ok(review!.logs().length > 0, "the same lines are in the trace");
+  assert.match(config!.stdout, /from-the-run-env/);
+  assert.equal(process.env.LOW_MODEL, undefined, "env is restored");
+  assert.match(local!.stdout, /sim\/sample/);
+  assert.equal(process.cwd(), sim.state.cwd, "cwd is restored");
+  assert.ok(local!.git().length > 0, "the run's git commands");
+});
+
+test("a checkout has an SSH remote no git process can reach", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const result = await run({
+    name: "checkout-fixture",
+    description: "test fixture",
+    steps: [
+      {
+        name: "checkout",
+        run(sim) {
+          sim.repo(SAMPLE_REPO_NAME);
+          const dir = sim.world.checkout(SAMPLE_REPO_NAME);
+          const git = (...args: string[]) =>
+            spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+          sim.state.url = git("remote", "get-url", "origin").stdout.trim();
+          sim.state.fetch = git("fetch", "origin").status;
+          sim.state.other = git(
+            "ls-remote",
+            "https://gitlab.com/someone/something",
+          ).status;
+          sim.state.branches = git("branch", "-r").stdout;
+        },
+      },
+    ],
+    checks: (sim) => [
+      {
+        name: "remote and refusals",
+        ok:
+          sim.state.url === "git@github.com:sim/sample.git" &&
+          sim.state.fetch !== 0 &&
+          sim.state.other !== 0 &&
+          String(sim.state.branches).includes("origin/main"),
+        detail: JSON.stringify(sim.state),
+      },
+    ],
+  });
   assert.ok(result.passed, failures(result));
 });
 
