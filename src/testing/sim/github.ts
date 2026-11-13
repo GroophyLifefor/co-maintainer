@@ -33,6 +33,7 @@ export type SimPull = {
   title: string;
   body: string;
   author: string;
+  authorType: SimUser["type"];
   /** The head lives in a fork, `<author>/<name>`, not in the repository. */
   fork: boolean;
   draft: boolean;
@@ -196,7 +197,30 @@ export type OpenPullInput = {
   association?: string;
   files: FileChanges;
   message?: string;
+  /** When it was opened, as an ISO time (see `daysAgo`). Its commit is dated
+   * the same. Defaults to now. */
+  at?: string;
+  /** `Bot` for a pull request a bot opened. GitHub says so in `type`, not
+   * only in a `[bot]` login. */
+  authorType?: SimUser["type"];
 };
+
+/** A person's side of a comment or review: who, how GitHub relates them to
+ * the repository, and when. */
+export type PersonInput = {
+  user?: string;
+  type?: SimUser["type"];
+  association?: string;
+  /** An ISO time. Defaults to now. */
+  at?: string;
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The ISO time `days` before now, for `at`. */
+export function daysAgo(days: number): string {
+  return new Date(Date.now() - days * DAY_MS).toISOString();
+}
 
 export class SimGithub {
   readonly world: World;
@@ -265,9 +289,14 @@ export class SimGithub {
     parent: string,
     files: FileChanges,
     message: string,
+    at?: string,
   ): string {
     const index = join(this.world.root, `index-${this.id()}`);
-    const env = { ...process.env, GIT_INDEX_FILE: index };
+    const env = {
+      ...process.env,
+      GIT_INDEX_FILE: index,
+      ...(at ? { GIT_AUTHOR_DATE: at, GIT_COMMITTER_DATE: at } : {}),
+    };
     const run = (args: string[], input?: string) => {
       const result = spawnSync("git", args, { cwd: repo.dir, env, input });
       if (result.status !== 0) {
@@ -294,6 +323,14 @@ export class SimGithub {
     return new Date().toISOString();
   }
 
+  /** What GitHub does to a pull request when anything happens on it: a
+   * comment, a review, an edit. The product decides what to fetch again from
+   * `updated_at` alone. */
+  private touch(repo: string, number: number, at = this.now()): void {
+    const pull = this.findPull(repo, number);
+    if (pull && at > pull.updatedAt) pull.updatedAt = at;
+  }
+
   private setRef(repo: SimRepo, ref: string, sha: string): void {
     this.git(repo, ["update-ref", ref, sha]);
   }
@@ -308,13 +345,14 @@ export class SimGithub {
     const repo = this.repo(repoName);
     const number = this.nextNumber(repoName);
     const baseSha = this.sha(repo, repo.defaultBranch);
+    const at = input.at ?? this.now();
     const headSha = this.commit(
       repo,
       baseSha,
       input.files,
       input.message ?? input.title,
+      at,
     );
-    const at = this.now();
     const pull: SimPull = {
       id: 2_000_000_000 + this.id(),
       number,
@@ -322,6 +360,7 @@ export class SimGithub {
       title: input.title,
       body: input.body ?? "",
       author: input.author ?? "sim-contributor",
+      authorType: input.authorType ?? "User",
       fork: input.fork ?? false,
       draft: input.draft ?? false,
       headRef: input.branch ?? `sim/pr-${number}`,
@@ -336,51 +375,74 @@ export class SimGithub {
       updatedAt: at,
       closedAt: null,
     };
-    this.moveHead(pull, headSha);
+    this.moveHead(pull, headSha, at);
     this.pulls.push(pull);
     return pull;
   }
 
   /** A fork's branch lives in the fork, so the base repository only has the
    * `refs/pull/<n>/head` GitHub keeps for every pull request. */
-  private moveHead(pull: SimPull, sha: string): void {
+  private moveHead(pull: SimPull, sha: string, at = this.now()): void {
     const repo = this.repo(pull.repo);
     if (!pull.fork) this.setRef(repo, `refs/heads/${pull.headRef}`, sha);
     this.setRef(repo, `refs/pull/${pull.number}/head`, sha);
     pull.headSha = sha;
-    pull.updatedAt = this.now();
+    pull.updatedAt = at;
   }
 
-  /** Pushes one more commit onto the pull request's branch. */
-  push(pull: SimPull, files: FileChanges, message = "update"): string {
-    const sha = this.commit(this.repo(pull.repo), pull.headSha, files, message);
-    this.moveHead(pull, sha);
+  /** Pushes one more commit onto the pull request's branch. `at` dates the
+   * commit and the push. */
+  push(
+    pull: SimPull,
+    files: FileChanges,
+    message = "update",
+    at?: string,
+  ): string {
+    const sha = this.commit(
+      this.repo(pull.repo),
+      pull.headSha,
+      files,
+      message,
+      at,
+    );
+    this.moveHead(pull, sha, at);
     return sha;
   }
 
   /** Rewrites the branch: one new commit of `files` straight on the current
    * base, so the old head is no longer on the branch. */
-  forcePush(pull: SimPull, files: FileChanges, message = "rewrite"): string {
+  forcePush(
+    pull: SimPull,
+    files: FileChanges,
+    message = "rewrite",
+    at?: string,
+  ): string {
     const repo = this.repo(pull.repo);
-    const sha = this.commit(repo, this.sha(repo, pull.baseRef), files, message);
-    this.moveHead(pull, sha);
+    const sha = this.commit(
+      repo,
+      this.sha(repo, pull.baseRef),
+      files,
+      message,
+      at,
+    );
+    this.moveHead(pull, sha, at);
     return sha;
   }
 
-  close(pull: SimPull): void {
+  close(pull: SimPull, at = this.now()): void {
     pull.state = "closed";
-    pull.closedAt = this.now();
-    pull.updatedAt = pull.closedAt;
+    pull.closedAt = at;
+    pull.updatedAt = at;
   }
 
-  reopen(pull: SimPull): void {
+  reopen(pull: SimPull, at = this.now()): void {
     pull.state = "open";
     pull.closedAt = null;
-    pull.updatedAt = this.now();
+    pull.updatedAt = at;
   }
 
-  /** Merges with a merge commit on the base branch. */
-  merge(pull: SimPull): string {
+  /** Merges with a merge commit on the base branch, dated `at`. */
+  merge(pull: SimPull, at = this.now()): string {
     const repo = this.repo(pull.repo);
     const base = this.sha(repo, pull.baseRef);
     const tree = this.git(repo, [
@@ -391,21 +453,32 @@ export class SimGithub {
     ])
       .split("\n")[0]!
       .trim();
-    const sha = this.git(repo, [
-      "commit-tree",
-      tree,
-      "-p",
-      base,
-      "-p",
-      pull.headSha,
-      "-m",
-      `Merge pull request #${pull.number}`,
-    ]).trim();
+    const result = spawnSync(
+      "git",
+      [
+        "commit-tree",
+        tree,
+        "-p",
+        base,
+        "-p",
+        pull.headSha,
+        "-m",
+        `Merge pull request #${pull.number}`,
+      ],
+      {
+        cwd: repo.dir,
+        env: { ...process.env, GIT_AUTHOR_DATE: at, GIT_COMMITTER_DATE: at },
+      },
+    );
+    if (result.status !== 0) {
+      throw new Error(`git commit-tree: ${result.stderr.toString()}`);
+    }
+    const sha = result.stdout.toString().trim();
     this.setRef(repo, `refs/heads/${pull.baseRef}`, sha);
     this.git(repo, ["reset", "-q", "--hard", pull.baseRef]);
     pull.mergeCommitSha = sha;
-    pull.mergedAt = this.now();
-    this.close(pull);
+    pull.mergedAt = at;
+    this.close(pull, at);
     return sha;
   }
 
@@ -414,62 +487,104 @@ export class SimGithub {
     repoName: string,
     files: FileChanges,
     message = "direct push",
+    at?: string,
   ): { before: string; after: string } {
     const repo = this.repo(repoName);
     const before = this.sha(repo, repo.defaultBranch);
-    const after = this.commit(repo, before, files, message);
+    const after = this.commit(repo, before, files, message, at);
     this.setRef(repo, `refs/heads/${repo.defaultBranch}`, after);
     this.git(repo, ["reset", "-q", "--hard", repo.defaultBranch]);
     return { before, after };
   }
 
-  /** A person comments on the pull request's conversation. Not a product
-   * write, so it is not in `writes`. */
+  /** A person, or a bot with `type: "Bot"`, comments on the pull request's
+   * conversation. Not a product write, so it is not in `writes`. `who` is a
+   * login, or a `PersonInput`. */
   comment(
     pull: SimPull,
     body: string,
-    user = "sim-maintainer",
-    association = "MEMBER",
+    who: string | PersonInput = {},
+    association?: string,
   ): SimComment {
-    const at = this.now();
+    const person = typeof who === "string" ? { user: who } : who;
+    const at = person.at ?? this.now();
     const comment: SimComment = {
       id: this.id(),
       repo: pull.repo,
       number: pull.number,
       kind: "issue",
       body,
-      user: { login: user, type: "User" },
-      association,
+      user: {
+        login: person.user ?? "sim-maintainer",
+        type: person.type ?? "User",
+      },
+      association: association ?? person.association ?? "MEMBER",
       createdAt: at,
       updatedAt: at,
     };
     this.comments.push(comment);
+    this.touch(pull.repo, pull.number, at);
     return comment;
+  }
+
+  /** A person submits a review with a verdict: `CHANGES_REQUESTED`,
+   * `APPROVED` or `COMMENTED`. Not a product write. */
+  review(
+    pull: SimPull,
+    input: PersonInput & { state: string; body: string },
+  ): SimReview {
+    const at = input.at ?? this.now();
+    const review: SimReview = {
+      id: this.id(),
+      repo: pull.repo,
+      number: pull.number,
+      body: input.body,
+      state: input.state,
+      user: {
+        login: input.user ?? "sim-maintainer",
+        type: input.type ?? "User",
+      },
+      commitId: pull.headSha,
+      submittedAt: at,
+    };
+    this.reviews.push(review);
+    this.touch(pull.repo, pull.number, at);
+    return review;
+  }
+
+  /** A person edits an earlier comment. The comment's and the pull
+   * request's `updated_at` move, as on GitHub. */
+  editComment(comment: SimComment, body: string, at = this.now()): void {
+    comment.body = body;
+    comment.updatedAt = at;
+    this.touch(comment.repo, comment.number, at);
   }
 
   /** A person comments on a diff line, or replies to a line comment. */
   reviewComment(
     pull: SimPull,
-    input: {
+    input: PersonInput & {
       body: string;
       path?: string;
       line?: number;
       inReplyTo?: number;
-      user?: string;
-      association?: string;
     },
   ): SimComment {
     const parent = input.inReplyTo
       ? this.comments.find((comment) => comment.id === input.inReplyTo)
       : undefined;
-    const at = this.now();
+    const at = input.at ?? this.now();
+    this.touch(pull.repo, pull.number, at);
     const comment: SimComment = {
       id: this.id(),
       repo: pull.repo,
       number: pull.number,
       kind: "review",
       body: input.body,
-      user: { login: input.user ?? "sim-maintainer", type: "User" },
+      user: {
+        login: input.user ?? "sim-maintainer",
+        type: input.type ?? "User",
+      },
       association: input.association ?? "MEMBER",
       path: input.path ?? parent?.path,
       line: input.line ?? parent?.line,
@@ -552,7 +667,7 @@ export class SimGithub {
       state: pull.state,
       draft: pull.draft,
       locked: false,
-      user: { login: pull.author, type: "User" },
+      user: { login: pull.author, type: pull.authorType },
       author_association: pull.association,
       labels: pull.labels.map((label) => ({ name: label })),
       head: {
@@ -585,6 +700,21 @@ export class SimGithub {
       ),
       html_url: `https://github.com/${pull.repo}/pull/${pull.number}`,
     };
+  }
+
+  /** A pull request as GitHub's list answers it: without the counts and the
+   * merge state only `pulls/<n>` has, so the product must ask for those. */
+  private pullListJson(pull: SimPull): Json {
+    const {
+      additions: _additions,
+      deletions: _deletions,
+      changed_files: _changedFiles,
+      commits: _commits,
+      merged: _merged,
+      mergeable: _mergeable,
+      ...listed
+    } = this.pullJson(pull);
+    return listed;
   }
 
   /** GitHub's per-file listing of a diff, from `git diff`. `patch` starts at
@@ -1143,7 +1273,7 @@ export class SimGithub {
             pull.repo === name && (state === "all" || pull.state === state),
         )
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-      return ok(this.page(pulls, url).map((pull) => this.pullJson(pull)));
+      return ok(this.page(pulls, url).map((pull) => this.pullListJson(pull)));
     }
 
     if ((m = /^\/pulls\/(\d+)(\/.*)?$/.exec(rest))) {
@@ -1153,7 +1283,7 @@ export class SimGithub {
     }
 
     if (method === "PATCH" && (m = /^\/pulls\/comments\/(\d+)$/.exec(rest))) {
-      return this.editComment(Number(m[1]), body, "review");
+      return this.patchComment(Number(m[1]), body, "review");
     }
 
     if (
@@ -1172,7 +1302,7 @@ export class SimGithub {
         );
         return comment ? ok(this.commentJson(comment)) : notFound();
       }
-      if (method === "PATCH") return this.editComment(id, body, "issue");
+      if (method === "PATCH") return this.patchComment(id, body, "issue");
       return undefined;
     }
 
@@ -1365,6 +1495,7 @@ export class SimGithub {
           submittedAt: this.now(),
         };
         this.reviews.push(review);
+        this.touch(pull.repo, pull.number, review.submittedAt);
         for (const item of inline) {
           const comment = this.addComment(request, pull, "review", {
             ...item,
@@ -1487,18 +1618,22 @@ export class SimGithub {
       if (parent) comment.inReplyTo = parent.inReplyTo ?? parent.id;
     }
     this.comments.push(comment);
+    this.touch(pull.repo, pull.number, at);
     return comment;
   }
 
-  private editComment(
+  /** The product edits a comment through the API. */
+  private patchComment(
     id: number,
     body: Json,
     kind: SimComment["kind"],
   ): RouteResult {
     const comment = this.comments.find((c) => c.id === id && c.kind === kind);
     if (!comment) return notFound();
-    if (typeof body.body === "string") comment.body = body.body;
-    comment.updatedAt = this.now();
+    this.editComment(
+      comment,
+      typeof body.body === "string" ? body.body : comment.body,
+    );
     return ok(this.commentJson(comment));
   }
 

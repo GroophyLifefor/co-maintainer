@@ -2,7 +2,7 @@
  * computes for them, and the writes it records. */
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import type { RouteRequest } from "./github.ts";
+import { daysAgo, type RouteRequest } from "./github.ts";
 import { SAMPLE_REPO, SAMPLE_REPO_NAME } from "./sample_repo.ts";
 import { createWorld } from "./world.ts";
 
@@ -397,4 +397,66 @@ test("paging stops at 100, and a binary or huge diff has no patch", () => {
   }
   const commits = call("GET", `${BASE}/commits?per_page=500`).body as Json[];
   assert.equal(commits.length, 100);
+});
+
+test("an aged pull request has commits dated to match, and people move updated_at", () => {
+  const opened = daysAgo(700);
+  const pull = github.openPull(SAMPLE_REPO_NAME, {
+    title: "Old",
+    at: opened,
+    files: { "old.txt": "old\n" },
+  });
+  const json = call("GET", `${BASE}/pulls/${pull.number}`).body;
+  assert.equal(json.created_at, opened);
+  assert.equal(json.updated_at, opened);
+  const commits = call("GET", `${BASE}/pulls/${pull.number}/commits`)
+    .body as Json[];
+  assert.equal(
+    new Date(commits[0]!.commit.author.date).toISOString().slice(0, 10),
+    opened.slice(0, 10),
+  );
+
+  const said = daysAgo(600);
+  const comment = github.comment(pull, "a thought", { at: said });
+  assert.equal(pull.updatedAt, said);
+  const edited = daysAgo(500);
+  github.editComment(comment, "a better thought", edited);
+  assert.equal(pull.updatedAt, edited);
+  const verdict = github.review(pull, {
+    state: "CHANGES_REQUESTED",
+    body: "Please add a test.",
+    at: daysAgo(400),
+  });
+  assert.equal(pull.updatedAt, verdict.submittedAt);
+  const reviews = call("GET", `${BASE}/pulls/${pull.number}/reviews`)
+    .body as Json[];
+  assert.equal(reviews.at(-1)!.state, "CHANGES_REQUESTED");
+
+  // The product's own comment moves it too.
+  const before = pull.updatedAt;
+  call("POST", `${BASE}/issues/${pull.number}/comments`, { body: "noted" });
+  assert.ok(pull.updatedAt > before);
+});
+
+test("a bot is a Bot, and the pull request list leaves out what only pulls/N has", () => {
+  const pull = github.openPull(SAMPLE_REPO_NAME, {
+    title: "Bump",
+    author: "renovate[bot]",
+    authorType: "Bot",
+    files: { "deps.txt": "1\n" },
+  });
+  const comment = github.comment(pull, "beep", {
+    user: "helper[bot]",
+    type: "Bot",
+  });
+  assert.equal(comment.user.type, "Bot");
+  const listed = (
+    call("GET", `${BASE}/pulls?state=open&per_page=100`).body as Json[]
+  ).find((row) => row.number === pull.number)!;
+  assert.equal(listed.user.type, "Bot");
+  for (const key of ["additions", "deletions", "changed_files", "commits"]) {
+    assert.ok(!(key in listed), `${key} is only on pulls/N`);
+  }
+  const single = call("GET", `${BASE}/pulls/${pull.number}`).body;
+  assert.equal(single.changed_files, 1);
 });
