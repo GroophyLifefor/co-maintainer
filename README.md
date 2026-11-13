@@ -104,7 +104,7 @@ npm run docs:build       # rebuild docs/ from docs/md/
 npm run e2e              # end-to-end CLI loop
 npm run review-local-e2e # fake-AI local review loop
 npm run dashboard:smoke  # browser smoke test
-npm run e2e:simulate     # init in a simulated GitHub, see CONTRIBUTING.md
+npm run e2e:simulate     # init, sync, review and App flows in a simulated GitHub, see CONTRIBUTING.md
 ```
 
 Made by [Murat Kirazkaya](https://muratkirazkaya.com). If it helps you, a star or a thank you is how this project gets paid.
