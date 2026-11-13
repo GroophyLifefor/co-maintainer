@@ -1,5 +1,6 @@
 import { basename, dirname } from "node:path";
 import {
+  chmod,
   isNotFound,
   isWindows,
   mkdir,
@@ -46,26 +47,9 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
-/** Windows `rename` does not replace an existing file; swap via a backup
- * name so a failed promote can restore the previous contents. */
-async function promoteTempOnWindows(temp: string, path: string): Promise<void> {
-  if (!(await pathExists(path))) {
-    await rename(temp, path);
-    return;
-  }
-  const backup = `${path}.atomic-backup`;
-  await remove(backup).catch(() => {});
-  await rename(path, backup);
-  try {
-    await rename(temp, path);
-  } catch (error) {
-    await rename(backup, path).catch(() => {});
-    throw error;
-  }
-  await remove(backup).catch(() => {});
-}
-
-/** Write then rename into place so readers never see a half-written file. */
+/** Older releases replaced a file on Windows by moving it to a backup name
+ * first. A run killed between the two renames left only the backup, so put it
+ * back before writing. */
 async function recoverWindowsAtomicBackup(path: string): Promise<void> {
   if (!isWindows()) return;
   const backup = `${path}.atomic-backup`;
@@ -74,19 +58,87 @@ async function recoverWindowsAtomicBackup(path: string): Promise<void> {
   }
 }
 
+/** The file operations a write goes through. Tests pass their own to make a
+ * step fail, or to play Windows on another platform. */
+export type AtomicIo = {
+  writeTextFile: (path: string, text: string, mode?: number) => Promise<void>;
+  rename: (from: string, to: string) => Promise<void>;
+  windows: boolean;
+  sleep: (ms: number) => Promise<void>;
+};
+
+const defaultIo: AtomicIo = {
+  writeTextFile: (path, text, mode) =>
+    writeTextFile(path, text, mode === undefined ? undefined : { mode }),
+  rename,
+  windows: isWindows(),
+  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+};
+
+/** How long a Windows rename waits between tries when another program holds
+ * the target open. About a second in all, enough for a reader or a virus
+ * scanner to let go, short enough that a stuck file fails the command. */
+const WINDOWS_RENAME_DELAYS_MS = [10, 20, 40, 80, 160, 320, 400];
+
+function errorCode(error: unknown): string | undefined {
+  return error instanceof Error && "code" in error
+    ? String((error as { code: unknown }).code)
+    : undefined;
+}
+
+/** Node's rename replaces an existing file on every platform. On Windows it
+ * fails with EPERM, EBUSY or EACCES while another program has the target open
+ * without delete sharing, which a reader or a virus scanner can do for a
+ * moment. Those are retried briefly, then reported with the file's name. */
+async function replaceWithRetry(
+  io: AtomicIo,
+  temp: string,
+  path: string,
+): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await io.rename(temp, path);
+      return;
+    } catch (error) {
+      const code = errorCode(error);
+      const busy = code === "EPERM" || code === "EBUSY" || code === "EACCES";
+      if (!io.windows || !busy) throw error;
+      const delay = WINDOWS_RENAME_DELAYS_MS[attempt];
+      if (delay === undefined) {
+        throw new Error(
+          `Could not replace ${path}: another program keeps it open (${code}). Close it and try again.`,
+          { cause: error },
+        );
+      }
+      await io.sleep(delay);
+    }
+  }
+}
+
+/** Writes a temp file beside `path`, then renames it over `path`, so a reader
+ * in this or another process sees the old file or the new one, never half of
+ * one. `mode` is set on the temp file before the rename, so the real file never
+ * exists with a wider mode. The temp file is removed when any step fails. */
 export async function writeTextFileAtomic(
   path: string,
   text: string,
+  options: { mode?: number } = {},
+  io: AtomicIo = defaultIo,
 ): Promise<void> {
   await recoverWindowsAtomicBackup(path);
   const dir = dirname(path);
   await mkdir(dir, { recursive: true });
-  const base = basename(path);
-  const temp = tempName(dir, base);
-  await writeTextFile(temp, text);
-  if (isWindows()) {
-    await promoteTempOnWindows(temp, path);
-  } else {
-    await rename(temp, path);
+  const temp = tempName(dir, basename(path));
+  try {
+    await io.writeTextFile(temp, text, options.mode);
+    if (options.mode !== undefined) {
+      // The mode given at creation is narrowed by the umask. chmod sets it
+      // exactly. Windows has no POSIX modes, so a failure there is expected.
+      await chmod(temp, options.mode).catch(() => {});
+    }
+    await replaceWithRetry(io, temp, path);
+  } catch (error) {
+    await remove(temp).catch(() => {});
+    throw error;
   }
 }

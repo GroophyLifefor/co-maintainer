@@ -1,13 +1,11 @@
+import { writeTextFileAtomic } from "./util/atomic.ts";
 import {
-  chmod,
   currentPlatform,
   getEnv,
   isNotFound,
-  mkdir,
   readTextFileSync,
   setEnv,
   type Platform,
-  writeTextFile,
 } from "./util/runtime.ts";
 
 /** Everything init/remake resolved for one repo, except secrets — an API
@@ -343,6 +341,9 @@ export function loadEnvFile(path: string): void {
   }
 }
 
+/** No retry on a parse error: every write replaces the file whole, so a file
+ * that does not parse is broken, not half written, and reading it again would
+ * give the same answer. */
 export function readConfig(): UserConfig {
   try {
     return JSON.parse(readTextFileSync(configPath())) as UserConfig;
@@ -385,17 +386,16 @@ export function appPrivateKeyFileMissing(
   }
 }
 
+/** `serve` reads config.json on every job while `set` can write it from
+ * another process, so the file is replaced whole and a reader never sees half
+ * of it. config.json can hold an API token (see UserConfig.token), so it stays
+ * readable only by the current user where the platform supports it. */
 async function writeConfig(config: UserConfig): Promise<void> {
-  await mkdir(`${getConfigDir()}/co-maintainer`, { recursive: true });
-  const path = configPath();
-  await writeTextFile(path, `${JSON.stringify(config, null, 2)}\n`);
-  // config.json can hold an API token (see UserConfig.token) — keep it
-  // readable only by the current user where the platform supports it.
-  try {
-    await chmod(path, 0o600);
-  } catch {
-    // Windows has no POSIX chmod; NotSupported there is expected.
-  }
+  await writeTextFileAtomic(
+    configPath(),
+    `${JSON.stringify(config, null, 2)}\n`,
+    { mode: 0o600 },
+  );
 }
 
 /** Merges `patch` into `repos[repo]` in config.json, dropping undefined

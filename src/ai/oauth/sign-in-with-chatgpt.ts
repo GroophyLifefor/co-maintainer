@@ -29,14 +29,12 @@ import {
   readBody,
 } from "../../cli/error.ts";
 import { getConfigDir } from "../../config.ts";
+import { writeTextFileAtomic } from "../../util/atomic.ts";
 import {
-  chmod,
   getEnv,
   isNotFound,
-  mkdir,
   readTextFileSync,
   remove,
-  writeTextFile,
 } from "../../util/runtime.ts";
 import {
   parseResponsesBody,
@@ -220,15 +218,15 @@ export function loadCredentials(): Credentials | undefined {
   }
 }
 
+/** A refresh in `serve` can write the file while a review in another process
+ * reads it, and a half file reads as signed out. So it is replaced whole, and
+ * kept readable only by the current user where the platform supports it. */
 async function saveCredentials(creds: Credentials): Promise<void> {
-  const path = credentialsPath();
-  await mkdir(path.replace(/\/[^/]+$/, ""), { recursive: true });
-  await writeTextFile(path, `${JSON.stringify(creds, null, 2)}\n`);
-  try {
-    await chmod(path, 0o600);
-  } catch {
-    // Windows has no POSIX chmod; NotSupported there is expected.
-  }
+  await writeTextFileAtomic(
+    credentialsPath(),
+    `${JSON.stringify(creds, null, 2)}\n`,
+    { mode: 0o600 },
+  );
 }
 
 /** Keeps the issued client id even when the code exchange fails, so a later
