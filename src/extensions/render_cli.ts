@@ -82,6 +82,22 @@ export function cliExtensionLines(report: ExtensionReport): string[] {
   return lines;
 }
 
+/** The extensions' share of the summary line's counts. */
+export function extensionCounts(report: ExtensionReport): {
+  new: number;
+  open: number;
+  closed: number;
+  blocking: number;
+} {
+  const rows = report.findings;
+  return {
+    new: rows.filter((row) => row.state === "new").length,
+    open: rows.filter((row) => row.state === "open").length,
+    closed: rows.filter((row) => row.state === "closed").length,
+    blocking: rows.filter((row) => effectiveBlocking(report, row)).length,
+  };
+}
+
 function list(names: string[]): string {
   return names.length === 0 ? "none" : names.map(clean).join(", ");
 }

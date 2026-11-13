@@ -32,6 +32,11 @@ import {
   formatHumanReview,
   humanFindingsFromResolved,
 } from "../review_result.ts";
+import { withExtensions } from "../../extensions/session.ts";
+import { cliPrContext } from "../../extensions/contexts.ts";
+import { reviewResultJson } from "../../extensions/review_result.ts";
+import { exitCodeWithExtensions } from "../../extensions/report.ts";
+import { runSummaryWithExtensions } from "../../extensions/render_json.ts";
 
 export async function runReviewFromCli(args: string[]): Promise<void> {
   const parsed = await parseReviewArgs(args);
@@ -55,6 +60,7 @@ export async function runReview(options: Options): Promise<void> {
     allowToolInstall: false,
     remakeBeforeReview: false,
     fresh: false,
+    includeExtensionMarkdowns: false,
   });
 }
 
@@ -68,6 +74,7 @@ async function runReviewPr(
     | "remakeBeforeReview"
     | "output"
     | "fresh"
+    | "includeExtensionMarkdowns"
   >,
 ): Promise<void> {
   setCliInteractive(!cli.json);
@@ -88,24 +95,35 @@ async function runReviewPr(
       const carry = await startPrCarry(client, options, cli.fresh, (message) =>
         log("review", message),
       );
-      const result = await timed(
-        "review GitHub collection and AI",
-        options.logTime,
+      const { review: result, extensions } = await withExtensions(
+        cliPrContext({
+          client,
+          repo: options.repo,
+          prNumber: options.prNumber!,
+          prefetched: carry.extras.prefetched,
+        }),
         () =>
-          reviewPullRequest(
-            client,
-            options,
-            async (response) => {
-              addAiMetrics(aiMetrics, response);
-              await recordAiCost(options.repo, "review_pull_request", response);
-            },
-            undefined,
-            undefined,
-            undefined,
-            // The stored run leaves out what it saw, so the next run sends
-            // the files this one dropped.
-            { ...carry.extras, catchesUp: true },
+          timed("review GitHub collection and AI", options.logTime, () =>
+            reviewPullRequest(
+              client,
+              options,
+              async (response) => {
+                addAiMetrics(aiMetrics, response);
+                await recordAiCost(
+                  options.repo,
+                  "review_pull_request",
+                  response,
+                );
+              },
+              undefined,
+              undefined,
+              undefined,
+              // The stored run leaves out what it saw, so the next run sends
+              // the files this one dropped.
+              { ...carry.extras, catchesUp: true },
+            ),
           ),
+        (review) => reviewResultJson(review.text, options.reviewBlocking),
       );
       const durationMs = Math.round(performance.now() - operationStarted);
       const usage = {
@@ -135,18 +153,21 @@ async function runReviewPr(
             reviewBlocking: options.reviewBlocking,
             diffStats: result.diffStats,
             coverage: result.coverage,
+            extensions,
+            includeExtensionMarkdowns: cli.includeExtensionMarkdowns,
           }),
         );
       } else if (cli.output === "github") {
         emitGithubOutput({
           title: `${options.repo} · PR #${options.prNumber}`,
           findings: humanFindingsFromResolved(resolved, options.reviewBlocking),
-          run: summaryFromMetrics(
-            aiMetrics,
-            performance.now() - operationStarted,
+          run: runSummaryWithExtensions(
+            summaryFromMetrics(aiMetrics, performance.now() - operationStarted),
+            extensions,
           ),
           coverage: result.coverage,
           catchesUp: true,
+          extensions,
         });
       } else {
         // One presentation layer for local, PR and remote reviews.
@@ -162,11 +183,15 @@ async function runReviewPr(
               ),
               warnings,
               coverage: result.coverage,
+              extensions,
             }) +
             "\n",
         );
         printRunSummary(
-          summaryFromMetrics(aiMetrics, performance.now() - operationStarted),
+          runSummaryWithExtensions(
+            summaryFromMetrics(aiMetrics, performance.now() - operationStarted),
+            extensions,
+          ),
         );
         if (options.logTime) {
           log(
@@ -183,12 +208,15 @@ async function runReviewPr(
       // A blocking finding carried over from an earlier run still blocks, so
       // the resolved rows decide as well as the model's own text.
       exitWith(
-        cli.json
-          ? reviewExitCodeFromResolved(resolved, options.reviewBlocking)
-          : Math.max(
-              reviewExitCode(result.text, options.reviewBlocking),
-              reviewExitCodeFromResolved(resolved, options.reviewBlocking),
-            ),
+        exitCodeWithExtensions(
+          cli.json
+            ? reviewExitCodeFromResolved(resolved, options.reviewBlocking)
+            : Math.max(
+                reviewExitCode(result.text, options.reviewBlocking),
+                reviewExitCodeFromResolved(resolved, options.reviewBlocking),
+              ),
+          extensions,
+        ),
       );
     } finally {
       // A heartbeat left running on the error path keeps the event loop alive

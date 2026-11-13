@@ -154,6 +154,9 @@ export async function cacheDeleteRepoEvidence(repo: string): Promise<number> {
       removed += deleteRows(db, namespace, { prefix: `${repo}:` });
     }
     removed += deleteRows(db, "local-review", { prefix: `${repo}\0` });
+    removed += deleteRows(db, "local-extension-findings", {
+      prefix: `${repo}\0`,
+    });
     return removed;
   } finally {
     db.close();

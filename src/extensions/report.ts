@@ -140,6 +140,15 @@ export function extensionsBlock(report: ExtensionReport): boolean {
   return report.results.some(requestsChanges);
 }
 
+/** A review's exit code with the extensions joined in: one extension's
+ * `request_changes` makes it blocking (1). A failure never does. */
+export function exitCodeWithExtensions(
+  code: number,
+  report: ExtensionReport | undefined,
+): number {
+  return code === 0 && report && extensionsBlock(report) ? 1 : code;
+}
+
 /** `[P2 · blocking] · extension: secret`, the label every output uses. */
 export function extensionLabel(
   report: ExtensionReport,

@@ -68,6 +68,14 @@ import {
   tryLoadLocalCarry,
 } from "./carry_over_store.ts";
 import { costUsage } from "../util/cost.ts";
+import { withExtensions } from "../extensions/session.ts";
+import { localContext } from "../extensions/contexts.ts";
+import { reviewResultJson } from "../extensions/review_result.ts";
+import {
+  exitCodeWithExtensions,
+  type ExtensionReport,
+} from "../extensions/report.ts";
+import { runSummaryWithExtensions } from "../extensions/render_json.ts";
 
 function fail(error: ReviewCliError, json: boolean): void {
   if (json) {
@@ -289,21 +297,35 @@ export async function runLocalReview(
       const started = performance.now();
       const aiMetrics = emptyAiMetrics();
       let response;
+      let extensions: ExtensionReport;
       try {
-        response = await timed("local review AI", options.logTime, () =>
-          reviewWorkspaceRevision(
+        ({ review: response, extensions } = await withExtensions(
+          localContext({
+            repo,
+            branch,
+            root,
+            headSha: sha,
+            baseSha,
             revision,
-            options,
-            sha,
-            async (usage) => {
-              addAiMetrics(aiMetrics, usage);
-              await recordAiCost(repo, "review_local", usage);
-            },
-            aiFor(options),
-            (message) => log("review", message),
-            extras,
-          ),
-        );
+            fresh: cli.fresh,
+          }),
+          () =>
+            timed("local review AI", options.logTime, () =>
+              reviewWorkspaceRevision(
+                revision,
+                options,
+                sha,
+                async (usage) => {
+                  addAiMetrics(aiMetrics, usage);
+                  await recordAiCost(repo, "review_local", usage);
+                },
+                aiFor(options),
+                (message) => log("review", message),
+                extras,
+              ),
+            ),
+          (result) => reviewResultJson(result.text, options.reviewBlocking),
+        ));
       } finally {
         // Stopping the heartbeat on the error path too, otherwise the interval
         // keeps the event loop alive and a post-fetch exit never lands.
@@ -363,6 +385,10 @@ export async function runLocalReview(
         tokensOut: aiMetrics.tokensOut,
         ...costUsage(aiMetrics),
       };
+      const run = runSummaryWithExtensions(
+        summaryFromMetrics(aiMetrics, performance.now() - started),
+        extensions,
+      );
       if (json) {
         console.log(
           buildLocalReviewJson({
@@ -379,6 +405,8 @@ export async function runLocalReview(
             durationMs,
             reviewBlocking: options.reviewBlocking,
             coverage: response.coverage,
+            extensions,
+            includeExtensionMarkdowns: cli.includeExtensionMarkdowns,
           }),
         );
       } else if (cli.output === "github") {
@@ -388,9 +416,10 @@ export async function runLocalReview(
             allResolved,
             options.reviewBlocking,
           ),
-          run: summaryFromMetrics(aiMetrics, performance.now() - started),
+          run,
           coverage: response.coverage,
           catchesUp: true,
+          extensions,
         });
       } else {
         console.log(
@@ -404,14 +433,18 @@ export async function runLocalReview(
               warnings,
               options.reviewBlocking,
               response.coverage,
+              extensions,
             ) +
             "\n",
         );
-        printRunSummary(
-          summaryFromMetrics(aiMetrics, performance.now() - started),
-        );
+        printRunSummary(run);
       }
-      exitWith(reviewExitCodeFromResolved(allResolved, options.reviewBlocking));
+      exitWith(
+        exitCodeWithExtensions(
+          reviewExitCodeFromResolved(allResolved, options.reviewBlocking),
+          extensions,
+        ),
+      );
     } catch (error) {
       // After Ctrl-C the aborted model call or sync throws. The handler has
       // already printed the one output and set the exit code.

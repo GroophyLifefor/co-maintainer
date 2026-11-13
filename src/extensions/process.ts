@@ -133,6 +133,38 @@ function killGroup(pid: number, signal: NodeJS.Signals): void {
   }
 }
 
+/** Process groups still running. An extension runs in its own group, so a
+ * Ctrl-C in the terminal, which signals the terminal's group, never reaches
+ * it. co-maintainer ending for any reason ends them too. */
+const liveGroups = new Set<number>();
+let exitHooked = false;
+
+function hookExit(): void {
+  if (exitHooked) return;
+  exitHooked = true;
+  const killAll = () => {
+    for (const pid of liveGroups) killGroup(pid, "SIGTERM");
+    liveGroups.clear();
+  };
+  process.on("exit", killAll);
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
+    const onSignal = () => {
+      killAll();
+      // Alone on this signal, the listener must not swallow it: it steps
+      // aside and raises it again, so the default exit still happens.
+      if (process.listenerCount(signal) === 1) {
+        process.removeListener(signal, onSignal);
+        process.kill(process.pid, signal);
+      }
+    };
+    try {
+      process.on(signal, onSignal);
+    } catch {
+      // Not every platform has every signal.
+    }
+  }
+}
+
 export function runCommandOnce(input: {
   command: string;
   cwd?: string;
@@ -174,6 +206,11 @@ export function runCommandOnce(input: {
       });
       return;
     }
+    const pid = child.pid;
+    if (pid !== undefined) {
+      hookExit();
+      liveGroups.add(pid);
+    }
     let killTimer: ReturnType<typeof setTimeout> | undefined;
     const stop = () => {
       if (child.pid === undefined || killTimer) return;
@@ -210,6 +247,7 @@ export function runCommandOnce(input: {
     ) => {
       if (settled) return;
       settled = true;
+      if (pid !== undefined) liveGroups.delete(pid);
       clearTimeout(timer);
       if (killTimer) clearTimeout(killTimer);
       input.signal?.removeEventListener("abort", onAbort);

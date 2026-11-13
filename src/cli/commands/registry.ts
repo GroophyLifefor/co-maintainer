@@ -65,6 +65,11 @@ const REVIEW_OUTPUT_FLAGS: FlagGroup = {
       description:
         "Print GitHub workflow annotations and write the job summary instead of prose. Cannot be used with --json.",
     },
+    {
+      name: "include-extension-markdowns",
+      description:
+        "With --json, keep each extension's markdown. It is empty otherwise.",
+    },
   ],
 };
 

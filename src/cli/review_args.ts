@@ -42,6 +42,9 @@ type ReviewFlags = {
   /** `--timeout-minutes`: how long a `--range` review waits for the server
    * before it leaves the result to the dashboard. */
   timeoutMinutes?: number;
+  /** `--include-extension-markdowns`: keep each extension's `markdown` in
+   * `--json`. */
+  includeExtensionMarkdowns?: boolean;
 };
 
 export type ReviewCliArgs =
@@ -118,6 +121,7 @@ function reviewFlags(rest: string[]): ReviewFlags {
     systemPromptOverrideFile: text("system-prompt-override-file"),
     range: parseRange(text("range")),
     timeoutMinutes: parseTimeout(text("timeout-minutes")),
+    includeExtensionMarkdowns: rest.includes("--include-extension-markdowns"),
   };
 }
 
@@ -131,6 +135,7 @@ const LOCAL_ONLY_FLAGS = new Set([
   "--sync-before-review",
   "--remote-byok",
   "--no-remote-byok",
+  "--include-extension-markdowns",
 ]);
 
 /** Strip local-only flags before `parseArgs` for PR-style options. */

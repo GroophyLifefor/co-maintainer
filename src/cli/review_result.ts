@@ -20,6 +20,13 @@ import {
 } from "../review/coverage.ts";
 import { humanCopy } from "../services/review.ts";
 import type { BilledTo, CostReason, CostStatus } from "../util/cost.ts";
+import type { ExtensionReport } from "../extensions/report.ts";
+import { withExtensionsJson } from "../extensions/render_json.ts";
+import {
+  cliExtensionFooter,
+  cliExtensionLines,
+  extensionCounts,
+} from "../extensions/render_cli.ts";
 export type ReviewWarning = { code: string; message: string };
 
 export type JsonReviewFinding = {
@@ -227,6 +234,8 @@ export type HumanFinding = {
   title: string;
   body: string;
   suggestion: { lineFrom: number; lineTo: number; text: string } | null;
+  /** An extension finding's `[P2 · blocking] · extension: name`. */
+  label?: string;
 };
 
 /** Local and PR findings: blocking is decided here from the configured rule,
@@ -330,6 +339,8 @@ export type HumanReviewInput = {
   /** What the model received. Left out by a remote server older than this
    * field, and then no coverage line is printed. */
   coverage?: Coverage;
+  /** The extensions' results. Absent or empty prints nothing extra. */
+  extensions?: ExtensionReport;
 };
 
 /** The single human-readable review format. Local,
@@ -400,7 +411,10 @@ export function formatHumanReview(input: HumanReviewInput): string {
     }
     lines.push("");
   }
-  if (!any) {
+  const extensionLines = input.extensions
+    ? cliExtensionLines(input.extensions)
+    : [];
+  if (!any && (input.extensions?.findings.length ?? 0) === 0) {
     // With files the model never received, "no findings" speaks only for
     // the rest.
     lines.push(
@@ -410,19 +424,27 @@ export function formatHumanReview(input: HumanReviewInput): string {
     );
     lines.push("");
   }
+  if (extensionLines.length > 0) lines.push(...extensionLines, "");
+  const extra = input.extensions
+    ? extensionCounts(input.extensions)
+    : { new: 0, open: 0, closed: 0, blocking: 0 };
   const counts = {
-    new: sorted.filter((f) => f.state === "new").length,
-    open: sorted.filter((f) => f.state === "open").length,
-    closed: sorted.filter((f) => f.state === "closed").length,
-    blocking: sorted.filter(
-      (f) => (f.state === "new" || f.state === "open") && f.blocking,
-    ).length,
+    new: sorted.filter((f) => f.state === "new").length + extra.new,
+    open: sorted.filter((f) => f.state === "open").length + extra.open,
+    closed: sorted.filter((f) => f.state === "closed").length + extra.closed,
+    blocking:
+      sorted.filter(
+        (f) => (f.state === "new" || f.state === "open") && f.blocking,
+      ).length + extra.blocking,
   };
   lines.push(
     `Summary: ${counts.new} new · ${counts.open} open · ${counts.closed} closed · ${counts.blocking} blocking`,
   );
   const coverage = coverageLine(input.coverage);
   if (coverage) lines.push(coverage);
+  if (extensionLines.length > 0) {
+    lines.push(cliExtensionFooter(input.extensions!));
+  }
   if (input.warnings?.length) {
     lines.push("Warnings:");
     // A diff warning can name a file, and a pull request's author chooses
@@ -444,6 +466,7 @@ export function formatHumanLocalReview(
   warnings: ReviewWarning[],
   mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
   coverage?: Coverage,
+  extensions?: ExtensionReport,
 ): string {
   const stats = revisionStats(revision);
   return formatHumanReview({
@@ -454,6 +477,7 @@ export function formatHumanLocalReview(
     findings: humanFindingsFromResolved(findings, mode),
     warnings,
     coverage,
+    extensions,
   });
 }
 
@@ -492,6 +516,8 @@ export type LocalReviewJsonInput = {
   durationMs: number;
   reviewBlocking?: ReviewBlocking;
   coverage?: Coverage;
+  extensions?: ExtensionReport;
+  includeExtensionMarkdowns?: boolean;
 };
 
 export type PrReviewJsonInput = {
@@ -510,7 +536,26 @@ export type PrReviewJsonInput = {
   reviewBlocking?: ReviewBlocking;
   diffStats?: DiffStats;
   coverage?: Coverage;
+  extensions?: ExtensionReport;
+  includeExtensionMarkdowns?: boolean;
 };
+
+/** The review JSON with the extensions joined in, serialised. */
+function jsonWithExtensions(
+  input: {
+    extensions?: ExtensionReport;
+    includeExtensionMarkdowns?: boolean;
+  },
+  doc: Record<string, unknown> & Parameters<typeof withExtensionsJson>[0],
+): string {
+  return JSON.stringify(
+    withExtensionsJson(
+      doc,
+      input.extensions,
+      input.includeExtensionMarkdowns ?? false,
+    ),
+  );
+}
 
 export function buildPrReviewJson(input: PrReviewJsonInput): string {
   const mode = input.reviewBlocking ?? DEFAULT_REVIEW_BLOCKING;
@@ -523,7 +568,7 @@ export function buildPrReviewJson(input: PrReviewJsonInput): string {
     input.coverage,
     input.warnings ?? [],
   );
-  return JSON.stringify({
+  return jsonWithExtensions(input, {
     schemaVersion: 1,
     ok: true,
     mode: "pr",
@@ -550,7 +595,7 @@ export function buildLocalReviewJson(input: LocalReviewJsonInput): string {
     input.coverage,
     input.warnings,
   );
-  return JSON.stringify({
+  return jsonWithExtensions(input, {
     schemaVersion: 1,
     ok: true,
     mode: "local",
