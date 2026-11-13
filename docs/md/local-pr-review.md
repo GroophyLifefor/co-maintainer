@@ -36,6 +36,7 @@ co-maintainer review owner/repo 123 --disable-codegraph --debug
 | `--disable-codegraph` | Skip codegraph tools (default is on for CLI) |
 | `--allow-tool-install` | Install pinned codegraph without a prompt |
 | `--improve-matrix=N` | Scales review depth (see CLI help) |
+| `--diagram-runtime`, `--plantuml-server`, `--plantuml-output-format` | The diagram language of the review, see [Diagrams](review.md#diagrams) |
 | `--debug` | Verbose logs on stderr |
 | `--log-time` | Print timing per phase |
 

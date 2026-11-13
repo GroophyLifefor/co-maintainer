@@ -72,6 +72,16 @@ reviews pushes to each repository's default branch only.
 **not** in the subscription list: GitHub delivers both to every App without a
 subscription, which is why the webhook handler accepts them.
 
+## Diagrams in App reviews
+
+An App review has no command line, so it reads the diagram settings saved for the
+repository: `co-maintainer set --repo=owner/repo --diagram-runtime=...`. With
+`plantuml-server` the diagram source of a private repository is in a URL that
+readers' browsers send to that server, see
+[Diagrams](review.md#with-plantuml-server-the-diagram-source-leaves-your-machine).
+See [Configuration](configuration.md#diagram-settings) for the settings and for
+what happens to a bad stored value.
+
 ## Manual setup
 
 If you would rather create the App by hand, use the same values:

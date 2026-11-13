@@ -85,6 +85,77 @@ first pass missed. More passes cost more tokens and take longer. `2` is a
 reasonable step up when a change is high risk or the repository is large. The
 value is capped at `4`. See [Cost](cost.md) for what a pass costs.
 
+## Diagrams
+
+A review can include a diagram when a finding is about a flow, a lifecycle or a
+data model. `--diagram-runtime` picks the language. It works in PR review and
+local review.
+
+| Value | What the review contains |
+| ----- | ------------------------ |
+| `mermaid` (default) | Mermaid blocks, as before. GitHub draws them |
+| `plantuml` | Standard PlantUML between `@startuml` and `@enduml`, in a fenced block tagged `plantuml`. The source is posted as written. GitHub does not draw PlantUML, so the reader sees the source |
+| `plantuml-server` | The same request to the model, then each `plantuml` (or `puml`) block becomes an image link on a PlantUML server |
+
+| Flag | Default | Meaning |
+| ---- | ------- | ------- |
+| `--diagram-runtime=mermaid\|plantuml\|plantuml-server` | `mermaid` | The diagram language |
+| `--plantuml-server=URL` | `https://www.plantuml.com` | The server for `plantuml-server`. An http or https URL with no user name, password, query string or fragment |
+| `--plantuml-output-format=svg\|png` | `svg` | The image format for `plantuml-server` |
+
+```sh
+co-maintainer review owner/repo 42 --diagram-runtime=plantuml
+co-maintainer review owner/repo 42 --diagram-runtime=plantuml-server --plantuml-output-format=png
+```
+
+Every value you pass is checked, even one the chosen runtime ignores. A bad one
+is a usage error with exit code 2 and nothing is sent. `--remote` refuses the
+three flags, because the server reviews with the settings saved for the
+repository. [Configuration](configuration.md#diagram-settings) shows how to save
+them, which is also how reviews run by the [GitHub App](github-app.md) and
+replies to review comments get them.
+
+### With `plantuml-server`, the diagram source leaves your machine
+
+The image link holds the whole diagram source, encoded. co-maintainer builds the
+link and never calls the server. The reader's browser, through GitHub's image
+proxy, sends the link to the PlantUML server. A review diagram can carry names of
+files, functions and services from private code. With the default server that is
+plantuml.com. **For a private repository, run your own PlantUML server and point
+`--plantuml-server` at it.**
+
+- The source goes through the same secret redactor as the rest of the review
+  text before it is encoded, so a token in it shows as `[redacted]` in the
+  decoded link.
+- co-maintainer does not remove `!include`, `!includeurl` or `!import` lines
+  from a diagram. A server you run should use a security profile that does not
+  let a diagram fetch URLs.
+- A server that is down, slow or refuses the diagram shows a broken image. There
+  is no retry and no fallback.
+
+### What the link looks like
+
+The link is `![PlantUML diagram](<server>/<format>/<encoded>)`. The encoding is
+PlantUML's text encoding, raw deflate and then PlantUML's own base64 alphabet.
+
+- The public server, `plantuml.com` or `www.plantuml.com` with no path, is
+  addressed as `<origin>/plantuml/svg/<code>`.
+- Any other server is addressed exactly as you give it, plus `/svg/<code>`. A
+  server served from its root is `http://localhost:8080` and one under a path is
+  `https://host/plantuml`.
+- A server path with a space, a parenthesis, a square or angle bracket, a
+  backtick, a backslash, a double quote or a semicolon is refused, because the
+  link is posted as Markdown.
+- Source without `@startuml` is wrapped in `@startuml` and `@enduml` first.
+- A block stays as fenced source when it is empty, never closed, or its link
+  would be longer than 4000 characters.
+- A PlantUML block inside another fence, such as a `suggestion` block or a longer
+  fence that quotes an example, is left as written.
+
+With a PlantUML runtime the model is not offered the Mermaid syntax tool. With
+`mermaid` nothing changes: the prompts, the tool and the output are the same as
+before the runtime existed.
+
 ## Repository review instructions
 
 A repository can carry its own review instructions. They are appended to the
