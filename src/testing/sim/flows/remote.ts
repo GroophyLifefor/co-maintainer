@@ -19,6 +19,7 @@ import {
   type CheckResult,
   type CliRun,
   type Score,
+  scriptedCheck,
   type Sim,
   type Step,
 } from "../flow.ts";
@@ -533,15 +534,27 @@ function remoteChecks(sim: Sim): CheckResult[] {
   const faultJob = jobRow(sim, fault?.jobIds[0]);
   const faultReview = reviewRow(sim, fault?.jobIds[0]);
 
+  // A product bug the flow keeps visible. When the check also compares what
+  // the model wrote, a live run skips it for that reason, since the bug alone
+  // no longer explains a mismatch.
   const unrepeatable = (
     reason: string,
     name: string,
     ok: boolean,
     detail: string,
-  ) =>
-    ok
-      ? check(name, true, detail)
-      : { ...check(name, false, detail), skipped: reason };
+    liveWhy?: string,
+  ): CheckResult =>
+    liveWhy && sim.mode === "live"
+      ? scriptedCheck(sim, name, ok, detail, liveWhy)
+      : ok
+        ? check(name, true, detail)
+        : { ...check(name, false, detail), skipped: reason };
+  const scripted = (name: string, ok: boolean, detail: string, why: string) =>
+    scriptedCheck(sim, name, ok, detail, why);
+  const guideSkill = (() => {
+    const path = join(sim.paths.reposDir, SAMPLE_REPO_NAME, "SKILL.md");
+    return existsSync(path) ? readFileSync(path, "utf8").trim() : "";
+  })();
 
   return [
     check(
@@ -549,7 +562,7 @@ function remoteChecks(sim: Sim): CheckResult[] {
       features.includes("byok") && features.includes("push"),
       `features ${JSON.stringify(features)}`,
     ),
-    check(
+    scripted(
       "--json printed the server's result and exited 1 on a blocking finding",
       first?.exitCode === 1 &&
         firstJson.ok === true &&
@@ -559,20 +572,39 @@ function remoteChecks(sim: Sim): CheckResult[] {
         String(firstFindings[0]?.body ?? "").includes("NaN%") &&
         (firstJson.remote as Json | undefined)?.jobId === firstJob,
       `exit ${first?.exitCode} · ${firstFindings.length} findings · job ${String((firstJson.remote as Json | undefined)?.jobId ?? "none")}`,
+      "the finding, and so the exit code, is the model's",
+    ),
+    check(
+      "--json printed the server's result for the job",
+      (first?.exitCode === 0 || first?.exitCode === 1) &&
+        firstJson.ok === true &&
+        firstJson.mode === "remote" &&
+        firstJob !== undefined &&
+        (firstJson.remote as Json | undefined)?.jobId === firstJob,
+      `exit ${first?.exitCode} · job ${String((firstJson.remote as Json | undefined)?.jobId ?? "none")}`,
     ),
     unrepeatable(
       "product bug: findingsMarkdownFromJson drops the JSON title, so every finding's title is its heading",
       "a finding keeps the title the model gave it",
       firstFindings[0]?.title === REMOTE_FINDING.title,
       `title ${JSON.stringify(firstFindings[0]?.title ?? null)}`,
+      "the title is the model's",
     ),
-    check(
+    scripted(
       "the server reviewed with its own guides",
       Boolean(
         reviewSystem?.includes("Use named exports, not default exports."),
       ),
       reviewSystem
         ? `${reviewSystem.length} chars of system prompt`
+        : "no review call",
+      "the guide's wording is what the model wrote at init",
+    ),
+    check(
+      "the server reviewed with the guide init wrote",
+      guideSkill.length > 0 && Boolean(reviewSystem?.includes(guideSkill)),
+      reviewSystem
+        ? `${reviewSystem.length} chars of system prompt, ${guideSkill.length} of SKILL.md`
         : "no review call",
     ),
     check(
@@ -591,10 +623,20 @@ function remoteChecks(sim: Sim): CheckResult[] {
       remote.length > 0 && remote.every((call) => call.side === "client"),
       `${remote.length} calls · sides ${[...new Set(remote.map((call) => call.side))].join(", ")}`,
     ),
-    check(
+    scripted(
       "the client ran exactly the tools the model asked for, in its checkout",
       asked.length > 0 &&
         sameList(asked, delivered) &&
+        sameList(asked, ran) &&
+        (first?.toolRuns ?? []).every(
+          (run) => realpathSync(run.cwd) === first?.cwd,
+        ),
+      `asked ${JSON.stringify(asked)} · sent ${JSON.stringify(delivered)} · ran ${JSON.stringify(ran)}`,
+      "a real model may not ask for a tool",
+    ),
+    check(
+      "the client ran exactly the tools the model asked for, whichever they were",
+      sameList(asked, delivered) &&
         sameList(asked, ran) &&
         (first?.toolRuns ?? []).every(
           (run) => realpathSync(run.cwd) === first?.cwd,
@@ -610,7 +652,7 @@ function remoteChecks(sim: Sim): CheckResult[] {
       ),
       `${allRan.length} runs · ${allDelivered.length} sent over the whole flow`,
     ),
-    check(
+    scripted(
       "the tool's answer from the client reached the model",
       toolAnswer.some((content) =>
         content.includes("src/math.ts:5  export function clamp"),
@@ -618,6 +660,7 @@ function remoteChecks(sim: Sim): CheckResult[] {
       toolAnswer.length
         ? `${toolAnswer.length} tool messages · ${toolAnswer[0]!.split("\n")[0]}`
         : "no tool message",
+      "a real model may not ask for a tool",
     ),
     check(
       "the sync loop stopped at the first done answer",
@@ -626,7 +669,7 @@ function remoteChecks(sim: Sim): CheckResult[] {
         firstSyncs.at(-1) === doneSyncs[0],
       `${firstSyncs.length} syncs · ${doneSyncs.length} done`,
     ),
-    check(
+    scripted(
       "the server stored the review and its finding, and dropped the job input",
       firstReview?.status === "done" &&
         firstReview.billed_to === "server" &&
@@ -636,8 +679,18 @@ function remoteChecks(sim: Sim): CheckResult[] {
         firstRows.length === 1 &&
         inputsLeft.length === 0,
       `review ${firstReview?.status ?? "missing"} · ${firstRows.length} findings · ${inputsLeft.length} inputs left`,
+      "how many findings the model reports is its answer",
     ),
     check(
+      "the server stored the review, billed it to the server, and dropped the job input",
+      firstReview?.status === "done" &&
+        firstReview.billed_to === "server" &&
+        firstReview.tokens_in ===
+          (firstJson.usage as Json | undefined)?.tokensIn &&
+        inputsLeft.length === 0,
+      `review ${firstReview?.status ?? "missing"} · ${inputsLeft.length} inputs left`,
+    ),
+    scripted(
       "the second round carried the first finding over",
       secondPrompt.includes("PREVIOUS FINDINGS") &&
         secondPrompt.includes("percentOf divides by total") &&
@@ -645,14 +698,16 @@ function remoteChecks(sim: Sim): CheckResult[] {
         secondDiff.includes("FILE: src/math.ts") &&
         !secondDiff.includes("FILE: src/format.ts"),
       `${secondPrompt.length} chars`,
+      "the carry-over follows the finding the model reported",
     ),
     unrepeatable(
       "product bug: the remote job reads only new findings (resolvedFromFirstReview) and drops the model's previous-finding verdicts",
       "the second round still reports the finding the model kept open",
       (secondReview?.findings_count ?? 0) >= 1,
       `second review stored ${secondReview?.findings_count ?? "no"} findings · exit ${second?.exitCode}`,
+      "the findings are the model's",
     ),
-    check(
+    scripted(
       "human output: title, server log lines, the one-time notice",
       second?.exitCode === 0 &&
         Boolean(
@@ -669,10 +724,39 @@ function remoteChecks(sim: Sim): CheckResult[] {
           sim.server.remoteUrl,
         ),
       `exit ${second?.exitCode} · ${second?.stdout.length ?? 0} chars out`,
+      "the exit code follows the findings the model reports",
     ),
     check(
+      "human output keeps the title, the server log lines and the one-time notice",
+      (second?.exitCode === 0 || second?.exitCode === 1) &&
+        Boolean(
+          second.stdout.includes(
+            "co-maintainer review · sim/sample · sim/feature (remote)",
+          ),
+        ) &&
+        Boolean(
+          second.stderr.includes("remote review started for sim/sample"),
+        ) &&
+        second.stderr.split("Remote review sends your unpublished diff")
+          .length === 2 &&
+        ((config.remoteNoticeShownFor ?? []) as string[]).includes(
+          sim.server.remoteUrl,
+        ),
+      `exit ${second?.exitCode} · ${second?.stdout.length ?? 0} chars out`,
+    ),
+    scripted(
       "the client's own key paid for its review",
       byok?.exitCode === 0 &&
+        byokAi.length > 0 &&
+        byokAi.every((call) => call.key === "client key") &&
+        byokReview?.billed_to === "byok" &&
+        (byok.json?.usage as Json | undefined)?.billedTo === "byok",
+      `exit ${byok?.exitCode} · keys ${JSON.stringify([...new Set(byokAi.map((call) => call.key))])} · billed ${byokReview?.billed_to ?? "?"}`,
+      "the exit code follows the findings the model reports",
+    ),
+    check(
+      "the client's own key paid for its review, whatever it found",
+      (byok?.exitCode === 0 || byok?.exitCode === 1) &&
         byokAi.length > 0 &&
         byokAi.every((call) => call.key === "client key") &&
         byokReview?.billed_to === "byok" &&
@@ -687,14 +771,19 @@ function remoteChecks(sim: Sim): CheckResult[] {
       `stored in ${keyPlaces.stored.join(", ") || "nothing"} · ${keyPlaces.inTrace} trace entry (the submit) · ${keyPlaces.held} held in memory`,
     ),
     check(
-      "push review exits 0 with a P1 and reports the range",
+      "push review exits 0 and reports the range",
       push?.exitCode === 0 &&
         pushJson.mode === "push" &&
-        ((pushJson.findings ?? []) as Json[]).length === 1 &&
         (pushJson.push as Json | undefined)?.after === s.push?.after &&
         pushBody?.before === s.push?.before &&
         pushBody?.ref === "refs/heads/main",
-      `exit ${push?.exitCode} · mode ${String(pushJson.mode)} · ${((pushJson.findings ?? []) as Json[]).length} findings`,
+      `exit ${push?.exitCode} · mode ${String(pushJson.mode)}`,
+    ),
+    scripted(
+      "push review reports the one P1 the model found",
+      ((pushJson.findings ?? []) as Json[]).length === 1,
+      `${((pushJson.findings ?? []) as Json[]).length} findings`,
+      "how many findings the model reports is its answer",
     ),
     check(
       "the push's diff reached the server's model, on the server's key",
@@ -707,7 +796,7 @@ function remoteChecks(sim: Sim): CheckResult[] {
         ),
       `${pushAi.length} AI calls`,
     ),
-    check(
+    scripted(
       "commit watch opened one issue for the P1 and stored a push review",
       issues.length === 1 &&
         issues[0]!.step === STEP.push &&
@@ -717,6 +806,14 @@ function remoteChecks(sim: Sim): CheckResult[] {
         pushReview.status === "done" &&
         pushReview.billed_to === "server",
       `${issues.length} issues · review ${pushReview?.kind ?? "?"} ${pushReview?.status ?? "missing"}`,
+      "an issue follows from a P1 the model reports",
+    ),
+    check(
+      "a push review is stored, done and billed to the server",
+      pushReview?.kind === "push" &&
+        pushReview.status === "done" &&
+        pushReview.billed_to === "server",
+      `review ${pushReview?.kind ?? "?"} ${pushReview?.status ?? "missing"}`,
     ),
     check(
       "a clean tree says so and sends nothing to the server",
@@ -787,7 +884,7 @@ function remoteChecks(sim: Sim): CheckResult[] {
         oldJobs.length === 1,
       `jobs ${JSON.stringify(old?.submits.map((submit) => submit.jobId?.slice(0, 8)))} · ${oldJobs.length} ran`,
     ),
-    check(
+    scripted(
       "a cancelled run stops the job and the client says so",
       deleted?.status === 204 &&
         deleted.jobId === cancel?.jobIds[0] &&
@@ -797,12 +894,14 @@ function remoteChecks(sim: Sim): CheckResult[] {
         cancelJob.cancel_reason === "client_canceled" &&
         cancelReview?.status === "aborted",
       `delete ${deleted?.status} · exit ${cancel?.exitCode} ${errorCode(cancel)} · job ${cancelJob?.status}/${cancelJob?.cancel_reason} · review ${cancelReview?.status}`,
+      "the cancel lands while the client answers a tool call, and a real model may not ask for one",
     ),
     unrepeatable(
       "product bug: reviewWorkspaceRevision passes no abort signal to the tool loop, so the aborted tool call goes back to the model as a tool error and one more round is paid for",
       "a cancelled review makes no further model call",
       deleteAt !== Infinity && afterCancel.length === 0 && faultAi.length === 1,
       `${afterCancel.length} AI calls after the cancel · ${faultAi.length} AI calls in the timed-out review`,
+      "the cancel needs a tool call a real model may not make",
     ),
     check(
       "a timed-out sync fails the client, and the server cancels the orphaned job",
