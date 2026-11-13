@@ -770,6 +770,17 @@ function remoteChecks(sim: Sim): CheckResult[] {
         keyPlaces.held === 0,
       `stored in ${keyPlaces.stored.join(", ") || "nothing"} · ${keyPlaces.inTrace} trace entry (the submit) · ${keyPlaces.held} held in memory`,
     ),
+    scripted(
+      "push review exits 0 with a P1 and reports the range",
+      push?.exitCode === 0 &&
+        pushJson.mode === "push" &&
+        ((pushJson.findings ?? []) as Json[]).length === 1 &&
+        (pushJson.push as Json | undefined)?.after === s.push?.after &&
+        pushBody?.before === s.push?.before &&
+        pushBody?.ref === "refs/heads/main",
+      `exit ${push?.exitCode} · mode ${String(pushJson.mode)} · ${((pushJson.findings ?? []) as Json[]).length} findings`,
+      "how many findings the model reports is its answer",
+    ),
     check(
       "push review exits 0 and reports the range",
       push?.exitCode === 0 &&
@@ -778,12 +789,6 @@ function remoteChecks(sim: Sim): CheckResult[] {
         pushBody?.before === s.push?.before &&
         pushBody?.ref === "refs/heads/main",
       `exit ${push?.exitCode} · mode ${String(pushJson.mode)}`,
-    ),
-    scripted(
-      "push review reports the one P1 the model found",
-      ((pushJson.findings ?? []) as Json[]).length === 1,
-      `${((pushJson.findings ?? []) as Json[]).length} findings`,
-      "how many findings the model reports is its answer",
     ),
     check(
       "the push's diff reached the server's model, on the server's key",

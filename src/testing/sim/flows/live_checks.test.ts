@@ -54,7 +54,19 @@ const probes = new Map(
 /** How many checks of each flow a live run skips because of the model, and
  * only those: a check a flow also skips with the fake AI is not counted. A
  * flow that is not listed has none. Change it with the flow, on purpose. */
-const SKIPPED_LIVE: Record<string, number> = {};
+const SKIPPED_LIVE: Record<string, number> = {
+  app: 8,
+  "cli-pr": 21,
+  "cli-pr-carry": 27,
+  "diagram-runtime": 5,
+  extensions: 2,
+  "init-sync": 10,
+  instructions: 7,
+  "intent-file": 6,
+  "large-diff": 6,
+  local: 17,
+  remote: 11,
+};
 
 for (const [name, pending] of probes) {
   test(`live checks of ${name}: the same checks, skipped with a reason or unchanged`, async () => {
