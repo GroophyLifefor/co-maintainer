@@ -3,7 +3,17 @@
  * call to make. */
 import type { GitHubClient, Json } from "../types.ts";
 import type { Revision } from "../review/revision.ts";
-import { unifiedDiff, type DiffFile, type ReviewContext } from "./session.ts";
+import {
+  unifiedDiff,
+  type DiffFile,
+  type ExtensionTracking,
+  type ReviewContext,
+} from "./session.ts";
+import {
+  earlierReviewCount,
+  previousExtensionFindings,
+  saveExtensionReport,
+} from "../store/extensions.ts";
 import { localTracking } from "./local_tracking.ts";
 
 /** GitHub's file list as diff files. */
@@ -99,6 +109,24 @@ export function cliPrContext(input: {
   return context;
 }
 
+/** `serve` keeps each review's extensions in app.db, and the next review of
+ * the same subject compares against them. */
+export function storeTracking(
+  subjectId: string,
+  reviewId: string,
+  countRound = false,
+): ExtensionTracking {
+  return {
+    load: async () => ({
+      ...(countRound
+        ? { round: earlierReviewCount(subjectId, reviewId) + 1 }
+        : {}),
+      previous: previousExtensionFindings(subjectId, reviewId),
+    }),
+    save: async (report) => saveExtensionReport(reviewId, report),
+  };
+}
+
 /** A pull request reviewed by `serve` as the GitHub App. The job id is the run
  * id, so a rerun after a restart finds its folder. */
 export function appPrContext(input: {
@@ -113,9 +141,13 @@ export function appPrContext(input: {
   trigger: string;
   round: number;
   files: Json[];
+  subjectId: string;
+  reviewId: string;
+  signal?: AbortSignal;
   log?: (message: string) => void;
 }): ReviewContext {
   return {
+    tracking: storeTracking(input.subjectId, input.reviewId),
     runId: input.jobId,
     owner: "serve",
     reviewType: "pr",
@@ -130,6 +162,7 @@ export function appPrContext(input: {
     trigger: input.trigger,
     round: input.round,
     diff: () => unifiedDiff(githubDiffFiles(input.files)),
+    signal: input.signal,
     log: input.log,
   };
 }
@@ -141,11 +174,15 @@ export function remoteContext(input: {
   repo: string;
   branch: string | null;
   revision: Revision;
-  round: number;
+  subjectId: string | undefined;
+  reviewId: string;
   signal?: AbortSignal;
   log?: (message: string) => void;
 }): ReviewContext {
   return {
+    ...(input.subjectId
+      ? { tracking: storeTracking(input.subjectId, input.reviewId, true) }
+      : {}),
     runId: input.jobId,
     owner: "serve",
     reviewType: "remote",
@@ -158,7 +195,7 @@ export function remoteContext(input: {
     scope: "workspace",
     sinceCommit: null,
     trigger: "remote",
-    round: input.round,
+    round: 1,
     diff: () => unifiedDiff(input.revision.files),
     signal: input.signal,
     log: input.log,

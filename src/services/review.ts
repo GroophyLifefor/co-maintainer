@@ -84,6 +84,17 @@ import type { AiProvider, GitHubClient, Json, Options } from "../types.ts";
 import type { FindingRow, JobRow } from "../store/rows.ts";
 import { getEnv } from "../util/runtime.ts";
 import { hasWriteAccess } from "../github/write_access.ts";
+import { withExtensions } from "../extensions/session.ts";
+import { appPrContext } from "../extensions/contexts.ts";
+import { reviewResultJson } from "../extensions/review_result.ts";
+import { EMPTY_REPORT, type ExtensionReport } from "../extensions/report.ts";
+import {
+  reviewBodyWithExtensions,
+  reviewEventWithExtensions,
+  splitExtensionFindings,
+  standingExtensionFindings,
+} from "../extensions/render_review.ts";
+import { addExtensionCost } from "../extensions/cost.ts";
 
 const ACCESS_DENIED_BODY =
   "The App does not have access to review this pull request.";
@@ -720,6 +731,7 @@ async function publish(
   log: LogFn,
   metadata: ReviewMetadata,
   mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
+  extensions: ExtensionReport = EMPTY_REPORT,
 ): Promise<void> {
   const stored = listFindingsForReview(reviewId);
   // GitHub wraps every `in_reply_to` comment in a review of its own, so a round
@@ -768,8 +780,14 @@ async function publish(
         ? (getReview(row.first_seen_review_id)?.head_sha ?? undefined)
         : undefined,
     }));
-  const body = reviewBody(summaryFindings, metadata, stillOpen);
-  const comments = inline.map(({ finding, anchor, suggestion }) => ({
+  const extensionSplit = splitExtensionFindings(extensions, files, humanCopy);
+  const body = reviewBodyWithExtensions(
+    reviewBody(summaryFindings, metadata, stillOpen),
+    extensions,
+    extensionSplit.listed,
+    humanCopy,
+  );
+  const aiComments = inline.map(({ finding, anchor, suggestion }) => ({
     path: finding.path,
     body: inlineCommentBody(finding, suggestion),
     line: anchor.line,
@@ -778,6 +796,7 @@ async function publish(
       ? {}
       : { start_line: anchor.start_line, start_side: "RIGHT" }),
   }));
+  const comments = [...aiComments, ...extensionSplit.comments];
   if (
     hasForbiddenCopy(body) ||
     hasForbiddenCopy(ACCESS_DENIED_BODY) ||
@@ -791,7 +810,7 @@ async function publish(
   const payload = {
     commit_id: headSha,
     body,
-    event: appReviewEvent(stored, mode),
+    event: reviewEventWithExtensions(appReviewEvent(stored, mode), extensions),
     comments,
   };
   setReviewStatus(reviewId, "posting");
@@ -833,9 +852,7 @@ async function publish(
       const posted = await post(
         client,
         `repos/${job.repo}/issues/${job.pr_number}/comments`,
-        {
-          body: reviewBody(summaryFindings, metadata, stillOpen),
-        },
+        { body },
       );
       setReviewStatus(reviewId, "posted", {
         posted_review_id: String(posted.id ?? ""),
@@ -900,9 +917,10 @@ export async function runReviewJob(
   log: LogFn,
   client?: GitHubClient,
   ai?: AiProvider,
+  signal?: AbortSignal,
 ): Promise<void> {
   try {
-    await runReviewJobCore(job, log, client, ai);
+    await runReviewJobCore(job, log, client, ai, signal);
   } catch (error) {
     const review = getReviewByJobId(job.id);
     let github = client;
@@ -936,6 +954,7 @@ async function runReviewJobCore(
   log: LogFn,
   client?: GitHubClient,
   ai?: AiProvider,
+  signal?: AbortSignal,
 ): Promise<void> {
   const startedAt = Date.now();
   if (job.pr_number === null) {
@@ -1181,20 +1200,43 @@ async function runReviewJobCore(
   // retry and a large diff summary are calls of this review too.
   const tokens = { in: 0, out: 0 };
   let response: Awaited<ReturnType<typeof runReviewEngine>>;
+  let extensions: ExtensionReport;
   try {
-    response = await runReviewEngine(
-      github,
-      options,
-      async (call) => {
-        addResponseCost(costTally, call);
-        tokens.in += call.tokensIn;
-        tokens.out += call.tokensOut;
-      },
-      snapshot,
-      ai ?? aiFor(options),
-      (message) => log("info", message),
-      extras,
-    );
+    ({ review: response, extensions } = await withExtensions(
+      appPrContext({
+        jobId: job.id,
+        repo: job.repo,
+        prNumber: job.pr_number,
+        headSha,
+        baseSha: reviewBase,
+        branch: String((pr.head as Json | undefined)?.ref ?? "") || null,
+        scope,
+        sinceCommit:
+          scope === "incremental" ? (args.sinceCommit ?? null) : null,
+        trigger: args.trigger ?? "manual",
+        round: args.round ?? 1,
+        files,
+        subjectId: subject.id,
+        reviewId,
+        signal,
+        log: (message) => log("info", message),
+      }),
+      () =>
+        runReviewEngine(
+          github,
+          options,
+          async (call) => {
+            addResponseCost(costTally, call);
+            tokens.in += call.tokensIn;
+            tokens.out += call.tokensOut;
+          },
+          snapshot,
+          ai ?? aiFor(options),
+          (message) => log("info", message),
+          extras,
+        ),
+      (result) => reviewResultJson(result.text, options.reviewBlocking),
+    ));
   } catch (error) {
     // A provider throw or an empty/unusable answer is a failed attempt, not a
     // review that found nothing. Its cost is kept when the provider reported
@@ -1294,6 +1336,7 @@ async function runReviewJobCore(
       });
     }
   }
+  addExtensionCost(costTally, extensions);
   setReviewStatus(reviewId, "drafting", {
     findings_count: totalFindings,
     open_count: openCount,
@@ -1332,9 +1375,11 @@ async function runReviewJobCore(
       catchesUp,
     },
     options.reviewBlocking,
+    extensions,
   );
   await resolveFailureNote(github, job, reviewId, log);
-  const openFindings = totalFindings - closedCount;
+  const openFindings =
+    totalFindings - closedCount + standingExtensionFindings(extensions);
   await finishCheck(
     github,
     job,
@@ -1348,8 +1393,8 @@ async function runReviewJobCore(
 
 export function registerReviewJobHandler(): void {
   registerHandler("review", {
-    run(job, log, _signal) {
-      return runReviewJob(job, log);
+    run(job, log, signal) {
+      return runReviewJob(job, log, undefined, undefined, signal);
     },
     reconcile(job, log) {
       return resolveInstallationId(job.repo).then((installationId) => {

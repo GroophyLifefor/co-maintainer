@@ -32,6 +32,8 @@ import { startRemoteWatchdog } from "../../remote/server/sessions.ts";
 import { passwordProblem } from "../../util/password.ts";
 import { deleteAllSessions } from "../../store/sessions.ts";
 import { serveHttp } from "../../server/http.ts";
+import { listJobs } from "../../store/jobs.ts";
+import { removeServeRunFolders } from "../../extensions/run_folder.ts";
 import { currentPlatform, getEnv, type Platform } from "../../util/runtime.ts";
 import { die } from "../error.ts";
 
@@ -240,6 +242,11 @@ export async function runServe(args: string[]): Promise<void> {
   registerReplyJobHandler();
   registerPushReviewHandlers();
   registerWatchCommentHandler();
+  // Before the orphans run again: a job still marked running keeps its
+  // extension folder, which tells its rerun what the restart cut off.
+  await removeServeRunFolders(
+    new Set(listJobs({ status: "running" }).map((job) => job.id)),
+  );
   const recovered = await recoverOrphans();
   if (recovered > 0) {
     console.log(

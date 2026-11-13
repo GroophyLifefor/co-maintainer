@@ -46,6 +46,11 @@ import { emitGithubOutput, neutralizeCommands } from "../cli/review_github.ts";
 import { costReasonText, type CostReason } from "../util/cost.ts";
 import { setCliInteractive } from "../cli/args.ts";
 import {
+  splitRemoteResult,
+  stripExtensionMarkdowns,
+} from "../extensions/render_json.ts";
+import { exitCodeWithExtensions } from "../extensions/report.ts";
+import {
   MIN_SERVER_SCHEMA,
   REMOTE_CLI_UPGRADE_COMMAND,
   REMOTE_SCHEMA_VERSION,
@@ -351,7 +356,10 @@ export async function runRemoteReview(
         continue;
       }
       if (payload.status === "done" && payload.result) {
-        const findings = (payload.result.findings ?? []) as JsonReviewFinding[];
+        const { aiFindings, report: extensions } = splitRemoteResult(
+          payload.result,
+        );
+        const findings = aiFindings as JsonReviewFinding[];
         const usage = payload.result.usage as
           | {
               tokensIn?: number;
@@ -381,7 +389,10 @@ export async function runRemoteReview(
               schemaVersion: 1,
               ok: true,
               mode: "remote",
-              ...payload.result,
+              ...stripExtensionMarkdowns(
+                payload.result,
+                cli.includeExtensionMarkdowns ?? false,
+              ),
             }),
           );
         } else if (cli.output === "github") {
@@ -393,6 +404,7 @@ export async function runRemoteReview(
             // The server keeps this branch's carry-over, so its next run
             // sends the files this one dropped.
             catchesUp: true,
+            extensions,
           });
         } else {
           const resultGuide = payload.result.guide as
@@ -410,12 +422,20 @@ export async function runRemoteReview(
                 findings: humanFindingsFromJson(findings),
                 warnings: warningsFromJson(payload.result.warnings),
                 coverage: coverageFromResult(payload.result),
+                extensions,
               }) +
               "\n",
           );
           if (run) printRunSummary(run);
         }
-        exitWith(reviewExitCodeFromJsonFindings(findings));
+        exitWith(
+          exitCodeWithExtensions(
+            reviewExitCodeFromJsonFindings(
+              (payload.result.findings ?? []) as JsonReviewFinding[],
+            ),
+            extensions,
+          ),
+        );
         // `done` is terminal. Without this return the loop polls `sync` again
         // and, since the server keeps reporting the same finished job, the
         // client reprints the result and re-requests forever.

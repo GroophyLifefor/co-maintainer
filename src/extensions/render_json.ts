@@ -124,6 +124,60 @@ export function stripExtensionMarkdowns(
   };
 }
 
+/** A remote result's extensions back in the shape the outputs read, and its
+ * AI findings on their own. A server older than extensions sends neither
+ * field, which reads as no extension. */
+export function splitRemoteResult(result: Record<string, unknown>): {
+  aiFindings: Record<string, unknown>[];
+  report: ExtensionReport;
+} {
+  const findings = Array.isArray(result.findings)
+    ? (result.findings as Record<string, unknown>[])
+    : [];
+  const entries = Array.isArray(result.extensions)
+    ? (result.extensions as Record<string, unknown>[])
+    : [];
+  return {
+    aiFindings: findings.filter((row) => !row.extensionId),
+    report: {
+      results: entries.map((entry) => ({
+        name: String(entry.id ?? ""),
+        status: (entry.status as "ok" | "failed" | "skipped") ?? "failed",
+        verdict:
+          (entry.verdict as "request_changes" | "comment" | null) ?? null,
+        reason: (entry.reason as string | null) ?? null,
+        markdown: typeof entry.markdown === "string" ? entry.markdown : "",
+        findings: [],
+        data: (entry.data as ExtensionReport["results"][number]["data"]) ?? {
+          media: [],
+          metrics: [],
+        },
+        extraData: entry.extraData ?? null,
+        usage:
+          (entry.usage as ExtensionReport["results"][number]["usage"]) ?? null,
+        details: null,
+        durationMs: Number(entry.durationMs ?? 0),
+        attempts: 0,
+      })),
+      findings: findings
+        .filter((row) => row.extensionId)
+        .map((row) => ({
+          id: String(row.id ?? ""),
+          extensionId: String(row.extensionId),
+          key: (row.key as string | null) ?? null,
+          state: (row.state as "new" | "open" | "closed") ?? "new",
+          severity: (row.severity as "P0" | "P1" | "P2" | "P3") ?? "P2",
+          blocking: row.blocking === true,
+          title: String(row.title ?? ""),
+          body: String(row.body ?? ""),
+          path: (row.path as string | null) ?? null,
+          lineFrom: (row.lineFrom as number | null) ?? null,
+          lineTo: (row.lineTo as number | null) ?? null,
+        })),
+    },
+  };
+}
+
 /** Whether a remote result's extensions make the review blocking. */
 export function jsonExtensionsBlock(result: Record<string, unknown>): boolean {
   if (!Array.isArray(result.extensions)) return false;

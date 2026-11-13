@@ -352,4 +352,44 @@ export const migrations: string[][] = [
       UNIQUE(repo, comment_id)
     )`,
   ],
+  // 16 — extensions: each extension's result for a review, for the dashboard,
+  // and its findings, so a keyed finding is tracked across rounds. A tracked
+  // finding keeps its id from round to round, so the key is (review_id, id).
+  [
+    `CREATE TABLE extension_results (
+      id TEXT PRIMARY KEY,
+      review_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      status TEXT NOT NULL,
+      verdict TEXT,
+      reason TEXT,
+      markdown TEXT NOT NULL DEFAULT '',
+      data_json TEXT NOT NULL DEFAULT '{}',
+      extra_json TEXT,
+      usage_json TEXT,
+      cost REAL,
+      details TEXT,
+      duration_ms INTEGER,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    )`,
+    `CREATE INDEX idx_extension_results_review ON extension_results(review_id)`,
+    `CREATE TABLE extension_findings (
+      id TEXT NOT NULL,
+      review_id TEXT NOT NULL,
+      extension TEXT NOT NULL,
+      key TEXT,
+      state TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      blocking INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      path TEXT,
+      line_from INTEGER,
+      line_to INTEGER,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (review_id, id)
+    )`,
+    `CREATE INDEX idx_extension_findings_review ON extension_findings(review_id)`,
+  ],
 ];

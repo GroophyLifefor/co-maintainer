@@ -78,6 +78,11 @@ import { insertJob, listJobsByQueueKey, setJobStatus } from "../store/jobs.ts";
 import { getAppDb } from "../store/app_db.ts";
 import type { RemoteTokenRow } from "../store/rows.ts";
 import type { JobRow } from "../store/rows.ts";
+import { withExtensions } from "../extensions/session.ts";
+import { remoteContext } from "../extensions/contexts.ts";
+import { reviewResultJson } from "../extensions/review_result.ts";
+import { withExtensionsJson } from "../extensions/render_json.ts";
+import { addExtensionCost } from "../extensions/cost.ts";
 
 const REPO_UNAVAILABLE = "Sorry, we could not access this repository.";
 
@@ -462,23 +467,37 @@ export function registerRemoteReviewHandler(): void {
         let tokensIn = 0;
         let tokensOut = 0;
         const costTally = emptyTally();
-        const result = await withLogSink(
-          (phase, message) => log("info", `[${phase}] ${message}`),
+        const { review: result, extensions } = await withExtensions(
+          remoteContext({
+            jobId: job.id,
+            repo: job.repo,
+            branch: review.branch,
+            revision,
+            subjectId,
+            reviewId,
+            signal,
+            log: (message) => log("info", message),
+          }),
           () =>
-            reviewWorkspaceRevision(
-              revision,
-              options,
-              "remote",
-              async (response) => {
-                tokensIn += response.tokensIn;
-                tokensOut += response.tokensOut;
-                addResponseCost(costTally, response);
-                await recordAiCost(job.repo, "remote_review", response);
-              },
-              undefined,
-              (message) => log("info", message),
-              extras,
+            withLogSink(
+              (phase, message) => log("info", `[${phase}] ${message}`),
+              () =>
+                reviewWorkspaceRevision(
+                  revision,
+                  options,
+                  "remote",
+                  async (response) => {
+                    tokensIn += response.tokensIn;
+                    tokensOut += response.tokensOut;
+                    addResponseCost(costTally, response);
+                    await recordAiCost(job.repo, "remote_review", response);
+                  },
+                  undefined,
+                  (message) => log("info", message),
+                  extras,
+                ),
             ),
+          (reviewed) => reviewResultJson(reviewed.text, options.reviewBlocking),
         );
 
         if (signal.aborted) return;
@@ -500,6 +519,21 @@ export function registerRemoteReviewHandler(): void {
           result.coverage,
           result.warnings,
         );
+        // The client empties each `markdown` unless it asked for them.
+        const joined = withExtensionsJson(
+          {
+            summary: summaryCounts(findings, blockingMode),
+            findings: findings.map((row) => toJsonFinding(row, blockingMode)),
+            usage: {
+              tokensIn,
+              tokensOut,
+              ...costUsage(costTally),
+              billedTo: billed,
+            },
+          },
+          extensions,
+          true,
+        );
         setRemoteSyncResult(job.id, {
           subject: {
             repo: job.repo,
@@ -509,17 +543,14 @@ export function registerRemoteReviewHandler(): void {
           revision: covered.revision,
           guide: { builtAt: result.guideBuiltAt },
           codegraph: { state: result.codegraphState },
-          summary: summaryCounts(findings, blockingMode),
-          findings: findings.map((row) => toJsonFinding(row, blockingMode)),
+          summary: joined.summary,
+          findings: joined.findings,
           warnings: covered.warnings,
-          usage: {
-            tokensIn,
-            tokensOut,
-            ...costUsage(costTally),
-            billedTo: billed,
-          },
+          usage: joined.usage,
+          extensions: joined.extensions,
           remote: { jobId: job.id, reviewId, clientVersion: VERSION },
         });
+        addExtensionCost(costTally, extensions);
 
         setReviewStatus(reviewId, "done", {
           findings_count: findings.length,

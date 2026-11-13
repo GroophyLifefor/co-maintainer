@@ -185,6 +185,16 @@ export async function removeStaleRunFolders(
   return removed;
 }
 
+/** `serve`'s cleanup at startup: every folder of a job no longer running, and
+ * every CLI run whose process is gone. */
+export function removeServeRunFolders(running: Set<string>): Promise<number> {
+  return removeStaleRunFolders((runId, owner) =>
+    owner?.kind === "cli"
+      ? owner.pid === process.pid || isProcessAlive(owner.pid)
+      : running.has(runId),
+  );
+}
+
 /** The CLI's cleanup on its next review: a CLI run whose process is gone.
  * Folders `serve` owns are left to `serve`, which may still rerun them. */
 export function removeDeadCliRunFolders(): Promise<number> {
