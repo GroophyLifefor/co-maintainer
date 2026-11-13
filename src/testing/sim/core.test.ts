@@ -588,7 +588,11 @@ test("a fault can carry any status", async () => {
 });
 
 test("an AI rate-limit fault does not make the flow sit through the backoff", async () => {
-  const started = performance.now();
+  // Every wait of a second or more the product starts, and whether the core
+  // used up a skip on it. That says whether the real sleep ran, where a
+  // stopwatch only says how busy the machine was.
+  const longWaits: { ms: number; skipped: boolean }[] = [];
+  let skipsLeft = -1;
   const result = await run({
     name: "fast-rate-limit-fixture",
     description: "test fixture",
@@ -602,15 +606,48 @@ test("an AI rate-limit fault does not make the flow sit through the backoff", as
             kind: "rate-limit",
             job: "synth_section",
           });
+          // The core's own timers are captured before the flow starts, so
+          // this sees only the product's waits. The core puts the real
+          // setTimeout back when the flow ends.
+          const fast = globalThis.setTimeout;
+          const watching = ((
+            callback: () => void,
+            ms?: number,
+            ...args: unknown[]
+          ) => {
+            const owed = sim.faults.waitsToSkip;
+            const timer = fast(callback, ms, ...args);
+            if (Number(ms) >= 1000) {
+              longWaits.push({
+                ms: Number(ms),
+                skipped: sim.faults.waitsToSkip < owed,
+              });
+            }
+            return timer;
+          }) as typeof setTimeout;
+          Object.assign(watching, fast);
+          globalThis.setTimeout = watching;
         },
       },
       initStep,
+      {
+        name: "after",
+        run(sim) {
+          skipsLeft = sim.faults.waitsToSkip;
+        },
+      },
     ],
   });
   assert.ok(result.passed, failures(result));
-  assert.ok(performance.now() - started < 4000, "the 5 s backoff was skipped");
+  const backoffs = longWaits.filter((wait) => wait.ms === 5000);
+  assert.equal(backoffs.length, 1, JSON.stringify(longWaits));
+  assert.ok(backoffs[0]!.skipped, "the 5 s backoff ran in real time");
+  assert.equal(skipsLeft, 0, "the fault's skip was not used");
   const logs = (result.trace as { logs: { message: string }[] }).logs;
-  assert.ok(logs.some((line) => /skipped a 5000 ms wait/.test(line.message)));
+  assert.equal(
+    logs.filter((line) => /skipped a 5000 ms wait/.test(line.message)).length,
+    1,
+  );
 });
 
 test("a hung step fails as timed out, naming the flow and the step", async () => {
