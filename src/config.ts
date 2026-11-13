@@ -1,4 +1,5 @@
 import { writeTextFileAtomic } from "./util/atomic.ts";
+import { guardTestLocation } from "./util/test_location_guard.ts";
 import {
   currentPlatform,
   getEnv,
@@ -220,12 +221,19 @@ function homeDir(env: (name: string) => string | undefined): string {
   return home;
 }
 
+/** The real environment under another name, so the test location guard can
+ * resolve every platform's directory without checking itself again. */
+const readEnv = (name: string) => getEnv(name);
+
 /** Platform/env injection keeps the OS branches testable: the
  * migration's `"windows"` vs `"win32"` trap is invisible otherwise. */
 export function getConfigDir(
   os: Platform = currentPlatform(),
   env: (name: string) => string | undefined = getEnv,
 ): string {
+  if (env === getEnv) {
+    guardTestLocation("config", (other) => getConfigDir(other, readEnv));
+  }
   const home = homeDir(env);
   switch (os) {
     case "windows":
@@ -241,6 +249,9 @@ export function getCacheDir(
   os: Platform = currentPlatform(),
   env: (name: string) => string | undefined = getEnv,
 ): string {
+  if (env === getEnv) {
+    guardTestLocation("cache", (other) => getCacheDir(other, readEnv));
+  }
   const home = homeDir(env);
   switch (os) {
     case "windows":
