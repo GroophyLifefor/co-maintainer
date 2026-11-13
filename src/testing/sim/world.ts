@@ -59,10 +59,50 @@ export type World = {
   readConfig(): Record<string, unknown>;
   /** Name and value of every secret, for the leak check. */
   secretValues(): { name: string; value: string }[];
+  /** Points `GITHUB_STEP_SUMMARY` at a file in the sandbox, for a flow that
+   * checks what `--output=github` writes there, and returns its path. */
+  useStepSummary(): string;
+  /** Deletes the sandbox and puts the shell's environment back. */
   dispose(): void;
 };
 
 const token = (prefix: string) => `${prefix}${randomBytes(12).toString("hex")}`;
+
+/** Prefixes of the variables the product reads for a credential, a host or
+ * a behavior. A key in the shell (`OPENROUTER_API_KEY`, `GH_TOKEN`) would win
+ * over the world's own, and `GITHUB_STEP_SUMMARY` would reach the real job
+ * summary. `world.test.ts` greps the product for every variable it reads and
+ * fails when one is not covered here. */
+export const PRODUCT_ENV_PREFIXES = [
+  "CM_",
+  "CO_MAINTAINER_",
+  "OPENROUTER_",
+  "OPENCODE_",
+  "OPENAI_",
+  "ANTHROPIC_",
+  "GITHUB_",
+  "GH_",
+  "GIT_",
+  "XDG_",
+];
+
+/** Variables the product reads that no prefix above covers. */
+export const PRODUCT_ENV_NAMES = [
+  "CI",
+  "HOME",
+  "USERPROFILE",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "LOW_MODEL",
+  "HIGH_MODEL",
+];
+
+function productReads(key: string): boolean {
+  return (
+    PRODUCT_ENV_NAMES.includes(key) ||
+    PRODUCT_ENV_PREFIXES.some((prefix) => key.startsWith(prefix))
+  );
+}
 
 export type WorldOptions = {
   /** The AI key a live run uses. Without it the world makes up one. */
@@ -77,14 +117,14 @@ export function createWorld(worldOptions: WorldOptions = {}): World {
   mkdirSync(home, { recursive: true });
   mkdirSync(githubDir, { recursive: true });
 
-  // A `CM_*` variable left in the shell (`CM_OPENROUTER_URL`, `CM_FAKE_AI`)
-  // would send the product somewhere the simulation does not answer.
+  // The world owns the environment until `dispose` puts the shell's back.
+  const saved = { ...process.env };
   for (const key of Object.keys(process.env)) {
-    if (key.startsWith("CM_") || key.startsWith("GIT_CONFIG_")) {
-      delete process.env[key];
-    }
+    if (productReads(key)) delete process.env[key];
   }
   Object.assign(process.env, {
+    // The product never prompts and waits on stdin, in a terminal or in CI.
+    CI: "1",
     CM_CONFIG_PATH: join(root, "config.json"),
     CM_REPOS_DIR: join(root, "repos"),
     CM_APP_DB: join(root, "app.db"),
@@ -185,8 +225,17 @@ export function createWorld(worldOptions: WorldOptions = {}): World {
         })),
       ].filter((secret) => secret.value.length >= 8);
     },
+    useStepSummary() {
+      const path = join(root, "github-step-summary.md");
+      process.env.GITHUB_STEP_SUMMARY = path;
+      return path;
+    },
     dispose() {
       rmSync(root, { recursive: true, force: true });
+      for (const key of Object.keys(process.env)) {
+        if (!(key in saved)) delete process.env[key];
+      }
+      Object.assign(process.env, saved);
     },
   };
   world.github = new SimGithub(world);
