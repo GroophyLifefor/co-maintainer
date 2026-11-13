@@ -1,18 +1,17 @@
-/** `init` and `sync` with an `AGENTS.md` on the default branch: the file is
- * read, one `synth_instructions` call answers, `INSTRUCTIONS.md` and
- * `RULES.json` are written, the flags are saved, and a second run with the
- * same input reports no change. GitHub and the AI are both answered through a
- * fake `fetch`. */
+/** `init` and `sync` with and without an `AGENTS.md` on the default branch.
+ * GitHub and the AI are both answered through a fake `fetch`. Every test runs
+ * in its own sandbox: config, app.db, the guide directory and cache.db all live
+ * in a temp directory, never in the real home. */
 import { test } from "node:test";
 import { readConfig, writeUserConfig } from "../config.ts";
 import { closeAppDb } from "../store/app_db.ts";
-import { cacheDelete, cacheDeletePrefix } from "../store/cache_db.ts";
 import { runInitOrRemake } from "./setup.ts";
 import { testOptions } from "../testing/helpers.ts";
 import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
 import { withLogSink } from "../util/log.ts";
-import { readTextFile } from "../util/runtime.ts";
+import { readTextFile, stat } from "../util/runtime.ts";
 import { parseRules } from "../knowledge/rules.ts";
+import type { Options } from "../types.ts";
 
 const AGENTS = [
   "# Agent notes",
@@ -20,16 +19,40 @@ const AGENTS = [
   "Every exported function in `src/app.ts` has a test.",
 ].join("\n");
 
+/** What the fake GitHub serves. Tests change it between runs. */
+type World = {
+  /** `AGENTS.md` content, or `null` when the file is not on the branch. */
+  agents: string | null;
+  agentsSha: string;
+  /** Answer the pull request listing with a server error, which stops the
+   * run after the codebase checkpoint. */
+  failPulls?: boolean;
+  /** Answer every contents request for `AGENTS.md` with a server error. */
+  failAgents?: boolean;
+};
+
 function chat(prompt: string): string {
   if (prompt.includes("Read the instruction files below")) {
+    // Cite whichever line holds the rule, so a test can tell old and new
+    // content apart by the source line in RULES.json.
+    const files = prompt.slice(prompt.indexOf("FILES:"));
+    const match = /^(\d+): (Every exported function.*)$/m.exec(files);
     return JSON.stringify({
       rules: [
+        ...(match
+          ? [
+              {
+                rule: match[2],
+                scope: "",
+                sources: [`AGENTS.md:${match[1]}`],
+              },
+            ]
+          : []),
         {
-          rule: "Every exported function in `src/app.ts` has a test.",
+          rule: "Run npm install first.",
           scope: "",
-          sources: ["AGENTS.md:3"],
+          sources: ["AGENTS.md:99"],
         },
-        { rule: "Run npm install first.", scope: "", sources: ["AGENTS.md:9"] },
       ],
     });
   }
@@ -37,7 +60,7 @@ function chat(prompt: string): string {
   return "## Section\n\n- Follow the repository convention.\n";
 }
 
-function fakeFetch(repo: string): typeof fetch {
+function fakeFetch(repo: string, world: World): typeof fetch {
   return (async (input: unknown, init?: { body?: unknown }) => {
     const url = String(input);
     let body: unknown = { default_branch: "main", full_name: repo };
@@ -60,38 +83,55 @@ function fakeFetch(repo: string): typeof fetch {
     } else if (url.includes("/git/trees/")) {
       body = {
         tree: [
-          { path: "AGENTS.md", type: "blob", sha: "sha-agents" },
+          ...(world.agents === null
+            ? []
+            : [{ path: "AGENTS.md", type: "blob", sha: world.agentsSha }]),
           { path: "src/app.ts", type: "blob", sha: "sha-app" },
         ],
       };
     } else if (url.includes("/contents/AGENTS.md")) {
-      body = { content: btoa(AGENTS) };
+      if (world.failAgents || world.agents === null) {
+        return new Response("{}", { status: 500 });
+      }
+      body = { content: btoa(world.agents) };
     } else if (url.includes("/contents/")) {
       body = { content: btoa("export function app() {}\n") };
+    } else if (url.includes("/pulls")) {
+      if (world.failPulls) return new Response("{}", { status: 500 });
+      body = [];
     }
     return new Response(JSON.stringify(body), { status: 200 });
   }) as unknown as typeof fetch;
 }
 
-test("init writes INSTRUCTIONS.md and RULES.json and saves the flags, a same-input sync changes nothing", async () => {
+type Sandbox = {
+  repo: string;
+  dir: string;
+  world: World;
+  run(
+    overrides?: Partial<Options>,
+  ): Promise<{ lines: string[]; stdout: string; error?: unknown }>;
+};
+
+async function withSandbox(fn: (sandbox: Sandbox) => Promise<void>) {
   const root = tempDirSync();
   const repo = `acme/agents-${crypto.randomUUID()}`;
-  const saved = {
-    config: getEnv("CM_CONFIG_PATH"),
-    db: getEnv("CM_APP_DB"),
-    repos: getEnv("CM_REPOS_DIR"),
-  };
-  const restore = (name: string, value: string | undefined) => {
-    if (value === undefined) deleteEnv(name);
-    else setEnv(name, value);
-  };
+  const names = [
+    "CM_CONFIG_PATH",
+    "CM_APP_DB",
+    "CM_REPOS_DIR",
+    "XDG_CACHE_HOME",
+  ] as const;
+  const saved = Object.fromEntries(names.map((name) => [name, getEnv(name)]));
   setEnv("CM_CONFIG_PATH", `${root}/config.json`);
   setEnv("CM_APP_DB", `${root}/app.db`);
   setEnv("CM_REPOS_DIR", `${root}/repos`);
+  setEnv("XDG_CACHE_HOME", `${root}/cache`);
   await closeAppDb();
+  const world: World = { agents: AGENTS, agentsSha: "sha-agents-1" };
   const previousFetch = globalThis.fetch;
-  globalThis.fetch = fakeFetch(repo);
-  const options = testOptions({
+  globalThis.fetch = fakeFetch(repo, world);
+  const base = testOptions({
     repo,
     auth: "pat",
     githubPat: "test-token",
@@ -100,8 +140,6 @@ test("init writes INSTRUCTIONS.md and RULES.json and saves the flags, a same-inp
     lowModel: "low/model",
     highModel: "high/model",
     includeCodebase: true,
-    agentInstructions: "(^|/)AGENTS\\.md$",
-    agentInstructionsMaxChars: 8000,
   });
   try {
     await writeUserConfig({
@@ -112,19 +150,65 @@ test("init writes INSTRUCTIONS.md and RULES.json and saves the flags, a same-inp
       lowModel: "low/model",
       highModel: "high/model",
     });
-    const first: string[] = [];
-    await withLogSink(
-      (phase, message) => void first.push(`[${phase}] ${message}`),
-      () => runInitOrRemake({ ...options, command: "init" }),
-    );
+    await fn({
+      repo,
+      dir: `${root}/repos/${repo}`,
+      world,
+      async run(overrides = {}) {
+        const lines: string[] = [];
+        const printed: string[] = [];
+        const log = console.log;
+        console.log = (...parts: unknown[]) =>
+          void printed.push(parts.join(" "));
+        let error: unknown;
+        try {
+          await withLogSink(
+            (phase, message) => void lines.push(`[${phase}] ${message}`),
+            () => runInitOrRemake({ ...base, ...overrides }),
+          );
+        } catch (thrown) {
+          error = thrown;
+        } finally {
+          console.log = log;
+        }
+        return { lines, stdout: printed.join("\n"), error };
+      },
+    });
+  } finally {
+    globalThis.fetch = previousFetch;
+    await closeAppDb();
+    for (const name of names) {
+      const value = saved[name];
+      if (value === undefined) deleteEnv(name);
+      else setEnv(name, value);
+    }
+  }
+}
+
+async function exists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+test("init writes INSTRUCTIONS.md and RULES.json and saves the flags, a same-input sync changes nothing", async () => {
+  await withSandbox(async ({ repo, dir, run }) => {
+    const flags = {
+      agentInstructions: "(^|/)AGENTS\\.md$",
+      agentInstructionsMaxChars: 8000,
+    };
+    const first = await run({ ...flags, command: "init" });
+    if (first.error) throw first.error;
     if (
-      !first.includes(
+      !first.lines.includes(
         "[write] INSTRUCTIONS.md · 1 rule · 1 dropped (unsupported source) · 0 over the cap",
       )
     ) {
-      throw new Error(`init output:\n${first.join("\n")}`);
+      throw new Error(`init output:\n${first.lines.join("\n")}`);
     }
-    const dir = `${root}/repos/${repo}`;
     const instructions = await readTextFile(`${dir}/INSTRUCTIONS.md`);
     if (
       !instructions.includes(
@@ -149,26 +233,45 @@ test("init writes INSTRUCTIONS.md and RULES.json and saves the flags, a same-inp
       throw new Error(`saved config: ${JSON.stringify(repoConfig)}`);
     }
 
-    const second: string[] = [];
-    await withLogSink(
-      (phase, message) => void second.push(`[${phase}] ${message}`),
-      () => runInitOrRemake({ ...options, command: "remake" }),
-    );
-    if (!second.includes("[instructions] no rule changed")) {
-      throw new Error(`sync output:\n${second.join("\n")}`);
+    const second = await run({ ...flags, command: "remake" });
+    if (second.error) throw second.error;
+    if (!second.lines.includes("[instructions] no rule changed")) {
+      throw new Error(`sync output:\n${second.lines.join("\n")}`);
     }
-    if (!second.some((line) => line.includes("cache hit synth_instructions"))) {
+    if (
+      !second.lines.some((line) =>
+        line.includes("cache hit synth_instructions"),
+      )
+    ) {
       throw new Error(
         "the unchanged instruction files were sent to the AI again",
       );
     }
-  } finally {
-    globalThis.fetch = previousFetch;
-    await cacheDelete("state", repo);
-    await cacheDeletePrefix("ai-jobs", `${repo}:`);
-    await closeAppDb();
-    restore("CM_CONFIG_PATH", saved.config);
-    restore("CM_APP_DB", saved.db);
-    restore("CM_REPOS_DIR", saved.repos);
-  }
+  });
+});
+
+test("a sync of a repository with no instruction file prints, writes and asks nothing new", async () => {
+  await withSandbox(async ({ dir, world, run }) => {
+    world.agents = null;
+    const init = await run({ command: "init" });
+    if (init.error) throw init.error;
+    const sync = await run({ command: "remake", json: true });
+    if (sync.error) throw sync.error;
+    const mentions = sync.lines.filter((line) =>
+      /instruction|INSTRUCTIONS|RULES\.json/i.test(line),
+    );
+    if (mentions.length > 0) {
+      throw new Error(`new output on a plain sync:\n${mentions.join("\n")}`);
+    }
+    if (
+      (await exists(`${dir}/RULES.json`)) ||
+      (await exists(`${dir}/INSTRUCTIONS.md`))
+    ) {
+      throw new Error("a new file was written");
+    }
+    const json = JSON.parse(sync.stdout) as Record<string, unknown>;
+    if ("instructions" in json || "ruleChanges" in json) {
+      throw new Error(`sync --json gained fields: ${sync.stdout}`);
+    }
+  });
 });

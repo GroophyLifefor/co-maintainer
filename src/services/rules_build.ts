@@ -30,8 +30,8 @@ import {
 } from "../knowledge/rules.ts";
 import type { Source } from "../knowledge/types.ts";
 import type { AiProvider, AiResponse, Options } from "../types.ts";
-import { log } from "../util/log.ts";
-import { readTextFile, remove } from "../util/runtime.ts";
+import { log, timed } from "../util/log.ts";
+import { readTextFile, remove, stat } from "../util/runtime.ts";
 
 export type InstructionsOutcome =
   | InstructionsResult
@@ -60,15 +60,19 @@ export async function buildInstructions(
   const reason = skipReason(options, source);
   if (reason) return { status: "skipped", reason };
   log("ai", "starting synth_instructions job");
-  const result = await synthesizeInstructions(
-    provider,
-    options.repo,
-    options.ai,
-    options.highModel ?? "",
-    source.instructionFiles ?? {},
-    source.tree,
-    agentInstructionsLimit(options.agentInstructionsMaxChars),
-    usage,
+  // Timed only when it runs, so a repository with no instruction file gets
+  // no extra `--log-time` line.
+  const result = await timed("synth_instructions AI", options.logTime, () =>
+    synthesizeInstructions(
+      provider,
+      options.repo,
+      options.ai,
+      options.highModel ?? "",
+      source.instructionFiles ?? {},
+      source.tree,
+      agentInstructionsLimit(options.agentInstructionsMaxChars),
+      usage,
+    ),
   ).catch((): InstructionsResult => ({ status: "failed" }));
   log("ai", `synth_instructions complete · ${result.status}`);
   return result;
@@ -101,7 +105,21 @@ export type RulesWriteResult = {
   rules: number;
   /** `null` when there was no earlier `RULES.json` to compare with. */
   changes: { instructions: RuleChanges } | null;
+  /** False when the instructions were skipped and there was no earlier
+   * `INSTRUCTIONS.md` or `RULES.json`: nothing happened that the run's output
+   * should mention, so a repository without instruction files sees the same
+   * output as before. */
+  reported: boolean;
 };
+
+async function exists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 async function readRulesFile(repo: string) {
   try {
@@ -123,6 +141,9 @@ function instructionsLine(counts: InstructionCounts): string {
  * the ids here and the files beside them belong to one build. */
 export async function writeInstructionsAndRules(input: {
   repo: string;
+  /** `init` names a skip even with nothing to remove, so a first build says
+   * why it has no `INSTRUCTIONS.md`. A `sync` stays quiet then. */
+  command: "init" | "remake" | "probe" | "review";
   instructions: InstructionsOutcome;
   source: Source;
 }): Promise<RulesWriteResult> {
@@ -130,6 +151,14 @@ export async function writeInstructionsAndRules(input: {
   const directory = `${reposDir()}/${repo}`;
   const { writeTextFileAtomic } = await import("../util/atomic.ts");
   const previous = await readRulesFile(repo);
+  const hadInstructions = await exists(`${directory}/${INSTRUCTIONS_FILE}`);
+  const hadRules = await exists(`${directory}/${RULES_FILE}`);
+  if (instructions.status === "skipped" && !hadInstructions && !hadRules) {
+    if (input.command === "init") {
+      log("write", `${INSTRUCTIONS_FILE} skipped: ${instructions.reason}`);
+    }
+    return { rules: 0, changes: null, reported: false };
+  }
 
   let instructionRules: Record<string, RuleEntry> = {};
   switch (instructions.status) {
@@ -169,16 +198,23 @@ export async function writeInstructionsAndRules(input: {
   }
 
   const rules = { ...instructionRules };
-  await writeTextFileAtomic(
-    `${directory}/${RULES_FILE}`,
-    rulesFileText({
-      schemaVersion: 1,
-      builtAt: new Date().toISOString(),
-      rules,
-    }),
-  );
+  if (Object.keys(rules).length > 0) {
+    await writeTextFileAtomic(
+      `${directory}/${RULES_FILE}`,
+      rulesFileText({
+        schemaVersion: 1,
+        builtAt: new Date().toISOString(),
+        rules,
+      }),
+    );
+  } else {
+    // No rule means no file, as with `INSTRUCTIONS.md`.
+    await remove(`${directory}/${RULES_FILE}`).catch(() => {});
+  }
 
-  if (!previous) return { rules: Object.keys(rules).length, changes: null };
+  if (!previous) {
+    return { rules: Object.keys(rules).length, changes: null, reported: true };
+  }
   const changes = {
     instructions: compareRules(previous.rules, rules, "I"),
   };
@@ -188,5 +224,5 @@ export async function writeInstructionsAndRules(input: {
   ) {
     log("instructions", ruleChangeLine(changes.instructions));
   }
-  return { rules: Object.keys(rules).length, changes };
+  return { rules: Object.keys(rules).length, changes, reported: true };
 }

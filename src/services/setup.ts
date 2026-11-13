@@ -493,9 +493,7 @@ async function initOrRemake(options: Options): Promise<void> {
           ? "synth_guide produced no guide"
           : "synth_guide skipped · fewer than 3 review signals",
     );
-    instructions = await timed("synth_instructions AI", options.logTime, () =>
-      buildInstructions(highAi, options, source, usage),
-    );
+    instructions = await buildInstructions(highAi, options, source, usage);
   } catch (error) {
     // Nothing is written on an AI failure. Fetching and extraction are cached,
     // so a rerun picks up where this stopped instead of starting over.
@@ -564,6 +562,7 @@ async function initOrRemake(options: Options): Promise<void> {
       }
       rulesResult = await writeInstructionsAndRules({
         repo: options.repo,
+        command: options.command,
         instructions,
         source,
       });
@@ -642,8 +641,14 @@ async function initOrRemake(options: Options): Promise<void> {
           errors: finalValidation.errors,
           warnings: finalValidation.warnings,
         },
-        instructions: instructionsJson(instructions),
-        ruleChanges: rulesResult?.changes ?? null,
+        // Only when the instructions did something, so `sync --json` for a
+        // repository without instruction files prints what it printed before.
+        ...(rulesResult?.reported
+          ? {
+              instructions: instructionsJson(instructions),
+              ruleChanges: rulesResult.changes,
+            }
+          : {}),
         summary,
       }),
     );

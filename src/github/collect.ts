@@ -367,7 +367,9 @@ async function codebase(
     );
     await checkpoint();
   });
-  if (!instructionPattern) return { tree, treeSha, files };
+  // Nothing matched: no log line and no new state field, so a repository
+  // without instruction files is fetched exactly as before.
+  if (instructionPaths.length === 0) return { tree, treeSha, files };
   const instructionFiles = await readInstructionFiles(
     client,
     repo,

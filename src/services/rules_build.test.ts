@@ -68,18 +68,49 @@ const WRITTEN = written([
   { id: "I1", text: "Format amounts with `formatMoney()`.", line: 31 },
 ]);
 
-async function write(instructions: InstructionsOutcome) {
+async function write(
+  instructions: InstructionsOutcome,
+  command: "init" | "remake" = "remake",
+) {
   const lines: string[] = [];
   const source = testSource({ commits: [{ sha: "abc123" }] });
   const result = await withLogSink(
     (phase, message) => void lines.push(`[${phase}] ${message}`),
     () =>
       withKnowledgeLock(REPO, () =>
-        writeInstructionsAndRules({ repo: REPO, instructions, source }),
+        writeInstructionsAndRules({
+          repo: REPO,
+          command,
+          instructions,
+          source,
+        }),
       ),
   );
   return { result, lines };
 }
+
+test("a sync with no instruction file and nothing from before writes and says nothing", async () => {
+  await withReposDir(async (dir) => {
+    const skipped: InstructionsOutcome = {
+      status: "skipped",
+      reason: "no file matches (^|/)AGENTS\\.md$",
+    };
+    const sync = await write(skipped);
+    if (sync.lines.length > 0 || sync.result.reported) {
+      throw new Error(`a quiet sync spoke: ${sync.lines.join("\n")}`);
+    }
+    if (await exists(`${dir}/RULES.json`)) {
+      throw new Error("RULES.json was written with no rule");
+    }
+    const init = await write(skipped, "init");
+    if (
+      init.lines.join("\n") !==
+      "[write] INSTRUCTIONS.md skipped: no file matches (^|/)AGENTS\\.md$"
+    ) {
+      throw new Error(`init did not say why: ${init.lines.join("\n")}`);
+    }
+  });
+});
 
 test("a build writes INSTRUCTIONS.md and RULES.json, and the loader reads both", async () => {
   await withReposDir(async (dir) => {
@@ -120,7 +151,7 @@ test("a failed call keeps the file and its ids, a skipped one removes them", asy
     if (!kept.lines.some((line) => line.includes("not regenerated"))) {
       throw new Error(`no keep line:\n${kept.lines.join("\n")}`);
     }
-    let rules = parseRules(await readTextFile(`${dir}/RULES.json`));
+    const rules = parseRules(await readTextFile(`${dir}/RULES.json`));
     if (!rules?.rules.I1) throw new Error("a failed call dropped I1");
 
     const skipped = await write({
@@ -137,8 +168,9 @@ test("a failed call keeps the file and its ids, a skipped one removes them", asy
     ) {
       throw new Error(`skip line:\n${skipped.lines.join("\n")}`);
     }
-    rules = parseRules(await readTextFile(`${dir}/RULES.json`));
-    if (rules?.rules.I1) throw new Error("a skipped build kept I1");
+    if (await exists(`${dir}/RULES.json`)) {
+      throw new Error("a skipped build kept RULES.json with no rule in it");
+    }
   });
 });
 
