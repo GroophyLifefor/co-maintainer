@@ -40,8 +40,12 @@ co-maintainer review owner/repo 123 --disable-codegraph --debug
 | `--improve-matrix=N` | Scales review depth (see CLI help) |
 | `--intent-file=PATH` | What the change is for, from a file or `-` for standard input. Context only, read into the `PULL REQUEST` block, see [Intent](review.md#intent) |
 | `--diagram-runtime`, `--plantuml-server`, `--plantuml-output-format` | The diagram language of the review, see [Diagrams](review.md#diagrams) |
+| `--include-extension-markdowns` | With `--json`, keep each extension's Markdown, which is empty otherwise |
 | `--debug` | Verbose logs on stderr |
 | `--log-time` | Print timing per phase |
+
+Registered [extensions](extensions.md) run in a PR review too, and their findings
+join the result. The extension makes its own checkout if it needs one.
 
 **Not supported for PR review:** `--remote`, `--to-branch`, `--branch`,
 `--repo=`, `--sync-before-review`. Use

@@ -382,12 +382,28 @@ instruction to the model.
 
 [Remote review](remote-review.md#the-intent-file) says how the server treats it.
 
+## Extensions
+
+An [extension](extensions.md) is a command you register. Its findings, verdict,
+Markdown and cost join the review. Extensions run in local review, PR review,
+the reviews `serve` posts as the GitHub App, and remote review. A commit watch
+push review runs none. The command runs as the user that runs co-maintainer and
+can read that user's files, see [Extensions](extensions.md#the-command).
+
+- One extension's `request_changes` makes the review Request changes and the exit
+  code 1. A failed extension never blocks.
+- `--json` adds `extensions[]` and `extensionId` on every finding.
+  `--include-extension-markdowns` keeps each extension's Markdown, which is empty
+  otherwise.
+- `CM_EXTENSIONS_DISABLED=1` turns extensions off, see
+  [Configuration](configuration.md#extension-variables).
+
 ## Exit codes
 
 | Code | Meaning |
 | ------ | ----- |
 | 0 | Review finished, no open blocking findings |
-| 1 | Review finished, at least one blocking finding |
+| 1 | Review finished, at least one blocking finding, or an extension requested changes |
 | 2 | Usage or precondition error (init missing, not a git repo, etc.) |
 | 3 | Runtime failure or abort |
 
@@ -481,8 +497,10 @@ include `mode` (`local`, `remote`, or `pr`), `subject`, `summary`, `findings[]`,
 `warnings[]`, `usage`, and `durationMs`. Every mode includes `revision`, which
 counts the files and says which of them the model received in full, see
 [Large diffs](#large-diffs). Local and remote runs also include `codegraph`
-state. `subject.intent` is there only when the review was given an
-[intent](#intent). Errors with `--json` are JSON on stdout as well.
+state. `extensions` is always an array, empty when nothing is registered, and
+every finding has `extensionId`, which is `null` for an AI finding, see
+[Extensions](#extensions). `subject.intent` is there only when the review was
+given an [intent](#intent). Errors with `--json` are JSON on stdout as well.
 
 Flag details per mode: [Local review](local-review.md), [Remote review](remote-review.md),
 [PR review](local-pr-review.md).

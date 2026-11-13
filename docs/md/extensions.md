@@ -10,7 +10,8 @@ Extensions run in every review type: a [local review](local-review.md), a
 [PR review](local-pr-review.md) from the CLI, the reviews
 [`serve`](serve.md) posts as the [GitHub App](github-app.md), and a
 [remote review](remote-review.md), where `serve` runs the extensions
-registered on `serve`.
+registered on `serve`. A [commit watch](commit-watch-review.md) push review runs
+none.
 
 ## Register one
 

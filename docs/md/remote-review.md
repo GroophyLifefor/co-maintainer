@@ -59,6 +59,7 @@ Same as [local review](local-review.md) for diff and output flags:
 | `--remote-token=<token>` | Override the configured token for this run (needs `--remote`) |
 | `--remote-byok` | Send your own AI key with this review, see [your own key](#your-own-ai-key) |
 | `--no-remote-byok` | Do not send it, even when `remote-byok-default` is on |
+| `--include-extension-markdowns` | With `--json`, keep each extension's Markdown, which is empty otherwise |
 | `--output=github` | Print GitHub annotations and write the job summary, see [CI](ci.md). Cannot be used with `--json` |
 | `--debug` | Verbose stderr |
 | `--log-time` | Phase timings |
@@ -172,6 +173,13 @@ A review sent with a key is recorded as billed to the key's owner. The dashboard
 keeps it out of the server's own spend. A total reads `$1.23 + $0.40 BYOK`, the
 server's cost first and what clients paid with their own keys after the plus
 sign. See [Cost](cost.md).
+
+## Extensions
+
+A remote review runs the [extensions](extensions.md) registered on `serve`, as
+review type `remote`, and the registrations on your own machine do not run. The
+extension has no working directory with your checkout, because the checkout is
+on your machine. Its findings, verdict and cost come back in the result.
 
 ## The intent file
 

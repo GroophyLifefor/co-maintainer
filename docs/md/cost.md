@@ -11,6 +11,7 @@ estimate it before you start.
 | `probe` | No | Reads the repository through `gh` only |
 | `init` | Yes | Extraction and synthesis jobs over code, pull requests, and history |
 | `sync` | Yes, but less | Reuses unchanged evidence from [cache](caching.md), so only changed inputs rebuild |
+| Extensions | As reported | An [extension](extensions.md) that used AI reports its cost in its response, and it joins the review's total |
 | `INSTRUCTIONS.md` | Yes, one call | One high-model call in `init` or `sync`, only when a file matches `--agent-instructions`. It is cached by its input, so unchanged instruction files cost nothing on the next `sync` |
 | Large-diff summary | Yes, small | A big file in a large diff is summarized with the low model instead of being sent whole, see [Large diffs](#large-diffs) |
 | Local and PR `review` | Yes | Runs on your provider's key, see [AI providers](providers.md) |
@@ -78,6 +79,14 @@ A remote review is paid by the server's key unless the client sends its own (see
 key is kept out of the server's own spend and shown after a plus sign, so a total
 reads `$1.23 + $0.40 BYOK`. If the cost of those reviews is unknown, it reads
 `4 reviews with unknown cost BYOK` in the same place.
+
+## Extensions
+
+The total cost of a review includes what its [extensions](extensions.md) report.
+In `--json`, `usage.costUsd` is that total. When an extension ran, `usage` also
+has `reviewCostUsd` (the AI review alone) and `extensionsCostUsd`. An unknown AI
+cost keeps the total unknown. The dashboard shows `incl. $X extensions` under a
+round's cost.
 
 ## Large diffs
 
