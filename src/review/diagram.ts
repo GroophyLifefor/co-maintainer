@@ -276,9 +276,10 @@ function imageUrlFor(
   return undefined;
 }
 
-/** Past this a URL risks a server or proxy refusing it, so the block keeps its
- * source rather than becoming a broken image. */
-const MAX_IMAGE_URL_CHARS = 7500;
+/** Past this a URL risks a server or GitHub's image proxy refusing it, so the
+ * block keeps its source rather than becoming a broken image. The proxy's own
+ * limit is not known, so the cap is deliberately low. */
+const MAX_IMAGE_URL_CHARS = 4000;
 
 const ANY_FENCE = /^( {0,3})(`{3,}|~{3,})(.*)$/;
 const PLANTUML_TAG = /^[ \t]*(plantuml|puml)\b/i;

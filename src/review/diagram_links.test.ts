@@ -105,6 +105,37 @@ test("text after an unclosed fence is not converted", () => {
   same(renderDiagrams(text, SERVER), text, "unclosed");
 });
 
+test("a link of 4000 characters is kept and a longer one falls back to the source", () => {
+  let seed = 11;
+  const line = () => {
+    let text = "";
+    for (let i = 0; i < 12; i++) {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      text += String.fromCharCode(97 + ((seed >> 8) % 26));
+    }
+    return `${text} -> ${text.split("").reverse().join("")}`;
+  };
+  const lines: string[] = [];
+  const urlLength = () =>
+    plantumlImageUrl(
+      `@startuml\n${lines.join("\n")}\n@enduml`,
+      "https://uml.example.com",
+      "svg",
+    ).length;
+  while (urlLength() <= 4000) lines.push(line());
+  const over = lines.join("\n");
+  const under = lines.slice(0, -1).join("\n");
+  if (urlLength() <= 4000) throw new Error("the search did not pass the cap");
+  const block = (source: string) =>
+    `\`\`\`plantuml\n@startuml\n${source}\n@enduml\n\`\`\``;
+  const kept = renderDiagrams(block(under), SERVER);
+  if (!kept.startsWith("![PlantUML diagram](")) throw new Error(kept);
+  if (kept.length - "![PlantUML diagram]()".length > 4000) {
+    throw new Error(`link of ${kept.length} characters`);
+  }
+  same(renderDiagrams(block(over), SERVER), block(over), "over the cap");
+});
+
 test("inline triple backticks are not a fence", () => {
   const text = "Use ```plantuml``` for diagrams.\n\n```plantuml\nA -> B\n```\n";
   const out = renderDiagrams(text, SERVER);
