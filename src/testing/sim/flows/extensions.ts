@@ -87,6 +87,8 @@ const SCRIPT = String.raw`import { appendFileSync, existsSync, readdirSync, read
 import { spawn } from "node:child_process";
 import { dirname, join } from "node:path";
 const [detailsPath, resultPath, diffPath, mode, log] = process.argv.slice(2);
+// First, before anything can fail: proof that this command ran at all.
+if (mode === "evil") writeFileSync(log + ".evil", "ran");
 const FENCE = String.fromCharCode(96).repeat(3);
 const folder = dirname(detailsPath);
 const files = {};
