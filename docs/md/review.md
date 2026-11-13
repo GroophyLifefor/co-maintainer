@@ -340,6 +340,36 @@ own, and the per-run file travels with the job so a retry keeps it.
 | 2 | Usage or precondition error (init missing, not a git repo, etc.) |
 | 3 | Runtime failure or abort |
 
+### A repository without guides
+
+A repository that was never initialized has no guides, and no review can run.
+Every mode stops the same way, in the terminal, with `--json` and with
+`--output=github`: the code is `not_initialized` and the exit code is 2.
+
+```json
+{"schemaVersion":1,"ok":false,"error":{"code":"not_initialized","message":"Review guides are missing for owner/repo.","hint":"co-maintainer init owner/repo"},"exitCode":2}
+```
+
+In the terminal the message goes to stderr, then the line
+`Hint: co-maintainer init owner/repo`, and stdout stays empty. PR review and
+remote review put `[error] ` in front of the message, like every other error of
+those modes. Local review and PR review hint `init` on your machine. The guides
+of a remote review live on the server, so `init` on your machine would not fix
+it, and the message names the server instead:
+
+```
+[error] Review guides are missing for owner/repo on review.example.com.
+Hint: Run co-maintainer init owner/repo on the server at review.example.com.
+```
+
+This holds for `review --remote` and for `review --remote --range`. The one
+exception is a push to a repository the [GitHub App](github-app.md) already
+covers. The App marks that commit's check run as skipped, so the command prints a
+notice saying so and exits 0, see [commit watch](commit-watch-review.md).
+
+A repository the server does not know is a different error, `repo_unavailable`,
+see [Remote review](remote-review.md#errors-from-the-server).
+
 ### What counts as blocking
 
 `reviewBlocking` in `config.json` decides it, and the same rule is used by

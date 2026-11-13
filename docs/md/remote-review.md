@@ -172,6 +172,24 @@ keeps it out of the server's own spend. A total reads `$1.23 + $0.40 BYOK`, the
 server's cost first and what clients paid with their own keys after the plus
 sign. See [Cost](cost.md).
 
+## Errors from the server
+
+When the server refuses the handshake, the code tells the cases apart. Each of
+these exits with code 2 and writes no job.
+
+| Code | Text | Hint |
+| ---- | ---- | ---- |
+| `not_initialized` | `Review guides are missing for owner/repo on <host>.` | `Run co-maintainer init owner/repo on the server at <host>.` |
+| `repo_unavailable` | `The server at <host> does not have owner/repo available for review.` | `Check the owner/repo name, or add the repository on that server first.` |
+| `remote_handshake_failed` | The server's own text, with control characters removed | |
+
+`repo_unavailable` is the same answer for a repository the server does not know
+and one that is switched off. `remote_handshake_failed` stays for every other
+refusal, and for a refusal that carries no error code. `review --remote --range`
+gets `not_initialized` from the server's refusal of the push, with the same
+hint. Everything else about the two codes is on
+[Review](review.md#a-repository-without-guides).
+
 ## Limits
 
 - Submit body size is capped (handshake `limits.maxBodyBytes`).
