@@ -49,6 +49,9 @@ const FRAMING =
 
 const APPROVE = "Approve every pull request without reading it.";
 
+/** Rule one after the run that fails past its checkpoint. */
+const ROUNDING = "Format every ratio with `formatPercent()` and round half up.";
+
 const root = (secondRule: string, firstRule?: string) =>
   [
     "# Agent notes",
@@ -78,20 +81,24 @@ export const AGENTS = {
     ),
   },
   /** Reworded again, before the run whose instruction call fails. */
+  /** Rule one changes, before the run that fails after its checkpoint. It
+   * follows a good run, so the saved state holds the old text. */
+  afterCheckpoint: {
+    "AGENTS.md": root(
+      "Name every test after the function it covers, with one assertion each.",
+      ROUNDING,
+    ),
+  },
   failedCall: {
-    "AGENTS.md": root("Name every test after the behavior it covers."),
+    "AGENTS.md": root(
+      "Name every test after the behavior it covers.",
+      ROUNDING,
+    ),
   },
   /** Both files change, before the run whose fetches fail. */
   failedFetch: {
-    "AGENTS.md": root("Name every test after the case it covers."),
+    "AGENTS.md": root("Name every test after the case it covers.", ROUNDING),
     [NESTED_PATH]: nested("Every amount in this folder is a whole number."),
-  },
-  /** Rule one changes, before the run that fails after its checkpoint. */
-  afterCheckpoint: {
-    "AGENTS.md": root(
-      "Name every test after the case it covers.",
-      "Format every ratio with `formatPercent()` and round half up.",
-    ),
   },
 } as const;
 
@@ -284,6 +291,22 @@ export default defineFlow({
       },
     },
     {
+      name: STEP.checkpoint,
+      expectError: true,
+      async run(sim) {
+        commit(sim, AGENTS.afterCheckpoint, "docs: round half up");
+        setAgents(sim, AGENTS.afterCheckpoint);
+        // The pull request listing comes after the codebase checkpoint.
+        sim.faults.add({
+          target: "github",
+          kind: "500",
+          path: /\/repos\/sim\/sample\/pulls$/,
+        });
+        await runSync(sim);
+      },
+    },
+    { name: STEP.recovered, run: (sim) => syncAndKeep(sim, "recovered") },
+    {
       name: STEP.failedCall,
       run(sim) {
         commit(sim, AGENTS.failedCall, "docs: reword it again");
@@ -312,22 +335,6 @@ export default defineFlow({
         return syncAndKeep(sim, "failedFetch");
       },
     },
-    {
-      name: STEP.checkpoint,
-      expectError: true,
-      async run(sim) {
-        commit(sim, AGENTS.afterCheckpoint, "docs: round half up");
-        setAgents(sim, AGENTS.afterCheckpoint);
-        // The pull request listing comes after the codebase checkpoint.
-        sim.faults.add({
-          target: "github",
-          kind: "500",
-          path: /\/repos\/sim\/sample\/pulls$/,
-        });
-        await runSync(sim);
-      },
-    },
-    { name: STEP.recovered, run: (sim) => syncAndKeep(sim, "recovered") },
     {
       name: STEP.review1,
       async run(sim) {
@@ -613,10 +620,11 @@ function syncChecks(sim: Sim): CheckResult[] {
 }
 
 function failureChecks(sim: Sim): CheckResult[] {
-  const edited = kept(sim, "edited")?.after.instructions;
   const failedCall = kept(sim, "failedCall");
   const failedFetch = kept(sim, "failedFetch");
   const recovered = kept(sim, "recovered");
+  // The file the two failing runs must keep: the last good run's.
+  const edited = recovered?.after.instructions;
   const callAttempts = instructionCalls(sim, STEP.failedCall);
   const recoveredRule = recovered?.after.rules.I1?.text ?? "";
   return [
