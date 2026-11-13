@@ -51,10 +51,11 @@ const USAGE = `Usage: npm run e2e:simulate -- [options]
   --output=<dir>        write a JSON report of the run into this directory
   --keep                keep each flow's sandbox directory after the run
 
-Flows: ${FLOWS.map((flow) => flow.name).join(", ")}
+Flows: ${FLOWS.map((flow) => `${flow.name}${flow.onlyWhenNamed ? " (only with --flow)" : ""}`).join(", ")}
 
-Without --flow every flow runs. Without --ai the fake AI answers. The four
---ai flags go together, and so do the three --judge flags.`;
+Without --flow every flow runs, except the ones marked only with --flow.
+Without --ai the fake AI answers. The four --ai flags go together, and so do
+the three --judge flags.`;
 
 type Flags = {
   ai?: Provider;
@@ -156,7 +157,7 @@ const started = performance.now();
 const startedAt = new Date().toISOString();
 const flows = chosen.length
   ? FLOWS.filter((flow) => chosen.includes(flow.name))
-  : FLOWS;
+  : FLOWS.filter((flow) => !flow.onlyWhenNamed);
 const settings = {
   mode,
   provider: flags.ai ?? "openrouter",

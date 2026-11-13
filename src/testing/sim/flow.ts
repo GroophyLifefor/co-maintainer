@@ -77,6 +77,9 @@ export type Flow = {
   /** Inherited checks this flow turns off, each with the reason the report
    * shows, e.g. `{ "cost recorded for every AI call": "..." }`. */
   skipInherited?: Record<string, string>;
+  /** Left out of a run without `--flow`: a slow flow that only measures.
+   * `--flow=<name>` still runs it, and its own test keeps it in `npm test`. */
+  onlyWhenNamed?: boolean;
 };
 
 /** Returns the flow unchanged. It only lets the editor check the shape. */

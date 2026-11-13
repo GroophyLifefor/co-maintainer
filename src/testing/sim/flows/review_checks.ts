@@ -703,6 +703,9 @@ export default defineFlow({
   steps,
   checks: flowChecks,
   scores,
+  // 34 reviews add about five seconds to every default run. The flow's own
+  // test still runs it under `npm test`.
+  onlyWhenNamed: true,
   skipInherited: {
     "one system prompt per conversation":
       "the two arms send the same first message under two system prompts on purpose, so the inherited check reads each pair as one conversation. The flow checks each review on its own instead.",

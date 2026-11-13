@@ -23,6 +23,13 @@ test("an unknown flow is a usage error that lists the flows", () => {
   assert.match(out, /Flows: (.*, )?init(,|\n)/);
 });
 
+test("the usage marks a flow that runs only when named", () => {
+  const { code, out } = simulate("--help");
+  assert.equal(code, 0);
+  assert.match(out, /review-checks \(only with --flow\)/);
+  assert.match(out, /Flows: (.*, )?init(,|\n)/);
+});
+
 test("--flow with no name is a usage error, not every flow", () => {
   const { code, out } = simulate("--flow=,");
   assert.equal(code, 2);

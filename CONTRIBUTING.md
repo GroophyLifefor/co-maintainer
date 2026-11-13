@@ -29,7 +29,9 @@ A flow is one file in `src/testing/sim/flows/` whose default export is a flow.
 The registry loads every such file in name order, so a new flow needs no line
 anywhere else. A helper file without a default flow is skipped. Flow names must
 be unique. Each flow runs in its own sandbox with its own simulated GitHub, so
-it never sees another flow's files.
+it never sees another flow's files. A slow flow that only measures can set
+`onlyWhenNamed: true`: a run without `--flow` leaves it out, and its own test
+keeps it in `npm test`.
 
 ```ts
 import { finding } from "../fake_ai.ts";
