@@ -7,6 +7,7 @@ import {
   byPath,
   dropUntilFits,
   MAX_FILE_PATCH_CHARS,
+  MAX_LISTED_FILES,
   MAX_REVIEW_DIFF_CHARS,
   notShownBlock,
   planDiff,
@@ -313,13 +314,37 @@ test("drop order is plain code-point order, the same on every machine", () => {
   const planned: PlannedFile[] = ["b.ts", "_x.ts", "a.ts", "C.ts"].map(
     (path) => ({ ...file(path, 3), state: "full" }),
   );
-  // Room for three of four: the last in code-point order goes.
-  dropUntilFits(planned, () => 100, 3 * 100 + 2 * 2);
+  // Room for three of four and the NOT SHOWN list: the last in code-point
+  // order goes.
+  dropUntilFits(planned, () => 1_000, 3 * 1_000 + 2 * 2 + 500);
   same(
     planned.filter((item) => item.state === "dropped").map((item) => item.path),
     ["b.ts"],
     "dropped",
   );
+});
+
+test("the NOT SHOWN list names at most 200 files and counts in the budget", () => {
+  const files = Array.from({ length: 20_000 }, (_, i) =>
+    file(`src/f${String(i).padStart(5, "0")}.ts`, 1, 20),
+  );
+  const planned = planDiff(files);
+  const block = notShownBlock(planned, { tools: true });
+  const listed = block.split("\n").filter((line) => line.startsWith("- "));
+  same(listed.length, MAX_LISTED_FILES + 1, "200 names and the rest");
+  const dropped = planned.filter((item) => item.state === "dropped").length;
+  same(
+    listed.at(-1),
+    `- and ${dropped - MAX_LISTED_FILES} more`,
+    "the rest line",
+  );
+  const whole = `${planned
+    .filter((item) => item.state !== "dropped")
+    .map((item) => renderSection(item, { tools: true }))
+    .join("\n\n")}\n\n${block}`;
+  if (whole.length > MAX_REVIEW_DIFF_CHARS) {
+    throw new Error(`over budget with the list: ${whole.length}`);
+  }
 });
 
 test("dropUntilFits drops nothing when the diff fits", () => {

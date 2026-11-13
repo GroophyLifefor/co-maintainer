@@ -198,6 +198,33 @@ export function renderSection(
   }
 }
 
+/** A list of file names in the prompt names at most this many, then says how
+ * many more there are. A local review of a moved or vendored tree has no
+ * file limit, and an unbounded list could outgrow the model's context. */
+export const MAX_LISTED_FILES = 200;
+
+const NOT_SHOWN_HEAD = [
+  "NOT SHOWN (diff budget): these files changed, but their diff did not fit in",
+  "this prompt and they were not reviewed.",
+];
+const NOT_SHOWN_HOW = {
+  tools: "Call read-full-diff to open one before reporting on it.",
+  none: "This model cannot call tools, so they cannot be read here. Do not report on them.",
+};
+
+function droppedLine(file: DiffFile): string {
+  return `- ${file.path} (+${file.additions} -${file.deletions})`;
+}
+
+/** At most `MAX_LISTED_FILES` lines, then one line for the rest. */
+function capped(lines: string[]): string[] {
+  if (lines.length <= MAX_LISTED_FILES) return lines;
+  return [
+    ...lines.slice(0, MAX_LISTED_FILES),
+    `- and ${lines.length - MAX_LISTED_FILES} more`,
+  ];
+}
+
 /** The NOT SHOWN list for dropped files, or `""` when none was dropped. */
 export function notShownBlock(
   files: PlannedFile[],
@@ -205,30 +232,97 @@ export function notShownBlock(
 ): string {
   const dropped = files.filter((file) => file.state === "dropped");
   if (dropped.length === 0) return "";
-  const how = options.tools
-    ? "Call read-full-diff to open one before reporting on it."
-    : "This model cannot call tools, so they cannot be read here. Do not report on them.";
-  return [
-    "NOT SHOWN (diff budget): these files changed, but their diff did not fit in",
-    `this prompt and they were not reviewed. ${how}`,
-    ...dropped.map(
-      (file) => `- ${file.path} (+${file.additions} -${file.deletions})`,
-    ),
-  ].join("\n");
+  const [first, second] = NOT_SHOWN_HEAD;
+  const how = options.tools ? NOT_SHOWN_HOW.tools : NOT_SHOWN_HOW.none;
+  return [first, `${second} ${how}`, ...capped(dropped.map(droppedLine))].join(
+    "\n",
+  );
 }
 
 const SEPARATOR = "\n\n".length;
+/** Room for the "- and N more" line and its line break, for any N. */
+const MORE_LINE_CHARS = "\n- and 9999999999 more".length;
 
-function totalChars(
-  files: PlannedFile[],
-  size: (file: PlannedFile) => number,
-): number {
-  const shown = files.filter((file) => file.state !== "dropped");
-  if (shown.length === 0) return 0;
-  return (
-    shown.reduce((sum, file) => sum + size(file), 0) +
-    SEPARATOR * (shown.length - 1)
+/** The most a capped list can add: its heading, the longest
+ * `MAX_LISTED_FILES` lines it could show, and the "and N more" line. Kept as
+ * running totals, so a plan over thousands of files stays linear. */
+class ListBound {
+  private count = 0;
+  private sum = 0;
+  private longest = 0;
+  private readonly head: number;
+  constructor(head: number) {
+    this.head = head;
+  }
+
+  add(line: number): void {
+    this.count++;
+    this.sum += line + 1;
+    this.longest = Math.max(this.longest, line + 1);
+  }
+
+  /** The longest line stays as it was, which keeps this an upper bound. */
+  remove(line: number): void {
+    this.count--;
+    this.sum -= line + 1;
+  }
+
+  size(): number {
+    if (this.count === 0) return 0;
+    const more = this.count > MAX_LISTED_FILES ? MORE_LINE_CHARS : 0;
+    return (
+      this.head + Math.min(this.sum, MAX_LISTED_FILES * this.longest) + more
+    );
+  }
+}
+
+/** What the DIFF section will weigh: the file sections joined by blank lines,
+ * then the NOT SHOWN list. Both count against `MAX_REVIEW_DIFF_CHARS`. */
+class Budget {
+  private sections = 0;
+  private shown = 0;
+  private readonly dropped = new ListBound(
+    NOT_SHOWN_HEAD.join("\n").length +
+      Math.max(NOT_SHOWN_HOW.tools.length, NOT_SHOWN_HOW.none.length) +
+      2,
   );
+
+  private readonly size: (file: PlannedFile) => number;
+
+  constructor(files: PlannedFile[], size: (file: PlannedFile) => number) {
+    this.size = size;
+    for (const file of files) {
+      if (file.state === "dropped") this.dropped.add(droppedLine(file).length);
+      else this.show(file);
+    }
+  }
+
+  show(file: PlannedFile): void {
+    this.sections += this.size(file);
+    this.shown++;
+  }
+
+  hide(file: PlannedFile): void {
+    this.sections -= this.size(file);
+    this.shown--;
+  }
+
+  drop(file: PlannedFile): void {
+    this.hide(file);
+    file.state = "dropped";
+    this.dropped.add(droppedLine(file).length);
+  }
+
+  total(): number {
+    const parts = [
+      this.shown > 0 ? this.sections + SEPARATOR * (this.shown - 1) : 0,
+      this.dropped.size(),
+    ].filter((part) => part > 0);
+    return (
+      parts.reduce((sum, part) => sum + part, 0) +
+      SEPARATOR * Math.max(0, parts.length - 1)
+    );
+  }
 }
 
 const DROPPABLE = new Set<FileState>(["full", "partial", "summarized"]);
@@ -246,15 +340,13 @@ export function dropUntilFits(
   size: (file: PlannedFile) => number,
   max = MAX_REVIEW_DIFF_CHARS,
 ): void {
-  let total = totalChars(files, size);
-  if (total <= max) return;
+  const budget = new Budget(files, size);
+  if (budget.total() <= max) return;
   const fromEnd = [...files].sort((a, b) => byPath(b.path, a.path));
   for (const file of fromEnd) {
-    if (total <= max) return;
+    if (budget.total() <= max) return;
     if (!DROPPABLE.has(file.state)) continue;
-    const shownBefore = files.filter((item) => item.state !== "dropped").length;
-    total -= size(file) + (shownBefore > 1 ? SEPARATOR : 0);
-    file.state = "dropped";
+    budget.drop(file);
   }
 }
 
@@ -298,8 +390,8 @@ export function planDiff(
   };
   const asSummary = (file: PlannedFile) =>
     size({ ...file, state: "summarized" });
-  let total = totalChars(planned, size);
-  while (total > max) {
+  const budget = new Budget(planned, size);
+  while (budget.total() > max) {
     let largest: PlannedFile | undefined;
     for (const file of planned) {
       if (file.state !== "full" && file.state !== "partial") continue;
@@ -307,8 +399,9 @@ export function planDiff(
       if (!largest || size(file) > size(largest)) largest = file;
     }
     if (!largest || size(largest) <= asSummary(largest)) break;
-    total -= size(largest) - asSummary(largest);
+    budget.hide(largest);
     largest.state = "summarized";
+    budget.show(largest);
   }
   dropUntilFits(planned, size, max);
   return planned;
