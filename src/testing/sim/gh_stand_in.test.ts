@@ -59,8 +59,10 @@ test("a 404 becomes the product's own repo_not_found error", async () => {
     code: "repo_not_found",
   });
   // After a failure the client asks `gh api rate_limit` whether to wait.
+  // A repository GitHub does not have is its own 404, answered.
   const missing = trace.github.findLast((call) => call.url.includes("nobody"));
-  assert.equal(missing!.handled, false);
+  assert.equal(missing!.status, 404);
+  assert.equal(missing!.handled, true);
 });
 
 test("a rate-limit fault is waited out through gh api rate_limit", async () => {

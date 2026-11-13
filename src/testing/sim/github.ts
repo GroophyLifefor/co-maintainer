@@ -145,6 +145,26 @@ const MAX_PULL_FILES = 3000;
 const MAX_COMPARE_FILES = 300;
 const MAX_COMPARE_COMMITS = 250;
 
+/** The shapes of the repository routes `repoRoute` answers, after
+ * `repos/<owner>/<name>`. Kept next to it: a route added there is added here,
+ * so an unknown repository answers it with a 404. */
+const REPO_ROUTES = [
+  /^$/,
+  /^\/installation$/,
+  /^\/git\/trees\/.+$/,
+  /^\/contents\/.+$/,
+  /^\/commits(\/[^/]+(\/check-runs)?)?$/,
+  /^\/compare\/.+\.\.\..+$/,
+  /^\/releases$/,
+  /^\/labels$/,
+  /^\/collaborators\/[^/]+\/permission$/,
+  /^\/pulls(\/\d+(\/.*)?)?$/,
+  /^\/pulls\/comments\/\d+(\/reactions)?$/,
+  /^\/issues(\/comments\/\d+(\/reactions)?)?$/,
+  /^\/issues\/\d+(\/.*)?$/,
+  /^\/check-runs(\/\d+)?$/,
+];
+
 const notFound = (): RouteResult => ({
   status: 404,
   body: { message: "Not Found" },
@@ -945,7 +965,14 @@ export class SimGithub {
       (candidate) =>
         candidate.fullName.toLowerCase() === fullName?.toLowerCase(),
     );
-    if (!match || !repo) return undefined;
+    if (!match) return undefined;
+    // A repository GitHub does not have is GitHub's own 404 on a route it
+    // knows. Only a route the simulation does not know is unanswered.
+    if (!repo) {
+      return REPO_ROUTES.some((shape) => shape.test(match[2] ?? ""))
+        ? notFound()
+        : undefined;
+    }
     return this.repoRoute(request, repo, match[2] ?? "", body);
   }
 

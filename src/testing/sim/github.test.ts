@@ -256,14 +256,18 @@ test("a missing resource is a 404 GitHub answers, an unknown route is no answer"
     step: "test",
   });
   assert.equal(unknown, undefined);
-  const otherRepo = github.route({
+  // A repository GitHub does not have is a 404 GitHub answers, on any route
+  // the simulation knows.
+  assert.equal(call("GET", "repos/nobody/nothing").status, 404);
+  assert.equal(call("GET", "repos/nobody/nothing/pulls/1/files").status, 404);
+  const unknownOnMissing = github.route({
     method: "GET",
-    url: new URL("https://api.github.com/repos/nobody/nothing"),
+    url: new URL("https://api.github.com/repos/nobody/nothing/deployments"),
     body: null,
     via: "fetch",
     step: "test",
   });
-  assert.equal(otherRepo, undefined);
+  assert.equal(unknownOnMissing, undefined);
 });
 
 async function appJwt(appId = world.secrets.appId): Promise<string> {
