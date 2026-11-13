@@ -5,6 +5,10 @@
  * rejected token or an unreachable host live here rather than in the review
  * client alone. */
 import { CliError, EXIT_USAGE, networkFailure } from "../cli/error.ts";
+import {
+  NOT_INITIALIZED,
+  notInitializedError,
+} from "../review/not_initialized.ts";
 import { getEnv } from "../util/runtime.ts";
 
 /** Where the remote server is, as an environment variable can say it.
@@ -79,4 +83,48 @@ export async function readApiError(response: Response): Promise<string> {
   } catch {
     return response.statusText;
   }
+}
+
+/** The server's error code and message. The code is how a client tells one
+ * refusal from another, and an old server or a proxy may send none. */
+async function readApiErrorBody(
+  response: Response,
+): Promise<{ code?: string; message: string }> {
+  try {
+    const body = await response.json();
+    return {
+      code: typeof body.error?.code === "string" ? body.error.code : undefined,
+      message: String(body.error?.message ?? response.statusText),
+    };
+  } catch {
+    return { message: response.statusText };
+  }
+}
+
+/** The handshake was refused. A repository without guides and a repository the
+ * server does not know are different problems with different fixes, and every
+ * server so far sends them as different codes. Anything else, including a
+ * refusal with no code, stays a handshake failure. */
+export async function handshakeFailure(
+  response: Response,
+  host: string,
+  repo: string,
+): Promise<CliError> {
+  const { code, message } = await readApiErrorBody(response);
+  const serverHost = new URL(baseUrl(host)).host;
+  if (code === NOT_INITIALIZED) return notInitializedError(repo, serverHost);
+  if (code === "repo_unavailable") {
+    return new CliError(
+      "repo_unavailable",
+      `The server at ${serverHost} does not have ${repo} available for review.`,
+      "Check the owner/repo name, or add the repository on that server first.",
+      EXIT_USAGE,
+    );
+  }
+  return new CliError(
+    "remote_handshake_failed",
+    message,
+    undefined,
+    EXIT_USAGE,
+  );
 }

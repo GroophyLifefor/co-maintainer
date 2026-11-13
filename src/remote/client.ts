@@ -11,6 +11,7 @@ import {
 import {
   baseUrl,
   die,
+  handshakeFailure,
   readApiError,
   remoteFetch,
   remoteFromEnv,
@@ -173,7 +174,7 @@ export async function runRemoteReview(
       }),
     });
     if (!handshake.ok) {
-      die("remote_handshake_failed", await readApiError(handshake));
+      throw await handshakeFailure(handshake, host, repo);
     }
     const hs = (await handshake.json()) as HandshakeResponse;
     if (REMOTE_SCHEMA_VERSION < hs.minClientSchema) {

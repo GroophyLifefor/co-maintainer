@@ -107,7 +107,13 @@ async function handleHandshake(
   // A push review decides about a repository with no guides itself, so the
   // commit can get a skipped check run when the App covers it.
   if (!guides.shortGuide && !guides.skill && record.purpose !== "push") {
-    return errorResponse(409, "not_initialized", REPO_UNAVAILABLE);
+    // The status and the code stay as they were so an older client still
+    // reads this as a refusal. Only the text says what is missing.
+    return errorResponse(
+      409,
+      "not_initialized",
+      `Review guides are missing for ${repoRow.full_name} on this server.`,
+    );
   }
 
   const config = readConfig();

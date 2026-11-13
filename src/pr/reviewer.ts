@@ -5,6 +5,7 @@ import {
   type ToolHandler,
 } from "../ai/mermaid_loop.ts";
 import { loadGuides } from "../review/guides.ts";
+import { notInitializedError } from "../review/not_initialized.ts";
 import type { Revision } from "../review/revision.ts";
 import { computeScope } from "./scope.ts";
 import { prepareCodegraphTools } from "./codegraph_tools.ts";
@@ -344,9 +345,7 @@ export async function reviewPullRequest(
     : await client.pages<Json>(`repos/${options.repo}/pulls/${number}/files`);
   report(`diff files loaded · ${files.length} files`);
   if (!guide) {
-    throw new Error(
-      `repos/${options.repo}/PR_REVIEW_GUIDE.md was not found. Run init first`,
-    );
+    throw notInitializedError(options.repo);
   }
   if (options.debug) {
     console.log(
@@ -711,9 +710,7 @@ export async function reviewWorkspaceRevision(
   const { shortGuide, detailed, codebase, skill } = guides;
   const guide = shortGuide || skill;
   if (!guide) {
-    throw new Error(
-      `repos/${options.repo}/PR_REVIEW_GUIDE.md was not found. Run init first`,
-    );
+    throw notInitializedError(options.repo);
   }
   const files = revisionToGithubFiles(revision);
   const unchanged = new Set(extras?.unchangedPaths ?? []);
