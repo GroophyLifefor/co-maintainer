@@ -1052,12 +1052,18 @@ function keptLinkCheck(sim: Sim): CheckResult {
   const linked = (now["SKILL.md"] ?? "").includes(
     "[PR_REVIEW_GUIDE.md](PR_REVIEW_GUIDE.md)",
   );
+  // The run had enough review signals, so the log must not blame them.
+  const blamesSignals = sim.trace.logs.some(
+    (line) =>
+      line.step === STEP.failed && /fewer than 3 review/.test(line.message),
+  );
   return check(
     "SKILL.md still links the guide a failed run kept",
     Boolean(now["PR_REVIEW_GUIDE.md"]) &&
       linked &&
-      run?.json.reviewGuide === "kept",
-    `PR_REVIEW_GUIDE.md ${now["PR_REVIEW_GUIDE.md"] ? "on disk" : "missing"} · SKILL.md ${linked ? "links it" : "has no link"} · --json says ${String(run?.json.reviewGuide ?? "nothing")}`,
+      run?.json.reviewGuide === "kept" &&
+      !blamesSignals,
+    `PR_REVIEW_GUIDE.md ${now["PR_REVIEW_GUIDE.md"] ? "on disk" : "missing"} · SKILL.md ${linked ? "links it" : "has no link"} · --json says ${String(run?.json.reviewGuide ?? "nothing")}${blamesSignals ? " · the log blames too few review signals" : ""}`,
   );
 }
 

@@ -480,7 +480,9 @@ async function initOrRemake(options: Options): Promise<void> {
         ? `synth_guide complete · ${
             reviewDocuments.detailed ? "short + detailed" : "single guide"
           }`
-        : "synth_guide skipped · fewer than 3 review signals",
+        : reviewSignalCount(facts) > 2
+          ? "synth_guide produced no guide"
+          : "synth_guide skipped · fewer than 3 review signals",
     );
   } catch (error) {
     // Nothing is written on an AI failure. Fetching and extraction are cached,
