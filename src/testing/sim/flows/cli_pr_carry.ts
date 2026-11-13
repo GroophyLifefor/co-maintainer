@@ -24,6 +24,7 @@ import {
   type CliRun,
   defineFlow,
   type Score,
+  scriptedCheck,
   type Sim,
   type Step,
 } from "../flow.ts";
@@ -482,12 +483,6 @@ function answerOf(run: CliRun): Json | undefined {
   }
 }
 
-function skipLive(sim: Sim, result: CheckResult): CheckResult {
-  return sim.mode === "live"
-    ? { ...result, ok: true, skipped: "live AI: the answers are the model's" }
-    : result;
-}
-
 /** A check about what the scripted model's answers must lead to. */
 function scripted(
   sim: Sim,
@@ -495,7 +490,7 @@ function scripted(
   ok: boolean,
   detail: string,
 ): CheckResult {
-  return skipLive(sim, check(name, ok, detail));
+  return scriptedCheck(sim, name, ok, detail, "the answers are the model's");
 }
 
 // ------------------------------------------------------------------- checks
@@ -609,7 +604,8 @@ function flowChecks(sim: Sim): CheckResult[] {
         diffPaths(p1).sort().join() === [FORMAT_PATH, MATH_PATH].join(),
       diffPaths(p1).join(", "),
     ),
-    check(
+    scripted(
+      sim,
       "run 2 sends the carry section with both earlier findings, each with its text",
       hasCarry(p2) &&
         entries2.length === 2 &&
@@ -617,7 +613,8 @@ function flowChecks(sim: Sim): CheckResult[] {
         p2.includes(FORMAT_BODY),
       `${entries2.length} entries: ${entries2.map((entry) => `${entry.label} ${entry.path}:${entry.from}`).join(", ")}`,
     ),
-    check(
+    scripted(
+      sim,
       "run 2 sends only the changed file as diff and lists the other as unchanged",
       diffPaths(p2).join() === FORMAT_PATH &&
         unchangedListed(p2).join() === MATH_PATH &&
@@ -625,7 +622,8 @@ function flowChecks(sim: Sim): CheckResult[] {
         !p2.includes("return a / b;\n"),
       `diff: ${diffPaths(p2).join()} · unchanged: ${unchangedListed(p2).join()}`,
     ),
-    check(
+    scripted(
+      sim,
       "run 2 asks about a file that did not change with the hint that says so",
       entries2.find((entry) => entry.path === MATH_PATH)?.hint ===
         "file unchanged since the last review, the fix may be in another file" &&
@@ -636,11 +634,21 @@ function flowChecks(sim: Sim): CheckResult[] {
           .hint.startsWith("file unchanged"),
       entries2.map((entry) => `${entry.path}: ${entry.hint}`).join(" | "),
     ),
-    check(
+    scripted(
+      sim,
       "run 2 is one more AI call with the same system prompt",
       reviewCompletions(sim, S.humanTwo).length === 1 &&
         reviewCompletions(sim, S.humanTwo)[0]?.system ===
           reviewCompletions(sim, S.humanOne)[0]?.system,
+      "the guides did not change",
+    ),
+    check(
+      "run 2 sends the same system prompt as run 1",
+      reviewCompletions(sim, S.humanTwo).length > 0 &&
+        reviewCompletions(sim, S.humanTwo).every(
+          (call) =>
+            call.system === reviewCompletions(sim, S.humanOne)[0]?.system,
+        ),
       "the guides did not change",
     ),
   );
@@ -668,7 +676,8 @@ function flowChecks(sim: Sim): CheckResult[] {
         f2?.exitCode === 1,
       counts(f2),
     ),
-    check(
+    scripted(
+      sim,
       "four runs: the same head again sends the model no file, only the earlier findings",
       diffPaths(fp2).length === 0 &&
         unchangedListed(fp2).sort().join() ===
@@ -685,7 +694,8 @@ function flowChecks(sim: Sim): CheckResult[] {
         f3?.exitCode === 0,
       `${statesText(f3)} · exit ${f3?.exitCode}`,
     ),
-    check(
+    scripted(
+      sim,
       "four runs: the fixed file is judged with its diff, not as unchanged, even after a run that skipped it",
       diffPaths(fp3).join() === MATH_PATH &&
         carryEntries(fp3).find((entry) => entry.path === MATH_PATH) !==
@@ -707,7 +717,8 @@ function flowChecks(sim: Sim): CheckResult[] {
         f4?.exitCode === 0,
       `${statesText(f4)} · exit ${f4?.exitCode}`,
     ),
-    check(
+    scripted(
+      sim,
       "four runs: run 4 asks only about the finding still open",
       carryEntries(fp4).length === 1 &&
         carryEntries(fp4)[0]?.path === FORMAT_PATH,
@@ -730,7 +741,8 @@ function flowChecks(sim: Sim): CheckResult[] {
         s1 !== null,
       `namespace ${NAMESPACE}, key ${key}`,
     ),
-    check(
+    scripted(
+      sim,
       "the stored run holds the findings, the files, the seen paths, the guide time and the head",
       s1 !== null &&
         s1.headSha === heads[S.fourOne] &&
@@ -754,6 +766,22 @@ function flowChecks(sim: Sim): CheckResult[] {
         : "nothing stored",
     ),
     check(
+      "the stored run holds the files, the seen paths, the guide time and the head",
+      s1 !== null &&
+        s1.headSha === heads[S.fourOne] &&
+        s1.files
+          .map((file) => file.path)
+          .sort()
+          .join() === [FORMAT_PATH, MATH_PATH].join() &&
+        s1.visiblePaths.slice().sort().join() ===
+          [FORMAT_PATH, MATH_PATH].join() &&
+        typeof s1.guideBuiltAt === "string",
+      s1
+        ? `head ${s1.headSha?.slice(0, 7)}, ${s1.files.length} files, guide ${s1.guideBuiltAt}`
+        : "nothing stored",
+    ),
+    scripted(
+      sim,
       "the same head again keeps both findings, the head and every seen path",
       s2 !== null &&
         s2.headSha === s1?.headSha &&
@@ -765,6 +793,17 @@ function flowChecks(sim: Sim): CheckResult[] {
         : "nothing stored",
     ),
     check(
+      "the same head again keeps the head and every seen path",
+      s2 !== null &&
+        s2.headSha === s1?.headSha &&
+        s2.visiblePaths.slice().sort().join() ===
+          [FORMAT_PATH, MATH_PATH].join(),
+      s2
+        ? `visible after a run that sent no file: ${s2.visiblePaths.join()}`
+        : "nothing stored",
+    ),
+    scripted(
+      sim,
       "a fix moves the stored head, drops the closed finding and still counts both files as seen",
       s3 !== null &&
         s3.headSha === heads[S.fourThree] &&
@@ -777,11 +816,28 @@ function flowChecks(sim: Sim): CheckResult[] {
         : "nothing stored",
     ),
     check(
+      "a fix moves the stored head and still counts both files as seen",
+      s3 !== null &&
+        s3.headSha === heads[S.fourThree] &&
+        s3.headSha !== s2?.headSha &&
+        s3.visiblePaths.slice().sort().join() ===
+          [FORMAT_PATH, MATH_PATH].join(),
+      s3
+        ? `head ${s3.headSha?.slice(0, 7)}, visible ${s3.visiblePaths.join()}`
+        : "nothing stored",
+    ),
+    scripted(
+      sim,
       "when everything is closed the stored run has no finding",
       s4 !== null &&
         s4.findings.length === 0 &&
         s4.headSha === heads[S.fourFour],
       s4 ? `${s4.findings.length} findings` : "nothing stored",
+    ),
+    check(
+      "when everything is closed the stored run has the new head",
+      s4 !== null && s4.headSha === heads[S.fourFour],
+      s4 ? `head ${s4.headSha?.slice(0, 7)}` : "nothing stored",
     ),
   );
 
@@ -808,10 +864,20 @@ function flowChecks(sim: Sim): CheckResult[] {
         fr1?.exitCode === 1,
       `${counts(fr2)} · exit ${fr2?.exitCode}`,
     ),
-    check(
+    scripted(
+      sim,
       "--fresh stores this run: its one finding, under new ids, and the new head",
       frS2 !== null &&
         frS2.findings.length === 1 &&
+        !frS2.findings.some((row) =>
+          (frS1?.findings ?? []).some((old) => old.id === row.id),
+        ) &&
+        frS2.headSha === heads[S.freshTwo],
+      frS2 ? `${frS2.findings.length} finding` : "nothing stored",
+    ),
+    check(
+      "--fresh stores this run under new ids and the new head",
+      frS2 !== null &&
         !frS2.findings.some((row) =>
           (frS1?.findings ?? []).some((old) => old.id === row.id),
         ) &&
