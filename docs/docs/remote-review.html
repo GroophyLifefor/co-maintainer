@@ -53,6 +53,7 @@
           <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           <li><a href="commit-watch-review.html">Commit watch review</a></li>
+          <li><a href="extensions.html">Extensions</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -164,6 +165,10 @@ cd your/clone
 <td>No carry-over from a prior remote run</td>
 </tr>
 <tr>
+<td><code>--intent-file=PATH</code></td>
+<td>What the change is for, from a file or <code>-</code> for standard input. Context only, see <a href="#the-intent-file">The intent file</a>. Not with <code>--range</code></td>
+</tr>
+<tr>
 <td><code>--to-branch=&lt;name&gt;</code></td>
 <td>Diff base branch</td>
 </tr>
@@ -192,6 +197,10 @@ cd your/clone
 <td>Do not send it, even when <code>remote-byok-default</code> is on</td>
 </tr>
 <tr>
+<td><code>--include-extension-markdowns</code></td>
+<td>With <code>--json</code>, keep each extension&#39;s Markdown, which is empty otherwise</td>
+</tr>
+<tr>
 <td><code>--output=github</code></td>
 <td>Print GitHub annotations and write the job summary, see <a href="ci.html">CI</a>. Cannot be used with <code>--json</code></td>
 </tr>
@@ -207,7 +216,10 @@ cd your/clone
 <p>The codegraph question, and the conditions under which co-maintainer skips it,
 are the same as <a href="local-review.html#codegraph">local review</a>.</p>
 <p>Not supported with <code>--remote</code>: <code>--sync-before-review</code> (run
-<a href="sync.html"><code>sync</code></a> on the server instead).</p>
+<a href="sync.html"><code>sync</code></a> on the server instead), and <code>--diagram-runtime</code>,
+<code>--plantuml-server</code> and <code>--plantuml-output-format</code>. Each is refused with exit
+code 2, because the server reviews with the diagram settings saved for the
+repository, see <a href="configuration.html#diagram-settings">Configuration</a>.</p>
 <h2 id="token-scope">Token scope</h2>
 <p>A remote token is not tied to one repository: any token can review, and read
 the guides of, every active repository on the server. Hand a token only to
@@ -220,6 +232,7 @@ anything:</p>
 <pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--remote</span>            <span class="sh-comment"># every guide, with headers</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span> <span class="sh-arg">review-guide</span> <span class="sh-flag">--remote</span>   <span class="sh-comment"># one guide, raw</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--list</span> <span class="sh-flag">--remote</span>     <span class="sh-comment"># file, size, build date</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">view</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--sources</span> <span class="sh-flag">--remote</span>  <span class="sh-comment"># the instruction rules and their source lines</span>
 </code></pre>
 <p>The output is the same format as a local <code>co-maintainer view</code>, with the same
 <code>--list</code>, single-guide and header behavior. Only the source differs. <code>--path</code>
@@ -327,11 +340,76 @@ as what they are.</li>
 keeps it out of the server&#39;s own spend. A total reads <code>$1.23 + $0.40 BYOK</code>, the
 server&#39;s cost first and what clients paid with their own keys after the plus
 sign. See <a href="cost.html">Cost</a>.</p>
+<h2 id="extensions">Extensions</h2>
+<p>A remote review runs the <a href="extensions.html">extensions</a> registered on <code>serve</code>, as
+review type <code>remote</code>, and the registrations on your own machine do not run. The
+extension has no working directory with your checkout, because the checkout is
+on your machine. Its findings, verdict and cost come back in the result.</p>
+<h2 id="the-intent-file">The intent file</h2>
+<p><code>review --remote --intent-file=PATH</code> sends the text with the review. What it is
+and how the result records it is on <a href="review.html#intent">Review</a>. On a server the
+text comes from a client, so it is treated as untrusted.</p>
+<ul>
+<li><strong>The cap.</strong> The client checks the repository&#39;s <code>reviewSystemPromptMaxChars</code>
+from its own config (8000 by default) before it sends. The server applies its
+own cap to the trimmed text again. A longer text is refused with 400,
+<code>revision.description: must be at most N characters (got M)</code>, and the client
+says <code>--intent-file was refused by the server:</code> followed by that. A description
+over 200,000 characters is refused with <code>revision.description: too long</code>.</li>
+<li><strong>A refused submit changes nothing.</strong> The branch&#39;s running review and its
+carry-over stay as they were.</li>
+<li><strong>An older server.</strong> The handshake lists <code>intent</code> among its features. A client
+that does not find it does not send the text and adds the warning
+<code>intent_unsupported</code>, which says &quot;This server (version X) does not support an
+intent, so the review ran without one.&quot; The review runs. An older client with
+a newer server sends nothing, and nothing changes.</li>
+<li><strong>What the server keeps.</strong> Only the trimmed text, in the job&#39;s input row until
+the review ends, the same as the diff. It is never written to a log or a
+result. The client sets <code>subject.intent</code> itself, so a server cannot change it.
+The characters U+2028 and U+2029 reach the prompt as a newline escape.</li>
+<li><strong>Push reviews</strong> (<code>--range</code>) take no intent, and the server ignores a
+description sent with one.</li>
+</ul>
+<h2 id="errors-from-the-server">Errors from the server</h2>
+<p>When the server refuses the handshake, the code tells the cases apart. Each of
+these exits with code 2 and writes no job.</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Text</th>
+<th>Hint</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>not_initialized</code></td>
+<td><code>Review guides are missing for owner/repo on &lt;host&gt;.</code></td>
+<td><code>Run co-maintainer init owner/repo on the server at &lt;host&gt;.</code></td>
+</tr>
+<tr>
+<td><code>repo_unavailable</code></td>
+<td><code>The server at &lt;host&gt; does not have owner/repo available for review.</code></td>
+<td><code>Check the owner/repo name, or add the repository on that server first.</code></td>
+</tr>
+<tr>
+<td><code>remote_handshake_failed</code></td>
+<td>The server&#39;s own text, with control characters removed</td>
+<td></td>
+</tr>
+</tbody></table>
+<p><code>repo_unavailable</code> is the same answer for a repository the server does not know
+and one that is switched off. <code>remote_handshake_failed</code> stays for every other
+refusal, and for a refusal that carries no error code. <code>review --remote --range</code>
+gets <code>not_initialized</code> from the server&#39;s refusal of the push, with the same
+hint. Everything else about the two codes is on
+<a href="review.html#a-repository-without-guides">Review</a>.</p>
 <h2 id="limits">Limits</h2>
 <ul>
 <li>Submit body size is capped (handshake <code>limits.maxBodyBytes</code>).</li>
 <li>Concurrent remote reviews per token and job queue limits in dashboard Settings.</li>
 <li>If sync stops longer than <code>remoteSyncTimeoutSeconds</code>, the server cancels the job.</li>
+<li>The server plans a large diff, and a file it dropped is sent again in your next
+<code>review --remote</code>. See <a href="review.html#large-diffs">Large diffs</a>.</li>
 </ul>
 <h2 id="security">Security</h2>
 <ul>
@@ -349,7 +427,7 @@ sign. See <a href="cost.html">Cost</a>.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#token-scope">Token scope</a></li><li><a href="#reading-the-servers-guides">Reading the server&#39;s guides</a></li><li><a href="#your-own-ai-key">Your own AI key</a></li><li><a href="#limits">Limits</a></li><li><a href="#security">Security</a></li></ul></nav>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#token-scope">Token scope</a></li><li><a href="#reading-the-servers-guides">Reading the server&#39;s guides</a></li><li><a href="#your-own-ai-key">Your own AI key</a></li><li><a href="#extensions">Extensions</a></li><li><a href="#the-intent-file">The intent file</a></li><li><a href="#errors-from-the-server">Errors from the server</a></li><li><a href="#limits">Limits</a></li><li><a href="#security">Security</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

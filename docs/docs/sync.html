@@ -53,6 +53,7 @@
           <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           <li><a href="commit-watch-review.html">Commit watch review</a></li>
+          <li><a href="extensions.html">Extensions</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -200,6 +201,14 @@ API token again if it is not in config or env.</p>
 <td>Include issues / workflow signals when available</td>
 </tr>
 <tr>
+<td><code>--agent-instructions=REGEX</code></td>
+<td>Files to read as agent instruction files for <code>INSTRUCTIONS.md</code>. A blank value turns it off. Left out, the last run&#39;s value is kept, see <a href="init.html#agent-instruction-files">Agent instruction files</a></td>
+</tr>
+<tr>
+<td><code>--agent-instructions-max-chars=N</code></td>
+<td>Cap on <code>INSTRUCTIONS.md</code> in characters, <code>0</code> or below for no limit. Left out, the last run&#39;s value is kept</td>
+</tr>
+<tr>
 <td><code>--max-pr-months=N</code></td>
 <td>Limit how far back PR history goes</td>
 </tr>
@@ -262,6 +271,57 @@ state is kept. The listing cache is stored per state set, so a different set
 is not filled from the previous listing. <code>--only-request-changed-pr</code> does not
 turn itself off. To collect every state again, pass
 <code>--pr-state=open,closed,merged</code>.</p>
+<h2 id="what-sync-says-about-instruction-rules">What <code>sync</code> says about instruction rules</h2>
+<p>When the repository has agent instruction files, <code>sync</code> rebuilds
+<a href="init.html#agent-instruction-files"><code>INSTRUCTIONS.md</code></a> the way <code>init</code> does, and
+after the second build it says what changed. The line appears when an earlier
+<code>RULES.json</code> exists:</p>
+<pre><code>[instructions] 1 rule added (AGENTS.md:40) · 1 rewritten (I3, AGENTS.md:12 joined) · 1 dropped (AGENTS.md:9)
+</code></pre>
+<p>or <code>[instructions] no rule changed</code>. Rules are matched by the instruction file
+lines they cite, not by their text:</p>
+<table>
+<thead>
+<tr>
+<th>Change</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Added</td>
+<td>The rule shares no source with any old rule</td>
+</tr>
+<tr>
+<td>Rewritten</td>
+<td>The rule shares a source with an old rule, and its sources or its text changed</td>
+</tr>
+<tr>
+<td>Dropped</td>
+<td>None of the old rule&#39;s sources is in any new rule</td>
+</tr>
+</tbody></table>
+<p>The line lists at most 5 sources for added or dropped rules and at most 3
+rewritten rules, then <code>, and N more</code>. Because a rule is matched by <code>path:line</code>, a line inserted at
+the top of <code>AGENTS.md</code> shifts every line number, so every rule shows as dropped
+and added.</p>
+<p>A plain <code>sync</code> of a repository with no instruction file changes nothing about its
+output.</p>
+<h2 id="json-output">JSON output</h2>
+<p><code>sync --json</code> prints the same document as <a href="init.html#json-output"><code>init --json</code></a>,
+with <code>command</code> <code>sync</code>. When the instruction files did something it also has
+<code>ruleChanges</code>. It is <code>null</code> without an earlier <code>RULES.json</code>, otherwise it lists
+the same three kinds of change in full. <code>previous</code> holds the ids of the old
+rules a rewritten rule came from, <code>joined</code> the sources it gained and <code>left</code> the
+sources it lost:</p>
+<pre><code class="language-json">{
+  &quot;instructions&quot;: {
+    &quot;added&quot;: [{ &quot;id&quot;: &quot;I4&quot;, &quot;text&quot;: &quot;...&quot;, &quot;sources&quot;: [&quot;AGENTS.md:40&quot;] }],
+    &quot;rewritten&quot;: [{ &quot;id&quot;: &quot;I3&quot;, &quot;text&quot;: &quot;...&quot;, &quot;previous&quot;: [&quot;I2&quot;], &quot;joined&quot;: [&quot;AGENTS.md:12&quot;], &quot;left&quot;: [] }],
+    &quot;dropped&quot;: [{ &quot;id&quot;: &quot;I2&quot;, &quot;text&quot;: &quot;...&quot;, &quot;sources&quot;: [&quot;AGENTS.md:9&quot;] }],
+    &quot;unchanged&quot;: 11
+  }
+}
+</code></pre>
 <h2 id="what-gets-reused">What gets reused</h2>
 <ul>
 <li>Unchanged files on the default branch (tree SHA in cache)</li>
@@ -272,6 +332,20 @@ turn itself off. To collect every state again, pass
 <p>Changed evidence invalidates only the facts and skill sections that depend on
 it. Outputs still land under <code>&lt;config dir&gt;/repos/owner/repo/</code> (see
 <a href="caching.html">Caching</a>).</p>
+<p><code>CODEBASE.md</code> is rebuilt section by section, and a section keeps what it had
+unless this run has a reason to change it:</p>
+<ul>
+<li>A section whose facts did not change keeps its text. A rebuilt section takes
+the new text, and one the model had nothing durable to say about is dropped.</li>
+<li>A section whose AI call failed after its retries keeps its old text.</li>
+<li>A section that has facts but is missing from the file is rebuilt, which also
+repairs a <code>CODEBASE.md</code> that an earlier version cut short.</li>
+<li>After a full rebuild, for a new high model or a new synthesis version, no old
+text is kept.</li>
+</ul>
+<p>When the guide call fails, <code>sync</code> keeps the review guides the last run wrote,
+<code>SKILL.md</code> keeps its link to them, and <code>--json</code> says <code>reviewGuide</code> <code>kept</code>, see
+<a href="init.html#json-output"><code>init --json</code></a>.</p>
 <h2 id="scheduled-sync">Scheduled sync</h2>
 <p>A <a href="serve.html"><code>serve</code></a> instance can run <code>sync</code> for you. Open a repository in the
 dashboard, go to <strong>Settings</strong>, and fill <strong>Scheduled sync</strong> with a five field
@@ -323,7 +397,7 @@ name so existing config files keep working.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#what-gets-reused">What gets reused</a></li><li><a href="#scheduled-sync">Scheduled sync</a></li></ul></nav>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#what-sync-says-about-instruction-rules">What sync says about instruction rules</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#what-gets-reused">What gets reused</a></li><li><a href="#scheduled-sync">Scheduled sync</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

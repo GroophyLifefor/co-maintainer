@@ -81,6 +81,7 @@ starts keep it.
 | `--trust-proxy` | Trust `x-forwarded-for` and `x-forwarded-proto` from a reverse proxy in front (also `CM_TRUST_PROXY=1`, see [Behind a reverse proxy](#behind-a-reverse-proxy)) |
 | `--inject-500` | Every mutating `/api/*` call returns 500 (failure UI testing, also `CM_INJECT_500=1`) |
 | `CM_REMOTE_BYOK_POLICY` | Whether a remote review may bring its own AI key: `off` (the default), `allow` or `require`, see [your own key](remote-review.md#your-own-ai-key) |
+| `CM_EXTENSIONS_DISABLED` | `1` turns [extensions](extensions.md) off: `register` refuses and no review runs one. The Cloud image sets it from outside the container |
 | `CM_LOGIN_HINT` | Text shown on the sign-in page instead of the default "printed when `serve` started" line. Useful when a deployment hands out its own password, as the Cloud image does. Escaped as plain text |
 
 Per-run `--disable-auth` / `--enable-auth` override values from `co-maintainer
@@ -225,6 +226,15 @@ docker run --rm -v co-maintainer-data:/data \
   inline, as file contents, or as a path. The path form keeps the key out of
   `config.json`, and a missing file is warned about at startup. See
   [Configuration: App private key](configuration.md#app-private-key-inline-file-contents-or-path).
+
+## Extensions
+
+`serve` runs the [extensions](extensions.md) registered in its own `config.json`
+in the reviews it posts as the GitHub App and in remote reviews. Register them on
+the `serve` host with `co-maintainer extension register`. The command runs as the
+user that runs `serve` and can read that user's files, `config.json` included.
+`CM_EXTENSIONS_DISABLED=1` turns them off. On start, `serve` removes the run
+folders of extensions that are no longer running, and nothing else.
 
 ## Updating
 

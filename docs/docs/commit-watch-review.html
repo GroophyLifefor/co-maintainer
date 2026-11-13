@@ -53,6 +53,7 @@
           <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           <li><a href="commit-watch-review.html" class="active">Commit watch review</a></li>
+          <li><a href="extensions.html">Extensions</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -124,6 +125,11 @@ push the server missed while it was down is not reviewed later.</li>
 <li>A repository that is not initialized is not reviewed. With the App, the
 commit gets a skipped check run that says so. With CI and no App, the step
 fails.</li>
+<li>A push review runs no <a href="extensions.html">extensions</a>.</li>
+<li>A push with a very large diff is reviewed within the diff budget. A push review
+does not carry its seen files into the next push, so files that did not fit are
+dropped again, and the review&#39;s warning says so. See
+<a href="review.html#large-diffs">Large diffs</a>.</li>
 </ul>
 <p>When pushes come in a row, the repository settings decide what happens:</p>
 <table>

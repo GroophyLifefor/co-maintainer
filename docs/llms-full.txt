@@ -201,6 +201,8 @@ Values from `set`, `--env=PATH`, or flags are not asked again.
 | `--include-pull-request-changes` | Include PR diffs |
 | `--include-commit-history` | Include commit messages on the default branch |
 | `--include-how-repo-works` | Include issues / workflow signals when available |
+| `--agent-instructions=REGEX` | Files to read as agent instruction files for `INSTRUCTIONS.md`. Default `(^\|/)AGENTS\.md$`. A blank value turns it off, see [Agent instruction files](#agent-instruction-files) |
+| `--agent-instructions-max-chars=N` | Cap on `INSTRUCTIONS.md` in characters. Default `6000`, `0` or below for no limit |
 | `--max-pr-months=N` | Limit how far back PR history goes |
 | `--max-commits=N` | Limit commits scanned on the default branch |
 | `--max-pull-request-change-lines=N` | Skip oversized PR diffs |
@@ -238,6 +240,8 @@ Under `<config dir>/repos/owner/repo/` (see [Caching](caching.md)):
 
 - `SKILL.md` and `CODEBASE.md`
 - `PR_REVIEW_GUIDE.md` and related review guides when PR sources were included
+- `INSTRUCTIONS.md` and `RULES.json`, only when an agent instruction file matches
+  (see [Agent instruction files](#agent-instruction-files))
 
 Every file is written by the AI provider. There is no offline or AI-free build,
 so `init` and [`sync`](sync.md) refuse to run when no provider is configured.
@@ -276,6 +280,115 @@ still written, and a guide the last run wrote is kept. Fetching and extraction
 are cached, so rerunning [`sync`](sync.md) continues without re-fetching. After
 `init` succeeds, run [`review`](review.md) on a PR or local changes.
 
+## Agent instruction files
+
+Many repositories keep rules for coding agents in files such as `AGENTS.md`.
+Those files are written for an agent that writes code, not for a reviewer, and
+they are long. `init` and [`sync`](sync.md) read them and write one short file,
+`INSTRUCTIONS.md`, that every review reads with the other guides. A `sync` of a
+repository with no matching file sees no change: no new file, no new log line, no
+new `--json` field and no extra call. `init` prints one `skipped` line that says
+why, see [What the run prints](#what-the-run-prints).
+
+```sh
+co-maintainer init owner/repo --max-pr-months=12 --agent-instructions='(^|/)(AGENTS|CLAUDE)\.md$'
+```
+
+- **Which files.** `--agent-instructions=REGEX` is a JavaScript regular
+  expression matched against the full path of every file on the default branch.
+  The default `(^|/)AGENTS\.md$` matches every `AGENTS.md` at any depth. A blank
+  value, `--agent-instructions=`, turns the file off and removes an existing one.
+- **How much.** `--agent-instructions-max-chars=N` caps the whole file in
+  characters. The default is 6000, and `0` or below means no limit. Rules are
+  kept in the model's order until the next one would cross the cap.
+- **Saved.** Both flags are saved for the repository, as `agentInstructions` and
+  `agentInstructionsMaxChars` under `repos["owner/repo"]`, and a later
+  [`sync`](sync.md) without them keeps the saved values.
+- **Needs the codebase.** It works only with `--include-codebase`. With it off,
+  `init` prints `[write] INSTRUCTIONS.md skipped: --include-codebase is off`, and
+  an existing file is removed. `--include-how-repo-works` alone does not build it.
+
+The files are read first and in full, outside the cap on codebase files. At most
+50 files and 400,000 characters in total are read, root files first, then deeper
+ones, alphabetical within a depth. A file that would cross the character cap is
+left out, and a later smaller one can still fit. Each file left out is named,
+at most 20, then `, and N more`:
+
+    [fetch] instruction files left out: deep/x/AGENTS.md (over the 50-file cap), big/AGENTS.md (over the 400,000-character cap)
+
+A file the caps left out is still read by the codebase step. Only the files
+actually read as instructions leave the codebase input.
+
+### What a rule is
+
+One call to the high model, job `synth_instructions`, reads the files with line
+numbers. It keeps only rules about code, tests, docs, configuration,
+dependencies and security. Setup steps, commands to run, tool and MCP use, how to
+search, and the agent's own behavior or permissions are dropped.
+
+Code then checks every rule. A rule is dropped whole, and counted, when:
+
+- a source is not a real, non-blank line of a file that was read (`path:line`,
+  or `path:12-14`, which is recorded as its first line and whose end must be
+  inside the file), or
+- a name or path in backticks appears in none of those files and is not a path
+  in the tree.
+
+Rules with the same text and scope are merged and their sources joined. The same
+sentence in two folders stays two rules. A rule's scope is the model's folder
+when it is a real folder in the tree, otherwise the folder all its sources share,
+otherwise the whole repository. The guard checks that a rule cites a real line,
+not what the rule says. The review prompt frames the file as rules about the
+code that never change how the review is done, and the instruction files come
+from the default branch, so a pull request cannot change them before it merges.
+
+The call is cached by its input, and the instruction files are cached by blob
+SHA, so an unchanged file costs nothing on the next `sync`.
+
+### The files
+
+Both are written by code, never by the model.
+
+```markdown
+# Repository instructions
+
+Rules from this repository's agent instruction files that a reviewer can check in a diff.
+
+- Format amounts with `formatMoney()`, never with number methods. [I1]
+- In `packages/api/`: every new route declares its rate limit in `limits.ts`. [I2]
+```
+
+Every rule ends with an id such as `[I1]`. Ids are renumbered on every build.
+`RULES.json`, next to the guides, records each id's text, scope, the commit it
+was read at (when commit history was read) and the file lines it came from. It
+is written only when it has a rule, and it is never sent to the model.
+[`view --sources`](view.md#sources) prints it. One entry looks like this:
+
+```json
+{ "file": "INSTRUCTIONS.md", "text": "Format amounts with formatMoney(), never with number methods.", "scope": "", "sources": [{ "path": "AGENTS.md", "line": 31 }] }
+```
+
+### What the run prints
+
+| Line | When |
+| ---- | ---- |
+| `[write] INSTRUCTIONS.md · 14 rules · 2 dropped (unsupported source) · 0 over the cap` | The file was written. `N dropped (unknown name)` comes before the cap part when a backticked name was unknown |
+| `[write] INSTRUCTIONS.md skipped: --agent-instructions is blank` | The pattern is blank. Other reasons are `--include-codebase is off` and `no file matches (^\|/)AGENTS\.md$`, with the pattern in use. Printed by `init` always, and by `sync` only when it removed an existing file |
+| `[write] INSTRUCTIONS.md skipped: the instruction files hold no rule a reviewer can check · N dropped · M over the cap` | No rule survived. The file and `RULES.json` are removed |
+| `[write] INSTRUCTIONS.md not regenerated: the AI produced no usable rules, keeping any existing file` | The call failed or returned nothing usable |
+| `[write] INSTRUCTIONS.md not regenerated: no matched instruction file could be read, keeping any existing file` | Files matched but every fetch failed |
+
+When only some of the files fail to read, the rules are built from the ones that
+were read, so a rule from a failed file drops out of that run.
+
+### Flag errors
+
+All are usage errors with exit code 2.
+
+- `--agent-instructions is not a valid regular expression: <the parse error>`
+- `--agent-instructions-max-chars must be an integer`
+- A saved pattern edited by hand that does not compile: `The saved agentInstructions pattern is not a valid regular expression: <error>` with the hint `Pass --agent-instructions=REGEX to sync to replace it.`
+
 ## What it reports
 
 The last line on stderr is the run's cost and time:
@@ -293,9 +406,25 @@ With `--json`, stdout is a single JSON object (`schemaVersion` `1`) and every
 progress line goes to stderr. Fields: `command` (`init` or `sync`), `repo`,
 `skillPath`, `changed[]` (the sections this run rewrote, empty when the guide
 was already current), `facts`, `pullRequests`, `commits`, `reviewGuide`
-(`detailed`, `single`, or `skipped`), `validation` (`errors[]` and
+(`detailed`, `single`, `kept`, or `skipped`), `validation` (`errors[]` and
 `warnings[]`), `usage` (`tokensIn`, `tokensOut`, `costUsd`, `costNote`), and
 `durationMs`. `costUsd` is `null` when the provider did not report a price.
+
+`reviewGuide` says what happened to the review guides in this run:
+
+| Value | Meaning |
+| ----- | ------- |
+| `detailed` | This run wrote `PR_REVIEW_GUIDE.md` and `PR_REVIEW_DETAILED_GUIDE.md` |
+| `single` | This run wrote `PR_REVIEW_GUIDE.md` only |
+| `kept` | This run had 3 or more review signals but got no usable guide from the AI. The guide files the last run wrote are kept, and `SKILL.md` still links them |
+| `skipped` | No guide was written and none is kept. With fewer than 3 review signals, the guide files are removed |
+
+Two more fields appear only when the instruction files did something, see
+[Agent instruction files](#agent-instruction-files). `instructions` is
+`{ "status": "written" | "kept" | "empty" | "skipped", "rules": N }`, with
+`reason` and `counts` (`unsupportedSource`, `unknownName`, `overCap`) when there
+is something to say. `ruleChanges` is described on [`sync`](sync.md#json-output).
+
 Without a terminal or saved config, `--json` exits with code 2 instead of
 prompting. Errors with `--json` are JSON on stdout as well.
 
@@ -361,6 +490,8 @@ On the [dashboard](dashboard.md), **Sync now** runs the same job as this command
 | `--include-pull-request-changes` | Include PR diffs |
 | `--include-commit-history` | Include commit messages on the default branch |
 | `--include-how-repo-works` | Include issues / workflow signals when available |
+| `--agent-instructions=REGEX` | Files to read as agent instruction files for `INSTRUCTIONS.md`. A blank value turns it off. Left out, the last run's value is kept, see [Agent instruction files](init.md#agent-instruction-files) |
+| `--agent-instructions-max-chars=N` | Cap on `INSTRUCTIONS.md` in characters, `0` or below for no limit. Left out, the last run's value is kept |
 | `--max-pr-months=N` | Limit how far back PR history goes |
 | `--max-commits=N` | Limit commits scanned on the default branch |
 | `--max-pull-request-change-lines=N` | Skip oversized PR diffs |
@@ -394,6 +525,52 @@ is not filled from the previous listing. `--only-request-changed-pr` does not
 turn itself off. To collect every state again, pass
 `--pr-state=open,closed,merged`.
 
+## What `sync` says about instruction rules
+
+When the repository has agent instruction files, `sync` rebuilds
+[`INSTRUCTIONS.md`](init.md#agent-instruction-files) the way `init` does, and
+after the second build it says what changed. The line appears when an earlier
+`RULES.json` exists:
+
+    [instructions] 1 rule added (AGENTS.md:40) · 1 rewritten (I3, AGENTS.md:12 joined) · 1 dropped (AGENTS.md:9)
+
+or `[instructions] no rule changed`. Rules are matched by the instruction file
+lines they cite, not by their text:
+
+| Change | Meaning |
+| ------ | ------- |
+| Added | The rule shares no source with any old rule |
+| Rewritten | The rule shares a source with an old rule, and its sources or its text changed |
+| Dropped | None of the old rule's sources is in any new rule |
+
+The line lists at most 5 sources for added or dropped rules and at most 3
+rewritten rules, then `, and N more`. Because a rule is matched by `path:line`, a line inserted at
+the top of `AGENTS.md` shifts every line number, so every rule shows as dropped
+and added.
+
+A plain `sync` of a repository with no instruction file changes nothing about its
+output.
+
+## JSON output
+
+`sync --json` prints the same document as [`init --json`](init.md#json-output),
+with `command` `sync`. When the instruction files did something it also has
+`ruleChanges`. It is `null` without an earlier `RULES.json`, otherwise it lists
+the same three kinds of change in full. `previous` holds the ids of the old
+rules a rewritten rule came from, `joined` the sources it gained and `left` the
+sources it lost:
+
+```json
+{
+  "instructions": {
+    "added": [{ "id": "I4", "text": "...", "sources": ["AGENTS.md:40"] }],
+    "rewritten": [{ "id": "I3", "text": "...", "previous": ["I2"], "joined": ["AGENTS.md:12"], "left": [] }],
+    "dropped": [{ "id": "I2", "text": "...", "sources": ["AGENTS.md:9"] }],
+    "unchanged": 11
+  }
+}
+```
+
 ## What gets reused
 
 - Unchanged files on the default branch (tree SHA in cache)
@@ -404,6 +581,21 @@ turn itself off. To collect every state again, pass
 Changed evidence invalidates only the facts and skill sections that depend on
 it. Outputs still land under `<config dir>/repos/owner/repo/` (see
 [Caching](caching.md)).
+
+`CODEBASE.md` is rebuilt section by section, and a section keeps what it had
+unless this run has a reason to change it:
+
+- A section whose facts did not change keeps its text. A rebuilt section takes
+  the new text, and one the model had nothing durable to say about is dropped.
+- A section whose AI call failed after its retries keeps its old text.
+- A section that has facts but is missing from the file is rebuilt, which also
+  repairs a `CODEBASE.md` that an earlier version cut short.
+- After a full rebuild, for a new high model or a new synthesis version, no old
+  text is kept.
+
+When the guide call fails, `sync` keeps the review guides the last run wrote,
+`SKILL.md` keeps its link to them, and `--json` says `reviewGuide` `kept`, see
+[`init --json`](init.md#json-output).
 
 ## Scheduled sync
 
@@ -447,7 +639,8 @@ Print the guides co-maintainer generated for a repository. This is the way to
 see exactly what a review will be judged against, without starting a review.
 
 The guides are the output of [`init`](init.md) / [`sync`](sync.md):
-`SKILL.md`, `CODEBASE.md`, and the review guides. They live under the config
+`SKILL.md`, `CODEBASE.md`, the review guides, and `INSTRUCTIONS.md` when the
+repository has agent instruction files. They live under the config
 directory, not in your clone. See [Caching: Generated guides](caching.md#generated-guides).
 
 ## Usage
@@ -456,8 +649,10 @@ directory, not in your clone. See [Caching: Generated guides](caching.md#generat
 co-maintainer view                                  # every guide for the detected repo
 co-maintainer view owner/repo                       # every guide, with headers
 co-maintainer view owner/repo review-guide          # one guide, raw
+co-maintainer view owner/repo instructions          # INSTRUCTIONS.md, raw
 co-maintainer view owner/repo --list                # file, size, build date
 co-maintainer view owner/repo --path                # the directory they live in
+co-maintainer view owner/repo --sources             # each instruction rule and its source lines
 co-maintainer view owner/repo --remote              # read from the review server
 ```
 
@@ -477,6 +672,32 @@ co-maintainer view owner/repo review-guide > PR_REVIEW_GUIDE.md
 A guide name is matched case-insensitively as either the page name
 (`review-guide`) or the file or body name. `--list` lists every file in the
 folder, including any file co-maintainer did not write, with its size and date.
+
+## Sources
+
+[`INSTRUCTIONS.md`](init.md#agent-instruction-files) is built from the repository's
+agent instruction files, and each rule in it ends with an id such as `[I1]`.
+`--sources` lists every rule by id with the file lines it came from:
+
+```
+$ co-maintainer view owner/repo --sources
+INSTRUCTIONS.md
+  I1  Format amounts with formatMoney(), never with number methods
+      AGENTS.md:31 · packages/billing/AGENTS.md:8
+```
+
+`--sources --json` prints `RULES.json` as it is. `RULES.json` is the data behind
+this view. It is never printed by plain `view`, by `--list` or by a single-guide
+view. `--sources` works with `--remote`, which reads the copy the server holds.
+
+These are usage errors with exit code 2:
+
+| Message | When |
+| ------- | ---- |
+| `--json needs --sources.` | `--json` without `--sources` |
+| `--sources cannot be combined with --list or --path.` | Both given |
+| `<owner/repo> has no RULES.json.` | No rule was built. The hint is `co-maintainer sync <owner/repo>` |
+| `RULES.json for <owner/repo> could not be read.` | The file is not valid. The hint is the same |
 
 ## Reading from the server
 
@@ -596,6 +817,216 @@ first pass missed. More passes cost more tokens and take longer. `2` is a
 reasonable step up when a change is high risk or the repository is large. The
 value is capped at `4`. See [Cost](cost.md) for what a pass costs.
 
+## Large diffs
+
+A review never cuts a diff without saying so. Each changed file ends in one of
+five states, and every output reports them.
+
+| State | What the model received |
+| ----- | ----------------------- |
+| `full` | The whole patch |
+| `partial` | The first 12,000 characters of the patch, cut at a line end |
+| `summarized` | A low-model summary of the patch |
+| `dropped` | Only the path and the line counts, under `NOT SHOWN (diff budget)` in the prompt. The file is not reviewed this round |
+| `withheld` | Nothing, because GitHub sent no patch for it |
+
+A diff that fits is sent exactly as it was before this existed. The limits are
+constants, not settings:
+
+- A patch over 12,000 characters is `partial`.
+- The whole DIFF section, its lists included, never passes 240,000 characters.
+- Only a patch over 4,000 characters is summarized, and at most 40 files per
+  review. A file over 500 changed lines is summarized when its patch is over
+  4,000 characters.
+- A list in the prompt names at most 200 files, then `- and N more`.
+
+### How a diff is planned
+
+The preference is always `full`, then `partial` or `summarized`, then `dropped`.
+
+1. A file over 500 changed lines, with a patch over 4,000 characters, is
+   summarized, the 40 largest first.
+2. A patch over 12,000 characters is `partial`.
+3. Over budget, every file with no patch text moves into one `NO DIFF TEXT` list.
+   Their states do not change, and they never push a file with a patch out.
+4. Still over budget and under 40 summaries, the largest `full` or `partial`
+   file with a patch over 4,000 characters is summarized.
+5. Still over budget, files with a patch are dropped from the end of path order,
+   in plain code point order, so a plan is the same on every machine.
+6. Room left goes back to dropped files that fit, smallest first. This runs again
+   after the real summaries come back.
+
+Files keep their input order in the prompt. A binary file and a pure rename
+have no patch text, so each shows one line instead:
+
+- `[<status>: binary file]`
+- `[renamed without changes from <old path>]`
+
+Both are `full`, and so is a pure rename on GitHub. The exception is PR review
+and push review, where GitHub sends no patch for a binary file and does not say
+why, so a binary file there is `withheld`.
+
+### Reading the rest of a file
+
+The model has a `read-full-diff` tool for `partial`, `summarized` and `dropped`
+files. It takes `path` (required), `offset` (a diff line, from 0) and `limit`
+(at least 1, default to the end), and lines keep their new-file numbers. A
+`full` file answers that it is already in the prompt, and a `withheld` one that
+there is no diff text.
+
+One answer stops at `reviewReadDiffMaxChars` characters, 20000 by default, and
+ends with `[more: call again with offset=N]`. A single line over the cap ends
+with `[line cut at N characters, the rest of this line cannot be read]`. Set the
+cap with `set --repo=owner/repo --review-read-diff-max-chars=N`, see
+[Configuration](configuration.md#the-read-full-diff-cap). A model with no tool
+support cannot call the tool. Its prompt says the dropped files cannot be read
+here and must not be reported on.
+
+### Which modes catch up on dropped files
+
+A file counts as seen only when the model received it as `full`, `partial` or
+`summarized`. A `dropped` or `withheld` file is never seen, so the next round
+sends it again. That works only where a review carries its seen files into the
+next one.
+
+| Mode | A dropped file in a later run |
+| ---- | ----------------------------- |
+| Local review | Covered. Run `review` again |
+| PR review | Covered. Run `review` again |
+| Remote review | Covered. Run `review --remote` again |
+| App review, incremental scope | Covered. The round also sends a file the last round dropped when nobody touched it since |
+| Push review (commit watch) | Not covered. Every run sends every file again, so the same files are dropped again |
+| App review, whole-pr scope | Not covered, for the same reason |
+
+The warning in each result says which case it is.
+
+### Where the result says it
+
+`--json` has `revision.truncated`, true when any file is not `full`, and
+`revision.coverage` in every mode:
+
+```json
+"revision": {
+  "files": 62, "additions": 4184, "deletions": 335, "truncated": true,
+  "coverage": {
+    "full": 58, "partial": ["src/store/reads.ts"],
+    "summarized": ["src/api/routes.ts", "src/store/schema.ts", "src/store/metrics.ts"],
+    "dropped": [], "withheld": []
+  }
+},
+"warnings": []
+```
+
+`full` is a count and the others are lists of paths. A file carried over
+unchanged from the previous round counts as `full`. In PR review, files that
+arrived by a merge are not in `coverage`, so the states can add up to less than
+`files`. `warnings` has one entry per case:
+
+| Code | Text |
+| ---- | ---- |
+| `diff_dropped` | `N files were not reviewed because the diff is too large. Run review again to cover them.` in a mode that covers them later, otherwise `... This review mode does not cover them in a later run.` |
+| `diff_withheld` | `N files were not reviewed because GitHub sent no diff for them.` |
+| `summary_failed` | `The summary of <path> failed, so the review saw its diff instead, up to the first 12,000 characters.` |
+
+A single file reads `1 file was` and `it`. A failed summary does not fail the
+review: that file is `partial`.
+
+- **Terminal.** `Coverage: 58 full · 1 partial · 3 summarized · 0 dropped` comes
+  after `Summary:` only when a file is not `full`, with `· N withheld` added when
+  there is one. With a dropped or withheld file, "No actionable findings." reads
+  "No actionable findings in the files reviewed."
+- **GitHub review** (the App). The summary gains `Not reviewed (N)` with one row
+  per file, at most 20 and then `- and N more`. The metadata always has a
+  `Coverage` line. A file name is shown as a code span with its control
+  characters removed, so it cannot add Markdown or a mention. Exit codes and the
+  verdict do not change.
+- **`--output=github`.** The job summary gets the coverage line and the list.
+  Dropped files give one `::warning` that points at the job summary. Withheld
+  files give no annotation.
+- **Remote review.** The server plans the diff. A newer client with an older
+  server prints no coverage line, and an older client with a newer server gets
+  the new fields in `--json` and ignores them elsewhere.
+
+## Diagrams
+
+A review can include a diagram when a finding is about a flow, a lifecycle or a
+data model. `--diagram-runtime` picks the language. It works in PR review and
+local review.
+
+| Value | What the review contains |
+| ----- | ------------------------ |
+| `mermaid` (default) | Mermaid blocks, as before. GitHub draws them |
+| `plantuml` | Standard PlantUML between `@startuml` and `@enduml`, in a fenced block tagged `plantuml`. The source is posted as written. GitHub does not draw PlantUML, so the reader sees the source |
+| `plantuml-server` | The same request to the model, then each `plantuml` (or `puml`) block becomes an image link on a PlantUML server |
+
+| Flag | Default | Meaning |
+| ---- | ------- | ------- |
+| `--diagram-runtime=mermaid\|plantuml\|plantuml-server` | `mermaid` | The diagram language |
+| `--plantuml-server=URL` | `https://www.plantuml.com` | The server for `plantuml-server`. An http or https URL with no user name, password, query string or fragment |
+| `--plantuml-output-format=svg\|png` | `svg` | The image format for `plantuml-server` |
+
+```sh
+co-maintainer review owner/repo 42 --diagram-runtime=plantuml
+co-maintainer review owner/repo 42 --diagram-runtime=plantuml-server --plantuml-output-format=png
+```
+
+Every value you pass is checked, even one the chosen runtime ignores. A bad one
+is a usage error with exit code 2 and nothing is sent. `--remote` refuses the
+three flags, because the server reviews with the settings saved for the
+repository. [Configuration](configuration.md#diagram-settings) shows how to save
+them, which is also how reviews run by the [GitHub App](github-app.md) and
+replies to review comments get them.
+
+### With `plantuml-server`, the diagram source leaves your machine
+
+The image link holds the whole diagram source, encoded. co-maintainer builds the
+link and never calls the server. The reader's browser, through GitHub's image
+proxy, sends the link to the PlantUML server. A review diagram can carry names of
+files, functions and services from private code. With the default server that is
+plantuml.com. **For a private repository, run your own PlantUML server and point
+`--plantuml-server` at it.**
+
+- The source goes through the same secret redactor as the rest of the review
+  text before it is encoded, so a token in it shows as `[redacted]` in the
+  decoded link.
+- co-maintainer does not remove `!include`, `!includeurl` or `!import` lines
+  from a diagram. A server you run should use a security profile that does not
+  let a diagram fetch URLs.
+- A server that is down, slow or refuses the diagram shows a broken image. There
+  is no retry and no fallback.
+
+### What the link looks like
+
+The link is `![PlantUML diagram](<server>/<format>/<encoded>)`. The encoding is
+PlantUML's text encoding, raw deflate and then PlantUML's own base64 alphabet.
+
+- The public server, `plantuml.com` or `www.plantuml.com` with no path, is
+  addressed as `<origin>/plantuml/svg/<code>`.
+- Any other server is addressed exactly as you give it, plus `/svg/<code>`. A
+  server served from its root is `http://localhost:8080` and one under a path is
+  `https://host/plantuml`.
+- A server path with a space, a parenthesis, a square or angle bracket, a
+  backtick, a backslash, a double quote or a semicolon is refused, because the
+  link is posted as Markdown.
+- Source without `@startuml` is wrapped in `@startuml` and `@enduml` first.
+- A block stays as fenced source when it is empty, never closed, or its link
+  would be longer than 4000 characters.
+- A PlantUML block inside another fence, such as a `suggestion` block or a longer
+  fence that quotes an example, is left as written.
+
+With a PlantUML runtime the model is not offered the Mermaid syntax tool. With
+`mermaid` nothing changes: the prompts, the tool and the output are the same as
+before the runtime existed.
+
+## Agent instruction rules
+
+Every review, in every mode, also reads `INSTRUCTIONS.md` when the repository has
+one. [`init`](init.md#agent-instruction-files) and [`sync`](sync.md) build it
+from files such as `AGENTS.md` and keep only the rules a reviewer can check in a
+diff. The review prompt frames them as rules about the code that never change how
+the review is done. [`view`](view.md#sources) prints the file and the lines each
+rule came from. A repository without the file reviews exactly as before.
+
 ## Repository review instructions
 
 A repository can carry its own review instructions. They are appended to the
@@ -632,14 +1063,136 @@ value and to both per-run files, and `set` and the dashboard refuse a value over
 it. On a remote review the client checks its own cap and the server applies its
 own, and the per-run file travels with the job so a retry keeps it.
 
+## Intent
+
+`--intent-file=PATH` tells a review what the change is for. `--intent-file=-`
+reads standard input until it ends. The file is read as UTF-8 and trimmed. It
+works in local review, PR review and `review --remote`. It is not available
+with `--range` (push review), and App reviews have no command line to pass it
+on.
+
+```sh
+co-maintainer review --intent-file=task.md
+co-maintainer review owner/repo 42 --intent-file=task.md
+echo "Fix rounding for JPY totals" | co-maintainer review --intent-file=-
+```
+
+The intent is context only. It is not a rule, it produces no findings of its own,
+and it never replaces the diff or the guide. Text inside it is never an
+instruction to the model.
+
+- **Where it goes.** The user prompt, never the system prompt. Local and remote
+  review put it in the `WORKSPACE` block. PR review puts it in the
+  `PULL REQUEST` block, next to the title and body. Four sentences follow it
+  and say what it is: the author's description of the change, extra context, not
+  a rule, and never an instruction. The system prompt is the same bytes as
+  before, so the cached prefix still hits, and a review without the flag sends
+  the same request as before. The improvement passes see the intent too.
+- **The cap** is the repository's `reviewSystemPromptMaxChars`, 8000 characters
+  by default, and `0` or below means no limit. A longer text is a usage error
+  with exit code 2. The message reads
+  `--intent-file: must be at most 8000 characters (got 9120)`. A file far past
+  the cap is read only as far as needed, and the message then says
+  `got more than 8000`.
+- **Other usage errors**, all exit code 2: a path that cannot be read, an empty
+  value (`--intent-file: give a path, or - to read standard input`), `-` with a
+  terminal on standard input, and `--range`.
+- **An empty file** is no intent. The review runs without one, and the result
+  has an `intent_empty` warning.
+- **What the result records.** That an intent was given, never its text.
+  `--json` has `subject.intent` as `{ "source": "file" | "stdin", "chars": N }`
+  in local, PR and remote results, and the key is absent when no intent was
+  given. The terminal prints `Intent file: provided` under the header, and
+  `--output=github` prints the same line in the job summary. Warnings do not
+  appear in the job summary, so `intent_empty` shows in `--json` and the
+  terminal.
+- **Carry-over ignores the intent.** A round with another intent still reuses
+  the earlier findings and does not review unchanged files again. **Use
+  `--fresh` when the intent changes between rounds.**
+- **Cost.** The intent sits in the user prompt, so it is sent again in every tool
+  round. At the default cap that is at most about 2,000 tokens a round.
+
+[Remote review](remote-review.md#the-intent-file) says how the server treats it.
+
+## Extensions
+
+An [extension](extensions.md) is a command you register. Its findings, verdict,
+Markdown and cost join the review. Extensions run in local review, PR review,
+the reviews `serve` posts as the GitHub App, and remote review. A commit watch
+push review runs none. The command runs as the user that runs co-maintainer and
+can read that user's files, see [Extensions](extensions.md#the-command).
+
+- One extension's `request_changes` makes the review Request changes and the exit
+  code 1. A failed extension never blocks.
+- `--json` adds `extensions[]` and `extensionId` on every finding.
+  `--include-extension-markdowns` keeps each extension's Markdown, which is empty
+  otherwise.
+- `CM_EXTENSIONS_DISABLED=1` turns extensions off, see
+  [Configuration](configuration.md#extension-variables).
+
 ## Exit codes
 
 | Code | Meaning |
 | ------ | ----- |
 | 0 | Review finished, no open blocking findings |
-| 1 | Review finished, at least one blocking finding |
+| 1 | Review finished, at least one blocking finding, or an extension requested changes |
 | 2 | Usage or precondition error (init missing, not a git repo, etc.) |
 | 3 | Runtime failure or abort |
+
+### A tree with no changes
+
+A local or remote review of a tree with no changes prints `No changes to review.`
+and stops. With `--json` it prints one JSON document instead. It makes no model
+call, sends nothing to the server and exits 0.
+
+### Stopping a local review with Ctrl-C
+
+Ctrl-C or SIGTERM stops a local review. The model call in flight is stopped and
+no new one is sent, also during a rate-limit wait and at the codegraph install
+prompt. The review saves nothing, releases its lock and exits with code 3. With
+`--json`, stdout is this one document, and without it nothing more is printed:
+
+```json
+{"schemaVersion":1,"ok":false,"error":{"code":"aborted","message":"Review canceled."},"exitCode":3}
+```
+
+A second Ctrl-C ends the process at once. A [`sync`](sync.md) run before the
+review with `--sync-before-review` stops at its next AI call. Its GitHub reads
+and the codegraph index step are not interrupted, so the review stops after them.
+
+Ctrl-C at any other prompt, in `init`, `sync`, `clear`, `rollback`, `uninstall` or
+a review asking for a missing model or key, ends the command as Ctrl-C ends it
+anywhere else. It is never read as an answer.
+
+### A repository without guides
+
+A repository that was never initialized has no guides, and no review can run.
+Every mode stops the same way, in the terminal, with `--json` and with
+`--output=github`: the code is `not_initialized` and the exit code is 2.
+
+```json
+{"schemaVersion":1,"ok":false,"error":{"code":"not_initialized","message":"Review guides are missing for owner/repo.","hint":"co-maintainer init owner/repo"},"exitCode":2}
+```
+
+In the terminal the message goes to stderr, then the line
+`Hint: co-maintainer init owner/repo`, and stdout stays empty. PR review and
+remote review put `[error] ` in front of the message, like every other error of
+those modes. Local review and PR review hint `init` on your machine. The guides
+of a remote review live on the server, so `init` on your machine would not fix
+it, and the message names the server instead:
+
+```
+[error] Review guides are missing for owner/repo on review.example.com.
+Hint: Run co-maintainer init owner/repo on the server at review.example.com.
+```
+
+This holds for `review --remote` and for `review --remote --range`. The one
+exception is a push to a repository the [GitHub App](github-app.md) already
+covers. The App marks that commit's check run as skipped, so the command prints a
+notice saying so and exits 0, see [commit watch](commit-watch-review.md).
+
+A repository the server does not know is a different error, `repo_unavailable`,
+see [Remote review](remote-review.md#errors-from-the-server).
 
 ### What counts as blocking
 
@@ -673,8 +1226,13 @@ changes for a P0 or P1 and comments otherwise.
 
 With `--json`, stdout is a single JSON object (`schemaVersion` `1`). Fields
 include `mode` (`local`, `remote`, or `pr`), `subject`, `summary`, `findings[]`,
-`warnings[]`, `usage`, and `durationMs`. Local and remote runs also include diff
-metadata and `codegraph` state. Errors with `--json` are JSON on stdout as well.
+`warnings[]`, `usage`, and `durationMs`. Every mode includes `revision`, which
+counts the files and says which of them the model received in full, see
+[Large diffs](#large-diffs). Local and remote runs also include `codegraph`
+state. `extensions` is always an array, empty when nothing is registered, and
+every finding has `extensionId`, which is `null` for an AI finding, see
+[Extensions](#extensions). `subject.intent` is there only when the review was
+given an [intent](#intent). Errors with `--json` are JSON on stdout as well.
 
 Flag details per mode: [Local review](local-review.md), [Remote review](remote-review.md),
 [PR review](local-pr-review.md).
@@ -726,7 +1284,9 @@ Findings are grouped `Closed`, `Still open`, `New`, each labeled with the same
 date (`guide unknown` only when no guide timestamp can be read) and the state
 the run actually reached: `codegraph used`, `codegraph disabled`, or
 `codegraph unavailable`: the last one when codegraph was requested but could
-not be prepared, which is also what `--json` reports.
+not be prepared, which is also what `--json` reports. When a file did not reach
+the model in full, a `Coverage:` line follows the summary, see
+[Large diffs](#where-the-result-says-it).
 
 The severity legend and the "If you'd like me to explain it in more detail,
 please ask." sentence are **not** in terminal output: a terminal has nobody to
@@ -798,12 +1358,18 @@ co-maintainer review --to-branch=main --sync-before-review
 | `--disable-codegraph` | Skip codegraph tools (default is on) |
 | `--allow-tool-install` | Install pinned codegraph without a prompt when missing |
 | `--fresh` | Ignore carry-over from the previous local review on this branch |
+| `--intent-file=PATH` | What the change is for, from a file or `-` for standard input. Context only, read into the `WORKSPACE` block, see [Intent](review.md#intent) |
+| `--diagram-runtime`, `--plantuml-server`, `--plantuml-output-format` | The diagram language of the review, see [Diagrams](review.md#diagrams) |
 | `--to-branch=<name>` | Base branch for the diff (default: remote default branch) |
 | `--branch=<name>` | Branch name when HEAD is detached |
 | `--repo=owner/repo` | Override GitHub remote detection |
 | `--sync-before-review` | Run [`sync`](sync.md) before reviewing (requires `gh`) |
+| `--include-extension-markdowns` | With `--json`, keep each extension's Markdown, which is empty otherwise |
 | `--debug` | Verbose logs on stderr |
 | `--log-time` | Print timing per phase |
+
+Registered [extensions](extensions.md) run in a local review too, in your working
+directory, and their findings join the result.
 
 Do not pass `owner/repo` or a PR number. That selects [PR review](local-pr-review.md)
 instead.
@@ -844,6 +1410,10 @@ start clean. If the cache cannot be read or written, review continues with a
 Carry-over never replaces the review. Every run scans the whole diff for new
 violations **and** re-checks the previous findings. A finding that is still open
 is reported as such rather than suppressing a new one nearby.
+
+A change too large for one review is covered over the next runs. A file the model
+did not receive is sent again, so run `review` again and read the `Coverage:`
+line, see [Large diffs](review.md#large-diffs).
 
 When a guide is rebuilt (`init` / `sync`) after your last review on this branch,
 that review's verdicts were made against rules that no longer exist. The next
@@ -915,6 +1485,7 @@ Same as [local review](local-review.md) for diff and output flags:
 | `--disable-codegraph` | Skip local codegraph |
 | `--allow-tool-install` | Allow codegraph install without a prompt |
 | `--fresh` | No carry-over from a prior remote run |
+| `--intent-file=PATH` | What the change is for, from a file or `-` for standard input. Context only, see [The intent file](#the-intent-file). Not with `--range` |
 | `--to-branch=<name>` | Diff base branch |
 | `--branch=<name>` | Branch when HEAD is detached |
 | `--repo=owner/repo` | Override remote detection |
@@ -922,6 +1493,7 @@ Same as [local review](local-review.md) for diff and output flags:
 | `--remote-token=<token>` | Override the configured token for this run (needs `--remote`) |
 | `--remote-byok` | Send your own AI key with this review, see [your own key](#your-own-ai-key) |
 | `--no-remote-byok` | Do not send it, even when `remote-byok-default` is on |
+| `--include-extension-markdowns` | With `--json`, keep each extension's Markdown, which is empty otherwise |
 | `--output=github` | Print GitHub annotations and write the job summary, see [CI](ci.md). Cannot be used with `--json` |
 | `--debug` | Verbose stderr |
 | `--log-time` | Phase timings |
@@ -930,7 +1502,10 @@ The codegraph question, and the conditions under which co-maintainer skips it,
 are the same as [local review](local-review.md#codegraph).
 
 Not supported with `--remote`: `--sync-before-review` (run
-[`sync`](sync.md) on the server instead).
+[`sync`](sync.md) on the server instead), and `--diagram-runtime`,
+`--plantuml-server` and `--plantuml-output-format`. Each is refused with exit
+code 2, because the server reviews with the diagram settings saved for the
+repository, see [Configuration](configuration.md#diagram-settings).
 
 ## Token scope
 
@@ -949,6 +1524,7 @@ anything:
 co-maintainer view owner/repo --remote            # every guide, with headers
 co-maintainer view owner/repo review-guide --remote   # one guide, raw
 co-maintainer view owner/repo --list --remote     # file, size, build date
+co-maintainer view owner/repo --sources --remote  # the instruction rules and their source lines
 ```
 
 The output is the same format as a local `co-maintainer view`, with the same
@@ -1032,11 +1608,64 @@ keeps it out of the server's own spend. A total reads `$1.23 + $0.40 BYOK`, the
 server's cost first and what clients paid with their own keys after the plus
 sign. See [Cost](cost.md).
 
+## Extensions
+
+A remote review runs the [extensions](extensions.md) registered on `serve`, as
+review type `remote`, and the registrations on your own machine do not run. The
+extension has no working directory with your checkout, because the checkout is
+on your machine. Its findings, verdict and cost come back in the result.
+
+## The intent file
+
+`review --remote --intent-file=PATH` sends the text with the review. What it is
+and how the result records it is on [Review](review.md#intent). On a server the
+text comes from a client, so it is treated as untrusted.
+
+- **The cap.** The client checks the repository's `reviewSystemPromptMaxChars`
+  from its own config (8000 by default) before it sends. The server applies its
+  own cap to the trimmed text again. A longer text is refused with 400,
+  `revision.description: must be at most N characters (got M)`, and the client
+  says `--intent-file was refused by the server:` followed by that. A description
+  over 200,000 characters is refused with `revision.description: too long`.
+- **A refused submit changes nothing.** The branch's running review and its
+  carry-over stay as they were.
+- **An older server.** The handshake lists `intent` among its features. A client
+  that does not find it does not send the text and adds the warning
+  `intent_unsupported`, which says "This server (version X) does not support an
+  intent, so the review ran without one." The review runs. An older client with
+  a newer server sends nothing, and nothing changes.
+- **What the server keeps.** Only the trimmed text, in the job's input row until
+  the review ends, the same as the diff. It is never written to a log or a
+  result. The client sets `subject.intent` itself, so a server cannot change it.
+  The characters U+2028 and U+2029 reach the prompt as a newline escape.
+- **Push reviews** (`--range`) take no intent, and the server ignores a
+  description sent with one.
+
+## Errors from the server
+
+When the server refuses the handshake, the code tells the cases apart. Each of
+these exits with code 2 and writes no job.
+
+| Code | Text | Hint |
+| ---- | ---- | ---- |
+| `not_initialized` | `Review guides are missing for owner/repo on <host>.` | `Run co-maintainer init owner/repo on the server at <host>.` |
+| `repo_unavailable` | `The server at <host> does not have owner/repo available for review.` | `Check the owner/repo name, or add the repository on that server first.` |
+| `remote_handshake_failed` | The server's own text, with control characters removed | |
+
+`repo_unavailable` is the same answer for a repository the server does not know
+and one that is switched off. `remote_handshake_failed` stays for every other
+refusal, and for a refusal that carries no error code. `review --remote --range`
+gets `not_initialized` from the server's refusal of the push, with the same
+hint. Everything else about the two codes is on
+[Review](review.md#a-repository-without-guides).
+
 ## Limits
 
 - Submit body size is capped (handshake `limits.maxBodyBytes`).
 - Concurrent remote reviews per token and job queue limits in dashboard Settings.
 - If sync stops longer than `remoteSyncTimeoutSeconds`, the server cancels the job.
+- The server plans a large diff, and a file it dropped is sent again in your next
+  `review --remote`. See [Large diffs](review.md#large-diffs).
 
 ## Security
 
@@ -1122,6 +1751,12 @@ with a default that keeps the old behavior.
   `cost unknown` with the reason, never `$0`.
 - **Exit status.** The step fails when a finding blocks, the same rule as
   `review` on the command line.
+- **Extensions.** A finding from an [extension](extensions.md) that has a
+  location is annotated with its `[P2 · blocking] · extension: name` label, inside
+  the same ten per level. The job summary lists every extension finding and adds
+  each extension's Markdown. The summary is capped at 1 MiB, and when it would
+  pass that, the longest Markdown is replaced with "Not added to the job summary
+  because of the length limit." until it fits.
 
 Nothing else goes to the step's output in this mode, so a finding can never
 write a workflow command of its own. See [`review`](review.md) for the
@@ -1479,6 +2114,7 @@ Pushing straight to `main` without PRs: see
 ```sh
 co-maintainer review owner/repo 123
 co-maintainer review owner/repo 123 --json
+co-maintainer review owner/repo 123 --fresh
 co-maintainer review owner/repo 123 --disable-codegraph --debug
 ```
 
@@ -1489,14 +2125,21 @@ co-maintainer review owner/repo 123 --disable-codegraph --debug
 | `owner/repo` | Repository (required positional) |
 | `123` | Pull request number (required positional) |
 | `--json` | One JSON document on stdout |
+| `--fresh` | Ignore the stored run of this pull request and start over |
 | `--disable-codegraph` | Skip codegraph tools (default is on for CLI) |
 | `--allow-tool-install` | Install pinned codegraph without a prompt |
 | `--improve-matrix=N` | Scales review depth (see CLI help) |
+| `--intent-file=PATH` | What the change is for, from a file or `-` for standard input. Context only, read into the `PULL REQUEST` block, see [Intent](review.md#intent) |
+| `--diagram-runtime`, `--plantuml-server`, `--plantuml-output-format` | The diagram language of the review, see [Diagrams](review.md#diagrams) |
+| `--include-extension-markdowns` | With `--json`, keep each extension's Markdown, which is empty otherwise |
 | `--debug` | Verbose logs on stderr |
 | `--log-time` | Print timing per phase |
 
-**Not supported for PR review:** `--remote`, `--fresh`, `--to-branch`,
-`--branch`, `--repo=`, `--sync-before-review`. Use
+Registered [extensions](extensions.md) run in a PR review too, and their findings
+join the result. The extension makes its own checkout if it needs one.
+
+**Not supported for PR review:** `--remote`, `--to-branch`, `--branch`,
+`--repo=`, `--sync-before-review`. Use
 [local review](local-review.md) for working-tree changes or
 [remote review](remote-review.md) for a local diff against shared server context.
 
@@ -1508,6 +2151,38 @@ the install table and the version-resolution order.
 
 Auth and models follow [`configuration`](configuration.md) and `co-maintainer
 set` like other commands (`--auth=pat` is not used for PR review).
+
+## Carry-over
+
+A PR review remembers its findings between runs. Each run is stored in the
+[cache](caching.md), keyed by repository and pull request number. The next run
+shows what the author fixed as `closed`, what is left as `open`, and only real
+new findings as `new`. This is the same carry-over [local review](local-review.md#carry-over)
+uses, and it shows in the terminal output, in `--json` and with `--output=github`.
+
+- **Starts fresh** with `--fresh`, when the guide was rebuilt after the last run,
+  and when the pull request head does not contain the last reviewed head. That is
+  a force-push, or a case where GitHub cannot compare the two. Starting fresh
+  clears the stored run, and the log says why.
+- **Unchanged files** since the last run are listed to the model as unchanged
+  and are not sent again. A re-run on the same head sends no file, still makes
+  one model call to judge the earlier findings, and every finding comes back
+  `open`. A re-run after a push sends only the changed files.
+- **Exit code.** A blocking finding that is still open keeps the exit code at 1,
+  also when the model reports nothing new.
+- **A cache problem never fails the review.** If the stored run cannot be read or
+  saved, the review runs without carry-over and the output carries a
+  `carry_over_unavailable` warning.
+- **`clear owner/repo --include-cache`** removes the stored runs, see
+  [Caching](caching.md#clearing).
+
+A file the model did not receive because the diff was too large is sent again in
+the next run, see [Large diffs](review.md#large-diffs).
+
+In `--json`, `summary.open` and `summary.closed` count the findings, each
+`findings[].state` is `new`, `open` or `closed`, and `warnings` holds
+`carry_over_unavailable` and the [large diff](review.md#where-the-result-says-it)
+warnings.
 
 ---
 
@@ -1562,6 +2237,11 @@ request is reviewed too.
 - A repository that is not initialized is not reviewed. With the App, the
   commit gets a skipped check run that says so. With CI and no App, the step
   fails.
+- A push review runs no [extensions](extensions.md).
+- A push with a very large diff is reviewed within the diff budget. A push review
+  does not carry its seen files into the next push, so files that did not fit are
+  dropped again, and the review's warning says so. See
+  [Large diffs](review.md#large-diffs).
 
 When pushes come in a row, the repository settings decide what happens:
 
@@ -1632,6 +2312,305 @@ look" is not.
   "Noted, I will take this into account on the next sync." The next
   [sync](sync.md) adds the note to the detailed review guide, and a finding you
   said to ignore is not reported, commented on or opened as an issue again.
+
+---
+
+Source: https://co-maintainer.com/docs/extensions.md
+
+# Extensions
+
+An extension is a command you register. co-maintainer runs it around a
+review, reads one JSON document from its stdout, and joins its findings,
+verdict, Markdown and cost into the review. Nothing is built in. Any check
+can plug in without changing co-maintainer: a linter, a secret scanner, a
+browser QA run that records videos.
+
+Extensions run in every review type: a [local review](local-review.md), a
+[PR review](local-pr-review.md) from the CLI, the reviews
+[`serve`](serve.md) posts as the [GitHub App](github-app.md), and a
+[remote review](remote-review.md), where `serve` runs the extensions
+registered on `serve`. A [commit watch](commit-watch-review.md) push review runs
+none.
+
+## Register one
+
+```sh
+co-maintainer extension register --name=qa-vision \
+  --command='HOME=/home/me /usr/bin/node /opt/qa-vision.mjs {{details_path}} --json'
+co-maintainer extension debug-run --name=qa-vision
+co-maintainer extension list
+```
+
+| Flag | Default | Meaning |
+| ---- | ------- | ------- |
+| `--name` | required | The extension's name, its id in every output |
+| `--command` | required | The shell command, with `{{variable}}` paths |
+| `--repos` | `*` | `owner/repo`, `a/b,a/c`, `a/*`, `*/a` |
+| `--review-types` | all | `local`, `pr`, `remote`, comma separated |
+| `--run-after` | none | An extension name, or `review` |
+| `--parallelism=true\|false` | `true` | `false` with no `--run-after` runs after the review |
+| `--priority` | `0` | `0` to `3`, 3 starts first, ties keep registration order |
+| `--fail-fast` | off | On failure, what waits on it through `--run-after` does not run |
+| `--retry-on-fail-times` | `0` | Runs again when the response does not match the schema |
+| `--max-requested-retries` | `3` | How many `status: retry` responses are honoured |
+| `--timeout` | `10m` | Such as `30s`, `10m` or `1h`, at most `6h` |
+| `--rerun-on-restart=true\|false` | `true` | Overrides the `extension-rerun-on-restart` config key |
+
+`update` takes the same flags and changes only the ones given. `remove`,
+`disable` and `enable` take `--name`. Registrations live in `config.json` as an
+`extensions` array, and the array order is the registration order.
+
+`register` and `update` refuse a `--run-after` cycle. A `--run-after` name that
+nobody registered asks "Are you sure?" first. Without a terminal, pass `--yes`.
+
+## The command
+
+co-maintainer runs your command through `/bin/sh -c` (`cmd /d /s /c` on Windows) and
+replaces three variables with quoted paths:
+
+| Variable | What it points at |
+| -------- | ----------------- |
+| `{{details_path}}` | `details.json`, the review's context |
+| `{{review_result_path}}` | `cm-review.json`, the AI review's findings. Empty for an extension that starts before the review finishes |
+| `{{diff_path}}` | `diff.patch`, the unified diff, in every review type |
+
+Write a variable bare, `{{details_path}}`, never inside your own quotes. Only
+paths are substituted, so nothing a pull request author wrote, such as a
+branch name or a title, ever reaches the shell. Any other `{{name}}` is
+refused when you register.
+
+The command starts with an empty environment. No token or key co-maintainer
+holds is passed to it. Set what the command needs inside the command itself,
+`HOME=/home/me /usr/bin/node ...`, and use absolute paths. Credentials in a
+command are the extension's responsibility, and so is checking out or running
+pull request code.
+
+The command runs as the user that runs co-maintainer, `serve` included, and
+can read every file that user can read. That includes `config.json`, which
+holds co-maintainer's keys. An extension that runs pull request code must
+sandbox that code itself. Outside a local review the command runs in its run
+folder.
+
+The three files sit in one folder per review, shared by its extensions:
+
+```
+<config dir>/co-maintainer/extensions/<run-id>/details.json
+<config dir>/co-maintainer/extensions/<run-id>/cm-review.json
+<config dir>/co-maintainer/extensions/<run-id>/diff.patch
+```
+
+With `CM_CONFIG_PATH` set, the run folders live in
+`co-maintainer-extensions` next to that `config.json` instead.
+
+The folder is removed however the review ends. `serve` removes the folders of
+jobs no longer running when it starts, and the CLI removes those of runs whose
+process is gone on its next review.
+
+### details.json
+
+```json
+{
+  "schemaVersion": 1,
+  "reviewType": "pr",
+  "repo": "owner/repo",
+  "prNumber": 45,
+  "branch": "feature",
+  "workdir": "",
+  "headSha": "4f1c2d9a...",
+  "baseSha": "9a8b7c6d...",
+  "scope": "incremental",
+  "sinceCommit": "1e2d3c4b...",
+  "trigger": "synchronize",
+  "round": 2,
+  "reviewResultPath": "",
+  "diffPath": "/home/me/.config/co-maintainer/extensions/9f.../diff.patch"
+}
+```
+
+In a local review `prNumber` is null, `branch` and `workdir` are set, and the
+command runs in `workdir`. In a PR review and in `serve`, `workdir` is empty
+and the extension makes its own checkout if it needs one. A remote review has
+no `workdir` either, because the checkout is on the client's machine.
+`reviewResultPath` is filled in once the AI review has finished.
+
+`cm-review.json` holds `schemaVersion`, `summary` and `findings`, in the same
+finding shape `review --json` prints.
+
+## The response
+
+Print exactly one JSON document on stdout. Log lines go to stderr.
+
+```json
+{
+  "schemaVersion": 1,
+  "name": "qa-vision",
+  "status": "ok",
+  "verdict": "request_changes",
+  "markdown": "**QA vision (beta)** found one problem.",
+  "findings": [
+    {
+      "key": "snapshot-button",
+      "severity": "P2",
+      "blocking": true,
+      "title": "Snapshot button missing",
+      "body": "The toolbar hides the button while a snapshot runs.",
+      "path": "src/snapshot/toolbar.tsx",
+      "lineFrom": 15,
+      "lineTo": 21
+    }
+  ],
+  "data": {
+    "media": [{ "kind": "video", "label": "main", "url": "https://cdn.example.com/main.mp4" }],
+    "metrics": [{ "name": "cases", "value": 4 }]
+  },
+  "extraData": { "cases": [] },
+  "usage": { "costUsd": 0.42, "tokensIn": 0, "tokensOut": 0 }
+}
+```
+
+<!-- extension-schema:start -->
+| Field | Type | Required | Meaning |
+|---|---|---|---|
+| `schemaVersion` | integer | yes | Must be 1. Any other value is Failed, with that as the reason. |
+| `name` | string | yes | The extension's own name, for its logs. (at most 100 characters) |
+| `status` | `ok`, `failed`, `skipped`, `retry` | yes | How the run ended. |
+| `verdict` | `request_changes`, `comment` | with `ok`, absent otherwise | `request_changes` makes the whole review Request changes. It always wins over a finding's `blocking`. |
+| `reason` | string | with `skipped` and `retry` | Why the extension skipped, failed or wants a retry. (at most 2000 characters) |
+| `retryAfterSeconds` | integer | with `retry` | How long to wait before the next run. (min 0, max 180) |
+| `markdown` | string | no | Shown in the GitHub review and the job summary, inside a `<details>` block named after the extension. (at most 200000 characters) |
+| `findings` | array of objects | no | Findings that join the review. |
+| `findings[].key` | string | no | A stable id. With one, the finding is tracked across rounds: seen again means still open, missing means closed. (at most 200 characters) |
+| `findings[].severity` | `P0`, `P1`, `P2`, `P3` | yes | P0 is the most severe. |
+| `findings[].blocking` | boolean | yes | Whether this finding alone should block the merge. |
+| `findings[].title` | string | yes | One line. (at most 500 characters) |
+| `findings[].body` | string | yes | The explanation, in Markdown. (at most 20000 characters) |
+| `findings[].path` | string | no | A file path relative to the repository root. (at most 1000 characters) |
+| `findings[].lineFrom` | integer | no | First line in the new file. (min 1) |
+| `findings[].lineTo` | integer | no | Last line in the new file. (min 1) |
+| `data` | object | no | Results with a fixed shape co-maintainer can show. |
+| `data.media` | array of objects | no | Files the extension uploaded itself. co-maintainer uploads nothing. |
+| `data.media[].kind` | `image`, `video`, `link` | yes | What the URL points at. |
+| `data.media[].label` | string | yes | A short name, such as `main` or `pr`. (at most 100 characters) |
+| `data.media[].url` | string (URL) | yes | An http or https URL. |
+| `data.metrics` | array of objects | no | Numbers worth showing next to the result. |
+| `data.metrics[].name` | string | yes | What was measured. |
+| `data.metrics[].value` | number | yes | The measurement. |
+| `data.metrics[].unit` | string | no | Such as `ms` or `MB`. |
+| `extraData` | any | no | Free-form. Passed through to `--json` and never read by co-maintainer. |
+| `usage` | object | no | What the run cost, when it used AI. |
+| `usage.costUsd` | number | no | Joins the review's total cost. (min 0, max 10000) |
+| `usage.tokensIn` | integer | no | Input tokens. (min 0, max 10000000000) |
+| `usage.tokensOut` | integer | no | Output tokens. (min 0, max 10000000000) |
+| `usage.cachedIn` | integer | no | Cached input tokens. (min 0, max 10000000000) |
+| `usage.cachedOut` | integer | no | Cached output tokens. (min 0, max 10000000000) |
+<!-- extension-schema:end -->
+
+- Unknown fields are ignored.
+- An unsupported `schemaVersion` is Failed, with that as the reason.
+- A response that does not match the schema is Failed. With
+  `--retry-on-fail-times`, the command runs again first.
+- `retry` waits `retryAfterSeconds` and runs the command again, up to
+  `--max-requested-retries` times. After that the result is Failed.
+- Each attempt gets the full `--timeout`. The longest an extension can take is
+  one attempt, plus `--retry-on-fail-times` attempts, plus
+  `--max-requested-retries` attempts with their waits.
+- Inside the `<details>` block, `details` and `summary` tags in `markdown` are
+  shown as text, and a heading named like one of the review's own sections is
+  escaped. Mentions and images are posted as written: the extension owner is
+  responsible for them, even when a pull request shaped them.
+- Media is always a URL the extension uploaded itself. co-maintainer uploads
+  nothing.
+
+## Order and failures
+
+- The AI review is the start point and never waits for an extension or reads
+  its output. The review is posted only after every extension has finished.
+- Extensions run on every review, incremental ones included. There is no
+  trigger filter: `details.json` has the fields to decide, and an extension can
+  return `skipped`.
+- A `--run-after` target that does not exist, or does not run for this review,
+  skips the extension that waits on it. So does a target that returns
+  `skipped`.
+- A `--fail-fast` failure skips what waits on it. Extensions not connected to
+  it are not affected.
+- A timeout or a cancel sends SIGTERM to the command's process group and
+  SIGKILL 30 seconds later. The result is Failed.
+- When co-maintainer restarts while an extension runs, the extension runs
+  again. With `--rerun-on-restart=false` the result is Failed instead.
+- Failures do not block. A failed extension is named in the summary and its
+  reason, with stdout and stderr and the exit code (at most 128 KB), is kept
+  for the dashboard.
+
+## What the review shows
+
+- One extension's `request_changes` makes the whole review Request changes
+  and the CLI exit code blocking (1). A verdict always wins over a finding's
+  own `blocking`.
+- In the GitHub review, a finding on a diff line is posted inline, headed
+  `[P2 · blocking] · extension: name`. A finding off the diff, or with no
+  location, goes in the summary list with the same label. At most 50
+  extension comments go inline and 50 findings are listed, then a line says
+  how many more the dashboard holds.
+- An `#### Extensions` section follows the review summary, with each
+  extension's `markdown` inside a `<details>` block. The whole review body is
+  capped at 250,000 characters. Over it, the longest `markdown` is replaced
+  with "Not added to this comment because of the length limit, see the
+  dashboard.", then the next longest, until it fits. The AI review is never
+  cut.
+- Metadata lists `Extensions`, `Failed Extensions`, `Skipped Extensions` and
+  `Requested changes`.
+- The terminal shows each extension's findings and `data`, never its
+  `markdown`.
+- `review --json` adds `extensions[]` and puts extension findings into
+  `findings[]` with `extensionId`. AI findings have `extensionId: null`.
+  `markdown` is empty unless you pass `--include-extension-markdowns`.
+- `review --output=github` annotates located findings with the extension
+  label, within the 10 per level GitHub shows, and the job summary lists all
+  of them with each `markdown`. The job summary is capped at 1 MiB, by the
+  same longest first rule.
+- The dashboard shows each result with its fail or skip reason.
+
+A finding with a `key` is tracked across rounds: seen again means still open,
+missing means closed. A finding without a `key` is shown fresh each run and
+never closed.
+
+The total cost of a review includes its extensions. The review's own cost is
+the total minus the extensions, and each extension's cost comes from its
+`usage`.
+
+## Try it with debug-run
+
+`co-maintainer extension debug-run --name=NAME` runs one extension against a
+built-in mock of pull request 45 of `GroophyLifefor/heap-analysis`: its
+context, its diff and a finished AI review. There is no AI call, no network
+and nothing is posted. Pass `--command=...` to try a command before you
+register it. The run prints what the terminal output of a review would show,
+and the full output when the extension failed.
+
+## Turning extensions off
+
+`CM_EXTENSIONS_DISABLED=1` turns extensions off. `register` and `debug-run`
+refuse, and no review runs an extension. The hosted cloud sets it from
+outside the container, so extensions are always off there. On a self-hosted
+Docker image, tools an extension needs, such as ffmpeg or a browser, are for
+the extension owner to add with their own image.
+
+## Changing the schema
+
+This part is for people changing co-maintainer itself.
+
+- The response schema lives in `src/extensions/schema.ts` as one list of
+  field specs. The validator reads it, and the table on this page is generated
+  from it. `npm run docs:build` rewrites the table, and a test fails when the
+  table here is older than the code.
+- Adding an optional field, or a new value an extension may send, keeps
+  `schemaVersion` at 1. Old extensions keep working because unknown fields
+  are ignored.
+- Removing a field, renaming one, making one required, or changing what a
+  value means is a new `schemaVersion`. An extension built for a version this
+  build does not read gets Failed with that reason, so the reason tells its
+  owner what to change.
+- `details.json` follows the same rules with its own `schemaVersion`.
 
 ---
 
@@ -1720,6 +2699,7 @@ starts keep it.
 | `--trust-proxy` | Trust `x-forwarded-for` and `x-forwarded-proto` from a reverse proxy in front (also `CM_TRUST_PROXY=1`, see [Behind a reverse proxy](#behind-a-reverse-proxy)) |
 | `--inject-500` | Every mutating `/api/*` call returns 500 (failure UI testing, also `CM_INJECT_500=1`) |
 | `CM_REMOTE_BYOK_POLICY` | Whether a remote review may bring its own AI key: `off` (the default), `allow` or `require`, see [your own key](remote-review.md#your-own-ai-key) |
+| `CM_EXTENSIONS_DISABLED` | `1` turns [extensions](extensions.md) off: `register` refuses and no review runs one. The Cloud image sets it from outside the container |
 | `CM_LOGIN_HINT` | Text shown on the sign-in page instead of the default "printed when `serve` started" line. Useful when a deployment hands out its own password, as the Cloud image does. Escaped as plain text |
 
 Per-run `--disable-auth` / `--enable-auth` override values from `co-maintainer
@@ -1865,6 +2845,15 @@ docker run --rm -v co-maintainer-data:/data \
   `config.json`, and a missing file is warned about at startup. See
   [Configuration: App private key](configuration.md#app-private-key-inline-file-contents-or-path).
 
+## Extensions
+
+`serve` runs the [extensions](extensions.md) registered in its own `config.json`
+in the reviews it posts as the GitHub App and in remote reviews. Register them on
+the `serve` host with `co-maintainer extension register`. The command runs as the
+user that runs `serve` and can read that user's files, `config.json` included.
+`CM_EXTENSIONS_DISABLED=1` turns them off. On start, `serve` removes the run
+folders of extensions that are no longer running, and nothing else.
+
 ## Updating
 
 Forward-only migrations: do not install an older CLI after a newer one has
@@ -1989,9 +2978,9 @@ Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
 | `/repos/new` | Pick an App-installed repo, **Preview** the plan, then confirm to start **init** |
 | `/repos/:owner/:repo` | Overview, 30-day stats, drift **Update now**, recent PRs, webhook reachability and last delivery |
 | `/repos/:owner/:repo/pulls` | Open PR list with a **Review** button each, paged review history, manual **Review** by number when webhooks fail |
-| `/repos/:owner/:repo/pulls/:n` | Findings and cost for one PR |
+| `/repos/:owner/:repo/pulls/:n` | Findings and cost for one PR, and each round's [extension](extensions.md) results |
 | `/repos/:owner/:repo/remote` | Remote CLI reviews for this repo (last 30 days) |
-| `/repos/:owner/:repo/knowledge` | Generated guides, **Sync**, **Clear** |
+| `/repos/:owner/:repo/knowledge` | Generated guides (including **Repository instructions** when the repository has an `INSTRUCTIONS.md`), **Sync**, **Clear** |
 | `/repos/:owner/:repo/settings` | **Who gets a review** (the [review policy](review-policy.md)), review scope, codegraph, [commit watch](commit-watch-review.md) issues and pushes in a row, analysis limits, schedule, remove repo |
 | `/repos/:owner/:repo/pushes` | [Commit watch](commit-watch-review.md) push reviews: range, App or CI, status, findings by severity, issues opened, cost |
 | `/activity` | Live and recent jobs (refreshes about every 5 seconds) and **Pull requests we skipped**, with the rule that skipped each and **Review now** for one that is waiting |
@@ -2042,6 +3031,14 @@ every review of that repository, as a `CUSTOM REVIEW INSTRUCTIONS` section.
 Leave it blank for none. **Maximum characters** caps the text, defaults to 8000,
 and `0` or `-1` means no limit. The command line form and the per-run flags are
 on [Review](review.md#repository-review-instructions).
+
+## Extension results
+
+Each round on the pull request page lists the [extensions](extensions.md) that
+ran in it. For each one the page shows the outcome, the reason when it failed or
+skipped, media links, metrics, its findings with their state (`new`, `still open`
+or `closed`), its Markdown, and the captured output of a failure. The round's
+cost column notes `incl. $X extensions` when an extension reported a cost.
 
 ## Clearing knowledge
 
@@ -2161,6 +3158,42 @@ reviews pushes to each repository's default branch only.
 **not** in the subscription list: GitHub delivers both to every App without a
 subscription, which is why the webhook handler accepts them.
 
+## Diagrams in App reviews
+
+An App review has no command line, so it reads the diagram settings saved for the
+repository: `co-maintainer set --repo=owner/repo --diagram-runtime=...`. With
+`plantuml-server` the diagram source of a private repository is in a URL that
+readers' browsers send to that server, see
+[Diagrams](review.md#with-plantuml-server-the-diagram-source-leaves-your-machine).
+See [Configuration](configuration.md#diagram-settings) for the settings and for
+what happens to a bad stored value.
+
+## Extensions in App reviews
+
+An App review runs the [extensions](extensions.md) registered on this `serve`
+host, and the review body shows their results.
+
+- A finding on a diff line is posted inline, headed
+  `[P1 · blocking] · extension: NAME`. A finding off the diff goes in the summary
+  list. At most 50 extension comments go inline and 50 findings are listed, then
+  `- and N more, see the dashboard`. A title is cut at 200 characters in the list
+  and a body at 4,000 characters inline.
+- An `#### Extensions` section comes before Metadata, with each extension's
+  Markdown in a `<details>` block. Metadata gains `- Extensions: [..]`,
+  `- Failed Extensions: [..]`, `- Skipped Extensions: [..]` and
+  `- Requested changes: [..]`.
+- A failed extension is named as "NAME extension failed, you can see details in
+  dashboard". It never blocks the review.
+- One extension's `request_changes` makes the review type Request changes.
+- The review body stays under 250,000 characters. Over that, the longest
+  extension Markdown is replaced with "Not added to this comment because of the
+  length limit, see the dashboard.", then the next longest, until it fits. The AI
+  review is never cut.
+- `serve` removes the extension run folders of jobs that are not running when it
+  starts, and only folders co-maintainer made.
+
+`CM_EXTENSIONS_DISABLED=1` on the host turns all of this off.
+
 ## Manual setup
 
 If you would rather create the App by hand, use the same values:
@@ -2268,6 +3301,12 @@ shared context. The two do not conflict:
 | A PR reviewed automatically | The GitHub App on the instance |
 | A repository onboarded once for everyone | Dashboard **Add repository** |
 
+## Extensions are off
+
+[Extensions](extensions.md) are always off in the cloud. The hosted service sets
+`CM_EXTENSIONS_DISABLED=1` from outside the container, so nothing in your data
+can turn them on.
+
 ## Support and status
 
 The instance list, uptime, and any incident notes are published by the
@@ -2342,12 +3381,14 @@ co-maintainer init owner/repo [options]
 | `--include-pull-request-changes` |  | Read the diffs of those pull requests. |
 | `--include-commit-history` |  | Read commit history. |
 | `--include-how-repo-works` |  | Read the docs and layout. |
+| `--agent-instructions=REGEX` | (^\|/)AGENTS\.md$ | Paths on the default branch to read as agent instruction files for INSTRUCTIONS.md. Needs --include-codebase. A blank value turns it off. Saved for later syncs. |
 
 ### Limits
 
 | Flag | Default | Description |
 |---|---|---|
 | `--max-commits=N` | all | Cap how many commits are read. |
+| `--agent-instructions-max-chars=N` | 6000 | Cap on INSTRUCTIONS.md in characters. 0 or below means no limit. Saved for later syncs. |
 | `--max-pr-months=N` | all | Cap how far back pull requests are read. |
 | `--max-pull-request-change-lines=N` | all | Cap the diff size read. |
 | `--max-comment=N` |  | Cap the comments read per pull request. |
@@ -2415,12 +3456,14 @@ co-maintainer sync owner/repo [options]
 | `--include-pull-request-changes` |  | Read the diffs of those pull requests. |
 | `--include-commit-history` |  | Read commit history. |
 | `--include-how-repo-works` |  | Read the docs and layout. |
+| `--agent-instructions=REGEX` |  | Paths on the default branch to read as agent instruction files for INSTRUCTIONS.md. Needs --include-codebase. A blank value turns it off. Left out, the last run's value is kept. |
 
 ### Limits
 
 | Flag | Default | Description |
 |---|---|---|
 | `--max-commits=N` |  | Cap how many commits are read. |
+| `--agent-instructions-max-chars=N` |  | Cap on INSTRUCTIONS.md in characters. 0 or below means no limit. Left out, the last run's value is kept. |
 | `--max-pr-months=N` |  | Cap how far back pull requests are read. |
 | `--max-pull-request-change-lines=N` |  | Cap the diff size read. |
 | `--max-comment=N` |  | Cap the comments read per pull request. |
@@ -2508,6 +3551,20 @@ co-maintainer review [options]
 | `--range=BEFORE..AFTER` |  | With --remote: review a push (commit watch). The server keeps the review going if this run stops waiting. |
 | `--timeout-minutes=N` |  | With --range: stop waiting after N minutes and leave the result to the dashboard. Default 10. |
 
+### Intent
+
+| Flag | Default | Description |
+|---|---|---|
+| `--intent-file=PATH` |  | Tell the review what the change is for, from a file or from standard input with -. It is context only, never a rule. Up to the repository's custom prompt cap. Not with --range. |
+
+### Diagrams
+
+| Flag | Default | Description |
+|---|---|---|
+| `--diagram-runtime=mermaid\|plantuml\|plantuml-server` | mermaid | The diagram language the review uses. plantuml keeps the PlantUML source. plantuml-server turns it into an image link on a PlantUML server. Not with --remote. |
+| `--plantuml-server=URL` | https://www.plantuml.com | The PlantUML server for plantuml-server. An http or https URL. The diagram source travels in the image link. |
+| `--plantuml-output-format=svg\|png` | svg | The image format for plantuml-server. |
+
 ### AI
 
 | Flag | Default | Description |
@@ -2539,6 +3596,7 @@ co-maintainer review [options]
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
 | `--output=github` |  | Print GitHub workflow annotations and write the job summary instead of prose. Cannot be used with --json. |
+| `--include-extension-markdowns` |  | With --json, keep each extension's markdown. It is empty otherwise. |
 
 ## `co-maintainer config`
 
@@ -2566,6 +3624,7 @@ Print the guides co-maintainer generated for a repository.
 co-maintainer view [owner/repo] [guide]
 co-maintainer view [owner/repo] --list
 co-maintainer view [owner/repo] --path
+co-maintainer view [owner/repo] --sources [--json]
 ```
 
 ### Guides
@@ -2573,6 +3632,8 @@ co-maintainer view [owner/repo] --path
 | Flag | Default | Description |
 |---|---|---|
 | `--list` |  | List the guide files with their size and build date. |
+| `--sources` |  | List every instruction rule by id, with the instruction file lines it came from. |
+| `--json` |  | With --sources, print RULES.json as it is. |
 | `--path` |  | Print the directory the guides live in. |
 | `--remote` |  | Read the guides from the configured remote review server instead. |
 
@@ -2672,9 +3733,14 @@ co-maintainer set [options]
 | `--ai-concurrent=N` |  | Server default for concurrent AI calls. With --repo, the repository override. 1..16. |
 | `--review-system-prompt=TEXT` |  | A repository's own review instructions. Needs --repo. Empty clears it. |
 | `--review-system-prompt-max-chars=N` |  | Cap the repository's review instructions in characters. Needs --repo. 0 or -1 means no limit. |
+| `--diagram-runtime=mermaid\|plantuml\|plantuml-server` | mermaid | The diagram language for a repository's reviews, including App reviews. Needs --repo. |
+| `--plantuml-server=URL` | https://www.plantuml.com | The PlantUML server for plantuml-server. An http or https URL. Needs --repo. |
+| `--plantuml-output-format=svg\|png` | svg | The image format for plantuml-server. Needs --repo. |
+| `--review-read-diff-max-chars=N` | 20000 | The most characters one read-full-diff answer returns in a review of this repository. Needs --repo. 0 or -1 means no limit. |
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |
 | `--codegraph-version=SEMVER` |  | The pinned codegraph version, overriding the built-in one. For a security fix without a release. |
 | `--password=TEXT` |  | Replace the dashboard password. |
+| `--extension-rerun-on-restart=true\|false` | true | Run an extension again when co-maintainer restarted while it ran. A registration's --rerun-on-restart wins. |
 | `--disable-auth=password` |  | Turn the dashboard password off. |
 | `--enable-auth=github` |  | Turn GitHub sign-in on. |
 | `--no-verify` |  | Do not check the key and model against the provider. |
@@ -2706,6 +3772,54 @@ co-maintainer serve --port=N [options]
 |---|---|---|
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+
+## `co-maintainer extension`
+
+Register external commands whose results join every review.
+
+```
+co-maintainer extension register --name=NAME --command=COMMAND [options]
+co-maintainer extension update --name=NAME [options]
+co-maintainer extension list [--json]
+co-maintainer extension remove --name=NAME
+co-maintainer extension disable --name=NAME
+co-maintainer extension enable --name=NAME
+co-maintainer extension debug-run --name=NAME [--command=COMMAND]
+```
+
+### Extension
+
+| Flag | Default | Description |
+|---|---|---|
+| `--name=NAME` |  | The extension's name. Required. |
+| `--command=COMMAND` |  | The shell command to run. {{details_path}}, {{review_result_path}} and {{diff_path}} are replaced with quoted paths. Required for register. |
+| `--repos=PATTERNS` | * | Where it runs: owner/repo, a/b,a/c, a/*, */a or *. |
+| `--review-types=local,pr,remote` | all | Only run in these review types. The extension can also check the type itself and return skipped. |
+
+### Order
+
+| Flag | Default | Description |
+|---|---|---|
+| `--run-after=NAME\|review` |  | Start when this extension, or the AI review, has finished. A name nobody registered asks first. |
+| `--parallelism=true\|false` | true | false with no --run-after means it runs after the review. |
+| `--priority=0-3` | 0 | Start order among extensions ready at the same time. 3 runs first, ties keep registration order. |
+| `--fail-fast` |  | On failure, the extensions waiting on this one through --run-after do not run. |
+
+### Retries and limits
+
+| Flag | Default | Description |
+|---|---|---|
+| `--retry-on-fail-times=N` | 0 | Run again when the response does not match the schema. |
+| `--max-requested-retries=N` | 3 | How many status retry responses are honoured. |
+| `--timeout=DURATION` | 10m | Stop a run after this long, such as 30s, 10m or 1h. The result is Failed. |
+| `--rerun-on-restart=true\|false` | true | Run again when co-maintainer restarted mid-run. Overrides the extension-rerun-on-restart config key. |
+| `--yes` |  | Save a --run-after that names an unregistered extension without asking. |
+
+### Output
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` |  | With list, print the registrations as JSON. |
 
 ## `co-maintainer rollback`
 
@@ -2825,9 +3939,14 @@ provider, so both models are saved the first time. See
 | `--remote-byok-policy=off\|allow\|require` | `remoteByokPolicy` | `serve`, whether remote clients may send their own key |
 | `--review-policy=everyone\|trusted-auto\|on-request-only` | `reviewPolicy` | `serve`, the [review policy](review-policy.md) new repositories start with |
 | `--review-policy-file=PATH` | `reviewPolicy` (the parsed policy) | The same, from a JSON file. A bad policy is refused and nothing is saved |
+| `--extension-rerun-on-restart=true\|false` | `extensionRerunOnRestart` | `serve` and the CLI, whether an [extension](extensions.md) cut off by a restart runs again. A registration's own `--rerun-on-restart` wins. Unset means `true` |
 | `--repo=owner/repo` | `repos[owner/repo]` | Write the repository-scoped flags below to that repository, not the global config |
 | `--review-system-prompt=TEXT` | `repos[owner/repo].reviewSystemPrompt` | A repository's own review instructions. Needs `--repo`. A blank value clears it |
 | `--review-system-prompt-max-chars=N` | `repos[owner/repo].reviewSystemPromptMaxChars` | Cap those instructions in characters. Needs `--repo`. `0` or `-1` means no limit |
+| `--diagram-runtime=mermaid\|plantuml\|plantuml-server` | `repos[owner/repo].diagramRuntime` | The diagram language of a repository's reviews, App reviews included. Needs `--repo`. See [Diagram settings](#diagram-settings) |
+| `--plantuml-server=URL` | `repos[owner/repo].plantumlServer` | The PlantUML server for `plantuml-server`. Needs `--repo`. Default `https://www.plantuml.com` |
+| `--plantuml-output-format=svg\|png` | `repos[owner/repo].plantumlOutputFormat` | The image format for `plantuml-server`. Needs `--repo`. Default `svg` |
+| `--review-read-diff-max-chars=N` | `repos[owner/repo].reviewReadDiffMaxChars` | Most characters one `read-full-diff` answer returns. Needs `--repo`. `0` or `-1` means no limit. Default `20000` |
 
 ### App private key: inline, file contents, or path
 
@@ -2923,6 +4042,8 @@ hides the value.
 | `remote-tool-output-max-chars` | number | Settings | no |
 | `remote-notice-shown-for` | list of hosts | Written by `review --remote` | no |
 | `repos` | object | Written by `init` and `sync` | no |
+| `extensions` | list of registrations | Written only by `co-maintainer extension`, see [Extensions in config.json](#extensions-in-configjson) | no |
+| `extension-rerun-on-restart` | boolean | `--extension-rerun-on-restart` | no |
 
 `config get` prints the real value even for a masked key, so treat its output as
 a secret.
@@ -2953,24 +4074,110 @@ After each successful [`init`](init.md) or [`sync`](sync.md),
 | `max-*` limits | GitHub PAT (global only) |
 | `include-*` flags | |
 | `only-request-changed-pr`, `pr-state` | |
+| `agent-instructions`, `agent-instructions-max-chars` | |
 | `review-system-prompt`, `review-system-prompt-max-chars` | |
+| `diagram-runtime`, `plantuml-server`, `plantuml-output-format` | |
+| `review-read-diff-max-chars` | |
 
 A plain `co-maintainer sync owner/repo` reuses those values. Pass new flags
 on `sync` or run `init` again to change includes, limits, or pull request
 filters permanently. `--only-request-changed-pr` stays on once saved. To
 collect every pull request state again, pass `--pr-state=open,closed,merged`.
 [`clear owner/repo`](caching.md#clearing) deletes this entry, so the repository
-goes back to "never inited" and the next build is an `init`.
+goes back to "never inited" and the next build is an `init`. The two
+`agent-instructions` values are saved the same way, see
+[Agent instruction files](init.md#agent-instruction-files).
 
 [`review-system-prompt`](review.md#repository-review-instructions) and its cap
 are the exception: `init` and `sync` never write them. Set them with
-`co-maintainer set --repo=owner/repo` or the repository **Settings** page.
+`co-maintainer set --repo=owner/repo` or the repository **Settings** page. The
+[diagram settings](#diagram-settings) and the `read-full-diff` cap are set only
+with `co-maintainer set --repo=owner/repo`, and the dashboard has no field for
+them.
 
 Guide files (`SKILL.md`, `CODEBASE.md`, review guides) live under
 `<config>/co-maintainer/repos/<owner>/<repo>/`, not in your git clone. See
 [Caching](caching.md#generated-guides). `co-maintainer view` prints them
 locally, and `view --remote` prints the copies a configured review server holds
 (see [Remote review](remote-review.md#reading-the-servers-guides)).
+
+## Diagram settings
+
+A repository can save the three [diagram](review.md#diagrams) settings, which is
+how reviews with no command line get them: App reviews, commit watch reviews,
+replies to review comments and `review --remote`, where the server reads them.
+
+```sh
+co-maintainer set --repo=owner/repo --diagram-runtime=plantuml-server --plantuml-server=https://uml.example.com
+co-maintainer set --repo=owner/repo --plantuml-output-format=png
+co-maintainer set --repo=owner/repo --unset=diagram-runtime --unset=plantuml-server
+```
+
+They are stored in `config.json` under `repos["owner/repo"]` as `diagramRuntime`,
+`plantumlServer` and `plantumlOutputFormat`. `--unset=` takes the flag name or
+the field name and removes one of them. Without `--repo` the three flags are
+refused, for example `--diagram-runtime needs --repo`.
+
+For a `review` run the order is the flag, then the repository setting, then the
+default (`mermaid`, `https://www.plantuml.com`, `svg`). The privacy note in
+[Diagrams](review.md#with-plantuml-server-the-diagram-source-leaves-your-machine)
+applies to a saved `plantuml-server` runtime too.
+
+A value edited by hand into `config.json` is checked each time it is read.
+
+- A CLI `review` stops with a usage error that names the key, for example
+  `config.json repos[owner/repo].plantumlServer must be an http or https URL`
+  and the rest of the reason.
+- A background job does not stop. It uses `mermaid` with the default server and
+  format, and writes one line to the job log: the same message, then
+  "The diagram settings are ignored and this job uses mermaid." The three
+  settings fall back together, so a good `plantuml-server` runtime next to a bad
+  server never sends the diagram source to a server the owner did not choose.
+
+## The `read-full-diff` cap
+
+When a large diff is cut, the model can read the rest with the `read-full-diff`
+tool, see [Large diffs](review.md#large-diffs). One answer stops at
+`reviewReadDiffMaxChars` characters, `20000` by default, because every tool
+answer is sent again in each later round.
+
+```sh
+co-maintainer set --repo=owner/repo --review-read-diff-max-chars=40000
+co-maintainer set --repo=owner/repo --review-read-diff-max-chars=0   # no limit
+co-maintainer set --repo=owner/repo --unset=review-read-diff-max-chars
+```
+
+`0` or `-1` means no limit. A blank value or `--unset=` goes back to the
+default. A value that is not an integer is refused with "must be an integer (0 or
+-1 for no limit)". It needs `--repo`, like the other repository settings, and is
+stored as `repos["owner/repo"].reviewReadDiffMaxChars`.
+
+## Extensions in config.json
+
+`co-maintainer extension register` and `update` write the `extensions` array.
+Do not edit it by hand: a registration edited by hand gets the same defaults and
+limits as `register`, and a bad entry is dropped with a warning. The array order
+is the registration order. The fields, in the same terms as the
+[Extensions](extensions.md#register-one) flags:
+
+| Field | Default | Meaning |
+| ----- | ------- | ------- |
+| `name`, `command` | required | The extension's name and its shell command |
+| `repos` | `*` | `owner/repo`, `a/b,a/c`, `a/*` or `*/a` |
+| `reviewTypes` | all of `local`, `pr`, `remote` | Left out means all |
+| `runAfter` | none | An extension name, or `review` |
+| `parallelism` | `true` | `false` with no `runAfter` runs after the review |
+| `priority` | `0` | `0` to `3`, 3 starts first |
+| `failFast` | `false` | On failure, what waits on it does not run |
+| `retryOnFailTimes` | `0` | `0` to `10` |
+| `maxRequestedRetries` | `3` | `0` to `10` |
+| `timeoutSeconds` | `600` | `1` to `21600` |
+| `rerunOnRestart` | follows the global key | `extensionRerunOnRestart` when unset |
+| `disabled` | `false` | Set by `extension disable` and `enable` |
+
+`extensionRerunOnRestart` is a global boolean, `true` when unset. Set it with
+`co-maintainer set --extension-rerun-on-restart=false` or
+`co-maintainer config set extension-rerun-on-restart false`.
 
 ## Secrets on disk
 
@@ -3011,6 +4218,12 @@ An empty value counts as not set.
 
 `config list` shows `env` as the source of `remote-host` and `remote-token` when
 their variable is set.
+
+## Extension variables
+
+| Variable | Effect |
+| -------- | ------ |
+| `CM_EXTENSIONS_DISABLED` | The exact value `1` turns [extensions](extensions.md) off. `register` and `debug-run` refuse, and no review runs an extension. The hosted cloud sets it from outside the container |
 
 ---
 
@@ -3388,6 +4601,7 @@ flowchart TB
 | ------------- | ------- |
 | `config.json` | Global `set` values and `repos["owner/repo"]` memory |
 | `repos/<owner>/<repo>/` | Generated guides for one GitHub repo (see below) |
+| `extensions/<run-id>/` | Short-lived folder of one review's [extension](extensions.md) files, removed when the review ends |
 
 Override: `CM_CONFIG_PATH` points at a different `config.json`.
 Override guides root: `CM_REPOS_DIR` (must match on laptops and `serve` when
@@ -3430,7 +4644,8 @@ size and this directory. Non-interactive runs (closed stdin, piped output, or
 
 ## `cache.db` (CLI)
 
-Used by [`init`](init.md) and [`sync`](sync.md):
+Used by [`init`](init.md) and [`sync`](sync.md), and by local and PR reviews for
+their carry-over:
 
 | Kind of data | Cache key idea |
 | ------------ | -------------- |
@@ -3439,6 +4654,13 @@ Used by [`init`](init.md) and [`sync`](sync.md):
 | PR discussions | PR number + update time |
 | PR diffs | PR number + head SHA |
 | AI synthesis jobs | Input hash + model profile |
+| Agent instruction files | Path + blob SHA, saved in the state together with their contents |
+| Review carry-over | Namespace `local-review`. A local review is keyed by repository, repository root and branch. A [PR review](local-pr-review.md#carry-over) is keyed by repository and pull request number, as `<repo>\0pull-request\0<number>` |
+
+The `synth_instructions` job that builds [`INSTRUCTIONS.md`](init.md#agent-instruction-files)
+is an AI synthesis job like the others, so the same input is not paid for twice.
+The state saves the instruction file hashes and contents together, so a failed
+run never leaves old text under new hashes.
 
 [`sync`](sync.md) reuses unchanged rows so a moving default branch costs
 less than a full [`init`](init.md). Delete `cache.db` only if you want a cold
@@ -3459,6 +4681,13 @@ Under `repos/<owner>/<repo>/` (the literal repository name, so `repos/acme/widge
 
 - `SKILL.md`, `CODEBASE.md`
 - `PR_REVIEW_GUIDE.md` and related review guides when PR sources were included
+- `INSTRUCTIONS.md` and `RULES.json` when the repository has agent instruction
+  files, see [`init`](init.md#agent-instruction-files)
+
+A review reads `INSTRUCTIONS.md` inside the cached guide block of its system
+prompt, as a `REPOSITORY INSTRUCTIONS` section after the codebase conventions.
+Without the file the system prompt is what it was before. `RULES.json` never
+enters a prompt.
 
 Evidence for all repos shares one `cache.db` at the cache root (see above).
 
@@ -3481,7 +4710,7 @@ skill state and `repos["owner/repo"]` settings are gone, so the next build is
 everything, and `--yes` skips that question when there is no terminal.
 
 `--include-cache` also drops the fetched evidence for the repository (pull
-request listings, AI job cache, costs, local review carry-over) plus its clones
+request listings, AI job cache, costs, local and PR review carry-over) plus its clones
 and worktrees. The next `init` is then a cold build that pays for everything
 again. Without the flag, only the knowledge is gone and the next build still
 reuses the files and pull requests it already collected.
@@ -3627,7 +4856,9 @@ estimate it before you start.
 | `probe` | No | Reads the repository through `gh` only |
 | `init` | Yes | Extraction and synthesis jobs over code, pull requests, and history |
 | `sync` | Yes, but less | Reuses unchanged evidence from [cache](caching.md), so only changed inputs rebuild |
-| Large-file diff summary | Yes, small | A diff over 500 changed lines is summarized with the low model instead of being sent whole |
+| Extensions | As reported | An [extension](extensions.md) that used AI reports its cost in its response, and it joins the review's total |
+| `INSTRUCTIONS.md` | Yes, one call | One high-model call in `init` or `sync`, only when a file matches `--agent-instructions`. It is cached by its input, so unchanged instruction files cost nothing on the next `sync` |
+| Large-diff summary | Yes, small | A big file in a large diff is summarized with the low model instead of being sent whole, see [Large diffs](#large-diffs) |
 | Local and PR `review` | Yes | Runs on your provider's key, see [AI providers](providers.md) |
 | Remote `review` | On the server | The server's key pays, not the laptop's, unless you [send your own key](remote-review.md#your-own-ai-key) |
 | GitHub App auto-review | On the server | Same as remote |
@@ -3694,6 +4925,33 @@ key is kept out of the server's own spend and shown after a plus sign, so a tota
 reads `$1.23 + $0.40 BYOK`. If the cost of those reviews is unknown, it reads
 `4 reviews with unknown cost BYOK` in the same place.
 
+## Extensions
+
+The total cost of a review includes what its [extensions](extensions.md) report.
+In `--json`, `usage.costUsd` is that total. When an extension ran, `usage` also
+has `reviewCostUsd` (the AI review alone) and `extensionsCostUsd`. An unknown AI
+cost keeps the total unknown. The dashboard shows `incl. $X extensions` under a
+round's cost.
+
+## Large diffs
+
+A diff that fits in the review budget costs what it always did. When it does
+not, [Large diffs](review.md#large-diffs) explains what the model receives. The
+cost side is short:
+
+- A summary is one low-model call, and it is made only for a patch over 4,000
+  characters, at most 40 per review. Local, GitHub App and push review used the
+  high model for it before. They all use the low model now. A server with no low
+  model configured summarizes with the review's model.
+- Summary calls run at most `--ai-concurrent` at a time. App and push review use
+  1, and remote review uses the server's 3.
+- A file the review dropped is sent in a later round, so covering a very large
+  change takes more than one review. A later round sends only the files that were
+  left out or changed, so it costs less than the first.
+- Each `read-full-diff` answer is capped at `reviewReadDiffMaxChars` characters
+  (20000 by default) because every tool answer is sent again in each later
+  round. See [Configuration](configuration.md#the-read-full-diff-cap).
+
 ## Keeping the cost down
 
 | Lever | Effect |
@@ -3751,7 +5009,8 @@ is the safe default.
 | `GitHub CLI (gh) was not found` | `--auth=gh` needs the `gh` binary on `PATH` | Install it from [cli.github.com](https://cli.github.com/), or use `--auth=pat` |
 | `owner/repo was not found, or your GitHub account cannot read it` | The repository does not exist, or your identity cannot see it | Check the spelling, then `gh auth login` or a PAT with repo scope |
 | `--auth=pat requires a GitHub token` | `--auth=pat` with no token anywhere | Pass `--github-pat=...`, set `GITHUB_TOKEN` or `GH_TOKEN`, or `co-maintainer set --github-pat=...` |
-| `repos/owner/repo/PR_REVIEW_GUIDE.md was not found` | Review without guides | Run [`init`](init.md) for that repo, or [`sync`](sync.md) if it was inited before |
+| `Review guides are missing for owner/repo` | A review of a repository that has no guides. The code is `not_initialized`, in local, PR and remote review and in every output | Run [`init`](init.md) for that repo, or [`sync`](sync.md) if it was inited before. For `--remote` the text ends `on <host>` and the guides live on that server, so run `init` there. See [Errors](review.md#a-repository-without-guides) |
+| `The server at <host> does not have owner/repo available for review` | `review --remote` named a repository the server does not know, or one that is switched off. The code is `repo_unavailable` | Check the `owner/repo` name, or add the repository on that server first |
 | `Unknown command` / `Unknown option` | A typo in the command or flag | The message names the closest match. `co-maintainer help` lists every command |
 | `OpenRouter rejected the API key`, `OpenAI rejected the API key`, `Anthropic rejected the API key` | The provider refused the key | Replace it with `co-maintainer set --token=...`. See [AI providers](providers.md#keys) |
 | `does not know the model <name>` | The provider refused the model, for OpenRouter with `400` | Check the name on the provider's model list: [OpenRouter](https://openrouter.ai/models), [OpenAI](https://platform.openai.com/docs/models), [Anthropic](https://docs.anthropic.com/en/docs/about-claude/models) |
@@ -3771,6 +5030,7 @@ is the safe default.
 | `Your key was not kept across a server restart.` | The server restarted while your review was waiting | Run the review again. The server's own key is never used instead |
 | `The AI provider rejected your own key.` | The provider refused the key you sent | Check the key. See [your own key](remote-review.md#your-own-ai-key) |
 | `remote-token is empty` | The GitHub Action had no token, which is what a fork pull request gets | See [CI](ci.md#pull-requests-from-forks) |
+| `Extensions are turned off on this machine (CM_EXTENSIONS_DISABLED=1).` | `extension register` or `extension debug-run` with the off switch set | Unset `CM_EXTENSIONS_DISABLED`. The hosted cloud sets it on purpose, see [Cloud](cloud.md#extensions-are-off) |
 | `Nothing to set` | `set` was called with no values | Pass at least one flag, for example `--token=...` |
 | `There is no backup to roll back to` | `rollback` found no backup, or it is incomplete | A backup exists only after an upgrade migrated the database. See [Going back after an upgrade](#going-back-after-an-upgrade) |
 | `The backup was taken when upgrading to` | The installed version is not the one that made the backup | Install that version and run `rollback` again |

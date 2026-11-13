@@ -53,6 +53,7 @@
           <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           <li><a href="commit-watch-review.html">Commit watch review</a></li>
+          <li><a href="extensions.html">Extensions</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -192,6 +193,12 @@ location, the cost of the review, and how long it took. An unknown cost reads
 <code>cost unknown</code> with the reason, never <code>$0</code>.</li>
 <li><strong>Exit status.</strong> The step fails when a finding blocks, the same rule as
 <code>review</code> on the command line.</li>
+<li><strong>Extensions.</strong> A finding from an <a href="extensions.html">extension</a> that has a
+location is annotated with its <code>[P2 · blocking] · extension: name</code> label, inside
+the same ten per level. The job summary lists every extension finding and adds
+each extension&#39;s Markdown. The summary is capped at 1 MiB, and when it would
+pass that, the longest Markdown is replaced with &quot;Not added to the job summary
+because of the length limit.&quot; until it fits.</li>
 </ul>
 <p>Nothing else goes to the step&#39;s output in this mode, so a finding can never
 write a workflow command of its own. See <a href="review.html"><code>review</code></a> for the
