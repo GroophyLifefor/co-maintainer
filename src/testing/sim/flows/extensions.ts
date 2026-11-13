@@ -243,6 +243,8 @@ type State = {
   ms: Map<string, number>;
   /** The review without a registration created no run folder at all. */
   plainLeftNoFolder?: boolean;
+  /** The registrations in config.json right after `extension register`. */
+  saved?: string[];
 };
 
 function state(sim: Sim): State {
@@ -372,6 +374,9 @@ export default defineFlow({
         "--parallelism=false",
       ]);
       state(sim).cli.set(STEP.register, run);
+      state(sim).saved = (
+        (sim.world.readConfig().extensions as Json[] | undefined) ?? []
+      ).map((entry) => `${entry.name} ${entry.command}`);
       return `exit ${run.exitCode}`;
     }),
     marked(STEP.local, async (sim) => {
@@ -546,9 +551,11 @@ export default defineFlow({
     );
     results.push(
       check(
-        "extension register saves the registration",
-        s.cli.get(STEP.register)?.exitCode === 0,
-        `exit ${s.cli.get(STEP.register)?.exitCode}`,
+        "extension register saves the registration in config.json",
+        s.cli.get(STEP.register)?.exitCode === 0 &&
+          JSON.stringify(s.saved) ===
+            JSON.stringify([`probe ${command(sim, "blocking")}`]),
+        `exit ${s.cli.get(STEP.register)?.exitCode} · saved ${JSON.stringify(s.saved)}`,
       ),
       check(
         "a request_changes verdict makes the local review exit 1 with the finding in --json",
