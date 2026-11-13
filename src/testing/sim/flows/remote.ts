@@ -739,7 +739,7 @@ function remoteChecks(sim: Sim): CheckResult[] {
       unknownRepo?.exitCode === 2 &&
         Boolean(
           unknownRepo.stderr.includes(
-            "Sorry, we could not access this repository.",
+            "does not have sim/unknown available for review.",
           ),
         ),
       `exit ${unknownRepo?.exitCode} · ${unknownRepo?.stderr.split("\n")[0] ?? ""}`,
@@ -749,9 +749,7 @@ function remoteChecks(sim: Sim): CheckResult[] {
       noGuides?.exitCode === 2 &&
         noGuidesHandshake?.status === 409 &&
         Boolean(
-          noGuides.stderr.includes(
-            "Sorry, we could not access this repository.",
-          ),
+          noGuides.stderr.includes("Review guides are missing for sim/bare"),
         ),
       `exit ${noGuides?.exitCode} · handshake ${noGuidesHandshake?.status ?? "none"}`,
     ),
