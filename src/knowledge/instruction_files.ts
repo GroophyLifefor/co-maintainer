@@ -6,6 +6,8 @@
  * repository with hundreds of them must not turn one synthesis call into a
  * book, so there is a cap on the count and on the total size. */
 
+import { CliError, EXIT_USAGE } from "../cli/error.ts";
+
 /** The default `--agent-instructions`: every `AGENTS.md`, at any depth. */
 export const DEFAULT_AGENT_INSTRUCTIONS = "(^|/)AGENTS\\.md$";
 
@@ -36,9 +38,14 @@ export function agentInstructionsPattern(
   const value = source ?? DEFAULT_AGENT_INSTRUCTIONS;
   if (value.trim() === "") return null;
   const error = agentInstructionsError(value);
+  // A flag value is checked when it is parsed, so this is a saved value that
+  // was edited by hand. Name it, and exit as a usage error.
   if (error) {
-    throw new Error(
-      `--agent-instructions is not a valid regular expression: ${error}`,
+    throw new CliError(
+      "usage",
+      `The saved agentInstructions pattern is not a valid regular expression: ${error}`,
+      "Pass --agent-instructions=REGEX to sync to replace it.",
+      EXIT_USAGE,
     );
   }
   return new RegExp(value);
@@ -104,7 +111,10 @@ export function capInstructionFiles(
 export function leftOutLine(
   leftOut: { path: string; reason: string }[],
 ): string {
-  return `instruction files left out: ${leftOut
+  // A pattern that matches the whole tree would otherwise print every path.
+  const shown = leftOut.slice(0, 20);
+  const more = leftOut.length - shown.length;
+  return `instruction files left out: ${shown
     .map(({ path, reason }) => `${path} (${reason})`)
-    .join(", ")}`;
+    .join(", ")}${more > 0 ? `, and ${more} more` : ""}`;
 }

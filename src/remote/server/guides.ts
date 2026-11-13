@@ -9,6 +9,7 @@
  * per file. */
 import { reposDir } from "../../config.ts";
 import { loadGuides } from "../../review/guides.ts";
+import { rulesFileText } from "../../knowledge/rules.ts";
 import { readDir, readTextFile, stat } from "../../util/runtime.ts";
 import { validateRemotePath } from "../validate.ts";
 
@@ -60,6 +61,11 @@ export async function readRemoteGuides(
     ["CODEBASE.md", loaded.codebase],
     ["SKILL.md", loaded.skill],
     ["INSTRUCTIONS.md", loaded.instructions],
+    // From the read under the lock, so it belongs to the same build as the
+    // guides served with it.
+    ...(loaded.rules
+      ? [["RULES.json", rulesFileText(loaded.rules)] as [string, string]]
+      : []),
   ]);
   const dir = `${reposDir()}/${repo}`;
   const names: string[] = [];

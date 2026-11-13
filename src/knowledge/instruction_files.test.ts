@@ -49,13 +49,16 @@ test("a pattern that does not compile is named with its parse error", () => {
   const error = agentInstructionsError("(unclosed");
   if (!error) throw new Error("an invalid pattern was accepted");
   let message = "";
+  let exitCode = 0;
   try {
     agentInstructionsPattern("(unclosed");
   } catch (thrown) {
     message = String(thrown);
+    exitCode = (thrown as { exitCode?: number }).exitCode ?? 0;
   }
-  if (!message.includes("not a valid regular expression")) {
-    throw new Error(`unclear error: ${message}`);
+  // Only a hand-edited saved value gets here: the flag is checked at parse.
+  if (!message.includes("saved agentInstructions pattern") || exitCode !== 2) {
+    throw new Error(`unclear error (exit ${exitCode}): ${message}`);
   }
 });
 

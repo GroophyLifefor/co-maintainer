@@ -206,12 +206,24 @@ export function checkInstructionRules(
     const sources = candidate.sources.map(parseSource);
     const supported =
       sources.length > 0 &&
-      sources.every((source) => {
+      sources.every((source, index) => {
         if (!source) return false;
         const fileLinesOf = lines.get(source.path);
         if (!fileLinesOf) return false;
         const line = fileLinesOf[source.line - 1];
-        return source.line >= 1 && line !== undefined && line.trim() !== "";
+        // A range `path:12-14` is recorded as its first line, but its end
+        // must still be inside the file.
+        const end = Number(
+          /:\d+-(\d+)$/.exec(candidate.sources[index].trim())?.[1] ??
+            source.line,
+        );
+        return (
+          source.line >= 1 &&
+          line !== undefined &&
+          line.trim() !== "" &&
+          end >= source.line &&
+          end <= fileLinesOf.length
+        );
       });
     if (!supported) {
       counts.unsupportedSource++;

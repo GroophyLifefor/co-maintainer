@@ -97,6 +97,12 @@ test("the guard drops a rule whose source is not a real line or whose name is un
         sources: ["AGENTS.md:4"],
       },
       { rule: "Line past the end.", scope: "", sources: ["AGENTS.md:99"] },
+      { rule: "A range past the end.", scope: "", sources: ["AGENTS.md:4-99"] },
+      {
+        rule: "Every test lives next to its module.",
+        scope: "",
+        sources: ["AGENTS.md:4-5"],
+      },
       { rule: "A blank line.", scope: "", sources: ["AGENTS.md:2"] },
       { rule: "A file not read.", scope: "", sources: ["OTHER.md:1"] },
       { rule: "No source at all.", scope: "", sources: [] },
@@ -109,10 +115,16 @@ test("the guard drops a rule whose source is not a real line or whose name is un
     FILES,
     TREE,
   );
-  if (rules.length !== 1 || !rules[0].text.startsWith("Format amounts")) {
+  const kept = rules.map((rule) => rule.text);
+  if (
+    kept.length !== 2 ||
+    !kept[0].startsWith("Format amounts") ||
+    kept[1] !== "Every test lives next to its module." ||
+    rules[1].sources[0].line !== 4
+  ) {
     throw new Error(`kept ${JSON.stringify(rules)}`);
   }
-  if (counts.unsupportedSource !== 4 || counts.unknownName !== 1) {
+  if (counts.unsupportedSource !== 5 || counts.unknownName !== 1) {
     throw new Error(`counts ${JSON.stringify(counts)}`);
   }
 });
