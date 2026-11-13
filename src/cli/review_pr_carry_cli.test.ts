@@ -224,3 +224,115 @@ test("a CLI pull request review run twice reports closed, open and new", async (
     await remove(root, { recursive: true });
   }
 });
+
+test("a blocking finding that stays open keeps the exit code at 1", async () => {
+  const root = await makeTempDir({ prefix: "cm-pr-exit-" });
+  let run = 1;
+  const server = await startFakeOpenRouter("success", {
+    chatContent: () =>
+      JSON.stringify(
+        run === 1
+          ? {
+              findings: [
+                {
+                  ...finding("a.ts", "The first value is not validated"),
+                  severity: "P1",
+                  blocking: true,
+                },
+              ],
+            }
+          : // The model keeps F1 open and reports nothing of its own, so the
+            // blocking finding is in no `## Findings` text of this run.
+            { findings: [], previousFindings: [{ id: "F1", state: "open" }] },
+      ),
+  });
+  try {
+    const repo = "acme/widgets";
+    await mkdir(`${root}/repos/${repo}`, { recursive: true });
+    await writeTextFile(
+      `${root}/repos/${repo}/PR_REVIEW_GUIDE.md`,
+      "# Review guide\n\nValidate values.\n",
+    );
+    const configPath = `${root}/config.json`;
+    await writeTextFile(
+      configPath,
+      `${JSON.stringify({
+        auth: "gh",
+        ai: "openrouter",
+        token: "fake-key",
+        lowModel: "fake/model",
+        highModel: "fake/model",
+      })}\n`,
+    );
+    await writeTextFile(`${root}/gh.mjs`, FAKE_GH);
+    const statePath = `${root}/state.json`;
+    await writeTextFile(
+      statePath,
+      JSON.stringify({
+        head: "sha1",
+        compare: "ahead",
+        files: [file("a.ts", A)],
+      }),
+    );
+    const review = async (extra: string[]) => {
+      const result = await new Command(runtimeExecPath(), {
+        args: runtimeRunArgs(join(projectRoot, "main.ts"), [
+          "review",
+          repo,
+          "7",
+          "--disable-codegraph",
+          "--review-upstream",
+          ...extra,
+        ]),
+        cwd: root,
+        env: {
+          ...envToObject(),
+          CM_CONFIG_PATH: configPath,
+          CM_REPOS_DIR: `${root}/repos`,
+          CM_OPENROUTER_URL: server.url,
+          CM_GH_BIN: process.execPath,
+          CM_GH_SCRIPT: `${root}/gh.mjs`,
+          CM_PR_STATE: statePath,
+          CM_APP_DB: `${root}/app.db`,
+          LOCALAPPDATA: `${root}/localappdata`,
+          XDG_CACHE_HOME: `${root}/cache`,
+          CM_FAKE_AI: undefined,
+          CM_FAKE_REVIEW_FILE: undefined,
+        },
+        stdout: "piped",
+        stderr: "piped",
+        timeoutMs: 60_000,
+      }).output();
+      return {
+        code: result.code,
+        stdout: new TextDecoder().decode(result.stdout),
+        stderr: new TextDecoder().decode(result.stderr),
+      };
+    };
+
+    const first = await review(["--json"]);
+    if (first.code !== 1) {
+      throw new Error(`run 1 exit ${first.code}: ${first.stdout}`);
+    }
+
+    // The same head again: the finding is still open and still blocks.
+    run = 2;
+    const human = await review([]);
+    if (!/Summary: 0 new · 1 open · 0 closed · 1 blocking/.test(human.stdout)) {
+      throw new Error(`run 2 human: ${human.stdout}${human.stderr}`);
+    }
+    if (human.code !== 1) {
+      throw new Error(`run 2 human exit ${human.code}: ${human.stdout}`);
+    }
+    const json = await review(["--json"]);
+    const summary = (JSON.parse(json.stdout) as { summary: { open: number } })
+      .summary;
+    if (summary.open !== 1) throw new Error(`run 3: ${json.stdout}`);
+    if (json.code !== 1) {
+      throw new Error(`run 3 json exit ${json.code}: ${json.stdout}`);
+    }
+  } finally {
+    await server.close();
+    await remove(root, { recursive: true });
+  }
+});
