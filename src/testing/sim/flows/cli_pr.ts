@@ -182,8 +182,8 @@ export function manyFiles(): Record<string, string> {
   };
 }
 
-/** What the model answers the CLI review with, by pull request title. */
-export const CLI_PR_AI: AiRule[] = [
+/** What the model answers a review with, by pull request title. */
+const REVIEW_RULES: AiRule[] = [
   // The push round: the model sees the guard in the diff and drops the
   // blocking finding. Listed first, so it wins over the plain answer.
   reviewRule(
@@ -233,7 +233,8 @@ export const CLI_PR_AI: AiRule[] = [
           ],
         },
   ),
-  reviewRule(TITLES.fails, { findings: [] }),
+  // TITLES.fails has no rule: its AI call is failed by a fault before a rule
+  // could answer it, and a rule nothing used would be reported.
   // A P1 the model calls non-blocking: it blocks only under `severity`.
   reviewRule(TITLES.severity, {
     findings: [
@@ -249,9 +250,22 @@ export const CLI_PR_AI: AiRule[] = [
     ],
   }),
   reviewRule(TITLES.many, { findings: manyFindings() }),
-  // The init flow's answers, for the step that builds the guides.
-  ...INIT_AI,
 ];
+
+/** Every answer this flow needs: the reviews above and the init flow's, for
+ * the step that builds the guides. */
+export const CLI_PR_AI: AiRule[] = [...REVIEW_RULES, ...INIT_AI];
+
+/** The answers for only the pull requests with these titles, plus init's. A
+ * flow that never opens the others should use this, since a rule that no
+ * call used is reported. */
+export function cliPrAi(...titles: string[]): AiRule[] {
+  const wanted = titles.map((title) => `"title":${JSON.stringify(title)}`);
+  return [
+    ...REVIEW_RULES.filter((rule) => wanted.includes(String(rule.prompt))),
+    ...INIT_AI,
+  ];
+}
 
 /** A repository with guides: the sample repository, opened on GitHub and
  * given SKILL.md and CODEBASE.md by a real codebase-only `init`. */
