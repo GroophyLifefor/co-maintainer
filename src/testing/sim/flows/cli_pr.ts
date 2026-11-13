@@ -970,7 +970,7 @@ function flowChecks(sim: Sim): CheckResult[] {
       "--json findings, summary counts and exit code agree",
       (() => {
         if (!parsed) return false;
-        const summary = parsed.summary as Json;
+        const summary = (parsed.summary ?? {}) as Json;
         const blocking = findings.filter((row) => row.blocking === true);
         return (
           findings.length === 3 &&
@@ -995,8 +995,8 @@ function flowChecks(sim: Sim): CheckResult[] {
         const used = reviewCompletions(sim, STEP.json);
         const usage = parsed.usage as Json;
         return (
-          usage.tokensIn === used.reduce((sum, c) => sum + c.tokensIn, 0) &&
-          usage.tokensOut === used.reduce((sum, c) => sum + c.tokensOut, 0) &&
+          usage?.tokensIn === used.reduce((sum, c) => sum + c.tokensIn, 0) &&
+          usage?.tokensOut === used.reduce((sum, c) => sum + c.tokensOut, 0) &&
           used.length === 1
         );
       })(),
