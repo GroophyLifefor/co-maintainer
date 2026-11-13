@@ -112,12 +112,14 @@ async function withServe(
     "CM_REPOS_DIR",
     "CM_CONFIG_PATH",
     "XDG_CACHE_HOME",
+    "XDG_CONFIG_HOME",
   ].map((name) => [name, getEnv(name)] as const);
   const dir = tempDirSync();
   setEnv("CM_APP_DB", `${dir}/app.db`);
   setEnv("CM_REPOS_DIR", `${dir}/repos`);
   setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
   setEnv("XDG_CACHE_HOME", `${dir}/cache`);
+  setEnv("XDG_CONFIG_HOME", `${dir}/config-home`);
   await mkdirPath(`${dir}/repos/acme/widgets`, { recursive: true });
   await writeTextFile(
     `${dir}/repos/acme/widgets/PR_REVIEW_GUIDE.md`,

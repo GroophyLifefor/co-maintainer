@@ -8,9 +8,9 @@ import {
   getEnv,
   readDir,
   setEnv,
-  tempDirSync,
   writeTextFile,
 } from "../testing/runtime.ts";
+import { withIsolatedHome } from "../testing/isolated_home.ts";
 import { runExtensionCommand } from "./command.ts";
 import { readRegistrations } from "./registry.ts";
 import { extensionsRoot } from "./run_folder.ts";
@@ -18,16 +18,11 @@ import { extensionsRoot } from "./run_folder.ts";
 const posixOnly = { skip: process.platform === "win32" };
 
 async function withConfig(fn: (dir: string) => Promise<void>): Promise<void> {
-  const original = getEnv("CM_CONFIG_PATH");
   const originalDisabled = getEnv("CM_EXTENSIONS_DISABLED");
-  const dir = tempDirSync();
-  setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
   deleteEnv("CM_EXTENSIONS_DISABLED");
   try {
-    await fn(dir);
+    await withIsolatedHome(fn);
   } finally {
-    if (original === undefined) deleteEnv("CM_CONFIG_PATH");
-    else setEnv("CM_CONFIG_PATH", original);
     if (originalDisabled === undefined) deleteEnv("CM_EXTENSIONS_DISABLED");
     else setEnv("CM_EXTENSIONS_DISABLED", originalDisabled);
     process.exitCode = 0;

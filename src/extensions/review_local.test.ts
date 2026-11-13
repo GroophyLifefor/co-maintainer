@@ -120,6 +120,8 @@ async function setup(root: string): Promise<{
       CM_FAKE_AI: "1",
       LOCALAPPDATA: `${root}/localappdata`,
       XDG_CACHE_HOME: `${root}/cache`,
+      XDG_CONFIG_HOME: `${root}/config-home`,
+      HOME: `${root}/home`,
     },
   };
 }
