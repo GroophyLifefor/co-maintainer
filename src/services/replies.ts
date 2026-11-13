@@ -18,6 +18,7 @@ import {
 import { findFindingByPostedComment } from "../store/findings.ts";
 import { plainSuggestionFences } from "../pr/suggestion.ts";
 import { enqueue, type LogFn, registerHandler } from "./jobs.ts";
+import { recordAiCost } from "./setup.ts";
 import { getJob } from "../store/jobs.ts";
 import type { JobRow, ReplyRequestRow } from "../store/rows.ts";
 import { getEnv } from "../util/runtime.ts";
@@ -259,6 +260,9 @@ async function runReplyJobCore(
       },
       5,
     );
+    // Every other server job keeps its AI cost, so a reply's must not go
+    // unrecorded.
+    await recordAiCost(request.repo, "reply_to_github_comment", response);
     answer = response.text.trim();
     if (!answer) throw new Error("AI returned an empty reply");
     setReplyStatus(request.id, "ready", { answer_md: answer });
