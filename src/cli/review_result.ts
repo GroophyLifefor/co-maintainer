@@ -529,7 +529,9 @@ export type LocalReviewJsonInput = {
   coverage?: Coverage;
   extensions?: ExtensionReport;
   includeExtensionMarkdowns?: boolean;
-  /** `subject.intent`: how the intent came in, `null` when none was given. */
+  /** `subject.intent`: how the intent came in. Left out of the result when
+   * none was given, so a review without the flag prints the result it always
+   * printed. */
   intent?: IntentRecord | null;
 };
 
@@ -551,7 +553,9 @@ export type PrReviewJsonInput = {
   coverage?: Coverage;
   extensions?: ExtensionReport;
   includeExtensionMarkdowns?: boolean;
-  /** `subject.intent`: how the intent came in, `null` when none was given. */
+  /** `subject.intent`: how the intent came in. Left out of the result when
+   * none was given, so a review without the flag prints the result it always
+   * printed. */
   intent?: IntentRecord | null;
 };
 
@@ -591,7 +595,7 @@ export function buildPrReviewJson(input: PrReviewJsonInput): string {
       repo: input.repo,
       branch: null,
       prNumber: input.prNumber,
-      intent: input.intent ?? null,
+      ...(input.intent ? { intent: input.intent } : {}),
     },
     revision,
     guide: { builtAt: input.guideBuiltAt },
@@ -623,7 +627,7 @@ export function buildLocalReviewJson(input: LocalReviewJsonInput): string {
       repo: input.repo,
       branch: input.branch,
       prNumber: null,
-      intent: input.intent ?? null,
+      ...(input.intent ? { intent: input.intent } : {}),
     },
     base: { toBranch: input.baseLabel, label: input.baseLabel },
     revision,

@@ -74,6 +74,13 @@ type HandshakeResponse = {
   ai?: { provider: string };
 };
 
+/** The subject of a server's result without an `intent` of its own. */
+function withoutIntent(subject: unknown): Record<string, unknown> {
+  if (typeof subject !== "object" || subject === null) return {};
+  const { intent: _intent, ...rest } = subject as Record<string, unknown>;
+  return rest;
+}
+
 const LOCAL_BYOK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
 
 /** A plain-http, non-local host means the BYOK key travels in the clear.
@@ -415,8 +422,8 @@ export async function runRemoteReview(
               // The client knows how the intent came in, so a server cannot
               // say otherwise.
               subject: {
-                ...(payload.result.subject as object | undefined),
-                intent: intentRecord(intent),
+                ...withoutIntent(payload.result.subject),
+                ...(intent ? { intent: intentRecord(intent) } : {}),
               },
               ...(clientWarnings.length > 0
                 ? {

@@ -104,7 +104,10 @@ test("--intent-file: the intent reaches the prompt, the system prompt is unchang
         JSON.stringify({ source: "file", chars: INTENT.length }),
       JSON.stringify(result.subject),
     );
-    must(JSON.parse(plain.stdout).subject.intent === null, "plain is null");
+    must(
+      !("intent" in JSON.parse(plain.stdout).subject),
+      "a plain review has an intent key",
+    );
     for (const out of [given.stdout, given.stderr]) {
       must(!out.includes(INTENT), "the intent text was printed");
     }
@@ -181,7 +184,7 @@ test("--intent-file: an empty file is no intent and one warning", async () => {
     ]);
     must(result.code === 0, result.stderr);
     const body = JSON.parse(result.stdout);
-    must(body.subject.intent === null, "an empty file recorded an intent");
+    must(!("intent" in body.subject), "an empty file recorded an intent");
     const codes = body.warnings.map((w: { code: string }) => w.code);
     must(
       codes.filter((c: string) => c === "intent_empty").length === 1,

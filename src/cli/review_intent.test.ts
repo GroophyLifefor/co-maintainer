@@ -249,7 +249,7 @@ test("subject.intent is in local and pull request results", () => {
   const none = JSON.parse(
     buildPrReviewJson({ ...base, prNumber: 4, markdown: "" }),
   );
-  must(none.subject.intent === null, "null without an intent");
+  must(!("intent" in none.subject), "a key without an intent");
 });
 
 test("the human output and the job summary carry the line only when an intent was given", () => {

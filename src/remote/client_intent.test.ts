@@ -129,7 +129,7 @@ test("a result from a server cannot change what the client says about the intent
       const result = await ctx.run([], { json: true });
       must(result.code === 0, `${result.stdout}\n${result.stderr}`);
       const body = JSON.parse(result.stdout);
-      must(body.subject.intent === null, JSON.stringify(body.subject));
+      must(!("intent" in body.subject), JSON.stringify(body.subject));
       must(body.subject.repo === "x/y", "the rest of the subject is kept");
     },
   );
@@ -162,7 +162,7 @@ test("an older server is not sent the text, and the run warns and still reviews"
       );
       const body = JSON.parse(result.stdout);
       must(body.ok === true, "the review did not run");
-      must(body.subject.intent === null, JSON.stringify(body.subject));
+      must(!("intent" in body.subject), JSON.stringify(body.subject));
       const codes = body.warnings.map((w: { code: string }) => w.code);
       must(
         JSON.stringify(codes) === JSON.stringify(["intent_unsupported"]),
@@ -183,7 +183,7 @@ test("without the flag the description stays empty and nothing is added to the r
     must(result.code === 0, `${result.stdout}\n${result.stderr}`);
     must(submitted(ctx.remote)?.revision.description === "", "description");
     const body = JSON.parse(result.stdout);
-    must(body.subject.intent === null, "intent");
+    must(!("intent" in body.subject), "intent");
     must(body.warnings === undefined, "warnings");
   });
 });
@@ -197,7 +197,7 @@ test("an empty file sends nothing and warns once", async () => {
     must(result.code === 0, `${result.stdout}\n${result.stderr}`);
     must(submitted(ctx.remote)?.revision.description === "", "description");
     const body = JSON.parse(result.stdout);
-    must(body.subject.intent === null, "intent");
+    must(!("intent" in body.subject), "intent");
     must(
       JSON.stringify(body.warnings.map((w: { code: string }) => w.code)) ===
         JSON.stringify(["intent_empty"]),

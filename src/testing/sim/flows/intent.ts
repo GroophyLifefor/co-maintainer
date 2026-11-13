@@ -310,6 +310,13 @@ function jsonOf(run: CliRun | undefined): Json | undefined {
 const intentOf = (json: Json | undefined) =>
   (json?.subject as Json | undefined)?.intent;
 
+/** True when the result's subject has no `intent` key: a review that was
+ * given none prints the subject it always printed. */
+const hasNoIntent = (json: Json | undefined): boolean => {
+  const subject = json?.subject as Json | undefined;
+  return subject !== undefined && !("intent" in subject);
+};
+
 const findingsOf = (json: Json | undefined): Json[] =>
   (json?.findings as Json[] | undefined) ?? [];
 
@@ -728,8 +735,8 @@ function localChecks(sim: Sim): CheckResult[] {
       noneMention(plainCalls) &&
         blockOf(plainCalls[0]?.firstUser ?? "", "WORKSPACE")?.json?.intent ===
           undefined &&
-        intentOf(plain?.json) === null,
-      `subject.intent ${JSON.stringify(intentOf(plain?.json))}`,
+        hasNoIntent(plain?.json),
+      `subject ${JSON.stringify(plain?.json?.subject)}`,
     ),
     check(
       "local: --json records the source and the length of the intent, never its text",
@@ -753,7 +760,7 @@ function localChecks(sim: Sim): CheckResult[] {
     check(
       "local: an empty file is no intent, one warning, and the review runs without it",
       ran(empty?.cli) &&
-        intentOf(empty?.json) === null &&
+        hasNoIntent(empty?.json) &&
         warningCodes(empty?.json).filter((code) => code === "intent_empty")
           .length === 1 &&
         noneMention(localCalls(empty)),
@@ -844,8 +851,8 @@ function prChecks(sim: Sim): CheckResult[] {
     ),
     check(
       "pull request: a review without --intent-file mentions no intent",
-      noneMention(plainCalls) && intentOf(plain?.json) === null,
-      `subject.intent ${JSON.stringify(intentOf(plain?.json))}`,
+      noneMention(plainCalls) && hasNoIntent(plain?.json),
+      `subject ${JSON.stringify(plain?.json?.subject)}`,
     ),
     check(
       "pull request: --json records the source and the length of the intent, never its text",
@@ -935,8 +942,8 @@ function remoteChecks(sim: Sim): CheckResult[] {
     ),
     check(
       "remote: a review without --intent-file mentions no intent",
-      noneMention(plainCalls) && intentOf(plain?.json) === null,
-      `subject.intent ${JSON.stringify(intentOf(plain?.json))}`,
+      noneMention(plainCalls) && hasNoIntent(plain?.json),
+      `subject ${JSON.stringify(plain?.json?.subject)}`,
     ),
     check(
       "remote: --json records the source and the length of the intent, never its text",
@@ -975,7 +982,7 @@ function remoteChecks(sim: Sim): CheckResult[] {
         submitted(sim, STEP.remoteOld) === "" &&
         JSON.stringify(warningCodes(older?.json)) ===
           JSON.stringify(["intent_unsupported"]) &&
-        intentOf(older?.json) === null &&
+        hasNoIntent(older?.json) &&
         noneMention(olderCalls) &&
         olderCalls.length > 0,
       `exit ${older?.exitCode} · ${warningCodes(older?.json)} · ${olderCalls.length} requests`,
