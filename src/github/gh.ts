@@ -12,6 +12,7 @@ import {
   commandOutput,
   commandWithInput,
   getEnv,
+  type CommandOptions,
   type CommandOutput,
 } from "../util/runtime.ts";
 
@@ -28,6 +29,34 @@ function ghSpawn(): { command: string; prefix: string[] } {
   if (!bin) return { command: "gh", prefix: [] };
   const script = getEnv("CM_GH_SCRIPT");
   return { command: bin, prefix: script ? [script] : [] };
+}
+
+/** Answers a `gh` call in this process. `input` is the body sent on stdin. */
+export type GhRunner = (
+  args: string[],
+  input?: string,
+) => Promise<CommandOutput>;
+
+let ghRunner: GhRunner | undefined;
+
+/** Test seam: `e2e:simulate` answers `gh` in its own process, because a
+ * child process cannot reach the GitHub it simulates in memory. Unset means
+ * the `gh` process, so production behaviour is unchanged. */
+export function setGhRunner(runner: GhRunner | undefined): void {
+  ghRunner = runner;
+}
+
+function runGh(args: string[], input?: string): Promise<CommandOutput> {
+  if (ghRunner) return ghRunner(args, input);
+  const { command, prefix } = ghSpawn();
+  const options: CommandOptions = {
+    args: [...prefix, ...args],
+    stdout: "piped",
+    stderr: "piped",
+  };
+  return input === undefined
+    ? commandOutput(command, options)
+    : commandWithInput(command, { ...options, stdin: "piped" }, input);
 }
 
 type QuotaRow = { limit?: number; remaining?: number; reset?: number };
@@ -110,12 +139,7 @@ export function quotaLine(body: QuotaBody): string {
 
 async function printQuota(): Promise<void> {
   try {
-    const { command, prefix } = ghSpawn();
-    const result = await commandOutput(command, {
-      args: [...prefix, "api", "rate_limit"],
-      stdout: "piped",
-      stderr: "piped",
-    });
+    const result = await runGh(["api", "rate_limit"]);
     if (!result.success) return;
     log(
       "debug",
@@ -152,12 +176,7 @@ function noteGhCall(debug: boolean): void {
 
 async function readLimit(endpoint: string): Promise<Bucket | undefined> {
   try {
-    const { command, prefix } = ghSpawn();
-    const result = await commandOutput(command, {
-      args: [...prefix, "api", "rate_limit"],
-      stdout: "piped",
-      stderr: "piped",
-    });
+    const result = await runGh(["api", "rate_limit"]);
     if (!result.success) return undefined;
     const body = JSON.parse(
       new TextDecoder().decode(result.stdout),
@@ -186,14 +205,7 @@ export class GhClient implements GitHubClient {
   }
 
   request<T>(endpoint: string): Promise<T> {
-    return this.call("GET", endpoint, () => {
-      const { command, prefix } = ghSpawn();
-      return commandOutput(command, {
-        args: [...prefix, "api", endpoint],
-        stdout: "piped",
-        stderr: "piped",
-      });
-    });
+    return this.call("GET", endpoint, () => runGh(["api", endpoint]));
   }
 
   write<T>(endpoint: string, body: unknown): Promise<T> {
@@ -221,19 +233,12 @@ export class GhClient implements GitHubClient {
     method: "POST" | "PATCH",
     body: unknown,
   ): Promise<T> {
-    return this.call(method, endpoint, () => {
-      const { command, prefix } = ghSpawn();
-      return commandWithInput(
-        command,
-        {
-          args: [...prefix, "api", "-X", method, endpoint, "--input", "-"],
-          stdin: "piped",
-          stdout: "piped",
-          stderr: "piped",
-        },
+    return this.call(method, endpoint, () =>
+      runGh(
+        ["api", "-X", method, endpoint, "--input", "-"],
         JSON.stringify(body),
-      );
-    });
+      ),
+    );
   }
 
   private async call<T>(

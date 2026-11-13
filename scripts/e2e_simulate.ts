@@ -1,48 +1,32 @@
 /** e2e:simulate: co-maintainer's features run in a simulated world.
  *
  *   npm run e2e:simulate
+ *   npm run e2e:simulate -- --flow=init
  *   npm run e2e:simulate -- --ai=openrouter --ai-key=... --low-model=... --high-model=...
  *
  * No GitHub repository, no GitHub App, no server process: everything runs in
  * this process. GitHub lives in memory over real git repositories in a
- * sandbox, `fetch` is caught so nothing leaves the machine, and the product's
- * own functions are called directly. Without `--ai` a fake AI answers; with it
- * the real provider does, and costs money.
+ * sandbox, `fetch` and `gh` are caught so nothing leaves the machine, and the
+ * product's own functions are called directly. Without `--ai` each flow's
+ * fake AI script answers; with it the real provider does, and costs money.
  *
+ * Each flow is a file under `src/testing/sim/flows/`. This script only parses
+ * the flags and runs the registered flows, each in its own world.
  * Deterministic checks fail the run. Scores are only reported. Each step is
  * one terminal line; `--output=<dir>` also writes a JSON file per run with the
- * summary and the full trace (GitHub and AI calls, logs, git commands, files
- * and database rows).
- *
- * This first version covers `init`, codebase only. */
+ * summary and, per flow, the full trace (GitHub, AI and remote calls, webhook
+ * deliveries, GitHub writes, logs, git commands, files and database rows). */
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Options } from "../src/types.ts";
-import {
-  initChecks,
-  initScores,
-  type InitContext,
-} from "../src/testing/sim/checks/init.ts";
-import { installFetch } from "../src/testing/sim/fetch.ts";
+import { type FlowResult, runFlow } from "../src/testing/sim/flow.ts";
+import { FLOWS } from "../src/testing/sim/flows/index.ts";
 import {
   printCheck,
   printScore,
   printStep,
   writeReport,
-  type StepResult,
 } from "../src/testing/sim/report.ts";
-import {
-  SAMPLE_REPO,
-  SAMPLE_REPO_NAME,
-} from "../src/testing/sim/sample_repo.ts";
-import {
-  dumpDatabase,
-  readFiles,
-  readGitTrace,
-  Trace,
-} from "../src/testing/sim/trace.ts";
-import { createWorld } from "../src/testing/sim/world.ts";
 
 const ROOT = join(import.meta.dirname, "..");
 const PROVIDERS = [
@@ -56,6 +40,7 @@ type Provider = (typeof PROVIDERS)[number];
 
 const USAGE = `Usage: npm run e2e:simulate -- [options]
 
+  --flow=<name>         run only this flow, repeat or comma separate for more
   --ai=<provider>       run with a real AI: ${PROVIDERS.join(", ")}
   --ai-key=<key>        that provider's key
   --low-model=<id>      the low model
@@ -64,9 +49,12 @@ const USAGE = `Usage: npm run e2e:simulate -- [options]
   --judge-key=<key>     the judge's key
   --judge-model=<id>    the judge's model
   --output=<dir>        write a JSON report of the run into this directory
+  --keep                keep each flow's sandbox directory after the run
 
-Without --ai the fake AI answers. The four --ai flags go together, and so do
-the three --judge flags.`;
+Flows: ${FLOWS.map((flow) => flow.name).join(", ")}
+
+Without --flow every flow runs. Without --ai the fake AI answers. The four
+--ai flags go together, and so do the three --judge flags.`;
 
 type Flags = {
   ai?: Provider;
@@ -95,15 +83,35 @@ function usageError(message: string): never {
   process.exit(2);
 }
 
-function parseFlags(args: string[]): Flags {
+function parseFlags(args: string[]): {
+  flags: Flags;
+  flows: string[];
+  keep: boolean;
+} {
   const flags: Record<string, string> = {};
+  const flows: string[] = [];
+  let keep = false;
   for (const arg of args) {
     if (arg === "--help" || arg === "-h") {
       console.log(USAGE);
       process.exit(0);
     }
+    if (arg === "--keep") {
+      keep = true;
+      continue;
+    }
     const at = arg.indexOf("=");
-    const key = FLAG_NAMES[at > 0 ? arg.slice(0, at) : arg];
+    const name = at > 0 ? arg.slice(0, at) : arg;
+    if (name === "--flow" && at > 0 && at < arg.length - 1) {
+      flows.push(
+        ...arg
+          .slice(at + 1)
+          .split(",")
+          .filter(Boolean),
+      );
+      continue;
+    }
+    const key = FLAG_NAMES[name];
     if (!key || at < 0 || at === arg.length - 1) {
       usageError(`Unknown or empty flag: ${arg}`);
     }
@@ -124,188 +132,86 @@ function parseFlags(args: string[]): Flags {
       usageError(`The ${label} flags go together, and one of them is missing.`);
     }
   }
-  return flags as Flags;
+  const known = new Set(FLOWS.map((flow) => flow.name));
+  const unknown = flows.filter((name) => !known.has(name));
+  if (unknown.length) usageError(`Unknown flow: ${unknown.join(", ")}`);
+  return { flags: flags as Flags, flows, keep };
 }
 
-const flags = parseFlags(process.argv.slice(2));
+const { flags, flows: chosen, keep } = parseFlags(process.argv.slice(2));
 const mode = flags.ai ? "live" : "fake";
 const version = (
   JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as {
     version: string;
   }
 ).version;
-// Read before the world sets GIT_TRACE2_EVENT, so it stays out of the trace.
+// Read before any world sets GIT_TRACE2_EVENT, so it stays out of the trace.
 const commit = spawnSync("git", ["rev-parse", "HEAD"], { cwd: ROOT })
   .stdout.toString()
   .trim();
 
-const options: Options = {
-  command: "init",
-  repo: SAMPLE_REPO_NAME,
-  debug: false,
-  logTime: false,
-  improveMatrix: 1,
-  ghConcurrent: 4,
-  aiConcurrent: 3,
-  auth: "pat",
-  githubPat: "simulate-token",
-  // The fake AI answers OpenRouter's protocol through the caught fetch.
-  ai: flags.ai ?? "openrouter",
-  aiToken: flags.aiKey ?? "simulate-key",
-  lowModel: flags.lowModel ?? "simulate/low",
-  highModel: flags.highModel ?? "simulate/high",
-  synthesisVersion: 17,
-  includeCodebase: true,
-  includePullRequests: false,
-  includePullRequestChanges: false,
-  includeCommitHistory: false,
-  includeHowRepoWorks: false,
-  onlyRequestChangedPr: false,
-  maxPrMonths: 12,
-};
-
 const started = performance.now();
 const startedAt = new Date().toISOString();
-const steps: StepResult[] = [];
-let failed = false;
+const flows = chosen.length
+  ? FLOWS.filter((flow) => chosen.includes(flow.name))
+  : FLOWS;
+const settings = {
+  mode,
+  provider: flags.ai ?? "openrouter",
+  aiKey: flags.aiKey,
+  lowModel: flags.lowModel ?? "simulate/low",
+  highModel: flags.highModel ?? "simulate/high",
+  judge: flags.judgeAi
+    ? {
+        provider: flags.judgeAi,
+        key: flags.judgeKey ?? "",
+        model: flags.judgeModel ?? "",
+      }
+    : undefined,
+  origin: started,
+} as const;
 
-function finishStep(name: string, from: number, ok: boolean, detail: string) {
-  const step = {
-    name,
-    ok,
-    startMs: Math.round(from - started),
-    ms: performance.now() - from,
-    detail,
-  };
-  steps.push(step);
-  printStep(step);
-  if (!ok) failed = true;
+const results: FlowResult[] = [];
+for (const flow of flows) {
+  results.push(
+    await runFlow(
+      flow,
+      settings,
+      { step: printStep, check: printCheck, score: printScore },
+      keep,
+    ),
+  );
 }
+const failed = results.some((result) => !result.passed);
 
-let at = performance.now();
-const world = createWorld();
-const trace = new Trace(started);
-const restoreFetch = installFetch({ world, trace, ai: mode });
-finishStep("sandbox ready", at, true, world.root);
-
-try {
-  at = performance.now();
-  const repo = world.createRepo(SAMPLE_REPO_NAME, SAMPLE_REPO);
-  finishStep(
-    "repo opened",
-    at,
-    true,
-    `${repo.fullName} · ${Object.keys(SAMPLE_REPO).length} files`,
-  );
-
-  // Product modules load only now, after the world has set the env.
-  const { runInitOrRemake } = await import("../src/services/setup.ts");
-  const { withLogSink } = await import("../src/util/log.ts");
-  const { cacheDbPath, reposDir } = await import("../src/config.ts");
-  const { appDbPath } = await import("../src/store/app_db.ts");
-
-  at = performance.now();
-  trace.step = "init";
-  let error: unknown;
-  try {
-    await withLogSink(
-      (phase, message) => trace.log(phase, message),
-      () => runInitOrRemake({ ...options }),
-    );
-  } catch (caught) {
-    error = caught;
-  }
-  const initCalls = (list: { step: string }[]) =>
-    list.filter((call) => call.step === "init").length;
-  finishStep(
-    "init",
-    at,
-    error === undefined,
-    `${mode} AI · ${initCalls(trace.ai)} AI calls · ${initCalls(trace.github)} GitHub calls`,
-  );
-
-  const context: InitContext = {
-    repo: SAMPLE_REPO_NAME,
-    reposDir: reposDir(),
-    appDbPath: appDbPath(),
-    cacheDbPath: cacheDbPath(),
-    error,
-    trace,
-    ai: mode,
-    files: SAMPLE_REPO,
+if (flags.output) {
+  const report = {
+    tool: "e2e:simulate",
+    version,
+    commit,
+    startedAt,
+    durationMs: Math.round(performance.now() - started),
+    passed: !failed,
+    ai: {
+      mode,
+      provider: settings.provider,
+      lowModel: settings.lowModel,
+      highModel: settings.highModel,
+    },
     judge: flags.judgeAi
-      ? {
-          options: { ...options, ai: flags.judgeAi, aiToken: flags.judgeKey },
-          model: flags.judgeModel ?? "",
-        }
-      : undefined,
+      ? { provider: flags.judgeAi, model: flags.judgeModel }
+      : null,
+    flows: results,
   };
-  // Its own step, so the judge's time shows apart from init's.
-  at = performance.now();
-  trace.step = "judge";
-  const scores = await initScores(context);
-  const judged = scores.find((score) => score.name.includes("LLM judge"));
-  finishStep(
-    "judge",
-    at,
-    true,
-    judged?.skipped ? `skipped · ${judged.skipped}` : (judged?.detail ?? ""),
-  );
-  // After the judge, so a call the judge sent out of the simulation fails the
-  // run too, even when its score is only skipped.
-  const checks = initChecks(context);
-  for (const check of checks) {
-    printCheck(check);
-    if (!check.ok) failed = true;
+  let text = JSON.stringify(report);
+  for (const secret of [flags.aiKey, flags.judgeKey]) {
+    if (secret) text = text.replaceAll(secret, "[redacted]");
   }
-  for (const score of scores) printScore(score);
-
-  if (flags.output) {
-    const report = {
-      tool: "e2e:simulate",
-      version,
-      commit,
-      startedAt,
-      durationMs: Math.round(performance.now() - started),
-      passed: !failed,
-      ai: {
-        mode,
-        provider: options.ai,
-        lowModel: options.lowModel,
-        highModel: options.highModel,
-      },
-      judge: flags.judgeAi
-        ? { provider: flags.judgeAi, model: flags.judgeModel }
-        : null,
-      steps,
-      checks,
-      scores,
-      trace: {
-        github: trace.github,
-        ai: trace.ai,
-        leaks: trace.leaks,
-        logs: trace.logs,
-        git: readGitTrace(world.gitTracePath, Date.parse(startedAt)),
-        files: readFiles(reposDir()),
-        databases: {
-          app: dumpDatabase(appDbPath()),
-          cache: dumpDatabase(cacheDbPath()),
-        },
-      },
-    };
-    let text = JSON.stringify(report);
-    for (const secret of [flags.aiKey, flags.judgeKey]) {
-      if (secret) text = text.replaceAll(secret, "[redacted]");
-    }
-    const path = writeReport(flags.output, commit, JSON.parse(text));
-    console.log(`report ${path}`);
-  }
-} finally {
-  restoreFetch();
-  world.dispose();
+  const path = writeReport(flags.output, commit, JSON.parse(text));
+  console.log(`report ${path}`);
 }
 
 console.log(
-  `e2e:simulate ${failed ? "failed" : "ok"} · ${((performance.now() - started) / 1000).toFixed(2)}s`,
+  `e2e:simulate ${failed ? "failed" : "ok"} · ${results.length} flow${results.length === 1 ? "" : "s"} · ${((performance.now() - started) / 1000).toFixed(2)}s`,
 );
 process.exitCode = failed ? 1 : 0;

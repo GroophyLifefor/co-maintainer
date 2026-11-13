@@ -22,9 +22,66 @@ export type HttpCall = {
 export type GithubCall = HttpCall & {
   /** False when the simulated GitHub has no route for the call. */
   handled: boolean;
+  /** `gh` when the product reached GitHub through the `gh` stand-in. */
+  via: "fetch" | "gh";
+  /** The fault the call met on purpose, e.g. `500`. */
+  fault?: string;
 };
 
-export type AiCall = HttpCall & { mode: "fake" | "live" };
+export type AiCall = HttpCall & {
+  mode: "fake" | "live";
+  /** The job name the product gave the call. */
+  job?: string;
+  /** The fake AI rule that answered. */
+  rule?: string;
+  /** True when no fake AI rule matched the call. */
+  unscripted?: boolean;
+  fault?: string;
+};
+
+/** A call to the simulated remote server, answered by its real routes. */
+export type RemoteCall = HttpCall & { fault?: string };
+
+/** A webhook handed to the server's real handler. */
+export type WebhookDelivery = {
+  step: string;
+  startMs: number;
+  event: string;
+  action?: string;
+  deliveryId: string;
+  status: number;
+  response: unknown;
+};
+
+/** One `complete()` on a provider: what the product sent and got back,
+ * however many HTTP calls it took. Checks and scores read these, so they do
+ * not depend on any provider's wire format. */
+export type Completion = {
+  step: string;
+  startMs: number;
+  job: string;
+  ok: boolean;
+  /** The system prompt, every system message joined. */
+  system: string;
+  /** The first user message: one conversation keeps it across rounds. */
+  firstUser: string;
+  tokensIn: number;
+  tokensOut: number;
+  cost: number | null;
+  /** Tools the model asked for in this answer. */
+  toolCalls: number;
+  error?: string;
+};
+
+/** A server job the flow ran to its end. */
+export type JobRun = {
+  step: string;
+  id: string;
+  type: string;
+  repo: string;
+  status: string;
+  error: string | null;
+};
 
 export type GitCommand = {
   argv: string[];
@@ -39,6 +96,10 @@ export class Trace {
   step = "setup";
   readonly github: GithubCall[] = [];
   readonly ai: AiCall[] = [];
+  readonly remote: RemoteCall[] = [];
+  readonly webhooks: WebhookDelivery[] = [];
+  readonly completions: Completion[] = [];
+  readonly jobs: JobRun[] = [];
   /** Network calls the simulation refused: neither GitHub nor an allowed AI
    * host. */
   readonly leaks: {
