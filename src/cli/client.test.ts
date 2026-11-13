@@ -785,3 +785,102 @@ test("a key in the environment is never sent unless --remote-byok asked for it",
     },
   );
 });
+
+// A repository without guides, as the server answers it today. The status and
+// the code are what an older client already reads, so they must not change.
+const NO_GUIDES_REFUSAL = {
+  status: 409,
+  code: "not_initialized",
+  message: "Sorry, we could not access this repository.",
+};
+
+for (const mode of ["json", "github", "human"] as const) {
+  test(`review --remote: a repository without guides is not_initialized with exit 2 (${mode})`, async () => {
+    await withByokWorktreeReview(
+      {
+        json: mode === "json",
+        reviewArgs: mode === "github" ? ["--output=github"] : [],
+        fakeRemote: { handshakeRefusal: NO_GUIDES_REFUSAL },
+      },
+      ({ code, stdout, stderr, remote }) => {
+        if (code !== 2) throw new Error(`exit ${code}\n${stdout}\n${stderr}`);
+        const hint = "co-maintainer init e2e-exit/remote";
+        if (mode === "json") {
+          const body = JSON.parse(stdout);
+          if (body.error?.code !== "not_initialized") throw new Error(stdout);
+          if (body.exitCode !== 2 || body.error.hint !== hint) {
+            throw new Error(stdout);
+          }
+        } else {
+          if (
+            !stderr.includes("Review guides are missing for e2e-exit/remote")
+          ) {
+            throw new Error(stderr);
+          }
+          if (!stderr.includes(`Hint: ${hint}`)) throw new Error(stderr);
+          if (stdout.trim() !== "") throw new Error(stdout);
+        }
+        if (remote.requests.some((r) => r.path === "/api/remote/reviews")) {
+          throw new Error(
+            "a review was submitted for a repository with no guides",
+          );
+        }
+      },
+    );
+  });
+}
+
+test("review --remote: a repository the server does not know is not the same error", async () => {
+  await withByokWorktreeReview(
+    {
+      fakeRemote: {
+        handshakeRefusal: {
+          status: 404,
+          code: "repo_unavailable",
+          message: "Sorry, we could not access this repository.",
+        },
+      },
+    },
+    ({ code, stdout, stderr }) => {
+      if (code !== 2) throw new Error(`exit ${code}\n${stdout}\n${stderr}`);
+      const body = JSON.parse(stdout);
+      if (body.error?.code !== "repo_unavailable") throw new Error(stdout);
+      if (/init/.test(body.error.hint ?? "")) throw new Error(stdout);
+    },
+  );
+});
+
+test("review --remote: a refusal without a code stays remote_handshake_failed", async () => {
+  await withByokWorktreeReview(
+    {
+      fakeRemote: {
+        handshakeRefusal: { status: 409, message: "Something else." },
+      },
+    },
+    ({ code, stdout, stderr }) => {
+      if (code !== 2) throw new Error(`exit ${code}\n${stdout}\n${stderr}`);
+      const body = JSON.parse(stdout);
+      if (body.error?.code !== "remote_handshake_failed") {
+        throw new Error(stdout);
+      }
+      if (body.error.message !== "Something else.") throw new Error(stdout);
+    },
+  );
+});
+
+test("review --remote --range: a repository without guides is not_initialized with exit 2", async () => {
+  await withByokWorktreeReview(
+    {
+      reviewArgs: ["--range=HEAD~1..HEAD"],
+      fakeRemote: { handshakeRefusal: NO_GUIDES_REFUSAL },
+    },
+    ({ code, stdout, stderr }) => {
+      if (code !== 2) throw new Error(`exit ${code}\n${stdout}\n${stderr}`);
+      const body = JSON.parse(stdout);
+      if (body.error?.code !== "not_initialized") throw new Error(stdout);
+      if (body.error.hint !== "co-maintainer init e2e-exit/remote") {
+        throw new Error(stdout);
+      }
+    },
+  );
+});

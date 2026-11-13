@@ -127,6 +127,38 @@ test("remote handshake refuses a repository whose knowledge was cleared", async 
     if (body.error?.code !== "not_initialized") {
       throw new Error(JSON.stringify(body));
     }
+    // An older client prints the text, so it has to say what is missing.
+    if (!/Review guides are missing for Owner\/Repo/.test(body.error.message)) {
+      throw new Error(JSON.stringify(body));
+    }
+  });
+});
+
+test("remote handshake keeps an unknown repository apart from one without guides", async () => {
+  await withEnv(async () => {
+    const { token } = await createRemoteToken("cli");
+    const app = createApp({ password: PASSWORD });
+    const response = await app.fetch(
+      new Request("http://localhost/api/remote/handshake", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          schemaVersion: 1,
+          clientVersion: "0.3.0",
+          repo: "nobody/knows-this",
+        }),
+      }),
+    );
+    if (response.status !== 404) {
+      throw new Error(`status ${response.status}: ${await response.text()}`);
+    }
+    const body = await response.json();
+    if (body.error?.code !== "repo_unavailable") {
+      throw new Error(JSON.stringify(body));
+    }
   });
 });
 

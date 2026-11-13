@@ -93,6 +93,10 @@ test("review_cli: not_initialized without guides (E159)", async () => {
     if (body.exitCode !== 2) {
       throw new Error(`exitCode ${body.exitCode}`);
     }
+    // The same hint as pull request and remote review.
+    if (body.error.hint !== `co-maintainer init ${repo}`) {
+      throw new Error(JSON.stringify(body));
+    }
   } finally {
     await removePath(tmp, { recursive: true });
   }

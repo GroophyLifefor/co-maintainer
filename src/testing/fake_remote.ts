@@ -40,6 +40,9 @@ export type FakeRemoteOptions = {
    * add `features`/`byok`/`ai` without a real BYOK-capable server.
    * Omitting it keeps the response looking like a pre-BYOK 0.5.0 server. */
   handshake?: Record<string, unknown>;
+  /** Refuses the handshake with this status and error. A missing `code` leaves
+   * it out, the way a proxy or a very old server would. */
+  handshakeRefusal?: { status: number; code?: string; message: string };
 };
 
 const SYNC_DONE = {
@@ -96,6 +99,17 @@ export async function startFakeRemote(
           return;
         }
         if (req.url === "/api/remote/handshake") {
+          const refusal = options.handshakeRefusal;
+          if (refusal) {
+            send(refusal.status, {
+              error: {
+                ...(refusal.code ? { code: refusal.code } : {}),
+                message: refusal.message,
+                requestId: "fake",
+              },
+            });
+            return;
+          }
           send(200, {
             schemaVersion: 1,
             minClientSchema: 1,
