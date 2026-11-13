@@ -894,6 +894,10 @@ async function failure(sim: Sim): Promise<CheckResult> {
     write.path.endsWith(`/issues/${pull?.number}/comments`),
   );
   const noteBody = String(note ? bodyOf(note).body : "");
+  // The dashboard link holds a random job id and the server's origin, and
+  // either can contain "500" by chance. Only the words must not carry the
+  // provider error.
+  const noteWords = noteBody.replace(/\S*\/activity\/\S+/g, "");
   const run = sim.github.checkRuns.find(
     (item) => String(item.id) === review?.check_run_id,
   );
@@ -912,7 +916,7 @@ async function failure(sim: Sim): Promise<CheckResult> {
     noteBody.endsWith(`/activity/${job?.id}`)
       ? ""
       : `note ${JSON.stringify(noteBody)}`,
-    job?.error && !noteBody.includes(job.error) && !noteBody.includes("500")
+    job?.error && !noteWords.includes(job.error) && !noteWords.includes("500")
       ? ""
       : "the note carries the provider error",
     run?.conclusion === "failure" && run.output?.title === "Review job failed."
