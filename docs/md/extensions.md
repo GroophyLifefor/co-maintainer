@@ -45,7 +45,7 @@ nobody registered asks "Are you sure?" first. Without a terminal, pass `--yes`.
 
 ## The command
 
-co-maintainer runs your command through `/bin/sh -c` (`cmd /c` on Windows) and
+co-maintainer runs your command through `/bin/sh -c` (`cmd /d /s /c` on Windows) and
 replaces three variables with quoted paths:
 
 | Variable | What it points at |

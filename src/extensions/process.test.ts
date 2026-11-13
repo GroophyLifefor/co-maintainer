@@ -3,7 +3,19 @@
 import { test } from "node:test";
 import { tempDirSync, readTextFile } from "../testing/runtime.ts";
 import { isProcessAlive } from "../util/runtime.ts";
-import { runCommandOnce } from "./process.ts";
+import { runCommandOnce, shellArgs } from "./process.ts";
+
+test("on Windows the command is wrapped in one more pair of quotes for cmd /s", () => {
+  const command = `"C:\\Program Files\\nodejs\\node.exe" C:\\qa\\x.mjs "C:\\cm\\details.json" --json`;
+  const [, args] = shellArgs(command, true);
+  if (args.join(" ") !== `/d /s /c "${command}"`)
+    throw new Error(args.join(" "));
+  // cmd /s removes exactly the first and the last quote of what follows /c.
+  const seen = args[3]!.slice(1, -1);
+  if (seen !== command) throw new Error(seen);
+  const [shell, posix] = shellArgs(command, false);
+  if (shell !== "/bin/sh" || posix[1] !== command) throw new Error("posix");
+});
 
 const posixOnly = { skip: process.platform === "win32" };
 const OK = `{"schemaVersion":1,"name":"p","status":"ok","verdict":"comment"}`;

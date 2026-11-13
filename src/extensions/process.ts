@@ -171,12 +171,16 @@ function hookExit(): void {
  * closed from this side after this window and the run ends with what it read. */
 export const DRAIN_MS = 250;
 
+/** The arguments the shell gets. On Windows, `cmd /s /c` strips the first
+ * and the last quote of the line, so the command is wrapped in one more pair,
+ * the way Node's own `shell: true` does. Without it, a command that starts
+ * with a quoted path such as `"C:\Program Files\nodejs\node.exe"` breaks. */
 export function shellArgs(
   command: string,
   windows: boolean = isWindows(),
 ): [string, string[]] {
   return windows
-    ? [getEnv("ComSpec") ?? "cmd.exe", ["/d", "/s", "/c", command]]
+    ? [getEnv("ComSpec") ?? "cmd.exe", ["/d", "/s", "/c", `"${command}"`]]
     : ["/bin/sh", ["-c", command]];
 }
 
