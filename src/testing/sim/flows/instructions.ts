@@ -15,6 +15,7 @@ import {
   check,
   defineFlow,
   type Score,
+  scriptedCheck,
   type Sim,
 } from "../flow.ts";
 import {
@@ -445,11 +446,9 @@ export default defineFlow({
 
 const listOf = (items: unknown[]) => items.join(", ") || "none";
 
-function fakeOnly(sim: Sim, result: CheckResult): CheckResult {
-  return sim.mode === "fake"
-    ? result
-    : { ...result, ok: true, skipped: "reads the fake AI's answers" };
-}
+/** The rules are the model's wording: the fake one copies each bullet of the
+ * files and makes up two more. */
+const RULES_WHY = "the rules are the model's wording";
 
 function kept(sim: Sim, key: string): Kept | undefined {
   return sim.state[key] as Kept | undefined;
@@ -503,35 +502,40 @@ function initChecks(sim: Sim): CheckResult[] {
       ids.length > 0 && badSources(rules, AGENTS.first).length === 0,
       `bad: ${listOf(badSources(rules, AGENTS.first))}`,
     ),
-    fakeOnly(
+    scriptedCheck(
       sim,
-      check(
-        "the subfolder's rule carries its folder as scope",
-        nestedRules.length === 1 &&
-          nestedRules[0]![1].scope === "packages/billing/" &&
-          text.includes("- In `packages/billing/`: "),
-        nestedRules
-          .map(([id, entry]) => `${id} scope "${entry.scope}"`)
-          .join(", ") || "no rule from the subfolder",
-      ),
+      "the subfolder's rule carries its folder as scope",
+      nestedRules.length === 1 &&
+        nestedRules[0]![1].scope === "packages/billing/" &&
+        text.includes("- In `packages/billing/`: "),
+      nestedRules
+        .map(([id, entry]) => `${id} scope "${entry.scope}"`)
+        .join(", ") || "no rule from the subfolder",
+      RULES_WHY,
     ),
-    check(
+    scriptedCheck(
+      sim,
       "the instruction synthesis went to the high model once",
       calls.length === 1 && models[0] === high,
       `${calls.length} calls · model ${listOf(models)} · high ${high}`,
+      "a real model's call may fail and be asked again",
     ),
-    fakeOnly(
+    check(
+      "every instruction synthesis call went to the high model",
+      calls.length > 0 && models.every((model) => model === high),
+      `${calls.length} calls · model ${listOf(models)} · high ${high}`,
+    ),
+    scriptedCheck(
       sim,
-      check(
-        "a rule with a made-up line or name is dropped and counted",
-        !text.includes(INVENTED.badLine.rule) &&
-          !text.includes("inventedHelper") &&
-          counts?.unsupportedSource === 1 &&
-          counts?.unknownName === 1 &&
-          Boolean(writeLine?.includes("1 dropped (unsupported source)")) &&
-          Boolean(writeLine?.includes("1 dropped (unknown name)")),
-        writeLine ?? "no write line",
-      ),
+      "a rule with a made-up line or name is dropped and counted",
+      !text.includes(INVENTED.badLine.rule) &&
+        !text.includes("inventedHelper") &&
+        counts?.unsupportedSource === 1 &&
+        counts?.unknownName === 1 &&
+        Boolean(writeLine?.includes("1 dropped (unsupported source)")) &&
+        Boolean(writeLine?.includes("1 dropped (unknown name)")),
+      writeLine ?? "no write line",
+      "only the fake model makes up these two rules",
     ),
   ];
 }
@@ -601,20 +605,26 @@ function syncChecks(sim: Sim): CheckResult[] {
         unchanged.run.stderr.includes("[instructions] no rule changed"),
       `${instructionCalls(sim, STEP.unchanged).length} calls · ${unchanged?.run.stderr.includes("[instructions] no rule changed") ? "reported no change" : "no report line"}`,
     ),
-    check(
+    scriptedCheck(
+      sim,
       "sync after AGENTS.md changed makes one call",
       instructionCalls(sim, STEP.edited).length === 1,
       `${instructionCalls(sim, STEP.edited).length} calls`,
+      "a real model's call may fail and be asked again",
     ),
-    fakeOnly(
+    check(
+      "sync after AGENTS.md changed makes an instruction call",
+      instructionCalls(sim, STEP.edited).length >= 1,
+      `${instructionCalls(sim, STEP.edited).length} calls`,
+    ),
+    scriptedCheck(
       sim,
-      check(
-        "the changed rule is reported and the other ids stay",
-        report === "[instructions] 1 rewritten (I2)" &&
-          moved.length === 0 &&
-          Boolean(after.I2?.text.includes("one assertion each")),
-        `${report ?? "no report line"} · ids that moved: ${listOf(moved)}`,
-      ),
+      "the changed rule is reported and the other ids stay",
+      report === "[instructions] 1 rewritten (I2)" &&
+        moved.length === 0 &&
+        Boolean(after.I2?.text.includes("one assertion each")),
+      `${report ?? "no report line"} · ids that moved: ${listOf(moved)}`,
+      RULES_WHY,
     ),
   ];
 }
@@ -649,13 +659,20 @@ function failureChecks(sim: Sim): CheckResult[] {
         ),
       `exit ${failedFetch?.run.exitCode ?? "none"} · file ${failedFetch?.after.instructions === edited ? "kept" : "changed"} · ${failedFetch?.run.stderr.includes("could be read") ? "said so" : "no line"}`,
     ),
-    check(
+    scriptedCheck(
+      sim,
       "a sync after a failed one reads the new AGENTS.md",
       sim.errors.has(STEP.checkpoint) &&
         recovered?.run.exitCode === 0 &&
         recoveredRule ===
           "Format every ratio with formatPercent() and round half up.",
       `failed run ${sim.errors.has(STEP.checkpoint) ? "failed" : "did not fail"} · I1 now "${recoveredRule}"`,
+      RULES_WHY,
+    ),
+    check(
+      "a sync after a failed one succeeds",
+      sim.errors.has(STEP.checkpoint) && recovered?.run.exitCode === 0,
+      `failed run ${sim.errors.has(STEP.checkpoint) ? "failed" : "did not fail"} · recovery exit ${recovered?.run.exitCode ?? "none"}`,
     ),
   ];
 }
@@ -690,20 +707,19 @@ function reviewChecks(sim: Sim): CheckResult[] {
         plain.every((system) => !system.includes("REPOSITORY INSTRUCTIONS")),
       `${plain.length} review calls`,
     ),
-    fakeOnly(
+    scriptedCheck(
       sim,
-      check(
-        "an instruction to approve everything is framed as a rule about the code",
-        // This documents the limit: the guard keeps any rule that cites a
-        // real line. Only the framing around it stands against it.
-        instructions.includes(APPROVE) &&
-          first.every(
-            (system) =>
-              system.indexOf(FRAMING) >= 0 &&
-              system.indexOf(FRAMING) < system.indexOf(APPROVE),
-          ),
-        `in INSTRUCTIONS.md: ${instructions.includes(APPROVE)} · framing before it in ${first.filter((system) => system.indexOf(FRAMING) >= 0 && system.indexOf(FRAMING) < system.indexOf(APPROVE)).length} of ${first.length} review calls`,
-      ),
+      "an instruction to approve everything is framed as a rule about the code",
+      // This documents the limit: the guard keeps any rule that cites a
+      // real line. Only the framing around it stands against it.
+      instructions.includes(APPROVE) &&
+        first.every(
+          (system) =>
+            system.indexOf(FRAMING) >= 0 &&
+            system.indexOf(FRAMING) < system.indexOf(APPROVE),
+        ),
+      `in INSTRUCTIONS.md: ${instructions.includes(APPROVE)} · framing before it in ${first.filter((system) => system.indexOf(FRAMING) >= 0 && system.indexOf(FRAMING) < system.indexOf(APPROVE)).length} of ${first.length} review calls`,
+      RULES_WHY,
     ),
   ];
 }
