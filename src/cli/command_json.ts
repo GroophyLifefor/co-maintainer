@@ -63,7 +63,8 @@ export type SetupJsonInput = {
   facts: number;
   pullRequests: number;
   commits: number;
-  reviewGuide: "detailed" | "single" | "skipped";
+  /** `kept` when this run could not rebuild the guide and kept the last one. */
+  reviewGuide: "detailed" | "single" | "kept" | "skipped";
   validation: { errors: string[]; warnings: string[] };
   summary: RunSummary;
 };

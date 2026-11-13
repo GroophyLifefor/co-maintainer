@@ -42,7 +42,7 @@ import type { AiResponse, GitHubClient, Options } from "../types.ts";
 import type { Source, State } from "../knowledge/types.ts";
 import type { LogFn } from "./jobs.ts";
 import type { JobRow } from "../store/rows.ts";
-import { mkdir, readTextFile, remove } from "../util/runtime.ts";
+import { mkdir, readTextFile, remove, stat } from "../util/runtime.ts";
 import { applyWatchNotes, withMaintainerNotes } from "./watch_notes.ts";
 import { addResponseCost, emptyTally, type CostTally } from "../util/cost.ts";
 import { costLabel } from "../util/run_summary.ts";
@@ -274,12 +274,50 @@ async function writeCodebaseDocument(
   );
 }
 
-function addReviewLink(
-  markdown: string,
+export type ReviewGuideStatus = {
+  /** `kept` is a guide the last run wrote that this run could not rebuild. */
+  reviewGuide: "detailed" | "single" | "kept" | "skipped";
+  detailed: boolean;
+};
+
+/** The review guides on disk once this run has written its files. When the AI
+ * produced no guide above the signal threshold, `writeReviewDocuments` keeps
+ * the last run's files, and every review still reads them. Below the
+ * threshold it removes them. */
+export async function reviewGuideStatus(
+  repo: string,
   documents: ReviewDocuments | undefined,
+  signalCount: number,
+): Promise<ReviewGuideStatus> {
+  if (documents) {
+    return documents.detailed
+      ? { reviewGuide: "detailed", detailed: true }
+      : { reviewGuide: "single", detailed: false };
+  }
+  const skipped: ReviewGuideStatus = {
+    reviewGuide: "skipped",
+    detailed: false,
+  };
+  if (signalCount <= 2) return skipped;
+  const directory = `${reposDir()}/${repo}`;
+  const exists = (name: string) =>
+    stat(`${directory}/${name}`).then(
+      () => true,
+      () => false,
+    );
+  if (!(await exists("PR_REVIEW_GUIDE.md"))) return skipped;
+  return {
+    reviewGuide: "kept",
+    detailed: await exists("PR_REVIEW_DETAILED_GUIDE.md"),
+  };
+}
+
+export function addReviewLink(
+  markdown: string,
+  guide: ReviewGuideStatus,
 ): string {
-  if (!documents) return markdown;
-  const detailedLink = documents.detailed
+  if (guide.reviewGuide === "skipped") return markdown;
+  const detailedLink = guide.detailed
     ? " See [PR_REVIEW_DETAILED_GUIDE.md](PR_REVIEW_DETAILED_GUIDE.md) for evidence."
     : "";
   return `${markdown.trimEnd()}\n\n## Pull request review guides\n\n- Read [PR_REVIEW_GUIDE.md](PR_REVIEW_GUIDE.md).${detailedLink}\n`;
@@ -438,7 +476,12 @@ async function initOrRemake(options: Options): Promise<void> {
       overrides,
     ),
   );
-  result.markdown = addReviewLink(result.markdown, reviewDocuments);
+  const guideStatus = await reviewGuideStatus(
+    options.repo,
+    reviewDocuments,
+    reviewSignalCount(facts),
+  );
+  result.markdown = addReviewLink(result.markdown, guideStatus);
   // What maintainers said on commit watch issues since the last sync.
   const noteLines = await applyWatchNotes(options.repo, lowAi, (response) =>
     usage("watch_note", response),
@@ -550,11 +593,7 @@ async function initOrRemake(options: Options): Promise<void> {
         facts: facts.length,
         pullRequests: source.pullRequests.length,
         commits: source.commits.length,
-        reviewGuide: reviewDocuments
-          ? reviewDocuments.detailed
-            ? "detailed"
-            : "single"
-          : "skipped",
+        reviewGuide: guideStatus.reviewGuide,
         validation: {
           errors: finalValidation.errors,
           warnings: finalValidation.warnings,

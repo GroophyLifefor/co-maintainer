@@ -1048,24 +1048,17 @@ function failedGuideCheck(sim: Sim): CheckResult {
  * skill must keep pointing at it. */
 function keptLinkCheck(sim: Sim): CheckResult {
   const now = guides(sim);
+  const run = sim.state.failed as SetupRun | undefined;
   const linked = (now["SKILL.md"] ?? "").includes(
     "[PR_REVIEW_GUIDE.md](PR_REVIEW_GUIDE.md)",
   );
-  const result = check(
+  return check(
     "SKILL.md still links the guide a failed run kept",
-    Boolean(now["PR_REVIEW_GUIDE.md"]) && linked,
-    `PR_REVIEW_GUIDE.md ${now["PR_REVIEW_GUIDE.md"] ? "on disk" : "missing"} · SKILL.md ${linked ? "links it" : "has no link"}`,
+    Boolean(now["PR_REVIEW_GUIDE.md"]) &&
+      linked &&
+      run?.json.reviewGuide === "kept",
+    `PR_REVIEW_GUIDE.md ${now["PR_REVIEW_GUIDE.md"] ? "on disk" : "missing"} · SKILL.md ${linked ? "links it" : "has no link"} · --json says ${String(run?.json.reviewGuide ?? "nothing")}`,
   );
-  // A known product bug: `setup.ts` builds the link from this run's guide
-  // only (`addReviewLink`), and a failed guide call leaves it undefined while
-  // `writeReviewDocuments` keeps the old files. Reported, not fixed here.
-  return result.ok
-    ? result
-    : {
-        ...result,
-        skipped:
-          "known product bug: the link follows only a guide this run rebuilt",
-      };
 }
 
 /** The detailed guide keeps each rule's example nested under it, as the
