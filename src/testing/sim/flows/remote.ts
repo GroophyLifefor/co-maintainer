@@ -348,6 +348,17 @@ function deliveredTools(sim: Sim, step: string): string[] {
   );
 }
 
+/** Whether two paths are the same folder. A child reports its folder in the
+ * system's own form, which on Windows can differ from the one it was given
+ * in letter case or in a short name (`RUNNER~1`). */
+function sameFolder(one: string, other: string): boolean {
+  const form = (path: string) => {
+    const real = realpathSync.native(path);
+    return process.platform === "win32" ? real.toLowerCase() : real;
+  };
+  return form(one) === form(other);
+}
+
 /** codegraph runs as tool calls, `codegraph-query {"search":"x"}`. */
 function ranTools(runs: CodegraphRun[]): string[] {
   return runs.map((run) =>
@@ -628,8 +639,8 @@ function remoteChecks(sim: Sim): CheckResult[] {
       asked.length > 0 &&
         sameList(asked, delivered) &&
         sameList(asked, ran) &&
-        (first?.toolRuns ?? []).every(
-          (run) => realpathSync(run.cwd) === first?.cwd,
+        (first?.toolRuns ?? []).every((run) =>
+          sameFolder(run.cwd, first?.cwd ?? ""),
         ),
       `asked ${JSON.stringify(asked)} · sent ${JSON.stringify(delivered)} · ran ${JSON.stringify(ran)}`,
       "a real model may not ask for a tool",
@@ -638,8 +649,8 @@ function remoteChecks(sim: Sim): CheckResult[] {
       "the client ran exactly the tools the model asked for, whichever they were",
       sameList(asked, delivered) &&
         sameList(asked, ran) &&
-        (first?.toolRuns ?? []).every(
-          (run) => realpathSync(run.cwd) === first?.cwd,
+        (first?.toolRuns ?? []).every((run) =>
+          sameFolder(run.cwd, first?.cwd ?? ""),
         ),
       `asked ${JSON.stringify(asked)} · sent ${JSON.stringify(delivered)} · ran ${JSON.stringify(ran)}`,
     ),

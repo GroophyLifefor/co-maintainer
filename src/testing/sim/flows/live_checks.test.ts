@@ -49,10 +49,16 @@ function probe(name: string): Promise<Probe> {
   });
 }
 
+/** Flows whose commands need a POSIX spawn. Their own tests skip Windows too
+ * (`extensions.test.ts`), so no probe is started for them there. */
+const POSIX_ONLY = new Set(["extensions"]);
+const posixOnly = (name: string) =>
+  process.platform === "win32" && POSIX_ONLY.has(name);
+
 const probes = new Map(
   FLOWS.filter((flow) => flow.checks).map((flow) => [
     flow.name,
-    probe(flow.name),
+    posixOnly(flow.name) ? undefined : probe(flow.name),
   ]),
 );
 
@@ -74,7 +80,8 @@ const SKIPPED_LIVE: Record<string, number> = {
 };
 
 for (const [name, pending] of probes) {
-  test(`live checks of ${name}: the same checks, skipped with a reason or unchanged`, async () => {
+  test(`live checks of ${name}: the same checks, skipped with a reason or unchanged`, async (t) => {
+    if (!pending) return t.skip("needs a POSIX spawn");
     const { passed, failed, fake, live } = await pending;
     assert.equal(passed, true, failed.join("\n"));
     assert.deepEqual(
