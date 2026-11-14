@@ -711,16 +711,17 @@ function remoteChecks(sim: Sim): CheckResult[] {
       `${secondPrompt.length} chars`,
       "the carry-over follows the finding the model reported",
     ),
-    unrepeatable(
-      "product bug: the remote job reads only new findings (resolvedFromFirstReview) and drops the model's previous-finding verdicts",
+    scripted(
       "the second round still reports the finding the model kept open",
-      (secondReview?.findings_count ?? 0) >= 1,
+      (secondReview?.findings_count ?? 0) === 1 &&
+        Boolean(second?.stdout.includes("Still open (1)")) &&
+        Boolean(second?.stdout.includes("0 new · 1 open · 0 closed")),
       `second review stored ${secondReview?.findings_count ?? "no"} findings · exit ${second?.exitCode}`,
       "the findings are the model's",
     ),
     scripted(
       "human output: title, server log lines, the one-time notice",
-      second?.exitCode === 0 &&
+      second?.exitCode === 1 &&
         Boolean(
           second.stdout.includes(
             "co-maintainer review · sim/sample · sim/feature (remote)",

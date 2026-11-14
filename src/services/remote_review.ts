@@ -15,6 +15,8 @@ import {
   classifyCarryItems,
   guideRebuiltSince,
   incrementalDiffPaths,
+  parsePreviousVerdicts,
+  resolveCarryOutcomes,
   type CarryPrevious,
 } from "../review/carry_over.ts";
 import { visiblePathsToSave } from "../review/visible_paths.ts";
@@ -430,6 +432,7 @@ export function registerRemoteReviewHandler(): void {
         // file this run drops is sent by the next one.
         const extras: ReviewExtras = { catchesUp: true };
         let previousVisible: Set<string> | undefined;
+        let previous: CarryPrevious | undefined;
         if (subjectId) {
           const subjectRevision = getSubjectRevision(subjectId);
           // A guide rebuilt after the previous review invalidates its verdicts
@@ -453,7 +456,7 @@ export function registerRemoteReviewHandler(): void {
               subjectRevision.review_id,
             );
             previousVisible = parseVisiblePaths(subjectRevision);
-            const carryPrevious: CarryPrevious = {
+            const carryPrevious = (previous = {
               files: prevFiles,
               visiblePaths: previousVisible,
               findings: storedRows.map((row) => ({
@@ -469,7 +472,7 @@ export function registerRemoteReviewHandler(): void {
                   row.first_seen_review_id ?? subjectRevision.review_id,
               })),
               guideBuiltAt: subjectRevision.guide_built_at,
-            };
+            });
             const carryItems = classifyCarryItems(
               carryPrevious,
               revision,
@@ -528,8 +531,25 @@ export function registerRemoteReviewHandler(): void {
         const filesByPath = new Map(
           revision.files.map((file) => [file.path, { patch: file.patch }]),
         );
+        // A later round also applies the model's verdicts on the earlier
+        // findings, as a local review does. Reading only the new ones dropped
+        // a finding the model kept open, for good.
+        const visible = new Set(result.visiblePaths);
         const findings = sortResolvedFindings(
-          resolvedFromFirstReview(parsed, filesByPath),
+          previous
+            ? resolveCarryOutcomes(
+                classifyCarryItems(
+                  previous,
+                  revision,
+                  visible,
+                  result.guideBuiltAt,
+                ),
+                revision,
+                visible,
+                parsePreviousVerdicts(result.text),
+                parsed,
+              )
+            : resolvedFromFirstReview(parsed, filesByPath),
         );
         const durationMs = Math.round(performance.now() - started);
         const blockingMode = reviewBlockingFrom(options.reviewBlocking);

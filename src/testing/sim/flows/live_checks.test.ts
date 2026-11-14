@@ -76,7 +76,7 @@ const SKIPPED_LIVE: Record<string, number> = {
   "intent-file": 6,
   "large-diff": 6,
   local: 17,
-  remote: 11,
+  remote: 12,
   "review-checks": 2,
 };
 
