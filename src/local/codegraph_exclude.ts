@@ -1,4 +1,4 @@
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import type { Run } from "../pr/checkout.ts";
 import {
   isNotFound,
@@ -20,8 +20,10 @@ export async function ensureCodegraphGitExclude(
     gitRoot,
   );
   if (pathResult.code !== 0) return;
-  const excludePath = pathResult.stdout.trim();
-  if (!excludePath) return;
+  const gitPath = pathResult.stdout.trim();
+  if (!gitPath) return;
+  // git answers relative to the repository, not to where the command runs.
+  const excludePath = resolve(gitRoot, gitPath);
   let text = "";
   try {
     text = await readTextFile(excludePath);
