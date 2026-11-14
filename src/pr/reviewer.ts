@@ -350,6 +350,21 @@ export async function readGuide(repo: string, name: string): Promise<string> {
 
 export type { Snapshot };
 
+/** `Promise.all`, except that when several fail the error is the first in
+ * list order, not the first in time. For a pull request that does not exist
+ * every read fails, and only the read of the pull request itself says so:
+ * the comments read is an `issues/N` endpoint, which names the repository. */
+async function allInOrder<T extends readonly unknown[]>(values: {
+  [K in keyof T]: T[K] | Promise<T[K]>;
+}): Promise<T> {
+  const settled = await Promise.allSettled(values);
+  const failed = settled.find((item) => item.status === "rejected");
+  if (failed) throw failed.reason;
+  return settled.map(
+    (item) => (item as PromiseFulfilledResult<unknown>).value,
+  ) as unknown as T;
+}
+
 export async function reviewPullRequest(
   client: GitHubClient,
   options: Options,
@@ -364,7 +379,7 @@ export async function reviewPullRequest(
   const report = progress ?? (() => {});
   report(modelSummary(options));
   report(`loading PR context for ${options.repo}#${number}`);
-  const [pr, allComments, allReviews, guides] = await Promise.all([
+  const [pr, allComments, allReviews, guides] = await allInOrder([
     extras?.prefetched?.pull ??
       client.request<Json>(`repos/${options.repo}/pulls/${number}`),
     client.pages<Json>(`repos/${options.repo}/issues/${number}/comments`),
