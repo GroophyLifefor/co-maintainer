@@ -1,7 +1,8 @@
-/** Everything a simulated run did, so the checks and the report can look at
- * every call instead of only the final files: GitHub and AI calls as they
- * happen, product log lines, and after the run the git commands, the files
- * written and the database rows. */
+/** Everything a simulated flow did, so the checks and the report can look at
+ * every call instead of only the final files: GitHub, AI and remote calls as
+ * they happen, each provider `complete()`, webhook deliveries, server jobs,
+ * product log lines, and after the run the git commands, the files written
+ * and the database rows. */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -22,9 +23,95 @@ export type HttpCall = {
 export type GithubCall = HttpCall & {
   /** False when the simulated GitHub has no route for the call. */
   handled: boolean;
+  /** `gh` when the product reached GitHub through the `gh` stand-in. */
+  via: "fetch" | "gh";
+  /** The fault the call met on purpose, e.g. `500`. */
+  fault?: string;
 };
 
-export type AiCall = HttpCall & { mode: "fake" | "live" };
+export type AiCall = HttpCall & {
+  mode: "fake" | "live";
+  /** The job name the product gave the call. */
+  job?: string;
+  /** The fake AI rule that answered. */
+  rule?: string;
+  /** True when no fake AI rule matched the call. */
+  unscripted?: boolean;
+  fault?: string;
+};
+
+/** A call to the simulated remote server, answered by its real routes. */
+export type RemoteCall = HttpCall & { fault?: string };
+
+/** A webhook handed to the server's real handler. */
+export type WebhookDelivery = {
+  step: string;
+  startMs: number;
+  event: string;
+  action?: string;
+  deliveryId: string;
+  status: number;
+  response: unknown;
+};
+
+/** One `complete()` on a provider: what the product sent and got back,
+ * however many HTTP calls it took. Checks and scores read these, so they do
+ * not depend on any provider's wire format. */
+export type Completion = {
+  step: string;
+  startMs: number;
+  job: string;
+  ok: boolean;
+  /** The system prompt, every system message joined. */
+  system: string;
+  /** The first user message: one conversation keeps it across rounds. */
+  firstUser: string;
+  /** What the product got back. Zero when the call threw. */
+  tokensIn: number;
+  tokensOut: number;
+  /** What the provider reported on the wire for this call, every HTTP answer
+   * included: the spend, even for a call the product then threw on. */
+  billedIn: number;
+  billedOut: number;
+  cost: number | null;
+  /** Tools the model asked for in this answer. */
+  toolCalls: number;
+  /** Their ids. A later round answers them, which ties it to this one. */
+  toolCallIds: string[];
+  /** The tool call ids this request answers with results. */
+  answers: string[];
+  error?: string;
+};
+
+/** A request that carried a secret in a header. Only the secret's name is
+ * kept. */
+export type CredentialUse = {
+  step: string;
+  startMs: number;
+  host: string;
+  secret: string;
+};
+
+/** One `sim.cli()` run: what the CLI printed. Secrets in the arguments are
+ * replaced by their names. */
+export type CliOutput = {
+  step: string;
+  startMs: number;
+  args: string[];
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+};
+
+/** A server job the flow ran to its end. */
+export type JobRun = {
+  step: string;
+  id: string;
+  type: string;
+  repo: string;
+  status: string;
+  error: string | null;
+};
 
 export type GitCommand = {
   argv: string[];
@@ -39,6 +126,12 @@ export class Trace {
   step = "setup";
   readonly github: GithubCall[] = [];
   readonly ai: AiCall[] = [];
+  readonly remote: RemoteCall[] = [];
+  readonly webhooks: WebhookDelivery[] = [];
+  readonly completions: Completion[] = [];
+  readonly jobs: JobRun[] = [];
+  readonly credentials: CredentialUse[] = [];
+  readonly cli: CliOutput[] = [];
   /** Network calls the simulation refused: neither GitHub nor an allowed AI
    * host. */
   readonly leaks: {
@@ -128,6 +221,41 @@ export function readFiles(dir: string): FileEntry[] {
   };
   walk(dir);
   return entries.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/** Files in the sandbox that hold secrets on purpose, or are read another
+ * way, and so are not searched as files: config.json is where the product
+ * keeps its credentials, `github/` is the simulated GitHub's own copy of the
+ * repositories, the databases are searched row by row, and git's object
+ * store is compressed. */
+export const NOT_SEARCHED = [
+  "config.json",
+  "github/",
+  "*.db, *.db-wal, *.db-shm",
+  ".git/objects/",
+];
+
+/** Every file in the sandbox a leak could land in. */
+export function readSandbox(root: string): FileEntry[] {
+  if (!existsSync(root)) return [];
+  const entries: FileEntry[] = [];
+  const walk = (current: string) => {
+    for (const name of readdirSync(current)) {
+      const path = join(current, name);
+      const rel = relative(root, path).replaceAll("\\", "/");
+      if (rel === "config.json" || rel === "github") continue;
+      if (/\.db(-wal|-shm)?$/.test(rel) || /\.git\/objects$/.test(rel)) {
+        continue;
+      }
+      if (statSync(path).isDirectory()) walk(path);
+      else {
+        const content = readFileSync(path, "utf8");
+        entries.push({ path: rel, bytes: Buffer.byteLength(content), content });
+      }
+    }
+  };
+  walk(root);
+  return entries;
 }
 
 /** Every row of every table, read-only. */

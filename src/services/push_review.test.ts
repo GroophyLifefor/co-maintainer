@@ -19,7 +19,10 @@ import {
   pushSources,
 } from "../store/watch.ts";
 import { dispatchGithubEvent } from "./webhook.ts";
-import { queuePush } from "./push_review.ts";
+import { queuePush, registerPushReviewHandlers } from "./push_review.ts";
+import { claimAndRun } from "./jobs.ts";
+import { getPushResult } from "../store/watch.ts";
+import { writeUserConfig } from "../config.ts";
 import {
   changedLines,
   closedStillFoundComment,
@@ -35,7 +38,19 @@ import { parseClassification } from "./watch_comments.ts";
 import { applyWatchNotes, withMaintainerNotes } from "./watch_notes.ts";
 import { FakeAiProvider } from "../ai/fake.ts";
 import { parseReviewArgs } from "../cli/review_args.ts";
-import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
+import {
+  deleteEnv,
+  getEnv,
+  mkdirPath,
+  setEnv,
+  tempDirSync,
+  writeTextFile,
+} from "../testing/runtime.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 const BEFORE = "1".repeat(40);
 const AFTER = "2".repeat(40);
@@ -486,5 +501,91 @@ test("--range needs --remote, and --timeout-minutes needs --range", async () => 
       refused = true;
     }
     expect(refused, `accepted: ${args.join(" ")}`);
+  }
+});
+
+test("a push review result carries the coverage and warnings of its diff plan", async () => {
+  const repos = tempDirSync();
+  const originals = new Map(
+    ["CM_FAKE_AI", "CM_REPOS_DIR"].map((name) => [name, getEnv(name)]),
+  );
+  setEnv("CM_FAKE_AI", "1");
+  setEnv("CM_REPOS_DIR", repos);
+  try {
+    await withTempDb(async () => {
+      await writeUserConfig({
+        ai: "openrouter",
+        token: "key",
+        lowModel: "fake/model",
+        highModel: "fake/model",
+      });
+      activateRepo("acme/widgets", null as unknown as number);
+      markKnowledgeBuilt("acme/widgets", "abc");
+      await mkdirPath(`${repos}/acme/widgets`, { recursive: true });
+      await writeTextFile(
+        `${repos}/acme/widgets/PR_REVIEW_GUIDE.md`,
+        "# Guide\n",
+      );
+      const big = Array.from({ length: 600 }, (_, i) => `+const v${i} = ${i};`);
+      const queued = queuePush({
+        repo: "acme/widgets",
+        before: BEFORE,
+        after: AFTER,
+        ref: "refs/heads/main",
+        source: "ci",
+        revision: {
+          title: "",
+          description: "",
+          baseLabel: "main",
+          producer: "remote",
+          files: [
+            {
+              path: "src/big.ts",
+              previousPath: null,
+              status: "added",
+              binary: false,
+              additions: 600,
+              deletions: 0,
+              patch: `@@ -0,0 +1,600 @@\n${big.join("\n")}`,
+            },
+            {
+              path: "src/small.ts",
+              previousPath: null,
+              status: "added",
+              binary: false,
+              additions: 1,
+              deletions: 0,
+              patch: "@@ -0,0 +1 @@\n+export const a = 1;",
+            },
+          ],
+        },
+      });
+      if (queued.kind !== "enqueued") throw new Error(queued.kind);
+      registerPushReviewHandlers();
+      expect(await claimAndRun(), "the push review never ran");
+      const result = getPushResult(queued.reviewId) as {
+        revision?: {
+          files: number;
+          truncated: boolean;
+          coverage: { full: number; summarized: string[] };
+        };
+        warnings?: unknown[];
+      };
+      expect(result, `no result: ${getReview(queued.reviewId)?.status}`);
+      expect(result.revision?.files === 2, JSON.stringify(result.revision));
+      expect(result.revision?.truncated === true, "truncated");
+      expect(
+        JSON.stringify(result.revision?.coverage.summarized) ===
+          JSON.stringify(["src/big.ts"]),
+        JSON.stringify(result.revision?.coverage),
+      );
+      expect(result.revision?.coverage.full === 1, "the small file is full");
+      expect(Array.isArray(result.warnings), "warnings key");
+    });
+  } finally {
+    for (const [name, value] of originals) {
+      if (value === undefined) deleteEnv(name);
+      else setEnv(name, value);
+    }
   }
 });

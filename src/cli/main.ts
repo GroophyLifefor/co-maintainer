@@ -11,6 +11,7 @@ import { runClear } from "./commands/clear.ts";
 import { runUninstall } from "./commands/uninstall.ts";
 import { runProbe } from "./commands/probe.ts";
 import { runReviewFromCli } from "./commands/review.ts";
+import { runExtensionCommand } from "../extensions/command.ts";
 import { runInitOrRemake } from "../services/setup.ts";
 import { VERSION } from "../version.ts";
 import { CliError, EXIT_RUNTIME, exitWith } from "./error.ts";
@@ -99,6 +100,10 @@ export async function run(args: string[]): Promise<void> {
   }
   if (args[0] === "review") {
     await runReviewFromCli(args.slice(1));
+    return;
+  }
+  if (args[0] === "extension") {
+    await runExtensionCommand(args.slice(1));
     return;
   }
   // An unknown command is a usage error with a suggestion, and it must resolve

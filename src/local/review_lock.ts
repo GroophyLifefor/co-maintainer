@@ -5,6 +5,7 @@ import {
   isProcessAlive,
   mkdir,
   readTextFile,
+  readTextFileSync,
   remove,
   removeSync,
   writeTextFile,
@@ -51,17 +52,25 @@ export async function acquireLocalReviewLock(
       `Another co-maintainer review is running in this repository (PID ${existingPid}).`,
     );
   }
-  await writeTextFile(path, String(process.pid));
+  const pid = String(process.pid);
+  await writeTextFile(path, pid);
+  // Ctrl-C releases the lock while this process may still be finishing. A
+  // review started in that window writes its own PID here, so a release only
+  // removes a lock that still names this process.
   const releaseSync = () => {
     try {
-      removeSync(path);
+      if (readTextFileSync(path).trim() === pid) removeSync(path);
     } catch {
       // already removed
     }
   };
   return {
     release: async () => {
-      await remove(path).catch(() => {});
+      try {
+        if ((await readTextFile(path)).trim() === pid) await remove(path);
+      } catch {
+        // already removed
+      }
     },
     releaseSync,
   };

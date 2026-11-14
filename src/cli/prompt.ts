@@ -11,9 +11,19 @@ import { createInterface } from "node:readline/promises";
  * is the hang: `co-maintainer review </dev/null` awaited the answer
  * forever, printed `Warning: Detected unsettled top-level await`, and exited
  * 13. Racing the question against `close`/`end` and treating those as "no
- * answer" keeps the caller's fallback path alive instead. */
+ * answer" keeps the caller's fallback path alive instead.
+ *
+ * While readline holds the terminal, Ctrl-C is a key press, not a signal, and
+ * it used to count as "no answer": a local review went on to the model after
+ * a Ctrl-C at the codegraph install prompt. Now the prompt closes and the
+ * interrupt is raised as if the signal had arrived. */
 async function ask(question: string): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
+  let interrupted = false;
+  rl.on("SIGINT", () => {
+    interrupted = true;
+    rl.close();
+  });
   try {
     return (
       await new Promise<string>((resolve) => {
@@ -32,7 +42,20 @@ async function ask(question: string): Promise<string> {
     ).trim();
   } finally {
     rl.close();
+    // After `close`, so the terminal is out of raw mode first.
+    if (interrupted) raiseInterrupt();
   }
+}
+
+/** Does what a real SIGINT would. A command with a handler (a local review)
+ * gets it at once, before the prompt returns, so nothing after the prompt
+ * runs as if the user had answered. Emitting rather than sending the signal
+ * keeps it synchronous, and works on Windows, where sending a signal to the
+ * own process ends it without running any handler. A command with no handler
+ * ends the way Ctrl-C ends it outside a prompt. */
+function raiseInterrupt(): void {
+  if (process.listenerCount("SIGINT") > 0) process.emit("SIGINT", "SIGINT");
+  else process.kill(process.pid, "SIGINT");
 }
 
 /** Free-text question; empty input yields the fallback (or ""). */

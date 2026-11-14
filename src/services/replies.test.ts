@@ -7,6 +7,7 @@ import {
 } from "../store/replies.ts";
 import { getJob } from "../store/jobs.ts";
 import { runReplyJob } from "./replies.ts";
+import { cacheValues } from "../store/cache_db.ts";
 import type { AiProvider, GitHubClient, Json } from "../types.ts";
 import type { JobRow } from "../store/rows.ts";
 import {
@@ -18,13 +19,24 @@ import {
   writeTextFile,
 } from "../testing/runtime.ts";
 import { test } from "node:test";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 async function withEnv(fn: () => Promise<void>): Promise<void> {
   const originalDb = getEnv("CM_APP_DB");
   const originalRepos = getEnv("CM_REPOS_DIR");
+  // A reply records its AI cost in cache.db. Keep it out of the real cache:
+  // the cache directory comes from XDG_CACHE_HOME on Linux, LOCALAPPDATA on
+  // Windows and HOME on macOS.
+  const cacheKeys = ["XDG_CACHE_HOME", "LOCALAPPDATA", "HOME", "USERPROFILE"];
+  const originalCache = cacheKeys.map((key) => getEnv(key));
   const dir = tempDirSync();
   setEnv("CM_APP_DB", `${dir}/app.db`);
   setEnv("CM_REPOS_DIR", `${dir}/repos`);
+  for (const key of cacheKeys) setEnv(key, `${dir}/cache`);
   await mkdirPath(`${dir}/repos/acme/widgets`, { recursive: true });
   await writeTextFile(
     `${dir}/repos/acme/widgets/PR_REVIEW_GUIDE.md`,
@@ -40,6 +52,11 @@ async function withEnv(fn: () => Promise<void>): Promise<void> {
     else setEnv("CM_APP_DB", originalDb);
     if (originalRepos === undefined) deleteEnv("CM_REPOS_DIR");
     else setEnv("CM_REPOS_DIR", originalRepos);
+    cacheKeys.forEach((key, index) => {
+      const value = originalCache[index];
+      if (value === undefined) deleteEnv(key);
+      else setEnv(key, value);
+    });
   }
 }
 
@@ -190,6 +207,38 @@ test("a persisted answer is posted without calling the AI again", async () => {
     const body = (github.writes[0].body as Json).body;
     if (typeof body !== "string" || !body.includes("Persisted answer.")) {
       throw new Error(`persisted answer was not posted: ${String(body)}`);
+    }
+  });
+});
+
+test("a reply records its AI cost once, and a rerun with the answer saved records none", async () => {
+  await withEnv(async () => {
+    const job = requestJob("review_comment", "106", "10");
+    const ai: AiProvider = {
+      complete: () =>
+        Promise.resolve({
+          text: "The finding blocks the unsafe branch.",
+          tokensIn: 1207,
+          tokensOut: 17,
+          cost: 0.0004,
+          model: "fake",
+          provider: "openrouter",
+        }),
+    };
+    await runReplyJob(job, () => {}, new FakeGithub(), ai);
+    // The same job again: the answer is saved, so nothing is asked or paid.
+    await runReplyJob(job, () => {}, new FakeGithub(), ai);
+    const rows = (await cacheValues("cost", "acme/widgets:")).map(
+      (value) =>
+        JSON.parse(value) as { job: string; tokensIn: number; usd: number },
+    );
+    if (
+      rows.length !== 1 ||
+      rows[0]!.job !== "reply_to_github_comment" ||
+      rows[0]!.tokensIn !== 1207 ||
+      rows[0]!.usd !== 0.0004
+    ) {
+      throw new Error(`cost rows: ${JSON.stringify(rows)}`);
     }
   });
 });

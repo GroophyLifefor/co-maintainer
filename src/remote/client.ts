@@ -1,6 +1,10 @@
 import { VERSION } from "../version.ts";
 import type { ReviewCliArgs } from "../cli/review_args.ts";
-import { loadReviewSystemPromptFlags } from "../cli/review_args.ts";
+import {
+  loadReviewSystemPromptFlags,
+  reviewSystemPromptLimitFor,
+} from "../cli/review_args.ts";
+import { intentRecord, loadIntentFlag } from "../cli/review_intent.ts";
 import { exitWith } from "../cli/error.ts";
 import {
   formatHumanReview,
@@ -8,9 +12,11 @@ import {
   type JsonReviewFinding,
   reviewExitCodeFromJsonFindings,
 } from "../cli/review_result.ts";
+import { coverageFromResult, warningsFromJson } from "../review/coverage.ts";
 import {
   baseUrl,
   die,
+  handshakeFailure,
   readApiError,
   remoteFetch,
   remoteFromEnv,
@@ -44,6 +50,11 @@ import { emitGithubOutput, neutralizeCommands } from "../cli/review_github.ts";
 import { costReasonText, type CostReason } from "../util/cost.ts";
 import { setCliInteractive } from "../cli/args.ts";
 import {
+  splitRemoteResult,
+  stripExtensionMarkdowns,
+} from "../extensions/render_json.ts";
+import { exitCodeWithExtensions } from "../extensions/report.ts";
+import {
   MIN_SERVER_SCHEMA,
   REMOTE_CLI_UPGRADE_COMMAND,
   REMOTE_SCHEMA_VERSION,
@@ -62,6 +73,13 @@ type HandshakeResponse = {
   byok?: { policy: ByokPolicy };
   ai?: { provider: string };
 };
+
+/** The subject of a server's result without an `intent` of its own. */
+function withoutIntent(subject: unknown): Record<string, unknown> {
+  if (typeof subject !== "object" || subject === null) return {};
+  const { intent: _intent, ...rest } = subject as Record<string, unknown>;
+  return rest;
+}
 
 const LOCAL_BYOK_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
 
@@ -118,6 +136,10 @@ export async function runRemoteReview(
     await assertGitQuiet(root);
     const repo = await detectRemoteRepo(root, cli.repoOverride);
     const branch = await currentBranch(root, cli.branch);
+    const intentLoad = await loadIntentFlag(
+      cli.intentFile,
+      reviewSystemPromptLimitFor(repo),
+    );
 
     const remotes = await runCommand("git", ["remote"], root);
     const remoteName =
@@ -158,6 +180,10 @@ export async function runRemoteReview(
         console.log("No changes to review.");
       }
       exitWith(0);
+      // `exitWith` only sets the exit code. Without this return the client
+      // went on to submit an empty change, the server refused it, and the
+      // run ended with exit 2 after saying there was nothing to review.
+      return;
     }
 
     const handshake = await remoteFetch(host, token, "/api/remote/handshake", {
@@ -169,7 +195,7 @@ export async function runRemoteReview(
       }),
     });
     if (!handshake.ok) {
-      die("remote_handshake_failed", await readApiError(handshake));
+      throw await handshakeFailure(handshake, host, repo);
     }
     const hs = (await handshake.json()) as HandshakeResponse;
     if (REMOTE_SCHEMA_VERSION < hs.minClientSchema) {
@@ -209,6 +235,17 @@ export async function runRemoteReview(
         "This server requires your own key.",
         "co-maintainer review --remote --remote-byok",
       );
+    }
+    // A server that predates intent would never use the text, so it is not
+    // sent, and the run says it went without.
+    const serverSupportsIntent = hs.features?.includes("intent") ?? false;
+    const intent = serverSupportsIntent ? intentLoad.intent : null;
+    const clientWarnings = [...intentLoad.warnings];
+    if (intentLoad.intent && !serverSupportsIntent) {
+      clientWarnings.push({
+        code: "intent_unsupported",
+        message: `This server (version ${hs.serverVersion}) does not support an intent, so the review ran without one.`,
+      });
     }
     if (byokEnabled && !cli.json) {
       const warning = byokHttpWarning(host);
@@ -257,7 +294,7 @@ export async function runRemoteReview(
       fresh: cli.fresh,
       revision: {
         title: built.revision.title,
-        description: built.revision.description,
+        description: intent?.text ?? built.revision.description,
         baseLabel: built.revision.baseLabel,
         files: built.revision.files,
       },
@@ -287,7 +324,14 @@ export async function runRemoteReview(
       body: serialized,
     });
     if (submit.status !== 202) {
-      die("remote_submit_failed", await readApiError(submit));
+      const why = await readApiError(submit);
+      // The user typed the flag, so a refusal of the text names it.
+      die(
+        "remote_submit_failed",
+        intent && /revision\.description/.test(why)
+          ? `--intent-file was refused by the server: ${why}`
+          : why,
+      );
     }
     const { jobId } = (await submit.json()) as { jobId: string };
 
@@ -345,7 +389,10 @@ export async function runRemoteReview(
         continue;
       }
       if (payload.status === "done" && payload.result) {
-        const findings = (payload.result.findings ?? []) as JsonReviewFinding[];
+        const { aiFindings, report: extensions } = splitRemoteResult(
+          payload.result,
+        );
+        const findings = aiFindings as JsonReviewFinding[];
         const usage = payload.result.usage as
           | {
               tokensIn?: number;
@@ -375,7 +422,24 @@ export async function runRemoteReview(
               schemaVersion: 1,
               ok: true,
               mode: "remote",
-              ...payload.result,
+              ...stripExtensionMarkdowns(
+                payload.result,
+                cli.includeExtensionMarkdowns ?? false,
+              ),
+              // The client knows how the intent came in, so a server cannot
+              // say otherwise.
+              subject: {
+                ...withoutIntent(payload.result.subject),
+                ...(intent ? { intent: intentRecord(intent) } : {}),
+              },
+              ...(clientWarnings.length > 0
+                ? {
+                    warnings: [
+                      ...warningsFromJson(payload.result.warnings),
+                      ...clientWarnings,
+                    ],
+                  }
+                : {}),
             }),
           );
         } else if (cli.output === "github") {
@@ -383,6 +447,12 @@ export async function runRemoteReview(
             title: `${repo} · ${branch} (remote)`,
             findings: humanFindingsFromJson(findings),
             run,
+            coverage: coverageFromResult(payload.result),
+            // The server keeps this branch's carry-over, so its next run
+            // sends the files this one dropped.
+            catchesUp: true,
+            extensions,
+            intent: intent !== null,
           });
         } else {
           const resultGuide = payload.result.guide as
@@ -398,12 +468,26 @@ export async function runRemoteReview(
                 guideBuiltAt: resultGuide?.builtAt ?? null,
                 codegraphState: resultCodegraph?.state ?? null,
                 findings: humanFindingsFromJson(findings),
+                warnings: [
+                  ...warningsFromJson(payload.result.warnings),
+                  ...clientWarnings,
+                ],
+                coverage: coverageFromResult(payload.result),
+                extensions,
+                intent: intent !== null,
               }) +
               "\n",
           );
           if (run) printRunSummary(run);
         }
-        exitWith(reviewExitCodeFromJsonFindings(findings));
+        exitWith(
+          exitCodeWithExtensions(
+            reviewExitCodeFromJsonFindings(
+              (payload.result.findings ?? []) as JsonReviewFinding[],
+            ),
+            extensions,
+          ),
+        );
         // `done` is terminal. Without this return the loop polls `sync` again
         // and, since the server keeps reporting the same finished job, the
         // client reprints the result and re-requests forever.

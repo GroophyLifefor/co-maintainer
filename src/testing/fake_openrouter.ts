@@ -172,6 +172,9 @@ export function startFakeOpenRouter(
      * string. Defaults to a clean review. Set it to check that the CLI renders
      * real findings from the structured path end to end. */
     reviewJson?: string;
+    /** Holds each chat answer this long, so a test can act while the model
+     * call is in flight. */
+    chatDelayMs?: number;
   } = {},
 ): Promise<FakeOpenRouter> {
   const flakyJsonFailures = options.flakyJsonFailures ?? 1;
@@ -223,8 +226,16 @@ export function startFakeOpenRouter(
                 : chatReply(
                     options.chatContent(parsed ? promptOf(parsed) : ""),
                   );
-      response.writeHead(status, { "content-type": "application/json" });
-      response.end(body);
+      const answer = () => {
+        if (response.destroyed) return;
+        response.writeHead(status, { "content-type": "application/json" });
+        response.end(body);
+      };
+      if (options.chatDelayMs && request.method !== "GET") {
+        setTimeout(answer, options.chatDelayMs);
+      } else {
+        answer();
+      }
     });
   });
   return new Promise((resolve, reject) => {

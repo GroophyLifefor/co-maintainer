@@ -65,6 +65,11 @@ const REVIEW_OUTPUT_FLAGS: FlagGroup = {
       description:
         "Print GitHub workflow annotations and write the job summary instead of prose. Cannot be used with --json.",
     },
+    {
+      name: "include-extension-markdowns",
+      description:
+        "With --json, keep each extension's markdown. It is empty otherwise.",
+    },
   ],
 };
 
@@ -145,6 +150,134 @@ const GITHUB_FLAGS: FlagGroup = {
   ],
 };
 
+/** `extension`: register external commands whose results join a review. */
+const EXTENSION_COMMAND: CommandSpec = {
+  name: "extension",
+  summary: "Register external commands whose results join every review.",
+  usage: [
+    "co-maintainer extension register --name=NAME --command=COMMAND [options]",
+    "co-maintainer extension update --name=NAME [options]",
+    "co-maintainer extension list [--json]",
+    "co-maintainer extension remove --name=NAME",
+    "co-maintainer extension disable --name=NAME",
+    "co-maintainer extension enable --name=NAME",
+    "co-maintainer extension debug-run --name=NAME [--command=COMMAND]",
+  ],
+  groups: [
+    {
+      title: "Extension",
+      flags: [
+        {
+          name: "name",
+          value: "NAME",
+          description: "The extension's name. Required.",
+        },
+        {
+          name: "command",
+          value: "COMMAND",
+          description:
+            "The shell command to run. {{details_path}}, {{review_result_path}} and {{diff_path}} are replaced with quoted paths. Required for register.",
+        },
+        {
+          name: "repos",
+          value: "PATTERNS",
+          default: "*",
+          description: "Where it runs: owner/repo, a/b,a/c, a/*, */a or *.",
+        },
+        {
+          name: "review-types",
+          value: "local,pr,remote",
+          default: "all",
+          description:
+            "Only run in these review types. The extension can also check the type itself and return skipped.",
+        },
+      ],
+    },
+    {
+      title: "Order",
+      flags: [
+        {
+          name: "run-after",
+          value: "NAME|review",
+          description:
+            "Start when this extension, or the AI review, has finished. A name nobody registered asks first.",
+        },
+        {
+          name: "parallelism",
+          value: "true|false",
+          default: "true",
+          description:
+            "false with no --run-after means it runs after the review.",
+        },
+        {
+          name: "priority",
+          value: "0-3",
+          default: "0",
+          description:
+            "Start order among extensions ready at the same time. 3 runs first, ties keep registration order.",
+        },
+        {
+          name: "fail-fast",
+          description:
+            "On failure, the extensions waiting on this one through --run-after do not run.",
+        },
+      ],
+    },
+    {
+      title: "Retries and limits",
+      flags: [
+        {
+          name: "retry-on-fail-times",
+          value: "N",
+          default: "0",
+          description: "Run again when the response does not match the schema.",
+        },
+        {
+          name: "max-requested-retries",
+          value: "N",
+          default: "3",
+          description: "How many status retry responses are honoured.",
+        },
+        {
+          name: "timeout",
+          value: "DURATION",
+          default: "10m",
+          description:
+            "Stop a run after this long, such as 30s, 10m or 1h. The result is Failed.",
+        },
+        {
+          name: "rerun-on-restart",
+          value: "true|false",
+          default: "true",
+          description:
+            "Run again when co-maintainer restarted mid-run. Overrides the extension-rerun-on-restart config key.",
+        },
+        {
+          name: "yes",
+          description:
+            "Save a --run-after that names an unregistered extension without asking.",
+        },
+      ],
+    },
+    {
+      title: "Output",
+      flags: [
+        {
+          name: "json",
+          description: "With list, print the registrations as JSON.",
+        },
+      ],
+    },
+  ],
+  examples: [
+    "co-maintainer extension register --name=qa-vision --command='HOME=/home/me /usr/bin/node /opt/qa-vision.mjs {{details_path}} --json'",
+    "co-maintainer extension register --name=lint --command='/opt/lint.sh {{diff_path}}' --review-types=pr --fail-fast",
+    "co-maintainer extension update --name=lint --run-after=review --priority=3",
+    "co-maintainer extension debug-run --name=qa-vision",
+    "co-maintainer extension list",
+  ],
+};
+
 export const COMMANDS: CommandSpec[] = [
   {
     name: "probe",
@@ -214,6 +347,13 @@ export const COMMANDS: CommandSpec[] = [
             name: "include-how-repo-works",
             description: "Read the docs and layout.",
           },
+          {
+            name: "agent-instructions",
+            value: "REGEX",
+            default: "(^|/)AGENTS\\.md$",
+            description:
+              "Paths on the default branch to read as agent instruction files for INSTRUCTIONS.md. Needs --include-codebase. A blank value turns it off. Saved for later syncs.",
+          },
         ],
       },
       {
@@ -224,6 +364,13 @@ export const COMMANDS: CommandSpec[] = [
             value: "N",
             default: "all",
             description: "Cap how many commits are read.",
+          },
+          {
+            name: "agent-instructions-max-chars",
+            value: "N",
+            default: "6000",
+            description:
+              "Cap on INSTRUCTIONS.md in characters. 0 or below means no limit. Saved for later syncs.",
           },
           {
             name: "max-pr-months",
@@ -293,6 +440,7 @@ export const COMMANDS: CommandSpec[] = [
     examples: [
       "co-maintainer init owner/repo --include-codebase --include-pull-requests",
       "co-maintainer init owner/repo --include-codebase --ai=openrouter --token=...",
+      "co-maintainer init owner/repo --max-pr-months=12 --agent-instructions='(^|/)(AGENTS|CLAUDE)\\.md$'",
     ],
   },
   {
@@ -324,6 +472,12 @@ export const COMMANDS: CommandSpec[] = [
             name: "include-how-repo-works",
             description: "Read the docs and layout.",
           },
+          {
+            name: "agent-instructions",
+            value: "REGEX",
+            description:
+              "Paths on the default branch to read as agent instruction files for INSTRUCTIONS.md. Needs --include-codebase. A blank value turns it off. Left out, the last run's value is kept.",
+          },
         ],
       },
       {
@@ -333,6 +487,12 @@ export const COMMANDS: CommandSpec[] = [
             name: "max-commits",
             value: "N",
             description: "Cap how many commits are read.",
+          },
+          {
+            name: "agent-instructions-max-chars",
+            value: "N",
+            description:
+              "Cap on INSTRUCTIONS.md in characters. 0 or below means no limit. Left out, the last run's value is kept.",
           },
           {
             name: "max-pr-months",
@@ -375,7 +535,10 @@ export const COMMANDS: CommandSpec[] = [
         ],
       },
     ],
-    examples: ["co-maintainer sync owner/repo --include-codebase"],
+    examples: [
+      "co-maintainer sync owner/repo --include-codebase",
+      "co-maintainer sync owner/repo --agent-instructions-max-chars=8000",
+    ],
   },
   {
     name: "review",
@@ -487,6 +650,42 @@ export const COMMANDS: CommandSpec[] = [
           },
         ],
       },
+      {
+        title: "Intent",
+        flags: [
+          {
+            name: "intent-file",
+            value: "PATH",
+            description:
+              "Tell the review what the change is for, from a file or from standard input with -. It is context only, never a rule. Up to the repository's custom prompt cap. Not with --range.",
+          },
+        ],
+      },
+      {
+        title: "Diagrams",
+        flags: [
+          {
+            name: "diagram-runtime",
+            value: "mermaid|plantuml|plantuml-server",
+            default: "mermaid",
+            description:
+              "The diagram language the review uses. plantuml keeps the PlantUML source. plantuml-server turns it into an image link on a PlantUML server. Not with --remote.",
+          },
+          {
+            name: "plantuml-server",
+            value: "URL",
+            default: "https://www.plantuml.com",
+            description:
+              "The PlantUML server for plantuml-server. An http or https URL. The diagram source travels in the image link.",
+          },
+          {
+            name: "plantuml-output-format",
+            value: "svg|png",
+            default: "svg",
+            description: "The image format for plantuml-server.",
+          },
+        ],
+      },
       AI_FLAGS,
       EXPERIMENTAL_FLAGS,
       GITHUB_FLAGS,
@@ -502,6 +701,8 @@ export const COMMANDS: CommandSpec[] = [
       "co-maintainer review --remote --range=abc1234..def5678 --output=github",
       "co-maintainer review owner/repo 42 --system-prompt-file=extra.md",
       "co-maintainer review --system-prompt-override-file=strict.md",
+      "co-maintainer review --intent-file=task.md",
+      "co-maintainer review owner/repo 42 --diagram-runtime=plantuml-server --plantuml-output-format=png",
     ],
   },
   {
@@ -540,6 +741,7 @@ export const COMMANDS: CommandSpec[] = [
       "co-maintainer view [owner/repo] [guide]",
       "co-maintainer view [owner/repo] --list",
       "co-maintainer view [owner/repo] --path",
+      "co-maintainer view [owner/repo] --sources [--json]",
     ],
     groups: [
       {
@@ -548,6 +750,15 @@ export const COMMANDS: CommandSpec[] = [
           {
             name: "list",
             description: "List the guide files with their size and build date.",
+          },
+          {
+            name: "sources",
+            description:
+              "List every instruction rule by id, with the instruction file lines it came from.",
+          },
+          {
+            name: "json",
+            description: "With --sources, print RULES.json as it is.",
           },
           {
             name: "path",
@@ -566,6 +777,7 @@ export const COMMANDS: CommandSpec[] = [
       "co-maintainer view owner/repo review-guide",
       "co-maintainer view owner/repo --list",
       "co-maintainer view owner/repo --remote",
+      "co-maintainer view owner/repo --sources",
     ],
   },
   {
@@ -762,6 +974,33 @@ export const COMMANDS: CommandSpec[] = [
               "Cap the repository's review instructions in characters. Needs --repo. 0 or -1 means no limit.",
           },
           {
+            name: "diagram-runtime",
+            value: "mermaid|plantuml|plantuml-server",
+            default: "mermaid",
+            description:
+              "The diagram language for a repository's reviews, including App reviews. Needs --repo.",
+          },
+          {
+            name: "plantuml-server",
+            value: "URL",
+            default: "https://www.plantuml.com",
+            description:
+              "The PlantUML server for plantuml-server. An http or https URL. Needs --repo.",
+          },
+          {
+            name: "plantuml-output-format",
+            value: "svg|png",
+            default: "svg",
+            description: "The image format for plantuml-server. Needs --repo.",
+          },
+          {
+            name: "review-read-diff-max-chars",
+            value: "N",
+            default: "20000",
+            description:
+              "The most characters one read-full-diff answer returns in a review of this repository. Needs --repo. 0 or -1 means no limit.",
+          },
+          {
             name: "review-blocking",
             value: "model|severity",
             default: "model",
@@ -777,6 +1016,13 @@ export const COMMANDS: CommandSpec[] = [
             name: "password",
             value: "TEXT",
             description: "Replace the dashboard password.",
+          },
+          {
+            name: "extension-rerun-on-restart",
+            value: "true|false",
+            default: "true",
+            description:
+              "Run an extension again when co-maintainer restarted while it ran. A registration's --rerun-on-restart wins.",
           },
           {
             name: "disable-auth",
@@ -804,6 +1050,7 @@ export const COMMANDS: CommandSpec[] = [
       "co-maintainer set --ai=openrouter --ai-key=... --low-model=... --high-model=...",
       "co-maintainer set --remote-host=https://review.example.com --remote-token=...",
       "co-maintainer set --repo=owner/repo --review-system-prompt='Focus on the parser.'",
+      "co-maintainer set --repo=owner/repo --diagram-runtime=plantuml-server",
       "co-maintainer set --unset=token",
     ],
   },
@@ -854,6 +1101,7 @@ export const COMMANDS: CommandSpec[] = [
     ],
     examples: ["co-maintainer serve --port=5000"],
   },
+  EXTENSION_COMMAND,
   {
     name: "rollback",
     summary:

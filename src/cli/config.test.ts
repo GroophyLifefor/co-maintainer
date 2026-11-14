@@ -25,6 +25,11 @@ import {
   setEnv,
   writeTextFile,
 } from "../util/runtime.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 test("config: a long secret keeps its last four characters, a short one is fully hidden", () => {
   if (maskSecret("sk-or-v1-abcdef123456") !== "••••3456") {

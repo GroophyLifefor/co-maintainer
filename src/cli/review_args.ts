@@ -6,6 +6,7 @@ import {
   checkReviewSystemPrompt,
   reviewSystemPromptLimit,
 } from "../review/system_prompt.ts";
+import { type IntentLoad, loadIntentFlag } from "./review_intent.ts";
 import type { Options } from "../types.ts";
 
 export type ReviewMode = "local" | "remote" | "pr";
@@ -36,16 +37,22 @@ type ReviewFlags = {
   /** `--system-prompt-override-file`: a file whose contents replace the
    * repository's custom review section for this run only. */
   systemPromptOverrideFile?: string;
+  /** `--intent-file`: a file, or `-` for standard input, that says what the
+   * change is for. Context for the prompt, never a rule. */
+  intentFile?: string;
   /** `--range=<before>..<after>`: review a push instead of the working tree
    * (commit watch). Only with `--remote`. */
   range?: { before: string; after: string };
   /** `--timeout-minutes`: how long a `--range` review waits for the server
    * before it leaves the result to the dashboard. */
   timeoutMinutes?: number;
+  /** `--include-extension-markdowns`: keep each extension's `markdown` in
+   * `--json`. */
+  includeExtensionMarkdowns?: boolean;
 };
 
 export type ReviewCliArgs =
-  | ({ mode: "pr"; options: Options } & ReviewFlags)
+  | ({ mode: "pr"; options: Options; intentLoad?: IntentLoad } & ReviewFlags)
   | ({ mode: "local"; rawArgs: string[] } & ReviewFlags)
   | ({ mode: "remote"; rawArgs: string[] } & ReviewFlags);
 
@@ -116,8 +123,10 @@ function reviewFlags(rest: string[]): ReviewFlags {
     output,
     systemPromptFile: text("system-prompt-file"),
     systemPromptOverrideFile: text("system-prompt-override-file"),
+    intentFile: text("intent-file"),
     range: parseRange(text("range")),
     timeoutMinutes: parseTimeout(text("timeout-minutes")),
+    includeExtensionMarkdowns: rest.includes("--include-extension-markdowns"),
   };
 }
 
@@ -131,6 +140,7 @@ const LOCAL_ONLY_FLAGS = new Set([
   "--sync-before-review",
   "--remote-byok",
   "--no-remote-byok",
+  "--include-extension-markdowns",
 ]);
 
 /** Strip local-only flags before `parseArgs` for PR-style options. */
@@ -146,6 +156,7 @@ export function filterReviewConfigArgs(raw: string[]): string[] {
       arg.startsWith("--output=") ||
       arg.startsWith("--system-prompt-file=") ||
       arg.startsWith("--system-prompt-override-file=") ||
+      arg.startsWith("--intent-file=") ||
       arg.startsWith("--range=") ||
       arg.startsWith("--timeout-minutes=")
     ) {
@@ -208,11 +219,27 @@ export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
   if (flags.remoteByok !== undefined && !flags.remote) {
     die("--remote-byok requires --remote");
   }
+  // The server reviews with the repository's saved diagram settings, so a flag
+  // here would be dropped without a word.
+  const diagramFlag = args.find((arg) =>
+    /^--(diagram-runtime|plantuml-server|plantuml-output-format)(=|$)/.test(
+      arg,
+    ),
+  );
+  if (flags.remote && diagramFlag) {
+    die(
+      `${diagramFlag.split("=")[0]} cannot be used with --remote. ` +
+        "The server uses the diagram settings saved for the repository.",
+    );
+  }
   if (flags.range && !flags.remote) {
     die("--range requires --remote");
   }
   if (flags.timeoutMinutes !== undefined && !flags.range) {
     die("--timeout-minutes requires --range");
+  }
+  if (flags.range && flags.intentFile !== undefined) {
+    die("--intent-file is not supported with --range");
   }
   if (flags.range && (flags.fresh || flags.toBranch)) {
     die("--range cannot be used with --fresh or --to-branch");
@@ -247,6 +274,10 @@ export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
       flags,
       reviewSystemPromptLimitFor(options.repo),
     );
+    const intentLoad = await loadIntentFlag(
+      flags.intentFile,
+      reviewSystemPromptLimitFor(options.repo),
+    );
     return {
       mode: "pr",
       options: {
@@ -255,7 +286,9 @@ export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
         allowToolInstall: flags.allowToolInstall,
         reviewSystemPromptAdd: promptFlags.add,
         reviewSystemPromptOverride: promptFlags.override,
+        reviewIntent: intentLoad.intent?.text,
       },
+      intentLoad,
       ...flags,
     };
   }

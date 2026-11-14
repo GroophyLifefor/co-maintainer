@@ -2,7 +2,7 @@ import { VERSION } from "../version.ts";
 import { CliError } from "../cli/error.ts";
 import {
   resolvedFromFirstReview,
-  revisionStats,
+  reviewCoverageFields,
   sortResolvedFindings,
   summaryCounts,
   toJsonFinding,
@@ -15,8 +15,11 @@ import {
   classifyCarryItems,
   guideRebuiltSince,
   incrementalDiffPaths,
+  parsePreviousVerdicts,
+  resolveCarryOutcomes,
   type CarryPrevious,
 } from "../review/carry_over.ts";
+import { visiblePathsToSave } from "../review/visible_paths.ts";
 import { remoteBridgeToolHandlers } from "../remote/tool_bridge.ts";
 import { revisionFromSubmitJson } from "../remote/revision_from_submit.ts";
 import {
@@ -37,6 +40,7 @@ import {
   reviewSystemPromptLimit,
 } from "../review/system_prompt.ts";
 import { loadGuides } from "../review/guides.ts";
+import { serverDiagramOptions } from "../review/diagram.ts";
 import type { Options } from "../types.ts";
 import { withLogSink } from "../util/log.ts";
 import { cancel, registerHandler, type LogFn } from "./jobs.ts";
@@ -76,6 +80,11 @@ import { insertJob, listJobsByQueueKey, setJobStatus } from "../store/jobs.ts";
 import { getAppDb } from "../store/app_db.ts";
 import type { RemoteTokenRow } from "../store/rows.ts";
 import type { JobRow } from "../store/rows.ts";
+import { withExtensions } from "../extensions/session.ts";
+import { remoteContext } from "../extensions/contexts.ts";
+import { reviewResultJson } from "../extensions/review_result.ts";
+import { withExtensionsJson } from "../extensions/render_json.ts";
+import { addExtensionCost } from "../extensions/cost.ts";
 
 const REPO_UNAVAILABLE = "Sorry, we could not access this repository.";
 
@@ -116,6 +125,7 @@ function reviewOptionsForRepo(
   repo: string,
   useCodegraph: boolean,
   aiToken?: string,
+  warn?: (message: string) => void,
 ): Options {
   const config = readConfig();
   return {
@@ -142,6 +152,7 @@ function reviewOptionsForRepo(
     onlyRequestChangedPr: false,
     reviewBlocking: reviewBlockingFrom(config.reviewBlocking),
     reviewSystemPrompt: config.repos?.[repo]?.reviewSystemPrompt,
+    ...serverDiagramOptions(config.repos?.[repo] ?? {}, repo, warn),
   };
 }
 
@@ -228,14 +239,10 @@ export function submitRemoteReview(
   }
   const branch = body.branch;
   const fresh = body.fresh === true;
-  const subject = getOrCreateRemoteSubject(repoRow.full_name, branch, token.id);
-  if (fresh) deleteSubjectRevision(subject.id);
 
-  const jobId = crypto.randomUUID();
-  const reviewId = crypto.randomUUID();
-  const queueKey = remoteQueueKey(repoRow.full_name, branch, token.id);
-  supersedeActiveRemoteJobs(queueKey, jobId);
-
+  // Every check that can refuse the submit comes before anything is changed,
+  // so a refused submit leaves the branch's running review and its carry-over
+  // as they were.
   const revision = body.revision ?? {};
   const capabilities = body.capabilities ?? { tools: [] };
   const config = readConfig();
@@ -262,9 +269,35 @@ export function submitRemoteReview(
       };
     }
   }
+  // The intent comes from a client, so the repository's cap applies to it
+  // here as well, whatever the client checked. The cap counts the text, and
+  // only the text is kept.
+  const description = (revision as { description?: unknown }).description;
+  let storedRevision: unknown = revision;
+  if (typeof description === "string") {
+    const text = description.trim();
+    const problem = checkReviewSystemPrompt(text, promptLimit);
+    if (problem) {
+      return {
+        error: `revision.description: ${problem}`,
+        status: 400,
+        code: "bad_request",
+      };
+    }
+    storedRevision = { ...(revision as object), description: text };
+  }
+
+  const subject = getOrCreateRemoteSubject(repoRow.full_name, branch, token.id);
+  if (fresh) deleteSubjectRevision(subject.id);
+
+  const jobId = crypto.randomUUID();
+  const reviewId = crypto.randomUUID();
+  const queueKey = remoteQueueKey(repoRow.full_name, branch, token.id);
+  supersedeActiveRemoteJobs(queueKey, jobId);
+
   insertRemoteReviewInput({
     jobId,
-    revisionJson: JSON.stringify(revision),
+    revisionJson: JSON.stringify(storedRevision),
     capabilitiesJson: JSON.stringify(capabilities),
     requestId,
     tokenId: token.id,
@@ -371,7 +404,12 @@ export function registerRemoteReviewHandler(): void {
             .filter((name) => typeof name === "string" && name),
         );
         const useCodegraph = allowed.size > 0;
-        const options = reviewOptionsForRepo(job.repo, useCodegraph, byokKey);
+        const options = reviewOptionsForRepo(
+          job.repo,
+          useCodegraph,
+          byokKey,
+          (text) => log("info", text),
+        );
         // The client's one-run instructions travel with the job, so a retry
         // keeps them. They apply on top of the server's per-repo prompt.
         options.reviewSystemPromptAdd = input.system_prompt_add ?? undefined;
@@ -390,7 +428,11 @@ export function registerRemoteReviewHandler(): void {
         const billed: "server" | "byok" =
           byokKey !== undefined ? "byok" : "server";
 
-        const extras: ReviewExtras = {};
+        // The subject's carry-over leaves out what the last run saw, so a
+        // file this run drops is sent by the next one.
+        const extras: ReviewExtras = { catchesUp: true };
+        let previousVisible: Set<string> | undefined;
+        let previous: CarryPrevious | undefined;
         if (subjectId) {
           const subjectRevision = getSubjectRevision(subjectId);
           // A guide rebuilt after the previous review invalidates its verdicts
@@ -404,14 +446,19 @@ export function registerRemoteReviewHandler(): void {
             );
           if (subjectRevision && !guideRebuilt) {
             const prevFiles = parseRevisionFiles(subjectRevision);
-            const { unchanged } = incrementalDiffPaths(revision, prevFiles);
+            const { unchanged } = incrementalDiffPaths(
+              revision,
+              prevFiles,
+              parseVisiblePaths(subjectRevision),
+            );
             extras.unchangedPaths = unchanged;
             const storedRows = listCarryableFindingsForReview(
               subjectRevision.review_id,
             );
-            const carryPrevious: CarryPrevious = {
+            previousVisible = parseVisiblePaths(subjectRevision);
+            const carryPrevious = (previous = {
               files: prevFiles,
-              visiblePaths: parseVisiblePaths(subjectRevision),
+              visiblePaths: previousVisible,
               findings: storedRows.map((row) => ({
                 id: row.id,
                 path: row.path,
@@ -425,7 +472,7 @@ export function registerRemoteReviewHandler(): void {
                   row.first_seen_review_id ?? subjectRevision.review_id,
               })),
               guideBuiltAt: subjectRevision.guide_built_at,
-            };
+            });
             const carryItems = classifyCarryItems(
               carryPrevious,
               revision,
@@ -445,23 +492,37 @@ export function registerRemoteReviewHandler(): void {
         let tokensIn = 0;
         let tokensOut = 0;
         const costTally = emptyTally();
-        const result = await withLogSink(
-          (phase, message) => log("info", `[${phase}] ${message}`),
+        const { review: result, extensions } = await withExtensions(
+          remoteContext({
+            jobId: job.id,
+            repo: job.repo,
+            branch: review.branch,
+            revision,
+            subjectId,
+            reviewId,
+            signal,
+            log: (message) => log("info", message),
+          }),
           () =>
-            reviewWorkspaceRevision(
-              revision,
-              options,
-              "remote",
-              async (response) => {
-                tokensIn += response.tokensIn;
-                tokensOut += response.tokensOut;
-                addResponseCost(costTally, response);
-                await recordAiCost(job.repo, "remote_review", response);
-              },
-              undefined,
-              (message) => log("info", message),
-              extras,
+            withLogSink(
+              (phase, message) => log("info", `[${phase}] ${message}`),
+              () =>
+                reviewWorkspaceRevision(
+                  revision,
+                  options,
+                  "remote",
+                  async (response) => {
+                    tokensIn += response.tokensIn;
+                    tokensOut += response.tokensOut;
+                    addResponseCost(costTally, response);
+                    await recordAiCost(job.repo, "remote_review", response);
+                  },
+                  undefined,
+                  (message) => log("info", message),
+                  extras,
+                ),
             ),
+          (reviewed) => reviewResultJson(reviewed.text, options.reviewBlocking),
         );
 
         if (signal.aborted) return;
@@ -470,31 +531,68 @@ export function registerRemoteReviewHandler(): void {
         const filesByPath = new Map(
           revision.files.map((file) => [file.path, { patch: file.patch }]),
         );
+        // A later round also applies the model's verdicts on the earlier
+        // findings, as a local review does. Reading only the new ones dropped
+        // a finding the model kept open, for good.
+        const visible = new Set(result.visiblePaths);
         const findings = sortResolvedFindings(
-          resolvedFromFirstReview(parsed, filesByPath),
+          previous
+            ? resolveCarryOutcomes(
+                classifyCarryItems(
+                  previous,
+                  revision,
+                  visible,
+                  result.guideBuiltAt,
+                ),
+                revision,
+                visible,
+                parsePreviousVerdicts(result.text),
+                parsed,
+              )
+            : resolvedFromFirstReview(parsed, filesByPath),
         );
         const durationMs = Math.round(performance.now() - started);
         const blockingMode = reviewBlockingFrom(options.reviewBlocking);
 
+        // The plan ran here, on the patches the client submitted, so the
+        // coverage travels back in the result. An older client ignores it.
+        const covered = reviewCoverageFields(
+          revision,
+          result.coverage,
+          result.warnings,
+        );
+        // The client empties each `markdown` unless it asked for them.
+        const joined = withExtensionsJson(
+          {
+            summary: summaryCounts(findings, blockingMode),
+            findings: findings.map((row) => toJsonFinding(row, blockingMode)),
+            usage: {
+              tokensIn,
+              tokensOut,
+              ...costUsage(costTally),
+              billedTo: billed,
+            },
+          },
+          extensions,
+          true,
+        );
         setRemoteSyncResult(job.id, {
           subject: {
             repo: job.repo,
             branch: review.branch,
             prNumber: null,
           },
-          revision: revisionStats(revision),
+          revision: covered.revision,
           guide: { builtAt: result.guideBuiltAt },
           codegraph: { state: result.codegraphState },
-          summary: summaryCounts(findings, blockingMode),
-          findings: findings.map((row) => toJsonFinding(row, blockingMode)),
-          usage: {
-            tokensIn,
-            tokensOut,
-            ...costUsage(costTally),
-            billedTo: billed,
-          },
+          summary: joined.summary,
+          findings: joined.findings,
+          warnings: covered.warnings,
+          usage: joined.usage,
+          extensions: joined.extensions,
           remote: { jobId: job.id, reviewId, clientVersion: VERSION },
         });
+        addExtensionCost(costTally, extensions);
 
         setReviewStatus(reviewId, "done", {
           findings_count: findings.length,
@@ -510,7 +608,13 @@ export function registerRemoteReviewHandler(): void {
             subjectId,
             reviewId,
             files: revision.files,
-            visiblePaths: [...result.visiblePaths],
+            visiblePaths: [
+              ...visiblePathsToSave(
+                previousVisible,
+                extras.unchangedPaths,
+                result.visiblePaths,
+              ),
+            ],
             guideBuiltAt: result.guideBuiltAt,
           });
           for (const row of findings) {

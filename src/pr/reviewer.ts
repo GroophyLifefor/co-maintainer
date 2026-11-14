@@ -5,18 +5,38 @@ import {
   type ToolHandler,
 } from "../ai/mermaid_loop.ts";
 import { loadGuides } from "../review/guides.ts";
+import { notInitializedError } from "../review/not_initialized.ts";
 import type { Revision } from "../review/revision.ts";
 import { computeScope } from "./scope.ts";
 import { prepareCodegraphTools } from "./codegraph_tools.ts";
 import { REVIEW_COPY_RULE, severitySection } from "./review_copy.ts";
-import { reviewSystemPromptBlock } from "../review/system_prompt.ts";
 import {
-  needsSummary,
-  READ_FULL_DIFF_TOOL,
-  readFullDiff,
-  summarizeDiff,
-} from "./diff_summary.ts";
-import { numberPatch } from "./hunks.ts";
+  repositoryInstructionsBlock,
+  reviewSystemPromptBlock,
+} from "../review/system_prompt.ts";
+import { readDiffMaxChars } from "./diff_summary.ts";
+import { intentField, intentPromptNote } from "../review/intent.ts";
+import {
+  mermaidToolFields,
+  plantumlPromptRules,
+  plantumlSystemRules,
+  renderDiagrams,
+} from "../review/diagram.ts";
+import {
+  diffFileFromGithub,
+  diffFileFromRevision,
+  type DiffFile,
+} from "./diff_plan.ts";
+import { prepareReviewDiff } from "./review_diff.ts";
+import {
+  coverageCounts,
+  coverageTruncated,
+  type Coverage,
+  type CoverageWarning,
+} from "../review/coverage.ts";
+import { readConfig } from "../config.ts";
+import { FakeAiProvider } from "../ai/fake.ts";
+import { getEnv } from "../util/runtime.ts";
 import {
   FINDINGS_JSON_INSTRUCTIONS,
   FINDINGS_JSON_SCHEMA,
@@ -85,11 +105,82 @@ export type ReviewExtras = {
   carryPrompt?: string;
   unchangedPaths?: string[];
   prepareCodegraphTools?: () => Promise<ToolHandler[]>;
+  /** The pull request and its files, already read by the caller. The review
+   * then makes neither request, so it judges what the caller stored. */
+  prefetched?: { pull: Json; files: Json[] };
   /** The request's job name, `review_local` when left out. */
   job?: string;
+  /** Pull request files to review although the compare of this round does
+   * not list them: files an earlier round dropped or withheld and nobody
+   * touched since. A file the compare lists is not added twice. */
+  resend?: Json[];
+  /** The provider that summarizes large diffs. Left out, a low-model provider
+   * is built from the options. */
+  summaryAi?: AiProvider;
+  /** True when this mode's next run leaves out the files this run saw, so it
+   * sends the ones this run dropped. Only then do the warnings promise a
+   * later round. Left out, they do not. */
+  catchesUp?: boolean;
 };
 
-const MAX_REVIEW_DIFF_CHARS = 240_000;
+/** What a review run returns to every flow. */
+export type ReviewOutcome = AiResponse & {
+  /** The files the model received this round (`pathsSeenInRound`). A flow
+   * that saves a round saves them through `visiblePathsToSave`, which adds
+   * the files it skipped as unchanged. */
+  visiblePaths: string[];
+  guideBuiltAt: string | null;
+  codegraphState: "used" | "disabled" | "unavailable";
+  coverage: Coverage;
+  /** `diff_dropped`, `diff_withheld` and `summary_failed`. */
+  warnings: CoverageWarning[];
+  /** Every changed file of the subject, for the result's `revision` block. */
+  diffStats: { files: number; additions: number; deletions: number };
+};
+
+/** Summaries run on the low model, whatever provider the caller handed in for
+ * the review itself. A server with no low model configured summarized with
+ * the review's provider before, and still does, so no review fails for it. */
+export function summaryProvider(
+  options: Options,
+  reviewAi: AiProvider,
+  report: ProgressSink,
+  extras?: ReviewExtras,
+): AiProvider {
+  if (extras?.summaryAi) return extras.summaryAi;
+  if (getEnv("CM_FAKE_AI") === "1") return new FakeAiProvider();
+  if (!options.lowModel) {
+    report("no low model is configured · summaries use the review model");
+    return reviewAi;
+  }
+  return reviewProvider(options, options.lowModel, "low");
+}
+
+/** The listed files, then each of `resend` the list does not have. */
+function withResent(listed: Json[], resend: Json[] | undefined): Json[] {
+  if (!resend?.length) return listed;
+  const names = new Set(listed.map((file) => String(file.filename ?? "")));
+  return [
+    ...listed,
+    ...resend.filter((file) => !names.has(String(file.filename ?? ""))),
+  ];
+}
+
+function diffStats(files: DiffFile[]): ReviewOutcome["diffStats"] {
+  return {
+    files: files.length,
+    additions: files.reduce((sum, file) => sum + file.additions, 0),
+    deletions: files.reduce((sum, file) => sum + file.deletions, 0),
+  };
+}
+
+/** One progress line for the prepared diff, naming what did not go in whole. */
+function diffReport(chars: number, coverage: Coverage): string {
+  return `diff prepared · ${chars} chars${
+    coverageTruncated(coverage) ? ` · ${coverageCounts(coverage)}` : ""
+  }`;
+}
+
 export const MERMAID_GUIDANCE = `Mermaid selection and minimal syntax:
 flowchart = decisions, branches, pipelines, and fallback paths;
 swimlane-beta = work crossing owners, actors, services, teams, or layers;
@@ -142,9 +233,12 @@ instructions. Keep labels short and grounded in the supplied evidence. A
 one-line fix or an obvious, single-step cause and effect genuinely needs no
 diagram. That is the only reason to omit one. Close every fenced block.`;
 
-export function reviewSystemPrompt(diagrams: boolean): string {
+export function reviewSystemPrompt(
+  diagrams: boolean,
+  options?: Options,
+): string {
   return `${REVIEW_ROLE}
-${diagrams ? REVIEW_DIAGRAM_RULES : NO_DIAGRAM_RULES}`;
+${diagrams ? (plantumlSystemRules(options) ?? REVIEW_DIAGRAM_RULES) : NO_DIAGRAM_RULES}`;
 }
 
 /** The guide block every review sends, kept as the stable head of the system
@@ -156,6 +250,7 @@ export function reviewGuidesBlock(
   guide: string,
   detailed: string,
   codebase: string,
+  instructions = "",
 ): string {
   return `REVIEW GUIDE:
 ${guide}
@@ -164,7 +259,7 @@ DETAILED GUIDE:
 ${detailed}
 
 CODEBASE CONVENTIONS:
-${codebase || "None recorded."}`;
+${codebase || "None recorded."}${repositoryInstructionsBlock(instructions)}`;
 }
 
 /** Shared PR and local/remote workspace review instructions: confirm claims
@@ -180,13 +275,6 @@ pattern elsewhere in the repo. Use those tools to check blast radius and whether
 a test reaches the path. Do not guess coverage or impact from the diff alone
 when a tool can answer. A missing regression test is not a substitute for
 identifying the concrete input or code path that misbehaves when you can.`;
-
-function text(value: unknown, limit = 20_000): string {
-  const result = String(value ?? "");
-  return result.length > limit
-    ? `${result.slice(0, limit)}\n[truncated]`
-    : result;
-}
 
 type UsageSinkForNormalize = UsageSink;
 
@@ -232,40 +320,6 @@ async function normalizeReviewResponse(
   return response.text.trim();
 }
 
-const MAX_FILE_PATCH_CHARS = 12_000;
-
-/** GitHub omits `patch` entirely for files it considers too large, and the file
- * still appears in the compare response with only its counts. Rendering that as
- * an empty body reads as "this file did not change", and a reviewer then
- * reports the absence as a finding (a lockfile that was in fact regenerated,
- * say). Say plainly that the hunks are missing, and mark a per-file truncation
- * for the same reason. */
-export function filePatch(file: Json): string {
-  const patch = String(file.patch ?? "");
-  const status = String(file.status ?? "modified");
-  const changes = Number(file.changes ?? 0);
-  const additions = Number(file.additions ?? 0);
-  const deletions = Number(file.deletions ?? 0);
-  if (patch === "") {
-    const counts =
-      Number.isFinite(changes) && changes > 0
-        ? `${changes} changed lines (+${additions} -${deletions})`
-        : "an unreported number of changed lines";
-    return (
-      `[${status}: ${counts}, diff withheld by GitHub, not shown here. ` +
-      `Do not treat this file as unchanged and do not report its contents.]`
-    );
-  }
-  if (patch.length > MAX_FILE_PATCH_CHARS) {
-    return (
-      `${numberPatch(patch.slice(0, MAX_FILE_PATCH_CHARS))}\n[${status}: ${changes} ` +
-      `changed lines total. This file's diff is cut off here, later hunks are ` +
-      `not shown.]`
-    );
-  }
-  return numberPatch(patch);
-}
-
 // Uncapped, a 100,000-line diff would ask for 1,000+ tool-loop rounds, each
 // able to spend multiple external calls.
 export function clampToolRounds(totalDiffLines: number): number {
@@ -296,6 +350,21 @@ export async function readGuide(repo: string, name: string): Promise<string> {
 
 export type { Snapshot };
 
+/** `Promise.all`, except that when several fail the error is the first in
+ * list order, not the first in time. For a pull request that does not exist
+ * every read fails, and only the read of the pull request itself says so:
+ * the comments read is an `issues/N` endpoint, which names the repository. */
+async function allInOrder<T extends readonly unknown[]>(values: {
+  [K in keyof T]: T[K] | Promise<T[K]>;
+}): Promise<T> {
+  const settled = await Promise.allSettled(values);
+  const failed = settled.find((item) => item.status === "rejected");
+  if (failed) throw failed.reason;
+  return settled.map(
+    (item) => (item as PromiseFulfilledResult<unknown>).value,
+  ) as unknown as T;
+}
+
 export async function reviewPullRequest(
   client: GitHubClient,
   options: Options,
@@ -304,20 +373,15 @@ export async function reviewPullRequest(
   ai?: AiProvider,
   progress?: ProgressSink,
   extras?: ReviewExtras,
-): Promise<
-  AiResponse & {
-    visiblePaths: string[];
-    guideBuiltAt: string | null;
-    codegraphState: "used" | "disabled" | "unavailable";
-  }
-> {
+): Promise<ReviewOutcome> {
   if (!options.prNumber) throw new Error("review requires a PR number");
   const number = options.prNumber;
   const report = progress ?? (() => {});
   report(modelSummary(options));
   report(`loading PR context for ${options.repo}#${number}`);
-  const [pr, allComments, allReviews, guides] = await Promise.all([
-    client.request<Json>(`repos/${options.repo}/pulls/${number}`),
+  const [pr, allComments, allReviews, guides] = await allInOrder([
+    extras?.prefetched?.pull ??
+      client.request<Json>(`repos/${options.repo}/pulls/${number}`),
     client.pages<Json>(`repos/${options.repo}/issues/${number}/comments`),
     client.pages<Json>(`repos/${options.repo}/pulls/${number}/reviews`),
     loadGuides(options.repo),
@@ -332,7 +396,7 @@ export async function reviewPullRequest(
     !snapshot || String(item.created_at ?? "") < snapshot.before;
   const comments = allComments.filter(before);
   const reviews = allReviews.filter(before);
-  const files = snapshot
+  const listedFiles = snapshot
     ? (((
         await client.request<Json>(
           `repos/${options.repo}/compare/${
@@ -341,12 +405,14 @@ export async function reviewPullRequest(
           }...${snapshot.commit}`,
         )
       ).files as Json[]) ?? [])
-    : await client.pages<Json>(`repos/${options.repo}/pulls/${number}/files`);
+    : (extras?.prefetched?.files ??
+      (await client.pages<Json>(
+        `repos/${options.repo}/pulls/${number}/files`,
+      )));
+  const files = withResent(listedFiles, extras?.resend);
   report(`diff files loaded · ${files.length} files`);
   if (!guide) {
-    throw new Error(
-      `repos/${options.repo}/PR_REVIEW_GUIDE.md was not found. Run init first`,
-    );
+    throw notInitializedError(options.repo);
   }
   if (options.debug) {
     console.log(
@@ -396,37 +462,20 @@ export async function reviewPullRequest(
     );
   }
 
-  // Built only if needed, see reviewProvider.
-  const filesNeedSummary = ownFiles.some(({ file }) =>
-    needsSummary(Number(file.changes ?? 0), String(file.patch ?? "")),
-  );
-  const lowProvider = filesNeedSummary
-    ? (ai ?? reviewProvider(options, options.lowModel, "low"))
-    : undefined;
-  const patchByPath = new Map<string, string>();
-  const [ownSections, codegraphTools] = await Promise.all([
-    Promise.all(
-      ownFiles.map(async ({ file, path }) => {
-        const changes = Number(file.changes ?? 0);
-        const patch = String(file.patch ?? "");
-        if (!needsSummary(changes, patch)) {
-          return `FILE: ${path}\n${filePatch(file)}`;
-        }
-        patchByPath.set(path, patch);
-        const description = await summarizeDiff(
-          path,
-          patch,
-          lowProvider!,
-          usage,
-        );
-        report(`summarized large diff · ${path} · ${changes} changed lines`);
-        return (
-          `FILE: ${path}\n[${changes} changed lines, summarized below. ` +
-          `call read-full-diff("${path}") for the complete diff if this is not ` +
-          `enough]\n${description}`
-        );
-      }),
-    ),
+  const provider = ai ?? reviewProvider(options, options.highModel, "high");
+  const diagrams = provider.supportsTools !== false;
+  const [prepared, codegraphTools] = await Promise.all([
+    prepareReviewDiff({
+      files: ownFiles.map(({ file }) => diffFileFromGithub(file)),
+      unchangedPaths: extras?.unchangedPaths,
+      catchesUp: extras?.catchesUp ?? false,
+      tools: diagrams,
+      concurrency: options.aiConcurrent,
+      readDiffMaxChars: readDiffMaxChars(readConfig().repos?.[options.repo]),
+      summaryProvider: () => summaryProvider(options, provider, report, extras),
+      usage,
+      report,
+    }),
     options.useCodegraph && headSha
       ? prepareCodegraphTools(options.repo, number, headSha, {
           allowInstall: options.allowToolInstall,
@@ -438,18 +487,7 @@ export async function reviewPullRequest(
       `codegraph tools · ${codegraphTools.length > 0 ? "ready" : "unavailable"}`,
     );
   }
-  const extraTools: ToolHandler[] = [
-    ...codegraphTools,
-    ...(patchByPath.size > 0
-      ? [
-          {
-            name: "read-full-diff",
-            tool: READ_FULL_DIFF_TOOL,
-            run: (args: unknown) => readFullDiff(patchByPath, args),
-          },
-        ]
-      : []),
-  ];
+  const extraTools: ToolHandler[] = [...codegraphTools, ...prepared.tools];
 
   // Bigger own-scope diffs need more codegraph round-trips to trace — fixed
   // at 3 rounds regardless of size caused the model to run out mid-review on
@@ -464,9 +502,7 @@ export async function reviewPullRequest(
     `tool rounds · ${maxToolRounds} (own diff ${totalDiffLines} changed lines)`,
   );
 
-  const ownPatch = ownSections.join("\n\n");
-  const diffWasTruncated = ownPatch.length > MAX_REVIEW_DIFF_CHARS;
-  const ownDiff = text(ownPatch, MAX_REVIEW_DIFF_CHARS);
+  const ownDiff = prepared.diff;
   const unchangedListing = extras?.unchangedPaths?.length
     ? `\nUNCHANGED SINCE LAST REVIEW (paths only, do not re-report findings here):\n${extras.unchangedPaths
         .map((path) => `- ${path}`)
@@ -489,13 +525,7 @@ interaction if the pull request's own change above relies on or conflicts with
 one of these files, and never mark that finding blocking:
 ${upstreamListing}${unchangedListing}`;
 
-  report(
-    `diff prepared · ${ownPatch.length} chars${
-      diffWasTruncated ? " · truncated for model context" : ""
-    }`,
-  );
-  const provider = ai ?? reviewProvider(options, options.highModel, "high");
-  const diagrams = provider.supportsTools !== false;
+  report(diffReport(prepared.sections.length, prepared.coverage));
   const carryBlock = extras?.carryPrompt ? `${extras.carryPrompt}\n` : "";
   const prompt = `Review this pull request against the repository's review guide and
 codebase conventions. Find only actionable code-level violations supported by
@@ -526,7 +556,7 @@ Every diff line in the DIFF section starts with its line number in the new
 file. Copy "lineFrom" and "lineTo" from that column instead of counting from
 the @@ header. Removed lines have no number, so anchor a finding about removed
 code to the nearest numbered line.
-${diagrams ? DIAGRAM_PROMPT_RULES : NO_DIAGRAM_RULES}
+${diagrams ? (plantumlPromptRules(options) ?? DIAGRAM_PROMPT_RULES) : NO_DIAGRAM_RULES}
 ${FINDINGS_JSON_INSTRUCTIONS}
 
 PULL REQUEST:
@@ -534,13 +564,14 @@ ${JSON.stringify({
   number,
   title: String(pr.title ?? ""),
   body: String(pr.body ?? ""),
+  ...intentField(options.reviewIntent),
   state: pr.state,
   changedFiles: files.map((file) => String((file as Json).filename ?? "")),
   existingComments: comments.map((comment) =>
     String((comment as Json).body ?? ""),
   ),
   existingReviews: reviews.map((review) => String((review as Json).body ?? "")),
-})}
+})}${intentPromptNote(options.reviewIntent)}
 
 ${carryBlock}DIFF:
 ${diff}`;
@@ -548,11 +579,12 @@ ${diff}`;
   const matrix = clampImproveMatrix(options.improveMatrix);
   const request: AiRequest = {
     job: "review_pull_request",
-    system: `${reviewSystemPrompt(diagrams)}\n\n${reviewGuidesBlock(guide, detailed, codebase)}${reviewSystemPromptBlock(options)}`,
+    system: `${reviewSystemPrompt(diagrams, options)}\n\n${reviewGuidesBlock(guide, detailed, codebase, guides.instructions)}${reviewSystemPromptBlock(options)}`,
     prompt,
     maxTokens: 24_000 * matrix,
     reasoningEffort: "high",
     responseFormat: FINDINGS_JSON_SCHEMA,
+    ...mermaidToolFields(options),
   };
   report(
     `AI request · ${options.ai} · model=${options.highModel ?? "unset"} · ` +
@@ -663,30 +695,20 @@ ${reviewText}`,
       console.log(`\n----- IMPROVED REVIEW ${pass - 1} -----\n${reviewText}\n`);
     }
   }
-  const visiblePaths = ownFiles.map(({ path }) => path);
   return {
     ...response,
-    text: `${severitySection()}\n${reviewText}`,
-    visiblePaths,
+    text: `${severitySection()}\n${renderDiagrams(reviewText, options)}`,
+    visiblePaths: prepared.seenPaths,
     guideBuiltAt: guides.guideBuiltAt,
     codegraphState: !options.useCodegraph
       ? "disabled"
       : codegraphTools.length > 0
         ? "used"
         : "unavailable",
+    coverage: prepared.coverage,
+    warnings: prepared.warnings,
+    diffStats: diffStats(named.map(({ file }) => diffFileFromGithub(file))),
   };
-}
-
-function revisionToGithubFiles(revision: Revision): Json[] {
-  return revision.files.map((file) => ({
-    filename: file.path,
-    status: file.status === "renamed" ? "renamed" : file.status,
-    previous_filename: file.previousPath,
-    additions: file.additions,
-    deletions: file.deletions,
-    changes: file.additions + file.deletions,
-    patch: file.patch,
-  }));
 }
 
 /** Local workspace review — same prompt loop as PR review without GitHub. */
@@ -698,76 +720,49 @@ export async function reviewWorkspaceRevision(
   ai?: AiProvider,
   progress?: ProgressSink,
   extras?: ReviewExtras,
-): Promise<
-  AiResponse & {
-    visiblePaths: string[];
-    guideBuiltAt: string | null;
-    codegraphState: "used" | "disabled" | "unavailable";
-  }
-> {
+): Promise<ReviewOutcome> {
   const report = progress ?? (() => {});
   report(modelSummary(options));
   const guides = await loadGuides(options.repo);
   const { shortGuide, detailed, codebase, skill } = guides;
   const guide = shortGuide || skill;
   if (!guide) {
-    throw new Error(
-      `repos/${options.repo}/PR_REVIEW_GUIDE.md was not found. Run init first`,
-    );
+    throw notInitializedError(options.repo);
   }
-  const files = revisionToGithubFiles(revision);
-  const unchanged = new Set(extras?.unchangedPaths ?? []);
-  const ownFiles = files
-    .map((file) => ({
-      file,
-      path: String(file.filename ?? ""),
-    }))
-    .filter(({ path }) => !unchanged.has(path));
-  const patchByPath = new Map<string, string>();
-  const ownSections = await Promise.all(
-    ownFiles.map(async ({ file, path }) => {
-      const changes = Number(file.changes ?? 0);
-      const patch = String(file.patch ?? "");
-      const lowProvider = needsSummary(changes, patch)
-        ? (ai ?? reviewProvider(options, options.lowModel, "low"))
-        : undefined;
-      if (!lowProvider) return `FILE: ${path}\n${filePatch(file)}`;
-      patchByPath.set(path, patch);
-      const description = await summarizeDiff(path, patch, lowProvider, usage);
-      return `FILE: ${path}\n[${changes} changed lines, summarized below]\n${description}`;
-    }),
+  const files = revision.files.map((file) =>
+    diffFileFromRevision(file, revision.producer),
   );
+  const unchanged = new Set(extras?.unchangedPaths ?? []);
+  const ownFiles = files.filter(({ path }) => !unchanged.has(path));
+  const provider = ai ?? reviewProvider(options, options.highModel, "high");
+  const diagrams = provider.supportsTools !== false;
+  const prepared = await prepareReviewDiff({
+    files: ownFiles,
+    unchangedPaths: extras?.unchangedPaths,
+    catchesUp: extras?.catchesUp ?? false,
+    tools: diagrams,
+    concurrency: options.aiConcurrent,
+    readDiffMaxChars: readDiffMaxChars(readConfig().repos?.[options.repo]),
+    summaryProvider: () => summaryProvider(options, provider, report, extras),
+    usage,
+    report,
+  });
   const codegraphTools = options.useCodegraph
     ? extras?.prepareCodegraphTools
       ? await extras.prepareCodegraphTools()
       : await prepareCodegraphTools(options.repo, 0, headSha)
     : [];
-  const extraTools: ToolHandler[] = [
-    ...codegraphTools,
-    ...(patchByPath.size > 0
-      ? [
-          {
-            name: "read-full-diff",
-            tool: READ_FULL_DIFF_TOOL,
-            run: (args: unknown) => readFullDiff(patchByPath, args),
-          },
-        ]
-      : []),
-  ];
-  const totalDiffLines = ownFiles.reduce(
-    (sum, { file }) => sum + Number(file.changes ?? 0),
-    0,
-  );
+  const extraTools: ToolHandler[] = [...codegraphTools, ...prepared.tools];
+  const totalDiffLines = ownFiles.reduce((sum, file) => sum + file.changes, 0);
   const maxToolRounds = clampToolRounds(totalDiffLines);
-  const ownDiff = text(ownSections.join("\n\n"), MAX_REVIEW_DIFF_CHARS);
+  const ownDiff = prepared.diff;
+  report(diffReport(prepared.sections.length, prepared.coverage));
   const unchangedListing = extras?.unchangedPaths?.length
     ? `\nUNCHANGED SINCE LAST REVIEW (paths only):\n${extras.unchangedPaths
         .map((path) => `- ${path}`)
         .join("\n")}`
     : "";
   const carryBlock = extras?.carryPrompt ? `${extras.carryPrompt}\n` : "";
-  const provider = ai ?? reviewProvider(options, options.highModel, "high");
-  const diagrams = provider.supportsTools !== false;
   const prompt = `Review these local changes against the repository's review guide and
 codebase conventions. Find only actionable code-level violations supported by
 the diff and either the guide or the codebase conventions.
@@ -775,14 +770,15 @@ Do not invent low-value findings. If the diff contains a truncation marker or a
 file is summarized, limit claims to the supplied text and use read-full-diff or
 codegraph tools before asserting behavior outside what was shown.
 ${CODEGRAPH_DIFF_VERIFICATION}
-${diagrams ? DIAGRAM_PROMPT_RULES : NO_DIAGRAM_RULES}
+${diagrams ? (plantumlPromptRules(options) ?? DIAGRAM_PROMPT_RULES) : NO_DIAGRAM_RULES}
 ${FINDINGS_JSON_INSTRUCTIONS}
 
 WORKSPACE:
 ${JSON.stringify({
   branch: revision.baseLabel,
+  ...intentField(revision.description),
   changedFiles: ownFiles.map(({ path }) => path),
-})}
+})}${intentPromptNote(revision.description)}
 
 ${carryBlock}DIFF:
 ${ownDiff}${unchangedListing}`;
@@ -790,11 +786,12 @@ ${ownDiff}${unchangedListing}`;
   const matrix = clampImproveMatrix(options.improveMatrix);
   const request: AiRequest = {
     job: extras?.job ?? "review_local",
-    system: `${reviewSystemPrompt(diagrams)}\n\n${reviewGuidesBlock(guide, detailed, codebase)}${reviewSystemPromptBlock(options)}`,
+    system: `${reviewSystemPrompt(diagrams, options)}\n\n${reviewGuidesBlock(guide, detailed, codebase, guides.instructions)}${reviewSystemPromptBlock(options)}`,
     prompt,
     maxTokens: 24_000 * matrix,
     reasoningEffort: "high",
     responseFormat: FINDINGS_JSON_SCHEMA,
+    ...mermaidToolFields(options),
   };
   report(`AI request · prompt=${prompt.length} chars`);
   let response = await completeWithMermaidTools(
@@ -861,9 +858,12 @@ ${reviewText}`,
       : "unavailable";
   return {
     ...response,
-    text: `${severitySection()}\n${reviewText}`,
-    visiblePaths: ownFiles.map(({ path }) => path),
+    text: `${severitySection()}\n${renderDiagrams(reviewText, options)}`,
+    visiblePaths: prepared.seenPaths,
     guideBuiltAt: guides.guideBuiltAt,
     codegraphState,
+    coverage: prepared.coverage,
+    warnings: prepared.warnings,
+    diffStats: diffStats(files),
   };
 }

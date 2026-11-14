@@ -3,26 +3,48 @@
  * `globalThis.fetch` is replaced in this process. Every product call to GitHub
  * (the App client, the PAT client) goes through it, so the simulated GitHub
  * answers from the repositories in the world, with no socket opened. AI calls
- * go through the same fetch: without `--ai` the fake AI answers them, with it
- * they pass to the real provider. Anything else is refused and recorded as a
- * leak, so a run can never reach the network by accident. */
-import { fakeChatCompletion } from "./fake_ai.ts";
+ * go through the same fetch: without `--ai` the flow's fake AI script answers
+ * them, with it they pass to the real provider. The simulated remote server's
+ * host is answered by the real remote routes, in this process. Anything else
+ * is refused and recorded as a leak, so a run can never reach the network by
+ * accident. A fault a flow asked for is applied here before the answer. */
+import { promptOf } from "../fake_openrouter.ts";
+import { currentAiJob, recordBilledUsage } from "./ai_watch.ts";
+import type { FakeAi } from "./fake_ai.ts";
+import {
+  describeFault,
+  faultStatus,
+  statusMessage,
+  type Fault,
+  type Faults,
+  sleep,
+  timeoutError,
+} from "./faults.ts";
 import type { Trace } from "./trace.ts";
-import type { SimRepo, World } from "./world.ts";
+import { AI_HOSTS, type World } from "./world.ts";
 
-const AI_HOSTS = new Set([
-  "openrouter.ai",
-  "api.openai.com",
-  "api.anthropic.com",
-  "opencode.ai",
-]);
+const AI_HOST_SET = new Set(AI_HOSTS);
 
-type Route = { status: number; body: unknown } | undefined;
+/** The trace keeps no minted installation token: the product needs it in
+ * the answer, the report does not. */
+function traced(url: URL, response: unknown): unknown {
+  if (!/\/access_tokens$/.test(url.pathname)) return response;
+  return { ...(response as Record<string, unknown>), token: "[minted]" };
+}
 
-function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
+/** The simulated remote server. `.test` is reserved, so it can never be a
+ * real host. */
+export const REMOTE_HOST = "remote.simulate.test";
+export const REMOTE_URL = `https://${REMOTE_HOST}`;
+
+function json(
+  status: number,
+  body: unknown,
+  headers: Record<string, string> = {},
+): Response {
+  return new Response(status === 204 ? null : JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...headers },
   });
 }
 
@@ -35,95 +57,55 @@ function parseBody(body: BodyInit | null | undefined): unknown {
   }
 }
 
-/** The GitHub REST routes a codebase-only `init` makes. A call with no route
- * here returns 404 and is recorded as unhandled, which fails a check: the
- * product can swallow a 404 (a missing file is not an error), the check
- * cannot. */
-function githubRoute(world: World, method: string, url: URL): Route {
-  if (method !== "GET") return undefined;
-  const match = /^\/repos\/([^/]+\/[^/]+)(\/.*)?$/.exec(url.pathname);
-  const repo = match
-    ? world.repos.get(decodeURIComponent(match[1]))
-    : undefined;
-  if (!match || !repo) return undefined;
-  const rest = match[2] ?? "";
-  if (rest === "") return { status: 200, body: repoJson(repo) };
-  const tree = /^\/git\/trees\/(.+)$/.exec(rest);
-  if (tree) return treeJson(world, repo, decodeURIComponent(tree[1]));
-  const contents = /^\/contents\/(.+)$/.exec(rest);
-  if (contents) {
-    const path = contents[1].split("/").map(decodeURIComponent).join("/");
-    const ref = url.searchParams.get("ref") ?? repo.defaultBranch;
-    return contentsJson(world, repo, path, ref);
-  }
-  return undefined;
+/** A response whose body stops after `text`, the way a dropped connection
+ * looks to `fetch`: reading it rejects with a `TypeError`. */
+function cutResponse(body: unknown, text: string): Response {
+  const full = JSON.stringify(body);
+  const end = full.indexOf(JSON.stringify(text).slice(1, -1));
+  const sent = full.slice(0, end < 0 ? full.length >> 1 : end + text.length);
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(sent));
+      controller.error(
+        new TypeError("terminated", {
+          cause: { code: "UND_ERR_SOCKET", message: "other side closed" },
+        }),
+      );
+    },
+  });
+  return new Response(stream, {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
 }
 
-function repoJson(repo: SimRepo): unknown {
-  const [owner, name] = repo.fullName.split("/");
-  return {
-    name,
-    full_name: repo.fullName,
-    owner: { login: owner },
-    private: false,
-    default_branch: repo.defaultBranch,
-    description: "A repository simulated by e2e:simulate",
-    html_url: `https://github.com/${repo.fullName}`,
-  };
+/** What a GitHub or remote fault answers with. */
+function faultResponse(fault: Fault, label: string): Response {
+  const status = faultStatus(fault);
+  if (status !== undefined) {
+    return json(status, { message: statusMessage(status), label });
+  }
+  // A primary limit at zero that resets now: GitHub's client retries at once.
+  return json(
+    403,
+    { message: "API rate limit exceeded", label },
+    {
+      "x-ratelimit-remaining": "0",
+      "x-ratelimit-reset": String(Math.floor(Date.now() / 1000)),
+    },
+  );
 }
 
-function treeJson(world: World, repo: SimRepo, ref: string): Route {
-  let listing: string;
-  try {
-    listing = world.git(repo, ["ls-tree", "-r", "--full-tree", ref]).toString();
-  } catch {
-    return { status: 404, body: { message: "Not Found" } };
-  }
-  const tree = listing
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => {
-      const [meta, path] = line.split("\t");
-      const [mode, type, sha] = meta.split(" ");
-      return { path, mode, type, sha };
-    });
-  return { status: 200, body: { sha: ref, truncated: false, tree } };
+function aiFaultResponse(fault: Fault, label: string): Response {
+  const status = faultStatus(fault) ?? 429;
+  const message =
+    fault.kind === "rate-limit" ? "Rate limit exceeded" : `HTTP ${status}`;
+  return json(status, { error: { message, label } });
 }
 
-function contentsJson(
-  world: World,
-  repo: SimRepo,
-  path: string,
-  ref: string,
-): Route {
-  try {
-    const content = world.git(repo, ["show", `${ref}:${path}`]);
-    return {
-      status: 200,
-      body: {
-        type: "file",
-        path,
-        encoding: "base64",
-        content: content.toString("base64"),
-      },
-    };
-  } catch {
-    return { status: 404, body: { message: "Not Found" } };
-  }
-}
-
-/** The OpenRouter routes the fake AI answers. */
-function fakeAiRoute(method: string, url: URL, body: unknown): Route {
-  if (method === "POST" && url.pathname.endsWith("/chat/completions")) {
-    return {
-      status: 200,
-      body: fakeChatCompletion((body ?? {}) as Record<string, unknown>),
-    };
-  }
-  if (method === "GET" && url.pathname.endsWith("/models")) {
-    return { status: 200, body: { data: [] } };
-  }
-  return undefined;
+function bearer(headers: Headers): string | undefined {
+  const value = headers.get("authorization") ?? "";
+  return /^(?:Bearer|token)\s+(.+)$/i.exec(value)?.[1];
 }
 
 export type FetchOptions = {
@@ -131,22 +113,84 @@ export type FetchOptions = {
   trace: Trace;
   /** `live` passes AI calls to the real provider; `fake` answers them here. */
   ai: "fake" | "live";
+  fakeAi: FakeAi;
+  faults: Faults;
 };
 
 /** Replaces `globalThis.fetch` until the returned function is called. */
-export function installFetch({ world, trace, ai }: FetchOptions): () => void {
+export function installFetch({
+  world,
+  trace,
+  ai,
+  fakeAi,
+  faults,
+}: FetchOptions): () => void {
   const original = globalThis.fetch;
   globalThis.fetch = async (input, init) => {
     const request = input instanceof Request ? input : undefined;
     const url = new URL(request?.url ?? String(input));
     const method = (init?.method ?? request?.method ?? "GET").toUpperCase();
-    const body = parseBody(init?.body);
+    const headers = new Headers(init?.headers ?? request?.headers);
+    const rawBody =
+      init?.body ??
+      (request && method !== "GET" ? await request.clone().text() : null);
+    const body = parseBody(rawBody);
     const started = performance.now();
     const startMs = trace.now();
     const step = trace.step;
+    const ms = () => Math.round(performance.now() - started);
+    // Which secret each request carried in a header, by name. The leak check
+    // holds every secret to its own hosts.
+    const headerText = [...headers.values()].join("\n");
+    for (const secret of world.secretValues()) {
+      if (headerText.includes(secret.value)) {
+        trace.credentials.push({
+          step,
+          startMs,
+          host: url.hostname,
+          secret: secret.name,
+        });
+      }
+    }
 
     if (url.hostname === "api.github.com") {
-      const route = githubRoute(world, method, url);
+      const fault = faults.take(
+        { target: "github", method, path: url.pathname },
+        step,
+      );
+      if (fault?.kind === "slow") await sleep(fault.ms ?? 50);
+      else if (fault) {
+        const record = {
+          step,
+          startMs,
+          method,
+          url: url.toString(),
+          request: body,
+          handled: true,
+          via: "fetch" as const,
+          fault: String(fault.kind),
+        };
+        if (fault.kind === "timeout") {
+          trace.github.push({ ...record, status: 0, ms: ms(), response: null });
+          throw timeoutError();
+        }
+        const response = faultResponse(fault, describeFault(fault));
+        trace.github.push({
+          ...record,
+          status: response.status,
+          ms: ms(),
+          response: await response.clone().json(),
+        });
+        return response;
+      }
+      const route = world.github.route({
+        method,
+        url,
+        body,
+        via: "fetch",
+        token: bearer(headers),
+        step,
+      });
       const status = route?.status ?? 404;
       const response = route?.body ?? {
         message: `Not Found (e2e:simulate has no route for ${method} ${url.pathname})`,
@@ -157,49 +201,152 @@ export function installFetch({ world, trace, ai }: FetchOptions): () => void {
         method,
         url: url.toString(),
         status,
-        ms: Math.round(performance.now() - started),
+        ms: ms(),
         request: body,
-        response,
+        response: traced(url, response),
         handled: route !== undefined,
+        via: "fetch",
       });
-      return json(status, response);
+      return json(status, response, route?.headers);
     }
 
-    if (AI_HOSTS.has(url.hostname)) {
+    if (AI_HOST_SET.has(url.hostname)) {
+      const job = currentAiJob();
+      const prompt =
+        body && typeof body === "object"
+          ? promptOf(body as Record<string, unknown>)
+          : "";
+      const fault = faults.take(
+        { target: "ai", method, path: url.pathname, job, prompt },
+        step,
+      );
+      const base = { step, startMs, method, url: url.toString(), job };
+      if (fault?.kind === "slow") await sleep(fault.ms ?? 50);
+      else if (fault) {
+        const mode = ai;
+        if (fault.kind === "timeout") {
+          trace.ai.push({
+            ...base,
+            mode,
+            status: 0,
+            ms: ms(),
+            request: body,
+            response: null,
+            fault: String(fault.kind),
+          });
+          throw timeoutError();
+        }
+        const response = aiFaultResponse(fault, describeFault(fault));
+        trace.ai.push({
+          ...base,
+          mode,
+          status: response.status,
+          ms: ms(),
+          request: body,
+          response: await response.clone().json(),
+          fault: String(fault.kind),
+        });
+        return response;
+      }
       if (ai === "live") {
         const response = await original(input, init);
         const text = await response.clone().text();
+        recordBilledUsage(parseBody(text));
         trace.ai.push({
-          step,
-          startMs,
+          ...base,
           mode: "live",
-          method,
-          url: url.toString(),
           status: response.status,
-          ms: Math.round(performance.now() - started),
+          ms: ms(),
           request: body,
           response: parseBody(text),
         });
         return response;
       }
-      const route =
-        url.hostname === "openrouter.ai"
-          ? fakeAiRoute(method, url, body)
-          : undefined;
-      if (route) {
-        trace.ai.push({
-          step,
-          startMs,
-          mode: "fake",
-          method,
-          url: url.toString(),
-          status: route.status,
-          ms: Math.round(performance.now() - started),
-          request: body,
-          response: route.body,
-        });
-        return json(route.status, route.body);
+      if (url.hostname === "openrouter.ai") {
+        if (method === "GET" && url.pathname.endsWith("/models")) {
+          trace.ai.push({
+            ...base,
+            mode: "fake",
+            status: 200,
+            ms: ms(),
+            request: body,
+            response: { data: [] },
+            rule: "models",
+          });
+          return json(200, { data: [] });
+        }
+        if (method === "POST" && url.pathname.endsWith("/chat/completions")) {
+          const answer = fakeAi.answer(
+            (body ?? {}) as Record<string, unknown>,
+            job,
+          );
+          recordBilledUsage(answer.body);
+          trace.ai.push({
+            ...base,
+            mode: "fake",
+            status: answer.status,
+            ms: ms(),
+            request: body,
+            response: answer.body,
+            ...(answer.rule === undefined
+              ? { unscripted: true }
+              : { rule: answer.rule }),
+          });
+          return answer.cutOff === undefined
+            ? json(answer.status, answer.body)
+            : cutResponse(answer.body, answer.cutOff);
+        }
       }
+    }
+
+    if (url.hostname === REMOTE_HOST) {
+      const fault = faults.take(
+        { target: "remote", method, path: url.pathname },
+        step,
+      );
+      const base = {
+        step,
+        startMs,
+        method,
+        url: url.toString(),
+        request: body,
+      };
+      if (fault?.kind === "slow") await sleep(fault.ms ?? 50);
+      else if (fault) {
+        if (fault.kind === "timeout") {
+          trace.remote.push({
+            ...base,
+            status: 0,
+            ms: ms(),
+            response: null,
+            fault: String(fault.kind),
+          });
+          throw timeoutError();
+        }
+        const response = faultResponse(fault, describeFault(fault));
+        trace.remote.push({
+          ...base,
+          status: response.status,
+          ms: ms(),
+          response: await response.clone().json(),
+          fault: String(fault.kind),
+        });
+        return response;
+      }
+      const { handleRemoteRoute } =
+        await import("../../remote/server/routes.ts");
+      const response = await handleRemoteRoute(
+        new Request(url, { method, headers, body: rawBody }),
+        url,
+        "127.0.0.1",
+      );
+      trace.remote.push({
+        ...base,
+        status: response.status,
+        ms: ms(),
+        response: parseBody(await response.clone().text()),
+      });
+      return response;
     }
 
     trace.leaks.push({ step, startMs, method, url: url.toString() });

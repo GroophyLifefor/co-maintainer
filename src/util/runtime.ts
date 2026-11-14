@@ -123,8 +123,12 @@ export function readFile(path: string | URL): Promise<Uint8Array> {
   return fsReadFile(path);
 }
 
-export function writeTextFile(path: string | URL, text: string): Promise<void> {
-  return fsWriteFile(path, text);
+export function writeTextFile(
+  path: string | URL,
+  text: string,
+  options?: { mode?: number },
+): Promise<void> {
+  return fsWriteFile(path, text, options);
 }
 
 export function writeFile(

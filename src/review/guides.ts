@@ -2,6 +2,12 @@ import { reposDir } from "../config.ts";
 import { getRepo } from "../store/repos.ts";
 import { withKeyedLock } from "../util/keyed_lock.ts";
 import { readTextFile, stat } from "../util/runtime.ts";
+import {
+  INSTRUCTIONS_FILE,
+  parseRules,
+  RULES_FILE,
+  type RulesFile,
+} from "../knowledge/rules.ts";
 
 export function knowledgeLockKey(repo: string): string {
   return `knowledge:${repo}`;
@@ -12,6 +18,11 @@ export type LoadedGuides = {
   detailed: string;
   codebase: string;
   skill: string;
+  /** `INSTRUCTIONS.md`, or `""` when the repository has none. */
+  instructions: string;
+  /** `RULES.json`, or `null` when it is missing or unreadable. Never sent to
+   * the model. */
+  rules: RulesFile | null;
   guideBuiltAt: string | null;
 };
 
@@ -32,6 +43,8 @@ async function guideFilesBuiltAt(repo: string): Promise<string | null> {
     "PR_REVIEW_DETAILED_GUIDE.md",
     "CODEBASE.md",
     "SKILL.md",
+    INSTRUCTIONS_FILE,
+    RULES_FILE,
   ];
   const times = await Promise.all(
     names.map(async (name) => {
@@ -52,12 +65,15 @@ async function guideFilesBuiltAt(repo: string): Promise<string | null> {
  * file belongs to the same generation. */
 export async function loadGuides(repo: string): Promise<LoadedGuides> {
   return withKeyedLock(knowledgeLockKey(repo), async () => {
-    const [shortGuide, detailed, codebase, skill] = await Promise.all([
-      readGuideFile(repo, "PR_REVIEW_GUIDE.md"),
-      readGuideFile(repo, "PR_REVIEW_DETAILED_GUIDE.md"),
-      readGuideFile(repo, "CODEBASE.md"),
-      readGuideFile(repo, "SKILL.md"),
-    ]);
+    const [shortGuide, detailed, codebase, skill, instructions, rulesText] =
+      await Promise.all([
+        readGuideFile(repo, "PR_REVIEW_GUIDE.md"),
+        readGuideFile(repo, "PR_REVIEW_DETAILED_GUIDE.md"),
+        readGuideFile(repo, "CODEBASE.md"),
+        readGuideFile(repo, "SKILL.md"),
+        readGuideFile(repo, INSTRUCTIONS_FILE),
+        readGuideFile(repo, RULES_FILE),
+      ]);
     let guideBuiltAt: string | null = null;
     try {
       guideBuiltAt = getRepo(repo)?.knowledge_built_at ?? null;
@@ -73,6 +89,8 @@ export async function loadGuides(repo: string): Promise<LoadedGuides> {
       detailed,
       codebase,
       skill,
+      instructions,
+      rules: rulesText ? parseRules(rulesText) : null,
       guideBuiltAt,
     };
   });

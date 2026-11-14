@@ -2,6 +2,13 @@ import { log, startHeartbeat } from "../util/log.ts";
 import { cacheGet, cacheSet, cacheValues } from "../store/cache_db.ts";
 import type { GitHubClient, Json, Options } from "../types.ts";
 import type { PullRequest, Source, State } from "../knowledge/types.ts";
+import {
+  agentInstructionsPattern,
+  capInstructionFiles,
+  leftOutLine,
+  matchInstructionPaths,
+  MAX_INSTRUCTION_FILES,
+} from "../knowledge/instruction_files.ts";
 
 function decodeBase64(value: string): string {
   const binary = atob(value.replaceAll("\n", ""));
@@ -243,6 +250,16 @@ async function file(
   }
 }
 
+/** What the codebase fetch saves while it runs. `instructionFiles` is always
+ * named, even when missing: the blob SHAs it is checked against are saved in
+ * the same write, so a checkpoint never pairs new SHAs with old contents. */
+export type CodebaseCheckpoint = {
+  tree: string[];
+  treeSha: Record<string, string>;
+  files: Record<string, string>;
+  instructionFiles: Record<string, string> | undefined;
+};
+
 async function codebase(
   client: GitHubClient,
   repo: string,
@@ -250,15 +267,13 @@ async function codebase(
   concurrency: number,
   previous?: Source,
   phase?: FetchPhase,
-  progress?: (data: {
-    tree: string[];
-    treeSha: Record<string, string>;
-    files: Record<string, string>;
-  }) => Promise<void>,
+  progress?: (data: CodebaseCheckpoint) => Promise<void>,
+  instructionPattern: RegExp | null = null,
 ): Promise<{
   tree: string[];
   treeSha: Record<string, string>;
   files: Record<string, string>;
+  instructionFiles?: Record<string, string>;
 }> {
   const branch = String(meta.default_branch ?? "main");
   const response = await client.request<Json>(
@@ -274,14 +289,36 @@ async function codebase(
       return [String(value.path), String(value.sha ?? "")];
     }),
   );
-  const canonical = tree.filter((path) =>
-    /(^|\/)(README|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY|CHANGELOG)(\.[^/]*)?$|(^|\/)(package\.json|deno\.json|Cargo\.toml|Makefile|justfile|CODEOWNERS|build\.rs)$|^\.github\/(workflows\/.+\.(yml|yaml)|PULL_REQUEST_TEMPLATE.*)$/i.test(
-      path,
-    ),
+  // Instruction files are read first and in full, and only the ones actually
+  // read leave the codebase extraction input. A file a cap left out stays
+  // there, so a broad pattern never hides a file from both steps.
+  const instructionPaths = instructionPattern
+    ? matchInstructionPaths(tree, instructionPattern)
+    : [];
+  let instructionFiles: Record<string, string> | undefined;
+  if (instructionPaths.length > 0) {
+    instructionFiles = await readInstructionFiles(
+      client,
+      repo,
+      branch,
+      instructionPaths,
+      treeSha,
+      concurrency,
+      previous,
+    );
+  }
+  const isInstruction = new Set(Object.keys(instructionFiles ?? {}));
+  const canonical = tree.filter(
+    (path) =>
+      !isInstruction.has(path) &&
+      /(^|\/)(README|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY|CHANGELOG)(\.[^/]*)?$|(^|\/)(package\.json|deno\.json|Cargo\.toml|Makefile|justfile|CODEOWNERS|build\.rs)$|^\.github\/(workflows\/.+\.(yml|yaml)|PULL_REQUEST_TEMPLATE.*)$/i.test(
+        path,
+      ),
   );
   const representative = tree
     .filter(
       (path) =>
+        !isInstruction.has(path) &&
         /\.(rs|ts|tsx|js|jsx|py|go|java|cs|cpp|c|swift)$/i.test(path) &&
         !/(^|\/)(test|tests|vendor|dist|target)\//i.test(path),
     )
@@ -300,11 +337,21 @@ async function codebase(
     "fetch",
     `codebase · ${important.length} files · concurrency=${concurrency}`,
   );
+  // Every checkpoint saves the instruction files read above with the blob
+  // SHAs they were checked against, never old text under new SHAs.
   const checkpoint = () => {
     if (!progress) return Promise.resolve();
-    save = save.then(() => progress({ tree, treeSha, files: { ...files } }));
+    save = save.then(() =>
+      progress({
+        tree,
+        treeSha,
+        files: { ...files },
+        instructionFiles: instructionFiles && { ...instructionFiles },
+      }),
+    );
     return save;
   };
+  if (instructionFiles) await checkpoint();
   await mapPool(important, concurrency, async (path) => {
     if (
       previous?.treeSha?.[path] &&
@@ -349,7 +396,46 @@ async function codebase(
     );
     await checkpoint();
   });
-  return { tree, treeSha, files };
+  // Nothing matched: no log line and no new state field, so a repository
+  // without instruction files is fetched exactly as before.
+  return instructionFiles
+    ? { tree, treeSha, files, instructionFiles }
+    : { tree, treeSha, files };
+}
+
+/** Reads the matched instruction files in full, reusing a cached copy whose
+ * blob SHA has not moved, and applies the count and size caps. Every file left
+ * out is named in the build output. */
+async function readInstructionFiles(
+  client: GitHubClient,
+  repo: string,
+  branch: string,
+  paths: string[],
+  treeSha: Record<string, string>,
+  concurrency: number,
+  previous?: Source,
+): Promise<Record<string, string>> {
+  const wanted = paths.slice(0, MAX_INSTRUCTION_FILES);
+  const overCount = paths.slice(MAX_INSTRUCTION_FILES).map((path) => ({
+    path,
+    reason: `over the ${MAX_INSTRUCTION_FILES}-file cap`,
+  }));
+  log("fetch", `instruction files · ${wanted.length} matched`);
+  const contents = await mapPool(wanted, concurrency, async (path) => {
+    const cached = previous?.instructionFiles?.[path];
+    if (
+      cached !== undefined &&
+      previous?.treeSha?.[path] &&
+      previous.treeSha[path] === treeSha[path]
+    ) {
+      return { path, content: cached };
+    }
+    return { path, content: await file(client, repo, path, branch) };
+  });
+  const selection = capInstructionFiles(contents);
+  const leftOut = [...selection.leftOut, ...overCount];
+  if (leftOut.length > 0) log("fetch", leftOutLine(leftOut));
+  return selection.files;
 }
 
 /** One pull request's cached evidence, keyed by number. `cacheValues` returns
@@ -702,11 +788,7 @@ export async function collectSource(
   client: GitHubClient,
   options: Options,
   previous?: State,
-  codebaseProgress?: (data: {
-    tree: string[];
-    treeSha: Record<string, string>;
-    files: Record<string, string>;
-  }) => Promise<void>,
+  codebaseProgress?: (data: CodebaseCheckpoint) => Promise<void>,
 ): Promise<Source> {
   const phase: FetchPhase = { text: "reading repository metadata" };
   const stopHeartbeat = startHeartbeat(() => phase.text);
@@ -714,7 +796,17 @@ export async function collectSource(
     const repo = await client.request<Json>(`repos/${options.repo}`);
     const includeCodebase =
       options.includeCodebase || options.includeHowRepoWorks;
-    const files = includeCodebase
+    // Instruction files belong to `--include-codebase` alone: with it off
+    // there is no `INSTRUCTIONS.md`.
+    const instructionPattern = options.includeCodebase
+      ? agentInstructionsPattern(options.agentInstructions)
+      : null;
+    const files: {
+      tree: string[];
+      treeSha: Record<string, string>;
+      files: Record<string, string>;
+      instructionFiles?: Record<string, string>;
+    } = includeCodebase
       ? await codebase(
           client,
           options.repo,
@@ -723,6 +815,7 @@ export async function collectSource(
           previous?.source,
           phase,
           codebaseProgress,
+          instructionPattern,
         )
       : { tree: [], treeSha: {}, files: {} };
     const selectedPullRequests = options.includePullRequests
@@ -736,6 +829,9 @@ export async function collectSource(
       tree: files.tree,
       treeSha: files.treeSha,
       files: files.files,
+      ...(files.instructionFiles
+        ? { instructionFiles: files.instructionFiles }
+        : {}),
       pullRequests: selectedPullRequests,
       commits: commitData,
     };

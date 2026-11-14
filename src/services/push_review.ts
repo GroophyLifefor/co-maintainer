@@ -23,7 +23,7 @@ import {
 import { normalizeAnchor, type Revision } from "../review/revision.ts";
 import { revisionFromSubmitJson } from "../remote/revision_from_submit.ts";
 import {
-  revisionStats,
+  reviewCoverageFields,
   sortResolvedFindings,
   summaryCounts,
   toJsonFinding,
@@ -303,7 +303,11 @@ export function queuePush(req: PushRequest): PushOutcome {
     // builds the merged diff from GitHub instead.
     const clientDiffFits = !req.revision ? false : before === req.before;
     if (req.revision && clientDiffFits) {
-      savePushInput(jobId, JSON.stringify(req.revision));
+      // A push review takes no intent, so a description is never stored.
+      savePushInput(
+        jobId,
+        JSON.stringify({ ...req.revision, description: "" }),
+      );
     }
     db.exec("COMMIT");
   } catch (error) {
@@ -340,7 +344,13 @@ async function pushRevision(
   const input = getPushInput(job.id);
   if (input) {
     const revision = revisionFromSubmitJson(JSON.parse(input));
-    return { ...revision, baseLabel: revision.baseLabel || branch };
+    // This review takes no intent, so a description a client sent with the
+    // diff never reaches the prompt.
+    return {
+      ...revision,
+      description: "",
+      baseLabel: revision.baseLabel || branch,
+    };
   }
   if (!client) {
     throw new Error(
@@ -901,7 +911,7 @@ async function runPushReview(
     const checks = client
       ? await knownChecks(client, job.repo, revision, args.after, log)
       : [];
-    const options = reviewOptions(job.repo, 0);
+    const options = reviewOptions(job.repo, 0, (text) => log("info", text));
     const ai = aiFor(options);
     const costTally = emptyTally();
     let tokensIn = 0;
@@ -981,14 +991,20 @@ async function runPushReview(
 
     const blockingMode = reviewBlockingFrom(options.reviewBlocking);
     const settled = settle(costTally);
+    const covered = reviewCoverageFields(
+      revision,
+      response?.coverage,
+      response?.warnings ?? [],
+    );
     const result = {
       subject: { repo: job.repo, branch: args.branch, prNumber: null },
       push: { before: args.before, after: args.after, range },
-      revision: revisionStats(revision),
+      revision: covered.revision,
       guide: { builtAt: response?.guideBuiltAt ?? null },
       codegraph: { state: response?.codegraphState ?? "disabled" },
       summary: summaryCounts(report, blockingMode),
       findings: report.map((finding) => toJsonFinding(finding, blockingMode)),
+      warnings: covered.warnings,
       issues: activity,
       usage: {
         tokensIn,

@@ -22,11 +22,18 @@ import {
   deleteEnv,
   getEnv,
   mkdirPath,
+  removePath,
   setEnv,
   tempDirSync,
   writeTextFile,
 } from "../testing/runtime.ts";
+import { offlineEnv } from "../testing/offline_env.ts";
 import { test } from "node:test";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 const REVIEW_NOTE_START = "co-maintainer couldn't review this push";
 const REVIEWED_NOTE = "co-maintainer reviewed this push; the review is below.";
@@ -39,6 +46,7 @@ async function withEnv(fn: () => Promise<void>): Promise<void> {
   setEnv("CM_APP_DB", `${dir}/app.db`);
   setEnv("CM_REPOS_DIR", `${dir}/repos`);
   setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
+  const offline = offlineEnv(dir);
   await mkdirPath(`${dir}/repos/acme/widgets`, { recursive: true });
   await writeTextFile(
     `${dir}/repos/acme/widgets/PR_REVIEW_GUIDE.md`,
@@ -47,8 +55,15 @@ async function withEnv(fn: () => Promise<void>): Promise<void> {
   try {
     await openAppDb();
     await fn();
+    if (offline.fetched.length) {
+      throw new Error(
+        `the test used the network: ${offline.fetched.join(", ")}`,
+      );
+    }
   } finally {
     await closeAppDb();
+    offline.restore();
+    await removePath(dir, { recursive: true });
     if (originalDb === undefined) deleteEnv("CM_APP_DB");
     else setEnv("CM_APP_DB", originalDb);
     if (originalRepos === undefined) deleteEnv("CM_REPOS_DIR");
@@ -86,7 +101,7 @@ class EmptyCostProvider implements AiProvider {
 }
 
 class FakeGithub implements GitHubClient {
-  writes: { endpoint: string; body: unknown }[] = [];
+  writes: { endpoint: string; body: unknown; method: "POST" | "PATCH" }[] = [];
   checkCreates: { endpoint: string; body: unknown }[] = [];
   checkUpdates: { endpoint: string; body: unknown }[] = [];
   files: Json[] = [{ filename: "src/app.ts", patch: "@@ -4 +4 @@" }];
@@ -116,7 +131,14 @@ class FakeGithub implements GitHubClient {
     if (this.reviewWriteError && endpoint.includes("/reviews")) {
       return Promise.reject(this.reviewWriteError);
     }
-    this.writes.push({ endpoint, body });
+    this.writes.push({ endpoint, body, method: "POST" });
+    return Promise.resolve({ id: 1000 + this.writes.length } as T);
+  }
+
+  /** Like the App client, the one production uses here. */
+  patch?<T>(endpoint: string, body: unknown): Promise<T> {
+    if (this.writeError) return Promise.reject(this.writeError);
+    this.writes.push({ endpoint, body, method: "PATCH" });
     return Promise.resolve({ id: 1000 + this.writes.length } as T);
   }
 
@@ -129,6 +151,11 @@ class FakeGithub implements GitHubClient {
     this.checkUpdates.push({ endpoint, body });
     return Promise.resolve({ id: 9001 } as T);
   }
+}
+
+/** A client with no PATCH, like the PAT and `gh` clients. */
+class PostOnlyGithub extends FakeGithub {
+  override patch = undefined;
 }
 
 function noteCreates(github: FakeGithub) {
@@ -298,6 +325,9 @@ test("retrying the same push starts a new attempt without a second PR note, and 
     if (edits.length !== 1) {
       throw new Error(`the existing note was not edited: ${edits.length}`);
     }
+    if (edits[0]!.method !== "PATCH") {
+      throw new Error(`the note was edited with ${edits[0]!.method}`);
+    }
     if (noteBody(edits[0]!) !== REVIEWED_NOTE) {
       throw new Error(`unexpected retry note: ${noteBody(edits[0]!)}`);
     }
@@ -306,6 +336,32 @@ test("retrying the same push starts a new attempt without a second PR note, and 
     }
     if (reviewPosts(github).length !== 1) {
       throw new Error("the retry did not post exactly one review");
+    }
+  });
+});
+
+test("a client that cannot PATCH leaves the failure note and says so, it never POSTs the edit", async () => {
+  await withEnv(async () => {
+    const github = new PostOnlyGithub();
+    await runFailing(github, new ThrowingProvider("model broke"));
+    const retry = enqueueManualReview("acme/widgets", 1);
+    const lines: string[] = [];
+    await runReviewJob(
+      getJob(retry.id)!,
+      (_level, message) => lines.push(message),
+      github,
+      new FakeAiProvider(),
+    );
+    if (noteEdits(github).length !== 0) {
+      throw new Error(
+        `the note was edited without PATCH: ${JSON.stringify(noteEdits(github))}`,
+      );
+    }
+    if (reviewPosts(github).length !== 1) {
+      throw new Error("the retry did not post its review");
+    }
+    if (!lines.some((line) => /could not update the failure note/.test(line))) {
+      throw new Error(`no log line says why:\n${lines.join("\n")}`);
     }
   });
 });

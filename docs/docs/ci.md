@@ -70,6 +70,12 @@ with a default that keeps the old behavior.
   `cost unknown` with the reason, never `$0`.
 - **Exit status.** The step fails when a finding blocks, the same rule as
   `review` on the command line.
+- **Extensions.** A finding from an [extension](extensions.md) that has a
+  location is annotated with its `[P2 · blocking] · extension: name` label, inside
+  the same ten per level. The job summary lists every extension finding and adds
+  each extension's Markdown. The summary is capped at 1 MiB, and when it would
+  pass that, the longest Markdown is replaced with "Not added to the job summary
+  because of the length limit." until it fits.
 
 Nothing else goes to the step's output in this mode, so a finding can never
 write a workflow command of its own. See [`review`](review.md) for the

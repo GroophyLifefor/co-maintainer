@@ -1,6 +1,7 @@
 import { chatBody, parseChatResponse, withoutRefusedPart } from "./provider.ts";
 import type { AiProvider, AiRequest, AiResponse, Json } from "../types.ts";
 import { getEnv } from "../util/runtime.ts";
+import { interruptSignal } from "../util/interrupt.ts";
 import {
   CliError,
   EXIT_RUNTIME,
@@ -115,6 +116,7 @@ export class OpenRouterProvider implements AiProvider {
           ...this.host.headers,
         },
         body: JSON.stringify(body),
+        signal: interruptSignal(),
       });
     } catch (error) {
       // `fetch failed` alone names neither the host nor the cause.

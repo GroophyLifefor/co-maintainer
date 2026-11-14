@@ -11,6 +11,7 @@ import {
   neutralizeCommands,
 } from "./review_github.ts";
 import type { HumanFinding } from "./review_result.ts";
+import type { Coverage } from "../review/coverage.ts";
 
 function finding(overrides: Partial<HumanFinding> = {}): HumanFinding {
   return {
@@ -258,5 +259,76 @@ test("neutralizeCommands keeps a log line from starting a command", () => {
   const carried = neutralizeCommands("[info] x\r::stop-commands::tok");
   if (carried !== "[info] x\n[log] ::stop-commands::tok") {
     throw new Error(JSON.stringify(carried));
+  }
+});
+
+const DROPPED: Coverage = {
+  full: 2,
+  partial: [],
+  summarized: ["src/s.ts"],
+  dropped: ["src/a|b.ts", "src/z.ts"],
+  withheld: ["package-lock.json"],
+};
+
+test("dropped files give one warning without a file, inside the warning limit", () => {
+  const many = Array.from({ length: 15 }, (_, i) =>
+    finding({ lineFrom: i + 1, lineTo: i + 1 }),
+  );
+  const lines = githubAnnotations(many, DROPPED);
+  const warnings = lines.filter((line) => line.startsWith("::warning"));
+  if (warnings.length !== MAX_ANNOTATIONS_PER_LEVEL) {
+    throw new Error(
+      `expected ${MAX_ANNOTATIONS_PER_LEVEL}, got ${warnings.length}`,
+    );
+  }
+  const dropped = warnings.filter((line) => !line.includes("file="));
+  if (
+    dropped.length !== 1 ||
+    !dropped[0]!.includes("2 files were not reviewed")
+  ) {
+    throw new Error(JSON.stringify(dropped));
+  }
+  const noDrop = githubAnnotations([finding()], { ...DROPPED, dropped: [] });
+  if (noDrop.some((line) => !line.includes("file="))) {
+    throw new Error("a withheld file alone gives no annotation");
+  }
+});
+
+test("the job summary carries the coverage line and the not-reviewed list", () => {
+  const summary = githubSummary({
+    title: "o/r · main",
+    findings: [],
+    coverage: DROPPED,
+    catchesUp: true,
+  });
+  const noCatchUp = githubSummary({
+    title: "o/r · PR #1",
+    findings: [],
+    coverage: DROPPED,
+  });
+  if (
+    !noCatchUp.includes(
+      "- src/z.ts: the diff was too large, not reviewed in this mode",
+    ) ||
+    noCatchUp.includes("this round")
+  ) {
+    throw new Error(noCatchUp);
+  }
+  for (const want of [
+    "No actionable findings in the files reviewed.",
+    "Coverage: 2 full · 0 partial · 1 summarized · 2 dropped · 1 withheld",
+    "Not reviewed (3)",
+    "- src/a\\|b.ts: the diff was too large for this round",
+    "- package-lock.json: GitHub sent no diff",
+  ]) {
+    if (!summary.includes(want)) throw new Error(`${want}\n${summary}`);
+  }
+  const fits = githubSummary({
+    title: "o/r · main",
+    findings: [],
+    coverage: { ...DROPPED, summarized: [], dropped: [], withheld: [] },
+  });
+  if (fits.includes("Coverage:") || fits.includes("Not reviewed")) {
+    throw new Error(fits);
   }
 });

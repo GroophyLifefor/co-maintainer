@@ -1,14 +1,14 @@
+import { writeTextFileAtomic } from "./util/atomic.ts";
+import { guardTestLocation } from "./util/test_location_guard.ts";
 import {
-  chmod,
   currentPlatform,
   getEnv,
   isNotFound,
-  mkdir,
   readTextFileSync,
   setEnv,
   type Platform,
-  writeTextFile,
 } from "./util/runtime.ts";
+import type { ExtensionRegistration } from "./extensions/registry.ts";
 
 /** Everything init/remake resolved for one repo, except secrets — an API
  * token is never written to config.json, only ever taken from --token or
@@ -40,6 +40,12 @@ export type RepoConfig = {
   includeHowRepoWorks?: boolean;
   onlyRequestChangedPr?: boolean;
   prState?: ("open" | "closed" | "merged")[];
+  /** The regex that finds the agent instruction files. Blank turns
+   * `INSTRUCTIONS.md` off, unset means the default. */
+  agentInstructions?: string;
+  /** Cap on `INSTRUCTIONS.md` in characters. Unset means the default, `0` or
+   * a negative number means no limit. */
+  agentInstructionsMaxChars?: number;
   /** Five field cron in UTC, checked by `serve` to queue a remake. */
   remakeCron?: string;
   /** A rejected custom schedule kept only so the settings form can show what
@@ -55,6 +61,17 @@ export type RepoConfig = {
   /** Cap on `reviewSystemPrompt` in characters for this repository. Unset
    * means the default; `0` or a negative number means no limit. */
   reviewSystemPromptMaxChars?: number;
+  /** Which diagram language this repository's reviews use. Unset means
+   * `mermaid`. `set --repo` writes it, so App reviews can use it too. */
+  diagramRuntime?: "mermaid" | "plantuml" | "plantuml-server";
+  /** The PlantUML server `plantuml-server` links to. Unset means the public
+   * one. */
+  plantumlServer?: string;
+  /** `svg` or `png`. Unset means `svg`. */
+  plantumlOutputFormat?: "svg" | "png";
+  /** Cap on one `read-full-diff` answer in characters for this repository.
+   * Unset means the default; `0` or a negative number means no limit. */
+  reviewReadDiffMaxChars?: number;
 };
 
 export type UserConfig = {
@@ -143,6 +160,12 @@ export type UserConfig = {
    * `--no-remote-byok` turns it off for one run without unsetting this. */
   remoteByokDefault?: boolean;
   repos?: Record<string, RepoConfig>;
+  /** Registered extensions, oldest first. Only `co-maintainer extension`
+   * writes it. */
+  extensions?: ExtensionRegistration[];
+  /** Whether an extension that was running when co-maintainer restarted runs
+   * again. Unset means it does. A registration's own value wins. */
+  extensionRerunOnRestart?: boolean;
 };
 
 export type ByokPolicy = "off" | "allow" | "require";
@@ -222,12 +245,19 @@ function homeDir(env: (name: string) => string | undefined): string {
   return home;
 }
 
+/** The real environment under another name, so the test location guard can
+ * resolve every platform's directory without checking itself again. */
+const readEnv = (name: string) => getEnv(name);
+
 /** Platform/env injection keeps the OS branches testable: the
  * migration's `"windows"` vs `"win32"` trap is invisible otherwise. */
 export function getConfigDir(
   os: Platform = currentPlatform(),
   env: (name: string) => string | undefined = getEnv,
 ): string {
+  if (env === getEnv) {
+    guardTestLocation("config", (other) => getConfigDir(other, readEnv));
+  }
   const home = homeDir(env);
   switch (os) {
     case "windows":
@@ -243,6 +273,9 @@ export function getCacheDir(
   os: Platform = currentPlatform(),
   env: (name: string) => string | undefined = getEnv,
 ): string {
+  if (env === getEnv) {
+    guardTestLocation("cache", (other) => getCacheDir(other, readEnv));
+  }
   const home = homeDir(env);
   switch (os) {
     case "windows":
@@ -343,6 +376,9 @@ export function loadEnvFile(path: string): void {
   }
 }
 
+/** No retry on a parse error: every write replaces the file whole, so a file
+ * that does not parse is broken, not half written, and reading it again would
+ * give the same answer. */
 export function readConfig(): UserConfig {
   try {
     return JSON.parse(readTextFileSync(configPath())) as UserConfig;
@@ -385,17 +421,16 @@ export function appPrivateKeyFileMissing(
   }
 }
 
+/** `serve` reads config.json on every job while `set` can write it from
+ * another process, so the file is replaced whole and a reader never sees half
+ * of it. config.json can hold an API token (see UserConfig.token), so it stays
+ * readable only by the current user where the platform supports it. */
 async function writeConfig(config: UserConfig): Promise<void> {
-  await mkdir(`${getConfigDir()}/co-maintainer`, { recursive: true });
-  const path = configPath();
-  await writeTextFile(path, `${JSON.stringify(config, null, 2)}\n`);
-  // config.json can hold an API token (see UserConfig.token) — keep it
-  // readable only by the current user where the platform supports it.
-  try {
-    await chmod(path, 0o600);
-  } catch {
-    // Windows has no POSIX chmod; NotSupported there is expected.
-  }
+  await writeTextFileAtomic(
+    configPath(),
+    `${JSON.stringify(config, null, 2)}\n`,
+    { mode: 0o600 },
+  );
 }
 
 /** Merges `patch` into `repos[repo]` in config.json, dropping undefined

@@ -16,6 +16,11 @@ import type { JobRow } from "../store/rows.ts";
 import type { Options } from "../types.ts";
 import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
 import { test } from "node:test";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 async function withTempConfigAndDb(fn: () => Promise<void>): Promise<void> {
   const originalConfig = getEnv("CM_CONFIG_PATH");

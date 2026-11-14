@@ -53,6 +53,7 @@
           <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           <li><a href="commit-watch-review.html">Commit watch review</a></li>
+          <li><a href="extensions.html">Extensions</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -193,6 +194,14 @@ Values from <code>set</code>, <code>--env=PATH</code>, or flags are not asked ag
 <td>Include issues / workflow signals when available</td>
 </tr>
 <tr>
+<td><code>--agent-instructions=REGEX</code></td>
+<td>Files to read as agent instruction files for <code>INSTRUCTIONS.md</code>. Default <code>(^|/)AGENTS\.md$</code>. A blank value turns it off, see <a href="#agent-instruction-files">Agent instruction files</a></td>
+</tr>
+<tr>
+<td><code>--agent-instructions-max-chars=N</code></td>
+<td>Cap on <code>INSTRUCTIONS.md</code> in characters. Default <code>6000</code>, <code>0</code> or below for no limit</td>
+</tr>
+<tr>
 <td><code>--max-pr-months=N</code></td>
 <td>Limit how far back PR history goes</td>
 </tr>
@@ -257,6 +266,8 @@ To collect every state again, pass <code>--pr-state=open,closed,merged</code>.</
 <ul>
 <li><code>SKILL.md</code> and <code>CODEBASE.md</code></li>
 <li><code>PR_REVIEW_GUIDE.md</code> and related review guides when PR sources were included</li>
+<li><code>INSTRUCTIONS.md</code> and <code>RULES.json</code>, only when an agent instruction file matches
+(see <a href="#agent-instruction-files">Agent instruction files</a>)</li>
 </ul>
 <p>Every file is written by the AI provider. There is no offline or AI-free build,
 so <code>init</code> and <a href="sync.html"><code>sync</code></a> refuse to run when no provider is configured.</p>
@@ -287,6 +298,116 @@ provider failure never fails the whole run: <code>SKILL.md</code> and <code>CODE
 still written, and a guide the last run wrote is kept. Fetching and extraction
 are cached, so rerunning <a href="sync.html"><code>sync</code></a> continues without re-fetching. After
 <code>init</code> succeeds, run <a href="review.html"><code>review</code></a> on a PR or local changes.</p>
+<h2 id="agent-instruction-files">Agent instruction files</h2>
+<p>Many repositories keep rules for coding agents in files such as <code>AGENTS.md</code>.
+Those files are written for an agent that writes code, not for a reviewer, and
+they are long. <code>init</code> and <a href="sync.html"><code>sync</code></a> read them and write one short file,
+<code>INSTRUCTIONS.md</code>, that every review reads with the other guides. A <code>sync</code> of a
+repository with no matching file sees no change: no new file, no new log line, no
+new <code>--json</code> field and no extra call. <code>init</code> prints one <code>skipped</code> line that says
+why, see <a href="#what-the-run-prints">What the run prints</a>.</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">init</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--max-pr-months=12</span> <span class="sh-flag">--agent-instructions=&#39;(^|/)(AGENTS|CLAUDE)</span><span class="sh-arg">\.md$&#39;</span>
+</code></pre>
+<ul>
+<li><strong>Which files.</strong> <code>--agent-instructions=REGEX</code> is a JavaScript regular
+expression matched against the full path of every file on the default branch.
+The default <code>(^|/)AGENTS\.md$</code> matches every <code>AGENTS.md</code> at any depth. A blank
+value, <code>--agent-instructions=</code>, turns the file off and removes an existing one.</li>
+<li><strong>How much.</strong> <code>--agent-instructions-max-chars=N</code> caps the whole file in
+characters. The default is 6000, and <code>0</code> or below means no limit. Rules are
+kept in the model&#39;s order until the next one would cross the cap.</li>
+<li><strong>Saved.</strong> Both flags are saved for the repository, as <code>agentInstructions</code> and
+<code>agentInstructionsMaxChars</code> under <code>repos[&quot;owner/repo&quot;]</code>, and a later
+<a href="sync.html"><code>sync</code></a> without them keeps the saved values.</li>
+<li><strong>Needs the codebase.</strong> It works only with <code>--include-codebase</code>. With it off,
+<code>init</code> prints <code>[write] INSTRUCTIONS.md skipped: --include-codebase is off</code>, and
+an existing file is removed. <code>--include-how-repo-works</code> alone does not build it.</li>
+</ul>
+<p>The files are read first and in full, outside the cap on codebase files. At most
+50 files and 400,000 characters in total are read, root files first, then deeper
+ones, alphabetical within a depth. A file that would cross the character cap is
+left out, and a later smaller one can still fit. Each file left out is named,
+at most 20, then <code>, and N more</code>:</p>
+<pre><code>[fetch] instruction files left out: deep/x/AGENTS.md (over the 50-file cap), big/AGENTS.md (over the 400,000-character cap)
+</code></pre>
+<p>A file the caps left out is still read by the codebase step. Only the files
+actually read as instructions leave the codebase input.</p>
+<h3 id="what-a-rule-is">What a rule is</h3>
+<p>One call to the high model, job <code>synth_instructions</code>, reads the files with line
+numbers. It keeps only rules about code, tests, docs, configuration,
+dependencies and security. Setup steps, commands to run, tool and MCP use, how to
+search, and the agent&#39;s own behavior or permissions are dropped.</p>
+<p>Code then checks every rule. A rule is dropped whole, and counted, when:</p>
+<ul>
+<li>a source is not a real, non-blank line of a file that was read (<code>path:line</code>,
+or <code>path:12-14</code>, which is recorded as its first line and whose end must be
+inside the file), or</li>
+<li>a name or path in backticks appears in none of those files and is not a path
+in the tree.</li>
+</ul>
+<p>Rules with the same text and scope are merged and their sources joined. The same
+sentence in two folders stays two rules. A rule&#39;s scope is the model&#39;s folder
+when it is a real folder in the tree, otherwise the folder all its sources share,
+otherwise the whole repository. The guard checks that a rule cites a real line,
+not what the rule says. The review prompt frames the file as rules about the
+code that never change how the review is done, and the instruction files come
+from the default branch, so a pull request cannot change them before it merges.</p>
+<p>The call is cached by its input, and the instruction files are cached by blob
+SHA, so an unchanged file costs nothing on the next <code>sync</code>.</p>
+<h3 id="the-files">The files</h3>
+<p>Both are written by code, never by the model.</p>
+<pre><code class="language-markdown"># Repository instructions
+
+Rules from this repository&#39;s agent instruction files that a reviewer can check in a diff.
+
+- Format amounts with `formatMoney()`, never with number methods. [I1]
+- In `packages/api/`: every new route declares its rate limit in `limits.ts`. [I2]
+</code></pre>
+<p>Every rule ends with an id such as <code>[I1]</code>. Ids are renumbered on every build.
+<code>RULES.json</code>, next to the guides, records each id&#39;s text, scope, the commit it
+was read at (when commit history was read) and the file lines it came from. It
+is written only when it has a rule, and it is never sent to the model.
+<a href="view.html#sources"><code>view --sources</code></a> prints it. One entry looks like this:</p>
+<pre><code class="language-json">{ &quot;file&quot;: &quot;INSTRUCTIONS.md&quot;, &quot;text&quot;: &quot;Format amounts with formatMoney(), never with number methods.&quot;, &quot;scope&quot;: &quot;&quot;, &quot;sources&quot;: [{ &quot;path&quot;: &quot;AGENTS.md&quot;, &quot;line&quot;: 31 }] }
+</code></pre>
+<h3 id="what-the-run-prints">What the run prints</h3>
+<table>
+<thead>
+<tr>
+<th>Line</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>[write] INSTRUCTIONS.md · 14 rules · 2 dropped (unsupported source) · 0 over the cap</code></td>
+<td>The file was written. <code>N dropped (unknown name)</code> comes before the cap part when a backticked name was unknown</td>
+</tr>
+<tr>
+<td><code>[write] INSTRUCTIONS.md skipped: --agent-instructions is blank</code></td>
+<td>The pattern is blank. Other reasons are <code>--include-codebase is off</code> and <code>no file matches (^|/)AGENTS\.md$</code>, with the pattern in use. Printed by <code>init</code> always, and by <code>sync</code> only when it removed an existing file</td>
+</tr>
+<tr>
+<td><code>[write] INSTRUCTIONS.md skipped: the instruction files hold no rule a reviewer can check · N dropped · M over the cap</code></td>
+<td>No rule survived. The file and <code>RULES.json</code> are removed</td>
+</tr>
+<tr>
+<td><code>[write] INSTRUCTIONS.md not regenerated: the AI produced no usable rules, keeping any existing file</code></td>
+<td>The call failed or returned nothing usable</td>
+</tr>
+<tr>
+<td><code>[write] INSTRUCTIONS.md not regenerated: no matched instruction file could be read, keeping any existing file</code></td>
+<td>Files matched but every fetch failed</td>
+</tr>
+</tbody></table>
+<p>When only some of the files fail to read, the rules are built from the ones that
+were read, so a rule from a failed file drops out of that run.</p>
+<h3 id="flag-errors">Flag errors</h3>
+<p>All are usage errors with exit code 2.</p>
+<ul>
+<li><code>--agent-instructions is not a valid regular expression: &lt;the parse error&gt;</code></li>
+<li><code>--agent-instructions-max-chars must be an integer</code></li>
+<li>A saved pattern edited by hand that does not compile: <code>The saved agentInstructions pattern is not a valid regular expression: &lt;error&gt;</code> with the hint <code>Pass --agent-instructions=REGEX to sync to replace it.</code></li>
+</ul>
 <h2 id="what-it-reports">What it reports</h2>
 <p>The last line on stderr is the run&#39;s cost and time:</p>
 <pre><code>Done in 21.0s · 3,125 in, 1,308 out tokens · $0.0016
@@ -300,10 +421,40 @@ with <code>0 in, 0 out tokens</code>. stdout is unchanged, so piped output stays
 progress line goes to stderr. Fields: <code>command</code> (<code>init</code> or <code>sync</code>), <code>repo</code>,
 <code>skillPath</code>, <code>changed[]</code> (the sections this run rewrote, empty when the guide
 was already current), <code>facts</code>, <code>pullRequests</code>, <code>commits</code>, <code>reviewGuide</code>
-(<code>detailed</code>, <code>single</code>, or <code>skipped</code>), <code>validation</code> (<code>errors[]</code> and
+(<code>detailed</code>, <code>single</code>, <code>kept</code>, or <code>skipped</code>), <code>validation</code> (<code>errors[]</code> and
 <code>warnings[]</code>), <code>usage</code> (<code>tokensIn</code>, <code>tokensOut</code>, <code>costUsd</code>, <code>costNote</code>), and
-<code>durationMs</code>. <code>costUsd</code> is <code>null</code> when the provider did not report a price.
-Without a terminal or saved config, <code>--json</code> exits with code 2 instead of
+<code>durationMs</code>. <code>costUsd</code> is <code>null</code> when the provider did not report a price.</p>
+<p><code>reviewGuide</code> says what happened to the review guides in this run:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>detailed</code></td>
+<td>This run wrote <code>PR_REVIEW_GUIDE.md</code> and <code>PR_REVIEW_DETAILED_GUIDE.md</code></td>
+</tr>
+<tr>
+<td><code>single</code></td>
+<td>This run wrote <code>PR_REVIEW_GUIDE.md</code> only</td>
+</tr>
+<tr>
+<td><code>kept</code></td>
+<td>This run had 3 or more review signals but got no usable guide from the AI. The guide files the last run wrote are kept, and <code>SKILL.md</code> still links them</td>
+</tr>
+<tr>
+<td><code>skipped</code></td>
+<td>No guide was written and none is kept. With fewer than 3 review signals, the guide files are removed</td>
+</tr>
+</tbody></table>
+<p>Two more fields appear only when the instruction files did something, see
+<a href="#agent-instruction-files">Agent instruction files</a>. <code>instructions</code> is
+<code>{ &quot;status&quot;: &quot;written&quot; | &quot;kept&quot; | &quot;empty&quot; | &quot;skipped&quot;, &quot;rules&quot;: N }</code>, with
+<code>reason</code> and <code>counts</code> (<code>unsupportedSource</code>, <code>unknownName</code>, <code>overCap</code>) when there
+is something to say. <code>ruleChanges</code> is described on <a href="sync.html#json-output"><code>sync</code></a>.</p>
+<p>Without a terminal or saved config, <code>--json</code> exits with code 2 instead of
 prompting. Errors with <code>--json</code> are JSON on stdout as well.</p>
 </article>
         <footer class="doc-footer">
@@ -313,7 +464,7 @@ prompting. Errors with <code>--json</code> are JSON on stdout as well.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#what-it-writes">What it writes</a></li><li><a href="#what-it-reports">What it reports</a></li><li><a href="#json-output">JSON output</a></li></ul></nav>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#what-it-writes">What it writes</a></li><li><a href="#agent-instruction-files">Agent instruction files</a></li><li><a href="#what-it-reports">What it reports</a></li><li><a href="#json-output">JSON output</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

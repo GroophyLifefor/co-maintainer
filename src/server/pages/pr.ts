@@ -10,6 +10,7 @@ import {
 } from "./layout.ts";
 import { formatCost, formatCostTotal, totalOfRows } from "./cost.ts";
 import type { prDetail } from "../../services/dashboard.ts";
+import { extensionCostNote, renderExtensionResults } from "./extensions.ts";
 
 export function renderPr(
   username: string,
@@ -88,7 +89,7 @@ export function renderPr(
             (review.head_sha ?? "").slice(0, 7),
           )} · ${review.findings.length} finding${review.findings.length === 1 ? "" : "s"}</span>
         </summary>
-        <div style="padding:16px 4px 4px">${findingList(review.findings)}</div>
+        <div style="padding:16px 4px 4px">${findingList(review.findings)}${renderExtensionResults(review.extensions)}</div>
       </details>`,
           )
           .join("");
@@ -114,7 +115,7 @@ export function renderPr(
                   : "Whole pull request",
               )}</td>
               <td class="num">${review.findings_count}</td>
-              <td class="num">${formatCost(review)}</td></tr>`,
+              <td class="num">${formatCost(review)}${extensionCostNote(review.extensions)}</td></tr>`,
               )
               .join("")}
           </tbody>

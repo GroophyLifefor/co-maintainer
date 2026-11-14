@@ -58,6 +58,13 @@ export type Options = {
   maxPrMonths?: number;
   maxPullRequestChangeLines?: number;
   maxComments?: number;
+  /** `--agent-instructions`: a JavaScript regex matched against every path on
+   * the default branch to find the agent instruction files. Unset means the
+   * default, blank turns the feature off. */
+  agentInstructions?: string;
+  /** `--agent-instructions-max-chars`: the cap on `INSTRUCTIONS.md`. Unset
+   * means the default, 0 or below means no limit. */
+  agentInstructionsMaxChars?: number;
   /** `probe --run`: after printing the plan, run the recommended init in the
    * same process. */
   run?: boolean;
@@ -78,6 +85,16 @@ export type Options = {
    * (`review --system-prompt-override-file`). The built-in role, diagram
    * rules and guide block are still kept. */
   reviewSystemPromptOverride?: string;
+  /** What a pull request review is for (`review --intent-file`), added to the
+   * PULL REQUEST block of the prompt as context, never as a rule. */
+  reviewIntent?: string;
+  /** The diagram language a review asks for (`review --diagram-runtime`, or
+   * the repository's `diagramRuntime`). Unset means `mermaid`. */
+  diagramRuntime?: "mermaid" | "plantuml" | "plantuml-server";
+  /** Only read by `plantuml-server`. Unset means the public server. */
+  plantumlServer?: string;
+  /** Only read by `plantuml-server`. Unset means `svg`. */
+  plantumlOutputFormat?: "svg" | "png";
 };
 
 export type GitHubClient = {
@@ -90,7 +107,8 @@ export type GitHubClient = {
   /** POST JSON. Optional so collect-test fakes stay GET-only. Review
    * posting requires it. */
   write?<T>(endpoint: string, body: unknown): Promise<T>;
-  /** PATCH JSON, for closing an issue. Only the App client has it. */
+  /** PATCH JSON, for closing an issue or editing a comment. Only the App
+   * client has it. */
   patch?<T>(endpoint: string, body: unknown): Promise<T>;
   /** GitHub Checks API operations. Optional so read-only test clients and
    * older integrations can continue to review without check runs. */
@@ -126,6 +144,9 @@ export type AiRequest = {
    * `response_format`. Providers without structured output ignore it, so the
    * model is also asked for a fenced JSON block in the prompt. */
   responseFormat?: Json;
+  /** Leave the Mermaid syntax tool out of the tool list. Set when the review
+   * asks for PlantUML, which needs no syntax lookup. */
+  withoutMermaidTool?: boolean;
   // The full scale OpenRouter exposes for models that support it (see a
   // model's `reasoning.supported_efforts`), highest first. Not every model
   // supports every level — "max"/"xhigh" are newer additions some models

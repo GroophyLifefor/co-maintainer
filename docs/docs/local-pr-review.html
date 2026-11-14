@@ -53,6 +53,7 @@
           <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html" class="active">PR review</a></li>
           <li><a href="commit-watch-review.html">Commit watch review</a></li>
+          <li><a href="extensions.html">Extensions</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -118,6 +119,7 @@ present).</p>
 <h2 id="usage">Usage</h2>
 <pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-arg">owner/repo</span> <span class="sh-arg">123</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-arg">owner/repo</span> <span class="sh-arg">123</span> <span class="sh-flag">--json</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-arg">owner/repo</span> <span class="sh-arg">123</span> <span class="sh-flag">--fresh</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-arg">owner/repo</span> <span class="sh-arg">123</span> <span class="sh-flag">--disable-codegraph</span> <span class="sh-flag">--debug</span>
 </code></pre>
 <h2 id="parameters">Parameters</h2>
@@ -141,6 +143,10 @@ present).</p>
 <td>One JSON document on stdout</td>
 </tr>
 <tr>
+<td><code>--fresh</code></td>
+<td>Ignore the stored run of this pull request and start over</td>
+</tr>
+<tr>
 <td><code>--disable-codegraph</code></td>
 <td>Skip codegraph tools (default is on for CLI)</td>
 </tr>
@@ -153,6 +159,18 @@ present).</p>
 <td>Scales review depth (see CLI help)</td>
 </tr>
 <tr>
+<td><code>--intent-file=PATH</code></td>
+<td>What the change is for, from a file or <code>-</code> for standard input. Context only, read into the <code>PULL REQUEST</code> block, see <a href="review.html#intent">Intent</a></td>
+</tr>
+<tr>
+<td><code>--diagram-runtime</code>, <code>--plantuml-server</code>, <code>--plantuml-output-format</code></td>
+<td>The diagram language of the review, see <a href="review.html#diagrams">Diagrams</a></td>
+</tr>
+<tr>
+<td><code>--include-extension-markdowns</code></td>
+<td>With <code>--json</code>, keep each extension&#39;s Markdown, which is empty otherwise</td>
+</tr>
+<tr>
 <td><code>--debug</code></td>
 <td>Verbose logs on stderr</td>
 </tr>
@@ -161,8 +179,10 @@ present).</p>
 <td>Print timing per phase</td>
 </tr>
 </tbody></table>
-<p><strong>Not supported for PR review:</strong> <code>--remote</code>, <code>--fresh</code>, <code>--to-branch</code>,
-<code>--branch</code>, <code>--repo=</code>, <code>--sync-before-review</code>. Use
+<p>Registered <a href="extensions.html">extensions</a> run in a PR review too, and their findings
+join the result. The extension makes its own checkout if it needs one.</p>
+<p><strong>Not supported for PR review:</strong> <code>--remote</code>, <code>--to-branch</code>, <code>--branch</code>,
+<code>--repo=</code>, <code>--sync-before-review</code>. Use
 <a href="local-review.html">local review</a> for working-tree changes or
 <a href="remote-review.html">remote review</a> for a local diff against shared server context.</p>
 <p>PR review indexes the checked-out repository with codegraph when it is already
@@ -171,6 +191,35 @@ It never prompts: a PR review runs unattended. The question and its rules are in
 <a href="local-review.html#codegraph">local review</a>, and <a href="codegraph.html">Codegraph</a> lists
 the install table and the version-resolution order.</p>
 <p>Auth and models follow <a href="configuration.html"><code>configuration</code></a> and <code>co-maintainer set</code> like other commands (<code>--auth=pat</code> is not used for PR review).</p>
+<h2 id="carry-over">Carry-over</h2>
+<p>A PR review remembers its findings between runs. Each run is stored in the
+<a href="caching.html">cache</a>, keyed by repository and pull request number. The next run
+shows what the author fixed as <code>closed</code>, what is left as <code>open</code>, and only real
+new findings as <code>new</code>. This is the same carry-over <a href="local-review.html#carry-over">local review</a>
+uses, and it shows in the terminal output, in <code>--json</code> and with <code>--output=github</code>.</p>
+<ul>
+<li><strong>Starts fresh</strong> with <code>--fresh</code>, when the guide was rebuilt after the last run,
+and when the pull request head does not contain the last reviewed head. That is
+a force-push, or a case where GitHub cannot compare the two. Starting fresh
+clears the stored run, and the log says why.</li>
+<li><strong>Unchanged files</strong> since the last run are listed to the model as unchanged
+and are not sent again. A re-run on the same head sends no file, still makes
+one model call to judge the earlier findings, and every finding comes back
+<code>open</code>. A re-run after a push sends only the changed files.</li>
+<li><strong>Exit code.</strong> A blocking finding that is still open keeps the exit code at 1,
+also when the model reports nothing new.</li>
+<li><strong>A cache problem never fails the review.</strong> If the stored run cannot be read or
+saved, the review runs without carry-over and the output carries a
+<code>carry_over_unavailable</code> warning.</li>
+<li><strong><code>clear owner/repo --include-cache</code></strong> removes the stored runs, see
+<a href="caching.html#clearing">Caching</a>.</li>
+</ul>
+<p>A file the model did not receive because the diff was too large is sent again in
+the next run, see <a href="review.html#large-diffs">Large diffs</a>.</p>
+<p>In <code>--json</code>, <code>summary.open</code> and <code>summary.closed</code> count the findings, each
+<code>findings[].state</code> is <code>new</code>, <code>open</code> or <code>closed</code>, and <code>warnings</code> holds
+<code>carry_over_unavailable</code> and the <a href="review.html#where-the-result-says-it">large diff</a>
+warnings.</p>
 </article>
         <footer class="doc-footer">
           <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/local-pr-review.md" data-umami-event="click-github">Edit this page</a> on GitHub
@@ -179,7 +228,7 @@ the install table and the version-resolution order.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li></ul></nav>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#carry-over">Carry-over</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

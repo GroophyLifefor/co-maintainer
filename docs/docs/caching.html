@@ -53,6 +53,7 @@
           <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           <li><a href="commit-watch-review.html">Commit watch review</a></li>
+          <li><a href="extensions.html">Extensions</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -144,6 +145,10 @@ layout is meant to be edited by hand.</p>
 <td><code>repos/&lt;owner&gt;/&lt;repo&gt;/</code></td>
 <td>Generated guides for one GitHub repo (see below)</td>
 </tr>
+<tr>
+<td><code>extensions/&lt;run-id&gt;/</code></td>
+<td>Short-lived folder of one review&#39;s <a href="extensions.html">extension</a> files, removed when the review ends</td>
+</tr>
 </tbody></table>
 <p>Override: <code>CM_CONFIG_PATH</code> points at a different <code>config.json</code>.
 Override guides root: <code>CM_REPOS_DIR</code> (must match on laptops and <code>serve</code> when
@@ -211,7 +216,8 @@ size and this directory. Non-interactive runs (closed stdin, piped output, or
 <a href="local-review.html#codegraph">Local review: Codegraph</a> and
 <a href="codegraph.html">Codegraph</a> for the version-resolution order.</p>
 <h2 id="cachedb-cli"><code>cache.db</code> (CLI)</h2>
-<p>Used by <a href="init.html"><code>init</code></a> and <a href="sync.html"><code>sync</code></a>:</p>
+<p>Used by <a href="init.html"><code>init</code></a> and <a href="sync.html"><code>sync</code></a>, and by local and PR reviews for
+their carry-over:</p>
 <table>
 <thead>
 <tr>
@@ -239,7 +245,19 @@ size and this directory. Non-interactive runs (closed stdin, piped output, or
 <td>AI synthesis jobs</td>
 <td>Input hash + model profile</td>
 </tr>
+<tr>
+<td>Agent instruction files</td>
+<td>Path + blob SHA, saved in the state together with their contents</td>
+</tr>
+<tr>
+<td>Review carry-over</td>
+<td>Namespace <code>local-review</code>. A local review is keyed by repository, repository root and branch. A <a href="local-pr-review.html#carry-over">PR review</a> is keyed by repository and pull request number, as <code>&lt;repo&gt;\0pull-request\0&lt;number&gt;</code></td>
+</tr>
 </tbody></table>
+<p>The <code>synth_instructions</code> job that builds <a href="init.html#agent-instruction-files"><code>INSTRUCTIONS.md</code></a>
+is an AI synthesis job like the others, so the same input is not paid for twice.
+The state saves the instruction file hashes and contents together, so a failed
+run never leaves old text under new hashes.</p>
 <p><a href="sync.html"><code>sync</code></a> reuses unchanged rows so a moving default branch costs
 less than a full <a href="init.html"><code>init</code></a>. Delete <code>cache.db</code> only if you want a cold
 rebuild (you still need repo config or flags for limits).</p>
@@ -254,7 +272,13 @@ and review history. <strong>Forward-only migrations</strong> when upgrading co-m
 <ul>
 <li><code>SKILL.md</code>, <code>CODEBASE.md</code></li>
 <li><code>PR_REVIEW_GUIDE.md</code> and related review guides when PR sources were included</li>
+<li><code>INSTRUCTIONS.md</code> and <code>RULES.json</code> when the repository has agent instruction
+files, see <a href="init.html#agent-instruction-files"><code>init</code></a></li>
 </ul>
+<p>A review reads <code>INSTRUCTIONS.md</code> inside the cached guide block of its system
+prompt, as a <code>REPOSITORY INSTRUCTIONS</code> section after the codebase conventions.
+Without the file the system prompt is what it was before. <code>RULES.json</code> never
+enters a prompt.</p>
 <p>Evidence for all repos shares one <code>cache.db</code> at the cache root (see above).</p>
 <p>Paths are always under the config/cache roots so the CLI can run from any
 working directory. <a href="configuration.html#per-repo-memory">Configuration: Per-repo memory</a>.</p>
@@ -269,7 +293,7 @@ skill state and <code>repos[&quot;owner/repo&quot;]</code> settings are gone, so
 <a href="init.html"><code>init</code></a>, not <a href="sync.html"><code>sync</code></a>. The command asks before it clears
 everything, and <code>--yes</code> skips that question when there is no terminal.</p>
 <p><code>--include-cache</code> also drops the fetched evidence for the repository (pull
-request listings, AI job cache, costs, local review carry-over) plus its clones
+request listings, AI job cache, costs, local and PR review carry-over) plus its clones
 and worktrees. The next <code>init</code> is then a cold build that pays for everything
 again. Without the flag, only the knowledge is gone and the next build still
 reuses the files and pull requests it already collected.</p>

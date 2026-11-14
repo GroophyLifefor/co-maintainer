@@ -22,10 +22,10 @@ import { runRemotePushReview } from "../../remote/push_client.ts";
 import { reviewExitCode } from "../review_output.ts";
 import {
   buildPrReviewJson,
-  resolvedFromFirstReview,
   reviewExitCodeFromResolved,
 } from "../review_result.ts";
-import { parseFindings } from "../../pr/findings.ts";
+import { intentRecord, type IntentLoad } from "../review_intent.ts";
+import { startPrCarry } from "../pr_carry.ts";
 import { exitWith } from "../error.ts";
 import { printRunSummary, summaryFromMetrics } from "../../util/run_summary.ts";
 import { emitGithubOutput } from "../review_github.ts";
@@ -33,6 +33,11 @@ import {
   formatHumanReview,
   humanFindingsFromResolved,
 } from "../review_result.ts";
+import { withExtensions } from "../../extensions/session.ts";
+import { cliPrContext } from "../../extensions/contexts.ts";
+import { reviewResultJson } from "../../extensions/review_result.ts";
+import { exitCodeWithExtensions } from "../../extensions/report.ts";
+import { runSummaryWithExtensions } from "../../extensions/render_json.ts";
 
 export async function runReviewFromCli(args: string[]): Promise<void> {
   const parsed = await parseReviewArgs(args);
@@ -55,6 +60,8 @@ export async function runReview(options: Options): Promise<void> {
     disableCodegraph: false,
     allowToolInstall: false,
     remakeBeforeReview: false,
+    fresh: false,
+    includeExtensionMarkdowns: false,
   });
 }
 
@@ -67,7 +74,9 @@ async function runReviewPr(
     | "allowToolInstall"
     | "remakeBeforeReview"
     | "output"
-  >,
+    | "fresh"
+    | "includeExtensionMarkdowns"
+  > & { intentLoad?: IntentLoad },
 ): Promise<void> {
   setCliInteractive(!cli.json);
   await withCliLogsToStderr(async () => {
@@ -83,18 +92,39 @@ async function runReviewPr(
         `reading PR #${options.prNumber} in ${options.repo} via gh`,
       );
       log("review", modelSummary(options));
-      const result = await timed(
-        "review GitHub collection and AI",
-        options.logTime,
+      const client = new GhClient(options.debug);
+      const carry = await startPrCarry(client, options, cli.fresh, (message) =>
+        log("review", message),
+      );
+      const { review: result, extensions } = await withExtensions(
+        cliPrContext({
+          client,
+          repo: options.repo,
+          prNumber: options.prNumber!,
+          prefetched: carry.extras.prefetched,
+        }),
         () =>
-          reviewPullRequest(
-            new GhClient(options.debug),
-            options,
-            async (response) => {
-              addAiMetrics(aiMetrics, response);
-              await recordAiCost(options.repo, "review_pull_request", response);
-            },
+          timed("review GitHub collection and AI", options.logTime, () =>
+            reviewPullRequest(
+              client,
+              options,
+              async (response) => {
+                addAiMetrics(aiMetrics, response);
+                await recordAiCost(
+                  options.repo,
+                  "review_pull_request",
+                  response,
+                );
+              },
+              undefined,
+              undefined,
+              undefined,
+              // The stored run leaves out what it saw, so the next run sends
+              // the files this one dropped.
+              { ...carry.extras, catchesUp: true },
+            ),
           ),
+        (review) => reviewResultJson(review.text, options.reviewBlocking),
       );
       const durationMs = Math.round(performance.now() - operationStarted);
       const usage = {
@@ -106,32 +136,46 @@ async function runReviewPr(
       // the old `useCodegraph ? "used" : "disabled"` that claimed "used" while
       // stderr said codegraph was missing.
       const codegraphState = result.codegraphState;
-      const resolved = resolvedFromFirstReview(
-        parseFindings(result.text),
-        new Map(),
-      );
+      const resolved = await carry.finish(result);
+      const intent = cli.intentLoad?.intent ?? null;
+      const warnings = [
+        ...carry.warnings,
+        ...(cli.intentLoad?.warnings ?? []),
+        ...result.warnings,
+      ];
       if (cli.json) {
         console.log(
           buildPrReviewJson({
             repo: options.repo,
             prNumber: options.prNumber!,
             markdown: result.text,
+            findings: resolved,
+            warnings,
             guideBuiltAt: result.guideBuiltAt,
             codegraphState,
             codegraphReason: null,
             usage,
             durationMs,
             reviewBlocking: options.reviewBlocking,
+            diffStats: result.diffStats,
+            coverage: result.coverage,
+            extensions,
+            includeExtensionMarkdowns: cli.includeExtensionMarkdowns,
+            intent: intentRecord(intent),
           }),
         );
       } else if (cli.output === "github") {
         emitGithubOutput({
           title: `${options.repo} · PR #${options.prNumber}`,
           findings: humanFindingsFromResolved(resolved, options.reviewBlocking),
-          run: summaryFromMetrics(
-            aiMetrics,
-            performance.now() - operationStarted,
+          run: runSummaryWithExtensions(
+            summaryFromMetrics(aiMetrics, performance.now() - operationStarted),
+            extensions,
           ),
+          coverage: result.coverage,
+          catchesUp: true,
+          extensions,
+          intent: intent !== null,
         });
       } else {
         // One presentation layer for local, PR and remote reviews.
@@ -145,11 +189,18 @@ async function runReviewPr(
                 resolved,
                 options.reviewBlocking,
               ),
+              warnings,
+              coverage: result.coverage,
+              extensions,
+              intent: intent !== null,
             }) +
             "\n",
         );
         printRunSummary(
-          summaryFromMetrics(aiMetrics, performance.now() - operationStarted),
+          runSummaryWithExtensions(
+            summaryFromMetrics(aiMetrics, performance.now() - operationStarted),
+            extensions,
+          ),
         );
         if (options.logTime) {
           log(
@@ -163,10 +214,18 @@ async function runReviewPr(
           );
         }
       }
+      // A blocking finding carried over from an earlier run still blocks, so
+      // the resolved rows decide as well as the model's own text.
       exitWith(
-        cli.json
-          ? reviewExitCodeFromResolved(resolved, options.reviewBlocking)
-          : reviewExitCode(result.text, options.reviewBlocking),
+        exitCodeWithExtensions(
+          cli.json
+            ? reviewExitCodeFromResolved(resolved, options.reviewBlocking)
+            : Math.max(
+                reviewExitCode(result.text, options.reviewBlocking),
+                reviewExitCodeFromResolved(resolved, options.reviewBlocking),
+              ),
+          extensions,
+        ),
       );
     } finally {
       // A heartbeat left running on the error path keeps the event loop alive

@@ -53,6 +53,7 @@
           <li><a href="review-policy.html">Review policy</a></li>
           <li><a href="local-pr-review.html">PR review</a></li>
           <li><a href="commit-watch-review.html">Commit watch review</a></li>
+          <li><a href="extensions.html">Extensions</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -291,6 +292,11 @@ provider, so both models are saved the first time. See
 <td>The same, from a JSON file. A bad policy is refused and nothing is saved</td>
 </tr>
 <tr>
+<td><code>--extension-rerun-on-restart=true|false</code></td>
+<td><code>extensionRerunOnRestart</code></td>
+<td><code>serve</code> and the CLI, whether an <a href="extensions.html">extension</a> cut off by a restart runs again. A registration&#39;s own <code>--rerun-on-restart</code> wins. Unset means <code>true</code></td>
+</tr>
+<tr>
 <td><code>--repo=owner/repo</code></td>
 <td><code>repos[owner/repo]</code></td>
 <td>Write the repository-scoped flags below to that repository, not the global config</td>
@@ -304,6 +310,26 @@ provider, so both models are saved the first time. See
 <td><code>--review-system-prompt-max-chars=N</code></td>
 <td><code>repos[owner/repo].reviewSystemPromptMaxChars</code></td>
 <td>Cap those instructions in characters. Needs <code>--repo</code>. <code>0</code> or <code>-1</code> means no limit</td>
+</tr>
+<tr>
+<td><code>--diagram-runtime=mermaid|plantuml|plantuml-server</code></td>
+<td><code>repos[owner/repo].diagramRuntime</code></td>
+<td>The diagram language of a repository&#39;s reviews, App reviews included. Needs <code>--repo</code>. See <a href="#diagram-settings">Diagram settings</a></td>
+</tr>
+<tr>
+<td><code>--plantuml-server=URL</code></td>
+<td><code>repos[owner/repo].plantumlServer</code></td>
+<td>The PlantUML server for <code>plantuml-server</code>. Needs <code>--repo</code>. Default <code>https://www.plantuml.com</code></td>
+</tr>
+<tr>
+<td><code>--plantuml-output-format=svg|png</code></td>
+<td><code>repos[owner/repo].plantumlOutputFormat</code></td>
+<td>The image format for <code>plantuml-server</code>. Needs <code>--repo</code>. Default <code>svg</code></td>
+</tr>
+<tr>
+<td><code>--review-read-diff-max-chars=N</code></td>
+<td><code>repos[owner/repo].reviewReadDiffMaxChars</code></td>
+<td>Most characters one <code>read-full-diff</code> answer returns. Needs <code>--repo</code>. <code>0</code> or <code>-1</code> means no limit. Default <code>20000</code></td>
 </tr>
 </tbody></table>
 <h3 id="app-private-key-inline-file-contents-or-path">App private key: inline, file contents, or path</h3>
@@ -554,6 +580,18 @@ hides the value.</p>
 <td>Written by <code>init</code> and <code>sync</code></td>
 <td>no</td>
 </tr>
+<tr>
+<td><code>extensions</code></td>
+<td>list of registrations</td>
+<td>Written only by <code>co-maintainer extension</code>, see <a href="#extensions-in-configjson">Extensions in config.json</a></td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>extension-rerun-on-restart</code></td>
+<td>boolean</td>
+<td><code>--extension-rerun-on-restart</code></td>
+<td>no</td>
+</tr>
 </tbody></table>
 <p><code>config get</code> prints the real value even for a masked key, so treat its output as
 a secret.</p>
@@ -594,7 +632,19 @@ is allowed again. Match <code>--unset=</code> to the field name or the flag name
 <td></td>
 </tr>
 <tr>
+<td><code>agent-instructions</code>, <code>agent-instructions-max-chars</code></td>
+<td></td>
+</tr>
+<tr>
 <td><code>review-system-prompt</code>, <code>review-system-prompt-max-chars</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>diagram-runtime</code>, <code>plantuml-server</code>, <code>plantuml-output-format</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>review-read-diff-max-chars</code></td>
 <td></td>
 </tr>
 </tbody></table>
@@ -603,15 +653,138 @@ on <code>sync</code> or run <code>init</code> again to change includes, limits, 
 filters permanently. <code>--only-request-changed-pr</code> stays on once saved. To
 collect every pull request state again, pass <code>--pr-state=open,closed,merged</code>.
 <a href="caching.html#clearing"><code>clear owner/repo</code></a> deletes this entry, so the repository
-goes back to &quot;never inited&quot; and the next build is an <code>init</code>.</p>
+goes back to &quot;never inited&quot; and the next build is an <code>init</code>. The two
+<code>agent-instructions</code> values are saved the same way, see
+<a href="init.html#agent-instruction-files">Agent instruction files</a>.</p>
 <p><a href="review.html#repository-review-instructions"><code>review-system-prompt</code></a> and its cap
 are the exception: <code>init</code> and <code>sync</code> never write them. Set them with
-<code>co-maintainer set --repo=owner/repo</code> or the repository <strong>Settings</strong> page.</p>
+<code>co-maintainer set --repo=owner/repo</code> or the repository <strong>Settings</strong> page. The
+<a href="#diagram-settings">diagram settings</a> and the <code>read-full-diff</code> cap are set only
+with <code>co-maintainer set --repo=owner/repo</code>, and the dashboard has no field for
+them.</p>
 <p>Guide files (<code>SKILL.md</code>, <code>CODEBASE.md</code>, review guides) live under
 <code>&lt;config&gt;/co-maintainer/repos/&lt;owner&gt;/&lt;repo&gt;/</code>, not in your git clone. See
 <a href="caching.html#generated-guides">Caching</a>. <code>co-maintainer view</code> prints them
 locally, and <code>view --remote</code> prints the copies a configured review server holds
 (see <a href="remote-review.html#reading-the-servers-guides">Remote review</a>).</p>
+<h2 id="diagram-settings">Diagram settings</h2>
+<p>A repository can save the three <a href="review.html#diagrams">diagram</a> settings, which is
+how reviews with no command line get them: App reviews, commit watch reviews,
+replies to review comments and <code>review --remote</code>, where the server reads them.</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--diagram-runtime=plantuml-server</span> <span class="sh-flag">--plantuml-server=https://uml.example.com</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--plantuml-output-format=png</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--unset=diagram-runtime</span> <span class="sh-flag">--unset=plantuml-server</span>
+</code></pre>
+<p>They are stored in <code>config.json</code> under <code>repos[&quot;owner/repo&quot;]</code> as <code>diagramRuntime</code>,
+<code>plantumlServer</code> and <code>plantumlOutputFormat</code>. <code>--unset=</code> takes the flag name or
+the field name and removes one of them. Without <code>--repo</code> the three flags are
+refused, for example <code>--diagram-runtime needs --repo</code>.</p>
+<p>For a <code>review</code> run the order is the flag, then the repository setting, then the
+default (<code>mermaid</code>, <code>https://www.plantuml.com</code>, <code>svg</code>). The privacy note in
+<a href="review.html#with-plantuml-server-the-diagram-source-leaves-your-machine">Diagrams</a>
+applies to a saved <code>plantuml-server</code> runtime too.</p>
+<p>A value edited by hand into <code>config.json</code> is checked each time it is read.</p>
+<ul>
+<li>A CLI <code>review</code> stops with a usage error that names the key, for example
+<code>config.json repos[owner/repo].plantumlServer must be an http or https URL</code>
+and the rest of the reason.</li>
+<li>A background job does not stop. It uses <code>mermaid</code> with the default server and
+format, and writes one line to the job log: the same message, then
+&quot;The diagram settings are ignored and this job uses mermaid.&quot; The three
+settings fall back together, so a good <code>plantuml-server</code> runtime next to a bad
+server never sends the diagram source to a server the owner did not choose.</li>
+</ul>
+<h2 id="the-read-full-diff-cap">The <code>read-full-diff</code> cap</h2>
+<p>When a large diff is cut, the model can read the rest with the <code>read-full-diff</code>
+tool, see <a href="review.html#large-diffs">Large diffs</a>. One answer stops at
+<code>reviewReadDiffMaxChars</code> characters, <code>20000</code> by default, because every tool
+answer is sent again in each later round.</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--review-read-diff-max-chars=40000</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--review-read-diff-max-chars=0</span>   <span class="sh-comment"># no limit</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--unset=review-read-diff-max-chars</span>
+</code></pre>
+<p><code>0</code> or <code>-1</code> means no limit. A blank value or <code>--unset=</code> goes back to the
+default. A value that is not an integer is refused with &quot;must be an integer (0 or
+-1 for no limit)&quot;. It needs <code>--repo</code>, like the other repository settings, and is
+stored as <code>repos[&quot;owner/repo&quot;].reviewReadDiffMaxChars</code>.</p>
+<h2 id="extensions-in-configjson">Extensions in config.json</h2>
+<p><code>co-maintainer extension register</code> and <code>update</code> write the <code>extensions</code> array.
+Do not edit it by hand: a registration edited by hand gets the same defaults and
+limits as <code>register</code>, and a bad entry is dropped with a warning. The array order
+is the registration order. The fields, in the same terms as the
+<a href="extensions.html#register-one">Extensions</a> flags:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>name</code>, <code>command</code></td>
+<td>required</td>
+<td>The extension&#39;s name and its shell command</td>
+</tr>
+<tr>
+<td><code>repos</code></td>
+<td><code>*</code></td>
+<td><code>owner/repo</code>, <code>a/b,a/c</code>, <code>a/*</code> or <code>*/a</code></td>
+</tr>
+<tr>
+<td><code>reviewTypes</code></td>
+<td>all of <code>local</code>, <code>pr</code>, <code>remote</code></td>
+<td>Left out means all</td>
+</tr>
+<tr>
+<td><code>runAfter</code></td>
+<td>none</td>
+<td>An extension name, or <code>review</code></td>
+</tr>
+<tr>
+<td><code>parallelism</code></td>
+<td><code>true</code></td>
+<td><code>false</code> with no <code>runAfter</code> runs after the review</td>
+</tr>
+<tr>
+<td><code>priority</code></td>
+<td><code>0</code></td>
+<td><code>0</code> to <code>3</code>, 3 starts first</td>
+</tr>
+<tr>
+<td><code>failFast</code></td>
+<td><code>false</code></td>
+<td>On failure, what waits on it does not run</td>
+</tr>
+<tr>
+<td><code>retryOnFailTimes</code></td>
+<td><code>0</code></td>
+<td><code>0</code> to <code>10</code></td>
+</tr>
+<tr>
+<td><code>maxRequestedRetries</code></td>
+<td><code>3</code></td>
+<td><code>0</code> to <code>10</code></td>
+</tr>
+<tr>
+<td><code>timeoutSeconds</code></td>
+<td><code>600</code></td>
+<td><code>1</code> to <code>21600</code></td>
+</tr>
+<tr>
+<td><code>rerunOnRestart</code></td>
+<td>follows the global key</td>
+<td><code>extensionRerunOnRestart</code> when unset</td>
+</tr>
+<tr>
+<td><code>disabled</code></td>
+<td><code>false</code></td>
+<td>Set by <code>extension disable</code> and <code>enable</code></td>
+</tr>
+</tbody></table>
+<p><code>extensionRerunOnRestart</code> is a global boolean, <code>true</code> when unset. Set it with
+<code>co-maintainer set --extension-rerun-on-restart=false</code> or
+<code>co-maintainer config set extension-rerun-on-restart false</code>.</p>
 <h2 id="secrets-on-disk">Secrets on disk</h2>
 <p><code>config.json</code> may contain tokens, PATs, App private keys, and webhook/OAuth
 secrets in <strong>plain text</strong>. The file is chmod <code>0600</code> where supported (not on
@@ -686,6 +859,19 @@ An empty value counts as not set.</p>
 </tbody></table>
 <p><code>config list</code> shows <code>env</code> as the source of <code>remote-host</code> and <code>remote-token</code> when
 their variable is set.</p>
+<h2 id="extension-variables">Extension variables</h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>CM_EXTENSIONS_DISABLED</code></td>
+<td>The exact value <code>1</code> turns <a href="extensions.html">extensions</a> off. <code>register</code> and <code>debug-run</code> refuse, and no review runs an extension. The hosted cloud sets it from outside the container</td>
+</tr>
+</tbody></table>
 </article>
         <footer class="doc-footer">
           <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/configuration.md" data-umami-event="click-github">Edit this page</a> on GitHub
@@ -694,7 +880,7 @@ their variable is set.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#precedence">Precedence</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#per-repo-memory">Per-repo memory</a></li><li><a href="#secrets-on-disk">Secrets on disk</a></li><li><a href="#path-overrides">Path overrides</a></li><li><a href="#remote-review-variables">Remote review variables</a></li></ul></nav>
+      <ul><li><a href="#precedence">Precedence</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#per-repo-memory">Per-repo memory</a></li><li><a href="#diagram-settings">Diagram settings</a></li><li><a href="#the-read-full-diff-cap">The read-full-diff cap</a></li><li><a href="#extensions-in-configjson">Extensions in config.json</a></li><li><a href="#secrets-on-disk">Secrets on disk</a></li><li><a href="#path-overrides">Path overrides</a></li><li><a href="#remote-review-variables">Remote review variables</a></li><li><a href="#extension-variables">Extension variables</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

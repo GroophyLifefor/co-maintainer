@@ -15,9 +15,11 @@ import type { ReviewDocuments } from "../knowledge/guide.ts";
 import {
   assembleSkill,
   codebaseBody,
+  extractSections,
   factSectionHashes,
 } from "../knowledge/skill.ts";
 import { validateSkill } from "../knowledge/validate.ts";
+import { codebaseSectionKeys } from "../knowledge/sections.ts";
 import {
   readConfig,
   reposDir,
@@ -41,12 +43,19 @@ import type { AiResponse, GitHubClient, Options } from "../types.ts";
 import type { Source, State } from "../knowledge/types.ts";
 import type { LogFn } from "./jobs.ts";
 import type { JobRow } from "../store/rows.ts";
-import { mkdir, readTextFile, remove } from "../util/runtime.ts";
+import { mkdir, readTextFile, remove, stat } from "../util/runtime.ts";
 import { applyWatchNotes, withMaintainerNotes } from "./watch_notes.ts";
 import { addResponseCost, emptyTally, type CostTally } from "../util/cost.ts";
 import { costLabel } from "../util/run_summary.ts";
 import { formatError } from "../cli/error.ts";
 import { buildSetupJson } from "../cli/command_json.ts";
+import {
+  buildInstructions,
+  instructionsJson,
+  writeInstructionsAndRules,
+  type InstructionsOutcome,
+  type RulesWriteResult,
+} from "./rules_build.ts";
 
 export type AiMetrics = CostTally & {
   calls: number;
@@ -190,6 +199,73 @@ async function writeMaintainerNotes(
   await writeTextFileAtomic(path, withMaintainerNotes(current, lines));
 }
 
+/** The sections this run rebuilds. With no previous state, or after the high
+ * model or the synthesis version changed, that is every section: `undefined`
+ * on a first run, all keys after a change. Otherwise the sections whose facts
+ * changed, and every codebase section that has facts but is missing from the
+ * CODEBASE.md on disk. That last rule rebuilds a section an earlier run lost,
+ * for example one 0.6.13 dropped on a sync, instead of keeping it missing
+ * until its facts change. */
+export function dirtySectionKeys(
+  previous: State | undefined,
+  options: Pick<Options, "highModel" | "synthesisVersion">,
+  hashes: Record<string, string>,
+  previousCodebase?: string,
+): Set<string> | undefined {
+  if (!previous) return undefined;
+  const synthesisChanged =
+    previous.options.highModel !== options.highModel ||
+    previous.options.synthesisVersion !== options.synthesisVersion;
+  if (synthesisChanged) return new Set(Object.keys(hashes));
+  const onDisk = previousCodebase ? extractSections(previousCodebase) : {};
+  return new Set(
+    Object.entries(hashes)
+      .filter(
+        ([key, hash]) =>
+          previous.sectionHashes[key] !== hash ||
+          (codebaseSectionKeys.has(key) && !onDisk[key]),
+      )
+      .map(([key]) => key),
+  );
+}
+
+/** The sections that still have facts and that this run did not rebuild, so
+ * their previous text is still right. */
+export function unchangedSectionKeys(
+  hashes: Record<string, string>,
+  dirty: Set<string> | undefined,
+): Set<string> {
+  if (!dirty) return new Set();
+  return new Set(Object.keys(hashes).filter((key) => !dirty.has(key)));
+}
+
+/** The CODEBASE.md body. A sync rebuilds only the sections whose facts
+ * changed, so a section in `keep` keeps the text the last run wrote, the way
+ * `assembleSkill` keeps an unchanged skill section. `keep` holds the
+ * unchanged sections and those whose synthesis call failed: a failed call is
+ * not an answer. A rebuilt section takes its new text, and one that came back
+ * empty is dropped: the old text was written from facts that are gone. */
+export function mergeCodebaseSections(
+  previousMarkdown: string | undefined,
+  overrides: Record<string, string>,
+  keep: Set<string>,
+): string {
+  const previous = previousMarkdown ? extractSections(previousMarkdown) : {};
+  const kept = Object.fromEntries(
+    Object.entries(previous).filter(([key]) => keep.has(key)),
+  );
+  return codebaseBody({ ...kept, ...overrides });
+}
+
+async function readCodebaseDocument(repo: string): Promise<string | undefined> {
+  try {
+    return await readTextFile(`${reposDir()}/${repo}/CODEBASE.md`);
+  } catch {
+    // No CODEBASE.md yet.
+    return undefined;
+  }
+}
+
 /** Writes the codebase-description sections (layout/style/tests/devloop) to
  * their own file, so `review` can check a pull request against how this
  * repository's code actually looks, not just the review-bar checklist. Every
@@ -198,9 +274,11 @@ async function writeMaintainerNotes(
 async function writeCodebaseDocument(
   repo: string,
   overrides: Record<string, string> = {},
+  keep: Set<string> = new Set(),
 ): Promise<void> {
   const path = `${reposDir()}/${repo}/CODEBASE.md`;
-  const body = codebaseBody(overrides);
+  const previous = await readCodebaseDocument(repo);
+  const body = mergeCodebaseSections(previous, overrides, keep);
   if (!body) {
     // Keep any existing file: `SKILL.md` links to it, and removing it would
     // leave that link dangling. A guide the last run wrote is better than a
@@ -218,12 +296,50 @@ async function writeCodebaseDocument(
   );
 }
 
-function addReviewLink(
-  markdown: string,
+export type ReviewGuideStatus = {
+  /** `kept` is a guide the last run wrote that this run could not rebuild. */
+  reviewGuide: "detailed" | "single" | "kept" | "skipped";
+  detailed: boolean;
+};
+
+/** The review guides on disk once this run has written its files. When the AI
+ * produced no guide above the signal threshold, `writeReviewDocuments` keeps
+ * the last run's files, and every review still reads them. Below the
+ * threshold it removes them. */
+export async function reviewGuideStatus(
+  repo: string,
   documents: ReviewDocuments | undefined,
+  signalCount: number,
+): Promise<ReviewGuideStatus> {
+  if (documents) {
+    return documents.detailed
+      ? { reviewGuide: "detailed", detailed: true }
+      : { reviewGuide: "single", detailed: false };
+  }
+  const skipped: ReviewGuideStatus = {
+    reviewGuide: "skipped",
+    detailed: false,
+  };
+  if (signalCount <= 2) return skipped;
+  const directory = `${reposDir()}/${repo}`;
+  const exists = (name: string) =>
+    stat(`${directory}/${name}`).then(
+      () => true,
+      () => false,
+    );
+  if (!(await exists("PR_REVIEW_GUIDE.md"))) return skipped;
+  return {
+    reviewGuide: "kept",
+    detailed: await exists("PR_REVIEW_DETAILED_GUIDE.md"),
+  };
+}
+
+export function addReviewLink(
+  markdown: string,
+  guide: ReviewGuideStatus,
 ): string {
-  if (!documents) return markdown;
-  const detailedLink = documents.detailed
+  if (guide.reviewGuide === "skipped") return markdown;
+  const detailedLink = guide.detailed
     ? " See [PR_REVIEW_DETAILED_GUIDE.md](PR_REVIEW_DETAILED_GUIDE.md) for evidence."
     : "";
   return `${markdown.trimEnd()}\n\n## Pull request review guides\n\n- Read [PR_REVIEW_GUIDE.md](PR_REVIEW_GUIDE.md).${detailedLink}\n`;
@@ -275,11 +391,14 @@ async function initOrRemake(options: Options): Promise<void> {
   log("fetch", `${options.repo} via ${options.auth}`);
   const source = await timed("fetch repository data", options.logTime, () =>
     collectSource(client, options, previous, async (codebase) => {
+      // `instructionFiles` is set even when missing: it is checked against
+      // the blob SHAs saved here, so the old contents must not survive them.
       checkpoint.source = {
         ...checkpoint.source,
         tree: codebase.tree,
         treeSha: codebase.treeSha,
         files: codebase.files,
+        instructionFiles: codebase.instructionFiles,
       };
       await writeState(checkpoint);
     }),
@@ -311,6 +430,9 @@ async function initOrRemake(options: Options): Promise<void> {
   };
   let overrides: Record<string, string> = {};
   let reviewDocuments: ReviewDocuments | undefined;
+  let unchangedSections = new Set<string>();
+  let instructions: InstructionsOutcome = { status: "failed" };
+  let rulesResult: RulesWriteResult | undefined;
   try {
     log("ai", "starting extract_unit jobs");
     facts = await timed("extract_unit AI", options.logTime, () =>
@@ -318,19 +440,13 @@ async function initOrRemake(options: Options): Promise<void> {
     );
     log("ai", `extract_unit complete · ${facts.length} facts`);
     const hashes = await factSectionHashes(facts);
-    const synthesisChanged =
-      previous &&
-      (previous.options.highModel !== options.highModel ||
-        previous.options.synthesisVersion !== options.synthesisVersion);
-    const dirtySections = previous
-      ? synthesisChanged
-        ? new Set(Object.keys(hashes))
-        : new Set(
-            Object.entries(hashes)
-              .filter(([key, hash]) => previous.sectionHashes[key] !== hash)
-              .map(([key]) => key),
-          )
-      : undefined;
+    const dirtySections = dirtySectionKeys(
+      previous,
+      options,
+      hashes,
+      await readCodebaseDocument(options.repo),
+    );
+    unchangedSections = unchangedSectionKeys(hashes, dirtySections);
     log(
       "ai",
       `starting synth_section jobs${
@@ -351,6 +467,9 @@ async function initOrRemake(options: Options): Promise<void> {
       ),
     );
     overrides = synth.overrides;
+    // A section whose call failed keeps its CODEBASE.md text, as SKILL.md
+    // keeps a dropped unit's text.
+    for (const key of synth.failed) unchangedSections.add(key);
     log(
       "ai",
       `synth_section complete · ${Object.keys(overrides).length} sections`,
@@ -373,8 +492,11 @@ async function initOrRemake(options: Options): Promise<void> {
         ? `synth_guide complete · ${
             reviewDocuments.detailed ? "short + detailed" : "single guide"
           }`
-        : "synth_guide skipped · fewer than 3 review signals",
+        : reviewSignalCount(facts) > 2
+          ? "synth_guide produced no guide"
+          : "synth_guide skipped · fewer than 3 review signals",
     );
+    instructions = await buildInstructions(highAi, options, source, usage);
   } catch (error) {
     // Nothing is written on an AI failure. Fetching and extraction are cached,
     // so a rerun picks up where this stopped instead of starting over.
@@ -392,7 +514,12 @@ async function initOrRemake(options: Options): Promise<void> {
       overrides,
     ),
   );
-  result.markdown = addReviewLink(result.markdown, reviewDocuments);
+  const guideStatus = await reviewGuideStatus(
+    options.repo,
+    reviewDocuments,
+    reviewSignalCount(facts),
+  );
+  result.markdown = addReviewLink(result.markdown, guideStatus);
   // What maintainers said on commit watch issues since the last sync.
   const noteLines = await applyWatchNotes(options.repo, lowAi, (response) =>
     usage("watch_note", response),
@@ -427,7 +554,7 @@ async function initOrRemake(options: Options): Promise<void> {
     const { writeTextFileAtomic } = await import("../util/atomic.ts");
     await withKnowledgeLock(options.repo, async () => {
       await writeTextFileAtomic(path, result.markdown);
-      await writeCodebaseDocument(options.repo, overrides);
+      await writeCodebaseDocument(options.repo, overrides, unchangedSections);
       await writeReviewDocuments(
         options.repo,
         reviewDocuments,
@@ -436,6 +563,12 @@ async function initOrRemake(options: Options): Promise<void> {
       if (noteLines.length > 0) {
         await writeMaintainerNotes(options.repo, noteLines);
       }
+      rulesResult = await writeInstructionsAndRules({
+        repo: options.repo,
+        command: options.command,
+        instructions,
+        source,
+      });
       const head = source.commits[0] as { sha?: string } | undefined;
       const baseSha = head?.sha ? String(head.sha) : new Date().toISOString();
       // A CLI init has no app.db row for the repository yet; without one the
@@ -475,6 +608,8 @@ async function initOrRemake(options: Options): Promise<void> {
       includeHowRepoWorks: options.includeHowRepoWorks,
       onlyRequestChangedPr: options.onlyRequestChangedPr,
       prState: options.prState,
+      agentInstructions: options.agentInstructions,
+      agentInstructionsMaxChars: options.agentInstructionsMaxChars,
     });
   });
   log(
@@ -504,15 +639,19 @@ async function initOrRemake(options: Options): Promise<void> {
         facts: facts.length,
         pullRequests: source.pullRequests.length,
         commits: source.commits.length,
-        reviewGuide: reviewDocuments
-          ? reviewDocuments.detailed
-            ? "detailed"
-            : "single"
-          : "skipped",
+        reviewGuide: guideStatus.reviewGuide,
         validation: {
           errors: finalValidation.errors,
           warnings: finalValidation.warnings,
         },
+        // Only when the instructions did something, so `sync --json` for a
+        // repository without instruction files prints what it printed before.
+        ...(rulesResult?.reported
+          ? {
+              instructions: instructionsJson(instructions),
+              ruleChanges: rulesResult.changes,
+            }
+          : {}),
         summary,
       }),
     );
@@ -590,6 +729,8 @@ export function optionsFromConfig(
       repoConfig.maxPullRequestChangeLines ??
       config.defaults?.maxPullRequestChangeLines,
     maxComments: repoConfig.maxComments,
+    agentInstructions: repoConfig.agentInstructions,
+    agentInstructionsMaxChars: repoConfig.agentInstructionsMaxChars,
   };
 }
 

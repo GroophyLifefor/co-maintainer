@@ -13,10 +13,22 @@ import { appendFileSync } from "node:fs";
 import { stripControlChars } from "../util/sanitize.ts";
 import { formatRunSummary, type RunSummary } from "../util/run_summary.ts";
 import {
+  coverageLine,
+  coverageMissing,
+  notReviewedLines,
+  type Coverage,
+} from "../review/coverage.ts";
+import {
+  INTENT_LINE,
   humanShortTitle,
   sortHumanFindings,
   type HumanFinding,
 } from "./review_result.ts";
+import type { ExtensionReport } from "../extensions/report.ts";
+import {
+  extensionHumanFindings,
+  jobSummaryWithExtensions,
+} from "../extensions/render_actions.ts";
 
 /** GitHub shows at most this many error and this many warning annotations per
  * step and drops the rest without a word. */
@@ -46,7 +58,13 @@ function annotation(row: HumanFinding): string {
   }
   const short = humanShortTitle(row);
   properties.push(
-    `title=${escapeProperty(short ? `${row.severity}: ${short}` : `${row.severity} finding`)}`,
+    `title=${escapeProperty(
+      row.label
+        ? `${row.label}: ${row.title}`
+        : short
+          ? `${row.severity}: ${short}`
+          : `${row.severity} finding`,
+    )}`,
   );
   const level = row.blocking ? "error" : "warning";
   return `::${level} ${properties.join(",")}::${escapeData(row.body || row.title)}`;
@@ -56,17 +74,34 @@ function active(findings: HumanFinding[]): HumanFinding[] {
   return sortHumanFindings(findings).filter((row) => row.state !== "closed");
 }
 
+/** One warning without a file when the diff plan dropped files, so a pull
+ * request shows that part of the change went unreviewed. */
+function droppedAnnotation(coverage: Coverage | undefined): string | null {
+  const dropped = coverage?.dropped.length ?? 0;
+  if (dropped === 0) return null;
+  const files = dropped === 1 ? "1 file was" : `${dropped} files were`;
+  return `::warning title=co-maintainer::${escapeData(
+    `${files} not reviewed because the diff is too large. The job summary lists them.`,
+  )}`;
+}
+
 /** One workflow command per finding still standing, errors first. A finding
- * that was closed since the last review needs no annotation. */
-export function githubAnnotations(findings: HumanFinding[]): string[] {
+ * that was closed since the last review needs no annotation. The dropped
+ * files warning takes one of the warning slots. */
+export function githubAnnotations(
+  findings: HumanFinding[],
+  coverage?: Coverage,
+): string[] {
   const rows = active(findings);
   const errors = rows.filter((row) => row.blocking);
   const warnings = rows.filter((row) => !row.blocking);
+  const dropped = droppedAnnotation(coverage);
   const shown = [
     ...errors.slice(0, MAX_ANNOTATIONS_PER_LEVEL),
-    ...warnings.slice(0, MAX_ANNOTATIONS_PER_LEVEL),
+    ...warnings.slice(0, MAX_ANNOTATIONS_PER_LEVEL - (dropped ? 1 : 0)),
   ];
   const lines = shown.map(annotation);
+  if (dropped) lines.push(dropped);
   const left = rows.length - shown.length;
   if (left > 0) {
     lines.push(
@@ -101,19 +136,39 @@ export type GithubSummaryInput = {
   /** Cost and time, in the same words the terminal uses. Left out when the run
    * cannot say. */
   run?: RunSummary;
+  /** What the model received. Left out by a remote server older than this
+   * field. */
+  coverage?: Coverage;
+  /** Whether this mode's next run covers the files this one dropped, see
+   * `coverageWarnings`. */
+  catchesUp?: boolean;
+  /** The extensions' results. Their findings join the table, and their
+   * `markdown` follows the AI part. */
+  extensions?: ExtensionReport;
+  /** An intent file was given. The summary says so and never shows the text. */
+  intent?: boolean;
 };
 
 export function githubSummary(input: GithubSummaryInput): string {
-  const rows = active(input.findings);
-  const closed = input.findings.filter((row) => row.state === "closed").length;
+  const all = [...input.findings, ...extensionHumanFindings(input.extensions)];
+  const rows = active(all);
+  const closed = all.filter((row) => row.state === "closed").length;
   const blocking = rows.filter((row) => row.blocking).length;
-  const lines = ["## co-maintainer review", "", cell(input.title, 200), ""];
+  const lines = ["## co-maintainer review", "", cell(input.title, 200)];
+  if (input.intent) lines.push("", INTENT_LINE);
+  lines.push("");
   if (rows.length === 0) {
-    lines.push("No actionable findings.");
+    lines.push(
+      input.coverage && coverageMissing(input.coverage) > 0
+        ? "No actionable findings in the files reviewed."
+        : "No actionable findings.",
+    );
   } else {
     lines.push("| Severity | State | Where | Finding |", "|---|---|---|---|");
     for (const row of rows) {
-      const short = humanShortTitle(row);
+      const short = row.label
+        ? `${row.label} ${row.title}`
+        : humanShortTitle(row);
       const text = [short, row.body.split("\n")[0] ?? ""]
         .filter(Boolean)
         .join(": ");
@@ -126,8 +181,16 @@ export function githubSummary(input: GithubSummaryInput): string {
     "",
     `**Summary:** ${rows.filter((r) => r.state === "new").length} new · ${rows.filter((r) => r.state === "open").length} open · ${closed} closed · ${blocking} blocking`,
   );
+  const coverage = coverageLine(input.coverage);
+  if (coverage) lines.push("", cell(coverage, 200));
+  const notReviewed = notReviewedLines(
+    input.coverage,
+    input.catchesUp ?? false,
+    (path) => cell(path, 200),
+  );
+  if (notReviewed.length > 0) lines.push("", ...notReviewed);
   if (input.run) lines.push("", formatRunSummary(input.run));
-  return lines.join("\n");
+  return jobSummaryWithExtensions(lines.join("\n"), input.extensions);
 }
 
 /** Appends to `$GITHUB_STEP_SUMMARY` when it is set. A summary that cannot be
@@ -146,7 +209,17 @@ export function appendStepSummary(
 
 /** The whole `--output=github` output of one finished review. */
 export function emitGithubOutput(input: GithubSummaryInput): void {
-  for (const line of githubAnnotations(input.findings)) console.log(line);
+  // Only an extension finding with a location is annotated. The job summary
+  // lists the rest.
+  const located = extensionHumanFindings(input.extensions).filter(
+    (row) => row.path,
+  );
+  for (const line of githubAnnotations(
+    [...input.findings, ...located],
+    input.coverage,
+  )) {
+    console.log(line);
+  }
   appendStepSummary(githubSummary(input));
 }
 

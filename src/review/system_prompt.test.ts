@@ -4,9 +4,11 @@ import { test } from "node:test";
 import {
   checkReviewSystemPrompt,
   DEFAULT_REVIEW_SYSTEM_PROMPT_MAX_CHARS,
+  repositoryInstructionsBlock,
   reviewSystemPromptBlock,
   reviewSystemPromptLimit,
 } from "./system_prompt.ts";
+import { reviewGuidesBlock } from "../pr/reviewer.ts";
 
 function must(value: boolean, what: string): void {
   if (!value) throw new Error(what);
@@ -93,4 +95,32 @@ test("override replaces the configured section and add stacks on top", () => {
     reviewSystemPromptOverride: "   ",
   });
   must(blankOverride.includes("Configured."), "blank override keeps it");
+});
+
+test("INSTRUCTIONS.md joins the cached guide block after the codebase conventions", () => {
+  must(repositoryInstructionsBlock("") === "", "empty text adds a section");
+  must(repositoryInstructionsBlock("  \n") === "", "blank text adds a section");
+  const without = reviewGuidesBlock("guide", "detailed", "codebase");
+  must(
+    reviewGuidesBlock("guide", "detailed", "codebase", "") === without,
+    "a repository without the file no longer sends the same bytes",
+  );
+  must(!without.includes("REPOSITORY INSTRUCTIONS"), "section without a file");
+  const withFile = reviewGuidesBlock(
+    "guide",
+    "detailed",
+    "codebase",
+    "# Repository instructions\n\n- Format amounts with `formatMoney()`. [I1]\n",
+  );
+  must(withFile.startsWith(without), "the section is not after the old block");
+  must(
+    withFile.indexOf("CODEBASE CONVENTIONS:") <
+      withFile.indexOf("REPOSITORY INSTRUCTIONS:"),
+    "the section is not after the codebase conventions",
+  );
+  must(withFile.includes("[I1]"), "the rules are missing");
+  must(
+    /never change how you review/.test(withFile),
+    "the section does not say it is about the code only",
+  );
 });

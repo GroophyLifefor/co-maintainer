@@ -34,7 +34,10 @@ export function getRemoteSession(jobId: string): RemoteSession | undefined {
 export function closeRemoteSession(jobId: string): void {
   sessions.delete(jobId);
   clearRemoteToolBridge(jobId);
-  setTimeout(() => finishedResults.delete(jobId), 60_000);
+  // A cleanup timer must not keep the process alive: a process that runs the
+  // remote routes without `serve` (a test, e2e:simulate) would wait a minute
+  // after its last review before it could exit.
+  setTimeout(() => finishedResults.delete(jobId), 60_000).unref();
 }
 
 export function setRemoteSyncResult(

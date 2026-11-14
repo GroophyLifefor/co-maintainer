@@ -12,6 +12,7 @@ import {
   withoutSuggestionLine,
 } from "../pr/suggestion.ts";
 import { githubPullRequestToRevision } from "../pr/github_revision.ts";
+import { visiblePathsToSave } from "../review/visible_paths.ts";
 import {
   anchorTextFromPatch,
   buildCarryPromptSection,
@@ -25,6 +26,12 @@ import {
 } from "../review/carry_over.ts";
 import { runReviewEngine } from "../review/engine.ts";
 import {
+  coverageCounts,
+  notReviewedLines,
+  postedPathSpan,
+  type Coverage,
+} from "../review/coverage.ts";
+import {
   addResponseCost,
   costColumns,
   emptyTally,
@@ -32,6 +39,7 @@ import {
   type CostTally,
 } from "../util/cost.ts";
 import { loadGuides } from "../review/guides.ts";
+import { serverDiagramOptions } from "../review/diagram.ts";
 import {
   reviewBlockingFrom,
   isBlocking,
@@ -76,6 +84,21 @@ import type { AiProvider, GitHubClient, Json, Options } from "../types.ts";
 import type { FindingRow, JobRow } from "../store/rows.ts";
 import { getEnv } from "../util/runtime.ts";
 import { hasWriteAccess } from "../github/write_access.ts";
+import { withExtensions } from "../extensions/session.ts";
+import { appPrContext } from "../extensions/contexts.ts";
+import { reviewResultJson } from "../extensions/review_result.ts";
+import {
+  EMPTY_REPORT,
+  hasExtensions,
+  type ExtensionReport,
+} from "../extensions/report.ts";
+import {
+  reviewBodyWithExtensions,
+  reviewEventWithExtensions,
+  splitExtensionFindings,
+  standingExtensionFindings,
+} from "../extensions/render_review.ts";
+import { addExtensionCost } from "../extensions/cost.ts";
 
 const ACCESS_DENIED_BODY =
   "The App does not have access to review this pull request.";
@@ -190,8 +213,14 @@ async function resolveFailureNote(
 ): Promise<void> {
   const noteId = existingNoteId(job);
   if (!noteId) return;
+  // An edit is a PATCH, the method the App's permission table names. GitHub
+  // has no POST for it, so a client without PATCH cannot edit the note.
+  if (!github.patch) {
+    log("info", "could not update the failure note: this client cannot edit");
+    return;
+  }
   try {
-    await post(github, `repos/${job.repo}/issues/comments/${noteId}`, {
+    await github.patch<Json>(`repos/${job.repo}/issues/comments/${noteId}`, {
       body: REVIEWED_NOTE,
     });
     setReviewStatus(reviewId, "posted", { note_comment_id: noteId });
@@ -266,6 +295,11 @@ export interface ReviewMetadata {
   jobId: string;
   model: string;
   durationMs: number;
+  /** What the model received, for the coverage line and the not-reviewed
+   * list. */
+  coverage?: Coverage;
+  /** Whether the next round sends the files this round dropped. */
+  catchesUp?: boolean;
 }
 
 export function formatDuration(ms: number): string {
@@ -278,15 +312,34 @@ export function formatDuration(ms: number): string {
   return `${seconds}s`;
 }
 
-function metadataBlock({ jobId, model, durationMs }: ReviewMetadata): string {
+function metadataBlock({
+  jobId,
+  model,
+  durationMs,
+  coverage,
+}: ReviewMetadata): string {
   return (
     `\n\n<details>\n<summary>Metadata</summary>\n\n` +
     `- Activity: ${jobId}\n` +
     `- co-maintainer version: ${VERSION}\n` +
     `- Model: ${model}\n` +
     `- Duration: ${formatDuration(durationMs)}\n` +
+    (coverage ? `- Coverage: ${coverageCounts(coverage)}\n` : "") +
     `</details>`
   );
+}
+
+/** The files this round never sent to the model, as a list under the
+ * findings. Paths are made safe code spans: a path is not prose, the copy
+ * guard must not read a semicolon in one as a sentence, and the author's file
+ * names must not inject Markdown or mentions. */
+function notReviewedBlock(metadata: ReviewMetadata): string {
+  const lines = notReviewedLines(
+    metadata.coverage,
+    metadata.catchesUp ?? false,
+    postedPathSpan,
+  );
+  return lines.length > 0 ? `\n\n${lines.join("\n")}` : "";
 }
 
 /** A finding an earlier round reported that this round still finds, with the
@@ -312,8 +365,12 @@ export function reviewBody(
   metadata: ReviewMetadata,
   stillOpen: StillOpenFinding[] = [],
 ): string {
+  const notReviewed = notReviewedBlock(metadata);
   if (findings.length === 0 && stillOpen.length === 0) {
-    return `No actionable findings.${metadataBlock(metadata)}`;
+    const none = notReviewed
+      ? "No actionable findings in the files reviewed."
+      : "No actionable findings.";
+    return `${none}${notReviewed}${metadataBlock(metadata)}`;
   }
   const lines: string[] = ["Review summary"];
   if (findings.length) {
@@ -326,7 +383,7 @@ export function reviewBody(
       lines.push(summaryLine(finding, since));
     }
   }
-  return lines.join("\n") + metadataBlock(metadata);
+  return lines.join("\n") + notReviewed + metadataBlock(metadata);
 }
 
 function inlineCommentBody(finding: ParsedFinding, suggestion = false): string {
@@ -445,12 +502,17 @@ export function reviewOptionsForJob(
   repo: string,
   prNumber: number,
   args: { model?: string },
+  warn?: (message: string) => void,
 ): Options {
-  const options = reviewOptions(repo, prNumber);
+  const options = reviewOptions(repo, prNumber, warn);
   return args.model ? { ...options, highModel: args.model } : options;
 }
 
-export function reviewOptions(repo: string, prNumber: number): Options {
+export function reviewOptions(
+  repo: string,
+  prNumber: number,
+  warn?: (message: string) => void,
+): Options {
   const config = readConfig();
   return {
     command: "review",
@@ -483,6 +545,7 @@ export function reviewOptions(repo: string, prNumber: number): Options {
       config.repos?.[repo]?.reviewBlocking ?? config.reviewBlocking,
     ),
     reviewSystemPrompt: config.repos?.[repo]?.reviewSystemPrompt,
+    ...serverDiagramOptions(config.repos?.[repo] ?? {}, repo, warn),
   };
 }
 
@@ -672,6 +735,7 @@ async function publish(
   log: LogFn,
   metadata: ReviewMetadata,
   mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
+  extensions: ExtensionReport = EMPTY_REPORT,
 ): Promise<void> {
   const stored = listFindingsForReview(reviewId);
   // GitHub wraps every `in_reply_to` comment in a review of its own, so a round
@@ -720,8 +784,14 @@ async function publish(
         ? (getReview(row.first_seen_review_id)?.head_sha ?? undefined)
         : undefined,
     }));
-  const body = reviewBody(summaryFindings, metadata, stillOpen);
-  const comments = inline.map(({ finding, anchor, suggestion }) => ({
+  const extensionSplit = splitExtensionFindings(extensions, files, humanCopy);
+  const body = reviewBodyWithExtensions(
+    reviewBody(summaryFindings, metadata, stillOpen),
+    extensions,
+    extensionSplit.listed,
+    humanCopy,
+  );
+  const aiComments = inline.map(({ finding, anchor, suggestion }) => ({
     path: finding.path,
     body: inlineCommentBody(finding, suggestion),
     line: anchor.line,
@@ -730,6 +800,7 @@ async function publish(
       ? {}
       : { start_line: anchor.start_line, start_side: "RIGHT" }),
   }));
+  const comments = [...aiComments, ...extensionSplit.comments];
   if (
     hasForbiddenCopy(body) ||
     hasForbiddenCopy(ACCESS_DENIED_BODY) ||
@@ -743,7 +814,7 @@ async function publish(
   const payload = {
     commit_id: headSha,
     body,
-    event: appReviewEvent(stored, mode),
+    event: reviewEventWithExtensions(appReviewEvent(stored, mode), extensions),
     comments,
   };
   setReviewStatus(reviewId, "posting");
@@ -785,9 +856,7 @@ async function publish(
       const posted = await post(
         client,
         `repos/${job.repo}/issues/${job.pr_number}/comments`,
-        {
-          body: reviewBody(summaryFindings, metadata, stillOpen),
-        },
+        { body },
       );
       setReviewStatus(reviewId, "posted", {
         posted_review_id: String(posted.id ?? ""),
@@ -852,9 +921,10 @@ export async function runReviewJob(
   log: LogFn,
   client?: GitHubClient,
   ai?: AiProvider,
+  signal?: AbortSignal,
 ): Promise<void> {
   try {
-    await runReviewJobCore(job, log, client, ai);
+    await runReviewJobCore(job, log, client, ai, signal);
   } catch (error) {
     const review = getReviewByJobId(job.id);
     let github = client;
@@ -888,6 +958,7 @@ async function runReviewJobCore(
   log: LogFn,
   client?: GitHubClient,
   ai?: AiProvider,
+  signal?: AbortSignal,
 ): Promise<void> {
   const startedAt = Date.now();
   if (job.pr_number === null) {
@@ -919,7 +990,9 @@ async function runReviewJobCore(
     requestReaction?: string;
     model?: string;
   };
-  const options = reviewOptionsForJob(job.repo, job.pr_number, args);
+  const options = reviewOptionsForJob(job.repo, job.pr_number, args, (text) =>
+    log("info", text),
+  );
   const pr = await github.request<Json>(
     `repos/${job.repo}/pulls/${job.pr_number}`,
   );
@@ -1058,7 +1131,15 @@ async function runReviewJobCore(
   const subjectRevision = getSubjectRevision(subject.id);
   let carryItems: CarryItem[] = [];
   let carryPrevious: CarryPrevious | null = null;
-  const extras: { carryPrompt?: string; unchangedPaths?: string[] } = {};
+  // Only an incremental round leaves out what the last round saw, so only
+  // it sends the files the last round dropped.
+  const catchesUp = scope === "incremental";
+  const extras: {
+    carryPrompt?: string;
+    unchangedPaths?: string[];
+    catchesUp?: boolean;
+    resend?: Json[];
+  } = { catchesUp };
   // A guide rebuilt after the previous review invalidates that review's
   // verdicts and its "unchanged" suppression. Treat the run as
   // if it had started fresh: carry-over off, every changed file back in scope,
@@ -1071,8 +1152,23 @@ async function runReviewJobCore(
     );
   if (subjectRevision && !guideRebuilt) {
     const prevFiles = parseRevisionFiles(subjectRevision);
-    const { unchanged } = incrementalDiffPaths(revision, prevFiles);
+    const { changed, unchanged } = incrementalDiffPaths(
+      revision,
+      prevFiles,
+      parseVisiblePaths(subjectRevision),
+    );
     extras.unchangedPaths = scope === "incremental" ? unchanged : undefined;
+    if (scope === "incremental") {
+      // The compare lists only what changed since the last round. A file
+      // that round dropped or withheld is not in it when nobody touched it
+      // since, so it is sent from the pull request's own file list.
+      const due = new Set(changed.map((file) => file.path));
+      const compared = new Set(files.map((file) => String(file.filename)));
+      extras.resend = publishFiles.filter((file) => {
+        const path = String(file.filename ?? "");
+        return due.has(path) && !compared.has(path);
+      });
+    }
     const storedRows = listCarryableFindingsForReview(
       subjectRevision.review_id,
     );
@@ -1104,17 +1200,47 @@ async function runReviewJobCore(
     extras.carryPrompt = buildCarryPromptSection(carryItems, revision);
   }
   const costTally = emptyTally();
+  // The engine's answer carries the last review call's tokens only. A JSON
+  // retry and a large diff summary are calls of this review too.
+  const tokens = { in: 0, out: 0 };
   let response: Awaited<ReturnType<typeof runReviewEngine>>;
+  let extensions: ExtensionReport;
   try {
-    response = await runReviewEngine(
-      github,
-      options,
-      async (call) => addResponseCost(costTally, call),
-      snapshot,
-      ai ?? aiFor(options),
-      (message) => log("info", message),
-      extras,
-    );
+    ({ review: response, extensions } = await withExtensions(
+      appPrContext({
+        jobId: job.id,
+        repo: job.repo,
+        prNumber: job.pr_number,
+        headSha,
+        baseSha: reviewBase,
+        branch: String((pr.head as Json | undefined)?.ref ?? "") || null,
+        scope,
+        sinceCommit:
+          scope === "incremental" ? (args.sinceCommit ?? null) : null,
+        trigger: args.trigger ?? "manual",
+        round: args.round ?? 1,
+        files,
+        subjectId: subject.id,
+        reviewId,
+        signal,
+        log: (message) => log("info", message),
+      }),
+      () =>
+        runReviewEngine(
+          github,
+          options,
+          async (call) => {
+            addResponseCost(costTally, call);
+            tokens.in += call.tokensIn;
+            tokens.out += call.tokensOut;
+          },
+          snapshot,
+          ai ?? aiFor(options),
+          (message) => log("info", message),
+          extras,
+        ),
+      (result) => reviewResultJson(result.text, options.reviewBlocking),
+    ));
   } catch (error) {
     // A provider throw or an empty/unusable answer is a failed attempt, not a
     // review that found nothing. Its cost is kept when the provider reported
@@ -1122,6 +1248,9 @@ async function runReviewJobCore(
     await recordFailedReview(github, job, reviewId, costTally, log);
     throw error;
   }
+  // A Stop while extensions ran cut them short: posting would name them as
+  // failed. The remote job returns the same way.
+  if (signal?.aborted && hasExtensions(extensions)) return;
   guideBuiltAt = response.guideBuiltAt;
   const visiblePaths = new Set(response.visiblePaths);
   if (carryPrevious) {
@@ -1192,6 +1321,10 @@ async function runReviewJobCore(
     );
     for (const finding of parsed) {
       const repeat = matchRepeat(finding, previous);
+      // The next round finds the line again by this text, as the carry-over
+      // branch above stores it for its own new findings.
+      const patch =
+        revision.files.find((file) => file.path === finding.path)?.patch ?? "";
       insertFinding({
         id: crypto.randomUUID(),
         reviewId,
@@ -1201,6 +1334,7 @@ async function runReviewJobCore(
         lineTo: finding.to,
         title: finding.heading || finding.path,
         bodyMd: redact(finding.excerpt),
+        anchorText: anchorTextFromPatch(patch, finding.from, finding.to),
         state: "new",
         firstSeenReviewId: repeat
           ? (repeat.first_seen_review_id ?? repeat.review_id)
@@ -1209,19 +1343,27 @@ async function runReviewJobCore(
       });
     }
   }
+  addExtensionCost(costTally, extensions);
   setReviewStatus(reviewId, "drafting", {
     findings_count: totalFindings,
     open_count: openCount,
     closed_count: closedCount,
-    tokens_in: response.tokensIn,
-    tokens_out: response.tokensOut,
+    tokens_in: tokens.in,
+    tokens_out: tokens.out,
     ...costColumns(settle(costTally)),
   });
   saveSubjectRevision({
     subjectId: subject.id,
     reviewId,
     files: revision.files,
-    visiblePaths: [...visiblePaths],
+    // A file skipped as unchanged this round stays judged for the next one.
+    visiblePaths: [
+      ...visiblePathsToSave(
+        carryPrevious?.visiblePaths,
+        extras.unchangedPaths,
+        visiblePaths,
+      ),
+    ],
     guideBuiltAt,
   });
   log("info", `publishing ${totalFindings} finding(s) to GitHub`);
@@ -1236,11 +1378,15 @@ async function runReviewJobCore(
       jobId: job.id,
       model: options.highModel ?? "unknown",
       durationMs: Date.now() - startedAt,
+      coverage: response.coverage,
+      catchesUp,
     },
     options.reviewBlocking,
+    extensions,
   );
   await resolveFailureNote(github, job, reviewId, log);
-  const openFindings = totalFindings - closedCount;
+  const openFindings =
+    totalFindings - closedCount + standingExtensionFindings(extensions);
   await finishCheck(
     github,
     job,
@@ -1254,8 +1400,8 @@ async function runReviewJobCore(
 
 export function registerReviewJobHandler(): void {
   registerHandler("review", {
-    run(job, log, _signal) {
-      return runReviewJob(job, log);
+    run(job, log, signal) {
+      return runReviewJob(job, log, undefined, undefined, signal);
     },
     reconcile(job, log) {
       return resolveInstallationId(job.repo).then((installationId) => {

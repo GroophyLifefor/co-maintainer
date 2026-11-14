@@ -11,9 +11,28 @@ import {
   type ReviewBlocking,
 } from "../review/blocking.ts";
 import type { Revision } from "../review/revision.ts";
+import type { IntentRecord } from "../review/intent.ts";
+import {
+  coverageLine,
+  coverageMissing,
+  coverageTruncated,
+  fullCoverage,
+  type Coverage,
+} from "../review/coverage.ts";
 import { humanCopy } from "../services/review.ts";
 import type { BilledTo, CostReason, CostStatus } from "../util/cost.ts";
+import type { ExtensionReport } from "../extensions/report.ts";
+import { withExtensionsJson } from "../extensions/render_json.ts";
+import {
+  cliExtensionFooter,
+  cliExtensionLines,
+  extensionCounts,
+} from "../extensions/render_cli.ts";
 export type ReviewWarning = { code: string; message: string };
+
+/** The line a review prints, in the terminal and in the job summary, when it
+ * was given an intent. */
+export const INTENT_LINE = "Intent file: provided";
 
 export type JsonReviewFinding = {
   id: string;
@@ -123,23 +142,54 @@ export function toJsonFinding(
   };
 }
 
-export function revisionStats(revision: Revision): {
+export type RevisionJson = {
   files: number;
   additions: number;
   deletions: number;
   truncated: boolean;
-} {
+  coverage: Coverage;
+};
+
+/** File and line counts when there is no `Revision` at hand, as in a pull
+ * request review that read GitHub's file list. */
+export type DiffStats = { files: number; additions: number; deletions: number };
+
+function statsOf(revision: Revision | DiffStats): DiffStats {
+  if (!Array.isArray(revision.files)) return revision as DiffStats;
   let additions = 0;
   let deletions = 0;
   for (const file of revision.files) {
     additions += file.additions;
     deletions += file.deletions;
   }
+  return { files: revision.files.length, additions, deletions };
+}
+
+/** The `revision` block. Without a coverage, as when no review ran, every
+ * file counts as full. */
+export function revisionStats(
+  revision: Revision | DiffStats,
+  coverage?: Coverage,
+): RevisionJson {
+  const stats = statsOf(revision);
+  const covered = coverage ?? fullCoverage(stats.files);
   return {
-    files: revision.files.length,
-    additions,
-    deletions,
-    truncated: false,
+    ...stats,
+    truncated: coverageTruncated(covered),
+    coverage: covered,
+  };
+}
+
+/** The `revision` and `warnings` pair every review result carries: local,
+ * CLI PR, remote and push. Warning lists are joined in the order given. */
+export function reviewCoverageFields(
+  revision: Revision | DiffStats,
+  coverage: Coverage | undefined,
+  ...warnings: ReviewWarning[][]
+): { revision: RevisionJson; warnings: ReviewWarning[] } {
+  return {
+    revision: revisionStats(revision, coverage),
+    warnings: warnings.flat(),
   };
 }
 
@@ -189,6 +239,8 @@ export type HumanFinding = {
   title: string;
   body: string;
   suggestion: { lineFrom: number; lineTo: number; text: string } | null;
+  /** An extension finding's `[P2 · blocking] · extension: name`. */
+  label?: string;
 };
 
 /** Local and PR findings: blocking is decided here from the configured rule,
@@ -289,6 +341,13 @@ export type HumanReviewInput = {
   codegraphState: "used" | "disabled" | "unavailable" | null;
   findings: HumanFinding[];
   warnings?: ReviewWarning[];
+  /** What the model received. Left out by a remote server older than this
+   * field, and then no coverage line is printed. */
+  coverage?: Coverage;
+  /** The extensions' results. Absent or empty prints nothing extra. */
+  extensions?: ExtensionReport;
+  /** An intent file was given. The line says so and never shows the text. */
+  intent?: boolean;
 };
 
 /** The single human-readable review format. Local,
@@ -311,7 +370,9 @@ export function formatHumanReview(input: HumanReviewInput): string {
           ? "codegraph unavailable"
           : "codegraph unknown";
   const meta = [input.stats, guideBit, cgBit].filter(Boolean).join(" · ");
-  const lines: string[] = [input.title, meta, ""];
+  const lines: string[] = [input.title, meta];
+  if (input.intent) lines.push(INTENT_LINE);
+  lines.push("");
 
   const sorted = sortHumanFindings(input.findings);
   const groups: Array<{
@@ -359,24 +420,47 @@ export function formatHumanReview(input: HumanReviewInput): string {
     }
     lines.push("");
   }
-  if (!any) {
-    lines.push("No actionable findings.");
+  const extensionLines = input.extensions
+    ? cliExtensionLines(input.extensions)
+    : [];
+  if (!any && (input.extensions?.findings.length ?? 0) === 0) {
+    // With files the model never received, "no findings" speaks only for
+    // the rest.
+    lines.push(
+      input.coverage && coverageMissing(input.coverage) > 0
+        ? "No actionable findings in the files reviewed."
+        : "No actionable findings.",
+    );
     lines.push("");
   }
+  if (extensionLines.length > 0) lines.push(...extensionLines, "");
+  const extra = input.extensions
+    ? extensionCounts(input.extensions)
+    : { new: 0, open: 0, closed: 0, blocking: 0 };
   const counts = {
-    new: sorted.filter((f) => f.state === "new").length,
-    open: sorted.filter((f) => f.state === "open").length,
-    closed: sorted.filter((f) => f.state === "closed").length,
-    blocking: sorted.filter(
-      (f) => (f.state === "new" || f.state === "open") && f.blocking,
-    ).length,
+    new: sorted.filter((f) => f.state === "new").length + extra.new,
+    open: sorted.filter((f) => f.state === "open").length + extra.open,
+    closed: sorted.filter((f) => f.state === "closed").length + extra.closed,
+    blocking:
+      sorted.filter(
+        (f) => (f.state === "new" || f.state === "open") && f.blocking,
+      ).length + extra.blocking,
   };
   lines.push(
     `Summary: ${counts.new} new · ${counts.open} open · ${counts.closed} closed · ${counts.blocking} blocking`,
   );
+  const coverage = coverageLine(input.coverage);
+  if (coverage) lines.push(coverage);
+  if (extensionLines.length > 0) {
+    lines.push(cliExtensionFooter(input.extensions!));
+  }
   if (input.warnings?.length) {
     lines.push("Warnings:");
-    for (const w of input.warnings) lines.push(`  - ${w.message}`);
+    // A diff warning can name a file, and a pull request's author chooses
+    // file names.
+    for (const w of input.warnings) {
+      lines.push(`  - ${stripControlChars(w.message)}`);
+    }
   }
   return lines.join("\n");
 }
@@ -390,6 +474,9 @@ export function formatHumanLocalReview(
   findings: ResolvedFinding[],
   warnings: ReviewWarning[],
   mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
+  coverage?: Coverage,
+  extensions?: ExtensionReport,
+  intent?: boolean,
 ): string {
   const stats = revisionStats(revision);
   return formatHumanReview({
@@ -399,6 +486,9 @@ export function formatHumanLocalReview(
     codegraphState,
     findings: humanFindingsFromResolved(findings, mode),
     warnings,
+    coverage,
+    extensions,
+    intent,
   });
 }
 
@@ -436,32 +526,78 @@ export type LocalReviewJsonInput = {
   usage: ReviewUsage;
   durationMs: number;
   reviewBlocking?: ReviewBlocking;
+  coverage?: Coverage;
+  extensions?: ExtensionReport;
+  includeExtensionMarkdowns?: boolean;
+  /** `subject.intent`: how the intent came in. Left out of the result when
+   * none was given, so a review without the flag prints the result it always
+   * printed. */
+  intent?: IntentRecord | null;
 };
 
 export type PrReviewJsonInput = {
   repo: string;
   prNumber: number;
   markdown: string;
+  /** The findings with their `new`, `open` and `closed` state. Without them
+   * every finding in `markdown` counts as new. */
+  findings?: ResolvedFinding[];
+  warnings?: ReviewWarning[];
   guideBuiltAt: string | null;
   codegraphState: "used" | "disabled" | "unavailable";
   codegraphReason: string | null;
   usage: ReviewUsage;
   durationMs: number;
   reviewBlocking?: ReviewBlocking;
+  diffStats?: DiffStats;
+  coverage?: Coverage;
+  extensions?: ExtensionReport;
+  includeExtensionMarkdowns?: boolean;
+  /** `subject.intent`: how the intent came in. Left out of the result when
+   * none was given, so a review without the flag prints the result it always
+   * printed. */
+  intent?: IntentRecord | null;
 };
+
+/** The review JSON with the extensions joined in, serialised. */
+function jsonWithExtensions(
+  input: {
+    extensions?: ExtensionReport;
+    includeExtensionMarkdowns?: boolean;
+  },
+  doc: Record<string, unknown> & Parameters<typeof withExtensionsJson>[0],
+): string {
+  return JSON.stringify(
+    withExtensionsJson(
+      doc,
+      input.extensions,
+      input.includeExtensionMarkdowns ?? false,
+    ),
+  );
+}
 
 export function buildPrReviewJson(input: PrReviewJsonInput): string {
   const mode = input.reviewBlocking ?? DEFAULT_REVIEW_BLOCKING;
-  const findings = resolvedFromFirstReview(
-    parseFindings(input.markdown),
-    new Map(),
-  );
+  const findings =
+    input.findings ??
+    resolvedFromFirstReview(parseFindings(input.markdown), new Map());
   const sorted = sortResolvedFindings(findings);
-  return JSON.stringify({
+  const { revision, warnings } = reviewCoverageFields(
+    input.diffStats ?? { files: 0, additions: 0, deletions: 0 },
+    input.coverage,
+    input.warnings ?? [],
+  );
+  return jsonWithExtensions(input, {
     schemaVersion: 1,
     ok: true,
     mode: "pr",
-    subject: { repo: input.repo, branch: null, prNumber: input.prNumber },
+    subject: {
+      repo: input.repo,
+      branch: null,
+      prNumber: input.prNumber,
+      ...(input.intent ? { intent: input.intent } : {}),
+    },
+    revision,
     guide: { builtAt: input.guideBuiltAt },
     codegraph: {
       state: input.codegraphState,
@@ -469,7 +605,7 @@ export function buildPrReviewJson(input: PrReviewJsonInput): string {
     },
     summary: summaryCounts(findings, mode),
     findings: sorted.map((row) => toJsonFinding(row, mode)),
-    warnings: [],
+    warnings,
     usage: input.usage,
     durationMs: input.durationMs,
   });
@@ -478,13 +614,23 @@ export function buildPrReviewJson(input: PrReviewJsonInput): string {
 export function buildLocalReviewJson(input: LocalReviewJsonInput): string {
   const mode = input.reviewBlocking ?? DEFAULT_REVIEW_BLOCKING;
   const sorted = sortResolvedFindings(input.findings);
-  return JSON.stringify({
+  const { revision, warnings } = reviewCoverageFields(
+    input.revision,
+    input.coverage,
+    input.warnings,
+  );
+  return jsonWithExtensions(input, {
     schemaVersion: 1,
     ok: true,
     mode: "local",
-    subject: { repo: input.repo, branch: input.branch, prNumber: null },
+    subject: {
+      repo: input.repo,
+      branch: input.branch,
+      prNumber: null,
+      ...(input.intent ? { intent: input.intent } : {}),
+    },
     base: { toBranch: input.baseLabel, label: input.baseLabel },
-    revision: revisionStats(input.revision),
+    revision,
     guide: { builtAt: input.guideBuiltAt },
     codegraph: {
       state: input.codegraphState,
@@ -492,7 +638,7 @@ export function buildLocalReviewJson(input: LocalReviewJsonInput): string {
     },
     summary: summaryCounts(input.findings, mode),
     findings: sorted.map((row) => toJsonFinding(row, mode)),
-    warnings: input.warnings,
+    warnings,
     usage: input.usage,
     durationMs: input.durationMs,
   });

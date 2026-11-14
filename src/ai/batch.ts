@@ -4,6 +4,7 @@ import { isNotFound, readTextFile } from "../util/runtime.ts";
 import { formatError } from "../cli/error.ts";
 import { recordRateLimitWait } from "../services/rate_limit.ts";
 import { log } from "../util/log.ts";
+import { interrupted, interruptSignal } from "../util/interrupt.ts";
 
 type JobRecord = {
   status: "done" | "quarantine";
@@ -48,6 +49,21 @@ export function retryDelayMs(reason: string, attempt: number): number {
   return RATE_LIMIT_BACKOFF_MS[
     Math.min(attempt - 1, RATE_LIMIT_BACKOFF_MS.length - 1)
   ]!;
+}
+
+/** Waits `ms`, or less when Ctrl-C comes first. A rate-limit wait is up to a
+ * minute, and an interrupted run should not sit through it. */
+function pause(ms: number): Promise<void> {
+  const signal = interruptSignal();
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    signal?.addEventListener("abort", done, { once: true });
+  });
 }
 
 async function digest(value: string): Promise<string> {
@@ -170,7 +186,9 @@ export class AiBatch {
    * rejects. It never throws: a provider error that outlives its retries drops
    * the unit, and a response that still does not validate is used anyway. A run
    * that has already paid for extraction must still write what it has; a format
-   * deviation is not worth losing the whole run over. */
+   * deviation is not worth losing the whole run over. The one exception is
+   * Ctrl-C: every call then fails at once, and a run that went on without
+   * them would write guides with every section dropped. */
   private async completeUnit(
     item: { index: number; id: string; request: AiRequest },
     results: (AiResponse | undefined)[],
@@ -182,6 +200,7 @@ export class AiBatch {
       try {
         response = await this.provider.complete(item.request);
       } catch (error) {
+        if (interrupted()) throw error;
         const reason = formatError(error);
         const limit = isRateLimit(reason)
           ? MAX_RATE_LIMIT_ATTEMPTS
@@ -203,7 +222,8 @@ export class AiBatch {
               "ai",
               `waiting ${Math.round(wait / 1000)}s before retry (provider is rate limiting)`,
             );
-            await new Promise((resolve) => setTimeout(resolve, wait));
+            await pause(wait);
+            if (interrupted()) throw error;
           }
           continue;
         }

@@ -17,12 +17,20 @@ import { availableModelSlugs } from "../ai/oauth/sign-in-with-chatgpt.ts";
 import { detectRemoteRepo } from "../local/git_ops.ts";
 import { canonicalRepoName } from "../util/repo_name.ts";
 import { reviewBlockingFrom } from "../review/blocking.ts";
+import { DiagramSettingError, diagramOptionsFrom } from "../review/diagram.ts";
+import { agentInstructionsError } from "../knowledge/instruction_files.ts";
 import {
   renderCommandHelp,
   renderGlobalHelp,
   unknownCommandMessage,
   unknownOptionMessage,
 } from "./commands/registry.ts";
+
+const REVIEW_DIAGRAM_FLAGS = [
+  "diagram-runtime",
+  "plantuml-server",
+  "plantuml-output-format",
+];
 
 function numberOption(value: string, name: string): number {
   const number = Number(value);
@@ -221,6 +229,9 @@ export async function parseArgs(args: string[]): Promise<Options> {
         "github-pat",
         "low-model",
         "high-model",
+        ...(command === "review" ? REVIEW_DIAGRAM_FLAGS : []),
+        "agent-instructions",
+        "agent-instructions-max-chars",
       ].some((name) => arg.startsWith(`--${name}=`));
     if (arg === "--codegraph") die("Unknown option: --codegraph");
     if (
@@ -235,6 +246,25 @@ export async function parseArgs(args: string[]): Promise<Options> {
     )
       continue;
     if (arg.startsWith("--") && !known) die(unknownOptionMessage(arg, command));
+  }
+  // Only `review` takes the diagram flags. The repository's stored choice is
+  // read the same way, so a bad stored value stops the run and names itself.
+  let diagram: ReturnType<typeof diagramOptionsFrom> = {};
+  if (command === "review") {
+    try {
+      diagram = diagramOptionsFrom(
+        {
+          runtime: text("diagram-runtime"),
+          server: text("plantuml-server"),
+          format: text("plantuml-output-format"),
+        },
+        repoConfig,
+        repoName,
+      );
+    } catch (error) {
+      if (error instanceof DiagramSettingError) die(error.message);
+      throw error;
+    }
   }
   // `--json` must not prompt. `review` strips the flag before this parse and
   // sets the same switch itself.
@@ -363,6 +393,25 @@ export async function parseArgs(args: string[]): Promise<Options> {
     );
   }
 
+  // A blank value is kept: it turns the instructions off and is remembered
+  // that way, unlike a missing flag, which keeps the saved value.
+  const agentInstructionsFlag = text("agent-instructions");
+  const agentInstructions =
+    agentInstructionsFlag ?? repoConfig.agentInstructions;
+  if (agentInstructionsFlag !== undefined && agentInstructionsFlag.trim()) {
+    const error = agentInstructionsError(agentInstructionsFlag);
+    if (error) {
+      die(`--agent-instructions is not a valid regular expression: ${error}`);
+    }
+  }
+  const rawMaxChars = text("agent-instructions-max-chars");
+  if (
+    rawMaxChars !== undefined &&
+    (rawMaxChars.trim() === "" || !Number.isInteger(Number(rawMaxChars)))
+  ) {
+    die("--agent-instructions-max-chars must be an integer");
+  }
+
   const resolvedConcurrency = resolveConcurrency(repoName, config);
   return {
     command: command === "sync" ? "remake" : (command as Options["command"]),
@@ -407,7 +456,13 @@ export async function parseArgs(args: string[]): Promise<Options> {
       repoConfig.maxPullRequestChangeLines ??
       configDefault.maxPullRequestChangeLines,
     maxComments: value("max-comment") ?? repoConfig.maxComments,
+    agentInstructions,
+    agentInstructionsMaxChars:
+      rawMaxChars !== undefined
+        ? Number(rawMaxChars)
+        : repoConfig.agentInstructionsMaxChars,
     reviewBlocking,
     reviewSystemPrompt: repoConfig.reviewSystemPrompt,
+    ...diagram,
   };
 }

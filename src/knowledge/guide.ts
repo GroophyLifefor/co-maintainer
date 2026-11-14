@@ -278,7 +278,8 @@ export async function synthesizeReviewGuides(
 
 /** Strips a wrapping code fence and the tokens a guide must never carry (a
  * priority tag, a mention, a pull-request number), so an otherwise good guide is
- * cleaned rather than rejected. */
+ * cleaned rather than rejected. Runs of spaces are squeezed only after text: a
+ * line's leading indent nests an example under its rule, as the prompt asks. */
 function cleanGuide(text: string): string {
   return text
     .replace(/^```[a-zA-Z0-9_-]*\s*/, "")
@@ -286,6 +287,6 @@ function cleanGuide(text: string): string {
     .replace(/\[\s*P[0-3]\s*\]/gi, "")
     .replace(/@[A-Za-z0-9_-]{2,}/g, "")
     .replace(/\bPR\s*#?\s*\d+\b/gi, "the change")
-    .replace(/[ \t]{2,}/g, " ")
+    .replace(/(\S)[ \t]{2,}/g, "$1 ")
     .trim();
 }

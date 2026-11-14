@@ -19,13 +19,16 @@ import {
   humanFindingsFromJson,
   type JsonReviewFinding,
 } from "../cli/review_result.ts";
+import { coverageFromResult, warningsFromJson } from "../review/coverage.ts";
 import {
   baseUrl,
   die,
+  handshakeFailure,
   readApiError,
   remoteFetch,
   remoteFromEnv,
 } from "./http.ts";
+import { notInitializedError } from "../review/not_initialized.ts";
 import { readConfig } from "../config.ts";
 import { stripControlChars } from "../util/sanitize.ts";
 import { runCommand } from "../pr/checkout.ts";
@@ -202,8 +205,7 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
         purpose: "push",
       }),
     });
-    if (!handshake.ok)
-      die("remote_handshake_failed", await readApiError(handshake));
+    if (!handshake.ok) throw await handshakeFailure(handshake, host, repo);
     const hs = (await handshake.json()) as {
       schemaVersion: number;
       minClientSchema: number;
@@ -310,6 +312,9 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
         exitWith(0);
         return;
       }
+      if (error.code === "not_initialized") {
+        throw notInitializedError(repo, new URL(baseUrl(host)).host);
+      }
       die(
         error.code ?? "remote_submit_failed",
         error.message ?? "The server refused the push.",
@@ -376,7 +381,11 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
             }),
           );
         } else if (cli.output === "github") {
-          emitGithubOutput({ title, findings: human });
+          emitGithubOutput({
+            title,
+            findings: human,
+            coverage: coverageFromResult(payload.result),
+          });
         } else {
           console.log(
             "\n" +
@@ -385,6 +394,8 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
                 guideBuiltAt: null,
                 codegraphState: null,
                 findings: human,
+                warnings: warningsFromJson(payload.result.warnings),
+                coverage: coverageFromResult(payload.result),
               }) +
               "\n",
           );

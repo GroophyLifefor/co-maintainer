@@ -32,6 +32,17 @@ import {
   writeTextFile,
 } from "../testing/runtime.ts";
 import { test } from "node:test";
+import {
+  getOrCreatePrSubject,
+  getSubjectRevision,
+  parseVisiblePaths,
+} from "../store/subjects.ts";
+import { offlineEnv } from "../testing/offline_env.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 async function withEnv(fn: () => Promise<void>): Promise<void> {
   const originalDb = getEnv("CM_APP_DB");
@@ -41,6 +52,7 @@ async function withEnv(fn: () => Promise<void>): Promise<void> {
   setEnv("CM_APP_DB", `${dir}/app.db`);
   setEnv("CM_REPOS_DIR", `${dir}/repos`);
   setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
+  const offline = offlineEnv(dir);
   await mkdirPath(`${dir}/repos/acme/widgets`, { recursive: true });
   await writeTextFile(
     `${dir}/repos/acme/widgets/PR_REVIEW_GUIDE.md`,
@@ -49,8 +61,15 @@ async function withEnv(fn: () => Promise<void>): Promise<void> {
   try {
     await openAppDb();
     await fn();
+    if (offline.fetched.length) {
+      throw new Error(
+        `the test used the network: ${offline.fetched.join(", ")}`,
+      );
+    }
   } finally {
     await closeAppDb();
+    offline.restore();
+    await removePath(dir, { recursive: true });
     if (originalDb === undefined) deleteEnv("CM_APP_DB");
     else setEnv("CM_APP_DB", originalDb);
     if (originalRepos === undefined) deleteEnv("CM_REPOS_DIR");
@@ -1084,4 +1103,231 @@ test("the summary keeps new findings apart from those still open", () => {
   if (!body.includes("old one: old one body (first found in abc1234)")) {
     throw new Error(body);
   }
+});
+
+test("an incremental round keeps the files it skipped as unchanged in the seen paths", async () => {
+  await withEnv(async () => {
+    const job = seed();
+    const other = {
+      filename: "src/other.ts",
+      patch: "@@ -1 +1 @@\n-a\n+b",
+    };
+    const first = new FakeGithub();
+    first.files = [...DIFF, other];
+    await runReviewJob(job, () => {}, first, new FakeAiProvider());
+
+    // The push touches only other.ts, so the compare lists only that file. The
+    // pull request's own file list still has both, and app.ts has not changed.
+    const second = nextRound(job);
+    second.args = JSON.stringify({
+      trigger: "synchronize",
+      scope: "incremental",
+      sinceCommit: "oldsha",
+      round: 2,
+    });
+    const github = new FakeGithub();
+    github.files = [{ ...other, patch: "@@ -1 +1 @@\n-a\n+c" }];
+    github.prFiles = [...DIFF, { ...other, patch: "@@ -1 +1 @@\n-a\n+c" }];
+    await runReviewJob(second, () => {}, github, new FakeAiProvider());
+
+    const subject = getOrCreatePrSubject("acme/widgets", 1);
+    const saved = [...parseVisiblePaths(getSubjectRevision(subject.id)!)];
+    if (saved.sort().join() !== "src/app.ts,src/other.ts") {
+      throw new Error(`saved ${saved.join()}`);
+    }
+  });
+});
+
+test("an incremental round sends a file the last round dropped, though the compare does not list it", async () => {
+  await withEnv(async () => {
+    const job = seed();
+    // 500 small files are over the diff budget, so round 1 drops the last
+    // ones in path order.
+    const line = `+${"x".repeat(60)}`;
+    const many = Array.from({ length: 500 }, (_, i) => ({
+      filename: `src/f${String(i).padStart(3, "0")}.ts`,
+      patch: `@@ -0,0 +1,8 @@\n${Array(8).fill(line).join("\n")}`,
+      additions: 8,
+      changes: 8,
+    }));
+    const prompts: string[] = [];
+    class Capture extends FakeAiProvider {
+      complete(request: AiRequest): Promise<AiResponse> {
+        if (request.job === "review_pull_request") prompts.push(request.prompt);
+        return super.complete(request);
+      }
+    }
+    const first = new FakeGithub();
+    first.files = many;
+    await runReviewJob(job, () => {}, first, new Capture());
+    const last = "src/f499.ts";
+    if (prompts[0]?.includes(`FILE: ${last}\n`)) {
+      throw new Error("round 1 was expected to drop the last file");
+    }
+
+    // One file changes. The compare lists only it, the pull request all 500.
+    const second = nextRound(job);
+    second.args = JSON.stringify({
+      trigger: "synchronize",
+      scope: "incremental",
+      sinceCommit: "oldsha",
+      round: 2,
+    });
+    const touched = { ...many[0]!, patch: `${many[0]!.patch}\n+changed` };
+    const github = new FakeGithub();
+    github.files = [touched];
+    github.prFiles = [touched, ...many.slice(1)];
+    await runReviewJob(second, () => {}, github, new Capture());
+    const round2 = prompts.at(-1) ?? "";
+    if (!round2.includes(`FILE: ${last}\n`)) {
+      throw new Error("round 2 did not send the file round 1 dropped");
+    }
+    if (round2.includes("FILE: src/f001.ts\n")) {
+      throw new Error("round 2 sent a file round 1 already saw");
+    }
+  });
+});
+
+test("a first-round finding keeps its line text and round 2 finds it again", async () => {
+  await withEnv(async () => {
+    const job = seed();
+    const first = new FakeGithub();
+    first.files = DIFF;
+    await runReviewJob(job, () => {}, first, new FakeAiProvider());
+    const row = listFindingsForReview(getReviewByJobId("job-rev")!.id)[0];
+    if (!row?.anchor_text) {
+      throw new Error(`no anchor text stored: ${JSON.stringify(row)}`);
+    }
+
+    const prompts: string[] = [];
+    class Capture extends FakeAiProvider {
+      complete(request: AiRequest): Promise<AiResponse> {
+        prompts.push(request.prompt);
+        return super.complete(request);
+      }
+    }
+    // A line added above moves the flagged line from 4 to 5.
+    const github = new FakeGithub();
+    github.files = [
+      { filename: "src/app.ts", patch: "@@ -4 +4,2 @@\n-old\n+// note\n+new" },
+    ];
+    await runReviewJob(nextRound(job), () => {}, github, new Capture());
+    const asked = prompts.find((text) => text.includes("PREVIOUS FINDINGS"));
+    const carry = asked?.slice(asked.indexOf("PREVIOUS FINDINGS")) ?? "";
+    if (
+      !carry.includes("still present in changed code") ||
+      carry.includes("could not locate")
+    ) {
+      throw new Error(`round 2 did not find the finding again:\n${carry}`);
+    }
+  });
+});
+
+test("an App review's token count includes its JSON retry", async () => {
+  await withEnv(async () => {
+    const calls: { job: string; tokensIn: number; tokensOut: number }[] = [];
+    // The fake answers in Markdown, which is not JSON, so the review asks once
+    // more. Each call gets its own counts so a missing one shows in the sum.
+    class Counting extends FakeAiProvider {
+      async complete(request: AiRequest): Promise<AiResponse> {
+        const response = await super.complete(request);
+        const counted = {
+          job: request.job,
+          tokensIn: 100 + calls.length,
+          tokensOut: 7 + calls.length,
+        };
+        calls.push(counted);
+        return { ...response, ...counted };
+      }
+    }
+    await runReviewJob(seed(), () => {}, new FakeGithub(), new Counting());
+    if (!calls.some((call) => call.job === "review_pull_request_retry")) {
+      throw new Error(`no JSON retry: ${JSON.stringify(calls)}`);
+    }
+    const tokensIn = calls.reduce((sum, call) => sum + call.tokensIn, 0);
+    const tokensOut = calls.reduce((sum, call) => sum + call.tokensOut, 0);
+    const review = getReviewByJobId("job-rev");
+    if (review?.tokens_in !== tokensIn || review.tokens_out !== tokensOut) {
+      throw new Error(
+        `stored ${review?.tokens_in} in, ${review?.tokens_out} out · calls made ${tokensIn} in, ${tokensOut} out: ${JSON.stringify(calls)}`,
+      );
+    }
+  });
+});
+
+test("the review names files it never reviewed and always reports coverage", () => {
+  const metadata = { jobId: "job-1", model: "test-model", durationMs: 1000 };
+  const full = reviewBody([], {
+    ...metadata,
+    coverage: {
+      full: 3,
+      partial: [],
+      summarized: [],
+      dropped: [],
+      withheld: [],
+    },
+  });
+  if (!full.startsWith("No actionable findings.")) throw new Error(full);
+  if (
+    !full.includes("- Coverage: 3 full · 0 partial · 0 summarized · 0 dropped")
+  ) {
+    throw new Error(full);
+  }
+  if (full.includes("Not reviewed")) throw new Error(full);
+  const coverage = {
+    full: 58,
+    partial: ["src/store/reads.ts"],
+    summarized: [],
+    dropped: ["src/a;b.ts"],
+    withheld: ["package-lock.json"],
+  };
+  const missing = reviewBody([], { ...metadata, coverage, catchesUp: true });
+  // A whole-pr round sends every file again, so it promises no later round.
+  const wholePr = reviewBody([], { ...metadata, coverage });
+  if (
+    !wholePr.includes("the diff was too large, not reviewed in this mode") ||
+    wholePr.includes("this round")
+  ) {
+    throw new Error(wholePr);
+  }
+  for (const want of [
+    "No actionable findings in the files reviewed.",
+    "Not reviewed (2)",
+    "- `src/a;b.ts`: the diff was too large for this round",
+    "- `package-lock.json`: GitHub sent no diff",
+    "- Coverage: 58 full · 1 partial · 0 summarized · 1 dropped · 1 withheld",
+  ]) {
+    if (!missing.includes(want)) throw new Error(`${want}\n${missing}`);
+  }
+  // A path is a code span, so a semicolon in one is not read as prose.
+  if (humanCopy(missing) !== missing) throw new Error(humanCopy(missing));
+});
+
+test("a file name cannot inject Markdown or a mention into the review body", () => {
+  const hostile =
+    "x`\n\n## Approved by maintainers\n\n@octo-org/admins see [here](https://example.invalid)\n`.ts";
+  const body = reviewBody([], {
+    jobId: "job-1",
+    model: "test-model",
+    durationMs: 1000,
+    coverage: {
+      full: 0,
+      partial: [],
+      summarized: [],
+      dropped: [hostile, "a`b @someone`c;d.png"],
+      withheld: [],
+    },
+  });
+  const rows = body.split("\n").filter((line) => line.startsWith("- `"));
+  if (rows.length !== 2) throw new Error(`one line per file:\n${body}`);
+  for (const row of rows) {
+    // Exactly one code span per row: the opening and the closing backtick.
+    if ((row.match(/`/g) ?? []).length !== 2) throw new Error(row);
+    if (/@[A-Za-z]/.test(row)) throw new Error(`a mention survived: ${row}`);
+  }
+  if (/^#/m.test(body)) throw new Error(`a heading got in:\n${body}`);
+  // The link text and the path stay inside the code span.
+  if (!rows[0]!.includes("](https://example.invalid)"))
+    throw new Error(rows[0]);
+  if (humanCopy(body) !== body) throw new Error("the copy guard must pass");
 });

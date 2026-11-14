@@ -36,6 +36,7 @@ import type {
 } from "../types.ts";
 import { getEnv } from "../util/runtime.ts";
 import { outputLimitError, withoutRefusedPart } from "./provider.ts";
+import { interruptSignal } from "../util/interrupt.ts";
 import {
   CliError,
   EXIT_RUNTIME,
@@ -362,6 +363,7 @@ export class OpenAiProvider implements AiProvider {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(body),
+        signal: interruptSignal(),
       });
     } catch (error) {
       throw networkFailure(this.endpoint, error);

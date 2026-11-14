@@ -9,6 +9,11 @@ import { writeUserConfig } from "../config.ts";
 import { claimAndRun, enqueue, getLogsSince, registerHandler } from "./jobs.ts";
 import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
 import type { AiProvider, AiResponse } from "../types.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 const WAIT_LOG_TYPE = "rate_limit_wait";
 
@@ -142,12 +147,53 @@ async function flush(): Promise<void> {
   }
 }
 
-async function waitFor(check: () => boolean, label: string): Promise<void> {
-  for (let index = 0; index < 200; index++) {
-    if (check()) return;
+/** Resolved by a fake provider or fetch on its first call. Before that call the
+ * job reads files and hashes its request on the thread pool, so no fixed
+ * number of event loop turns is sure to be enough on a busy machine. */
+function firstCallSignal(): { called: Promise<void>; fire: () => void } {
+  let fire = () => {};
+  const called = new Promise<void>((resolve) => {
+    fire = resolve;
+  });
+  return { called, fire };
+}
+
+/** Waits for the first attempt, and fails at once if the job ends without
+ * making one instead of waiting forever. */
+async function waitForFirstCall(
+  called: Promise<void>,
+  running: Promise<unknown>,
+  label: string,
+): Promise<void> {
+  const ended = await Promise.race([
+    called.then(() => false),
+    running.then(() => true),
+  ]);
+  if (ended) throw new Error(`the job ended before ${label}`);
+}
+
+/** The retry wait is recorded in the same synchronous step that starts its
+ * timer, so a recorded wait means a tick will reach the timer. */
+function assertWaitStarted(id: string): void {
+  if (parseWaitLogs(id).length !== 1) {
+    throw new Error("the job did not start its retry wait");
+  }
+}
+
+/** Lets the job finish before withTempDb closes app.db. When a check above
+ * fails, the job is still waiting on a mocked timer, and if the test left it
+ * there it would write to the closed database after the test ended. */
+async function settle(running: Promise<unknown>): Promise<void> {
+  let done = false;
+  void running.then(
+    () => (done = true),
+    () => (done = true),
+  );
+  const deadline = performance.now() + 10_000;
+  while (!done && performance.now() < deadline) {
+    mock.timers.runAll();
     await new Promise((resolve) => setImmediate(resolve));
   }
-  throw new Error(`timed out waiting for ${label}`);
 }
 
 function retryDelay(attempt: number): number {
@@ -265,10 +311,12 @@ test("summarizing a job counts each wait and adds two different durations instea
 test("the AI 429 backoff records its wait and still succeeds when the provider recovers", async () => {
   await withTempDb(async () => {
     let calls = 0;
+    const first = firstCallSignal();
     const provider: AiProvider = {
       async complete() {
         calls++;
         if (calls === 1) {
+          first.fire();
           throw new Error(
             "OpenRouter failed with 429: provider is rate limiting",
           );
@@ -289,19 +337,21 @@ test("the AI 429 backoff records its wait and still succeeds when the provider r
     });
 
     mock.timers.enable({ apis: ["setTimeout", "Date"] });
+    let running: Promise<boolean> | undefined;
     try {
       const { id } = enqueue({
         type: "test-ai-rate-limit",
         repo: "acme/widgets",
       });
-      const running = claimAndRun();
-      await waitFor(() => calls === 1, "the first AI attempt");
+      running = claimAndRun();
+      await waitForFirstCall(first.called, running, "the first AI attempt");
       await flush();
       if (getJob(id)?.status !== "running") {
         throw new Error(
           `the job left running before the wait: ${getJob(id)?.status}`,
         );
       }
+      assertWaitStarted(id);
 
       mock.timers.tick(retryDelay(1));
       await flush();
@@ -331,6 +381,7 @@ test("the AI 429 backoff records its wait and still succeeds when the provider r
         throw new Error(`the AI wait has no usable time: ${wait.at}`);
       }
     } finally {
+      if (running) await settle(running);
       mock.timers.reset();
     }
   });
@@ -340,9 +391,11 @@ async function runGithubRetry(
   status: 403 | 429,
 ): Promise<{ id: string; calls: number }> {
   let calls = 0;
+  const first = firstCallSignal();
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => {
     calls++;
+    if (calls === 1) first.fire();
     return calls === 1
       ? new Response("{}", {
           status,
@@ -357,12 +410,14 @@ async function runGithubRetry(
   });
 
   mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  let running: Promise<boolean> | undefined;
   try {
     const { id } = enqueue({
       type: "test-github-rate-limit",
       repo: "acme/widgets",
     });
-    const running = claimAndRun();
+    running = claimAndRun();
+    await waitForFirstCall(first.called, running, "the first GitHub request");
     await flush();
     if (calls !== 1) {
       throw new Error(`expected the first GitHub request, got ${calls} calls`);
@@ -372,12 +427,14 @@ async function runGithubRetry(
         `the GitHub job left running before the wait: ${getJob(id)?.status}`,
       );
     }
+    assertWaitStarted(id);
 
     mock.timers.tick(4_000);
     await flush();
     await running;
     return { id, calls };
   } finally {
+    if (running) await settle(running);
     mock.timers.reset();
     globalThis.fetch = originalFetch;
   }

@@ -519,7 +519,7 @@ export async function synthesizeSections(
   concurrency: number,
   usage?: UsageSink,
   onlySections?: Set<string>,
-): Promise<{ overrides: Record<string, string> }> {
+): Promise<{ overrides: Record<string, string>; failed: string[] }> {
   const requests: AiRequest[] = [];
   const keys: string[] = [];
   for (const key of [...new Set(facts.map((item) => item.sectionKey))]) {
@@ -577,10 +577,18 @@ ${JSON.stringify(relevant)}`,
   // section is omitted rather than written empty. Anything with a bullet is
   // kept as the model wrote it.
   const overrides: Record<string, string> = {};
-  responses.forEach((response, index) => {
-    if (!response) return;
-    const section = cleanSection(response.text, keys[index]);
-    if (/^- /m.test(section)) overrides[keys[index]] = section;
+  // A unit the batch dropped after its retries is not the model saying the
+  // section is empty, so the caller keeps that section's old text. The batch
+  // leaves a hole for a dropped unit, which `forEach` would skip.
+  const failed: string[] = [];
+  keys.forEach((key, index) => {
+    const response = responses[index];
+    if (!response) {
+      failed.push(key);
+      return;
+    }
+    const section = cleanSection(response.text, key);
+    if (/^- /m.test(section)) overrides[key] = section;
   });
-  return { overrides };
+  return { overrides, failed };
 }

@@ -9,6 +9,11 @@ import { probePlan } from "./probe.ts";
 import { AiBatch } from "../ai/batch.ts";
 import type { AiProvider, AiRequest, GitHubClient } from "../types.ts";
 import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 const MODULE = "./concurrency.ts";
 

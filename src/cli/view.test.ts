@@ -205,6 +205,92 @@ test("view: an unknown flag is refused", async () => {
   });
 });
 
+const RULES = JSON.stringify({
+  schemaVersion: 1,
+  builtAt: "2026-11-13T09:00:00Z",
+  rules: {
+    I1: {
+      file: "INSTRUCTIONS.md",
+      text: "Format amounts with formatMoney(), never with number methods",
+      sources: [
+        { path: "AGENTS.md", line: 31 },
+        { path: "packages/billing/AGENTS.md", line: 8 },
+      ],
+    },
+  },
+});
+
+test("view --sources lists every rule by file with its sources", async () => {
+  await withGuides(
+    { "PR_REVIEW_GUIDE.md": "# Guide\n", "RULES.json": RULES },
+    async () => {
+      const { code, stdout } = await capture(() =>
+        runView(["acme/widgets", "--sources"]),
+      );
+      if (code !== 0) throw new Error(`exit ${code}`);
+      const want = `INSTRUCTIONS.md
+  I1  Format amounts with formatMoney(), never with number methods
+      AGENTS.md:31 · packages/billing/AGENTS.md:8
+`;
+      if (stdout !== want) throw new Error(`output:\n${stdout}`);
+    },
+  );
+});
+
+test("view --sources --json prints RULES.json, and --json alone is refused", async () => {
+  await withGuides(
+    { "PR_REVIEW_GUIDE.md": "# Guide\n", "RULES.json": RULES },
+    async () => {
+      const json = await capture(() =>
+        runView(["acme/widgets", "--sources", "--json"]),
+      );
+      if (json.code !== 0 || JSON.parse(json.stdout).rules.I1 === undefined) {
+        throw new Error(`json: ${json.code} ${json.stdout}`);
+      }
+      const alone = await capture(() => runView(["acme/widgets", "--json"]));
+      if (alone.code !== 2) throw new Error(`--json alone exit ${alone.code}`);
+    },
+  );
+});
+
+test("view without --sources never prints RULES.json, and INSTRUCTIONS.md is a guide", async () => {
+  await withGuides(
+    {
+      "PR_REVIEW_GUIDE.md": "# Guide\n",
+      "INSTRUCTIONS.md": "# Repository instructions\n",
+      "RULES.json": RULES,
+    },
+    async () => {
+      const all = await capture(() => runView(["acme/widgets"]));
+      if (all.code !== 0 || all.stdout.includes("RULES.json")) {
+        throw new Error(`every guide: ${all.stdout}`);
+      }
+      if (!all.stdout.includes("== INSTRUCTIONS.md · built ")) {
+        throw new Error(`INSTRUCTIONS.md missing: ${all.stdout}`);
+      }
+      const list = await capture(() => runView(["acme/widgets", "--list"]));
+      if (list.stdout.includes("RULES.json")) {
+        throw new Error(`--list: ${list.stdout}`);
+      }
+      const one = await capture(() =>
+        runView(["acme/widgets", "instructions"]),
+      );
+      if (one.stdout !== "# Repository instructions\n") {
+        throw new Error(`instructions: ${JSON.stringify(one.stdout)}`);
+      }
+    },
+  );
+});
+
+test("view --sources with no RULES.json is a usage error with a sync hint", async () => {
+  await withGuides({ "PR_REVIEW_GUIDE.md": "# Guide\n" }, async () => {
+    const { code } = await capture(() =>
+      runView(["acme/widgets", "--sources"]),
+    );
+    if (code !== 2) throw new Error(`exit ${code} (want 2)`);
+  });
+});
+
 test("view --remote: an unconfigured host is a usage error with both setup hints", async () => {
   await withGuides({ "SKILL.md": "# Skill\n" }, async () => {
     const previous = getEnv("CM_CONFIG_PATH");

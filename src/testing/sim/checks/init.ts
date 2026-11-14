@@ -8,20 +8,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import type { Options } from "../../../types.ts";
 import type { Trace } from "../trace.ts";
+import type { CheckResult, Score } from "./common.ts";
 
-export type CheckResult = { name: string; ok: boolean; detail: string };
-
-export type Score = {
-  name: string;
-  value: number | null;
-  detail: string;
-  /** Computed on the fake AI's answers: kept in the report, but it measures
-   * nothing. */
-  fakeAi: boolean;
-  /** Why the score was not computed. */
-  skipped?: string;
-  data?: Record<string, unknown>;
-};
+export type { CheckResult, Score };
 
 export type InitContext = {
   repo: string;
@@ -68,9 +57,10 @@ function builtAt(context: InitContext): string | null {
   }
 }
 
+/** The init-specific checks. Init's other two, "every GitHub call answered"
+ * and "no call left the simulation", are inherited by every flow. */
 export function initChecks(context: InitContext): CheckResult[] {
   const error = context.error;
-  const unhandled = context.trace.github.filter((call) => !call.handled);
   const built = builtAt(context);
   const guide = readOutput(context, "PR_REVIEW_GUIDE.md");
   return [
@@ -97,22 +87,6 @@ export function initChecks(context: InitContext): CheckResult[] {
       name: "repository marked built in app.db",
       ok: built !== null,
       detail: built ?? "knowledge_built_at is empty",
-    },
-    {
-      name: "every GitHub call answered",
-      ok: unhandled.length === 0,
-      detail: unhandled.length
-        ? unhandled.map((call) => `${call.method} ${call.url}`).join(", ")
-        : `${context.trace.github.length} calls`,
-    },
-    {
-      name: "no call left the simulation",
-      ok: context.trace.leaks.length === 0,
-      detail: context.trace.leaks.length
-        ? context.trace.leaks
-            .map((leak) => `${leak.method} ${leak.url}`)
-            .join(", ")
-        : "none",
     },
   ];
 }

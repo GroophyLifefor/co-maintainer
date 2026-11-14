@@ -9,7 +9,6 @@ import {
   buildLocalReviewJson,
   formatHumanLocalReview,
   humanFindingsFromResolved,
-  resolvedFromFirstReview,
   reviewExitCodeFromResolved,
   type ReviewWarning,
 } from "../cli/review_result.ts";
@@ -21,19 +20,15 @@ import {
 } from "../services/setup.ts";
 import { aiFor } from "../services/review.ts";
 import { loadGuides } from "../review/guides.ts";
+import { hasGuides, notInitializedError } from "../review/not_initialized.ts";
+import { guideRebuiltSince } from "../review/carry_over.ts";
 import {
-  buildCarryPromptSection,
-  classifyCarryItems,
-  guideRebuiltSince,
-  incrementalDiffPaths,
-  parsePreviousVerdicts,
-  resolveCarryOutcomes,
-  type CarryPrevious,
-  type ResolvedFinding,
-  type StoredFinding,
-} from "../review/carry_over.ts";
+  finishCarryRun,
+  startCarryRun,
+  storedFindings,
+} from "../cli/review_carry.ts";
 import { revisionHash } from "../review/revision.ts";
-import { parseFindings } from "../pr/findings.ts";
+import { intentRecord, loadIntentFlag } from "../cli/review_intent.ts";
 import { type ReviewExtras, reviewWorkspaceRevision } from "../pr/reviewer.ts";
 import { runCommand } from "../pr/checkout.ts";
 import {
@@ -58,6 +53,11 @@ import {
 } from "./git_ops.ts";
 import { EXIT_RUNTIME, exitWith } from "../cli/error.ts";
 import {
+  armInterrupt,
+  disarmInterrupt,
+  interrupted,
+} from "../util/interrupt.ts";
+import {
   buildLocalRevision,
   mergeBase,
   resolveBaseRef,
@@ -69,22 +69,14 @@ import {
   tryLoadLocalCarry,
 } from "./carry_over_store.ts";
 import { costUsage } from "../util/cost.ts";
-
-function storedFindings(resolved: ResolvedFinding[]): StoredFinding[] {
-  return resolved
-    .filter((row) => row.state === "new" || row.state === "open")
-    .map((row) => ({
-      id: row.id,
-      path: row.path,
-      lineFrom: row.lineFrom,
-      lineTo: row.lineTo,
-      title: row.title,
-      bodyMd: row.bodyMd,
-      anchorText: row.anchorText,
-      severity: row.severity,
-      firstSeenReviewId: row.firstSeenReviewId,
-    }));
-}
+import { withExtensions } from "../extensions/session.ts";
+import { localContext } from "../extensions/contexts.ts";
+import { reviewResultJson } from "../extensions/review_result.ts";
+import {
+  exitCodeWithExtensions,
+  type ExtensionReport,
+} from "../extensions/report.ts";
+import { runSummaryWithExtensions } from "../extensions/render_json.ts";
 
 function fail(error: ReviewCliError, json: boolean): void {
   if (json) {
@@ -105,11 +97,28 @@ function fail(error: ReviewCliError, json: boolean): void {
   exitWith(error.exitCode);
 }
 
+/** Ctrl-C stops the review: the lock is released, `--json` gets the one
+ * "aborted" document, the exit code is 3, and the armed interrupt aborts the
+ * model call in flight so the event loop drains and the process ends. The
+ * review checks `interrupted()` before it prints or saves anything, so no
+ * second output follows. A second Ctrl-C meets Node's default and ends the
+ * process at once, as it does for `review --remote`. */
 function installInterruptCleanup(
   releaseSync: () => (() => void) | null,
   json: boolean,
 ): () => void {
+  const controller = armInterrupt();
+  const remove = () => {
+    for (const signal of ["SIGINT", "SIGTERM"] as const) {
+      try {
+        process.removeListener(signal, onSignal);
+      } catch {
+        // ignore
+      }
+    }
+  };
   const onSignal = () => {
+    remove();
     releaseSync()?.();
     if (json) {
       console.log(
@@ -125,6 +134,7 @@ function installInterruptCleanup(
       );
     }
     exitWith(EXIT_RUNTIME);
+    controller.abort();
   };
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     try {
@@ -134,13 +144,8 @@ function installInterruptCleanup(
     }
   }
   return () => {
-    for (const signal of ["SIGINT", "SIGTERM"] as const) {
-      try {
-        process.removeListener(signal, onSignal);
-      } catch {
-        // ignore
-      }
-    }
+    remove();
+    disarmInterrupt();
   };
 }
 
@@ -173,13 +178,21 @@ export async function runLocalReview(
       );
       options.reviewSystemPromptAdd = promptFlags.add;
       options.reviewSystemPromptOverride = promptFlags.override;
+      const intentLoad = await loadIntentFlag(
+        cli.intentFile,
+        reviewSystemPromptLimitFor(repo),
+      );
 
       const guides = await loadGuides(repo);
-      if (!guides.shortGuide && !guides.skill) {
+      if (!hasGuides(guides)) {
+        // A `ReviewCliError`, so `fail()` below prints it the way local review
+        // always has, without the `[error] ` prefix the top level adds.
+        const missing = notInitializedError(repo);
         throw new ReviewCliError(
-          "not_initialized",
-          `Review guides are missing for ${repo}.`,
-          `co-maintainer init ${repo}`,
+          missing.code,
+          missing.message,
+          missing.hint,
+          missing.exitCode,
         );
       }
       if (cli.remakeBeforeReview) {
@@ -190,6 +203,7 @@ export async function runLocalReview(
           );
         }
         await runInitOrRemake({ ...options, command: "remake" });
+        if (interrupted()) return;
       }
 
       const remotes = await runCommand("git", ["remote"], root);
@@ -218,10 +232,16 @@ export async function runLocalReview(
         runCommand,
       );
       let revision = built.revision;
-      const warnings: ReviewWarning[] = built.warnings.map((w) => ({
-        code: w.code,
-        message: w.message,
-      }));
+      // The intent rides in the revision's description, which a local
+      // revision leaves empty, and the prompt's WORKSPACE block carries it.
+      if (intentLoad.intent) {
+        revision = { ...revision, description: intentLoad.intent.text };
+      }
+      const warnings: ReviewWarning[] = [
+        ...built.warnings.map((w) => ({ code: w.code, message: w.message })),
+        ...intentLoad.warnings,
+      ];
+      if (interrupted()) return;
       if (revision.files.length === 0) {
         if (json) {
           console.log(
@@ -235,7 +255,10 @@ export async function runLocalReview(
         } else {
           console.log("No changes to review.");
         }
+        // `exitWith` only sets the code. Without the return the review went
+        // on with an empty diff, called the model and printed a second report.
         exitWith(0);
+        return;
       }
 
       const subjectId = localSubjectId(repo, root, branch);
@@ -260,26 +283,10 @@ export async function runLocalReview(
         await clearLocalCarry(repo, root, branch).catch(() => {});
         previous = null;
       }
-      let carryPrevious: CarryPrevious | null = null;
-      let carryItems: ReturnType<typeof classifyCarryItems> = [];
-      const extras: ReviewExtras = {};
-      if (previous) {
-        carryPrevious = {
-          files: previous.files,
-          visiblePaths: new Set(previous.visiblePaths),
-          findings: previous.findings,
-          guideBuiltAt: previous.guideBuiltAt,
-        };
-        const { unchanged } = incrementalDiffPaths(revision, previous.files);
-        extras.unchangedPaths = unchanged;
-        carryItems = classifyCarryItems(
-          carryPrevious,
-          revision,
-          carryPrevious.visiblePaths,
-          guides.guideBuiltAt,
-        );
-        extras.carryPrompt = buildCarryPromptSection(carryItems, revision);
-      }
+      const carryRun = startCarryRun(previous, revision, guides.guideBuiltAt);
+      // Local carry-over leaves out what the last run saw, so a file this
+      // run drops is sent by the next one.
+      const extras: ReviewExtras = { ...carryRun.extras, catchesUp: true };
 
       const sha = await headSha(root);
       const revisionHashBefore = await revisionHash(revision);
@@ -292,26 +299,43 @@ export async function runLocalReview(
         // `canPrompt` adds the TTY and CI checks.
         interactive: !json && canPrompt(),
       });
+      // Ctrl-C at the install prompt or during the index: stop before the
+      // model call. The handler has released the lock.
+      if (interrupted()) return;
       extras.prepareCodegraphTools = () => Promise.resolve(codegraphPrep.tools);
       const stopHeartbeat = startHeartbeat("reviewing local changes");
       const started = performance.now();
       const aiMetrics = emptyAiMetrics();
       let response;
+      let extensions: ExtensionReport;
       try {
-        response = await timed("local review AI", options.logTime, () =>
-          reviewWorkspaceRevision(
+        ({ review: response, extensions } = await withExtensions(
+          localContext({
+            repo,
+            branch,
+            root,
+            headSha: sha,
+            baseSha,
             revision,
-            options,
-            sha,
-            async (usage) => {
-              addAiMetrics(aiMetrics, usage);
-              await recordAiCost(repo, "review_local", usage);
-            },
-            aiFor(options),
-            (message) => log("review", message),
-            extras,
-          ),
-        );
+            fresh: cli.fresh,
+          }),
+          () =>
+            timed("local review AI", options.logTime, () =>
+              reviewWorkspaceRevision(
+                revision,
+                options,
+                sha,
+                async (usage) => {
+                  addAiMetrics(aiMetrics, usage);
+                  await recordAiCost(repo, "review_local", usage);
+                },
+                aiFor(options),
+                (message) => log("review", message),
+                extras,
+              ),
+            ),
+          (result) => reviewResultJson(result.text, options.reviewBlocking),
+        ));
       } finally {
         // Stopping the heartbeat on the error path too, otherwise the interval
         // keeps the event loop alive and a post-fetch exit never lands.
@@ -319,28 +343,17 @@ export async function runLocalReview(
         await lock?.release();
         lock = null;
       }
+      // Ctrl-C during the model call: the handler has printed the one output
+      // and set the exit code, so nothing is saved or printed after it.
+      if (interrupted()) return;
       const codegraphState = codegraphPrep.state;
+      warnings.push(...response.warnings);
 
-      const visiblePaths = new Set(response.visiblePaths);
-      if (carryPrevious) {
-        carryItems = classifyCarryItems(
-          carryPrevious,
-          revision,
-          visiblePaths,
-          response.guideBuiltAt,
-        );
-      }
-      const parsed = parseFindings(response.text);
-      const filesByPath = new Map(revision.files.map((f) => [f.path, f]));
-      const allResolved = carryPrevious
-        ? resolveCarryOutcomes(
-            carryItems,
-            revision,
-            visiblePaths,
-            parsePreviousVerdicts(response.text),
-            parsed,
-          )
-        : resolvedFromFirstReview(parsed, filesByPath);
+      const { resolved: allResolved, visiblePaths } = finishCarryRun(
+        carryRun,
+        revision,
+        response,
+      );
       const findingsToStore = storedFindings(allResolved);
 
       const afterBuilt = await buildLocalRevision(
@@ -350,6 +363,7 @@ export async function runLocalReview(
         runCommand,
       );
       const revisionHashAfter = await revisionHash(afterBuilt.revision);
+      if (interrupted()) return;
       if (revisionHashAfter !== revisionHashBefore) {
         warnings.push({
           code: "working_tree_changed",
@@ -373,6 +387,7 @@ export async function runLocalReview(
         });
       }
 
+      if (interrupted()) return;
       const header = `co-maintainer review · ${repo} · ${branch} → ${base.label}`;
       const durationMs = Math.round(performance.now() - started);
       const usage = {
@@ -380,6 +395,10 @@ export async function runLocalReview(
         tokensOut: aiMetrics.tokensOut,
         ...costUsage(aiMetrics),
       };
+      const run = runSummaryWithExtensions(
+        summaryFromMetrics(aiMetrics, performance.now() - started),
+        extensions,
+      );
       if (json) {
         console.log(
           buildLocalReviewJson({
@@ -395,6 +414,10 @@ export async function runLocalReview(
             usage,
             durationMs,
             reviewBlocking: options.reviewBlocking,
+            coverage: response.coverage,
+            extensions,
+            includeExtensionMarkdowns: cli.includeExtensionMarkdowns,
+            intent: intentRecord(intentLoad.intent),
           }),
         );
       } else if (cli.output === "github") {
@@ -404,7 +427,11 @@ export async function runLocalReview(
             allResolved,
             options.reviewBlocking,
           ),
-          run: summaryFromMetrics(aiMetrics, performance.now() - started),
+          run,
+          coverage: response.coverage,
+          catchesUp: true,
+          extensions,
+          intent: Boolean(intentLoad.intent),
         });
       } else {
         console.log(
@@ -417,15 +444,24 @@ export async function runLocalReview(
               allResolved,
               warnings,
               options.reviewBlocking,
+              response.coverage,
+              extensions,
+              Boolean(intentLoad.intent),
             ) +
             "\n",
         );
-        printRunSummary(
-          summaryFromMetrics(aiMetrics, performance.now() - started),
-        );
+        printRunSummary(run);
       }
-      exitWith(reviewExitCodeFromResolved(allResolved, options.reviewBlocking));
+      exitWith(
+        exitCodeWithExtensions(
+          reviewExitCodeFromResolved(allResolved, options.reviewBlocking),
+          extensions,
+        ),
+      );
     } catch (error) {
+      // After Ctrl-C the aborted model call or sync throws. The handler has
+      // already printed the one output and set the exit code.
+      if (interrupted()) return;
       if (error instanceof ReviewCliError) {
         fail(error, json);
         return;

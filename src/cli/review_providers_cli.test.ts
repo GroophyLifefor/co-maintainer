@@ -24,6 +24,11 @@ import {
 import { startFakeOpenRouter } from "../testing/fake_openrouter.ts";
 import { startFakeOpenAi } from "../testing/fake_openai.ts";
 import { startFakeAnthropic } from "../testing/fake_anthropic.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// These tests resolve the config or cache directory. Keep both in a temp
+// home of this file's own, never the developer's real ones.
+isolateTestFile();
 
 const projectRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const REPO = "e2e-providers/repo";

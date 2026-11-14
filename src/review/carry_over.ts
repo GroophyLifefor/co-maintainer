@@ -516,9 +516,15 @@ export function resolveCarryOutcomes(
   return resolved;
 }
 
+/** Splits the current files into the ones to send and the ones an earlier
+ * round already covered. A file counts as unchanged only when its patch is
+ * the same as last round's and it is in last round's seen set: a file that
+ * was dropped or withheld then never reached the model, so it is sent again
+ * however little it changed. */
 export function incrementalDiffPaths(
   current: Revision,
   previousFiles: RevisionFile[] | null,
+  seenPaths: Set<string>,
 ): { changed: RevisionFile[]; unchanged: string[] } {
   if (!previousFiles) {
     return { changed: current.files, unchanged: [] };
@@ -526,11 +532,16 @@ export function incrementalDiffPaths(
   const prevByPath = new Map(
     previousFiles.map((file) => [normalizePath(file.path), file]),
   );
+  const seen = new Set([...seenPaths].map(normalizePath));
   const changed: RevisionFile[] = [];
   const unchanged: string[] = [];
   for (const file of current.files) {
     const prev = prevByPath.get(normalizePath(file.path));
-    if (!prev || !revisionFilesEquivalent(prev, file)) {
+    if (
+      !prev ||
+      !revisionFilesEquivalent(prev, file) ||
+      !seen.has(normalizePath(file.path))
+    ) {
       changed.push(file);
     } else {
       unchanged.push(file.path);

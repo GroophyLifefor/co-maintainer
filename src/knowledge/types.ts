@@ -29,6 +29,10 @@ export type Source = {
   tree: string[];
   treeSha: Record<string, string>;
   files: Record<string, string>;
+  /** The agent instruction files `--agent-instructions` matched, read in
+   * full and kept apart from `files` so the codebase extraction does not read
+   * them a second time. Missing on states written before the field existed. */
+  instructionFiles?: Record<string, string>;
   /** Pull requests selected for facts and the skill. Every decided pull
    * request, including ones left out of the skill, is kept per pull request in
    * cache.db, so a `changesRequested: false` result is not downloaded again. */
