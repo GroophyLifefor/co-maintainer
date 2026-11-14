@@ -74,12 +74,13 @@ async function cloneInto(repo: string, dir: string, run: Run): Promise<string> {
   ]);
   if (result.code !== 0) {
     // One actionable line, not the raw multi-line git transcript: the caller
-    // only needs to know the clone failed and what it costs them.
+    // only needs to know the clone failed and what it costs them. git opens
+    // with "Cloning into '...'", which says nothing about why.
     const firstLine =
       result.stderr
         .split(/\r?\n/)
         .map((line) => line.trim())
-        .find((line) => line.length > 0) ?? "";
+        .find((line) => line.length > 0 && !/^Cloning into /.test(line)) ?? "";
     throw new Error(
       `git clone failed (exit ${result.code}) for ${repo}, so this review has no ` +
         `repository scope and falls back to the diff only` +

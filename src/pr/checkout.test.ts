@@ -104,4 +104,10 @@ test("ensureClone reports a clone failure as one actionable line", async () => {
   if (!message.includes("diff only")) {
     throw new Error(`what is lost is not stated: ${message}`);
   }
+  // The one line is git's reason, not its opening "Cloning into ...".
+  if (
+    !message.endsWith("fatal: could not read Username for 'https://github.com'")
+  ) {
+    throw new Error(`the reason is missing: ${message}`);
+  }
 });
