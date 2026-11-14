@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A remote review keeps a finding that is still open.** From the second review of a branch on, `review --remote` read only the new findings of the model's answer and ignored its verdicts on the earlier ones. A blocking finding that was not fixed disappeared and the run exited 0. It is now listed under `Still open` and the exit code stays 1, as in a local review.
 - **A pull request number that does not exist is reported as the pull request.** `co-maintainer review owner/repo 404` said the repository was not found. With `gh` it now says `Pull request #404 was not found in owner/repo.`, with the error code `pull_request_not_found`. The exit code stays 2.
 - **A review without codegraph leaves `.git/info/exclude` alone.** The line that hides the local code index was added even when codegraph was unavailable, and its path was read relative to the folder the command ran in instead of the repository.
+- **A failed clone says why.** When the clone for a review failed, the message ended with git's opening line, `Cloning into ...`. It now ends with git's reason, such as `fatal: could not read Username for 'https://github.com'`.
 
 ## [0.6.13] - 2026-11-12
 
