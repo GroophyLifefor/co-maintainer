@@ -1176,6 +1176,15 @@ function flowChecks(sim: Sim): CheckResult[] {
       missing ? `${code(missing)}: ${missing.stderr.split("\n")[0]}` : "no run",
     ),
     check(
+      "a pull request that does not exist is named as the pull request, not as a missing repository",
+      missing?.stderr.includes(
+        `Pull request #404 was not found in ${CLI_PR_REPO}.`,
+      ) === true &&
+        (missingBody?.error as Json | undefined)?.code ===
+          "pull_request_not_found",
+      missingBody ? JSON.stringify(missingBody.error) : "stdout is not JSON",
+    ),
+    check(
       "with --json the same error is one JSON document with the exit code",
       missingJson?.exitCode === 2 &&
         missingBody?.ok === false &&

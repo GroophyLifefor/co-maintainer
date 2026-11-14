@@ -34,7 +34,6 @@ export async function prepareLocalCodegraph(input: {
     return { state: "disabled", reason: null, tools: [] };
   }
   const run = input.run ?? runCommand;
-  await ensureCodegraphGitExclude(input.gitRoot, run);
   const resolved = await ensureCodegraphForReview({
     allowInstall: input.allowInstall,
     // The prompt is safe only when a human can answer it; `canPrompt` checks
@@ -47,6 +46,9 @@ export async function prepareLocalCodegraph(input: {
     log("codegraph", `tools unavailable · ${resolved.reason}`);
     return { state: "unavailable", reason: resolved.reason, tools: [] };
   }
+  // Only once an index will be written: a review without codegraph leaves
+  // the user's .git/info/exclude alone.
+  await ensureCodegraphGitExclude(input.gitRoot, run);
   const binary = resolved.path;
   const cgRun = createCodegraphRunner(LOCAL_CODEGRAPH_DIR);
   try {

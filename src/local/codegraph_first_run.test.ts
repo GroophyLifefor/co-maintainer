@@ -13,6 +13,7 @@ import {
   Command,
   envToObject,
   mkdirPath,
+  readTextFile,
   removePath,
   runtimeExecPath,
   runtimeRunArgs,
@@ -139,6 +140,14 @@ test("review never asks about codegraph when stdin is not a TTY", async () => {
     }
     if (body.codegraph?.state === "used") {
       throw new Error(`codegraph reported used but is absent: ${stdout}`);
+    }
+    // No index is written without codegraph, so nothing is hidden from git:
+    // the user's .git/info/exclude stays as it was.
+    const exclude = await readTextFile(`${worktree}/.git/info/exclude`).catch(
+      () => "",
+    );
+    if (exclude.includes(".co-maintainer-codegraph")) {
+      throw new Error(`.git/info/exclude was changed:\n${exclude}`);
     }
   } finally {
     await removePath(root, { recursive: true });

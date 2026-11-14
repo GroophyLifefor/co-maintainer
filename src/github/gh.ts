@@ -115,6 +115,30 @@ function ghFailure(method: string, endpoint: string, stderr: string): CliError {
   );
 }
 
+/** A 404 for a pull request, when the repository itself can be read. gh says
+ * the same "Not Found" for both, so one more call tells them apart: without
+ * it a wrong number was reported as a repository that does not exist. */
+async function missingPullRequest(
+  endpoint: string,
+  stderr: string,
+): Promise<CliError | undefined> {
+  if (!/HTTP 404|Not Found/i.test(stderr)) return undefined;
+  const match = endpoint.match(/^(repos\/([^/]+)\/([^/]+))\/pulls\/(\d+)/);
+  if (!match) return undefined;
+  try {
+    const repo = await runGh(["api", match[1]!]);
+    if (!repo.success) return undefined;
+  } catch {
+    return undefined;
+  }
+  return new CliError(
+    "pull_request_not_found",
+    `Pull request #${match[4]} was not found in ${match[2]}/${match[3]}.`,
+    "Check the number.",
+    EXIT_USAGE,
+  );
+}
+
 let lastCallAt = 0;
 let pulse: ReturnType<typeof setInterval> | undefined;
 
@@ -279,7 +303,12 @@ export class GhClient implements GitHubClient {
       const limited = bucket
         ? bucket.remaining === 0
         : /rate limit/i.test(error);
-      if (!limited) throw ghFailure(method, endpoint, error);
+      if (!limited) {
+        throw (
+          (await missingPullRequest(endpoint, error)) ??
+          ghFailure(method, endpoint, error)
+        );
+      }
       const resetAt =
         bucket?.resetAt ?? new Date(Date.now() + RATE_LIMIT_PROBE_MS);
       const delay = probeDelay(resetAt, Date.now());

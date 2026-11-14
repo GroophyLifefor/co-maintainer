@@ -65,6 +65,20 @@ test("a 404 becomes the product's own repo_not_found error", async () => {
   assert.equal(missing!.handled, true);
 });
 
+test("a 404 for a pull request names the pull request when the repository can be read", async () => {
+  await assert.rejects(
+    new GhClient().request(`repos/${SAMPLE_REPO_NAME}/pulls/404`),
+    {
+      code: "pull_request_not_found",
+      message: `Pull request #404 was not found in ${SAMPLE_REPO_NAME}.`,
+    },
+  );
+  // In a repository GitHub does not have, it is still the repository.
+  await assert.rejects(new GhClient().request("repos/nobody/nothing/pulls/1"), {
+    code: "repo_not_found",
+  });
+});
+
 test("a rate-limit fault is waited out through gh api rate_limit", async () => {
   faults.add({ target: "github", kind: "rate-limit", path: "/git/trees" });
   const tree = await new GhClient().request<{ tree: unknown[] }>(
