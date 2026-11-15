@@ -1,4 +1,4 @@
-/** Only a token's hash ever reaches `store/sessions.ts`; the raw token is
+/** Only a token's hash ever reaches `store/sessions.ts`. The raw token is
  * handed back once, at login, and never stored. */
 import { readConfig, writeUserConfig } from "../config.ts";
 import { hashPassword, verifyPasswordHash } from "../util/password.ts";
@@ -24,7 +24,7 @@ const OAUTH_STATE_TTL_SEC = 600;
 
 /** Which sign-in methods a running `serve` accepts. Resolved once at
  * startup (CLI flag, falling back to config) and threaded through
- * `AppDeps`/`PageDeps` — every route reads the same resolved value. */
+ * `AppDeps`/`PageDeps`, every route reads the same resolved value. */
 export type AuthMethods = { password: boolean; github: boolean };
 
 async function sha256Hex(value: string): Promise<string> {
@@ -61,7 +61,7 @@ type Attempt = {
   lockedUntil?: number;
 };
 // ponytail: an in-memory Map, one entry per distinct IP that has ever failed
-// a login. Fine for a single self-hosted admin; add eviction if this ever
+// a login. Fine for a single self-hosted admin. Add eviction if this ever
 // needs to survive a hostile flood of spoofed source IPs.
 const attempts = new Map<string, Attempt>();
 
@@ -169,7 +169,7 @@ export async function revokeOtherSessions(keepToken: string): Promise<void> {
 }
 
 /** Issues a session for the one dashboard identity, bypassing the password
- * check — used after GitHub OAuth has already verified the caller. */
+ * check, used after GitHub OAuth has already verified the caller. */
 export async function createSession(): Promise<LoginResult> {
   const token = randomToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
@@ -195,6 +195,7 @@ export async function logout(token: string): Promise<void> {
 
 function readCookie(request: Request, name: string): string | undefined {
   const cookie = request.headers.get("cookie") ?? "";
+  // punctuation: code, a Cookie header value is split at its semicolons
   for (const part of cookie.split(";")) {
     const trimmed = part.trim();
     const eq = trimmed.indexOf("=");
@@ -225,6 +226,7 @@ export function sessionCookieHeader(token: string, secure: boolean): string {
     `Max-Age=${SESSION_TTL_SEC}`,
   ];
   if (secure) flags.push("Secure");
+  // punctuation: code, the Cookie header joins its attributes with a semicolon
   return flags.join("; ");
 }
 
@@ -237,11 +239,12 @@ export function clearSessionCookieHeader(secure: boolean): string {
     "Max-Age=0",
   ];
   if (secure) flags.push("Secure");
+  // punctuation: code, the Cookie header joins its attributes with a semicolon
   return flags.join("; ");
 }
 
 /** The GitHub OAuth `state` param, plus the post-login `next` path,
- * round-tripped through an HttpOnly cookie instead of server memory — one
+ * round-tripped through an HttpOnly cookie instead of server memory, one
  * admin, one in-flight login at a time, so a cookie is all this needs. */
 export function readOauthState(
   request: Request,
@@ -273,6 +276,7 @@ export function oauthStateCookieHeader(
     `Max-Age=${OAUTH_STATE_TTL_SEC}`,
   ];
   if (secure) flags.push("Secure");
+  // punctuation: code, the Cookie header joins its attributes with a semicolon
   return flags.join("; ");
 }
 
@@ -285,5 +289,6 @@ export function clearOauthStateCookieHeader(secure: boolean): string {
     "Max-Age=0",
   ];
   if (secure) flags.push("Secure");
+  // punctuation: code, the Cookie header joins its attributes with a semicolon
   return flags.join("; ");
 }

@@ -219,3 +219,46 @@ its own address.
   cannot test a client timeout.
 - Reactions, labels and issues are kept, but only as far as the product uses
   them today.
+
+## Punctuation
+
+Text a person reads follows one rule. It is a product rule, so it applies to
+every file, not only to the text you think a user sees.
+
+- No em dash and no en dash. Not in code comments, strings, docs, CSS or
+  tests. A hyphen is fine.
+- No semicolon in prose. A code comment is prose, so it carries none either.
+  Code keeps its own semicolons, and so do inline code and fenced code blocks.
+
+A comment that joins two thoughts with a semicolon or an em dash is rewritten
+with a comma, a colon or a new sentence:
+
+- Wrong: `// the cache is cold; it is rebuilt`
+- Right: `// the cache is cold, so it is rebuilt`
+
+`npm run punctuation` runs the check. CI runs it on every pull request and on
+every push to main, and `npm test` runs it too. It fails with the file, the
+line and what is wrong.
+
+### A string that must keep a semicolon
+
+Some strings are code, not sentences. A Cookie header, a CSS declaration or a
+line of TypeScript written to disk by a test needs its semicolon, and removing
+it would break the code. Put a note on the line above, with the reason:
+
+```ts
+// punctuation: code, the Cookie header joins its attributes with a semicolon
+return flags.join("; ");
+```
+
+The note covers the statement, property or array element right below it. The
+reason is required and must say why the semicolon is needed. A note without a
+reason fails, and so does a note that covers no semicolon. A note never excuses
+a dash.
+
+### AI text
+
+Every AI job gets the rule in its system prompt, so a model does not write the
+marks the check rejects. `createAiProvider` wraps every provider with
+`withCopyRule` (`src/ai/copy_rule.ts`), so a new job needs nothing extra. Do
+not build a provider with `new` outside that factory. A test fails if you do.

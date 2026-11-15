@@ -32,13 +32,13 @@ function row(
 }
 
 test("isBlockingFinding: non-blocking title is not blocking", () => {
-  if (isBlockingFinding("[P2 · non-blocking] `a.ts` — `x`", "P2")) {
+  if (isBlockingFinding("[P2 · non-blocking] `a.ts`: `x`", "P2")) {
     throw new Error("expected false");
   }
 });
 
 test("isBlockingFinding: blocking title", () => {
-  if (!isBlockingFinding("[P1 · blocking] `a.ts` — `x`", "P1")) {
+  if (!isBlockingFinding("[P1 · blocking] `a.ts`: `x`", "P1")) {
     throw new Error("expected true");
   }
 });
@@ -59,7 +59,7 @@ test("buildPrReviewJson: parses findings from markdown", () => {
       repo: "o/r",
       prNumber: 9,
       markdown:
-        "## Findings\n\n### [P2 · non-blocking] `a.ts` — `x`\n\nLocation: a.ts:1\n\nBody",
+        "## Findings\n\n### [P2 · non-blocking] `a.ts`: `x`\n\nLocation: a.ts:1\n\nBody",
       guideBuiltAt: "2026-01-01T00:00:00Z",
       codegraphState: "disabled",
       codegraphReason: null,

@@ -151,7 +151,7 @@ export async function verifyOpenAi(
 
 /** Anthropic authenticates the key and lists models at `/models`, but with its
  * own headers (`x-api-key` + `anthropic-version`) instead of a Bearer token.
- * Without a model the call only proves the key; with one it also confirms
+ * Without a model the call only proves the key. With one it also confirms
  * Anthropic serves it. */
 export async function verifyAnthropic(
   apiKey: string,

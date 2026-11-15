@@ -42,8 +42,10 @@ MIIBOgIBAAJBAK...
 });
 
 test("safeCopy strips a dash and a semicolon", () => {
-  const cleaned = safeCopy("Broken — really; stop");
-  if (cleaned.includes("—") || cleaned.includes(";")) {
+  // punctuation: code, the test feeds a prose semicolon to the cleaner
+  const cleaned = safeCopy("Broken \u2014 really; stop");
+  // punctuation: code, the guard looks for the semicolon character in the output
+  if (cleaned.includes("\u2014") || cleaned.includes(";")) {
     throw new Error(cleaned);
   }
 });
@@ -57,8 +59,10 @@ let known = true;
 
 Inline \`a; b\` stays too.`;
   const cleaned = safeCopy(source);
+  // punctuation: code, the test checks that a prose semicolon is gone
   if (cleaned.includes("semicolon;")) throw new Error(cleaned);
   if (!cleaned.includes("let known = true;")) throw new Error(cleaned);
+  // punctuation: code, the test checks that a semicolon inside inline code stays
   if (!cleaned.includes("`a; b`")) throw new Error(cleaned);
 });
 
@@ -68,11 +72,14 @@ test("safeCopy leaves a four backtick fence with a nested fence alone", () => {
   const cleaned = safeCopy(source);
   if (!cleaned.includes("```js\nlet a = 1;\n```\n````"))
     throw new Error(cleaned);
+  // punctuation: code, the test checks that a prose semicolon is gone
   if (cleaned.includes("it;")) throw new Error(cleaned);
 });
 
 test("outsideCode reports untouched text when prose is already clean", () => {
+  // punctuation: code, the test checks that a semicolon inside a code block stays
   const source = "clean prose \`\`\`code; here\`\`\`";
+  // punctuation: code, the check names the semicolon it removes from text
   if (outsideCode(source, (prose) => prose.replaceAll(";", "")) !== source) {
     throw new Error("a semicolon inside code was treated as forbidden copy");
   }

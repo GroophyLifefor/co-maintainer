@@ -1,6 +1,6 @@
 /** Shared by every `GitHubClient` implementation that talks over `fetch`
  * (pat.ts, and app.ts). `GhClient` shells out to the `gh` binary and does
- * not use `githubFetch`; both paths share `paginate` and `waitForRateLimit`. */
+ * not use `githubFetch`. Both paths share `paginate` and `waitForRateLimit`. */
 
 import { log } from "../util/log.ts";
 import { networkFailure } from "../cli/error.ts";

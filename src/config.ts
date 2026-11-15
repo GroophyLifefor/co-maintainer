@@ -10,7 +10,7 @@ import {
 } from "./util/runtime.ts";
 import type { ExtensionRegistration } from "./extensions/registry.ts";
 
-/** Everything init/remake resolved for one repo, except secrets — an API
+/** Everything init/remake resolved for one repo, except secrets, an API
  * token is never written to config.json, only ever taken from --token or
  * an env file. Remembering this lets `remake owner/repo` run with no
  * flags and no interactive prompts, reusing what `init` was told. */
@@ -59,7 +59,7 @@ export type RepoConfig = {
    * means none. */
   reviewSystemPrompt?: string;
   /** Cap on `reviewSystemPrompt` in characters for this repository. Unset
-   * means the default; `0` or a negative number means no limit. */
+   * means the default, `0` or a negative number means no limit. */
   reviewSystemPromptMaxChars?: number;
   /** Which diagram language this repository's reviews use. Unset means
    * `mermaid`. `set --repo` writes it, so App reviews can use it too. */
@@ -70,7 +70,7 @@ export type RepoConfig = {
   /** `svg` or `png`. Unset means `svg`. */
   plantumlOutputFormat?: "svg" | "png";
   /** Cap on one `read-full-diff` answer in characters for this repository.
-   * Unset means the default; `0` or a negative number means no limit. */
+   * Unset means the default, `0` or a negative number means no limit. */
   reviewReadDiffMaxChars?: number;
 };
 
@@ -91,7 +91,7 @@ export type UserConfig = {
   /** GitHub Personal Access Token, used when `--auth=pat`. Only ever
    * written by `set --github-pat=...`. */
   githubPat?: string;
-  /** GitHub App credentials for `co-maintainer serve` — also only ever
+  /** GitHub App credentials for `co-maintainer serve`, also only ever
    * written by `set`. `githubWebhookSecret` is optional. */
   githubAppId?: string;
   githubAppPrivateKey?: string;
@@ -101,12 +101,12 @@ export type UserConfig = {
   githubWebhookSecret?: string;
   webhookUrl?: string;
   /** "Sign in with GitHub" for the dashboard, reusing the App's own OAuth
-   * client — only `githubOAuthAllowedUser` may complete it. All three only
+   * client, only `githubOAuthAllowedUser` may complete it. All three only
    * ever written by `set`. */
   githubOAuthClientId?: string;
   githubOAuthClientSecret?: string;
   githubOAuthAllowedUser?: string;
-  /** Which sign-in methods `serve` accepts by default; a `--disable-auth`/
+  /** Which sign-in methods `serve` accepts by default. A `--disable-auth`/
    * `--enable-auth` flag on the `serve` command overrides these per run. */
   passwordAuthDisabled?: boolean;
   githubAuthEnabled?: boolean;
@@ -135,11 +135,11 @@ export type UserConfig = {
   codegraphVersion?: string;
   /** Remote review CLI target (`co-maintainer set`). */
   remoteHost?: string;
-  /** Bearer token for `/api/remote/*`; only written by `set`. */
+  /** Bearer token for `/api/remote/*`. Only written by `set`. */
   remoteToken?: string;
   /** Hosts for which the unpublished-code notice was shown. */
   remoteNoticeShownFor?: string[];
-  /** Remote client watchdog timeout; dashboard may override. */
+  /** Remote client watchdog timeout. Dashboard may override. */
   remoteSyncTimeoutSeconds?: number;
   maxConcurrentRemoteReviewsPerToken?: number;
   remoteToolOutputMaxChars?: number;
@@ -287,7 +287,7 @@ export function getCacheDir(
   }
 }
 
-/** `CM_CONFIG_PATH` overrides the path — tests point it at a temp file so
+/** `CM_CONFIG_PATH` overrides the path, tests point it at a temp file so
  * they never read or write the real config.json. */
 export function configPath(): string {
   return (
@@ -296,7 +296,7 @@ export function configPath(): string {
 }
 
 /** Where generated skills (SKILL.md, CODEBASE.md, review guides) live.
- * Never relative to the current directory — a globally installed CLI can be
+ * Never relative to the current directory, a globally installed CLI can be
  * invoked from anywhere, including directories it has no permission to
  * write into (e.g. C:\Windows\System32). */
 export function reposDir(): string {
@@ -472,7 +472,7 @@ export async function removeAllRepoConfig(): Promise<boolean> {
   return true;
 }
 
-/** Merges `patch` into the top-level (global, cross-repo) config —
+/** Merges `patch` into the top-level (global, cross-repo) config,
  * used by `co-maintainer set`. This is the only path allowed to persist
  * a token. */
 export async function writeUserConfig(

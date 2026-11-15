@@ -226,7 +226,7 @@ const totalCost = reports.reduce((sum, row) => sum + row.cost, 0);
 const { f1, precision, recall } = scores(totals);
 const result = {
   repo,
-  maxPrMonthsNote: "init window is not included; use --max-pr-months=3 on init",
+  maxPrMonthsNote: "init window is not included. Use --max-pr-months=3 on init",
   prs: reports.length,
   f1,
   precision,

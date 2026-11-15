@@ -60,7 +60,7 @@ type KeyFake = {
 
 /** A socket-level fake provider that records the Authorization header of every
  * call. The OpenRouter provider is what a review uses by default, so the header
- * is `Bearer <key>`; the point is to prove which key reached the socket. */
+ * is `Bearer <key>`. The point is to prove which key reached the socket. */
 function startKeyFake(
   options: { status?: number; content?: string; errorMessage?: string } = {},
 ): Promise<KeyFake> {
@@ -137,7 +137,7 @@ async function withServer(
     /** A raw CM_REMOTE_BYOK_POLICY value, including invalid ones, set instead
      * of `policy` so a test can prove how a bad env value is handled. */
     rawPolicyEnv?: string;
-    /** The policy written to config.json; pairs with `rawPolicyEnv` to prove
+    /** The policy written to config.json. Pairs with `rawPolicyEnv` to prove
      * the env override falls back to the saved policy. */
     configPolicy?: "off" | "allow" | "require";
     fakeStatus?: number;
@@ -161,7 +161,7 @@ async function withServer(
   set("CM_CONFIG_PATH", `${root}/config.json`);
   set("CM_REPOS_DIR", `${root}/repos`);
   set("CM_OPENROUTER_URL", fake.url);
-  // getCacheDir picks the platform-appropriate one; set both so the byte scan
+  // getCacheDir picks the platform-appropriate one. Set both so the byte scan
   // finds cache.db wherever this runs.
   set("LOCALAPPDATA", `${root}/cache`);
   set("XDG_CACHE_HOME", `${root}/cache`);
@@ -484,7 +484,7 @@ test("a BYOK review sends the client key, never the server key", async () => {
         }
       }
 
-      // The server's spending totals exclude BYOK; BYOK is its own column.
+      // The server's spending totals exclude BYOK, BYOK is its own column.
       const usage = remoteTokenUsageSince(tokenId, SINCE);
       if (usage.knownCount !== 0 || usage.byokKnownCount !== 1) {
         throw new Error(`usage ${JSON.stringify(usage)}`);
@@ -710,7 +710,7 @@ test("a queued BYOK job canceled before it runs drops the key", async () => {
         throw new Error(`job ${getJob(jobId)?.status}`);
       }
       // A queued job never enters the handler, so nothing else would drop the
-      // key; it must not outlive the cancellation.
+      // key. It must not outlive the cancellation.
       if (hasByokKey(jobId)) {
         throw new Error("a canceled queued job left its key in memory");
       }
@@ -815,6 +815,7 @@ test("a setup failure after the key is registered drops the key", async () => {
   await withServer(
     async ({ app, token }) => {
       const db = getAppDb();
+      // punctuation: code, a SQL trigger body ends its statement with a semicolon
       db.exec(
         `CREATE TRIGGER fail_review_insert BEFORE INSERT ON reviews
          BEGIN SELECT RAISE(ABORT, 'boom'); END`,
@@ -928,6 +929,7 @@ test("a failed job insert leaves no orphan review row", async () => {
       const before = db
         .prepare<{ n: number }>("SELECT COUNT(*) AS n FROM reviews")
         .get()?.n;
+      // punctuation: code, a SQL trigger body ends its statement with a semicolon
       db.exec(
         `CREATE TRIGGER fail_job_insert BEFORE INSERT ON jobs
          BEGIN SELECT RAISE(ABORT, 'boom'); END`,

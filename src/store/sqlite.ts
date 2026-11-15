@@ -50,7 +50,7 @@ export class Statement<Row = Record<string, unknown>> {
 
 /** Normalizes call arguments: a single object binds by name, everything else
  * is a positional list. Values `node:sqlite` refuses are mapped to what it
- * accepts — `undefined` to NULL, booleans to 0/1 — on both paths, so a field
+ * accepts, `undefined` to NULL, booleans to 0/1, on both paths, so a field
  * typed `boolean | undefined` survives a named bind too. */
 function args(params: Params): (BindValue | BindObject)[] {
   if (params.length === 1 && isBindObject(params[0])) {
@@ -90,7 +90,7 @@ export class Database implements ChangeSink {
 
   constructor(path: string) {
     // node --test runs test files in parallel processes, and the cache/app
-    // databases are shared; node:sqlite defaults to no busy timeout while
+    // databases are shared. Node:sqlite defaults to no busy timeout while
     // @db/sqlite tolerated contention. Wait rather than throw SQLITE_BUSY.
     this.#database = new DatabaseSync(path, { timeout: 5_000 });
   }

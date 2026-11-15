@@ -101,6 +101,7 @@ export const LOCAL_CHANGE = {
       'import { average } from "./math.ts";',
       "",
       "export function describe(values: number[]): string {",
+      // punctuation: code, a fixture line of TypeScript source written to disk
       '  console.log("describing", values.length);',
       "  return `mean ${average(values)}`;",
       "}",
@@ -1106,7 +1107,7 @@ const carryPaths = (run: ReviewRun) => paths(run.carry?.findings as Json[]);
 const fail = (problems: string[], good: string) =>
   problems.length === 0
     ? { ok: true, detail: good }
-    : { ok: false, detail: problems.join("; ") };
+    : { ok: false, detail: problems.join(", ") };
 
 function result(name: string, problems: string[], good: string): CheckResult {
   const { ok, detail } = fail(problems, good);

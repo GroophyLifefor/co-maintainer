@@ -2,7 +2,7 @@ import { getReviewByJobId, setReviewStatus } from "../store/reviews.ts";
 import { deleteRemoteReviewInput } from "../store/remote_review_inputs.ts";
 import { dropByokKey } from "../remote/server/byok_keys.ts";
 
-/** Queued remote reviews never enter the handler; sync the review row when the
+/** Queued remote reviews never enter the handler. Sync the review row when the
  * job is canceled from the dashboard or token deactivation. The BYOK key and
  * the input row are dropped here too: a queued job canceled before it ever
  * runs must not leave the client's key in memory, and a later retry with the

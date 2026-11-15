@@ -75,6 +75,7 @@ function visibleText(html: string): string {
 
 function assertCleanCopy(html: string, path: string): void {
   const visible = visibleText(html);
+  // punctuation: code, the guard looks for the semicolon character in the output
   if (visible.includes("\u2014") || visible.includes(";")) {
     throw new Error(`forbidden copy on ${path}: ${visible.slice(0, 200)}`);
   }
@@ -657,7 +658,7 @@ test("every page carries the helper before its own scripts", async () => {
           new Request(`http://localhost${path}`, { headers: { cookie } }),
         )
       ).text();
-      // `bindToggle` and `api` are called from page scripts; if the helper
+      // `bindToggle` and `api` are called from page scripts, if the helper
       // lands after `<body>` those calls hit an undefined name.
       const head = html.slice(0, html.indexOf("</head>"));
       if (!head.includes("function bindToggle")) {
@@ -1406,7 +1407,7 @@ test("a repository subpage with a stray PR number is not a rendered page", async
       webhookUrl: "http://localhost:5000/github/webhook",
     });
     const cookie = await cookieSession(app);
-    // Only `pulls` takes a numeric suffix; `/remote/7` is malformed and must
+    // Only `pulls` takes a numeric suffix, `/remote/7` is malformed and must
     // not silently render the remote listing while dropping the number.
     for (const path of [
       "/repos/acme/widgets/remote/7",
@@ -1521,6 +1522,7 @@ test("the stylesheet ships the design tokens, the embedded font and dark theme",
   const css = await (
     await app.fetch(new Request("http://localhost/styles.css"))
   ).text();
+  // punctuation: code, a data URI puts a semicolon before base64
   for (const needle of [
     "@font-face",
     'font-family: "Outfit"',

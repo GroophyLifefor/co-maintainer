@@ -45,7 +45,7 @@ description: fixture
 `;
   const result = await validateSkill(markdown, testSource());
   if (!result.valid) {
-    throw new Error(result.errors.join("; "));
+    throw new Error(result.errors.join(", "));
   }
 });
 
@@ -62,7 +62,7 @@ description: fixture
 - Inspect \`missing/file.ts\`.
 `;
   const result = await validateSkill(markdown, testSource(), "warning");
-  if (!result.valid) throw new Error(result.errors.join("; "));
+  if (!result.valid) throw new Error(result.errors.join(", "));
   if (!result.warnings.some((item) => item.includes("missing/file.ts"))) {
     throw new Error("the stale path was not reported as a warning");
   }

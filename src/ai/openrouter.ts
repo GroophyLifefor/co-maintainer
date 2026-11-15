@@ -47,7 +47,7 @@ export function openRouterHost(): ChatHost {
 
 /** Provider failures as actionable text. A 401 and a 400 for
  * an unknown model are preconditions the user can fix, so they are usage
- * errors; anything else is a runtime failure. Only the provider's own
+ * errors. Anything else is a runtime failure. Only the provider's own
  * `error.message` is surfaced: the raw body can carry account metadata
  * (`user_id`) that has no business in a terminal. */
 export function openRouterError(

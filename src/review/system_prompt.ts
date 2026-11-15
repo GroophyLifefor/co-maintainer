@@ -8,7 +8,7 @@ import type { RepoConfig } from "../config.ts";
 /** Default cap on `reviewSystemPrompt`, in characters. */
 export const DEFAULT_REVIEW_SYSTEM_PROMPT_MAX_CHARS = 8000;
 
-/** The repository's cap, or `null` for no limit. Unset takes the default; a
+/** The repository's cap, or `null` for no limit. Unset takes the default. A
  * non-positive value means unlimited. */
 export function reviewSystemPromptLimit(
   repoConfig: Pick<RepoConfig, "reviewSystemPromptMaxChars"> | undefined,

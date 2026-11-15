@@ -2,7 +2,7 @@
  *
  * `/api/v1/models` is public: no key needed. The list is large and changes
  * slowly, so it is cached for 24 hours in cache.db. A network failure is not
- * fatal — the estimate then reports tokens and time but no dollars, which is
+ * fatal, the estimate then reports tokens and time but no dollars, which is
  * still useful and never invents a price. */
 import { openRouterBase } from "./verify.ts";
 import { cacheGet, cacheSet } from "../store/cache_db.ts";

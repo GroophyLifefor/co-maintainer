@@ -161,7 +161,7 @@ This name does not match what it returns.
   if (colon[0].from !== 10 || colon[0].symbol !== "helper()") {
     throw new Error(`first colon finding: ${JSON.stringify(colon[0])}`);
   }
-  // The heading itself may omit the symbol; the Location line still supplies
+  // The heading itself may omit the symbol. The Location line still supplies
   // the path.
   if (colon[1].path !== "src/b.ts" || colon[1].symbol !== undefined) {
     throw new Error(`second colon finding: ${JSON.stringify(colon[1])}`);
@@ -228,7 +228,7 @@ test("the colon-separator findings survive the JSON round trip whole", () => {
   }
 });
 
-/** A parser can only guess a finding's boundary if the renderer left one; this
+/** A parser can only guess a finding's boundary if the renderer left one. This
  * walks many answers with prose of different lengths and checks each excerpt
  * is exactly the body that went in, never a slice of its neighbour. */
 test("boundaries hold across many finding shapes", () => {

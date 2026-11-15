@@ -406,7 +406,7 @@ function rewriteMdLinks(html: string): string {
 /** Docs prose must not use em dashes or semicolons (code fences excluded). */
 export function lintDocMd(md: string, name: string): void {
   const prose = md.replace(/```[\s\S]*?```/g, "");
-  if (/—/.test(prose)) {
+  if (/\u2014/.test(prose)) {
     throw new Error(`${name}: em dash is not allowed in docs`);
   }
   if (/;/.test(prose)) {

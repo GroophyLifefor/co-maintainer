@@ -3,7 +3,7 @@
  * Every class name here comes from the stylesheet block scoped to `.app` /
  * `.focus` (see `styles.css`), so a page must render inside one of those
  * wrappers to be styled. Callers pass pre-escaped HTML for content that may
- * contain markup (table cells, alert bodies); `text()` is the default for
+ * contain markup (table cells, alert bodies), `text()` is the default for
  * plain strings.
  *
  * `field()` always links its label and control, which is what keeps the
@@ -191,7 +191,7 @@ export function segmented(
 }
 
 /** A labelled switch. `label` is required because it becomes the control's
- * accessible name; there is no other text the switch could borrow. */
+ * accessible name. There is no other text the switch could borrow. */
 export function switchControl(opts: {
   id: string;
   label: string;

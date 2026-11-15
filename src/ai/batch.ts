@@ -122,7 +122,7 @@ export class AiBatch {
       const cached = this.records[id];
       if (cached?.status === "done" && cached.response) {
         // A `done` record from 0.4.x can hold output that never parsed. Treat
-        // that as a miss and delete it so the retry below replaces it; the
+        // that as a miss and delete it so the retry below replaces it. The
         // corrupted record heals on its own the next time its unit runs.
         const reason = this.validate?.(request, cached.response) ?? null;
         if (reason === null) {
@@ -185,7 +185,7 @@ export class AiBatch {
   /** Runs one unit, retrying a provider error and a response the validator
    * rejects. It never throws: a provider error that outlives its retries drops
    * the unit, and a response that still does not validate is used anyway. A run
-   * that has already paid for extraction must still write what it has; a format
+   * that has already paid for extraction must still write what it has. A format
    * deviation is not worth losing the whole run over. The one exception is
    * Ctrl-C: every call then fails at once, and a run that went on without
    * them would write guides with every section dropped. */

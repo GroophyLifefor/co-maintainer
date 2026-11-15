@@ -117,7 +117,8 @@ test("warning text has no semicolon and no em dash", () => {
     ...warnings,
     ...coverageWarnings({ ...fullCoverage(1), dropped: ["a.ts"] }, true),
   ]) {
-    if (message.includes(";") || message.includes("—")) {
+    // punctuation: code, the guard looks for the semicolon character in the output
+    if (message.includes(";") || message.includes("\u2014")) {
       throw new Error(message);
     }
   }

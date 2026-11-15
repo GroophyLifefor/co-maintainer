@@ -228,7 +228,7 @@ export function cancelQueuedJobs(
 }
 
 /** Aborts running reviews. They never write guides, so clearing while one
- * runs is safe either way; aborting stops the AI spend too. */
+ * runs is safe either way. Aborting stops the AI spend too. */
 export function abortRunningReviews(
   repos: string[],
   reason = CLEARED_REASON,
@@ -357,7 +357,7 @@ function uninstallTargets(): string[] {
 
 /** Removes every co-maintainer data file. The npm package itself cannot be
  * removed from inside the running CLI, so the command prints how to do that
- * instead. Refuses nothing here; the caller checks for a running `serve`. */
+ * instead. Refuses nothing here. The caller checks for a running `serve`. */
 export async function uninstallData(): Promise<UninstallResult> {
   // On Windows an open handle blocks the delete, and leaving wal/shm behind
   // would be worse than the file itself.

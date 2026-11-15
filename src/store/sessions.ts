@@ -1,4 +1,4 @@
-/** Stores only the token's hash, never the raw token — hashing itself is
+/** Stores only the token's hash, never the raw token, hashing itself is
  * `server/auth.ts`'s concern, not this module's. */
 import { getAppDb } from "./app_db.ts";
 import { nowIso } from "../util/time.ts";
@@ -19,7 +19,7 @@ export function insertSession(
 }
 
 /** Returns the session only if it exists and has not expired, touching
- * `last_seen_at` on the way — an expired row is left for
+ * `last_seen_at` on the way, an expired row is left for
  * `deleteExpiredSessions` to reap rather than deleted here. */
 export function getSession(tokenHash: string): SessionRow | undefined {
   const db = getAppDb();

@@ -227,7 +227,7 @@ export async function handleReposRoute(
       policyToKeep = stored.value;
     }
     // `patch` is the confirmed preview. It is optional so a caller that
-    // never opened the preview keeps the old behavior; when present it is
+    // never opened the preview keeps the old behavior. When present it is
     // written before `activateRepo` so the enqueued init reads it.
     const patch =
       body.patch && typeof body.patch === "object"

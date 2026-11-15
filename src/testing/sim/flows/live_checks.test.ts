@@ -4,8 +4,8 @@
  * run cannot be tried without a key, so this is the cheapest honest proof that
  * the skips are where they should be and nothing else moves:
  *
- * - the same checks, in the same order, with the same names;
- * - a skipped one says why, and a live run never fails it;
+ * - the same checks, in the same order, with the same names,
+ * - a skipped one says why, and a live run never fails it,
  * - every check that is not skipped gives the same result either way, so
  *   what a flow keeps running live is exactly what holds for any answer. */
 import assert from "node:assert/strict";

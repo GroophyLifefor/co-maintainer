@@ -62,7 +62,7 @@ function chatReply(content: string): { status: number; body: string } {
 
 /** What a schema-aware model answers a review with: the JSON object
  * the `response_format` asks for. A clean review is `{"findings":[]}`, which
- * renders as `No actionable findings.` — the same shape the Markdown path
+ * renders as `No actionable findings.`, the same shape the Markdown path
  * produced, so downstream tests need no change. */
 const REVIEW_JSON = JSON.stringify({ findings: [] });
 
@@ -194,7 +194,7 @@ export function startFakeOpenRouter(
         requests.push({ __unparsed: raw });
       }
       if (mode === "timeout") return; // Leave the request hanging.
-      // The verification calls are GETs to `/key` and `/models`; everything
+      // The verification calls are GETs to `/key` and `/models`. Everything
       // else is the chat completion the review sends.
       const path = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
       let failed = false;
@@ -203,7 +203,7 @@ export function startFakeOpenRouter(
         failed = chatCalls <= flakyJsonFailures;
       }
       // A review asks for the findings schema. Answer it with that shape only
-      // when the mode itself would succeed; an error mode must still surface
+      // when the mode itself would succeed. An error mode must still surface
       // its status so the error paths stay testable. Everything that
       // is not a review keeps the mode's canned reply.
       const base = reply(mode);

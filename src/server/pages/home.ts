@@ -80,7 +80,7 @@ export function renderHome(
     cost: string;
   }[],
   checklist: SetupItem[],
-  /** `rows` is already filtered; `total` and `reviewing` count every
+  /** `rows` is already filtered, `total` and `reviewing` count every
    * repository so the lead and the tabs do not shrink with the filter. */
   filter: { q: string; status: string; total: number; reviewing: number },
 ): Response {

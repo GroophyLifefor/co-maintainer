@@ -70,7 +70,7 @@ const secretFields = new Set([
 /** `co-maintainer set --token=... --ai=... --low-model=... --high-model=...
  * --auth=... --github-app-id=... --github-app-private-key=... (or
  * --github-app-private-key-file=path or --github-app-private-key-path=path)
- * --github-webhook-secret=...` —
+ * --github-webhook-secret=...`,
  * persists global defaults, including secrets, to config.json so every
  * other command can skip both the flag and the interactive prompt. See
  * docs/md/configuration.md for the tradeoff. */
@@ -355,8 +355,8 @@ export async function runSet(args: string[]): Promise<void> {
 
   // Verify the key and model before writing, so a typo fails here instead of
   // after a review has already fetched and cloned the pull request.
-  // A field present in the patch wins, including when its value is `undefined`
-  // — that is an unset, and there is nothing left to verify.
+  // A field present in the patch wins, including when its value is `undefined`.
+  // That is an unset, and there is nothing left to verify.
   const before = readConfig();
   const effective = (field: keyof typeof patch): unknown =>
     field in patch ? patch[field] : before[field as keyof typeof before];

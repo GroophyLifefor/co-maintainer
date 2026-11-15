@@ -1,6 +1,6 @@
 /** The one place every stored timestamp comes from. The
  * "every timestamp is ISO8601 UTC" rule lives here instead of as a
- * convention repeated at each call site — `store/*` never calls
+ * convention repeated at each call site, `store/*` never calls
  * `new Date().toISOString()` directly. */
 export function nowIso(): string {
   return new Date().toISOString();

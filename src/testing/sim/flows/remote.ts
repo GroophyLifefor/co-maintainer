@@ -1,7 +1,7 @@
 /** Remote review and push review: `review --remote` and `--range`.
  *
  * The client and the server run in this one process. The server is the one
- * `sim.server` starts, with `sim/sample` initialized; the client is a real
+ * `sim.server` starts, with `sim/sample` initialized. The client is a real
  * clone of `sim/sample` with a change, running the real CLI from inside it.
  * The remote wire tags every call with the side that made it, so the checks
  * can tell the client's calls from the server's.

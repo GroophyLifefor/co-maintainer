@@ -105,11 +105,13 @@ test("handshake refusal: no code, or a code this client does not know, stays a h
 test("handshake refusal: the server's text loses its control characters", async () => {
   const error = await handshakeFailure(
     refusal(502, {
+      // punctuation: code, an ANSI control sequence uses semicolons as separators
       error: { message: "\u001b]52;c;aGk=\u0007bad\u001b[2J\rgateway" },
     }),
     "https://review.example.com",
     "acme/widgets",
   );
+  // punctuation: code, the expected text holds the semicolons of an ANSI sequence
   if (error.message !== "]52;c;aGk=bad[2Jgateway") {
     throw new Error(JSON.stringify(error.message));
   }

@@ -82,7 +82,7 @@ function parseTimeout(value: string | undefined): number | undefined {
 function reviewFlags(rest: string[]): ReviewFlags {
   const text = (name: string) =>
     rest.find((item) => item.startsWith(`--${name}=`))?.slice(name.length + 3);
-  // `--remake-before-review` is the 0.4.13 spelling; both names mean the same
+  // `--remake-before-review` is the 0.4.13 spelling. Both names mean the same
   // thing, and only the new one is documented.
   const syncBeforeReview = rest.some(
     (arg) => arg === "--sync-before-review" || arg === "--remake-before-review",
@@ -212,7 +212,7 @@ export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
     die("--experimental-siwc cannot be used with --remote");
   }
   // `--remote-host` / `--remote-token` only mean something together with
-  // `--remote`; silently dropping them is exactly the kind of surprise to avoid.
+  // `--remote`. Silently dropping them is exactly the kind of surprise to avoid.
   if ((flags.remoteHost || flags.remoteToken) && !flags.remote) {
     die("--remote-host and --remote-token require --remote");
   }

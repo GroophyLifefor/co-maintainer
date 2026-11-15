@@ -469,7 +469,7 @@ export const SET_CASES: SetCase[] = [
       "--high-model=high/model",
       // The fixture key and model are not real, and `set` verifies them against
       // OpenRouter before writing. Offline compat runs skip that
-      // check; the verification path has its own test in config.test.ts.
+      // check. The verification path has its own test in config.test.ts.
       "--no-verify",
     ],
     config: {

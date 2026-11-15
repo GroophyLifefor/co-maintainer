@@ -287,6 +287,7 @@ test("a remote result splits back into AI findings and extensions", () => {
 
 /** The check `publish` runs on everything it posts. */
 function forbidden(text: string): boolean {
+  // punctuation: code, the check names the semicolon it removes from text
   return outsideCode(text, (prose) => prose.replaceAll(";", "")) !== text;
 }
 

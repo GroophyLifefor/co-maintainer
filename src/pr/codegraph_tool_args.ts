@@ -35,7 +35,7 @@ export function rejectShellMetacharacters(
   return null;
 }
 
-/** Repo-relative path only — no `..`, no absolute paths (plan E103). */
+/** Repo-relative path only, no `..`, no absolute paths (plan E103). */
 export function rejectEscapingPath(file: string): string | null {
   const flag = rejectFlagLike(file, "file");
   if (flag) return flag;

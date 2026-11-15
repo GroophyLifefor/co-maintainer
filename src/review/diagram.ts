@@ -84,6 +84,7 @@ export function plantumlServerProblem(value: string): string | null {
   // The link is posted as Markdown, so a path that can end it early or be
   // rewritten as prose would break every diagram.
   if (/\s/.test(value) || /[()[\]<>`\\;"]/.test(url.pathname)) {
+    // punctuation: code, the message names the semicolon character the path check rejects
     return 'must not contain spaces or any of ( ) [ ] < > ` \\ ; " in its path';
   }
   return null;
@@ -345,13 +346,13 @@ const PLANTUML_GUIDANCE = `PlantUML selection and minimal syntax:
 Write standard PlantUML source in a fenced code block tagged plantuml, from
 @startuml to @enduml. Do not write an image, an image link, a server URL, or
 any other diagram language. Our code decides how the source is shown.
-sequence diagram = ordered calls, webhooks, retries, responses, and timing;
-activity diagram = decisions, branches, pipelines, and fallback paths;
+sequence diagram = ordered calls, webhooks, retries, responses, and timing.
+activity diagram = decisions, branches, pipelines, and fallback paths.
 class diagram = classes, interfaces, types, inheritance, composition, and
-database entities;
-state diagram = lifecycle and state transitions;
-component diagram = services, modules, boundaries, and integrations;
-deployment diagram = containers, storage, and deployment topology;
+database entities.
+state diagram = lifecycle and state transitions.
+component diagram = services, modules, boundaries, and integrations.
+deployment diagram = containers, storage, and deployment topology.
 use case diagram = actors and system capabilities.
 Use the smallest type that matches the evidence. Keep labels short.`;
 

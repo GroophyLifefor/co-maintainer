@@ -23,7 +23,7 @@
  * The full fix is `previous_response_id`, which needs a response id to
  * survive between calls, and `AiProvider.complete` is stateless for every
  * provider. Upgrade path: thread a response id through `AiResponse` if this
- * turns out to matter in practice; codegraph's own tool loop caps rounds low
+ * turns out to matter in practice. Codegraph's own tool loop caps rounds low
  * (mermaid_loop.ts's `maxToolRounds`), which limits how much is at stake.
  */
 import type {
@@ -131,7 +131,7 @@ function toResponsesTool(tool: Json): ResponsesTool {
 }
 
 /** A tool call and its result do not live inside a message the way Chat
- * Completions nests them; each is its own item in `input`. */
+ * Completions nests them. Each is its own item in `input`. */
 function toResponsesInput(messages: AiMessage[]): {
   instructions: string | undefined;
   input: Json[];
@@ -276,10 +276,10 @@ export function parseResponsesBody(
 }
 
 /** The SSE body the plan usage route always returns (`stream: true`). The
- * text deltas are ignored; the output items arrive as their own
+ * text deltas are ignored. The output items arrive as their own
  * `response.output_item.done` events, because this route's terminal
  * `response.completed` carries an empty `output` array (the standard API
- * fills it). The terminal response supplies `usage` and `status`; the
+ * fills it). The terminal response supplies `usage` and `status`. The
  * collected items supply `output`, so the shared {@link parseResponsesBody}
  * sees the same shape on both routes. A stream with no terminal response
  * throws, and one cut mid-way names `url`'s host. */
@@ -306,7 +306,7 @@ export async function readResponsesStream(
     const { done, value } = chunk;
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
-    // SSE events are separated by a blank line; tolerate CRLF.
+    // SSE events are separated by a blank line. Tolerate CRLF.
     buffer = buffer.replace(/\r/g, "");
     let index = buffer.indexOf("\n\n");
     while (index >= 0) {

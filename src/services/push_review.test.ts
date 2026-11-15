@@ -161,6 +161,7 @@ test("a tracked finding is found again by its code, the nearest match first", ()
     blank?.from === 3 && blank.to === 4,
     `whitespace and blank lines: ${JSON.stringify(blank)}`,
   );
+  // punctuation: code, a source code line searched for in a fixture file
   expect(locateAnchor(content, "gone();", 1) === undefined, "missing code");
 });
 

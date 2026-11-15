@@ -78,7 +78,7 @@ export async function loadGuides(repo: string): Promise<LoadedGuides> {
     try {
       guideBuiltAt = getRepo(repo)?.knowledge_built_at ?? null;
     } catch {
-      // Local CLI review without `serve` — guides still load from disk.
+      // Local CLI review without `serve`, guides still load from disk.
     }
     // With no `repos` row, the files are the only evidence of when the guide
     // was built. Without this a local review always says `guide unknown` and

@@ -1,4 +1,4 @@
-/** `createApp(deps).fetch(request)` — no port, no sockets, so it is testable
+/** `createApp(deps).fetch(request)`, no port, no sockets, so it is testable
  * with a plain `Request`. */
 import { VERSION } from "../version.ts";
 import { errorResponse } from "./errors.ts";

@@ -1,5 +1,5 @@
 /** `co-maintainer view`: print the guides co-maintainer already generated.
- * Read-only — the counterpart to `config` for the generated
+ * Read-only, the counterpart to `config` for the generated
  * knowledge rather than the settings.
  *
  * Two sources, one presentation: the guide directory on this machine,
@@ -8,7 +8,7 @@
  * and the every-guide headers are all rendered by the same code.
  *
  * Naming: the guide kinds are `skill`, `codebase`,
- * `review-guide`, `detailed-guide`; `--list` and the headers show the real
+ * `review-guide`, `detailed-guide`, `--list` and the headers show the real
  * file names, and a kind name is accepted too so a user never has to type
  * `PR_REVIEW_GUIDE.md` unless they want to. */
 import { readConfig, reposDir } from "../../config.ts";

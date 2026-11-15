@@ -242,6 +242,7 @@ test("fake AI markdown becomes findings rows and a GitHub review POST", async ()
     ) {
       throw new Error(`inline finding was truncated ${body.comments[0].body}`);
     }
+    // punctuation: code, the guard looks for the semicolon character in the output
     if (JSON.stringify(posted.body).includes(";")) {
       throw new Error("posted review body used a semicolon");
     }
@@ -419,6 +420,7 @@ test("denied pull request files post one comment and access_denied", async () =>
       throw new Error(`posted ${write.endpoint}`);
     }
     const body = (write.body as { body: string }).body;
+    // punctuation: code, the guard looks for the semicolon character in the output
     if (body.includes("\u2014") || body.includes(";")) {
       throw new Error("access denied copy used a dash or semicolon");
     }
@@ -555,7 +557,7 @@ const GATE_PATCH = [
 function reviewWithSuggestion(code: string): FakeAiProvider {
   return new FakeAiProvider(`## Findings
 
-### [P1 · blocking] \`src/app.ts\` — \`gate()\`
+### [P1 · blocking] \`src/app.ts\`: \`gate()\`
 Location: \`src/app.ts:16-18\`
 
 The threshold comparison is strict, so a violation at the threshold passes.
@@ -932,8 +934,10 @@ test("a repeat goes inline when the earlier comments cannot be read", async () =
   });
 });
 
-test("humanCopy preserves the review heading dash and removes semicolons", () => {
-  const cleaned = humanCopy("Broken — really; stop");
+test("humanCopy preserves the em dash and removes semicolons", () => {
+  // punctuation: code, the test feeds a prose semicolon to the cleaner
+  const cleaned = humanCopy("Broken \u2014 really; stop");
+  // punctuation: code, the guard looks for the semicolon character in the output
   if (!cleaned.includes("\u2014") || cleaned.includes(";")) {
     throw new Error(cleaned);
   }
@@ -942,6 +946,7 @@ test("humanCopy preserves the review heading dash and removes semicolons", () =>
     model: "test-model",
     durationMs: 1000,
   });
+  // punctuation: code, the guard looks for the semicolon character in the output
   if (body.includes(";")) {
     throw new Error(body);
   }
@@ -1278,6 +1283,7 @@ test("the review names files it never reviewed and always reports coverage", () 
     full: 58,
     partial: ["src/store/reads.ts"],
     summarized: [],
+    // punctuation: code, the test needs a file name that contains a semicolon
     dropped: ["src/a;b.ts"],
     withheld: ["package-lock.json"],
   };
@@ -1290,6 +1296,7 @@ test("the review names files it never reviewed and always reports coverage", () 
   ) {
     throw new Error(wholePr);
   }
+  // punctuation: code, the test needs a file name that contains a semicolon
   for (const want of [
     "No actionable findings in the files reviewed.",
     "Not reviewed (2)",
@@ -1314,6 +1321,7 @@ test("a file name cannot inject Markdown or a mention into the review body", () 
       full: 0,
       partial: [],
       summarized: [],
+      // punctuation: code, the test needs a file name that contains a semicolon
       dropped: [hostile, "a`b @someone`c;d.png"],
       withheld: [],
     },

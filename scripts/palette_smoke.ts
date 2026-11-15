@@ -133,7 +133,7 @@ try {
       );
     };
 
-    // Ctrl K opens with focus in the input; Esc closes and restores focus.
+    // Ctrl K opens with focus in the input, Esc closes and restores focus.
     await page.locator("#theme").focus();
     await page.keyboard.press("Control+k");
     check(await open(), "Ctrl K did not open the palette");
@@ -145,7 +145,7 @@ try {
     check(!(await open()), "Esc did not close the palette");
     check((await focusedId()) === "theme", "Esc did not give focus back");
 
-    // Cmd K opens too; an outside click closes.
+    // Cmd K opens too. An outside click closes.
     await page.keyboard.press("Meta+k");
     check(await open(), "Cmd K did not open the palette");
     await page.mouse.click(5, 5);
@@ -208,7 +208,7 @@ try {
       `a long repository name overflows the palette by ${overflow}px`,
     );
 
-    // Arrow keys move the selection; Enter opens the selected result.
+    // Arrow keys move the selection, Enter opens the selected result.
     await page.fill("#pal-q", "widg");
     await settle(page);
     const first = await selected();

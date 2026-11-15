@@ -44,7 +44,7 @@ export function startHeartbeat(phase: string | (() => string)): () => void {
   }, 15_000);
   // Never keep the process alive on its own. A long operation holds
   // the loop open through its own pending async work (a fetch, a child), so the
-  // heartbeat still fires; but once that work is gone the timer must not be the
+  // heartbeat still fires, but once that work is gone the timer must not be the
   // reason the process cannot drain and apply its exit code. Every call site
   // used to clear this by hand on the success path only, so any thrown error
   // leaked it and the CLI hung instead of exiting.

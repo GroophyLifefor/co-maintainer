@@ -7,7 +7,7 @@
  *
  *   `Done in 21.0s · 3,125 in, 1,308 out tokens · $0.0016`
  *
- * stdout is untouched; this is progress/diagnostic output, and mixing it into
+ * stdout is untouched. This is progress/diagnostic output, and mixing it into
  * stdout would corrupt `--json` and any piped text. When the provider does not
  * report a cost the dollar field is `cost unknown` rather than `$0.0000`.
  */
@@ -26,12 +26,12 @@ export type RunSummary = {
   costNote?: string;
 };
 
-/** `3,125` — grouped the way the numbers read in the docs. */
+/** `3,125`, grouped the way the numbers read in the docs. */
 function group(value: number): string {
   return Math.round(value).toLocaleString("en-US");
 }
 
-/** `21.0s`, `1.3s`, `2m 03s`; one decimal below a minute, whole seconds above. */
+/** `21.0s`, `1.3s`, `2m 03s`. One decimal below a minute, whole seconds above. */
 export function formatDuration(ms: number): string {
   const seconds = ms / 1000;
   if (seconds < 60) return `${seconds.toFixed(1)}s`;
@@ -58,7 +58,7 @@ export function formatRunSummary(summary: RunSummary): string {
   return parts.join(" · ");
 }
 
-/** Formats and writes the summary. To stderr for the CLI; inside a dashboard
+/** Formats and writes the summary. To stderr for the CLI. Inside a dashboard
  * job (no stderr) it goes to the job log instead. It prints even when the run
  * made no AI call, because a cache-hit `sync` that cost nothing is a fact the
  * user asked for, not a reason to stay silent. */

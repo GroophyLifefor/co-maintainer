@@ -927,6 +927,7 @@ test("review --remote: a server's own text cannot put escape sequences on the te
         handshakeRefusal: {
           status: 500,
           code: "internal",
+          // punctuation: code, an ANSI control sequence uses semicolons as separators
           message: "\u001b]52;c;aGk=\u0007boom\u001b[2J\rdone",
         },
       },

@@ -297,6 +297,7 @@ async function login(): Promise<void> {
     body: `password=${encodeURIComponent(PASSWORD)}`,
     redirect: "manual",
   });
+  // punctuation: code, the Set-Cookie header separates its attributes with a semicolon
   cookie = (response.headers.get("set-cookie") ?? "").split(";")[0]!;
   if (!cookie) throw new Error("login did not set a cookie");
 }

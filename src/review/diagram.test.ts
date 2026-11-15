@@ -357,7 +357,7 @@ test("PlantUML wording follows the prose rules", () => {
     plantumlPromptRules(options)!,
     plantumlReplyRules(options)!,
   ]) {
-    if (text.includes("—")) throw new Error("em dash");
+    if (text.includes("\u2014")) throw new Error("em dash");
     if (/[a-z]; [a-z]/.test(text)) throw new Error("semicolon in prose");
   }
 });

@@ -130,7 +130,7 @@ test("validateGuide accepts a method and rejects generic or banned content", () 
     ],
     ["a priority tag", method([...CHECKS, "Fix the P1 leak · it is critical"])],
     ["a pull-request number", method([...CHECKS, "Fix PR #12 · it regressed"])],
-    ["an attribution", method([...CHECKS, "Fix it — Ada · she asked"])],
+    ["an attribution", method([...CHECKS, "Fix it \u2014 Ada · she asked"])],
     ["a mention", method([...CHECKS, "Ping @octocat · they own it"])],
     ["a commit id", method([...CHECKS, "See deadbeef0 · it changed"])],
     ["a placeholder", method([...CHECKS, "TODO fix · later"])],

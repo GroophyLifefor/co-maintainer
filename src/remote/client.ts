@@ -272,7 +272,7 @@ export async function runRemoteReview(
       gitRoot: root,
       enabled: !cli.disableCodegraph,
       allowInstall: cli.allowToolInstall,
-      // `--json` must stay machine-readable; `canPrompt` adds TTY and CI.
+      // `--json` must stay machine-readable, `canPrompt` adds TTY and CI.
       interactive: !cli.json && canPrompt(),
     });
     const localTools = toolHandlerMap(codegraphPrep.tools);
@@ -299,7 +299,7 @@ export async function runRemoteReview(
         files: built.revision.files,
       },
       capabilities: { tools: capabilityTools },
-      // Only present when this run turned BYOK on; `byokKey` is
+      // Only present when this run turned BYOK on, `byokKey` is
       // known to be set here because of the earlier `byokEnabled` guard.
       ...(byokEnabled ? { byok: { key: byokKey! } } : {}),
       // The client's one-run instructions, when given. The server applies
@@ -338,7 +338,7 @@ export async function runRemoteReview(
     let afterLogSeq = 0;
     let toolResults: Awaited<ReturnType<typeof runRemoteToolCalls>> = [];
     let toolCallsRun = 0;
-    // A trustworthy server drives at most a few tool rounds; cap the total so a
+    // A trustworthy server drives at most a few tool rounds. Cap the total so a
     // malicious one cannot make the client read its tree without limit.
     const MAX_REMOTE_TOOL_CALLS = 200;
     const intervalMs = hs.sync.intervalSeconds * 1000;

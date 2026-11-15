@@ -2,7 +2,7 @@
  * dashboard's Add repository preview.
  *
  * It only reads: no guide is written, nothing is cached here. The CLI adds
- * the estimate, the printing and `--run`; `/api/repos/preview` adds the
+ * the estimate, the printing and `--run`, `/api/repos/preview` adds the
  * access check and returns the plan for confirmation. Keeping one
  * implementation means the number an operator confirms is the number `init`
  * would be given. */

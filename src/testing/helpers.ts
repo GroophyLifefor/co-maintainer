@@ -1,4 +1,4 @@
-/** Shared by tests only — never imported by production code. */
+/** Shared by tests only, never imported by production code. */
 import type { Options } from "../types.ts";
 import type { Fact, Source } from "../knowledge/types.ts";
 

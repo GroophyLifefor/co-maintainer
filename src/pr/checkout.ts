@@ -11,7 +11,7 @@ export function withCloneLock<T>(
 }
 
 /** Shared git plumbing for anything that needs a real checkout of a
- * repository — the codegraph map and the upstream/own-work scope both need
+ * repository, the codegraph map and the upstream/own-work scope both need
  * a clone and a way to resolve a commit that is not necessarily reachable
  * from any branch (a squash-merged or rebased-away PR head). One
  * implementation, so the two never manage the same on-disk clone in two
@@ -87,7 +87,7 @@ async function cloneInto(repo: string, dir: string, run: Run): Promise<string> {
         (firstLine ? `: ${firstLine}` : ""),
     );
   }
-  // A pull request may ship symlinks; without this a codegraph tool could read
+  // A pull request may ship symlinks. Without this a codegraph tool could read
   // through one to a file outside the tree. Persist it in the clone so every
   // worktree checkout writes symlinks as plain files instead of following them.
   await run("git", ["config", "core.symlinks", "false"], dir);
@@ -100,14 +100,14 @@ async function cloneInto(repo: string, dir: string, run: Run): Promise<string> {
 
 /** In-flight clone per destination directory. A benchmark run reviews several
  * PRs of the same repo concurrently, and each one's scope/map computation
- * calls `ensureClone` independently; without this, the first concurrent burst
+ * calls `ensureClone` independently. Without this, the first concurrent burst
  * has every caller see "not cloned yet" and race `git clone` into the same
- * directory — one wins, the rest fail with "already exists" and silently fall
+ * directory, one wins, the rest fail with "already exists" and silently fall
  * back to an unscoped review. Concurrent callers now await the one real clone
  * instead. The two statements between the `pathExists` check and this map's
  * `get`/`set` are synchronous (no `await` between them), so whichever caller's
  * continuation runs first registers the clone before any other caller can
- * observe an empty map entry — ordinary JS single-threaded scheduling, not a
+ * observe an empty map entry, ordinary JS single-threaded scheduling, not a
  * lock. */
 const cloningInFlight = new Map<string, Promise<string>>();
 
@@ -135,7 +135,7 @@ export async function ensureClone(repo: string, run: Run): Promise<string> {
 /** Resolves `candidate` to a commit SHA, or returns undefined. Two plain
  * commands rather than one `rev-parse <rev>^{commit}`: on Windows this runs
  * through `cmd /c`, where `^` is the shell's own escape character and would
- * silently eat the peel suffix, making a present commit look absent — the
+ * silently eat the peel suffix, making a present commit look absent, the
  * same trap `benchmark/core_v2/runners.ts`'s `requireCommit` avoids for the same
  * reason. `cat-file -t` after a caret-free `rev-parse` sidesteps it. */
 async function resolveCommit(
@@ -155,8 +155,8 @@ async function resolveCommit(
   return sha;
 }
 
-/** Resolves `revision` — a branch name, a remote-tracking ref, or a commit SHA
- * — to a commit SHA, fetching it directly if it is a SHA the clone does not
+/** Resolves `revision`, a branch name, a remote-tracking ref, or a commit SHA,
+ * to a commit SHA, fetching it directly if it is a SHA the clone does not
  * have. A round's boundary commit is often reachable only by SHA once its
  * branch has moved on or the PR was squash-merged, so no local or
  * remote-tracking ref points at it any more. */

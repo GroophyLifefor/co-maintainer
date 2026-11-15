@@ -24,7 +24,7 @@ import {
   rejectFlagLike,
 } from "./codegraph_tool_args.ts";
 
-// Each codegraph subcommand as its own tool, no synthesis step in between —
+// Each codegraph subcommand as its own tool, no synthesis step in between,
 // verified against the installed `codegraph <command> --help` output.
 
 type Args = Record<string, unknown>;

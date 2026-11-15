@@ -3,6 +3,7 @@ import { OpenAiProvider } from "./openai.ts";
 import { AnthropicProvider } from "./anthropic.ts";
 import { openCodeHost } from "./opencode.ts";
 import { EXPERIMENTAL_OAUTH_PROVIDER, oauthOps } from "./oauth/registry.ts";
+import { withCopyRule } from "./copy_rule.ts";
 import { die } from "../cli/error.ts";
 import type {
   AiMessage,
@@ -40,11 +41,17 @@ export function aiProviderName(options: Options): string {
   return options.experimentalSiwc ? EXPERIMENTAL_OAUTH_PROVIDER : options.ai;
 }
 
+/** The provider for a run. Every one it returns is wrapped by
+ * `withCopyRule`, so no job reaches a model without the punctuation rule. */
 export function createAiProvider(
   options: Options,
   model: string,
 ): AiProvider | undefined {
-  // `--experimental-siwc` wins over `--ai` for the run; `parseArgs` refuses
+  return withCopyRule(createRawProvider(options, model));
+}
+
+function createRawProvider(options: Options, model: string): AiProvider {
+  // `--experimental-siwc` wins over `--ai` for the run, `parseArgs` refuses
   // the two together, so this only sees one of them set.
   if (options.experimentalSiwc) {
     return oauthOps(EXPERIMENTAL_OAUTH_PROVIDER).createProvider(model);
@@ -167,7 +174,7 @@ export function chatBody(model: string, request: AiRequest): Json {
       ? { tools: request.tools, tool_choice: "auto" }
       : {}),
     // A review asks for structured output. The schema is sent even
-    // when tools are present, because most providers accept the pair; one that
+    // when tools are present, because most providers accept the pair. One that
     // rejects it gets a single retry without the schema (see
     // `OpenRouterProvider.complete`), and the prompt also asks for a fenced
     // JSON block, so a plain-text provider still works.

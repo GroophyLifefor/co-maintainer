@@ -62,7 +62,7 @@ export const ENV_BY_FIELD: Record<string, string[]> = {
   codegraphVersion: ["CM_CODEGRAPH_VERSION"],
 };
 
-/** Renders one field for people. A secret is masked; the password hash, which
+/** Renders one field for people. A secret is masked. The password hash, which
  * nobody can use, only reports whether it is set. */
 export function displayValue(field: string, value: unknown): string {
   if (field === "dashboardPasswordHash") {

@@ -26,7 +26,7 @@
  * called for the SDK's `stream()` + `finalMessage()` helper for large `max_tokens` (a single
  * review can ask for 96k). The SDK is not a dependency (kept fetch-only, the
  * same as every other provider), and a hand-rolled SSE accumulation loop is a
- * lot of code for a first cut. Anthropic's HTTP request timeout is the risk;
+ * lot of code for a first cut. Anthropic's HTTP request timeout is the risk,
  * if a real review ever hits it, add the streaming loop here. Upgrade path:
  * `stream:true` + parse `content_block_delta` events into the same
  * `parseMessagesBody` result shape.
@@ -198,7 +198,7 @@ function toAnthropicMessages(messages: AiMessage[]): {
   };
 }
 
-/** Haiku 4.5 does not support `output_config.effort`; sending it is a 400.
+/** Haiku 4.5 does not support `output_config.effort`. Sending it is a 400.
  * Anthropic's effort accepts low/medium/high/xhigh/max, so the only level this
  * has to drop is "none": it means "reasoning off" in `AiRequest` and is not an
  * effort value Anthropic lists. */

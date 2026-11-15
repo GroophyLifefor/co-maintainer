@@ -99,7 +99,7 @@ export function connectionCut(url: string, error: unknown): CliError {
 }
 
 /** Reads a response body. fetch rejects with a `TypeError` when the
- * connection closes mid-body; that becomes {@link connectionCut}. */
+ * connection closes mid-body. That becomes {@link connectionCut}. */
 export async function readBody(
   url: string,
   response: Response,

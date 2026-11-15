@@ -51,7 +51,7 @@ export function oauthUnknownProvider(value: string | undefined): CliError {
 export type OAuthOps = {
   label: string;
   credentialsPath(): string;
-  /** The browser flow; always starts a new sign-in. */
+  /** The browser flow. Always starts a new sign-in. */
   login(): Promise<Credentials>;
   logout(): Promise<boolean>;
   refresh(): Promise<Credentials>;

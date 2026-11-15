@@ -2003,7 +2003,7 @@ html.dark {
   background: #0b0b0c;
 }
 
-/* The shell owns the horizontal padding; page wrappers no longer add any.
+/* The shell owns the horizontal padding. Page wrappers no longer add any.
    A narrow page starts on the same left edge and only ends earlier. */
 .app .wrap {
   padding: 0;

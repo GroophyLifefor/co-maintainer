@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2] - 2026-11-15
+
+**Before you upgrade.** A review comment posted by a release older than 0.5.0 used an em dash between the path and the symbol in a finding heading. co-maintainer no longer splits that form into a path and a symbol, so such an old comment reads as one heading. The note that a retry posts after a failed review now reads `co-maintainer reviewed this push. The review is below.`
+
+### Added
+
+- **A punctuation check.** `npm run punctuation` fails on an em dash, an en dash, or a semicolon in prose, in code comments, strings, Markdown and CSS. CI runs it on every pull request and on every push to `main`. A string that needs a semicolon as code carries a note with its reason, for example for a Cookie header.
+- **Every AI job carries the punctuation rule.** `createAiProvider` wraps each provider so the rule reaches the system prompt of the review, the replies, the watch jobs, the guide synthesis and the benchmark judge. A job added later gets it without extra work.
+- **`CONTRIBUTING.md` explains the rule.** It shows the right and wrong form and how to write the note.
+
+### Changed
+
+- **Text that a person reads no longer holds the marks the rule rejects.** Code comments, the prompt lines that list diagram types, the joined messages of `init` and of the guide's commit examples, and the benchmark text were reworded.
+
 ## [0.7.1] - 2026-11-15
 
 **Before you upgrade.** The guide prompt changed, so each repository's next `sync` misses the AI cache and pays for both review guides once. `ruleChanges` in `sync --json` gains a `guide` list next to `instructions`, and a repository without instruction files now gets a `RULES.json` too.

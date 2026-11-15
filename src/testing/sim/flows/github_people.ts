@@ -5,7 +5,7 @@
  * GitHub moves a pull request's `updated_at` when someone comments on it or
  * reviews it. `SimGithub.comment` and `reviewComment` do not, and `init` and
  * `sync` decide what to fetch again from `updated_at` alone, so these helpers
- * move it. They belong in `github.ts`; they live here until the core takes
+ * move it. They belong in `github.ts`. They live here until the core takes
  * them. */
 import type { SimComment, SimGithub, SimPull, SimReview } from "../github.ts";
 

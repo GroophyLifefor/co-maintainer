@@ -39,7 +39,7 @@ export async function hashRemoteBearerToken(token: string): Promise<string> {
 export function validateRemoteTokenName(name: string): string | null {
   const trimmed = name.trim();
   if (!NAME_RE.test(trimmed)) {
-    return "name must be 1–64 characters (letters, numbers, spaces, . -)";
+    return "name must be 1-64 characters (letters, numbers, spaces, . -)";
   }
   return null;
 }

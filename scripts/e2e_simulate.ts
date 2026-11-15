@@ -8,12 +8,12 @@
  * this process. GitHub lives in memory over real git repositories in a
  * sandbox, `fetch` and `gh` are caught so nothing leaves the machine, and the
  * product's own functions are called directly. Without `--ai` each flow's
- * fake AI script answers; with it the real provider does, and costs money.
+ * fake AI script answers. With it the real provider does, and costs money.
  *
  * Each flow is a file under `src/testing/sim/flows/`. This script only parses
  * the flags and runs the registered flows, each in its own world.
  * Deterministic checks fail the run. Scores are only reported. Each step is
- * one terminal line; `--output=<dir>` also writes a JSON file per run with the
+ * one terminal line, `--output=<dir>` also writes a JSON file per run with the
  * summary and, per flow, the full trace (GitHub, AI and remote calls, webhook
  * deliveries, GitHub writes, logs, git commands, files and database rows). */
 import { spawnSync } from "node:child_process";

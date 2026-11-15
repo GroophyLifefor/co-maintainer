@@ -48,7 +48,9 @@ const MESSAGE = `Review guides are missing for ${REPO}`;
 const LOCAL_HINT = `co-maintainer init ${REPO}`;
 
 /** What a hostile or broken server could put in an error text. */
+// punctuation: code, an ANSI control sequence uses semicolons as separators
 const HOSTILE = "\u001b]52;c;aGk=\u0007bad\u001b[2J\rgateway";
+// punctuation: code, an ANSI control sequence uses semicolons as separators
 const HOSTILE_CLEAN = "]52;c;aGk=bad[2Jgateway";
 
 /** A change the push step has not put on the default branch yet. */

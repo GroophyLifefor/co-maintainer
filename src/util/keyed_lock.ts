@@ -2,7 +2,7 @@
 type Queue = { running: boolean; waiters: Array<() => void> };
 const queues = new Map<string, Queue>();
 
-/** @internal For tests — number of keys with an active or queued lock. */
+/** @internal For tests, number of keys with an active or queued lock. */
 export function keyedLockActiveKeys(): number {
   return queues.size;
 }

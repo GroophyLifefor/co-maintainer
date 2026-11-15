@@ -317,7 +317,7 @@ function synthesisFacts(facts: Fact[], key: string): Fact[] {
   return (
     facts
       // A section that states repository policy never learns from a single pull
-      // request's narrative; only `review-bar` may.
+      // request's narrative. Only `review-bar` may.
       .filter(
         (item) =>
           item.sectionKey === key &&

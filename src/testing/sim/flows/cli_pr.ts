@@ -64,6 +64,7 @@ const DIVIDE = [
 ].join("\n");
 const DIVIDE_GUARDED = [
   "export function divide(a: number, b: number): number {",
+  // punctuation: code, a fixture line of TypeScript source written to disk
   '  if (b === 0) throw new RangeError("divide by zero");',
   "  return a / b;",
   "}",

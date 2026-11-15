@@ -99,12 +99,12 @@ await git(worktree, ["commit", "-m", "change"]);
 
 const twoFindingsMarkdown = `## Findings
 
-### [P2 · non-blocking] \`app.ts\` — \`v\`
+### [P2 · non-blocking] \`app.ts\`: \`v\`
 Location: \`app.ts:1\`
 
 First issue.
 
-### [P2 · non-blocking] \`app.ts\` — \`other\`
+### [P2 · non-blocking] \`app.ts\`: \`other\`
 Location: \`app.ts:1\`
 
 Second issue.

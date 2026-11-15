@@ -9,7 +9,7 @@ import { notInitializedError } from "../review/not_initialized.ts";
 import type { Revision } from "../review/revision.ts";
 import { computeScope } from "./scope.ts";
 import { prepareCodegraphTools } from "./codegraph_tools.ts";
-import { REVIEW_COPY_RULE, severitySection } from "./review_copy.ts";
+import { severitySection } from "./review_copy.ts";
 import {
   repositoryInstructionsBlock,
   reviewSystemPromptBlock,
@@ -182,19 +182,19 @@ function diffReport(chars: number, coverage: Coverage): string {
 }
 
 export const MERMAID_GUIDANCE = `Mermaid selection and minimal syntax:
-flowchart = decisions, branches, pipelines, and fallback paths;
-swimlane-beta = work crossing owners, actors, services, teams, or layers;
-sequenceDiagram = ordered calls, webhooks, retries, responses, and timing;
-classDiagram = class, interface, type, inheritance, or composition relationships;
-stateDiagram-v2 = lifecycle and state transitions;
-erDiagram = database entities, keys, and cardinality;
-requirementDiagram = requirements linked to tests or implementation;
-usecase-beta = actors and system capabilities;
-C4Context = users, systems, boundaries, and integrations;
-zenuml = compact nested call sequences;
-packet = binary fields, bit ranges, and protocol layout;
-architecture-beta = services, containers, storage, and deployment topology;
-eventmodeling = commands, events, processors, read models, and timelines;
+flowchart = decisions, branches, pipelines, and fallback paths.
+swimlane-beta = work crossing owners, actors, services, teams, or layers.
+sequenceDiagram = ordered calls, webhooks, retries, responses, and timing.
+classDiagram = class, interface, type, inheritance, or composition relationships.
+stateDiagram-v2 = lifecycle and state transitions.
+erDiagram = database entities, keys, and cardinality.
+requirementDiagram = requirements linked to tests or implementation.
+usecase-beta = actors and system capabilities.
+C4Context = users, systems, boundaries, and integrations.
+zenuml = compact nested call sequences.
+packet = binary fields, bit ranges, and protocol layout.
+architecture-beta = services, containers, storage, and deployment topology.
+eventmodeling = commands, events, processors, read models, and timelines.
 treeView-beta = directory, file, module, or dependency hierarchy.
 If a diagram is useful, call read-mermaid-syntaxes before writing any Mermaid.
 Request every type you need in a single call, because repeated tool rounds are
@@ -244,7 +244,7 @@ ${diagrams ? (plantumlSystemRules(options) ?? REVIEW_DIAGRAM_RULES) : NO_DIAGRAM
 /** The guide block every review sends, kept as the stable head of the system
  * prompt rather than the user prompt so a provider with prompt caching
  * (Anthropic's `cache_control`) reads it instead of re-billing it. Nothing
- * time-varying may enter this string — a single differing byte makes the cache
+ * time-varying may enter this string, a single differing byte makes the cache
  * miss. */
 export function reviewGuidesBlock(
   guide: string,
@@ -280,7 +280,7 @@ type UsageSinkForNormalize = UsageSink;
 
 /** Turns a model reply into the Markdown every consumer already parses.
  * A reply that is not usable JSON is retried once with an
- * explicit reminder; if that also fails, the raw text is returned so the
+ * explicit reminder, if that also fails, the raw text is returned so the
  * legacy Markdown parser can still read it. This keeps a provider that ignores
  * `response_format` working, and never drops a review on the floor. */
 async function normalizeReviewResponse(
@@ -424,9 +424,9 @@ export async function reviewPullRequest(
   }
 
   // What the author actually wrote this round, as opposed to code that
-  // arrived by merging the default branch in — see scope.ts. A re-review
+  // arrived by merging the default branch in, see scope.ts. A re-review
   // round's diff regularly carries a `merge main` that dwarfs the PR's own
-  // change and that no human reviewer reads either; --review-upstream turns
+  // change and that no human reviewer reads either, --review-upstream turns
   // this off and reviews everything, matching the pre-scope behavior.
   const headSha =
     snapshot?.commit ?? String((pr.head as Json | undefined)?.sha ?? "");
@@ -489,7 +489,7 @@ export async function reviewPullRequest(
   }
   const extraTools: ToolHandler[] = [...codegraphTools, ...prepared.tools];
 
-  // Bigger own-scope diffs need more codegraph round-trips to trace — fixed
+  // Bigger own-scope diffs need more codegraph round-trips to trace, fixed
   // at 3 rounds regardless of size caused the model to run out mid-review on
   // large PRs (verified via a tokio benchmark run: it hallucinated fake
   // tool-call text instead of a finding once tools were dropped).
@@ -551,7 +551,6 @@ suggestion. Write prose only: do not emit Markdown headings, a Location line,
 backticks around the path, or the sentence "If you'd like me to explain it in
 more detail, please ask." Our code renders the heading, the location, and the
 suggestion from your JSON fields. Use P0-P3 severity, and true for blocking.
-${REVIEW_COPY_RULE}
 Every diff line in the DIFF section starts with its line number in the new
 file. Copy "lineFrom" and "lineTo" from that column instead of counting from
 the @@ header. Removed lines have no number, so anchor a finding about removed
@@ -622,7 +621,7 @@ ${diff}`;
       `${aiProviderName(options)} returned an empty review. The reasoning budget may have been exhausted`,
     );
   }
-  // The model returns JSON; we render the Markdown. A reply
+  // The model returns JSON. We render the Markdown. A reply
   // that is not usable JSON is retried once and then falls back to the legacy
   // Markdown parser, so a provider that ignores the schema still works.
   let reviewText = await normalizeReviewResponse(
@@ -711,7 +710,7 @@ ${reviewText}`,
   };
 }
 
-/** Local workspace review — same prompt loop as PR review without GitHub. */
+/** Local workspace review, same prompt loop as PR review without GitHub. */
 export async function reviewWorkspaceRevision(
   revision: Revision,
   options: Options,

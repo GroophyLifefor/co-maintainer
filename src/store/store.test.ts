@@ -1,4 +1,4 @@
-/** Exercises every store module against a real (temp-file) app.db — the
+/** Exercises every store module against a real (temp-file) app.db, the
  * schema and the query layer together. */
 import { closeAppDb, openAppDb } from "./app_db.ts";
 import {

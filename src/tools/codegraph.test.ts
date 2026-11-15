@@ -214,7 +214,7 @@ test("ensureCodegraph does not install when the async prompt says no", async () 
     confirm: async () => false,
     exit: (code) => {
       exitCode = code;
-      // `process.exit` never returns; stand in for that without killing the
+      // `process.exit` never returns. Stand in for that without killing the
       // test runner.
       throw new Error(`exit ${code}`);
     },

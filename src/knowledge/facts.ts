@@ -573,7 +573,7 @@ export function extractFacts(source: Source, options: Options): Fact[] {
           "style",
           `Recent commit examples: ${examples
             .map((message) => `\`${message.slice(0, 100)}\``)
-            .join("; ")}.`,
+            .join(", ")}.`,
           "commit history",
           2,
         ),

@@ -1,4 +1,5 @@
 import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
+import { withCopyRuleRequest } from "./copy_rule.ts";
 import { getEnv, readTextFileSync } from "../util/runtime.ts";
 
 export const FAKE_REVIEW_MARKDOWN = `## Findings
@@ -67,7 +68,7 @@ export class FakeAiProvider implements AiProvider {
   }
 
   async complete(request: AiRequest): Promise<AiResponse> {
-    await this.record(request);
+    await this.record(withCopyRuleRequest(request));
     return {
       text: this.jobText(request.job) ?? this.text,
       tokensIn: 10,

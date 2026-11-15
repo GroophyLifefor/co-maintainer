@@ -4,7 +4,7 @@
  * wrong offsets, because the model's free-form Markdown was sliced by the
  * fallback parser. The fix is to have the model return JSON and generate the
  * Markdown ourselves, so a finding's boundaries can no longer be guessed from
- * prose. Markdown stays the internal contract — every downstream consumer
+ * prose. Markdown stays the internal contract, every downstream consumer
  * (`parseFindings`, carry-over, GitHub posting) keeps working unchanged.
  */
 import type { Json } from "../types.ts";

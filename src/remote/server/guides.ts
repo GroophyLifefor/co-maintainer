@@ -1,4 +1,4 @@
-/** `GET /api/remote/guides?repo=owner/repo` — read a repository's guides with a
+/** `GET /api/remote/guides?repo=owner/repo`, read a repository's guides with a
  * remote token.
  *
  * This is what `view --remote` calls. It is a read-only addition: no existing
