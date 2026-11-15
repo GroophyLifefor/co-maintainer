@@ -40,16 +40,24 @@ folder, including any file co-maintainer did not write, with its size and date.
 
 ## Sources
 
-[`INSTRUCTIONS.md`](init.md#agent-instruction-files) is built from the repository's
-agent instruction files, and each rule in it ends with an id such as `[I1]`.
-`--sources` lists every rule by id with the file lines it came from:
+Each check line in the review guides ends with an id such as `[R12]`, and each
+rule in [`INSTRUCTIONS.md`](init.md#agent-instruction-files) with an id such as
+`[I1]`. `--sources` lists every rule by id with where it came from: the pull
+requests and the newest month one of them merged for a guide rule, the file
+lines for an instruction rule:
 
 ```
 $ co-maintainer view owner/repo --sources
+PR_REVIEW_GUIDE.md
+  R12  Money formatting goes through formatMoney() · rounding differs per currency
+       #212, #340 · newest 2026-03
 INSTRUCTIONS.md
-  I1  Format amounts with formatMoney(), never with number methods
-      AGENTS.md:31 · packages/billing/AGENTS.md:8
+  I1   Format amounts with formatMoney(), never with number methods
+       AGENTS.md:31 · packages/billing/AGENTS.md:8
 ```
+
+A guide rule with one pull request ends in `1 PR`. A guide written before 0.7.1
+has no ids until the next `sync`.
 
 `--sources --json` prints `RULES.json` as it is. `RULES.json` is the data behind
 this view. It is never printed by plain `view`, by `--list` or by a single-guide

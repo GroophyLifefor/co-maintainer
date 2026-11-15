@@ -265,9 +265,14 @@ To collect every state again, pass <code>--pr-state=open,closed,merged</code>.</
 <p>Under <code>&lt;config dir&gt;/repos/owner/repo/</code> (see <a href="caching.html">Caching</a>):</p>
 <ul>
 <li><code>SKILL.md</code> and <code>CODEBASE.md</code></li>
-<li><code>PR_REVIEW_GUIDE.md</code> and related review guides when PR sources were included</li>
-<li><code>INSTRUCTIONS.md</code> and <code>RULES.json</code>, only when an agent instruction file matches
+<li><code>PR_REVIEW_GUIDE.md</code> and related review guides when PR sources were included.
+Each check line ends with an id such as <code>[R12]</code></li>
+<li><code>INSTRUCTIONS.md</code>, only when an agent instruction file matches
 (see <a href="#agent-instruction-files">Agent instruction files</a>)</li>
+<li><code>RULES.json</code>, when the guides or <code>INSTRUCTIONS.md</code> have a rule. It records the
+pull requests behind each guide rule, with the date each merged, and the file
+lines behind each instruction rule. It is never sent to the model, and
+<a href="view.html#sources"><code>view --sources</code></a> prints it</li>
 </ul>
 <p>Every file is written by the AI provider. There is no offline or AI-free build,
 so <code>init</code> and <a href="sync.html"><code>sync</code></a> refuse to run when no provider is configured.</p>

@@ -239,9 +239,14 @@ Limits and include defaults can also come from [per-repo config](configuration.m
 Under `<config dir>/repos/owner/repo/` (see [Caching](caching.md)):
 
 - `SKILL.md` and `CODEBASE.md`
-- `PR_REVIEW_GUIDE.md` and related review guides when PR sources were included
-- `INSTRUCTIONS.md` and `RULES.json`, only when an agent instruction file matches
+- `PR_REVIEW_GUIDE.md` and related review guides when PR sources were included.
+  Each check line ends with an id such as `[R12]`
+- `INSTRUCTIONS.md`, only when an agent instruction file matches
   (see [Agent instruction files](#agent-instruction-files))
+- `RULES.json`, when the guides or `INSTRUCTIONS.md` have a rule. It records the
+  pull requests behind each guide rule, with the date each merged, and the file
+  lines behind each instruction rule. It is never sent to the model, and
+  [`view --sources`](view.md#sources) prints it
 
 Every file is written by the AI provider. There is no offline or AI-free build,
 so `init` and [`sync`](sync.md) refuse to run when no provider is configured.
@@ -525,6 +530,20 @@ is not filled from the previous listing. `--only-request-changed-pr` does not
 turn itself off. To collect every state again, pass
 `--pr-state=open,closed,merged`.
 
+## What `sync` says about guide rules
+
+Each check line of the review guides rests on the pull requests whose findings
+it merges. When the guides are rewritten and an earlier `RULES.json` has guide
+rules, `sync` says what changed:
+
+    [guide] 2 rules added (#402, #407) · 1 rewritten (R12, #340 joined) · 1 dropped (#101 left the window)
+
+or `[guide] no rule changed`. Guide rules are matched by their pull requests the
+same way instruction rules are matched by their file lines, see the table below.
+A dropped rule whose pull request is outside the window this `sync` read says
+`left the window`. The first `sync` after upgrading to 0.7.1 rewrites both guides
+once, because the guide prompt changed.
+
 ## What `sync` says about instruction rules
 
 When the repository has agent instruction files, `sync` rebuilds
@@ -554,9 +573,11 @@ output.
 ## JSON output
 
 `sync --json` prints the same document as [`init --json`](init.md#json-output),
-with `command` `sync`. When the instruction files did something it also has
-`ruleChanges`. It is `null` without an earlier `RULES.json`, otherwise it lists
-the same three kinds of change in full. `previous` holds the ids of the old
+with `command` `sync`. When the guides or the instruction files did something it
+also has `ruleChanges`. It is `null` without an earlier `RULES.json`, otherwise
+it lists the same three kinds of change in full, under `guide` and
+`instructions`. A dropped guide rule also has `leftWindow`, the pull requests
+that are outside the window this `sync` read. `previous` holds the ids of the old
 rules a rewritten rule came from, `joined` the sources it gained and `left` the
 sources it lost:
 
@@ -675,16 +696,24 @@ folder, including any file co-maintainer did not write, with its size and date.
 
 ## Sources
 
-[`INSTRUCTIONS.md`](init.md#agent-instruction-files) is built from the repository's
-agent instruction files, and each rule in it ends with an id such as `[I1]`.
-`--sources` lists every rule by id with the file lines it came from:
+Each check line in the review guides ends with an id such as `[R12]`, and each
+rule in [`INSTRUCTIONS.md`](init.md#agent-instruction-files) with an id such as
+`[I1]`. `--sources` lists every rule by id with where it came from: the pull
+requests and the newest month one of them merged for a guide rule, the file
+lines for an instruction rule:
 
 ```
 $ co-maintainer view owner/repo --sources
+PR_REVIEW_GUIDE.md
+  R12  Money formatting goes through formatMoney() · rounding differs per currency
+       #212, #340 · newest 2026-03
 INSTRUCTIONS.md
-  I1  Format amounts with formatMoney(), never with number methods
-      AGENTS.md:31 · packages/billing/AGENTS.md:8
+  I1   Format amounts with formatMoney(), never with number methods
+       AGENTS.md:31 · packages/billing/AGENTS.md:8
 ```
+
+A guide rule with one pull request ends in `1 PR`. A guide written before 0.7.1
+has no ids until the next `sync`.
 
 `--sources --json` prints `RULES.json` as it is. `RULES.json` is the data behind
 this view. It is never printed by plain `view`, by `--list` or by a single-guide
@@ -3632,7 +3661,7 @@ co-maintainer view [owner/repo] --sources [--json]
 | Flag | Default | Description |
 |---|---|---|
 | `--list` |  | List the guide files with their size and build date. |
-| `--sources` |  | List every instruction rule by id, with the instruction file lines it came from. |
+| `--sources` |  | List every guide and instruction rule by id, with the pull requests or instruction file lines it came from. |
 | `--json` |  | With --sources, print RULES.json as it is. |
 | `--path` |  | Print the directory the guides live in. |
 | `--remote` |  | Read the guides from the configured remote review server instead. |
@@ -4681,8 +4710,9 @@ Under `repos/<owner>/<repo>/` (the literal repository name, so `repos/acme/widge
 
 - `SKILL.md`, `CODEBASE.md`
 - `PR_REVIEW_GUIDE.md` and related review guides when PR sources were included
-- `INSTRUCTIONS.md` and `RULES.json` when the repository has agent instruction
-  files, see [`init`](init.md#agent-instruction-files)
+- `INSTRUCTIONS.md` when the repository has agent instruction files, see
+  [`init`](init.md#agent-instruction-files)
+- `RULES.json` when the guides or `INSTRUCTIONS.md` have a rule
 
 A review reads `INSTRUCTIONS.md` inside the cached guide block of its system
 prompt, as a `REPOSITORY INSTRUCTIONS` section after the codebase conventions.

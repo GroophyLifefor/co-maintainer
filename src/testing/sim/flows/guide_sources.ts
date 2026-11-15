@@ -256,7 +256,7 @@ const listOf = (items: unknown[]) => items.join(", ") || "none";
 function fakeOnly(sim: Sim, result: CheckResult): CheckResult {
   return sim.mode === "fake"
     ? result
-    : { ...result, ok: true, skipped: "reads the fake AI's answers" };
+    : { ...result, ok: true, skipped: "live AI: reads the fake AI's answers" };
 }
 
 /** The pull request each rule a maintainer wrote came from. */

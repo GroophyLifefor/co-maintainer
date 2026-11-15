@@ -116,14 +116,21 @@ file raw, with no header, so the output can be redirected straight to a file:</p
 (<code>review-guide</code>) or the file or body name. <code>--list</code> lists every file in the
 folder, including any file co-maintainer did not write, with its size and date.</p>
 <h2 id="sources">Sources</h2>
-<p><a href="init.html#agent-instruction-files"><code>INSTRUCTIONS.md</code></a> is built from the repository&#39;s
-agent instruction files, and each rule in it ends with an id such as <code>[I1]</code>.
-<code>--sources</code> lists every rule by id with the file lines it came from:</p>
+<p>Each check line in the review guides ends with an id such as <code>[R12]</code>, and each
+rule in <a href="init.html#agent-instruction-files"><code>INSTRUCTIONS.md</code></a> with an id such as
+<code>[I1]</code>. <code>--sources</code> lists every rule by id with where it came from: the pull
+requests and the newest month one of them merged for a guide rule, the file
+lines for an instruction rule:</p>
 <pre><code>$ co-maintainer view owner/repo --sources
+PR_REVIEW_GUIDE.md
+  R12  Money formatting goes through formatMoney() · rounding differs per currency
+       #212, #340 · newest 2026-03
 INSTRUCTIONS.md
-  I1  Format amounts with formatMoney(), never with number methods
-      AGENTS.md:31 · packages/billing/AGENTS.md:8
+  I1   Format amounts with formatMoney(), never with number methods
+       AGENTS.md:31 · packages/billing/AGENTS.md:8
 </code></pre>
+<p>A guide rule with one pull request ends in <code>1 PR</code>. A guide written before 0.7.1
+has no ids until the next <code>sync</code>.</p>
 <p><code>--sources --json</code> prints <code>RULES.json</code> as it is. <code>RULES.json</code> is the data behind
 this view. It is never printed by plain <code>view</code>, by <code>--list</code> or by a single-guide
 view. <code>--sources</code> works with <code>--remote</code>, which reads the copy the server holds.</p>

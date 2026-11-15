@@ -309,7 +309,7 @@ co-maintainer view [owner/repo] --sources [--json]
 | Flag | Default | Description |
 |---|---|---|
 | `--list` |  | List the guide files with their size and build date. |
-| `--sources` |  | List every instruction rule by id, with the instruction file lines it came from. |
+| `--sources` |  | List every guide and instruction rule by id, with the pull requests or instruction file lines it came from. |
 | `--json` |  | With --sources, print RULES.json as it is. |
 | `--path` |  | Print the directory the guides live in. |
 | `--remote` |  | Read the guides from the configured remote review server instead. |
