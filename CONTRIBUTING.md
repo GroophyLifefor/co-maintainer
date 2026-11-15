@@ -1,21 +1,21 @@
 # Contributing
 
-## User-facing text has no em dash and no semicolon
+## No em dash, and a semicolon only in code
 
-Any text a user reads has no em dash (`—`) and no semicolon (`;`). This is a
-product rule for all of co-maintainer, not a style choice for one place. It
-covers:
+There is no em dash (`—`) anywhere in co-maintainer's text, and a semicolon
+(`;`) appears only in code. This is a rule for the whole project, not a style
+choice for one place. It covers:
 
-- findings, review summaries, references and every other part of a review the
-  App or the CLI posts
-- replies to comments and answers to questions
-- CLI messages, errors, hints and help text
-- the dashboard
+- everything a user sees: findings, review summaries, references and every
+  other part of a review the App or the CLI posts, replies to comments and
+  answers to questions, CLI messages, errors, hints and help text, the
+  dashboard
 - the docs, the README, the changelog and the benchmark READMEs
+- comments in the source code
 
-Code is exempt: a semicolon in source code, a code block or inline code is
-fine. A hyphen (`-`) is not an em dash and is allowed. Use a colon, a comma, a
-period or a new sentence instead.
+A semicolon is fine in source code itself, in a code block and in inline code.
+It is not fine in a code comment, which is prose. A hyphen (`-`) is not an em
+dash and is allowed. Use a colon, a comma, a period or a new sentence instead.
 
 Where it is checked today:
 
@@ -23,6 +23,8 @@ Where it is checked today:
 - `scripts/prose.test.ts` checks the README, the changelog and the benchmark
   READMEs.
 - `src/pr/review_copy.ts` tells the model to write review prose without them.
+
+Nothing checks code comments or text the model writes for replies yet.
 
 A new kind of user-facing text, such as a new reply or a new review section,
 follows the rule in its template and in the prompt that writes it.
