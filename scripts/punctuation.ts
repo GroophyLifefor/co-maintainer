@@ -195,13 +195,30 @@ function withoutMarkup(chunk: string): string {
 const CODE_SHAPE =
   /\{[^}]*;|;\s*\}|=>|^\s*[\w.+*-]+\/[\w.+*-]+(?:;\s*[\w-]+=[^;\s]+)+\s*$|\$\(|\\n|^@@ -\d/m;
 
+/** Three plain words in a row. Code holds identifiers, operators and brackets
+ * between its words, and its keywords do not count, so a run like this is a
+ * sentence. A sentence that also holds an arrow or a brace is mixed text. */
+const KEYWORD =
+  "(?:const|let|var|function|return|import|export|from|await|async|class|new|throw|type|interface|try|catch|break|continue|default|case|else|for|while|if|of|in|as|typeof|void|extends|implements|static|public|private)";
+const WORD = `(?!${KEYWORD}\\b)[a-z]{2,}`;
+const SENTENCE = new RegExp(
+  `(?:^|[^\\w$./-])(?!${KEYWORD}\\b)[A-Za-z]{2,}(?: ${WORD}){2,}(?![\\w$.(/-])`,
+);
+
 /** True when every semicolon in the text is syntax: markup is set aside first,
- * and what remains either holds no semicolon or looks like code. */
+ * and what remains either holds no semicolon or looks like code and does not
+ * read as a sentence. */
 export function isCodeShaped(chunk: string): boolean {
   const view = withoutMarkup(chunk);
   // punctuation: code, the check looks for the semicolon character in text
   if (!view.includes(";")) return true;
-  return CODE_SHAPE.test(view);
+  // Comments and quoted strings inside a code snippet are text of their own,
+  // so they do not make the snippet a sentence.
+  const skeleton = view
+    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/\/\/[^\n]*/g, " ")
+    .replace(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`[^`]*`/g, '""');
+  return CODE_SHAPE.test(view) && !SENTENCE.test(skeleton);
 }
 
 /** The text of a template part without the marks that join it to the next
@@ -459,6 +476,15 @@ function hashCommentViolations(file: string, text: string): Violation[] {
       line,
     );
     if (note && !yaml) {
+      // punctuation: code, the check looks for the semicolon character in text
+      if ((note[1] ?? "").includes(";")) {
+        found.push({
+          file,
+          line: index + 1,
+          kind: "semicolon in a comment",
+          text: line.trim(),
+        });
+      }
       if ((note[1] ?? "").trim().split(/\s+/).filter(Boolean).length < 3) {
         found.push({
           file,
@@ -524,6 +550,11 @@ function hashCommentViolations(file: string, text: string): Violation[] {
       return;
     }
     if (key && !code) found.push(...yamlValue(file, index + 1, key[2] ?? ""));
+    // A sequence item that is a plain scalar, not a mapping: `- "text"`.
+    const item = /^\s*-\s+(.*)$/.exec(line);
+    if (!key && item && !/^[A-Za-z0-9_-]+:(?:\s|$)/.test(item[1]!)) {
+      found.push(...yamlValue(file, index + 1, item[1]!));
+    }
   });
   if (pending) {
     found.push({
@@ -628,6 +659,15 @@ function htmlViolations(file: string, text: string): Violation[] {
     /<!--\s*punctuation: code(?:, ([^]*?))?\s*-->\s*<([A-Za-z0-9]+)\b/g,
   )) {
     const line = lineAt(text, note.index ?? 0);
+    // punctuation: code, the check looks for the semicolon character in text
+    if ((note[1] ?? "").includes(";")) {
+      found.push({
+        file,
+        line,
+        kind: "semicolon in a comment",
+        text: note[0].slice(0, 120),
+      });
+    }
     if ((note[1] ?? "").trim().split(/\s+/).filter(Boolean).length < 3) {
       found.push({
         file,

@@ -397,6 +397,52 @@ test("JSDoc text is checked for dashes and semicolons", () => {
   );
 });
 
+test("a note reason is prose, so it holds no semicolon", () => {
+  assert.deepEqual(
+    kinds(
+      "a.html",
+      "<!-- punctuation: code, first; second reason -->\n<div>let a = 1;</div>\n",
+    ),
+    ["1:semicolon in a comment"],
+  );
+  assert.deepEqual(
+    kinds(
+      "a.sh",
+      'RUN x \\\n# punctuation: code, first; second reason\necho "x; y"\n',
+    ),
+    ["2:semicolon in a comment"],
+  );
+  assert.deepEqual(
+    kinds(
+      "a.ts",
+      '// punctuation: code, first; second reason\nconst s = [";"];\n',
+    ),
+    ["1:semicolon in a comment"],
+  );
+});
+
+test("an arrow or a brace does not make a sentence code", () => {
+  assert.deepEqual(
+    kinds("a.ts", 'const s = "Use a => b mapping first; then retry now";\n'),
+    ["1:semicolon in a string"],
+  );
+  assert.deepEqual(
+    kinds("a.ts", 'const s = "const f = () => { return 1; };\n";\n'),
+    [],
+  );
+  assert.deepEqual(
+    kinds("a.ts", "const s = `var a = 1; // set the first value now\\n`;\n"),
+    [],
+  );
+});
+
+test("a YAML sequence item that is a plain scalar is checked", () => {
+  assert.deepEqual(kinds("a.yml", 'items:\n  - "Wait; then retry"\n'), [
+    "2:semicolon in a string",
+  ]);
+  assert.deepEqual(kinds("a.yml", "items:\n  - name: ok\n    size: 1\n"), []);
+});
+
 test("JSX text is checked", () => {
   assert.deepEqual(kinds("a.tsx", "const a = <b>first; second</b>;\n"), [
     "1:semicolon in a string",

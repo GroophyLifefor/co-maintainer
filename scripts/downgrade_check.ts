@@ -52,7 +52,7 @@ function findNpmCli(): string {
   const found = candidates.find((path) => existsSync(path));
   if (!found) {
     throw new Error(
-      `could not locate npm-cli.js; tried:\n${candidates.join("\n")}`,
+      `could not locate npm-cli.js. Tried:\n${candidates.join("\n")}`,
     );
   }
   return found;

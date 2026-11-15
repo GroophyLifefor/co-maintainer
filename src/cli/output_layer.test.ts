@@ -182,7 +182,7 @@ test("local review prints the shared human format, with the real guide date", as
     assertCleanHeader(stdout, "local");
     if (!stdout.includes("codegraph unavailable")) {
       throw new Error(
-        `codegraph was requested but absent; the header must say so:\n${stdout}\n${stderr}`,
+        `codegraph was requested but absent. The header must say so:\n${stdout}\n${stderr}`,
       );
     }
     // The source of the guide timestamp is the file on disk, so a local
