@@ -2,7 +2,7 @@
 
 ## No em dash, and a semicolon only in code
 
-There is no em dash (`—`) anywhere in co-maintainer's text, and a semicolon
+There is no em dash (U+2014) anywhere in co-maintainer's text, and a semicolon
 (`;`) appears only in code. This is a rule for the whole project, not a style
 choice for one place. It covers:
 
