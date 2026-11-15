@@ -135,3 +135,34 @@ See [PR_REVIEW_DETAILED_GUIDE.md](PR_REVIEW_DETAILED_GUIDE.md) for the full meth
     throw new Error(`counts: ${counts.join(" | ")}`);
   }
 });
+
+test("a check line with a Markdown link still gets its id", () => {
+  const guide = `# Checklist
+
+See [PR_REVIEW_DETAILED_GUIDE.md](PR_REVIEW_DETAILED_GUIDE.md) for the full method.
+
+## Docs
+
+- Link the [rate limit table](docs/limits.md) from a new route · readers look there first [2]
+`;
+  const result = assignGuideIds(guide, undefined, 3);
+  if (
+    !result.guide.includes(
+      "[rate limit table](docs/limits.md) from a new route · readers look there first [R1]",
+    )
+  ) {
+    throw new Error(`the check with a link got no id:\n${result.guide}`);
+  }
+  if (result.guide.includes("[2]")) {
+    throw new Error(
+      `the finding numbers stayed in the guide:\n${result.guide}`,
+    );
+  }
+  if (
+    !result.guide.includes(
+      "See [PR_REVIEW_DETAILED_GUIDE.md](PR_REVIEW_DETAILED_GUIDE.md) for the full method.",
+    )
+  ) {
+    throw new Error("the link to the detailed guide was touched");
+  }
+});

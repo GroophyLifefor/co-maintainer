@@ -23,10 +23,11 @@ export type GuideFileCount = { file: string; rules: number; withIds: number };
  * never taken. */
 const SOURCE_BRACKET = /\s+\[\s*(\d+(?:\s*,\s*\d+)*)\s*\]\s*$/;
 
-/** A top-level `rule · why` bullet, the guide's unit of a check. The link to
- * the detailed file is not a check. */
+/** A top-level `rule · why` bullet, the guide's unit of a check. A check may
+ * hold a Markdown link. The link to the detailed file is a plain line, and it
+ * carries no source list, so it is never rewritten. */
 function isCheckLine(line: string): boolean {
-  return line.startsWith("- ") && line.includes(" · ") && !line.includes("](");
+  return line.startsWith("- ") && line.includes(" · ");
 }
 
 /** The finding numbers at the end of a check line and the line without them,
