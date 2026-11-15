@@ -459,6 +459,29 @@ test("an inline shell comment is checked, a hash in quotes is not", () => {
   assert.deepEqual(kinds("a.sh", "ls # fine\n"), []);
 });
 
+test("quoted text in a YAML run step is checked, statement separators are not", () => {
+  assert.deepEqual(
+    kinds("a.yml", 'steps:\n  - run: echo "wait; then retry"\n'),
+    ["2:semicolon in a string"],
+  );
+  assert.deepEqual(kinds("a.yml", "steps:\n  - run: cd a; ls\n"), []);
+  assert.deepEqual(
+    kinds(
+      "a.yml",
+      'steps:\n  - run: |\n      echo "wait; then retry"\n      cd a; ls\n',
+    ),
+    ["3:semicolon in a string"],
+  );
+});
+
+test("a text attribute inside a string is checked", () => {
+  assert.deepEqual(
+    kinds("a.ts", "const s = '<a title=\"wait; then retry\">x</a>';\n"),
+    ["1:semicolon in a string"],
+  );
+  assert.deepEqual(kinds("a.ts", "const s = '<a title=\"ok\">x</a>';\n"), []);
+});
+
 test("JSX text is checked", () => {
   assert.deepEqual(kinds("a.tsx", "const a = <b>first; second</b>;\n"), [
     "1:semicolon in a string",

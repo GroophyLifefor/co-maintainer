@@ -58,7 +58,7 @@ jobs:
         run: |
           version="$(node -p "require('./package.json').version")"
           if [[ "$version" != *-* ]]; then
-            echo "::error::$version is not a prerelease; use the Publish workflow instead"
+            echo "::error::$version is not a prerelease. Use the Publish workflow instead"
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -73,7 +73,7 @@ jobs:
           version="${{ steps.version.outputs.version }}"
           if npm view "co-maintainer@$version" version >/dev/null 2>&1; then
             echo "published=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::co-maintainer@$version is already on the registry; skipping publish"
+            echo "::notice::co-maintainer@$version is already on the registry, skipping publish"
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
@@ -97,7 +97,7 @@ jobs:
         run: |
           version="$(node -p "require('./package.json').version")"
           if [[ "$version" != *-* ]]; then
-            echo "::error::$version is not a prerelease; use the Publish workflow instead"
+            echo "::error::$version is not a prerelease. Use the Publish workflow instead"
             exit 1
           fi
           name="ghcr.io/${GITHUB_REPOSITORY,,}"
@@ -117,7 +117,7 @@ jobs:
         run: |
           if docker manifest inspect "$IMAGE:$VERSION" >/dev/null 2>&1; then
             echo "pushed=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::$IMAGE:$VERSION is already on ghcr.io; skipping push"
+            echo "::notice::$IMAGE:$VERSION is already on ghcr.io, skipping push"
           else
             echo "pushed=false" >> "$GITHUB_OUTPUT"
           fi

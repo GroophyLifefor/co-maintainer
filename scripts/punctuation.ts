@@ -179,10 +179,18 @@ function commentSemicolons(
  * tag, a script or style block, or an entity is markup, and its own semicolon
  * is syntax, but it proves nothing about the words around it. A tag cut off by
  * the end of a template part is markup too. */
+/** The HTML attributes that hold text a person reads. The quote may carry a
+ * backslash, because the tag can sit inside a string literal. */
+const TEXT_ATTRIBUTE =
+  /\b(aria-label|aria-description|aria-placeholder|title|alt|placeholder|label|summary|value)\s*=\s*\\?["']([^"'\\]*)\\?["']/gi;
+
 function withoutMarkup(chunk: string): string {
   return chunk
     .replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, "")
-    .replace(/<\/?[A-Za-z][^>]*(?:>|$)/g, "")
+    .replace(/<\/?[A-Za-z][^>]*(?:>|$)/g, (tag) =>
+      // The attributes a person reads, such as a title or a value, stay.
+      [...tag.matchAll(TEXT_ATTRIBUTE)].map((m) => ` ${m[2] ?? ""} `).join(""),
+    )
     .replace(/&[A-Za-z#0-9]+;/g, "");
 }
 
@@ -501,6 +509,8 @@ function hashCommentViolations(file: string, text: string): Violation[] {
       if (yaml && !block.code) {
         found.push(...yamlValue(file, index + 1, line));
       }
+      if (yaml && block.code)
+        found.push(...shellStrings(file, index + 1, line));
       if (!/^\s*#/.test(line)) return;
     } else {
       block = undefined;
@@ -566,6 +576,9 @@ function hashCommentViolations(file: string, text: string): Violation[] {
       return;
     }
     if (key && !code) found.push(...yamlValue(file, index + 1, key[2] ?? ""));
+    // A `run` or `script` value is shell. Its quoted text is checked, and the
+    // semicolons that separate its statements are not.
+    if (key && code) found.push(...shellStrings(file, index + 1, key[2] ?? ""));
     // A sequence item that is a plain scalar, not a mapping: `- "text"`.
     const item = /^\s*-\s+(.*)$/.exec(line);
     if (!key && item && !/^[A-Za-z0-9_-]+:(?:\s|$)/.test(item[1]!)) {
