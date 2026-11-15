@@ -143,7 +143,7 @@ function guideChanged(
 }
 
 /** A guide rebuilt after the previous review invalidates that
- * review's verdicts, its "unchanged" suppression and its open findings — they
+ * review's verdicts, its "unchanged" suppression and its open findings, they
  * were all judged against the old rules. Such a run starts fresh instead:
  * every file is scanned again and old findings are no longer carried over.
  *
@@ -302,7 +302,7 @@ export function buildCarryPromptSection(
     "   not. Report every decision in a final section headed",
     '   exactly "## Previous findings", one line per id, exactly as',
     '   "- F1: open path:from-to" or "- F1: closed".',
-    'Do not repeat an open previous finding under "## Findings"; report there',
+    'Do not repeat an open previous finding under "## Findings". Report there',
     "only findings from job 1 that are not already covered below.",
     "",
   ];

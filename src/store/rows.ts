@@ -1,5 +1,5 @@
 /** JSON columns (permissions, events, args, settings) are stored as their
- * raw text; the table module that owns each one decides whether callers
+ * raw text. The table module that owns each one decides whether callers
  * see the string or a parsed object. */
 
 export type InstallationRow = {
@@ -33,7 +33,7 @@ export type RepoRow = {
    * Optional so a row built by hand (a test fixture) need not name it. */
   added_from?: string | null;
   /** Commit watch: 1 opens an issue for each P0/P1 finding. Optional so a
-   * hand-built fixture need not name it; missing means on. */
+   * hand-built fixture need not name it. Missing means on. */
   watch_open_issues?: number;
   /** Commit watch: `queue` reviews pushes in a row one by one,
    * `cancel-and-merge` folds a waiting or running review into the next. */

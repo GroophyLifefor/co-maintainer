@@ -197,7 +197,7 @@ try {
   ledger = JSON.parse(await readTextFile(ledgerPath));
 } catch (error) {
   if (isNotFound(error)) {
-    throw new Error(`Missing ${ledgerPath}; build it first (see plan.md §9)`);
+    throw new Error(`Missing ${ledgerPath}. Build it first (see plan.md §9)`);
   }
   throw error;
 }
@@ -610,7 +610,7 @@ async function runOnce(run: number) {
   // just the 14 with gold (plan.md K2: a severe finding on a control PR is a
   // false positive, full stop, meant to feed the same precision this does).
   // tp/fn only ever come from defective PRs (a control PR has no gold to
-  // match or miss); fp comes from both: an unmatched finding on a defective
+  // match or miss). Fp comes from both: an unmatched finding on a defective
   // PR, or any severe finding on a *successfully reviewed* control PR.
   const totals = reports.reduce(
     (sum, row) => {
@@ -674,7 +674,7 @@ async function runOnce(run: number) {
   const result = {
     repos,
     runner: runnerName,
-    gold: "bench core v3 — seeded, hand-verified defects (GroophyLifefor/heap-analysis), half the PRs are clean controls",
+    gold: "bench core v3: seeded, hand-verified defects (GroophyLifefor/heap-analysis), half the PRs are clean controls",
     label: label ?? null,
     systemPromptFile: systemPromptFile ?? null,
     run,

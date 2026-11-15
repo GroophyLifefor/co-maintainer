@@ -108,7 +108,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
   const { config, envPath } = prepareConfig(args);
   const env = (name: string): string | undefined => getEnv(name);
   const configDefault = config.defaults ?? {};
-  // Remembered from a prior `init`/`remake` on this exact repo — never a
+  // Remembered from a prior `init`/`remake` on this exact repo, never a
   // secret, so it can safely fill in everything except the API token.
   const repoConfig = config.repos?.[repoName] ?? {};
   const reviewBlocking = reviewBlockingFrom(

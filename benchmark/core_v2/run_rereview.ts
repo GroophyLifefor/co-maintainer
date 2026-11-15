@@ -16,7 +16,7 @@ import {
 
 // Gold sourced from a re-review round: the diff a human reviewer saw was the
 // incremental change between round_base_commit (what round N-1 left off at)
-// and round_commit (what the author pushed in response) — not the whole PR.
+// and round_commit (what the author pushed in response), not the whole PR.
 // See benchmark/core_v2/README.md.
 type Row = {
   /** Absent in a single-repo dataset, where every row belongs to `--repo`. */
@@ -99,7 +99,7 @@ try {
   dataset = JSON.parse(await readTextFile(datasetPath)) as Row[];
 } catch (error) {
   if (isNotFound(error)) {
-    throw new Error(`Missing ${datasetPath}; generate the gold set first`);
+    throw new Error(`Missing ${datasetPath}. Generate the gold set first`);
   }
   throw error;
 }
@@ -290,7 +290,7 @@ await mapPool(jobs, reviewConcurrent, async (rows) => {
     return;
   }
   // `prepMs` (scope, checkout, codegraph indexing) is real per-PR cost but not
-  // the "review" a human would compare across tools or runs — a cold worktree
+  // the "review" a human would compare across tools or runs, a cold worktree
   // vs. a warm one otherwise swings the headline time without either tool
   // actually reviewing any differently. Reported separately instead.
   const prepMs = result.prepMs;
@@ -405,7 +405,7 @@ const perRepo = repos.map((name) => {
     ...scores(counts),
     // A failed run's elapsed time is not split into prep vs. review, so it
     // would misrepresent both averages rather than just being absent from
-    // one — excluded here the same way an unknown cost stays out of avgCost.
+    // one, excluded here the same way an unknown cost stays out of avgCost.
     avgTimeMs: average(
       rows.filter((row) => row.timeKnown).map((row) => row.ms),
     ),
@@ -421,7 +421,7 @@ const perRepo = repos.map((name) => {
 const result = {
   repos,
   runner: runnerName,
-  gold: "re-review benchmark — real human comments from a later review round, shown only the incremental diff since the prior round",
+  gold: "re-review benchmark: real human comments from a later review round, shown only the incremental diff since the prior round",
   prs: reports.length,
   f1,
   precision,

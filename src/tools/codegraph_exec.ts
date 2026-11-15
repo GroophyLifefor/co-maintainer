@@ -27,7 +27,7 @@ export type CodegraphRunner = (
 /** Run the codegraph CLI in a repo root.
  *
  * On Windows the CLI is a `.cmd`/`.ps1` shim, and `node:child_process.spawn`
- * cannot execute those without a shell — it fails with `EINVAL`. `Deno.Command`
+ * cannot execute those without a shell, it fails with `EINVAL`. `Deno.Command`
  * resolved them natively, so this wrapper is needed only after the Node move.
  * Route through `cmd /c` exactly like `pr/checkout.ts` does for `git`.
  */

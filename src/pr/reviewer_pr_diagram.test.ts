@@ -31,19 +31,19 @@ diagram, so spend it on the finding that benefits most. If a user later asks
 for detailed reasoning in a reply, that reply may use up to five diagrams, but
 only when each adds a distinct useful view.
 Mermaid selection and minimal syntax:
-flowchart = decisions, branches, pipelines, and fallback paths;
-swimlane-beta = work crossing owners, actors, services, teams, or layers;
-sequenceDiagram = ordered calls, webhooks, retries, responses, and timing;
-classDiagram = class, interface, type, inheritance, or composition relationships;
-stateDiagram-v2 = lifecycle and state transitions;
-erDiagram = database entities, keys, and cardinality;
-requirementDiagram = requirements linked to tests or implementation;
-usecase-beta = actors and system capabilities;
-C4Context = users, systems, boundaries, and integrations;
-zenuml = compact nested call sequences;
-packet = binary fields, bit ranges, and protocol layout;
-architecture-beta = services, containers, storage, and deployment topology;
-eventmodeling = commands, events, processors, read models, and timelines;
+flowchart = decisions, branches, pipelines, and fallback paths.
+swimlane-beta = work crossing owners, actors, services, teams, or layers.
+sequenceDiagram = ordered calls, webhooks, retries, responses, and timing.
+classDiagram = class, interface, type, inheritance, or composition relationships.
+stateDiagram-v2 = lifecycle and state transitions.
+erDiagram = database entities, keys, and cardinality.
+requirementDiagram = requirements linked to tests or implementation.
+usecase-beta = actors and system capabilities.
+C4Context = users, systems, boundaries, and integrations.
+zenuml = compact nested call sequences.
+packet = binary fields, bit ranges, and protocol layout.
+architecture-beta = services, containers, storage, and deployment topology.
+eventmodeling = commands, events, processors, read models, and timelines.
 treeView-beta = directory, file, module, or dependency hierarchy.
 If a diagram is useful, call read-mermaid-syntaxes before writing any Mermaid.
 Request every type you need in a single call, because repeated tool rounds are

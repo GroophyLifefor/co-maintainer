@@ -59,7 +59,7 @@ test("remote validators accept v1 fixtures", async () => {
 });
 
 test("remote wire constants are frozen", () => {
-  // Bumping these changes the protocol; a 426/upgrade loop depends on the
+  // Bumping these changes the protocol. A 426/upgrade loop depends on the
   // exact upgrade command reaching older clients.
   if (REMOTE_SCHEMA_VERSION !== 1) {
     throw new Error(`REMOTE_SCHEMA_VERSION changed: ${REMOTE_SCHEMA_VERSION}`);

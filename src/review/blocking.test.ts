@@ -3,7 +3,7 @@
  * The same pull request was reviewed twice, the same P2 finding came back
  * `non-blocking` the first time and `blocking` the second, and the exit code
  * changed because the model's label moved. `severity` mode removes that
- * wobble; `model` keeps the 0.4.13 behavior, so no existing review changes its
+ * wobble, `model` keeps the 0.4.13 behavior, so no existing review changes its
  * exit code. Both rules live in one module so local, PR, remote and the GitHub
  * App cannot drift apart.
  */

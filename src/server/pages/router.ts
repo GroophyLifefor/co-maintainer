@@ -375,6 +375,7 @@ export async function handlePageRequest(
             status: 200,
             headers: {
               "content-type": "text/markdown; charset=utf-8",
+              // punctuation: code, the Content-Disposition header separates its parts with a semicolon
               "content-disposition": `attachment; filename="${doc.file}"`,
             },
           });
@@ -534,7 +535,7 @@ async function sessionOf(request: Request) {
 function safeNext(value: string | null): string {
   // A path-only redirect. It must start with a single "/", and may not hold a
   // backslash (browsers read "/\host" as "//host") or a control character (a
-  // tab or newline is stripped, turning "/\t/host" into "//host") — both would
+  // tab or newline is stripped, turning "/\t/host" into "//host"), both would
   // send the browser to another origin.
   if (!value || !value.startsWith("/") || value.startsWith("//")) return "/";
   for (let i = 0; i < value.length; i++) {
@@ -701,7 +702,7 @@ async function handleLoginForm(
 }
 
 /** `state` round-trips through an HttpOnly cookie set by `/auth/github`
- * (see `oauthStateCookieHeader`), not server memory — comparing it against
+ * (see `oauthStateCookieHeader`), not server memory, comparing it against
  * the query param is what stops a forged callback from creating a session. */
 async function handleGithubCallback(
   request: Request,

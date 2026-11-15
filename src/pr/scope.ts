@@ -11,19 +11,19 @@ import { log } from "../util/log.ts";
 /** What a pull request's author actually wrote this round, as opposed to code
  * that arrived by merging the default branch in. A re-review round's diff
  * regularly includes a `merge main` a human reviewer never reads and a bot
- * should not either — one measured case in this repo's own benchmark had a
+ * should not either, one measured case in this repo's own benchmark had a
  * round diff of 48 files where the author's own commits touched 5. Findings
- * belong in the own set; upstream code is context, shown but not policed,
+ * belong in the own set. Upstream code is context, shown but not policed,
  * because the author's own change can still interact badly with it. */
 
 export type ScopeResult = {
   /** Files touched by a commit the author made this round: their own
    * non-merge commits, plus the conflict-resolution hunks of any merge they
-   * made. A clean "merge main in" contributes nothing here — `--cc` only
+   * made. A clean "merge main in" contributes nothing here, `--cc` only
    * surfaces lines that differ from every parent, which is exactly the part
    * a human resolved by hand. */
   ownFiles: Set<string>;
-  /** Everything else touched between the round's boundary and its head —
+  /** Everything else touched between the round's boundary and its head,
    * code that arrived via a merge and was not authored this round. */
   upstreamFiles: Set<string>;
   defaultBranch: string;
@@ -39,8 +39,8 @@ function lines(output: string): string[] {
 }
 
 /** The scope algorithm against a clone that is already on disk. Split out from
- * `computeScope` so a caller that already manages its own clone — the
- * benchmark's OCR runner has its own, separate from co-maintainer's — can run
+ * `computeScope` so a caller that already manages its own clone, the
+ * benchmark's OCR runner has its own, separate from co-maintainer's, can run
  * the identical algorithm without a second clone of the same repository. */
 export async function scopeInClone(
   clone: string,
@@ -118,8 +118,8 @@ export async function scopeInClone(
 }
 
 /** Clones (or reuses) `repo` under co-maintainer's own cache and runs the
- * scope algorithm against it. Returns `undefined` on any failure — no clone,
- * an unresolvable commit, no default branch to compare against — so the
+ * scope algorithm against it. Returns `undefined` on any failure, no clone,
+ * an unresolvable commit, no default branch to compare against, so the
  * caller's fallback is always "review everything, unscoped", never a broken
  * review. */
 export async function computeScope(

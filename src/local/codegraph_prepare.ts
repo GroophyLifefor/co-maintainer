@@ -36,7 +36,7 @@ export async function prepareLocalCodegraph(input: {
   const run = input.run ?? runCommand;
   const resolved = await ensureCodegraphForReview({
     allowInstall: input.allowInstall,
-    // The prompt is safe only when a human can answer it; `canPrompt` checks
+    // The prompt is safe only when a human can answer it, `canPrompt` checks
     // stdin, stdout and `CI`, so a `</dev/null` or piped run never asks.
     interactive: input.interactive ?? canPrompt(),
     log: (message) =>

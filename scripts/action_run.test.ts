@@ -294,6 +294,7 @@ exit 0
 `,
   );
   chmodSync(npm, 0o755);
+  // punctuation: code, the PATH separator on Windows is a semicolon
   const sep = process.platform === "win32" ? ";" : ":";
   const result = run(
     {

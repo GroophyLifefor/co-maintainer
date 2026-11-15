@@ -38,7 +38,7 @@ const MAX_CHECK_LINES = 400;
 const MAX_FINDINGS = 160;
 
 /** How strongly a finding recurs. Repository policy (`current`) outranks
- * repeated history, which outranks a single example; weight and evidence count
+ * repeated history, which outranks a single example. Weight and evidence count
  * break ties. This is the guide's only ordering signal: rules carry no
  * priority. */
 function recurrence(item: Fact): number {
@@ -50,7 +50,7 @@ function recurrence(item: Fact): number {
 }
 
 /** Approval/merge narration is not a rule. The extraction prompt already
- * forbids it; this drops any that slips through, without touching the many
+ * forbids it. This drops any that slips through, without touching the many
  * findings that legitimately begin "Reviewers should require …". */
 function isNarrative(claim: string): boolean {
   return (
@@ -64,7 +64,7 @@ function isNarrative(claim: string): boolean {
 
 /** The review findings the guide is built from: a concrete rule with an impact
  * and an action. Nothing is dropped for being a single PR's finding, because
- * the point of the guide is the specifics; recurrence only orders them. */
+ * the point of the guide is the specifics. Recurrence only orders them. */
 function guideFindings(facts: Fact[]): Fact[] {
   return facts
     .filter(
@@ -139,7 +139,7 @@ export function validateGuide(
     return `fewer than ${minPasses} passes`;
   }
   if (areas.length > maxPasses) {
-    return `too many passes (${areas.length}); consolidate related areas`;
+    return `too many passes (${areas.length}), consolidate related areas`;
   }
   for (const area of areas) {
     const name = area.split("\n")[0].trim();
@@ -163,7 +163,7 @@ export function validateGuide(
 
 /** The findings handed to the synthesis, as a flat list. Earlier this was
  * pre-grouped by the extraction's own `class` label, which made the model emit
- * one pass per finding (24 areas in the skunk run); a flat list lets it cluster
+ * one pass per finding (24 areas in the skunk run). A flat list lets it cluster
  * related findings into a small set of coherent passes instead. */
 function guideMaterial(facts: Fact[]): string {
   const findings = guideFindings(facts)
@@ -201,7 +201,7 @@ export function findingPullRequests(facts: Fact[]): number[][] {
 const GUIDE_SYSTEM = `You write a code-review method for an unfamiliar open-source repository.
 Ground every check in the supplied findings. Never invent a file, path, command, or policy. Never write a pull-request number, a commit id, a reviewer name, a mention, a quoted comment, or an attribution. Never add a priority tag. Never tell the reader to run a command.`;
 
-const CONSOLIDATE = `- Consolidate the findings into a small set of coherent passes: group related findings, merge near-duplicates, and use between 3 and 12 passes. Represent every finding; never drop one to hit the pass count.
+const CONSOLIDATE = `- Consolidate the findings into a small set of coherent passes: group related findings, merge near-duplicates, and use between 3 and 12 passes. Represent every finding. Never drop one to hit the pass count.
 - Name each pass in Title Case. Never a lowercase slug such as "test-cleanup".
 - Every rule is a general invariant a future change must satisfy, not a description of one past fix. Keep the specific case only as the example under it.`;
 
@@ -289,7 +289,7 @@ export async function synthesizeReviewGuides(
   const full = cleanGuide(fullResponse?.text ?? "");
   if (!full) {
     // Not a failure: SKILL.md and CODEBASE.md are written anyway.
-    log("ai", "synth_guide produced nothing usable; skipping the guide");
+    log("ai", "synth_guide produced nothing usable, skipping the guide");
     return undefined;
   }
 

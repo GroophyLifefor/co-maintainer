@@ -105,7 +105,7 @@ export type ManifestConversion = {
   clientSecret: string;
 };
 
-/** `POST /app-manifests/{code}/conversions` — the `code` is single use and
+/** `POST /app-manifests/{code}/conversions`, the `code` is single use and
  * expires roughly an hour after GitHub redirects the browser back. */
 export async function convertManifest(
   code: string,

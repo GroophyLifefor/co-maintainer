@@ -20,7 +20,7 @@ export function appDbDir(): string {
   return `${getCacheDir()}/co-maintainer`;
 }
 
-/** `CM_APP_DB` overrides the path — tests point it at a temp file. */
+/** `CM_APP_DB` overrides the path, tests point it at a temp file. */
 export function appDbPath(): string {
   return getEnv("CM_APP_DB") ?? `${appDbDir()}/app.db`;
 }
@@ -102,7 +102,7 @@ export async function releaseLock(): Promise<void> {
 }
 
 /** A database already at a migration this binary does not know about means
- * an older release started against one a newer release already touched —
+ * an older release started against one a newer release already touched,
  * refuse loudly instead of running unfamiliar structure through old code. */
 function migrate(database: Database): void {
   const current =

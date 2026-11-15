@@ -3,12 +3,12 @@
  * The same pull request was reviewed twice, the same P2 finding came back
  * `non-blocking` the first time and `blocking` the second, and the exit code
  * changed because the model's own label moved. `model` keeps that behavior
- * (the model decides) because it is what 0.4.13 shipped; `severity` ignores
+ * (the model decides) because it is what 0.4.13 shipped, `severity` ignores
  * the model's label and uses a fixed threshold, so the same finding set always
  * yields the same exit code.
  *
  * This is the one place that answers "does this finding block". Every review
- * path — local, PR, remote and the GitHub App — calls it, so the modes cannot
+ * path, local, PR, remote and the GitHub App, calls it, so the modes cannot
  * drift apart.
  */
 
@@ -23,7 +23,7 @@ export function reviewBlockingFrom(value: unknown): ReviewBlocking {
 }
 
 /** One finding, in the shape any of the review paths happens to have. Only
- * `severity` is always available; the other two describe the model's own
+ * `severity` is always available. The other two describe the model's own
  * claim, which `severity` mode ignores. */
 export type BlockingInput = {
   severity?: string;

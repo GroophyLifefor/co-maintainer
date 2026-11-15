@@ -129,7 +129,7 @@ test("view: every guide prints behind a header with its file and build date", as
     async () => {
       const { code, stdout } = await capture(() => runView(["acme/widgets"]));
       if (code !== 0) throw new Error(`exit ${code}`);
-      // The order is skill, codebase, review guide — the reading order.
+      // The order is skill, codebase, review guide, the reading order.
       const skill = stdout.indexOf("== SKILL.md · built ");
       const codebase = stdout.indexOf("== CODEBASE.md · built ");
       const guide = stdout.indexOf("== PR_REVIEW_GUIDE.md · built ");

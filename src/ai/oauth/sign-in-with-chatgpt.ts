@@ -5,7 +5,7 @@
  * dance registers a client on first use, keeps the tokens in
  * `~/.config/co-maintainer/oauth/sign-in-with-chatgpt.json` (0600), and
  * refreshes them. The Responses translation itself lives in `openai.ts` and
- * is shared; this file only adds the auth and the plan-usage request shape.
+ * is shared. This file only adds the auth and the plan-usage request shape.
  *
  * Route quirks this file exists to respect (confirmed against the live
  * route): `store:false` and `stream:true` are required, `max_output_tokens`
@@ -63,7 +63,7 @@ function loginTimeoutMs(): number {
 }
 
 /** `CM_SIWC_AUTH_URL` and `CM_SIWC_API_URL` point the flow at local fakes in
- * tests; unset means the real endpoints. `CM_SIWC_DIR` moves the credentials
+ * tests. Unset means the real endpoints. `CM_SIWC_DIR` moves the credentials
  * file so tests never touch the real one. */
 function authOrigin(): string {
   return (getEnv("CM_SIWC_AUTH_URL") ?? "https://auth.openai.com").replace(
@@ -261,7 +261,7 @@ type BrowserOpener = (url: string) => void;
 
 let browserOpener: BrowserOpener | undefined;
 
-/** Tests replace the browser with a helper that completes the callback; the
+/** Tests replace the browser with a helper that completes the callback. The
  * real opener shells out to the platform's open command. */
 export function setBrowserOpener(opener: BrowserOpener | undefined): void {
   browserOpener = opener;
@@ -475,7 +475,7 @@ function remember(creds: Credentials): Credentials {
   return creds;
 }
 
-/** The browser flow. Always runs, so a user can switch accounts; `logout`
+/** The browser flow. Always runs, so a user can switch accounts, `logout`
  * first if the old one should not be reused. */
 export async function login(): Promise<Credentials> {
   const existing = loadCredentials();
@@ -555,7 +555,7 @@ let inflight: Promise<Credentials> | undefined;
 
 /** Credentials for a run: reuse the freshest token this process has seen,
  * refresh an expired one, or start the browser flow. `inflight` dedups so
- * `init`'s low and high providers never open two browsers; `cached` keeps a
+ * `init`'s low and high providers never open two browsers, `cached` keeps a
  * 401 refresh done inside `complete()` visible to later callers. */
 export function ensureCredentials(): Promise<Credentials> {
   if (cached && cached.expires_at - 60_000 > Date.now()) {
@@ -589,7 +589,7 @@ export type ModelInfo = { slug: string; displayName: string };
 
 /** For `oauth refresh|ping|list-models`, which operate on an existing login
  * and must not start a browser flow. A live token is reused, an expired one
- * refreshed; no login at all is a clear error. */
+ * refreshed. No login at all is a clear error. */
 export async function requireCredentials(): Promise<Credentials> {
   const existing = loadCredentials();
   if (!existing?.refresh_token && !existing?.access_token) {

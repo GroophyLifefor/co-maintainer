@@ -34,11 +34,11 @@ test("greedy matching scores a true positive and a false positive", () => {
 test("parseFindings reads file:line from markdown findings", () => {
   const found = parseFindings(`## Severity
 
-- P0 — Critical
+- P0: Critical
 
 ## Findings
 
-### P2 — JSDoc type is wrong
+### P2: JSDoc type is wrong
 
 \`src/nodes/gpgpu/ComputeNode.js:222\`
 
@@ -90,7 +90,7 @@ Do not pass untrusted input to eval.
 test("parseFindings reads the structured review format", () => {
   const found = parseFindings(`## Findings
 
-### [P1 · blocking] \`src/app.ts\` — \`loadConfig()\`
+### [P1 · blocking] \`src/app.ts\`: \`loadConfig()\`
 Location: \`src/app.ts:42\`
 
 The config is loaded before the environment is validated.

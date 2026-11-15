@@ -52,7 +52,7 @@ function findNpmCli(): string {
   const found = candidates.find((path) => existsSync(path));
   if (!found) {
     throw new Error(
-      `could not locate npm-cli.js; tried:\n${candidates.join("\n")}`,
+      `could not locate npm-cli.js. Tried:\n${candidates.join("\n")}`,
     );
   }
   return found;
@@ -192,7 +192,7 @@ async function serveAndStop(
   healthAbort.abort();
   // Stop the server before waiting on its output. A healthy or timed-out
   // `serve` only exits on this signal, so awaiting `outputPromise` first would
-  // hang the whole check; only the "exited" branch already has it settled.
+  // hang the whole check. Only the "exited" branch already has it settled.
   child.kill("SIGTERM");
   const result = await outputPromise;
   if (outcome === "up") return { up: true, detail: "" };
@@ -433,7 +433,7 @@ try {
   );
   if (skips.length > 0) {
     console.log(
-      `skipped ${skips.length} step(s), so this is a partial check · ${skips.join("; ")}`,
+      `skipped ${skips.length} step(s), so this is a partial check · ${skips.join(", ")}`,
     );
   }
 } finally {

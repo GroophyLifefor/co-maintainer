@@ -490,7 +490,7 @@ function failureExplanation(error: string | null | undefined): string {
 }
 
 /** The model a failed job ran with. A manual or webhook review does not put
- * the model in its job args; the review row records the one it resolved.
+ * the model in its job args. The review row records the one it resolved.
  * "unknown" is what a review stores when no model was set. */
 function failedModel(
   args: Record<string, unknown>,

@@ -39,7 +39,7 @@ export async function loadLocalCarry(
   return loaded.data;
 }
 
-/** Plan E163 — corrupt or locked cache must not abort review. */
+/** Plan E163, corrupt or locked cache must not abort review. */
 export async function tryLoadLocalCarry(
   repo: string,
   root: string,

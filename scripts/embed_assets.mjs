@@ -7,7 +7,7 @@
  *   node scripts/embed_assets.mjs
  *
  * Fonts: `styles.css` refers to each `.woff2` by file name (for example
- * `url("outfit-latin.woff2")`); the build swaps that for a base64 data URI so
+ * `url("outfit-latin.woff2")`). The build swaps that for a base64 data URI so
  * the served stylesheet carries the font inline and makes no extra request.
  *
  * Icons: every `.svg` in `icons/` becomes one `<symbol id="i-<name>">` inside
@@ -32,6 +32,7 @@ function inlineFonts(css) {
     if (!out.includes(needle)) {
       throw new Error(`styles.css does not reference ${needle}`);
     }
+    // punctuation: code, a data URI puts a semicolon before base64
     out = out.split(needle).join(`url("data:font/woff2;base64,${data}")`);
   }
   return out;
@@ -56,7 +57,7 @@ for (const target of TARGETS) {
   const content = target.transform ? target.transform(raw) : raw;
   const body = JSON.stringify(content);
   const out =
-    `/** Generated from ${target.source} by scripts/embed_assets.mjs — do not edit. */\n` +
+    `/** Generated from ${target.source} by scripts/embed_assets.mjs, do not edit. */\n` +
     `export const ${target.name} = ${body};\n`;
   writeFileSync(join(ROOT, target.module), out);
   console.log(`${target.module}: ${content.length} chars`);
@@ -83,6 +84,7 @@ function symbolFor(name) {
     `stroke-linejoin="round">${inner}</symbol>`
   );
 }
+// punctuation: code, a CSS style attribute needs semicolons between declarations
 
 const sprite =
   `<svg xmlns="http://www.w3.org/2000/svg" ` +
@@ -91,7 +93,7 @@ const sprite =
   `</svg>`;
 
 const iconsOut =
-  `/** Generated from src/server/pages/icons/*.svg by scripts/embed_assets.mjs — do not edit. */\n` +
+  `/** Generated from src/server/pages/icons/*.svg by scripts/embed_assets.mjs, do not edit. */\n` +
   `export const iconNames: readonly string[] = JSON.parse(${JSON.stringify(
     JSON.stringify(iconNames),
   )});\n` +

@@ -379,7 +379,7 @@ const plantumlBlocks = (text: string): string[] =>
 
 const MERMAID_MARKERS = [
   "Mermaid selection and minimal syntax:",
-  "flowchart = decisions, branches, pipelines, and fallback paths;",
+  "flowchart = decisions, branches, pipelines, and fallback paths.",
   "If a diagram is useful, call read-mermaid-syntaxes before writing any Mermaid.",
 ];
 

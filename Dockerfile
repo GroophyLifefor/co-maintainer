@@ -11,6 +11,7 @@ RUN npm run build && npm prune --omit=dev
 
 FROM node:26-slim AS tools
 COPY src/tools/codegraph.ts /tmp/codegraph.ts
+# punctuation: code, the sed script ends its substitution with a semicolon
 RUN version="$(sed -n 's/^export const CODEGRAPH_VERSION = "\(.*\)";/\1/p' /tmp/codegraph.ts)" \
  && test -n "$version" \
  && npm install "@colbymchenry/codegraph@$version" \

@@ -66,6 +66,7 @@ export function renderAddRepo(
       title: "Add repository · co-maintainer",
       username,
       active: "/",
+      // punctuation: code, a script the page runs in the browser
       body: `<div class="wrap narrow">
   <div class="crumbs"><a href="/">Repositories</a> / Add</div>
   <div class="pagehead">

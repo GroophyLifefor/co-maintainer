@@ -137,7 +137,7 @@ export async function assembleSkill(
     const canonicalHeading = `## ${sectionTitles[key] ?? key}`;
     const override = overrides[key]?.trim();
     // The codebase sections hold a link, not text, so the skill never takes a
-    // synthesized override for them; the override goes to CODEBASE.md instead.
+    // synthesized override for them. The override goes to CODEBASE.md instead.
     const hasOverride = Boolean(override) && !codebaseSectionKeys.has(key);
     if (
       !hasOverride &&

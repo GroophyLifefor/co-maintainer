@@ -63,7 +63,7 @@ const REVISION: Revision = {
 const MODEL_BLOCKING_P2 = row({
   state: "new",
   severity: "P2",
-  title: "[P2 · blocking] `a.ts` — `x`",
+  title: "[P2 · blocking] `a.ts`: `x`",
 });
 
 /** A P1 the model called non-blocking: exit 0 under `model`, 1 under
@@ -71,7 +71,7 @@ const MODEL_BLOCKING_P2 = row({
 const MODEL_CLEAN_P1 = row({
   state: "new",
   severity: "P1",
-  title: "[P1 · non-blocking] `a.ts` — `x`",
+  title: "[P1 · non-blocking] `a.ts`: `x`",
 });
 
 test("local exit code follows the mode", () => {
@@ -97,7 +97,7 @@ test("the PR markdown exit code follows the mode", () => {
   // The same finding, as the model renders it in a heading.
   const markdown = `## Findings
 
-### [P1 · non-blocking] \`a.ts\` — \`x\`
+### [P1 · non-blocking] \`a.ts\`: \`x\`
 Location: \`a.ts:1\`
 
 Body
@@ -137,7 +137,7 @@ test("the App review event follows the mode", () => {
 });
 
 test("the human output labels the finding the way the exit code decided", () => {
-  // Under `severity` the same P2 reads non-blocking, matching exit 0; before
+  // Under `severity` the same P2 reads non-blocking, matching exit 0. Before
   // the fix the heading and the exit code could disagree.
   const severityText = formatHumanLocalReview(
     "header",

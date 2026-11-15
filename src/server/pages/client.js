@@ -95,7 +95,7 @@ async function api(method, url, body) {
       if (data.error && data.error.code) code = data.error.code;
       if (data.error) detail = data.error.detail;
     } catch {
-      // body was not JSON; keep the generic message
+      // body was not JSON. Keep the generic message
     }
     const error = new Error(message);
     if (code) error.code = code;
@@ -715,7 +715,7 @@ document.addEventListener("DOMContentLoaded", function () {
     toast((ev.reason && ev.reason.message) || "Something broke");
   });
 
-  // Theme: the head bootstrap already applied the remembered choice; this only
+  // Theme: the head bootstrap already applied the remembered choice. This only
   // flips it and stores the new one.
   const themeButton = document.getElementById("theme");
   if (themeButton) {
@@ -724,12 +724,12 @@ document.addEventListener("DOMContentLoaded", function () {
       try {
         localStorage.setItem("theme", dark ? "dark" : "light");
       } catch {
-        // storage may be unavailable; the class still applies for this page
+        // storage may be unavailable. The class still applies for this page
       }
     });
   }
 
-  // Mobile drawer. `open` on the aside slides it in; the overlay closes it and
+  // Mobile drawer. `open` on the aside slides it in. The overlay closes it and
   // choosing a link closes it before navigating.
   const drawer = document.querySelector("aside.side");
   const overlay = document.getElementById("overlay");

@@ -185,7 +185,7 @@ test("an unusable cache record from an earlier version is dropped and retried", 
   const first = new AiBatch(noCheck, repo, 1, "mock:v2");
   try {
     await first.run([{ ...REQUEST }]);
-    // Second run validates. It must not accept the cached bad record; it drops
+    // Second run validates. It must not accept the cached bad record. It drops
     // it and re-asks the provider, which now answers with valid text.
     const good = new FlakyProvider(0);
     const second = new AiBatch(

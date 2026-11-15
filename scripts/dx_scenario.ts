@@ -254,7 +254,7 @@ if (shouldRun("probe")) {
 
 if (shouldRun("init") && !budgetHit) {
   const costBefore = await usageUsd();
-  // The probe line is `co-maintainer init owner/repo <flags>`; drop the two
+  // The probe line is `co-maintainer init owner/repo <flags>`. Drop the two
   // leading tokens so the flags can be appended to our own `init REPO`.
   const recommendedFlags = (recommended ?? []).filter(
     (token) => token !== "init" && token !== REPO,

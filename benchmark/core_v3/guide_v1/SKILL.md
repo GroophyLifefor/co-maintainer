@@ -35,17 +35,17 @@ Generated from repository metadata and selected project history. Prefer current 
 
 ## Code layout
 
-- `src/cli.js` contains `packageJson`, `COMMANDS`, `runCli`, `run`, `usage`, `names`, `commandList`; keep related changes in this module.
-- `src/cli/render_table.js` contains `renderTable`, `widths`, `renderRow`, `text`, `pad`, `lines`, `row`; keep related changes in this module.
-- `src/commands/check.js` contains `FAIL_ON_VALUES`, `checkCommand`, `snapshot`, `policy`, `evaluation`, `v`, `e`; keep related changes in this module.
-- `src/commands/diff.js` contains `MODES`, `diffCommand`, `top`, `before`, `after`, `result`, `rows`, `renderInstanceTable`; keep related changes in this module.
-- `src/commands/gc_path.js` contains `gcPathCommand`, `top`, `snapshot`, `matches`, `rows`; keep related changes in this module.
-- `src/commands/retained.js` contains `retainedCommand`, `top`, `snapshot`, `idom`, `retained`, `rows`; keep related changes in this module.
+- `src/cli.js` contains `packageJson`, `COMMANDS`, `runCli`, `run`, `usage`, `names`, `commandList`. Keep related changes in this module.
+- `src/cli/render_table.js` contains `renderTable`, `widths`, `renderRow`, `text`, `pad`, `lines`, `row`. Keep related changes in this module.
+- `src/commands/check.js` contains `FAIL_ON_VALUES`, `checkCommand`, `snapshot`, `policy`, `evaluation`, `v`, `e`. Keep related changes in this module.
+- `src/commands/diff.js` contains `MODES`, `diffCommand`, `top`, `before`, `after`, `result`, `rows`, `renderInstanceTable`. Keep related changes in this module.
+- `src/commands/gc_path.js` contains `gcPathCommand`, `top`, `snapshot`, `matches`, `rows`. Keep related changes in this module.
+- `src/commands/retained.js` contains `retainedCommand`, `top`, `snapshot`, `idom`, `retained`, `rows`. Keep related changes in this module.
 
 ## Code style
 
 - Use conventional commit prefixes when creating commits.
-- Recent commit examples: `release: v0.5.0`; `docs: export the full public api surface, rewrite readme (#50)`; `feat: mcp server and tools (#49)`; `release: v0.4.0`; `feat: policy gate exit codes, junit and github actions output (#48)`; `feat: policy rule evaluation engine (#47)`; `feat: policy file loader (#46)`; `release: v0.3.0`.
+- Recent commit examples: `release: v0.5.0`, `docs: export the full public api surface, rewrite readme (#50)`, `feat: mcp server and tools (#49)`, `release: v0.4.0`, `feat: policy gate exit codes, junit and github actions output (#48)`, `feat: policy rule evaluation engine (#47)`, `feat: policy file loader (#46)`, `release: v0.3.0`.
 - contextRetainerCountOf lazily builds and caches an Int32Array count on first use instead of recomputing.
 - The diff replaces #referrers with #firstReferrer and #referrerNodes typed arrays.
 - Adds #firstEdge private field and buildEdgeOffsets helper using Int32Array of length nodeCount + 1.
@@ -61,8 +61,8 @@ Generated from repository metadata and selected project history. Prefer current 
 
 ## Pull request title and body
 
-- Most selected pull requests contain a substantive description; explain purpose, scope, and verification before requesting review.
-- Title is 'feat: object-level snapshot diff'; body says it differs from diffByClass by seeing actual objects, not aggregate totals.
+- Most selected pull requests contain a substantive description. Explain purpose, scope, and verification before requesting review.
+- Title is 'feat: object-level snapshot diff'. Body says it differs from diffByClass by seeing actual objects, not aggregate totals.
 - PR title uses 'feat:' prefix and body explains function is useful after constructor summary.
 - Title is 'feat: dominance queries (retainer chain, containment)' and body explains both functions.
 - PR title is 'feat: unreachable node accounting'.
@@ -79,13 +79,13 @@ Generated from repository metadata and selected project history. Prefer current 
 
 ## Review bar
 
-- Frequently changed files include `src/snapshot.js`, `test/snapshot.test.js`, `index.js`, `package.json`, `src/cli.js`, `README.md`, `src/errors.js`, `test/errors.test.js`, `.gitignore`, `src/graph/retained_size.js`; check nearby tests and workflows before editing.
+- Frequently changed files include `src/snapshot.js`, `test/snapshot.test.js`, `index.js`, `package.json`, `src/cli.js`, `README.md`, `src/errors.js`, `test/errors.test.js`, `.gitignore`, `src/graph/retained_size.js`. Check nearby tests and workflows before editing.
 - PR has no comments or reviews.
 - PR has no comments and no reviews.
 
 ## Pull request process
 
-- 50/50 selected pull requests are merged; keep work mergeable before requesting review.
+- 50/50 selected pull requests are merged. Keep work mergeable before requesting review.
 - PR body says it was generated with Claude Code.
 - Body test plan marks npm test as done and CI runs green as unchecked.
 - PR body says root names were verified by inspecting '(GC roots)'s own 27 children from real snapshots rather than assumed.

@@ -4,7 +4,7 @@
  * (`... while \`u`), and the next began inside the previous one's prose
  * (`s it through the package's public entry point`). The cause was not the
  * screen: the model wrote the heading separator as `:` where the parser only
- * accepted `—`, so every heading was rejected and the parser fell back to a
+ * accepted `, `, so every heading was rejected and the parser fell back to a
  * fixed-width slice of the answer (`body.slice(at - 80, at + 200)`), which cut
  * at byte offsets instead of finding boundaries.
  *

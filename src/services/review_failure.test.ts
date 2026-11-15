@@ -36,7 +36,7 @@ import { isolateTestFile } from "../testing/locations.ts";
 isolateTestFile();
 
 const REVIEW_NOTE_START = "co-maintainer couldn't review this push";
-const REVIEWED_NOTE = "co-maintainer reviewed this push; the review is below.";
+const REVIEWED_NOTE = "co-maintainer reviewed this push. The review is below.";
 
 async function withEnv(fn: () => Promise<void>): Promise<void> {
   const originalDb = getEnv("CM_APP_DB");

@@ -1,5 +1,5 @@
 /** `init`/`remake` orchestration. The dashboard calls `runInitOrRemake`
- * directly; it used to re-spawn the CLI as a subprocess, a second
+ * directly. It used to re-spawn the CLI as a subprocess, a second
  * execution path with its own failure modes. */
 import { aiProviderName, createAiProvider } from "../ai/provider.ts";
 import { enrichFacts, synthesizeSections } from "../knowledge/synthesis.ts";
@@ -269,7 +269,7 @@ async function readCodebaseDocument(repo: string): Promise<string | undefined> {
 /** Writes the codebase-description sections (layout/style/tests/devloop) to
  * their own file, so `review` can check a pull request against how this
  * repository's code actually looks, not just the review-bar checklist. Every
- * section body is authored by the synthesis job; the skill links to this file
+ * section body is authored by the synthesis job. The skill links to this file
  * rather than repeating it. */
 async function writeCodebaseDocument(
   repo: string,
@@ -530,7 +530,7 @@ async function initOrRemake(options: Options): Promise<void> {
   // There is no deterministic fallback to reassemble from: a skill the AI could
   // not write correctly is reported rather than rebuilt from facts.
   if (!validation.valid) {
-    log("validate", `skill problems kept: ${validation.errors.join("; ")}`);
+    log("validate", `skill problems kept: ${validation.errors.join(", ")}`);
   }
   const finalValidation = await timed(
     "final skill validation",
@@ -546,7 +546,7 @@ async function initOrRemake(options: Options): Promise<void> {
   if (!finalValidation.valid) {
     log(
       "validate",
-      `skill problems kept: ${finalValidation.errors.join("; ")}`,
+      `skill problems kept: ${finalValidation.errors.join(", ")}`,
     );
   }
   await timed("write skill and state", options.logTime, async () => {
@@ -573,7 +573,7 @@ async function initOrRemake(options: Options): Promise<void> {
       });
       const head = source.commits[0] as { sha?: string } | undefined;
       const baseSha = head?.sha ? String(head.sha) : new Date().toISOString();
-      // A CLI init has no app.db row for the repository yet; without one the
+      // A CLI init has no app.db row for the repository yet. Without one the
       // dashboard never sees what it built. A dashboard job already has one.
       registerCliRepo(options.repo);
       markKnowledgeBuilt(options.repo, baseSha);
@@ -673,7 +673,7 @@ async function initOrRemake(options: Options): Promise<void> {
 }
 
 /** Builds `Options` for a server-triggered `init`/`remake` from config
- * alone — no CLI flags, no interactive prompt, there is no terminal here. */
+ * alone, no CLI flags, no interactive prompt, there is no terminal here. */
 export function optionsFromConfig(
   repo: string,
   command: "init" | "remake",
@@ -683,7 +683,7 @@ export function optionsFromConfig(
   const auth = repoConfig.auth ?? config.auth ?? "gh";
   if (auth === "pat" && !config.githubPat) {
     throw new Error(
-      "auth=pat requires a GitHub PAT; run: co-maintainer set --github-pat=...",
+      "auth=pat requires a GitHub PAT. Run: co-maintainer set --github-pat=...",
     );
   }
   const ai = repoConfig.ai ?? config.ai ?? "none";
@@ -736,12 +736,12 @@ export function optionsFromConfig(
   };
 }
 
-/** `runner` defaults to the real `runInitOrRemake`; tests substitute a fake
+/** `runner` defaults to the real `runInitOrRemake`. Tests substitute a fake
  * to check the option merging and log wiring without touching the network. */
 // ponytail: the AbortSignal the queue passes to `run` is not threaded
 // through `runInitOrRemake`'s GitHub fetch loops, so `cancel()` on a
 // running init/remake marks it canceled and stops it being picked up
-// again, but does not interrupt in-flight fetches — a live job keeps
+// again, but does not interrupt in-flight fetches, a live job keeps
 // running to natural completion. Wire the signal into `github/collect.ts`'s
 // `mapPool` if truly stopping a large in-flight fetch turns out to matter.
 export function buildSetupHandler(

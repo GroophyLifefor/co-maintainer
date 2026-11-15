@@ -33,6 +33,7 @@ const JSON_ANSWER = JSON.stringify({
       symbol: "splitOnce()",
       title: "splitOnce drops the separator when it is the last character",
       body: "The loop stops before the final index, so a separator at the end is never trimmed. Callers that pass a trailing delimiter get a silent empty tail.",
+      // punctuation: code, a suggested code line inside a finding
       suggestion: "  return at === source.length - 1 ? source : rest;",
     },
     {
@@ -161,7 +162,7 @@ This name does not match what it returns.
   if (colon[0].from !== 10 || colon[0].symbol !== "helper()") {
     throw new Error(`first colon finding: ${JSON.stringify(colon[0])}`);
   }
-  // The heading itself may omit the symbol; the Location line still supplies
+  // The heading itself may omit the symbol. The Location line still supplies
   // the path.
   if (colon[1].path !== "src/b.ts" || colon[1].symbol !== undefined) {
     throw new Error(`second colon finding: ${JSON.stringify(colon[1])}`);
@@ -228,7 +229,7 @@ test("the colon-separator findings survive the JSON round trip whole", () => {
   }
 });
 
-/** A parser can only guess a finding's boundary if the renderer left one; this
+/** A parser can only guess a finding's boundary if the renderer left one. This
  * walks many answers with prose of different lengths and checks each excerpt
  * is exactly the body that went in, never a slice of its neighbour. */
 test("boundaries hold across many finding shapes", () => {

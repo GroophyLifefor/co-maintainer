@@ -86,7 +86,7 @@ test("resolveWebhookUrl prefers the CLI URL and accepts public http(s)", () => {
 });
 
 test("resolveWebhookUrl rejects malformed absolute URLs", () => {
-  // `new URL` accepts these; a leaked scheme or a bare path would make
+  // `new URL` accepts these. A leaked scheme or a bare path would make
   // GitHub deliver webhooks to a host that does not exist.
   for (const bad of [
     "http://http://178.105.8.95/:5000/github/webhook",

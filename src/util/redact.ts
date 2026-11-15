@@ -1,5 +1,5 @@
 /** Matches known secret shapes, not a generic "long random string"
- * heuristic — too many false positives on commit SHAs and hashes. */
+ * heuristic, too many false positives on commit SHAs and hashes. */
 const PATTERNS: RegExp[] = [
   /gh[pousr]_[A-Za-z0-9]{20,}/g, // ghp_, gho_, ghu_, ghs_, ghr_ (classic GitHub PATs and tokens)
   /github_pat_[A-Za-z0-9_]{20,}/g, // fine-grained GitHub PATs
@@ -35,6 +35,7 @@ export function outsideCode(
 /** Dashboard and other human-readable copy. Secrets out, no dash, no
  * semicolon. Code keeps its own punctuation or it stops compiling. */
 export function safeCopy(text: string): string {
+  // punctuation: code, this cleaner must name the semicolon it removes from AI text
   return outsideCode(redact(text), (prose) =>
     prose.replaceAll("\u2014", ", ").replaceAll(";", "."),
   );

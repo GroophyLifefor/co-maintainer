@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches:
-      - dx/**
+      - main
 
 # A force-push to the same branch makes the previous run moot, so cancel it.
 concurrency:
@@ -38,6 +38,8 @@ jobs:
       - run: npm run check
       - run: npm run lint
       - run: npm run fmt:check
+      - name: Punctuation
+        run: npm run punctuation
       - name: Docs build
         run: npm run docs:build
       - name: Test

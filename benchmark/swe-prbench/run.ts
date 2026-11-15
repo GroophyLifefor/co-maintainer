@@ -21,7 +21,7 @@ import {
 // Gold sourced from swe-prbench (https://huggingface.co/datasets/foundry-ai/swe-prbench):
 // real human review comments left on a PR's first review round. The model is
 // shown the whole PR diff (base_commit -> head_commit), not an incremental
-// one — see prepare_dataset.ts for how a row is built and why `ref_before`
+// one, see prepare_dataset.ts for how a row is built and why `ref_before`
 // matters here. See benchmark/swe-prbench/README.md.
 type Row = {
   /** Absent in a single-repo dataset, where every row belongs to `--repo`. */
@@ -104,7 +104,7 @@ try {
   dataset = JSON.parse(await readTextFile(datasetPath)) as Row[];
 } catch (error) {
   if (isNotFound(error)) {
-    throw new Error(`Missing ${datasetPath}; run prepare_dataset.ts first`);
+    throw new Error(`Missing ${datasetPath}. Run prepare_dataset.ts first`);
   }
   throw error;
 }
@@ -295,7 +295,7 @@ await mapPool(jobs, reviewConcurrent, async (rows) => {
     return;
   }
   // `prepMs` (scope, checkout, codegraph indexing) is real per-PR cost but not
-  // the "review" a human would compare across tools or runs — a cold worktree
+  // the "review" a human would compare across tools or runs, a cold worktree
   // vs. a warm one otherwise swings the headline time without either tool
   // actually reviewing any differently. Reported separately instead.
   const prepMs = result.prepMs;
@@ -423,7 +423,7 @@ const perRepo = repos.map((name) => {
 const result = {
   repos,
   runner: runnerName,
-  gold: "swe-prbench — real human comments from a PR's first review round, shown the whole PR diff",
+  gold: "swe-prbench: real human comments from a PR's first review round, shown the whole PR diff",
   prs: reports.length,
   f1,
   precision,

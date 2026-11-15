@@ -5,7 +5,7 @@
  * Starts the real `co-maintainer serve` against a throwaway config, repo
  * directory and app.db seeded with one repository, then drives a headless
  * Chromium through every page the router can render. A console error or an
- * uncaught page error fails the run — the dashboard's inline scripts only
+ * uncaught page error fails the run, the dashboard's inline scripts only
  * misbehave in a browser, which no `node:test` can see.
  *
  * The `bindToggle` and `loadRemoteTokens` crashes that once hit these pages are gone
@@ -17,7 +17,7 @@
  * so a change to it can be looked at, not only asserted.
  *
  * CI runs this only on the ubuntu job (`npx playwright install --with-deps
- * chromium`); the Windows test job does not pay for a browser.
+ * chromium`). The Windows test job does not pay for a browser.
  */
 import { createServer } from "node:net";
 import { join } from "node:path";
@@ -49,6 +49,7 @@ import { VERSION } from "../src/version.ts";
 const PASSWORD = "dashboard-smoke-pass";
 const REPO = "acme/widgets";
 const RUN_JOB = "job-live-smoke";
+// punctuation: code, a line of source code sent to the dashboard as a long code sample
 const LONG_CODE = `const veryLong = "${"x".repeat(300)}";`;
 const GUIDE = [
   "# Review guide",
@@ -138,7 +139,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 /** Kills `serve` and waits for it to actually exit, at most once. `serve`
- * only stops on a signal, so `output()` before a kill would wait forever;
+ * only stops on a signal, so `output()` before a kill would wait forever,
  * this is what makes the error path report instead of hang. The collected
  * output is cached because `output()` is not idempotent: a second call
  * registers fresh listeners on a child that already closed and never
@@ -2314,7 +2315,7 @@ try {
     }
 
     // The aborted requests above are the asserted condition, not a product
-    // error; the browser logs them as console or page errors.
+    // error. The browser logs them as console or page errors.
     for (let i = issues.length - 1; i >= connectionIssuesBefore; i--) {
       const issue = issues[i]!;
       if (
@@ -2489,7 +2490,7 @@ try {
         try {
           localStorage.removeItem("theme");
         } catch {
-          // storage may be unavailable; nothing to reset
+          // storage may be unavailable. Nothing to reset
         }
       });
     }
@@ -2879,7 +2880,7 @@ try {
             text: `${name}: the page reloaded after a failed save`,
           });
         }
-        // The deliberate 500 is logged by the browser; it is the asserted
+        // The deliberate 500 is logged by the browser. It is the asserted
         // condition here, not a product error.
         await sleep(100);
         for (let i = issues.length - 1; i >= errorIssuesBefore; i--) {
@@ -2955,7 +2956,7 @@ try {
   };
   const unexpected = dedupe(issues).filter(
     // A navigation that answers 404 is the asserted condition for the missing
-    // page; the browser logs it as a console error. The status checks above
+    // page. The browser logs it as a console error. The status checks above
     // already catch a wrong status, so this line is noise here.
     (issue) =>
       !(

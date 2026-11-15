@@ -1,9 +1,9 @@
 /** Numbered, forward-only migrations. Each entry is a
  * list of individual statements (not one multi-statement blob) run in a
- * transaction; `PRAGMA user_version` tracks how many have applied. Never
- * edit an already-released migration — add a new one instead. */
+ * transaction, `PRAGMA user_version` tracks how many have applied. Never
+ * edit an already-released migration, add a new one instead. */
 export const migrations: string[][] = [
-  // 1 — initial schema
+  // 1: initial schema
   [
     `CREATE TABLE installations (
       id INTEGER PRIMARY KEY,
@@ -116,9 +116,9 @@ export const migrations: string[][] = [
       files_changed INTEGER NOT NULL
     )`,
   ],
-  // 2 — P7 records when a review fell back to an issue comment
+  // 2: P7 records when a review fell back to an issue comment
   [`ALTER TABLE reviews ADD COLUMN posted_fallback INTEGER NOT NULL DEFAULT 0`],
-  // 3 — durable conversation replies and purpose-specific queued jobs
+  // 3: durable conversation replies and purpose-specific queued jobs
   [
     `ALTER TABLE jobs ADD COLUMN queue_key TEXT`,
     `UPDATE jobs SET queue_key = 'review:' || repo || ':' || pr_number
@@ -154,14 +154,14 @@ export const migrations: string[][] = [
     `CREATE INDEX idx_reply_requests_status
      ON reply_requests(status, created_at)`,
   ],
-  // 4 — drift separates pull requests opened since the build from older
+  // 4: drift separates pull requests opened since the build from older
   // ones that were merely touched again
   [`ALTER TABLE drift ADD COLUMN prs_updated INTEGER NOT NULL DEFAULT 0`],
-  // 5 — codegraph tools are an opt-in cost per repo, off until asked for
+  // 5: codegraph tools are an opt-in cost per repo, off until asked for
   [`ALTER TABLE repos ADD COLUMN use_codegraph INTEGER NOT NULL DEFAULT 0`],
-  // 6 — why a job was canceled (dashboard, superseded, remote abort, …)
+  // 6: why a job was canceled (dashboard, superseded, remote abort, …)
   [`ALTER TABLE jobs ADD COLUMN cancel_reason TEXT`],
-  // 7 — subjects, carry-over fields, reviews table rebuild for nullable PR keys
+  // 7: subjects, carry-over fields, reviews table rebuild for nullable PR keys
   [
     `CREATE TABLE reviews_new (
       id TEXT PRIMARY KEY,
@@ -233,7 +233,7 @@ export const migrations: string[][] = [
       created_at TEXT NOT NULL
     )`,
   ],
-  // 8 — remote review bearer tokens and large submit payloads
+  // 8: remote review bearer tokens and large submit payloads
   [
     `CREATE TABLE remote_tokens (
       id TEXT PRIMARY KEY,
@@ -255,7 +255,7 @@ export const migrations: string[][] = [
     `CREATE UNIQUE INDEX idx_remote_inputs_request
      ON remote_review_inputs(token_id, request_id)`,
   ],
-  // 9 — a missing cost is unknown, not zero. Older rows are filled in place
+  // 9: a missing cost is unknown, not zero. Older rows are filled in place
   [
     `ALTER TABLE reviews ADD COLUMN cost_status TEXT`,
     `ALTER TABLE reviews ADD COLUMN cost_note TEXT`,
@@ -265,9 +265,9 @@ export const migrations: string[][] = [
      WHERE cost IS NULL`,
     `UPDATE reviews SET billed_to = 'server'`,
   ],
-  // 10 — BYOK: persist only whether a review used a client key, never the key
+  // 10: BYOK: persist only whether a review used a client key, never the key
   [`ALTER TABLE remote_review_inputs ADD COLUMN billed_to TEXT`],
-  // 11 — a per repository review policy. Existing repositories are
+  // 11: a per repository review policy. Existing repositories are
   // pinned to the policy their three old switches amount to, so they keep
   // behaving exactly as before and the switches keep working. A new repository
   // starts empty and takes the server default.
@@ -275,21 +275,21 @@ export const migrations: string[][] = [
     `ALTER TABLE repos ADD COLUMN review_policy_json TEXT`,
     `UPDATE repos SET review_policy_json = '"legacy"'`,
   ],
-  // 12 — a remote client's one-run review instructions travel with the job so
+  // 12: a remote client's one-run review instructions travel with the job so
   // a retry keeps them. The per-repo prompt stays in config.json and is read
   // on the server where the review runs.
   [
     `ALTER TABLE remote_review_inputs ADD COLUMN system_prompt_add TEXT`,
     `ALTER TABLE remote_review_inputs ADD COLUMN system_prompt_override TEXT`,
   ],
-  // 13 — the one issue comment a failed review leaves on the pull request,
+  // 13: the one issue comment a failed review leaves on the pull request,
   // kept so a retry edits that same note instead of opening a second one.
   [`ALTER TABLE reviews ADD COLUMN note_comment_id TEXT`],
-  // 14 — where a repository came from. `'cli'` for one a CLI init built
+  // 14: where a repository came from. `'cli'` for one a CLI init built
   // (registered by init itself, or found on disk by serve after an upgrade),
   // NULL for one added from the dashboard.
   [`ALTER TABLE repos ADD COLUMN added_from TEXT`],
-  // 15 — commit watch: pushes to the default branch, the issues opened for
+  // 15: commit watch: pushes to the default branch, the issues opened for
   // their P0/P1 findings, and the maintainer notes left on those issues.
   [
     `ALTER TABLE repos ADD COLUMN watch_open_issues INTEGER NOT NULL DEFAULT 1`,
@@ -352,7 +352,7 @@ export const migrations: string[][] = [
       UNIQUE(repo, comment_id)
     )`,
   ],
-  // 16 — extensions: each extension's result for a review, for the dashboard,
+  // 16: extensions: each extension's result for a review, for the dashboard,
   // and its findings, so a keyed finding is tracked across rounds. A tracked
   // finding keeps its id from round to round, so the key is (review_id, id).
   [

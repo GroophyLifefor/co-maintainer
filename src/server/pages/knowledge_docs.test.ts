@@ -23,6 +23,7 @@ isolateTestFile();
 
 const PASSWORD = "knowledge-docs-pass";
 const REPO = "acme/widgets";
+// punctuation: code, a fixture line of source code that the test writes or reads
 const LONG_LINE = `const veryLong = "${"x".repeat(300)}";`;
 const RAW_GUIDE = [
   "# Review guide",

@@ -20,7 +20,7 @@ export type RunResult = {
   cost: number;
   costKnown: boolean;
   /** Scope resolution, worktree checkout, and codegraph indexing done inside
-   * the timed call — real per-PR cost, but not the "review" a human would
+   * the timed call, real per-PR cost, but not the "review" a human would
    * compare across tools, so the caller reports it separately rather than
    * folding it into the headline time. 0 when a runner cannot separate it. */
   prepMs: number;
@@ -30,7 +30,7 @@ export type RunResult = {
 
 /** One PR review by one tool. A one-time global setup (a cloned repo, an
  * init'd guide, a configured provider) happens before the benchmark runs and
- * stays out of the measured time entirely; per-PR setup happens inside the
+ * stays out of the measured time entirely, per-PR setup happens inside the
  * timed call and is reported back as `prepMs`. */
 export type Runner = (
   client: GitHubClient,
@@ -315,7 +315,7 @@ export function ocrRunner(cloneRoot: string, bin: string): Runner {
     // Same scope co-maintainer's own reviewer applies (src/pr/scope.ts): a
     // re-review round's diff can be mostly code that arrived via a merge from
     // the default branch, not authored by this PR. Excluding it here too is
-    // what makes the two tools' numbers comparable — without it, OCR is asked
+    // what makes the two tools' numbers comparable, without it, OCR is asked
     // to find bugs in code neither tool's author wrote, and co-maintainer
     // isn't, which would be the benchmark's own thumb on the scale.
     const scope = await scopeInClone(

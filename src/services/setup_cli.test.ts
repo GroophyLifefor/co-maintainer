@@ -3,7 +3,7 @@
  * The guide is built by the AI below three review signals `writeReviewDocuments`
  * deletes the file without a word, so a user on a small repository could not
  * tell why the third guide was missing. The fix is one log line naming the count
- * and the threshold; the threshold is unchanged.
+ * and the threshold. The threshold is unchanged.
  */
 import { test } from "node:test";
 import {

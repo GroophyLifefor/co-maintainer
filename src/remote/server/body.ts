@@ -9,7 +9,7 @@ export type BoundedBodyResult =
   | { ok: false; reason: "too_large" | "empty" };
 
 /** Reads the raw body, streaming, and refuses once more than `maxBytes` have
- * arrived — this holds with no Content-Length (chunked) too. The caller gets
+ * arrived, this holds with no Content-Length (chunked) too. The caller gets
  * the exact bytes, which the webhook HMAC needs. */
 export async function readBoundedBytes(
   request: Request,

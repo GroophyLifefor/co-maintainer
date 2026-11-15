@@ -205,6 +205,7 @@ test(
   async () => {
     await withConfig(async (dir) => {
       const script = `${dir}/ext.mjs`;
+      // punctuation: code, a shell command line that the test runs
       await writeTextFile(
         script,
         `import { readFileSync } from "node:fs";
@@ -258,6 +259,7 @@ test(
   posixOnly,
   async () => {
     await withConfig(async () => {
+      // punctuation: code, a shell command line that the test runs
       const output = await captured([
         "debug-run",
         "--name=broken",

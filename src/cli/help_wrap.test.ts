@@ -1,7 +1,7 @@
 /** Long options must not run into their description in real `--help` output.
  *
  * The description column starts at 42. An option longer than that used to
- * print as `--ai=...|opencode-goWhich provider ...`; it must now end its line
+ * print as `--ai=...|opencode-goWhich provider ...`. It must now end its line
  * and start the description on the next one, aligned to the column. Asserted
  * through the real CLI process, not the renderer alone. */
 import { join } from "node:path";

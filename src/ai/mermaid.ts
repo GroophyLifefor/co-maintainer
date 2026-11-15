@@ -315,6 +315,7 @@ config:
 ---
 Use rect_* for requirement/element boxes and line_height/fontSize for
 readability. Keep risk and verification semantics in diagram data.`,
+  // punctuation: code, the message lists the semicolon as a forbidden character
   "usecase-beta": `Configuration:
 ---
 config:

@@ -92,7 +92,7 @@ function fail(error: ReviewCliError, json: boolean): void {
     console.error(error.message);
     if (error.hint) console.error(`Hint: ${error.hint}`);
   }
-  // Set the exit code and return; `process.exit` here would assert in libuv on
+  // Set the exit code and return, `process.exit` here would assert in libuv on
   // Windows whenever a fetch pool is open.
   exitWith(error.exitCode);
 }
@@ -274,7 +274,7 @@ export async function runLocalReview(
       let previous = carryLoad.data;
       // A guide rebuilt after the last review judged its findings under rules
       // that no longer exist. Rather than let those stale findings mask new
-      // ones, start fresh automatically — the same effect as
+      // ones, start fresh automatically, the same effect as
       // `--fresh`, without making the user remember the flag.
       if (
         previous &&
@@ -295,7 +295,7 @@ export async function runLocalReview(
         gitRoot: root,
         enabled: options.useCodegraph === true,
         allowInstall: cli.allowToolInstall,
-        // `--json` output must stay machine-readable, so never prompt then;
+        // `--json` output must stay machine-readable, so never prompt then.
         // `canPrompt` adds the TTY and CI checks.
         interactive: !json && canPrompt(),
       });

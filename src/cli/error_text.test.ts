@@ -5,8 +5,8 @@
  * substance (what broke, what to do) rather than the exact phrasing, so the
  * test survives copy edits but not a regression to the raw provider text.
  *
- * Where a case can only be produced by a real child process — a missing `gh`,
- * a 404, a rejected token — it runs through the CLI harness, because that
+ * Where a case can only be produced by a real child process, a missing `gh`,
+ * a 404, a rejected token, it runs through the CLI harness, because that
  * is the only place the exit code and the merged output are observable.
  */
 import { test } from "node:test";

@@ -317,7 +317,7 @@ function synthesisFacts(facts: Fact[], key: string): Fact[] {
   return (
     facts
       // A section that states repository policy never learns from a single pull
-      // request's narrative; only `review-bar` may.
+      // request's narrative. Only `review-bar` may.
       .filter(
         (item) =>
           item.sectionKey === key &&
@@ -369,8 +369,8 @@ Rules:
 - Never write an approval, a merge, "LGTM", thanks, a reviewer name, a pull-request number, a commit id, or quoted comment text.
 - The claim is a general invariant, not one past fix: "When X changes, Y must also change", or "Every Z uses W", never "change this one line".
 - trigger is what a reviewer can see in a diff: a path, a glob, or a symbol. It is how the rule applies to a future change, so a rule with no trigger is a one-off and is not useful.
-- impact and action are mandatory and concrete. Paraphrase the reviewer's reasoning for impact; never quote it.
-- class is a short area label chosen from a small, consistent set; reuse the same label for findings of the same kind so related findings can be grouped.
+- impact and action are mandatory and concrete. Paraphrase the reviewer's reasoning for impact. Never quote it.
+- class is a short area label chosen from a small, consistent set. Reuse the same label for findings of the same kind so related findings can be grouped.
 - location is a repository path when the review names one, otherwise leave it empty.
 - Return every distinct finding the reviews support, not a summary. Do not explain the answer.
 
@@ -399,8 +399,8 @@ release gates, and conventions that affect a code change. Ignore end-user featur
 installation walkthroughs, and generic programming advice. For source files, identify
 what important modules own and how tests exercise them when the files provide evidence.
 Do not infer PR titles, labels, review rules, or contributor policy unless the input
-contains PR or pull-request-template evidence; every claim must be directly supported
-by a provided file. Do not report a current version value; preserve the version
+contains PR or pull-request-template evidence. Every claim must be directly supported
+by a provided file. Do not report a current version value. Preserve the version
 change or release rule instead.
 Return at most 10 items. Keep each claim under 180 characters. Do not explain the answer.
 
@@ -550,11 +550,11 @@ existing guidance, remove contradictions, deduplicate overlapping facts, and do 
 invent anything. Include the correct human-readable section heading. Use inline
 backticks instead of fenced code blocks. Do not create examples, placeholder
 identifiers, or policies that are not present in the facts. Prefer at most
-6 high-value bullets; keep a concrete example only when it changes an agent decision.
+6 high-value bullets. Keep a concrete example only when it changes an agent decision.
 Do not preserve a current version value that can become stale. In Shipping,
 consolidate CI and release facts instead of repeating the same workflow rule.
 Facts are raw candidates, not all mandatory output. A fact supported by only one PR
-is an example, not a repository-wide rule; omit it unless canonical files or repeated
+is an example, not a repository-wide rule. Omit it unless canonical files or repeated
 evidence support it. Omit conflicting claims rather than guessing. Return only the
 heading when this section has no durable guidance. Do not preserve bot-specific
 automation commands, reviewer identities, or one-off historical requests as

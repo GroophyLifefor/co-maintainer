@@ -173,7 +173,7 @@ test("harness: a 401 from OpenRouter is surfaced, and 0.4.13 swallows it", async
     });
     // The provider error is quarantined per unit, not raised, so 0.4.13 still
     // reports success and writes a skill from the surviving facts. That gap is
-    // recorded for the later error-handling tasks; this harness only has to
+    // recorded for the later error-handling tasks. This harness only has to
     // prove the 401 reached the CLI and is diagnosable from its output.
     // The diagnosis is now a sentence, not the numeric status.
     const output = `${result.stdout}${result.stderr}`;

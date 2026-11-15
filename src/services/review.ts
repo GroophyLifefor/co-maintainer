@@ -109,21 +109,19 @@ const ACCESS_DENIED_BODY =
 export const REVIEW_FAILED_NOTE_START =
   "co-maintainer couldn't review this push";
 
-/** The failed note is rewritten to this once a retry posts a review. The
- * required sentence carries a semicolon, so it is not written as one literal:
- * the copy guard scans single quoted strings for a prose semicolon. */
+/** The failed note is rewritten to this once a retry posts a review. */
 export const REVIEWED_NOTE =
-  "co-maintainer reviewed this push" + "; the review is below.";
+  "co-maintainer reviewed this push. The review is below.";
 
 export function humanCopy(text: string): string {
-  // The semicolon is prose and always goes. The em dash is left alone here:
-  // this function also sanitizes a finding title, and a title posted before
-  // 0.5.0 uses ` — ` as its path/symbol separator, which the legacy heading
-  // reader still needs (the copy guard keeps that one allowlisted exception).
+  // The semicolon is prose and always goes. The em dash is left alone here,
+  // because this function also sanitizes a finding title.
+  // punctuation: code, this cleaner must name the semicolon it removes from AI text
   return outsideCode(redact(text), (prose) => prose.replaceAll(";", "."));
 }
 
 function hasForbiddenCopy(text: string): boolean {
+  // punctuation: code, this cleaner must name the semicolon it removes from AI text
   return outsideCode(text, (prose) => prose.replaceAll(";", "")) !== text;
 }
 
@@ -702,7 +700,7 @@ async function finishCheck(
   findings: ReturnType<typeof listFindingsForReview>,
   log: LogFn,
 ): Promise<void> {
-  // A closed finding was fixed; counting it would report work that is done.
+  // A closed finding was fixed. Counting it would report work that is done.
   const open = findings.filter((finding) => finding.state !== "closed");
   await updateCheck(
     client,
@@ -1415,7 +1413,7 @@ export function registerReviewJobHandler(): void {
 }
 
 /** `model` pins the review to one model, the way "Retry with the same
- * model" asks; without it the job resolves the model from config when it
+ * model" asks. Without it the job resolves the model from config when it
  * runs. */
 export function enqueueManualReview(
   repo: string,

@@ -57,11 +57,13 @@ export const MAIN_BODY =
 export const MAIN_COMMENT = "Please cover divide with a test.";
 
 const MATH_BASE = SAMPLE_REPO["src/math.ts"]!;
+// punctuation: code, a fixture line of TypeScript source written to disk by the test
 const DIVIDE = [
   "export function divide(a: number, b: number): number {",
   "  return a / b;",
   "}",
 ].join("\n");
+// punctuation: code, a fixture line of TypeScript source written to disk by the test
 const DIVIDE_GUARDED = [
   "export function divide(a: number, b: number): number {",
   '  if (b === 0) throw new RangeError("divide by zero");',
@@ -74,6 +76,7 @@ const DIVIDE_GUARDED = [
 export function mainFiles(guarded = false): Record<string, string> {
   return {
     "src/math.ts": `${MATH_BASE}\n${guarded ? DIVIDE_GUARDED : DIVIDE}\n`,
+    // punctuation: code, a fixture line of source code that the test writes or reads
     "src/format.ts": [
       'import { clamp } from "./math.ts";',
       "",
@@ -122,6 +125,7 @@ export function reviewRule(
   };
 }
 
+// punctuation: code, a fixture line of TypeScript source written to disk by the test
 const DIVIDE_LINE = lineOf(mainFiles()["src/math.ts"]!, "return a / b;");
 
 /** Findings for the standard pull request: one blocking, in a file the guide
@@ -178,6 +182,7 @@ function manyFindings() {
 
 export function manyFiles(): Record<string, string> {
   return {
+    // punctuation: code, a fixture line of source code that the test writes or reads
     "src/many.ts": `${Array.from(
       { length: MANY_COUNT * 2 },
       (_, index) => `export const v${index + 1} = ${index + 1};`,
@@ -794,6 +799,7 @@ function flowChecks(sim: Sim): CheckResult[] {
   // What the model was sent.
   const sent = reviewCompletions(sim, STEP.human)[0];
   const prompt = sent?.firstUser ?? "";
+  // punctuation: code, a fixture line of source code that the test writes or reads
   add(
     check(
       "the review prompt holds the pull request's title, body and state",

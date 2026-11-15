@@ -12,6 +12,7 @@ test("relativeTime uses short labels without a dash or semicolon", () => {
   for (const [iso, expected] of cases) {
     const got = relativeTime(iso, now);
     if (got !== expected) throw new Error(`${iso} -> ${got}`);
+    // punctuation: code, the guard looks for the semicolon character in the output
     if (got.includes("\u2014") || got.includes(";")) {
       throw new Error(got);
     }

@@ -297,6 +297,7 @@ async function login(): Promise<void> {
     body: `password=${encodeURIComponent(PASSWORD)}`,
     redirect: "manual",
   });
+  // punctuation: code, the Set-Cookie header separates its attributes with a semicolon
   cookie = (response.headers.get("set-cookie") ?? "").split(";")[0]!;
   if (!cookie) throw new Error("login did not set a cookie");
 }
@@ -1239,6 +1240,7 @@ async function main(): Promise<void> {
       setAi("review_push", review([], ["- F1: open src/new/auth.ts:6-6"]));
       const move = push(
         {
+          // punctuation: code, a fixture line of TypeScript source written to disk by the test
           "src/new/auth.ts": [
             "// credentials module",
             'import { env } from "node:process";',

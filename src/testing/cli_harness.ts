@@ -32,12 +32,12 @@ export type RunCliOptions = {
   reposDir?: string;
   /** `ok`, `notfound`, `forbidden`, `noauth`, or `empty-stderr`. */
   ghMode?: "ok" | "notfound" | "forbidden" | "noauth" | "empty-stderr";
-  /** Overrides `CM_OPENROUTER_URL`; a fake server's url goes here. */
+  /** Overrides `CM_OPENROUTER_URL`. A fake server's url goes here. */
   openrouterUrl?: string;
 };
 
 export type CliResult = {
-  /** The child's exit code; 124 means the timeout killed it. */
+  /** The child's exit code, 124 means the timeout killed it. */
   code: number;
   stdout: string;
   stderr: string;
@@ -103,7 +103,7 @@ export async function createCliHarness(): Promise<CliHarness> {
         ? { CM_OPENROUTER_URL: options.openrouterUrl }
         : {}),
       ...options.env,
-      // The fake gh is a `.cmd` on Windows; the CLI passes `shell` for that
+      // The fake gh is a `.cmd` on Windows. The CLI passes `shell` for that
       // path, so no PATH edit is needed here.
     };
     const spawnOptions = {

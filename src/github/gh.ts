@@ -67,7 +67,7 @@ type Bucket = { remaining: number; resetAt: Date };
  * what to do next. The four shapes that came up in practice:
  * `gh` missing from PATH, the repo missing or unreadable, an empty stderr, and
  * everything else. The first line is the only part a human reads, so it always
- * names the situation; the raw gh text moves to the hint so it stays available
+ * names the situation. The raw gh text moves to the hint so it stays available
  * without drowning the message. */
 function ghFailure(method: string, endpoint: string, stderr: string): CliError {
   if (/ENOENT|command not found|not recognized/i.test(stderr)) {
@@ -79,7 +79,7 @@ function ghFailure(method: string, endpoint: string, stderr: string): CliError {
     );
   }
   if (/HTTP 404|Not Found/i.test(stderr)) {
-    // The endpoint is `repos/owner/repo/...`; the user thinks in `owner/repo`.
+    // The endpoint is `repos/owner/repo/...`. The user thinks in `owner/repo`.
     const match = endpoint.match(/^repos\/([^/]+)\/([^/]+)/);
     const subject = match ? `${match[1]}/${match[2]}` : endpoint;
     return new CliError(

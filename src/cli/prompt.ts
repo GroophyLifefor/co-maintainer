@@ -34,7 +34,7 @@ async function ask(question: string): Promise<string> {
           resolve(value);
         };
         // `question` rejects when stdin closes mid-prompt (Ctrl-D, a detached
-        // pipeline, a killed parent); treat that as "no answer" too.
+        // pipeline, a killed parent). Treat that as "no answer" too.
         void rl.question(question).then(done, () => done(""));
         rl.once("close", () => done(""));
         process.stdin.once("end", () => done(""));
@@ -58,7 +58,7 @@ function raiseInterrupt(): void {
   else process.kill(process.pid, "SIGINT");
 }
 
-/** Free-text question; empty input yields the fallback (or ""). */
+/** Free-text question. Empty input yields the fallback (or ""). */
 export async function askLine(
   label: string,
   fallback?: string,
@@ -68,7 +68,7 @@ export async function askLine(
   return answer || fallback || "";
 }
 
-/** Yes/no question; anything but `y`/`yes` is a no. */
+/** Yes/no question. Anything but `y`/`yes` is a no. */
 export async function askConfirm(question: string): Promise<boolean> {
   const answer = (await ask(`${question} [y/N]`)).toLowerCase();
   return answer === "y" || answer === "yes";

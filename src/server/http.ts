@@ -2,8 +2,8 @@
  *
  * The app is written against the Web `Request`/`Response` types, which Deno
  * served natively. Node has both types but no server that speaks them
- * directly, so this translates per request and streams responses — including
- * the SSE job feed — instead of buffering them. */
+ * directly, so this translates per request and streams responses, including
+ * the SSE job feed, instead of buffering them. */
 import {
   createServer,
   type IncomingMessage,
@@ -37,8 +37,8 @@ function requestHeaders(req: IncomingMessage): Headers {
   return headers;
 }
 
-/** Node's `IncomingMessage` is a Node stream; `fetch` wants a Web body. A
- * GET/HEAD has none, and passing `undefined` is required there — a body on a
+/** Node's `IncomingMessage` is a Node stream, `fetch` wants a Web body. A
+ * GET/HEAD has none, and passing `undefined` is required there, a body on a
  * GET makes undici throw. */
 function requestBody(
   req: IncomingMessage,
@@ -125,7 +125,7 @@ export function serveHttp(app: FetchApp, port: number): HttpServer {
     server.once("error", reject);
   });
   // Slow-loris defence: cap how long a client may take to send headers and
-  // the full request. Responses (SSE) are unaffected — those are measured on
+  // the full request. Responses (SSE) are unaffected, those are measured on
   // the response side, not here.
   server.headersTimeout = 20_000;
   server.requestTimeout = 120_000;

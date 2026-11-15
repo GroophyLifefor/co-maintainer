@@ -1,7 +1,7 @@
 /** One presentation layer for local, PR and remote reviews.
  *
  * A terminal printed the fixed four-line severity legend and the sentence
- * "If you'd like me to explain it in more detail, please ask." — neither has a
+ * "If you'd like me to explain it in more detail, please ask.", neither has a
  * reader there. A PR review printed Markdown sections while a local review
  * printed `New (1) •` and a `Summary:` line, so the same tool looked like two
  * products. The header said `guide unknown` when the code was only unsure
@@ -11,7 +11,7 @@
  * These run the real CLI for the local and remote paths and assert the same
  * header shape, the same summary line, and the absence of the terminal-hostile
  * text. The severity legend and the "ask" sentence still belong to the GitHub
- * comment, which is a different reader; `src/services/review.test.ts` covers
+ * comment, which is a different reader, `src/services/review.test.ts` covers
  * that side.
  */
 import { test } from "node:test";
@@ -182,7 +182,7 @@ test("local review prints the shared human format, with the real guide date", as
     assertCleanHeader(stdout, "local");
     if (!stdout.includes("codegraph unavailable")) {
       throw new Error(
-        `codegraph was requested but absent; the header must say so:\n${stdout}\n${stderr}`,
+        `codegraph was requested but absent. The header must say so:\n${stdout}\n${stderr}`,
       );
     }
     // The source of the guide timestamp is the file on disk, so a local
@@ -215,7 +215,7 @@ test("PR review prints the same format as the other two modes", async () => {
       lowModel: "fake/model",
       highModel: "fake/model",
     });
-    // `fixture/repo` is the fake gh's fixed repository; its one pull request is
+    // `fixture/repo` is the fake gh's fixed repository. Its one pull request is
     // `src/app.ts`, whose guide the fake does not provide, so the review guide
     // comes from the repo directory the harness shares.
     await mkdir(`${harness.home}/repos/fixture/repo`, { recursive: true });

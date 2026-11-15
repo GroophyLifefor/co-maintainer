@@ -9,14 +9,14 @@ export type Options = {
   prNumber?: number;
   debug: boolean;
   logTime: boolean;
-  /** Reviews every changed file with no own/upstream split — the behavior
+  /** Reviews every changed file with no own/upstream split, the behavior
    * before scope.ts existed. Off by default: a re-review round's diff can
    * carry a merge from the default branch that dwarfs the PR's own change,
    * and neither a human reviewer nor this flag's absence asks anyone to read
    * it as if the PR authored it. */
   reviewUpstream?: boolean;
   /** CLI review enables codegraph by default (`--disable-codegraph` to skip).
-   * Server jobs still follow per-repo settings. Indexing adds tokens and time;
+   * Server jobs still follow per-repo settings. Indexing adds tokens and time,
    * measured PR recall gains were small when this was opt-in only (K25). */
   useCodegraph?: boolean;
   /** PR review installs the pinned codegraph when `--allow-tool-install` is
@@ -149,7 +149,7 @@ export type AiRequest = {
   withoutMermaidTool?: boolean;
   // The full scale OpenRouter exposes for models that support it (see a
   // model's `reasoning.supported_efforts`), highest first. Not every model
-  // supports every level — "max"/"xhigh" are newer additions some models
+  // supports every level, "max"/"xhigh" are newer additions some models
   // don't have, and requesting an unsupported one is the caller's mistake to
   // avoid, not something validated here.
   reasoningEffort?: "max" | "xhigh" | "high" | "medium" | "low" | "none";

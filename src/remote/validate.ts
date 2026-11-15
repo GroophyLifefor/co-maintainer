@@ -276,7 +276,7 @@ export function validateSubmitRequest(body: unknown): string | null {
         if (typeof tool.name !== "string" || !tool.name) {
           return bad(`capabilities.tools[${i}].name`, "required");
         }
-        // Unknown tools are ignored at runtime; no error here.
+        // Unknown tools are ignored at runtime. No error here.
         if (
           REMOTE_KNOWN_TOOL_NAMES.has(tool.name) &&
           tool.version !== undefined &&

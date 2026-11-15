@@ -161,6 +161,7 @@ test("a tracked finding is found again by its code, the nearest match first", ()
     blank?.from === 3 && blank.to === 4,
     `whitespace and blank lines: ${JSON.stringify(blank)}`,
   );
+  // punctuation: code, a source code line searched for in a fixture file
   expect(locateAnchor(content, "gone();", 1) === undefined, "missing code");
 });
 
@@ -230,6 +231,7 @@ test("sync applies each note once, and ignore marks the issue ignored", async ()
       path: "src/net/retry.ts",
       lineFrom: 2,
       lineTo: 2,
+      // punctuation: code, a fixture line of TypeScript source written to disk by the test
       anchorText: "while (true) await fn();",
       reviewId: "r-1",
     });
@@ -526,6 +528,7 @@ test("a push review result carries the coverage and warnings of its diff plan", 
         `${repos}/acme/widgets/PR_REVIEW_GUIDE.md`,
         "# Guide\n",
       );
+      // punctuation: code, a fixture line of source code that the test writes or reads
       const big = Array.from({ length: 600 }, (_, i) => `+const v${i} = ${i};`);
       const queued = queuePush({
         repo: "acme/widgets",

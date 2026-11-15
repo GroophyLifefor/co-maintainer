@@ -1,5 +1,5 @@
 /** The log stream is meant to be consumed with `fetch()` and a manual
- * reader, not the native `EventSource` API — `EventSource` cannot set an
+ * reader, not the native `EventSource` API, `EventSource` cannot set an
  * `Authorization` header, and every other `/api/*` route needs one. */
 import { errorResponse } from "../errors.ts";
 import { cancel, getLogsSince, subscribeToLogs } from "../../services/jobs.ts";
@@ -88,7 +88,7 @@ function streamLogs(jobId: string, fromSeq: number): Response {
       unsubscribe = subscribeToLogs(jobId, send);
     },
     cancel() {
-      // The client disconnected — stop pushing to it.
+      // The client disconnected, stop pushing to it.
       closed = true;
       unsubscribe?.();
     },

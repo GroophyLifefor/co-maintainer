@@ -6,7 +6,7 @@ import { readBoundedBytes } from "../../remote/server/body.ts";
 import { verifySignature } from "./signature.ts";
 import { canonicalRepoName } from "../../util/repo_name.ts";
 
-/** GitHub caps a webhook payload at 25 MB; nothing larger is genuine. */
+/** GitHub caps a webhook payload at 25 MB. Nothing larger is genuine. */
 const WEBHOOK_MAX_BODY_BYTES = 25 * 1024 * 1024;
 
 function json(status: number, body: unknown): Response {

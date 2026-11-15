@@ -71,7 +71,7 @@ export type Flow = {
   steps: Step[];
   /** Deterministic: a failing check fails the run. */
   checks?(sim: Sim): CheckResult[] | Promise<CheckResult[]>;
-  /** Only reported. Scores may call a judge model; they run before the
+  /** Only reported. Scores may call a judge model. They run before the
    * checks, so a judge call that leaves the simulation still fails the run. */
   scores?(sim: Sim): Score[] | Promise<Score[]>;
   /** Inherited checks this flow turns off, each with the reason the report

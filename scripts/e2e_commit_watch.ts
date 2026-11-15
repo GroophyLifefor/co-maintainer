@@ -284,6 +284,7 @@ async function login(): Promise<string> {
     body: `password=${encodeURIComponent(password)}`,
     redirect: "manual",
   });
+  // punctuation: code, the Set-Cookie header separates its attributes with a semicolon
   const cookie = (response.headers.get("set-cookie") ?? "").split(";")[0];
   if (!cookie) throw new Error("dashboard login failed");
   return cookie;

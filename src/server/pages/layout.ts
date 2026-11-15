@@ -258,7 +258,7 @@ const NAV_GROUPS: {
   },
 ];
 
-/** Where the menu badges come from. `createApp` registers the real counts;
+/** Where the menu badges come from. `createApp` registers the real counts,
  * a page rendered without an app (a unit test of one renderer) has none and
  * shows no badges. */
 let navSource: (() => NavCounts) | undefined;
@@ -314,7 +314,7 @@ const PALETTE = `<div class="pal-ov" id="pal-ov" hidden></div>
 </div>`;
 
 /** The shared shell: left menu, sidefoot user/theme/sign out, mobile topbar and
- * overlay. `active` is the href of the nav item to mark; pages under Reviews
+ * overlay. `active` is the href of the nav item to mark. Pages under Reviews
  * pass `/`. */
 export function layout(opts: {
   title: string;
@@ -410,7 +410,7 @@ export function html(body: string, status = 200): Response {
 }
 
 /** The repository tabs shared by every repo page. They replace the old second
- * sidebar; the shell owns the only left menu. */
+ * sidebar. The shell owns the only left menu. */
 export function repoTabs(fullName: string, on: string): string {
   const href = `/repos/${fullName}`;
   const items = [

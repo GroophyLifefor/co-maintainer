@@ -4,17 +4,17 @@ How this repository's code is actually structured and written. A pull request th
 
 ## Code layout
 
-- `src/cli.js` contains `packageJson`, `COMMANDS`, `runCli`, `run`, `usage`, `names`, `commandList`; keep related changes in this module.
-- `src/cli/render_table.js` contains `renderTable`, `widths`, `renderRow`, `text`, `pad`, `lines`, `row`; keep related changes in this module.
-- `src/commands/check.js` contains `FAIL_ON_VALUES`, `checkCommand`, `snapshot`, `policy`, `evaluation`, `v`, `e`; keep related changes in this module.
-- `src/commands/diff.js` contains `MODES`, `diffCommand`, `top`, `before`, `after`, `result`, `rows`, `renderInstanceTable`; keep related changes in this module.
-- `src/commands/gc_path.js` contains `gcPathCommand`, `top`, `snapshot`, `matches`, `rows`; keep related changes in this module.
-- `src/commands/retained.js` contains `retainedCommand`, `top`, `snapshot`, `idom`, `retained`, `rows`; keep related changes in this module.
+- `src/cli.js` contains `packageJson`, `COMMANDS`, `runCli`, `run`, `usage`, `names`, `commandList`. Keep related changes in this module.
+- `src/cli/render_table.js` contains `renderTable`, `widths`, `renderRow`, `text`, `pad`, `lines`, `row`. Keep related changes in this module.
+- `src/commands/check.js` contains `FAIL_ON_VALUES`, `checkCommand`, `snapshot`, `policy`, `evaluation`, `v`, `e`. Keep related changes in this module.
+- `src/commands/diff.js` contains `MODES`, `diffCommand`, `top`, `before`, `after`, `result`, `rows`, `renderInstanceTable`. Keep related changes in this module.
+- `src/commands/gc_path.js` contains `gcPathCommand`, `top`, `snapshot`, `matches`, `rows`. Keep related changes in this module.
+- `src/commands/retained.js` contains `retainedCommand`, `top`, `snapshot`, `idom`, `retained`, `rows`. Keep related changes in this module.
 
 ## Code style
 
 - Use conventional commit prefixes when creating commits.
-- Recent commit examples: `release: v0.5.0`; `docs: export the full public api surface, rewrite readme (#50)`; `feat: mcp server and tools (#49)`; `release: v0.4.0`; `feat: policy gate exit codes, junit and github actions output (#48)`; `feat: policy rule evaluation engine (#47)`; `feat: policy file loader (#46)`; `release: v0.3.0`.
+- Recent commit examples: `release: v0.5.0`, `docs: export the full public api surface, rewrite readme (#50)`, `feat: mcp server and tools (#49)`, `release: v0.4.0`, `feat: policy gate exit codes, junit and github actions output (#48)`, `feat: policy rule evaluation engine (#47)`, `feat: policy file loader (#46)`, `release: v0.3.0`.
 - contextRetainerCountOf lazily builds and caches an Int32Array count on first use instead of recomputing.
 - The diff replaces #referrers with #firstReferrer and #referrerNodes typed arrays.
 - Adds #firstEdge private field and buildEdgeOffsets helper using Int32Array of length nodeCount + 1.

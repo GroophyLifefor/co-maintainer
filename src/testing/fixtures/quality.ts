@@ -31,6 +31,7 @@ export const qualityFixtures: Record<string, Source> = {
       "package.json":
         '{"scripts":{"test":"vitest","check":"tsc --noEmit","build":"tsc"}}',
       "src/app.ts": "export function app() { return true; }",
+      // punctuation: code, a fixture line of source code that the test writes or reads
       "tests/app.test.ts": "test('app', () => expect(app()).toBe(true));",
       ".github/workflows/ci.yml":
         "on: pull_request\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pnpm test",

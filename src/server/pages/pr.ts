@@ -38,6 +38,7 @@ export function renderPr(
         items: findings.filter((f) => (f.state ?? "new") === state),
       }))
       .filter((group) => group.items.length > 0);
+    // punctuation: code, a CSS declaration list inside an inline style
     return groups
       .map(
         (group) =>
@@ -69,6 +70,7 @@ export function renderPr(
       )
       .join("");
   };
+  // punctuation: code, a CSS declaration list inside an inline style
   const findingsBlock =
     data.reviews.length === 0
       ? empty(

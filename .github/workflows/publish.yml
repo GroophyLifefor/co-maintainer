@@ -49,7 +49,7 @@ jobs:
           version="${{ steps.tag.outputs.version }}"
           if npm view "co-maintainer@$version" version >/dev/null 2>&1; then
             echo "published=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::co-maintainer@$version is already on the registry; skipping publish"
+            echo "::notice::co-maintainer@$version is already on the registry, skipping publish"
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
@@ -93,7 +93,7 @@ jobs:
         run: |
           if docker manifest inspect "$IMAGE:$VERSION" >/dev/null 2>&1; then
             echo "pushed=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::$IMAGE:$VERSION is already on ghcr.io; skipping push"
+            echo "::notice::$IMAGE:$VERSION is already on ghcr.io, skipping push"
             if [[ "$VERSION" != *-* ]]; then
               if latest="$(docker manifest inspect "$IMAGE:latest" 2>&1)"; then
                 :

@@ -58,6 +58,7 @@ test("shipped Markdown has no semicolon in prose", async () => {
   for (const rel of SHIPPED) {
     const text = await readTextFile(join(projectRoot, rel));
     for (const [lineNo, line] of proseLines(text)) {
+      // punctuation: code, the guard looks for the semicolon character in the output
       if (line.includes(";")) {
         offenders.push(`${rel}:${lineNo}: ${line.trim()}`);
       }

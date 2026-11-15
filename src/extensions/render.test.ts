@@ -287,6 +287,7 @@ test("a remote result splits back into AI findings and extensions", () => {
 
 /** The check `publish` runs on everything it posts. */
 function forbidden(text: string): boolean {
+  // punctuation: code, the check names the semicolon it removes from text
   return outsideCode(text, (prose) => prose.replaceAll(";", "")) !== text;
 }
 
@@ -320,6 +321,7 @@ test("a fence in a title and code in the markdown still pass the copy check toge
   for (const comment of split.comments) {
     if (forbidden(comment.body)) throw new Error(comment.body);
   }
+  // punctuation: code, the test looks for a code line in the rendered body
   if (!body.includes("const a = 1;")) throw new Error("the code was changed");
 });
 

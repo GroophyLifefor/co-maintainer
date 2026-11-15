@@ -59,7 +59,7 @@ export type SetupJsonInput = {
   command: "init" | "sync";
   repo: string;
   skillPath: string;
-  /** Section keys this run rewrote; empty when the guide was already current. */
+  /** Section keys this run rewrote. Empty when the guide was already current. */
   changed: string[];
   facts: number;
   pullRequests: number;

@@ -15,7 +15,7 @@ export const REMOTE_SYNC_INTERVAL_SECONDS = 3;
 export const REMOTE_MAX_SYSTEM_PROMPT_CHARS = 200_000;
 
 /** SHA-256 of sorted `fixtures/v<N>/*.json` (name + contents, `\r\n` normalized
- * to `\n`); bump with schema version. */
+ * to `\n`). Bump with schema version. */
 export const REMOTE_FIXTURE_HASH: Record<number, string> = {
   1: "71e4e5f8637eab4b53d47817a688812a517310d967abe26aa0d7f4e7d7d65092",
 };

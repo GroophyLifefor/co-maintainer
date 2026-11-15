@@ -1,5 +1,5 @@
-/** The user-to-server side of a GitHub App's OAuth flow — "Sign in with
- * GitHub" — reusing the App's own client ID/secret. No separate OAuth App
+/** The user-to-server side of a GitHub App's OAuth flow, "Sign in with
+ * GitHub", reusing the App's own client ID/secret. No separate OAuth App
  * is needed. */
 import { githubFetch } from "./client.ts";
 

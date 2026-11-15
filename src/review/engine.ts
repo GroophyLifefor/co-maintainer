@@ -1,4 +1,4 @@
-/** Review prompt, tool loop, and improvement passes — PR adapter calls this
+/** Review prompt, tool loop, and improvement passes, PR adapter calls this
  * after building a `Revision` and carry-over input. */
 import type { GitHubClient, Options } from "../types.ts";
 import type { Snapshot } from "../pr/snapshot.ts";

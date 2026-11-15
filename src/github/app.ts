@@ -51,7 +51,7 @@ type TokenCache = { token: string; expiresAt: number };
 const installationTokens = new Map<number, TokenCache>();
 
 /** App-level calls: list installations, mint an installation access token.
- * Not scoped to one installation — `AppClient` below is. */
+ * Not scoped to one installation, `AppClient` below is. */
 export class AppJwtClient {
   private readonly appId: string;
   private readonly privateKeyPem: string;

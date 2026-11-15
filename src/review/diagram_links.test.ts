@@ -54,6 +54,7 @@ test("a different host that only looks like the public one is a custom server", 
 });
 
 test("a server path that would break a Markdown link is refused", () => {
+  // punctuation: code, a URL path holds a semicolon on purpose
   for (const bad of [
     "https://my.host/a)b",
     "https://my.host/a(b",

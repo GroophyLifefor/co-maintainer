@@ -113,7 +113,7 @@ async function probe(options: Options): Promise<void> {
       estimate.basis === "history"
         ? "this repository's recorded jobs"
         : "the cm-dx-lab calibration"
-    }; an estimate, not a bill`,
+    }, an estimate, not a bill`,
   );
   if (commitWatch) {
     console.log(

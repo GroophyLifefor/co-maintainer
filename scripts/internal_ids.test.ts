@@ -58,6 +58,7 @@ function files(dir: string): string[] {
 }
 
 test("the matcher finds each kind of internal reference and leaves ordinary text alone", () => {
+  // punctuation: code, a fixture line of TypeScript source written to disk by the test
   const cases: [string, number][] = [
     ["// Before CORE-12 this was different", 1],
     ["/** The copy guard (CORE-83 / D11). */", 1],

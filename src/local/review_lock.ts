@@ -27,7 +27,7 @@ async function lockPath(gitRoot: string): Promise<string> {
 
 export type LocalReviewLock = {
   release: () => Promise<void>;
-  /** For signal handlers — must not await before exit. */
+  /** For signal handlers, must not await before exit. */
   releaseSync: () => void;
 };
 

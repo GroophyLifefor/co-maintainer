@@ -2,9 +2,9 @@
  *
  * Three sources, in order of trust:
  *
- * 1. Job counts come from the same inputs the real run uses — the number of
+ * 1. Job counts come from the same inputs the real run uses, the number of
  *    pull requests, whether the codebase is read, and the ten synthesis
- *    sections — so the shape is exact.
+ *    sections, so the shape is exact.
  * 2. Dollars come from the live OpenRouter price for the configured models.
  *    When prices are unavailable the estimate reports tokens but no dollars
  *    rather than guessing one.
@@ -12,7 +12,7 @@
  *    there are enough, and from the calibration below otherwise.
  *
  * Calibration: cm-dx-lab, 4 pull requests and 8 files, 5
- * extract and 9 synth jobs, 151 s, $0.0014 — about 151/14 ≈ 10.8 s per job.
+ * extract and 9 synth jobs, 151 s, $0.0014, about 151/14 ≈ 10.8 s per job.
  * Token counts per job are near 2.4k in and 0.7k out. The text always says
  * the numbers are an estimate. */
 import { cacheValues } from "../store/cache_db.ts";

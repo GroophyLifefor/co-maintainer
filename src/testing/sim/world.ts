@@ -2,7 +2,7 @@
  *
  * One sandbox directory that every config, cache, repository and database path
  * points at, so a run never touches the machine's real files. A repository is
- * a real git repository inside the sandbox; the simulated GitHub in
+ * a real git repository inside the sandbox. The simulated GitHub in
  * `github.ts` reads it, so trees, contents, pull request files and compares
  * are what git says, not fixtures.
  *

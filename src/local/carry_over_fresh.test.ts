@@ -1,13 +1,13 @@
 /** Carry-over must not shadow a fresh scan.
  *
  * After the review guide was rebuilt, a local review still showed only the
- * old finding as "Still open" and reported nothing new; `--fresh` on the same
+ * old finding as "Still open" and reported nothing new, `--fresh` on the same
  * working tree immediately surfaced two real violations. The carry-over pass
  * had quietly replaced the review instead of running beside it.
  *
  * These tests drive the real CLI in a git worktree against a fake model that
  * mimics the reported behavior:
- *  - run 1 reports finding A and stores it as carry-over;
+ *  - run 1 reports finding A and stores it as carry-over,
  *  - run 2 answers the carry prompt with the verdict alone, and reports the new
  *    violation B only when the prompt tells it to scan the diff afresh.
  *
@@ -193,7 +193,7 @@ test("a carry-over run still scans the diff and reports new findings", async () 
     chatContent: (prompt) => {
       if (run === 1) return JSON.stringify({ findings: [FINDING_A] });
       // The model behavior under test: with only a verdict task it answers the verdict and
-      // stops; when told to scan afresh it also reports B.
+      // stops. When told to scan afresh it also reports B.
       const fresh = /Scan the DIFF from scratch/i.test(prompt);
       return JSON.stringify({
         findings: fresh ? [FINDING_B] : [],

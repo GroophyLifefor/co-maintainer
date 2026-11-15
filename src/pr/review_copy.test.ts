@@ -5,10 +5,8 @@
  * reads there into a finding), the CLI and dashboard text a person reads, and
  * the Markdown comment posted to GitHub.
  *
- * This scans the user-visible modules for a literal `—` outside a comment and
- * runs the shared renderers. The one allowlist entry is the legacy finding
- * parser, which accepts an em dash heading so a comment posted before 0.5.0
- * still parses. */
+ * This scans the user-visible modules for a literal em dash outside a comment
+ * and runs the shared renderers. */
 import { test } from "node:test";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -118,11 +116,13 @@ test("the review copy rule names both banned marks", () => {
 
 test("the severity legend and section are clean", () => {
   const rendered = severitySection();
+  // punctuation: code, the guard looks for the semicolon character in the output
   if (rendered.includes("\u2014") || rendered.includes(";")) {
     throw new Error(`severity section is not clean:\n${rendered}`);
   }
   for (const row of SEVERITY_LEGEND) {
     const text = `${row.level} ${row.name} ${row.description}`;
+    // punctuation: code, the guard looks for the semicolon character in the output
     if (text.includes("\u2014") || text.includes(";")) {
       throw new Error(`severity row is not clean: ${text}`);
     }
@@ -169,15 +169,17 @@ test("the shared human review format prints no em dash", () => {
   }
 });
 
-test("humanCopy keeps the legacy heading dash and removes semicolons", () => {
-  const cleaned = humanCopy("Broken — really; see `a; b`");
-  // The dash survives because a legacy finding title uses it as a separator.
+test("humanCopy leaves the em dash alone and removes semicolons", () => {
+  // punctuation: code, the test feeds a prose semicolon and one in inline code to the cleaner
+  const cleaned = humanCopy("Broken \u2014 really; see `a; b`");
   if (!cleaned.includes("\u2014")) {
-    throw new Error(`legacy heading separator was rewritten: ${cleaned}`);
+    throw new Error(`the em dash was rewritten: ${cleaned}`);
   }
+  // punctuation: code, the test checks that a prose semicolon is gone
   if (cleaned.includes("really;")) {
     throw new Error(`prose semicolon survived: ${cleaned}`);
   }
+  // punctuation: code, the test checks that a semicolon inside inline code stays
   if (!cleaned.includes("`a; b`")) {
     throw new Error(`inline code was rewritten: ${cleaned}`);
   }

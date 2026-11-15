@@ -2,7 +2,7 @@
  * KEY"). Web Crypto's `importKey("pkcs8", ...)` only takes PKCS#8. The two
  * differ by a fixed 26-byte wrapper around the same PKCS#1 bytes: a version
  * INTEGER, the rsaEncryption AlgorithmIdentifier, and an OCTET STRING tag
- * around the PKCS#1 payload — this file builds that wrapper by hand rather
+ * around the PKCS#1 payload, this file builds that wrapper by hand rather
  * than pulling in an ASN.1 library for one fixed structure. */
 
 const RSA_ALGORITHM_IDENTIFIER = Uint8Array.from([

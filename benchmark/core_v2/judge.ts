@@ -1,3 +1,4 @@
+import { withCopyRule } from "../../src/ai/copy_rule.ts";
 import { OpenRouterProvider } from "../../src/ai/openrouter.ts";
 import type { AiResponse } from "../../src/types.ts";
 import type { ParsedFinding } from "../../src/pr/findings.ts";
@@ -11,7 +12,7 @@ export type JudgeGold = {
 };
 
 /** Asks a cheap model whether any leftover (unmatched-by-line) prediction and
- * gold entry describe the same underlying defect, regardless of file/line —
+ * gold entry describe the same underlying defect, regardless of file/line,
  * a model often points at the fix site while a human reviewer points at the
  * line that triggered the comment, a few lines (or files) apart. */
 export async function judgeMatches(
@@ -24,10 +25,10 @@ export async function judgeMatches(
   usage?: (response: AiResponse) => Promise<void>,
 ): Promise<{ predicted: number; gold: number }[]> {
   if (predictedIndices.length === 0 || goldIndices.length === 0) return [];
-  const provider = new OpenRouterProvider(token, model);
+  const provider = withCopyRule(new OpenRouterProvider(token, model));
   const prompt = `Each PREDICTED finding and each GOLD finding below describes a
 possible code defect in the same pull request. For each pair that describes
-the SAME underlying defect (even if the file or line differs — one may point
+the SAME underlying defect (even if the file or line differs: one may point
 at the fix site, the other at the line that triggered the comment), return
 that pair. Do not pair findings that are merely in the same area of code but
 describe a different problem. Each index may appear in at most one pair.
@@ -37,7 +38,7 @@ PREDICTED:
 ${predictedIndices
   .map((i) => {
     const item = predicted[i];
-    return `${i}. ${item.path}:${item.from}-${item.to} — ${item.heading}\n${item.excerpt}`;
+    return `${i}. ${item.path}:${item.from}-${item.to}: ${item.heading}\n${item.excerpt}`;
   })
   .join("\n\n")}
 
@@ -45,7 +46,7 @@ GOLD:
 ${goldIndices
   .map((i) => {
     const item = gold[i];
-    return `${i}. ${item.path}:${item.from}-${item.to} — ${item.quote}\n${item.why}`;
+    return `${i}. ${item.path}:${item.from}-${item.to}: ${item.quote}\n${item.why}`;
   })
   .join("\n\n")}`;
   const response = await provider.complete({

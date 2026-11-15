@@ -82,7 +82,7 @@ export async function ensureDashboardPassword(
 }
 
 /** `--disable-auth=password` / `--enable-auth=github` always win over the
- * config defaults `co-maintainer set` persisted; dies if the result would
+ * config defaults `co-maintainer set` persisted. Dies if the result would
  * leave no sign-in method active. Pure so it is testable without a server. */
 export function resolveAuthMethods(
   args: string[],

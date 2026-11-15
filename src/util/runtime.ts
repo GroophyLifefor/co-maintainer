@@ -39,7 +39,7 @@ export function isWindows(): boolean {
 
 // Windows only: keep the current working directory out of the executable search
 // path, so a `git.cmd` / `gh.exe` committed in a reviewed repository cannot run
-// in place of the real tool. Set once at module load — before any child spawn —
+// in place of the real tool. Set once at module load, before any child spawn,
 // and inherited by every child process we start.
 if (isWindows() && !process.env.NoDefaultCurrentDirectoryInExePath) {
   process.env.NoDefaultCurrentDirectoryInExePath = "1";
@@ -191,7 +191,7 @@ export function makeTempDirSync(options?: { prefix?: string }): string {
 /** A uniquely named temp file (created empty), mirroring `Deno.makeTempFile`.
  *
  * `wx` fails on collision instead of truncating an existing file, so the retry
- * loop preserves `mkdtemp`'s uniqueness without leaving a directory behind —
+ * loop preserves `mkdtemp`'s uniqueness without leaving a directory behind,
  * callers only ever delete the returned file. */
 export async function makeTempFile(options?: {
   prefix?: string;
@@ -333,11 +333,11 @@ export function commandSpawn(
  *
  * Windows: `process.kill(pid, 0)` is unreliable (Node emulates signals and
  * would terminate the target), so `tasklist` answers without touching it.
- * POSIX: signal 0 checks existence without delivering; `ESRCH` means dead,
- * while `EPERM` (or anything else) means it exists but is not ours — assume
+ * POSIX: signal 0 checks existence without delivering, `ESRCH` means dead,
+ * while `EPERM` (or anything else) means it exists but is not ours, assume
  * alive rather than risk two writers on the same database. */
 /** Decides Windows PID liveness from a `tasklist` invocation. A matching row is
- * CSV and starts with the quoted image name; the "no tasks" notice is prose, so
+ * CSV and starts with the quoted image name. The "no tasks" notice is prose, so
  * the distinction is locale-independent. A spawn failure or an empty body is
  * indeterminate and reports alive: refusing to start beats letting a second
  * writer take over a live lock. */

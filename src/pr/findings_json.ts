@@ -4,7 +4,7 @@
  * wrong offsets, because the model's free-form Markdown was sliced by the
  * fallback parser. The fix is to have the model return JSON and generate the
  * Markdown ourselves, so a finding's boundaries can no longer be guessed from
- * prose. Markdown stays the internal contract — every downstream consumer
+ * prose. Markdown stays the internal contract, every downstream consumer
  * (`parseFindings`, carry-over, GitHub posting) keeps working unchanged.
  */
 import type { Json } from "../types.ts";
@@ -70,7 +70,7 @@ Rules for the JSON:
   column, never counted from the @@ header. "lineTo" may equal "lineFrom".
 - "title" is one sentence naming the defect, without the severity or the path.
 - "body" is the explanation. Do not repeat the title, the path, or the location
-  line inside it; our code renders those. Do not add a closing sentence asking
+  line inside it. Our code renders those. Do not add a closing sentence asking
   whether to explain more, and do not use the words Mechanism, Symptom,
   Scenario, Verified, Repro, Options, or Scope as labels.
 - "suggestion" holds only the replacement source lines, with their original

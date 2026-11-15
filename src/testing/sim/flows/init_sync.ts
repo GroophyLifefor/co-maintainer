@@ -36,6 +36,7 @@ export const HISTORY_REPO = SAMPLE_REPO_NAME;
 /** The sample repository plus the test file its review rules name. */
 export const HISTORY_FILES: Record<string, string> = {
   ...SAMPLE_REPO,
+  // punctuation: code, a fixture line of TypeScript source written to disk by the test
   "test/format.test.ts": [
     'import { test } from "node:test";',
     'import assert from "node:assert/strict";',

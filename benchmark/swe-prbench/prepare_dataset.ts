@@ -7,14 +7,14 @@ import {
 // https://huggingface.co/datasets/foundry-ai/swe-prbench) into the Row shape
 // run.ts expects, restricted to --repos=owner/a,owner/b.
 //
-// Only top-level review comments anchored to a diff line are kept as gold —
+// Only top-level review comments anchored to a diff line are kept as gold,
 // a reply (`replyTo` set) responds to a finding rather than raising a new
 // one, and a comment with no `line` isn't anchored to code a model's finding
 // can be matched against.
 //
 // `ref_before` (see src/pr/snapshot.ts) is pinned to an epoch sentinel for
 // every row, so run.ts strips the PR's entire real comment/review history
-// from the model's context — not just the gold quotes. Every PR here is
+// from the model's context, not just the gold quotes. Every PR here is
 // real and already merged, so without this the model would review with the
 // answers already sitting in front of it.
 
@@ -34,7 +34,7 @@ type SourceRow = {
   human_review_comments: SourceComment[];
 };
 
-/** Before every existing GitHub comment/review on these PRs — see above. */
+/** Before every existing GitHub comment/review on these PRs, see above. */
 const REF_BEFORE = "1970-01-01T00:00:00Z";
 
 function flag(args: string[], name: string): string | undefined {
@@ -54,7 +54,7 @@ try {
 } catch (error) {
   if (isNotFound(error)) {
     throw new Error(
-      `Missing ${srcPath}; download dataset/prs.jsonl from https://huggingface.co/datasets/foundry-ai/swe-prbench there first`,
+      `Missing ${srcPath}. Download dataset/prs.jsonl from https://huggingface.co/datasets/foundry-ai/swe-prbench there first`,
     );
   }
   throw error;
@@ -96,7 +96,7 @@ for (const row of selected) {
 }
 
 if (out.length === 0) {
-  throw new Error("No gold rows produced — nothing to write");
+  throw new Error("No gold rows produced. Nothing to write.");
 }
 await writeTextFile(outPath, `${JSON.stringify(out, null, 2)}\n`);
 console.log(

@@ -100,7 +100,7 @@ test("review never asks about codegraph when stdin is not a TTY", async () => {
         CM_REPOS_DIR: reposDir,
         // An empty tools dir: codegraph is never present, no matter the host.
         CM_TOOLS_DIR: `${root}/tools`,
-        // The regression was a closed stdin looking interactive; keep it closed
+        // The regression was a closed stdin looking interactive. Keep it closed
         // and make sure the run still finishes.
         CM_FAKE_AI: "1",
       },

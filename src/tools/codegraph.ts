@@ -63,7 +63,7 @@ export type EnsureOptions = {
   allowInstall?: boolean;
   interactive?: boolean;
   run?: Runner;
-  /** `node:readline/promises` made this async; both shapes are accepted. */
+  /** `node:readline/promises` made this async. Both shapes are accepted. */
   confirm?: (question: string) => boolean | Promise<boolean>;
   log?: (message: string) => void;
   /** Overrides `toolsDir()`, for tests. */
@@ -239,14 +239,14 @@ export async function ensureCodegraph(
   if (present.state === "mismatch") {
     log(
       `[codegraph] expected ${version} but found ${present.version} ` +
-        `at ${present.path}; reinstalling the pinned version`,
+        `at ${present.path}, reinstalling the pinned version`,
     );
   }
 
   if (!options.allowInstall) {
     if (!interactive) {
       // This path exits rather than continuing, so it must not say "reviewing
-      // without it"; it says how to proceed.
+      // without it". It says how to proceed.
       log(
         `[codegraph] codegraph ${version} is not installed.\n` +
           `Run with --allow-tool-install, or install it yourself:\n  ${installHint(
@@ -304,7 +304,7 @@ export async function ensureCodegraphForReview(
   if (present.state === "ok") return { path: present.path };
   if (present.state === "mismatch") {
     log(
-      `[codegraph] expected ${version} but found ${present.version}; reinstalling`,
+      `[codegraph] expected ${version} but found ${present.version}, reinstalling`,
     );
   }
 

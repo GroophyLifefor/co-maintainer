@@ -1,7 +1,7 @@
 /** Prompts always settle, even at EOF.
  *
  * `rl.question` never resolves *or* rejects when stdin hits EOF before an
- * answer; it just stays pending. That is the hang: a top-level `await` on
+ * answer. It just stays pending. That is the hang: a top-level `await` on
  * the answer never settled, Node printed `Warning: Detected unsettled
  * top-level await`, and the process exited 13. These drive the real
  * `askLine`/`askConfirm` in a child process with stdin closed.
@@ -52,6 +52,7 @@ async function askWithClosedStdin(
 test("askLine settles on EOF instead of hanging", async () => {
   const root = await tempDir({ prefix: "cm-prompt-line-" });
   try {
+    // punctuation: code, a line of JavaScript that the test runs in a child process
     const result = await askWithClosedStdin(
       root,
       "console.log(JSON.stringify(await askLine('name', 'fallback')));",
@@ -77,6 +78,7 @@ test("askLine settles on EOF instead of hanging", async () => {
 test("askConfirm settles as 'no' on EOF instead of hanging", async () => {
   const root = await tempDir({ prefix: "cm-prompt-confirm-" });
   try {
+    // punctuation: code, a line of JavaScript that the test runs in a child process
     const result = await askWithClosedStdin(
       root,
       "console.log(JSON.stringify(await askConfirm('install?')));",

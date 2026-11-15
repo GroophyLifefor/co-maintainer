@@ -299,7 +299,7 @@ test("Sign in with ChatGPT: a refresh that omits id_token keeps the validated on
     if (refreshed.id_token !== creds.id_token) {
       throw new Error("the refresh dropped the id_token");
     }
-    // The second refresh has nothing new to decode; the kept id_token holds.
+    // The second refresh has nothing new to decode. The kept id_token holds.
     const again = await refresh(refreshed);
     if (again.id_token !== creds.id_token) {
       throw new Error("the second refresh dropped the id_token");

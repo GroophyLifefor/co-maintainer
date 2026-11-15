@@ -1,10 +1,9 @@
 /** The severity legend and the review-copy rule.
  *
  * Product text avoids the em dash and the semicolon: the docs linter rejects
- * them, and the finding parser had to accept both a `—` and a `:` heading
+ * them, and the finding parser had to accept both a dash and a `:` heading
  * separator only because the prompt itself modelled the em dash. The colon is
- * the one separator now. The legacy parser still reads an em dash heading so
- * comments posted before 0.5.0 stay readable. */
+ * the one separator now. */
 
 /** `[P2] path: symbol` headings and `Summary: 3 new, 1 open, ...` lines are
  * built from this legend, so the four levels read the same everywhere. */

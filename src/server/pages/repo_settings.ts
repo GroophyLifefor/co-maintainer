@@ -244,6 +244,7 @@ export function renderRepoSettings(
       title: `Settings · ${name}`,
       username,
       active: "/",
+      // punctuation: code, a script the page runs in the browser
       body: `<div class="wrap">
   ${repoTabs(name, "settings")}
   <div>

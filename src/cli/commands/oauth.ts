@@ -1,7 +1,7 @@
 /** `co-maintainer oauth login|logout|refresh|ping|list-models --provider=...`
  *
  * The credential side of the experimental Sign in with ChatGPT support. Only
- * `login` starts a browser flow; the rest operate on an existing login and
+ * `login` starts a browser flow. The rest operate on an existing login and
  * fail clearly when there is none. See `docs/docs/providers.md`. */
 import { die } from "../error.ts";
 import {

@@ -209,7 +209,7 @@ const defects = {
     class: "predecessor/successor confusion",
     quote:
       "the predecessor list is filled with snapshot.edgesOf(b) (b's outgoing edges, successors) instead of snapshot.referrersOf(b) (b's incoming edges, real predecessors)",
-    why: "silently, no crash or hang: every non-root idom stays unset (-1) since the wrong list is consulted; on the tiny fixture idom comes out [0,-1,-1] instead of [0,0,1]",
+    why: "silently, no crash or hang: every non-root idom stays unset (-1) since the wrong list is consulted. On the tiny fixture idom comes out [0,-1,-1] instead of [0,0,1]",
   },
   24: {
     id: "D8",
@@ -319,7 +319,7 @@ const defects = {
     class: "swallowed error",
     quote:
       "the catch block around each rule's evaluation is empty, so a rule that throws (unknown type, missing params) is silently dropped instead of being pushed to ruleErrors as the function's own doc comment promises",
-    why: "a policy-authoring typo (e.g. a rule missing a required param) makes that rule vanish with zero coverage, returning {violations: [], ruleErrors: []} -- indistinguishable from a genuinely clean, fully-checked snapshot; this is the exact D6/history pattern (this repo does not swallow errors) recurring in a new place",
+    why: "a policy-authoring typo (e.g. a rule missing a required param) makes that rule vanish with zero coverage, returning {violations: [], ruleErrors: []} -- indistinguishable from a genuinely clean, fully-checked snapshot. This is the exact D6/history pattern (this repo does not swallow errors) recurring in a new place",
   },
   48: {
     id: "D20",
@@ -339,7 +339,7 @@ const defects = {
     class: "schema/return type mismatch",
     quote:
       "the top_instances tool's outputSchema declares retainedSize as `{ type: 'string' }`, but its handler (topInstancesByRetainedSize) returns a real number",
-    why: "any MCP client that validates structuredContent against the tool's own declared outputSchema (per the 2025-06-18 spec) rejects or mis-renders every response from this tool; the sibling summary tool's schema gets the same kind of field right, which is what makes this one easy to miss",
+    why: "any MCP client that validates structuredContent against the tool's own declared outputSchema (per the 2025-06-18 spec) rejects or mis-renders every response from this tool. The sibling summary tool's schema gets the same kind of field right, which is what makes this one easy to miss",
   },
 };
 

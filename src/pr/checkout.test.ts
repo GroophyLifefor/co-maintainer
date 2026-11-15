@@ -13,7 +13,7 @@ import { test } from "node:test";
 /** Reproduces the race a benchmark run hits at `--review-concurrent` > 1:
  * several jobs for the same repo call `ensureClone` before the clone exists,
  * see nothing on disk, and used to all invoke `git clone` into the same
- * directory — the loser failing with "already exists" and its caller falling
+ * directory, the loser failing with "already exists" and its caller falling
  * back to an unscoped review. `ensureClone` should invoke `git clone` exactly
  * once no matter how many callers race in. */
 test("ensureClone clones exactly once under concurrent callers", async () => {

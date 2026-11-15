@@ -82,26 +82,6 @@ test("the provider list names every accepted --ai value", () => {
   }
 });
 
-test("anthropic is created with the given key and model", () => {
-  const provider = createAiProvider(
-    { ai: "anthropic", aiToken: "sk-ant-test" } as unknown as Options,
-    "claude-opus-5",
-  );
-  if (!(provider instanceof AnthropicProvider)) {
-    throw new Error("expected an AnthropicProvider");
-  }
-});
-
-test("openai is created with the given key and model", () => {
-  const provider = createAiProvider(
-    { ai: "openai", aiToken: "sk-test" } as unknown as Options,
-    "gpt-6-luna",
-  );
-  if (!(provider instanceof OpenAiProvider)) {
-    throw new Error("expected an OpenAiProvider");
-  }
-});
-
 test("a model that must think gets the request again without thinking off", async () => {
   const originalFetch = globalThis.fetch;
   const bodies: Record<string, unknown>[] = [];

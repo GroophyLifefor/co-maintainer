@@ -111,7 +111,7 @@ function bearer(headers: Headers): string | undefined {
 export type FetchOptions = {
   world: World;
   trace: Trace;
-  /** `live` passes AI calls to the real provider; `fake` answers them here. */
+  /** `live` passes AI calls to the real provider, `fake` answers them here. */
   ai: "fake" | "live";
   fakeAi: FakeAi;
   faults: Faults;

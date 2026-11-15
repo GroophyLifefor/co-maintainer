@@ -51,10 +51,12 @@ export const SAMPLE_REPO: Record<string, string> = {
     "      - run: npm run check",
     "      - run: npm test",
   ),
+  // punctuation: code, a fixture line of source code that the test writes or reads
   "src/index.ts": lines(
     'export { add, clamp } from "./math.ts";',
     'export { formatPercent } from "./format.ts";',
   ),
+  // punctuation: code, a fixture line of TypeScript source written to disk by the test
   "src/math.ts": lines(
     "export function add(a: number, b: number): number {",
     "  return a + b;",
@@ -64,6 +66,7 @@ export const SAMPLE_REPO: Record<string, string> = {
     "  return Math.min(Math.max(value, min), max);",
     "}",
   ),
+  // punctuation: code, a fixture line of source code that the test writes or reads
   "src/format.ts": lines(
     'import { clamp } from "./math.ts";',
     "",
@@ -71,6 +74,7 @@ export const SAMPLE_REPO: Record<string, string> = {
     "  return `${Math.round(clamp(ratio, 0, 1) * 100)}%`;",
     "}",
   ),
+  // punctuation: code, a fixture line of TypeScript source written to disk by the test
   "test/math.test.ts": lines(
     'import { test } from "node:test";',
     'import assert from "node:assert/strict";',

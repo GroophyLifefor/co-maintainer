@@ -80,7 +80,7 @@ export class Command {
       child.on("close", (code) => {
         if (timer) clearTimeout(timer);
         resolve({
-          // A killed child reports its own signal code; 124 is the `timeout`
+          // A killed child reports its own signal code, 124 is the `timeout`
           // convention so the caller can tell "hung" from "failed".
           success: !timedOut && code === 0,
           code: timedOut ? 124 : (code ?? 1),

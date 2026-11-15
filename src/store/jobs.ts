@@ -1,4 +1,4 @@
-/** Row storage only; queue behaviour (claim, supersede, debounce) lives in
+/** Row storage only. Queue behaviour (claim, supersede, debounce) lives in
  * `services/jobs.ts`, built on top of these primitives. */
 import { getAppDb } from "./app_db.ts";
 import { nowIso } from "../util/time.ts";
@@ -86,7 +86,7 @@ export function listJobs(
     .all(...params);
 }
 
-/** The queued job for this (repo, PR), if any — the unique partial index
+/** The queued job for this (repo, PR), if any, the unique partial index
  * guarantees there is at most one. */
 export function getQueuedJob(
   repo: string,
@@ -140,7 +140,7 @@ export function getOldestQueuedJob(): JobRow | undefined {
 }
 
 /** Atomically queued -> running. Returns false if someone else claimed it
- * first (or it was superseded/canceled in the meantime) — the caller must
+ * first (or it was superseded/canceled in the meantime), the caller must
  * not assume a claim it did not win. */
 export function claimJob(id: string): boolean {
   const db = getAppDb();

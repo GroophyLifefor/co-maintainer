@@ -25,6 +25,7 @@ const lines = (...rows: string[]) => `${rows.join("\n")}\n`;
 
 // --------------------------------------------------------------- base files
 
+// punctuation: code, a fixture of TypeScript source written to disk by the simulation
 const SERVICES = lines(
   'import type { ServiceSpec } from "./types.ts";',
   "",
@@ -75,6 +76,7 @@ const DEVSTACK_DOC = lines(
   "Both run in containers, so Docker must be running before `npm run dev`.",
 );
 
+// punctuation: code, a fixture of TypeScript source written to disk by the simulation
 const PROCESSES = lines(
   'import { type ChildProcess, spawn } from "node:child_process";',
   'import { once } from "node:events";',
@@ -121,6 +123,7 @@ const PROCESSES = lines(
   "}",
 );
 
+// punctuation: code, a fixture of TypeScript source written to disk by the simulation
 const SERVER_MAIN = lines(
   'import { createServer } from "node:http";',
   'import { handle } from "./routes.ts";',
@@ -137,6 +140,7 @@ const SERVER_MAIN = lines(
   "server.listen(port, () => console.log(`api listening on ${port}`));",
 );
 
+// punctuation: code, a fixture line of source code that the test writes or reads
 const INGEST = lines(
   'import type { Store } from "../db/store.ts";',
   'import { newSessionId } from "./ids.ts";',
@@ -160,6 +164,7 @@ const INGEST = lines(
   "}",
 );
 
+// punctuation: code, a fixture line of TypeScript source written to disk by the test
 const REGIONS = lines(
   "/** The hosts of each region. */",
   "export const REGION_HOSTS = {",
@@ -170,6 +175,7 @@ const REGIONS = lines(
   "export type Region = keyof typeof REGION_HOSTS;",
 );
 
+// punctuation: code, a fixture of TypeScript source written to disk by the simulation
 const USAGE_EXPORT = lines(
   'import type { Db } from "../db/client.ts";',
   'import { LEGACY_CSV } from "../flags.ts";',
@@ -205,6 +211,7 @@ const USAGE_EXPORT = lines(
   "}",
 );
 
+// punctuation: code, a fixture of TypeScript source written to disk by the simulation
 const INVOICES_EXPORT = lines(
   'import type { Db } from "../db/client.ts";',
   'import type { Range } from "./usage.ts";',
@@ -226,6 +233,7 @@ const INVOICES_EXPORT = lines(
   "}",
 );
 
+// punctuation: code, a fixture of TypeScript source written to disk by the simulation
 const SEATS_EXPORT = lines(
   'import type { Db } from "../db/client.ts";',
   'import type { Range } from "./usage.ts";',
@@ -247,6 +255,7 @@ const SEATS_EXPORT = lines(
   "}",
 );
 
+// punctuation: code, a fixture line of TypeScript source written to disk by the test
 const FLAGS = lines(
   "/** The old CSV layout of the usage export. Off for every account since March. */",
   "export const LEGACY_CSV = false;",
@@ -327,6 +336,7 @@ export const BASE_FILES: Record<string, string> = {
     "      - run: npm test",
   ),
   "docs/devstack.md": DEVSTACK_DOC,
+  // punctuation: code, a fixture of TypeScript source written to disk by the simulation
   "devstack/types.ts": lines(
     "/** One service of the local stack. */",
     "export type ServiceSpec = {",
@@ -344,6 +354,7 @@ export const BASE_FILES: Record<string, string> = {
     "  after?: { service: string; restart?: boolean }[];",
     "};",
   ),
+  // punctuation: code, a fixture line of TypeScript source written to disk by the test
   "devstack/supervisor.ts": lines(
     'import type { ServiceSpec } from "./types.ts";',
     "",
@@ -368,6 +379,7 @@ export const BASE_FILES: Record<string, string> = {
   ),
   "devstack/services.ts": SERVICES,
   "devstack/processes.ts": PROCESSES,
+  // punctuation: code, a fixture of TypeScript source written to disk by the simulation
   "devstack/run.ts": lines(
     'import type { ChildProcess } from "node:child_process";',
     'import { setTimeout as sleep } from "node:timers/promises";',
@@ -419,6 +431,7 @@ export const BASE_FILES: Record<string, string> = {
     "",
     "if (import.meta.main) restartOnInput(await startStack());",
   ),
+  // punctuation: code, a fixture of TypeScript source written to disk by the simulation
   "test/support/mock_servers.ts": lines(
     'import { createServer, type Server } from "node:http";',
     "",
@@ -431,6 +444,7 @@ export const BASE_FILES: Record<string, string> = {
     "  );",
     "}",
   ),
+  // punctuation: code, a fixture of TypeScript source written to disk by the simulation
   "test/support/integration.ts": lines(
     'import { spawnSync } from "node:child_process";',
     'import { startStack } from "../../devstack/run.ts";',
@@ -449,12 +463,14 @@ export const BASE_FILES: Record<string, string> = {
     "for (const server of mocks) server.close();",
     "process.exitCode = result.status ?? 1;",
   ),
+  // punctuation: code, a fixture line of source code that the test writes or reads
   "src/db/client.ts": lines(
     "/** The one way the code talks to Postgres. */",
     "export type Db = {",
     "  query<T>(sql: string, params: unknown[]): Promise<T[]>;",
     "};",
   ),
+  // punctuation: code, a fixture line of source code that the test writes or reads
   "src/db/store.ts": lines(
     'import type { Session } from "../sessions/types.ts";',
     "",
@@ -467,6 +483,7 @@ export const BASE_FILES: Record<string, string> = {
     "  listSessions(accountId: string, limit: number): Promise<Session[]>;",
     "};",
   ),
+  // punctuation: code, a fixture of TypeScript source written to disk by the simulation
   "src/sessions/types.ts": lines(
     "export type Session = {",
     "  id: string;",
@@ -476,6 +493,7 @@ export const BASE_FILES: Record<string, string> = {
     "  budgetId: string | null;",
     "};",
   ),
+  // punctuation: code, a fixture line of source code that the test writes or reads
   "src/sessions/ids.ts": lines(
     'import { randomBytes } from "node:crypto";',
     "",
@@ -485,6 +503,7 @@ export const BASE_FILES: Record<string, string> = {
     "}",
   ),
   "src/sessions/ingest.ts": INGEST,
+  // punctuation: code, a fixture line of TypeScript source written to disk by the test
   "src/sessions/recent.ts": lines(
     'import { shortId } from "../web/format.ts";',
     'import type { Session } from "./types.ts";',
@@ -497,6 +516,7 @@ export const BASE_FILES: Record<string, string> = {
     "  return byId;",
     "}",
   ),
+  // punctuation: code, a fixture line of TypeScript source written to disk by the test
   "src/web/format.ts": lines(
     "/** The id as the dashboard shows it. Session ids are 12 characters, so this",
     " * keeps the whole id. */",
@@ -508,6 +528,7 @@ export const BASE_FILES: Record<string, string> = {
     '  return units.toLocaleString("en-US");',
     "}",
   ),
+  // punctuation: code, a fixture of TypeScript source written to disk by the simulation
   "src/server/shutdown.ts": lines(
     'import type { Server } from "node:http";',
     "",
@@ -524,6 +545,7 @@ export const BASE_FILES: Record<string, string> = {
     "  });",
     "}",
   ),
+  // punctuation: code, a fixture of TypeScript source written to disk by the simulation
   "src/server/routes.ts": lines(
     'import type { IncomingMessage, ServerResponse } from "node:http";',
     "",
@@ -543,6 +565,7 @@ export const BASE_FILES: Record<string, string> = {
   ),
   "src/server/main.ts": SERVER_MAIN,
   "src/cli/regions.ts": REGIONS,
+  // punctuation: code, a fixture of TypeScript source written to disk by the simulation
   "src/cli/settings.ts": lines(
     'import { mkdirSync, readFileSync, writeFileSync } from "node:fs";',
     'import { homedir } from "node:os";',
@@ -572,6 +595,7 @@ export const BASE_FILES: Record<string, string> = {
     '  return JSON.parse(readFileSync(path, "utf8")) as Settings;',
     "}",
   ),
+  // punctuation: code, a fixture of TypeScript source written to disk by the simulation
   "src/cli/login.ts": lines(
     'import type { Region } from "./regions.ts";',
     'import { buildSettings, writeSettings } from "./settings.ts";',
@@ -581,6 +605,7 @@ export const BASE_FILES: Record<string, string> = {
     "  writeSettings(buildSettings(region, token));",
     "}",
   ),
+  // punctuation: code, a fixture line of source code that the test writes or reads
   "src/cli/report.ts": lines(
     'import { readSettings } from "./settings.ts";',
     "",
@@ -601,6 +626,7 @@ export const BASE_FILES: Record<string, string> = {
     "}",
   ),
   "src/flags.ts": FLAGS,
+  // punctuation: code, a fixture of TypeScript source written to disk by the simulation
   "src/jobs/worker.ts": lines(
     'import { setTimeout as sleep } from "node:timers/promises";',
     'import type { Db } from "../db/client.ts";',
@@ -678,6 +704,7 @@ const PORTS_HEAD = [
   "  gateway: 8080,",
   "  api: 3000,",
 ];
+// punctuation: code, a fixture of TypeScript source written to disk by the simulation
 const PORTS_TAIL = [
   "} as const;",
   "",
@@ -698,6 +725,7 @@ const PORTS_TAIL = [
   "}",
 ];
 
+// punctuation: code, a fixture line of source code that the test writes or reads
 const PORTED_SERVICES = SERVICES.replace(
   'import type { ServiceSpec } from "./types.ts";',
   'import { portOf } from "./ports.ts";\nimport type { ServiceSpec } from "./types.ts";',
@@ -735,6 +763,7 @@ const C1: Pair = {
         ...PORTS_TAIL,
       ),
       "devstack/services.ts": PORTED_SERVICES,
+      // punctuation: code, a fixture line of source code that the test writes or reads
       "test/support/mock_servers.ts": BASE_FILES[
         "test/support/mock_servers.ts"
       ]!.replace(
@@ -747,6 +776,7 @@ const C1: Pair = {
     },
   },
   spans: [
+    // punctuation: code, a fixture line of source code that the test writes or reads
     { path: "devstack/ports.ts", from: "/** Every port", to: "} as const;" },
     { path: "test/support/mock_servers.ts", from: "export const MOCK_PORTS" },
   ],
@@ -762,6 +792,7 @@ const C1: Pair = {
 
 // ---- C2: odd sibling (issues 63 and 66)
 
+// punctuation: code, a fixture of TypeScript source written to disk by the simulation
 const siblings = (after: string) =>
   SERVICES.replace(
     "    port: 8080,",
@@ -823,6 +854,7 @@ const C2: Pair = {
 
 // ---- C3: new writer (issue 66)
 
+// punctuation: code, a fixture line of source code that the test writes or reads
 const clientIds = (pattern: string, words: string) =>
   INGEST.replace(
     "type OpenRequest = { accountId: string; budgetId?: string };",
@@ -885,6 +917,7 @@ const C3: Pair = {
 
 // ---- C4: old copies (issue 64)
 
+// punctuation: code, a fixture line of TypeScript source written to disk by the test
 const ingestRegions = (extra: string[]) =>
   REGIONS.replace(
     '  us: { api: "api.us.tally.dev" },\n  eu: { api: "api.eu.tally.dev" },',
@@ -899,6 +932,7 @@ const ingestRegions = (extra: string[]) =>
     ),
   );
 
+// punctuation: code, a fixture line of source code that the test writes or reads
 const upload = (importName: string, fallback: string) =>
   lines(
     'import { readFileSync } from "node:fs";',
@@ -930,6 +964,7 @@ const C4: Pair = {
   seeded: {
     name: "c4-seeded",
     files: {
+      // punctuation: code, a fixture line of TypeScript source written to disk by the test
       "src/cli/regions.ts": ingestRegions([
         "/** The ingest host when the settings file names none. */",
         'export const DEFAULT_INGEST_HOST = "ingest.us.tally.dev";',
@@ -940,6 +975,7 @@ const C4: Pair = {
   fixed: {
     name: "c4-fixed",
     files: {
+      // punctuation: code, a fixture line of source code that the test writes or reads
       "src/cli/regions.ts": ingestRegions([
         "/** The ingest host when the settings file names none. */",
         "export const ingestHostFor = (region: Region) => REGION_HOSTS[region].ingest;",
@@ -964,6 +1000,7 @@ const C4: Pair = {
 
 // ---- C5: retry on a conflict (issue 62)
 
+// punctuation: code, a fixture of TypeScript source written to disk by the simulation
 const LISTEN = lines(
   'import type { Server } from "node:http";',
   "",
@@ -995,6 +1032,7 @@ const LISTEN = lines(
   "}",
 );
 
+// punctuation: code, a fixture line of source code that the test writes or reads
 const RETRY_MAIN = SERVER_MAIN.replace(
   'import { drainOnSigterm } from "./shutdown.ts";',
   'import { listenWithRetry } from "./listen.ts";\nimport { drainOnSigterm } from "./shutdown.ts";',
@@ -1050,6 +1088,7 @@ const C5: Pair = {
     {
       path: "devstack/processes.ts",
       from: "/** Stops the service and starts it again.",
+      // punctuation: code, a fixture line of TypeScript source written to disk by the test
       to: "const child = startService(spec, env);",
     },
     {
@@ -1131,6 +1170,7 @@ const C6: Pair = {
 
 // ---- C7: outside the goal (issue 65)
 
+// punctuation: code, a fixture line of TypeScript source written to disk by the test
 const RANGE = lines(
   'import type { Range } from "./usage.ts";',
   "",
@@ -1149,6 +1189,7 @@ const RANGE = lines(
 const TWO_LINES =
   "  const from = range.from.toISOString().slice(0, 10);\n  const to = range.to.toISOString().slice(0, 10);\n";
 
+// punctuation: code, a fixture line of source code that the test writes or reads
 const withRangeParams = (text: string) =>
   text
     .replace(
@@ -1163,6 +1204,7 @@ const withRangeParams = (text: string) =>
 
 const C7_FILES = {
   "src/exports/range.ts": RANGE,
+  // punctuation: code, a fixture line of source code that the test writes or reads
   "src/exports/usage.ts": USAGE_EXPORT.replace(
     'import { LEGACY_CSV } from "../flags.ts";',
     'import { rangeParams } from "./range.ts";',
@@ -1231,6 +1273,7 @@ export const CLEAN: Change[] = [
   {
     name: "clean-duration",
     files: {
+      // punctuation: code, a fixture line of TypeScript source written to disk by the test
       "src/web/duration.ts": lines(
         '/** A duration as the dashboard shows it: "45s", "3m 05s" or "2h 07m". */',
         "export function formatDuration(ms: number): string {",
@@ -1246,6 +1289,7 @@ export const CLEAN: Change[] = [
         '  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m`;',
         "}",
       ),
+      // punctuation: code, a fixture of TypeScript source written to disk by the simulation
       "test/duration.test.ts": lines(
         'import assert from "node:assert/strict";',
         'import { test } from "node:test";',
@@ -1267,6 +1311,7 @@ export const CLEAN: Change[] = [
   {
     name: "clean-supervisor-tests",
     files: {
+      // punctuation: code, a fixture of TypeScript source written to disk by the simulation
       "test/supervisor.test.ts": lines(
         'import assert from "node:assert/strict";',
         'import { test } from "node:test";',
