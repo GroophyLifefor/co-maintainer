@@ -14,8 +14,8 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
-export const EM_DASH = "—";
-export const EN_DASH = "–";
+export const EM_DASH = String.fromCharCode(0x2014);
+export const EN_DASH = String.fromCharCode(0x2013);
 
 export type Kind =
   | "em dash"
@@ -90,6 +90,7 @@ function commentSemicolons(
 ): Violation[] {
   const found: Violation[] = [];
   for (const [offset, line] of proseLines(text)) {
+    // punctuation: code, the check looks for the semicolon character in text
     if (line.includes(";")) {
       found.push({
         file,
@@ -117,9 +118,11 @@ function stringSemicolons(
   chunk: string,
   firstLine: number,
 ): Violation[] {
+  // punctuation: code, the check looks for the semicolon character in text
   if (!chunk.includes(";") || isCodeShaped(chunk)) return [];
   const found: Violation[] = [];
   chunk.split(/\r?\n/).forEach((line, index) => {
+    // punctuation: code, the check looks for the semicolon character in text
     if (line.includes(";")) {
       found.push({
         file,
@@ -302,6 +305,7 @@ function cssViolations(file: string, text: string): Violation[] {
 function markdownViolations(file: string, text: string): Violation[] {
   const found = dashViolations(file, text);
   for (const [line, body] of proseLines(text)) {
+    // punctuation: code, the check looks for the semicolon character in text
     if (body.includes(";")) {
       found.push({
         file,
@@ -317,6 +321,7 @@ function markdownViolations(file: string, text: string): Violation[] {
 function hashCommentViolations(file: string, text: string): Violation[] {
   const found = dashViolations(file, text);
   text.split(/\r?\n/).forEach((line, index) => {
+    // punctuation: code, the check looks for the semicolon character in text
     if (/^\s*#/.test(line) && line.replace(/`[^`]*`/g, "").includes(";")) {
       found.push({
         file,

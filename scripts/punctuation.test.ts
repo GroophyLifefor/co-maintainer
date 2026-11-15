@@ -94,6 +94,7 @@ test("a note with a reason lets the code below it keep a semicolon", () => {
 });
 
 test("a note covers the whole statement, not only its first line", () => {
+  // punctuation: code, a fixture of TypeScript source that the check scans
   const text = [
     "const files = {",
     "  // punctuation: code, a fixture file written to disk as source code",
