@@ -1,5 +1,32 @@
 # Contributing
 
+## User-facing text has no em dash and no semicolon
+
+Any text a user reads has no em dash (`—`) and no semicolon (`;`). This is a
+product rule for all of co-maintainer, not a style choice for one place. It
+covers:
+
+- findings, review summaries, references and every other part of a review the
+  App or the CLI posts
+- replies to comments and answers to questions
+- CLI messages, errors, hints and help text
+- the dashboard
+- the docs, the README, the changelog and the benchmark READMEs
+
+Code is exempt: a semicolon in source code, a code block or inline code is
+fine. A hyphen (`-`) is not an em dash and is allowed. Use a colon, a comma, a
+period or a new sentence instead.
+
+Where it is checked today:
+
+- `scripts/build_docs.ts` rejects both in the docs site.
+- `scripts/prose.test.ts` checks the README, the changelog and the benchmark
+  READMEs.
+- `src/pr/review_copy.ts` tells the model to write review prose without them.
+
+A new kind of user-facing text, such as a new reply or a new review section,
+follows the rule in its template and in the prompt that writes it.
+
 ## A feature brings its e2e:simulate checks
 
 A pull request that adds or changes a feature also adds that feature's flow
