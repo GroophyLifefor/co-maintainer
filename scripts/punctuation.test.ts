@@ -482,6 +482,27 @@ test("a text attribute inside a string is checked", () => {
   assert.deepEqual(kinds("a.ts", "const s = '<a title=\"ok\">x</a>';\n"), []);
 });
 
+test("a trailing comment in a YAML run step is checked", () => {
+  assert.deepEqual(kinds("a.yml", "steps:\n  - run: ls # first; second\n"), [
+    "2:semicolon in a comment",
+  ]);
+  assert.deepEqual(
+    kinds("a.yml", "steps:\n  - run: |\n      ls # first; second\n"),
+    ["3:semicolon in a comment"],
+  );
+  assert.deepEqual(kinds("a.yml", "steps:\n  - run: ls # fine\n"), []);
+});
+
+test("an unquoted attribute value is checked too", () => {
+  assert.deepEqual(kinds("a.html", "<input value=wait;then>\n"), [
+    "1:semicolon in prose",
+  ]);
+  assert.deepEqual(kinds("a.html", "<input value=ok>\n"), []);
+  assert.deepEqual(kinds("a.ts", "const s = '<input value=wait;then>';\n"), [
+    "1:semicolon in a string",
+  ]);
+});
+
 test("JSX text is checked", () => {
   assert.deepEqual(kinds("a.tsx", "const a = <b>first; second</b>;\n"), [
     "1:semicolon in a string",

@@ -182,14 +182,16 @@ function commentSemicolons(
 /** The HTML attributes that hold text a person reads. The quote may carry a
  * backslash, because the tag can sit inside a string literal. */
 const TEXT_ATTRIBUTE =
-  /\b(aria-label|aria-description|aria-placeholder|title|alt|placeholder|label|summary|value)\s*=\s*\\?["']([^"'\\]*)\\?["']/gi;
+  /\b(aria-label|aria-description|aria-placeholder|title|alt|placeholder|label|summary|value)\s*=\s*(?:\\?["']([^"'\\]*)\\?["']|([^\s"'`=<>\\/][^\s"'`=<>]*))/gi;
 
 function withoutMarkup(chunk: string): string {
   return chunk
     .replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, "")
     .replace(/<\/?[A-Za-z][^>]*(?:>|$)/g, (tag) =>
       // The attributes a person reads, such as a title or a value, stay.
-      [...tag.matchAll(TEXT_ATTRIBUTE)].map((m) => ` ${m[2] ?? ""} `).join(""),
+      [...tag.matchAll(TEXT_ATTRIBUTE)]
+        .map((m) => ` ${m[2] ?? m[3] ?? ""} `)
+        .join(""),
     )
     .replace(/&[A-Za-z#0-9]+;/g, "");
 }
@@ -509,8 +511,10 @@ function hashCommentViolations(file: string, text: string): Violation[] {
       if (yaml && !block.code) {
         found.push(...yamlValue(file, index + 1, line));
       }
-      if (yaml && block.code)
+      if (yaml && block.code) {
         found.push(...shellStrings(file, index + 1, line));
+        found.push(...shellComment(file, index + 1, line));
+      }
       if (!/^\s*#/.test(line)) return;
     } else {
       block = undefined;
@@ -536,19 +540,7 @@ function hashCommentViolations(file: string, text: string): Violation[] {
       const hits = shellStrings(file, index + 1, line);
       // A shell line may end in a comment, after a `#` that is not in quotes.
       if (/\.sh$/.test(file)) {
-        const bare = line.replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, (m) =>
-          " ".repeat(m.length),
-        );
-        const tail = /(?:^|\s)#(.*)$/.exec(bare);
-        // punctuation: code, the check looks for the semicolon character in text
-        if (tail && withoutInlineCode(tail[1]!).includes(";")) {
-          found.push({
-            file,
-            line: index + 1,
-            kind: "semicolon in a comment",
-            text: tail[1]!.trim(),
-          });
-        }
+        found.push(...shellComment(file, index + 1, line));
       }
       if (!covering) {
         found.push(...hits);
@@ -578,7 +570,10 @@ function hashCommentViolations(file: string, text: string): Violation[] {
     if (key && !code) found.push(...yamlValue(file, index + 1, key[2] ?? ""));
     // A `run` or `script` value is shell. Its quoted text is checked, and the
     // semicolons that separate its statements are not.
-    if (key && code) found.push(...shellStrings(file, index + 1, key[2] ?? ""));
+    if (key && code) {
+      found.push(...shellStrings(file, index + 1, key[2] ?? ""));
+      found.push(...shellComment(file, index + 1, key[2] ?? ""));
+    }
     // A sequence item that is a plain scalar, not a mapping: `- "text"`.
     const item = /^\s*-\s+(.*)$/.exec(line);
     if (!key && item && !/^[A-Za-z0-9_-]+:(?:\s|$)/.test(item[1]!)) {
@@ -594,6 +589,19 @@ function hashCommentViolations(file: string, text: string): Violation[] {
     });
   }
   return found;
+}
+
+/** The comment at the end of a shell line, after a `#` that is not in quotes. */
+function shellComment(file: string, line: number, text: string): Violation[] {
+  const bare = text.replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, (m) =>
+    " ".repeat(m.length),
+  );
+  const tail = /(?:^|\s)#(.*)$/.exec(bare);
+  // punctuation: code, the check looks for the semicolon character in text
+  if (!tail || !withoutInlineCode(tail[1]!).includes(";")) return [];
+  return [
+    { file, line, kind: "semicolon in a comment", text: tail[1]!.trim() },
+  ];
 }
 
 /** The quoted strings of a shell line. A semicolon that separates statements
@@ -738,10 +746,8 @@ function htmlViolations(file: string, text: string): Violation[] {
       body.slice(0, start) + blank(body.slice(start, end)) + body.slice(end);
   }
   // Text a person reads from an attribute: its accessible name, title, alt.
-  for (const match of body.matchAll(
-    /\b(?:aria-label|aria-description|aria-placeholder|title|alt|placeholder|label|summary|value)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi,
-  )) {
-    const value = (match[1] ?? match[2] ?? "").replace(/&[A-Za-z#0-9]+;/g, "");
+  for (const match of body.matchAll(TEXT_ATTRIBUTE)) {
+    const value = (match[2] ?? match[3] ?? "").replace(/&[A-Za-z#0-9]+;/g, "");
     // punctuation: code, the check looks for the semicolon character in text
     if (value.includes(";") && !isCodeShaped(value)) {
       found.push({
