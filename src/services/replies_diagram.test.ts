@@ -6,6 +6,7 @@ import { activateRepo } from "../store/repos.ts";
 import { createReplyRequestAndJob } from "../store/replies.ts";
 import { getJob } from "../store/jobs.ts";
 import { runReplyJob } from "./replies.ts";
+import { REVIEW_COPY_RULE } from "../pr/review_copy.ts";
 import type { AiProvider, AiRequest, GitHubClient, Json } from "../types.ts";
 import {
   deleteEnv,
@@ -123,6 +124,15 @@ const toolNames = (request: AiRequest): string[] =>
   ((request.tools ?? []) as { function: { name: string } }[]).map(
     (tool) => tool.function.name,
   );
+
+test("a reply asks for prose without the em dash or the semicolon", async () => {
+  await withEnv(undefined, async () => {
+    const { request } = await reply();
+    if (!request.system?.includes(REVIEW_COPY_RULE)) {
+      throw new Error(request.system);
+    }
+  });
+});
 
 test("a reply keeps the Mermaid wording and tool by default", async () => {
   await withEnv(undefined, async () => {

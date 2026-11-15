@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2] - 2026-11-15
+
+### Fixed
+
+- **Every text the model writes for a user asks for no em dash and no semicolon.** Pull request reviews already told the model so. Local, remote and push reviews, replies to review comments, commit watch answers and the guide lines commit watch writes from a maintainer's note did not, and a reply could start with an em dash. They all carry the same rule now. It is a request to the model, so the model can still break it.
+
 ## [0.7.1] - 2026-11-15
 
 **Before you upgrade.** The guide prompt changed, so each repository's next `sync` misses the AI cache and pays for both review guides once. `ruleChanges` in `sync --json` gains a `guide` list next to `instructions`, and a repository without instruction files now gets a `RULES.json` too.

@@ -182,3 +182,14 @@ test("humanCopy keeps the legacy heading dash and removes semicolons", () => {
     throw new Error(`inline code was rewritten: ${cleaned}`);
   }
 });
+
+test("the commit watch answer prompt carries the copy rule", async () => {
+  const source = await readTextFile(
+    join(srcRoot, "services/watch_comments.ts"),
+  );
+  const start = source.indexOf('job: "watch_comment_answer"');
+  const system = source.slice(start, source.indexOf("REVIEW GUIDE:", start));
+  if (start === -1 || !system.includes("${REVIEW_COPY_RULE}")) {
+    throw new Error(`watch_comment_answer system prompt:\n${system}`);
+  }
+});

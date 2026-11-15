@@ -37,6 +37,7 @@ import {
 import { parseClassification } from "./watch_comments.ts";
 import { applyWatchNotes, withMaintainerNotes } from "./watch_notes.ts";
 import { FakeAiProvider } from "../ai/fake.ts";
+import { REVIEW_COPY_RULE } from "../pr/review_copy.ts";
 import { parseReviewArgs } from "../cli/review_args.ts";
 import {
   deleteEnv,
@@ -253,10 +254,12 @@ test("sync applies each note once, and ignore marks the issue ignored", async ()
       "the same comment was stored twice",
     );
     let calls = 0;
+    let notePrompt = "";
     const ai = new FakeAiProvider("Retry loops in src/net are intended.");
     const counting = {
       complete: async (request: Parameters<FakeAiProvider["complete"]>[0]) => {
         calls++;
+        notePrompt = request.prompt;
         return await ai.complete(request);
       },
     };
@@ -270,6 +273,10 @@ test("sync applies each note once, and ignore marks the issue ignored", async ()
       listWatchIssues("acme/widgets").find((i) => i.id === issue.id)?.state ===
         "ignored",
       "not ignored",
+    );
+    expect(
+      notePrompt.includes(REVIEW_COPY_RULE),
+      "the note prompt does not carry the copy rule",
     );
     const again = await applyWatchNotes("acme/widgets", counting);
     expect(calls === 1, `the low model ran ${calls} times for one note`);

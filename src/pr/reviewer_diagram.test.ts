@@ -13,6 +13,7 @@ import {
   writeTextFile,
 } from "../testing/runtime.ts";
 import { MERMAID_GUIDANCE, reviewWorkspaceRevision } from "./reviewer.ts";
+import { REVIEW_COPY_RULE } from "./review_copy.ts";
 
 const ANSWER = JSON.stringify({
   findings: [
@@ -116,6 +117,16 @@ const toolNames = (request: AiRequest): string[] =>
 
 const wording = (request: AiRequest): string =>
   `${request.system ?? ""}\n${request.prompt}`;
+
+test("a workspace review asks for prose without the em dash or the semicolon", async () => {
+  await withReview({}, async (run) => {
+    const { provider } = await run();
+    const request = provider.requests[0]!;
+    if (!wording(request).includes(REVIEW_COPY_RULE)) {
+      throw new Error(wording(request));
+    }
+  });
+});
 
 test("mermaid, set or not, sends exactly the same request", async () => {
   let plain: AiRequest | undefined;

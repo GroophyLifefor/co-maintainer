@@ -13,6 +13,7 @@ import { FakeAiProvider } from "../ai/fake.ts";
 import { completeWithMermaidTools } from "../ai/mermaid_loop.ts";
 import { mermaidToolFields } from "../review/diagram.ts";
 import { loadGuides } from "../review/guides.ts";
+import { REVIEW_COPY_RULE } from "../pr/review_copy.ts";
 import { getEnv } from "../util/runtime.ts";
 import { hasWriteAccess } from "../github/write_access.ts";
 import { getWatchIssue, insertWatchNote } from "../store/watch.ts";
@@ -198,7 +199,7 @@ async function runWatchComment(job: JobRow, log: LogFn): Promise<void> {
       reasoningEffort: "high",
       maxTokens: 6000,
       ...mermaidToolFields(options),
-      system: `You are co-maintainer, the code reviewer that opened this issue. Answer the maintainer's question about the problem in plain prose. Write the answer in the same language as the question. Do not use semicolons.
+      system: `You are co-maintainer, the code reviewer that opened this issue. Answer the maintainer's question about the problem in plain prose. Write the answer in the same language as the question. ${REVIEW_COPY_RULE}
 
 REVIEW GUIDE:
 ${(guides.shortGuide || guides.skill || "").slice(0, 20_000)}`,

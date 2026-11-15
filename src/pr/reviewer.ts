@@ -770,6 +770,7 @@ Do not invent low-value findings. If the diff contains a truncation marker or a
 file is summarized, limit claims to the supplied text and use read-full-diff or
 codegraph tools before asserting behavior outside what was shown.
 ${CODEGRAPH_DIFF_VERIFICATION}
+${REVIEW_COPY_RULE}
 ${diagrams ? (plantumlPromptRules(options) ?? DIAGRAM_PROMPT_RULES) : NO_DIAGRAM_RULES}
 ${FINDINGS_JSON_INSTRUCTIONS}
 

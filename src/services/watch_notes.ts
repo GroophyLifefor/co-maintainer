@@ -12,6 +12,7 @@ import {
   type WatchNoteRow,
 } from "../store/watch.ts";
 import { log } from "../util/log.ts";
+import { REVIEW_COPY_RULE } from "../pr/review_copy.ts";
 import type { AiProvider, AiResponse } from "../types.ts";
 
 const SECTION_START = "<!-- co-maintainer:maintainer-notes -->";
@@ -25,7 +26,8 @@ function notePrompt(
   return `A maintainer replied on an issue an automated code reviewer opened.
 Turn the reply into one line for the repository's review guide: a general
 statement a future reviewer must follow, in English, at most 200 characters,
-with no names, mentions, issue numbers or quotes. Return only that line.
+with no names, mentions, issue numbers or quotes. ${REVIEW_COPY_RULE}
+Return only that line.
 
 The reviewer had reported: ${issueTitle}${path ? ` (in ${path})` : ""}
 The maintainer ${note.kind === "ignore" ? "said to ignore it" : "added information"}:
