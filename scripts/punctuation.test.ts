@@ -443,6 +443,22 @@ test("a YAML sequence item that is a plain scalar is checked", () => {
   assert.deepEqual(kinds("a.yml", "items:\n  - name: ok\n    size: 1\n"), []);
 });
 
+test("an input value that a person reads is checked", () => {
+  assert.deepEqual(
+    kinds("a.html", '<input type="text" value="wait; then retry">\n'),
+    ["1:semicolon in prose"],
+  );
+  assert.deepEqual(kinds("a.html", '<input type="text" value="ok">\n'), []);
+});
+
+test("an inline shell comment is checked, a hash in quotes is not", () => {
+  assert.deepEqual(kinds("a.sh", "ls # first; second\n"), [
+    "1:semicolon in a comment",
+  ]);
+  assert.deepEqual(kinds("a.sh", 'echo "a # b"\n'), []);
+  assert.deepEqual(kinds("a.sh", "ls # fine\n"), []);
+});
+
 test("JSX text is checked", () => {
   assert.deepEqual(kinds("a.tsx", "const a = <b>first; second</b>;\n"), [
     "1:semicolon in a string",

@@ -524,6 +524,22 @@ function hashCommentViolations(file: string, text: string): Violation[] {
         pending = undefined;
       }
       const hits = shellStrings(file, index + 1, line);
+      // A shell line may end in a comment, after a `#` that is not in quotes.
+      if (/\.sh$/.test(file)) {
+        const bare = line.replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, (m) =>
+          " ".repeat(m.length),
+        );
+        const tail = /(?:^|\s)#(.*)$/.exec(bare);
+        // punctuation: code, the check looks for the semicolon character in text
+        if (tail && withoutInlineCode(tail[1]!).includes(";")) {
+          found.push({
+            file,
+            line: index + 1,
+            kind: "semicolon in a comment",
+            text: tail[1]!.trim(),
+          });
+        }
+      }
       if (!covering) {
         found.push(...hits);
         return;
@@ -710,7 +726,7 @@ function htmlViolations(file: string, text: string): Violation[] {
   }
   // Text a person reads from an attribute: its accessible name, title, alt.
   for (const match of body.matchAll(
-    /\b(?:aria-label|aria-description|aria-placeholder|title|alt|placeholder|label|summary)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi,
+    /\b(?:aria-label|aria-description|aria-placeholder|title|alt|placeholder|label|summary|value)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi,
   )) {
     const value = (match[1] ?? match[2] ?? "").replace(/&[A-Za-z#0-9]+;/g, "");
     // punctuation: code, the check looks for the semicolon character in text
