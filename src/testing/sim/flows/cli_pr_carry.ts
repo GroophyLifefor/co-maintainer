@@ -67,6 +67,7 @@ const FORMAT_FIXED = FORMAT_BAD.replace(
 );
 const MATH_PATH = "src/math.ts";
 const FORMAT_PATH = "src/format.ts";
+// punctuation: code, a fixture line of TypeScript source written to disk by the test
 const MATH_LINE = lineOf(MATH_BAD, "return a / b;");
 const FORMAT_LINE = lineOf(FORMAT_BAD, ".toFixed(digits)");
 const MATH_TITLE = "divide does not guard a zero divisor";
@@ -100,6 +101,7 @@ const PROBLEMS: Problem[] = [
   {
     path: MATH_PATH,
     // The guard is what fixes it: with it in the diff the problem is gone.
+    // punctuation: code, a fixture line of TypeScript source written to disk by the test
     line: firstLine(
       (text) => text.includes("return a / b;"),
       (text) => text.includes("RangeError"),

@@ -85,6 +85,7 @@ test("Markdown prose fails on a semicolon, code does not", () => {
 });
 
 test("a note with a reason lets the code below it keep a semicolon", () => {
+  // punctuation: code, a fixture of TypeScript source that the check scans
   const text = [
     "// punctuation: code, the Cookie header joins attributes with a semicolon",
     'const header = flags.join("; ");',
@@ -109,6 +110,7 @@ test("a note covers the whole statement, not only its first line", () => {
 });
 
 test("a note without a reason fails", () => {
+  // punctuation: code, a fixture of TypeScript source that the check scans
   const text = ["// punctuation: code", 'const h = flags.join("; ");', ""].join(
     "\n",
   );
@@ -116,6 +118,7 @@ test("a note without a reason fails", () => {
 });
 
 test("a note that covers no semicolon fails", () => {
+  // punctuation: code, a fixture of TypeScript source that the check scans
   const text = [
     "// punctuation: code, the Cookie header joins attributes with a semicolon",
     'const h = flags.join(", ");',
@@ -137,6 +140,101 @@ test("skipped files are not scanned", () => {
   assert.deepEqual(kinds("docs/assets/mermaid.min.js", `${EM_DASH}`), []);
   assert.deepEqual(kinds("LICENSE", `${EM_DASH}`), []);
   assert.deepEqual(kinds("package-lock.json", `${EM_DASH}`), []);
+});
+
+test("a word such as function does not make a sentence code", () => {
+  assert.deepEqual(
+    kinds("a.ts", 'const s = "call the function; then retry";\n'),
+    ["1:semicolon in a string"],
+  );
+  assert.deepEqual(kinds("a.ts", 'const s = "if (a) { return 1; }\\n";\n'), []);
+});
+
+test("JSON string values are checked, fenced code inside them is not", () => {
+  assert.deepEqual(kinds("a.json", '{"a": "first; second"}\n'), [
+    "1:semicolon in a string",
+  ]);
+  assert.deepEqual(kinds("a.json", '{"a": "```ts\\nlet x = 1;\\n```"}\n'), []);
+  assert.deepEqual(
+    kinds("a.json", '{"patch": "@@ -1,3 +1,4 @@\\n+let x = 1;\\n"}\n'),
+    [],
+  );
+  assert.deepEqual(kinds("a.json", `{"a": "x ${EM_DASH} y"}\n`), ["1:em dash"]);
+});
+
+test("HTML text is checked, code elements and entities are not", () => {
+  assert.deepEqual(kinds("a.html", "<p>first; second</p>\n"), [
+    "1:semicolon in prose",
+  ]);
+  assert.deepEqual(kinds("a.html", "<p>a &amp; b <code>x; y</code></p>\n"), []);
+  assert.deepEqual(kinds("a.html", "<script>let a = 1;</script>\n"), []);
+});
+
+test("an HTML note covers the element below it, and needs a reason", () => {
+  const ok = [
+    "<!-- punctuation: code, the page shows a TypeScript diff as sample code -->",
+    "<div><div>let a = 1;</div></div>",
+    "<p>after</p>",
+    "",
+  ].join("\n");
+  assert.deepEqual(kinds("a.html", ok), []);
+  const bare = ["<!-- punctuation: code -->", "<div>let a = 1;</div>", ""].join(
+    "\n",
+  );
+  assert.deepEqual(kinds("a.html", bare), ["1:note without a reason"]);
+  const empty = [
+    "<!-- punctuation: code, the page shows a TypeScript diff as sample code -->",
+    "<div>nothing here</div>",
+    "",
+  ].join("\n");
+  assert.deepEqual(kinds("a.html", empty), ["1:note covers no semicolon"]);
+});
+
+test("YAML values and comments are checked, run blocks are not", () => {
+  assert.deepEqual(kinds("a.yml", "name: first; second\n"), [
+    "1:semicolon in a string",
+  ]);
+  assert.deepEqual(kinds("a.yml", "# first; second\n"), [
+    "1:semicolon in a comment",
+  ]);
+  assert.deepEqual(kinds("a.yml", "run: echo a; echo b\n"), []);
+  assert.deepEqual(
+    kinds("a.yml", "steps:\n  - run: |\n      echo a; echo b\n"),
+    [],
+  );
+  assert.deepEqual(
+    kinds("a.yml", "description: >\n  first; second\nname: ok\n"),
+    ["2:semicolon in a string"],
+  );
+});
+
+test("a fence closes only with its own marker", () => {
+  assert.deepEqual(
+    kinds("a.md", "~~~\n```\ncode; one\n```\ncode; two\n~~~\nprose; here\n"),
+    ["7:semicolon in prose"],
+  );
+  assert.deepEqual(kinds("a.md", "````\n```\ncode; one\n````\nprose; here\n"), [
+    "5:semicolon in prose",
+  ]);
+});
+
+test("inline code may use a longer run of backticks", () => {
+  assert.deepEqual(kinds("a.md", "Use ``a; b ` c`` here\n"), []);
+  assert.deepEqual(kinds("a.md", "Use ``a ` b; c`` here\n"), []);
+  assert.deepEqual(kinds("a.md", "Use `a; b` and `` c; d `` here\n"), []);
+  assert.deepEqual(kinds("a.md", "Use `a` then b; c\n"), [
+    "1:semicolon in prose",
+  ]);
+});
+
+test("JSX text is checked", () => {
+  assert.deepEqual(kinds("a.tsx", "const a = <b>first; second</b>;\n"), [
+    "1:semicolon in a string",
+  ]);
+  assert.deepEqual(
+    kinds("a.tsx", `const a = <b>first ${EM_DASH} second</b>;\n`),
+    ["1:em dash"],
+  );
 });
 
 test("the repository has no punctuation violations", () => {

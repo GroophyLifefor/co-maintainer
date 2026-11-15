@@ -33,6 +33,7 @@ const JSON_ANSWER = JSON.stringify({
       symbol: "splitOnce()",
       title: "splitOnce drops the separator when it is the last character",
       body: "The loop stops before the final index, so a separator at the end is never trimmed. Callers that pass a trailing delimiter get a silent empty tail.",
+      // punctuation: code, a suggested code line inside a finding
       suggestion: "  return at === source.length - 1 ? source : rest;",
     },
     {

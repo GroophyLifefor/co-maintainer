@@ -57,14 +57,15 @@ export const MAIN_BODY =
 export const MAIN_COMMENT = "Please cover divide with a test.";
 
 const MATH_BASE = SAMPLE_REPO["src/math.ts"]!;
+// punctuation: code, a fixture line of TypeScript source written to disk by the test
 const DIVIDE = [
   "export function divide(a: number, b: number): number {",
   "  return a / b;",
   "}",
 ].join("\n");
+// punctuation: code, a fixture line of TypeScript source written to disk by the test
 const DIVIDE_GUARDED = [
   "export function divide(a: number, b: number): number {",
-  // punctuation: code, a fixture line of TypeScript source written to disk
   '  if (b === 0) throw new RangeError("divide by zero");',
   "  return a / b;",
   "}",
@@ -123,6 +124,7 @@ export function reviewRule(
   };
 }
 
+// punctuation: code, a fixture line of TypeScript source written to disk by the test
 const DIVIDE_LINE = lineOf(mainFiles()["src/math.ts"]!, "return a / b;");
 
 /** Findings for the standard pull request: one blocking, in a file the guide

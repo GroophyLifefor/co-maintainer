@@ -52,6 +52,7 @@ async function askWithClosedStdin(
 test("askLine settles on EOF instead of hanging", async () => {
   const root = await tempDir({ prefix: "cm-prompt-line-" });
   try {
+    // punctuation: code, a line of JavaScript that the test runs in a child process
     const result = await askWithClosedStdin(
       root,
       "console.log(JSON.stringify(await askLine('name', 'fallback')));",
@@ -77,6 +78,7 @@ test("askLine settles on EOF instead of hanging", async () => {
 test("askConfirm settles as 'no' on EOF instead of hanging", async () => {
   const root = await tempDir({ prefix: "cm-prompt-confirm-" });
   try {
+    // punctuation: code, a line of JavaScript that the test runs in a child process
     const result = await askWithClosedStdin(
       root,
       "console.log(JSON.stringify(await askConfirm('install?')));",

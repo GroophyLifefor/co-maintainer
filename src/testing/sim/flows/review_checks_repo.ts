@@ -163,6 +163,7 @@ const INGEST = lines(
   "}",
 );
 
+// punctuation: code, a fixture line of TypeScript source written to disk by the test
 const REGIONS = lines(
   "/** The hosts of each region. */",
   "export const REGION_HOSTS = {",
@@ -253,6 +254,7 @@ const SEATS_EXPORT = lines(
   "}",
 );
 
+// punctuation: code, a fixture line of TypeScript source written to disk by the test
 const FLAGS = lines(
   "/** The old CSV layout of the usage export. Off for every account since March. */",
   "export const LEGACY_CSV = false;",
@@ -351,6 +353,7 @@ export const BASE_FILES: Record<string, string> = {
     "  after?: { service: string; restart?: boolean }[];",
     "};",
   ),
+  // punctuation: code, a fixture line of TypeScript source written to disk by the test
   "devstack/supervisor.ts": lines(
     'import type { ServiceSpec } from "./types.ts";',
     "",
@@ -496,6 +499,7 @@ export const BASE_FILES: Record<string, string> = {
     "}",
   ),
   "src/sessions/ingest.ts": INGEST,
+  // punctuation: code, a fixture line of TypeScript source written to disk by the test
   "src/sessions/recent.ts": lines(
     'import { shortId } from "../web/format.ts";',
     'import type { Session } from "./types.ts";',
@@ -508,6 +512,7 @@ export const BASE_FILES: Record<string, string> = {
     "  return byId;",
     "}",
   ),
+  // punctuation: code, a fixture line of TypeScript source written to disk by the test
   "src/web/format.ts": lines(
     "/** The id as the dashboard shows it. Session ids are 12 characters, so this",
     " * keeps the whole id. */",
@@ -903,6 +908,7 @@ const C3: Pair = {
 
 // ---- C4: old copies (issue 64)
 
+// punctuation: code, a fixture line of TypeScript source written to disk by the test
 const ingestRegions = (extra: string[]) =>
   REGIONS.replace(
     '  us: { api: "api.us.tally.dev" },\n  eu: { api: "api.eu.tally.dev" },',
@@ -948,6 +954,7 @@ const C4: Pair = {
   seeded: {
     name: "c4-seeded",
     files: {
+      // punctuation: code, a fixture line of TypeScript source written to disk by the test
       "src/cli/regions.ts": ingestRegions([
         "/** The ingest host when the settings file names none. */",
         'export const DEFAULT_INGEST_HOST = "ingest.us.tally.dev";',
@@ -1069,6 +1076,7 @@ const C5: Pair = {
     {
       path: "devstack/processes.ts",
       from: "/** Stops the service and starts it again.",
+      // punctuation: code, a fixture line of TypeScript source written to disk by the test
       to: "const child = startService(spec, env);",
     },
     {
@@ -1150,6 +1158,7 @@ const C6: Pair = {
 
 // ---- C7: outside the goal (issue 65)
 
+// punctuation: code, a fixture line of TypeScript source written to disk by the test
 const RANGE = lines(
   'import type { Range } from "./usage.ts";',
   "",
@@ -1250,6 +1259,7 @@ export const CLEAN: Change[] = [
   {
     name: "clean-duration",
     files: {
+      // punctuation: code, a fixture line of TypeScript source written to disk by the test
       "src/web/duration.ts": lines(
         '/** A duration as the dashboard shows it: "45s", "3m 05s" or "2h 07m". */',
         "export function formatDuration(ms: number): string {",

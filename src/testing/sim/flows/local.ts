@@ -251,6 +251,7 @@ export const PROSE_PATH = "src/prose.ts";
 export const PIPELINE_PATH = "src/pipeline.ts";
 export const PIPELINE_SMELL: Smell = {
   path: PIPELINE_PATH,
+  // punctuation: code, a fixture line of TypeScript source written to disk by the test
   marker: "await step();",
   finding: (line) => ({
     ...finding({
@@ -264,6 +265,7 @@ export const PIPELINE_SMELL: Smell = {
     symbol: "run",
   }),
 };
+// punctuation: code, a fixture line of TypeScript source written to disk by the test
 export const PIPELINE_FILE = [
   "export async function run(steps: (() => Promise<void>)[]): Promise<void> {",
   "  for (const step of steps) {",
@@ -276,6 +278,7 @@ export const PIPELINE_FILE = [
 /** The file the prose answer is about, reviewed by the retry. */
 const PROSE_SMELL: Smell = {
   path: PROSE_PATH,
+  // punctuation: code, a fixture line of TypeScript source written to disk by the test
   marker: "return 1 / 0;",
   finding: (line) =>
     finding({

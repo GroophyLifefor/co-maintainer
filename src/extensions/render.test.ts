@@ -321,6 +321,7 @@ test("a fence in a title and code in the markdown still pass the copy check toge
   for (const comment of split.comments) {
     if (forbidden(comment.body)) throw new Error(comment.body);
   }
+  // punctuation: code, the test looks for a code line in the rendered body
   if (!body.includes("const a = 1;")) throw new Error("the code was changed");
 });
 

@@ -31,6 +31,7 @@ const settings = () => ({
   origin: performance.now(),
 });
 
+// punctuation: code, a fixture line of TypeScript source written to disk by the test
 const PROMPT = [
   "intro",
   "PREVIOUS FINDINGS (this run has two separate jobs):",
@@ -59,6 +60,7 @@ const PROMPT = [
 test("promptDiff reads added lines by file and stops before the unchanged list", () => {
   const diff = promptDiff(PROMPT);
   assert.deepEqual([...diff.keys()], ["src/b.ts"]);
+  // punctuation: code, a fixture line of TypeScript source written to disk by the test
   assert.equal(diff.get("src/b.ts")!.get(2), "const a = 1;");
   assert.equal(diff.get("src/b.ts")!.has(1), false);
 });

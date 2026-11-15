@@ -1240,6 +1240,7 @@ async function main(): Promise<void> {
       setAi("review_push", review([], ["- F1: open src/new/auth.ts:6-6"]));
       const move = push(
         {
+          // punctuation: code, a fixture line of TypeScript source written to disk by the test
           "src/new/auth.ts": [
             "// credentials module",
             'import { env } from "node:process";',

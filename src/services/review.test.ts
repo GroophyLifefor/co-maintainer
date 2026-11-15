@@ -546,6 +546,7 @@ test("a finding on a changed file but outside every hunk stays on the review bod
   });
 });
 
+// punctuation: code, a fixture line of TypeScript source written to disk by the test
 const GATE_PATCH = [
   "@@ -16,3 +16,3 @@",
   " function gate() {",

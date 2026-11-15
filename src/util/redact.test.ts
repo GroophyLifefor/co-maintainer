@@ -51,6 +51,7 @@ test("safeCopy strips a dash and a semicolon", () => {
 });
 
 test("safeCopy leaves code blocks alone so suggestions still compile", () => {
+  // punctuation: code, the test feeds a prose semicolon to the cleaner
   const source = `Prose with a semicolon; and more.
 
 \`\`\`ts
@@ -61,6 +62,7 @@ Inline \`a; b\` stays too.`;
   const cleaned = safeCopy(source);
   // punctuation: code, the test checks that a prose semicolon is gone
   if (cleaned.includes("semicolon;")) throw new Error(cleaned);
+  // punctuation: code, the test needs a semicolon character as input or to assert on
   if (!cleaned.includes("let known = true;")) throw new Error(cleaned);
   // punctuation: code, the test checks that a semicolon inside inline code stays
   if (!cleaned.includes("`a; b`")) throw new Error(cleaned);

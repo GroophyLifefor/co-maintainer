@@ -45,7 +45,7 @@ const SKIPPED: RegExp[] = [
   /^dev-work\//,
 ];
 
-const SCRIPT_FILE = /\.(?:ts|mts|cts|js|mjs|cjs)$/;
+const SCRIPT_FILE = /\.(?:tsx?|mts|cts|jsx?|mjs|cjs)$/;
 const SCRIPT_COMMENT_ONLY = /\.(?:css)$/;
 const HASH_COMMENT_FILE = /(?:\.ya?ml|\.sh|Dockerfile)$/;
 
@@ -66,19 +66,69 @@ function dashViolations(file: string, text: string): Violation[] {
   return found;
 }
 
+/** A line without its inline code. A span opens with a run of backticks and
+ * closes at the next run of exactly the same length, as Markdown reads it, so
+ * a double-backtick span may hold a single backtick. */
+export function withoutInlineCode(line: string): string {
+  let out = "";
+  let i = 0;
+  while (i < line.length) {
+    if (line[i] !== "`") {
+      out += line[i++];
+      continue;
+    }
+    let run = 0;
+    while (line[i + run] === "`") run++;
+    let j = i + run;
+    let close = -1;
+    while (j < line.length) {
+      if (line[j] !== "`") {
+        j++;
+        continue;
+      }
+      let n = 0;
+      while (line[j + n] === "`") n++;
+      if (n === run) {
+        close = j;
+        break;
+      }
+      j += n;
+    }
+    if (close === -1) {
+      out += line.slice(i, i + run);
+      i += run;
+    } else {
+      i = close + run;
+    }
+  }
+  return out;
+}
+
 /** The lines of a comment or a Markdown body that are prose: fenced blocks and
- * inline code keep their characters, because a code sample is not a sentence. */
+ * inline code keep their characters, because a code sample is not a sentence.
+ * A fence closes only with the same marker, at least as long as the opener. */
 function proseLines(text: string): Array<[number, string]> {
   const kept: Array<[number, string]> = [];
-  let fenced = false;
+  let fence: { marker: string; length: number } | undefined;
   text.split(/\r?\n/).forEach((line, index) => {
     const bare = line.replace(/^\s*(?:\/\*\*?|\*\/|\*|\/\/)\s?/, "");
-    if (/^\s*(?:```|~~~)/.test(bare)) {
-      fenced = !fenced;
+    const mark = /^\s*(`{3,}|~{3,})(.*)$/.exec(bare);
+    if (fence) {
+      if (
+        mark &&
+        mark[1]![0] === fence.marker &&
+        mark[1]!.length >= fence.length &&
+        mark[2]!.trim() === ""
+      ) {
+        fence = undefined;
+      }
       return;
     }
-    if (fenced) return;
-    kept.push([index + 1, line.replace(/`[^`]*`/g, "")]);
+    if (mark) {
+      fence = { marker: mark[1]![0]!, length: mark[1]!.length };
+      return;
+    }
+    kept.push([index + 1, withoutInlineCode(line)]);
   });
   return kept;
 }
@@ -104,10 +154,12 @@ function commentSemicolons(
 }
 
 /** Text that is plainly a CSS, JS or HTML snippet: braces, an arrow, a tag, an
- * entity, a header, a keyword. A semicolon in it is syntax. Any other string
- * that must keep a semicolon carries a note, see `NOTE`. */
+ * entity, a header, an escaped newline, a diff hunk header. A semicolon in it
+ * is syntax. A word
+ * such as `function` proves nothing, because a sentence can hold it. Any other
+ * string that must keep a semicolon carries a note, see `NOTE`. */
 const CODE_SHAPE =
-  /[{}]|=>|<\/?[A-Za-z]|&[A-Za-z#0-9]+;|charset=|\bfunction\b|\b(?:const|let|var|return|import|export|await|async)\b|\$\(|\\n/;
+  /[{}]|=>|<\/?[A-Za-z]|&[A-Za-z#0-9]+;|charset=|\$\(|\\n|^@@ -\d/m;
 
 export function isCodeShaped(chunk: string): boolean {
   return CODE_SHAPE.test(chunk);
@@ -173,6 +225,7 @@ const STRING_KINDS = new Set<ts.SyntaxKind>([
   ts.SyntaxKind.TemplateHead,
   ts.SyntaxKind.TemplateMiddle,
   ts.SyntaxKind.TemplateTail,
+  ts.SyntaxKind.JsxText,
 ]);
 
 function scriptViolations(file: string, text: string): Violation[] {
@@ -318,15 +371,144 @@ function markdownViolations(file: string, text: string): Violation[] {
   return found;
 }
 
+/** YAML and shell. A whole-line comment is prose. In YAML a value is prose too,
+ * except under `run` and `script`, which hold shell. */
 function hashCommentViolations(file: string, text: string): Violation[] {
   const found = dashViolations(file, text);
+  const yaml = /\.ya?ml$/.test(file);
+  let block: { indent: number; code: boolean } | undefined;
   text.split(/\r?\n/).forEach((line, index) => {
+    const indent = line.length - line.trimStart().length;
+    if (block && (line.trim() === "" || indent > block.indent)) {
+      if (yaml && !block.code) {
+        found.push(...yamlValue(file, index + 1, line));
+      }
+      if (!/^\s*#/.test(line)) return;
+    } else {
+      block = undefined;
+    }
     // punctuation: code, the check looks for the semicolon character in text
-    if (/^\s*#/.test(line) && line.replace(/`[^`]*`/g, "").includes(";")) {
+    if (/^\s*#/.test(line) && withoutInlineCode(line).includes(";")) {
       found.push({
         file,
         line: index + 1,
         kind: "semicolon in a comment",
+        text: line.trim(),
+      });
+      return;
+    }
+    if (!yaml || /^\s*#/.test(line)) return;
+    const key = /^\s*(?:-\s+)?([A-Za-z0-9_-]+):(?:\s+(.*))?$/.exec(line);
+    const code = key !== null && /^(?:run|script)$/.test(key[1]!);
+    if (key && /^[|>][+-]?\d*\s*(?:#.*)?$/.test(key[2] ?? "")) {
+      block = { indent, code };
+      return;
+    }
+    if (key && !code) found.push(...yamlValue(file, index + 1, key[2] ?? ""));
+  });
+  return found;
+}
+
+function yamlValue(file: string, line: number, value: string): Violation[] {
+  const bare = value.replace(/\s+#.*$/, "");
+  // punctuation: code, the check looks for the semicolon character in text
+  if (!bare.includes(";") || isCodeShaped(bare)) return [];
+  return [{ file, line, kind: "semicolon in a string", text: bare.trim() }];
+}
+
+/** JSON string values are text a person may read, and may hold Markdown with
+ * fenced code. JSON has no comments, so a value that needs a semicolon as
+ * prose cannot carry a note: reword it. */
+function jsonViolations(file: string, text: string): Violation[] {
+  const found = dashViolations(file, text);
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    return found;
+  }
+  const visit = (value: unknown): void => {
+    if (typeof value === "string") {
+      // punctuation: code, the check looks for the semicolon character in text
+      if (value.includes(";") && !isCodeShaped(value)) {
+        const prose = proseLines(value).find(([, line]) => line.includes(";"));
+        if (!prose) return;
+        const at = text.indexOf(JSON.stringify(value).slice(1, 40));
+        found.push({
+          file,
+          line: at === -1 ? 1 : lineAt(text, at),
+          kind: "semicolon in a string",
+          text: prose[1].trim().slice(0, 120),
+        });
+      }
+    } else if (Array.isArray(value)) {
+      value.forEach(visit);
+    } else if (value && typeof value === "object") {
+      Object.values(value).forEach(visit);
+    }
+  };
+  visit(data);
+  return found;
+}
+
+/** HTML text outside script, style, pre and code. Tags and entities are not
+ * text, and a newline is kept so a line number still points at the file. */
+function htmlViolations(file: string, text: string): Violation[] {
+  const found = dashViolations(file, text);
+  const blank = (match: string): string => match.replace(/[^\n]/g, " ");
+  const visibleText = (html: string): string =>
+    html
+      .replace(/<(script|style|pre|code)\b[\s\S]*?<\/\1>/gi, blank)
+      .replace(/<!--[\s\S]*?-->/g, blank)
+      .replace(/<[^>]*>/g, blank)
+      .replace(/&[A-Za-z#0-9]+;/g, blank);
+  // `<!-- punctuation: code, <why> -->` right above an element lets the text
+  // inside that element, up to its closing tag, keep its semicolons.
+  let body = text;
+  for (const note of text.matchAll(
+    /<!--\s*punctuation: code(?:, ([^]*?))?\s*-->\s*<([A-Za-z0-9]+)\b/g,
+  )) {
+    const line = lineAt(text, note.index ?? 0);
+    if ((note[1] ?? "").trim().split(/\s+/).filter(Boolean).length < 3) {
+      found.push({
+        file,
+        line,
+        kind: "note without a reason",
+        text: note[0].slice(0, 120),
+      });
+    }
+    const start = (note.index ?? 0) + note[0].length - note[2]!.length - 1;
+    const tag = new RegExp(`<(/?)${note[2]!}\\b`, "gi");
+    tag.lastIndex = start;
+    let depth = 0;
+    let end = text.length;
+    for (let m = tag.exec(text); m; m = tag.exec(text)) {
+      depth += m[1] ? -1 : 1;
+      if (depth === 0) {
+        end = text.indexOf(">", m.index) + 1;
+        break;
+      }
+    }
+    // punctuation: code, the check looks for the semicolon character in text
+    if (!visibleText(text.slice(start, end)).includes(";")) {
+      found.push({
+        file,
+        line,
+        kind: "note covers no semicolon",
+        text: "punctuation: code",
+      });
+    }
+    body =
+      body.slice(0, start) + blank(body.slice(start, end)) + body.slice(end);
+  }
+  const visible = visibleText(body);
+  visible.split(/\r?\n/).forEach((line, index) => {
+    // punctuation: code, the check looks for the semicolon character in text
+    if (line.includes(";")) {
+      found.push({
+        file,
+        line: index + 1,
+        kind: "semicolon in prose",
         text: line.trim(),
       });
     }
@@ -342,6 +524,8 @@ export function scanText(file: string, text: string): Violation[] {
   if (SCRIPT_COMMENT_ONLY.test(file)) return cssViolations(file, text);
   if (file.endsWith(".md")) return markdownViolations(file, text);
   if (HASH_COMMENT_FILE.test(file)) return hashCommentViolations(file, text);
+  if (file.endsWith(".json")) return jsonViolations(file, text);
+  if (/\.html?$/.test(file)) return htmlViolations(file, text);
   return dashViolations(file, text);
 }
 

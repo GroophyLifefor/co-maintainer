@@ -231,6 +231,7 @@ test("sync applies each note once, and ignore marks the issue ignored", async ()
       path: "src/net/retry.ts",
       lineFrom: 2,
       lineTo: 2,
+      // punctuation: code, a fixture line of TypeScript source written to disk by the test
       anchorText: "while (true) await fn();",
       reviewId: "r-1",
     });

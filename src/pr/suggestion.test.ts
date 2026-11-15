@@ -13,6 +13,7 @@ function same(actual: unknown, expected: unknown, what: string): void {
   if (a !== b) throw new Error(`${what}: got ${a}, want ${b}`);
 }
 
+// punctuation: code, a fixture line of TypeScript source written to disk by the test
 const PATCH = [
   "@@ -16,3 +16,3 @@",
   " function gate() {",
