@@ -104,7 +104,7 @@ try {
   dataset = JSON.parse(await readTextFile(datasetPath)) as Row[];
 } catch (error) {
   if (isNotFound(error)) {
-    throw new Error(`Missing ${datasetPath}; run prepare_dataset.ts first`);
+    throw new Error(`Missing ${datasetPath}. Run prepare_dataset.ts first`);
   }
   throw error;
 }

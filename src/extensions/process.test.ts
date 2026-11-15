@@ -79,6 +79,7 @@ test(
     const dir = tempDirSync();
     const started = performance.now();
     const outcome = await runCommandOnce({
+      // punctuation: code, a shell command line that the test runs
       command: `sleep 30 & echo $! > '${dir}/pid'; echo '${OK}'`,
       timeoutMs: 20_000,
       killGraceMs: 200,

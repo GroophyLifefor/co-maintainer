@@ -99,6 +99,7 @@ test(
   async () => {
     await withFolder(async (folder, dir) => {
       const log = `${dir}/order.log`;
+      // punctuation: code, a shell command line that the test runs
       const write = (name: string) =>
         `echo ${name} {{review_result_path}} >> '${log}'; echo '${OK}'`;
       const review = deferred();
@@ -246,6 +247,7 @@ test(
       const counter = `${dir}/count`;
       await writeTextFile(counter, "");
       // Prints garbage twice, then a valid response.
+      // punctuation: code, a shell command line that the test runs
       const flaky = `echo x >> '${counter}'; if [ $(wc -l < '${counter}') -lt 3 ]; then echo broken; else echo '${OK}'; fi`;
       const retry = `echo '{"schemaVersion":1,"name":"r","status":"retry","reason":"busy","retryAfterSeconds":120}'`;
       const waits: number[] = [];
@@ -302,6 +304,7 @@ test(
       const pidFile = `${dir}/child.pid`;
       // The background child ignores SIGTERM, so only the SIGKILL after the
       // grace period ends it.
+      // punctuation: code, a shell command line that the test runs
       const command = `(trap '' TERM; exec sleep 30) & echo $! > '${pidFile}'; wait`;
       const done = deferred();
       done.resolve(true);

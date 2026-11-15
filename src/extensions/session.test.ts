@@ -90,6 +90,7 @@ test(
           extensions: [
             {
               name: "probe",
+              // punctuation: code, a shell command line that the test runs
               command: `pwd > '${dir}/cwd'; echo '{"schemaVersion":1,"name":"p","status":"ok","verdict":"comment"}'`,
             },
           ],

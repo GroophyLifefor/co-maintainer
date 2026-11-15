@@ -128,6 +128,7 @@ test("a note that covers no semicolon fails", () => {
 });
 
 test("a note never excuses a dash", () => {
+  // punctuation: code, a fixture line of source code that the test writes or reads
   const text = [
     "// punctuation: code, the Cookie header joins attributes with a semicolon",
     `const h = "a ${EM_DASH} b; c";`,
@@ -225,6 +226,59 @@ test("inline code may use a longer run of backticks", () => {
   assert.deepEqual(kinds("a.md", "Use `a` then b; c\n"), [
     "1:semicolon in prose",
   ]);
+});
+
+test("a note covers its statement by position, not the whole line", () => {
+  // punctuation: code, a fixture of TypeScript source that the check scans
+  const text = [
+    "// punctuation: code, a cookie header needs its semicolon",
+    'flags.join("; "); const s = "wait, then retry; now";',
+    "",
+  ].join("\n");
+  assert.deepEqual(kinds("a.ts", text), ["2:semicolon in a string"]);
+});
+
+test("an HTML note on a void or unclosed element stops at its opening tag", () => {
+  const meta = [
+    "<!-- punctuation: code, a meta tag holds a code value here -->",
+    '<meta content="a; b">',
+    "<p>wait; then retry</p>",
+    "",
+  ].join("\n");
+  assert.deepEqual(kinds("a.html", meta), [
+    "1:note covers no semicolon",
+    "3:semicolon in prose",
+  ]);
+  const unclosed = [
+    "<!-- punctuation: code, a paragraph that holds code here -->",
+    "<p>let a = 1;",
+    "<p>wait; then retry</p>",
+    "",
+  ].join("\n");
+  assert.deepEqual(kinds("a.html", unclosed), [
+    "1:note covers no semicolon",
+    "2:semicolon in prose",
+    "3:semicolon in prose",
+  ]);
+});
+
+test("a placeholder in braces does not make a sentence code", () => {
+  assert.deepEqual(
+    kinds("a.ts", 'const s = "Use {account} and retry; then wait";\n'),
+    ["1:semicolon in a string"],
+  );
+  assert.deepEqual(kinds("a.ts", 'const s = "a { b = 1; }";\n'), []);
+});
+
+test("a template literal with a placeholder is still checked", () => {
+  assert.deepEqual(
+    kinds("a.ts", "const s = `wait; then retry ${x} and more`;\n"),
+    ["1:semicolon in a string"],
+  );
+  assert.deepEqual(kinds("a.ts", "const s = `${x}; then retry`;\n"), [
+    "1:semicolon in a string",
+  ]);
+  assert.deepEqual(kinds("a.ts", "const s = `a { b = 1; } ${x}`;\n"), []);
 });
 
 test("JSX text is checked", () => {

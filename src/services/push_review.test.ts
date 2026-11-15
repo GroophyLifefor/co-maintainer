@@ -528,6 +528,7 @@ test("a push review result carries the coverage and warnings of its diff plan", 
         `${repos}/acme/widgets/PR_REVIEW_GUIDE.md`,
         "# Guide\n",
       );
+      // punctuation: code, a fixture line of source code that the test writes or reads
       const big = Array.from({ length: 600 }, (_, i) => `+const v${i} = ${i};`);
       const queued = queuePush({
         repo: "acme/widgets",

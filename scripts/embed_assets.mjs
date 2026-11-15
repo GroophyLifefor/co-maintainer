@@ -32,6 +32,7 @@ function inlineFonts(css) {
     if (!out.includes(needle)) {
       throw new Error(`styles.css does not reference ${needle}`);
     }
+    // punctuation: code, a data URI puts a semicolon before base64
     out = out.split(needle).join(`url("data:font/woff2;base64,${data}")`);
   }
   return out;

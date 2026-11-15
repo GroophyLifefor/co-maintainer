@@ -149,7 +149,7 @@ export function analyzeProbe(
         ? `A release from ${latestReleaseAt.slice(
             0,
             10,
-          )} is recent; use the last ${maxPrMonths} months to prioritize the current contribution and release process.`
+          )} is recent. Use the last ${maxPrMonths} months to prioritize the current contribution and release process.`
         : `The last ${maxPrMonths} months cover at least 85% of pull requests. Older history is a minority.`,
     );
   } else if (pulls.length) {

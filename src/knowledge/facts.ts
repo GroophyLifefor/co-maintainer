@@ -109,7 +109,7 @@ function sourceModuleClaim(path: string, content: string): string | undefined {
   if (!symbols.length) return undefined;
   return `\`${path}\` contains ${symbols
     .map((symbol) => `\`${symbol}\``)
-    .join(", ")}; keep related changes in this module.`;
+    .join(", ")}. Keep related changes in this module.`;
 }
 
 function commandPrefix(source: Source): string {
@@ -593,7 +593,7 @@ export function extractFacts(source: Source, options: Options): Fact[] {
         "review-bar",
         `Frequently changed files include ${files
           .map(([path]) => `\`${path}\``)
-          .join(", ")}; check nearby tests and workflows before editing.`,
+          .join(", ")}. Check nearby tests and workflows before editing.`,
         "pull request files",
         2,
       ),

@@ -319,7 +319,7 @@ const defects = {
     class: "swallowed error",
     quote:
       "the catch block around each rule's evaluation is empty, so a rule that throws (unknown type, missing params) is silently dropped instead of being pushed to ruleErrors as the function's own doc comment promises",
-    why: "a policy-authoring typo (e.g. a rule missing a required param) makes that rule vanish with zero coverage, returning {violations: [], ruleErrors: []} -- indistinguishable from a genuinely clean, fully-checked snapshot; this is the exact D6/history pattern (this repo does not swallow errors) recurring in a new place",
+    why: "a policy-authoring typo (e.g. a rule missing a required param) makes that rule vanish with zero coverage, returning {violations: [], ruleErrors: []} -- indistinguishable from a genuinely clean, fully-checked snapshot. This is the exact D6/history pattern (this repo does not swallow errors) recurring in a new place",
   },
   48: {
     id: "D20",

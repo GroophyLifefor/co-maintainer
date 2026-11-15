@@ -276,6 +276,7 @@ export function clientCheckout(sim: Sim, repo: string, name: string): Checkout {
 function sshStandIn(sim: Sim): string {
   const path = join(sim.world.root, "ssh-stand-in.cjs");
   const github = join(sim.world.root, "github");
+  // punctuation: code, a fixture line of source code that the test writes or reads
   writeFileSync(
     path,
     `const { spawnSync } = require("node:child_process");
@@ -351,6 +352,7 @@ export async function installCodegraphStandIn(
   writeFileSync(log, "");
   const unix = binaryPath(version).replace(/\.cmd$/, "");
   mkdirSync(dirname(unix), { recursive: true });
+  // punctuation: code, a fixture line of source code that the test writes or reads
   const script = `#!${process.execPath}
 const fs = require("node:fs");
 const path = require("node:path");

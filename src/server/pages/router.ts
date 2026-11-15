@@ -375,6 +375,7 @@ export async function handlePageRequest(
             status: 200,
             headers: {
               "content-type": "text/markdown; charset=utf-8",
+              // punctuation: code, the Content-Disposition header separates its parts with a semicolon
               "content-disposition": `attachment; filename="${doc.file}"`,
             },
           });

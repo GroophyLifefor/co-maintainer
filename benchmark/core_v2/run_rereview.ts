@@ -99,7 +99,7 @@ try {
   dataset = JSON.parse(await readTextFile(datasetPath)) as Row[];
 } catch (error) {
   if (isNotFound(error)) {
-    throw new Error(`Missing ${datasetPath}; generate the gold set first`);
+    throw new Error(`Missing ${datasetPath}. Generate the gold set first`);
   }
   throw error;
 }

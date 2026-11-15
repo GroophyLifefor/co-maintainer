@@ -197,7 +197,7 @@ try {
   ledger = JSON.parse(await readTextFile(ledgerPath));
 } catch (error) {
   if (isNotFound(error)) {
-    throw new Error(`Missing ${ledgerPath}; build it first (see plan.md §9)`);
+    throw new Error(`Missing ${ledgerPath}. Build it first (see plan.md §9)`);
   }
   throw error;
 }

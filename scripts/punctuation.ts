@@ -31,6 +31,9 @@ export type Violation = {
   line: number;
   kind: Kind;
   text: string;
+  /** Source offsets of the string literal a string violation came from, so a
+   * note can be matched by position and not by line. */
+  range?: [number, number];
 };
 
 /** Not ours to rewrite: vendored, legal, generated, or not in the repository. */
@@ -47,6 +50,24 @@ const SKIPPED: RegExp[] = [
 
 const SCRIPT_FILE = /\.(?:tsx?|mts|cts|jsx?|mjs|cjs)$/;
 const SCRIPT_COMMENT_ONLY = /\.(?:css)$/;
+/** HTML elements that have no closing tag. */
+const HTML_VOID = new Set([
+  "area",
+  "base",
+  "br",
+  "col",
+  "embed",
+  "hr",
+  "img",
+  "input",
+  "link",
+  "meta",
+  "param",
+  "source",
+  "track",
+  "wbr",
+]);
+
 const HASH_COMMENT_FILE = /(?:\.ya?ml|\.sh|Dockerfile)$/;
 
 export function isSkipped(file: string): boolean {
@@ -154,24 +175,40 @@ function commentSemicolons(
 }
 
 /** Text that is plainly a CSS, JS or HTML snippet: braces, an arrow, a tag, an
- * entity, a header, an escaped newline, a diff hunk header. A semicolon in it
- * is syntax. A word
+ * entity, a header, an escaped newline, a diff hunk header, a brace followed by
+ * a semicolon before it closes. A semicolon in it is syntax. A lone `{name}` is
+ * a placeholder in a sentence, not code. A word
  * such as `function` proves nothing, because a sentence can hold it. Any other
  * string that must keep a semicolon carries a note, see `NOTE`. */
 const CODE_SHAPE =
-  /[{}]|=>|<\/?[A-Za-z]|&[A-Za-z#0-9]+;|charset=|\$\(|\\n|^@@ -\d/m;
+  /\{[^}]*;|;\s*\}|=>|<\/?[A-Za-z]|&[A-Za-z#0-9]+;|charset=|\$\(|\\n|^@@ -\d/m;
 
 export function isCodeShaped(chunk: string): boolean {
   return CODE_SHAPE.test(chunk);
+}
+
+/** The text of a template part without the marks that join it to the next
+ * part: the backticks, the opening `${` and the closing `}`. They are template
+ * syntax, not code in the text. */
+function templateText(kind: ts.SyntaxKind, chunk: string): string {
+  const K = ts.SyntaxKind;
+  if (kind === K.NoSubstitutionTemplateLiteral) return chunk.slice(1, -1);
+  if (kind === K.TemplateHead) return chunk.slice(1, -2);
+  if (kind === K.TemplateMiddle) return chunk.slice(1, -2);
+  if (kind === K.TemplateTail) return chunk.slice(1, -1);
+  return chunk;
 }
 
 function stringSemicolons(
   file: string,
   chunk: string,
   firstLine: number,
+  range: [number, number],
+  kind: ts.SyntaxKind,
 ): Violation[] {
+  const body = templateText(kind, chunk);
   // punctuation: code, the check looks for the semicolon character in text
-  if (!chunk.includes(";") || isCodeShaped(chunk)) return [];
+  if (!body.includes(";") || isCodeShaped(body)) return [];
   const found: Violation[] = [];
   chunk.split(/\r?\n/).forEach((line, index) => {
     // punctuation: code, the check looks for the semicolon character in text
@@ -181,6 +218,7 @@ function stringSemicolons(
         line: firstLine + index,
         kind: "semicolon in a string",
         text: line.trim(),
+        range,
       });
     }
   });
@@ -286,7 +324,9 @@ function scriptViolations(file: string, text: string): Violation[] {
           line: first + v.line - 1,
         })),
       );
-      found.push(...stringSemicolons(file, chunk, first));
+      found.push(
+        ...stringSemicolons(file, chunk, first, [start, node.end], node.kind),
+      );
     } else if (node.kind === ts.SyntaxKind.RegularExpressionLiteral) {
       const start = node.getStart(source);
       const first = lineAt(text, start);
@@ -318,15 +358,13 @@ function applyNotes(
       .sort(
         (a, b) => a.getStart(source) - b.getStart(source) || a.end - b.end,
       )[0];
-    const from = next
-      ? source.getLineAndCharacterOfPosition(next.getStart(source)).line + 1
-      : 0;
-    const to = next
-      ? source.getLineAndCharacterOfPosition(next.end).line + 1
-      : -1;
     const covered = result.filter(
       (v) =>
-        v.kind === "semicolon in a string" && v.line >= from && v.line <= to,
+        v.kind === "semicolon in a string" &&
+        v.range !== undefined &&
+        next !== undefined &&
+        v.range[0] >= next.getStart(source) &&
+        v.range[1] <= next.end,
     );
     if (covered.length === 0) {
       result = [
@@ -478,15 +516,23 @@ function htmlViolations(file: string, text: string): Violation[] {
       });
     }
     const start = (note.index ?? 0) + note[0].length - note[2]!.length - 1;
-    const tag = new RegExp(`<(/?)${note[2]!}\\b`, "gi");
-    tag.lastIndex = start;
-    let depth = 0;
-    let end = text.length;
-    for (let m = tag.exec(text); m; m = tag.exec(text)) {
-      depth += m[1] ? -1 : 1;
-      if (depth === 0) {
-        end = text.indexOf(">", m.index) + 1;
-        break;
+    const opening = text.indexOf(">", start) + 1;
+    // A void or self-closing element ends at its opening tag, and so does an
+    // element that never closes, so a note cannot reach to the end of the file.
+    let end = opening;
+    if (
+      !HTML_VOID.has(note[2]!.toLowerCase()) &&
+      !text.slice(start, opening).endsWith("/>")
+    ) {
+      const tag = new RegExp(`<(/?)${note[2]!}\\b`, "gi");
+      tag.lastIndex = start;
+      let depth = 0;
+      for (let m = tag.exec(text); m; m = tag.exec(text)) {
+        depth += m[1] ? -1 : 1;
+        if (depth === 0) {
+          end = text.indexOf(">", m.index) + 1;
+          break;
+        }
       }
     }
     // punctuation: code, the check looks for the semicolon character in text

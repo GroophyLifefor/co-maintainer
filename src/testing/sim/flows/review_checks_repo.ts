@@ -140,6 +140,7 @@ const SERVER_MAIN = lines(
   "server.listen(port, () => console.log(`api listening on ${port}`));",
 );
 
+// punctuation: code, a fixture line of source code that the test writes or reads
 const INGEST = lines(
   'import type { Store } from "../db/store.ts";',
   'import { newSessionId } from "./ids.ts";',
@@ -462,12 +463,14 @@ export const BASE_FILES: Record<string, string> = {
     "for (const server of mocks) server.close();",
     "process.exitCode = result.status ?? 1;",
   ),
+  // punctuation: code, a fixture line of source code that the test writes or reads
   "src/db/client.ts": lines(
     "/** The one way the code talks to Postgres. */",
     "export type Db = {",
     "  query<T>(sql: string, params: unknown[]): Promise<T[]>;",
     "};",
   ),
+  // punctuation: code, a fixture line of source code that the test writes or reads
   "src/db/store.ts": lines(
     'import type { Session } from "../sessions/types.ts";',
     "",
@@ -490,6 +493,7 @@ export const BASE_FILES: Record<string, string> = {
     "  budgetId: string | null;",
     "};",
   ),
+  // punctuation: code, a fixture line of source code that the test writes or reads
   "src/sessions/ids.ts": lines(
     'import { randomBytes } from "node:crypto";',
     "",
@@ -601,6 +605,7 @@ export const BASE_FILES: Record<string, string> = {
     "  writeSettings(buildSettings(region, token));",
     "}",
   ),
+  // punctuation: code, a fixture line of source code that the test writes or reads
   "src/cli/report.ts": lines(
     'import { readSettings } from "./settings.ts";',
     "",
@@ -720,6 +725,7 @@ const PORTS_TAIL = [
   "}",
 ];
 
+// punctuation: code, a fixture line of source code that the test writes or reads
 const PORTED_SERVICES = SERVICES.replace(
   'import type { ServiceSpec } from "./types.ts";',
   'import { portOf } from "./ports.ts";\nimport type { ServiceSpec } from "./types.ts";',
@@ -757,6 +763,7 @@ const C1: Pair = {
         ...PORTS_TAIL,
       ),
       "devstack/services.ts": PORTED_SERVICES,
+      // punctuation: code, a fixture line of source code that the test writes or reads
       "test/support/mock_servers.ts": BASE_FILES[
         "test/support/mock_servers.ts"
       ]!.replace(
@@ -769,6 +776,7 @@ const C1: Pair = {
     },
   },
   spans: [
+    // punctuation: code, a fixture line of source code that the test writes or reads
     { path: "devstack/ports.ts", from: "/** Every port", to: "} as const;" },
     { path: "test/support/mock_servers.ts", from: "export const MOCK_PORTS" },
   ],
@@ -846,6 +854,7 @@ const C2: Pair = {
 
 // ---- C3: new writer (issue 66)
 
+// punctuation: code, a fixture line of source code that the test writes or reads
 const clientIds = (pattern: string, words: string) =>
   INGEST.replace(
     "type OpenRequest = { accountId: string; budgetId?: string };",
@@ -923,6 +932,7 @@ const ingestRegions = (extra: string[]) =>
     ),
   );
 
+// punctuation: code, a fixture line of source code that the test writes or reads
 const upload = (importName: string, fallback: string) =>
   lines(
     'import { readFileSync } from "node:fs";',
@@ -1021,6 +1031,7 @@ const LISTEN = lines(
   "}",
 );
 
+// punctuation: code, a fixture line of source code that the test writes or reads
 const RETRY_MAIN = SERVER_MAIN.replace(
   'import { drainOnSigterm } from "./shutdown.ts";',
   'import { listenWithRetry } from "./listen.ts";\nimport { drainOnSigterm } from "./shutdown.ts";',
@@ -1177,6 +1188,7 @@ const RANGE = lines(
 const TWO_LINES =
   "  const from = range.from.toISOString().slice(0, 10);\n  const to = range.to.toISOString().slice(0, 10);\n";
 
+// punctuation: code, a fixture line of source code that the test writes or reads
 const withRangeParams = (text: string) =>
   text
     .replace(
@@ -1191,6 +1203,7 @@ const withRangeParams = (text: string) =>
 
 const C7_FILES = {
   "src/exports/range.ts": RANGE,
+  // punctuation: code, a fixture line of source code that the test writes or reads
   "src/exports/usage.ts": USAGE_EXPORT.replace(
     'import { LEGACY_CSV } from "../flags.ts";',
     'import { rangeParams } from "./range.ts";',

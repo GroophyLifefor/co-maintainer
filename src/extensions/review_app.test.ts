@@ -28,6 +28,7 @@ isolateTestFile();
 
 const posixOnly = { skip: process.platform === "win32" };
 
+// punctuation: code, a fixture line of source code that the test writes or reads
 const EXTENSION = `import { readFileSync } from "node:fs";
 const details = JSON.parse(readFileSync(process.argv[2], "utf8"));
 const first = details.round === 1;

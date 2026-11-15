@@ -49,6 +49,7 @@ import { VERSION } from "../src/version.ts";
 const PASSWORD = "dashboard-smoke-pass";
 const REPO = "acme/widgets";
 const RUN_JOB = "job-live-smoke";
+// punctuation: code, a line of source code sent to the dashboard as a long code sample
 const LONG_CODE = `const veryLong = "${"x".repeat(300)}";`;
 const GUIDE = [
   "# Review guide",

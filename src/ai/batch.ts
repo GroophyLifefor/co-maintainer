@@ -229,7 +229,7 @@ export class AiBatch {
         }
         log(
           "ai",
-          `gave up ${item.request.job} ${item.id.slice(0, 8)} after ${attempt} attempts; continuing without it`,
+          `gave up ${item.request.job} ${item.id.slice(0, 8)} after ${attempt} attempts, continuing without it`,
         );
         return;
       }

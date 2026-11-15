@@ -51,9 +51,9 @@ function groupSentence(group: WaitGroup): string {
   const times = count === 1 ? "once" : count === 2 ? "twice" : `${count} times`;
   if (group.durations.length === 1) {
     const each = count === 1 ? "" : " each time";
-    return `${label} asked to slow down ${times}; waited ${secondsLabel(group.durations[0]!)}${each}`;
+    return `${label} asked to slow down ${times}, waited ${secondsLabel(group.durations[0]!)}${each}`;
   }
-  return `${label} asked to slow down ${times}; waited ${joinList(group.durations.map(secondsLabel))}`;
+  return `${label} asked to slow down ${times}, waited ${joinList(group.durations.map(secondsLabel))}`;
 }
 
 export function rateLimitWaitSummaryLine(

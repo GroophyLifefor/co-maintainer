@@ -537,12 +537,12 @@ Do not invent requirements. Ignore bot noise and historical PR identities.
 Reason thoroughly, then answer with the JSON object described below and nothing
 else. There is no fixed number of findings. Return every independently
 actionable finding supported by the diff and guide, including zero findings
-when appropriate. Do not stop early; inspect all supplied diff text first and
+when appropriate. Do not stop early. Inspect all supplied diff text first and
 return the natural count. If the diff contains a truncation marker, limit
 claims to the supplied text and do not imply that omitted files were reviewed.
 Do not invent low-value findings.
 When the DIFF section below has an UPSTREAM CONTEXT part, that code arrived
-through a merge and was not authored by this pull request; do not raise a
+through a merge and was not authored by this pull request. Do not raise a
 finding located only there, and never mark blocking a finding whose only
 support is upstream context.
 ${CODEGRAPH_DIFF_VERIFICATION}
@@ -821,7 +821,7 @@ ${ownDiff}${unchangedListing}`;
       prompt: `Audit the draft review below against the complete diff and guides.
 Preserve valid findings, correct inaccurate ones, remove duplicate or
 unsupported ones, and add every missing actionable finding. Re-check each
-finding with codegraph when it depends on behavior outside the diff; remove
+finding with codegraph when it depends on behavior outside the diff. Remove
 findings that only looked plausible from the diff slice.
 Return the complete revised review as the same JSON object, and nothing else.
 

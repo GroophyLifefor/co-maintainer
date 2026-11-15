@@ -239,7 +239,7 @@ export async function ensureCodegraph(
   if (present.state === "mismatch") {
     log(
       `[codegraph] expected ${version} but found ${present.version} ` +
-        `at ${present.path}; reinstalling the pinned version`,
+        `at ${present.path}, reinstalling the pinned version`,
     );
   }
 
@@ -304,7 +304,7 @@ export async function ensureCodegraphForReview(
   if (present.state === "ok") return { path: present.path };
   if (present.state === "mismatch") {
     log(
-      `[codegraph] expected ${version} but found ${present.version}; reinstalling`,
+      `[codegraph] expected ${version} but found ${present.version}, reinstalling`,
     );
   }
 

@@ -76,6 +76,7 @@ const DIVIDE_GUARDED = [
 export function mainFiles(guarded = false): Record<string, string> {
   return {
     "src/math.ts": `${MATH_BASE}\n${guarded ? DIVIDE_GUARDED : DIVIDE}\n`,
+    // punctuation: code, a fixture line of source code that the test writes or reads
     "src/format.ts": [
       'import { clamp } from "./math.ts";',
       "",
@@ -181,6 +182,7 @@ function manyFindings() {
 
 export function manyFiles(): Record<string, string> {
   return {
+    // punctuation: code, a fixture line of source code that the test writes or reads
     "src/many.ts": `${Array.from(
       { length: MANY_COUNT * 2 },
       (_, index) => `export const v${index + 1} = ${index + 1};`,
@@ -797,6 +799,7 @@ function flowChecks(sim: Sim): CheckResult[] {
   // What the model was sent.
   const sent = reviewCompletions(sim, STEP.human)[0];
   const prompt = sent?.firstUser ?? "";
+  // punctuation: code, a fixture line of source code that the test writes or reads
   add(
     check(
       "the review prompt holds the pull request's title, body and state",

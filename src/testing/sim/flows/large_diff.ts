@@ -70,6 +70,7 @@ function generated(
     const id = String(i).padStart(4, "0");
     const body = Array.from({ length: lines }, (_, n) => {
       const head = `export const v${id}_${n} = "`;
+      // punctuation: code, a fixture line of source code that the test writes or reads
       return `${head}${"x".repeat(Math.max(1, width - head.length - 2))}";`;
     });
     files[`${dir}/f${id}.ts`] = `${body.join("\n")}\n`;
@@ -84,6 +85,7 @@ const LARGE = generated("src/gen", 1000, 8);
 const MEDIUM = generated("src/medium", 400, 30);
 /** One file over 500 changed lines and 12,000 characters, read in pages. */
 const BIG_PATH = "src/big/table.ts";
+// punctuation: code, a fixture line of source code that the test writes or reads
 const BIG_LINES = Array.from(
   { length: 700 },
   (_, n) => `export const row${n} = ${n * 7}; // generated`,

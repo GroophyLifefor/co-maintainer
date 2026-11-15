@@ -54,7 +54,7 @@ try {
 } catch (error) {
   if (isNotFound(error)) {
     throw new Error(
-      `Missing ${srcPath}; download dataset/prs.jsonl from https://huggingface.co/datasets/foundry-ai/swe-prbench there first`,
+      `Missing ${srcPath}. Download dataset/prs.jsonl from https://huggingface.co/datasets/foundry-ai/swe-prbench there first`,
     );
   }
   throw error;

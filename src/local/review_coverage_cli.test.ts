@@ -82,6 +82,7 @@ async function prepare(root: string) {
     `https://github.com/${repo}.git`,
   ]);
   await git(worktree, ["update-ref", "refs/remotes/origin/main", "HEAD"]);
+  // punctuation: code, a fixture line of source code that the test writes or reads
   const line = (i: number, n: number) =>
     `export const v${i}_${n} = "${"x".repeat(40)}";`;
   for (let i = 0; i < FILES; i++) {

@@ -1536,6 +1536,7 @@ test("the stylesheet ships the design tokens, the embedded font and dark theme",
   }
   // The font is embedded, not linked: the served sheet carries its bytes.
   if (css.length < 90_000) {
+    // punctuation: code, a fixture line of source code that the test writes or reads
     throw new Error(
       `styles is only ${css.length} chars; the font was not inlined`,
     );

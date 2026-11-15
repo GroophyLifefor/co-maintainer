@@ -97,11 +97,11 @@ export const LOCAL_CHANGE = {
   } as Files,
   /** A new file git does not know. */
   untracked: {
+    // punctuation: code, a fixture line of source code that the test writes or reads
     "src/stats.ts": [
       'import { average } from "./math.ts";',
       "",
       "export function describe(values: number[]): string {",
-      // punctuation: code, a fixture line of TypeScript source written to disk
       '  console.log("describing", values.length);',
       "  return `mean ${average(values)}`;",
       "}",

@@ -70,7 +70,7 @@ Rules for the JSON:
   column, never counted from the @@ header. "lineTo" may equal "lineFrom".
 - "title" is one sentence naming the defect, without the severity or the path.
 - "body" is the explanation. Do not repeat the title, the path, or the location
-  line inside it; our code renders those. Do not add a closing sentence asking
+  line inside it. Our code renders those. Do not add a closing sentence asking
   whether to explain more, and do not use the words Mechanism, Symptom,
   Scenario, Verified, Repro, Options, or Scope as labels.
 - "suggestion" holds only the replacement source lines, with their original

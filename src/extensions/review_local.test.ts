@@ -31,6 +31,7 @@ async function git(cwd: string, args: string[]): Promise<void> {
 
 /** Round 1 reports two keyed findings and requests changes. Round 2 reports
  * one of them again and one without a key, and only comments. */
+// punctuation: code, a fixture line of source code that the test writes or reads
 const EXTENSION = `import { readFileSync, writeFileSync } from "node:fs";
 const details = JSON.parse(readFileSync(process.argv[2], "utf8"));
 writeFileSync(process.argv[3], JSON.stringify({ details, cwd: process.cwd(), review: readFileSync(details.reviewResultPath, "utf8") }));

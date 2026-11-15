@@ -396,7 +396,7 @@ export async function runSet(args: string[]): Promise<void> {
     if (result.status === "rejected") throw result.error;
     if (result.status === "unreachable") {
       console.error(
-        `[set] could not verify the key and model (${result.reason}); saved anyway.`,
+        `[set] could not verify the key and model (${result.reason}). Saved anyway.`,
       );
     }
   }

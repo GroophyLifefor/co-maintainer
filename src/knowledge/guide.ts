@@ -139,7 +139,7 @@ export function validateGuide(
     return `fewer than ${minPasses} passes`;
   }
   if (areas.length > maxPasses) {
-    return `too many passes (${areas.length}); consolidate related areas`;
+    return `too many passes (${areas.length}), consolidate related areas`;
   }
   for (const area of areas) {
     const name = area.split("\n")[0].trim();

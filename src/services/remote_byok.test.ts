@@ -966,6 +966,7 @@ test("a failed job insert leaves no orphan review row", async () => {
 
 test("the remote result carries the coverage and warnings of the server's diff plan", async () => {
   await withServer(async ({ app, token }) => {
+    // punctuation: code, a fixture line of source code that the test writes or reads
     const big = Array.from({ length: 600 }, (_, i) => `+const v${i} = ${i};`);
     const base = await submitBody();
     const revision = base.revision as { files: unknown[] };

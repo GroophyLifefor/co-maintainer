@@ -79,7 +79,7 @@ try {
   dataset = JSON.parse(await readTextFile(datasetPath)) as Row[];
 } catch (error) {
   if (isNotFound(error)) {
-    throw new Error(`Missing ${datasetPath}; download AACR-Bench there first`);
+    throw new Error(`Missing ${datasetPath}. Download AACR-Bench there first`);
   }
   throw error;
 }
