@@ -509,6 +509,25 @@ test("an unquoted attribute value is checked too", () => {
   ]);
 });
 
+test("a note with no element after it covers nothing", () => {
+  assert.deepEqual(
+    kinds("a.html", "<!-- punctuation: code, a reason that is fine -->\n"),
+    ["1:note covers no semicolon"],
+  );
+  assert.deepEqual(
+    kinds("a.html", "<!-- punctuation: code, reason; more -->\n"),
+    ["1:note covers no semicolon", "1:semicolon in a comment"],
+  );
+});
+
+test("braces around a word do not make a sentence code", () => {
+  assert.deepEqual(kinds("a.ts", 'const s = "Use {account; retry} now";\n'), [
+    "1:semicolon in a string",
+  ]);
+  assert.deepEqual(kinds("a.ts", 'const s = "a { b = 1; }";\n'), []);
+  assert.deepEqual(kinds("a.ts", 'const s = "a { return; }";\n'), []);
+});
+
 test("JSX text is checked", () => {
   assert.deepEqual(kinds("a.tsx", "const a = <b>first; second</b>;\n"), [
     "1:semicolon in a string",

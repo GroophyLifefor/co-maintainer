@@ -198,12 +198,13 @@ function withoutMarkup(chunk: string): string {
 
 /** Text that is plainly a CSS or JS snippet: a media type header such as
  * `text/html; charset=utf-8`, an escaped newline, a diff hunk header, a
- * brace followed by a semicolon before it closes. A semicolon in it is syntax.
+ * brace that holds a statement, then a semicolon, before it closes. A semicolon
+ * in it is syntax.
  * A lone `{name}` is a placeholder in a sentence, not code. A word such as
  * `function` proves nothing, because a sentence can hold it. Any other string
  * that must keep a semicolon carries a note, see `NOTE`. */
 const CODE_SHAPE =
-  /\{[^}]*;|;\s*\}|^\s*[\w.+*-]+\/[\w.+*-]+(?:;\s*[\w-]+=[^;\s]+)+\s*$|\$\(|\\n|^@@ -\d/m;
+  /\{[^}]*(?:[=():]|\b(?:return|break|continue)\b)[^}]*;|;\s*\}|^\s*[\w.+*-]+\/[\w.+*-]+(?:;\s*[\w-]+=[^;\s]+)+\s*$|\$\(|\\n|^@@ -\d/m;
 
 /** Three plain words in a row. Code holds identifiers, operators and brackets
  * between its words, and its keywords do not count, so a run like this is a
@@ -692,9 +693,11 @@ function htmlViolations(file: string, text: string): Violation[] {
   // `<!-- punctuation: code, <why> -->` right above an element lets the text
   // inside that element, up to its closing tag, keep its semicolons.
   let body = text;
+  const placed = new Set<number>();
   for (const note of text.matchAll(
     /<!--\s*punctuation: code(?:, ([^]*?))?\s*-->\s*<([A-Za-z0-9]+)\b/g,
   )) {
+    placed.add(note.index ?? 0);
     const line = lineAt(text, note.index ?? 0);
     // punctuation: code, the check looks for the semicolon character in text
     if ((note[1] ?? "").includes(";")) {
@@ -760,8 +763,31 @@ function htmlViolations(file: string, text: string): Violation[] {
   }
   // A comment is prose. The notes of this check are comments too, and are not.
   for (const comment of body.matchAll(/<!--([\s\S]*?)-->/g)) {
-    if (/^\s*punctuation: code/.test(comment[1]!)) continue;
     const first = lineAt(body, comment.index ?? 0);
+    if (/^\s*punctuation: code/.test(comment[1]!)) {
+      // A note that no element follows covers nothing, and its reason is prose.
+      if (!placed.has(comment.index ?? 0)) {
+        const reason = /^\s*punctuation: code(?:, ([^]*?))?\s*$/.exec(
+          comment[1]!,
+        )?.[1];
+        found.push({
+          file,
+          line: first,
+          kind: "note covers no semicolon",
+          text: "punctuation: code",
+        });
+        // punctuation: code, the check looks for the semicolon character in text
+        if ((reason ?? "").includes(";")) {
+          found.push({
+            file,
+            line: first,
+            kind: "semicolon in a comment",
+            text: comment[0].slice(0, 120),
+          });
+        }
+      }
+      continue;
+    }
     for (const [offset, line] of proseLines(comment[1]!)) {
       // punctuation: code, the check looks for the semicolon character in text
       if (line.replace(/&[A-Za-z#0-9]+;/g, "").includes(";")) {
