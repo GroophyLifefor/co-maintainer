@@ -281,6 +281,77 @@ test("a template literal with a placeholder is still checked", () => {
   assert.deepEqual(kinds("a.ts", "const s = `a { b = 1; } ${x}`;\n"), []);
 });
 
+test("a media type header is code, a sentence that names a charset is not", () => {
+  assert.deepEqual(
+    kinds("a.ts", 'const h = "text/html; charset=utf-8";\n'),
+    [],
+  );
+  assert.deepEqual(
+    kinds("a.ts", 'const s = "Send charset=utf-8 first; then retry";\n'),
+    ["1:semicolon in a string"],
+  );
+});
+
+test("a CSS content string is text, a declaration list is not", () => {
+  assert.deepEqual(kinds("a.css", '.a::after { content: "wait; then"; }\n'), [
+    "1:semicolon in a string",
+  ]);
+  assert.deepEqual(kinds("a.css", ".a { color: red; margin: 0; }\n"), []);
+});
+
+test("a YAML inline comment is checked", () => {
+  assert.deepEqual(kinds("a.yml", "name: ok # first; second\n"), [
+    "1:semicolon in a comment",
+  ]);
+  assert.deepEqual(kinds("a.yml", "name: ok # fine\n"), []);
+});
+
+test("shell strings are checked, statement separators are not", () => {
+  assert.deepEqual(kinds("a.sh", 'echo "wait; then retry"\n'), [
+    "1:semicolon in a string",
+  ]);
+  assert.deepEqual(kinds("a.sh", "cd /tmp; ls\n"), []);
+  // punctuation: code, a fixture of shell source that the check scans
+  const noted = [
+    "# punctuation: code, the sed script ends its substitution with a semicolon",
+    "RUN v=\"$(sed -n 's/a/b/;p' f)\" \\",
+    ' && echo "x; y"',
+    "",
+  ].join("\n");
+  assert.deepEqual(kinds("Dockerfile", noted), []);
+  assert.deepEqual(
+    kinds("a.sh", "# punctuation: code, a note with a reason\necho ok\n"),
+    ["1:note covers no semicolon"],
+  );
+});
+
+test("every other text file is read as prose", () => {
+  assert.deepEqual(kinds("a.txt", "wait; then retry\n"), [
+    "1:semicolon in prose",
+  ]);
+  assert.deepEqual(kinds("a.xml", "<a>wait; then retry</a>\n"), [
+    "1:semicolon in prose",
+  ]);
+  assert.deepEqual(kinds("a.svg", '<path d="M0 0;"/>\n'), []);
+  assert.deepEqual(kinds("notes", "first; second\n"), ["1:semicolon in prose"]);
+});
+
+test("HTML attributes that a person reads are checked", () => {
+  assert.deepEqual(
+    kinds("a.html", '<button aria-label="wait; then retry">x</button>\n'),
+    ["1:semicolon in prose"],
+  );
+  assert.deepEqual(kinds("a.html", '<a title="plain" href="/a;b">x</a>\n'), []);
+});
+
+test("a repeated JSON value is reported at its own line", () => {
+  const json = '{"a": "wait; then retry",\n "b": "wait; then retry"}\n';
+  assert.deepEqual(kinds("a.json", json), [
+    "1:semicolon in a string",
+    "2:semicolon in a string",
+  ]);
+});
+
 test("JSX text is checked", () => {
   assert.deepEqual(kinds("a.tsx", "const a = <b>first; second</b>;\n"), [
     "1:semicolon in a string",

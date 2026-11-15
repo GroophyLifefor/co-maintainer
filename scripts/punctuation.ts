@@ -68,7 +68,8 @@ const HTML_VOID = new Set([
   "wbr",
 ]);
 
-const HASH_COMMENT_FILE = /(?:\.ya?ml|\.sh|Dockerfile)$/;
+const HASH_COMMENT_FILE =
+  /(?:\.ya?ml|\.sh|\.cmd|Dockerfile|\.gitignore|\.gitattributes|\.dockerignore)$/;
 
 export function isSkipped(file: string): boolean {
   return SKIPPED.some((pattern) => pattern.test(file));
@@ -175,13 +176,14 @@ function commentSemicolons(
 }
 
 /** Text that is plainly a CSS, JS or HTML snippet: braces, an arrow, a tag, an
- * entity, a header, an escaped newline, a diff hunk header, a brace followed by
+ * entity, a media type header such as `text/html; charset=utf-8`, an escaped
+ * newline, a diff hunk header, a brace followed by
  * a semicolon before it closes. A semicolon in it is syntax. A lone `{name}` is
  * a placeholder in a sentence, not code. A word
  * such as `function` proves nothing, because a sentence can hold it. Any other
  * string that must keep a semicolon carries a note, see `NOTE`. */
 const CODE_SHAPE =
-  /\{[^}]*;|;\s*\}|=>|<\/?[A-Za-z]|&[A-Za-z#0-9]+;|charset=|\$\(|\\n|^@@ -\d/m;
+  /\{[^}]*;|;\s*\}|=>|<\/?[A-Za-z]|&[A-Za-z#0-9]+;|^\s*[\w.+*-]+\/[\w.+*-]+(?:;\s*[\w-]+=[^;\s]+)+\s*$|\$\(|\\n|^@@ -\d/m;
 
 export function isCodeShaped(chunk: string): boolean {
   return CODE_SHAPE.test(chunk);
@@ -192,6 +194,7 @@ export function isCodeShaped(chunk: string): boolean {
  * syntax, not code in the text. */
 function templateText(kind: ts.SyntaxKind, chunk: string): string {
   const K = ts.SyntaxKind;
+  if (kind === K.StringLiteral) return chunk.slice(1, -1);
   if (kind === K.NoSubstitutionTemplateLiteral) return chunk.slice(1, -1);
   if (kind === K.TemplateHead) return chunk.slice(1, -2);
   if (kind === K.TemplateMiddle) return chunk.slice(1, -2);
@@ -385,6 +388,20 @@ function applyNotes(
 
 function cssViolations(file: string, text: string): Violation[] {
   const found = dashViolations(file, text);
+  // A `content` string is text a person reads, so it is prose.
+  for (const match of text.matchAll(
+    /\bcontent\s*:\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g,
+  )) {
+    // punctuation: code, the check looks for the semicolon character in text
+    if (match[1]!.includes(";")) {
+      found.push({
+        file,
+        line: lineAt(text, match.index ?? 0),
+        kind: "semicolon in a string",
+        text: match[1]!.slice(0, 120),
+      });
+    }
+  }
   for (const match of text.matchAll(/\/\*[\s\S]*?\*\//g)) {
     found.push(
       ...commentSemicolons(file, match[0], lineAt(text, match.index ?? 0)),
@@ -415,7 +432,26 @@ function hashCommentViolations(file: string, text: string): Violation[] {
   const found = dashViolations(file, text);
   const yaml = /\.ya?ml$/.test(file);
   let block: { indent: number; code: boolean } | undefined;
+  // `# punctuation: code, <why>` above a shell command lets its quoted strings
+  // keep a semicolon, through the lines the command continues onto.
+  let pending: { line: number; used: boolean } | undefined;
+  let covering: { line: number; used: boolean } | undefined;
   text.split(/\r?\n/).forEach((line, index) => {
+    const note = /^\s*(?:#|REM\b|::)\s*punctuation: code(?:, (.*))?$/i.exec(
+      line,
+    );
+    if (note && !yaml) {
+      if ((note[1] ?? "").trim().split(/\s+/).filter(Boolean).length < 3) {
+        found.push({
+          file,
+          line: index + 1,
+          kind: "note without a reason",
+          text: line.trim(),
+        });
+      }
+      pending = { line: index + 1, used: false };
+      return;
+    }
     const indent = line.length - line.trimStart().length;
     if (block && (line.trim() === "" || indent > block.indent)) {
       if (yaml && !block.code) {
@@ -426,7 +462,10 @@ function hashCommentViolations(file: string, text: string): Violation[] {
       block = undefined;
     }
     // punctuation: code, the check looks for the semicolon character in text
-    if (/^\s*#/.test(line) && withoutInlineCode(line).includes(";")) {
+    if (
+      /^\s*(?:#|REM\b|::)/i.test(line) &&
+      withoutInlineCode(line).includes(";")
+    ) {
       found.push({
         file,
         line: index + 1,
@@ -435,7 +474,31 @@ function hashCommentViolations(file: string, text: string): Violation[] {
       });
       return;
     }
-    if (!yaml || /^\s*#/.test(line)) return;
+    if (!yaml) {
+      if (pending) {
+        covering = pending;
+        pending = undefined;
+      }
+      const hits = shellStrings(file, index + 1, line);
+      if (!covering) {
+        found.push(...hits);
+        return;
+      }
+      if (hits.length > 0) covering.used = true;
+      if (!line.trimEnd().endsWith("\\")) {
+        if (!covering.used) {
+          found.push({
+            file,
+            line: covering.line,
+            kind: "note covers no semicolon",
+            text: "punctuation: code",
+          });
+        }
+        covering = undefined;
+      }
+      return;
+    }
+    if (/^\s*#/.test(line)) return;
     const key = /^\s*(?:-\s+)?([A-Za-z0-9_-]+):(?:\s+(.*))?$/.exec(line);
     const code = key !== null && /^(?:run|script)$/.test(key[1]!);
     if (key && /^[|>][+-]?\d*\s*(?:#.*)?$/.test(key[2] ?? "")) {
@@ -444,14 +507,59 @@ function hashCommentViolations(file: string, text: string): Violation[] {
     }
     if (key && !code) found.push(...yamlValue(file, index + 1, key[2] ?? ""));
   });
+  if (pending) {
+    found.push({
+      file,
+      line: pending.line,
+      kind: "note covers no semicolon",
+      text: "punctuation: code",
+    });
+  }
+  return found;
+}
+
+/** The quoted strings of a shell line. A semicolon that separates statements
+ * sits outside quotes and is left alone. Inside quotes it is text. */
+function shellStrings(file: string, line: number, text: string): Violation[] {
+  const found: Violation[] = [];
+  for (const match of text.matchAll(/"(?:[^"\\]|\\.)*"|'[^']*'/g)) {
+    const inner = match[0].slice(1, -1);
+    // punctuation: code, the check looks for the semicolon character in text
+    if (inner.includes(";") && !isCodeShaped(inner)) {
+      found.push({
+        file,
+        line,
+        kind: "semicolon in a string",
+        text: inner.slice(0, 120),
+      });
+    }
+  }
   return found;
 }
 
 function yamlValue(file: string, line: number, value: string): Violation[] {
+  const suffix = /\s+#(.*)$/.exec(value);
   const bare = value.replace(/\s+#.*$/, "");
+  const found: Violation[] = [];
   // punctuation: code, the check looks for the semicolon character in text
-  if (!bare.includes(";") || isCodeShaped(bare)) return [];
-  return [{ file, line, kind: "semicolon in a string", text: bare.trim() }];
+  if (suffix && withoutInlineCode(suffix[1]!).includes(";")) {
+    found.push({
+      file,
+      line,
+      kind: "semicolon in a comment",
+      text: suffix[1]!.trim(),
+    });
+  }
+  // punctuation: code, the check looks for the semicolon character in text
+  if (bare.includes(";") && !isCodeShaped(bare)) {
+    found.push({
+      file,
+      line,
+      kind: "semicolon in a string",
+      text: bare.trim(),
+    });
+  }
+  return found;
 }
 
 /** JSON string values are text a person may read, and may hold Markdown with
@@ -459,33 +567,28 @@ function yamlValue(file: string, line: number, value: string): Violation[] {
  * prose cannot carry a note: reword it. */
 function jsonViolations(file: string, text: string): Violation[] {
   const found = dashViolations(file, text);
-  let data: unknown;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    return found;
-  }
-  const visit = (value: unknown): void => {
-    if (typeof value === "string") {
-      // punctuation: code, the check looks for the semicolon character in text
-      if (value.includes(";") && !isCodeShaped(value)) {
-        const prose = proseLines(value).find(([, line]) => line.includes(";"));
-        if (!prose) return;
-        const at = text.indexOf(JSON.stringify(value).slice(1, 40));
-        found.push({
-          file,
-          line: at === -1 ? 1 : lineAt(text, at),
-          kind: "semicolon in a string",
-          text: prose[1].trim().slice(0, 120),
-        });
-      }
-    } else if (Array.isArray(value)) {
-      value.forEach(visit);
-    } else if (value && typeof value === "object") {
-      Object.values(value).forEach(visit);
+  for (const match of text.matchAll(/"(?:[^"\\]|\\.)*"/g)) {
+    const after = text.slice((match.index ?? 0) + match[0].length);
+    // A key is followed by a colon, a value is not.
+    if (/^\s*:/.test(after)) continue;
+    let value: string;
+    try {
+      value = JSON.parse(match[0]) as string;
+    } catch {
+      continue;
     }
-  };
-  visit(data);
+    // punctuation: code, the check looks for the semicolon character in text
+    if (!value.includes(";") || isCodeShaped(value)) continue;
+    // punctuation: code, the check looks for the semicolon character in text
+    const prose = proseLines(value).find(([, line]) => line.includes(";"));
+    if (!prose) continue;
+    found.push({
+      file,
+      line: lineAt(text, match.index ?? 0),
+      kind: "semicolon in a string",
+      text: prose[1].trim().slice(0, 120),
+    });
+  }
   return found;
 }
 
@@ -547,6 +650,21 @@ function htmlViolations(file: string, text: string): Violation[] {
     body =
       body.slice(0, start) + blank(body.slice(start, end)) + body.slice(end);
   }
+  // Text a person reads from an attribute: its accessible name, title, alt.
+  for (const match of body.matchAll(
+    /\b(?:aria-label|aria-description|aria-placeholder|title|alt|placeholder|label|summary)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi,
+  )) {
+    const value = (match[1] ?? match[2] ?? "").replace(/&[A-Za-z#0-9]+;/g, "");
+    // punctuation: code, the check looks for the semicolon character in text
+    if (value.includes(";") && !isCodeShaped(value)) {
+      found.push({
+        file,
+        line: lineAt(body, match.index ?? 0),
+        kind: "semicolon in prose",
+        text: value.slice(0, 120),
+      });
+    }
+  }
   const visible = visibleText(body);
   visible.split(/\r?\n/).forEach((line, index) => {
     // punctuation: code, the check looks for the semicolon character in text
@@ -562,8 +680,8 @@ function htmlViolations(file: string, text: string): Violation[] {
   return found;
 }
 
-/** Every violation in one file's text. A file type this does not know is still
- * checked for the two dashes. */
+/** Every violation in one file's text. A file type this does not know is read
+ * as prose, so no text file escapes the rule. */
 export function scanText(file: string, text: string): Violation[] {
   if (isSkipped(file)) return [];
   if (SCRIPT_FILE.test(file)) return scriptViolations(file, text);
@@ -571,8 +689,9 @@ export function scanText(file: string, text: string): Violation[] {
   if (file.endsWith(".md")) return markdownViolations(file, text);
   if (HASH_COMMENT_FILE.test(file)) return hashCommentViolations(file, text);
   if (file.endsWith(".json")) return jsonViolations(file, text);
-  if (/\.html?$/.test(file)) return htmlViolations(file, text);
-  return dashViolations(file, text);
+  if (/\.(?:html?|svg|xml)$/.test(file)) return htmlViolations(file, text);
+  // Any other text file is read as prose: plain text, notes, unknown formats.
+  return markdownViolations(file, text);
 }
 
 export function trackedFiles(root: string): string[] {
