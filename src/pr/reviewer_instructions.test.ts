@@ -61,7 +61,7 @@ async function systemPrompt(files: Record<string, string>): Promise<string> {
 
 test("a review's system prompt carries INSTRUCTIONS.md and never RULES.json", async () => {
   const base = {
-    "PR_REVIEW_GUIDE.md": "# Guide\n\n- Check it · it breaks\n",
+    "PR_REVIEW_GUIDE.md": "# Guide\n\n- Check it · it breaks [R1]\n",
   };
   const without = await systemPrompt(base);
   const withFile = await systemPrompt({
@@ -69,7 +69,7 @@ test("a review's system prompt carries INSTRUCTIONS.md and never RULES.json", as
     "INSTRUCTIONS.md":
       "# Repository instructions\n\n- Format amounts with `formatMoney()`. [I1]\n",
     "RULES.json":
-      '{"schemaVersion":1,"builtAt":"2026-11-13","rules":{"I1":{"file":"INSTRUCTIONS.md","text":"x","sources":[{"path":"docs/SOURCE_ONLY.md","line":4}]}}}',
+      '{"schemaVersion":1,"builtAt":"2026-11-13","rules":{"R1":{"file":"PR_REVIEW_GUIDE.md","text":"x","sources":[{"pr":212,"mergedAt":"2026-01-20"}]}}}',
   });
   if (without.includes("REPOSITORY INSTRUCTIONS")) {
     throw new Error("a repository without the file got the section");
@@ -80,7 +80,7 @@ test("a review's system prompt carries INSTRUCTIONS.md and never RULES.json", as
   ) {
     throw new Error(`the instructions are missing:\n${withFile}`);
   }
-  if (withFile.includes("SOURCE_ONLY")) {
+  if (withFile.includes("2026-01-20") || withFile.includes("#212")) {
     throw new Error("a source from RULES.json reached the prompt");
   }
 });

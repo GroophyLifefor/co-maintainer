@@ -91,6 +91,20 @@ is not filled from the previous listing. `--only-request-changed-pr` does not
 turn itself off. To collect every state again, pass
 `--pr-state=open,closed,merged`.
 
+## What `sync` says about guide rules
+
+Each check line of the review guides rests on the pull requests whose findings
+it merges. When the guides are rewritten and an earlier `RULES.json` has guide
+rules, `sync` says what changed:
+
+    [guide] 2 rules added (#402, #407) · 1 rewritten (R12, #340 joined) · 1 dropped (#101 left the window)
+
+or `[guide] no rule changed`. Guide rules are matched by their pull requests the
+same way instruction rules are matched by their file lines, see the table below.
+A dropped rule whose pull request is outside the window this `sync` read says
+`left the window`. The first `sync` after upgrading to 0.7.1 rewrites both guides
+once, because the guide prompt changed.
+
 ## What `sync` says about instruction rules
 
 When the repository has agent instruction files, `sync` rebuilds
@@ -120,9 +134,11 @@ output.
 ## JSON output
 
 `sync --json` prints the same document as [`init --json`](init.md#json-output),
-with `command` `sync`. When the instruction files did something it also has
-`ruleChanges`. It is `null` without an earlier `RULES.json`, otherwise it lists
-the same three kinds of change in full. `previous` holds the ids of the old
+with `command` `sync`. When the guides or the instruction files did something it
+also has `ruleChanges`. It is `null` without an earlier `RULES.json`, otherwise
+it lists the same three kinds of change in full, under `guide` and
+`instructions`. A dropped guide rule also has `leftWindow`, the pull requests
+that are outside the window this `sync` read. `previous` holds the ids of the old
 rules a rewritten rule came from, `joined` the sources it gained and `left` the
 sources it lost:
 

@@ -87,9 +87,14 @@ Limits and include defaults can also come from [per-repo config](configuration.m
 Under `<config dir>/repos/owner/repo/` (see [Caching](caching.md)):
 
 - `SKILL.md` and `CODEBASE.md`
-- `PR_REVIEW_GUIDE.md` and related review guides when PR sources were included
-- `INSTRUCTIONS.md` and `RULES.json`, only when an agent instruction file matches
+- `PR_REVIEW_GUIDE.md` and related review guides when PR sources were included.
+  Each check line ends with an id such as `[R12]`
+- `INSTRUCTIONS.md`, only when an agent instruction file matches
   (see [Agent instruction files](#agent-instruction-files))
+- `RULES.json`, when the guides or `INSTRUCTIONS.md` have a rule. It records the
+  pull requests behind each guide rule, with the date each merged, and the file
+  lines behind each instruction rule. It is never sent to the model, and
+  [`view --sources`](view.md#sources) prints it
 
 Every file is written by the AI provider. There is no offline or AI-free build,
 so `init` and [`sync`](sync.md) refuse to run when no provider is configured.

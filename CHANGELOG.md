@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-11-15
+
+**Before you upgrade.** The guide prompt changed, so each repository's next `sync` misses the AI cache and pays for both review guides once. `ruleChanges` in `sync --json` gains a `guide` list next to `instructions`, and a repository without instruction files now gets a `RULES.json` too.
+
+### Added
+
+- **The review guide says which pull requests each check came from.** Every check line in `PR_REVIEW_GUIDE.md` and `PR_REVIEW_DETAILED_GUIDE.md` ends with an id such as `[R12]`, and `RULES.json` records the pull requests behind it and the date each merged. No pull request number or date goes into the prompt. `view --sources` lists the guide rules before the instruction rules, each with its pull requests and the newest month one of them merged. After a rebuild `sync` prints what changed, for example `[guide] 2 rules added (#402, #407) · 1 rewritten (R12, #340 joined) · 1 dropped (#101 left the window)`. An `e2e:simulate` flow, `guide-sources`, checks it, including a model answer with brackets in the middle of its lines.
+
 ## [0.7.0] - 2026-11-13
 
 **Before you upgrade.** `--json` gains fields and one new value, and a few first runs cost a little more. `schemaVersion` stays 1 and nothing is renamed or removed. `revision.coverage` and `warnings` appear in local, pull request, remote and push results, `revision.truncated` can now be true, and a pull request result carries real `summary.open`, `summary.closed` and `findings[].state` values. Local, pull request and remote results always have `extensions`, an empty array when nothing is registered, and every finding has `extensionId`, which is `null` for an AI finding. `subject.intent` appears only when a review was given an intent. `reviewGuide` in `init --json` and `sync --json` can now be `kept`, so a script that checks it must accept that value. A pull request review of a repository without guides now exits with code 2, not 3. The long review guide regains its nested indentation on each repository's next `sync`, and where that guide is over 30 lines it can cost one extra short-guide call. A carry-over record saved by 0.6.13 does not list the files its round skipped as unchanged, so the first round after the upgrade sends them once more. Ctrl-C now ends a prompt, where it used to count as no answer.

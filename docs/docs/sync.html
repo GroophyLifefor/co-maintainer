@@ -271,6 +271,17 @@ state is kept. The listing cache is stored per state set, so a different set
 is not filled from the previous listing. <code>--only-request-changed-pr</code> does not
 turn itself off. To collect every state again, pass
 <code>--pr-state=open,closed,merged</code>.</p>
+<h2 id="what-sync-says-about-guide-rules">What <code>sync</code> says about guide rules</h2>
+<p>Each check line of the review guides rests on the pull requests whose findings
+it merges. When the guides are rewritten and an earlier <code>RULES.json</code> has guide
+rules, <code>sync</code> says what changed:</p>
+<pre><code>[guide] 2 rules added (#402, #407) · 1 rewritten (R12, #340 joined) · 1 dropped (#101 left the window)
+</code></pre>
+<p>or <code>[guide] no rule changed</code>. Guide rules are matched by their pull requests the
+same way instruction rules are matched by their file lines, see the table below.
+A dropped rule whose pull request is outside the window this <code>sync</code> read says
+<code>left the window</code>. The first <code>sync</code> after upgrading to 0.7.1 rewrites both guides
+once, because the guide prompt changed.</p>
 <h2 id="what-sync-says-about-instruction-rules">What <code>sync</code> says about instruction rules</h2>
 <p>When the repository has agent instruction files, <code>sync</code> rebuilds
 <a href="init.html#agent-instruction-files"><code>INSTRUCTIONS.md</code></a> the way <code>init</code> does, and
@@ -308,9 +319,11 @@ and added.</p>
 output.</p>
 <h2 id="json-output">JSON output</h2>
 <p><code>sync --json</code> prints the same document as <a href="init.html#json-output"><code>init --json</code></a>,
-with <code>command</code> <code>sync</code>. When the instruction files did something it also has
-<code>ruleChanges</code>. It is <code>null</code> without an earlier <code>RULES.json</code>, otherwise it lists
-the same three kinds of change in full. <code>previous</code> holds the ids of the old
+with <code>command</code> <code>sync</code>. When the guides or the instruction files did something it
+also has <code>ruleChanges</code>. It is <code>null</code> without an earlier <code>RULES.json</code>, otherwise
+it lists the same three kinds of change in full, under <code>guide</code> and
+<code>instructions</code>. A dropped guide rule also has <code>leftWindow</code>, the pull requests
+that are outside the window this <code>sync</code> read. <code>previous</code> holds the ids of the old
 rules a rewritten rule came from, <code>joined</code> the sources it gained and <code>left</code> the
 sources it lost:</p>
 <pre><code class="language-json">{
@@ -397,7 +410,7 @@ name so existing config files keep working.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#what-sync-says-about-instruction-rules">What sync says about instruction rules</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#what-gets-reused">What gets reused</a></li><li><a href="#scheduled-sync">Scheduled sync</a></li></ul></nav>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#what-sync-says-about-guide-rules">What sync says about guide rules</a></li><li><a href="#what-sync-says-about-instruction-rules">What sync says about instruction rules</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#what-gets-reused">What gets reused</a></li><li><a href="#scheduled-sync">Scheduled sync</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

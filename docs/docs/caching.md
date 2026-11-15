@@ -113,8 +113,9 @@ Under `repos/<owner>/<repo>/` (the literal repository name, so `repos/acme/widge
 
 - `SKILL.md`, `CODEBASE.md`
 - `PR_REVIEW_GUIDE.md` and related review guides when PR sources were included
-- `INSTRUCTIONS.md` and `RULES.json` when the repository has agent instruction
-  files, see [`init`](init.md#agent-instruction-files)
+- `INSTRUCTIONS.md` when the repository has agent instruction files, see
+  [`init`](init.md#agent-instruction-files)
+- `RULES.json` when the guides or `INSTRUCTIONS.md` have a rule
 
 A review reads `INSTRUCTIONS.md` inside the cached guide block of its system
 prompt, as a `REPOSITORY INSTRUCTIONS` section after the codebase conventions.
