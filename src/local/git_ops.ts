@@ -136,7 +136,7 @@ export async function currentBranch(
   if (result.code !== 0 || !result.stdout.trim()) {
     throw new ReviewCliError(
       "detached_head",
-      "Detached HEAD; pass --branch=<name> to review.",
+      "Detached HEAD. Pass --branch=<name> to review.",
     );
   }
   return result.stdout.trim();

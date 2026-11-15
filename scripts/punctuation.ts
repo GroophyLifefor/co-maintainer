@@ -175,18 +175,33 @@ function commentSemicolons(
   return found;
 }
 
-/** Text that is plainly a CSS, JS or HTML snippet: braces, an arrow, a tag, an
- * entity, a media type header such as `text/html; charset=utf-8`, an escaped
- * newline, a diff hunk header, a brace followed by
- * a semicolon before it closes. A semicolon in it is syntax. A lone `{name}` is
- * a placeholder in a sentence, not code. A word
- * such as `function` proves nothing, because a sentence can hold it. Any other
- * string that must keep a semicolon carries a note, see `NOTE`. */
-const CODE_SHAPE =
-  /\{[^}]*;|;\s*\}|=>|<\/?[A-Za-z]|&[A-Za-z#0-9]+;|^\s*[\w.+*-]+\/[\w.+*-]+(?:;\s*[\w-]+=[^;\s]+)+\s*$|\$\(|\\n|^@@ -\d/m;
+/** What is left of a string once its HTML tags and entities are taken out. A
+ * tag, a script or style block, or an entity is markup, and its own semicolon
+ * is syntax, but it proves nothing about the words around it. A tag cut off by
+ * the end of a template part is markup too. */
+function withoutMarkup(chunk: string): string {
+  return chunk
+    .replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, "")
+    .replace(/<\/?[A-Za-z][^>]*(?:>|$)/g, "")
+    .replace(/&[A-Za-z#0-9]+;/g, "");
+}
 
+/** Text that is plainly a CSS or JS snippet: an arrow, a media type header such
+ * as `text/html; charset=utf-8`, an escaped newline, a diff hunk header, a
+ * brace followed by a semicolon before it closes. A semicolon in it is syntax.
+ * A lone `{name}` is a placeholder in a sentence, not code. A word such as
+ * `function` proves nothing, because a sentence can hold it. Any other string
+ * that must keep a semicolon carries a note, see `NOTE`. */
+const CODE_SHAPE =
+  /\{[^}]*;|;\s*\}|=>|^\s*[\w.+*-]+\/[\w.+*-]+(?:;\s*[\w-]+=[^;\s]+)+\s*$|\$\(|\\n|^@@ -\d/m;
+
+/** True when every semicolon in the text is syntax: markup is set aside first,
+ * and what remains either holds no semicolon or looks like code. */
 export function isCodeShaped(chunk: string): boolean {
-  return CODE_SHAPE.test(chunk);
+  const view = withoutMarkup(chunk);
+  // punctuation: code, the check looks for the semicolon character in text
+  if (!view.includes(";")) return true;
+  return CODE_SHAPE.test(view);
 }
 
 /** The text of a template part without the marks that join it to the next
@@ -215,7 +230,7 @@ function stringSemicolons(
   const found: Violation[] = [];
   chunk.split(/\r?\n/).forEach((line, index) => {
     // punctuation: code, the check looks for the semicolon character in text
-    if (line.includes(";")) {
+    if (withoutMarkup(line).includes(";")) {
       found.push({
         file,
         line: firstLine + index,
@@ -313,6 +328,9 @@ function scriptViolations(file: string, text: string): Violation[] {
     }
   };
   const walk = (node: ts.Node): void => {
+    // A JSDoc block is read as a comment by `comments()` below, from the raw
+    // text. Its own subtree only holds tokens inside that comment, so it is
+    // skipped, and its dashes and semicolons are still checked.
     if (ts.isJSDoc(node)) return;
     if (coversNode(node)) coverable.push(node);
     const children = node.getChildren(source);
@@ -663,6 +681,22 @@ function htmlViolations(file: string, text: string): Violation[] {
         kind: "semicolon in prose",
         text: value.slice(0, 120),
       });
+    }
+  }
+  // A comment is prose. The notes of this check are comments too, and are not.
+  for (const comment of body.matchAll(/<!--([\s\S]*?)-->/g)) {
+    if (/^\s*punctuation: code/.test(comment[1]!)) continue;
+    const first = lineAt(body, comment.index ?? 0);
+    for (const [offset, line] of proseLines(comment[1]!)) {
+      // punctuation: code, the check looks for the semicolon character in text
+      if (line.replace(/&[A-Za-z#0-9]+;/g, "").includes(";")) {
+        found.push({
+          file,
+          line: first + offset - 1,
+          kind: "semicolon in a comment",
+          text: line.trim(),
+        });
+      }
     }
   }
   const visible = visibleText(body);

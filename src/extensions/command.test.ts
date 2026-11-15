@@ -258,6 +258,7 @@ test(
   posixOnly,
   async () => {
     await withConfig(async () => {
+      // punctuation: code, a shell command line that the test runs
       const output = await captured([
         "debug-run",
         "--name=broken",

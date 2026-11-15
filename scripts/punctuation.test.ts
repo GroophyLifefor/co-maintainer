@@ -172,6 +172,7 @@ test("HTML text is checked, code elements and entities are not", () => {
 });
 
 test("an HTML note covers the element below it, and needs a reason", () => {
+  // punctuation: code, a fixture of HTML source that the check scans
   const ok = [
     "<!-- punctuation: code, the page shows a TypeScript diff as sample code -->",
     "<div><div>let a = 1;</div></div>",
@@ -179,6 +180,7 @@ test("an HTML note covers the element below it, and needs a reason", () => {
     "",
   ].join("\n");
   assert.deepEqual(kinds("a.html", ok), []);
+  // punctuation: code, a fixture of HTML source that the check scans
   const bare = ["<!-- punctuation: code -->", "<div>let a = 1;</div>", ""].join(
     "\n",
   );
@@ -239,6 +241,7 @@ test("a note covers its statement by position, not the whole line", () => {
 });
 
 test("an HTML note on a void or unclosed element stops at its opening tag", () => {
+  // punctuation: code, a fixture of HTML source that the check scans
   const meta = [
     "<!-- punctuation: code, a meta tag holds a code value here -->",
     '<meta content="a; b">',
@@ -249,6 +252,7 @@ test("an HTML note on a void or unclosed element stops at its opening tag", () =
     "1:note covers no semicolon",
     "3:semicolon in prose",
   ]);
+  // punctuation: code, a fixture of HTML source that the check scans
   const unclosed = [
     "<!-- punctuation: code, a paragraph that holds code here -->",
     "<p>let a = 1;",
@@ -350,6 +354,47 @@ test("a repeated JSON value is reported at its own line", () => {
     "1:semicolon in a string",
     "2:semicolon in a string",
   ]);
+});
+
+test("an HTML comment is prose, an entity in it is not a semicolon", () => {
+  assert.deepEqual(kinds("a.html", "<!-- first; second -->\n<p>ok</p>\n"), [
+    "1:semicolon in a comment",
+  ]);
+  assert.deepEqual(kinds("a.html", "<!-- a &#10; b -->\n<p>ok</p>\n"), []);
+});
+
+test("markup in a string does not exempt the words around it", () => {
+  assert.deepEqual(
+    kinds("a.ts", 'const s = "Tom &amp; Jerry; then retry";\n'),
+    ["1:semicolon in a string"],
+  );
+  assert.deepEqual(
+    kinds("a.ts", 'const s = "Click <b>here</b>; then retry";\n'),
+    ["1:semicolon in a string"],
+  );
+  assert.deepEqual(
+    kinds("a.ts", 'const s = "<a style=\\"a:b;c:d\\">x</a>";\n'),
+    [],
+  );
+  assert.deepEqual(kinds("a.ts", 'const s = "<script>run();</script>";\n'), []);
+  assert.deepEqual(
+    kinds("a.ts", 'const s = `<a style="a:b;c:d" href=${x}`;\n'),
+    [],
+  );
+});
+
+test("JSDoc text is checked for dashes and semicolons", () => {
+  assert.deepEqual(
+    kinds(
+      "a.ts",
+      "/**\n * one; two\n * @param a x\n */\nexport function f(a: number) {}\n",
+    ),
+    ["2:semicolon in a comment"],
+  );
+  assert.deepEqual(
+    kinds("a.ts", `/** one ${EM_DASH} two */\nexport const a = 1;\n`),
+    ["1:em dash"],
+  );
 });
 
 test("JSX text is checked", () => {
