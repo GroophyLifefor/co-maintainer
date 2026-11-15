@@ -576,6 +576,7 @@ test("a valid suggestion posts on its own line and keeps the block", async () =>
   await withEnv(async () => {
     const github = new FakeGithub();
     github.files = [{ filename: "src/app.ts", patch: GATE_PATCH }];
+    // punctuation: code, a fixture line of source code that the test writes or reads
     await runReviewJob(
       seed(),
       () => {},
@@ -614,6 +615,7 @@ test("a suggestion that changes nothing is dropped and the span is kept", async 
   await withEnv(async () => {
     const github = new FakeGithub();
     github.files = [{ filename: "src/app.ts", patch: GATE_PATCH }];
+    // punctuation: code, a fixture line of source code that the test writes or reads
     await runReviewJob(
       seed(),
       () => {},

@@ -436,6 +436,12 @@ test("an arrow or a brace does not make a sentence code", () => {
   );
 });
 
+test("an arrow alone never proves a string is code", () => {
+  assert.deepEqual(kinds("a.ts", 'const s = "a => b; retry";\n'), [
+    "1:semicolon in a string",
+  ]);
+});
+
 test("a YAML sequence item that is a plain scalar is checked", () => {
   assert.deepEqual(kinds("a.yml", 'items:\n  - "Wait; then retry"\n'), [
     "2:semicolon in a string",

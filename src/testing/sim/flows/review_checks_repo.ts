@@ -975,6 +975,7 @@ const C4: Pair = {
   fixed: {
     name: "c4-fixed",
     files: {
+      // punctuation: code, a fixture line of source code that the test writes or reads
       "src/cli/regions.ts": ingestRegions([
         "/** The ingest host when the settings file names none. */",
         "export const ingestHostFor = (region: Region) => REGION_HOSTS[region].ingest;",

@@ -196,14 +196,14 @@ function withoutMarkup(chunk: string): string {
     .replace(/&[A-Za-z#0-9]+;/g, "");
 }
 
-/** Text that is plainly a CSS or JS snippet: an arrow, a media type header such
- * as `text/html; charset=utf-8`, an escaped newline, a diff hunk header, a
+/** Text that is plainly a CSS or JS snippet: a media type header such as
+ * `text/html; charset=utf-8`, an escaped newline, a diff hunk header, a
  * brace followed by a semicolon before it closes. A semicolon in it is syntax.
  * A lone `{name}` is a placeholder in a sentence, not code. A word such as
  * `function` proves nothing, because a sentence can hold it. Any other string
  * that must keep a semicolon carries a note, see `NOTE`. */
 const CODE_SHAPE =
-  /\{[^}]*;|;\s*\}|=>|^\s*[\w.+*-]+\/[\w.+*-]+(?:;\s*[\w-]+=[^;\s]+)+\s*$|\$\(|\\n|^@@ -\d/m;
+  /\{[^}]*;|;\s*\}|^\s*[\w.+*-]+\/[\w.+*-]+(?:;\s*[\w-]+=[^;\s]+)+\s*$|\$\(|\\n|^@@ -\d/m;
 
 /** Three plain words in a row. Code holds identifiers, operators and brackets
  * between its words, and its keywords do not count, so a run like this is a

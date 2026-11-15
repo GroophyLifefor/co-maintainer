@@ -53,6 +53,7 @@ export const NO_CODEGRAPH = "--disable-codegraph";
 
 // ---------------------------------------------------------------- the change
 
+// punctuation: code, a fixture line of source code that the test writes or reads
 const MEAN =
   "  return values.reduce((sum, value) => sum + value, 0) / values.length;";
 const AVERAGE = [
@@ -70,6 +71,7 @@ export const MATH_MOVED = `${MATH}${AVERAGE.replace(
   "/** The mean of the values. */\nexport function",
 )}`;
 /** The flagged line is rewritten, so the finding no longer holds. */
+// punctuation: code, a fixture line of source code that the test writes or reads
 export const MATH_FIXED = `${MATH}${AVERAGE.replace(
   MEAN,
   "  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;",
