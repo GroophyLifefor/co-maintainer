@@ -26,8 +26,11 @@ function highest(rules: Record<string, RuleEntry>, kind: "R" | "I"): number {
 }
 
 /** Maps each fresh id to its stable id, and returns the new highest number.
- * Fresh rules are taken in order. Each takes the free old rule it shares the
- * most sources with, or else one with the same text. */
+ * A fresh rule may keep an old id when it shares a source with that rule, or
+ * else has the same text. The ids are matched as a whole, not first come
+ * first served: a rule that could keep two ids gives way to a later rule that
+ * can keep only one of them, so as many ids as possible stay the same. Among
+ * its options a rule tries the one with the most shared sources first. */
 export function stableIds(
   kind: "R" | "I",
   fresh: FreshRule[],
@@ -41,27 +44,48 @@ export function stableIds(
       text: entry.text,
       sources: new Set(entry.sources.map(sourceLabel)),
     }));
-  let next = Math.max(lastId ?? 0, highest(previous ?? {}, kind));
-  const taken = new Set<string>();
-  const ids = new Map<string, string>();
-  for (const rule of fresh) {
-    if (ids.has(rule.id)) continue;
+  const rules = fresh.filter(
+    (rule, index) => fresh.findIndex((item) => item.id === rule.id) === index,
+  );
+  // Each rule's old ids it may keep, best first.
+  const options = rules.map((rule) => {
     const labels = rule.sources.map(sourceLabel);
-    let best: { id: string; shared: number } | undefined;
-    for (const item of old) {
-      if (taken.has(item.id) || rule.avoid?.includes(item.id)) continue;
-      const shared = labels.filter((label) => item.sources.has(label)).length;
-      // Same text with no shared source still counts, below any shared
-      // source: an instruction line that moved down a file is the same rule.
-      const score = shared > 0 ? shared : item.text === rule.text ? 0.5 : 0;
-      if (score > 0 && (!best || score > best.shared)) {
-        best = { id: item.id, shared: score };
+    return old
+      .flatMap((item, order) => {
+        if (rule.avoid?.includes(item.id)) return [];
+        const shared = labels.filter((label) => item.sources.has(label)).length;
+        // Same text with no shared source still counts, below any shared
+        // source: an instruction line that moved down a file is the same rule.
+        const score = shared > 0 ? shared : item.text === rule.text ? 0.5 : 0;
+        return score > 0 ? [{ id: item.id, score, order }] : [];
+      })
+      .sort((a, b) => b.score - a.score || a.order - b.order)
+      .map((option) => option.id);
+  });
+  // Augmenting paths: a rule takes a free id, or moves the rule holding one
+  // of its options to another id that rule may keep.
+  const holder = new Map<string, number>();
+  const kept = new Map<number, string>();
+  const place = (index: number, seen: Set<string>): boolean => {
+    for (const id of options[index]!) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const current = holder.get(id);
+      if (current === undefined || place(current, seen)) {
+        holder.set(id, index);
+        kept.set(index, id);
+        return true;
       }
     }
-    if (best) {
-      taken.add(best.id);
-      ids.set(rule.id, best.id);
-    } else {
+    return false;
+  };
+  for (let index = 0; index < rules.length; index++) place(index, new Set());
+  let next = Math.max(lastId ?? 0, highest(previous ?? {}, kind));
+  const ids = new Map<string, string>();
+  for (const [index, rule] of rules.entries()) {
+    const id = kept.get(index);
+    if (id) ids.set(rule.id, id);
+    else {
       next++;
       ids.set(rule.id, `${kind}${next}`);
     }

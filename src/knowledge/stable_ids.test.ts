@@ -92,3 +92,18 @@ test("renaming ids in one pass never collides", () => {
   );
   assert.equal(out, "- a · why [R2]\n- b · why [R5]\n- `[R1]` in code stays\n");
 });
+
+test("a rule that could keep two ids gives way to a later rule that can keep only one", () => {
+  const { ids, lastId } = stableIds(
+    "R",
+    [
+      { id: "R1", text: "A", sources: [{ pr: 1 }, { pr: 2 }] },
+      { id: "R2", text: "B", sources: [{ pr: 1 }] },
+    ],
+    { R1: rule("old one", [1]), R2: rule("old two", [2]) },
+    2,
+  );
+  assert.equal(ids.get("R1"), "R2");
+  assert.equal(ids.get("R2"), "R1");
+  assert.equal(lastId, 2);
+});

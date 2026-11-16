@@ -62,7 +62,6 @@ function referenceItem(reference: ResolvedReference): string {
 export function referencesHtml(stored: string | null | undefined): string {
   const references = parseStoredReferences(stored);
   if (references.length === 0) return "";
-  // punctuation: code, a CSS declaration list inside an inline style
   return `<details style="margin-top:8px"><summary class="muted" style="font-size:13px;cursor:pointer">${text(
     `References (${references.length})`,
   )}</summary><ul style="margin:6px 0 0 18px;font-size:13px">${references
