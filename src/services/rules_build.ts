@@ -206,7 +206,10 @@ export async function stabilizeRuleIds(
     (documents?.rules ?? []).map((rule) => ({
       id: rule.id,
       text: rule.text,
-      sources: rule.pullRequests.map((pr) => ({ pr })),
+      sources: rule.pullRequests.map((pr) => {
+        const url = rule.links?.find((link) => link.pr === pr)?.url;
+        return url ? { pr, url } : { pr };
+      }),
       // A rule never takes the id of the rule it goes against.
       avoid: rule.overturns ?? [],
     })),
