@@ -50,7 +50,18 @@ function instructionUrl(
   line: number,
 ): string | undefined {
   if (!commit || !/^[\w.-]+\/[\w.-]+$/.test(repo)) return undefined;
-  return `https://github.com/${repo}/blob/${commit}/${path}#L${line}`;
+  // A space, `#` or `?` in a path would end the URL early, and a space or a
+  // parenthesis would break the Markdown link around it.
+  const encoded = path
+    .split("/")
+    .map((segment) =>
+      encodeURIComponent(segment).replace(
+        /[()]/g,
+        (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+      ),
+    )
+    .join("/");
+  return `https://github.com/${repo}/blob/${commit}/${encoded}#L${line}`;
 }
 
 /** Turns the ids of one finding into references. An id that is not in

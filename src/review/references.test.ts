@@ -108,3 +108,26 @@ test("the ids a review answer names survive the Markdown round trip and stay out
     "This rounds half down.\nReferences: a body line is not taken",
   );
 });
+
+test("an instruction path with a space, # or a parenthesis still links the right file", () => {
+  const [reference] = resolveReferences(["I1"], {
+    repo: "o/r",
+    codebase,
+    rules: {
+      schemaVersion: 1,
+      builtAt: "",
+      rules: {
+        I1: {
+          file: "INSTRUCTIONS.md",
+          text: "Rule",
+          commit: "abc123",
+          sources: [{ path: "docs/my notes (v2)/#1?.md", line: 7 }],
+        },
+      },
+    },
+  });
+  assert.equal(
+    referenceLine(reference!),
+    "Instructions-1 · [docs/my notes (v2)/#1?.md:7](https://github.com/o/r/blob/abc123/docs/my%20notes%20%28v2%29/%231%3F.md#L7)",
+  );
+});
