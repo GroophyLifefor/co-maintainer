@@ -1,4 +1,5 @@
 import { parseReviewArgs, type ReviewCliArgs } from "../review_args.ts";
+import { readConfig } from "../../config.ts";
 import { setCliInteractive } from "../args.ts";
 import {
   addAiMetrics,
@@ -193,6 +194,8 @@ async function runReviewPr(
               coverage: result.coverage,
               extensions,
               intent: intent !== null,
+              showReferences:
+                readConfig().repos?.[options.repo]?.reviewReferences === true,
             }) +
             "\n",
         );

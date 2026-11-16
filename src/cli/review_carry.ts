@@ -13,6 +13,10 @@ import type { Revision, RevisionFile } from "../review/revision.ts";
 import { visiblePathsToSave } from "../review/visible_paths.ts";
 import { parseFindings } from "../pr/findings.ts";
 import { resolvedFromFirstReview } from "./review_result.ts";
+import {
+  withResolvedReferences,
+  type ReferenceContext,
+} from "../review/references.ts";
 
 /** What a CLI run keeps for the next one: the findings that are still live. */
 export function storedFindings(resolved: ResolvedFinding[]): StoredFinding[] {
@@ -28,6 +32,7 @@ export function storedFindings(resolved: ResolvedFinding[]): StoredFinding[] {
       anchorText: row.anchorText,
       severity: row.severity,
       firstSeenReviewId: row.firstSeenReviewId,
+      ...(row.references ? { references: row.references } : {}),
     }));
 }
 
@@ -89,14 +94,20 @@ export function finishCarryRun(
     text: string;
     visiblePaths: string[];
     guideBuiltAt: string | null;
+    referenceContext?: ReferenceContext;
   },
+  repo = "",
 ): { resolved: ResolvedFinding[]; visiblePaths: Set<string> } {
   const visiblePaths = new Set(response.visiblePaths);
   const parsed = parseFindings(response.text);
   if (!run.previous) {
     const filesByPath = new Map(revision.files.map((f) => [f.path, f]));
     return {
-      resolved: resolvedFromFirstReview(parsed, filesByPath),
+      resolved: withResolvedReferences(
+        resolvedFromFirstReview(parsed, filesByPath),
+        repo,
+        response.referenceContext,
+      ),
       visiblePaths: visiblePathsToSave(
         null,
         run.extras.unchangedPaths,
@@ -111,12 +122,16 @@ export function finishCarryRun(
     response.guideBuiltAt,
   );
   return {
-    resolved: resolveCarryOutcomes(
-      items,
-      revision,
-      visiblePaths,
-      parsePreviousVerdicts(response.text),
-      parsed,
+    resolved: withResolvedReferences(
+      resolveCarryOutcomes(
+        items,
+        revision,
+        visiblePaths,
+        parsePreviousVerdicts(response.text),
+        parsed,
+      ),
+      repo,
+      response.referenceContext,
     ),
     visiblePaths: visiblePathsToSave(
       run.previous.visiblePaths,

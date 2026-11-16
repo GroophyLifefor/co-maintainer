@@ -1,5 +1,10 @@
 import { test } from "node:test";
-import { compareRules, ruleChangeLine } from "./rule_changes.ts";
+import {
+  compareRules,
+  contradictionLine,
+  contradictions,
+  ruleChangeLine,
+} from "./rule_changes.ts";
 import type { RuleEntry } from "./rules.ts";
 
 function guide(text: string, prs: number[]): RuleEntry {
@@ -110,5 +115,30 @@ test("instruction rules compare by their file lines, and an identical build chan
     ruleChangeLine(moved) !== "1 rule added (AGENTS.md:40) · 1 rewritten (I1)"
   ) {
     throw new Error(`moved: ${ruleChangeLine(moved)}`);
+  }
+});
+
+test("a contradiction is kept only when the new rule is newer than the old one", () => {
+  const dated = (text: string, pr: number, mergedAt: string): RuleEntry => ({
+    file: "PR_REVIEW_GUIDE.md",
+    text,
+    sources: [{ pr, mergedAt }],
+  });
+  const previous = {
+    R4: dated("Round half down", 98, "2025-06-01"),
+    R5: dated("Newer than the new one", 99, "2026-05-01"),
+  };
+  const next = { R9: dated("Round half up", 340, "2026-03-02") };
+  const found = contradictions(
+    previous,
+    next,
+    new Map([["R9", ["R4", "R5", "R77"]]]),
+  );
+  if (found.length !== 1 || found[0].id !== "R4") {
+    throw new Error(JSON.stringify(found));
+  }
+  const line = contradictionLine(found[0]);
+  if (line !== "R4 dropped, R9 goes against it (#340, 2026-03)") {
+    throw new Error(line);
   }
 });

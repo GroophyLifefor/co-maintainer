@@ -19,7 +19,10 @@ import {
 } from "../knowledge/instructions.ts";
 import {
   compareRules,
+  contradictionLine,
+  contradictions,
   ruleChangeLine,
+  type Contradiction,
   type RuleChanges,
 } from "../knowledge/rule_changes.ts";
 import {
@@ -31,6 +34,7 @@ import {
   rulesOfKind,
   type RuleEntry,
 } from "../knowledge/rules.ts";
+import { renameIdsInMarkdown, stableIds } from "../knowledge/stable_ids.ts";
 import type { Source } from "../knowledge/types.ts";
 import type { AiProvider, AiResponse, Options } from "../types.ts";
 import { log, timed } from "../util/log.ts";
@@ -122,6 +126,8 @@ export type RulesWriteResult = {
   rules: number;
   /** `null` when there was no earlier `RULES.json` to compare with. */
   changes: { guide: RuleChanges; instructions: RuleChanges } | null;
+  /** Old guide rules a new rule goes against, checked by date. */
+  contradicted: Contradiction[];
   /** False when nothing happened that the run's output should mention: the
    * instructions were skipped, no guide rule was built, and there was no
    * earlier `INSTRUCTIONS.md` or `RULES.json`. */
@@ -137,7 +143,7 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-async function readRulesFile(repo: string) {
+export async function readRulesFile(repo: string) {
   try {
     return parseRules(
       await readTextFile(`${reposDir()}/${repo}/${RULES_FILE}`),
@@ -170,11 +176,106 @@ function guideEntries(
         text: rule.text,
         sources: rule.pullRequests.map((pr) => {
           const date = mergedAt.get(pr);
-          return date ? { pr, mergedAt: date } : { pr };
+          const url = rule.links?.find((link) => link.pr === pr)?.url;
+          return {
+            pr,
+            ...(date ? { mergedAt: date } : {}),
+            ...(url ? { url } : {}),
+          };
         }),
       },
     ]),
   );
+}
+
+/** The guides and instructions of this build with their ids mapped onto the
+ * last build's, so a rule keeps its id across syncs and a dropped id is never
+ * given again. Runs under the knowledge lock, before anything is written. */
+export async function stabilizeRuleIds(
+  repo: string,
+  documents: ReviewDocuments | undefined,
+  instructions: InstructionsOutcome,
+): Promise<{
+  documents: ReviewDocuments | undefined;
+  instructions: InstructionsOutcome;
+  lastIds: { R: number; I: number };
+}> {
+  const previous = await readRulesFile(repo);
+  const guide = stableIds(
+    "R",
+    (documents?.rules ?? []).map((rule) => ({
+      id: rule.id,
+      text: rule.text,
+      sources: rule.pullRequests.map((pr) => ({ pr })),
+      // A rule never takes the id of the rule it goes against.
+      avoid: rule.overturns ?? [],
+    })),
+    previous?.rules,
+    previous?.lastIds?.R,
+  );
+  const fromInstructions = stableIds(
+    "I",
+    instructions.status === "written"
+      ? instructions.rules.map((rule) => ({
+          id: rule.id,
+          text: rule.text.replaceAll("`", ""),
+          sources: rule.sources,
+        }))
+      : [],
+    previous?.rules,
+    previous?.lastIds?.I,
+  );
+  const renamedDocuments = documents && {
+    ...documents,
+    guide: renameIdsInMarkdown(documents.guide, guide.ids),
+    ...(documents.detailed !== undefined
+      ? { detailed: renameIdsInMarkdown(documents.detailed, guide.ids) }
+      : {}),
+    ...(documents.rules
+      ? {
+          rules: documents.rules.map((rule) => ({
+            ...rule,
+            id: guide.ids.get(rule.id) ?? rule.id,
+          })),
+        }
+      : {}),
+  };
+  const renamedInstructions: InstructionsOutcome =
+    instructions.status === "written"
+      ? {
+          ...instructions,
+          markdown: renameIdsInMarkdown(
+            instructions.markdown,
+            fromInstructions.ids,
+          ),
+          rules: instructions.rules.map((rule) => ({
+            ...rule,
+            id: fromInstructions.ids.get(rule.id) ?? rule.id,
+          })),
+        }
+      : instructions;
+  return {
+    documents: renamedDocuments,
+    instructions: renamedInstructions,
+    lastIds: { R: guide.lastId, I: fromInstructions.lastId },
+  };
+}
+
+/** Never lower than any id in the file or any id given before. */
+function lastIdsFor(
+  rules: Record<string, RuleEntry>,
+  previous: { R: number; I: number } | undefined,
+  given: { R: number; I: number } | undefined,
+): { R: number; I: number } {
+  const top = (kind: "R" | "I") =>
+    Math.max(
+      previous?.[kind] ?? 0,
+      given?.[kind] ?? 0,
+      ...Object.keys(rules)
+        .filter((id) => id.startsWith(kind))
+        .map((id) => Number(id.slice(1)) || 0),
+    );
+  return { R: top("R"), I: top("I") };
 }
 
 function instructionsLine(counts: InstructionCounts): string {
@@ -194,6 +295,8 @@ export async function writeInstructionsAndRules(input: {
   signalCount: number;
   instructions: InstructionsOutcome;
   source: Source;
+  /** From `stabilizeRuleIds`. Missing keeps the highest ids in the file. */
+  lastIds?: { R: number; I: number };
 }): Promise<RulesWriteResult> {
   const { repo, documents, instructions, source } = input;
   const directory = `${reposDir()}/${repo}`;
@@ -217,7 +320,7 @@ export async function writeInstructionsAndRules(input: {
     if (input.command === "init") {
       log("write", `${INSTRUCTIONS_FILE} skipped: ${instructions.reason}`);
     }
-    return { rules: 0, changes: null, reported: false };
+    return { rules: 0, changes: null, contradicted: [], reported: false };
   }
 
   for (const count of documents?.counts ?? []) {
@@ -281,6 +384,7 @@ export async function writeInstructionsAndRules(input: {
         schemaVersion: 1,
         builtAt: new Date().toISOString(),
         rules,
+        lastIds: lastIdsFor(rules, previous?.lastIds, input.lastIds),
       }),
     );
   } else {
@@ -289,8 +393,22 @@ export async function writeInstructionsAndRules(input: {
   }
 
   if (!previous) {
-    return { rules: Object.keys(rules).length, changes: null, reported: true };
+    return {
+      rules: Object.keys(rules).length,
+      changes: null,
+      contradicted: [],
+      reported: true,
+    };
   }
+  const contradicted = contradictions(
+    previous.rules,
+    rules,
+    new Map(
+      (documents?.rules ?? [])
+        .filter((rule) => rule.overturns?.length)
+        .map((rule) => [rule.id, rule.overturns ?? []]),
+    ),
+  );
   const inWindow = new Set(source.pullRequests.map((pr) => pr.number));
   const changes = {
     guide: compareRules(previous.rules, rules, "R", inWindow),
@@ -305,5 +423,11 @@ export async function writeInstructionsAndRules(input: {
       Object.keys(rulesOfKind(rules, kind)).length > 0;
     if (any) log(phase, ruleChangeLine(change));
   }
-  return { rules: Object.keys(rules).length, changes, reported: true };
+  for (const item of contradicted) log("guide", contradictionLine(item));
+  return {
+    rules: Object.keys(rules).length,
+    changes,
+    contradicted,
+    reported: true,
+  };
 }

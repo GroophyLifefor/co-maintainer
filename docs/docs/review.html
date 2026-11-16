@@ -494,6 +494,55 @@ from files such as <code>AGENTS.md</code> and keep only the rules a reviewer can
 diff. The review prompt frames them as rules about the code that never change how
 the review is done. <a href="view.html#sources"><code>view</code></a> prints the file and the lines each
 rule came from. A repository without the file reviews exactly as before.</p>
+<h2 id="references">References</h2>
+<p>Every finding records what it rests on. The model names ids only, and code
+turns each one into a reference from <code>RULES.json</code> when the review runs, so no
+pull request number or date goes into the prompt. A later <code>sync</code> never changes
+what an old review cited.</p>
+<table>
+<thead>
+<tr>
+<th>Reference</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Rules-12 · #212, #340 · 2026-03</code></td>
+<td>A guide rule. Each pull request links to the review comment the rule came from, and the date is the newest merge</td>
+</tr>
+<tr>
+<td><code>Instructions-3 · AGENTS.md:14</code></td>
+<td>A rule from <a href="#agent-instruction-rules"><code>INSTRUCTIONS.md</code></a>, linked to that line at the commit it was read at</td>
+</tr>
+<tr>
+<td><code>Codebase · Tests</code></td>
+<td>A section of <code>CODEBASE.md</code></td>
+</tr>
+<tr>
+<td><code>System Prompt</code></td>
+<td>The review instructions themselves, for a finding that rests on no rule</td>
+</tr>
+</tbody></table>
+<p>A pull request read before 0.7.3 shows its number with no link until it is read
+again. An id that is not in <code>RULES.json</code> is dropped. A finding from a review
+before 0.7.3 has no references.</p>
+<p>References are always stored. <code>review --json</code> has them on every finding as
+<code>references</code>, and the dashboard shows them under each finding on the pull
+request page. A review comment and the terminal output show them only when the
+repository turns them on:</p>
+<pre><code>co-maintainer set --repo=owner/repo --review-references=on
+</code></pre>
+<p>The comment then ends each finding with a collapsed block:</p>
+<pre><code>&lt;details&gt;&lt;summary&gt;References (2)&lt;/summary&gt;
+
+- Rules-12 · #212, #340 · 2026-03
+- Codebase · Tests
+
+&lt;/details&gt;
+</code></pre>
+<p>Turning references on makes the next <a href="sync.html#references-and-comment-links"><code>sync</code></a>
+read every pull request again once, so its guide rules get links to their review
+comments.</p>
 <h2 id="repository-review-instructions">Repository review instructions</h2>
 <p>A repository can carry its own review instructions. They are appended to the
 reviewer&#39;s built-in system prompt as a <code>CUSTOM REVIEW INSTRUCTIONS</code> section, so
@@ -791,7 +840,7 @@ disagree.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#which-mode-should-i-use">Which mode should I use?</a></li><li><a href="#how-the-three-modes-differ">How the three modes differ</a></li><li><a href="#depth-improve-matrix">Depth: --improve-matrix</a></li><li><a href="#large-diffs">Large diffs</a></li><li><a href="#diagrams">Diagrams</a></li><li><a href="#agent-instruction-rules">Agent instruction rules</a></li><li><a href="#repository-review-instructions">Repository review instructions</a></li><li><a href="#intent">Intent</a></li><li><a href="#extensions">Extensions</a></li><li><a href="#exit-codes">Exit codes</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#github-output">GitHub output</a></li><li><a href="#human-output">Human output</a></li><li><a href="#how-findings-are-produced">How findings are produced</a></li><li><a href="#before-any-review">Before any review</a></li></ul></nav>
+      <ul><li><a href="#which-mode-should-i-use">Which mode should I use?</a></li><li><a href="#how-the-three-modes-differ">How the three modes differ</a></li><li><a href="#depth-improve-matrix">Depth: --improve-matrix</a></li><li><a href="#large-diffs">Large diffs</a></li><li><a href="#diagrams">Diagrams</a></li><li><a href="#agent-instruction-rules">Agent instruction rules</a></li><li><a href="#references">References</a></li><li><a href="#repository-review-instructions">Repository review instructions</a></li><li><a href="#intent">Intent</a></li><li><a href="#extensions">Extensions</a></li><li><a href="#exit-codes">Exit codes</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#github-output">GitHub output</a></li><li><a href="#human-output">Human output</a></li><li><a href="#how-findings-are-produced">How findings are produced</a></li><li><a href="#before-any-review">Before any review</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

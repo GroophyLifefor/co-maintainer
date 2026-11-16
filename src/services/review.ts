@@ -98,6 +98,11 @@ import {
   splitExtensionFindings,
   standingExtensionFindings,
 } from "../extensions/render_review.ts";
+import {
+  parseStoredReferences,
+  referencesBlock,
+  referencesJson,
+} from "../review/references.ts";
 import { addExtensionCost } from "../extensions/cost.ts";
 
 const ACCESS_DENIED_BODY =
@@ -384,7 +389,27 @@ export function reviewBody(
   return lines.join("\n") + notReviewed + metadataBlock(metadata);
 }
 
-function inlineCommentBody(finding: ParsedFinding, suggestion = false): string {
+/** The collapsed references block of a stored finding, or `""`. */
+function referencesText(row: FindingRow): string {
+  return referencesBlock(parseStoredReferences(row.references_json));
+}
+
+/** Whether this repository shows references in review comments. Off unless
+ * `set --repo <repo> --review-references=on` turned it on. */
+function showsReferences(repo: string): boolean {
+  return readConfig().repos?.[repo]?.reviewReferences === true;
+}
+
+function inlineCommentBody(
+  finding: ParsedFinding,
+  suggestion = false,
+  references = "",
+): string {
+  const body = inlineCommentText(finding, suggestion);
+  return references ? `${body}\n\n${references}` : body;
+}
+
+function inlineCommentText(finding: ParsedFinding, suggestion = false): string {
   const heading = humanCopy(finding.heading);
   const excerpt = humanCopy(
     suggestion
@@ -418,9 +443,14 @@ function sameBody(a: string, b: string): boolean {
  * may have gone out with its suggestion block, so both forms count. */
 function repeatsComment(row: FindingRow, posted: string): boolean {
   const finding = rowFinding(row);
-  return (
-    sameBody(posted, inlineCommentBody(finding)) ||
-    sameBody(posted, inlineCommentBody(finding, true))
+  // With and without references too, so turning the setting on or off does
+  // not post every open finding again.
+  const references = referencesText(row);
+  return [false, true].some(
+    (suggestion) =>
+      sameBody(posted, inlineCommentBody(finding, suggestion)) ||
+      (references !== "" &&
+        sameBody(posted, inlineCommentBody(finding, suggestion, references))),
   );
 }
 
@@ -754,18 +784,25 @@ async function publish(
   );
   const fresh = freshRows.map(rowFinding);
   const { inline } = splitInline(fresh, files);
-  const commentByRow = new Map<string, { anchor: Anchor; body: string }>();
-  for (const { finding, anchor, suggestion } of inline) {
-    const row = freshRows.find(
+  const showReferences = showsReferences(job.repo);
+  const rowOf = (finding: ParsedFinding) =>
+    freshRows.find(
       (item) =>
         item.path === finding.path &&
         item.line_from === finding.from &&
         item.line_to === finding.to,
     );
+  const referencesOf = (finding: ParsedFinding) => {
+    const row = showReferences ? rowOf(finding) : undefined;
+    return row ? referencesText(row) : "";
+  };
+  const commentByRow = new Map<string, { anchor: Anchor; body: string }>();
+  for (const { finding, anchor, suggestion } of inline) {
+    const row = rowOf(finding);
     if (row) {
       commentByRow.set(row.id, {
         anchor,
-        body: inlineCommentBody(finding, suggestion),
+        body: inlineCommentBody(finding, suggestion, referencesOf(finding)),
       });
     }
   }
@@ -791,7 +828,7 @@ async function publish(
   );
   const aiComments = inline.map(({ finding, anchor, suggestion }) => ({
     path: finding.path,
-    body: inlineCommentBody(finding, suggestion),
+    body: inlineCommentBody(finding, suggestion, referencesOf(finding)),
     line: anchor.line,
     side: "RIGHT",
     ...(anchor.start_line === undefined
@@ -1182,6 +1219,7 @@ async function runReviewJobCore(
         title: row.title,
         bodyMd: row.body_md,
         anchorText: row.anchor_text,
+        references: parseStoredReferences(row.references_json),
         severity: row.severity,
         firstSeenReviewId:
           row.first_seen_review_id ?? subjectRevision.review_id,
@@ -1304,6 +1342,11 @@ async function runReviewJobCore(
               )
             : null),
         state: row.state,
+        referencesJson: referencesJson(
+          row,
+          job.repo,
+          response.referenceContext,
+        ),
         carriedFromFindingId: row.carriedFromId,
         closeReason: row.closeReason ?? undefined,
         firstSeenReviewId: row.firstSeenReviewId ?? undefined,
@@ -1334,6 +1377,11 @@ async function runReviewJobCore(
         bodyMd: redact(finding.excerpt),
         anchorText: anchorTextFromPatch(patch, finding.from, finding.to),
         state: "new",
+        referencesJson: referencesJson(
+          { referenceIds: finding.references ?? [] },
+          job.repo,
+          response.referenceContext,
+        ),
         firstSeenReviewId: repeat
           ? (repeat.first_seen_review_id ?? repeat.review_id)
           : undefined,

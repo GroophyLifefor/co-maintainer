@@ -327,6 +327,11 @@ provider, so both models are saved the first time. See
 <td>The image format for <code>plantuml-server</code>. Needs <code>--repo</code>. Default <code>svg</code></td>
 </tr>
 <tr>
+<td><code>--review-references=on|off</code></td>
+<td><code>repos[owner/repo].reviewReferences</code></td>
+<td>Show each finding&#39;s <a href="review.html#references">references</a> in review comments and the terminal. Needs <code>--repo</code>. Off by default. They are stored and shown on the dashboard either way</td>
+</tr>
+<tr>
 <td><code>--review-read-diff-max-chars=N</code></td>
 <td><code>repos[owner/repo].reviewReadDiffMaxChars</code></td>
 <td>Most characters one <code>read-full-diff</code> answer returns. Needs <code>--repo</code>. <code>0</code> or <code>-1</code> means no limit. Default <code>20000</code></td>

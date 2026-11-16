@@ -16,14 +16,16 @@ export function insertFinding(row: {
   state?: string;
   carriedFromFindingId?: string | null;
   closeReason?: string | null;
+  /** `ResolvedReference[]` as JSON. Missing stores `[]`. */
+  referencesJson?: string;
 }): void {
   getAppDb()
     .prepare(
       `INSERT INTO findings
        (id, review_id, severity, path, line_from, line_to, title, body_md,
         first_seen_review_id, thread_comment_id, anchor_text, state,
-        carried_from_finding_id, close_reason)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        carried_from_finding_id, close_reason, references_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       row.id,
@@ -40,6 +42,7 @@ export function insertFinding(row: {
       row.state ?? "new",
       row.carriedFromFindingId ?? null,
       row.closeReason ?? null,
+      row.referencesJson ?? "[]",
     );
 }
 

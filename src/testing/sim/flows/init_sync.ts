@@ -383,7 +383,11 @@ function prFindings({ prompt }: AiCall) {
   const unit = jsonAfter(prompt, "PULL REQUEST:\n") as Unit | undefined;
   if (!unit) return { json: [] };
   const texts = [...unit.comments, ...unit.reviewComments, ...unit.reviews];
-  const findings = texts.flatMap((text) => {
+  const findings = texts.flatMap((numbered) => {
+    // A pull request read with comment links numbers each comment, `[r1] `.
+    // The model names the ones a finding comes from in `sources`.
+    const id = /^\[([crv]\d+)\] /.exec(numbered)?.[1];
+    const text = id ? numbered.slice(id.length + 3) : numbered;
     const match = /Rule: (.+?\.)(?: |$)/.exec(text);
     if (!match) return [];
     // A line comment arrives as `path:line body`.
@@ -399,6 +403,7 @@ function prFindings({ prompt }: AiCall) {
         action: "Apply the rule to the change before approving it.",
         scope: "historical-example",
         confidence: "medium",
+        ...(id ? { sources: [id] } : {}),
       },
     ];
   });

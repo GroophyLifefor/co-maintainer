@@ -46,6 +46,7 @@ test("matchRepeat pairs a finding to the earlier thread on the same lines", () =
       state: "open",
       carried_from_finding_id: null,
       close_reason: null,
+      references_json: "[]",
     },
   ];
   const hit = matchRepeat({ path: "src/app.ts", from: 4, to: 4 }, previous);

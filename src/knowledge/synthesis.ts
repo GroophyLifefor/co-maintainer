@@ -102,6 +102,8 @@ function factsFromResponse(
   evidence: string,
   defaultScope: Fact["scope"],
   origin: Fact["origin"],
+  pr?: number,
+  ids?: Map<string, string>,
 ): Fact[] {
   const parsed = parseJson(text);
   if (!Array.isArray(parsed)) return [];
@@ -131,6 +133,7 @@ function factsFromResponse(
     const location = String(value.location ?? "").trim();
     const trigger = String(value.trigger ?? "").trim();
     if (isReview && (!impact || !action)) return [];
+    const links = isReview ? linksFor(value.sources, pr, ids) : [];
     return [
       {
         id: `${sectionKey}:${slug(claim)}`,
@@ -149,6 +152,7 @@ function factsFromResponse(
               ...(trigger ? { trigger } : {}),
               impact,
               action,
+              ...(links.length ? { links } : {}),
             }
           : {}),
       },
@@ -205,20 +209,95 @@ function hasUnsupportedPath(claim: string, source: Source): boolean {
   });
 }
 
-function pullRequestUnit(pr: PullRequest): string {
+/** Whether the pull request was read with comment links. A row cached before
+ * links were kept has none, and keeps the old extract prompt so its cached
+ * answer is still used. */
+export function hasCommentLinks(pr: PullRequest): boolean {
+  return (
+    pr.commentUrls !== undefined ||
+    pr.reviewCommentUrls !== undefined ||
+    pr.reviewUrls !== undefined
+  );
+}
+
+/** The comment ids of a linked pull request (`c1` issue comment, `r1` inline
+ * review comment, `v1` review) and the link behind each. */
+export function commentIds(pr: PullRequest): Map<string, string> {
+  const ids = new Map<string, string>();
+  const add = (prefix: string, urls: string[] | undefined, count: number) => {
+    for (let index = 0; index < count; index++) {
+      const url = urls?.[index] ?? "";
+      if (url) ids.set(`${prefix}${index + 1}`, url);
+    }
+  };
+  add("c", pr.commentUrls, pr.comments.length);
+  add("r", pr.reviewCommentUrls, pr.reviewComments.length);
+  add("v", pr.reviewUrls, pr.reviews.length);
+  return ids;
+}
+
+function pullRequestUnit(pr: PullRequest, numbered = false): string {
+  const texts = (prefix: string, values: string[]) =>
+    values.map((value, index) => {
+      const text = promptText(value, 2_000);
+      return numbered ? `[${prefix}${index + 1}] ${text}` : text;
+    });
   return JSON.stringify({
     number: pr.number,
     title: pr.title,
     body: promptText(pr.body),
     labels: pr.labels,
-    comments: pr.comments.map((comment) => promptText(comment, 2_000)),
-    reviewComments: pr.reviewComments.map((comment) =>
-      promptText(comment, 2_000),
-    ),
-    reviews: pr.reviews.map((review) => promptText(review, 2_000)),
+    comments: texts("c", pr.comments),
+    reviewComments: texts("r", pr.reviewComments),
+    reviews: texts("v", pr.reviews),
     changedFiles: pr.changedFiles,
     diff: promptText(pr.diff, 8_000),
   });
+}
+
+/** The extract prompt for one pull request. A pull request read before
+ * comment links were kept gets the exact old text, so its cached answer still
+ * hits. A linked one numbers its comments and asks which ones a finding rests
+ * on. */
+export function extractPrompt(pr: PullRequest): string {
+  const numbered = hasCommentLinks(pr);
+  const sourcesField = numbered
+    ? ',"sources":["the ids of the comments or reviews the finding comes from, such as r2 or v1, empty when it comes from the body or the diff"]'
+    : "";
+  const sourcesRule = numbered
+    ? "\n- Every comment and review starts with its id in square brackets. List in sources only ids that appear in this pull request."
+    : "";
+  return `Analyze this pull request's reviews, comments, code and diff, and return only a JSON array of review findings.
+Each item must have exactly:
+{"sectionKey":"review","class":"a short area name","claim":"the invariant a reviewer would enforce, imperative and general","location":"path or path:line the finding is about, or empty when none","trigger":"the diff surface that should trigger this rule: a path, glob, or symbol, or empty when none","impact":"why this matters here, from the review's reasoning","action":"what to change or verify","scope":"historical-example","confidence":"medium"${sourcesField}}
+Rules:
+- Include only substantive findings: a reviewer identifies something to fix, change, verify or decide.
+- Never write an approval, a merge, "LGTM", thanks, a reviewer name, a pull-request number, a commit id, or quoted comment text.
+- The claim is a general invariant, not one past fix: "When X changes, Y must also change", or "Every Z uses W", never "change this one line".
+- trigger is what a reviewer can see in a diff: a path, a glob, or a symbol. It is how the rule applies to a future change, so a rule with no trigger is a one-off and is not useful.
+- impact and action are mandatory and concrete. Paraphrase the reviewer's reasoning for impact. Never quote it.
+- class is a short area label chosen from a small, consistent set. Reuse the same label for findings of the same kind so related findings can be grouped.
+- location is a repository path when the review names one, otherwise leave it empty.${sourcesRule}
+- Return every distinct finding the reviews support, not a summary. Do not explain the answer.
+
+PULL REQUEST:
+${pullRequestUnit(pr, numbered)}`;
+}
+
+/** The links a finding's `sources` name. An id the pull request does not have
+ * is dropped, so a made-up id never becomes a link. */
+function linksFor(
+  value: unknown,
+  pr: number | undefined,
+  ids: Map<string, string> | undefined,
+): { pr: number; url: string }[] {
+  if (pr === undefined || !ids || !Array.isArray(value)) return [];
+  const urls = new Set<string>();
+  for (const item of value) {
+    const url = ids.get(String(item).trim().toLowerCase());
+    if (url) urls.add(url);
+  }
+  return [...urls].map((url) => ({ pr, url }));
 }
 
 function queueFor(
@@ -356,29 +435,16 @@ export async function extractAiFacts(
   const requests: AiRequest[] = [];
   const evidence: string[] = [];
   const scopes: Fact["scope"][] = [];
+  // Per request: the comment ids of a linked pull request and its number,
+  // `undefined` for the repository files request and unlinked pull requests.
+  const linkIds: (Map<string, string> | undefined)[] = [];
+  const prNumbers: (number | undefined)[] = [];
   const prs = options.includePullRequests ? source.pullRequests : [];
 
   for (const pr of prs) {
-    requests.push(
-      extractRequest(
-        `Analyze this pull request's reviews, comments, code and diff, and return only a JSON array of review findings.
-Each item must have exactly:
-{"sectionKey":"review","class":"a short area name","claim":"the invariant a reviewer would enforce, imperative and general","location":"path or path:line the finding is about, or empty when none","trigger":"the diff surface that should trigger this rule: a path, glob, or symbol, or empty when none","impact":"why this matters here, from the review's reasoning","action":"what to change or verify","scope":"historical-example","confidence":"medium"}
-Rules:
-- Include only substantive findings: a reviewer identifies something to fix, change, verify or decide.
-- Never write an approval, a merge, "LGTM", thanks, a reviewer name, a pull-request number, a commit id, or quoted comment text.
-- The claim is a general invariant, not one past fix: "When X changes, Y must also change", or "Every Z uses W", never "change this one line".
-- trigger is what a reviewer can see in a diff: a path, a glob, or a symbol. It is how the rule applies to a future change, so a rule with no trigger is a one-off and is not useful.
-- impact and action are mandatory and concrete. Paraphrase the reviewer's reasoning for impact. Never quote it.
-- class is a short area label chosen from a small, consistent set. Reuse the same label for findings of the same kind so related findings can be grouped.
-- location is a repository path when the review names one, otherwise leave it empty.
-- Return every distinct finding the reviews support, not a summary. Do not explain the answer.
-
-PULL REQUEST:
-${pullRequestUnit(pr)}`,
-        2_400,
-      ),
-    );
+    requests.push(extractRequest(extractPrompt(pr), 2_400));
+    linkIds.push(hasCommentLinks(pr) ? commentIds(pr) : undefined);
+    prNumbers.push(pr.number);
     evidence.push(`PR #${pr.number}`);
     scopes.push("historical-example");
   }
@@ -410,6 +476,8 @@ ${files}`,
         ),
       );
       evidence.push("repository files");
+      linkIds.push(undefined);
+      prNumbers.push(undefined);
       scopes.push("current");
     }
   }
@@ -442,6 +510,8 @@ ${files}`,
         evidence[index],
         scopes[index] ?? "historical-example",
         evidence[index] === "repository files" ? "repository" : "pull-request",
+        prNumbers[index],
+        linkIds[index],
       ).filter((item) => {
         if (
           hasUnsupportedIdentifier(item.claim, source) ||
@@ -490,6 +560,11 @@ function mergeFacts(base: Fact[], extra: Fact[]): Fact[] {
       existing.evidence = [
         ...new Set([...existing.evidence, ...item.evidence]),
       ];
+      const links = [...(existing.links ?? []), ...(item.links ?? [])].filter(
+        (link, index, all) =>
+          all.findIndex((other) => other.url === link.url) === index,
+      );
+      if (links.length) existing.links = links;
     }
   }
   return [...merged.values()];

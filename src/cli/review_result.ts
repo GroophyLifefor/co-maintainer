@@ -1,3 +1,4 @@
+import { referenceLine, type ResolvedReference } from "../review/references.ts";
 import { parseFindings, type ParsedFinding } from "../pr/findings.ts";
 import { readSuggestion, stripSuggestion } from "../pr/suggestion.ts";
 import { stripControlChars } from "../util/sanitize.ts";
@@ -50,6 +51,9 @@ export type JsonReviewFinding = {
     lineTo: number;
     text: string;
   } | null;
+  /** What the finding rests on. Always present, shown in a comment only when
+   * the repository turns references on. */
+  references: ResolvedReference[];
 };
 
 const SEVERITY_RANK: Record<string, number> = {
@@ -93,6 +97,7 @@ export function resolvedFromFirstReview(
       severity: finding.severity ?? "P2",
       carriedFromId: null,
       firstSeenReviewId: null,
+      referenceIds: finding.references ?? [],
     };
   });
 }
@@ -139,6 +144,7 @@ export function toJsonFinding(
           text: suggestion.code,
         }
       : null,
+    references: row.references ?? [],
   };
 }
 
@@ -241,6 +247,8 @@ export type HumanFinding = {
   suggestion: { lineFrom: number; lineTo: number; text: string } | null;
   /** An extension finding's `[P2 · blocking] · extension: name`. */
   label?: string;
+  /** What the finding rests on, printed only with `showReferences`. */
+  references?: ResolvedReference[];
 };
 
 /** Local and PR findings: blocking is decided here from the configured rule,
@@ -267,6 +275,7 @@ export function humanFindingsFromResolved(
             text: suggestion.code,
           }
         : null,
+      ...(row.references ? { references: row.references } : {}),
     };
   });
 }
@@ -287,6 +296,8 @@ export function humanFindingsFromJson(
     title: row.title,
     body: row.body.trim(),
     suggestion: row.suggestion,
+    // A server older than references sends none.
+    ...(Array.isArray(row.references) ? { references: row.references } : {}),
   }));
 }
 
@@ -343,6 +354,9 @@ export type HumanReviewInput = {
   coverage?: Coverage;
   /** The extensions' results. Absent or empty prints nothing extra. */
   extensions?: ExtensionReport;
+  /** Print each finding's references. On only when the repository turned
+   * references on. */
+  showReferences?: boolean;
   /** An intent file was given. The line says so and never shows the text. */
   intent?: boolean;
 };
@@ -414,6 +428,14 @@ export function formatHumanReview(input: HumanReviewInput): string {
           lines.push(`    ${stripControlChars(part)}`);
         lines.push("    ```");
       }
+      if (input.showReferences && row.references?.length) {
+        lines.push(`    References (${row.references.length})`);
+        for (const reference of row.references) {
+          lines.push(
+            `      - ${stripControlChars(referenceLine(reference, false))}`,
+          );
+        }
+      }
     }
     lines.push("");
   }
@@ -474,6 +496,7 @@ export function formatHumanLocalReview(
   coverage?: Coverage,
   extensions?: ExtensionReport,
   intent?: boolean,
+  showReferences?: boolean,
 ): string {
   const stats = revisionStats(revision);
   return formatHumanReview({
@@ -486,6 +509,7 @@ export function formatHumanLocalReview(
     coverage,
     extensions,
     intent,
+    showReferences,
   });
 }
 

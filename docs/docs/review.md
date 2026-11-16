@@ -295,6 +295,44 @@ diff. The review prompt frames them as rules about the code that never change ho
 the review is done. [`view`](view.md#sources) prints the file and the lines each
 rule came from. A repository without the file reviews exactly as before.
 
+## References
+
+Every finding records what it rests on. The model names ids only, and code
+turns each one into a reference from `RULES.json` when the review runs, so no
+pull request number or date goes into the prompt. A later `sync` never changes
+what an old review cited.
+
+| Reference | When |
+| --------- | ---- |
+| `Rules-12 · #212, #340 · 2026-03` | A guide rule. Each pull request links to the review comment the rule came from, and the date is the newest merge |
+| `Instructions-3 · AGENTS.md:14` | A rule from [`INSTRUCTIONS.md`](#agent-instruction-rules), linked to that line at the commit it was read at |
+| `Codebase · Tests` | A section of `CODEBASE.md` |
+| `System Prompt` | The review instructions themselves, for a finding that rests on no rule |
+
+A pull request read before 0.7.3 shows its number with no link until it is read
+again. An id that is not in `RULES.json` is dropped. A finding from a review
+before 0.7.3 has no references.
+
+References are always stored. `review --json` has them on every finding as
+`references`, and the dashboard shows them under each finding on the pull
+request page. A review comment and the terminal output show them only when the
+repository turns them on:
+
+    co-maintainer set --repo=owner/repo --review-references=on
+
+The comment then ends each finding with a collapsed block:
+
+    <details><summary>References (2)</summary>
+
+    - Rules-12 · #212, #340 · 2026-03
+    - Codebase · Tests
+
+    </details>
+
+Turning references on makes the next [`sync`](sync.md#references-and-comment-links)
+read every pull request again once, so its guide rules get links to their review
+comments.
+
 ## Repository review instructions
 
 A repository can carry its own review instructions. They are appended to the

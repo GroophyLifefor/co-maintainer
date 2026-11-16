@@ -9,6 +9,7 @@
  */
 import type { Json } from "../types.ts";
 import type { ParsedFinding } from "./findings.ts";
+import { referenceIds } from "../review/references.ts";
 
 const SEVERITIES = ["P0", "P1", "P2", "P3"] as const;
 
@@ -36,6 +37,7 @@ export const FINDINGS_JSON_SCHEMA: Json = {
               title: { type: "string" },
               body: { type: "string" },
               suggestion: { type: "string" },
+              references: { type: "array", items: { type: "string" } },
             },
             required: ["severity", "path", "lineFrom", "title", "body"],
           },
@@ -62,7 +64,7 @@ export const FINDINGS_JSON_SCHEMA: Json = {
 
 /** The prompt's contract, kept next to the schema so the two cannot drift. */
 export const FINDINGS_JSON_INSTRUCTIONS = `Return a single JSON object, and nothing else, with this shape:
-{"findings":[{"severity":"P1","blocking":true,"path":"src/a.ts","lineFrom":42,"lineTo":42,"symbol":"helper()","title":"The helper ignores its argument","body":"One sentence on what is wrong and its impact, then a short evidence paragraph.","suggestion":"the exact replacement lines, or omit this field"}],"previousFindings":[{"id":"F1","state":"open"}]}
+{"findings":[{"severity":"P1","blocking":true,"path":"src/a.ts","lineFrom":42,"lineTo":42,"symbol":"helper()","title":"The helper ignores its argument","body":"One sentence on what is wrong and its impact, then a short evidence paragraph.","suggestion":"the exact replacement lines, or omit this field","references":["R12"]}],"previousFindings":[{"id":"F1","state":"open"}]}
 
 Rules for the JSON:
 - "severity" is exactly one of P0, P1, P2, P3. "blocking" is true or false.
@@ -78,6 +80,10 @@ Rules for the JSON:
   hunk of the same file. Omit it otherwise. Never wrap it in a code fence.
 - When a fix needs removed lines, another file, or more than one hunk, omit
   "suggestion".
+- "references" lists what the finding rests on: the bracketed id at the end
+  of a guide or repository instruction line (such as R12 or I3),
+  "codebase:<section title>" for a CODEBASE CONVENTIONS section, or "system"
+  when it rests only on these review instructions. Name only ids you used.
 - Return every independently actionable finding, including none: use
   {"findings":[]} when the change is clean. Never invent a finding to fill the
   array.`;
@@ -133,6 +139,7 @@ type JsonFinding = {
   title?: unknown;
   body?: unknown;
   suggestion?: unknown;
+  references?: unknown;
 };
 
 /** One JSON finding as Markdown, in the exact shape `parseFindings` reads.
@@ -154,9 +161,16 @@ function findingMarkdown(raw: JsonFinding): string | undefined {
   const span = lineTo === lineFrom ? `${lineFrom}` : `${lineFrom}-${lineTo}`;
   const suggestion = asSource(raw.suggestion);
 
+  const references = referenceIds(raw.references)
+    // One line per finding: a comma or a newline in an id would split it.
+    .map((id) => id.replace(/[,\r\n]+/g, " ").trim())
+    .filter(Boolean);
   const lines = [
     `### [${level} · ${impact}] \`${path}\`${symbol ? `: \`${symbol}\`` : ""}`,
     `Location: \`${path}:${span}\``,
+    // Read back by `parseFindings` and never shown as is: code turns the ids
+    // into references.
+    ...(references.length ? [`References: ${references.join(", ")}`] : []),
     "",
     asText(raw.body),
   ];

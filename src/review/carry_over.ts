@@ -1,4 +1,5 @@
 import type { ParsedFinding } from "../pr/findings.ts";
+import type { ResolvedReference } from "./references.ts";
 import { spansOverlap } from "../pr/rounds.ts";
 import { rightLines } from "../pr/hunks.ts";
 import {
@@ -22,6 +23,8 @@ export type StoredFinding = {
   firstSeenReviewId: string | null;
   /** What maintainers wrote on the finding's inline thread, oldest first. */
   replies?: string[];
+  /** What the finding rested on when it was first found. */
+  references?: ResolvedReference[];
 };
 
 export type CarryPrevious = {
@@ -63,6 +66,11 @@ export type ResolvedFinding = {
   severity: string;
   carriedFromId: string | null;
   firstSeenReviewId: string | null;
+  /** A carried finding keeps what it rested on. */
+  references?: ResolvedReference[];
+  /** A new or rewritten finding: the ids the answer named, resolved by the
+   * caller against `RULES.json`. */
+  referenceIds?: string[];
 };
 
 export function anchorTextFromPatch(
@@ -393,6 +401,7 @@ export function resolveCarryOutcomes(
         anchorText: base.anchorText,
         severity: base.severity,
         carriedFromId: base.id,
+        ...(base.references ? { references: base.references } : {}),
         firstSeenReviewId: base.firstSeenReviewId,
       });
       continue;
@@ -410,6 +419,7 @@ export function resolveCarryOutcomes(
         anchorText: base.anchorText,
         severity: base.severity,
         carriedFromId: base.id,
+        ...(base.references ? { references: base.references } : {}),
         firstSeenReviewId: base.firstSeenReviewId,
       });
       continue;
@@ -444,6 +454,7 @@ export function resolveCarryOutcomes(
           : base.anchorText,
         severity: base.severity,
         carriedFromId: base.id,
+        ...(base.references ? { references: base.references } : {}),
         firstSeenReviewId: base.firstSeenReviewId,
       };
       resolved.push(row);
@@ -476,6 +487,7 @@ export function resolveCarryOutcomes(
       anchorText: anchor,
       severity: base.severity,
       carriedFromId: base.id,
+      ...(base.references ? { references: base.references } : {}),
       firstSeenReviewId: base.firstSeenReviewId,
     };
     resolved.push(row);
@@ -496,6 +508,9 @@ export function resolveCarryOutcomes(
       overlap.title = finding.heading || finding.path;
       overlap.lineFrom = finding.from;
       overlap.lineTo = finding.to;
+      // The rewritten text rests on what the new answer named.
+      overlap.references = undefined;
+      overlap.referenceIds = finding.references ?? [];
       continue;
     }
     resolved.push({
@@ -510,6 +525,7 @@ export function resolveCarryOutcomes(
       severity: finding.severity ?? "P2",
       carriedFromId: null,
       firstSeenReviewId: null,
+      referenceIds: finding.references ?? [],
     });
   }
 

@@ -282,6 +282,34 @@ same way instruction rules are matched by their file lines, see the table below.
 A dropped rule whose pull request is outside the window this <code>sync</code> read says
 <code>left the window</code>. The first <code>sync</code> after upgrading to 0.7.1 rewrites both guides
 once, because the guide prompt changed.</p>
+<h3 id="rule-ids-stay-the-same">Rule ids stay the same</h3>
+<p>A rule keeps its id across syncs, so a review that cited <code>R4</code> still points at
+the same rule. A rewritten rule keeps the id of the old rule it shares the most
+sources with. A new rule gets the next number ever given, and the id of a
+dropped rule is never given to another rule. <code>RULES.json</code> keeps the highest
+number given in <code>lastIds</code>. Instruction rules work the same way, and an
+instruction line that moved down its file keeps its id when its text is the same.</p>
+<h3 id="a-rule-that-goes-against-an-older-one">A rule that goes against an older one</h3>
+<p>The guide prompt lists the last build&#39;s rules by id and text, with no pull
+request or date. When the model writes a rule that requires the opposite of an
+old one, <code>sync</code> says so with its evidence:</p>
+<pre><code>[guide] R4 dropped, R9 goes against it (#340, 2026-03)
+</code></pre>
+<p>The line appears only when the new rule&#39;s newest pull request merged after the
+old rule&#39;s newest one. <code>sync --json</code> lists the same in <code>contradicted</code>, and the
+repository page of the dashboard shows the last ten.</p>
+<h2 id="references-and-comment-links">References and comment links</h2>
+<p>Each pull request read since 0.7.3 keeps a link to every comment and review on
+it, and a guide rule links to the review comment it came from. A pull request
+cached before that keeps its old extract answer and shows its number with no
+link, so a plain upgrade costs nothing extra.</p>
+<p>After <code>set --repo=owner/repo --review-references=on</code>, the next <code>sync</code> reads the
+comments of every cached pull request again once and logs
+<code>review references are on: reading every pull request again once for comment links</code>.
+Those pull requests are extracted again, so that one <code>sync</code> costs as much as an
+<code>init</code> for the extract step. The date is saved as <code>referencesBackfilledAt</code>, so
+turning the setting off and on again never repeats it. See
+<a href="review.html#references">References</a>.</p>
 <h2 id="what-sync-says-about-instruction-rules">What <code>sync</code> says about instruction rules</h2>
 <p>When the repository has agent instruction files, <code>sync</code> rebuilds
 <a href="init.html#agent-instruction-files"><code>INSTRUCTIONS.md</code></a> the way <code>init</code> does, and
@@ -410,7 +438,7 @@ name so existing config files keep working.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#what-sync-says-about-guide-rules">What sync says about guide rules</a></li><li><a href="#what-sync-says-about-instruction-rules">What sync says about instruction rules</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#what-gets-reused">What gets reused</a></li><li><a href="#scheduled-sync">Scheduled sync</a></li></ul></nav>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#what-sync-says-about-guide-rules">What sync says about guide rules</a></li><li><a href="#references-and-comment-links">References and comment links</a></li><li><a href="#what-sync-says-about-instruction-rules">What sync says about instruction rules</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#what-gets-reused">What gets reused</a></li><li><a href="#scheduled-sync">Scheduled sync</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

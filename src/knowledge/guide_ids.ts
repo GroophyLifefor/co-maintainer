@@ -14,6 +14,10 @@ export type GuideRule = {
   text: string;
   /** 1-based numbers of the findings the line merges, sorted. */
   findings: number[];
+  /** Previous rule ids the guide AI said this line goes against, from an
+   * `(overturns R4)` note before the bracket. The note is removed from the
+   * line. Code checks the ids exist and the new rule is newer. */
+  overturns?: string[];
 };
 
 export type GuideFileCount = { file: string; rules: number; withIds: number };
@@ -48,6 +52,19 @@ function setKey(numbers: number[]): string {
   return numbers.join(",");
 }
 
+/** `(overturns R4, R7)` right before the source bracket. */
+const OVERTURNS = /\s*\(overturns\s+(R[1-9]\d*(?:\s*,\s*R[1-9]\d*)*)\)\s*$/;
+
+/** The line without its overturns note, and the ids it named. */
+export function takeOverturns(line: string): { line: string; ids: string[] } {
+  const match = OVERTURNS.exec(line);
+  if (!match) return { line, ids: [] };
+  return {
+    line: line.slice(0, match.index),
+    ids: [...new Set(match[1].split(",").map((id) => id.trim()))],
+  };
+}
+
 function ruleText(line: string): string {
   return line.replace(/^- /, "").replaceAll("`", "").trim();
 }
@@ -60,7 +77,7 @@ function rewrite(
   text: string,
   file: string,
   findingCount: number,
-  idFor: (numbers: number[], line: string) => string,
+  idFor: (numbers: number[], line: string, overturns: string[]) => string,
 ): FileResult {
   let rules = 0;
   let withIds = 0;
@@ -75,7 +92,8 @@ function rewrite(
     // A source list that names no real finding is dropped with no id.
     if (valid.length === 0) return taken.line;
     withIds++;
-    return `${taken.line} [${idFor(valid, taken.line)}]`;
+    const note = takeOverturns(taken.line);
+    return `${note.line} [${idFor(valid, note.line, note.ids)}]`;
   });
   return { text: lines.join("\n"), count: { file, rules, withIds } };
 }
@@ -96,14 +114,28 @@ export function assignGuideIds(
 } {
   const rules: GuideRule[] = [];
   const bySet = new Map<string, string>();
-  const add = (file: string, numbers: number[], line: string): string => {
+  const add = (
+    file: string,
+    numbers: number[],
+    line: string,
+    overturns: string[] = [],
+  ): string => {
     const id = `R${rules.length + 1}`;
-    rules.push({ id, file, text: ruleText(line), findings: numbers });
+    rules.push({
+      id,
+      file,
+      text: ruleText(line),
+      findings: numbers,
+      ...(overturns.length ? { overturns } : {}),
+    });
     return id;
   };
   if (detailed === undefined) {
-    const single = rewrite(guide, GUIDE_FILE, findingCount, (numbers, line) =>
-      add(GUIDE_FILE, numbers, line),
+    const single = rewrite(
+      guide,
+      GUIDE_FILE,
+      findingCount,
+      (numbers, line, overturns) => add(GUIDE_FILE, numbers, line, overturns),
     );
     return { guide: single.text, rules, counts: [single.count] };
   }
@@ -111,8 +143,8 @@ export function assignGuideIds(
     detailed,
     DETAILED_GUIDE_FILE,
     findingCount,
-    (numbers, line) => {
-      const id = add(DETAILED_GUIDE_FILE, numbers, line);
+    (numbers, line, overturns) => {
+      const id = add(DETAILED_GUIDE_FILE, numbers, line, overturns);
       if (!bySet.has(setKey(numbers))) bySet.set(setKey(numbers), id);
       return id;
     },
@@ -121,8 +153,8 @@ export function assignGuideIds(
     guide,
     GUIDE_FILE,
     findingCount,
-    (numbers, line) =>
-      bySet.get(setKey(numbers)) ?? add(GUIDE_FILE, numbers, line),
+    (numbers, line, overturns) =>
+      bySet.get(setKey(numbers)) ?? add(GUIDE_FILE, numbers, line, overturns),
   );
   return {
     guide: short.text,

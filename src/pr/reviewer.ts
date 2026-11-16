@@ -5,6 +5,7 @@ import {
   type ToolHandler,
 } from "../ai/mermaid_loop.ts";
 import { loadGuides } from "../review/guides.ts";
+import type { ReferenceContext } from "../review/references.ts";
 import { notInitializedError } from "../review/not_initialized.ts";
 import type { Revision } from "../review/revision.ts";
 import { computeScope } from "./scope.ts";
@@ -130,6 +131,9 @@ export type ReviewOutcome = AiResponse & {
    * the files it skipped as unchanged. */
   visiblePaths: string[];
   guideBuiltAt: string | null;
+  /** What the finding references resolve against: the `RULES.json` and the
+   * codebase conventions this review was given. Never sent to the model. */
+  referenceContext: ReferenceContext;
   codegraphState: "used" | "disabled" | "unavailable";
   coverage: Coverage;
   /** `diff_dropped`, `diff_withheld` and `summary_failed`. */
@@ -699,6 +703,7 @@ ${reviewText}`,
     text: `${severitySection()}\n${renderDiagrams(reviewText, options)}`,
     visiblePaths: prepared.seenPaths,
     guideBuiltAt: guides.guideBuiltAt,
+    referenceContext: { rules: guides.rules, codebase: guides.codebase },
     codegraphState: !options.useCodegraph
       ? "disabled"
       : codegraphTools.length > 0
@@ -860,6 +865,7 @@ ${reviewText}`,
     text: `${severitySection()}\n${renderDiagrams(reviewText, options)}`,
     visiblePaths: prepared.seenPaths,
     guideBuiltAt: guides.guideBuiltAt,
+    referenceContext: { rules: guides.rules, codebase: guides.codebase },
     codegraphState,
     coverage: prepared.coverage,
     warnings: prepared.warnings,

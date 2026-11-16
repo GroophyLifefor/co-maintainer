@@ -475,6 +475,8 @@ export async function runRemoteReview(
                 coverage: coverageFromResult(payload.result),
                 extensions,
                 intent: intent !== null,
+                showReferences:
+                  readConfig().repos?.[repo]?.reviewReferences === true,
               }) +
               "\n",
           );

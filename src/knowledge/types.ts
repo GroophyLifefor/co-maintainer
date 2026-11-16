@@ -20,6 +20,13 @@ export type PullRequest = {
    * them otherwise. */
   reviewComments: string[];
   reviews: string[];
+  /** The GitHub link of each entry in `comments`, `reviewComments` and
+   * `reviews`, at the same index. Missing on rows cached before links were
+   * kept, and an entry is empty when GitHub gave no link. Never sent to a
+   * model: a fact names the numbered comment and code looks the link up. */
+  commentUrls?: string[];
+  reviewCommentUrls?: string[];
+  reviewUrls?: string[];
   /** Set once reviews have been read. Missing means an older checkpoint
    * never stored the review state. */
   changesRequested?: boolean;
@@ -75,6 +82,12 @@ export type Fact = {
    * also do Y" obligations listed under a pass's exit check, so a reviewer that
    * only sees a diff can still apply the rule. */
   trigger?: string;
+  /** Review findings only: the GitHub link of each comment or review the
+   * finding came from, with its pull request. The model names a numbered
+   * comment, code turns it into this link. Missing when the finding came from
+   * the body or the diff, or from a pull request cached before links were
+   * kept. */
+  links?: { pr: number; url: string }[];
 };
 
 export type State = {

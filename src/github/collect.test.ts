@@ -1,4 +1,4 @@
-import { collectSource } from "./collect.ts";
+import { collectSource, textsWithLinks } from "./collect.ts";
 import { cacheDeletePrefix, cacheGet, cacheSet } from "../store/cache_db.ts";
 import { testOptions } from "../testing/helpers.ts";
 import { withLogSink } from "../util/log.ts";
@@ -742,5 +742,89 @@ test("--pr-state filters the listing and does not reuse a different state's cach
   } finally {
     await cacheDeletePrefix("pr-listing", repo);
     await cacheDeletePrefix("pr", repo);
+  }
+});
+
+test("comment texts and their links stay at the same index when empty ones are dropped", () => {
+  const kept = textsWithLinks(
+    [
+      { body: "first", html_url: "https://github.com/o/r/pull/1#a" },
+      { body: "", html_url: "https://github.com/o/r/pull/1#b" },
+      { body: "third", html_url: "https://github.com/o/r/pull/1#c" },
+      { body: "fourth" },
+    ],
+    (item) => String(item.body ?? ""),
+    2,
+  );
+  if (
+    JSON.stringify(kept) !==
+    JSON.stringify({
+      texts: ["first", "third"],
+      urls: [
+        "https://github.com/o/r/pull/1#a",
+        "https://github.com/o/r/pull/1#c",
+      ],
+    })
+  ) {
+    throw new Error(JSON.stringify(kept));
+  }
+});
+
+test("a pull request cached before links is read again once, only when references asked for links", async () => {
+  await cacheDeletePrefix("pr-listing", "fixture/repo");
+  await cacheDeletePrefix("pr", "fixture/repo");
+  const cachedWithoutLinks: PullRequest = {
+    number: 1,
+    title: "Change",
+    body: "",
+    state: "closed",
+    merged: false,
+    updatedAt: "1",
+    headSha: "head-1",
+    labels: [],
+    additions: 1,
+    deletions: 1,
+    comments: ["please add a test"],
+    reviewComments: ["src/app.ts:3 inline note"],
+    reviews: ["looks good"],
+    changesRequested: false,
+    changedFiles: ["src/app.ts"],
+    diff: "FILE: src/app.ts\n@@ -1 +1 @@",
+  };
+  await cacheSet("pr", "fixture/repo:1", JSON.stringify(cachedWithoutLinks));
+  const client = new PullRequestCacheClient();
+  const base = {
+    includeCodebase: false,
+    includePullRequests: true,
+    includePullRequestChanges: true,
+  };
+  try {
+    await collectSource(client, testOptions(base));
+    if (client.reviewCommentRequests !== 0) {
+      throw new Error("a cached row was read again without the setting");
+    }
+    const refreshed = await collectSource(
+      client,
+      testOptions({ ...base, refreshCommentLinks: true }),
+    );
+    if (
+      Number(client.reviewCommentRequests) !== 1 ||
+      Number(client.reviewRequests) !== 1
+    ) {
+      throw new Error("the row without links was not read again");
+    }
+    if (!Array.isArray(refreshed.pullRequests[0]?.reviewCommentUrls)) {
+      throw new Error("the read did not keep the links");
+    }
+    await collectSource(
+      client,
+      testOptions({ ...base, refreshCommentLinks: true }),
+    );
+    if (Number(client.reviewCommentRequests) !== 1) {
+      throw new Error("a row that has links was read again");
+    }
+  } finally {
+    await cacheDeletePrefix("pr-listing", "fixture/repo");
+    await cacheDeletePrefix("pr", "fixture/repo");
   }
 });

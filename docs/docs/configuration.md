@@ -94,6 +94,7 @@ provider, so both models are saved the first time. See
 | `--diagram-runtime=mermaid\|plantuml\|plantuml-server` | `repos[owner/repo].diagramRuntime` | The diagram language of a repository's reviews, App reviews included. Needs `--repo`. See [Diagram settings](#diagram-settings) |
 | `--plantuml-server=URL` | `repos[owner/repo].plantumlServer` | The PlantUML server for `plantuml-server`. Needs `--repo`. Default `https://www.plantuml.com` |
 | `--plantuml-output-format=svg\|png` | `repos[owner/repo].plantumlOutputFormat` | The image format for `plantuml-server`. Needs `--repo`. Default `svg` |
+| `--review-references=on\|off` | `repos[owner/repo].reviewReferences` | Show each finding's [references](review.md#references) in review comments and the terminal. Needs `--repo`. Off by default. They are stored and shown on the dashboard either way |
 | `--review-read-diff-max-chars=N` | `repos[owner/repo].reviewReadDiffMaxChars` | Most characters one `read-full-diff` answer returns. Needs `--repo`. `0` or `-1` means no limit. Default `20000` |
 
 ### App private key: inline, file contents, or path

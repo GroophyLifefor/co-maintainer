@@ -52,6 +52,10 @@ export type Options = {
   /** Keep only pull requests in the window that have at least one
    * `CHANGES_REQUESTED` review. Off by default, so the window is unchanged. */
   onlyRequestChangedPr: boolean;
+  /** Read the comments of cached pull requests again when they were stored
+   * before comment links were kept. Set by `sync` once, after a repository
+   * turned review references on. */
+  refreshCommentLinks?: boolean;
   /** Empty or omitted means every state. `closed` is closed and not merged. */
   prState?: ("open" | "closed" | "merged")[];
   maxCommits?: number;

@@ -392,4 +392,21 @@ export const migrations: string[][] = [
     )`,
     `CREATE INDEX idx_extension_findings_review ON extension_findings(review_id)`,
   ],
+  // 17: what a finding rests on (guide and instruction rules, the codebase
+  // conventions, the review instructions), resolved at review time so a later
+  // sync never changes what an old review cited. And a log of guide rules a
+  // newer rule went against, for the dashboard.
+  [
+    `ALTER TABLE findings ADD COLUMN references_json TEXT NOT NULL DEFAULT '[]'`,
+    `CREATE TABLE rule_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      repo TEXT NOT NULL,
+      at TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      rule_id TEXT NOT NULL,
+      by_rule_id TEXT,
+      detail_json TEXT NOT NULL DEFAULT '{}'
+    )`,
+    `CREATE INDEX idx_rule_events_repo ON rule_events(repo, at)`,
+  ],
 ];

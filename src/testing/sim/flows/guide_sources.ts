@@ -119,7 +119,13 @@ export const GUIDE_SOURCES_AI: AiRule[] = [
 type RuleEntry = {
   file: string;
   text: string;
-  sources: { pr?: number; mergedAt?: string; path?: string; line?: number }[];
+  sources: {
+    pr?: number;
+    mergedAt?: string;
+    url?: string;
+    path?: string;
+    line?: number;
+  }[];
 };
 
 function read(sim: Sim, name: string): string {
@@ -292,9 +298,20 @@ function initChecks(sim: Sim): CheckResult[] {
             : { pr: pull.number },
         ]
       : [];
-    return JSON.stringify(entry.sources) === JSON.stringify(want)
+    // Each source links the review comment the rule came from, on its own
+    // pull request.
+    const comment = (pr: number | undefined, url: string | undefined) =>
+      url !== undefined &&
+      new RegExp(
+        `^https://github\\.com/${HISTORY_REPO}/pull/${pr}#(discussion_r|pullrequestreview-|issuecomment-)\\d+$`,
+      ).test(url);
+    const withoutUrl = entry.sources.map(({ url: _, ...rest }) => rest);
+    return JSON.stringify(withoutUrl) === JSON.stringify(want) &&
+      entry.sources.every((source) => comment(source.pr, source.url))
       ? []
-      : [`${id} ${JSON.stringify(entry.sources)} want ${JSON.stringify(want)}`];
+      : [
+          `${id} ${JSON.stringify(entry.sources)} want ${JSON.stringify(want)} with a comment link`,
+        ];
   });
   return [
     fakeOnly(
@@ -312,7 +329,7 @@ function initChecks(sim: Sim): CheckResult[] {
         Object.keys(init.rules).length === pulls.size && wrong.length === 0,
         wrong.length
           ? wrong.slice(0, 3).join(" · ")
-          : `${Object.keys(init.rules).length} ids, each with its pull request and merge date`,
+          : `${Object.keys(init.rules).length} ids, each with its pull request, merge date and comment link`,
       ),
     ),
     check(

@@ -11,6 +11,7 @@
  *
  * Issues need the App. Without it a push review still runs and reports to
  * CI, but opens, comments on and closes nothing. */
+import { withResolvedReferences } from "../review/references.ts";
 import { parseFindings, type ParsedFinding } from "../pr/findings.ts";
 import { githubFileToRevisionFile } from "../pr/github_revision.ts";
 import { reviewWorkspaceRevision } from "../pr/reviewer.ts";
@@ -546,6 +547,7 @@ function resolvedNew(
       severity: finding.severity ?? "P2",
       carriedFromId: null,
       firstSeenReviewId: null,
+      referenceIds: finding.references ?? [],
     };
   });
 }
@@ -945,7 +947,11 @@ async function runPushReview(
       parsePreviousVerdicts(text).map((v) => [v.id, v] as const),
     );
     const found = sortResolvedFindings(
-      resolvedNew(parseFindings(text), revision),
+      withResolvedReferences(
+        resolvedNew(parseFindings(text), revision),
+        job.repo,
+        response?.referenceContext,
+      ),
     );
     const row = getRepo(job.repo);
     const { report, activity } = client
@@ -986,6 +992,7 @@ async function runPushReview(
         bodyMd: finding.bodyMd,
         anchorText: finding.anchorText,
         state: "new",
+        referencesJson: JSON.stringify(finding.references ?? []),
       });
     }
 

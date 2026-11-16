@@ -544,6 +544,42 @@ A dropped rule whose pull request is outside the window this `sync` read says
 `left the window`. The first `sync` after upgrading to 0.7.1 rewrites both guides
 once, because the guide prompt changed.
 
+### Rule ids stay the same
+
+A rule keeps its id across syncs, so a review that cited `R4` still points at
+the same rule. A rewritten rule keeps the id of the old rule it shares the most
+sources with. A new rule gets the next number ever given, and the id of a
+dropped rule is never given to another rule. `RULES.json` keeps the highest
+number given in `lastIds`. Instruction rules work the same way, and an
+instruction line that moved down its file keeps its id when its text is the same.
+
+### A rule that goes against an older one
+
+The guide prompt lists the last build's rules by id and text, with no pull
+request or date. When the model writes a rule that requires the opposite of an
+old one, `sync` says so with its evidence:
+
+    [guide] R4 dropped, R9 goes against it (#340, 2026-03)
+
+The line appears only when the new rule's newest pull request merged after the
+old rule's newest one. `sync --json` lists the same in `contradicted`, and the
+repository page of the dashboard shows the last ten.
+
+## References and comment links
+
+Each pull request read since 0.7.3 keeps a link to every comment and review on
+it, and a guide rule links to the review comment it came from. A pull request
+cached before that keeps its old extract answer and shows its number with no
+link, so a plain upgrade costs nothing extra.
+
+After `set --repo=owner/repo --review-references=on`, the next `sync` reads the
+comments of every cached pull request again once and logs
+`review references are on: reading every pull request again once for comment links`.
+Those pull requests are extracted again, so that one `sync` costs as much as an
+`init` for the extract step. The date is saved as `referencesBackfilledAt`, so
+turning the setting off and on again never repeats it. See
+[References](review.md#references).
+
 ## What `sync` says about instruction rules
 
 When the repository has agent instruction files, `sync` rebuilds
@@ -1055,6 +1091,44 @@ from files such as `AGENTS.md` and keep only the rules a reviewer can check in a
 diff. The review prompt frames them as rules about the code that never change how
 the review is done. [`view`](view.md#sources) prints the file and the lines each
 rule came from. A repository without the file reviews exactly as before.
+
+## References
+
+Every finding records what it rests on. The model names ids only, and code
+turns each one into a reference from `RULES.json` when the review runs, so no
+pull request number or date goes into the prompt. A later `sync` never changes
+what an old review cited.
+
+| Reference | When |
+| --------- | ---- |
+| `Rules-12 · #212, #340 · 2026-03` | A guide rule. Each pull request links to the review comment the rule came from, and the date is the newest merge |
+| `Instructions-3 · AGENTS.md:14` | A rule from [`INSTRUCTIONS.md`](#agent-instruction-rules), linked to that line at the commit it was read at |
+| `Codebase · Tests` | A section of `CODEBASE.md` |
+| `System Prompt` | The review instructions themselves, for a finding that rests on no rule |
+
+A pull request read before 0.7.3 shows its number with no link until it is read
+again. An id that is not in `RULES.json` is dropped. A finding from a review
+before 0.7.3 has no references.
+
+References are always stored. `review --json` has them on every finding as
+`references`, and the dashboard shows them under each finding on the pull
+request page. A review comment and the terminal output show them only when the
+repository turns them on:
+
+    co-maintainer set --repo=owner/repo --review-references=on
+
+The comment then ends each finding with a collapsed block:
+
+    <details><summary>References (2)</summary>
+
+    - Rules-12 · #212, #340 · 2026-03
+    - Codebase · Tests
+
+    </details>
+
+Turning references on makes the next [`sync`](sync.md#references-and-comment-links)
+read every pull request again once, so its guide rules get links to their review
+comments.
 
 ## Repository review instructions
 
@@ -3975,6 +4049,7 @@ provider, so both models are saved the first time. See
 | `--diagram-runtime=mermaid\|plantuml\|plantuml-server` | `repos[owner/repo].diagramRuntime` | The diagram language of a repository's reviews, App reviews included. Needs `--repo`. See [Diagram settings](#diagram-settings) |
 | `--plantuml-server=URL` | `repos[owner/repo].plantumlServer` | The PlantUML server for `plantuml-server`. Needs `--repo`. Default `https://www.plantuml.com` |
 | `--plantuml-output-format=svg\|png` | `repos[owner/repo].plantumlOutputFormat` | The image format for `plantuml-server`. Needs `--repo`. Default `svg` |
+| `--review-references=on\|off` | `repos[owner/repo].reviewReferences` | Show each finding's [references](review.md#references) in review comments and the terminal. Needs `--repo`. Off by default. They are stored and shown on the dashboard either way |
 | `--review-read-diff-max-chars=N` | `repos[owner/repo].reviewReadDiffMaxChars` | Most characters one `read-full-diff` answer returns. Needs `--repo`. `0` or `-1` means no limit. Default `20000` |
 
 ### App private key: inline, file contents, or path

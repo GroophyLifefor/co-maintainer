@@ -1,4 +1,5 @@
 /** Read models for dashboard pages and the JSON APIs that mirror them. */
+import { listRuleEvents } from "../store/rule_events.ts";
 import { reposDir } from "../config.ts";
 import { getDrift } from "../store/drift.ts";
 import { refreshDrift } from "./drift.ts";
@@ -150,6 +151,7 @@ export function repoOverview(fullName: string) {
       severities: listFindingsForReview(review.id).map((f) => f.severity),
     })),
     latestJob: latestSetupJob(fullName),
+    ruleEvents: listRuleEvents(fullName, 10),
   };
 }
 

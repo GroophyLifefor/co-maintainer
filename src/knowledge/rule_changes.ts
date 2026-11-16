@@ -144,3 +144,62 @@ export function ruleChangeLine(changes: RuleChanges): string {
   }
   return parts.length > 0 ? parts.join(" · ") : "no rule changed";
 }
+
+export type Contradiction = {
+  /** The old rule. */
+  id: string;
+  /** The new rule that goes against it. */
+  by: string;
+  /** The new rule's pull requests, `#340`. */
+  sources: string[];
+  /** The newest merge date of the new rule, `YYYY-MM-DD`. */
+  newest: string;
+  /** False when the old id is still in this build. */
+  dropped: boolean;
+};
+
+function newestDate(entry: RuleEntry): string | undefined {
+  const dates = entry.sources.flatMap((source) =>
+    "pr" in source && source.mergedAt ? [source.mergedAt] : [],
+  );
+  return dates.length ? dates.sort().at(-1) : undefined;
+}
+
+/** The old rules the guide AI said a new rule goes against, kept only when
+ * the old rule existed and the new rule's newest pull request was merged
+ * after the old rule's newest one. Without both dates nothing is claimed. */
+export function contradictions(
+  previous: Record<string, RuleEntry> | undefined,
+  next: Record<string, RuleEntry>,
+  overturns: Map<string, string[]>,
+): Contradiction[] {
+  const found: Contradiction[] = [];
+  for (const [by, ids] of overturns) {
+    const entry = next[by];
+    if (!entry) continue;
+    const newest = newestDate(entry);
+    if (!newest) continue;
+    for (const id of ids) {
+      const old = previous?.[id];
+      if (!old || id === by) continue;
+      const oldNewest = newestDate(old);
+      if (!oldNewest || newest <= oldNewest) continue;
+      found.push({
+        id,
+        by,
+        sources: labels(entry),
+        newest,
+        dropped: !(id in next),
+      });
+    }
+  }
+  return found;
+}
+
+/** `R4 dropped, R9 goes against it (#340, 2026-03)`. */
+export function contradictionLine(item: Contradiction): string {
+  const evidence = `${listed(item.sources, 3)}, ${item.newest.slice(0, 7)}`;
+  return item.dropped
+    ? `${item.id} dropped, ${item.by} goes against it (${evidence})`
+    : `${item.by} goes against ${item.id} (${evidence})`;
+}

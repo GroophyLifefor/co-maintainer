@@ -1,4 +1,5 @@
 import type { GitHubClient, Json, Options } from "../types.ts";
+import type { ReferenceContext } from "../review/references.ts";
 import {
   guideRebuiltSince,
   type ResolvedFinding,
@@ -25,6 +26,7 @@ type EngineAnswer = {
   text: string;
   visiblePaths: string[];
   guideBuiltAt: string | null;
+  referenceContext?: ReferenceContext;
 };
 
 /** What a CLI pull request review needs around the engine call. `extras` goes
@@ -122,6 +124,7 @@ export async function startPrCarry(
             producer: "github",
           },
           response,
+          repo,
         ).resolved,
     };
   }
@@ -158,7 +161,12 @@ export async function startPrCarry(
     extras: { ...run.extras, prefetched },
     warnings,
     finish: async (response) => {
-      const { resolved, visiblePaths } = finishCarryRun(run, current, response);
+      const { resolved, visiblePaths } = finishCarryRun(
+        run,
+        current,
+        response,
+        repo,
+      );
       try {
         await savePrCarry({
           subjectId: prSubjectId(repo, prNumber),

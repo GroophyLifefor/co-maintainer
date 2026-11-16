@@ -105,6 +105,7 @@ export async function runSet(args: string[]): Promise<void> {
     "review-policy",
     "review-policy-file",
     "review-blocking",
+    "review-references",
     "codegraph-version",
     "gh-concurrent",
     "ai-concurrent",
@@ -135,7 +136,7 @@ export async function runSet(args: string[]): Promise<void> {
     await runSetRepo(repoArg, args);
     return;
   }
-  for (const name of DIAGRAM_FLAGS) {
+  for (const name of [...DIAGRAM_FLAGS, "review-references"]) {
     if (text(args, name) !== undefined) die(`--${name} needs --repo`);
   }
 
@@ -439,6 +440,7 @@ const REPO_SCOPED_FLAGS = new Set([
   "review-system-prompt-max-chars",
   ...DIAGRAM_FLAGS,
   "review-read-diff-max-chars",
+  "review-references",
   "gh-concurrent",
   "ai-concurrent",
   "unset",
@@ -461,6 +463,8 @@ const REPO_SCOPED_UNSET = new Set([
   "ghConcurrent",
   "ai-concurrent",
   "aiConcurrent",
+  "review-references",
+  "reviewReferences",
 ]);
 
 /** `set --repo=owner/repo [--review-system-prompt=... | --review-system-prompt-max-chars=N | --review-read-diff-max-chars=N | --unset=name]`
@@ -568,13 +572,28 @@ async function runSetRepo(typed: string, args: string[]): Promise<void> {
       patch.reviewReadDiffMaxChars = value;
     }
   }
+  if (unset.has("review-references") || unset.has("reviewReferences")) {
+    patch.reviewReferences = undefined;
+  }
+  const references = text(args, "review-references");
+  if (references !== undefined) {
+    if (!["on", "off"].includes(references)) {
+      die("--review-references must be on or off");
+    }
+    patch.reviewReferences = references === "on";
+    if (references === "on" && !existing.referencesBackfilledAt) {
+      console.log(
+        "[set] the next sync reads every pull request again once, so guide rules get links to the review comments they came from",
+      );
+    }
+  }
   const prompt = text(args, "review-system-prompt");
   if (prompt !== undefined) {
     patch.reviewSystemPrompt = prompt.trim() === "" ? undefined : prompt;
   }
   if (Object.keys(patch).length === 0) {
     die(
-      "Nothing to set. Pass --review-system-prompt=, --review-system-prompt-max-chars=N, --diagram-runtime=, --plantuml-server=, --plantuml-output-format=, --review-read-diff-max-chars=N, or --unset=name with --repo.",
+      "Nothing to set. Pass --review-system-prompt=, --review-system-prompt-max-chars=N, --diagram-runtime=, --plantuml-server=, --plantuml-output-format=, --review-read-diff-max-chars=N, --review-references=on|off, or --unset=name with --repo.",
     );
   }
   // The values after this write are the ones given here, or the stored ones.
