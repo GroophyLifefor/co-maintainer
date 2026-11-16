@@ -11,6 +11,7 @@ import {
 import { formatCost, formatCostTotal, totalOfRows } from "./cost.ts";
 import type { prDetail } from "../../services/dashboard.ts";
 import { extensionCostNote, renderExtensionResults } from "./extensions.ts";
+import { referencesHtml } from "./references.ts";
 
 export function renderPr(
   username: string,
@@ -63,6 +64,7 @@ export function renderPr(
             finding.path ? `${finding.path}:${finding.line_from ?? ""}` : "",
           )}</div>
           ${markdown(finding.body_md)}
+          ${referencesHtml(finding.references_json)}
         </div>`,
           )
           .join("")}

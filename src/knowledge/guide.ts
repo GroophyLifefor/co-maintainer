@@ -13,7 +13,12 @@ export type ReviewDocuments = {
   detailed?: string;
   /** Every check line that got an `R` id, with the pull requests of the
    * findings it merges. */
-  rules?: (GuideRule & { pullRequests: number[] })[];
+  rules?: (GuideRule & {
+    pullRequests: number[];
+    /** The review comment links of the merged findings, when they were
+     * kept. A pull request with no link here shows as plain text. */
+    links?: { pr: number; url: string }[];
+  })[];
   /** Check lines and how many of them got an id, per file. */
   counts?: GuideFileCount[];
 };
@@ -198,6 +203,14 @@ export function findingPullRequests(facts: Fact[]): number[][] {
     ]);
 }
 
+/** The review comment links behind each finding in `guideMaterial`, by
+ * position like `findingPullRequests`. Never sent to the model. */
+export function findingLinks(facts: Fact[]): { pr: number; url: string }[][] {
+  return guideFindings(facts)
+    .slice(0, MAX_FINDINGS)
+    .map((item) => item.links ?? []);
+}
+
 const GUIDE_SYSTEM = `You write a code-review method for an unfamiliar open-source repository.
 Ground every check in the supplied findings. Never invent a file, path, command, or policy. Never write a pull-request number, a commit id, a reviewer name, a mention, a quoted comment, or an attribution. Never add a priority tag. Never tell the reader to run a command.`;
 
@@ -213,7 +226,26 @@ const CHECK_SHAPE = `- Under each pass, write each rule as one general invariant
   - \`<trigger: a path, glob, or symbol>\` → <what must also change or be verified>
 - Order passes and rules by how often the findings recur, most first. Prefer the general rule over a one-off, and keep the one-off as the example under it.`;
 
-function fullGuideRequest(material: string): AiRequest {
+/** The last build's guide rules as the guide prompt sees them: id and text,
+ * never a pull request or a date. Empty when there were none, so a first
+ * build sends the same prompt as before. */
+export function previousRulesMaterial(
+  previous: Record<string, { text: string }> | undefined,
+): string {
+  const rules = Object.entries(previous ?? {})
+    .filter(([id]) => /^R[1-9]\d*$/.test(id))
+    .sort(([a], [b]) => Number(a.slice(1)) - Number(b.slice(1)))
+    .map(([id, entry]) => ({ id, rule: entry.text }));
+  return rules.length ? JSON.stringify(rules, null, 2) : "";
+}
+
+function fullGuideRequest(material: string, previous = ""): AiRequest {
+  const overturns = previous
+    ? `
+- PREVIOUS RULES lists the rules of the last build by id. When a rule line you write requires the opposite of a previous rule, put \`(overturns R4)\` with that id right before the line's bracket. Name only a previous rule the line clearly contradicts, never one it only rewords or extends.`
+    : "";
+  // Before FINDINGS, so the findings stay the last block of the prompt.
+  const previousBlock = previous ? `PREVIOUS RULES:\n${previous}\n\n` : "";
   return {
     job: "synth_guide",
     maxTokens: 16_000,
@@ -223,10 +255,10 @@ function fullGuideRequest(material: string): AiRequest {
 - Start with one \`#\` title, one sentence of purpose, and one line on how to use the method.
 ${CONSOLIDATE}
 ${CHECK_SHAPE}
-- End every rule line with the numbers of the findings it merges, in square brackets, for example [3, 17]. Each finding has a "number". Put these brackets on no other line.
+- End every rule line with the numbers of the findings it merges, in square brackets, for example [3, 17]. Each finding has a "number". Put these brackets on no other line.${overturns}
 - No priority tags. No commands. No code fences. Return only the Markdown.
 
-FINDINGS:
+${previousBlock}FINDINGS:
 ${material}`,
   };
 }
@@ -272,6 +304,9 @@ export async function synthesizeReviewGuides(
   concurrency: number,
   facts: Fact[],
   usage?: UsageSink,
+  /** The last build's `RULES.json` rules, so the AI can say which old rule a
+   * new line goes against. */
+  previousRules?: Record<string, { text: string }>,
 ): Promise<ReviewDocuments | undefined> {
   const findings = guideFindings(facts);
   if (findings.length <= 2) return undefined;
@@ -285,7 +320,10 @@ export async function synthesizeReviewGuides(
     Math.max(1, concurrency),
     `${ai}:v3:${model}:guide`,
   );
-  const [fullResponse] = await queue.run([fullGuideRequest(material)], usage);
+  const [fullResponse] = await queue.run(
+    [fullGuideRequest(material, previousRulesMaterial(previousRules))],
+    usage,
+  );
   const full = cleanGuide(fullResponse?.text ?? "");
   if (!full) {
     // Not a failure: SKILL.md and CODEBASE.md are written anyway.
@@ -294,9 +332,10 @@ export async function synthesizeReviewGuides(
   }
 
   const sources = findingPullRequests(facts);
+  const links = findingLinks(facts);
   const fullLines = full.split("\n").length;
   if (fullLines <= DETAIL_THRESHOLD_LINES) {
-    return withRuleIds(withTrailingNewline(full), undefined, sources);
+    return withRuleIds(withTrailingNewline(full), undefined, sources, links);
   }
   // The short guide is asked from the full method with its finding brackets
   // still on, so it can carry them over to the lines it summarizes.
@@ -305,8 +344,9 @@ export async function synthesizeReviewGuides(
     usage,
   );
   const short = cleanGuide(shortResponse?.text ?? "");
-  if (!short) return withRuleIds(withTrailingNewline(full), undefined, sources);
-  return withRuleIds(withTrailingNewline(short), full, sources);
+  if (!short)
+    return withRuleIds(withTrailingNewline(full), undefined, sources, links);
+  return withRuleIds(withTrailingNewline(short), full, sources, links);
 }
 
 /** Replaces the finding brackets with `R` ids and attaches each id's pull
@@ -315,6 +355,7 @@ function withRuleIds(
   guide: string,
   detailed: string | undefined,
   sources: number[][],
+  links: { pr: number; url: string }[][] = [],
 ): ReviewDocuments {
   const assigned = assignGuideIds(guide, detailed, sources.length);
   return {
@@ -325,6 +366,12 @@ function withRuleIds(
       pullRequests: [
         ...new Set(rule.findings.flatMap((n) => sources[n - 1] ?? [])),
       ].sort((a, b) => a - b),
+      links: rule.findings
+        .flatMap((n) => links[n - 1] ?? [])
+        .filter(
+          (link, index, all) =>
+            all.findIndex((other) => other.url === link.url) === index,
+        ),
     })),
     counts: assigned.counts,
   };

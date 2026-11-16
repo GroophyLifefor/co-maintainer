@@ -54,6 +54,15 @@ export type RepoConfig = {
   /** How a review decides a blocking finding for this repository. Unset
    * follows the server default. */
   reviewBlocking?: "model" | "severity";
+  /** Show each finding's references (the guide rules, instructions,
+   * codebase conventions or review instructions it rests on) in the review
+   * comment. Unset or false keeps them out of the comment. They are stored
+   * and shown on the dashboard either way. */
+  reviewReferences?: boolean;
+  /** When the first sync after `reviewReferences` was turned on re-read
+   * every pull request so its rules get comment links. Set once, so turning
+   * the setting off and on again never re-reads them a second time. */
+  referencesBackfilledAt?: string;
   /** A repository's own review instructions, appended to the built-in
    * reviewer prompt as a `CUSTOM REVIEW INSTRUCTIONS` section. Unset or blank
    * means none. */

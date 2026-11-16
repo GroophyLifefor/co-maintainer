@@ -1,4 +1,8 @@
 import { VERSION } from "../version.ts";
+import {
+  parseStoredReferences,
+  withResolvedReferences,
+} from "../review/references.ts";
 import { CliError } from "../cli/error.ts";
 import {
   resolvedFromFirstReview,
@@ -467,6 +471,7 @@ export function registerRemoteReviewHandler(): void {
                 title: row.title,
                 bodyMd: row.body_md,
                 anchorText: row.anchor_text,
+                references: parseStoredReferences(row.references_json),
                 severity: row.severity,
                 firstSeenReviewId:
                   row.first_seen_review_id ?? subjectRevision.review_id,
@@ -536,20 +541,24 @@ export function registerRemoteReviewHandler(): void {
         // a finding the model kept open, for good.
         const visible = new Set(result.visiblePaths);
         const findings = sortResolvedFindings(
-          previous
-            ? resolveCarryOutcomes(
-                classifyCarryItems(
-                  previous,
+          withResolvedReferences(
+            previous
+              ? resolveCarryOutcomes(
+                  classifyCarryItems(
+                    previous,
+                    revision,
+                    visible,
+                    result.guideBuiltAt,
+                  ),
                   revision,
                   visible,
-                  result.guideBuiltAt,
-                ),
-                revision,
-                visible,
-                parsePreviousVerdicts(result.text),
-                parsed,
-              )
-            : resolvedFromFirstReview(parsed, filesByPath),
+                  parsePreviousVerdicts(result.text),
+                  parsed,
+                )
+              : resolvedFromFirstReview(parsed, filesByPath),
+            options.repo,
+            result.referenceContext,
+          ),
         );
         const durationMs = Math.round(performance.now() - started);
         const blockingMode = reviewBlockingFrom(options.reviewBlocking);
@@ -630,6 +639,7 @@ export function registerRemoteReviewHandler(): void {
               anchorText: row.anchorText,
               state: row.state,
               closeReason: row.closeReason ?? null,
+              referencesJson: JSON.stringify(row.references ?? []),
             });
           }
         }

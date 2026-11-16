@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+**Before you upgrade.** `review --json` gains `references` on every finding, and `sync --json` gains `contradicted` when a new guide rule goes against an old one. `RULES.json` gains `lastIds`, and a guide rule source can carry `url`. Once a repository has a `RULES.json`, the guide prompt also lists its rules, so each repository's next `sync` writes both guides once more.
+
+**The database migrates once.** The first command that opens `app.db` adds a `references_json` column to findings and a `rule_events` table. The backup and `co-maintainer rollback` work as in 0.7.0.
+
+### Added
+
+- **A review finding says where its rule came from.** The model names the ids a finding rests on, and code turns them into references from `RULES.json`: `Rules-12 · #212, #340 · 2026-03`, `Instructions-3 · AGENTS.md:14`, `Codebase · Tests` or `System Prompt`. A pull request links to the review comment the rule came from. No pull request number or date goes into the prompt, and an id that is not in `RULES.json` is dropped. References are stored with each finding, in `review --json` and on the dashboard pull request page. `set --repo=owner/repo --review-references=on` also shows them in review comments, as a collapsed `References (n)` block, and in the terminal. Off by default.
+- **Guide rules keep their review comment.** `collect` keeps the link of each comment and review, the extract prompt numbers them and the model names the ones a finding came from. A pull request cached before this keeps the old prompt and its cached answer. Turning references on reads every cached pull request again once, on the next `sync`.
+- **A rule that goes against an older one says so.** The guide prompt lists the last build's rules, and a new line can name the one it overturns. `sync` prints `[guide] R4 dropped, R9 goes against it (#340, 2026-03)` when the new rule's newest pull request merged later, `sync --json` lists it in `contradicted`, and the dashboard repository page shows the last ten.
+- **An `e2e:simulate` flow, `review-references`,** runs init, a review with references off and on, and the one-time read again.
+
+### Changed
+
+- **Rule ids stay the same across syncs.** A rewritten rule keeps its id, a new rule gets the next number ever given, and a dropped id is never given again. Before, every build numbered its rules from 1.
+
 ## [0.7.2] - 2026-11-15
 
 **Before you upgrade.** A review comment posted by a release older than 0.5.0 used an em dash between the path and the symbol in a finding heading. co-maintainer no longer splits that form into a path and a symbol, so such an old comment reads as one heading. The note that a retry posts after a failed review now reads `co-maintainer reviewed this push. The review is below.`

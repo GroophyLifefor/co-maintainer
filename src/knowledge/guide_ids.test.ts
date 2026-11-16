@@ -166,3 +166,20 @@ See [PR_REVIEW_DETAILED_GUIDE.md](PR_REVIEW_DETAILED_GUIDE.md) for the full meth
     throw new Error("the link to the detailed guide was touched");
   }
 });
+
+test("an overturns note before the bracket is taken off the line and kept on the rule", () => {
+  const guide = `# Review method
+
+How to review a change here.
+
+## Rounding
+
+- Percentages round half up · totals drift (overturns R4) [1]
+`;
+  const out = assignGuideIds(guide, undefined, 1);
+  if (out.guide.includes("overturns")) throw new Error(out.guide);
+  if (!out.guide.includes("totals drift [R1]")) throw new Error(out.guide);
+  if (JSON.stringify(out.rules[0]?.overturns) !== '["R4"]') {
+    throw new Error(JSON.stringify(out.rules));
+  }
+});

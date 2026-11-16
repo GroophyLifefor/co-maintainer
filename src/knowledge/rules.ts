@@ -16,7 +16,14 @@ export const DETAILED_GUIDE_FILE = "PR_REVIEW_DETAILED_GUIDE.md";
  * instruction file. `mergedAt` is a `YYYY-MM-DD` date, missing for an
  * unmerged pull request or one cached before the date was kept. */
 export type RuleSource =
-  | { pr: number; mergedAt?: string }
+  | {
+      pr: number;
+      mergedAt?: string;
+      /** The review comment the rule came from. Missing when the pull
+       * request was read before links were kept, or the rule came from its
+       * body or diff. */
+      url?: string;
+    }
   | { path: string; line: number };
 
 export type RuleEntry = {
@@ -35,6 +42,10 @@ export type RulesFile = {
   schemaVersion: 1;
   builtAt: string;
   rules: Record<string, RuleEntry>;
+  /** The highest number ever given per kind, so a dropped id is never given
+   * to another rule. Missing in files written before ids were kept stable:
+   * the highest id in `rules` stands in. */
+  lastIds?: { R: number; I: number };
 };
 
 /** Ids are `R` for guide rules and `I` for instruction rules, then a number.
@@ -45,7 +56,10 @@ function isSource(value: unknown): value is RuleSource {
   if (!value || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
   if (typeof record.pr === "number") {
-    return record.mergedAt === undefined || typeof record.mergedAt === "string";
+    return (
+      (record.mergedAt === undefined || typeof record.mergedAt === "string") &&
+      (record.url === undefined || typeof record.url === "string")
+    );
   }
   return typeof record.path === "string" && typeof record.line === "number";
 }
@@ -83,10 +97,19 @@ export function parseRules(text: string): RulesFile | null {
       sources,
     };
   }
+  const last = record.lastIds as Record<string, unknown> | undefined;
+  const lastIds =
+    last &&
+    typeof last === "object" &&
+    Number.isInteger(last.R) &&
+    Number.isInteger(last.I)
+      ? { R: Number(last.R), I: Number(last.I) }
+      : undefined;
   return {
     schemaVersion: 1,
     builtAt: typeof record.builtAt === "string" ? record.builtAt : "",
     rules,
+    ...(lastIds ? { lastIds } : {}),
   };
 }
 

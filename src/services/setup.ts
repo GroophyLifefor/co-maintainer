@@ -1,6 +1,7 @@
 /** `init`/`remake` orchestration. The dashboard calls `runInitOrRemake`
  * directly. It used to re-spawn the CLI as a subprocess, a second
  * execution path with its own failure modes. */
+import { recordContradictions } from "../store/rule_events.ts";
 import { aiProviderName, createAiProvider } from "../ai/provider.ts";
 import { enrichFacts, synthesizeSections } from "../knowledge/synthesis.ts";
 import { collectSource } from "../github/collect.ts";
@@ -52,6 +53,8 @@ import { buildSetupJson } from "../cli/command_json.ts";
 import {
   buildInstructions,
   instructionsJson,
+  readRulesFile,
+  stabilizeRuleIds,
   writeInstructionsAndRules,
   type InstructionsOutcome,
   type RulesWriteResult,
@@ -359,6 +362,18 @@ export async function runInitOrRemake(options: Options): Promise<void> {
 }
 
 async function initOrRemake(options: Options): Promise<void> {
+  // Turning review references on re-reads every pull request once, so the
+  // guide rules get links to the review comments they came from.
+  const repoConfig = readConfig().repos?.[options.repo];
+  const backfillLinks =
+    repoConfig?.reviewReferences === true && !repoConfig.referencesBackfilledAt;
+  if (backfillLinks) {
+    options = { ...options, refreshCommentLinks: true };
+    log(
+      "fetch",
+      "review references are on: reading every pull request again once for comment links",
+    );
+  }
   const operationStarted = performance.now();
   const aiMetrics = emptyAiMetrics();
   const previous = await readState(options.repo);
@@ -475,6 +490,10 @@ async function initOrRemake(options: Options): Promise<void> {
       `synth_section complete · ${Object.keys(overrides).length} sections`,
     );
     log("ai", "starting synth_guide jobs");
+    // The last build's rules let the guide AI say which old rule a new line
+    // goes against. Read outside the lock: it only shapes the prompt, the ids
+    // are mapped under the lock below.
+    const previousRules = (await readRulesFile(options.repo))?.rules;
     reviewDocuments = await timed("synth_guide AI", options.logTime, () =>
       synthesizeReviewGuides(
         highAi,
@@ -484,6 +503,7 @@ async function initOrRemake(options: Options): Promise<void> {
         options.aiConcurrent,
         facts,
         usage,
+        previousRules,
       ),
     );
     log(
@@ -553,6 +573,15 @@ async function initOrRemake(options: Options): Promise<void> {
     const { withKnowledgeLock } = await import("../review/guides.ts");
     const { writeTextFileAtomic } = await import("../util/atomic.ts");
     await withKnowledgeLock(options.repo, async () => {
+      // Ids are mapped onto the last build's before the guides are written,
+      // so a review that cited R4 still points at the same rule.
+      const stable = await stabilizeRuleIds(
+        options.repo,
+        reviewDocuments,
+        instructions,
+      );
+      reviewDocuments = stable.documents;
+      instructions = stable.instructions;
       await writeTextFileAtomic(path, result.markdown);
       await writeCodebaseDocument(options.repo, overrides, unchangedSections);
       await writeReviewDocuments(
@@ -570,6 +599,7 @@ async function initOrRemake(options: Options): Promise<void> {
         signalCount: reviewSignalCount(facts),
         instructions,
         source,
+        lastIds: stable.lastIds,
       });
       const head = source.commits[0] as { sha?: string } | undefined;
       const baseSha = head?.sha ? String(head.sha) : new Date().toISOString();
@@ -577,6 +607,8 @@ async function initOrRemake(options: Options): Promise<void> {
       // dashboard never sees what it built. A dashboard job already has one.
       registerCliRepo(options.repo);
       markKnowledgeBuilt(options.repo, baseSha);
+      // The dashboard repo page lists guide rules a newer rule went against.
+      recordContradictions(options.repo, rulesResult.contradicted);
     });
     await writeState({
       version: 1,
@@ -612,6 +644,9 @@ async function initOrRemake(options: Options): Promise<void> {
       prState: options.prState,
       agentInstructions: options.agentInstructions,
       agentInstructionsMaxChars: options.agentInstructionsMaxChars,
+      ...(backfillLinks
+        ? { referencesBackfilledAt: new Date().toISOString() }
+        : {}),
     });
   });
   log(
@@ -652,6 +687,7 @@ async function initOrRemake(options: Options): Promise<void> {
           ? {
               instructions: instructionsJson(instructions),
               ruleChanges: rulesResult.changes,
+              contradicted: rulesResult.contradicted,
             }
           : {}),
         summary,

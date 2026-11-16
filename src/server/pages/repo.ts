@@ -8,6 +8,8 @@ import {
   text,
   when,
 } from "./layout.ts";
+import { contradictionLine } from "../../knowledge/rule_changes.ts";
+import type { RuleEventRow } from "../../store/rule_events.ts";
 import {
   badge,
   crumb,
@@ -202,6 +204,7 @@ export function renderRepo(
       action: `<a class="btn gh sm" href="/repos/${text(name)}/settings">Change</a>`,
     })}</div>
   </div>
+  ${ruleEventsCard(data.ruleEvents)}
   ${commitWatch}
 </div>
 <script>
@@ -213,4 +216,30 @@ if (remake) remake.addEventListener("click", function() {
 </script>`,
     }),
   );
+}
+
+/** Guide rules a newer rule went against, newest first, from `sync`. Left
+ * out when there are none. */
+function ruleEventsCard(events: RuleEventRow[]): string {
+  if (events.length === 0) return "";
+  const items = events.map((event) => {
+    let detail: { sources?: string[]; newest?: string; dropped?: boolean } = {};
+    try {
+      detail = JSON.parse(event.detail_json);
+    } catch {
+      // A bad row still shows its ids.
+    }
+    const line = contradictionLine({
+      id: event.rule_id,
+      by: event.by_rule_id ?? "",
+      sources: Array.isArray(detail.sources) ? detail.sources : [],
+      newest: typeof detail.newest === "string" ? detail.newest : "",
+      dropped: detail.dropped === true,
+    });
+    return `<li>${text(line)} <span class="muted" style="font-size:13px">${when(event.at)}</span></li>`;
+  });
+  return `<div class="card">${section(
+    `<ul style="margin:0 0 0 18px">${items.join("")}</ul>`,
+    { title: "Guide rules that changed direction" },
+  )}</div>`;
 }

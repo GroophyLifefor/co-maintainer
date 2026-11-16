@@ -11,6 +11,9 @@ export type ParsedFinding = Span & {
   blocking?: boolean;
   symbol?: string;
   summary?: string;
+  /** The ids from the finding's `References:` line, as the model wrote them.
+   * Missing when the line is absent. */
+  references?: string[];
 };
 
 const FILE_LINE =
@@ -47,8 +50,26 @@ function location(block: string):
   };
 }
 
+/** The `References:` line, only right under the Location line where
+ * `findingMarkdown` writes it, so a body sentence starting with the same word
+ * is never taken. */
+const REFERENCES_LINE =
+  /^(\s*(?:Location|File)\s*:[^\n]*)\n\s*References\s*:\s*([^\n]+?)\s*$/im;
+
+function references(block: string): string[] | undefined {
+  const match = REFERENCES_LINE.exec(block);
+  if (!match) return undefined;
+  return match[2]
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+}
+
 function bodyWithoutLocation(block: string): string {
-  return block.replace(/^\s*(?:Location|File)\s*:\s*`?.+?`?\s*$/im, "").trim();
+  return block
+    .replace(REFERENCES_LINE, "$1")
+    .replace(/^\s*(?:Location|File)\s*:\s*`?.+?`?\s*$/im, "")
+    .trim();
 }
 
 function newFinding(header: string, block: string): ParsedFinding | undefined {
@@ -75,6 +96,10 @@ function newFinding(header: string, block: string): ParsedFinding | undefined {
     blocking: impact === "blocking",
     symbol: symbol || undefined,
     summary,
+    ...(() => {
+      const ids = references(block);
+      return ids ? { references: ids } : {};
+    })(),
   };
 }
 

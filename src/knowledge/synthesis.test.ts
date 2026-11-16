@@ -1,6 +1,10 @@
-import { extractAiFacts, synthesizeSections } from "./synthesis.ts";
+import {
+  extractAiFacts,
+  extractPrompt,
+  synthesizeSections,
+} from "./synthesis.ts";
 import { testOptions } from "../testing/helpers.ts";
-import type { Source } from "./types.ts";
+import type { PullRequest, Source } from "./types.ts";
 import { cacheDeletePrefix } from "../store/cache_db.ts";
 import { testFact } from "../testing/helpers.ts";
 import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
@@ -177,6 +181,136 @@ test("extraction reads the real array when the model returns two", async () => {
     );
     if (!facts.some((item) => item.claim === "Work here.")) {
       throw new Error(`the real array was lost: ${JSON.stringify(facts)}`);
+    }
+  } finally {
+    await cacheDeletePrefix("ai-jobs", `${repo}:`);
+  }
+});
+
+// The extract prompt before comment links were kept, copied from 0.7.2. A
+// pull request cached without links must get exactly this text, or every
+// cached extract answer misses and the first 0.7.3 sync pays for all of them.
+function promptText072(value: string, limit = 6_000): string {
+  return value.length > limit ? `${value.slice(0, limit)}\n[truncated]` : value;
+}
+function extractPrompt072(pr: PullRequest): string {
+  const unit = JSON.stringify({
+    number: pr.number,
+    title: pr.title,
+    body: promptText072(pr.body),
+    labels: pr.labels,
+    comments: pr.comments.map((comment) => promptText072(comment, 2_000)),
+    reviewComments: pr.reviewComments.map((comment) =>
+      promptText072(comment, 2_000),
+    ),
+    reviews: pr.reviews.map((review) => promptText072(review, 2_000)),
+    changedFiles: pr.changedFiles,
+    diff: promptText072(pr.diff, 8_000),
+  });
+  return `Analyze this pull request's reviews, comments, code and diff, and return only a JSON array of review findings.
+Each item must have exactly:
+{"sectionKey":"review","class":"a short area name","claim":"the invariant a reviewer would enforce, imperative and general","location":"path or path:line the finding is about, or empty when none","trigger":"the diff surface that should trigger this rule: a path, glob, or symbol, or empty when none","impact":"why this matters here, from the review's reasoning","action":"what to change or verify","scope":"historical-example","confidence":"medium"}
+Rules:
+- Include only substantive findings: a reviewer identifies something to fix, change, verify or decide.
+- Never write an approval, a merge, "LGTM", thanks, a reviewer name, a pull-request number, a commit id, or quoted comment text.
+- The claim is a general invariant, not one past fix: "When X changes, Y must also change", or "Every Z uses W", never "change this one line".
+- trigger is what a reviewer can see in a diff: a path, a glob, or a symbol. It is how the rule applies to a future change, so a rule with no trigger is a one-off and is not useful.
+- impact and action are mandatory and concrete. Paraphrase the reviewer's reasoning for impact. Never quote it.
+- class is a short area label chosen from a small, consistent set. Reuse the same label for findings of the same kind so related findings can be grouped.
+- location is a repository path when the review names one, otherwise leave it empty.
+- Return every distinct finding the reviews support, not a summary. Do not explain the answer.
+
+PULL REQUEST:
+${unit}`;
+}
+
+function linkFixturePr(links: boolean): PullRequest {
+  return {
+    number: 212,
+    title: "Round percentages",
+    body: "Fix rounding",
+    state: "closed",
+    merged: true,
+    updatedAt: "2026-03-01T00:00:00Z",
+    headSha: "sha",
+    labels: [],
+    additions: 1,
+    deletions: 1,
+    comments: ["thanks"],
+    reviewComments: ["src/a.ts:3 this rounds half down"],
+    reviews: ["Please round half up"],
+    changedFiles: ["src/a.ts"],
+    diff: "",
+    ...(links
+      ? {
+          commentUrls: ["https://github.com/o/r/pull/212#issuecomment-1"],
+          reviewCommentUrls: ["https://github.com/o/r/pull/212#discussion_r9"],
+          reviewUrls: ["https://github.com/o/r/pull/212#pullrequestreview-5"],
+        }
+      : {}),
+  };
+}
+
+test("a pull request cached without links keeps the 0.7.2 extract prompt byte for byte", () => {
+  const pr = linkFixturePr(false);
+  if (extractPrompt(pr) !== extractPrompt072(pr)) {
+    throw new Error(
+      "the unlinked extract prompt changed, the cache would miss",
+    );
+  }
+});
+
+test("a linked pull request numbers its comments and a finding keeps only real links", async () => {
+  const pr = linkFixturePr(true);
+  const prompt = extractPrompt(pr);
+  for (const id of ["[c1] thanks", "[r1] src/a.ts:3", "[v1] Please"]) {
+    if (!prompt.includes(id)) throw new Error(`no ${id} in the prompt`);
+  }
+  if (!prompt.includes('"sources"')) throw new Error("no sources field");
+  const repo = `fixture-links-${crypto.randomUUID()}`;
+  const provider: AiProvider = {
+    async complete() {
+      return {
+        text: JSON.stringify([
+          {
+            sectionKey: "review",
+            class: "rounding",
+            claim: "Percentages round half up",
+            impact: "Totals drift",
+            action: "Use half up",
+            sources: ["r1", "v1", "r9"],
+          },
+        ]),
+        tokensIn: 1,
+        tokensOut: 1,
+        model: "fixture",
+        provider: "openrouter",
+      };
+    },
+  };
+  const source: Source = {
+    repo: { full_name: repo, default_branch: "main" },
+    tree: ["src/a.ts"],
+    treeSha: {},
+    files: {},
+    pullRequests: [pr],
+    commits: [],
+  };
+  try {
+    const facts = await extractAiFacts(
+      provider,
+      repo,
+      source,
+      testOptions({ includePullRequests: true, includeCodebase: false }),
+    );
+    const links = facts.find((fact) => fact.sectionKey === "review")?.links;
+    const urls = (links ?? []).map((link) => `${link.pr} ${link.url}`);
+    const expected = [
+      "212 https://github.com/o/r/pull/212#discussion_r9",
+      "212 https://github.com/o/r/pull/212#pullrequestreview-5",
+    ];
+    if (JSON.stringify(urls) !== JSON.stringify(expected)) {
+      throw new Error(`links ${JSON.stringify(urls)}`);
     }
   } finally {
     await cacheDeletePrefix("ai-jobs", `${repo}:`);

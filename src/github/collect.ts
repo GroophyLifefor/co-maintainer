@@ -27,8 +27,32 @@ function changesRequested(reviews: Json[]): boolean {
   return reviews.some((review) => review.state === "CHANGES_REQUESTED");
 }
 
-function reviewBodies(reviews: Json[]): string[] {
-  return reviews.map((review) => String(review.body ?? "")).filter(Boolean);
+/** The non-empty texts and the GitHub link of each, kept at the same index so
+ * a fact can later name a comment and code can find its link. */
+export function textsWithLinks(
+  items: Json[],
+  text: (item: Json) => string,
+  max = Infinity,
+): { texts: string[]; urls: string[] } {
+  const kept = items
+    .map((item) => ({ text: text(item), url: String(item.html_url ?? "") }))
+    .filter((item) => item.text)
+    .slice(0, max);
+  return {
+    texts: kept.map((item) => item.text),
+    urls: kept.map((item) => item.url),
+  };
+}
+
+function reviewBodies(reviews: Json[]): { texts: string[]; urls: string[] } {
+  return textsWithLinks(reviews, (review) => String(review.body ?? ""));
+}
+
+function reviewCommentText(comment: Json): string {
+  const path = String(comment.path ?? "");
+  const line = String(comment.line ?? comment.original_line ?? "");
+  const body = String(comment.body ?? "");
+  return path ? `${path}:${line} ${body}` : body;
 }
 
 function withinPrWindow(updatedAt: string, months?: number): boolean {
@@ -556,6 +580,11 @@ async function pullRequests(
       comments: cached?.comments ?? [],
       reviewComments: cached?.reviewComments ?? [],
       reviews: cached?.reviews ?? [],
+      ...(cached?.commentUrls ? { commentUrls: cached.commentUrls } : {}),
+      ...(cached?.reviewCommentUrls
+        ? { reviewCommentUrls: cached.reviewCommentUrls }
+        : {}),
+      ...(cached?.reviewUrls ? { reviewUrls: cached.reviewUrls } : {}),
       changedFiles: cached?.changedFiles ?? [],
       diff: cached?.diff ?? "",
     };
@@ -563,7 +592,16 @@ async function pullRequests(
       current.changesRequested = cached.changesRequested;
     }
     const only = options.onlyRequestChangedPr;
-    const discussionUnchanged = cached?.updatedAt === current.updatedAt;
+    // A row cached before comment links were kept is read again once, after
+    // the repository turned references on, so its rules get links.
+    const missingLinks =
+      options.refreshCommentLinks === true &&
+      cached !== undefined &&
+      cached.commentUrls === undefined &&
+      cached.reviewCommentUrls === undefined &&
+      cached.reviewUrls === undefined;
+    const discussionUnchanged =
+      cached?.updatedAt === current.updatedAt && !missingLinks;
     const decisionKnown = typeof cached?.changesRequested === "boolean";
     const diffUnchanged =
       cached?.headSha === current.headSha && Boolean(cached?.diff);
@@ -576,10 +614,13 @@ async function pullRequests(
       const comments = await client.pages<Json>(
         `repos/${options.repo}/issues/${number}/comments`,
       );
-      current.comments = comments
-        .map((comment) => String(comment.body ?? ""))
-        .filter(Boolean)
-        .slice(0, options.maxComments);
+      const kept = textsWithLinks(
+        comments,
+        (comment) => String(comment.body ?? ""),
+        options.maxComments,
+      );
+      current.comments = kept.texts;
+      current.commentUrls = kept.urls;
     };
     // Inline review comments carry most of the substantive feedback, and the
     // reviewer only sees them if they are read here.
@@ -587,21 +628,21 @@ async function pullRequests(
       const comments = await client.pages<Json>(
         `repos/${options.repo}/pulls/${number}/comments`,
       );
-      current.reviewComments = comments
-        .map((comment) => {
-          const path = String(comment.path ?? "");
-          const line = String(comment.line ?? comment.original_line ?? "");
-          const body = String(comment.body ?? "");
-          return path ? `${path}:${line} ${body}` : body;
-        })
-        .filter(Boolean)
-        .slice(0, options.maxComments);
+      const kept = textsWithLinks(
+        comments,
+        reviewCommentText,
+        options.maxComments,
+      );
+      current.reviewComments = kept.texts;
+      current.reviewCommentUrls = kept.urls;
     };
     const loadReviews = async () => {
       const reviews = await client.pages<Json>(
         `repos/${options.repo}/pulls/${number}/reviews`,
       );
-      current.reviews = reviewBodies(reviews);
+      const kept = reviewBodies(reviews);
+      current.reviews = kept.texts;
+      current.reviewUrls = kept.urls;
       current.changesRequested = changesRequested(reviews);
     };
     if (!dropped && only && (!discussionUnchanged || !decisionKnown)) {

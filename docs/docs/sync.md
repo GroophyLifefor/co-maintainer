@@ -105,6 +105,42 @@ A dropped rule whose pull request is outside the window this `sync` read says
 `left the window`. The first `sync` after upgrading to 0.7.1 rewrites both guides
 once, because the guide prompt changed.
 
+### Rule ids stay the same
+
+A rule keeps its id across syncs, so a review that cited `R4` still points at
+the same rule. A rewritten rule keeps the id of the old rule it shares the most
+sources with. A new rule gets the next number ever given, and the id of a
+dropped rule is never given to another rule. `RULES.json` keeps the highest
+number given in `lastIds`. Instruction rules work the same way, and an
+instruction line that moved down its file keeps its id when its text is the same.
+
+### A rule that goes against an older one
+
+The guide prompt lists the last build's rules by id and text, with no pull
+request or date. When the model writes a rule that requires the opposite of an
+old one, `sync` says so with its evidence:
+
+    [guide] R4 dropped, R9 goes against it (#340, 2026-03)
+
+The line appears only when the new rule's newest pull request merged after the
+old rule's newest one. `sync --json` lists the same in `contradicted`, and the
+repository page of the dashboard shows the last ten.
+
+## References and comment links
+
+Each pull request read since 0.7.3 keeps a link to every comment and review on
+it, and a guide rule links to the review comment it came from. A pull request
+cached before that keeps its old extract answer and shows its number with no
+link, so a plain upgrade costs nothing extra.
+
+After `set --repo=owner/repo --review-references=on`, the next `sync` reads the
+comments of every cached pull request again once and logs
+`review references are on: reading every pull request again once for comment links`.
+Those pull requests are extracted again, so that one `sync` costs as much as an
+`init` for the extract step. The date is saved as `referencesBackfilledAt`, so
+turning the setting off and on again never repeats it. See
+[References](review.md#references).
+
 ## What `sync` says about instruction rules
 
 When the repository has agent instruction files, `sync` rebuilds

@@ -7,7 +7,7 @@
  */
 import type { Estimate } from "../ai/estimate.ts";
 import type { RunSummary } from "../util/run_summary.ts";
-import type { RuleChanges } from "../knowledge/rule_changes.ts";
+import type { Contradiction, RuleChanges } from "../knowledge/rule_changes.ts";
 
 export type ProbeJsonInput = {
   repo: string;
@@ -82,6 +82,8 @@ export type SetupJsonInput = {
   /** The full change lists behind the `[guide]` and `[instructions]` lines,
    * or `null` when there was no earlier `RULES.json`. */
   ruleChanges?: { guide: RuleChanges; instructions: RuleChanges } | null;
+  /** Old guide rules a new rule goes against. Left out when there are none. */
+  contradicted?: Contradiction[];
   summary: RunSummary;
 };
 
@@ -103,6 +105,7 @@ export function buildSetupJson(input: SetupJsonInput): string {
     ...(input.ruleChanges !== undefined
       ? { ruleChanges: input.ruleChanges }
       : {}),
+    ...(input.contradicted?.length ? { contradicted: input.contradicted } : {}),
     usage: {
       tokensIn: summary.tokensIn,
       tokensOut: summary.tokensOut,

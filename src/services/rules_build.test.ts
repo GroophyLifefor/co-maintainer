@@ -2,6 +2,7 @@ import { test } from "node:test";
 import {
   buildInstructions,
   instructionsJson,
+  stabilizeRuleIds,
   writeInstructionsAndRules,
   type InstructionsOutcome,
 } from "./rules_build.ts";
@@ -281,4 +282,64 @@ test("buildInstructions says why it skipped, and the JSON names the status", asy
   if (instructionsJson({ status: "failed" }).status !== "kept") {
     throw new Error("a failed call is not reported as kept");
   }
+});
+
+test("a second build keeps the ids of the same rules, gives a new rule a new number, and saves the highest", async () => {
+  await withReposDir(async (dir) => {
+    const build = async (docs: ReviewDocuments) => {
+      const stable = await stabilizeRuleIds(REPO, docs, WRITTEN);
+      await withKnowledgeLock(REPO, () =>
+        writeInstructionsAndRules({
+          repo: REPO,
+          command: "remake",
+          documents: stable.documents,
+          signalCount: 5,
+          instructions: stable.instructions,
+          source: testSource({ commits: [{ sha: "abc123" }] }),
+          lastIds: stable.lastIds,
+        }),
+      );
+      return stable;
+    };
+    await build(
+      documents([
+        { id: "R1", prs: [101], text: "Old · gone" },
+        { id: "R2", prs: [212], text: "Money · rounding" },
+      ]),
+    );
+    // The rebuilt guide numbers from 1 again, in a new order.
+    const second = await build({
+      ...documents([
+        { id: "R1", prs: [212, 340], text: "Money formatting · rounding" },
+        { id: "R2", prs: [402], text: "New · rule" },
+      ]),
+      guide:
+        "# Guide\n\n- Money formatting · rounding [R1]\n- New · rule [R2]\n",
+    });
+    if (
+      second.documents?.guide !==
+      "# Guide\n\n- Money formatting · rounding [R2]\n- New · rule [R3]\n"
+    ) {
+      throw new Error(`guide: ${second.documents?.guide}`);
+    }
+    const rules = parseRules(await readTextFile(`${dir}/RULES.json`));
+    const ids = Object.keys(rules?.rules ?? {})
+      .sort()
+      .join(",");
+    if (ids !== "I1,R2,R3") throw new Error(`ids: ${ids}`);
+    if (JSON.stringify(rules?.lastIds) !== '{"R":3,"I":1}') {
+      throw new Error(`lastIds: ${JSON.stringify(rules?.lastIds)}`);
+    }
+    // R1 was dropped: a third build with a new rule gets R4, never R1.
+    const third = await build(
+      documents([
+        { id: "R1", prs: [500], text: "Another · rule" },
+        { id: "R2", prs: [212, 340], text: "Money formatting · rounding" },
+      ]),
+    );
+    const thirdIds = (third.documents?.rules ?? [])
+      .map((rule) => rule.id)
+      .join(",");
+    if (thirdIds !== "R4,R2") throw new Error(`third: ${thirdIds}`);
+  });
 });

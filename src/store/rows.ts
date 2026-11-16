@@ -121,6 +121,8 @@ export type FindingRow = {
   state: string;
   carried_from_finding_id: string | null;
   close_reason: string | null;
+  /** JSON array of `ResolvedReference`, `[]` for rows before references. */
+  references_json: string;
 };
 
 export type SubjectRow = {

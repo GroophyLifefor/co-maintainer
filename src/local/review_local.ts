@@ -1,4 +1,5 @@
 import { parseArgs } from "../cli/args.ts";
+import { readConfig } from "../config.ts";
 import {
   filterReviewConfigArgs,
   loadReviewSystemPromptFlags,
@@ -353,6 +354,7 @@ export async function runLocalReview(
         carryRun,
         revision,
         response,
+        options.repo,
       );
       const findingsToStore = storedFindings(allResolved);
 
@@ -447,6 +449,7 @@ export async function runLocalReview(
               response.coverage,
               extensions,
               Boolean(intentLoad.intent),
+              readConfig().repos?.[options.repo]?.reviewReferences === true,
             ) +
             "\n",
         );
