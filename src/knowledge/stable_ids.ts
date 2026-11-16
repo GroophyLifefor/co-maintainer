@@ -25,12 +25,42 @@ function highest(rules: Record<string, RuleEntry>, kind: "R" | "I"): number {
   return max;
 }
 
+/** What a source can match on: its pull request or file line, and for a
+ * guide rule also the review comment it came from. Two rules on the same pull
+ * request share `#4` but not their comment links. */
+function matchKeys(source: RuleSource): string[] {
+  const url = "pr" in source ? source.url : undefined;
+  return url ? [sourceLabel(source), url] : [sourceLabel(source)];
+}
+
+function words(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .filter((word) => word.length > 2),
+  );
+}
+
+/** Shared words over all words, from 0 to 1. */
+function similarity(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 && b.size === 0) return 1;
+  let shared = 0;
+  for (const word of a) if (b.has(word)) shared++;
+  return shared / (a.size + b.size - shared);
+}
+
 /** Maps each fresh id to its stable id, and returns the new highest number.
  * A fresh rule may keep an old id when it shares a source with that rule, or
  * else has the same text. The ids are matched as a whole, not first come
  * first served: a rule that could keep two ids gives way to a later rule that
- * can keep only one of them, so as many ids as possible stay the same. Among
- * its options a rule tries the one with the most shared sources first. */
+ * can keep only one of them, so as many ids as possible stay the same.
+ *
+ * Among its options a rule tries the best first: each shared pull request or
+ * file line counts 1, a shared review comment link 1 more, and text
+ * similarity adds less than one source. So two rules that rest on the same
+ * pull request keep their own ids, by their comment links when both builds
+ * kept them, or else by their wording. */
 export function stableIds(
   kind: "R" | "I",
   fresh: FreshRule[],
@@ -42,21 +72,28 @@ export function stableIds(
     .map(([id, entry]) => ({
       id,
       text: entry.text,
-      sources: new Set(entry.sources.map(sourceLabel)),
+      words: words(entry.text),
+      keys: new Set(entry.sources.flatMap(matchKeys)),
     }));
   const rules = fresh.filter(
     (rule, index) => fresh.findIndex((item) => item.id === rule.id) === index,
   );
   // Each rule's old ids it may keep, best first.
   const options = rules.map((rule) => {
-    const labels = rule.sources.map(sourceLabel);
+    const keys = [...new Set(rule.sources.flatMap(matchKeys))];
+    const own = words(rule.text);
     return old
       .flatMap((item, order) => {
         if (rule.avoid?.includes(item.id)) return [];
-        const shared = labels.filter((label) => item.sources.has(label)).length;
+        const shared = keys.filter((key) => item.keys.has(key)).length;
         // Same text with no shared source still counts, below any shared
         // source: an instruction line that moved down a file is the same rule.
-        const score = shared > 0 ? shared : item.text === rule.text ? 0.5 : 0;
+        const score =
+          shared > 0
+            ? shared + 0.5 * similarity(own, item.words)
+            : item.text === rule.text
+              ? 0.5
+              : 0;
         return score > 0 ? [{ id: item.id, score, order }] : [];
       })
       .sort((a, b) => b.score - a.score || a.order - b.order)
