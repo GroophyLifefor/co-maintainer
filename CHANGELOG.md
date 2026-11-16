@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.3] - 2026-11-16
 
 **Before you upgrade.** `review --json` gains `references` on every finding, and `sync --json` gains `contradicted` when a new guide rule goes against an old one. `RULES.json` gains `lastIds`, and a guide rule source can carry `url`. Once a repository has a `RULES.json`, the guide prompt also lists its rules, so each repository's next `sync` writes both guides once more.
 
