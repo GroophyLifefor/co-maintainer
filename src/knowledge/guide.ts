@@ -293,6 +293,34 @@ function withTrailingNewline(text: string): string {
   return trimmed.endsWith("\n") ? trimmed : `${trimmed}\n`;
 }
 
+const CUT = Symbol("cut off");
+
+/** One guide call that must not be cut. An answer that stopped at the output
+ * limit is asked again once with twice the limit. When that one is cut too,
+ * `CUT` tells the caller to keep the last run's guide: a guide written from a
+ * cut answer ends mid-line and loses its last passes. The limit stays a cost
+ * guard, so there is no third try. */
+async function uncut(
+  queue: AiBatch,
+  request: AiRequest,
+  usage: UsageSink | undefined,
+): Promise<AiResponse | undefined | typeof CUT> {
+  const [first] = await queue.run([request], usage);
+  if (!first?.cutOff) return first;
+  const doubled = (request.maxTokens ?? 0) * 2;
+  log(
+    "ai",
+    `${request.job} stopped at the output limit (${request.maxTokens} tokens), asking once more with ${doubled}`,
+  );
+  const [second] = await queue.run([{ ...request, maxTokens: doubled }], usage);
+  if (!second?.cutOff) return second;
+  log(
+    "ai",
+    `${request.job} stopped at the output limit again (${doubled} tokens), keeping the previous guide`,
+  );
+  return CUT;
+}
+
 /** Builds the review method with the high model. Returns `undefined` below the
  * signal threshold, which is a data condition, not an AI failure. There is no
  * deterministic fallback: a failed or unusable generation fails the run. */
@@ -320,10 +348,12 @@ export async function synthesizeReviewGuides(
     Math.max(1, concurrency),
     `${ai}:v3:${model}:guide`,
   );
-  const [fullResponse] = await queue.run(
-    [fullGuideRequest(material, previousRulesMaterial(previousRules))],
+  const fullResponse = await uncut(
+    queue,
+    fullGuideRequest(material, previousRulesMaterial(previousRules)),
     usage,
   );
+  if (fullResponse === CUT) return undefined;
   const full = cleanGuide(fullResponse?.text ?? "");
   if (!full) {
     // Not a failure: SKILL.md and CODEBASE.md are written anyway.
@@ -339,10 +369,14 @@ export async function synthesizeReviewGuides(
   }
   // The short guide is asked from the full method with its finding brackets
   // still on, so it can carry them over to the lines it summarizes.
-  const [shortResponse] = await queue.run(
-    [shortGuideRequest(material, full)],
+  const shortResponse = await uncut(
+    queue,
+    shortGuideRequest(material, full),
     usage,
   );
+  // A short guide cut twice keeps both files of the last run, so the two
+  // guides never come from different builds.
+  if (shortResponse === CUT) return undefined;
   const short = cleanGuide(shortResponse?.text ?? "");
   if (!short)
     return withRuleIds(withTrailingNewline(full), undefined, sources, links);

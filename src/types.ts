@@ -168,6 +168,9 @@ export type AiResponse = {
   /** Set on a response merged from several calls, so the caller can tell a
    * partial cost from a missing one. */
   costCalls?: { known: number; unknown: number };
+  /** The answer stopped at the output limit (`max_tokens`), so its text may be
+   * cut mid-way. Set by each provider from its own stop reason. */
+  cutOff?: true;
   model: string;
   provider:
     | "openrouter"
