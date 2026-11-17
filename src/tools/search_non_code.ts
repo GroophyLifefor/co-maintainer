@@ -28,6 +28,8 @@ export const SEARCH_MAX_MATCHES = 30;
 export const SEARCH_LINE_MAX_CHARS = 200;
 /** Time limit of a regex search. */
 export const SEARCH_REGEX_TIMEOUT_MS = 5000;
+/** The most context lines around a match, even with the setting off. */
+export const SEARCH_HARD_MAX_CONTEXT_LINES = 50;
 /** A literal search is fast, so its limit only stops a stuck one. */
 export const SEARCH_LITERAL_TIMEOUT_MS = 15_000;
 /** Output kept from one git grep run. 30 matches need far less, the rest
@@ -222,10 +224,13 @@ export async function searchNonCode(
     typeof a.context === "number" && Number.isFinite(a.context)
       ? Math.max(0, Math.floor(a.context))
       : 0;
-  const context =
-    options.maxContextLines === null
-      ? asked
-      : Math.min(asked, options.maxContextLines);
+  // "No limit" still stops at a size a reader can use, so a huge request
+  // never walks millions of line numbers.
+  const context = Math.min(
+    asked,
+    options.maxContextLines ?? SEARCH_HARD_MAX_CONTEXT_LINES,
+    SEARCH_HARD_MAX_CONTEXT_LINES,
+  );
   const run = options.run ?? runGit;
   // A literal search has a time limit too, only a longer one.
   const timeoutMs =

@@ -155,7 +155,13 @@ export class ToolGate {
         const own = OWN_CAP.has(name) ? null : this.limits.resultMaxChars;
         const cap =
           own === null ? left : left === null ? own : Math.min(own, left);
-        result = cutResult(raw, cap);
+        // The data line counts toward both limits, so it is taken off the
+        // cap before the cut.
+        const prefix = options.external ? EXTERNAL_RESULT_LINE.length + 1 : 0;
+        result = cutResult(
+          raw,
+          cap === null ? null : Math.max(0, cap - prefix),
+        );
         if (options.external) result = externalResult(result);
         // What the model receives is what the budget pays for, the cut
         // notice and the data line included.

@@ -12,6 +12,7 @@ import {
   type GrepRun,
   searchMaxContextLines,
   searchNonCode,
+  SEARCH_HARD_MAX_CONTEXT_LINES,
   SEARCH_LITERAL_TIMEOUT_MS,
   SEARCH_MAX_OUTPUT_BYTES,
   runGit,
@@ -267,4 +268,24 @@ test("a git run past the output limit is stopped, not read to the end", async ()
   );
   assert.equal(result.cut, true);
   assert.ok(result.stdout.length <= SEARCH_MAX_OUTPUT_BYTES + 70_000);
+});
+
+test("with the context limit off, a huge context request still stops at the hard maximum", async () => {
+  const seen: string[][] = [];
+  const run: GrepRun = (args) => {
+    seen.push(args);
+    return Promise.resolve({
+      code: 1,
+      stdout: "",
+      stderr: "",
+      timedOut: false,
+    });
+  };
+  await searchNonCode(
+    repo({ "docs/a.md": "x\n" }),
+    { pattern: "x", context: 1_000_000_000 },
+    { ...OPTIONS, maxContextLines: null, run },
+  );
+  const context = seen.flat().find((arg) => arg.startsWith("-C"));
+  assert.equal(context, `-C${SEARCH_HARD_MAX_CONTEXT_LINES}`);
 });

@@ -231,3 +231,12 @@ test("one gate spans several loop calls, so the budget is per review", async () 
   assert.equal(gate.usage().calls, 2);
   assert.equal(gate.usage().budgetSpent, true);
 });
+
+test("an outside result's data line counts toward the cap", () => {
+  const gate = new ToolGate({ resultMaxChars: 200, budgetChars: null });
+  const result = gate.accept("mcp-tracker-get_issue", "z".repeat(500), {
+    external: true,
+  });
+  assert.ok(result.length <= 200, `${result.length} characters`);
+  assert.equal(result.split("\n")[0], EXTERNAL_RESULT_LINE);
+});
