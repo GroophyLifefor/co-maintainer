@@ -915,7 +915,9 @@ function remoteChecks(sim: Sim): CheckResult[] {
     ),
     scripted(
       "a cancelled review makes no further model call",
-      deleteAt !== Infinity && afterCancel.length === 0 && faultAi.length === 1,
+      // The part that matters is no call after the cancel. Whether one call
+      // ran before it depends on timing: a slow runner cancels first.
+      deleteAt !== Infinity && afterCancel.length === 0 && faultAi.length <= 1,
       `${afterCancel.length} AI calls after the cancel · ${faultAi.length} AI calls in the timed-out review`,
       "the cancel needs a tool call a real model may not make",
     ),
