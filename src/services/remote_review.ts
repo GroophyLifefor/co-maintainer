@@ -13,6 +13,11 @@ import {
 } from "../cli/review_result.ts";
 import { parseFindings } from "../pr/findings.ts";
 import { codegraphToolHandlersForBridge } from "../pr/codegraph_tools.ts";
+import { isCodegraphTool } from "../pr/review_tools.ts";
+import {
+  SEARCH_NON_CODE,
+  SEARCH_NON_CODE_TOOL,
+} from "../tools/search_non_code.ts";
 import { type ReviewExtras, reviewWorkspaceRevision } from "../pr/reviewer.ts";
 import {
   buildCarryPromptSection,
@@ -407,7 +412,9 @@ export function registerRemoteReviewHandler(): void {
             .map((tool) => tool.name)
             .filter((name) => typeof name === "string" && name),
         );
-        const useCodegraph = allowed.size > 0;
+        // Codegraph is on when the client offers a codegraph tool. Search
+        // alone does not turn it on.
+        const useCodegraph = [...allowed].some(isCodegraphTool);
         const options = reviewOptionsForRepo(
           job.repo,
           useCodegraph,
@@ -487,11 +494,18 @@ export function registerRemoteReviewHandler(): void {
             extras.carryPrompt = buildCarryPromptSection(carryItems, revision);
           }
         }
-        if (useCodegraph) {
-          const schemas = codegraphToolHandlersForBridge();
-          extras.prepareCodegraphTools = async () =>
-            remoteBridgeToolHandlers(job.id, signal, allowed, schemas);
-        }
+        // The client runs codegraph and search in its own checkout.
+        extras.tools = {
+          kind: "bridge",
+          tools: remoteBridgeToolHandlers(job.id, signal, allowed, [
+            ...codegraphToolHandlersForBridge(),
+            {
+              name: SEARCH_NON_CODE,
+              tool: SEARCH_NON_CODE_TOOL,
+              run: () => "",
+            },
+          ]),
+        };
 
         const started = performance.now();
         let tokensIn = 0;
@@ -580,6 +594,7 @@ export function registerRemoteReviewHandler(): void {
               tokensOut,
               ...costUsage(costTally),
               billedTo: billed,
+              tools: result.tools,
             },
           },
           extensions,

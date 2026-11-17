@@ -23,6 +23,7 @@ import {
 import { humanCopy } from "../services/review.ts";
 import type { BilledTo, CostReason, CostStatus } from "../util/cost.ts";
 import type { ExtensionReport } from "../extensions/report.ts";
+import { toolsLine, type ToolUsage } from "../ai/tool_gate.ts";
 import { withExtensionsJson } from "../extensions/render_json.ts";
 import {
   cliExtensionFooter,
@@ -359,6 +360,8 @@ export type HumanReviewInput = {
   showReferences?: boolean;
   /** An intent file was given. The line says so and never shows the text. */
   intent?: boolean;
+  /** What the review's tools did. A run with no tool call prints nothing. */
+  tools?: ToolUsage;
 };
 
 /** The single human-readable review format. Local,
@@ -468,6 +471,8 @@ export function formatHumanReview(input: HumanReviewInput): string {
   lines.push(
     `Summary: ${counts.new} new · ${counts.open} open · ${counts.closed} closed · ${counts.blocking} blocking`,
   );
+  const tools = toolsLine(input.tools);
+  if (tools) lines.push(tools);
   const coverage = coverageLine(input.coverage);
   if (coverage) lines.push(coverage);
   if (extensionLines.length > 0) {
@@ -497,6 +502,7 @@ export function formatHumanLocalReview(
   extensions?: ExtensionReport,
   intent?: boolean,
   showReferences?: boolean,
+  tools?: ToolUsage,
 ): string {
   const stats = revisionStats(revision);
   return formatHumanReview({
@@ -510,6 +516,7 @@ export function formatHumanLocalReview(
     extensions,
     intent,
     showReferences,
+    tools,
   });
 }
 
@@ -532,6 +539,8 @@ export type ReviewUsage = {
   costStatus?: CostStatus;
   costNote?: CostReason | null;
   billedTo?: BilledTo;
+  /** What the review's tools did. */
+  tools?: ToolUsage;
 };
 
 export type LocalReviewJsonInput = {

@@ -1,10 +1,5 @@
 import type { ToolHandler } from "../ai/mermaid_loop.ts";
-import {
-  ensureWorktree,
-  pathExists,
-  type Run,
-  runCommand,
-} from "./checkout.ts";
+import { pathExists } from "./checkout.ts";
 import {
   detect,
   ensureCodegraphForReview,
@@ -95,20 +90,20 @@ export async function ensureCodegraphIndex(
  * `init`/`remake`/`serve` setup step, not for a single review that happens to
  * want this tool. With `allowInstall` (`--allow-tool-install`) a missing or
  * mismatched install is resolved through `ensureCodegraphForReview`, which
- * installs without prompting and returns a reason instead of exiting. */
+ * installs without prompting and returns a reason instead of exiting.
+ *
+ * `worktree` is the checkout to index, made by the caller
+ * (`prepareReviewTools`), which needs it for search too. It is asked for only
+ * once a codegraph binary is there. */
 export async function prepareCodegraphTools(
-  repo: string,
-  pr: number,
-  commit: string,
+  worktree: () => Promise<string>,
   options: {
-    run?: Run;
     detect?: () => Promise<Presence>;
     allowInstall?: boolean;
     /** Overrides the install step, for tests. */
     ensure?: () => Promise<{ path: string } | { reason: string }>;
   } = {},
 ): Promise<ToolHandler[]> {
-  const runner = options.run ?? runCommand;
   const detectPresence = options.detect ?? detect;
   const ensure =
     options.ensure ??
@@ -133,10 +128,10 @@ export async function prepareCodegraphTools(
       log("codegraph", `tools unavailable · codegraph is ${presence.state}`);
       return [];
     }
-    const worktree = await ensureWorktree(repo, pr, commit, runner);
+    const tree = await worktree();
     const cgRun = createCodegraphRunner(SERVER_CODEGRAPH_DIR);
-    await ensureCodegraphIndex(binary, worktree, cgRun);
-    return codegraphTools(binary, worktree, cgRun);
+    await ensureCodegraphIndex(binary, tree, cgRun);
+    return codegraphTools(binary, tree, cgRun);
   } catch (error) {
     log("codegraph", `tools unavailable · ${String(error)}`);
     return [];

@@ -32,6 +32,11 @@ import {
   type RemoteToolCall,
 } from "./client_tools.ts";
 import { REMOTE_KNOWN_TOOL_NAMES } from "./schema.ts";
+import {
+  searchNonCodeTool,
+  searchOptionsFor,
+} from "../tools/search_non_code.ts";
+import { toolUsageFromJson } from "../ai/tool_gate.ts";
 import { runCommand } from "../pr/checkout.ts";
 import {
   assertGitQuiet,
@@ -275,7 +280,12 @@ export async function runRemoteReview(
       // `--json` must stay machine-readable, `canPrompt` adds TTY and CI.
       interactive: !cli.json && canPrompt(),
     });
-    const localTools = toolHandlerMap(codegraphPrep.tools);
+    // The server asks for search the way it asks for codegraph, and the
+    // client runs it in this checkout. An older server ignores the name.
+    const localTools = toolHandlerMap([
+      ...codegraphPrep.tools,
+      searchNonCodeTool(root, searchOptionsFor(repo)),
+    ]);
     const capabilityTools = [...localTools.keys()]
       .filter((name) => REMOTE_KNOWN_TOOL_NAMES.has(name))
       .map((name) => ({ name }));
@@ -477,6 +487,10 @@ export async function runRemoteReview(
                 intent: intent !== null,
                 showReferences:
                   readConfig().repos?.[repo]?.reviewReferences === true,
+                tools: toolUsageFromJson(
+                  (payload.result.usage as { tools?: unknown } | undefined)
+                    ?.tools,
+                ),
               }) +
               "\n",
           );
