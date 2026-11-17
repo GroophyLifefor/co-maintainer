@@ -91,6 +91,15 @@ is not filled from the previous listing. `--only-request-changed-pr` does not
 turn itself off. To collect every state again, pass
 `--pr-state=open,closed,merged`.
 
+## A guide cut at the output limit
+
+The review guide is written with an output limit, 16,000 tokens for the
+detailed guide and 8,000 for the short one. When the answer stops at that
+limit, `sync` asks once more with twice the limit. When the second answer is
+cut too, nothing is written and the last guide stays, so a review never reads
+a guide that ends mid-line. The run says so in one line, and `sync --json` has
+`reviewGuide: "kept"`.
+
 ## What `sync` says about guide rules
 
 Each check line of the review guides rests on the pull requests whose findings

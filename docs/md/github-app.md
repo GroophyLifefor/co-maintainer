@@ -144,6 +144,7 @@ applies without a restart.
 | App created but no review arrives | Install the App on the repository, turn on auto-review in repo **Settings**, and confirm the webhook delivered |
 | Settings save returns `422` | The key or token is missing a scope GitHub requires |
 | Webhook works but no review is posted | Check the Activity job log, then the AI key and models under **Settings** |
+| A private repository is reviewed from the diff alone | The review clones with the App's installation token. Check that the App is installed on the repository with **Contents: Read** |
 
 Webhook reachability problems are shown on each repository's **Overview** tab.
 See [Dashboard: Webhook reachability](dashboard.md#webhook-reachability).

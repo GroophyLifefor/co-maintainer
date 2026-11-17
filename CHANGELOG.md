@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.5] - 2026-11-17
+
+### Fixed
+
+- **A review guide cut at the output limit is no longer written.** An answer that stopped at the limit was written as if it were complete, so a guide could end mid-line and lose its last passes. `sync` now asks once more with twice the limit, and when that answer is cut too it keeps the last guide and says so. `sync --json` then has `reviewGuide: "kept"`. The same holds for the short guide. (#114)
+- **A finding the bot agrees was wrong closes.** When a reply on a finding's thread agreed that the finding was wrong, the next round still listed it as open. It now closes at once, and a later round does not raise it again while its lines are unchanged. (#119)
+- **Stop on the dashboard stops the job.** Stop marked a job as canceled, but `init` and `sync` ran to the end and wrote their files, and an App review without extensions could still post. Every job now checks Stop before it writes or posts: the AI call in progress finishes, no new one starts, and nothing is written or posted.
+- **An App review of a private repository keeps its scope.** The review cloned with the machine's own git login, so a server with the App and no git login reviewed a private repository from the diff alone. It now clones and fetches with the App's installation token, given to git for that one command and never saved.
+
 ## [0.7.4] - 2026-11-16
 
 ### Fixed
