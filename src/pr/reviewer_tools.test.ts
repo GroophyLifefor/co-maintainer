@@ -83,27 +83,27 @@ async function review(
     config: getEnv("CM_CONFIG_PATH"),
     repos: getEnv("CM_REPOS_DIR"),
   };
-  setEnv("CM_CONFIG_PATH", join(dir, "config.json"));
-  setEnv("CM_REPOS_DIR", join(dir, "repos"));
-  writeFileSync(
-    join(dir, "config.json"),
-    JSON.stringify({ repos: { "acme/widgets": repoConfig } }),
-  );
-  mkdirSync(join(dir, "repos/acme/widgets"), { recursive: true });
-  writeFileSync(
-    join(dir, "repos/acme/widgets/PR_REVIEW_GUIDE.md"),
-    "Review small changes.",
-  );
-  const root = join(dir, "tree");
-  mkdirSync(join(root, "docs"), { recursive: true });
-  writeFileSync(
-    join(root, "docs/operations.md"),
-    "Routes without an entry in RATE_LIMIT are not limited.\n",
-  );
-  execFileSync("git", ["init", "-q"], { cwd: root });
-  execFileSync("git", ["add", "-A"], { cwd: root });
-  setCliInteractive(false);
   try {
+    setEnv("CM_CONFIG_PATH", join(dir, "config.json"));
+    setEnv("CM_REPOS_DIR", join(dir, "repos"));
+    writeFileSync(
+      join(dir, "config.json"),
+      JSON.stringify({ repos: { "acme/widgets": repoConfig } }),
+    );
+    mkdirSync(join(dir, "repos/acme/widgets"), { recursive: true });
+    writeFileSync(
+      join(dir, "repos/acme/widgets/PR_REVIEW_GUIDE.md"),
+      "Review small changes.",
+    );
+    const root = join(dir, "tree");
+    mkdirSync(join(root, "docs"), { recursive: true });
+    writeFileSync(
+      join(root, "docs/operations.md"),
+      "Routes without an entry in RATE_LIMIT are not limited.\n",
+    );
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    execFileSync("git", ["add", "-A"], { cwd: root });
+    setCliInteractive(false);
     const options: Options = {
       ...(await parseArgs([
         "review",
@@ -174,7 +174,9 @@ test("the repository's tool budget spans the review and warns once spent", async
     { reviewToolBudgetChars: 10 },
   );
   const [first, second] = toolResults(requests[1]);
-  assert.equal(first, "docs/opera\n[cut at 10 characters]");
+  // Ten characters leave no room for the cut notice, so only the text that
+  // fits is sent.
+  assert.equal(first, "docs/opera");
   assert.equal(second, TOOL_BUDGET_SPENT);
   assert.equal(outcome.tools.budgetSpent, true);
   assert.ok(outcome.warnings.some((w) => w.code === "tool_budget_spent"));

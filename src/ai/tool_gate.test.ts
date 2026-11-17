@@ -29,29 +29,34 @@ test("the settings: unset is the default, 0 or below is no limit", () => {
   assert.equal(toolBudgetChars({ reviewToolBudgetChars: 0 }), null);
 });
 
-test("a result over the cap is cut and says where", () => {
-  assert.equal(cutResult("abcdef", 4), "abcd\n[cut at 4 characters]");
+test("a result over the cap is cut and says where, the notice inside the cap", () => {
+  const notice = "\n[cut at 40 characters]";
+  assert.equal(
+    cutResult("a".repeat(60), 40),
+    `${"a".repeat(40 - notice.length)}${notice}`,
+  );
+  assert.equal(cutResult("a".repeat(60), 40).length, 40);
   assert.equal(cutResult("abc", 4), "abc");
   assert.equal(cutResult("abcdef", null), "abcdef");
-  const gate = new ToolGate({ resultMaxChars: 10, budgetChars: null });
-  assert.equal(
-    gate.accept("search-non-code", "x".repeat(25)),
-    `${"x".repeat(10)}\n[cut at 10 characters]`,
-  );
+  const gate = new ToolGate({ resultMaxChars: 50, budgetChars: null });
+  const cut = gate.accept("search-non-code", "x".repeat(80));
+  assert.equal(cut.length, 50);
+  assert.ok(cut.endsWith("\n[cut at 50 characters]"));
 });
 
 test("codegraph is neither cut nor refused, and read-full-diff keeps its own cap", () => {
-  const gate = new ToolGate({ resultMaxChars: 10, budgetChars: 20 });
-  const big = "y".repeat(50);
+  const gate = new ToolGate({ resultMaxChars: 10, budgetChars: 60 });
+  const big = "y".repeat(100);
   assert.equal(gate.accept("codegraph-callers", big), big);
   assert.equal(gate.refuse("codegraph-callers"), undefined);
   // Codegraph spent none of the budget, so read-full-diff still runs. It is
   // not cut at the result cap, only at what is left of the budget.
   assert.equal(gate.refuse("read-full-diff"), undefined);
-  assert.equal(
-    gate.accept("read-full-diff", big),
-    `${"y".repeat(20)}\n[cut at 20 characters]`,
-  );
+  const cut = gate.accept("read-full-diff", big);
+  assert.equal(cut.length, 60);
+  assert.ok(cut.endsWith("\n[cut at 60 characters]"));
+  // The budget paid for exactly what the model received.
+  assert.equal(gate.refuse("read-full-diff"), TOOL_BUDGET_SPENT);
 });
 
 test("once the budget is spent every later limited call gets the fixed answer and a warning", () => {
@@ -162,14 +167,14 @@ function handler(name: string, result: string, ran: string[]): ToolHandler {
 test("the loop runs every call through the gate, in call order, and counts rounds", async () => {
   const ran: string[] = [];
   const tools = [
-    handler("search-non-code", "s".repeat(40), ran),
+    handler("search-non-code", "s".repeat(80), ran),
     handler("codegraph-callers", "c".repeat(100), ran),
   ];
   const provider = new Scripted([
     ["search-non-code", "codegraph-callers", "search-non-code"],
     ["search-non-code", "codegraph-callers"],
   ]);
-  const gate = new ToolGate({ resultMaxChars: 25, budgetChars: 30 });
+  const gate = new ToolGate({ resultMaxChars: 60, budgetChars: 100 });
   await completeWithMermaidTools(
     provider,
     { job: "test", prompt: "p", maxTokens: 10 },
@@ -183,10 +188,12 @@ test("the loop runs every call through the gate, in call order, and counts round
       .filter((message) => message.role === "tool")
       .map((message) => String(message.content));
   const first = toolMessages(1);
-  assert.equal(first[0], `${"s".repeat(25)}\n[cut at 25 characters]`);
+  assert.equal(first[0]?.length, 60);
+  assert.ok(first[0]?.endsWith("\n[cut at 60 characters]"));
   assert.equal(first[1], "c".repeat(100));
-  // The first search spent 25 of the 30, so the second gets the last 5.
-  assert.equal(first[2], `${"s".repeat(5)}\n[cut at 5 characters]`);
+  // The first search spent 60 of the 100, so the second gets the last 40.
+  assert.equal(first[2]?.length, 40);
+  assert.ok(first[2]?.endsWith("\n[cut at 40 characters]"));
   const second = toolMessages(2).slice(3);
   assert.equal(second[0], TOOL_BUDGET_SPENT);
   assert.equal(second[1], "c".repeat(100));

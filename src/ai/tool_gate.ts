@@ -73,9 +73,14 @@ export function toolBudgetChars(
 }
 
 /** `text` cut at `max` characters, ending with the cut marker. */
+/** `text` within `max` characters, its cut notice included, so the model
+ * never gets more than the limit. */
 export function cutResult(text: string, max: number | null): string {
   if (max === null || text.length <= max) return text;
-  return `${text.slice(0, max)}\n[cut at ${max} characters]`;
+  const notice = `\n[cut at ${max} characters]`;
+  // A limit too small for the notice keeps only the text that fits.
+  if (max <= notice.length) return text.slice(0, max);
+  return `${text.slice(0, max - notice.length)}${notice}`;
 }
 
 /** A result from outside the repository, behind the fixed data line. */
@@ -151,8 +156,10 @@ export class ToolGate {
         const cap =
           own === null ? left : left === null ? own : Math.min(own, left);
         result = cutResult(raw, cap);
-        this.budgetUsed += Math.min(raw.length, cap ?? raw.length);
         if (options.external) result = externalResult(result);
+        // What the model receives is what the budget pays for, the cut
+        // notice and the data line included.
+        this.budgetUsed += result.length;
       }
     }
     this.stats.calls++;
