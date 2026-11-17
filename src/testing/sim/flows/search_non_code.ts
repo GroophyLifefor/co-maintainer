@@ -63,12 +63,14 @@ const FILES: Record<string, string> = {
   "docs/operations.md": `# Operations\n\n${DOC_LINE}\n`,
   "deploy/compose.yml":
     'services:\n  api:\n    environment:\n      RATE_LIMIT: "60"\n',
+  // punctuation: code, a fixture line of TypeScript source written to disk by the test
   "src/limits.ts": `export const RATE_LIMIT = 60; // ${CODE_ONLY}\n`,
 };
 
 /** The change: every route now has a limit, which the docs paragraph no
  * longer says. */
 const CHANGE = {
+  // punctuation: code, a fixture line of TypeScript source written to disk by the test
   "src/limits.ts": `export const RATE_LIMIT = 60; // ${CODE_ONLY}\nexport const LIMIT_ALL_ROUTES = true;\n`,
 };
 
@@ -346,7 +348,7 @@ function offerChecks(sim: Sim): CheckResult[] {
     check(
       "every mode offers search-non-code with its four parameters",
       missing.length === 0,
-      missing.join("; ") ||
+      missing.join(" · ") ||
         "local, CLI pull request, App and remote: pattern, regex, path, context",
     ),
     check(
@@ -377,7 +379,7 @@ function answerChecks(sim: Sim): CheckResult[] {
     check(
       "no search answer holds an untracked file or a code file",
       leaked.length === 0,
-      leaked.join("; ") ||
+      leaked.join(" · ") ||
         `${MODES.map((step) => searchAnswers(sim, step).length).join("+")} answers, none from .env or src/*.ts`,
     ),
     scriptedCheck(
@@ -424,7 +426,7 @@ function usageChecks(sim: Sim): CheckResult[] {
     check(
       "usage.tools in every mode's JSON counts the tool calls the model made",
       wrong.length === 0,
-      wrong.join("; ") || "local, CLI pull request, remote and the budget run",
+      wrong.join(" · ") || "local, CLI pull request, remote and the budget run",
     ),
     check(
       "search alone never turns codegraph on",
