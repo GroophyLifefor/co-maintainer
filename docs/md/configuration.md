@@ -99,6 +99,8 @@ provider, so both models are saved the first time. See
 | `--review-tool-result-max-chars=N` | `repos[owner/repo].reviewToolResultMaxChars` | Most characters one review tool result returns. Needs `--repo`. `0` or `-1` means no limit. Default `8000` |
 | `--review-tool-budget-chars=N` | `repos[owner/repo].reviewToolBudgetChars` | Tool result characters per review. Needs `--repo`. `0` or `-1` means no limit. Default `40000` |
 | `--review-search-max-context-lines=N` | `repos[owner/repo].reviewSearchMaxContextLines` | Most context lines `search-non-code` returns around a match. Needs `--repo`. `0` or `-1` means no limit. Default `3` |
+| `--mcp-config=PATH` | `repos[owner/repo].mcpServers` | Reads the repository's [MCP servers](#mcp-servers) from a JSON file and stores them. Needs `--repo`. Refused when `CM_MCP_DISABLED=1` |
+| `--mcp-allow-forks=true\|false` | `repos[owner/repo].mcpAllowForks` | Offers MCP tools in `serve` reviews of pull requests from forks. Needs `--repo`. Default `false` |
 
 ### App private key: inline, file contents, or path
 
@@ -231,6 +233,7 @@ After each successful [`init`](init.md) or [`sync`](sync.md),
 | `diagram-runtime`, `plantuml-server`, `plantuml-output-format` | |
 | `review-read-diff-max-chars` | |
 | `review-tool-result-max-chars`, `review-tool-budget-chars`, `review-search-max-context-lines` | |
+| `mcp-config`, `mcp-allow-forks` | |
 
 A plain `co-maintainer sync owner/repo` reuses those values. Pass new flags
 on `sync` or run `init` again to change includes, limits, or pull request
@@ -328,6 +331,42 @@ default, and a value that is not an integer is refused. In remote review the
 server's result and budget limits apply, and the context limit is the one the
 CLI has for the repository, because the CLI runs the search.
 
+## MCP servers
+
+What the servers do in a review is in [Review tools](review.md#mcp-servers).
+`--mcp-config` reads a JSON file with an `mcpServers` object and stores it, so a
+review never depends on the file staying where it was:
+
+```sh
+co-maintainer set --repo=owner/repo --mcp-config=./mcp.json
+co-maintainer set --repo=owner/repo --mcp-allow-forks=true
+co-maintainer set --repo=owner/repo --unset=mcp-config
+```
+
+```json
+"repos": {
+  "owner/repo": {
+    "mcpServers": {
+      "tracker": {
+        "command": "node",
+        "args": ["/opt/tracker-mcp/server.js"],
+        "env": { "TRACKER_TOKEN": "..." },
+        "tools": ["get_issue", "search_issues"]
+      }
+    }
+  }
+}
+```
+
+- A file that is not valid JSON, a server without `command` or `tools`, a
+  server with a `url`, or an unknown key is refused with a message naming it.
+- `set` prints each server with its tools, `tracker (get_issue, search_issues)`.
+  It never prints the command, the arguments or the `env` values, and
+  `config list` shows only how many repositories have settings.
+- The `env` values are secrets for the server and sit in `config.json` in plain
+  text, like the other [secrets on disk](#secrets-on-disk).
+- Running `--mcp-config` again replaces every server of the repository.
+
 ## Extensions in config.json
 
 `co-maintainer extension register` and `update` write the `extensions` array.
@@ -400,3 +439,4 @@ their variable is set.
 | Variable | Effect |
 | -------- | ------ |
 | `CM_EXTENSIONS_DISABLED` | The exact value `1` turns [extensions](extensions.md) off. `register` and `debug-run` refuse, and no review runs an extension. The hosted cloud sets it from outside the container |
+| `CM_MCP_DISABLED` | The exact value `1` turns [MCP servers](review.md#mcp-servers) off. `set --mcp-config` refuses, and no review starts a server. The hosted cloud sets it from outside the container |

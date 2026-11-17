@@ -347,6 +347,14 @@ sign. See <a href="cost.html">Cost</a>.</p>
 review type <code>remote</code>, and the registrations on your own machine do not run. The
 extension has no working directory with your checkout, because the checkout is
 on your machine. Its findings, verdict and cost come back in the result.</p>
+<h2 id="mcp-servers">MCP servers</h2>
+<p>A remote review offers the model the tools of the
+<a href="review.html#mcp-servers">MCP servers</a> the server has for the repository, set on
+the <code>serve</code> host with <code>co-maintainer set --repo=owner/repo --mcp-config=...</code>.
+They run on the server, as its extensions do. The servers in your own
+<code>config.json</code> are not used. Their results stay on the server: the copied-passage
+check runs there before the result comes back, and the <code>mcp_*</code> and
+<code>private_text_removed</code> warnings come back with it.</p>
 <h2 id="the-intent-file">The intent file</h2>
 <p><code>review --remote --intent-file=PATH</code> sends the text with the review. What it is
 and how the result records it is on <a href="review.html#intent">Review</a>. On a server the
@@ -429,7 +437,7 @@ hint. Everything else about the two codes is on
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#token-scope">Token scope</a></li><li><a href="#reading-the-servers-guides">Reading the server&#39;s guides</a></li><li><a href="#your-own-ai-key">Your own AI key</a></li><li><a href="#extensions">Extensions</a></li><li><a href="#the-intent-file">The intent file</a></li><li><a href="#errors-from-the-server">Errors from the server</a></li><li><a href="#limits">Limits</a></li><li><a href="#security">Security</a></li></ul></nav>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#token-scope">Token scope</a></li><li><a href="#reading-the-servers-guides">Reading the server&#39;s guides</a></li><li><a href="#your-own-ai-key">Your own AI key</a></li><li><a href="#extensions">Extensions</a></li><li><a href="#mcp-servers">MCP servers</a></li><li><a href="#the-intent-file">The intent file</a></li><li><a href="#errors-from-the-server">Errors from the server</a></li><li><a href="#limits">Limits</a></li><li><a href="#security">Security</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

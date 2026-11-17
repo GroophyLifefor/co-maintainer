@@ -233,6 +233,10 @@ starts keep it.</p>
 <td><code>1</code> turns <a href="extensions.html">extensions</a> off: <code>register</code> refuses and no review runs one. The Cloud image sets it from outside the container</td>
 </tr>
 <tr>
+<td><code>CM_MCP_DISABLED</code></td>
+<td><code>1</code> turns <a href="review.html#mcp-servers">MCP servers</a> off: <code>set --mcp-config</code> refuses and no review starts one. The Cloud image sets it from outside the container</td>
+</tr>
+<tr>
 <td><code>CM_LOGIN_HINT</code></td>
 <td>Text shown on the sign-in page instead of the default &quot;printed when <code>serve</code> started&quot; line. Useful when a deployment hands out its own password, as the Cloud image does. Escaped as plain text</td>
 </tr>
@@ -390,6 +394,18 @@ the <code>serve</code> host with <code>co-maintainer extension register</code>. 
 user that runs <code>serve</code> and can read that user&#39;s files, <code>config.json</code> included.
 <code>CM_EXTENSIONS_DISABLED=1</code> turns them off. On start, <code>serve</code> removes the run
 folders of extensions that are no longer running, and nothing else.</p>
+<h2 id="mcp-servers">MCP servers</h2>
+<p><code>serve</code> starts a repository&#39;s <a href="review.html#mcp-servers">MCP servers</a> in the
+reviews it posts as the GitHub App and in remote reviews, from its own
+<code>config.json</code>. Set them on the <code>serve</code> host with
+<code>co-maintainer set --repo=owner/repo --mcp-config=./mcp.json</code>. The servers run
+as the user that runs <code>serve</code>, with only their own <code>env</code>, <code>PATH</code> and <code>HOME</code>.</p>
+<p>A pull request from a fork gets no MCP tools, because anyone can open one and
+its diff could try to steer the model toward the private context. Turn them on
+for one repository with:</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--mcp-allow-forks=true</span>
+</code></pre>
+<p><code>CM_MCP_DISABLED=1</code> turns MCP off on the host.</p>
 <h2 id="updating">Updating</h2>
 <p>Forward-only migrations: do not install an older CLI after a newer one has
 opened <code>app.db</code>.</p>
@@ -408,7 +424,7 @@ running. Same steps are listed on <a href="dashboard.html#updating">Dashboard: U
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#what-it-does">What it does</a></li><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#sign-in-to-the-dashboard">Sign in to the dashboard</a></li><li><a href="#create-the-app-from-the-dashboard">Create the App from the dashboard</a></li><li><a href="#webhook-url">Webhook URL</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li><li><a href="#run-with-docker">Run with Docker</a></li><li><a href="#extensions">Extensions</a></li><li><a href="#updating">Updating</a></li></ul></nav>
+      <ul><li><a href="#what-it-does">What it does</a></li><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#sign-in-to-the-dashboard">Sign in to the dashboard</a></li><li><a href="#create-the-app-from-the-dashboard">Create the App from the dashboard</a></li><li><a href="#webhook-url">Webhook URL</a></li><li><a href="#behind-a-reverse-proxy">Behind a reverse proxy</a></li><li><a href="#run-with-docker">Run with Docker</a></li><li><a href="#extensions">Extensions</a></li><li><a href="#mcp-servers">MCP servers</a></li><li><a href="#updating">Updating</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

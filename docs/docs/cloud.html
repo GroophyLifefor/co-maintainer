@@ -176,6 +176,10 @@ shared context. The two do not conflict:</p>
 <p><a href="extensions.html">Extensions</a> are always off in the cloud. The hosted service sets
 <code>CM_EXTENSIONS_DISABLED=1</code> from outside the container, so nothing in your data
 can turn them on.</p>
+<h2 id="mcp-servers-are-off">MCP servers are off</h2>
+<p><a href="review.html#mcp-servers">MCP servers</a> are always off in the cloud. The hosted
+service sets <code>CM_MCP_DISABLED=1</code> from outside the container, so
+<code>set --mcp-config</code> is refused and no review starts an MCP server.</p>
 <h2 id="support-and-status">Support and status</h2>
 <p>The instance list, uptime, and any incident notes are published by the
 co-maintainer maintainers. For a self-hosted deployment, the same pages under
@@ -191,7 +195,7 @@ instance stores.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#what-cloud-gives-you">What cloud gives you</a></li><li><a href="#connecting-the-cli">Connecting the CLI</a></li><li><a href="#putting-a-repository-on-the-instance">Putting a repository on the instance</a></li><li><a href="#mixing-cloud-with-local-cli">Mixing cloud with local CLI</a></li><li><a href="#extensions-are-off">Extensions are off</a></li><li><a href="#support-and-status">Support and status</a></li></ul></nav>
+      <ul><li><a href="#what-cloud-gives-you">What cloud gives you</a></li><li><a href="#connecting-the-cli">Connecting the CLI</a></li><li><a href="#putting-a-repository-on-the-instance">Putting a repository on the instance</a></li><li><a href="#mixing-cloud-with-local-cli">Mixing cloud with local CLI</a></li><li><a href="#extensions-are-off">Extensions are off</a></li><li><a href="#mcp-servers-are-off">MCP servers are off</a></li><li><a href="#support-and-status">Support and status</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

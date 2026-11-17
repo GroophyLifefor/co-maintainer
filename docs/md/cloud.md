@@ -67,6 +67,12 @@ shared context. The two do not conflict:
 `CM_EXTENSIONS_DISABLED=1` from outside the container, so nothing in your data
 can turn them on.
 
+## MCP servers are off
+
+[MCP servers](review.md#mcp-servers) are always off in the cloud. The hosted
+service sets `CM_MCP_DISABLED=1` from outside the container, so
+`set --mcp-config` is refused and no review starts an MCP server.
+
 ## Support and status
 
 The instance list, uptime, and any incident notes are published by the

@@ -351,6 +351,16 @@ provider, so both models are saved the first time. See
 <td><code>repos[owner/repo].reviewSearchMaxContextLines</code></td>
 <td>Most context lines <code>search-non-code</code> returns around a match. Needs <code>--repo</code>. <code>0</code> or <code>-1</code> means no limit. Default <code>3</code></td>
 </tr>
+<tr>
+<td><code>--mcp-config=PATH</code></td>
+<td><code>repos[owner/repo].mcpServers</code></td>
+<td>Reads the repository&#39;s <a href="#mcp-servers">MCP servers</a> from a JSON file and stores them. Needs <code>--repo</code>. Refused when <code>CM_MCP_DISABLED=1</code></td>
+</tr>
+<tr>
+<td><code>--mcp-allow-forks=true|false</code></td>
+<td><code>repos[owner/repo].mcpAllowForks</code></td>
+<td>Offers MCP tools in <code>serve</code> reviews of pull requests from forks. Needs <code>--repo</code>. Default <code>false</code></td>
+</tr>
 </tbody></table>
 <h3 id="app-private-key-inline-file-contents-or-path">App private key: inline, file contents, or path</h3>
 <p>Three flags set the GitHub App private key, and they differ in what lands in
@@ -671,6 +681,10 @@ is allowed again. Match <code>--unset=</code> to the field name or the flag name
 <td><code>review-tool-result-max-chars</code>, <code>review-tool-budget-chars</code>, <code>review-search-max-context-lines</code></td>
 <td></td>
 </tr>
+<tr>
+<td><code>mcp-config</code>, <code>mcp-allow-forks</code></td>
+<td></td>
+</tr>
 </tbody></table>
 <p>A plain <code>co-maintainer sync owner/repo</code> reuses those values. Pass new flags
 on <code>sync</code> or run <code>init</code> again to change includes, limits, or pull request
@@ -767,6 +781,37 @@ the same way as the <code>read-full-diff</code> cap:</p>
 default, and a value that is not an integer is refused. In remote review the
 server&#39;s result and budget limits apply, and the context limit is the one the
 CLI has for the repository, because the CLI runs the search.</p>
+<h2 id="mcp-servers">MCP servers</h2>
+<p>What the servers do in a review is in <a href="review.html#mcp-servers">Review tools</a>.
+<code>--mcp-config</code> reads a JSON file with an <code>mcpServers</code> object and stores it, so a
+review never depends on the file staying where it was:</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--mcp-config=./mcp.json</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--mcp-allow-forks=true</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--unset=mcp-config</span>
+</code></pre>
+<pre><code class="language-json">&quot;repos&quot;: {
+  &quot;owner/repo&quot;: {
+    &quot;mcpServers&quot;: {
+      &quot;tracker&quot;: {
+        &quot;command&quot;: &quot;node&quot;,
+        &quot;args&quot;: [&quot;/opt/tracker-mcp/server.js&quot;],
+        &quot;env&quot;: { &quot;TRACKER_TOKEN&quot;: &quot;...&quot; },
+        &quot;tools&quot;: [&quot;get_issue&quot;, &quot;search_issues&quot;]
+      }
+    }
+  }
+}
+</code></pre>
+<ul>
+<li>A file that is not valid JSON, a server without <code>command</code> or <code>tools</code>, a
+server with a <code>url</code>, or an unknown key is refused with a message naming it.</li>
+<li><code>set</code> prints each server with its tools, <code>tracker (get_issue, search_issues)</code>.
+It never prints the command, the arguments or the <code>env</code> values, and
+<code>config list</code> shows only how many repositories have settings.</li>
+<li>The <code>env</code> values are secrets for the server and sit in <code>config.json</code> in plain
+text, like the other <a href="#secrets-on-disk">secrets on disk</a>.</li>
+<li>Running <code>--mcp-config</code> again replaces every server of the repository.</li>
+</ul>
 <h2 id="extensions-in-configjson">Extensions in config.json</h2>
 <p><code>co-maintainer extension register</code> and <code>update</code> write the <code>extensions</code> array.
 Do not edit it by hand: a registration edited by hand gets the same defaults and
@@ -931,6 +976,10 @@ their variable is set.</p>
 <td><code>CM_EXTENSIONS_DISABLED</code></td>
 <td>The exact value <code>1</code> turns <a href="extensions.html">extensions</a> off. <code>register</code> and <code>debug-run</code> refuse, and no review runs an extension. The hosted cloud sets it from outside the container</td>
 </tr>
+<tr>
+<td><code>CM_MCP_DISABLED</code></td>
+<td>The exact value <code>1</code> turns <a href="review.html#mcp-servers">MCP servers</a> off. <code>set --mcp-config</code> refuses, and no review starts a server. The hosted cloud sets it from outside the container</td>
+</tr>
 </tbody></table>
 </article>
         <footer class="doc-footer">
@@ -940,7 +989,7 @@ their variable is set.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#precedence">Precedence</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#per-repo-memory">Per-repo memory</a></li><li><a href="#diagram-settings">Diagram settings</a></li><li><a href="#the-read-full-diff-cap">The read-full-diff cap</a></li><li><a href="#review-tool-limits">Review tool limits</a></li><li><a href="#extensions-in-configjson">Extensions in config.json</a></li><li><a href="#secrets-on-disk">Secrets on disk</a></li><li><a href="#path-overrides">Path overrides</a></li><li><a href="#remote-review-variables">Remote review variables</a></li><li><a href="#extension-variables">Extension variables</a></li></ul></nav>
+      <ul><li><a href="#precedence">Precedence</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#per-repo-memory">Per-repo memory</a></li><li><a href="#diagram-settings">Diagram settings</a></li><li><a href="#the-read-full-diff-cap">The read-full-diff cap</a></li><li><a href="#review-tool-limits">Review tool limits</a></li><li><a href="#mcp-servers">MCP servers</a></li><li><a href="#extensions-in-configjson">Extensions in config.json</a></li><li><a href="#secrets-on-disk">Secrets on disk</a></li><li><a href="#path-overrides">Path overrides</a></li><li><a href="#remote-review-variables">Remote review variables</a></li><li><a href="#extension-variables">Extension variables</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>
