@@ -107,6 +107,7 @@ export async function runSet(args: string[]): Promise<void> {
     "remote-host",
     "remote-token",
     "remote-byok-policy",
+    "remote-client-tools-policy",
     "remote-byok",
     "remote-byok-default",
     "review-policy",
@@ -196,6 +197,7 @@ export async function runSet(args: string[]): Promise<void> {
     "remote-host": "remoteHost",
     "remote-token": "remoteToken",
     "remote-byok-policy": "remoteByokPolicy",
+    "remote-client-tools-policy": "remoteClientToolsPolicy",
     "remote-byok": "remoteByok",
     "remote-byok-default": "remoteByokDefault",
     "review-policy": "reviewPolicy",
@@ -274,6 +276,13 @@ export async function runSet(args: string[]): Promise<void> {
       die("--remote-byok-policy must be one of: off, allow, require");
     }
     patch.remoteByokPolicy = remoteByokPolicy;
+  }
+  const remoteClientToolsPolicy = text(args, "remote-client-tools-policy");
+  if (remoteClientToolsPolicy) {
+    if (!["off", "on"].includes(remoteClientToolsPolicy)) {
+      die("--remote-client-tools-policy must be one of: off, on");
+    }
+    patch.remoteClientToolsPolicy = remoteClientToolsPolicy;
   }
   const remoteByok = text(args, "remote-byok");
   if (remoteByok) patch.remoteByok = remoteByok;
@@ -365,6 +374,7 @@ export async function runSet(args: string[]): Promise<void> {
         "--github-app-id=, --github-app-private-key(-file|-path)=, --github-webhook-secret=, " +
         "--github-oauth-client-id=, --github-oauth-client-secret=, --github-oauth-allowed-user=, " +
         "--remote-host=, --remote-token=, --remote-byok-policy=off|allow|require, " +
+        "--remote-client-tools-policy=off|on, " +
         "--review-blocking=model|severity, --codegraph-version=SEMVER, " +
         "--password=, --disable-auth=password, --enable-auth=github, or --unset=name",
     );

@@ -30,13 +30,23 @@ import {
 } from "../review/carry_over.ts";
 import { visiblePathsToSave } from "../review/visible_paths.ts";
 import { remoteBridgeToolHandlers } from "../remote/tool_bridge.ts";
+import {
+  clientToolSession,
+  declaredClientTools,
+} from "../remote/declared_tools.ts";
+import { REMOTE_KNOWN_TOOL_NAMES } from "../remote/schema.ts";
 import { revisionFromSubmitJson } from "../remote/revision_from_submit.ts";
 import {
   closeRemoteSession,
   openRemoteSession,
   setRemoteSyncResult,
 } from "../remote/server/sessions.ts";
-import { readConfig, remoteByokPolicy, resolvedAiToken } from "../config.ts";
+import {
+  readConfig,
+  remoteByokPolicy,
+  remoteClientToolsPolicy,
+  resolvedAiToken,
+} from "../config.ts";
 import {
   dropByokKey,
   getByokKey,
@@ -407,10 +417,15 @@ export function registerRemoteReviewHandler(): void {
         const caps = JSON.parse(input.capabilities_json) as {
           tools?: { name: string }[];
         };
+        // Only the server's known tools. A declared tool never turns
+        // codegraph on, whatever it is called.
         const allowed = new Set(
           (caps.tools ?? [])
             .map((tool) => tool.name)
-            .filter((name) => typeof name === "string" && name),
+            .filter(
+              (name) =>
+                typeof name === "string" && REMOTE_KNOWN_TOOL_NAMES.has(name),
+            ),
         );
         // Codegraph is on when the client offers a codegraph tool. Search
         // alone does not turn it on.
@@ -496,7 +511,15 @@ export function registerRemoteReviewHandler(): void {
         }
         // The client runs codegraph and search in its own checkout. The
         // server runs the MCP servers it has for the repository, as it runs
-        // its own extensions.
+        // its own extensions. The tools the client declared run on the
+        // client, when the server's policy allows them.
+        const declared = declaredClientTools(
+          caps.tools,
+          remoteClientToolsPolicy(),
+        );
+        for (const tool of declared.tools) {
+          log("info", `client tool offered: ${tool.name}`);
+        }
         extras.tools = {
           kind: "bridge",
           tools: remoteBridgeToolHandlers(job.id, signal, allowed, [
@@ -508,6 +531,7 @@ export function registerRemoteReviewHandler(): void {
             },
           ]),
           mcp: true,
+          clientTools: clientToolSession(job.id, signal, declared),
         };
 
         const started = performance.now();

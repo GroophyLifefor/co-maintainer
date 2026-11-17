@@ -59,6 +59,7 @@ export const ENV_BY_FIELD: Record<string, string[]> = {
   remoteToken: ["CM_REMOTE_TOKEN"],
   reviewBlocking: ["CO_MAINTAINER_REVIEW_BLOCKING"],
   remoteByokPolicy: ["CM_REMOTE_BYOK_POLICY"],
+  remoteClientToolsPolicy: ["CM_REMOTE_CLIENT_TOOLS_POLICY"],
   codegraphVersion: ["CM_CODEGRAPH_VERSION"],
 };
 
@@ -177,6 +178,7 @@ export const KNOWN_FIELDS = [
   "remoteByok",
   "remoteByokDefault",
   "remoteByokPolicy",
+  "remoteClientToolsPolicy",
   "reviewPolicy",
   "extensionRerunOnRestart",
 ] as const satisfies readonly (keyof UserConfig)[];
