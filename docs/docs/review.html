@@ -616,7 +616,8 @@ case and punctuation, is replaced with <code>[private context removed]</code>, a
 text in every mode, <code>--json</code> and what the dashboard stores included. A
 suggestion block that holds such a run is removed whole with its
 <code>Suggestion:</code> line, since a patch with a passage cut out would not apply, and
-the warning counts it.</p>
+the warning counts it. Any other fenced block is checked as one piece too, so
+a passage split over its lines is found, and the block is replaced whole.</p>
 <p>Private results are never written to the JSON output, the log or the database.
 The check catches copied passages. It does not catch a single word, such as a
 customer&#39;s name, or a paraphrase.</p>
