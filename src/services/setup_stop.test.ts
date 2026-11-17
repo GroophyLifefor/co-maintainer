@@ -117,12 +117,15 @@ test("Stop during init lets the running AI call finish, then writes nothing", as
     }
   } finally {
     globalThis.fetch = previousFetch;
-    await closeAppDb();
-    names.forEach((name, index) => {
-      const value = original[index];
-      if (value === undefined) deleteEnv(name);
-      else setEnv(name, value);
-    });
-    await removePath(root, { recursive: true });
+    try {
+      await closeAppDb();
+    } finally {
+      names.forEach((name, index) => {
+        const value = original[index];
+        if (value === undefined) deleteEnv(name);
+        else setEnv(name, value);
+      });
+      await removePath(root, { recursive: true });
+    }
   }
 });
