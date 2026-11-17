@@ -37,6 +37,16 @@ async function runTool(
   }
 }
 
+/** A Stop between tool rounds. `partial` holds the merged usage of the calls
+ * made before it, so their cost is not lost. */
+export type StoppedLoopError = DOMException & { partial?: AiResponse };
+
+function stoppedWith(partial: AiResponse | undefined): StoppedLoopError {
+  const error = new DOMException("Aborted", "AbortError") as StoppedLoopError;
+  if (partial) error.partial = partial;
+  return error;
+}
+
 export async function completeWithMermaidTools(
   provider: AiProvider,
   request: AiRequest,
@@ -88,14 +98,17 @@ export async function completeWithMermaidTools(
     };
   };
 
+  let sofar: AiResponse | undefined;
   for (let round = 0; round < maxToolRounds; round++) {
     if (options.signal?.aborted) {
-      throw new DOMException("Aborted", "AbortError");
+      // The calls this loop already made are paid. They ride on the error
+      // so the caller can still record their cost.
+      throw stoppedWith(sofar);
     }
     const response = await provider.complete({ ...request, messages, tools });
     if (options.onResponse) await options.onResponse(response);
     if (!response.toolCalls?.length) return merge(response);
-    merge(response);
+    sofar = merge(response);
     log(
       "review-tools",
       `round ${

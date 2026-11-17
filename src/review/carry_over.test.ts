@@ -261,13 +261,13 @@ test("the seen set carries forward through the real plan: a dropped file is cove
 
 test("a withdrawn finding blocks a repeat only while its lines are unchanged", () => {
   const withdrawn = [
-    { path: "src/app.ts", lineFrom: 2, anchorText: "  if (ready) run();" },
+    { path: "src/app.ts", lineFrom: 2, anchorText: "  if (ready) run()" },
   ];
   const again = { path: "src/app.ts", from: 2, to: 2 };
   const elsewhere = { path: "src/app.ts", from: 9, to: 9 };
   const same = revisionWith(
     "src/app.ts",
-    "@@ -1,2 +1,3 @@\n start();\n+  if (ready) run();\n+  stop();",
+    "@@ -1,2 +1,3 @@\n start()\n+  if (ready) run()\n+  stop()",
   );
   const kept = withoutWithdrawn([again, elsewhere], withdrawn, same);
   if (kept.dropped.length !== 1 || kept.dropped[0] !== again) {
@@ -276,7 +276,7 @@ test("a withdrawn finding blocks a repeat only while its lines are unchanged", (
   // Moved down one line by an edit above: still the same lines, still blocked.
   const moved = revisionWith(
     "src/app.ts",
-    "@@ -1,2 +1,4 @@\n start();\n+  log();\n+  if (ready) run();\n+  stop();",
+    "@@ -1,2 +1,4 @@\n start()\n+  log()\n+  if (ready) run()\n+  stop()",
   );
   const shifted = withoutWithdrawn(
     [{ path: "src/app.ts", from: 3, to: 3 }],
@@ -289,7 +289,7 @@ test("a withdrawn finding blocks a repeat only while its lines are unchanged", (
   // The lines changed: the finding can be raised again.
   const changed = revisionWith(
     "src/app.ts",
-    "@@ -1,2 +1,3 @@\n start();\n+  if (ready && safe) run();\n+  stop();",
+    "@@ -1,2 +1,3 @@\n start()\n+  if (ready && safe) run()\n+  stop()",
   );
   const raised = withoutWithdrawn([again], withdrawn, changed);
   if (raised.kept.length !== 1) {

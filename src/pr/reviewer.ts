@@ -2,6 +2,7 @@ import { createAiProvider } from "../ai/provider.ts";
 import { CliError, EXIT_USAGE } from "../cli/error.ts";
 import {
   completeWithMermaidTools,
+  type StoppedLoopError,
   type ToolHandler,
 } from "../ai/mermaid_loop.ts";
 import { loadGuides } from "../review/guides.ts";
@@ -285,6 +286,21 @@ identifying the concrete input or code path that misbehaves when you can.`;
 
 type UsageSinkForNormalize = UsageSink;
 
+/** An AI call a Stop can cut between tool rounds. The calls made before the
+ * Stop are paid, so their cost is recorded before the stop goes on up. */
+async function stoppable(
+  call: Promise<AiResponse>,
+  usage: UsageSink | undefined,
+): Promise<AiResponse> {
+  try {
+    return await call;
+  } catch (error) {
+    const partial = (error as StoppedLoopError).partial;
+    if (partial && usage) await usage(partial);
+    throw error;
+  }
+}
+
 /** Turns a model reply into the Markdown every consumer already parses.
  * A reply that is not usable JSON is retried once with an
  * explicit reminder, if that also fails, the raw text is returned so the
@@ -304,17 +320,20 @@ async function normalizeReviewResponse(
   const direct = findingsMarkdownFromJson(response.text);
   if (direct !== undefined) return direct;
   report("AI response was not valid JSON, asking once more");
-  const retry = await completeWithMermaidTools(
-    provider,
-    {
-      ...request,
-      job: "review_pull_request_retry",
-      prompt: `${request.prompt}\n\nThe previous answer was not valid JSON. Return only the JSON object described above, with no prose and no code fence.`,
-    },
-    1,
-    extraTools,
-    maxToolRounds,
-    { signal },
+  const retry = await stoppable(
+    completeWithMermaidTools(
+      provider,
+      {
+        ...request,
+        job: "review_pull_request_retry",
+        prompt: `${request.prompt}\n\nThe previous answer was not valid JSON. Return only the JSON object described above, with no prose and no code fence.`,
+      },
+      1,
+      extraTools,
+      maxToolRounds,
+      { signal },
+    ),
+    usage,
   );
   if (usage) await usage(retry);
   if (options.debug) {
@@ -609,13 +628,11 @@ ${diff}`;
       } · maxTokens=${request.maxTokens}`,
     );
   }
-  let response = await completeWithMermaidTools(
-    provider,
-    request,
-    1,
-    extraTools,
-    maxToolRounds,
-    { signal },
+  let response = await stoppable(
+    completeWithMermaidTools(provider, request, 1, extraTools, maxToolRounds, {
+      signal,
+    }),
+    usage,
   );
   if (usage) await usage(response);
   report(
@@ -670,13 +687,16 @@ ${reviewText}`,
       );
     }
     report(`AI improvement pass ${pass - 1} of ${matrix - 1}`);
-    response = await completeWithMermaidTools(
-      provider,
-      improvementRequest,
-      1,
-      extraTools,
-      maxToolRounds,
-      { signal },
+    response = await stoppable(
+      completeWithMermaidTools(
+        provider,
+        improvementRequest,
+        1,
+        extraTools,
+        maxToolRounds,
+        { signal },
+      ),
+      usage,
     );
     if (usage) await usage(response);
     report(
@@ -809,13 +829,11 @@ ${ownDiff}${unchangedListing}`;
     ...mermaidToolFields(options),
   };
   report(`AI request · prompt=${prompt.length} chars`);
-  let response = await completeWithMermaidTools(
-    provider,
-    request,
-    1,
-    extraTools,
-    maxToolRounds,
-    { signal },
+  let response = await stoppable(
+    completeWithMermaidTools(provider, request, 1, extraTools, maxToolRounds, {
+      signal,
+    }),
+    usage,
   );
   if (usage) await usage(response);
   if (!response.text.trim()) {
@@ -849,13 +867,16 @@ ${prompt}
 DRAFT REVIEW (Markdown rendering of the previous JSON answer):
 ${reviewText}`,
     };
-    response = await completeWithMermaidTools(
-      provider,
-      improvementRequest,
-      1,
-      extraTools,
-      maxToolRounds,
-      { signal },
+    response = await stoppable(
+      completeWithMermaidTools(
+        provider,
+        improvementRequest,
+        1,
+        extraTools,
+        maxToolRounds,
+        { signal },
+      ),
+      usage,
     );
     if (usage) await usage(response);
     reviewText = await normalizeReviewResponse(
