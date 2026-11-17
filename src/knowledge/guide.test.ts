@@ -731,3 +731,42 @@ test("a guide too long to send is rewritten in full, not edited", async () => {
     await cleanup(repo);
   }
 });
+
+test("a change too big to send as an edit is rewritten in full", async () => {
+  const repo = `guide-big-delta-${crypto.randomUUID()}`;
+  const provider = new EditProvider(SHORT_GUIDE);
+  const outcome: { mode?: "full" | "edit" | "unchanged" } = {};
+  try {
+    await synthesizeReviewGuides(
+      provider,
+      repo,
+      "openrouter",
+      "fixture",
+      1,
+      [...OLD_THREE, finding("Drain writes before shutdown.")],
+      undefined,
+      undefined,
+      {
+        guide: EDIT_GUIDE,
+        rules: EDIT_RULES,
+        findings: [
+          ...OLD_THREE.map((item) => item.claim.toLowerCase()),
+          // Gone findings far past the edit budget.
+          ...Array.from(
+            { length: 400 },
+            (_, index) => `gone ${index} ${"x".repeat(400)}`,
+          ),
+        ],
+      },
+      outcome,
+    );
+    if (
+      outcome.mode !== "full" ||
+      provider.requests.some((r) => r.job === "edit_guide")
+    ) {
+      throw new Error(`mode ${outcome.mode}`);
+    }
+  } finally {
+    await cleanup(repo);
+  }
+});
