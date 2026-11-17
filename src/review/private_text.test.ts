@@ -88,6 +88,20 @@ test("headings, location lines and a clean suggestion block are left alone", () 
   assert.equal(lines.length, 12);
 });
 
+test("a heading that copies a passage is checked too, and its marks are kept", () => {
+  const review = [
+    "### [P1 · blocking] `src/export.ts`: `Acme Corp reported that the export button silently drops`",
+    "Location: `src/export.ts:10`",
+  ].join("\n");
+  const result = removePrivateText(review, [PRIVATE]);
+  assert.equal(result.removed, 1);
+  assert.equal(
+    result.text.split("\n")[0],
+    `### [P1 · blocking] \`src/export.ts\`: \`${PRIVATE_TEXT_REMOVED}\``,
+  );
+  assert.equal(result.text.split("\n")[1], "Location: `src/export.ts:10`");
+});
+
 test("a passage split over the lines of a code block is still found", () => {
   const words = PRIVATE.split(" ");
   const half = Math.floor(words.length / 2);

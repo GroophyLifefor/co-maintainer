@@ -17,7 +17,10 @@ import {
 } from "../../review/diagram.ts";
 import { hashPassword, passwordProblem } from "../../util/password.ts";
 import { nowIso } from "../../util/time.ts";
-import { readTextFile } from "../../util/runtime.ts";
+import { readTextFile, readTextFileCapped } from "../../util/runtime.ts";
+
+/** Largest MCP config file `set --mcp-config` reads. */
+const MCP_CONFIG_MAX_BYTES = 1024 * 1024;
 import {
   verifyAnthropic,
   verifyOpenAi,
@@ -629,12 +632,18 @@ async function runSetRepo(typed: string, args: string[]): Promise<void> {
     // The cloud sets the switch from outside the container, so a stored
     // config can never turn MCP back on there.
     if (mcpDisabled()) die(MCP_DISABLED_MESSAGE);
-    let raw: string;
+    let read: { text: string; cut: boolean };
     try {
-      raw = await readTextFile(mcpFile);
+      read = await readTextFileCapped(mcpFile, MCP_CONFIG_MAX_BYTES);
     } catch (error) {
       die(`Could not read the MCP config ${mcpFile}: ${String(error)}`);
     }
+    if (read.cut) {
+      die(
+        `The MCP config ${mcpFile} is over ${MCP_CONFIG_MAX_BYTES / 1024 / 1024} MB.`,
+      );
+    }
+    const raw = read.text;
     try {
       patch.mcpServers = parseMcpConfig(raw);
     } catch (error) {

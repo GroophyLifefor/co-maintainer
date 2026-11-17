@@ -74,16 +74,20 @@ function scrub(
   return { text: out + text.slice(at), removed };
 }
 
-/** Lines the check leaves alone: the rendered heading, location, references
- * and suggestion lines, which hold paths and ids written by code. */
-const STRUCTURE = /^(#{1,6} |Location: |References: |Suggestion: )/;
+/** Lines the check leaves alone: the rendered location, references and
+ * suggestion lines, which hold paths and ids written by code. */
+const STRUCTURE = /^(Location: |References: |Suggestion: )/;
+
+/** A heading. Its text can come from the model, so it is checked on its own,
+ * apart from the paragraph around it. */
+const HEADING = /^#{1,6} /;
 
 /** The line that anchors a suggestion block. */
 const STRUCTURE_SUGGESTION = /^\s*Suggestion: /;
 
 /** The review's Markdown with every copied passage replaced, and how many
  * were. A paragraph is checked as one piece, so a passage that wraps a line
- * is still found. A suggestion block is checked as one piece too, and one
+ * is still found. A heading is checked as one piece of its own. A suggestion block is checked as one piece too, and one
  * that holds a copied passage is dropped with its Suggestion line, since a
  * patch with a passage cut out of it would no longer apply. Any other fenced
  * block is checked as one piece as well, so a passage split over its lines is
@@ -142,6 +146,13 @@ export function removePrivateText(
       flush();
       fence = /^\s*```suggestion\b/.test(line) ? "suggestion" : "other";
       block = [line];
+      continue;
+    }
+    if (HEADING.test(line)) {
+      flush();
+      const result = scrub(line, runs);
+      removed += result.removed;
+      out.push(result.text);
       continue;
     }
     if (line.trim() === "" || STRUCTURE.test(line)) {

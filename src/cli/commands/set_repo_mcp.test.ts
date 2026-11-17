@@ -90,6 +90,9 @@ test("a file without tools or that cannot be read is refused", async () => {
       runSet([REPO, `--mcp-config=${join(dir, "missing.json")}`]),
       /Could not read the MCP config/,
     );
+    const big = join(dir, "big.json");
+    writeTextFileSync(big, " ".repeat(1024 * 1024 + 1));
+    await assert.rejects(runSet([REPO, `--mcp-config=${big}`]), /is over 1 MB/);
     assert.equal(readConfig().repos?.["acme/widgets"]?.mcpServers, undefined);
   });
 });

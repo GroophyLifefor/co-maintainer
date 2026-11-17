@@ -11,6 +11,7 @@ import {
   lstat as fsLstat,
   mkdir as fsMkdir,
   mkdtemp as fsMkdtemp,
+  open as fsOpen,
   readFile as fsReadFile,
   readdir,
   readlink as fsReadLink,
@@ -117,6 +118,36 @@ export function statSync(path: string | URL): Stats {
 
 export function readTextFile(path: string | URL): Promise<string> {
   return fsReadFile(path, "utf8");
+}
+
+/** A text file read up to `maxBytes`. `cut` is true when the file is longer,
+ * and then `text` holds only the first `maxBytes`. */
+export async function readTextFileCapped(
+  path: string | URL,
+  maxBytes: number,
+): Promise<{ text: string; cut: boolean }> {
+  const file = await fsOpen(path, "r");
+  try {
+    const buffer = Buffer.alloc(maxBytes + 1);
+    let size = 0;
+    while (size < buffer.length) {
+      const { bytesRead } = await file.read(
+        buffer,
+        size,
+        buffer.length - size,
+        null,
+      );
+      if (bytesRead === 0) break;
+      size += bytesRead;
+    }
+    const cut = size > maxBytes;
+    return {
+      text: buffer.subarray(0, Math.min(size, maxBytes)).toString("utf8"),
+      cut,
+    };
+  } finally {
+    await file.close();
+  }
 }
 
 export function readFile(path: string | URL): Promise<Uint8Array> {

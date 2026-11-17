@@ -295,13 +295,15 @@ export class McpClient {
   private read(chunk: string): void {
     this.buffer += chunk;
     let newline = this.buffer.indexOf("\n");
-    while (newline !== -1) {
+    while (newline !== -1 && newline <= MAX_LINE_CHARS) {
       const line = this.buffer.slice(0, newline).trim();
       this.buffer = this.buffer.slice(newline + 1);
       if (line) this.receive(line);
       newline = this.buffer.indexOf("\n");
     }
-    if (this.buffer.length > MAX_LINE_CHARS) {
+    // A whole line over the limit is refused before it is parsed, as is the
+    // unfinished rest.
+    if (newline > MAX_LINE_CHARS || this.buffer.length > MAX_LINE_CHARS) {
       this.buffer = "";
       this.end(new McpError("sent a line longer than 16 MB"));
       this.child.kill("SIGKILL");
