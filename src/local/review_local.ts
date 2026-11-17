@@ -303,7 +303,8 @@ export async function runLocalReview(
       // Ctrl-C at the install prompt or during the index: stop before the
       // model call. The handler has released the lock.
       if (interrupted()) return;
-      extras.prepareCodegraphTools = () => Promise.resolve(codegraphPrep.tools);
+      // Search and codegraph read the working tree at the git root.
+      extras.tools = { kind: "tree", root, codegraph: codegraphPrep.tools };
       const stopHeartbeat = startHeartbeat("reviewing local changes");
       const started = performance.now();
       const aiMetrics = emptyAiMetrics();
@@ -396,6 +397,7 @@ export async function runLocalReview(
         tokensIn: aiMetrics.tokensIn,
         tokensOut: aiMetrics.tokensOut,
         ...costUsage(aiMetrics),
+        tools: response.tools,
       };
       const run = runSummaryWithExtensions(
         summaryFromMetrics(aiMetrics, performance.now() - started),
@@ -452,6 +454,7 @@ export async function runLocalReview(
               extensions,
               Boolean(intentLoad.intent),
               readConfig().repos?.[options.repo]?.reviewReferences === true,
+              response.tools,
             ) +
             "\n",
         );

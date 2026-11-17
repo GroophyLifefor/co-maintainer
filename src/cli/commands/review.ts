@@ -132,6 +132,7 @@ async function runReviewPr(
         tokensIn: aiMetrics.tokensIn,
         tokensOut: aiMetrics.tokensOut,
         ...costUsage(aiMetrics),
+        tools: result.tools,
       };
       // The engine reports the codegraph state it actually reached, instead of
       // the old `useCodegraph ? "used" : "disabled"` that claimed "used" while
@@ -198,6 +199,7 @@ async function runReviewPr(
               intent: intent !== null,
               showReferences:
                 readConfig().repos?.[options.repo]?.reviewReferences === true,
+              tools: result.tools,
             }) +
             "\n",
         );

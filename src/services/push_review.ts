@@ -16,6 +16,7 @@ import { withResolvedReferences } from "../review/references.ts";
 import { parseFindings, type ParsedFinding } from "../pr/findings.ts";
 import { githubFileToRevisionFile } from "../pr/github_revision.ts";
 import { reviewWorkspaceRevision } from "../pr/reviewer.ts";
+import { emptyToolUsage } from "../ai/tool_gate.ts";
 import {
   anchorTextFromPatch,
   parsePreviousVerdicts,
@@ -1028,6 +1029,7 @@ async function runPushReview(
         tokensOut,
         ...costUsage(costTally),
         billedTo: "server",
+        tools: response?.tools ?? emptyToolUsage(),
       },
       remote: { jobId: job.id, reviewId: review.id },
     };
