@@ -14,6 +14,7 @@
 import { VERSION } from "../version.ts";
 import type { ReviewCliArgs } from "../cli/review_args.ts";
 import { exitWith } from "../cli/error.ts";
+import { toolUsageFromJson } from "../ai/tool_gate.ts";
 import {
   formatHumanReview,
   humanFindingsFromJson,
@@ -396,6 +397,10 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
                 findings: human,
                 warnings: warningsFromJson(payload.result.warnings),
                 coverage: coverageFromResult(payload.result),
+                tools: toolUsageFromJson(
+                  (payload.result.usage as { tools?: unknown } | undefined)
+                    ?.tools,
+                ),
               }) +
               "\n",
           );

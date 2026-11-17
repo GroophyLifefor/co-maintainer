@@ -65,8 +65,8 @@ one-line fix or an obvious, single-step cause and effect genuinely needs no
 diagram. That is the only reason to omit one. Close every fenced block.`;
 
 const ROLE = `You are a precise open-source code reviewer.
-Evidence must come from the supplied diff and review guide. Keep findings
-concise by default.`;
+Evidence must come from the supplied diff, the review guide and the results
+of the tools you call. Keep findings concise by default.`;
 
 const ANSWER = JSON.stringify({
   findings: [

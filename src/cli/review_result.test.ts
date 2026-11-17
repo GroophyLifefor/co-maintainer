@@ -280,6 +280,41 @@ test("the remote and push result fields come from the same helper", () => {
   same(revisionStats(REVISION).truncated, false, "no coverage means full");
 });
 
+test("human output prints the Tools line under the summary, and the JSON keeps usage.tools", () => {
+  const tools = {
+    rounds: 5,
+    calls: 11,
+    resultChars: 18240,
+    budgetSpent: false,
+    byTool: { "codegraph-callers": 4, "search-non-code": 7 },
+  };
+  const input = {
+    title: "co-maintainer review",
+    guideBuiltAt: null,
+    codegraphState: "disabled" as const,
+    findings: [],
+  };
+  const text = formatHumanReview({ ...input, tools });
+  if (!/\nSummary: [^\n]+\nTools: 11 calls · 18,240 characters/.test(text)) {
+    throw new Error(text);
+  }
+  const idle = formatHumanReview({ ...input, tools: { ...tools, calls: 0 } });
+  if (idle.includes("Tools:")) throw new Error(idle);
+  const json = JSON.parse(
+    buildPrReviewJson({
+      repo: "o/r",
+      prNumber: 9,
+      markdown: "",
+      guideBuiltAt: null,
+      codegraphState: "disabled",
+      codegraphReason: null,
+      usage: { tokensIn: 1, tokensOut: 2, costUsd: 0.01, tools },
+      durationMs: 100,
+    }),
+  );
+  same(json.usage.tools, tools, "usage.tools");
+});
+
 test("human output prints the coverage line only when a file is not full", () => {
   const input = {
     title: "co-maintainer review",

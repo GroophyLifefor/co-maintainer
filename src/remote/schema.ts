@@ -40,4 +40,5 @@ export const REMOTE_KNOWN_TOOL_NAMES = new Set([
   "codegraph-impact",
   "codegraph-affected",
   "read-full-diff",
+  "search-non-code",
 ]);

@@ -6,7 +6,9 @@ once on [`serve`](serve.md). Developers clone, set host and token, and run
 `review --remote` without maintaining their own guide cache.
 
 The model runs on the server as part of that path. Codegraph tools (when enabled)
-still run on the laptop and return results through the tool bridge.
+and [`search-non-code`](review.md#searching-docs-and-configuration) still run on
+the laptop and return results through the tool bridge. A server older than
+0.7.10 ignores the search tool.
 
 Overview: [`review`](review.md). Requires [`serve`](serve.md) and the
 [dashboard](dashboard.md).

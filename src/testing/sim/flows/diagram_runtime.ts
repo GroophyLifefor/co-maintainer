@@ -323,6 +323,11 @@ const bodiesOf = (run: ReviewRun): string[] =>
 /** The review request's wording: system and user prompt. */
 const wording = (chat: Chat): string => `${chat.system}\n${chat.user}`;
 
+/** The offered tools without `search-non-code`, which every review with a
+ * checkout offers whatever its diagram runtime. */
+const diagramTools = (chat: Chat): string[] =>
+  chat.tools.filter((name) => name !== "search-non-code");
+
 function appRequest(sim: Sim, step: string): Chat | undefined {
   const call = sim.trace.ai.find(
     (item) => item.step === step && item.job === "review_pull_request",
@@ -401,7 +406,9 @@ function localChecks(sim: Sim): CheckResult[] {
     if (!baseChat.user.includes("include a Mermaid fenced code block")) {
       problems.push("the review prompt lost its Mermaid sentence");
     }
-    if (JSON.stringify(baseChat.tools) !== '["read-mermaid-syntaxes"]') {
+    if (
+      JSON.stringify(diagramTools(baseChat)) !== '["read-mermaid-syntaxes"]'
+    ) {
       problems.push(`tools ${JSON.stringify(baseChat.tools)}`);
     }
     if (/PlantUML|plantuml/.test(wording(baseChat))) {
@@ -439,7 +446,7 @@ function localChecks(sim: Sim): CheckResult[] {
     if (/Mermaid|mermaid/.test(wording(chat))) {
       asked.push("Mermaid wording left in the request");
     }
-    if (chat.tools.length !== 0) {
+    if (diagramTools(chat).length !== 0) {
       asked.push(`tools ${JSON.stringify(chat.tools)}`);
     }
   }
@@ -642,7 +649,7 @@ function appChecks(sim: Sim): CheckResult[] {
     if (/Mermaid|mermaid/.test(wording(served))) {
       problems.push("Mermaid wording in the App request");
     }
-    if (served.tools.length !== 0) {
+    if (diagramTools(served).length !== 0) {
       problems.push(`tools ${JSON.stringify(served.tools)}`);
     }
   }
@@ -689,7 +696,9 @@ function appChecks(sim: Sim): CheckResult[] {
     for (const marker of MERMAID_MARKERS) {
       if (!fallback.system.includes(marker)) fell.push(`no "${marker}"`);
     }
-    if (JSON.stringify(fallback.tools) !== '["read-mermaid-syntaxes"]') {
+    if (
+      JSON.stringify(diagramTools(fallback)) !== '["read-mermaid-syntaxes"]'
+    ) {
       fell.push(`tools ${JSON.stringify(fallback.tools)}`);
     }
     if (/PlantUML|plantuml/.test(wording(fallback))) {

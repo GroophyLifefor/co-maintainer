@@ -1950,7 +1950,7 @@ async function toolChecks(sim: Sim): Promise<CheckResult[]> {
   const [first, second] = chats;
   const problems: string[] = [];
   if (chats.length !== 2) problems.push(`${chats.length} requests`);
-  if (!same(first?.tools, ["read-mermaid-syntaxes"]))
+  if (!same(first?.tools, ["read-mermaid-syntaxes", "search-non-code"]))
     problems.push(`offered ${JSON.stringify(first?.tools)}`);
   if (first?.answerToolCalls.length !== 2)
     problems.push("the first answer asked for 2 tool calls");

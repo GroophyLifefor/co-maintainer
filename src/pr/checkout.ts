@@ -198,6 +198,22 @@ export async function ensureCommit(
   return sha;
 }
 
+/** `run` for git commands inside `clone` that may reach GitHub. The clone is
+ * blobless, so a worktree, a checkout or a `git show` downloads file contents
+ * on demand, and on a private repository that needs the App's token as much
+ * as the clone did. */
+export function withGitAuth(run: Run, clone: string): Run {
+  return async (command, args, cwd, env) => {
+    const auth = await gitAuthEnv(clone);
+    return run(
+      command,
+      args,
+      cwd,
+      auth || env ? { ...auth, ...env } : undefined,
+    );
+  };
+}
+
 export async function ensureWorktree(
   repo: string,
   pr: number,
@@ -208,16 +224,17 @@ export async function ensureWorktree(
     const clone = await ensureCloneUnlocked(repo, run);
     const sha = await ensureCommit(clone, commit, run);
     const dir = worktreeDir(repo, pr);
+    const git = withGitAuth(run, clone);
     if (await pathExists(`${dir}/.git`)) {
       log("checkout", `reusing worktree ${dir}`);
-      const reset = await run("git", ["checkout", "-q", "--detach", sha], dir);
+      const reset = await git("git", ["checkout", "-q", "--detach", sha], dir);
       if (reset.code !== 0) {
         throw new Error(`checkout ${sha} failed: ${reset.stderr.trim()}`);
       }
       return dir;
     }
     log("checkout", `creating worktree ${dir} at ${sha.slice(0, 10)}`);
-    const added = await run(
+    const added = await git(
       "git",
       ["worktree", "add", "-q", "--detach", dir, sha],
       clone,

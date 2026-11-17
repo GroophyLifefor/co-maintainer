@@ -1198,6 +1198,21 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td>The most characters one read-full-diff answer returns in a review of this repository. Needs --repo. 0 or -1 means no limit.</td>
 </tr>
 <tr>
+<td><code>--review-tool-result-max-chars=N</code></td>
+<td>8000</td>
+<td>The most characters one review tool result returns before it is cut. Codegraph and read-full-diff are not cut by it. Needs --repo. 0 or -1 means no limit.</td>
+</tr>
+<tr>
+<td><code>--review-tool-budget-chars=N</code></td>
+<td>40000</td>
+<td>Tool result characters per review. Once they are spent, later tool calls get no answer. Codegraph is not counted. Needs --repo. 0 or -1 means no limit.</td>
+</tr>
+<tr>
+<td><code>--review-search-max-context-lines=N</code></td>
+<td>3</td>
+<td>The most lines search-non-code returns around a match. Needs --repo. 0 or -1 means no limit.</td>
+</tr>
+<tr>
 <td><code>--guide-full-every=N</code></td>
 <td>10</td>
 <td>Every N-th sync whose input changed rewrites the review guide in full, the others edit it. 1 always rewrites, 0 never after init. Needs --repo.</td>

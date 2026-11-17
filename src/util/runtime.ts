@@ -258,19 +258,39 @@ function baseSpawnOptions(options: CommandOptions) {
   };
 }
 
-function collect(child: ChildProcess): Promise<CommandOutput> {
+function collect(
+  child: ChildProcess,
+  maxStdoutBytes?: number,
+): Promise<CommandOutput & { cut?: boolean }> {
   return new Promise((resolve, reject) => {
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
-    child.stdout?.on("data", (chunk: Buffer) => stdout.push(chunk));
+    let size = 0;
+    let cut = false;
+    child.stdout?.on("data", (chunk: Buffer) => {
+      if (cut) return;
+      stdout.push(chunk);
+      size += chunk.length;
+      // Past the limit the rest is not wanted: stop the process instead of
+      // holding all of its output.
+      if (maxStdoutBytes !== undefined && size > maxStdoutBytes) {
+        cut = true;
+        try {
+          child.kill("SIGKILL");
+        } catch {
+          // already exited
+        }
+      }
+    });
     child.stderr?.on("data", (chunk: Buffer) => stderr.push(chunk));
     child.on("error", reject);
     child.on("close", (code) => {
       resolve({
-        success: code === 0,
-        code: code ?? 1,
+        success: code === 0 || cut,
+        code: cut ? 0 : (code ?? 1),
         stdout: new Uint8Array(Buffer.concat(stdout)),
         stderr: new Uint8Array(Buffer.concat(stderr)),
+        ...(cut ? { cut: true } : {}),
       });
     });
   });
@@ -311,7 +331,11 @@ export function commandSpawn(
   options: CommandOptions = {},
 ): {
   kill: (signal?: NodeJS.Signals) => void;
-  output: () => Promise<CommandOutput>;
+  /** With `maxStdoutBytes`, the process is stopped once its output passes
+   * that size, and the result says `cut`. */
+  output: (
+    maxStdoutBytes?: number,
+  ) => Promise<CommandOutput & { cut?: boolean }>;
 } {
   const child = spawn(command, options.args ?? [], {
     ...baseSpawnOptions(options),
@@ -325,7 +349,7 @@ export function commandSpawn(
         // already exited
       }
     },
-    output: () => collect(child),
+    output: (maxStdoutBytes?: number) => collect(child, maxStdoutBytes),
   };
 }
 

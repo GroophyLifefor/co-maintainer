@@ -1011,6 +1011,27 @@ export const COMMANDS: CommandSpec[] = [
               "The most characters one read-full-diff answer returns in a review of this repository. Needs --repo. 0 or -1 means no limit.",
           },
           {
+            name: "review-tool-result-max-chars",
+            value: "N",
+            default: "8000",
+            description:
+              "The most characters one review tool result returns before it is cut. Codegraph and read-full-diff are not cut by it. Needs --repo. 0 or -1 means no limit.",
+          },
+          {
+            name: "review-tool-budget-chars",
+            value: "N",
+            default: "40000",
+            description:
+              "Tool result characters per review. Once they are spent, later tool calls get no answer. Codegraph is not counted. Needs --repo. 0 or -1 means no limit.",
+          },
+          {
+            name: "review-search-max-context-lines",
+            value: "N",
+            default: "3",
+            description:
+              "The most lines search-non-code returns around a match. Needs --repo. 0 or -1 means no limit.",
+          },
+          {
             name: "guide-full-every",
             value: "N",
             default: "10",

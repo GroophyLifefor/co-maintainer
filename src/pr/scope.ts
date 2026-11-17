@@ -1,5 +1,6 @@
 import {
   ensureCloneUnlocked,
+  withGitAuth,
   ensureCommit,
   type Run,
   runCommand,
@@ -137,6 +138,6 @@ export async function computeScope(
       log("scope", `unavailable · ${String(error)}`);
       return undefined;
     }
-    return await scopeInClone(clone, base, head, run);
+    return await scopeInClone(clone, base, head, withGitAuth(run, clone));
   });
 }

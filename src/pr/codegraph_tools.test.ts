@@ -18,6 +18,9 @@ function capturingRun(): { run: CodegraphRunner; calls: string[][] } {
   return { run, calls };
 }
 
+/** A checkout that cannot be made. */
+const noClone = () => Promise.reject(new Error("no clone"));
+
 function tool(tools: ReturnType<typeof codegraphTools>, name: string) {
   const found = tools.find((item) => item.name === name);
   if (!found) throw new Error(`no tool named ${name}`);
@@ -110,24 +113,23 @@ test("a failed command reports its exit code and output instead of throwing", as
 });
 
 test("prepareCodegraphTools returns no tools, not an error, when codegraph is missing", async () => {
-  const tools = await prepareCodegraphTools("owner/repo", 1, "sha", {
+  const tools = await prepareCodegraphTools(noClone, {
     detect: () => Promise.resolve({ state: "missing" }),
   });
   same(tools, [], "empty");
 });
 
 test("prepareCodegraphTools returns no tools when the worktree cannot be prepared", async () => {
-  const tools = await prepareCodegraphTools("owner/repo", 1, "sha", {
+  const tools = await prepareCodegraphTools(noClone, {
     detect: () =>
       Promise.resolve({ state: "ok", version: "1.6.0", path: "codegraph" }),
-    run: () => Promise.reject(new Error("no clone")),
   });
   same(tools, [], "empty");
 });
 
 test("prepareCodegraphTools installs on demand when allowInstall is set", async () => {
   let ensurances = 0;
-  const tools = await prepareCodegraphTools("owner/repo", 1, "sha", {
+  const tools = await prepareCodegraphTools(noClone, {
     detect: () => Promise.resolve({ state: "missing" }),
     allowInstall: true,
     ensure: () => {
@@ -136,14 +138,13 @@ test("prepareCodegraphTools installs on demand when allowInstall is set", async 
     },
     // The install succeeded, so the run reaches the worktree step, which fails
     // here: the point is that the install was attempted.
-    run: () => Promise.reject(new Error("no clone")),
   });
   same([ensurances, tools], [1, []], "install attempted");
 });
 
 test("prepareCodegraphTools reports the install reason and skips the tools", async () => {
   let ensurances = 0;
-  const tools = await prepareCodegraphTools("owner/repo", 1, "sha", {
+  const tools = await prepareCodegraphTools(noClone, {
     detect: () => Promise.resolve({ state: "missing" }),
     allowInstall: true,
     ensure: () => {
@@ -156,7 +157,7 @@ test("prepareCodegraphTools reports the install reason and skips the tools", asy
 
 test("prepareCodegraphTools never installs without allowInstall", async () => {
   let ensurances = 0;
-  const tools = await prepareCodegraphTools("owner/repo", 1, "sha", {
+  const tools = await prepareCodegraphTools(noClone, {
     detect: () =>
       Promise.resolve({ state: "mismatch", version: "1.5.0", path: "x" }),
     ensure: () => {
@@ -169,7 +170,7 @@ test("prepareCodegraphTools never installs without allowInstall", async () => {
 
 test("prepareCodegraphTools installs only when the binary is not already usable", async () => {
   let ensurances = 0;
-  const tools = await prepareCodegraphTools("owner/repo", 1, "sha", {
+  const tools = await prepareCodegraphTools(noClone, {
     detect: () =>
       Promise.resolve({ state: "ok", version: "1.6.0", path: "codegraph" }),
     allowInstall: true,
@@ -177,7 +178,6 @@ test("prepareCodegraphTools installs only when the binary is not already usable"
       ensurances++;
       return Promise.resolve({ path: "codegraph" });
     },
-    run: () => Promise.reject(new Error("no clone")),
   });
   same([ensurances, tools], [0, []], "present binary skips the install");
 });

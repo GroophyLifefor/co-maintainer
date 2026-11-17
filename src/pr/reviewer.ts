@@ -10,7 +10,18 @@ import type { ReferenceContext } from "../review/references.ts";
 import { notInitializedError } from "../review/not_initialized.ts";
 import type { Revision } from "../review/revision.ts";
 import { computeScope } from "./scope.ts";
-import { prepareCodegraphTools } from "./codegraph_tools.ts";
+import {
+  codegraphState,
+  prepareReviewTools,
+  type ReviewToolSource,
+} from "./review_tools.ts";
+import {
+  ToolGate,
+  toolBudgetChars,
+  toolResultMaxChars,
+  type ToolUsage,
+} from "../ai/tool_gate.ts";
+import { SEARCH_NON_CODE } from "../tools/search_non_code.ts";
 import { severitySection } from "./review_copy.ts";
 import {
   repositoryInstructionsBlock,
@@ -106,7 +117,10 @@ function requiredModel(
 export type ReviewExtras = {
   carryPrompt?: string;
   unchangedPaths?: string[];
-  prepareCodegraphTools?: () => Promise<ToolHandler[]>;
+  /** Where the review's tools run. Left out, a pull request review checks
+   * the pull request out, and a workspace review is a push review, which
+   * checks out the pushed commit only for codegraph. */
+  tools?: ReviewToolSource;
   /** The pull request and its files, already read by the caller. The review
    * then makes neither request, so it judges what the caller stored. */
   prefetched?: { pull: Json; files: Json[] };
@@ -140,8 +154,11 @@ export type ReviewOutcome = AiResponse & {
   referenceContext: ReferenceContext;
   codegraphState: "used" | "disabled" | "unavailable";
   coverage: Coverage;
-  /** `diff_dropped`, `diff_withheld` and `summary_failed`. */
+  /** `diff_dropped`, `diff_withheld`, `summary_failed` and
+   * `tool_budget_spent`. */
   warnings: CoverageWarning[];
+  /** What the review's tools did, for `usage.tools`. */
+  tools: ToolUsage;
   /** Every changed file of the subject, for the result's `revision` block. */
   diffStats: { files: number; additions: number; deletions: number };
 };
@@ -209,8 +226,8 @@ Request every type you need in a single call, because repeated tool rounds are
 capped. Use the smallest type that matches the evidence.`;
 
 const REVIEW_ROLE = `You are a precise open-source code reviewer.
-Evidence must come from the supplied diff and review guide. Keep findings
-concise by default.`;
+Evidence must come from the supplied diff, the review guide and the results
+of the tools you call. Keep findings concise by default.`;
 
 const REVIEW_DIAGRAM_RULES = `People generally find it easier to understand the
 problem you've identified when it's presented in diagrams. When a multi-step
@@ -284,6 +301,27 @@ a test reaches the path. Do not guess coverage or impact from the diff alone
 when a tool can answer. A missing regression test is not a substitute for
 identifying the concrete input or code path that misbehaves when you can.`;
 
+/** Said next to the codegraph instructions when the review offers search. */
+export const SEARCH_NON_CODE_GUIDANCE = `Use search-non-code for docs, configuration and other files codegraph does not index. Use codegraph for code.`;
+
+/** The codegraph instructions, with the search sentence when search is one
+ * of the tools the model can call. A provider without tool support gets
+ * none, so it is passed no tools. */
+function toolGuidance(tools: ToolHandler[]): string {
+  return tools.some((tool) => tool.name === SEARCH_NON_CODE)
+    ? `${CODEGRAPH_DIFF_VERIFICATION}\n${SEARCH_NON_CODE_GUIDANCE}`
+    : CODEGRAPH_DIFF_VERIFICATION;
+}
+
+/** One review's tool gate, from the repository's settings. */
+function reviewGate(repo: string): ToolGate {
+  const repoConfig = readConfig().repos?.[repo];
+  return new ToolGate({
+    resultMaxChars: toolResultMaxChars(repoConfig),
+    budgetChars: toolBudgetChars(repoConfig),
+  });
+}
+
 type UsageSinkForNormalize = UsageSink;
 
 /** An AI call a Stop can cut between tool rounds. The calls made before the
@@ -315,6 +353,7 @@ async function normalizeReviewResponse(
   usage: UsageSinkForNormalize | undefined,
   report: ProgressSink,
   options: Options,
+  gate: ToolGate,
   signal?: AbortSignal,
 ): Promise<string> {
   const direct = findingsMarkdownFromJson(response.text);
@@ -331,7 +370,7 @@ async function normalizeReviewResponse(
       1,
       extraTools,
       maxToolRounds,
-      { signal },
+      { signal, gate },
     ),
     usage,
   );
@@ -493,30 +532,47 @@ export async function reviewPullRequest(
 
   const provider = ai ?? reviewProvider(options, options.highModel, "high");
   const diagrams = provider.supportsTools !== false;
-  const [prepared, codegraphTools] = await Promise.all([
-    prepareReviewDiff({
-      files: ownFiles.map(({ file }) => diffFileFromGithub(file)),
-      unchangedPaths: extras?.unchangedPaths,
-      catchesUp: extras?.catchesUp ?? false,
-      tools: diagrams,
-      concurrency: options.aiConcurrent,
-      readDiffMaxChars: readDiffMaxChars(readConfig().repos?.[options.repo]),
-      summaryProvider: () => summaryProvider(options, provider, report, extras),
-      usage,
-      report,
-    }),
-    options.useCodegraph && headSha
-      ? prepareCodegraphTools(options.repo, number, headSha, {
+  const preparing = prepareReviewDiff({
+    files: ownFiles.map(({ file }) => diffFileFromGithub(file)),
+    unchangedPaths: extras?.unchangedPaths,
+    catchesUp: extras?.catchesUp ?? false,
+    tools: diagrams,
+    concurrency: options.aiConcurrent,
+    readDiffMaxChars: readDiffMaxChars(readConfig().repos?.[options.repo]),
+    summaryProvider: () => summaryProvider(options, provider, report, extras),
+    usage,
+    report,
+  });
+  // The pull request's checkout serves codegraph and search alike, and is
+  // made while the diff is prepared.
+  const source: ReviewToolSource | undefined =
+    extras?.tools ??
+    (headSha
+      ? {
+          kind: "checkout",
+          pr: number,
+          commit: headSha,
+          search: true,
           allowInstall: options.allowToolInstall,
-        })
-      : Promise.resolve([] as ToolHandler[]),
+        }
+      : undefined);
+  const [prepared, reviewTools] = await Promise.all([
+    preparing,
+    source
+      ? prepareReviewTools(
+          source,
+          options,
+          preparing.then((plan) => plan.tools),
+        )
+      : preparing.then((plan) => ({ tools: plan.tools, codegraph: [] })),
   ]);
   if (options.useCodegraph) {
     report(
-      `codegraph tools · ${codegraphTools.length > 0 ? "ready" : "unavailable"}`,
+      `codegraph tools · ${reviewTools.codegraph.length > 0 ? "ready" : "unavailable"}`,
     );
   }
-  const extraTools: ToolHandler[] = [...codegraphTools, ...prepared.tools];
+  const extraTools: ToolHandler[] = reviewTools.tools;
+  const gate = reviewGate(options.repo);
 
   // Bigger own-scope diffs need more codegraph round-trips to trace, fixed
   // at 3 rounds regardless of size caused the model to run out mid-review on
@@ -574,7 +630,7 @@ When the DIFF section below has an UPSTREAM CONTEXT part, that code arrived
 through a merge and was not authored by this pull request. Do not raise a
 finding located only there, and never mark blocking a finding whose only
 support is upstream context.
-${CODEGRAPH_DIFF_VERIFICATION}
+${toolGuidance(diagrams ? extraTools : [])}
 Keep the default finding's "body" under 120 words excluding an optional
 suggestion. Write prose only: do not emit Markdown headings, a Location line,
 backticks around the path, or the sentence "If you'd like me to explain it in
@@ -631,6 +687,7 @@ ${diff}`;
   let response = await stoppable(
     completeWithMermaidTools(provider, request, 1, extraTools, maxToolRounds, {
       signal,
+      gate,
     }),
     usage,
   );
@@ -661,6 +718,7 @@ ${diff}`;
     usage,
     report,
     options,
+    gate,
     signal,
   );
   for (let pass = 2; pass <= matrix; pass++) {
@@ -694,7 +752,7 @@ ${reviewText}`,
         1,
         extraTools,
         maxToolRounds,
-        { signal },
+        { signal, gate },
       ),
       usage,
     );
@@ -717,6 +775,7 @@ ${reviewText}`,
       usage,
       report,
       options,
+      gate,
       signal,
     );
     if (options.debug) {
@@ -734,13 +793,10 @@ ${reviewText}`,
     visiblePaths: prepared.seenPaths,
     guideBuiltAt: guides.guideBuiltAt,
     referenceContext: { rules: guides.rules, codebase: guides.codebase },
-    codegraphState: !options.useCodegraph
-      ? "disabled"
-      : codegraphTools.length > 0
-        ? "used"
-        : "unavailable",
+    codegraphState: codegraphState(options.useCodegraph, reviewTools.codegraph),
     coverage: prepared.coverage,
-    warnings: prepared.warnings,
+    warnings: [...prepared.warnings, ...gate.warnings()],
+    tools: gate.usage(),
     diffStats: diffStats(named.map(({ file }) => diffFileFromGithub(file))),
   };
 }
@@ -782,12 +838,18 @@ export async function reviewWorkspaceRevision(
     usage,
     report,
   });
-  const codegraphTools = options.useCodegraph
-    ? extras?.prepareCodegraphTools
-      ? await extras.prepareCodegraphTools()
-      : await prepareCodegraphTools(options.repo, 0, headSha)
-    : [];
-  const extraTools: ToolHandler[] = [...codegraphTools, ...prepared.tools];
+  const reviewTools = await prepareReviewTools(
+    extras?.tools ?? {
+      kind: "checkout",
+      pr: 0,
+      commit: headSha,
+      search: false,
+    },
+    options,
+    prepared.tools,
+  );
+  const extraTools: ToolHandler[] = reviewTools.tools;
+  const gate = reviewGate(options.repo);
   const totalDiffLines = ownFiles.reduce((sum, file) => sum + file.changes, 0);
   const maxToolRounds = clampToolRounds(totalDiffLines);
   const ownDiff = prepared.diff;
@@ -804,7 +866,7 @@ the diff and either the guide or the codebase conventions.
 Do not invent low-value findings. If the diff contains a truncation marker or a
 file is summarized, limit claims to the supplied text and use read-full-diff or
 codegraph tools before asserting behavior outside what was shown.
-${CODEGRAPH_DIFF_VERIFICATION}
+${toolGuidance(diagrams ? extraTools : [])}
 ${diagrams ? (plantumlPromptRules(options) ?? DIAGRAM_PROMPT_RULES) : NO_DIAGRAM_RULES}
 ${FINDINGS_JSON_INSTRUCTIONS}
 
@@ -832,6 +894,7 @@ ${ownDiff}${unchangedListing}`;
   let response = await stoppable(
     completeWithMermaidTools(provider, request, 1, extraTools, maxToolRounds, {
       signal,
+      gate,
     }),
     usage,
   );
@@ -848,6 +911,7 @@ ${ownDiff}${unchangedListing}`;
     usage,
     report,
     options,
+    gate,
     signal,
   );
   for (let pass = 2; pass <= matrix; pass++) {
@@ -874,7 +938,7 @@ ${reviewText}`,
         1,
         extraTools,
         maxToolRounds,
-        { signal },
+        { signal, gate },
       ),
       usage,
     );
@@ -888,23 +952,20 @@ ${reviewText}`,
       usage,
       report,
       options,
+      gate,
       signal,
     );
   }
-  const codegraphState = !options.useCodegraph
-    ? "disabled"
-    : codegraphTools.length > 0
-      ? "used"
-      : "unavailable";
   return {
     ...response,
     text: `${severitySection()}\n${renderDiagrams(reviewText, options)}`,
     visiblePaths: prepared.seenPaths,
     guideBuiltAt: guides.guideBuiltAt,
     referenceContext: { rules: guides.rules, codebase: guides.codebase },
-    codegraphState,
+    codegraphState: codegraphState(options.useCodegraph, reviewTools.codegraph),
     coverage: prepared.coverage,
-    warnings: prepared.warnings,
+    warnings: [...prepared.warnings, ...gate.warnings()],
+    tools: gate.usage(),
     diffStats: diffStats(files),
   };
 }

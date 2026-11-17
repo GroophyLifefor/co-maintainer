@@ -114,6 +114,7 @@ export async function runSet(args: string[]): Promise<void> {
     "review-system-prompt-max-chars",
     ...DIAGRAM_FLAGS,
     "review-read-diff-max-chars",
+    ...TOOL_LIMIT_FLAGS.map(([flag]) => flag),
     "guide-full-every",
     "password",
     "extension-rerun-on-restart",
@@ -432,6 +433,14 @@ const DIAGRAM_FLAGS = [
   "plantuml-output-format",
 ];
 
+/** The review tool limits: flag, field. Each takes an integer, and 0 or -1
+ * means no limit. */
+const TOOL_LIMIT_FLAGS = [
+  ["review-tool-result-max-chars", "reviewToolResultMaxChars"],
+  ["review-tool-budget-chars", "reviewToolBudgetChars"],
+  ["review-search-max-context-lines", "reviewSearchMaxContextLines"],
+] as const;
+
 /** Flag names that make sense together with `--repo`. Anything else is a
  * global setting and is refused rather than silently written to the wrong
  * place. */
@@ -441,6 +450,7 @@ const REPO_SCOPED_FLAGS = new Set([
   "review-system-prompt-max-chars",
   ...DIAGRAM_FLAGS,
   "review-read-diff-max-chars",
+  ...TOOL_LIMIT_FLAGS.map(([flag]) => flag),
   "guide-full-every",
   "review-references",
   "gh-concurrent",
@@ -461,6 +471,7 @@ const REPO_SCOPED_UNSET = new Set([
   "plantumlOutputFormat",
   "review-read-diff-max-chars",
   "reviewReadDiffMaxChars",
+  ...TOOL_LIMIT_FLAGS.flat(),
   "guide-full-every",
   "guideFullEvery",
   "gh-concurrent",
@@ -471,7 +482,7 @@ const REPO_SCOPED_UNSET = new Set([
   "reviewReferences",
 ]);
 
-/** `set --repo=owner/repo [--review-system-prompt=... | --review-system-prompt-max-chars=N | --review-read-diff-max-chars=N | --unset=name]`
+/** `set --repo=owner/repo [--review-system-prompt=... | --review-system-prompt-max-chars=N | --review-read-diff-max-chars=N | --review-tool-result-max-chars=N | --review-tool-budget-chars=N | --review-search-max-context-lines=N | --unset=name]`
  * writes the repository-scoped settings to `repos[owner/repo]` in config.json
  * instead of the global config. */
 async function runSetRepo(typed: string, args: string[]): Promise<void> {
@@ -576,6 +587,20 @@ async function runSetRepo(typed: string, args: string[]): Promise<void> {
       patch.reviewReadDiffMaxChars = value;
     }
   }
+  for (const [flag, field] of TOOL_LIMIT_FLAGS) {
+    if (unset.has(flag) || unset.has(field)) patch[field] = undefined;
+    const raw = text(args, flag);
+    if (raw === undefined) continue;
+    if (raw.trim() === "") {
+      patch[field] = undefined;
+      continue;
+    }
+    const value = Number(raw);
+    if (!Number.isInteger(value)) {
+      die(`--${flag} must be an integer (0 or -1 for no limit)`);
+    }
+    patch[field] = value;
+  }
   if (unset.has("guide-full-every") || unset.has("guideFullEvery")) {
     patch.guideFullEvery = undefined;
   }
@@ -614,7 +639,7 @@ async function runSetRepo(typed: string, args: string[]): Promise<void> {
   }
   if (Object.keys(patch).length === 0) {
     die(
-      "Nothing to set. Pass --review-system-prompt=, --review-system-prompt-max-chars=N, --diagram-runtime=, --plantuml-server=, --plantuml-output-format=, --review-read-diff-max-chars=N, --guide-full-every=N, --review-references=on|off, or --unset=name with --repo.",
+      "Nothing to set. Pass --review-system-prompt=, --review-system-prompt-max-chars=N, --diagram-runtime=, --plantuml-server=, --plantuml-output-format=, --review-read-diff-max-chars=N, --review-tool-result-max-chars=N, --review-tool-budget-chars=N, --review-search-max-context-lines=N, --guide-full-every=N, --review-references=on|off, or --unset=name with --repo.",
     );
   }
   // The values after this write are the ones given here, or the stored ones.
