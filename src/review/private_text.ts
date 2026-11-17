@@ -85,9 +85,9 @@ const STRUCTURE_SUGGESTION = /^\s*Suggestion: /;
  * were. A paragraph is checked as one piece, so a passage that wraps a line
  * is still found. A suggestion block is checked as one piece too, and one
  * that holds a copied passage is dropped with its Suggestion line, since a
- * patch with a passage cut out of it would no longer apply. Inside any other
- * fenced block each line is checked on its own, so the block keeps its
- * lines. */
+ * patch with a passage cut out of it would no longer apply. Any other fenced
+ * block is checked as one piece as well, so a passage split over its lines is
+ * found, and a block that holds one is replaced whole. */
 export function removePrivateText(
   markdown: string,
   privateResults: string[],
@@ -109,44 +109,39 @@ export function removePrivateText(
     paragraph = [];
   };
   let fence: "suggestion" | "other" | undefined;
-  let suggestion: string[] = [];
-  const endSuggestion = (closing: string | undefined) => {
-    const result = scrub(suggestion.slice(1).join("\n"), runs);
+  let block: string[] = [];
+  const endBlock = (closing: string | undefined) => {
+    const result = scrub(block.slice(1).join("\n"), runs);
     if (result.removed === 0) {
-      out.push(...suggestion);
+      out.push(...block);
       if (closing !== undefined) out.push(closing);
     } else {
       removed += result.removed;
-      if (STRUCTURE_SUGGESTION.test(out.at(-1) ?? "")) out.pop();
+      if (
+        fence === "suggestion" &&
+        STRUCTURE_SUGGESTION.test(out.at(-1) ?? "")
+      ) {
+        out.pop();
+      }
       out.push(PRIVATE_TEXT_REMOVED);
     }
-    suggestion = [];
+    block = [];
   };
   for (const line of lines) {
     const fenceLine = /^\s*```/.test(line);
     if (fence) {
-      if (fence === "suggestion") {
-        if (fenceLine) {
-          fence = undefined;
-          endSuggestion(line);
-        } else {
-          suggestion.push(line);
-        }
-      } else if (fenceLine) {
+      if (fenceLine) {
+        endBlock(line);
         fence = undefined;
-        out.push(line);
       } else {
-        const result = scrub(line, runs);
-        removed += result.removed;
-        out.push(result.text);
+        block.push(line);
       }
       continue;
     }
     if (fenceLine) {
       flush();
       fence = /^\s*```suggestion\b/.test(line) ? "suggestion" : "other";
-      if (fence === "suggestion") suggestion = [line];
-      else out.push(line);
+      block = [line];
       continue;
     }
     if (line.trim() === "" || STRUCTURE.test(line)) {
@@ -157,7 +152,7 @@ export function removePrivateText(
     paragraph.push(line);
   }
   flush();
-  if (fence === "suggestion") endSuggestion(undefined);
+  if (fence) endBlock(undefined);
   return { text: out.join("\n"), removed };
 }
 

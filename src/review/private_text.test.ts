@@ -83,8 +83,26 @@ test("headings, location lines and a clean suggestion block are left alone", () 
     "```suggestion",
     "// the export button keeps every row after the first thousand entries",
   ]);
-  assert.equal(lines[12], PRIVATE_TEXT_REMOVED);
-  assert.equal(lines.length, 14);
+  // The text block held a copied passage, so it is replaced whole.
+  assert.equal(lines[11], PRIVATE_TEXT_REMOVED);
+  assert.equal(lines.length, 12);
+});
+
+test("a passage split over the lines of a code block is still found", () => {
+  const words = PRIVATE.split(" ");
+  const half = Math.floor(words.length / 2);
+  const review = [
+    "Some prose.",
+    "",
+    "```text",
+    words.slice(0, half).join(" "),
+    words.slice(half).join(" "),
+    "```",
+  ].join("\n");
+  const result = removePrivateText(review, [PRIVATE]);
+  assert.ok(result.removed >= 1);
+  assert.ok(!result.text.includes(words.slice(half - 4, half + 4).join(" ")));
+  assert.equal(result.text.split("\n").at(-1), PRIVATE_TEXT_REMOVED);
 });
 
 test("a suggestion block with a copied passage is dropped with its Suggestion line and counted", () => {
