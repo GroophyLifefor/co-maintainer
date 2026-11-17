@@ -28,6 +28,13 @@ import { verifyOpenCode } from "../../ai/opencode.ts";
 import { die } from "../error.ts";
 import { parsePolicy } from "../../services/review_policy.ts";
 import { isCodegraphVersion } from "../../tools/codegraph.ts";
+import {
+  MCP_DISABLED_MESSAGE,
+  McpConfigError,
+  mcpDisabled,
+  mcpServersSummary,
+  parseMcpConfig,
+} from "../../tools/mcp_config.ts";
 import { AI_PROVIDERS, rejectRetiredProvider } from "../../ai/provider.ts";
 import {
   MAX_CONCURRENCY,
@@ -115,6 +122,8 @@ export async function runSet(args: string[]): Promise<void> {
     ...DIAGRAM_FLAGS,
     "review-read-diff-max-chars",
     ...TOOL_LIMIT_FLAGS.map(([flag]) => flag),
+    "mcp-config",
+    "mcp-allow-forks",
     "guide-full-every",
     "password",
     "extension-rerun-on-restart",
@@ -138,7 +147,12 @@ export async function runSet(args: string[]): Promise<void> {
     await runSetRepo(repoArg, args);
     return;
   }
-  for (const name of [...DIAGRAM_FLAGS, "review-references"]) {
+  for (const name of [
+    ...DIAGRAM_FLAGS,
+    "review-references",
+    "mcp-config",
+    "mcp-allow-forks",
+  ]) {
     if (text(args, name) !== undefined) die(`--${name} needs --repo`);
   }
 
@@ -451,6 +465,8 @@ const REPO_SCOPED_FLAGS = new Set([
   ...DIAGRAM_FLAGS,
   "review-read-diff-max-chars",
   ...TOOL_LIMIT_FLAGS.map(([flag]) => flag),
+  "mcp-config",
+  "mcp-allow-forks",
   "guide-full-every",
   "review-references",
   "gh-concurrent",
@@ -472,6 +488,10 @@ const REPO_SCOPED_UNSET = new Set([
   "review-read-diff-max-chars",
   "reviewReadDiffMaxChars",
   ...TOOL_LIMIT_FLAGS.flat(),
+  "mcp-config",
+  "mcpServers",
+  "mcp-allow-forks",
+  "mcpAllowForks",
   "guide-full-every",
   "guideFullEvery",
   "gh-concurrent",
@@ -482,7 +502,7 @@ const REPO_SCOPED_UNSET = new Set([
   "reviewReferences",
 ]);
 
-/** `set --repo=owner/repo [--review-system-prompt=... | --review-system-prompt-max-chars=N | --review-read-diff-max-chars=N | --review-tool-result-max-chars=N | --review-tool-budget-chars=N | --review-search-max-context-lines=N | --unset=name]`
+/** `set --repo=owner/repo [--review-system-prompt=... | --review-system-prompt-max-chars=N | --review-read-diff-max-chars=N | --review-tool-result-max-chars=N | --review-tool-budget-chars=N | --review-search-max-context-lines=N | --mcp-config=PATH | --mcp-allow-forks=true|false | --unset=name]`
  * writes the repository-scoped settings to `repos[owner/repo]` in config.json
  * instead of the global config. */
 async function runSetRepo(typed: string, args: string[]): Promise<void> {
@@ -601,6 +621,39 @@ async function runSetRepo(typed: string, args: string[]): Promise<void> {
     }
     patch[field] = value;
   }
+  if (unset.has("mcp-config") || unset.has("mcpServers")) {
+    patch.mcpServers = undefined;
+  }
+  const mcpFile = text(args, "mcp-config");
+  if (mcpFile !== undefined) {
+    // The cloud sets the switch from outside the container, so a stored
+    // config can never turn MCP back on there.
+    if (mcpDisabled()) die(MCP_DISABLED_MESSAGE);
+    let raw: string;
+    try {
+      raw = await readTextFile(mcpFile);
+    } catch (error) {
+      die(`Could not read the MCP config ${mcpFile}: ${String(error)}`);
+    }
+    try {
+      patch.mcpServers = parseMcpConfig(raw);
+    } catch (error) {
+      if (error instanceof McpConfigError) {
+        die(`--mcp-config: ${error.message}`);
+      }
+      throw error;
+    }
+  }
+  if (unset.has("mcp-allow-forks") || unset.has("mcpAllowForks")) {
+    patch.mcpAllowForks = undefined;
+  }
+  const allowForks = text(args, "mcp-allow-forks");
+  if (allowForks !== undefined) {
+    if (!["true", "false"].includes(allowForks)) {
+      die("--mcp-allow-forks must be true or false");
+    }
+    patch.mcpAllowForks = allowForks === "true";
+  }
   if (unset.has("guide-full-every") || unset.has("guideFullEvery")) {
     patch.guideFullEvery = undefined;
   }
@@ -639,7 +692,7 @@ async function runSetRepo(typed: string, args: string[]): Promise<void> {
   }
   if (Object.keys(patch).length === 0) {
     die(
-      "Nothing to set. Pass --review-system-prompt=, --review-system-prompt-max-chars=N, --diagram-runtime=, --plantuml-server=, --plantuml-output-format=, --review-read-diff-max-chars=N, --review-tool-result-max-chars=N, --review-tool-budget-chars=N, --review-search-max-context-lines=N, --guide-full-every=N, --review-references=on|off, or --unset=name with --repo.",
+      "Nothing to set. Pass --review-system-prompt=, --review-system-prompt-max-chars=N, --diagram-runtime=, --plantuml-server=, --plantuml-output-format=, --review-read-diff-max-chars=N, --review-tool-result-max-chars=N, --review-tool-budget-chars=N, --review-search-max-context-lines=N, --mcp-config=PATH, --mcp-allow-forks=true|false, --guide-full-every=N, --review-references=on|off, or --unset=name with --repo.",
     );
   }
   // The values after this write are the ones given here, or the stored ones.
@@ -661,8 +714,14 @@ async function runSetRepo(typed: string, args: string[]): Promise<void> {
     if (problem) die(`--review-system-prompt: ${problem}`);
   }
   await writeRepoConfig(repo, patch);
+  // MCP servers print by name and tool: their command and env may hold
+  // secrets.
   const summary = Object.entries(patch).map(([key, value]) =>
-    value === undefined ? `${key} (unset)` : `${key}=${value}`,
+    value === undefined
+      ? `${key} (unset)`
+      : key === "mcpServers"
+        ? `${key}=${mcpServersSummary(patch.mcpServers!)}`
+        : `${key}=${value}`,
   );
   console.log(`[set] updated ${repo}: ${summary.join(", ")}`);
   console.log(`Saved to ${configPath()}`);

@@ -12,9 +12,17 @@ import type { Revision } from "../review/revision.ts";
 import { computeScope } from "./scope.ts";
 import {
   codegraphState,
+  mcpAllowedForPull,
   prepareReviewTools,
+  type ReviewTools,
   type ReviewToolSource,
 } from "./review_tools.ts";
+import { emptyMcpSession, isMcpTool } from "../tools/mcp_tools.ts";
+import {
+  MCP_PRIVATE_GUIDANCE,
+  privateTextWarning,
+  removePrivateText,
+} from "../review/private_text.ts";
 import {
   ToolGate,
   toolBudgetChars,
@@ -140,6 +148,9 @@ export type ReviewExtras = {
   /** Stop from the dashboard. An AI call that already started finishes, and
    * no new one starts: no further tool round, retry or improvement pass. */
   signal?: AbortSignal;
+  /** True in `serve`: a pull request from a fork gets no MCP tools unless
+   * the repository sets `mcpAllowForks`. */
+  mcpForkRule?: boolean;
 };
 
 /** What a review run returns to every flow. */
@@ -154,11 +165,13 @@ export type ReviewOutcome = AiResponse & {
   referenceContext: ReferenceContext;
   codegraphState: "used" | "disabled" | "unavailable";
   coverage: Coverage;
-  /** `diff_dropped`, `diff_withheld`, `summary_failed` and
-   * `tool_budget_spent`. */
+  /** `diff_dropped`, `diff_withheld`, `summary_failed`,
+   * `tool_budget_spent`, the MCP warnings and `private_text_removed`. */
   warnings: CoverageWarning[];
   /** What the review's tools did, for `usage.tools`. */
   tools: ToolUsage;
+  /** The MCP servers that started for this review, by name. */
+  mcpServers: string[];
   /** Every changed file of the subject, for the result's `revision` block. */
   diffStats: { files: number; additions: number; deletions: number };
 };
@@ -305,12 +318,52 @@ identifying the concrete input or code path that misbehaves when you can.`;
 export const SEARCH_NON_CODE_GUIDANCE = `Use search-non-code for docs, configuration and other files codegraph does not index. Use codegraph for code.`;
 
 /** The codegraph instructions, with the search sentence when search is one
- * of the tools the model can call. A provider without tool support gets
- * none, so it is passed no tools. */
+ * of the tools the model can call, and the private results sentence when an
+ * MCP tool is. A provider without tool support gets none, so it is passed no
+ * tools. */
 function toolGuidance(tools: ToolHandler[]): string {
-  return tools.some((tool) => tool.name === SEARCH_NON_CODE)
-    ? `${CODEGRAPH_DIFF_VERIFICATION}\n${SEARCH_NON_CODE_GUIDANCE}`
-    : CODEGRAPH_DIFF_VERIFICATION;
+  return [
+    CODEGRAPH_DIFF_VERIFICATION,
+    ...(tools.some((tool) => tool.name === SEARCH_NON_CODE)
+      ? [SEARCH_NON_CODE_GUIDANCE]
+      : []),
+    ...(tools.some((tool) => isMcpTool(tool.name))
+      ? [MCP_PRIVATE_GUIDANCE]
+      : []),
+  ].join("\n");
+}
+
+/** Stops the MCP servers of every tool preparation a review started,
+ * however the review ended. A preparation that failed stopped its own. */
+async function stopMcp(opened: Promise<ReviewTools>[]): Promise<void> {
+  await Promise.all(
+    opened.map((tools) =>
+      tools.then(
+        (ready) => ready.mcp.stop(),
+        () => {},
+      ),
+    ),
+  );
+}
+
+/** The rendered review with every passage copied from a private MCP result
+ * removed, and the review's MCP warnings. It runs before the text is
+ * printed, posted or stored, in every mode. */
+function withoutPrivateText(
+  reviewText: string,
+  reviewTools: ReviewTools,
+): { text: string; warnings: CoverageWarning[] } {
+  const privacy = removePrivateText(
+    reviewText,
+    reviewTools.mcp.privateResults(),
+  );
+  return {
+    text: privacy.text,
+    warnings: [
+      ...reviewTools.mcp.warnings(),
+      ...privateTextWarning(privacy.removed),
+    ],
+  };
 }
 
 /** One review's tool gate, from the repository's settings. */
@@ -441,6 +494,33 @@ export async function reviewPullRequest(
   progress?: ProgressSink,
   extras?: ReviewExtras,
 ): Promise<ReviewOutcome> {
+  const opened: Promise<ReviewTools>[] = [];
+  try {
+    return await pullRequestReview(
+      client,
+      options,
+      usage,
+      snapshot,
+      ai,
+      progress,
+      extras,
+      opened,
+    );
+  } finally {
+    await stopMcp(opened);
+  }
+}
+
+async function pullRequestReview(
+  client: GitHubClient,
+  options: Options,
+  usage: UsageSink | undefined,
+  snapshot: Snapshot | undefined,
+  ai: AiProvider | undefined,
+  progress: ProgressSink | undefined,
+  extras: ReviewExtras | undefined,
+  opened: Promise<ReviewTools>[],
+): Promise<ReviewOutcome> {
   if (!options.prNumber) throw new Error("review requires a PR number");
   const number = options.prNumber;
   const signal = extras?.signal;
@@ -544,7 +624,12 @@ export async function reviewPullRequest(
     report,
   });
   // The pull request's checkout serves codegraph and search alike, and is
-  // made while the diff is prepared.
+  // made while the diff is prepared. In serve, a pull request from a fork
+  // starts no MCP server unless the repository allows it.
+  const mcp = !extras?.mcpForkRule || mcpAllowedForPull(pr, options.repo);
+  if (!mcp && readConfig().repos?.[options.repo]?.mcpServers) {
+    report("MCP servers · off for a pull request from a fork");
+  }
   const source: ReviewToolSource | undefined =
     extras?.tools ??
     (headSha
@@ -554,17 +639,24 @@ export async function reviewPullRequest(
           commit: headSha,
           search: true,
           allowInstall: options.allowToolInstall,
+          mcp,
         }
       : undefined);
+  const preparingTools: Promise<ReviewTools> = source
+    ? prepareReviewTools(
+        source,
+        options,
+        preparing.then((plan) => plan.tools),
+      )
+    : preparing.then((plan) => ({
+        tools: plan.tools,
+        codegraph: [],
+        mcp: emptyMcpSession(),
+      }));
+  opened.push(preparingTools);
   const [prepared, reviewTools] = await Promise.all([
     preparing,
-    source
-      ? prepareReviewTools(
-          source,
-          options,
-          preparing.then((plan) => plan.tools),
-        )
-      : preparing.then((plan) => ({ tools: plan.tools, codegraph: [] })),
+    preparingTools,
   ]);
   if (options.useCodegraph) {
     report(
@@ -787,16 +879,18 @@ ${reviewText}`,
       console.log(`\n----- IMPROVED REVIEW ${pass - 1} -----\n${reviewText}\n`);
     }
   }
+  const kept = withoutPrivateText(reviewText, reviewTools);
   return {
     ...response,
-    text: `${severitySection()}\n${renderDiagrams(reviewText, options)}`,
+    text: `${severitySection()}\n${renderDiagrams(kept.text, options)}`,
     visiblePaths: prepared.seenPaths,
     guideBuiltAt: guides.guideBuiltAt,
     referenceContext: { rules: guides.rules, codebase: guides.codebase },
     codegraphState: codegraphState(options.useCodegraph, reviewTools.codegraph),
     coverage: prepared.coverage,
-    warnings: [...prepared.warnings, ...gate.warnings()],
+    warnings: [...prepared.warnings, ...gate.warnings(), ...kept.warnings],
     tools: gate.usage(),
+    mcpServers: reviewTools.mcp.servers,
     diffStats: diffStats(named.map(({ file }) => diffFileFromGithub(file))),
   };
 }
@@ -810,6 +904,33 @@ export async function reviewWorkspaceRevision(
   ai?: AiProvider,
   progress?: ProgressSink,
   extras?: ReviewExtras,
+): Promise<ReviewOutcome> {
+  const opened: Promise<ReviewTools>[] = [];
+  try {
+    return await workspaceReview(
+      revision,
+      options,
+      headSha,
+      usage,
+      ai,
+      progress,
+      extras,
+      opened,
+    );
+  } finally {
+    await stopMcp(opened);
+  }
+}
+
+async function workspaceReview(
+  revision: Revision,
+  options: Options,
+  headSha: string,
+  usage: UsageSink | undefined,
+  ai: AiProvider | undefined,
+  progress: ProgressSink | undefined,
+  extras: ReviewExtras | undefined,
+  opened: Promise<ReviewTools>[],
 ): Promise<ReviewOutcome> {
   const report = progress ?? (() => {});
   const signal = extras?.signal;
@@ -838,7 +959,8 @@ export async function reviewWorkspaceRevision(
     usage,
     report,
   });
-  const reviewTools = await prepareReviewTools(
+  // Left out, this is a push review, which runs no MCP server.
+  const preparingTools = prepareReviewTools(
     extras?.tools ?? {
       kind: "checkout",
       pr: 0,
@@ -848,6 +970,8 @@ export async function reviewWorkspaceRevision(
     options,
     prepared.tools,
   );
+  opened.push(preparingTools);
+  const reviewTools = await preparingTools;
   const extraTools: ToolHandler[] = reviewTools.tools;
   const gate = reviewGate(options.repo);
   const totalDiffLines = ownFiles.reduce((sum, file) => sum + file.changes, 0);
@@ -956,16 +1080,18 @@ ${reviewText}`,
       signal,
     );
   }
+  const kept = withoutPrivateText(reviewText, reviewTools);
   return {
     ...response,
-    text: `${severitySection()}\n${renderDiagrams(reviewText, options)}`,
+    text: `${severitySection()}\n${renderDiagrams(kept.text, options)}`,
     visiblePaths: prepared.seenPaths,
     guideBuiltAt: guides.guideBuiltAt,
     referenceContext: { rules: guides.rules, codebase: guides.codebase },
     codegraphState: codegraphState(options.useCodegraph, reviewTools.codegraph),
     coverage: prepared.coverage,
-    warnings: [...prepared.warnings, ...gate.warnings()],
+    warnings: [...prepared.warnings, ...gate.warnings(), ...kept.warnings],
     tools: gate.usage(),
+    mcpServers: reviewTools.mcp.servers,
     diffStats: diffStats(files),
   };
 }

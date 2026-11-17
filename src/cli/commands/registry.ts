@@ -1032,6 +1032,19 @@ export const COMMANDS: CommandSpec[] = [
               "The most lines search-non-code returns around a match. Needs --repo. 0 or -1 means no limit.",
           },
           {
+            name: "mcp-config",
+            value: "PATH",
+            description:
+              "Read the repository's MCP servers from this JSON file and store them. Reviews offer their listed read-only tools to the model. Needs --repo. Refused when CM_MCP_DISABLED=1.",
+          },
+          {
+            name: "mcp-allow-forks",
+            value: "true|false",
+            default: "false",
+            description:
+              "Offer MCP tools in serve reviews of pull requests from forks. Needs --repo.",
+          },
+          {
             name: "guide-full-every",
             value: "N",
             default: "10",
@@ -1089,6 +1102,7 @@ export const COMMANDS: CommandSpec[] = [
       "co-maintainer set --remote-host=https://review.example.com --remote-token=...",
       "co-maintainer set --repo=owner/repo --review-system-prompt='Focus on the parser.'",
       "co-maintainer set --repo=owner/repo --diagram-runtime=plantuml-server",
+      "co-maintainer set --repo=owner/repo --mcp-config=./mcp.json",
       "co-maintainer set --unset=token",
     ],
   },

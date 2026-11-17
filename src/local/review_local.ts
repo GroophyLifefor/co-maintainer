@@ -303,8 +303,14 @@ export async function runLocalReview(
       // Ctrl-C at the install prompt or during the index: stop before the
       // model call. The handler has released the lock.
       if (interrupted()) return;
-      // Search and codegraph read the working tree at the git root.
-      extras.tools = { kind: "tree", root, codegraph: codegraphPrep.tools };
+      // Search and codegraph read the working tree at the git root. The
+      // repository's MCP servers run here too.
+      extras.tools = {
+        kind: "tree",
+        root,
+        codegraph: codegraphPrep.tools,
+        mcp: true,
+      };
       const stopHeartbeat = startHeartbeat("reviewing local changes");
       const started = performance.now();
       const aiMetrics = emptyAiMetrics();

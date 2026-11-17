@@ -494,7 +494,9 @@ export function registerRemoteReviewHandler(): void {
             extras.carryPrompt = buildCarryPromptSection(carryItems, revision);
           }
         }
-        // The client runs codegraph and search in its own checkout.
+        // The client runs codegraph and search in its own checkout. The
+        // server runs the MCP servers it has for the repository, as it runs
+        // its own extensions.
         extras.tools = {
           kind: "bridge",
           tools: remoteBridgeToolHandlers(job.id, signal, allowed, [
@@ -505,6 +507,7 @@ export function registerRemoteReviewHandler(): void {
               run: () => "",
             },
           ]),
+          mcp: true,
         };
 
         const started = performance.now();
