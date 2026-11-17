@@ -386,6 +386,19 @@ test("Stop before a reply asks the AI makes no call and posts nothing", async ()
         calls++;
         return Promise.resolve({
           text: "answer",
+          tokensIn: 1,
+          tokensOut: 1,
+          model: "fake",
+          provider: "openrouter",
+        });
+      },
+    };
+    await runReplyJob(job, () => {}, github, ai, stop.signal);
+    if (calls !== 0) throw new Error(`${calls} AI calls after Stop`);
+    if (github.writes.length !== 0) throw new Error("posted after Stop");
+  });
+});
+
 test("a reply on a finding gets the rules the finding rests on, with their text and links", async () => {
   await withEnv(async () => {
     const github = new FakeGithub();
@@ -436,9 +449,6 @@ test("a reply on a finding gets the rules the finding rests on, with their text 
         });
       },
     };
-    await runReplyJob(job, () => {}, github, ai, stop.signal);
-    if (calls !== 0) throw new Error(`${calls} AI calls after Stop`);
-    if (github.writes.length !== 0) throw new Error("posted after Stop");
     await runReplyJob(job, () => {}, github, ai);
     for (const needle of [
       "Percentages round half up",
