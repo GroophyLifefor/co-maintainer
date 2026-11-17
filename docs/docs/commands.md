@@ -407,6 +407,7 @@ co-maintainer set [options]
 | `--remote-host=URL` |  | The remote review server. |
 | `--remote-token=TOKEN` |  | The remote review token. |
 | `--remote-byok-policy=off\|allow\|require` | off | Whether a remote client may send its own AI key. |
+| `--remote-client-tools-policy=off\|on` | off | Whether a remote review offers the model the tools a client declares, such as its own MCP servers. |
 | `--remote-byok=KEY` |  | Your own AI key to send with a remote review. |
 | `--remote-byok-default=on\|off` | off | Send remote-byok on every --remote review by default. |
 | `--review-policy=everyone\|trusted-auto\|on-request-only` |  | The review policy new repositories start with. |

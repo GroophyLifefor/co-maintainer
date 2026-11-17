@@ -412,7 +412,7 @@ customer's name, or a paraphrase.
 | Local | The repository's servers, on your machine |
 | CLI pull request | The repository's servers, on your machine |
 | App on `serve` | The server's config for the repository. A pull request from a fork gets no MCP tools unless the repository sets `--mcp-allow-forks=true` |
-| Remote | The server's config for the repository, as it runs its own extensions. The client's servers are not used |
+| Remote | The server's config for the repository, as it runs its own extensions. The client's servers join as [client tools](remote-review.md#your-own-mcp-servers-as-client-tools) when the server's `remoteClientToolsPolicy` is `on` |
 | Commit watch (`--remote --range`) | None |
 
 `CM_MCP_DISABLED=1` turns MCP off: `--mcp-config` is refused and no review
@@ -431,6 +431,7 @@ called by the model during the review and adds no findings of its own.
 | `mcp_tool_missing` | A listed tool is not on the server |
 | `mcp_tool_refused` | A listed tool is marked as not read-only, cannot be sent to the model, has a schema over 16 KB, or would pass the 64 KB budget |
 | `private_text_removed` | Passages copied from a private result were removed |
+| `client_tools_refused` | A remote review did not use the client's own MCP servers, or the server left out a declared tool, see [client tools](remote-review.md#your-own-mcp-servers-as-client-tools) |
 
 `byTool` in [`usage.tools`](#tool-usage) counts each MCP tool by its
 `mcp-<server>-<tool>` name. The GitHub review's Metadata adds

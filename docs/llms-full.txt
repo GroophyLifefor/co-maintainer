@@ -1246,7 +1246,7 @@ customer's name, or a paraphrase.
 | Local | The repository's servers, on your machine |
 | CLI pull request | The repository's servers, on your machine |
 | App on `serve` | The server's config for the repository. A pull request from a fork gets no MCP tools unless the repository sets `--mcp-allow-forks=true` |
-| Remote | The server's config for the repository, as it runs its own extensions. The client's servers are not used |
+| Remote | The server's config for the repository, as it runs its own extensions. The client's servers join as [client tools](remote-review.md#your-own-mcp-servers-as-client-tools) when the server's `remoteClientToolsPolicy` is `on` |
 | Commit watch (`--remote --range`) | None |
 
 `CM_MCP_DISABLED=1` turns MCP off: `--mcp-config` is refused and no review
@@ -1265,6 +1265,7 @@ called by the model during the review and adds no findings of its own.
 | `mcp_tool_missing` | A listed tool is not on the server |
 | `mcp_tool_refused` | A listed tool is marked as not read-only, cannot be sent to the model, has a schema over 16 KB, or would pass the 64 KB budget |
 | `private_text_removed` | Passages copied from a private result were removed |
+| `client_tools_refused` | A remote review did not use the client's own MCP servers, or the server left out a declared tool, see [client tools](remote-review.md#your-own-mcp-servers-as-client-tools) |
 
 `byTool` in [`usage.tools`](#tool-usage) counts each MCP tool by its
 `mcp-<server>-<tool>` name. The GitHub review's Metadata adds
@@ -1809,7 +1810,8 @@ once on [`serve`](serve.md). Developers clone, set host and token, and run
 The model runs on the server as part of that path. Codegraph tools (when enabled)
 and [`search-non-code`](review.md#searching-docs-and-configuration) still run on
 the laptop and return results through the tool bridge. A server older than
-0.7.10 ignores the search tool.
+0.7.10 ignores the search tool. Your own MCP servers can join as
+[client tools](#your-own-mcp-servers-as-client-tools) when the server allows it.
 
 Overview: [`review`](review.md). Requires [`serve`](serve.md) and the
 [dashboard](dashboard.md).
@@ -1989,10 +1991,45 @@ on your machine. Its findings, verdict and cost come back in the result.
 A remote review offers the model the tools of the
 [MCP servers](review.md#mcp-servers) the server has for the repository, set on
 the `serve` host with `co-maintainer set --repo=owner/repo --mcp-config=...`.
-They run on the server, as its extensions do. The servers in your own
-`config.json` are not used. Their results stay on the server: the copied-passage
-check runs there before the result comes back, and the `mcp_*` and
-`private_text_removed` warnings come back with it.
+They run on the server, as its extensions do. Their results stay on the server:
+the copied-passage check runs there before the result comes back, and the
+`mcp_*` and `private_text_removed` warnings come back with it.
+
+### Your own MCP servers as client tools
+
+The MCP servers in your own `config.json` for the repository can take part too,
+when the server allows it. Your CLI starts them, declares their tools to the
+server, and runs each call the server's model makes, on your machine.
+
+- **The server decides.** The policy is `remoteClientToolsPolicy`, `off` by
+  default or `on`. Set it on the `serve` host with
+  `co-maintainer set --remote-client-tools-policy=on`, or with the
+  `CM_REMOTE_CLIENT_TOOLS_POLICY` environment variable, which wins over the
+  saved value, as the [BYOK policy](#on-the-server) does.
+- **The handshake says it.** A server from 0.7.12 lists `client-tools` among its
+  features and sends its policy. With `on`, the CLI starts your servers and the
+  submit's `capabilities.tools` carries each tool's name, description and
+  parameters. With `off`, or on an older server, the CLI starts none, declares
+  nothing, and adds the warning `client_tools_refused`. The review runs. An
+  older CLI with a newer server sends tool names only, and nothing changes.
+- **Names.** The model sees your tool `mcp-<server>-<tool>` as
+  `client-<server>-<tool>` in lowercase, with any character other than a letter,
+  a digit or a dash turned into a dash, for example `client-tracker-get-issue`.
+  The same rules as on your machine apply first: only the tools in `tools`, and
+  never one the MCP server marks as not read-only.
+- **The server's limits.** At most 16 declared tools, at most 16 KB per
+  declaration, and a name of 2 to 64 lowercase letters, digits or dashes that
+  starts with a letter and is not a name of the server's own tools
+  (`codegraph-*`, `search-non-code`, `read-full-diff`, `read-mermaid-syntaxes`,
+  `mcp-*`). Each declaration it leaves out gives a `client_tools_refused`
+  warning that names it.
+- **Results.** Every result goes through the server's
+  [tool limits](review.md#tool-limits) like any other tool's, behind the line
+  that says it is data from outside the repository. The server takes at most
+  40,000 characters of one result from the CLI. Every result is private: the
+  prompt says so, and the server runs the copied-passage check on them before
+  the result comes back.
+- `CM_MCP_DISABLED=1` on your machine starts none of your servers.
 
 ## The intent file
 
@@ -2043,6 +2080,9 @@ hint. Everything else about the two codes is on
 - Submit body size is capped (handshake `limits.maxBodyBytes`).
 - Concurrent remote reviews per token and job queue limits in dashboard Settings.
 - If sync stops longer than `remoteSyncTimeoutSeconds`, the server cancels the job.
+  While the CLI runs the server's tool calls it keeps sending a sync with no
+  results, at the poll interval and at least three times per timeout, so a slow
+  tool batch is not taken for a client that went away.
 - The server plans a large diff, and a file it dropped is sent again in your next
   `review --remote`. See [Large diffs](review.md#large-diffs).
 
@@ -3097,6 +3137,7 @@ starts keep it.
 | `--trust-proxy` | Trust `x-forwarded-for` and `x-forwarded-proto` from a reverse proxy in front (also `CM_TRUST_PROXY=1`, see [Behind a reverse proxy](#behind-a-reverse-proxy)) |
 | `--inject-500` | Every mutating `/api/*` call returns 500 (failure UI testing, also `CM_INJECT_500=1`) |
 | `CM_REMOTE_BYOK_POLICY` | Whether a remote review may bring its own AI key: `off` (the default), `allow` or `require`, see [your own key](remote-review.md#your-own-ai-key) |
+| `CM_REMOTE_CLIENT_TOOLS_POLICY` | Whether a remote review offers the model the tools a client declares, such as its own MCP servers: `off` (the default) or `on`, see [client tools](remote-review.md#your-own-mcp-servers-as-client-tools) |
 | `CM_EXTENSIONS_DISABLED` | `1` turns [extensions](extensions.md) off: `register` refuses and no review runs one. The Cloud image sets it from outside the container |
 | `CM_MCP_DISABLED` | `1` turns [MCP servers](review.md#mcp-servers) off: `set --mcp-config` refuses and no review starts one. The Cloud image sets it from outside the container |
 | `CM_LOGIN_HINT` | Text shown on the sign-in page instead of the default "printed when `serve` started" line. Useful when a deployment hands out its own password, as the Cloud image does. Escaped as plain text |
@@ -4160,6 +4201,7 @@ co-maintainer set [options]
 | `--remote-host=URL` |  | The remote review server. |
 | `--remote-token=TOKEN` |  | The remote review token. |
 | `--remote-byok-policy=off\|allow\|require` | off | Whether a remote client may send its own AI key. |
+| `--remote-client-tools-policy=off\|on` | off | Whether a remote review offers the model the tools a client declares, such as its own MCP servers. |
 | `--remote-byok=KEY` |  | Your own AI key to send with a remote review. |
 | `--remote-byok-default=on\|off` | off | Send remote-byok on every --remote review by default. |
 | `--review-policy=everyone\|trusted-auto\|on-request-only` |  | The review policy new repositories start with. |
@@ -4379,6 +4421,7 @@ provider, so both models are saved the first time. See
 | `--remote-byok=KEY` | `remoteByok` | `review --remote`, your own AI key, see [Remote review](remote-review.md#your-own-ai-key) |
 | `--remote-byok-default=on\|off` | `remoteByokDefault` | Whether `review --remote` sends `remote-byok` without being asked |
 | `--remote-byok-policy=off\|allow\|require` | `remoteByokPolicy` | `serve`, whether remote clients may send their own key |
+| `--remote-client-tools-policy=off\|on` | `remoteClientToolsPolicy` | `serve`, whether a remote review offers the tools a client declares, see [client tools](remote-review.md#your-own-mcp-servers-as-client-tools) |
 | `--review-policy=everyone\|trusted-auto\|on-request-only` | `reviewPolicy` | `serve`, the [review policy](review-policy.md) new repositories start with |
 | `--review-policy-file=PATH` | `reviewPolicy` (the parsed policy) | The same, from a JSON file. A bad policy is refused and nothing is saved |
 | `--extension-rerun-on-restart=true\|false` | `extensionRerunOnRestart` | `serve` and the CLI, whether an [extension](extensions.md) cut off by a restart runs again. A registration's own `--rerun-on-restart` wins. Unset means `true` |
@@ -4484,6 +4527,7 @@ hides the value.
 | `remote-byok` | string | `--remote-byok` | yes |
 | `remote-byok-default` | boolean | `--remote-byok-default` | no |
 | `remote-byok-policy` | `off`, `allow` or `require` | `--remote-byok-policy`, Settings, Remote review | no |
+| `remote-client-tools-policy` | `off` or `on` | `--remote-client-tools-policy`, or `CM_REMOTE_CLIENT_TOOLS_POLICY` | no |
 | `review-policy` | template name or policy object | `--review-policy`, `--review-policy-file`, Settings, Defaults | no |
 | `remote-sync-timeout-seconds` | number | Settings | no |
 | `max-concurrent-remote-reviews-per-token` | number | Settings | no |
@@ -4724,6 +4768,7 @@ An empty value counts as not set.
 | `CM_REMOTE_TOKEN` | The remote review token, the same as `remote-token`. Keeps it off the command line |
 | `CM_REMOTE_BYOK` | Your own AI key for `review --remote --remote-byok`, the same as `remote-byok` |
 | `CM_REMOTE_BYOK_POLICY` | On the server, `off`, `allow` or `require`. It overrides `remote-byok-policy`, so a hosted deployment cannot be talked out of it from the dashboard |
+| `CM_REMOTE_CLIENT_TOOLS_POLICY` | On the server, `off` or `on`. It overrides `remote-client-tools-policy`. Any other value is ignored |
 
 `config list` shows `env` as the source of `remote-host` and `remote-token` when
 their variable is set.

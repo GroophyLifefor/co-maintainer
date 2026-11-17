@@ -8,7 +8,8 @@ once on [`serve`](serve.md). Developers clone, set host and token, and run
 The model runs on the server as part of that path. Codegraph tools (when enabled)
 and [`search-non-code`](review.md#searching-docs-and-configuration) still run on
 the laptop and return results through the tool bridge. A server older than
-0.7.10 ignores the search tool.
+0.7.10 ignores the search tool. Your own MCP servers can join as
+[client tools](#your-own-mcp-servers-as-client-tools) when the server allows it.
 
 Overview: [`review`](review.md). Requires [`serve`](serve.md) and the
 [dashboard](dashboard.md).
@@ -188,10 +189,45 @@ on your machine. Its findings, verdict and cost come back in the result.
 A remote review offers the model the tools of the
 [MCP servers](review.md#mcp-servers) the server has for the repository, set on
 the `serve` host with `co-maintainer set --repo=owner/repo --mcp-config=...`.
-They run on the server, as its extensions do. The servers in your own
-`config.json` are not used. Their results stay on the server: the copied-passage
-check runs there before the result comes back, and the `mcp_*` and
-`private_text_removed` warnings come back with it.
+They run on the server, as its extensions do. Their results stay on the server:
+the copied-passage check runs there before the result comes back, and the
+`mcp_*` and `private_text_removed` warnings come back with it.
+
+### Your own MCP servers as client tools
+
+The MCP servers in your own `config.json` for the repository can take part too,
+when the server allows it. Your CLI starts them, declares their tools to the
+server, and runs each call the server's model makes, on your machine.
+
+- **The server decides.** The policy is `remoteClientToolsPolicy`, `off` by
+  default or `on`. Set it on the `serve` host with
+  `co-maintainer set --remote-client-tools-policy=on`, or with the
+  `CM_REMOTE_CLIENT_TOOLS_POLICY` environment variable, which wins over the
+  saved value, as the [BYOK policy](#on-the-server) does.
+- **The handshake says it.** A server from 0.7.12 lists `client-tools` among its
+  features and sends its policy. With `on`, the CLI starts your servers and the
+  submit's `capabilities.tools` carries each tool's name, description and
+  parameters. With `off`, or on an older server, the CLI starts none, declares
+  nothing, and adds the warning `client_tools_refused`. The review runs. An
+  older CLI with a newer server sends tool names only, and nothing changes.
+- **Names.** The model sees your tool `mcp-<server>-<tool>` as
+  `client-<server>-<tool>` in lowercase, with any character other than a letter,
+  a digit or a dash turned into a dash, for example `client-tracker-get-issue`.
+  The same rules as on your machine apply first: only the tools in `tools`, and
+  never one the MCP server marks as not read-only.
+- **The server's limits.** At most 16 declared tools, at most 16 KB per
+  declaration, and a name of 2 to 64 lowercase letters, digits or dashes that
+  starts with a letter and is not a name of the server's own tools
+  (`codegraph-*`, `search-non-code`, `read-full-diff`, `read-mermaid-syntaxes`,
+  `mcp-*`). Each declaration it leaves out gives a `client_tools_refused`
+  warning that names it.
+- **Results.** Every result goes through the server's
+  [tool limits](review.md#tool-limits) like any other tool's, behind the line
+  that says it is data from outside the repository. The server takes at most
+  40,000 characters of one result from the CLI. Every result is private: the
+  prompt says so, and the server runs the copied-passage check on them before
+  the result comes back.
+- `CM_MCP_DISABLED=1` on your machine starts none of your servers.
 
 ## The intent file
 
@@ -242,6 +278,9 @@ hint. Everything else about the two codes is on
 - Submit body size is capped (handshake `limits.maxBodyBytes`).
 - Concurrent remote reviews per token and job queue limits in dashboard Settings.
 - If sync stops longer than `remoteSyncTimeoutSeconds`, the server cancels the job.
+  While the CLI runs the server's tool calls it keeps sending a sync with no
+  results, at the poll interval and at least three times per timeout, so a slow
+  tool batch is not taken for a client that went away.
 - The server plans a large diff, and a file it dropped is sent again in your next
   `review --remote`. See [Large diffs](review.md#large-diffs).
 
