@@ -265,6 +265,39 @@ review does not run and no eyes reaction is added.</p>
 </tbody></table>
 <p>Comments and reviews on a waiting pull request do not start a review either. The
 second setting is the one that carries an earlier request forward.</p>
+<h3 id="skipping-a-failed-review">Skipping a failed review</h3>
+<p>A review that fails ends its check run as failed, which blocks the merge where
+the check is required. Two comments get past it:</p>
+<table>
+<thead>
+<tr>
+<th>Comment</th>
+<th>When it works</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/co-maintainer skip-this-commit</code></td>
+<td>Only when the review of the latest commit failed</td>
+<td>A new check run for that commit ends as skipped, and the failed note says the review was skipped. The next commit is reviewed again</td>
+</tr>
+<tr>
+<td><code>/co-maintainer skip-this-pr</code></td>
+<td>Any time</td>
+<td>Reviews are off for this pull request. A review that is running stops and posts nothing. The current commit and every later one get a check run that ends as skipped</td>
+</tr>
+<tr>
+<td><code>/co-maintainer review</code></td>
+<td>Any time</td>
+<td>As above. On a pull request turned off with <code>skip-this-pr</code> it also turns reviews back on, and the policy decides what happens next</td>
+</tr>
+</tbody></table>
+<p>A skipped check lets a required check pass without claiming a review happened.
+The repository owner may always use the two skip comments. Anyone else only
+when <strong>Who else can skip a failed review or turn reviews off</strong> in the
+dashboard, or <code>skippers</code> in the policy, lists their relation to the
+repository. A comment from anyone else is ignored, with no reply and no
+reaction.</p>
 <h3 id="round-limit">Round limit</h3>
 <p><strong>Reviews per pull request</strong> stops the webhook after that many reviews. A request
 obeys it too, and the skip reason reads <code>Round limit reached: 2 of 2 reviews.</code>
@@ -346,6 +379,11 @@ their descriptions. The server default is selected, and you decide.</li>
 <td><code>requesters</code></td>
 <td>Author relations that may ask by comment</td>
 <td><code>OWNER</code>, <code>MEMBER</code>, <code>COLLABORATOR</code></td>
+</tr>
+<tr>
+<td><code>skippers</code></td>
+<td>Author relations that may skip a failed review or turn reviews off, besides the owner</td>
+<td>None</td>
 </tr>
 <tr>
 <td><code>approvalScope</code></td>

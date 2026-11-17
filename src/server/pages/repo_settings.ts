@@ -293,6 +293,9 @@ export function renderRepoSettings(
             <fieldset id="p-requesters" class="ticks">
               <legend>Who can ask for a review</legend>
             </fieldset>
+            <fieldset id="p-skippers" class="ticks">
+              <legend>Who else can skip a failed review or turn reviews off (the owner always can)</legend>
+            </fieldset>
           </details>
         </div>
       </div>
@@ -496,6 +499,7 @@ function fromPolicy(policy) {
     def: policy.default, label: policy.requestLabel,
     command: policy.requestCommand,
     requesters: policy.requesters.slice(), scope: policy.approvalScope,
+    skippers: (policy.skippers || []).slice(),
     max: policy.maxRounds === undefined ? "" : String(policy.maxRounds)
   };
 }
@@ -520,6 +524,7 @@ function toPolicy() {
     }),
     default: state.def, requestLabel: state.label,
     requestCommand: state.command, requesters: state.requesters,
+    skippers: state.skippers,
     approvalScope: state.scope,
     maxRounds: state.max.trim() === "" ? undefined : Number(state.max)
   };
@@ -660,6 +665,9 @@ function renderSettings() {
   var box = document.getElementById("p-requesters");
   box.querySelectorAll("label").forEach(function(n) { n.remove(); });
   tickList(box, "p-req-", function() { return state.requesters; }, function(next) { state.requesters = next; });
+  var skipBox = document.getElementById("p-skippers");
+  skipBox.querySelectorAll("label").forEach(function(n) { n.remove(); });
+  tickList(skipBox, "p-skip-", function() { return state.skippers; }, function(next) { state.skippers = next; });
   syncPolicyVisibility();
 }
 function syncPolicyVisibility() {

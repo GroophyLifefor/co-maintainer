@@ -134,6 +134,10 @@ export type SubjectRow = {
   token_id: string | null;
   created_at: string;
   updated_at: string;
+  /** Set while `/co-maintainer skip-this-pr` keeps this pull request's
+   * reviews off. */
+  reviews_off_at?: string | null;
+  reviews_off_by?: string | null;
 };
 
 export type SubjectRevisionRow = {

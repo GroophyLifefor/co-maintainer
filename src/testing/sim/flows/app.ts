@@ -1005,7 +1005,8 @@ async function failure(sim: Sim): Promise<CheckResult> {
       ? ""
       : `writes ${writeShape(writes).join(", ")}`,
     noteBody.startsWith(REVIEW_FAILED_NOTE_START) &&
-    noteBody.endsWith(`/activity/${job?.id}`)
+    noteBody.includes(`/activity/${job?.id}`) &&
+    noteBody.includes("/co-maintainer skip-this-commit")
       ? ""
       : `note ${JSON.stringify(noteBody)}`,
     job?.error && !noteWords.includes(job.error) && !noteWords.includes("500")

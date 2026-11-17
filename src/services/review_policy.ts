@@ -47,6 +47,10 @@ export type ReviewPolicy = {
   requestLabel: string;
   requestCommand: string;
   requesters: Association[];
+  /** Who besides the repository owner may comment `/co-maintainer
+   * skip-this-commit` or `/co-maintainer skip-this-pr`. The owner always
+   * may. Empty by default. */
+  skippers: Association[];
   /** `head`: a request covers the commit it was made on. `pull-request`: the
    * first request covers every later push. */
   approvalScope: "head" | "pull-request";
@@ -81,6 +85,7 @@ export const DEFAULT_POLICY_SETTINGS = {
   requestLabel: "co-maintainer:review",
   requestCommand: "/co-maintainer review",
   requesters: TRUSTED,
+  skippers: [],
   approvalScope: "head",
 } as const;
 
@@ -224,6 +229,26 @@ export function carriesEarlierRequest(
 }
 
 /** Whether `body` starts with the request command as a whole word. */
+export type SkipCommand = "skip-this-commit" | "skip-this-pr";
+
+/** `/co-maintainer skip-this-commit` or `/co-maintainer skip-this-pr` at the
+ * start of a comment. The words are fixed, unlike the request command. */
+export function skipCommandOf(body: string): SkipCommand | undefined {
+  for (const command of ["skip-this-commit", "skip-this-pr"] as const) {
+    if (isRequestCommand(body, `/co-maintainer ${command}`)) return command;
+  }
+  return undefined;
+}
+
+/** The repository owner always may skip. Anyone else only when the
+ * repository's policy lists their association. */
+export function maySkip(policy: ReviewPolicy, association: string): boolean {
+  return (
+    association === "OWNER" ||
+    (policy.skippers ?? []).includes(association as Association)
+  );
+}
+
 export function isRequestCommand(body: string, command: string): boolean {
   const text = body.trim().toLowerCase();
   const wanted = command.trim().toLowerCase();
@@ -364,6 +389,7 @@ export function parsePolicy(value: unknown): Check<ReviewPolicy> {
       "requestLabel",
       "requestCommand",
       "requesters",
+      "skippers",
       "approvalScope",
       "maxRounds",
     ],
@@ -411,6 +437,11 @@ export function parsePolicy(value: unknown): Check<ReviewPolicy> {
     const parsed = associations(value.requesters, "requesters");
     if (!parsed.ok) return parsed;
     input.requesters = parsed.value;
+  }
+  if (value.skippers !== undefined) {
+    const parsed = associations(value.skippers, "skippers");
+    if (!parsed.ok) return parsed;
+    input.skippers = parsed.value;
   }
   if (value.approvalScope !== undefined) {
     if (
@@ -559,6 +590,17 @@ export function describePolicy(policy: ReviewPolicy): string[] {
   if (policy.maxRounds !== undefined) {
     lines.push(
       `A pull request gets at most ${policy.maxRounds} ${policy.maxRounds === 1 ? "review" : "reviews"} from the webhook.`,
+    );
+  }
+  // The owner always may, so only a widened list is worth a line.
+  const skippers = (policy.skippers ?? []).filter((a) => a !== "OWNER");
+  if (skippers.length > 0) {
+    const who = joinWords(
+      ["OWNER" as Association, ...skippers].map((a) => ASSOCIATION_WORDS[a]),
+      "and",
+    );
+    lines.push(
+      `${who.charAt(0).toUpperCase()}${who.slice(1)} can skip a failed review or turn reviews off for a pull request.`,
     );
   }
   return lines;

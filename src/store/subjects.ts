@@ -117,3 +117,34 @@ export function parseRevisionFiles(row: SubjectRevisionRow): RevisionFile[] {
 export function parseVisiblePaths(row: SubjectRevisionRow): Set<string> {
   return new Set(JSON.parse(row.visible_paths_json) as string[]);
 }
+
+/** Who turned reviews off for this pull request, or `undefined` while they
+ * are on. */
+export function prReviewsOff(
+  repo: string,
+  prNumber: number,
+): { at: string; by: string | null } | undefined {
+  const row = getAppDb()
+    .prepare<SubjectRow>(
+      `SELECT * FROM subjects WHERE kind = 'pr' AND repo = ? AND pr_number = ?`,
+    )
+    .get(repo, prNumber);
+  return row?.reviews_off_at
+    ? { at: row.reviews_off_at, by: row.reviews_off_by ?? null }
+    : undefined;
+}
+
+/** `/co-maintainer skip-this-pr` turns reviews off, `/co-maintainer review`
+ * turns them back on (`by` null). */
+export function setPrReviewsOff(
+  repo: string,
+  prNumber: number,
+  by: string | null,
+): void {
+  const subject = getOrCreatePrSubject(repo, prNumber);
+  getAppDb()
+    .prepare(
+      `UPDATE subjects SET reviews_off_at = ?, reviews_off_by = ?, updated_at = ? WHERE id = ?`,
+    )
+    .run(by === null ? null : nowIso(), by, nowIso(), subject.id);
+}

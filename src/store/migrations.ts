@@ -409,4 +409,10 @@ export const migrations: string[][] = [
     )`,
     `CREATE INDEX idx_rule_events_repo ON rule_events(repo, at)`,
   ],
+  // 18: a pull request whose reviews were turned off with
+  // `/co-maintainer skip-this-pr`, and who turned them off.
+  [
+    `ALTER TABLE subjects ADD COLUMN reviews_off_at TEXT`,
+    `ALTER TABLE subjects ADD COLUMN reviews_off_by TEXT`,
+  ],
 ];

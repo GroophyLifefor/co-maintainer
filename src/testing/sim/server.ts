@@ -145,6 +145,7 @@ export class SimServer {
     (
       await import("../../services/watch_comments.ts")
     ).registerWatchCommentHandler();
+    (await import("../../services/skip_commands.ts")).registerSkipJobHandler();
     this.started = true;
   }
 

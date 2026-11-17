@@ -94,6 +94,24 @@ review does not run and no eyes reaction is added.
 Comments and reviews on a waiting pull request do not start a review either. The
 second setting is the one that carries an earlier request forward.
 
+### Skipping a failed review
+
+A review that fails ends its check run as failed, which blocks the merge where
+the check is required. Two comments get past it:
+
+| Comment | When it works | What it does |
+| ------- | ------------- | ------------ |
+| `/co-maintainer skip-this-commit` | Only when the review of the latest commit failed | A new check run for that commit ends as skipped, and the failed note says the review was skipped. The next commit is reviewed again |
+| `/co-maintainer skip-this-pr` | Any time | Reviews are off for this pull request. A review that is running stops and posts nothing. The current commit and every later one get a check run that ends as skipped |
+| `/co-maintainer review` | Any time | As above. On a pull request turned off with `skip-this-pr` it also turns reviews back on, and the policy decides what happens next |
+
+A skipped check lets a required check pass without claiming a review happened.
+The repository owner may always use the two skip comments. Anyone else only
+when **Who else can skip a failed review or turn reviews off** in the
+dashboard, or `skippers` in the policy, lists their relation to the
+repository. A comment from anyone else is ignored, with no reply and no
+reaction.
+
 ### Round limit
 
 **Reviews per pull request** stops the webhook after that many reviews. A request
@@ -159,6 +177,7 @@ A policy file is JSON. Everything except the rules can be left out:
 | `requestLabel` | Label name | `co-maintainer:review` |
 | `requestCommand` | Text a comment starts with | `/co-maintainer review` |
 | `requesters` | Author relations that may ask by comment | `OWNER`, `MEMBER`, `COLLABORATOR` |
+| `skippers` | Author relations that may skip a failed review or turn reviews off, besides the owner | None |
 | `approvalScope` | `head`, `pull-request` | `head` |
 | `maxRounds` | Whole number of 1 or more | No limit |
 

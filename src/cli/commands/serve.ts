@@ -1,3 +1,4 @@
+import { registerSkipJobHandler } from "../../services/skip_commands.ts";
 import {
   readConfig,
   resolveAppPrivateKey,
@@ -242,6 +243,7 @@ export async function runServe(args: string[]): Promise<void> {
   registerReplyJobHandler();
   registerPushReviewHandlers();
   registerWatchCommentHandler();
+  registerSkipJobHandler();
   // Before the orphans run again: a job still marked running keeps its
   // extension folder, which tells its rerun what the restart cut off.
   await removeServeRunFolders(
