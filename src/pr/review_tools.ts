@@ -9,6 +9,7 @@ import { readConfig } from "../config.ts";
 import { mcpDisabled, type McpServerConfig } from "../tools/mcp_config.ts";
 import {
   emptyMcpSession,
+  joinMcpSessions,
   type McpSession,
   startMcpSession,
 } from "../tools/mcp_tools.ts";
@@ -39,8 +40,14 @@ export type ReviewToolSource =
   | { kind: "tree"; root: string; codegraph: ToolHandler[]; mcp?: boolean }
   /** Tools another process runs: a remote review, where the client runs
    * codegraph and search in its own checkout. The server runs the MCP
-   * servers it has for the repository itself. */
-  | { kind: "bridge"; tools: ToolHandler[]; mcp?: boolean };
+   * servers it has for the repository itself. `clientTools` holds the tools
+   * the client declared, private like MCP results. */
+  | {
+      kind: "bridge";
+      tools: ToolHandler[];
+      mcp?: boolean;
+      clientTools?: McpSession;
+    };
 
 export type ReviewTools = {
   /** Every tool to offer, codegraph first. */
@@ -78,11 +85,17 @@ export async function prepareReviewTools(
 ): Promise<ReviewTools> {
   const starting = startMcp(source, options.repo, deps);
   try {
-    const [own, diff, mcp] = await Promise.all([
+    const [own, diff, servers] = await Promise.all([
       prepareOwnTools(source, options, deps),
       diffTools,
       starting,
     ]);
+    // A remote client's declared tools join the MCP tools: private results,
+    // checked for copied passages the same way.
+    const mcp =
+      source.kind === "bridge" && source.clientTools
+        ? joinMcpSessions(servers, source.clientTools)
+        : servers;
     return { ...own, tools: [...own.tools, ...diff, ...mcp.tools], mcp };
   } catch (error) {
     // Servers that started while another part failed are stopped here, as

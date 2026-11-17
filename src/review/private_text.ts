@@ -7,10 +7,31 @@
  * passages. A single word, such as a customer's name, or a paraphrase passes
  * it. */
 import type { CoverageWarning } from "./coverage.ts";
+import { isMcpTool } from "../tools/mcp_tools.ts";
+
+/** What the private results sentence says after it names the tools. */
+const PRIVATE_RULE =
+  "are private. Base a finding on them when they show the change is wrong, and say only that a private source of this repository requires it. Never quote, paraphrase or summarize their text in a finding.";
 
 /** Said in the review prompt when the model is offered an MCP tool. */
-export const MCP_PRIVATE_GUIDANCE =
-  "Results from mcp- tools are private. Base a finding on them when they show the change is wrong, and say only that a private source of this repository requires it. Never quote, paraphrase or summarize their text in a finding.";
+export const MCP_PRIVATE_GUIDANCE = `Results from mcp- tools ${PRIVATE_RULE}`;
+
+/** The private results sentence for the tools the model is offered, or
+ * `undefined` when none is private. MCP tools are named by their prefix. A
+ * remote client's declared tools are private too and are named one by one,
+ * since a client picks their names. */
+export function privateToolsGuidance(
+  tools: { name: string; private?: boolean }[],
+): string | undefined {
+  const mcp = tools.some((tool) => isMcpTool(tool.name));
+  const declared = tools
+    .filter((tool) => tool.private && !isMcpTool(tool.name))
+    .map((tool) => tool.name);
+  if (!mcp && declared.length === 0) return undefined;
+  if (declared.length === 0) return MCP_PRIVATE_GUIDANCE;
+  const named = `the client ${declared.length === 1 ? "tool" : "tools"} ${declared.join(", ")}`;
+  return `Results from ${mcp ? `mcp- tools and from ${named}` : named} ${PRIVATE_RULE}`;
+}
 
 /** What a removed passage becomes. */
 export const PRIVATE_TEXT_REMOVED = "[private context removed]";

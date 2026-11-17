@@ -22,6 +22,9 @@ export type ToolHandler = {
   /** The result comes from outside the repository, so the gate puts the
    * fixed data line before it. */
   external?: boolean;
+  /** The result is private, like an MCP result: the review removes any
+   * passage copied from it. A remote client's declared tools set it. */
+  private?: boolean;
 };
 
 async function runTool(

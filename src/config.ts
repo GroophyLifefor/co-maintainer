@@ -179,6 +179,11 @@ export type UserConfig = {
    * `CM_REMOTE_BYOK_POLICY` env var overrides this, which is how a hosted
    * deployment forces the setting. */
   remoteByokPolicy?: ByokPolicy;
+  /** Whether a remote review offers the model the tools a client declares,
+   * such as its own MCP servers. `off` (the default) ignores them, `on`
+   * offers them within the server's limits. The
+   * `CM_REMOTE_CLIENT_TOOLS_POLICY` env var overrides this. */
+  remoteClientToolsPolicy?: ClientToolsPolicy;
   /** The review policy new repositories start with: a template
    * name or a policy object. Unset means the old per repository switches. */
   reviewPolicy?: string | Record<string, unknown>;
@@ -199,6 +204,8 @@ export type UserConfig = {
 };
 
 export type ByokPolicy = "off" | "allow" | "require";
+
+export type ClientToolsPolicy = "off" | "on";
 
 /** The provider's own key variable. It is read only when that provider runs,
  * so a key meant for one provider is never sent to another. */
@@ -267,6 +274,19 @@ export function remoteByokPolicy(
       ? env
       : config.remoteByokPolicy;
   return raw === "allow" || raw === "require" ? raw : "off";
+}
+
+/** Whether a remote review offers the tools a client declares.
+ * `CM_REMOTE_CLIENT_TOOLS_POLICY` overrides the saved config, as the BYOK
+ * policy's variable does. An unset or unreadable value falls back to the
+ * config, then to `off`. */
+export function remoteClientToolsPolicy(
+  config: Pick<UserConfig, "remoteClientToolsPolicy"> = readConfig(),
+): ClientToolsPolicy {
+  const env = getEnv("CM_REMOTE_CLIENT_TOOLS_POLICY");
+  const raw =
+    env === "off" || env === "on" ? env : config.remoteClientToolsPolicy;
+  return raw === "on" ? "on" : "off";
 }
 
 function homeDir(env: (name: string) => string | undefined): string {

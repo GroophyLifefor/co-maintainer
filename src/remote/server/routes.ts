@@ -1,5 +1,10 @@
 import { VERSION } from "../../version.ts";
-import { cloneDir, readConfig, remoteByokPolicy } from "../../config.ts";
+import {
+  cloneDir,
+  readConfig,
+  remoteByokPolicy,
+  remoteClientToolsPolicy,
+} from "../../config.ts";
 import { resolveDefaultBranchName } from "../../git/default_branch.ts";
 import { runCommand } from "../../pr/checkout.ts";
 import { loadGuides } from "../../review/guides.ts";
@@ -142,8 +147,11 @@ async function handleHandshake(
     // Additive advertisement: a 0.5.0 client ignores these, and an
     // older server never sends them, so the client gates on `features`. No key,
     // model, or other secret is ever echoed here.
-    features: ["byok", "push", "intent"],
+    features: ["byok", "push", "intent", "client-tools"],
     byok: { policy },
+    // Whether this server offers the model the tools a client declares. A
+    // client that finds `off` declares none and says so in its warnings.
+    clientTools: { policy: remoteClientToolsPolicy(config) },
     ai: { provider: config.ai ?? "openrouter" },
   });
 }

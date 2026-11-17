@@ -931,6 +931,13 @@ export const COMMANDS: CommandSpec[] = [
             description: "Whether a remote client may send its own AI key.",
           },
           {
+            name: "remote-client-tools-policy",
+            value: "off|on",
+            default: "off",
+            description:
+              "Whether a remote review offers the model the tools a client declares, such as its own MCP servers.",
+          },
+          {
             name: "remote-byok",
             value: "KEY",
             description: "Your own AI key to send with a remote review.",
