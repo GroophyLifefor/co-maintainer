@@ -51,7 +51,9 @@ test("an unusable edit answer is refused, never half applied", () => {
   ]) {
     if (parseGuideEdits(text) !== null) throw new Error(`accepted: ${text}`);
   }
-  const fenced = parseGuideEdits('```json\n{"remove": ["R2"]}\n```');
+  const fenced = parseGuideEdits(
+    '```json\n{"add": [], "change": [], "remove": ["R2"]}\n```',
+  );
   if (fenced?.remove[0] !== "R2") throw new Error(JSON.stringify(fenced));
 });
 

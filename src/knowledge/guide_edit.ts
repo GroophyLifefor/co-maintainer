@@ -33,10 +33,12 @@ export function parseGuideEdits(text: string): GuideEdits | null {
   } catch {
     return null;
   }
-  if (!value || typeof value !== "object") return null;
+  // The prompt asks for all three lists, empty or not. An answer without
+  // them, such as `{}`, is not taken as "no edits".
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
-  const list = (key: string) =>
-    record[key] === undefined ? [] : (record[key] as unknown);
+  if (!["add", "change", "remove"].every((key) => key in record)) return null;
+  const list = (key: string) => record[key];
   const add = list("add");
   const change = list("change");
   const remove = list("remove");

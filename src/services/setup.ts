@@ -421,12 +421,14 @@ export async function guideEditInput(
     DEFAULT_GUIDE_FULL_EVERY;
   if (every === 1) return undefined;
   const edits = previous?.guide?.edits ?? 0;
-  if (every > 0 && edits + 1 >= every) {
+  // The count only decides once the findings changed: a sync whose findings
+  // are the same keeps the guide, whatever the count.
+  const rewriteIfChanged = every > 0 && edits + 1 >= every;
+  if (rewriteIfChanged) {
     log(
       "ai",
-      `rewriting the review guide in full: ${edits} edits since the last full rewrite, --guide-full-every=${every}`,
+      `${edits} edits since the last full rewrite, --guide-full-every=${every}: a changed guide is rewritten in full`,
     );
-    return undefined;
   }
   const findings = previous?.guide?.findings;
   if (!findings || !rules) return undefined;
@@ -443,6 +445,7 @@ export async function guideEditInput(
     ...(detailed ? { detailed } : {}),
     rules,
     findings,
+    ...(rewriteIfChanged ? { rewriteIfChanged: true } : {}),
   };
 }
 

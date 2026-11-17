@@ -75,13 +75,16 @@ test("init and --full-guide rewrite in full, a sync edits", async () => {
   });
 });
 
-test("the default rewrites in full on the 10th changed sync", async () => {
+test("the default rewrites in full on the 10th changed sync, an unchanged one still keeps the guide", async () => {
   await withRepo(undefined, async () => {
-    if (!(await guideEditInput(sync(), previous(8), RULES))) {
+    const ninth = await guideEditInput(sync(), previous(8), RULES);
+    if (!ninth || ninth.rewriteIfChanged)
       throw new Error("the 9th sync did not edit");
-    }
-    if (await guideEditInput(sync(), previous(9), RULES)) {
-      throw new Error("the 10th sync edited");
+    const tenth = await guideEditInput(sync(), previous(9), RULES);
+    if (!tenth?.rewriteIfChanged) {
+      throw new Error(
+        "the 10th sync was not marked to rewrite a changed guide",
+      );
     }
   });
 });

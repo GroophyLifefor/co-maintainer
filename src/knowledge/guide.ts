@@ -422,7 +422,14 @@ export type GuideEditInput = {
   detailed?: string;
   rules: Record<string, RuleEntry>;
   findings: string[];
+  /** The count of edits reached `--guide-full-every`: a sync whose findings
+   * changed rewrites in full, one whose findings did not keeps the guide. */
+  rewriteIfChanged?: boolean;
 };
+
+/** A guide longer than this is rewritten in full rather than sent whole to
+ * an edit call. A full method stops at about 64,000 characters. */
+const MAX_EDIT_GUIDE_CHARS = 80_000;
 
 const FULL = Symbol("rewrite in full");
 
@@ -528,6 +535,14 @@ async function editReviewGuides(
       "the review guide's findings did not change, keeping it as it is",
     );
     return { mode: "unchanged", documents: relabel(noEdits) };
+  }
+  if (edit.rewriteIfChanged) return FULL;
+  if (main.length > MAX_EDIT_GUIDE_CHARS) {
+    log(
+      "ai",
+      `the review guide is ${main.length} characters, rewriting it in full instead of editing it`,
+    );
+    return FULL;
   }
   const queue = new AiBatch(
     provider,

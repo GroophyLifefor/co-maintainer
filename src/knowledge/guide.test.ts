@@ -504,6 +504,8 @@ test("an edit sync sends only the new finding and keeps every other guide line",
           rule: `Drain writes before shutdown · a dropped write is lost [${added[0]!.number}]`,
         },
       ],
+      change: [],
+      remove: [],
     });
   };
   const facts = [
@@ -611,7 +613,7 @@ test("an edit answer that does not fit rewrites the guide in full", async () => 
       return {
         text:
           request.job === "edit_guide"
-            ? JSON.stringify({ remove: ["R99"] })
+            ? JSON.stringify({ add: [], change: [], remove: ["R99"] })
             : SHORT_GUIDE,
         tokensIn: 1,
         tokensOut: 1,
@@ -640,6 +642,90 @@ test("an edit answer that does not fit rewrites the guide in full", async () => 
     );
     if (outcome.mode !== "full" || calls < 2) {
       throw new Error(`mode ${outcome.mode} after ${calls} calls`);
+    }
+  } finally {
+    await cleanup(repo);
+  }
+});
+
+test("a changed sync at the full-rewrite count rewrites, an unchanged one keeps the guide", async () => {
+  const repo = `guide-count-${crypto.randomUUID()}`;
+  const input = {
+    guide: EDIT_GUIDE,
+    rules: EDIT_RULES,
+    findings: OLD_THREE.map((item) => item.claim.toLowerCase()),
+    rewriteIfChanged: true,
+  };
+  try {
+    const same = new EditProvider("{}");
+    const kept: { mode?: "full" | "edit" | "unchanged" } = {};
+    await synthesizeReviewGuides(
+      same,
+      repo,
+      "openrouter",
+      "fixture",
+      1,
+      OLD_THREE,
+      undefined,
+      undefined,
+      input,
+      kept,
+    );
+    if (kept.mode !== "unchanged" || same.requests.length !== 0) {
+      throw new Error(
+        `unchanged sync: ${kept.mode} after ${same.requests.length} calls`,
+      );
+    }
+    const changed = new EditProvider(SHORT_GUIDE);
+    const full: { mode?: "full" | "edit" | "unchanged" } = {};
+    await synthesizeReviewGuides(
+      changed,
+      repo,
+      "openrouter",
+      "fixture",
+      1,
+      [...OLD_THREE, finding("Drain writes before shutdown.")],
+      undefined,
+      undefined,
+      input,
+      full,
+    );
+    if (full.mode !== "full" || changed.requests[0]?.job !== "synth_guide") {
+      throw new Error(
+        `changed sync: ${full.mode}, first call ${changed.requests[0]?.job}`,
+      );
+    }
+  } finally {
+    await cleanup(repo);
+  }
+});
+
+test("a guide too long to send is rewritten in full, not edited", async () => {
+  const repo = `guide-long-${crypto.randomUUID()}`;
+  const provider = new EditProvider(SHORT_GUIDE);
+  const outcome: { mode?: "full" | "edit" | "unchanged" } = {};
+  try {
+    await synthesizeReviewGuides(
+      provider,
+      repo,
+      "openrouter",
+      "fixture",
+      1,
+      [...OLD_THREE, finding("Drain writes before shutdown.")],
+      undefined,
+      undefined,
+      {
+        guide: `${EDIT_GUIDE}${"\n- filler line".repeat(9000)}`,
+        rules: EDIT_RULES,
+        findings: OLD_THREE.map((item) => item.claim.toLowerCase()),
+      },
+      outcome,
+    );
+    if (
+      outcome.mode !== "full" ||
+      provider.requests.some((r) => r.job === "edit_guide")
+    ) {
+      throw new Error(`mode ${outcome.mode}`);
     }
   } finally {
     await cleanup(repo);
