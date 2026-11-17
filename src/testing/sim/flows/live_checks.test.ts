@@ -80,6 +80,7 @@ const SKIPPED_LIVE: Record<string, number> = {
   remote: 13,
   "review-checks": 2,
   "review-references": 3,
+  "search-non-code": 2,
 };
 
 for (const [name, pending] of probes) {
