@@ -2,6 +2,7 @@ import { cloneDir, worktreeDir } from "../config.ts";
 import { log } from "../util/log.ts";
 import { withKeyedLock } from "../util/keyed_lock.ts";
 import { commandOutput, stat } from "../util/runtime.ts";
+import { gitAuthEnv } from "./git_auth.ts";
 
 export function withCloneLock<T>(
   repo: string,
@@ -22,12 +23,15 @@ export type Run = (
   command: string,
   args: string[],
   cwd?: string,
+  /** Added to the process environment, for this command only. */
+  env?: Record<string, string>,
 ) => Promise<CommandResult>;
 
 export async function runCommand(
   command: string,
   args: string[],
   cwd?: string,
+  env?: Record<string, string>,
 ): Promise<CommandResult> {
   // Spawn the executable directly, never through `cmd /c`. git is a real .exe
   // on Windows, so cmd is unnecessary, and routing a pull request's file paths
@@ -37,6 +41,7 @@ export async function runCommand(
   const output = await commandOutput(command, {
     args,
     cwd,
+    ...(env ? { env: { ...process.env, ...env } } : {}),
     stdout: "piped",
     stderr: "piped",
   });
@@ -62,16 +67,21 @@ async function cloneInto(repo: string, dir: string, run: Run): Promise<string> {
   // `-c core.longpaths=true` has to be in effect for the clone itself: a deep
   // source tree can overrun the Windows path limit while the objects are being
   // written, and setting the config afterwards is too late to help.
-  const result = await run("git", [
-    "-c",
-    "core.longpaths=true",
-    "-c",
-    "core.symlinks=false",
-    "clone",
-    "--filter=blob:none",
-    `https://github.com/${repo}`,
-    dir,
-  ]);
+  const result = await run(
+    "git",
+    [
+      "-c",
+      "core.longpaths=true",
+      "-c",
+      "core.symlinks=false",
+      "clone",
+      "--filter=blob:none",
+      `https://github.com/${repo}`,
+      dir,
+    ],
+    undefined,
+    await gitAuthEnv(dir),
+  );
   if (result.code !== 0) {
     // One actionable line, not the raw multi-line git transcript: the caller
     // only needs to know the clone failed and what it costs them. git opens
@@ -170,7 +180,12 @@ export async function ensureCommit(
     if (sha) return sha;
   }
   log("checkout", `fetching ${revision.slice(0, 10)}`);
-  const fetched = await run("git", ["fetch", "origin", revision], clone);
+  const fetched = await run(
+    "git",
+    ["fetch", "origin", revision],
+    clone,
+    await gitAuthEnv(clone),
+  );
   if (fetched.code !== 0) {
     throw new Error(`git fetch ${revision} failed: ${fetched.stderr.trim()}`);
   }

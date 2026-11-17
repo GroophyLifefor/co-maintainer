@@ -1,4 +1,5 @@
 /** Review jobs: run the model, persist findings, post to GitHub. */
+import { setGitHubAuth } from "../pr/git_auth.ts";
 import { VERSION } from "../version.ts";
 import { createAiProvider } from "../ai/provider.ts";
 import { FakeAiProvider } from "../ai/fake.ts";
@@ -1004,6 +1005,9 @@ async function runReviewJobCore(
     throw new Error(`no GitHub App installation stored for ${job.repo}`);
   }
   const github = client ?? clientFor(installationId!);
+  // The checkout for scope and codegraph clones with the App token, not the
+  // machine's own git login, so a private repository keeps its scope.
+  if (github.gitToken) setGitHubAuth(job.repo, () => github.gitToken!());
   const existing = getReviewByJobId(job.id);
   if (
     existing &&
