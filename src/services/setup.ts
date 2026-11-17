@@ -458,9 +458,13 @@ export async function guideEditInput(
     (rule) => rule.file === "PR_REVIEW_DETAILED_GUIDE.md",
   );
   if (hadDetailed && detailed === undefined) return undefined;
+  // An empty guide file is not a guide to edit.
+  if (!guide.trim() || (detailed !== undefined && !detailed.trim())) {
+    return undefined;
+  }
   return {
     guide,
-    ...(detailed ? { detailed } : {}),
+    ...(detailed !== undefined ? { detailed } : {}),
     rules,
     findings,
     ...(rewriteIfChanged ? { rewriteIfChanged: true } : {}),

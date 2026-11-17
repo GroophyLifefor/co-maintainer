@@ -122,3 +122,15 @@ test("a detailed guide the last build wrote and that is gone now rewrites in ful
     }
   });
 });
+
+test("an empty detailed guide rewrites in full", async () => {
+  await withRepo(undefined, async () => {
+    await writeTextFile(
+      `${getEnv("CM_REPOS_DIR")}/${REPO}/PR_REVIEW_DETAILED_GUIDE.md`,
+      "",
+    );
+    if (await guideEditInput(sync(), previous(0), RULES)) {
+      throw new Error("edited with an empty detailed guide");
+    }
+  });
+});
