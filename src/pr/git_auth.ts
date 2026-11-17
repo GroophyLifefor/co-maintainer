@@ -25,8 +25,10 @@ export function clearGitHubAuthForTest(): void {
 }
 
 /** The environment that gives git the token for `https://github.com/`, or
- * `undefined` when no App job registered one for this clone. A token that
- * cannot be minted leaves git on the machine's own login. */
+ * `undefined` when no App job registered one for this clone. When the token
+ * cannot be minted this throws: an App job must not fall back to the
+ * machine's own login, which may reach more than the App does. The clone then
+ * fails and the review runs on the diff alone, saying why. */
 export async function gitAuthEnv(
   dir: string,
 ): Promise<Record<string, string> | undefined> {
@@ -35,8 +37,10 @@ export async function gitAuthEnv(
   let token: string;
   try {
     token = await source();
-  } catch {
-    return undefined;
+  } catch (error) {
+    throw new Error(
+      `could not get the App token for git: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
   const basic = Buffer.from(`x-access-token:${token}`).toString("base64");
   return {

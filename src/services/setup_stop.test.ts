@@ -72,18 +72,18 @@ test("Stop during init lets the running AI call finish, then writes nothing", as
     "HOME",
   ] as const;
   const original = names.map((name) => getEnv(name));
-  setEnv("CM_CONFIG_PATH", `${root}/config.json`);
-  setEnv("CM_APP_DB", `${root}/app.db`);
-  setEnv("CM_REPOS_DIR", `${root}/repos`);
-  setEnv("XDG_CACHE_HOME", `${root}/cache`);
-  setEnv("LOCALAPPDATA", `${root}/cache`);
-  setEnv("HOME", root);
-  await closeAppDb();
-  const stop = new AbortController();
-  const calls = { ai: 0 };
   const previousFetch = globalThis.fetch;
-  globalThis.fetch = stubFetch(stop, calls);
   try {
+    setEnv("CM_CONFIG_PATH", `${root}/config.json`);
+    setEnv("CM_APP_DB", `${root}/app.db`);
+    setEnv("CM_REPOS_DIR", `${root}/repos`);
+    setEnv("XDG_CACHE_HOME", `${root}/cache`);
+    setEnv("LOCALAPPDATA", `${root}/cache`);
+    setEnv("HOME", root);
+    await closeAppDb();
+    const stop = new AbortController();
+    const calls = { ai: 0 };
+    globalThis.fetch = stubFetch(stop, calls);
     let thrown: unknown;
     try {
       await runInitOrRemake(
