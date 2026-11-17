@@ -89,11 +89,7 @@ import { hasWriteAccess } from "../github/write_access.ts";
 import { withExtensions } from "../extensions/session.ts";
 import { appPrContext } from "../extensions/contexts.ts";
 import { reviewResultJson } from "../extensions/review_result.ts";
-import {
-  EMPTY_REPORT,
-  hasExtensions,
-  type ExtensionReport,
-} from "../extensions/report.ts";
+import { EMPTY_REPORT, type ExtensionReport } from "../extensions/report.ts";
 import {
   reviewBodyWithExtensions,
   reviewEventWithExtensions,
@@ -1176,7 +1172,8 @@ async function runReviewJobCore(
     unchangedPaths?: string[];
     catchesUp?: boolean;
     resend?: Json[];
-  } = { catchesUp };
+    signal?: AbortSignal;
+  } = { catchesUp, signal };
   // A guide rebuilt after the previous review invalidates that review's
   // verdicts and its "unchanged" suppression. Treat the run as
   // if it had started fresh: carry-over off, every changed file back in scope,
@@ -1283,12 +1280,23 @@ async function runReviewJobCore(
     // A provider throw or an empty/unusable answer is a failed attempt, not a
     // review that found nothing. Its cost is kept when the provider reported
     // one, and the pull request gets one note pointing at the dashboard.
+    // A Stop is not a failure: nothing is posted.
+    if (signal?.aborted) {
+      setReviewStatus(reviewId, "canceled");
+      log("info", "stopped during the review, nothing was posted");
+      return;
+    }
     await recordFailedReview(github, job, reviewId, costTally, log);
     throw error;
   }
-  // A Stop while extensions ran cut them short: posting would name them as
-  // failed. The remote job returns the same way.
-  if (signal?.aborted && hasExtensions(extensions)) return;
+  // A Stop during the review: the AI call that was running has finished, and
+  // nothing is posted or stored. Extensions it cut short would read as failed.
+  // The remote job returns the same way.
+  if (signal?.aborted) {
+    setReviewStatus(reviewId, "canceled");
+    log("info", "stopped before posting, nothing was posted");
+    return;
+  }
   guideBuiltAt = response.guideBuiltAt;
   const visiblePaths = new Set(response.visiblePaths);
   if (carryPrevious) {

@@ -937,7 +937,11 @@ async function runPushReview(
                 },
                 ai,
                 (message) => log("info", message),
-                { carryPrompt: knownPrompt(checks), job: "review_push" },
+                {
+                  carryPrompt: knownPrompt(checks),
+                  job: "review_push",
+                  signal,
+                },
               ),
           );
     if (signal.aborted) return;

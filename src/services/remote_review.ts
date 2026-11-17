@@ -434,7 +434,7 @@ export function registerRemoteReviewHandler(): void {
 
         // The subject's carry-over leaves out what the last run saw, so a
         // file this run drops is sent by the next one.
-        const extras: ReviewExtras = { catchesUp: true };
+        const extras: ReviewExtras = { catchesUp: true, signal };
         let previousVisible: Set<string> | undefined;
         let previous: CarryPrevious | undefined;
         if (subjectId) {

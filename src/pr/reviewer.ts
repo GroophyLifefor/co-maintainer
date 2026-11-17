@@ -122,6 +122,9 @@ export type ReviewExtras = {
    * sends the ones this run dropped. Only then do the warnings promise a
    * later round. Left out, they do not. */
   catchesUp?: boolean;
+  /** Stop from the dashboard. An AI call that already started finishes, and
+   * no new one starts: no further tool round, retry or improvement pass. */
+  signal?: AbortSignal;
 };
 
 /** What a review run returns to every flow. */
@@ -296,6 +299,7 @@ async function normalizeReviewResponse(
   usage: UsageSinkForNormalize | undefined,
   report: ProgressSink,
   options: Options,
+  signal?: AbortSignal,
 ): Promise<string> {
   const direct = findingsMarkdownFromJson(response.text);
   if (direct !== undefined) return direct;
@@ -310,6 +314,7 @@ async function normalizeReviewResponse(
     1,
     extraTools,
     maxToolRounds,
+    { signal },
   );
   if (usage) await usage(retry);
   if (options.debug) {
@@ -380,6 +385,7 @@ export async function reviewPullRequest(
 ): Promise<ReviewOutcome> {
   if (!options.prNumber) throw new Error("review requires a PR number");
   const number = options.prNumber;
+  const signal = extras?.signal;
   const report = progress ?? (() => {});
   report(modelSummary(options));
   report(`loading PR context for ${options.repo}#${number}`);
@@ -609,6 +615,7 @@ ${diff}`;
     1,
     extraTools,
     maxToolRounds,
+    { signal },
   );
   if (usage) await usage(response);
   report(
@@ -637,6 +644,7 @@ ${diff}`;
     usage,
     report,
     options,
+    signal,
   );
   for (let pass = 2; pass <= matrix; pass++) {
     const improvementRequest: AiRequest = {
@@ -668,6 +676,7 @@ ${reviewText}`,
       1,
       extraTools,
       maxToolRounds,
+      { signal },
     );
     if (usage) await usage(response);
     report(
@@ -688,6 +697,7 @@ ${reviewText}`,
       usage,
       report,
       options,
+      signal,
     );
     if (options.debug) {
       console.log(
@@ -726,6 +736,7 @@ export async function reviewWorkspaceRevision(
   extras?: ReviewExtras,
 ): Promise<ReviewOutcome> {
   const report = progress ?? (() => {});
+  const signal = extras?.signal;
   report(modelSummary(options));
   const guides = await loadGuides(options.repo);
   const { shortGuide, detailed, codebase, skill } = guides;
@@ -804,6 +815,7 @@ ${ownDiff}${unchangedListing}`;
     1,
     extraTools,
     maxToolRounds,
+    { signal },
   );
   if (usage) await usage(response);
   if (!response.text.trim()) {
@@ -818,6 +830,7 @@ ${ownDiff}${unchangedListing}`;
     usage,
     report,
     options,
+    signal,
   );
   for (let pass = 2; pass <= matrix; pass++) {
     const improvementRequest: AiRequest = {
@@ -842,6 +855,7 @@ ${reviewText}`,
       1,
       extraTools,
       maxToolRounds,
+      { signal },
     );
     if (usage) await usage(response);
     reviewText = await normalizeReviewResponse(
@@ -853,6 +867,7 @@ ${reviewText}`,
       usage,
       report,
       options,
+      signal,
     );
   }
   const codegraphState = !options.useCodegraph

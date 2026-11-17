@@ -229,6 +229,7 @@ async function runReplyJobCore(
   log: LogFn,
   client?: GitHubClient,
   ai?: AiProvider,
+  signal?: AbortSignal,
 ): Promise<void> {
   const args = JSON.parse(job.args || "{}") as { requestId?: string };
   if (!args.requestId) throw new Error("reply job is missing requestId");
@@ -297,6 +298,12 @@ async function runReplyJobCore(
     setReplyStatus(request.id, "ready", { answer_md: answer });
   }
 
+  // A Stop after the answer was written: it stays saved as ready, and
+  // nothing is posted.
+  if (signal?.aborted) {
+    log("info", "stopped before posting the reply, nothing was posted");
+    return;
+  }
   const { text, withdrawn } = takeWithdrawLine(answer);
   const body = `${marker}\n${plainSuggestionFences(text)}`;
   setReplyStatus(request.id, "posting");
@@ -330,9 +337,10 @@ export async function runReplyJob(
   log: LogFn,
   client?: GitHubClient,
   ai?: AiProvider,
+  signal?: AbortSignal,
 ): Promise<void> {
   try {
-    await runReplyJobCore(job, log, client, ai);
+    await runReplyJobCore(job, log, client, ai, signal);
   } catch (error) {
     const args = JSON.parse(job.args || "{}") as { requestId?: string };
     if (args.requestId) {
@@ -373,8 +381,8 @@ export function recoverReplyRequests(): number {
 
 export function registerReplyJobHandler(): void {
   registerHandler("reply", {
-    run(job, log) {
-      return runReplyJob(job, log);
+    run(job, log, signal) {
+      return runReplyJob(job, log, undefined, undefined, signal);
     },
     reconcile(job, log) {
       return reconcileReply(job, log);

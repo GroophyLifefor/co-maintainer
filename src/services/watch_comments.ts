@@ -119,7 +119,11 @@ async function alreadyAnswered(
   }
 }
 
-async function runWatchComment(job: JobRow, log: LogFn): Promise<void> {
+async function runWatchComment(
+  job: JobRow,
+  log: LogFn,
+  signal?: AbortSignal,
+): Promise<void> {
   const args = JSON.parse(job.args) as {
     issueNumber: number;
     commentId: string;
@@ -216,6 +220,10 @@ ${args.body.slice(0, 6000)}`,
   await usage(answer);
   const text = humanCopy(answer.text).trim();
   if (!text) throw new Error("the AI returned an empty answer");
+  if (signal?.aborted) {
+    log("info", "stopped before posting the answer, nothing was posted");
+    return;
+  }
   await commentOnIssue(
     client,
     job.repo,

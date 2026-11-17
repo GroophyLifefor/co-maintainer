@@ -348,20 +348,39 @@ export function addReviewLink(
   return `${markdown.trimEnd()}\n\n## Pull request review guides\n\n- Read [PR_REVIEW_GUIDE.md](PR_REVIEW_GUIDE.md).${detailedLink}\n`;
 }
 
-export async function runInitOrRemake(options: Options): Promise<void> {
+/** Thrown at a checkpoint after Stop on the dashboard. Nothing is written
+ * once it is thrown. */
+export class StoppedError extends Error {}
+
+/** A Stop is honoured between phases: an AI call that already started
+ * finishes, then no new phase starts and nothing is written. */
+function stopIfAsked(signal: AbortSignal | undefined, phase: string): void {
+  if (signal?.aborted) {
+    throw new StoppedError(`stopped before ${phase}, nothing was written`);
+  }
+}
+
+export async function runInitOrRemake(
+  options: Options,
+  signal?: AbortSignal,
+): Promise<void> {
   const openedAppDb = !isAppDbOpen();
   if (openedAppDb) await openAppDb();
   try {
     // With `--json` stdout carries the one document, so progress moves to
     // stderr.
-    if (options.json) await withCliLogsToStderr(() => initOrRemake(options));
-    else await initOrRemake(options);
+    if (options.json) {
+      await withCliLogsToStderr(() => initOrRemake(options, signal));
+    } else await initOrRemake(options, signal);
   } finally {
     if (openedAppDb) await closeAppDb();
   }
 }
 
-async function initOrRemake(options: Options): Promise<void> {
+async function initOrRemake(
+  options: Options,
+  signal?: AbortSignal,
+): Promise<void> {
   // Turning review references on re-reads every pull request once, so the
   // guide rules get links to the review comments they came from.
   const repoConfig = readConfig().repos?.[options.repo];
@@ -449,6 +468,7 @@ async function initOrRemake(options: Options): Promise<void> {
   let instructions: InstructionsOutcome = { status: "failed" };
   let rulesResult: RulesWriteResult | undefined;
   try {
+    stopIfAsked(signal, "the AI extraction");
     log("ai", "starting extract_unit jobs");
     facts = await timed("extract_unit AI", options.logTime, () =>
       enrichFacts(lowAi, options.repo, facts, source, options, usage),
@@ -462,6 +482,7 @@ async function initOrRemake(options: Options): Promise<void> {
       await readCodebaseDocument(options.repo),
     );
     unchangedSections = unchangedSectionKeys(hashes, dirtySections);
+    stopIfAsked(signal, "the section synthesis");
     log(
       "ai",
       `starting synth_section jobs${
@@ -489,6 +510,7 @@ async function initOrRemake(options: Options): Promise<void> {
       "ai",
       `synth_section complete · ${Object.keys(overrides).length} sections`,
     );
+    stopIfAsked(signal, "the review guide");
     log("ai", "starting synth_guide jobs");
     // The last build's rules let the guide AI say which old rule a new line
     // goes against. Read outside the lock: it only shapes the prompt, the ids
@@ -516,8 +538,10 @@ async function initOrRemake(options: Options): Promise<void> {
           ? "synth_guide produced no guide"
           : "synth_guide skipped · fewer than 3 review signals",
     );
+    stopIfAsked(signal, "the instructions");
     instructions = await buildInstructions(highAi, options, source, usage);
   } catch (error) {
+    if (error instanceof StoppedError) throw error;
     // Nothing is written on an AI failure. Fetching and extraction are cached,
     // so a rerun picks up where this stopped instead of starting over.
     throw new Error(
@@ -569,6 +593,7 @@ async function initOrRemake(options: Options): Promise<void> {
       `skill problems kept: ${finalValidation.errors.join(", ")}`,
     );
   }
+  stopIfAsked(signal, "writing the files");
   await timed("write skill and state", options.logTime, async () => {
     const { withKnowledgeLock } = await import("../review/guides.ts");
     const { writeTextFileAtomic } = await import("../util/atomic.ts");
@@ -774,19 +799,16 @@ export function optionsFromConfig(
 
 /** `runner` defaults to the real `runInitOrRemake`. Tests substitute a fake
  * to check the option merging and log wiring without touching the network. */
-// ponytail: the AbortSignal the queue passes to `run` is not threaded
-// through `runInitOrRemake`'s GitHub fetch loops, so `cancel()` on a
-// running init/remake marks it canceled and stops it being picked up
-// again, but does not interrupt in-flight fetches, a live job keeps
-// running to natural completion. Wire the signal into `github/collect.ts`'s
-// `mapPool` if truly stopping a large in-flight fetch turns out to matter.
+// The signal the queue passes to `run` reaches the phase checkpoints in
+// `initOrRemake`: a Stop lets the running fetch or AI call finish, then no new
+// phase starts and nothing is written.
 export function buildSetupHandler(
   runner: typeof runInitOrRemake = runInitOrRemake,
 ): {
-  run(job: JobRow, jobLog: LogFn): Promise<void>;
+  run(job: JobRow, jobLog: LogFn, signal?: AbortSignal): Promise<void>;
 } {
   return {
-    async run(job: JobRow, jobLog: LogFn): Promise<void> {
+    async run(job: JobRow, jobLog: LogFn, signal?: AbortSignal): Promise<void> {
       const overrides = JSON.parse(job.args || "{}") as Partial<Options>;
       const options: Options = {
         ...optionsFromConfig(job.repo, job.type as "init" | "remake"),
@@ -803,7 +825,7 @@ export function buildSetupHandler(
       }
       await withLogSink(
         (phase, message) => jobLog("info", `[${phase}] ${message}`),
-        () => runner(options),
+        () => runner(options, signal),
       );
       if (!getRepo(job.repo)?.knowledge_built_at) {
         markKnowledgeBuilt(job.repo, await builtBaseSha(job.repo));
