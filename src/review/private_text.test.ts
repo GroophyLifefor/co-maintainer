@@ -109,6 +109,6 @@ test("the warning counts removals and the prompt sentence is the issue's", () =>
   assert.match(privateTextWarning(3)[0]!.message, /^3 passages .* were /);
   assert.equal(
     MCP_PRIVATE_GUIDANCE,
-    "Results from mcp- tools are private. You may base a finding on them, but never quote, paraphrase or summarize them in a finding.",
+    "Results from mcp- tools are private. Base a finding on them when they show the change is wrong, and say only that a private source of this repository requires it. Never quote, paraphrase or summarize their text in a finding.",
   );
 });

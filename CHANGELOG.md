@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Forks and the cloud stay off.** In `serve`, a pull request from a fork gets no MCP tools unless the repository sets `--mcp-allow-forks=true`. `CM_MCP_DISABLED=1` refuses `--mcp-config` and starts no server, and the cloud sets it. (#79)
 - **New warnings and a Metadata line.** `mcp_unavailable`, `mcp_tool_missing`, `mcp_tool_refused` and `private_text_removed` join the review's warnings, `usage.tools.byTool` counts each MCP tool, and the GitHub review's Metadata gets `- Tools: 11 calls · MCP: tracker` with server names only. (#79)
 
+### Changed
+
+- **The prompt for private MCP results lets the model act on them.** The wording the issue proposed, "You may base a finding on them, but never quote, paraphrase or summarize them", left the model with no way to explain such a finding, so on a real review it reported nothing. The model is now told to base a finding on a private result when it shows the change is wrong and to say only that a private source of this repository requires it. Quoting and paraphrasing stay forbidden, and the copied-passage check is unchanged.
+
 ## [0.7.10] - 2026-11-17
 
 ### Added
