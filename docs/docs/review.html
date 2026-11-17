@@ -392,6 +392,126 @@ files give no annotation.</li>
 server prints no coverage line, and an older client with a newer server gets
 the new fields in <code>--json</code> and ignores them elsewhere.</li>
 </ul>
+<h2 id="review-tools">Review tools</h2>
+<p>Besides the diff, the model can call tools while it reviews: codegraph for
+code (when it is on), <code>read-full-diff</code> for the rest of a cut diff, and
+<code>search-non-code</code> for the files codegraph does not index.</p>
+<h3 id="searching-docs-and-configuration">Searching docs and configuration</h3>
+<p>Codegraph follows code. It cannot see docs, YAML or configuration, so a change
+that makes a paragraph false, or a compose entry outside the changed hunk, would
+go unnoticed. <code>search-non-code</code> reads exactly those files:</p>
+<pre><code>search-non-code({ &quot;pattern&quot;: &quot;RATE_LIMIT&quot;, &quot;path&quot;: &quot;docs/&quot;, &quot;context&quot;: 1 })
+search-non-code({ &quot;pattern&quot;: &quot;4809[0-9]&quot;, &quot;regex&quot;: true })
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Required</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>pattern</code></td>
+<td>yes</td>
+<td>Text to find. Literal unless <code>regex</code> is true</td>
+</tr>
+<tr>
+<td><code>regex</code></td>
+<td>no</td>
+<td>Treat <code>pattern</code> as a POSIX extended regex</td>
+</tr>
+<tr>
+<td><code>path</code></td>
+<td>no</td>
+<td>Limit the search to a folder or a file</td>
+</tr>
+<tr>
+<td><code>context</code></td>
+<td>no</td>
+<td>Lines around each match, up to the repository&#39;s maximum</td>
+</tr>
+</tbody></table>
+<pre><code>deploy/compose.yml:41:     RATE_LIMIT: &quot;60&quot;
+docs/operations.md:88: Routes without an entry in RATE_LIMIT are not limited.
+2 matches in 2 files
+</code></pre>
+<ul>
+<li>It searches tracked files only, through <code>git grep</code>, so an untracked <code>.env</code> is
+never read. Binary files are skipped.</li>
+<li>It skips every file codegraph parses, by file extension, whether codegraph is
+on or off. Markdown, YAML, JSON, TOML, ini files, env templates, Dockerfiles,
+SQL, shell scripts, HTML and CSS can be searched. The list of codegraph&#39;s
+languages is kept next to its pinned version.</li>
+<li>It skips the files the repository&#39;s
+<a href="init.html#agent-instruction-files"><code>agentInstructions</code></a> pattern matches,
+because <code>INSTRUCTIONS.md</code> already carries their rules.</li>
+<li>It answers at most 30 matches, each line cut at 200 characters, then
+<code>and N more matches</code> with a count per file. Context lines are marked with <code>-</code>
+instead of <code>:</code>.</li>
+<li>A literal search runs <code>git grep --fixed-strings</code>. A regex search stops after
+5 seconds and says it timed out.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Searched tree</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Local</td>
+<td>The git root, with your uncommitted edits to tracked files</td>
+</tr>
+<tr>
+<td>CLI pull request and App</td>
+<td>The pull request&#39;s checkout, which a review makes even with codegraph off</td>
+</tr>
+<tr>
+<td>Remote</td>
+<td>Your checkout: the server asks, and the CLI searches and sends the answer</td>
+</tr>
+<tr>
+<td>Commit watch (<code>--remote --range</code>)</td>
+<td>Not offered</td>
+</tr>
+</tbody></table>
+<p>The review prompt tells the model to use <code>search-non-code</code> for docs and
+configuration and codegraph for code, and a tool result counts as evidence for
+a finding.</p>
+<h3 id="tool-limits">Tool limits</h3>
+<p>The tool loop sends the whole conversation again in each round, so a large
+result is paid for again and again. Two limits keep that bounded per
+repository, see <a href="configuration.html#review-tool-limits">Configuration</a>:</p>
+<ul>
+<li><strong>One result</strong> stops at <code>reviewToolResultMaxChars</code> characters, 8000 by
+default, and ends with <code>[cut at N characters]</code>.</li>
+<li><strong>The budget</strong> is <code>reviewToolBudgetChars</code> characters of tool results per
+review, 40000 by default, across the first answer, a retry and every
+improvement pass. The last result before the budget runs out gets only what is
+left. After that every call is answered with
+<code>Tool budget spent. Answer with what you found.</code>, and the review gets a
+<code>tool_budget_spent</code> warning.</li>
+</ul>
+<p>Codegraph results are neither cut nor counted against the budget yet. Their
+sizes are in the log, so a cap can be chosen from real numbers later.
+<code>read-full-diff</code> keeps its own cap on one answer and counts against the budget.
+The built-in Mermaid syntax lookup is not limited.</p>
+<h3 id="tool-usage">Tool usage</h3>
+<p>Every mode&#39;s <code>--json</code> reports what the tools did in <code>usage.tools</code>:</p>
+<pre><code class="language-json">&quot;usage&quot;: {
+  &quot;tools&quot;: {
+    &quot;rounds&quot;: 5,
+    &quot;calls&quot;: 11,
+    &quot;resultChars&quot;: 18240,
+    &quot;budgetSpent&quot;: false,
+    &quot;byTool&quot;: { &quot;codegraph-callers&quot;: 4, &quot;search-non-code&quot;: 7 }
+  }
+}
+</code></pre>
+<p><code>rounds</code> counts the model&#39;s answers that asked for a tool, <code>resultChars</code> the
+characters the model received after the limits. The human output adds a
+<code>Tools:</code> line under the summary when a tool ran.</p>
 <h2 id="diagrams">Diagrams</h2>
 <p>A review can include a diagram when a finding is about a flow, a lifecycle or a
 data model. <code>--diagram-runtime</code> picks the language. It works in PR review and
@@ -743,7 +863,7 @@ include <code>mode</code> (<code>local</code>, <code>remote</code>, or <code>pr<
 <code>warnings[]</code>, <code>usage</code>, and <code>durationMs</code>. Every mode includes <code>revision</code>, which
 counts the files and says which of them the model received in full, see
 <a href="#large-diffs">Large diffs</a>. Local and remote runs also include <code>codegraph</code>
-state. <code>extensions</code> is always an array, empty when nothing is registered, and
+state. <code>usage.tools</code> counts the tool calls, see <a href="#tool-usage">Tool usage</a>. <code>extensions</code> is always an array, empty when nothing is registered, and
 every finding has <code>extensionId</code>, which is <code>null</code> for an AI finding, see
 <a href="#extensions">Extensions</a>. <code>subject.intent</code> is there only when the review was
 given an <a href="#intent">intent</a>. Errors with <code>--json</code> are JSON on stdout as well.</p>
@@ -784,6 +904,7 @@ Closed (1)
   ✓ src/old.ts:9  [P2 · non-blocking] the dead branch
 
 Summary: 1 new · 1 open · 1 closed · 2 blocking
+Tools: 11 calls · 18,240 characters
 </code></pre>
 <p>Findings are grouped <code>Closed</code>, <code>Still open</code>, <code>New</code>, each labeled with the same
 <code>blocking</code> decision the exit code uses. The header names the real guide build
@@ -792,7 +913,8 @@ the run actually reached: <code>codegraph used</code>, <code>codegraph disabled<
 <code>codegraph unavailable</code>: the last one when codegraph was requested but could
 not be prepared, which is also what <code>--json</code> reports. When a file did not reach
 the model in full, a <code>Coverage:</code> line follows the summary, see
-<a href="#where-the-result-says-it">Large diffs</a>.</p>
+<a href="#where-the-result-says-it">Large diffs</a>. For the <code>Tools:</code> line, see
+<a href="#tool-usage">Tool usage</a>.</p>
 <p>The severity legend and the &quot;If you&#39;d like me to explain it in more detail,
 please ask.&quot; sentence are <strong>not</strong> in terminal output: a terminal has nobody to
 ask, and the legend is fixed noise. Both stay in the GitHub review comment,
@@ -840,7 +962,7 @@ disagree.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#which-mode-should-i-use">Which mode should I use?</a></li><li><a href="#how-the-three-modes-differ">How the three modes differ</a></li><li><a href="#depth-improve-matrix">Depth: --improve-matrix</a></li><li><a href="#large-diffs">Large diffs</a></li><li><a href="#diagrams">Diagrams</a></li><li><a href="#agent-instruction-rules">Agent instruction rules</a></li><li><a href="#references">References</a></li><li><a href="#repository-review-instructions">Repository review instructions</a></li><li><a href="#intent">Intent</a></li><li><a href="#extensions">Extensions</a></li><li><a href="#exit-codes">Exit codes</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#github-output">GitHub output</a></li><li><a href="#human-output">Human output</a></li><li><a href="#how-findings-are-produced">How findings are produced</a></li><li><a href="#before-any-review">Before any review</a></li></ul></nav>
+      <ul><li><a href="#which-mode-should-i-use">Which mode should I use?</a></li><li><a href="#how-the-three-modes-differ">How the three modes differ</a></li><li><a href="#depth-improve-matrix">Depth: --improve-matrix</a></li><li><a href="#large-diffs">Large diffs</a></li><li><a href="#review-tools">Review tools</a></li><li><a href="#diagrams">Diagrams</a></li><li><a href="#agent-instruction-rules">Agent instruction rules</a></li><li><a href="#references">References</a></li><li><a href="#repository-review-instructions">Repository review instructions</a></li><li><a href="#intent">Intent</a></li><li><a href="#extensions">Extensions</a></li><li><a href="#exit-codes">Exit codes</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#github-output">GitHub output</a></li><li><a href="#human-output">Human output</a></li><li><a href="#how-findings-are-produced">How findings are produced</a></li><li><a href="#before-any-review">Before any review</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

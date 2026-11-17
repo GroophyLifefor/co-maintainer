@@ -215,6 +215,102 @@ review: that file is `partial`.
   server prints no coverage line, and an older client with a newer server gets
   the new fields in `--json` and ignores them elsewhere.
 
+## Review tools
+
+Besides the diff, the model can call tools while it reviews: codegraph for
+code (when it is on), `read-full-diff` for the rest of a cut diff, and
+`search-non-code` for the files codegraph does not index.
+
+### Searching docs and configuration
+
+Codegraph follows code. It cannot see docs, YAML or configuration, so a change
+that makes a paragraph false, or a compose entry outside the changed hunk, would
+go unnoticed. `search-non-code` reads exactly those files:
+
+```
+search-non-code({ "pattern": "RATE_LIMIT", "path": "docs/", "context": 1 })
+search-non-code({ "pattern": "4809[0-9]", "regex": true })
+```
+
+| Parameter | Required | Meaning |
+| --------- | -------- | ------- |
+| `pattern` | yes | Text to find. Literal unless `regex` is true |
+| `regex` | no | Treat `pattern` as a POSIX extended regex |
+| `path` | no | Limit the search to a folder or a file |
+| `context` | no | Lines around each match, up to the repository's maximum |
+
+```
+deploy/compose.yml:41:     RATE_LIMIT: "60"
+docs/operations.md:88: Routes without an entry in RATE_LIMIT are not limited.
+2 matches in 2 files
+```
+
+- It searches tracked files only, through `git grep`, so an untracked `.env` is
+  never read. Binary files are skipped.
+- It skips every file codegraph parses, by file extension, whether codegraph is
+  on or off. Markdown, YAML, JSON, TOML, ini files, env templates, Dockerfiles,
+  SQL, shell scripts, HTML and CSS can be searched. The list of codegraph's
+  languages is kept next to its pinned version.
+- It skips the files the repository's
+  [`agentInstructions`](init.md#agent-instruction-files) pattern matches,
+  because `INSTRUCTIONS.md` already carries their rules.
+- It answers at most 30 matches, each line cut at 200 characters, then
+  `and N more matches` with a count per file. Context lines are marked with `-`
+  instead of `:`.
+- A literal search runs `git grep --fixed-strings`. A regex search stops after
+  5 seconds and says it timed out.
+
+| Mode | Searched tree |
+| ---- | ------------- |
+| Local | The git root, with your uncommitted edits to tracked files |
+| CLI pull request and App | The pull request's checkout, which a review makes even with codegraph off |
+| Remote | Your checkout: the server asks, and the CLI searches and sends the answer |
+| Commit watch (`--remote --range`) | Not offered |
+
+The review prompt tells the model to use `search-non-code` for docs and
+configuration and codegraph for code, and a tool result counts as evidence for
+a finding.
+
+### Tool limits
+
+The tool loop sends the whole conversation again in each round, so a large
+result is paid for again and again. Two limits keep that bounded per
+repository, see [Configuration](configuration.md#review-tool-limits):
+
+- **One result** stops at `reviewToolResultMaxChars` characters, 8000 by
+  default, and ends with `[cut at N characters]`.
+- **The budget** is `reviewToolBudgetChars` characters of tool results per
+  review, 40000 by default, across the first answer, a retry and every
+  improvement pass. The last result before the budget runs out gets only what is
+  left. After that every call is answered with
+  `Tool budget spent. Answer with what you found.`, and the review gets a
+  `tool_budget_spent` warning.
+
+Codegraph results are neither cut nor counted against the budget yet. Their
+sizes are in the log, so a cap can be chosen from real numbers later.
+`read-full-diff` keeps its own cap on one answer and counts against the budget.
+The built-in Mermaid syntax lookup is not limited.
+
+### Tool usage
+
+Every mode's `--json` reports what the tools did in `usage.tools`:
+
+```json
+"usage": {
+  "tools": {
+    "rounds": 5,
+    "calls": 11,
+    "resultChars": 18240,
+    "budgetSpent": false,
+    "byTool": { "codegraph-callers": 4, "search-non-code": 7 }
+  }
+}
+```
+
+`rounds` counts the model's answers that asked for a tool, `resultChars` the
+characters the model received after the limits. The human output adds a
+`Tools:` line under the summary when a tool ran.
+
 ## Diagrams
 
 A review can include a diagram when a finding is about a flow, a lifecycle or a
@@ -535,7 +631,7 @@ include `mode` (`local`, `remote`, or `pr`), `subject`, `summary`, `findings[]`,
 `warnings[]`, `usage`, and `durationMs`. Every mode includes `revision`, which
 counts the files and says which of them the model received in full, see
 [Large diffs](#large-diffs). Local and remote runs also include `codegraph`
-state. `extensions` is always an array, empty when nothing is registered, and
+state. `usage.tools` counts the tool calls, see [Tool usage](#tool-usage). `extensions` is always an array, empty when nothing is registered, and
 every finding has `extensionId`, which is `null` for an AI finding, see
 [Extensions](#extensions). `subject.intent` is there only when the review was
 given an [intent](#intent). Errors with `--json` are JSON on stdout as well.
@@ -583,6 +679,7 @@ Closed (1)
   ✓ src/old.ts:9  [P2 · non-blocking] the dead branch
 
 Summary: 1 new · 1 open · 1 closed · 2 blocking
+Tools: 11 calls · 18,240 characters
 ```
 
 Findings are grouped `Closed`, `Still open`, `New`, each labeled with the same
@@ -592,7 +689,8 @@ the run actually reached: `codegraph used`, `codegraph disabled`, or
 `codegraph unavailable`: the last one when codegraph was requested but could
 not be prepared, which is also what `--json` reports. When a file did not reach
 the model in full, a `Coverage:` line follows the summary, see
-[Large diffs](#where-the-result-says-it).
+[Large diffs](#where-the-result-says-it). For the `Tools:` line, see
+[Tool usage](#tool-usage).
 
 The severity legend and the "If you'd like me to explain it in more detail,
 please ask." sentence are **not** in terminal output: a terminal has nobody to
