@@ -91,6 +91,34 @@ is not filled from the previous listing. `--only-request-changed-pr` does not
 turn itself off. To collect every state again, pass
 `--pr-state=open,closed,merged`.
 
+## Editing the guide instead of rewriting it
+
+`sync` edits the review guide: the model gets the current guide with its rule
+ids, the findings that are new since the last guide and the ones that are
+gone, and answers with rules to add, change and remove. Every other line stays
+as it was, so the diff of `PR_REVIEW_GUIDE.md` shows only what changed and the
+sync pays for one short call instead of two long ones. The short guide gets
+the same edits. A sync whose findings did not change keeps the guide and makes
+no call.
+
+Every 10th sync whose findings changed rewrites the guide in full, as `init`
+does. Set the number per repository:
+
+```sh
+co-maintainer set --repo=owner/repo --guide-full-every=10
+co-maintainer sync owner/repo --full-guide
+```
+
+| Value | Meaning |
+| ----- | ------- |
+| `10` (default) | Every 10th changed sync rewrites in full, the others edit |
+| `1` | Always rewrite in full |
+| `0` | Never rewrite in full after `init` |
+
+`--full-guide` rewrites in full now and starts the count again. An edit answer
+that does not fit the guide, such as a rule id the guide does not have, is
+not applied: that sync rewrites in full instead.
+
 ## A guide cut at the output limit
 
 The review guide is written with an output limit, 16,000 tokens for the

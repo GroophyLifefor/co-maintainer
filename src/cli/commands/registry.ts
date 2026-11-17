@@ -534,6 +534,16 @@ export const COMMANDS: CommandSpec[] = [
           },
         ],
       },
+      {
+        title: "Review guide",
+        flags: [
+          {
+            name: "full-guide",
+            description:
+              "Rewrite the review guide in full now, instead of editing it, and start the count of --guide-full-every again.",
+          },
+        ],
+      },
     ],
     examples: [
       "co-maintainer sync owner/repo --include-codebase",
@@ -999,6 +1009,13 @@ export const COMMANDS: CommandSpec[] = [
             default: "20000",
             description:
               "The most characters one read-full-diff answer returns in a review of this repository. Needs --repo. 0 or -1 means no limit.",
+          },
+          {
+            name: "guide-full-every",
+            value: "N",
+            default: "10",
+            description:
+              "Every N-th sync whose input changed rewrites the review guide in full, the others edit it. 1 always rewrites, 0 never after init. Needs --repo.",
           },
           {
             name: "review-blocking",

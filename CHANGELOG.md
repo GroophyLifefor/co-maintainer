@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.8] - 2026-11-17
+
+**Before you upgrade.** Each repository's first `sync` after the upgrade rewrites the guide in full once, because the last build did not record which findings it was written from.
+
+### Added
+
+- **`sync` edits the review guide instead of rewriting it.** The model gets the current guide with its rule ids and only the findings that are new or gone, and answers with rules to add, change and remove. Every other line stays as it was and keeps its id, the short guide gets the same edits, and a sync whose findings did not change makes no guide call at all. Every 10th changed sync rewrites in full, set with `set --repo=owner/repo --guide-full-every=N` (`1` always, `0` never after `init`), and `sync --full-guide` rewrites now. An edit that does not fit the guide is not applied, and that sync rewrites in full. (#113)
+
 ## [0.7.7] - 2026-11-17
 
 **Before you upgrade.** The database migrates once, as in 0.7.0: one migration adds two columns to the `subjects` table, after the same backup.

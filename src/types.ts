@@ -9,6 +9,8 @@ export type Options = {
   prNumber?: number;
   debug: boolean;
   logTime: boolean;
+  /** `sync --full-guide`: rewrite the review guide in full this time. */
+  fullGuide?: boolean;
   /** Reviews every changed file with no own/upstream split, the behavior
    * before scope.ts existed. Off by default: a re-review round's diff can
    * carry a merge from the default branch that dwarfs the PR's own change,

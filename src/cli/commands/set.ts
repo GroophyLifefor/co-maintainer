@@ -114,6 +114,7 @@ export async function runSet(args: string[]): Promise<void> {
     "review-system-prompt-max-chars",
     ...DIAGRAM_FLAGS,
     "review-read-diff-max-chars",
+    "guide-full-every",
     "password",
     "extension-rerun-on-restart",
     "unset",
@@ -440,6 +441,7 @@ const REPO_SCOPED_FLAGS = new Set([
   "review-system-prompt-max-chars",
   ...DIAGRAM_FLAGS,
   "review-read-diff-max-chars",
+  "guide-full-every",
   "review-references",
   "gh-concurrent",
   "ai-concurrent",
@@ -459,6 +461,8 @@ const REPO_SCOPED_UNSET = new Set([
   "plantumlOutputFormat",
   "review-read-diff-max-chars",
   "reviewReadDiffMaxChars",
+  "guide-full-every",
+  "guideFullEvery",
   "gh-concurrent",
   "ghConcurrent",
   "ai-concurrent",
@@ -572,6 +576,23 @@ async function runSetRepo(typed: string, args: string[]): Promise<void> {
       patch.reviewReadDiffMaxChars = value;
     }
   }
+  if (unset.has("guide-full-every") || unset.has("guideFullEvery")) {
+    patch.guideFullEvery = undefined;
+  }
+  const fullEveryRaw = text(args, "guide-full-every");
+  if (fullEveryRaw !== undefined) {
+    if (fullEveryRaw.trim() === "") {
+      patch.guideFullEvery = undefined;
+    } else {
+      const value = Number(fullEveryRaw);
+      if (!Number.isInteger(value) || value < 0) {
+        die(
+          "--guide-full-every must be a whole number: 1 always rewrites the guide, 0 never does after init",
+        );
+      }
+      patch.guideFullEvery = value;
+    }
+  }
   if (unset.has("review-references") || unset.has("reviewReferences")) {
     patch.reviewReferences = undefined;
   }
@@ -593,7 +614,7 @@ async function runSetRepo(typed: string, args: string[]): Promise<void> {
   }
   if (Object.keys(patch).length === 0) {
     die(
-      "Nothing to set. Pass --review-system-prompt=, --review-system-prompt-max-chars=N, --diagram-runtime=, --plantuml-server=, --plantuml-output-format=, --review-read-diff-max-chars=N, --review-references=on|off, or --unset=name with --repo.",
+      "Nothing to set. Pass --review-system-prompt=, --review-system-prompt-max-chars=N, --diagram-runtime=, --plantuml-server=, --plantuml-output-format=, --review-read-diff-max-chars=N, --guide-full-every=N, --review-references=on|off, or --unset=name with --repo.",
     );
   }
   // The values after this write are the ones given here, or the stored ones.

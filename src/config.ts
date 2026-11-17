@@ -81,6 +81,10 @@ export type RepoConfig = {
   /** Cap on one `read-full-diff` answer in characters for this repository.
    * Unset means the default, `0` or a negative number means no limit. */
   reviewReadDiffMaxChars?: number;
+  /** Every N-th `sync` whose guide input changed rewrites the review guide
+   * in full, the others edit it. Unset means 10, `1` always rewrites, `0`
+   * never rewrites after `init`. */
+  guideFullEvery?: number;
 };
 
 export type UserConfig = {

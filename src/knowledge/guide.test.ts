@@ -445,3 +445,203 @@ test("a short guide cut twice keeps both files of the last run", async () => {
     await cleanup(repo);
   }
 });
+
+const EDIT_GUIDE = `# Checklist
+
+Check these.
+
+## Tests
+
+- Require a test for a behavior change · regressions hide otherwise [R1]
+- Add the MCP tool for a new route · the parity test fails otherwise [R2]
+
+**Exit check:** tests and tools are there.
+`;
+
+class EditProvider implements AiProvider {
+  requests: AiRequest[] = [];
+  answerFor?: (prompt: string) => string;
+  private readonly answer: string;
+  constructor(answer: string) {
+    this.answer = answer;
+  }
+  async complete(request: AiRequest): Promise<AiResponse> {
+    this.requests.push(request);
+    return {
+      text: this.answerFor ? this.answerFor(request.prompt) : this.answer,
+      tokensIn: 1,
+      tokensOut: 1,
+      model: "fixture",
+      provider: "openrouter",
+    };
+  }
+}
+
+const EDIT_RULES = {
+  R1: { file: "PR_REVIEW_GUIDE.md", text: "a", sources: [{ pr: 21 }] },
+  R2: { file: "PR_REVIEW_GUIDE.md", text: "b", sources: [{ pr: 22 }] },
+};
+
+const OLD_THREE = [
+  finding("Require a test for a behavior change.", { evidence: ["PR #21"] }),
+  finding("Add the MCP tool for a new route.", { evidence: ["PR #22"] }),
+  finding("Add an index for a new array predicate.", { evidence: ["PR #23"] }),
+];
+
+test("an edit sync sends only the new finding and keeps every other guide line", async () => {
+  const repo = `guide-edit-${crypto.randomUUID()}`;
+  // Like a real model, the answer cites the number the prompt gave the new
+  // finding. Findings are numbered by how often they recur.
+  const provider = new EditProvider("");
+  provider.answerFor = (prompt) => {
+    const added = JSON.parse(
+      prompt.split("NEW FINDINGS:\n")[1]!.split("\n\nGONE FINDINGS:")[0]!,
+    ) as { number: number }[];
+    return JSON.stringify({
+      add: [
+        {
+          pass: "Tests",
+          rule: `Drain writes before shutdown · a dropped write is lost [${added[0]!.number}]`,
+        },
+      ],
+    });
+  };
+  const facts = [
+    ...OLD_THREE,
+    finding("Drain writes before shutdown.", { evidence: ["PR #24"] }),
+  ];
+  const outcome: { mode?: "full" | "edit" | "unchanged" } = {};
+  try {
+    const documents = await synthesizeReviewGuides(
+      provider,
+      repo,
+      "openrouter",
+      "fixture",
+      1,
+      facts,
+      undefined,
+      undefined,
+      {
+        guide: EDIT_GUIDE,
+        rules: EDIT_RULES,
+        findings: OLD_THREE.map((item) => item.claim.toLowerCase()),
+      },
+      outcome,
+    );
+    const jobs = provider.requests.map((request) => request.job);
+    if (jobs.join(",") !== "edit_guide" || outcome.mode !== "edit") {
+      throw new Error(`calls ${jobs.join(",")} · mode ${outcome.mode}`);
+    }
+    const prompt = provider.requests[0]!.prompt;
+    if (
+      !prompt.includes("Drain writes") ||
+      prompt.includes('"rule": "Add an index')
+    ) {
+      throw new Error("the edit prompt did not send only the new finding");
+    }
+    for (const line of [
+      "- Require a test for a behavior change · regressions hide otherwise [",
+      "- Add the MCP tool for a new route · the parity test fails otherwise [",
+      "- Drain writes before shutdown · a dropped write is lost [",
+    ]) {
+      if (!documents?.guide.includes(line)) {
+        throw new Error(`missing ${line}\n${documents?.guide}`);
+      }
+    }
+    const byText = new Map(
+      (documents?.rules ?? []).map((rule) => [rule.text.split(" · ")[0], rule]),
+    );
+    if (
+      byText
+        .get("Require a test for a behavior change")
+        ?.pullRequests.join() !== "21"
+    ) {
+      throw new Error("a kept rule lost its pull request");
+    }
+    if (
+      byText.get("Drain writes before shutdown")?.pullRequests.join() !== "24"
+    ) {
+      throw new Error(
+        `the new rule did not get its pull request: ${JSON.stringify(documents?.rules)}`,
+      );
+    }
+  } finally {
+    await cleanup(repo);
+  }
+});
+
+test("an edit sync with the same findings makes no call and keeps the guide", async () => {
+  const repo = `guide-same-${crypto.randomUUID()}`;
+  const provider = new EditProvider("{}");
+  const outcome: { mode?: "full" | "edit" | "unchanged" } = {};
+  try {
+    const documents = await synthesizeReviewGuides(
+      provider,
+      repo,
+      "openrouter",
+      "fixture",
+      1,
+      OLD_THREE,
+      undefined,
+      undefined,
+      {
+        guide: EDIT_GUIDE,
+        rules: EDIT_RULES,
+        findings: OLD_THREE.map((item) => item.claim.toLowerCase()),
+      },
+      outcome,
+    );
+    if (provider.requests.length !== 0 || outcome.mode !== "unchanged") {
+      throw new Error(`${provider.requests.length} calls · ${outcome.mode}`);
+    }
+    if (documents?.rules?.length !== 2) {
+      throw new Error(`${documents?.rules?.length} rules kept`);
+    }
+  } finally {
+    await cleanup(repo);
+  }
+});
+
+test("an edit answer that does not fit rewrites the guide in full", async () => {
+  const repo = `guide-fallback-${crypto.randomUUID()}`;
+  let calls = 0;
+  const provider: AiProvider = {
+    async complete(request) {
+      calls++;
+      return {
+        text:
+          request.job === "edit_guide"
+            ? JSON.stringify({ remove: ["R99"] })
+            : SHORT_GUIDE,
+        tokensIn: 1,
+        tokensOut: 1,
+        model: "fixture",
+        provider: "openrouter",
+      };
+    },
+  };
+  const outcome: { mode?: "full" | "edit" | "unchanged" } = {};
+  try {
+    await synthesizeReviewGuides(
+      provider,
+      repo,
+      "openrouter",
+      "fixture",
+      1,
+      [...OLD_THREE, finding("Drain writes before shutdown.")],
+      undefined,
+      undefined,
+      {
+        guide: EDIT_GUIDE,
+        rules: EDIT_RULES,
+        findings: OLD_THREE.map((item) => item.claim.toLowerCase()),
+      },
+      outcome,
+    );
+    if (outcome.mode !== "full" || calls < 2) {
+      throw new Error(`mode ${outcome.mode} after ${calls} calls`);
+    }
+  } finally {
+    await cleanup(repo);
+  }
+});
