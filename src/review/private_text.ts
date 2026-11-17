@@ -10,7 +10,7 @@ import type { CoverageWarning } from "./coverage.ts";
 
 /** Said in the review prompt when the model is offered an MCP tool. */
 export const MCP_PRIVATE_GUIDANCE =
-  "Results from mcp- tools are private. You may base a finding on them, but never quote, paraphrase or summarize them in a finding.";
+  "Results from mcp- tools are private. Base a finding on them when they show the change is wrong, and say only that a private source of this repository requires it. Never quote, paraphrase or summarize their text in a finding.";
 
 /** What a removed passage becomes. */
 export const PRIVATE_TEXT_REMOVED = "[private context removed]";
