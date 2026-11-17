@@ -430,9 +430,15 @@ export type GuideEditInput = {
 /** A guide longer than this is rewritten in full rather than sent whole to
  * an edit call. A full method stops at about 64,000 characters. */
 const MAX_EDIT_GUIDE_CHARS = 80_000;
-/** The guide plus the new and gone findings. A full rewrite sends at most 160
- * findings, so a bigger change is cheaper to rewrite than to edit. */
-const MAX_EDIT_PROMPT_CHARS = 120_000;
+/** The edit prompt's input in tokens, estimated at 2.5 characters a token,
+ * which is dense text. With the 8,000-token answer this stays well inside a
+ * 64,000-token context, so the call never fails on length before the
+ * full-rewrite fallback can run. A bigger change is rewritten in full. */
+const MAX_EDIT_INPUT_TOKENS = 40_000;
+
+function estimatedTokens(chars: number): number {
+  return Math.ceil(chars / 2.5);
+}
 
 const FULL = Symbol("rewrite in full");
 
@@ -544,11 +550,14 @@ async function editReviewGuides(
   const goneText = gone.length ? JSON.stringify(gone, null, 2) : "";
   // The whole edit prompt is bounded: the guide and the changed findings.
   // Past it, a full rewrite is cheaper than an edit and stays in the limit.
-  const size = main.length + addedText.length + goneText.length;
-  if (main.length > MAX_EDIT_GUIDE_CHARS || size > MAX_EDIT_PROMPT_CHARS) {
+  const request = editGuideRequest(main.trim(), addedText, goneText);
+  const tokens = estimatedTokens(
+    (request.system ?? "").length + request.prompt.length,
+  );
+  if (main.length > MAX_EDIT_GUIDE_CHARS || tokens > MAX_EDIT_INPUT_TOKENS) {
     log(
       "ai",
-      `the review guide and its changed findings are ${size} characters, rewriting it in full instead of editing it`,
+      `the edit prompt would be about ${tokens} tokens, rewriting the guide in full instead of editing it`,
     );
     return FULL;
   }
@@ -558,11 +567,7 @@ async function editReviewGuides(
     Math.max(1, concurrency),
     `${ai}:v3:${model}:guide`,
   );
-  const response = await uncut(
-    queue,
-    editGuideRequest(main.trim(), addedText, goneText),
-    usage,
-  );
+  const response = await uncut(queue, request, usage);
   if (response === CUT || !response) {
     log("ai", "edit_guide gave no usable answer, rewriting the guide in full");
     return FULL;
