@@ -177,6 +177,8 @@ async function runReviewPr(
           catchesUp: true,
           extensions,
           intent: intent !== null,
+          showReferences:
+            readConfig().repos?.[options.repo]?.reviewReferences === true,
         });
       } else {
         // One presentation layer for local, PR and remote reviews.
