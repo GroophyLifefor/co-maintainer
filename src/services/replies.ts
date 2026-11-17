@@ -75,14 +75,23 @@ export function findingRules(
   referencesJson: string | null | undefined,
   rules: RulesFile | null,
 ): { reference: string; text?: string }[] {
-  return parseStoredReferences(referencesJson).map((reference) => {
-    const text =
-      reference.kind === "rule" || reference.kind === "instruction"
-        ? rules?.rules[reference.id]?.text
-        : undefined;
-    return { reference: referenceLine(reference), ...(text ? { text } : {}) };
-  });
+  // Capped, so a long rule list never crowds out the question.
+  return parseStoredReferences(referencesJson)
+    .slice(0, MAX_FINDING_RULES)
+    .map((reference) => {
+      const text =
+        reference.kind === "rule" || reference.kind === "instruction"
+          ? rules?.rules[reference.id]?.text
+          : undefined;
+      return {
+        reference: clip(referenceLine(reference), MAX_RULE_CHARS),
+        ...(text ? { text: clip(text, MAX_RULE_CHARS) } : {}),
+      };
+    });
 }
+
+const MAX_FINDING_RULES = 10;
+const MAX_RULE_CHARS = 600;
 
 async function replyContext(
   client: GitHubClient,

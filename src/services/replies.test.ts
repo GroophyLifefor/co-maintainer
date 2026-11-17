@@ -6,7 +6,7 @@ import {
   setReplyStatus,
 } from "../store/replies.ts";
 import { getJob } from "../store/jobs.ts";
-import { runReplyJob, takeWithdrawLine } from "./replies.ts";
+import { findingRules, runReplyJob, takeWithdrawLine } from "./replies.ts";
 import { insertReview } from "../store/reviews.ts";
 import {
   insertFinding,
@@ -460,4 +460,24 @@ test("a reply on a finding gets the rules the finding rests on, with their text 
       }
     }
   });
+});
+
+test("the rules a reply gets from a finding are capped", () => {
+  const references = Array.from({ length: 12 }, (_, index) => ({
+    kind: "rule",
+    id: `R${index + 1}`,
+    sources: [],
+  }));
+  const rules = {
+    schemaVersion: 1,
+    builtAt: "2026-11-01T00:00:00.000Z",
+    rules: {
+      R1: { file: "PR_REVIEW_GUIDE.md", text: "x".repeat(5000), sources: [] },
+    },
+  };
+  const out = findingRules(JSON.stringify(references), rules as never);
+  if (out.length !== 10) throw new Error(`${out.length} rules`);
+  if ((out[0]?.text?.length ?? 0) > 700) {
+    throw new Error(`a rule text of ${out[0]?.text?.length} chars`);
+  }
 });
