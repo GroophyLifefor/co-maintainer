@@ -16,7 +16,13 @@ import {
   type SkipJobArgs,
 } from "./skip_commands.ts";
 import type { GitHubClient, Json } from "../types.ts";
-import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
+import {
+  deleteEnv,
+  getEnv,
+  removePath,
+  setEnv,
+  tempDirSync,
+} from "../testing/runtime.ts";
 import { isolateTestFile } from "../testing/locations.ts";
 
 isolateTestFile();
@@ -25,15 +31,20 @@ const HEAD = "a".repeat(40);
 
 async function withTempDb(fn: () => Promise<void>): Promise<void> {
   const original = getEnv("CM_APP_DB");
-  setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
+  const dir = tempDirSync();
   try {
+    setEnv("CM_APP_DB", `${dir}/app.db`);
     await openAppDb();
     activateRepo("acme/widgets", 7);
     await fn();
   } finally {
-    await closeAppDb();
-    if (original === undefined) deleteEnv("CM_APP_DB");
-    else setEnv("CM_APP_DB", original);
+    try {
+      await closeAppDb();
+    } finally {
+      if (original === undefined) deleteEnv("CM_APP_DB");
+      else setEnv("CM_APP_DB", original);
+      await removePath(dir, { recursive: true });
+    }
   }
 }
 
