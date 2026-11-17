@@ -1,4 +1,4 @@
-import { ensureClone, ensureCommit } from "./checkout.ts";
+import { ensureClone, ensureCommit, ensureWorktree } from "./checkout.ts";
 import { clearGitHubAuthForTest, setGitHubAuth } from "./git_auth.ts";
 import type { CommandResult, Run } from "./checkout.ts";
 import {
@@ -10,6 +10,10 @@ import {
   tempDir,
 } from "../testing/runtime.ts";
 import { test } from "node:test";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// The worktree directory lives under the cache. Keep it in a temp home.
+isolateTestFile();
 
 /** Reproduces the race a benchmark run hits at `--review-concurrent` > 1:
  * several jobs for the same repo call `ensureClone` before the clone exists,
@@ -182,6 +186,39 @@ test("an App token that cannot be minted fails the clone instead of using the ma
     }
     if (cloned.length > 0)
       throw new Error("git clone ran without the App token");
+  } finally {
+    clearGitHubAuthForTest();
+    if (prev === undefined) deleteEnv("CM_CLONES_DIR");
+    else setEnv("CM_CLONES_DIR", prev);
+    await removePath(clonesRoot, { recursive: true });
+  }
+});
+
+test("an App job's worktree carries its token too, the clone is blobless", async () => {
+  const clonesRoot = await tempDir();
+  const prev = getEnv("CM_CLONES_DIR");
+  setEnv("CM_CLONES_DIR", clonesRoot);
+  const seen: { args: string[]; env?: Record<string, string> }[] = [];
+  const run: Run = async (_command, args, _cwd, env) => {
+    seen.push({ args, env });
+    if (args.includes("clone")) {
+      await mkdirPath(`${args[args.length - 1]}/.git`, { recursive: true });
+    }
+    if (args.includes("rev-parse")) {
+      return { code: 0, stdout: `${"a".repeat(40)}\n`, stderr: "" };
+    }
+    if (args.includes("cat-file"))
+      return { code: 0, stdout: "commit\n", stderr: "" };
+    return { code: 0, stdout: "", stderr: "" };
+  };
+  const repo = `auth-wt/${crypto.randomUUID()}`;
+  try {
+    setGitHubAuth(repo, async () => "app-token-456");
+    await ensureWorktree(repo, 7, "a".repeat(40), run);
+    const added = seen.find((item) => item.args.includes("worktree"));
+    if (!added?.env?.GIT_CONFIG_VALUE_0?.includes("basic ")) {
+      throw new Error(`git worktree add env: ${JSON.stringify(added?.env)}`);
+    }
   } finally {
     clearGitHubAuthForTest();
     if (prev === undefined) deleteEnv("CM_CLONES_DIR");
