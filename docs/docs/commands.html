@@ -1213,6 +1213,16 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td>The most lines search-non-code returns around a match. Needs --repo. 0 or -1 means no limit.</td>
 </tr>
 <tr>
+<td><code>--mcp-config=PATH</code></td>
+<td></td>
+<td>Read the repository&#39;s MCP servers from this JSON file and store them. Reviews offer their listed read-only tools to the model. Needs --repo. Refused when CM_MCP_DISABLED=1.</td>
+</tr>
+<tr>
+<td><code>--mcp-allow-forks=true|false</code></td>
+<td>false</td>
+<td>Offer MCP tools in serve reviews of pull requests from forks. Needs --repo.</td>
+</tr>
+<tr>
 <td><code>--guide-full-every=N</code></td>
 <td>10</td>
 <td>Every N-th sync whose input changed rewrites the review guide in full, the others edit it. 1 always rewrites, 0 never after init. Needs --repo.</td>

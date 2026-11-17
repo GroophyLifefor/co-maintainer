@@ -5,6 +5,15 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.11] - 2026-11-17
+
+### Added
+
+- **A review can read private context from MCP servers.** Some context lives outside the repository and is private, such as an issue in a private tracker. `set --repo=owner/repo --mcp-config=./mcp.json` stores a repository's stdio MCP servers, and the model sees each listed tool as `mcp-<server>-<tool>`. Only the tools in `tools` are offered, and a tool the server marks as not read-only is refused. The servers start once per review and stop however it ends, get only their own `env` with `PATH` and `HOME`, and a server that fails leaves the review going on without it. MCP runs in local, CLI pull request, App and remote review, where the server uses its own config. (#79)
+- **Private results never reach what a review prints, posts or stores.** The prompt tells the model never to quote an MCP result, and before a review is printed, posted or stored, any run of 8 or more words that also appears in a private result is replaced with `[private context removed]`. It runs in every mode, `--json` and the dashboard included. MCP results never go to the JSON output, the log or the database. (#79)
+- **Forks and the cloud stay off.** In `serve`, a pull request from a fork gets no MCP tools unless the repository sets `--mcp-allow-forks=true`. `CM_MCP_DISABLED=1` refuses `--mcp-config` and starts no server, and the cloud sets it. (#79)
+- **New warnings and a Metadata line.** `mcp_unavailable`, `mcp_tool_missing`, `mcp_tool_refused` and `private_text_removed` join the review's warnings, `usage.tools.byTool` counts each MCP tool, and the GitHub review's Metadata gets `- Tools: 11 calls · MCP: tracker` with server names only. (#79)
+
 ## [0.7.10] - 2026-11-17
 
 ### Added

@@ -183,6 +183,16 @@ review type `remote`, and the registrations on your own machine do not run. The
 extension has no working directory with your checkout, because the checkout is
 on your machine. Its findings, verdict and cost come back in the result.
 
+## MCP servers
+
+A remote review offers the model the tools of the
+[MCP servers](review.md#mcp-servers) the server has for the repository, set on
+the `serve` host with `co-maintainer set --repo=owner/repo --mcp-config=...`.
+They run on the server, as its extensions do. The servers in your own
+`config.json` are not used. Their results stay on the server: the copied-passage
+check runs there before the result comes back, and the `mcp_*` and
+`private_text_removed` warnings come back with it.
+
 ## The intent file
 
 `review --remote --intent-file=PATH` sends the text with the review. What it is

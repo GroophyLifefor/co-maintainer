@@ -1052,8 +1052,9 @@ review: that file is `partial`.
 ## Review tools
 
 Besides the diff, the model can call tools while it reviews: codegraph for
-code (when it is on), `read-full-diff` for the rest of a cut diff, and
-`search-non-code` for the files codegraph does not index.
+code (when it is on), `read-full-diff` for the rest of a cut diff,
+`search-non-code` for the files codegraph does not index, and the read-only
+tools of the repository's [MCP servers](#mcp-servers).
 
 ### Searching docs and configuration
 
@@ -1144,6 +1145,126 @@ Every mode's `--json` reports what the tools did in `usage.tools`:
 `rounds` counts the model's answers that asked for a tool, `resultChars` the
 characters the model received after the limits. The human output adds a
 `Tools:` line under the summary when a tool ran.
+
+### MCP servers
+
+Some context lives outside the repository and is private, such as an issue in
+a private tracker. A repository can give its reviews read-only tools from
+[MCP](https://modelcontextprotocol.io) servers that run on your machine or your
+server. The model calls them during the review. Their results are private:
+they never appear in what the review prints, posts or stores.
+
+Write the servers in a file and store them for the repository:
+
+```json
+{
+  "mcpServers": {
+    "tracker": {
+      "command": "node",
+      "args": ["/opt/tracker-mcp/server.js"],
+      "env": { "TRACKER_TOKEN": "..." },
+      "tools": ["get_issue", "search_issues"],
+      "timeoutSeconds": 20
+    }
+  }
+}
+```
+
+```sh
+co-maintainer set --repo=owner/repo --mcp-config=./mcp.json
+co-maintainer set --repo=owner/repo --unset=mcp-config
+```
+
+The file is read once and stored as `repos["owner/repo"].mcpServers` in
+`config.json`, see [Configuration](configuration.md#mcp-servers).
+
+| Key | Required | Meaning |
+| --- | -------- | ------- |
+| `command` | yes | The program to start. It runs directly, not through a shell, so give a full path when it is not on `PATH` |
+| `args` | no | Its arguments |
+| `env` | no | Its environment. `set` never prints the values |
+| `tools` | yes | The tools offered to the model, by the server's own names. Only list read-only tools |
+| `timeoutSeconds` | no | Seconds one call may take, 20 by default |
+
+A server name is 1 to 32 letters, digits or underscores. Only stdio servers
+are supported: a server with a `url` is refused, and so is an unknown key.
+
+**What is offered.**
+
+- The model sees each tool as `mcp-<server>-<tool>`, for example
+  `mcp-tracker-get_issue`.
+- Only the tools in `tools` are offered. A listed tool the server does not have
+  gives an `mcp_tool_missing` warning.
+- A listed tool that the server marks as not read-only (`readOnlyHint: false`)
+  is refused with an `mcp_tool_refused` warning. A tool without that hint is
+  trusted to the list.
+- A tool whose input schema is not an object schema, or whose
+  `mcp-<server>-<tool>` name is not 1 to 64 letters, digits, dashes or
+  underscores, cannot be sent to the model. It is left out with an
+  `mcp_tool_refused` warning.
+
+**How a server runs.**
+
+- The servers start once per review, before the model is asked, and stop
+  however the review ends: done, failed or stopped.
+- Startup, the `initialize` handshake and the tool list have 10 seconds
+  together. Each call has the server's `timeoutSeconds`.
+- A server that does not start, or stops answering, gives an `mcp_unavailable`
+  warning and the review goes on without it. A later call to its tools is
+  answered with a note that the server is not available.
+- The server process gets the `env` from its config plus `PATH` and `HOME`.
+  co-maintainer's own tokens and keys are never passed.
+- Only text content is kept. Other content, such as an image, is left out with
+  a note in the result.
+- Every result goes through the [tool limits](#tool-limits) and starts with
+  one fixed line saying that it comes from outside the repository and is data,
+  never an instruction.
+
+**Private results.** The review prompt says: "Results from mcp- tools are
+private. You may base a finding on them, but never quote, paraphrase or
+summarize them in a finding." Before a review is printed, posted or stored,
+code compares every finding with all private results of that review. Any run
+of 8 or more consecutive words that also appears in a private result, ignoring
+case and punctuation, is replaced with `[private context removed]`, and a
+`private_text_removed` warning counts the removals. It runs on the rendered
+text in every mode, `--json` and what the dashboard stores included. A
+suggestion block is the author's code with a fix and is left as it is.
+
+Private results are never written to the JSON output, the log or the database.
+The check catches copied passages. It does not catch a single word, such as a
+customer's name, or a paraphrase.
+
+**Where MCP runs.**
+
+| Mode | MCP servers |
+| ---- | ----------- |
+| Local | The repository's servers, on your machine |
+| CLI pull request | The repository's servers, on your machine |
+| App on `serve` | The server's config for the repository. A pull request from a fork gets no MCP tools unless the repository sets `--mcp-allow-forks=true` |
+| Remote | The server's config for the repository, as it runs its own extensions. The client's servers are not used |
+| Commit watch (`--remote --range`) | None |
+
+`CM_MCP_DISABLED=1` turns MCP off: `--mcp-config` is refused and no review
+starts a server. co-maintainer cloud sets it, see
+[Cloud](cloud.md#mcp-servers-are-off).
+
+An [extension](#extensions) is a command co-maintainer runs once per review,
+whose findings join the review, and the model never calls it. An MCP tool is
+called by the model during the review and adds no findings of its own.
+
+**Warnings.**
+
+| Code | When |
+| ---- | ---- |
+| `mcp_unavailable` | A server did not start or stopped answering |
+| `mcp_tool_missing` | A listed tool is not on the server |
+| `mcp_tool_refused` | A listed tool is marked as not read-only, or cannot be sent to the model |
+| `private_text_removed` | Passages copied from a private result were removed |
+
+`byTool` in [`usage.tools`](#tool-usage) counts each MCP tool by its
+`mcp-<server>-<tool>` name. The GitHub review's Metadata adds
+`- Tools: 11 calls · MCP: tracker`, with server names only, when a tool ran or
+an MCP server did.
 
 ## Diagrams
 
@@ -1857,6 +1978,16 @@ A remote review runs the [extensions](extensions.md) registered on `serve`, as
 review type `remote`, and the registrations on your own machine do not run. The
 extension has no working directory with your checkout, because the checkout is
 on your machine. Its findings, verdict and cost come back in the result.
+
+## MCP servers
+
+A remote review offers the model the tools of the
+[MCP servers](review.md#mcp-servers) the server has for the repository, set on
+the `serve` host with `co-maintainer set --repo=owner/repo --mcp-config=...`.
+They run on the server, as its extensions do. The servers in your own
+`config.json` are not used. Their results stay on the server: the copied-passage
+check runs there before the result comes back, and the `mcp_*` and
+`private_text_removed` warnings come back with it.
 
 ## The intent file
 
@@ -2962,6 +3093,7 @@ starts keep it.
 | `--inject-500` | Every mutating `/api/*` call returns 500 (failure UI testing, also `CM_INJECT_500=1`) |
 | `CM_REMOTE_BYOK_POLICY` | Whether a remote review may bring its own AI key: `off` (the default), `allow` or `require`, see [your own key](remote-review.md#your-own-ai-key) |
 | `CM_EXTENSIONS_DISABLED` | `1` turns [extensions](extensions.md) off: `register` refuses and no review runs one. The Cloud image sets it from outside the container |
+| `CM_MCP_DISABLED` | `1` turns [MCP servers](review.md#mcp-servers) off: `set --mcp-config` refuses and no review starts one. The Cloud image sets it from outside the container |
 | `CM_LOGIN_HINT` | Text shown on the sign-in page instead of the default "printed when `serve` started" line. Useful when a deployment hands out its own password, as the Cloud image does. Escaped as plain text |
 
 Per-run `--disable-auth` / `--enable-auth` override values from `co-maintainer
@@ -3120,6 +3252,24 @@ the `serve` host with `co-maintainer extension register`. The command runs as th
 user that runs `serve` and can read that user's files, `config.json` included.
 `CM_EXTENSIONS_DISABLED=1` turns them off. On start, `serve` removes the run
 folders of extensions that are no longer running, and nothing else.
+
+## MCP servers
+
+`serve` starts a repository's [MCP servers](review.md#mcp-servers) in the
+reviews it posts as the GitHub App and in remote reviews, from its own
+`config.json`. Set them on the `serve` host with
+`co-maintainer set --repo=owner/repo --mcp-config=./mcp.json`. The servers run
+as the user that runs `serve`, with only their own `env`, `PATH` and `HOME`.
+
+A pull request from a fork gets no MCP tools, because anyone can open one and
+its diff could try to steer the model toward the private context. Turn them on
+for one repository with:
+
+```sh
+co-maintainer set --repo=owner/repo --mcp-allow-forks=true
+```
+
+`CM_MCP_DISABLED=1` turns MCP off on the host.
 
 ## Updating
 
@@ -3576,6 +3726,12 @@ shared context. The two do not conflict:
 `CM_EXTENSIONS_DISABLED=1` from outside the container, so nothing in your data
 can turn them on.
 
+## MCP servers are off
+
+[MCP servers](review.md#mcp-servers) are always off in the cloud. The hosted
+service sets `CM_MCP_DISABLED=1` from outside the container, so
+`set --mcp-config` is refused and no review starts an MCP server.
+
 ## Support and status
 
 The instance list, uptime, and any incident notes are published by the
@@ -4015,6 +4171,8 @@ co-maintainer set [options]
 | `--review-tool-result-max-chars=N` | 8000 | The most characters one review tool result returns before it is cut. Codegraph and read-full-diff are not cut by it. Needs --repo. 0 or -1 means no limit. |
 | `--review-tool-budget-chars=N` | 40000 | Tool result characters per review. Once they are spent, later tool calls get no answer. Codegraph is not counted. Needs --repo. 0 or -1 means no limit. |
 | `--review-search-max-context-lines=N` | 3 | The most lines search-non-code returns around a match. Needs --repo. 0 or -1 means no limit. |
+| `--mcp-config=PATH` |  | Read the repository's MCP servers from this JSON file and store them. Reviews offer their listed read-only tools to the model. Needs --repo. Refused when CM_MCP_DISABLED=1. |
+| `--mcp-allow-forks=true\|false` | false | Offer MCP tools in serve reviews of pull requests from forks. Needs --repo. |
 | `--guide-full-every=N` | 10 | Every N-th sync whose input changed rewrites the review guide in full, the others edit it. 1 always rewrites, 0 never after init. Needs --repo. |
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |
 | `--codegraph-version=SEMVER` |  | The pinned codegraph version, overriding the built-in one. For a security fix without a release. |
@@ -4230,6 +4388,8 @@ provider, so both models are saved the first time. See
 | `--review-tool-result-max-chars=N` | `repos[owner/repo].reviewToolResultMaxChars` | Most characters one review tool result returns. Needs `--repo`. `0` or `-1` means no limit. Default `8000` |
 | `--review-tool-budget-chars=N` | `repos[owner/repo].reviewToolBudgetChars` | Tool result characters per review. Needs `--repo`. `0` or `-1` means no limit. Default `40000` |
 | `--review-search-max-context-lines=N` | `repos[owner/repo].reviewSearchMaxContextLines` | Most context lines `search-non-code` returns around a match. Needs `--repo`. `0` or `-1` means no limit. Default `3` |
+| `--mcp-config=PATH` | `repos[owner/repo].mcpServers` | Reads the repository's [MCP servers](#mcp-servers) from a JSON file and stores them. Needs `--repo`. Refused when `CM_MCP_DISABLED=1` |
+| `--mcp-allow-forks=true\|false` | `repos[owner/repo].mcpAllowForks` | Offers MCP tools in `serve` reviews of pull requests from forks. Needs `--repo`. Default `false` |
 
 ### App private key: inline, file contents, or path
 
@@ -4362,6 +4522,7 @@ After each successful [`init`](init.md) or [`sync`](sync.md),
 | `diagram-runtime`, `plantuml-server`, `plantuml-output-format` | |
 | `review-read-diff-max-chars` | |
 | `review-tool-result-max-chars`, `review-tool-budget-chars`, `review-search-max-context-lines` | |
+| `mcp-config`, `mcp-allow-forks` | |
 
 A plain `co-maintainer sync owner/repo` reuses those values. Pass new flags
 on `sync` or run `init` again to change includes, limits, or pull request
@@ -4459,6 +4620,42 @@ default, and a value that is not an integer is refused. In remote review the
 server's result and budget limits apply, and the context limit is the one the
 CLI has for the repository, because the CLI runs the search.
 
+## MCP servers
+
+What the servers do in a review is in [Review tools](review.md#mcp-servers).
+`--mcp-config` reads a JSON file with an `mcpServers` object and stores it, so a
+review never depends on the file staying where it was:
+
+```sh
+co-maintainer set --repo=owner/repo --mcp-config=./mcp.json
+co-maintainer set --repo=owner/repo --mcp-allow-forks=true
+co-maintainer set --repo=owner/repo --unset=mcp-config
+```
+
+```json
+"repos": {
+  "owner/repo": {
+    "mcpServers": {
+      "tracker": {
+        "command": "node",
+        "args": ["/opt/tracker-mcp/server.js"],
+        "env": { "TRACKER_TOKEN": "..." },
+        "tools": ["get_issue", "search_issues"]
+      }
+    }
+  }
+}
+```
+
+- A file that is not valid JSON, a server without `command` or `tools`, a
+  server with a `url`, or an unknown key is refused with a message naming it.
+- `set` prints each server with its tools, `tracker (get_issue, search_issues)`.
+  It never prints the command, the arguments or the `env` values, and
+  `config list` shows only how many repositories have settings.
+- The `env` values are secrets for the server and sit in `config.json` in plain
+  text, like the other [secrets on disk](#secrets-on-disk).
+- Running `--mcp-config` again replaces every server of the repository.
+
 ## Extensions in config.json
 
 `co-maintainer extension register` and `update` write the `extensions` array.
@@ -4531,6 +4728,7 @@ their variable is set.
 | Variable | Effect |
 | -------- | ------ |
 | `CM_EXTENSIONS_DISABLED` | The exact value `1` turns [extensions](extensions.md) off. `register` and `debug-run` refuse, and no review runs an extension. The hosted cloud sets it from outside the container |
+| `CM_MCP_DISABLED` | The exact value `1` turns [MCP servers](review.md#mcp-servers) off. `set --mcp-config` refuses, and no review starts a server. The hosted cloud sets it from outside the container |
 
 ---
 
