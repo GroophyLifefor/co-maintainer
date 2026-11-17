@@ -590,3 +590,30 @@ test("a pull request with reviews off gets no review, and a request turns them b
     if (on.length !== 1) throw new Error(`${on.length} reviews-on replies`);
   });
 });
+
+test("two commits while reviews are off each get their own skipped check job", async () => {
+  await withTempDb(() => {
+    readyRepo();
+    setPolicy("everyone");
+    setPrReviewsOff("acme/widgets", 7, "maintainer");
+    for (const [sha, delivery] of [
+      ["h1", "t-1"],
+      ["h2", "t-2"],
+    ] as const) {
+      dispatchGithubEvent(
+        "pull_request",
+        policyPayload("synchronize", {
+          head: { sha, repo: { full_name: "acme/widgets" } },
+        }),
+        delivery,
+      );
+    }
+    const heads = listJobs({})
+      .filter((job) => job.type === "skip" && job.status === "queued")
+      .map((job) => JSON.parse(job.args).headSha)
+      .sort();
+    if (heads.join(",") !== "h1,h2") {
+      throw new Error(`queued skipped checks for ${heads.join(",")}`);
+    }
+  });
+});

@@ -232,7 +232,8 @@ export function maybeEnqueueReview(input: {
       prNumber: input.prNumber,
       deliveryId: input.deliveryId,
       args: { command: "pr-off", by: off.by, headSha: input.headSha ?? null },
-      queueKey: `skip:${input.repo}:${input.prNumber}:pr-off`,
+      // One job per commit, so each pushed commit gets its own skipped check.
+      queueKey: `skip:${input.repo}:${input.prNumber}:pr-off:${input.headSha ?? ""}`,
     });
     return {
       outcome: "skipped",
