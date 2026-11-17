@@ -8,6 +8,7 @@ import {
   deleteEnv,
   getEnv,
   mkdirPath,
+  removePath,
   setEnv,
   tempDirSync,
   writeTextFile,
@@ -31,23 +32,24 @@ async function withRepo(
 ): Promise<void> {
   const dir = tempDirSync();
   const saved = [getEnv("CM_CONFIG_PATH"), getEnv("CM_REPOS_DIR")];
-  setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
-  setEnv("CM_REPOS_DIR", `${dir}/repos`);
-  await mkdirPath(`${dir}/repos/${REPO}`, { recursive: true });
-  await writeTextFile(
-    `${dir}/repos/${REPO}/PR_REVIEW_GUIDE.md`,
-    "# G\n\n## P\n\n- a · b [R1]\n",
-  );
-  if (every !== undefined) {
-    await writeUserConfig({ repos: { [REPO]: { guideFullEvery: every } } });
-  }
   try {
+    setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
+    setEnv("CM_REPOS_DIR", `${dir}/repos`);
+    await mkdirPath(`${dir}/repos/${REPO}`, { recursive: true });
+    await writeTextFile(
+      `${dir}/repos/${REPO}/PR_REVIEW_GUIDE.md`,
+      "# G\n\n## P\n\n- a · b [R1]\n",
+    );
+    if (every !== undefined) {
+      await writeUserConfig({ repos: { [REPO]: { guideFullEvery: every } } });
+    }
     await fn();
   } finally {
     if (saved[0] === undefined) deleteEnv("CM_CONFIG_PATH");
     else setEnv("CM_CONFIG_PATH", saved[0]);
     if (saved[1] === undefined) deleteEnv("CM_REPOS_DIR");
     else setEnv("CM_REPOS_DIR", saved[1]);
+    await removePath(dir, { recursive: true });
   }
 }
 
