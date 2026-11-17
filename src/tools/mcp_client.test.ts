@@ -1,8 +1,9 @@
 /** The stdio MCP client against a fake server: start, list, call, timeout,
  * crash, and the server's environment. */
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import { tempDirSync } from "../testing/runtime.ts";
+import { rmSync } from "node:fs";
+import { after, test } from "node:test";
+import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
 import {
   FAKE_MCP_ISSUE_TEXT,
   writeFakeMcpServer,
@@ -10,7 +11,9 @@ import {
 import { McpClient, McpError, McpRpcError, mcpEnv } from "./mcp_client.ts";
 import type { McpServerConfig } from "./mcp_config.ts";
 
-const script = writeFakeMcpServer(tempDirSync());
+const scriptDir = tempDirSync();
+const script = writeFakeMcpServer(scriptDir);
+after(() => rmSync(scriptDir, { recursive: true, force: true }));
 
 function server(extra: Partial<McpServerConfig> = {}): McpServerConfig {
   return {
@@ -117,7 +120,8 @@ test("a server that exits at once, or a command that does not exist, fails the s
 });
 
 test("the server gets its own env plus PATH and HOME, never co-maintainer's", async () => {
-  process.env.CO_MAINTAINER_TOKEN = "secret-test-token";
+  const savedToken = getEnv("CO_MAINTAINER_TOKEN");
+  setEnv("CO_MAINTAINER_TOKEN", "secret-test-token");
   try {
     const { client } = await McpClient.start(
       server({ env: { TRACKER_TOKEN: "abc" } }),
@@ -132,7 +136,8 @@ test("the server gets its own env plus PATH and HOME, never co-maintainer's", as
       await client.stop();
     }
   } finally {
-    delete process.env.CO_MAINTAINER_TOKEN;
+    if (savedToken === undefined) deleteEnv("CO_MAINTAINER_TOKEN");
+    else setEnv("CO_MAINTAINER_TOKEN", savedToken);
   }
   assert.deepEqual(Object.keys(mcpEnv({ A: "1" })).sort(), [
     "A",

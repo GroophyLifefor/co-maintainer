@@ -12,6 +12,9 @@
  * - `env`, answers the names in its environment
  * - `fail`, answers with `isError`
  *
+ * With `FAKE_MCP_BIG_TOOLS` set it also lists `big_schema`, whose input
+ * schema is about 17 KB, and `wide_1` to `wide_5`, about 15 KB each.
+ *
  * `--hang-start` never answers `initialize`. `--exit-start` writes to
  * stderr and exits at once. It prints one line that is not JSON before it
  * answers, sends the client a `ping`, and exits when stdin closes. With
@@ -45,6 +48,11 @@ const page2 = [
   { name: "env", inputSchema: { type: "object" } },
   { name: "fail", inputSchema: { type: "object" } },
 ]
+if (process.env.FAKE_MCP_BIG_TOOLS) {
+  const padded = (chars) => ({ type: "object", properties: { id: { type: "string", description: "x".repeat(chars) } } })
+  page2.push({ name: "big_schema", inputSchema: padded(17000) })
+  for (let i = 1; i <= 5; i++) page2.push({ name: "wide_" + i, inputSchema: padded(15000) })
+}
 const send = (message) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\n")
 const text = (value) => ({ content: [{ type: "text", text: value }] })
 process.stdout.write("fake mcp server ready\n")

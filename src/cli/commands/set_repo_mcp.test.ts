@@ -2,6 +2,7 @@
  * their env, is refused with `CM_MCP_DISABLED=1`, and `--mcp-allow-forks`
  * stores the fork rule. */
 import assert from "node:assert/strict";
+import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { readConfig } from "../../config.ts";
@@ -18,15 +19,19 @@ import { isolateTestFile } from "../../testing/locations.ts";
 
 isolateTestFile();
 
+/** Runs `fn` with a config file in a temporary directory, which is removed
+ * however `fn` ends. */
 async function withConfig(fn: (dir: string) => Promise<void>): Promise<void> {
   const original = getEnv("CM_CONFIG_PATH");
-  const dir = tempDirSync();
-  setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
+  let dir: string | undefined;
   try {
+    dir = tempDirSync();
+    setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
     await fn(dir);
   } finally {
     if (original === undefined) deleteEnv("CM_CONFIG_PATH");
     else setEnv("CM_CONFIG_PATH", original);
+    if (dir !== undefined) rmSync(dir, { recursive: true, force: true });
   }
 }
 

@@ -2,7 +2,8 @@
  * offered, the warnings for the rest, private results, and a server that
  * fails at start or later. */
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { rmSync } from "node:fs";
+import { after, test } from "node:test";
 import { tempDirSync } from "../testing/runtime.ts";
 import {
   FAKE_MCP_ISSUE_TEXT,
@@ -10,12 +11,16 @@ import {
 } from "../testing/fake_mcp_server.ts";
 import type { McpServerConfig } from "./mcp_config.ts";
 import {
+  MAX_MCP_SCHEMA_BYTES,
+  MAX_MCP_TOOLS_BYTES,
   convertInputSchema,
   emptyMcpSession,
   startMcpSession,
 } from "./mcp_tools.ts";
 
-const script = writeFakeMcpServer(tempDirSync());
+const scriptDir = tempDirSync();
+const script = writeFakeMcpServer(scriptDir);
+after(() => rmSync(scriptDir, { recursive: true, force: true }));
 
 function server(
   tools: string[],
@@ -61,6 +66,43 @@ test("only listed read-only tools are offered, as mcp-<server>-<tool>", async ()
       type: "object",
       properties: { id: { type: "string" } },
     });
+  } finally {
+    await session.stop();
+  }
+});
+
+test("a schema over 16 KB is refused and the definitions stop at 64 KB per review", async () => {
+  assert.equal(MAX_MCP_SCHEMA_BYTES, 16 * 1024);
+  assert.equal(MAX_MCP_TOOLS_BYTES, 64 * 1024);
+  const session = await startMcpSession({
+    tracker: server(
+      ["big_schema", "wide_1", "wide_2", "wide_3", "wide_4", "wide_5"],
+      { env: { FAKE_MCP_BIG_TOOLS: "1" } },
+    ),
+  });
+  try {
+    assert.deepEqual(
+      session.tools.map((tool) => tool.name),
+      [
+        "mcp-tracker-wide_1",
+        "mcp-tracker-wide_2",
+        "mcp-tracker-wide_3",
+        "mcp-tracker-wide_4",
+      ],
+    );
+    const total = session.tools.reduce(
+      (sum, tool) => sum + JSON.stringify(tool.tool).length,
+      0,
+    );
+    assert.ok(total <= MAX_MCP_TOOLS_BYTES);
+    assert.deepEqual(codes(session), ["mcp_tool_refused", "mcp_tool_refused"]);
+    assert.deepEqual(
+      session.warnings().map((warning) => warning.message),
+      [
+        "The tool big_schema of the MCP server tracker has an input schema over 16 KB, so it was not offered.",
+        "The tool wide_5 of the MCP server tracker would take the MCP tool definitions of this review over 64 KB, so it was not offered.",
+      ],
+    );
   } finally {
     await session.stop();
   }

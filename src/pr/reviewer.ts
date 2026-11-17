@@ -366,6 +366,17 @@ function withoutPrivateText(
   };
 }
 
+/** Prints model text under a debug heading after the same copied-passage
+ * check, so a private MCP passage never reaches the terminal either. */
+function printDebugText(
+  heading: string,
+  text: string,
+  reviewTools: ReviewTools,
+): void {
+  const kept = removePrivateText(text, reviewTools.mcp.privateResults()).text;
+  console.log(`\n----- ${heading} -----\n${kept}\n`);
+}
+
 /** One review's tool gate, from the repository's settings. */
 function reviewGate(repo: string): ToolGate {
   const repoConfig = readConfig().repos?.[repo];
@@ -407,6 +418,7 @@ async function normalizeReviewResponse(
   report: ProgressSink,
   options: Options,
   gate: ToolGate,
+  reviewTools: ReviewTools,
   signal?: AbortSignal,
 ): Promise<string> {
   const direct = findingsMarkdownFromJson(response.text);
@@ -432,7 +444,7 @@ async function normalizeReviewResponse(
     console.log(
       `[debug] JSON retry response · input=${retry.tokensIn} tokens · output=${retry.tokensOut} tokens`,
     );
-    console.log(`\n----- JSON RETRY -----\n${retry.text}\n`);
+    printDebugText("JSON RETRY", retry.text, reviewTools);
   }
   const afterRetry = findingsMarkdownFromJson(retry.text);
   if (afterRetry !== undefined) return afterRetry;
@@ -791,7 +803,7 @@ ${diff}`;
     console.log(
       `[debug] initial review response · input=${response.tokensIn} tokens · output=${response.tokensOut} tokens`,
     );
-    console.log(`\n----- INITIAL REVIEW -----\n${response.text}\n`);
+    printDebugText("INITIAL REVIEW", response.text, reviewTools);
   }
   if (!response.text.trim()) {
     throw new Error(
@@ -811,6 +823,7 @@ ${diff}`;
     report,
     options,
     gate,
+    reviewTools,
     signal,
   );
   for (let pass = 2; pass <= matrix; pass++) {
@@ -868,6 +881,7 @@ ${reviewText}`,
       report,
       options,
       gate,
+      reviewTools,
       signal,
     );
     if (options.debug) {
@@ -876,7 +890,7 @@ ${reviewText}`,
           pass - 1
         } response · input=${response.tokensIn} tokens · output=${response.tokensOut} tokens`,
       );
-      console.log(`\n----- IMPROVED REVIEW ${pass - 1} -----\n${reviewText}\n`);
+      printDebugText(`IMPROVED REVIEW ${pass - 1}`, reviewText, reviewTools);
     }
   }
   const kept = withoutPrivateText(reviewText, reviewTools);
@@ -1036,6 +1050,7 @@ ${ownDiff}${unchangedListing}`;
     report,
     options,
     gate,
+    reviewTools,
     signal,
   );
   for (let pass = 2; pass <= matrix; pass++) {
@@ -1077,6 +1092,7 @@ ${reviewText}`,
       report,
       options,
       gate,
+      reviewTools,
       signal,
     );
   }

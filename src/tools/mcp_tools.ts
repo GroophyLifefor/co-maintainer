@@ -47,6 +47,18 @@ const TOOL_NAME = /^[A-Za-z0-9_-]{1,64}$/;
 /** The longest server-written tool description the model is shown. */
 const MAX_DESCRIPTION_CHARS = 1000;
 
+/** The largest input schema of one MCP tool, in UTF-8 bytes of its JSON. A
+ * larger one is refused, since the server writes it and every request of the
+ * review would carry it. */
+export const MAX_MCP_SCHEMA_BYTES = 16 * 1024;
+
+/** The largest total of all MCP tool definitions in one review, in UTF-8
+ * bytes of their JSON. A tool that would pass it is not offered. */
+export const MAX_MCP_TOOLS_BYTES = 64 * 1024;
+
+const jsonBytes = (value: unknown): number =>
+  new TextEncoder().encode(JSON.stringify(value)).length;
+
 export function mcpToolName(server: string, tool: string): string {
   return `mcp-${server}-${tool}`;
 }
@@ -131,6 +143,7 @@ export async function startMcpSession(
   const started = settled.filter((item): item is Started => !!item);
 
   const tools: ToolHandler[] = [];
+  let definitionBytes = 0;
   for (const { name: server, config, client, tools: listed } of started) {
     const timeoutMs =
       (config.timeoutSeconds ?? DEFAULT_MCP_TIMEOUT_SECONDS) * 1000;
@@ -159,22 +172,39 @@ export async function startMcpSession(
         });
         continue;
       }
+      if (jsonBytes(parameters) > MAX_MCP_SCHEMA_BYTES) {
+        warnings.push({
+          code: "mcp_tool_refused",
+          message: `The tool ${wanted} of the MCP server ${server} has an input schema over ${MAX_MCP_SCHEMA_BYTES / 1024} KB, so it was not offered.`,
+        });
+        continue;
+      }
       const own =
         typeof tool.description === "string" ? tool.description.trim() : "";
+      const definition = {
+        type: "function",
+        function: {
+          name,
+          description:
+            `Read-only tool ${wanted} of the repository's MCP server ${server}. Its results are private.${
+              own ? ` ${own}` : ""
+            }`.slice(0, MAX_DESCRIPTION_CHARS),
+          parameters,
+        },
+      };
+      const bytes = jsonBytes(definition);
+      if (definitionBytes + bytes > MAX_MCP_TOOLS_BYTES) {
+        warnings.push({
+          code: "mcp_tool_refused",
+          message: `The tool ${wanted} of the MCP server ${server} would take the MCP tool definitions of this review over ${MAX_MCP_TOOLS_BYTES / 1024} KB, so it was not offered.`,
+        });
+        continue;
+      }
+      definitionBytes += bytes;
       tools.push({
         name,
         external: true,
-        tool: {
-          type: "function",
-          function: {
-            name,
-            description:
-              `Read-only tool ${wanted} of the repository's MCP server ${server}. Its results are private.${
-                own ? ` ${own}` : ""
-              }`.slice(0, MAX_DESCRIPTION_CHARS),
-            parameters,
-          },
-        },
+        tool: definition,
         run: async (args) => {
           if (!client.alive || down.has(server)) {
             return `The MCP server ${server} is not available. Answer without it.`;

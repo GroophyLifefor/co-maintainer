@@ -57,7 +57,7 @@ test("a passage that wraps a line in one paragraph is found, two passages count 
   );
 });
 
-test("headings, location lines and suggestion blocks are left alone", () => {
+test("headings, location lines and a clean suggestion block are left alone", () => {
   const review = [
     "## Findings",
     "",
@@ -68,7 +68,7 @@ test("headings, location lines and suggestion blocks are left alone", () => {
     "",
     "Suggestion: `src/export.ts:10`",
     "```suggestion",
-    "// Acme Corp reported that the export button silently drops every row",
+    "// the export button keeps every row after the first thousand entries",
     "```",
     "```text",
     "Acme Corp reported that the export button silently drops every row",
@@ -78,12 +78,51 @@ test("headings, location lines and suggestion blocks are left alone", () => {
   assert.equal(result.removed, 2);
   const lines = result.text.split("\n");
   assert.equal(lines[5], `${PRIVATE_TEXT_REMOVED} rows.`);
-  assert.equal(
-    lines[9],
-    "// Acme Corp reported that the export button silently drops every row",
-  );
+  assert.deepEqual(lines.slice(7, 10), [
+    "Suggestion: `src/export.ts:10`",
+    "```suggestion",
+    "// the export button keeps every row after the first thousand entries",
+  ]);
   assert.equal(lines[12], PRIVATE_TEXT_REMOVED);
   assert.equal(lines.length, 14);
+});
+
+test("a suggestion block with a copied passage is dropped with its Suggestion line and counted", () => {
+  const review = [
+    "### [P2 · non-blocking] `src/export.ts`",
+    "Location: `src/export.ts:10`",
+    "",
+    "The export loop stops early.",
+    "",
+    "Suggestion: `src/export.ts:10-11`",
+    "```suggestion",
+    "// Acme Corp reported that the export button",
+    "// silently drops every row after the first thousand entries",
+    "```",
+    "",
+    "Suggestion: `src/export.ts:20`",
+    "```suggestion",
+    "// Acme Corp reported that the export button silently drops every row",
+  ].join("\n");
+  const result = removePrivateText(review, [PRIVATE]);
+  assert.equal(result.removed, 2);
+  assert.equal(
+    result.text,
+    [
+      "### [P2 · non-blocking] `src/export.ts`",
+      "Location: `src/export.ts:10`",
+      "",
+      "The export loop stops early.",
+      "",
+      PRIVATE_TEXT_REMOVED,
+      "",
+      PRIVATE_TEXT_REMOVED,
+    ].join("\n"),
+  );
+  assert.deepEqual(
+    privateTextWarning(result.removed)[0]!.code,
+    "private_text_removed",
+  );
 });
 
 test("no private result leaves the text as it is", () => {

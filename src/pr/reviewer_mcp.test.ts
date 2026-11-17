@@ -3,12 +3,19 @@
  * review text, the warnings, and the server stopped however the review
  * ends. */
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { parseArgs, setCliInteractive } from "../cli/args.ts";
 import type { Revision } from "../review/revision.ts";
-import type { AiProvider, AiRequest, AiResponse, Options } from "../types.ts";
+import type {
+  AiProvider,
+  AiRequest,
+  AiResponse,
+  GitHubClient,
+  Json,
+  Options,
+} from "../types.ts";
 import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
 import {
   FAKE_MCP_ISSUE_TEXT,
@@ -19,15 +26,18 @@ import {
   MCP_PRIVATE_GUIDANCE,
   PRIVATE_TEXT_REMOVED,
 } from "../review/private_text.ts";
-import { reviewWorkspaceRevision } from "./reviewer.ts";
+import { reviewPullRequest, reviewWorkspaceRevision } from "./reviewer.ts";
 
 /** Reads the issue, then writes a finding that copies it. `fail` makes the
- * second answer throw instead. */
+ * second answer throw instead. `plainFirst` makes the second answer prose
+ * that copies it, so the review asks once more for JSON. */
 class CopyingProvider implements AiProvider {
   requests: AiRequest[] = [];
   private readonly fail: boolean;
-  constructor(fail = false) {
+  private readonly plainFirst: boolean;
+  constructor(fail = false, plainFirst = false) {
     this.fail = fail;
+    this.plainFirst = plainFirst;
   }
 
   complete(request: AiRequest): Promise<AiResponse> {
@@ -55,6 +65,12 @@ class CopyingProvider implements AiProvider {
       });
     }
     if (this.fail) return Promise.reject(new Error("provider down"));
+    if (this.plainFirst && this.requests.length === 2) {
+      return Promise.resolve({
+        ...base,
+        text: `The tracker says: ${FAKE_MCP_ISSUE_TEXT}.`,
+      });
+    }
     return Promise.resolve({
       ...base,
       text: JSON.stringify({
@@ -91,7 +107,40 @@ const REVISION: Revision = {
   ],
 };
 
-async function review(provider: CopyingProvider, mcpDisabled = false) {
+class FakeClient implements GitHubClient {
+  request<T>(): Promise<T> {
+    return Promise.resolve({
+      number: 1,
+      title: "Raise the export limit",
+      body: "",
+      state: "open",
+      base: { ref: "main" },
+    } as T);
+  }
+
+  pages<T>(endpoint: string): Promise<T[]> {
+    if (!endpoint.endsWith("/files")) return Promise.resolve([] as T[]);
+    const file = REVISION.files[0]!;
+    return Promise.resolve([
+      {
+        filename: file.path,
+        status: "modified",
+        additions: 1,
+        deletions: 0,
+        changes: 1,
+        patch: file.patch,
+      },
+    ] as Json[] as T[]);
+  }
+}
+
+/** One review with the fake MCP server, local by default. Its temporary
+ * directory is removed however it ends, after checking the server stopped. */
+async function review(
+  provider: CopyingProvider,
+  mcpDisabled = false,
+  run: { pull?: boolean; options?: Partial<Options> } = {},
+) {
   const dir = tempDirSync();
   const exitFile = join(dir, "server-exited");
   const saved = {
@@ -99,34 +148,34 @@ async function review(provider: CopyingProvider, mcpDisabled = false) {
     repos: getEnv("CM_REPOS_DIR"),
     disabled: getEnv("CM_MCP_DISABLED"),
   };
-  setEnv("CM_CONFIG_PATH", join(dir, "config.json"));
-  setEnv("CM_REPOS_DIR", join(dir, "repos"));
-  if (mcpDisabled) setEnv("CM_MCP_DISABLED", "1");
-  else deleteEnv("CM_MCP_DISABLED");
-  writeFileSync(
-    join(dir, "config.json"),
-    JSON.stringify({
-      repos: {
-        "acme/widgets": {
-          mcpServers: {
-            tracker: {
-              command: process.execPath,
-              args: [writeFakeMcpServer(dir)],
-              env: { FAKE_MCP_EXIT_FILE: exitFile },
-              tools: ["get_issue", "close_issue"],
+  try {
+    setEnv("CM_CONFIG_PATH", join(dir, "config.json"));
+    setEnv("CM_REPOS_DIR", join(dir, "repos"));
+    if (mcpDisabled) setEnv("CM_MCP_DISABLED", "1");
+    else deleteEnv("CM_MCP_DISABLED");
+    writeFileSync(
+      join(dir, "config.json"),
+      JSON.stringify({
+        repos: {
+          "acme/widgets": {
+            mcpServers: {
+              tracker: {
+                command: process.execPath,
+                args: [writeFakeMcpServer(dir)],
+                env: { FAKE_MCP_EXIT_FILE: exitFile },
+                tools: ["get_issue", "close_issue"],
+              },
             },
           },
         },
-      },
-    }),
-  );
-  mkdirSync(join(dir, "repos/acme/widgets"), { recursive: true });
-  writeFileSync(
-    join(dir, "repos/acme/widgets/PR_REVIEW_GUIDE.md"),
-    "Review small changes.",
-  );
-  setCliInteractive(false);
-  try {
+      }),
+    );
+    mkdirSync(join(dir, "repos/acme/widgets"), { recursive: true });
+    writeFileSync(
+      join(dir, "repos/acme/widgets/PR_REVIEW_GUIDE.md"),
+      "Review small changes.",
+    );
+    setCliInteractive(false);
     const options: Options = {
       ...(await parseArgs([
         "review",
@@ -136,22 +185,40 @@ async function review(provider: CopyingProvider, mcpDisabled = false) {
         "--high-model=test/model",
       ])),
       useCodegraph: false,
+      ...run.options,
+    };
+    const tools = {
+      kind: "tree" as const,
+      root: dir,
+      codegraph: [],
+      mcp: true,
     };
     try {
-      const outcome = await reviewWorkspaceRevision(
-        REVISION,
-        options,
-        "abc123",
-        undefined,
-        provider,
-        undefined,
-        { tools: { kind: "tree", root: dir, codegraph: [], mcp: true } },
-      );
-      return { outcome, exitFile };
+      const outcome = run.pull
+        ? await reviewPullRequest(
+            new FakeClient(),
+            { ...options, prNumber: 1 },
+            undefined,
+            undefined,
+            provider,
+            undefined,
+            { tools },
+          )
+        : await reviewWorkspaceRevision(
+            REVISION,
+            options,
+            "abc123",
+            undefined,
+            provider,
+            undefined,
+            { tools },
+          );
+      return { outcome, stopped: existsSync(exitFile) };
     } catch (error) {
-      return { error, exitFile };
+      return { error, stopped: existsSync(exitFile) };
     }
   } finally {
+    rmSync(dir, { recursive: true, force: true });
     setCliInteractive(true);
     const restore = (name: string, value: string | undefined) =>
       value === undefined ? deleteEnv(name) : setEnv(name, value);
@@ -180,7 +247,7 @@ function hasRun(text: string, source: string): boolean {
 
 test("an MCP tool is offered and read, and its text never reaches the review", async () => {
   const provider = new CopyingProvider();
-  const { outcome, exitFile } = await review(provider);
+  const { outcome, stopped } = await review(provider);
   assert.ok(outcome);
   const first = provider.requests[0];
   assert.ok(offered(first).includes("mcp-tracker-get_issue"));
@@ -206,13 +273,13 @@ test("an MCP tool is offered and read, and its text never reaches the review", a
   );
   assert.deepEqual(outcome.mcpServers, ["tracker"]);
   assert.deepEqual(outcome.tools.byTool, { "mcp-tracker-get_issue": 1 });
-  assert.ok(existsSync(exitFile), "the server was stopped");
+  assert.ok(stopped, "the server was stopped");
 });
 
 test("a review that fails still stops its MCP server", async () => {
-  const { error, exitFile } = await review(new CopyingProvider(true));
+  const { error, stopped } = await review(new CopyingProvider(true));
   assert.match(String(error), /provider down/);
-  assert.ok(existsSync(exitFile), "the server was stopped");
+  assert.ok(stopped, "the server was stopped");
 });
 
 test("with CM_MCP_DISABLED=1 the review offers no MCP tool", async () => {
@@ -224,4 +291,29 @@ test("with CM_MCP_DISABLED=1 the review offers no MCP tool", async () => {
   );
   assert.ok(!provider.requests[0]?.prompt.includes(MCP_PRIVATE_GUIDANCE));
   assert.deepEqual(outcome.mcpServers, []);
+});
+
+test("a debug review prints model text only after the copied-passage check", async () => {
+  const printed: string[] = [];
+  const log = console.log;
+  console.log = (...args: unknown[]) => {
+    printed.push(args.map(String).join(" "));
+  };
+  let result: Awaited<ReturnType<typeof review>>;
+  try {
+    result = await review(new CopyingProvider(false, true), false, {
+      pull: true,
+      options: { debug: true, improveMatrix: 2 },
+    });
+  } finally {
+    console.log = log;
+  }
+  assert.ok(result.outcome, String(result.error));
+  const output = printed.join("\n");
+  for (const heading of ["INITIAL REVIEW", "JSON RETRY", "IMPROVED REVIEW 1"]) {
+    assert.ok(output.includes(`----- ${heading} -----`), heading);
+  }
+  assert.ok(output.includes(PRIVATE_TEXT_REMOVED));
+  assert.ok(!hasRun(output, FAKE_MCP_ISSUE_TEXT));
+  assert.ok(!hasRun(result.outcome.text, FAKE_MCP_ISSUE_TEXT));
 });
