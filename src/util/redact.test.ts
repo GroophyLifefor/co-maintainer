@@ -93,3 +93,13 @@ test("redact leaves ordinary text and commit shas alone", () => {
     throw new Error("an ordinary log line was altered");
   }
 });
+
+test("safeCopy keeps the line breaks around a dash", () => {
+  const dash = String.fromCharCode(0x2014);
+  const cleaned = safeCopy(
+    `First paragraph.\n\n${dash} a list item\nnext ${dash} line`,
+  );
+  if (cleaned !== "First paragraph.\n\n, a list item\nnext, line") {
+    throw new Error(JSON.stringify(cleaned));
+  }
+});
