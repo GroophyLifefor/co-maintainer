@@ -368,6 +368,10 @@ are supported: a server with a `url` is refused, and so is an unknown key.
   `mcp-<server>-<tool>` name is not 1 to 64 letters, digits, dashes or
   underscores, cannot be sent to the model. It is left out with an
   `mcp_tool_refused` warning.
+- A tool whose input schema is over 16 KB is left out with an
+  `mcp_tool_refused` warning. All MCP tool definitions of one review, name,
+  description and schema, stay within 64 KB together. A tool that would pass
+  that budget is left out with an `mcp_tool_refused` warning.
 
 **How a server runs.**
 
@@ -392,7 +396,9 @@ of 8 or more consecutive words that also appears in a private result, ignoring
 case and punctuation, is replaced with `[private context removed]`, and a
 `private_text_removed` warning counts the removals. It runs on the rendered
 text in every mode, `--json` and what the dashboard stores included. A
-suggestion block is the author's code with a fix and is left as it is.
+suggestion block that holds such a run is removed whole with its
+`Suggestion:` line, since a patch with a passage cut out would not apply, and
+the warning counts it.
 
 Private results are never written to the JSON output, the log or the database.
 The check catches copied passages. It does not catch a single word, such as a
@@ -422,7 +428,7 @@ called by the model during the review and adds no findings of its own.
 | ---- | ---- |
 | `mcp_unavailable` | A server did not start or stopped answering |
 | `mcp_tool_missing` | A listed tool is not on the server |
-| `mcp_tool_refused` | A listed tool is marked as not read-only, or cannot be sent to the model |
+| `mcp_tool_refused` | A listed tool is marked as not read-only, cannot be sent to the model, has a schema over 16 KB, or would pass the 64 KB budget |
 | `private_text_removed` | Passages copied from a private result were removed |
 
 `byTool` in [`usage.tools`](#tool-usage) counts each MCP tool by its

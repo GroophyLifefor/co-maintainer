@@ -586,6 +586,10 @@ trusted to the list.</li>
 <code>mcp-&lt;server&gt;-&lt;tool&gt;</code> name is not 1 to 64 letters, digits, dashes or
 underscores, cannot be sent to the model. It is left out with an
 <code>mcp_tool_refused</code> warning.</li>
+<li>A tool whose input schema is over 16 KB is left out with an
+<code>mcp_tool_refused</code> warning. All MCP tool definitions of one review, name,
+description and schema, stay within 64 KB together. A tool that would pass
+that budget is left out with an <code>mcp_tool_refused</code> warning.</li>
 </ul>
 <p><strong>How a server runs.</strong></p>
 <ul>
@@ -610,7 +614,9 @@ of 8 or more consecutive words that also appears in a private result, ignoring
 case and punctuation, is replaced with <code>[private context removed]</code>, and a
 <code>private_text_removed</code> warning counts the removals. It runs on the rendered
 text in every mode, <code>--json</code> and what the dashboard stores included. A
-suggestion block is the author&#39;s code with a fix and is left as it is.</p>
+suggestion block that holds such a run is removed whole with its
+<code>Suggestion:</code> line, since a patch with a passage cut out would not apply, and
+the warning counts it.</p>
 <p>Private results are never written to the JSON output, the log or the database.
 The check catches copied passages. It does not catch a single word, such as a
 customer&#39;s name, or a paraphrase.</p>
@@ -667,7 +673,7 @@ called by the model during the review and adds no findings of its own.</p>
 </tr>
 <tr>
 <td><code>mcp_tool_refused</code></td>
-<td>A listed tool is marked as not read-only, or cannot be sent to the model</td>
+<td>A listed tool is marked as not read-only, cannot be sent to the model, has a schema over 16 KB, or would pass the 64 KB budget</td>
 </tr>
 <tr>
 <td><code>private_text_removed</code></td>
