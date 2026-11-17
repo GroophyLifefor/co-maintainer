@@ -81,6 +81,7 @@ starts keep it.
 | `--trust-proxy` | Trust `x-forwarded-for` and `x-forwarded-proto` from a reverse proxy in front (also `CM_TRUST_PROXY=1`, see [Behind a reverse proxy](#behind-a-reverse-proxy)) |
 | `--inject-500` | Every mutating `/api/*` call returns 500 (failure UI testing, also `CM_INJECT_500=1`) |
 | `CM_REMOTE_BYOK_POLICY` | Whether a remote review may bring its own AI key: `off` (the default), `allow` or `require`, see [your own key](remote-review.md#your-own-ai-key) |
+| `CM_REMOTE_CLIENT_TOOLS_POLICY` | Whether a remote review offers the model the tools a client declares, such as its own MCP servers: `off` (the default) or `on`, see [client tools](remote-review.md#your-own-mcp-servers-as-client-tools) |
 | `CM_EXTENSIONS_DISABLED` | `1` turns [extensions](extensions.md) off: `register` refuses and no review runs one. The Cloud image sets it from outside the container |
 | `CM_MCP_DISABLED` | `1` turns [MCP servers](review.md#mcp-servers) off: `set --mcp-config` refuses and no review starts one. The Cloud image sets it from outside the container |
 | `CM_LOGIN_HINT` | Text shown on the sign-in page instead of the default "printed when `serve` started" line. Useful when a deployment hands out its own password, as the Cloud image does. Escaped as plain text |

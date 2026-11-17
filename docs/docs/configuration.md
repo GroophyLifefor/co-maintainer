@@ -85,6 +85,7 @@ provider, so both models are saved the first time. See
 | `--remote-byok=KEY` | `remoteByok` | `review --remote`, your own AI key, see [Remote review](remote-review.md#your-own-ai-key) |
 | `--remote-byok-default=on\|off` | `remoteByokDefault` | Whether `review --remote` sends `remote-byok` without being asked |
 | `--remote-byok-policy=off\|allow\|require` | `remoteByokPolicy` | `serve`, whether remote clients may send their own key |
+| `--remote-client-tools-policy=off\|on` | `remoteClientToolsPolicy` | `serve`, whether a remote review offers the tools a client declares, see [client tools](remote-review.md#your-own-mcp-servers-as-client-tools) |
 | `--review-policy=everyone\|trusted-auto\|on-request-only` | `reviewPolicy` | `serve`, the [review policy](review-policy.md) new repositories start with |
 | `--review-policy-file=PATH` | `reviewPolicy` (the parsed policy) | The same, from a JSON file. A bad policy is refused and nothing is saved |
 | `--extension-rerun-on-restart=true\|false` | `extensionRerunOnRestart` | `serve` and the CLI, whether an [extension](extensions.md) cut off by a restart runs again. A registration's own `--rerun-on-restart` wins. Unset means `true` |
@@ -190,6 +191,7 @@ hides the value.
 | `remote-byok` | string | `--remote-byok` | yes |
 | `remote-byok-default` | boolean | `--remote-byok-default` | no |
 | `remote-byok-policy` | `off`, `allow` or `require` | `--remote-byok-policy`, Settings, Remote review | no |
+| `remote-client-tools-policy` | `off` or `on` | `--remote-client-tools-policy`, or `CM_REMOTE_CLIENT_TOOLS_POLICY` | no |
 | `review-policy` | template name or policy object | `--review-policy`, `--review-policy-file`, Settings, Defaults | no |
 | `remote-sync-timeout-seconds` | number | Settings | no |
 | `max-concurrent-remote-reviews-per-token` | number | Settings | no |
@@ -430,6 +432,7 @@ An empty value counts as not set.
 | `CM_REMOTE_TOKEN` | The remote review token, the same as `remote-token`. Keeps it off the command line |
 | `CM_REMOTE_BYOK` | Your own AI key for `review --remote --remote-byok`, the same as `remote-byok` |
 | `CM_REMOTE_BYOK_POLICY` | On the server, `off`, `allow` or `require`. It overrides `remote-byok-policy`, so a hosted deployment cannot be talked out of it from the dashboard |
+| `CM_REMOTE_CLIENT_TOOLS_POLICY` | On the server, `off` or `on`. It overrides `remote-client-tools-policy`. Any other value is ignored |
 
 `config list` shows `env` as the source of `remote-host` and `remote-token` when
 their variable is set.

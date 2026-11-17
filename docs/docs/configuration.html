@@ -282,6 +282,11 @@ provider, so both models are saved the first time. See
 <td><code>serve</code>, whether remote clients may send their own key</td>
 </tr>
 <tr>
+<td><code>--remote-client-tools-policy=off|on</code></td>
+<td><code>remoteClientToolsPolicy</code></td>
+<td><code>serve</code>, whether a remote review offers the tools a client declares, see <a href="remote-review.html#your-own-mcp-servers-as-client-tools">client tools</a></td>
+</tr>
+<tr>
 <td><code>--review-policy=everyone|trusted-auto|on-request-only</code></td>
 <td><code>reviewPolicy</code></td>
 <td><code>serve</code>, the <a href="review-policy.html">review policy</a> new repositories start with</td>
@@ -572,6 +577,12 @@ hides the value.</p>
 <td><code>remote-byok-policy</code></td>
 <td><code>off</code>, <code>allow</code> or <code>require</code></td>
 <td><code>--remote-byok-policy</code>, Settings, Remote review</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>remote-client-tools-policy</code></td>
+<td><code>off</code> or <code>on</code></td>
+<td><code>--remote-client-tools-policy</code>, or <code>CM_REMOTE_CLIENT_TOOLS_POLICY</code></td>
 <td>no</td>
 </tr>
 <tr>
@@ -960,6 +971,10 @@ An empty value counts as not set.</p>
 <tr>
 <td><code>CM_REMOTE_BYOK_POLICY</code></td>
 <td>On the server, <code>off</code>, <code>allow</code> or <code>require</code>. It overrides <code>remote-byok-policy</code>, so a hosted deployment cannot be talked out of it from the dashboard</td>
+</tr>
+<tr>
+<td><code>CM_REMOTE_CLIENT_TOOLS_POLICY</code></td>
+<td>On the server, <code>off</code> or <code>on</code>. It overrides <code>remote-client-tools-policy</code>. Any other value is ignored</td>
 </tr>
 </tbody></table>
 <p><code>config list</code> shows <code>env</code> as the source of <code>remote-host</code> and <code>remote-token</code> when
