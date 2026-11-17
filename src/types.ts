@@ -114,6 +114,10 @@ export type GitHubClient = {
   /** PATCH JSON, for closing an issue or editing a comment. Only the App
    * client has it. */
   patch?<T>(endpoint: string, body: unknown): Promise<T>;
+  /** A token git can use to clone and fetch this installation's repositories.
+   * Only the App client has it, so a server with the App and no git login
+   * can still clone a private repository. */
+  gitToken?(): Promise<string>;
   /** GitHub Checks API operations. Optional so read-only test clients and
    * older integrations can continue to review without check runs. */
   createCheckRun?<T>(endpoint: string, body: unknown): Promise<T>;
@@ -168,6 +172,9 @@ export type AiResponse = {
   /** Set on a response merged from several calls, so the caller can tell a
    * partial cost from a missing one. */
   costCalls?: { known: number; unknown: number };
+  /** The answer stopped at the output limit (`max_tokens`), so its text may be
+   * cut mid-way. Set by each provider from its own stop reason. */
+  cutOff?: true;
   model: string;
   provider:
     | "openrouter"

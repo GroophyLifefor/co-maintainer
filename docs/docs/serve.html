@@ -323,7 +323,10 @@ saved config override the default <code>http://localhost:&lt;port&gt;/github/web
 <p>When a secret is configured, <code>serve</code> checks <code>x-hub-signature-256</code>. Duplicate
 delivery IDs are ignored. <code>pull_request</code> and review-comment events enqueue jobs
 when the repo is active and rules allow it. Enable <strong>Issue comments</strong> and
-<strong>Issues: write</strong> on the App if you want <code>@co-maintainer</code> conversation replies.</p>
+<strong>Issues: write</strong> on the App if you want <code>@co-maintainer</code> conversation replies.
+When a reply on a finding&#39;s thread agrees that the finding was wrong, the
+finding closes at once. A later round does not raise it again while its lines
+are unchanged.</p>
 <p>Manual PR review from the UI when GitHub cannot reach your host:
 <a href="dashboard.html#routes">Dashboard: Pull requests</a>.</p>
 <h2 id="behind-a-reverse-proxy">Behind a reverse proxy</h2>

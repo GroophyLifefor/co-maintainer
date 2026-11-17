@@ -56,6 +56,27 @@ export function listCarryableFindingsForReview(reviewId: string): FindingRow[] {
     .all(reviewId);
 }
 
+/** A finding the bot agreed was wrong, in a reply on its thread. It is
+ * closed at once, so the next round does not carry it as still open. */
+export function withdrawFinding(id: string): void {
+  getAppDb()
+    .prepare(
+      `UPDATE findings SET state = 'closed', close_reason = 'withdrawn' WHERE id = ?`,
+    )
+    .run(id);
+}
+
+/** Every finding of a pull request the bot withdrew, so a later round does
+ * not raise it again while its lines are unchanged. */
+export function listWithdrawnFindingsForPr(
+  repo: string,
+  prNumber: number,
+): FindingRow[] {
+  return listFindingsForPr(repo, prNumber).filter(
+    (row) => row.close_reason === "withdrawn",
+  );
+}
+
 export function setFindingPosted(
   id: string,
   postedCommentId: string,

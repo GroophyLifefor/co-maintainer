@@ -1,6 +1,7 @@
 import {
   AI_PROVIDERS,
   createAiProvider,
+  parseChatResponse,
   rejectRetiredProvider,
 } from "./provider.ts";
 import { OpenRouterProvider } from "./openrouter.ts";
@@ -242,4 +243,24 @@ test("a body that is not JSON is not reported as a closed connection", async () 
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("an answer that stopped at the output limit is marked cut, a finished one is not", () => {
+  const cut = parseChatResponse(
+    {
+      choices: [
+        { finish_reason: "length", message: { content: "# Guide\n- half" } },
+      ],
+    },
+    "openrouter",
+    "m",
+  );
+  if (cut.cutOff !== true) throw new Error("a length stop was not marked cut");
+  const done = parseChatResponse(
+    { choices: [{ finish_reason: "stop", message: { content: "# Guide" } }] },
+    "openrouter",
+    "m",
+  );
+  if (done.cutOff !== undefined)
+    throw new Error("a finished answer was marked cut");
 });

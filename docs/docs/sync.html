@@ -271,6 +271,13 @@ state is kept. The listing cache is stored per state set, so a different set
 is not filled from the previous listing. <code>--only-request-changed-pr</code> does not
 turn itself off. To collect every state again, pass
 <code>--pr-state=open,closed,merged</code>.</p>
+<h2 id="a-guide-cut-at-the-output-limit">A guide cut at the output limit</h2>
+<p>The review guide is written with an output limit, 16,000 tokens for the
+detailed guide and 8,000 for the short one. When the answer stops at that
+limit, <code>sync</code> asks once more with twice the limit. When the second answer is
+cut too, nothing is written and the last guide stays, so a review never reads
+a guide that ends mid-line. The run says so in one line, and <code>sync --json</code> has
+<code>reviewGuide: &quot;kept&quot;</code>.</p>
 <h2 id="what-sync-says-about-guide-rules">What <code>sync</code> says about guide rules</h2>
 <p>Each check line of the review guides rests on the pull requests whose findings
 it merges. When the guides are rewritten and an earlier <code>RULES.json</code> has guide
@@ -438,7 +445,7 @@ name so existing config files keep working.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#what-sync-says-about-guide-rules">What sync says about guide rules</a></li><li><a href="#references-and-comment-links">References and comment links</a></li><li><a href="#what-sync-says-about-instruction-rules">What sync says about instruction rules</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#what-gets-reused">What gets reused</a></li><li><a href="#scheduled-sync">Scheduled sync</a></li></ul></nav>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#a-guide-cut-at-the-output-limit">A guide cut at the output limit</a></li><li><a href="#what-sync-says-about-guide-rules">What sync says about guide rules</a></li><li><a href="#references-and-comment-links">References and comment links</a></li><li><a href="#what-sync-says-about-instruction-rules">What sync says about instruction rules</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#what-gets-reused">What gets reused</a></li><li><a href="#scheduled-sync">Scheduled sync</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

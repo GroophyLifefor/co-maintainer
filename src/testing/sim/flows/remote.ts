@@ -913,10 +913,11 @@ function remoteChecks(sim: Sim): CheckResult[] {
       `delete ${deleted?.status} · exit ${cancel?.exitCode} ${errorCode(cancel)} · job ${cancelJob?.status}/${cancelJob?.cancel_reason} · review ${cancelReview?.status}`,
       "the cancel lands while the client answers a tool call, and a real model may not ask for one",
     ),
-    unrepeatable(
-      "product bug: reviewWorkspaceRevision passes no abort signal to the tool loop, so the aborted tool call goes back to the model as a tool error and one more round is paid for",
+    scripted(
       "a cancelled review makes no further model call",
-      deleteAt !== Infinity && afterCancel.length === 0 && faultAi.length === 1,
+      // The part that matters is no call after the cancel. Whether one call
+      // ran before it depends on timing: a slow runner cancels first.
+      deleteAt !== Infinity && afterCancel.length === 0 && faultAi.length <= 1,
       `${afterCancel.length} AI calls after the cancel · ${faultAi.length} AI calls in the timed-out review`,
       "the cancel needs a tool call a real model may not make",
     ),

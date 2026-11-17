@@ -323,3 +323,125 @@ test("guide lines cite numbered findings and code turns them into ids with pull 
     await cleanup(repo);
   }
 });
+
+/** Answers each guide job with `text`, marked cut while its `maxTokens` is at
+ * or below `cutAt`. */
+class CuttingProvider implements AiProvider {
+  requests: AiRequest[] = [];
+  private readonly cutAt: Record<string, number>;
+  private readonly byJob: Record<string, string>;
+
+  constructor(cutAt: Record<string, number>, byJob: Record<string, string>) {
+    this.cutAt = cutAt;
+    this.byJob = byJob;
+  }
+
+  async complete(request: AiRequest): Promise<AiResponse> {
+    this.requests.push(request);
+    const limit = this.cutAt[request.job];
+    const cut = limit !== undefined && (request.maxTokens ?? 0) <= limit;
+    return {
+      text: this.byJob[request.job] ?? "",
+      ...(cut ? { cutOff: true as const } : {}),
+      tokensIn: 1,
+      tokensOut: 1,
+      model: "fixture",
+      provider: "openrouter",
+    };
+  }
+}
+
+const THREE = [
+  finding("Require a test for a behavior change."),
+  finding("Add the MCP tool for a new route."),
+  finding("Add an index for a new array predicate."),
+];
+
+test("a guide cut at the output limit is asked once more with twice the limit", async () => {
+  const repo = `guide-cut-once-${crypto.randomUUID()}`;
+  const provider = new CuttingProvider(
+    { synth_guide: 16_000 },
+    { synth_guide: SHORT_GUIDE },
+  );
+  try {
+    const documents = await synthesizeReviewGuides(
+      provider,
+      repo,
+      "openrouter",
+      "fixture",
+      1,
+      THREE,
+    );
+    const limits = provider.requests.map(
+      (request) => `${request.job}:${request.maxTokens}`,
+    );
+    if (
+      limits.slice(0, 2).join(",") !== "synth_guide:16000,synth_guide:32000"
+    ) {
+      throw new Error(`requests: ${limits.join(",")}`);
+    }
+    if (!documents?.guide.includes("Review method")) {
+      throw new Error("the second, complete answer was not used");
+    }
+  } finally {
+    await cleanup(repo);
+  }
+});
+
+test("a guide cut twice is not written, so the last run's guide stays", async () => {
+  const repo = `guide-cut-twice-${crypto.randomUUID()}`;
+  const provider = new CuttingProvider(
+    { synth_guide: 32_000 },
+    { synth_guide: SHORT_GUIDE },
+  );
+  try {
+    const documents = await synthesizeReviewGuides(
+      provider,
+      repo,
+      "openrouter",
+      "fixture",
+      1,
+      THREE,
+    );
+    if (documents !== undefined) {
+      throw new Error("a guide cut twice was returned to be written");
+    }
+    if (provider.requests.length !== 2) {
+      throw new Error(`${provider.requests.length} calls, expected 2`);
+    }
+  } finally {
+    await cleanup(repo);
+  }
+});
+
+test("a short guide cut twice keeps both files of the last run", async () => {
+  const repo = `guide-short-cut-${crypto.randomUUID()}`;
+  const provider = new CuttingProvider(
+    { synth_guide_short: 16_000 },
+    { synth_guide: LONG_GUIDE, synth_guide_short: SHORT_GUIDE },
+  );
+  try {
+    const documents = await synthesizeReviewGuides(
+      provider,
+      repo,
+      "openrouter",
+      "fixture",
+      1,
+      THREE,
+    );
+    const limits = provider.requests.map(
+      (request) => `${request.job}:${request.maxTokens}`,
+    );
+    if (
+      limits.join(",") !==
+      "synth_guide:16000,synth_guide_short:8000,synth_guide_short:16000"
+    ) {
+      throw new Error(`requests: ${limits.join(",")}`);
+    }
+    if (documents !== undefined) {
+      throw new Error("a cut short guide was returned to be written");
+    }
+  } finally {
+    await cleanup(repo);
+  }
+});

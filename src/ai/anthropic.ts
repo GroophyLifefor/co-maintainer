@@ -309,6 +309,7 @@ export function parseMessagesBody(json: Json, model: string): AiResponse {
   return {
     text,
     ...(toolCalls.length ? { toolCalls } : {}),
+    ...(json.stop_reason === "max_tokens" ? { cutOff: true as const } : {}),
     // Tokens read from or written to the prompt cache are input too, and with
     // the guides cached they are most of it.
     tokensIn:

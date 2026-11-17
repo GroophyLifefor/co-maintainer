@@ -1,4 +1,5 @@
 /** Review jobs: run the model, persist findings, post to GitHub. */
+import { setGitHubAuth } from "../pr/git_auth.ts";
 import { VERSION } from "../version.ts";
 import { createAiProvider } from "../ai/provider.ts";
 import { FakeAiProvider } from "../ai/fake.ts";
@@ -23,6 +24,7 @@ import {
   incrementalDiffPaths,
   parsePreviousVerdicts,
   resolveCarryOutcomes,
+  withoutWithdrawn,
 } from "../review/carry_over.ts";
 import { runReviewEngine } from "../review/engine.ts";
 import {
@@ -69,6 +71,7 @@ import {
   listCarryableFindingsForReview,
   listFindingsForPr,
   listFindingsForReview,
+  listWithdrawnFindingsForPr,
   setFindingPosted,
 } from "../store/findings.ts";
 import {
@@ -87,11 +90,7 @@ import { hasWriteAccess } from "../github/write_access.ts";
 import { withExtensions } from "../extensions/session.ts";
 import { appPrContext } from "../extensions/contexts.ts";
 import { reviewResultJson } from "../extensions/review_result.ts";
-import {
-  EMPTY_REPORT,
-  hasExtensions,
-  type ExtensionReport,
-} from "../extensions/report.ts";
+import { EMPTY_REPORT, type ExtensionReport } from "../extensions/report.ts";
 import {
   reviewBodyWithExtensions,
   reviewEventWithExtensions,
@@ -721,6 +720,34 @@ async function updateCheck(
   }
 }
 
+/** A review stopped from the dashboard: nothing is posted, and its check run
+ * closes as cancelled so the pull request does not wait on it forever. */
+async function stoppedReview(
+  client: GitHubClient,
+  job: JobRow,
+  reviewId: string,
+  checkRunId: string | undefined,
+  log: LogFn,
+): Promise<void> {
+  setReviewStatus(reviewId, "canceled");
+  await updateCheck(
+    client,
+    job,
+    checkRunId,
+    {
+      status: "completed",
+      conclusion: "cancelled",
+      completed_at: new Date().toISOString(),
+      output: {
+        title: "Review stopped from the dashboard.",
+        summary: "This commit was not reviewed. Nothing was posted.",
+      },
+    },
+    log,
+  );
+  log("info", "stopped, nothing was posted");
+}
+
 async function finishCheck(
   client: GitHubClient,
   job: JobRow,
@@ -1006,6 +1033,9 @@ async function runReviewJobCore(
     throw new Error(`no GitHub App installation stored for ${job.repo}`);
   }
   const github = client ?? clientFor(installationId!);
+  // The checkout for scope and codegraph clones with the App token, not the
+  // machine's own git login, so a private repository keeps its scope.
+  if (github.gitToken) setGitHubAuth(job.repo, () => github.gitToken!());
   const existing = getReviewByJobId(job.id);
   if (
     existing &&
@@ -1174,7 +1204,8 @@ async function runReviewJobCore(
     unchangedPaths?: string[];
     catchesUp?: boolean;
     resend?: Json[];
-  } = { catchesUp };
+    signal?: AbortSignal;
+  } = { catchesUp, signal };
   // A guide rebuilt after the previous review invalidates that review's
   // verdicts and its "unchanged" suppression. Treat the run as
   // if it had started fresh: carry-over off, every changed file back in scope,
@@ -1281,12 +1312,21 @@ async function runReviewJobCore(
     // A provider throw or an empty/unusable answer is a failed attempt, not a
     // review that found nothing. Its cost is kept when the provider reported
     // one, and the pull request gets one note pointing at the dashboard.
+    // A Stop is not a failure: nothing is posted.
+    if (signal?.aborted) {
+      await stoppedReview(github, job, reviewId, checkRunId, log);
+      return;
+    }
     await recordFailedReview(github, job, reviewId, costTally, log);
     throw error;
   }
-  // A Stop while extensions ran cut them short: posting would name them as
-  // failed. The remote job returns the same way.
-  if (signal?.aborted && hasExtensions(extensions)) return;
+  // A Stop during the review: the AI call that was running has finished, and
+  // nothing is posted or stored. Extensions it cut short would read as failed.
+  // The remote job returns the same way.
+  if (signal?.aborted) {
+    await stoppedReview(github, job, reviewId, checkRunId, log);
+    return;
+  }
   guideBuiltAt = response.guideBuiltAt;
   const visiblePaths = new Set(response.visiblePaths);
   if (carryPrevious) {
@@ -1297,7 +1337,21 @@ async function runReviewJobCore(
       guideBuiltAt,
     );
   }
-  const parsed = parseFindings(response.text);
+  const { kept: parsed, dropped: repeatsOfWithdrawn } = withoutWithdrawn(
+    parseFindings(response.text),
+    listWithdrawnFindingsForPr(job.repo, job.pr_number).map((row) => ({
+      path: row.path,
+      lineFrom: row.line_from,
+      anchorText: row.anchor_text,
+    })),
+    revision,
+  );
+  if (repeatsOfWithdrawn.length > 0) {
+    log(
+      "info",
+      `dropped ${repeatsOfWithdrawn.length} finding(s) the bot withdrew earlier, their lines are unchanged`,
+    );
+  }
   log("info", `parsed ${parsed.length} new finding(s) from the AI response`);
   let totalFindings = parsed.length;
   let openCount = 0;

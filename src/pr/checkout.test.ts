@@ -1,4 +1,5 @@
-import { ensureClone } from "./checkout.ts";
+import { ensureClone, ensureCommit } from "./checkout.ts";
+import { clearGitHubAuthForTest, setGitHubAuth } from "./git_auth.ts";
 import type { CommandResult, Run } from "./checkout.ts";
 import {
   deleteEnv,
@@ -109,5 +110,82 @@ test("ensureClone reports a clone failure as one actionable line", async () => {
     !message.endsWith("fatal: could not read Username for 'https://github.com'")
   ) {
     throw new Error(`the reason is missing: ${message}`);
+  }
+});
+
+test("an App job's clone and fetch carry its token in the environment only", async () => {
+  const clonesRoot = await tempDir();
+  const prev = getEnv("CM_CLONES_DIR");
+  setEnv("CM_CLONES_DIR", clonesRoot);
+  const seen: { args: string[]; env?: Record<string, string> }[] = [];
+  const run: Run = async (_command, args, _cwd, env) => {
+    seen.push({ args, env });
+    if (args.includes("clone")) {
+      await mkdirPath(`${args[args.length - 1]}/.git`, { recursive: true });
+    }
+    // `rev-parse`/`cat-file` find nothing, so `ensureCommit` fetches.
+    if (args.includes("rev-parse") || args.includes("cat-file")) {
+      return { code: 1, stdout: "", stderr: "" };
+    }
+    return { code: 0, stdout: "", stderr: "" };
+  };
+  const repo = `auth-test/${crypto.randomUUID()}`;
+  try {
+    setGitHubAuth(repo, async () => "app-token-123");
+    const dir = await ensureClone(repo, run);
+    await ensureCommit(dir, "a".repeat(40), run).catch(() => {});
+    const want = `AUTHORIZATION: basic ${Buffer.from("x-access-token:app-token-123").toString("base64")}`;
+    for (const name of ["clone", "fetch"]) {
+      const call = seen.find((item) => item.args.includes(name));
+      if (!call) throw new Error(`no git ${name} ran`);
+      if (call.env?.GIT_CONFIG_VALUE_0 !== want) {
+        throw new Error(`git ${name} env: ${JSON.stringify(call.env)}`);
+      }
+      if (call.args.join(" ").includes("app-token-123")) {
+        throw new Error(`the token is on the git ${name} command line`);
+      }
+    }
+    // A repository no App job registered keeps the machine's own login.
+    seen.length = 0;
+    await ensureClone(`auth-test/${crypto.randomUUID()}`, run);
+    if (seen.find((item) => item.args.includes("clone"))?.env !== undefined) {
+      throw new Error("an unregistered clone got an auth environment");
+    }
+  } finally {
+    clearGitHubAuthForTest();
+    if (prev === undefined) deleteEnv("CM_CLONES_DIR");
+    else setEnv("CM_CLONES_DIR", prev);
+    await removePath(clonesRoot, { recursive: true });
+  }
+});
+
+test("an App token that cannot be minted fails the clone instead of using the machine's login", async () => {
+  const clonesRoot = await tempDir();
+  const prev = getEnv("CM_CLONES_DIR");
+  setEnv("CM_CLONES_DIR", clonesRoot);
+  const cloned: string[][] = [];
+  const run: Run = async (_command, args) => {
+    if (args.includes("clone")) cloned.push(args);
+    return { code: 0, stdout: "", stderr: "" };
+  };
+  const repo = `auth-fail/${crypto.randomUUID()}`;
+  try {
+    setGitHubAuth(repo, async () => {
+      throw new Error("GitHub API 401");
+    });
+    let message = "";
+    await ensureClone(repo, run).catch((error: Error) => {
+      message = error.message;
+    });
+    if (!message.includes("could not get the App token")) {
+      throw new Error(`clone did not fail on the token: ${message}`);
+    }
+    if (cloned.length > 0)
+      throw new Error("git clone ran without the App token");
+  } finally {
+    clearGitHubAuthForTest();
+    if (prev === undefined) deleteEnv("CM_CLONES_DIR");
+    else setEnv("CM_CLONES_DIR", prev);
+    await removePath(clonesRoot, { recursive: true });
   }
 });

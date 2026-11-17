@@ -185,3 +185,49 @@ test("a provider without tool support skips the loop entirely", async () => {
   if (result.text !== "plain") throw new Error(result.text);
   if (provider.requests[0].tools) throw new Error("tools were sent anyway");
 });
+
+test("a Stop between tool rounds carries the cost of the calls already made", async () => {
+  const stop = new AbortController();
+  let calls = 0;
+  const provider: AiProvider = {
+    complete: async (): Promise<AiResponse> => {
+      calls++;
+      // Stop is pressed while the first call runs. It asks for a tool, so
+      // without the Stop a second call would follow.
+      stop.abort();
+      return {
+        text: "",
+        toolCalls: [
+          {
+            id: "call-1",
+            type: "function",
+            function: { name: "read-mermaid-syntaxes", arguments: "{}" },
+          },
+        ],
+        tokensIn: 100,
+        tokensOut: 7,
+        cost: 0.01,
+        model: "m",
+        provider: "openrouter",
+      };
+    },
+  };
+  let thrown: unknown;
+  try {
+    await completeWithMermaidTools(
+      provider,
+      { job: "review_local", prompt: "review", maxTokens: 100 },
+      1,
+      [],
+      5,
+      { signal: stop.signal },
+    );
+  } catch (error) {
+    thrown = error;
+  }
+  const partial = (thrown as { partial?: AiResponse } | undefined)?.partial;
+  if (calls !== 1) throw new Error(`${calls} calls, expected 1`);
+  if (partial?.tokensIn !== 100 || partial.tokensOut !== 7) {
+    throw new Error(`partial usage: ${JSON.stringify(partial)}`);
+  }
+});

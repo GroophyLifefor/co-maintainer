@@ -11,6 +11,7 @@
  *
  * Issues need the App. Without it a push review still runs and reports to
  * CI, but opens, comments on and closes nothing. */
+import { setGitHubAuth } from "../pr/git_auth.ts";
 import { withResolvedReferences } from "../review/references.ts";
 import { parseFindings, type ParsedFinding } from "../pr/findings.ts";
 import { githubFileToRevisionFile } from "../pr/github_revision.ts";
@@ -151,7 +152,12 @@ async function appClientFor(repo: string): Promise<GitHubClient | undefined> {
   if (!appConfigured()) return undefined;
   try {
     const id = await resolveInstallationId(repo);
-    return id === undefined ? undefined : clientFor(id);
+    if (id === undefined) return undefined;
+    const client = clientFor(id);
+    // The push review's checkout clones with the App token, not the
+    // machine's own git login.
+    setGitHubAuth(repo, () => client.gitToken!());
+    return client;
   } catch {
     return undefined;
   }
@@ -937,7 +943,11 @@ async function runPushReview(
                 },
                 ai,
                 (message) => log("info", message),
-                { carryPrompt: knownPrompt(checks), job: "review_push" },
+                {
+                  carryPrompt: knownPrompt(checks),
+                  job: "review_push",
+                  signal,
+                },
               ),
           );
     if (signal.aborted) return;

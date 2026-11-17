@@ -6,6 +6,7 @@ import {
   parsePreviousVerdicts,
   type CarryItem,
   type StoredFinding,
+  withoutWithdrawn,
 } from "./carry_over.ts";
 import type { Revision } from "./revision.ts";
 import {
@@ -255,5 +256,43 @@ test("the seen set carries forward through the real plan: a dropped file is cove
   const three = round(revision, two.seen, max);
   if (three.sent.length !== 0) {
     throw new Error(`round 3 has nothing new: ${three.sent.join()}`);
+  }
+});
+
+test("a withdrawn finding blocks a repeat only while its lines are unchanged", () => {
+  const withdrawn = [
+    { path: "src/app.ts", lineFrom: 2, anchorText: "  if (ready) run()" },
+  ];
+  const again = { path: "src/app.ts", from: 2, to: 2 };
+  const elsewhere = { path: "src/app.ts", from: 9, to: 9 };
+  const same = revisionWith(
+    "src/app.ts",
+    "@@ -1,2 +1,3 @@\n start()\n+  if (ready) run()\n+  stop()",
+  );
+  const kept = withoutWithdrawn([again, elsewhere], withdrawn, same);
+  if (kept.dropped.length !== 1 || kept.dropped[0] !== again) {
+    throw new Error(`unchanged lines: dropped ${JSON.stringify(kept.dropped)}`);
+  }
+  // Moved down one line by an edit above: still the same lines, still blocked.
+  const moved = revisionWith(
+    "src/app.ts",
+    "@@ -1,2 +1,4 @@\n start()\n+  log()\n+  if (ready) run()\n+  stop()",
+  );
+  const shifted = withoutWithdrawn(
+    [{ path: "src/app.ts", from: 3, to: 3 }],
+    withdrawn,
+    moved,
+  );
+  if (shifted.dropped.length !== 1) {
+    throw new Error("a repeat on the moved line was not blocked");
+  }
+  // The lines changed: the finding can be raised again.
+  const changed = revisionWith(
+    "src/app.ts",
+    "@@ -1,2 +1,3 @@\n start()\n+  if (ready && safe) run()\n+  stop()",
+  );
+  const raised = withoutWithdrawn([again], withdrawn, changed);
+  if (raised.kept.length !== 1) {
+    throw new Error("a finding on changed lines was blocked");
   }
 });

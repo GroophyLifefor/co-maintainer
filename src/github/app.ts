@@ -118,6 +118,10 @@ export class AppClient implements GitHubClient {
     );
   }
 
+  async gitToken(): Promise<string> {
+    return await this.app.installationToken(this.installationId);
+  }
+
   async pages<T>(
     endpoint: string,
     limit?: number,

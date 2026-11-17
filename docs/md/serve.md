@@ -168,6 +168,9 @@ When a secret is configured, `serve` checks `x-hub-signature-256`. Duplicate
 delivery IDs are ignored. `pull_request` and review-comment events enqueue jobs
 when the repo is active and rules allow it. Enable **Issue comments** and
 **Issues: write** on the App if you want `@co-maintainer` conversation replies.
+When a reply on a finding's thread agrees that the finding was wrong, the
+finding closes at once. A later round does not raise it again while its lines
+are unchanged.
 
 Manual PR review from the UI when GitHub cannot reach your host:
 [Dashboard: Pull requests](dashboard.md#routes).

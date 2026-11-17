@@ -111,7 +111,7 @@ Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
 | `/repos/:owner/:repo/knowledge` | Generated guides (including **Repository instructions** when the repository has an `INSTRUCTIONS.md`), **Sync**, **Clear** |
 | `/repos/:owner/:repo/settings` | **Who gets a review** (the [review policy](review-policy.md)), review scope, codegraph, [commit watch](commit-watch-review.md) issues and pushes in a row, analysis limits, schedule, remove repo |
 | `/repos/:owner/:repo/pushes` | [Commit watch](commit-watch-review.md) push reviews: range, App or CI, status, findings by severity, issues opened, cost |
-| `/activity` | Live and recent jobs (refreshes about every 5 seconds) and **Pull requests we skipped**, with the rule that skipped each and **Review now** for one that is waiting |
+| `/activity` | Live and recent jobs (refreshes about every 5 seconds) and **Pull requests we skipped**, with the rule that skipped each and **Review now** for one that is waiting. **Stop** on a running job lets the AI call in progress finish, then the job writes and posts nothing |
 | `/activity/:id` | Single job log |
 | `/analytics` | Usage for 7, 30, or 90 days |
 | `/settings` | Global models, GitHub, App (**Create GitHub App**), webhook URL, review policy default, remote limits, tokens and key policy |

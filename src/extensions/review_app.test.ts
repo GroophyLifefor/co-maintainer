@@ -331,3 +331,51 @@ test("a Stop while extensions run posts nothing", posixOnly, async () => {
     },
   ]);
 });
+
+test(
+  "Stop during an App review lets the AI call finish and posts nothing",
+  posixOnly,
+  async () => {
+    await withServe(async () => {
+      const checks: Json[] = [];
+      const github = Object.assign(new FakeGithub(), {
+        createCheckRun<T>(): Promise<T> {
+          return Promise.resolve({ id: 77 } as T);
+        },
+        updateCheckRun<T>(_endpoint: string, body: unknown): Promise<T> {
+          checks.push(body as Json);
+          return Promise.resolve({} as T);
+        },
+      });
+      const stop = new AbortController();
+      const fake = new FakeAiProvider();
+      const stopping = {
+        complete: async (
+          request: Parameters<FakeAiProvider["complete"]>[0],
+        ) => {
+          stop.abort();
+          return await fake.complete(request);
+        },
+      };
+      await runReviewJob(
+        job("job-stop", "opened"),
+        () => {},
+        github,
+        stopping,
+        stop.signal,
+      );
+      const writes = github.writes.map((write) => write.endpoint);
+      if (writes.some((endpoint) => /\/(reviews|comments)$/.test(endpoint))) {
+        throw new Error(`posted after Stop: ${writes.join(", ")}`);
+      }
+      const review = getReviewByJobId("job-stop");
+      if (review?.status !== "canceled") {
+        throw new Error(`review is ${review?.status}`);
+      }
+      const last = checks.at(-1);
+      if (last?.status !== "completed" || last.conclusion !== "cancelled") {
+        throw new Error(`check run left as ${JSON.stringify(last)}`);
+      }
+    });
+  },
+);

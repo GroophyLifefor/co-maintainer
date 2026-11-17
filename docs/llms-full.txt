@@ -530,6 +530,15 @@ is not filled from the previous listing. `--only-request-changed-pr` does not
 turn itself off. To collect every state again, pass
 `--pr-state=open,closed,merged`.
 
+## A guide cut at the output limit
+
+The review guide is written with an output limit, 16,000 tokens for the
+detailed guide and 8,000 for the short one. When the answer stops at that
+limit, `sync` asks once more with twice the limit. When the second answer is
+cut too, nothing is written and the last guide stays, so a review never reads
+a guide that ends mid-line. The run says so in one line, and `sync --json` has
+`reviewGuide: "kept"`.
+
 ## What `sync` says about guide rules
 
 Each check line of the review guides rests on the pull requests whose findings
@@ -2889,6 +2898,9 @@ When a secret is configured, `serve` checks `x-hub-signature-256`. Duplicate
 delivery IDs are ignored. `pull_request` and review-comment events enqueue jobs
 when the repo is active and rules allow it. Enable **Issue comments** and
 **Issues: write** on the App if you want `@co-maintainer` conversation replies.
+When a reply on a finding's thread agrees that the finding was wrong, the
+finding closes at once. A later round does not raise it again while its lines
+are unchanged.
 
 Manual PR review from the UI when GitHub cannot reach your host:
 [Dashboard: Pull requests](dashboard.md#routes).
@@ -3086,7 +3098,7 @@ Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
 | `/repos/:owner/:repo/knowledge` | Generated guides (including **Repository instructions** when the repository has an `INSTRUCTIONS.md`), **Sync**, **Clear** |
 | `/repos/:owner/:repo/settings` | **Who gets a review** (the [review policy](review-policy.md)), review scope, codegraph, [commit watch](commit-watch-review.md) issues and pushes in a row, analysis limits, schedule, remove repo |
 | `/repos/:owner/:repo/pushes` | [Commit watch](commit-watch-review.md) push reviews: range, App or CI, status, findings by severity, issues opened, cost |
-| `/activity` | Live and recent jobs (refreshes about every 5 seconds) and **Pull requests we skipped**, with the rule that skipped each and **Review now** for one that is waiting |
+| `/activity` | Live and recent jobs (refreshes about every 5 seconds) and **Pull requests we skipped**, with the rule that skipped each and **Review now** for one that is waiting. **Stop** on a running job lets the AI call in progress finish, then the job writes and posts nothing |
 | `/activity/:id` | Single job log |
 | `/analytics` | Usage for 7, 30, or 90 days |
 | `/settings` | Global models, GitHub, App (**Create GitHub App**), webhook URL, review policy default, remote limits, tokens and key policy |
@@ -3333,6 +3345,7 @@ applies without a restart.
 | App created but no review arrives | Install the App on the repository, turn on auto-review in repo **Settings**, and confirm the webhook delivered |
 | Settings save returns `422` | The key or token is missing a scope GitHub requires |
 | Webhook works but no review is posted | Check the Activity job log, then the AI key and models under **Settings** |
+| A private repository is reviewed from the diff alone | The review clones with the App's installation token. Check that the App is installed on the repository with **Contents: Read** |
 
 Webhook reachability problems are shown on each repository's **Overview** tab.
 See [Dashboard: Webhook reachability](dashboard.md#webhook-reachability).

@@ -265,6 +265,11 @@ export function parseResponsesBody(
   return {
     text,
     ...(toolCalls.length ? { toolCalls } : {}),
+    ...(json.status === "incomplete" &&
+    ((json.incomplete_details as Json | undefined)?.reason ??
+      "max_output_tokens") === "max_output_tokens"
+      ? { cutOff: true as const }
+      : {}),
     tokensIn: Number(usage?.input_tokens ?? 0),
     tokensOut: Number(usage?.output_tokens ?? 0),
     // OpenAI's Responses API reports no dollar cost, so this is always

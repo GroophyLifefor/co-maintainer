@@ -147,6 +147,7 @@ export function parseChatResponse(
   return {
     text,
     ...(toolCalls?.length ? { toolCalls } : {}),
+    ...(choice?.finish_reason === "length" ? { cutOff: true as const } : {}),
     tokensIn: Number(usage?.prompt_tokens ?? 0),
     tokensOut: Number(usage?.completion_tokens ?? 0),
     cost: Number.isFinite(cost) ? cost : undefined,
