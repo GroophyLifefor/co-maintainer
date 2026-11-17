@@ -183,6 +183,12 @@ co-maintainer sync owner/repo [options]
 | `--gh-concurrent=N` | 1 | Concurrent GitHub calls for this run only. It does not change the saved default. |
 | `--ai-concurrent=N` | 3 | Concurrent AI calls for this run only. It does not change the saved default. |
 
+### Review guide
+
+| Flag | Default | Description |
+|---|---|---|
+| `--full-guide` |  | Rewrite the review guide in full now, instead of editing it, and start the count of --guide-full-every again. |
+
 ## `co-maintainer review`
 
 Review a pull request, or the local changes in this workspace.
@@ -414,6 +420,7 @@ co-maintainer set [options]
 | `--plantuml-server=URL` | https://www.plantuml.com | The PlantUML server for plantuml-server. An http or https URL. Needs --repo. |
 | `--plantuml-output-format=svg\|png` | svg | The image format for plantuml-server. Needs --repo. |
 | `--review-read-diff-max-chars=N` | 20000 | The most characters one read-full-diff answer returns in a review of this repository. Needs --repo. 0 or -1 means no limit. |
+| `--guide-full-every=N` | 10 | Every N-th sync whose input changed rewrites the review guide in full, the others edit it. 1 always rewrites, 0 never after init. Needs --repo. |
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |
 | `--codegraph-version=SEMVER` |  | The pinned codegraph version, overriding the built-in one. For a security fix without a release. |
 | `--password=TEXT` |  | Replace the dashboard password. |

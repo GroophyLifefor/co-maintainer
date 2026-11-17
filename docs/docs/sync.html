@@ -271,6 +271,42 @@ state is kept. The listing cache is stored per state set, so a different set
 is not filled from the previous listing. <code>--only-request-changed-pr</code> does not
 turn itself off. To collect every state again, pass
 <code>--pr-state=open,closed,merged</code>.</p>
+<h2 id="editing-the-guide-instead-of-rewriting-it">Editing the guide instead of rewriting it</h2>
+<p><code>sync</code> edits the review guide: the model gets the current guide with its rule
+ids, the findings that are new since the last guide and the ones that are
+gone, and answers with rules to add, change and remove. Every other line stays
+as it was, so the diff of <code>PR_REVIEW_GUIDE.md</code> shows only what changed and the
+sync pays for one short call instead of two long ones. The short guide gets
+the same edits. A sync whose findings did not change keeps the guide and makes
+no call.</p>
+<p>Every 10th sync whose findings changed rewrites the guide in full, as <code>init</code>
+does. Set the number per repository:</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--guide-full-every=10</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">sync</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--full-guide</span>
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>10</code> (default)</td>
+<td>Every 10th changed sync rewrites in full, the others edit</td>
+</tr>
+<tr>
+<td><code>1</code></td>
+<td>Always rewrite in full</td>
+</tr>
+<tr>
+<td><code>0</code></td>
+<td>Never rewrite in full after <code>init</code></td>
+</tr>
+</tbody></table>
+<p><code>--full-guide</code> rewrites in full now and starts the count again. An edit answer
+that does not fit the guide, such as a rule id the guide does not have, is
+not applied: that sync rewrites in full instead.</p>
 <h2 id="a-guide-cut-at-the-output-limit">A guide cut at the output limit</h2>
 <p>The review guide is written with an output limit, 16,000 tokens for the
 detailed guide and 8,000 for the short one. When the answer stops at that
@@ -445,7 +481,7 @@ name so existing config files keep working.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#a-guide-cut-at-the-output-limit">A guide cut at the output limit</a></li><li><a href="#what-sync-says-about-guide-rules">What sync says about guide rules</a></li><li><a href="#references-and-comment-links">References and comment links</a></li><li><a href="#what-sync-says-about-instruction-rules">What sync says about instruction rules</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#what-gets-reused">What gets reused</a></li><li><a href="#scheduled-sync">Scheduled sync</a></li></ul></nav>
+      <ul><li><a href="#before-you-run">Before you run</a></li><li><a href="#usage">Usage</a></li><li><a href="#parameters">Parameters</a></li><li><a href="#editing-the-guide-instead-of-rewriting-it">Editing the guide instead of rewriting it</a></li><li><a href="#a-guide-cut-at-the-output-limit">A guide cut at the output limit</a></li><li><a href="#what-sync-says-about-guide-rules">What sync says about guide rules</a></li><li><a href="#references-and-comment-links">References and comment links</a></li><li><a href="#what-sync-says-about-instruction-rules">What sync says about instruction rules</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#what-gets-reused">What gets reused</a></li><li><a href="#scheduled-sync">Scheduled sync</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

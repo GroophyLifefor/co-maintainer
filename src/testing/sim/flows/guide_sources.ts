@@ -225,7 +225,9 @@ export default defineFlow({
     {
       name: STEP.sync,
       async run(sim) {
-        sim.state.sync = built(sim, await runSync(sim));
+        // This flow is about the sources of a guide written in full. Editing
+        // the guide (#113) has its own tests.
+        sim.state.sync = built(sim, await runSync(sim, ["--full-guide"]));
         return `${Object.keys(guideRules(sim)).length} guide rules`;
       },
     },
@@ -246,7 +248,7 @@ export default defineFlow({
           times: 1,
           reply: oddGuide,
         });
-        sim.state.odd = built(sim, await runSync(sim));
+        sim.state.odd = built(sim, await runSync(sim, ["--full-guide"]));
         return "guide written again";
       },
     },
