@@ -567,7 +567,18 @@ async function editReviewGuides(
     Math.max(1, concurrency),
     `${ai}:v3:${model}:guide`,
   );
-  const response = await uncut(queue, request, usage);
+  // An edit call that fails, for example on a context limit the size
+  // estimate missed, is not a failed sync: the guide is rewritten in full.
+  let response: Awaited<ReturnType<typeof uncut>>;
+  try {
+    response = await uncut(queue, request, usage);
+  } catch (error) {
+    log(
+      "ai",
+      `edit_guide failed (${error instanceof Error ? error.message : String(error)}), rewriting the guide in full`,
+    );
+    return FULL;
+  }
   if (response === CUT || !response) {
     log("ai", "edit_guide gave no usable answer, rewriting the guide in full");
     return FULL;

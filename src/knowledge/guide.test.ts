@@ -770,3 +770,51 @@ test("a change too big to send as an edit is rewritten in full", async () => {
     await cleanup(repo);
   }
 });
+
+test("an edit call that fails rewrites the guide in full instead of failing the sync", async () => {
+  const repo = `guide-edit-throws-${crypto.randomUUID()}`;
+  const jobs: string[] = [];
+  const provider: AiProvider = {
+    async complete(request) {
+      jobs.push(request.job);
+      if (request.job === "edit_guide") {
+        throw new Error("This model's maximum context length is 64000 tokens");
+      }
+      return {
+        text: SHORT_GUIDE,
+        tokensIn: 1,
+        tokensOut: 1,
+        model: "fixture",
+        provider: "openrouter",
+      };
+    },
+  };
+  const outcome: { mode?: "full" | "edit" | "unchanged" } = {};
+  try {
+    const documents = await synthesizeReviewGuides(
+      provider,
+      repo,
+      "openrouter",
+      "fixture",
+      1,
+      [...OLD_THREE, finding("Drain writes before shutdown.")],
+      undefined,
+      undefined,
+      {
+        guide: EDIT_GUIDE,
+        rules: EDIT_RULES,
+        findings: OLD_THREE.map((item) => item.claim.toLowerCase()),
+      },
+      outcome,
+    );
+    if (
+      outcome.mode !== "full" ||
+      !documents ||
+      !jobs.includes("synth_guide")
+    ) {
+      throw new Error(`mode ${outcome.mode} · calls ${jobs.join(",")}`);
+    }
+  } finally {
+    await cleanup(repo);
+  }
+});
