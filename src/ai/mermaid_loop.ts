@@ -7,6 +7,7 @@ import type {
   Json,
 } from "../types.ts";
 import { MERMAID_TOOL, readMermaidSyntaxes } from "./mermaid.ts";
+import { ToolGate } from "./tool_gate.ts";
 import { log } from "../util/log.ts";
 
 const DEFAULT_MAX_TOOL_ROUNDS = 3;
@@ -18,6 +19,9 @@ export type ToolHandler = {
   tool: Json;
   name: string;
   run: (args: unknown) => Promise<string> | string;
+  /** The result comes from outside the repository, so the gate puts the
+   * fixed data line before it. */
+  external?: boolean;
 };
 
 async function runTool(
@@ -56,8 +60,11 @@ export async function completeWithMermaidTools(
   options: {
     signal?: AbortSignal;
     onResponse?: (response: AiResponse) => void | Promise<void>;
+    /** The review's gate. Left out, results are not limited. */
+    gate?: ToolGate;
   } = {},
 ): Promise<AiResponse> {
+  const gate = options.gate ?? new ToolGate();
   if (provider.supportsTools === false) {
     const response = await provider.complete(request);
     if (options.onResponse) await options.onResponse(response);
@@ -109,6 +116,7 @@ export async function completeWithMermaidTools(
     if (options.onResponse) await options.onResponse(response);
     if (!response.toolCalls?.length) return merge(response);
     sofar = merge(response);
+    gate.round();
     log(
       "review-tools",
       `round ${
@@ -122,20 +130,31 @@ export async function completeWithMermaidTools(
       content: response.text || null,
       tool_calls: response.toolCalls,
     });
-    const results = await Promise.all(
+    const ran = await Promise.all(
       response.toolCalls.map(async (call) => {
-        const result = await runTool(call, maxTools, extraTools);
+        const refused = gate.refuse(call.function.name);
+        const raw = refused ?? (await runTool(call, maxTools, extraTools));
         log(
           "review-tools",
-          `${call.function.name}(${call.function.arguments}) → ${result.length} chars${
-            result.startsWith("Tool error") || result.startsWith("codegraph ")
-              ? `: ${result.slice(0, 200)}`
+          `${call.function.name}(${call.function.arguments}) → ${raw.length} chars${
+            raw.startsWith("Tool error") || raw.startsWith("codegraph ")
+              ? `: ${raw.slice(0, 200)}`
               : ""
           }`,
         );
-        return { call, result };
+        return { call, raw, refused: refused !== undefined };
       }),
     );
+    // The gate counts in call order, so the budget is spent the same way
+    // whichever tool finished first.
+    const results = ran.map(({ call, raw, refused }) => ({
+      call,
+      result: gate.accept(call.function.name, raw, {
+        refused,
+        external: extraTools.find((item) => item.name === call.function.name)
+          ?.external,
+      }),
+    }));
     for (const { call, result } of results) {
       messages.push({
         role: "tool",
