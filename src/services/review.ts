@@ -720,6 +720,34 @@ async function updateCheck(
   }
 }
 
+/** A review stopped from the dashboard: nothing is posted, and its check run
+ * closes as cancelled so the pull request does not wait on it forever. */
+async function stoppedReview(
+  client: GitHubClient,
+  job: JobRow,
+  reviewId: string,
+  checkRunId: string | undefined,
+  log: LogFn,
+): Promise<void> {
+  setReviewStatus(reviewId, "canceled");
+  await updateCheck(
+    client,
+    job,
+    checkRunId,
+    {
+      status: "completed",
+      conclusion: "cancelled",
+      completed_at: new Date().toISOString(),
+      output: {
+        title: "Review stopped from the dashboard.",
+        summary: "This commit was not reviewed. Nothing was posted.",
+      },
+    },
+    log,
+  );
+  log("info", "stopped, nothing was posted");
+}
+
 async function finishCheck(
   client: GitHubClient,
   job: JobRow,
@@ -1286,8 +1314,7 @@ async function runReviewJobCore(
     // one, and the pull request gets one note pointing at the dashboard.
     // A Stop is not a failure: nothing is posted.
     if (signal?.aborted) {
-      setReviewStatus(reviewId, "canceled");
-      log("info", "stopped during the review, nothing was posted");
+      await stoppedReview(github, job, reviewId, checkRunId, log);
       return;
     }
     await recordFailedReview(github, job, reviewId, costTally, log);
@@ -1297,8 +1324,7 @@ async function runReviewJobCore(
   // nothing is posted or stored. Extensions it cut short would read as failed.
   // The remote job returns the same way.
   if (signal?.aborted) {
-    setReviewStatus(reviewId, "canceled");
-    log("info", "stopped before posting, nothing was posted");
+    await stoppedReview(github, job, reviewId, checkRunId, log);
     return;
   }
   guideBuiltAt = response.guideBuiltAt;

@@ -337,7 +337,16 @@ test(
   posixOnly,
   async () => {
     await withServe(async () => {
-      const github = new FakeGithub();
+      const checks: Json[] = [];
+      const github = Object.assign(new FakeGithub(), {
+        createCheckRun<T>(): Promise<T> {
+          return Promise.resolve({ id: 77 } as T);
+        },
+        updateCheckRun<T>(_endpoint: string, body: unknown): Promise<T> {
+          checks.push(body as Json);
+          return Promise.resolve({} as T);
+        },
+      });
       const stop = new AbortController();
       const fake = new FakeAiProvider();
       const stopping = {
@@ -362,6 +371,10 @@ test(
       const review = getReviewByJobId("job-stop");
       if (review?.status !== "canceled") {
         throw new Error(`review is ${review?.status}`);
+      }
+      const last = checks.at(-1);
+      if (last?.status !== "completed" || last.conclusion !== "cancelled") {
+        throw new Error(`check run left as ${JSON.stringify(last)}`);
       }
     });
   },
