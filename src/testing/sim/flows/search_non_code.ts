@@ -445,7 +445,9 @@ function budgetChecks(sim: Sim): CheckResult[] {
     scriptedCheck(
       sim,
       "a spent tool budget answers the next call with the fixed text and warns",
-      answers.some((answer) => answer.endsWith("[cut at 10 characters]")) &&
+      // Ten characters leave no room for the cut notice: the first answer
+      // is only cut to the budget.
+      (answers[0]?.length ?? Infinity) <= 10 &&
         answers.includes("Tool budget spent. Answer with what you found.") &&
         warnings.includes("tool_budget_spent") &&
         tools?.budgetSpent === true,
