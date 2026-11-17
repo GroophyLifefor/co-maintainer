@@ -215,7 +215,8 @@ server, and runs each call the server's model makes, on your machine.
   a digit or a dash turned into a dash, for example `client-tracker-get-issue`.
   The same rules as on your machine apply first: only the tools in `tools`, and
   never one the MCP server marks as not read-only.
-- **The server's limits.** At most 16 declared tools, at most 16 KB per
+- **The server's limits.** At most 16 declared tools, 64 KB for all of them
+  together, at most 16 KB per
   declaration, and a name of 2 to 64 lowercase letters, digits or dashes that
   starts with a letter and is not a name of the server's own tools
   (`codegraph-*`, `search-non-code`, `read-full-diff`, `read-mermaid-syntaxes`,
