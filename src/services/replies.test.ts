@@ -6,7 +6,13 @@ import {
   setReplyStatus,
 } from "../store/replies.ts";
 import { getJob } from "../store/jobs.ts";
-import { runReplyJob } from "./replies.ts";
+import { runReplyJob, takeWithdrawLine } from "./replies.ts";
+import { insertReview } from "../store/reviews.ts";
+import {
+  insertFinding,
+  listFindingsForPr,
+  setFindingPosted,
+} from "../store/findings.ts";
 import { cacheValues } from "../store/cache_db.ts";
 import type { AiProvider, GitHubClient, Json } from "../types.ts";
 import type { JobRow } from "../store/rows.ts";
@@ -273,4 +279,97 @@ test("a reply already accepted by GitHub is reconciled by its marker", async () 
       throw new Error("reply marker was not reconciled");
     }
   });
+});
+
+/** A review of pull request 1 with one finding posted as comment 10. */
+function postedFinding(jobId: string): string {
+  const reviewId = crypto.randomUUID();
+  insertReview({
+    id: reviewId,
+    repo: "acme/widgets",
+    prNumber: 1,
+    jobId,
+    headSha: "head1",
+    baseSha: "base1",
+    scope: "full",
+    model: "fake",
+  });
+  const findingId = crypto.randomUUID();
+  insertFinding({
+    id: findingId,
+    reviewId,
+    severity: "P2",
+    path: "src/app.ts",
+    lineFrom: 4,
+    lineTo: 4,
+    title: "[P2 · non-blocking] `src/app.ts`: `run()`",
+    bodyMd: "The original finding.",
+    state: "new",
+  });
+  setFindingPosted(findingId, "10");
+  return findingId;
+}
+
+test("a reply that agrees the finding was wrong withdraws it and never posts the marker line", async () => {
+  await withEnv(async () => {
+    const github = new FakeGithub();
+    const job = requestJob("review_comment", "107", "10");
+    const findingId = postedFinding(job.id);
+    await runReplyJob(
+      job,
+      () => {},
+      github,
+      replyAi("Agreed, the finding is incorrect.\n\nWITHDRAWN\n"),
+    );
+    const body = (github.writes[0]!.body as { body: string }).body;
+    if (body.includes("WITHDRAWN") || !body.includes("finding is incorrect")) {
+      throw new Error(`posted body: ${body}`);
+    }
+    const row = listFindingsForPr("acme/widgets", 1).find(
+      (item) => item.id === findingId,
+    );
+    if (row?.state !== "closed" || row.close_reason !== "withdrawn") {
+      throw new Error(`finding is ${row?.state}/${row?.close_reason}`);
+    }
+  });
+});
+
+test("a reply that defends the finding leaves it open", async () => {
+  await withEnv(async () => {
+    const github = new FakeGithub();
+    const job = requestJob("review_comment", "108", "10");
+    const findingId = postedFinding(job.id);
+    await runReplyJob(
+      job,
+      () => {},
+      github,
+      replyAi("The finding stands: the branch is still unsafe."),
+    );
+    const row = listFindingsForPr("acme/widgets", 1).find(
+      (item) => item.id === findingId,
+    );
+    if (row?.state !== "new") throw new Error(`finding is ${row?.state}`);
+  });
+});
+
+test("the WITHDRAWN line counts only as the last line, alone", () => {
+  const cases: Array<[string, boolean, string]> = [
+    ["Agreed.\nWITHDRAWN", true, "Agreed."],
+    ["Agreed.\n  WITHDRAWN  \n\n", true, "Agreed."],
+    ["WITHDRAWN is the word.\nThe finding stands.", false, ""],
+    ["The finding stands. WITHDRAWN", false, ""],
+  ];
+  for (const [answer, withdrawn, text] of cases) {
+    const result = takeWithdrawLine(answer);
+    if (result.withdrawn !== withdrawn) {
+      throw new Error(
+        `${JSON.stringify(answer)}: withdrawn ${result.withdrawn}`,
+      );
+    }
+    if (withdrawn && result.text !== text) {
+      throw new Error(
+        `${JSON.stringify(answer)}: text ${JSON.stringify(result.text)}`,
+      );
+    }
+  }
 });

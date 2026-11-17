@@ -1,4 +1,4 @@
-import type { ParsedFinding } from "../pr/findings.ts";
+import type { ParsedFinding, Span } from "../pr/findings.ts";
 import type { ResolvedReference } from "./references.ts";
 import { spansOverlap } from "../pr/rounds.ts";
 import { rightLines } from "../pr/hunks.ts";
@@ -72,6 +72,36 @@ export type ResolvedFinding = {
    * caller against `RULES.json`. */
   referenceIds?: string[];
 };
+
+/** Drops a new finding that repeats one the bot withdrew. A withdrawn finding
+ * blocks only while its lines are unchanged: its anchor text is found again in
+ * the file's patch, and the new finding overlaps where it now sits. Once those
+ * lines change, the finding can be raised again. */
+export function withoutWithdrawn<T extends Span>(
+  parsed: T[],
+  withdrawn: Pick<StoredFinding, "path" | "lineFrom" | "anchorText">[],
+  revision: Revision,
+): { kept: T[]; dropped: T[] } {
+  const spots: Span[] = [];
+  for (const item of withdrawn) {
+    if (!item.path || !item.anchorText) continue;
+    const file = revision.files.find(
+      (candidate) =>
+        normalizePath(candidate.path) === normalizePath(item.path!),
+    );
+    if (!file?.patch) continue;
+    const spot = relocate(item.anchorText, item.lineFrom ?? 1, file.patch);
+    if (spot) spots.push({ path: file.path, from: spot.from, to: spot.to });
+  }
+  const kept: T[] = [];
+  const dropped: T[] = [];
+  for (const finding of parsed) {
+    if (spots.some((spot) => spansOverlap(spot, finding)))
+      dropped.push(finding);
+    else kept.push(finding);
+  }
+  return { kept, dropped };
+}
 
 export function anchorTextFromPatch(
   patch: string,

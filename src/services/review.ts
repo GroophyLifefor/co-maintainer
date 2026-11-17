@@ -23,6 +23,7 @@ import {
   incrementalDiffPaths,
   parsePreviousVerdicts,
   resolveCarryOutcomes,
+  withoutWithdrawn,
 } from "../review/carry_over.ts";
 import { runReviewEngine } from "../review/engine.ts";
 import {
@@ -69,6 +70,7 @@ import {
   listCarryableFindingsForReview,
   listFindingsForPr,
   listFindingsForReview,
+  listWithdrawnFindingsForPr,
   setFindingPosted,
 } from "../store/findings.ts";
 import {
@@ -1297,7 +1299,21 @@ async function runReviewJobCore(
       guideBuiltAt,
     );
   }
-  const parsed = parseFindings(response.text);
+  const { kept: parsed, dropped: repeatsOfWithdrawn } = withoutWithdrawn(
+    parseFindings(response.text),
+    listWithdrawnFindingsForPr(job.repo, job.pr_number).map((row) => ({
+      path: row.path,
+      lineFrom: row.line_from,
+      anchorText: row.anchor_text,
+    })),
+    revision,
+  );
+  if (repeatsOfWithdrawn.length > 0) {
+    log(
+      "info",
+      `dropped ${repeatsOfWithdrawn.length} finding(s) the bot withdrew earlier, their lines are unchanged`,
+    );
+  }
   log("info", `parsed ${parsed.length} new finding(s) from the AI response`);
   let totalFindings = parsed.length;
   let openCount = 0;
