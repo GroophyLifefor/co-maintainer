@@ -1049,6 +1049,102 @@ review: that file is `partial`.
   server prints no coverage line, and an older client with a newer server gets
   the new fields in `--json` and ignores them elsewhere.
 
+## Review tools
+
+Besides the diff, the model can call tools while it reviews: codegraph for
+code (when it is on), `read-full-diff` for the rest of a cut diff, and
+`search-non-code` for the files codegraph does not index.
+
+### Searching docs and configuration
+
+Codegraph follows code. It cannot see docs, YAML or configuration, so a change
+that makes a paragraph false, or a compose entry outside the changed hunk, would
+go unnoticed. `search-non-code` reads exactly those files:
+
+```
+search-non-code({ "pattern": "RATE_LIMIT", "path": "docs/", "context": 1 })
+search-non-code({ "pattern": "4809[0-9]", "regex": true })
+```
+
+| Parameter | Required | Meaning |
+| --------- | -------- | ------- |
+| `pattern` | yes | Text to find. Literal unless `regex` is true |
+| `regex` | no | Treat `pattern` as a POSIX extended regex |
+| `path` | no | Limit the search to a folder or a file |
+| `context` | no | Lines around each match, up to the repository's maximum |
+
+```
+deploy/compose.yml:41:     RATE_LIMIT: "60"
+docs/operations.md:88: Routes without an entry in RATE_LIMIT are not limited.
+2 matches in 2 files
+```
+
+- It searches tracked files only, through `git grep`, so an untracked `.env` is
+  never read. Binary files are skipped.
+- It skips every file codegraph parses, by file extension, whether codegraph is
+  on or off. Markdown, YAML, JSON, TOML, ini files, env templates, Dockerfiles,
+  SQL, shell scripts, HTML and CSS can be searched. The list of codegraph's
+  languages is kept next to its pinned version.
+- It skips the files the repository's
+  [`agentInstructions`](init.md#agent-instruction-files) pattern matches,
+  because `INSTRUCTIONS.md` already carries their rules.
+- It answers at most 30 matches, each line cut at 200 characters, then
+  `and N more matches` with a count per file. Context lines are marked with `-`
+  instead of `:`.
+- A literal search runs `git grep --fixed-strings`. A regex search stops after
+  5 seconds and says it timed out.
+
+| Mode | Searched tree |
+| ---- | ------------- |
+| Local | The git root, with your uncommitted edits to tracked files |
+| CLI pull request and App | The pull request's checkout, which a review makes even with codegraph off |
+| Remote | Your checkout: the server asks, and the CLI searches and sends the answer |
+| Commit watch (`--remote --range`) | Not offered |
+
+The review prompt tells the model to use `search-non-code` for docs and
+configuration and codegraph for code, and a tool result counts as evidence for
+a finding.
+
+### Tool limits
+
+The tool loop sends the whole conversation again in each round, so a large
+result is paid for again and again. Two limits keep that bounded per
+repository, see [Configuration](configuration.md#review-tool-limits):
+
+- **One result** stops at `reviewToolResultMaxChars` characters, 8000 by
+  default, and ends with `[cut at N characters]`.
+- **The budget** is `reviewToolBudgetChars` characters of tool results per
+  review, 40000 by default, across the first answer, a retry and every
+  improvement pass. The last result before the budget runs out gets only what is
+  left. After that every call is answered with
+  `Tool budget spent. Answer with what you found.`, and the review gets a
+  `tool_budget_spent` warning.
+
+Codegraph results are neither cut nor counted against the budget yet. Their
+sizes are in the log, so a cap can be chosen from real numbers later.
+`read-full-diff` keeps its own cap on one answer and counts against the budget.
+The built-in Mermaid syntax lookup is not limited.
+
+### Tool usage
+
+Every mode's `--json` reports what the tools did in `usage.tools`:
+
+```json
+"usage": {
+  "tools": {
+    "rounds": 5,
+    "calls": 11,
+    "resultChars": 18240,
+    "budgetSpent": false,
+    "byTool": { "codegraph-callers": 4, "search-non-code": 7 }
+  }
+}
+```
+
+`rounds` counts the model's answers that asked for a tool, `resultChars` the
+characters the model received after the limits. The human output adds a
+`Tools:` line under the summary when a tool ran.
+
 ## Diagrams
 
 A review can include a diagram when a finding is about a flow, a lifecycle or a
@@ -1372,7 +1468,7 @@ include `mode` (`local`, `remote`, or `pr`), `subject`, `summary`, `findings[]`,
 `warnings[]`, `usage`, and `durationMs`. Every mode includes `revision`, which
 counts the files and says which of them the model received in full, see
 [Large diffs](#large-diffs). Local and remote runs also include `codegraph`
-state. `extensions` is always an array, empty when nothing is registered, and
+state. `usage.tools` counts the tool calls, see [Tool usage](#tool-usage). `extensions` is always an array, empty when nothing is registered, and
 every finding has `extensionId`, which is `null` for an AI finding, see
 [Extensions](#extensions). `subject.intent` is there only when the review was
 given an [intent](#intent). Errors with `--json` are JSON on stdout as well.
@@ -1420,6 +1516,7 @@ Closed (1)
   ✓ src/old.ts:9  [P2 · non-blocking] the dead branch
 
 Summary: 1 new · 1 open · 1 closed · 2 blocking
+Tools: 11 calls · 18,240 characters
 ```
 
 Findings are grouped `Closed`, `Still open`, `New`, each labeled with the same
@@ -1429,7 +1526,8 @@ the run actually reached: `codegraph used`, `codegraph disabled`, or
 `codegraph unavailable`: the last one when codegraph was requested but could
 not be prepared, which is also what `--json` reports. When a file did not reach
 the model in full, a `Coverage:` line follows the summary, see
-[Large diffs](#where-the-result-says-it).
+[Large diffs](#where-the-result-says-it). For the `Tools:` line, see
+[Tool usage](#tool-usage).
 
 The severity legend and the "If you'd like me to explain it in more detail,
 please ask." sentence are **not** in terminal output: a terminal has nobody to
@@ -1583,7 +1681,9 @@ once on [`serve`](serve.md). Developers clone, set host and token, and run
 `review --remote` without maintaining their own guide cache.
 
 The model runs on the server as part of that path. Codegraph tools (when enabled)
-still run on the laptop and return results through the tool bridge.
+and [`search-non-code`](review.md#searching-docs-and-configuration) still run on
+the laptop and return results through the tool bridge. A server older than
+0.7.10 ignores the search tool.
 
 Overview: [`review`](review.md). Requires [`serve`](serve.md) and the
 [dashboard](dashboard.md).
@@ -3912,6 +4012,9 @@ co-maintainer set [options]
 | `--plantuml-server=URL` | https://www.plantuml.com | The PlantUML server for plantuml-server. An http or https URL. Needs --repo. |
 | `--plantuml-output-format=svg\|png` | svg | The image format for plantuml-server. Needs --repo. |
 | `--review-read-diff-max-chars=N` | 20000 | The most characters one read-full-diff answer returns in a review of this repository. Needs --repo. 0 or -1 means no limit. |
+| `--review-tool-result-max-chars=N` | 8000 | The most characters one review tool result returns before it is cut. Codegraph and read-full-diff are not cut by it. Needs --repo. 0 or -1 means no limit. |
+| `--review-tool-budget-chars=N` | 40000 | Tool result characters per review. Once they are spent, later tool calls get no answer. Codegraph is not counted. Needs --repo. 0 or -1 means no limit. |
+| `--review-search-max-context-lines=N` | 3 | The most lines search-non-code returns around a match. Needs --repo. 0 or -1 means no limit. |
 | `--guide-full-every=N` | 10 | Every N-th sync whose input changed rewrites the review guide in full, the others edit it. 1 always rewrites, 0 never after init. Needs --repo. |
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |
 | `--codegraph-version=SEMVER` |  | The pinned codegraph version, overriding the built-in one. For a security fix without a release. |
@@ -4124,6 +4227,9 @@ provider, so both models are saved the first time. See
 | `--plantuml-output-format=svg\|png` | `repos[owner/repo].plantumlOutputFormat` | The image format for `plantuml-server`. Needs `--repo`. Default `svg` |
 | `--review-references=on\|off` | `repos[owner/repo].reviewReferences` | Show each finding's [references](review.md#references) in review comments and the terminal. Needs `--repo`. Off by default. They are stored and shown on the dashboard either way |
 | `--review-read-diff-max-chars=N` | `repos[owner/repo].reviewReadDiffMaxChars` | Most characters one `read-full-diff` answer returns. Needs `--repo`. `0` or `-1` means no limit. Default `20000` |
+| `--review-tool-result-max-chars=N` | `repos[owner/repo].reviewToolResultMaxChars` | Most characters one review tool result returns. Needs `--repo`. `0` or `-1` means no limit. Default `8000` |
+| `--review-tool-budget-chars=N` | `repos[owner/repo].reviewToolBudgetChars` | Tool result characters per review. Needs `--repo`. `0` or `-1` means no limit. Default `40000` |
+| `--review-search-max-context-lines=N` | `repos[owner/repo].reviewSearchMaxContextLines` | Most context lines `search-non-code` returns around a match. Needs `--repo`. `0` or `-1` means no limit. Default `3` |
 
 ### App private key: inline, file contents, or path
 
@@ -4255,6 +4361,7 @@ After each successful [`init`](init.md) or [`sync`](sync.md),
 | `review-system-prompt`, `review-system-prompt-max-chars` | |
 | `diagram-runtime`, `plantuml-server`, `plantuml-output-format` | |
 | `review-read-diff-max-chars` | |
+| `review-tool-result-max-chars`, `review-tool-budget-chars`, `review-search-max-context-lines` | |
 
 A plain `co-maintainer sync owner/repo` reuses those values. Pass new flags
 on `sync` or run `init` again to change includes, limits, or pull request
@@ -4328,6 +4435,29 @@ co-maintainer set --repo=owner/repo --unset=review-read-diff-max-chars
 default. A value that is not an integer is refused with "must be an integer (0 or
 -1 for no limit)". It needs `--repo`, like the other repository settings, and is
 stored as `repos["owner/repo"].reviewReadDiffMaxChars`.
+
+## Review tool limits
+
+What each limit does is in [Review tools](review.md#tool-limits). They are set
+the same way as the `read-full-diff` cap:
+
+```sh
+co-maintainer set --repo=owner/repo --review-tool-result-max-chars=12000
+co-maintainer set --repo=owner/repo --review-tool-budget-chars=0   # no limit
+co-maintainer set --repo=owner/repo --review-search-max-context-lines=5
+co-maintainer set --repo=owner/repo --unset=review-tool-budget-chars
+```
+
+| Flag | Stored as | Default |
+| ---- | --------- | ------- |
+| `--review-tool-result-max-chars` | `reviewToolResultMaxChars` | `8000` |
+| `--review-tool-budget-chars` | `reviewToolBudgetChars` | `40000` |
+| `--review-search-max-context-lines` | `reviewSearchMaxContextLines` | `3` |
+
+`0` or `-1` means no limit. A blank value or `--unset=` goes back to the
+default, and a value that is not an integer is refused. In remote review the
+server's result and budget limits apply, and the context limit is the one the
+CLI has for the repository, because the CLI runs the search.
 
 ## Extensions in config.json
 

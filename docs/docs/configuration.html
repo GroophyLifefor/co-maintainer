@@ -336,6 +336,21 @@ provider, so both models are saved the first time. See
 <td><code>repos[owner/repo].reviewReadDiffMaxChars</code></td>
 <td>Most characters one <code>read-full-diff</code> answer returns. Needs <code>--repo</code>. <code>0</code> or <code>-1</code> means no limit. Default <code>20000</code></td>
 </tr>
+<tr>
+<td><code>--review-tool-result-max-chars=N</code></td>
+<td><code>repos[owner/repo].reviewToolResultMaxChars</code></td>
+<td>Most characters one review tool result returns. Needs <code>--repo</code>. <code>0</code> or <code>-1</code> means no limit. Default <code>8000</code></td>
+</tr>
+<tr>
+<td><code>--review-tool-budget-chars=N</code></td>
+<td><code>repos[owner/repo].reviewToolBudgetChars</code></td>
+<td>Tool result characters per review. Needs <code>--repo</code>. <code>0</code> or <code>-1</code> means no limit. Default <code>40000</code></td>
+</tr>
+<tr>
+<td><code>--review-search-max-context-lines=N</code></td>
+<td><code>repos[owner/repo].reviewSearchMaxContextLines</code></td>
+<td>Most context lines <code>search-non-code</code> returns around a match. Needs <code>--repo</code>. <code>0</code> or <code>-1</code> means no limit. Default <code>3</code></td>
+</tr>
 </tbody></table>
 <h3 id="app-private-key-inline-file-contents-or-path">App private key: inline, file contents, or path</h3>
 <p>Three flags set the GitHub App private key, and they differ in what lands in
@@ -652,6 +667,10 @@ is allowed again. Match <code>--unset=</code> to the field name or the flag name
 <td><code>review-read-diff-max-chars</code></td>
 <td></td>
 </tr>
+<tr>
+<td><code>review-tool-result-max-chars</code>, <code>review-tool-budget-chars</code>, <code>review-search-max-context-lines</code></td>
+<td></td>
+</tr>
 </tbody></table>
 <p>A plain <code>co-maintainer sync owner/repo</code> reuses those values. Pass new flags
 on <code>sync</code> or run <code>init</code> again to change includes, limits, or pull request
@@ -712,6 +731,42 @@ answer is sent again in each later round.</p>
 default. A value that is not an integer is refused with &quot;must be an integer (0 or
 -1 for no limit)&quot;. It needs <code>--repo</code>, like the other repository settings, and is
 stored as <code>repos[&quot;owner/repo&quot;].reviewReadDiffMaxChars</code>.</p>
+<h2 id="review-tool-limits">Review tool limits</h2>
+<p>What each limit does is in <a href="review.html#tool-limits">Review tools</a>. They are set
+the same way as the <code>read-full-diff</code> cap:</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--review-tool-result-max-chars=12000</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--review-tool-budget-chars=0</span>   <span class="sh-comment"># no limit</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--review-search-max-context-lines=5</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--unset=review-tool-budget-chars</span>
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Stored as</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--review-tool-result-max-chars</code></td>
+<td><code>reviewToolResultMaxChars</code></td>
+<td><code>8000</code></td>
+</tr>
+<tr>
+<td><code>--review-tool-budget-chars</code></td>
+<td><code>reviewToolBudgetChars</code></td>
+<td><code>40000</code></td>
+</tr>
+<tr>
+<td><code>--review-search-max-context-lines</code></td>
+<td><code>reviewSearchMaxContextLines</code></td>
+<td><code>3</code></td>
+</tr>
+</tbody></table>
+<p><code>0</code> or <code>-1</code> means no limit. A blank value or <code>--unset=</code> goes back to the
+default, and a value that is not an integer is refused. In remote review the
+server&#39;s result and budget limits apply, and the context limit is the one the
+CLI has for the repository, because the CLI runs the search.</p>
 <h2 id="extensions-in-configjson">Extensions in config.json</h2>
 <p><code>co-maintainer extension register</code> and <code>update</code> write the <code>extensions</code> array.
 Do not edit it by hand: a registration edited by hand gets the same defaults and
@@ -885,7 +940,7 @@ their variable is set.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#precedence">Precedence</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#per-repo-memory">Per-repo memory</a></li><li><a href="#diagram-settings">Diagram settings</a></li><li><a href="#the-read-full-diff-cap">The read-full-diff cap</a></li><li><a href="#extensions-in-configjson">Extensions in config.json</a></li><li><a href="#secrets-on-disk">Secrets on disk</a></li><li><a href="#path-overrides">Path overrides</a></li><li><a href="#remote-review-variables">Remote review variables</a></li><li><a href="#extension-variables">Extension variables</a></li></ul></nav>
+      <ul><li><a href="#precedence">Precedence</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#per-repo-memory">Per-repo memory</a></li><li><a href="#diagram-settings">Diagram settings</a></li><li><a href="#the-read-full-diff-cap">The read-full-diff cap</a></li><li><a href="#review-tool-limits">Review tool limits</a></li><li><a href="#extensions-in-configjson">Extensions in config.json</a></li><li><a href="#secrets-on-disk">Secrets on disk</a></li><li><a href="#path-overrides">Path overrides</a></li><li><a href="#remote-review-variables">Remote review variables</a></li><li><a href="#extension-variables">Extension variables</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

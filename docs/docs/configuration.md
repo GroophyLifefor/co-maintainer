@@ -96,6 +96,9 @@ provider, so both models are saved the first time. See
 | `--plantuml-output-format=svg\|png` | `repos[owner/repo].plantumlOutputFormat` | The image format for `plantuml-server`. Needs `--repo`. Default `svg` |
 | `--review-references=on\|off` | `repos[owner/repo].reviewReferences` | Show each finding's [references](review.md#references) in review comments and the terminal. Needs `--repo`. Off by default. They are stored and shown on the dashboard either way |
 | `--review-read-diff-max-chars=N` | `repos[owner/repo].reviewReadDiffMaxChars` | Most characters one `read-full-diff` answer returns. Needs `--repo`. `0` or `-1` means no limit. Default `20000` |
+| `--review-tool-result-max-chars=N` | `repos[owner/repo].reviewToolResultMaxChars` | Most characters one review tool result returns. Needs `--repo`. `0` or `-1` means no limit. Default `8000` |
+| `--review-tool-budget-chars=N` | `repos[owner/repo].reviewToolBudgetChars` | Tool result characters per review. Needs `--repo`. `0` or `-1` means no limit. Default `40000` |
+| `--review-search-max-context-lines=N` | `repos[owner/repo].reviewSearchMaxContextLines` | Most context lines `search-non-code` returns around a match. Needs `--repo`. `0` or `-1` means no limit. Default `3` |
 
 ### App private key: inline, file contents, or path
 
@@ -227,6 +230,7 @@ After each successful [`init`](init.md) or [`sync`](sync.md),
 | `review-system-prompt`, `review-system-prompt-max-chars` | |
 | `diagram-runtime`, `plantuml-server`, `plantuml-output-format` | |
 | `review-read-diff-max-chars` | |
+| `review-tool-result-max-chars`, `review-tool-budget-chars`, `review-search-max-context-lines` | |
 
 A plain `co-maintainer sync owner/repo` reuses those values. Pass new flags
 on `sync` or run `init` again to change includes, limits, or pull request
@@ -300,6 +304,29 @@ co-maintainer set --repo=owner/repo --unset=review-read-diff-max-chars
 default. A value that is not an integer is refused with "must be an integer (0 or
 -1 for no limit)". It needs `--repo`, like the other repository settings, and is
 stored as `repos["owner/repo"].reviewReadDiffMaxChars`.
+
+## Review tool limits
+
+What each limit does is in [Review tools](review.md#tool-limits). They are set
+the same way as the `read-full-diff` cap:
+
+```sh
+co-maintainer set --repo=owner/repo --review-tool-result-max-chars=12000
+co-maintainer set --repo=owner/repo --review-tool-budget-chars=0   # no limit
+co-maintainer set --repo=owner/repo --review-search-max-context-lines=5
+co-maintainer set --repo=owner/repo --unset=review-tool-budget-chars
+```
+
+| Flag | Stored as | Default |
+| ---- | --------- | ------- |
+| `--review-tool-result-max-chars` | `reviewToolResultMaxChars` | `8000` |
+| `--review-tool-budget-chars` | `reviewToolBudgetChars` | `40000` |
+| `--review-search-max-context-lines` | `reviewSearchMaxContextLines` | `3` |
+
+`0` or `-1` means no limit. A blank value or `--unset=` goes back to the
+default, and a value that is not an integer is refused. In remote review the
+server's result and budget limits apply, and the context limit is the one the
+CLI has for the repository, because the CLI runs the search.
 
 ## Extensions in config.json
 
