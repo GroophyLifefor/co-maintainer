@@ -9,6 +9,7 @@ import {
   type Platform,
 } from "./util/runtime.ts";
 import type { ExtensionRegistration } from "./extensions/registry.ts";
+import type { McpServerConfig } from "./tools/mcp_config.ts";
 
 /** Everything init/remake resolved for one repo, except secrets, an API
  * token is never written to config.json, only ever taken from --token or
@@ -91,6 +92,12 @@ export type RepoConfig = {
   /** Most context lines `search-non-code` returns around a match. Unset means
    * the default, `0` or a negative number means no limit. */
   reviewSearchMaxContextLines?: number;
+  /** The repository's MCP servers, read from the file `set --mcp-config`
+   * names. Their `env` values are never printed. */
+  mcpServers?: Record<string, McpServerConfig>;
+  /** `serve` offers MCP tools to a pull request from a fork only when this
+   * is true. */
+  mcpAllowForks?: boolean;
   /** Every N-th `sync` whose guide input changed rewrites the review guide
    * in full, the others edit it. Unset means 10, `1` always rewrites, `0`
    * never rewrites after `init`. */
