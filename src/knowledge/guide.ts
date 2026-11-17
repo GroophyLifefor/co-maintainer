@@ -168,7 +168,7 @@ export function validateGuide(
 
 /** The findings handed to the synthesis, as a flat list. Earlier this was
  * pre-grouped by the extraction's own `class` label, which made the model emit
- * one pass per finding (24 areas in the skunk run). A flat list lets it cluster
+ * one pass per finding (24 areas on one large repository). A flat list lets it cluster
  * related findings into a small set of coherent passes instead. */
 function guideMaterial(facts: Fact[]): string {
   const findings = guideFindings(facts)
