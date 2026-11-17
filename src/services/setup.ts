@@ -46,7 +46,13 @@ import type { AiResponse, GitHubClient, Options } from "../types.ts";
 import type { Fact, Source, State } from "../knowledge/types.ts";
 import type { LogFn } from "./jobs.ts";
 import type { JobRow } from "../store/rows.ts";
-import { mkdir, readTextFile, remove, stat } from "../util/runtime.ts";
+import {
+  isNotFound,
+  mkdir,
+  readTextFile,
+  remove,
+  stat,
+} from "../util/runtime.ts";
 import { applyWatchNotes, withMaintainerNotes } from "./watch_notes.ts";
 import { addResponseCost, emptyTally, type CostTally } from "../util/cost.ts";
 import { costLabel } from "../util/run_summary.ts";
@@ -433,13 +439,25 @@ export async function guideEditInput(
   const findings = previous?.guide?.findings;
   if (!findings || !rules) return undefined;
   const directory = `${reposDir()}/${options.repo}`;
+  // Only a missing file means "no such guide". Any other read error rewrites
+  // in full, so the two guides are never edited apart.
+  const UNREADABLE = Symbol("unreadable");
   const read = (name: string) =>
-    readTextFile(`${directory}/${name}`).catch(() => undefined);
+    readTextFile(`${directory}/${name}`).catch((error: unknown) =>
+      isNotFound(error) ? undefined : UNREADABLE,
+    );
   const [guide, detailed] = await Promise.all([
     read("PR_REVIEW_GUIDE.md"),
     read("PR_REVIEW_DETAILED_GUIDE.md"),
   ]);
-  if (!guide) return undefined;
+  if (!guide || guide === UNREADABLE || detailed === UNREADABLE) {
+    return undefined;
+  }
+  // The last build wrote a detailed guide that is gone now: rewrite in full.
+  const hadDetailed = Object.values(rules).some(
+    (rule) => rule.file === "PR_REVIEW_DETAILED_GUIDE.md",
+  );
+  if (hadDetailed && detailed === undefined) return undefined;
   return {
     guide,
     ...(detailed ? { detailed } : {}),

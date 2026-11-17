@@ -111,3 +111,14 @@ test("an edit counts, a kept guide does not, a full rewrite starts again", () =>
   if (edits("unchanged", 3) !== 3) throw new Error("a kept guide counted");
   if (edits("full", 3) !== 0) throw new Error("a full rewrite did not reset");
 });
+
+test("a detailed guide the last build wrote and that is gone now rewrites in full", async () => {
+  await withRepo(undefined, async () => {
+    const detailedRules = {
+      R1: { file: "PR_REVIEW_DETAILED_GUIDE.md", text: "a", sources: [] },
+    };
+    if (await guideEditInput(sync(), previous(0), detailedRules)) {
+      throw new Error("edited the short guide alone");
+    }
+  });
+});
