@@ -1,3 +1,4 @@
+import { safeCopy } from "../util/redact.ts";
 import { parseStoredReferences, referenceLine } from "../review/references.ts";
 import type { RulesFile } from "../knowledge/rules.ts";
 import { FakeAiProvider } from "../ai/fake.ts";
@@ -352,7 +353,11 @@ async function runReplyJobCore(
     log("info", "stopped before posting the reply, nothing was posted");
     return;
   }
-  const { text, withdrawn } = takeWithdrawLine(answer);
+  const taken = takeWithdrawLine(answer);
+  // The copy rule is asked of the model, and a model can still break it. A
+  // reply's prose loses its em dashes and semicolons here, code keeps them.
+  const text = safeCopy(taken.text);
+  const withdrawn = taken.withdrawn;
   const body = `${marker}\n${plainSuggestionFences(text)}`;
   setReplyStatus(request.id, "posting");
   const posted = await postReply(github, request, body);

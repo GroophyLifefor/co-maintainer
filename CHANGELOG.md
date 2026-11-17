@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A reply on a finding knows which rules the finding rests on.** When someone asks on a finding's thread why it was raised, the reply gets the finding's references with their pull request and file links, and each rule's text from `RULES.json`. So "which rule?" is answered with the rule and where it came from. (#78)
 
+### Fixed
+
+- **A reply never posts an em dash or a semicolon in its prose.** The model is asked not to write them, and a reply on a pull request still came back with an em dash. A reply's prose is now cleaned before it is posted, as the dashboard already did, and code in it is left as it is.
+
 ## [0.7.5] - 2026-11-17
 
 ### Fixed

@@ -481,3 +481,25 @@ test("the rules a reply gets from a finding are capped", () => {
     throw new Error(`a rule text of ${out[0]?.text?.length} chars`);
   }
 });
+
+test("a reply's prose is posted without an em dash or a semicolon, code keeps its own", async () => {
+  await withEnv(async () => {
+    const github = new FakeGithub();
+    const job = requestJob("review_comment", "111", "10");
+    await runReplyJob(
+      job,
+      () => {},
+      github,
+      replyAi(
+        'It follows R3 — Parse Error Consistency; see below.\n\n```js\nthrow new RangeError("x");\n```',
+      ),
+    );
+    const body = (github.writes[0]!.body as { body: string }).body;
+    if (!body.includes("It follows R3, Parse Error Consistency. see below.")) {
+      throw new Error(body);
+    }
+    if (!body.includes('throw new RangeError("x");')) {
+      throw new Error(`code was changed: ${body}`);
+    }
+  });
+});
