@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A review can search docs and configuration.** Codegraph follows code and cannot see docs, YAML or configuration, so a change that made a paragraph false went unnoticed. The new `search-non-code` tool searches the tracked files codegraph does not index, through `git grep`: never an untracked file, a binary file, a code file or an agent instruction file. It answers at most 30 matches with their line numbers, a regex search stops after 5 seconds, and it runs in local, CLI pull request, App and remote review. A pull request review now checks the pull request out even with codegraph off, and a tool result counts as evidence for a finding. (#79)
 - **Tool results are limited per review.** One result stops at 8000 characters and ends with `[cut at N characters]`, and once a review's tool results reach 40000 characters every later call is answered with `Tool budget spent. Answer with what you found.` and a `tool_budget_spent` warning. Codegraph results are not limited yet. Set them with `set --repo=owner/repo --review-tool-result-max-chars=N`, `--review-tool-budget-chars=N` and `--review-search-max-context-lines=N`, where `0` means no limit. (#79)
 - **`usage.tools` in every review's JSON.** It counts the tool rounds, the calls, the result characters and the calls per tool, and says whether the budget was spent. The human output adds `Tools: 11 calls · 18,240 characters` under the summary. (#79)
+
+### Fixed
+
+- **An App review of a private repository gets its checkout.** 0.7.5 gave the App's token to the clone and the fetch, but the clone is blobless, so making the pull request's worktree downloads file contents too, and that step still used the machine's own login. On a server with no git login, a private repository's review ran with no checkout, so with no codegraph and no search. Every git command in the clone that can reach GitHub now gets the token.
+
 ## [0.7.9] - 2026-11-17
 
 ### Added
