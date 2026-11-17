@@ -1,0 +1,114 @@
+/** The copied-passage check: 8-word runs, case, punctuation, and the parts of
+ * a rendered review it leaves alone. */
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import {
+  MCP_PRIVATE_GUIDANCE,
+  PRIVATE_TEXT_REMOVED,
+  privateTextWarning,
+  removePrivateText,
+} from "./private_text.ts";
+
+const PRIVATE =
+  "Acme Corp reported that the export button silently drops every row after the first thousand entries.";
+
+test("a run of 8 words from a private result is removed, 7 are kept", () => {
+  const eight = "Sadly export button silently drops every row after the limit.";
+  const kept = removePrivateText(
+    "Note: the export button silently drops every row here.",
+    [PRIVATE],
+  );
+  // "the export button silently drops every row" is 7 words.
+  assert.deepEqual(kept, {
+    text: "Note: the export button silently drops every row here.",
+    removed: 0,
+  });
+  assert.deepEqual(removePrivateText(eight, [PRIVATE]), {
+    text: `Sadly ${PRIVATE_TEXT_REMOVED} limit.`,
+    removed: 1,
+  });
+});
+
+test("case and punctuation do not hide a copied passage", () => {
+  const result = removePrivateText(
+    'Body: "EXPORT button, silently -- drops every ROW after the first!" so fix it.',
+    [PRIVATE],
+  );
+  assert.equal(result.removed, 1);
+  assert.equal(result.text, `Body: "${PRIVATE_TEXT_REMOVED}!" so fix it.`);
+});
+
+test("a passage that wraps a line in one paragraph is found, two passages count twice", () => {
+  const text = [
+    "Sadly export button silently drops",
+    "every row after the first thousand entries, and also",
+    "",
+    "Acme Corp reported that the export button silently drops.",
+  ].join("\n");
+  const result = removePrivateText(text, [PRIVATE]);
+  assert.equal(result.removed, 2);
+  assert.equal(
+    result.text,
+    [
+      `Sadly ${PRIVATE_TEXT_REMOVED}, and also`,
+      "",
+      `${PRIVATE_TEXT_REMOVED}.`,
+    ].join("\n"),
+  );
+});
+
+test("headings, location lines and suggestion blocks are left alone", () => {
+  const review = [
+    "## Findings",
+    "",
+    "### [P2 · non-blocking] `src/export.ts`",
+    "Location: `src/export.ts:10`",
+    "",
+    "Acme Corp reported that the export button silently drops rows.",
+    "",
+    "Suggestion: `src/export.ts:10`",
+    "```suggestion",
+    "// Acme Corp reported that the export button silently drops every row",
+    "```",
+    "```text",
+    "Acme Corp reported that the export button silently drops every row",
+    "```",
+  ].join("\n");
+  const result = removePrivateText(review, [PRIVATE]);
+  assert.equal(result.removed, 2);
+  const lines = result.text.split("\n");
+  assert.equal(lines[5], `${PRIVATE_TEXT_REMOVED} rows.`);
+  assert.equal(
+    lines[9],
+    "// Acme Corp reported that the export button silently drops every row",
+  );
+  assert.equal(lines[12], PRIVATE_TEXT_REMOVED);
+  assert.equal(lines.length, 14);
+});
+
+test("no private result leaves the text as it is", () => {
+  assert.deepEqual(removePrivateText(PRIVATE, []), {
+    text: PRIVATE,
+    removed: 0,
+  });
+  assert.deepEqual(removePrivateText(PRIVATE, ["too short"]), {
+    text: PRIVATE,
+    removed: 0,
+  });
+});
+
+test("the warning counts removals and the prompt sentence is the issue's", () => {
+  assert.deepEqual(privateTextWarning(0), []);
+  assert.deepEqual(privateTextWarning(1), [
+    {
+      code: "private_text_removed",
+      message:
+        "1 passage copied from a private MCP result was removed from this review.",
+    },
+  ]);
+  assert.match(privateTextWarning(3)[0]!.message, /^3 passages .* were /);
+  assert.equal(
+    MCP_PRIVATE_GUIDANCE,
+    "Results from mcp- tools are private. You may base a finding on them, but never quote, paraphrase or summarize them in a finding.",
+  );
+});
