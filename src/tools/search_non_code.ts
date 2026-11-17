@@ -28,6 +28,11 @@ export const SEARCH_MAX_MATCHES = 30;
 export const SEARCH_LINE_MAX_CHARS = 200;
 /** Time limit of a regex search. */
 export const SEARCH_REGEX_TIMEOUT_MS = 5000;
+/** A literal search is fast, so its limit only stops a stuck one. */
+export const SEARCH_LITERAL_TIMEOUT_MS = 15_000;
+/** Output kept from one git grep run. 30 matches need far less, the rest
+ * only feeds the per-file counts, so they say "at least" past this. */
+export const SEARCH_MAX_OUTPUT_BYTES = 1_000_000;
 /** Default for `reviewSearchMaxContextLines`. */
 export const DEFAULT_SEARCH_MAX_CONTEXT_LINES = 3;
 /** Most files the `and N more matches` line names. */
@@ -81,6 +86,9 @@ export type GrepResult = {
   stdout: string;
   stderr: string;
   timedOut: boolean;
+  /** The output passed `SEARCH_MAX_OUTPUT_BYTES` and the search was
+   * stopped there. */
+  cut?: boolean;
 };
 
 /** Runs `git` with `args` in `cwd`, killed after `timeoutMs` when set. */
@@ -106,14 +114,18 @@ export const runGit: GrepRun = async (args, cwd, timeoutMs) => {
           timedOut = true;
           proc.kill("SIGKILL");
         }, timeoutMs);
-  const output = await proc.output();
+  const output = await proc.output(SEARCH_MAX_OUTPUT_BYTES);
   if (timer) clearTimeout(timer);
   const decoder = new TextDecoder();
+  let stdout = decoder.decode(output.stdout);
+  // A stopped run can end mid-record: keep only whole records.
+  if (output.cut) stdout = stdout.slice(0, stdout.lastIndexOf("\n") + 1);
   return {
     code: output.code,
-    stdout: decoder.decode(output.stdout),
+    stdout,
     stderr: decoder.decode(output.stderr),
     timedOut,
+    ...(output.cut ? { cut: true } : {}),
   };
 };
 
@@ -215,9 +227,10 @@ export async function searchNonCode(
       ? asked
       : Math.min(asked, options.maxContextLines);
   const run = options.run ?? runGit;
-  const timeoutMs = regex
-    ? (options.timeoutMs ?? SEARCH_REGEX_TIMEOUT_MS)
-    : null;
+  // A literal search has a time limit too, only a longer one.
+  const timeoutMs =
+    options.timeoutMs ??
+    (regex ? SEARCH_REGEX_TIMEOUT_MS : SEARCH_LITERAL_TIMEOUT_MS);
   // The match list comes without context, so a context line is never
   // mistaken for a match. `-z` marks both kinds the same way.
   const [matched, around] = await Promise.all([
@@ -281,13 +294,13 @@ export async function searchNonCode(
       .map(([file, count]) => `${file} (${count})`);
     const unnamed = perFile.size - named.length;
     out.push(
-      `and ${plural(rest.length, "more match", "more matches")}: ${named.join(", ")}${
+      `and ${matched.cut ? "at least " : ""}${plural(rest.length, "more match", "more matches")}: ${named.join(", ")}${
         unnamed > 0 ? `, and ${plural(unnamed, "more file", "more files")}` : ""
       }`,
     );
   }
   out.push(
-    `${plural(matches.length, "match", "matches")} in ${plural(files.size, "file", "files")}`,
+    `${matched.cut ? "at least " : ""}${plural(matches.length, "match", "matches")} in ${plural(files.size, "file", "files")}`,
   );
   return out.join("\n");
 }

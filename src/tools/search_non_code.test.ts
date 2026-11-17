@@ -12,6 +12,9 @@ import {
   type GrepRun,
   searchMaxContextLines,
   searchNonCode,
+  SEARCH_LITERAL_TIMEOUT_MS,
+  SEARCH_MAX_OUTPUT_BYTES,
+  runGit,
   SEARCH_REGEX_TIMEOUT_MS,
   type SearchOptions,
 } from "./search_non_code.ts";
@@ -209,8 +212,19 @@ test("literal search uses fixed strings, regex search is extended and time limit
     timedOut,
     "Search timed out after 5 seconds. Use a simpler pattern or a narrower path.",
   );
-  await searchNonCode(dir, { pattern: "plain" }, { ...OPTIONS, run: slow });
-  assert.deepEqual(limits, [SEARCH_REGEX_TIMEOUT_MS, null]);
+  // A literal search has a limit too, only a longer one.
+  limits.length = 0;
+  const quiet: GrepRun = (_args, _cwd, timeoutMs) => {
+    limits.push(timeoutMs);
+    return Promise.resolve({
+      code: 1,
+      stdout: "",
+      stderr: "",
+      timedOut: false,
+    });
+  };
+  await searchNonCode(dir, { pattern: "plain" }, { ...OPTIONS, run: quiet });
+  assert.deepEqual(limits, [SEARCH_LITERAL_TIMEOUT_MS]);
 });
 
 test("a regex git cannot read is reported as a tool error", async () => {
@@ -219,4 +233,39 @@ test("a regex git cannot read is reported as a tool error", async () => {
     await searchNonCode(dir, { pattern: "(", regex: true }, OPTIONS),
     /^Tool error: search failed: /,
   );
+});
+
+test("a search whose output passes the size limit is stopped and says at least", async () => {
+  const records = Array.from(
+    { length: 40 },
+    (_, index) => `docs/a.md\0${index + 1}\0match ${index}\n`,
+  ).join("");
+  const big: GrepRun = () =>
+    Promise.resolve({
+      code: 0,
+      stdout: records,
+      stderr: "",
+      timedOut: false,
+      cut: true,
+    });
+  const answer = await searchNonCode(
+    repo({ "docs/a.md": "x\n" }),
+    { pattern: "match" },
+    { ...OPTIONS, run: big },
+  );
+  assert.match(answer, /and at least 10 more matches/);
+  assert.match(answer, /at least 40 matches in 1 file/);
+});
+
+test("a git run past the output limit is stopped, not read to the end", async () => {
+  const dir = repo({
+    "docs/big.md": "needle line\n".repeat(200_000),
+  });
+  const result = await runGit(
+    ["grep", "-n", "-I", "-z", "--fixed-strings", "-e", "needle", "--", "."],
+    dir,
+    null,
+  );
+  assert.equal(result.cut, true);
+  assert.ok(result.stdout.length <= SEARCH_MAX_OUTPUT_BYTES + 70_000);
 });

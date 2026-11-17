@@ -4,7 +4,7 @@
  * and the `tool_budget_spent` warning. */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { parseArgs, setCliInteractive } from "../cli/args.ts";
@@ -132,6 +132,7 @@ async function review(
     else setEnv("CM_CONFIG_PATH", saved.config);
     if (saved.repos === undefined) deleteEnv("CM_REPOS_DIR");
     else setEnv("CM_REPOS_DIR", saved.repos);
+    rmSync(dir, { recursive: true, force: true });
   }
 }
 

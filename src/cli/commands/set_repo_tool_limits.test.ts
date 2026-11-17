@@ -1,6 +1,7 @@
 /** `set --repo` stores the review tool limits (issue 79) the way
  * `--review-read-diff-max-chars` is stored, and a review reads them back. */
 import assert from "node:assert/strict";
+import { rmSync } from "node:fs";
 import { test } from "node:test";
 import { readConfig } from "../../config.ts";
 import {
@@ -20,12 +21,13 @@ isolateTestFile();
 async function withConfig(fn: () => Promise<void>): Promise<void> {
   const original = getEnv("CM_CONFIG_PATH");
   const dir = tempDirSync();
-  setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
   try {
+    setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
     await fn();
   } finally {
     if (original === undefined) deleteEnv("CM_CONFIG_PATH");
     else setEnv("CM_CONFIG_PATH", original);
+    rmSync(dir, { recursive: true, force: true });
   }
 }
 
