@@ -27,12 +27,17 @@ import { stripControlChars } from "../util/sanitize.ts";
 import { prepareLocalCodegraph } from "../local/codegraph_prepare.ts";
 import { canPrompt } from "../tools/codegraph.ts";
 import {
+  capabilityTools,
+  clientToolsRefusal,
+  declareClientMcpTools,
   runRemoteToolCalls,
   runWithHeartbeat,
   toolHandlerMap,
   type RemoteToolCall,
 } from "./client_tools.ts";
-import { REMOTE_KNOWN_TOOL_NAMES } from "./schema.ts";
+import { CLIENT_TOOLS_FEATURE } from "./declared_tools.ts";
+import { mcpDisabled } from "../tools/mcp_config.ts";
+import { emptyMcpSession, startMcpSession } from "../tools/mcp_tools.ts";
 import {
   searchNonCodeTool,
   searchOptionsFor,
@@ -78,6 +83,9 @@ type HandshakeResponse = {
   features?: string[];
   byok?: { policy: ByokPolicy };
   ai?: { provider: string };
+  /** Whether the server offers the tools this client declares. Only a
+   * server with the `client-tools` feature sends it. */
+  clientTools?: { policy: string };
 };
 
 /** The subject of a server's result without an `intent` of its own. */
@@ -281,274 +289,304 @@ export async function runRemoteReview(
       // `--json` must stay machine-readable, `canPrompt` adds TTY and CI.
       interactive: !cli.json && canPrompt(),
     });
-    // The server asks for search the way it asks for codegraph, and the
-    // client runs it in this checkout. An older server ignores the name.
-    const localTools = toolHandlerMap([
-      ...codegraphPrep.tools,
-      searchNonCodeTool(root, searchOptionsFor(repo)),
-    ]);
-    const capabilityTools = [...localTools.keys()]
-      .filter((name) => REMOTE_KNOWN_TOOL_NAMES.has(name))
-      .map((name) => ({ name }));
-
-    const requestId = crypto.randomUUID();
-    // The review runs on the server, so the server's per-repo cap decides. The
-    // client only reads the files and sends them, and the server rejects an
-    // over-cap value with a 400.
-    const promptFlags = await loadReviewSystemPromptFlags(cli, null);
-    const submitBody = {
-      schemaVersion: REMOTE_SCHEMA_VERSION,
-      requestId,
-      repo: hs.repo.fullName,
-      branch,
-      toBranch: cli.toBranch ?? hs.repo.defaultBranch ?? undefined,
-      fresh: cli.fresh,
-      revision: {
-        title: built.revision.title,
-        description: intent?.text ?? built.revision.description,
-        baseLabel: built.revision.baseLabel,
-        files: built.revision.files,
-      },
-      capabilities: { tools: capabilityTools },
-      // Only present when this run turned BYOK on, `byokKey` is
-      // known to be set here because of the earlier `byokEnabled` guard.
-      ...(byokEnabled ? { byok: { key: byokKey! } } : {}),
-      // The client's one-run instructions, when given. The server applies
-      // them on top of its own per-repo prompt.
-      ...(promptFlags.add !== undefined
-        ? { systemPromptAdd: promptFlags.add }
-        : {}),
-      ...(promptFlags.override !== undefined
-        ? { systemPromptOverride: promptFlags.override }
-        : {}),
-    };
-    const serialized = JSON.stringify(submitBody);
-    if (serialized.length > hs.limits.maxBodyBytes) {
-      die(
-        "payload_too_large",
-        "Diff is too large for the remote server limit.",
-      );
-    }
-
-    const submit = await remoteFetch(host, token, "/api/remote/reviews", {
-      method: "POST",
-      body: serialized,
+    // The client's own MCP servers for this repository become tools it
+    // declares, when the server takes them. They run here, and their results
+    // stay private on the server.
+    const serverSupportsClientTools =
+      hs.features?.includes(CLIENT_TOOLS_FEATURE) ?? false;
+    const ownServers = mcpDisabled()
+      ? undefined
+      : config.repos?.[repo]?.mcpServers;
+    const clientToolsRefused = clientToolsRefusal(ownServers, {
+      version: hs.serverVersion,
+      feature: serverSupportsClientTools,
+      policy: hs.clientTools?.policy,
     });
-    if (submit.status !== 202) {
-      const why = await readApiError(submit);
-      // The user typed the flag, so a refusal of the text names it.
-      die(
-        "remote_submit_failed",
-        intent && /revision\.description/.test(why)
-          ? `--intent-file was refused by the server: ${why}`
-          : why,
+    if (clientToolsRefused) clientWarnings.push(clientToolsRefused);
+    const clientMcp =
+      ownServers && !clientToolsRefused
+        ? await startMcpSession(ownServers)
+        : emptyMcpSession();
+    try {
+      const declared = declareClientMcpTools(clientMcp.tools);
+      clientWarnings.push(...declared.warnings);
+      // The server asks for search the way it asks for codegraph, and the
+      // client runs it in this checkout. An older server ignores the name.
+      const localTools = toolHandlerMap([
+        ...codegraphPrep.tools,
+        searchNonCodeTool(root, searchOptionsFor(repo)),
+        ...declared.tools,
+      ]);
+      const capabilities = capabilityTools(
+        [...localTools.values()],
+        new Set(declared.tools.map((tool) => tool.name)),
+        serverSupportsClientTools,
       );
-    }
-    const { jobId } = (await submit.json()) as { jobId: string };
 
-    let afterLogSeq = 0;
-    let toolResults: Awaited<ReturnType<typeof runRemoteToolCalls>> = [];
-    let toolCallsRun = 0;
-    // Tool calls the server asked for that have not run yet. A sync sent
-    // while tools run can bring more, which run next.
-    let queuedCalls: RemoteToolCall[] = [];
-    // A trustworthy server drives at most a few tool rounds. Cap the total so a
-    // malicious one cannot make the client read its tree without limit.
-    const MAX_REMOTE_TOOL_CALLS = 200;
-    const intervalMs = hs.sync.intervalSeconds * 1000;
-    // While tools run, a sync with no results keeps the review alive. It
-    // goes at the poll interval, and at least three times per server timeout,
-    // so a slow batch is never taken for a client that went away.
-    const heartbeatMs = Math.min(
-      intervalMs,
-      ((hs.sync.timeoutSeconds ?? 10) * 1000) / 3,
-    );
-    const syncOnce = async (results: typeof toolResults) => {
-      const sync = await remoteFetch(
-        host,
-        token,
-        `/api/remote/reviews/${jobId}/sync`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            schemaVersion: REMOTE_SCHEMA_VERSION,
-            afterLogSeq,
-            toolResults: results,
-          }),
+      const requestId = crypto.randomUUID();
+      // The review runs on the server, so the server's per-repo cap decides. The
+      // client only reads the files and sends them, and the server rejects an
+      // over-cap value with a 400.
+      const promptFlags = await loadReviewSystemPromptFlags(cli, null);
+      const submitBody = {
+        schemaVersion: REMOTE_SCHEMA_VERSION,
+        requestId,
+        repo: hs.repo.fullName,
+        branch,
+        toBranch: cli.toBranch ?? hs.repo.defaultBranch ?? undefined,
+        fresh: cli.fresh,
+        revision: {
+          title: built.revision.title,
+          description: intent?.text ?? built.revision.description,
+          baseLabel: built.revision.baseLabel,
+          files: built.revision.files,
         },
-      );
-      if (!sync.ok) {
-        die("remote_sync_failed", await readApiError(sync));
-      }
-      const payload = (await sync.json()) as {
-        status: string;
-        toolCalls?: RemoteToolCall[];
-        logs: Array<{ seq: number; message: string }>;
-        result: Record<string, unknown> | null;
-        abort: { reason: string; message: string } | null;
+        capabilities: { tools: capabilities },
+        // Only present when this run turned BYOK on, `byokKey` is
+        // known to be set here because of the earlier `byokEnabled` guard.
+        ...(byokEnabled ? { byok: { key: byokKey! } } : {}),
+        // The client's one-run instructions, when given. The server applies
+        // them on top of its own per-repo prompt.
+        ...(promptFlags.add !== undefined
+          ? { systemPromptAdd: promptFlags.add }
+          : {}),
+        ...(promptFlags.override !== undefined
+          ? { systemPromptOverride: promptFlags.override }
+          : {}),
       };
-      for (const line of payload.logs ?? []) {
-        afterLogSeq = Math.max(afterLogSeq, line.seq);
-        if (!cli.json) {
-          console.error(
-            cli.output === "github"
-              ? neutralizeCommands(line.message)
-              : stripControlChars(line.message),
-          );
-        }
+      const serialized = JSON.stringify(submitBody);
+      if (serialized.length > hs.limits.maxBodyBytes) {
+        die(
+          "payload_too_large",
+          "Diff is too large for the remote server limit.",
+        );
       }
-      if (payload.toolCalls?.length) queuedCalls.push(...payload.toolCalls);
-      return payload;
-    };
-    while (true) {
-      const sent = toolResults;
-      toolResults = [];
-      const payload = await syncOnce(sent);
-      if (queuedCalls.length) {
-        while (queuedCalls.length) {
-          const batch = queuedCalls;
-          queuedCalls = [];
-          toolCallsRun += batch.length;
-          if (toolCallsRun > MAX_REMOTE_TOOL_CALLS) {
-            die(
-              "remote_tool_calls_exceeded",
-              `the server asked for more than ${MAX_REMOTE_TOOL_CALLS} tool calls`,
+
+      const submit = await remoteFetch(host, token, "/api/remote/reviews", {
+        method: "POST",
+        body: serialized,
+      });
+      if (submit.status !== 202) {
+        const why = await readApiError(submit);
+        // The user typed the flag, so a refusal of the text names it.
+        die(
+          "remote_submit_failed",
+          intent && /revision\.description/.test(why)
+            ? `--intent-file was refused by the server: ${why}`
+            : why,
+        );
+      }
+      const { jobId } = (await submit.json()) as { jobId: string };
+
+      let afterLogSeq = 0;
+      let toolResults: Awaited<ReturnType<typeof runRemoteToolCalls>> = [];
+      let toolCallsRun = 0;
+      // Tool calls the server asked for that have not run yet. A sync sent
+      // while tools run can bring more, which run next.
+      let queuedCalls: RemoteToolCall[] = [];
+      // A trustworthy server drives at most a few tool rounds. Cap the total so a
+      // malicious one cannot make the client read its tree without limit.
+      const MAX_REMOTE_TOOL_CALLS = 200;
+      const intervalMs = hs.sync.intervalSeconds * 1000;
+      // While tools run, a sync with no results keeps the review alive. It
+      // goes at the poll interval, and at least three times per server timeout,
+      // so a slow batch is never taken for a client that went away.
+      const heartbeatMs = Math.min(
+        intervalMs,
+        ((hs.sync.timeoutSeconds ?? 10) * 1000) / 3,
+      );
+      const syncOnce = async (results: typeof toolResults) => {
+        const sync = await remoteFetch(
+          host,
+          token,
+          `/api/remote/reviews/${jobId}/sync`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              schemaVersion: REMOTE_SCHEMA_VERSION,
+              afterLogSeq,
+              toolResults: results,
+            }),
+          },
+        );
+        if (!sync.ok) {
+          die("remote_sync_failed", await readApiError(sync));
+        }
+        const payload = (await sync.json()) as {
+          status: string;
+          toolCalls?: RemoteToolCall[];
+          logs: Array<{ seq: number; message: string }>;
+          result: Record<string, unknown> | null;
+          abort: { reason: string; message: string } | null;
+        };
+        for (const line of payload.logs ?? []) {
+          afterLogSeq = Math.max(afterLogSeq, line.seq);
+          if (!cli.json) {
+            console.error(
+              cli.output === "github"
+                ? neutralizeCommands(line.message)
+                : stripControlChars(line.message),
             );
           }
-          toolResults.push(
-            ...(await runWithHeartbeat(
-              runRemoteToolCalls(batch, localTools),
-              heartbeatMs,
-              async () => {
-                await syncOnce([]);
-              },
-            )),
-          );
         }
-        continue;
-      }
-      if (payload.status === "done" && payload.result) {
-        const { aiFindings, report: extensions } = splitRemoteResult(
-          payload.result,
-        );
-        const findings = aiFindings as JsonReviewFinding[];
-        const usage = payload.result.usage as
-          | {
-              tokensIn?: number;
-              tokensOut?: number;
-              costUsd?: number | null;
-              costNote?: CostReason | null;
+        if (payload.toolCalls?.length) queuedCalls.push(...payload.toolCalls);
+        return payload;
+      };
+      while (true) {
+        const sent = toolResults;
+        toolResults = [];
+        const payload = await syncOnce(sent);
+        if (queuedCalls.length) {
+          while (queuedCalls.length) {
+            const batch = queuedCalls;
+            queuedCalls = [];
+            toolCallsRun += batch.length;
+            if (toolCallsRun > MAX_REMOTE_TOOL_CALLS) {
+              die(
+                "remote_tool_calls_exceeded",
+                `the server asked for more than ${MAX_REMOTE_TOOL_CALLS} tool calls`,
+              );
             }
-          | undefined;
-        const known =
-          usage !== undefined &&
-          usage.costUsd !== null &&
-          usage.costUsd !== undefined;
-        const run: RunSummary | undefined = usage
-          ? {
-              durationMs: performance.now() - reviewStarted,
-              tokensIn: usage.tokensIn ?? 0,
-              tokensOut: usage.tokensOut ?? 0,
-              costUsd: known ? usage.costUsd! : null,
-              ...(!known && usage.costNote
-                ? { costNote: costReasonText(usage.costNote) }
-                : {}),
-            }
-          : undefined;
-        if (cli.json) {
-          console.log(
-            JSON.stringify({
-              schemaVersion: 1,
-              ok: true,
-              mode: "remote",
-              ...stripExtensionMarkdowns(
-                payload.result,
-                cli.includeExtensionMarkdowns ?? false,
-              ),
-              // The client knows how the intent came in, so a server cannot
-              // say otherwise.
-              subject: {
-                ...withoutIntent(payload.result.subject),
-                ...(intent ? { intent: intentRecord(intent) } : {}),
-              },
-              ...(clientWarnings.length > 0
-                ? {
-                    warnings: [
-                      ...warningsFromJson(payload.result.warnings),
-                      ...clientWarnings,
-                    ],
-                  }
-                : {}),
-            }),
+            toolResults.push(
+              ...(await runWithHeartbeat(
+                runRemoteToolCalls(batch, localTools),
+                heartbeatMs,
+                async () => {
+                  await syncOnce([]);
+                },
+              )),
+            );
+          }
+          continue;
+        }
+        if (payload.status === "done" && payload.result) {
+          // The client's own MCP servers can stop answering during the review,
+          // so their warnings are read once it ended.
+          const ownWarnings = [...clientWarnings, ...clientMcp.warnings()];
+          const { aiFindings, report: extensions } = splitRemoteResult(
+            payload.result,
           );
-        } else if (cli.output === "github") {
-          emitGithubOutput({
-            title: `${repo} · ${branch} (remote)`,
-            findings: humanFindingsFromJson(findings),
-            run,
-            coverage: coverageFromResult(payload.result),
-            // The server keeps this branch's carry-over, so its next run
-            // sends the files this one dropped.
-            catchesUp: true,
-            extensions,
-            intent: intent !== null,
-            showReferences:
-              readConfig().repos?.[repo]?.reviewReferences === true,
-          });
-        } else {
-          const resultGuide = payload.result.guide as
-            | { builtAt?: string | null }
+          const findings = aiFindings as JsonReviewFinding[];
+          const usage = payload.result.usage as
+            | {
+                tokensIn?: number;
+                tokensOut?: number;
+                costUsd?: number | null;
+                costNote?: CostReason | null;
+              }
             | undefined;
-          const resultCodegraph = payload.result.codegraph as
-            | { state?: "used" | "disabled" | "unavailable" }
-            | undefined;
-          console.log(
-            "\n" +
-              formatHumanReview({
-                title: `co-maintainer review · ${repo} · ${branch} (remote)`,
-                guideBuiltAt: resultGuide?.builtAt ?? null,
-                codegraphState: resultCodegraph?.state ?? null,
-                findings: humanFindingsFromJson(findings),
-                warnings: [
-                  ...warningsFromJson(payload.result.warnings),
-                  ...clientWarnings,
-                ],
-                coverage: coverageFromResult(payload.result),
-                extensions,
-                intent: intent !== null,
-                showReferences:
-                  readConfig().repos?.[repo]?.reviewReferences === true,
-                tools: toolUsageFromJson(
-                  (payload.result.usage as { tools?: unknown } | undefined)
-                    ?.tools,
+          const known =
+            usage !== undefined &&
+            usage.costUsd !== null &&
+            usage.costUsd !== undefined;
+          const run: RunSummary | undefined = usage
+            ? {
+                durationMs: performance.now() - reviewStarted,
+                tokensIn: usage.tokensIn ?? 0,
+                tokensOut: usage.tokensOut ?? 0,
+                costUsd: known ? usage.costUsd! : null,
+                ...(!known && usage.costNote
+                  ? { costNote: costReasonText(usage.costNote) }
+                  : {}),
+              }
+            : undefined;
+          if (cli.json) {
+            console.log(
+              JSON.stringify({
+                schemaVersion: 1,
+                ok: true,
+                mode: "remote",
+                ...stripExtensionMarkdowns(
+                  payload.result,
+                  cli.includeExtensionMarkdowns ?? false,
                 ),
-              }) +
-              "\n",
-          );
-          if (run) printRunSummary(run);
-        }
-        exitWith(
-          exitCodeWithExtensions(
-            reviewExitCodeFromJsonFindings(
-              (payload.result.findings ?? []) as JsonReviewFinding[],
+                // The client knows how the intent came in, so a server cannot
+                // say otherwise.
+                subject: {
+                  ...withoutIntent(payload.result.subject),
+                  ...(intent ? { intent: intentRecord(intent) } : {}),
+                },
+                ...(ownWarnings.length > 0
+                  ? {
+                      warnings: [
+                        ...warningsFromJson(payload.result.warnings),
+                        ...ownWarnings,
+                      ],
+                    }
+                  : {}),
+              }),
+            );
+          } else if (cli.output === "github") {
+            emitGithubOutput({
+              title: `${repo} · ${branch} (remote)`,
+              findings: humanFindingsFromJson(findings),
+              run,
+              coverage: coverageFromResult(payload.result),
+              // The server keeps this branch's carry-over, so its next run
+              // sends the files this one dropped.
+              catchesUp: true,
+              extensions,
+              intent: intent !== null,
+              showReferences:
+                readConfig().repos?.[repo]?.reviewReferences === true,
+            });
+          } else {
+            const resultGuide = payload.result.guide as
+              | { builtAt?: string | null }
+              | undefined;
+            const resultCodegraph = payload.result.codegraph as
+              | { state?: "used" | "disabled" | "unavailable" }
+              | undefined;
+            console.log(
+              "\n" +
+                formatHumanReview({
+                  title: `co-maintainer review · ${repo} · ${branch} (remote)`,
+                  guideBuiltAt: resultGuide?.builtAt ?? null,
+                  codegraphState: resultCodegraph?.state ?? null,
+                  findings: humanFindingsFromJson(findings),
+                  warnings: [
+                    ...warningsFromJson(payload.result.warnings),
+                    ...ownWarnings,
+                  ],
+                  coverage: coverageFromResult(payload.result),
+                  extensions,
+                  intent: intent !== null,
+                  showReferences:
+                    readConfig().repos?.[repo]?.reviewReferences === true,
+                  tools: toolUsageFromJson(
+                    (payload.result.usage as { tools?: unknown } | undefined)
+                      ?.tools,
+                  ),
+                }) +
+                "\n",
+            );
+            if (run) printRunSummary(run);
+          }
+          exitWith(
+            exitCodeWithExtensions(
+              reviewExitCodeFromJsonFindings(
+                (payload.result.findings ?? []) as JsonReviewFinding[],
+              ),
+              extensions,
             ),
-            extensions,
-          ),
-        );
-        // `done` is terminal. Without this return the loop polls `sync` again
-        // and, since the server keeps reporting the same finished job, the
-        // client reprints the result and re-requests forever.
-        return;
+          );
+          // `done` is terminal. Without this return the loop polls `sync` again
+          // and, since the server keeps reporting the same finished job, the
+          // client reprints the result and re-requests forever.
+          return;
+        }
+        if (payload.status === "failed" || payload.status === "canceled") {
+          die(
+            stripControlChars(payload.abort?.reason ?? "remote_failed"),
+            stripControlChars(
+              payload.abort?.message ?? "Remote review did not complete.",
+            ),
+          );
+        }
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
       }
-      if (payload.status === "failed" || payload.status === "canceled") {
-        die(
-          stripControlChars(payload.abort?.reason ?? "remote_failed"),
-          stripControlChars(
-            payload.abort?.message ?? "Remote review did not complete.",
-          ),
-        );
-      }
-      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    } finally {
+      await clientMcp.stop();
     }
   });
 }
