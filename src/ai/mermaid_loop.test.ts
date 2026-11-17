@@ -216,7 +216,7 @@ test("a Stop between tool rounds carries the cost of the calls already made", as
   try {
     await completeWithMermaidTools(
       provider,
-      { job: "review_local", prompt: "review" },
+      { job: "review_local", prompt: "review", maxTokens: 100 },
       1,
       [],
       5,
