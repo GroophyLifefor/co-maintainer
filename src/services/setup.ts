@@ -12,7 +12,9 @@ import {
   reviewSignalCount,
   synthesizeReviewGuides,
 } from "../knowledge/guide.ts";
-import type { ReviewDocuments } from "../knowledge/guide.ts";
+import type { GuideEditInput, ReviewDocuments } from "../knowledge/guide.ts";
+import { guideFindingKeys } from "../knowledge/guide.ts";
+import type { RuleEntry } from "../knowledge/rules.ts";
 import {
   assembleSkill,
   codebaseBody,
@@ -41,10 +43,16 @@ import {
 } from "../store/repos.ts";
 import { nowIso } from "../util/time.ts";
 import type { AiResponse, GitHubClient, Options } from "../types.ts";
-import type { Source, State } from "../knowledge/types.ts";
+import type { Fact, Source, State } from "../knowledge/types.ts";
 import type { LogFn } from "./jobs.ts";
 import type { JobRow } from "../store/rows.ts";
-import { mkdir, readTextFile, remove, stat } from "../util/runtime.ts";
+import {
+  isNotFound,
+  mkdir,
+  readTextFile,
+  remove,
+  stat,
+} from "../util/runtime.ts";
 import { applyWatchNotes, withMaintainerNotes } from "./watch_notes.ts";
 import { addResponseCost, emptyTally, type CostTally } from "../util/cost.ts";
 import { costLabel } from "../util/run_summary.ts";
@@ -377,10 +385,97 @@ export async function runInitOrRemake(
   }
 }
 
+/** What the next sync needs to edit the guide: the findings this guide was
+ * written from, and how many edits since its last full rewrite. A sync that
+ * kept the guide as it was does not count, and a full rewrite starts again. */
+export function guideState(
+  previous: State | null | undefined,
+  outcome: { mode?: "full" | "edit" | "unchanged" },
+  documents: ReviewDocuments | undefined,
+  facts: Fact[],
+): Pick<State, "guide"> {
+  if (!documents) return previous?.guide ? { guide: previous.guide } : {};
+  const edits = previous?.guide?.edits ?? 0;
+  return {
+    guide: {
+      findings: guideFindingKeys(facts),
+      edits:
+        outcome.mode === "edit"
+          ? edits + 1
+          : outcome.mode === "unchanged"
+            ? edits
+            : 0,
+    },
+  };
+}
+
+/** How many syncs whose guide input changed edit the guide before one
+ * rewrites it in full. */
+export const DEFAULT_GUIDE_FULL_EVERY = 10;
+
+/** The guide on disk to edit, or `undefined` when this build rewrites it in
+ * full: `init`, `sync --full-guide`, `--guide-full-every=1`, the N-th
+ * changed sync, or no earlier guide, rules or finding list to edit from. */
+export async function guideEditInput(
+  options: Options,
+  previous: State | null | undefined,
+  rules: Record<string, RuleEntry> | undefined,
+): Promise<GuideEditInput | undefined> {
+  if (options.command === "init" || options.fullGuide) return undefined;
+  const every =
+    readConfig().repos?.[options.repo]?.guideFullEvery ??
+    DEFAULT_GUIDE_FULL_EVERY;
+  if (every === 1) return undefined;
+  const edits = previous?.guide?.edits ?? 0;
+  // The count only decides once the findings changed: a sync whose findings
+  // are the same keeps the guide, whatever the count.
+  const rewriteIfChanged = every > 0 && edits + 1 >= every;
+  if (rewriteIfChanged) {
+    log(
+      "ai",
+      `${edits} edits since the last full rewrite, --guide-full-every=${every}: a changed guide is rewritten in full`,
+    );
+  }
+  const findings = previous?.guide?.findings;
+  if (!findings || !rules) return undefined;
+  const directory = `${reposDir()}/${options.repo}`;
+  // Only a missing file means "no such guide". Any other read error rewrites
+  // in full, so the two guides are never edited apart.
+  const UNREADABLE = Symbol("unreadable");
+  const read = (name: string) =>
+    readTextFile(`${directory}/${name}`).catch((error: unknown) =>
+      isNotFound(error) ? undefined : UNREADABLE,
+    );
+  const [guide, detailed] = await Promise.all([
+    read("PR_REVIEW_GUIDE.md"),
+    read("PR_REVIEW_DETAILED_GUIDE.md"),
+  ]);
+  if (!guide || guide === UNREADABLE || detailed === UNREADABLE) {
+    return undefined;
+  }
+  // The last build wrote a detailed guide that is gone now: rewrite in full.
+  const hadDetailed = Object.values(rules).some(
+    (rule) => rule.file === "PR_REVIEW_DETAILED_GUIDE.md",
+  );
+  if (hadDetailed && detailed === undefined) return undefined;
+  // An empty guide file is not a guide to edit.
+  if (!guide.trim() || (detailed !== undefined && !detailed.trim())) {
+    return undefined;
+  }
+  return {
+    guide,
+    ...(detailed !== undefined ? { detailed } : {}),
+    rules,
+    findings,
+    ...(rewriteIfChanged ? { rewriteIfChanged: true } : {}),
+  };
+}
+
 async function initOrRemake(
   options: Options,
   signal?: AbortSignal,
 ): Promise<void> {
+  const guideOutcome: { mode?: "full" | "edit" | "unchanged" } = {};
   // Turning review references on re-reads every pull request once, so the
   // guide rules get links to the review comments they came from.
   const repoConfig = readConfig().repos?.[options.repo];
@@ -516,6 +611,7 @@ async function initOrRemake(
     // goes against. Read outside the lock: it only shapes the prompt, the ids
     // are mapped under the lock below.
     const previousRules = (await readRulesFile(options.repo))?.rules;
+    const edit = await guideEditInput(options, previous, previousRules);
     reviewDocuments = await timed("synth_guide AI", options.logTime, () =>
       synthesizeReviewGuides(
         highAi,
@@ -526,6 +622,8 @@ async function initOrRemake(
         facts,
         usage,
         previousRules,
+        edit,
+        guideOutcome,
       ),
     );
     log(
@@ -642,6 +740,7 @@ async function initOrRemake(
       source,
       facts,
       sectionHashes: result.hashes,
+      ...guideState(previous, guideOutcome, reviewDocuments, facts),
       scanDone: {
         pullRequests: source.pullRequests.length,
         commits: source.commits.length,

@@ -1,3 +1,12 @@
+import {
+  applyGuideEdits,
+  GuideEditError,
+  guideRuleIds,
+  keptSources,
+  parseGuideEdits,
+  type GuideEdits,
+} from "./guide_edit.ts";
+import type { RuleEntry } from "./rules.ts";
 import { AiBatch } from "../ai/batch.ts";
 import type { AiProvider, AiRequest, AiResponse, Options } from "../types.ts";
 import type { Fact } from "./types.ts";
@@ -335,11 +344,34 @@ export async function synthesizeReviewGuides(
   /** The last build's `RULES.json` rules, so the AI can say which old rule a
    * new line goes against. */
   previousRules?: Record<string, { text: string }>,
+  /** The guide on disk to edit instead of rewriting it. Left out, the guide
+   * is written in full. */
+  edit?: GuideEditInput,
+  /** Filled with what this build did, for the sync counter. */
+  outcome?: { mode?: "full" | "edit" | "unchanged" },
 ): Promise<ReviewDocuments | undefined> {
   const findings = guideFindings(facts);
   if (findings.length <= 2) return undefined;
 
   const material = guideMaterial(facts);
+  if (edit) {
+    const edited = await editReviewGuides(
+      provider,
+      repo,
+      ai,
+      model,
+      concurrency,
+      facts,
+      material,
+      edit,
+      usage,
+    );
+    if (edited !== FULL) {
+      if (outcome) outcome.mode = edited.mode;
+      return edited.documents;
+    }
+  }
+  if (outcome) outcome.mode = "full";
   // No validator: the guide is kept as written. Losing the run over format is
   // not worth it, and a later `sync` reuses the cached text.
   const queue = new AiBatch(
@@ -383,6 +415,196 @@ export async function synthesizeReviewGuides(
   return withRuleIds(withTrailingNewline(short), full, sources, links);
 }
 
+/** What a sync needs to edit the guide: the files on disk, the last build's
+ * rules and the findings the guide was written from. */
+export type GuideEditInput = {
+  guide: string;
+  detailed?: string;
+  rules: Record<string, RuleEntry>;
+  findings: string[];
+  /** The count of edits reached `--guide-full-every`: a sync whose findings
+   * changed rewrites in full, one whose findings did not keeps the guide. */
+  rewriteIfChanged?: boolean;
+};
+
+/** A guide longer than this is rewritten in full rather than sent whole to
+ * an edit call. A full method stops at about 64,000 characters. */
+const MAX_EDIT_GUIDE_CHARS = 80_000;
+/** The edit prompt's input in tokens, estimated at 2.5 characters a token,
+ * which is dense text. With the 8,000-token answer this stays well inside a
+ * 64,000-token context, so the call never fails on length before the
+ * full-rewrite fallback can run. A bigger change is rewritten in full. */
+const MAX_EDIT_INPUT_TOKENS = 40_000;
+
+function estimatedTokens(chars: number): number {
+  return Math.ceil(chars / 2.5);
+}
+
+const FULL = Symbol("rewrite in full");
+
+/** The key a finding is compared by between builds. */
+function findingKey(item: Fact): string {
+  return item.claim.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** The findings a guide is written from, by key, for the next edit. */
+export function guideFindingKeys(facts: Fact[]): string[] {
+  return guideFindings(facts).slice(0, MAX_FINDINGS).map(findingKey);
+}
+
+function editGuideRequest(
+  current: string,
+  added: string,
+  gone: string,
+): AiRequest {
+  return {
+    job: "edit_guide",
+    maxTokens: 8_000,
+    reasoningEffort: "high",
+    system: GUIDE_SYSTEM,
+    prompt: `Update the review method below with the findings that changed since it was written. Return only this JSON object:
+{"add": [{"pass": "<the title of an existing pass>", "rule": "<rule> · <why it matters here> [<finding numbers>]", "example": "<the concrete case>"}],
+ "change": [{"id": "R12", "rule": "<rule> · <why it matters here> [<finding numbers>]"}],
+ "remove": ["R4"]}
+- NEW FINDINGS are numbered. For each one, change the rule that already covers it and end its line with that finding's number, or add a rule under the pass it belongs to. A rule is a general invariant in the same shape as the rules in the method.
+- GONE FINDINGS are no longer in the repository's history. Remove a rule only when nothing it says still holds, otherwise leave it.
+- Name rules only by the ids at the end of their lines. Change nothing else. Empty lists are fine.
+
+CURRENT METHOD:
+${current}
+
+NEW FINDINGS:
+${added || "None."}
+
+GONE FINDINGS:
+${gone || "None."}`,
+  };
+}
+
+/** Edits the guide on disk with the findings that changed. Returns `FULL`
+ * when the guide must be rewritten instead: no usable answer, or an edit that
+ * does not fit the file. A sync whose findings did not change keeps the guide
+ * as it is and makes no call. */
+async function editReviewGuides(
+  provider: AiProvider,
+  repo: string,
+  ai: Options["ai"],
+  model: string,
+  concurrency: number,
+  facts: Fact[],
+  material: string,
+  edit: GuideEditInput,
+  usage?: UsageSink,
+): Promise<
+  | { mode: "edit" | "unchanged"; documents: ReviewDocuments | undefined }
+  | typeof FULL
+> {
+  const current = guideFindings(facts).slice(0, MAX_FINDINGS);
+  const keys = current.map(findingKey);
+  const before = new Set(edit.findings);
+  const now = new Set(keys);
+  const added = (JSON.parse(material) as { number: number }[]).filter(
+    (_item, index) => !before.has(keys[index]!),
+  );
+  const gone = edit.findings.filter((key) => !now.has(key));
+  const main = edit.detailed ?? edit.guide;
+  const ids = [
+    ...new Set([
+      ...guideRuleIds(main),
+      ...(edit.detailed ? guideRuleIds(edit.guide) : []),
+    ]),
+  ];
+  const kept = keptSources(ids, edit.rules, current.length);
+  const sources = [...findingPullRequests(facts), ...kept.pullRequests];
+  const links = [...findingLinks(facts), ...kept.links];
+  const total = current.length + kept.pullRequests.length;
+  const noEdits: GuideEdits = { add: [], change: [], remove: [] };
+  const relabel = (edits: GuideEdits) => {
+    const detailed = edit.detailed
+      ? applyGuideEdits(edit.detailed, edits, kept.pseudo, current.length, true)
+      : undefined;
+    const guide = applyGuideEdits(
+      edit.guide,
+      edits,
+      kept.pseudo,
+      current.length,
+      !edit.detailed,
+    );
+    return withRuleIds(
+      withTrailingNewline(guide),
+      detailed === undefined ? undefined : withTrailingNewline(detailed),
+      sources,
+      links,
+      total,
+    );
+  };
+  if (added.length === 0 && gone.length === 0) {
+    log(
+      "ai",
+      "the review guide's findings did not change, keeping it as it is",
+    );
+    return { mode: "unchanged", documents: relabel(noEdits) };
+  }
+  if (edit.rewriteIfChanged) return FULL;
+  const addedText = added.length ? JSON.stringify(added, null, 2) : "";
+  const goneText = gone.length ? JSON.stringify(gone, null, 2) : "";
+  // The whole edit prompt is bounded: the guide and the changed findings.
+  // Past it, a full rewrite is cheaper than an edit and stays in the limit.
+  const request = editGuideRequest(main.trim(), addedText, goneText);
+  const tokens = estimatedTokens(
+    (request.system ?? "").length + request.prompt.length,
+  );
+  if (main.length > MAX_EDIT_GUIDE_CHARS || tokens > MAX_EDIT_INPUT_TOKENS) {
+    log(
+      "ai",
+      `the edit prompt would be about ${tokens} tokens, rewriting the guide in full instead of editing it`,
+    );
+    return FULL;
+  }
+  const queue = new AiBatch(
+    provider,
+    repo,
+    Math.max(1, concurrency),
+    `${ai}:v3:${model}:guide`,
+  );
+  // An edit call that fails, for example on a context limit the size
+  // estimate missed, is not a failed sync: the guide is rewritten in full.
+  let response: Awaited<ReturnType<typeof uncut>>;
+  try {
+    response = await uncut(queue, request, usage);
+  } catch (error) {
+    log(
+      "ai",
+      `edit_guide failed (${error instanceof Error ? error.message : String(error)}), rewriting the guide in full`,
+    );
+    return FULL;
+  }
+  if (response === CUT || !response) {
+    log("ai", "edit_guide gave no usable answer, rewriting the guide in full");
+    return FULL;
+  }
+  const edits = parseGuideEdits(response.text);
+  if (!edits) {
+    log(
+      "ai",
+      "edit_guide did not answer the edit format, rewriting the guide in full",
+    );
+    return FULL;
+  }
+  try {
+    const documents = relabel(edits);
+    log(
+      "ai",
+      `edit_guide · ${edits.add.length} added · ${edits.change.length} changed · ${edits.remove.length} removed`,
+    );
+    return { mode: "edit", documents };
+  } catch (error) {
+    if (!(error instanceof GuideEditError)) throw error;
+    log("ai", `edit_guide: ${error.message}, rewriting the guide in full`);
+    return FULL;
+  }
+}
+
 /** Replaces the finding brackets with `R` ids and attaches each id's pull
  * requests. */
 function withRuleIds(
@@ -390,8 +612,9 @@ function withRuleIds(
   detailed: string | undefined,
   sources: number[][],
   links: { pr: number; url: string }[][] = [],
+  findingCount = sources.length,
 ): ReviewDocuments {
-  const assigned = assignGuideIds(guide, detailed, sources.length);
+  const assigned = assignGuideIds(guide, detailed, findingCount);
   return {
     guide: assigned.guide,
     ...(assigned.detailed !== undefined ? { detailed: assigned.detailed } : {}),

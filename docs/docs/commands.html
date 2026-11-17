@@ -593,6 +593,21 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td>Concurrent AI calls for this run only. It does not change the saved default.</td>
 </tr>
 </tbody></table>
+<h3 id="review-guide">Review guide</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--full-guide</code></td>
+<td></td>
+<td>Rewrite the review guide in full now, instead of editing it, and start the count of --guide-full-every again.</td>
+</tr>
+</tbody></table>
 <h2 id="co-maintainer-review"><code>co-maintainer review</code></h2>
 <p>Review a pull request, or the local changes in this workspace.</p>
 <pre><code>co-maintainer review owner/repo PR_NUMBER [options]
@@ -1181,6 +1196,11 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td><code>--review-read-diff-max-chars=N</code></td>
 <td>20000</td>
 <td>The most characters one read-full-diff answer returns in a review of this repository. Needs --repo. 0 or -1 means no limit.</td>
+</tr>
+<tr>
+<td><code>--guide-full-every=N</code></td>
+<td>10</td>
+<td>Every N-th sync whose input changed rewrites the review guide in full, the others edit it. 1 always rewrites, 0 never after init. Needs --repo.</td>
 </tr>
 <tr>
 <td><code>--review-blocking=model|severity</code></td>

@@ -242,6 +242,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
       arg === "--run" ||
       arg === "--json" ||
       arg === "--only-request-changed-pr" ||
+      arg === "--full-guide" ||
       arg === "--experimental-siwc"
     )
       continue;
@@ -419,6 +420,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
     prNumber,
     debug: rest.includes("--debug"),
     logTime: rest.includes("--log-time"),
+    ...(rest.includes("--full-guide") ? { fullGuide: true } : {}),
     reviewUpstream: rest.includes("--review-upstream"),
     run: rest.includes("--run"),
     ...(json ? { json: true } : {}),

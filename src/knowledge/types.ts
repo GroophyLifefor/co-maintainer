@@ -97,6 +97,9 @@ export type State = {
   source: Source;
   facts: Fact[];
   sectionHashes: Record<string, string>;
+  /** For editing the review guide on the next sync: the findings it was
+   * written from, by key, and the edits since its last full rewrite. */
+  guide?: { findings: string[]; edits: number };
   scanDone: { pullRequests: number; commits: number; updatedAt: string };
   updatedAt: string;
 };
