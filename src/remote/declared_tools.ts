@@ -27,6 +27,9 @@ export const CLIENT_TOOLS_FEATURE = "client-tools";
 export const MAX_CLIENT_TOOLS = 16;
 /** Largest declaration, as JSON, in bytes. */
 export const MAX_CLIENT_TOOL_DECLARATION_BYTES = 16 * 1024;
+/** All declarations together, so 16 tools near the single limit cannot crowd
+ * the review out of the model's context. */
+export const MAX_CLIENT_TOOLS_TOTAL_BYTES = 64 * 1024;
 /** What a declared tool may be called. */
 export const CLIENT_TOOL_NAME = /^[a-z][a-z0-9-]{1,63}$/;
 /** Most characters of one declared tool's result the server takes from the
@@ -110,6 +113,7 @@ export function declaredClientTools(
   const warnings: CoverageWarning[] = [];
   const seen = new Set<string>();
   let over = 0;
+  let total = 0;
   for (const entry of declarations) {
     const name = entry.name as string;
     const why = (() => {
@@ -154,6 +158,15 @@ export function declaredClientTools(
       over++;
       continue;
     }
+    if (total + bytes(entry) > MAX_CLIENT_TOOLS_TOTAL_BYTES) {
+      warnings.push(
+        refused(
+          `The client tool ${shown(name)} was not offered: the declared tools together are over ${MAX_CLIENT_TOOLS_TOTAL_BYTES / 1024} KB.`,
+        ),
+      );
+      continue;
+    }
+    total += bytes(entry);
     const own =
       typeof entry.description === "string" ? entry.description.trim() : "";
     tools.push({

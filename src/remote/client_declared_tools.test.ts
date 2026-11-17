@@ -55,43 +55,45 @@ async function withRemote(
   }) => Promise<void>,
 ): Promise<void> {
   const sandbox = await createLocalReviewSandbox();
-  const script = writeFakeMcpServer(sandbox.home);
-  const exitFile = `${sandbox.home}/mcp-exited`;
-  await writeTextFile(
-    `${sandbox.home}/config/config.json`,
-    JSON.stringify({
-      auth: "gh",
-      ai: "openrouter",
-      token: "fake-key",
-      lowModel: "fake/model",
-      highModel: "fake/model",
-      repos: {
-        [sandbox.repo]: {
-          mcpServers: {
-            tracker: {
-              command: process.execPath,
-              args: [script],
-              env: {
-                FAKE_MCP_EXIT_FILE: exitFile,
-                FAKE_MCP_WAIT_MS: String(options.waitMs ?? 1000),
+  let remote: FakeRemote | undefined;
+  try {
+    const script = writeFakeMcpServer(sandbox.home);
+    const exitFile = `${sandbox.home}/mcp-exited`;
+    await writeTextFile(
+      `${sandbox.home}/config/config.json`,
+      JSON.stringify({
+        auth: "gh",
+        ai: "openrouter",
+        token: "fake-key",
+        lowModel: "fake/model",
+        highModel: "fake/model",
+        repos: {
+          [sandbox.repo]: {
+            mcpServers: {
+              tracker: {
+                command: process.execPath,
+                args: [script],
+                env: {
+                  FAKE_MCP_EXIT_FILE: exitFile,
+                  FAKE_MCP_WAIT_MS: String(options.waitMs ?? 1000),
+                },
+                tools: ["get_issue", "close_issue", "wait"],
               },
-              tools: ["get_issue", "close_issue", "wait"],
             },
           },
         },
-      },
-    }),
-  );
-  const remote = await startFakeRemote({
-    repo: sandbox.repo,
-    sync: options.sync,
-    handshake: options.handshake ?? {},
-  });
-  try {
+      }),
+    );
+    const started = await startFakeRemote({
+      repo: sandbox.repo,
+      sync: options.sync,
+      handshake: options.handshake ?? {},
+    });
+    remote = started;
     const ca = await writeCaCert(sandbox.home);
     await fn({
       sandbox,
-      remote,
+      remote: started,
       exitFile,
       run: async () => {
         const result = await commandWithInput(
@@ -99,7 +101,7 @@ async function withRemote(
           {
             args: sandbox.reviewArgs([
               "--remote",
-              `--remote-host=${remote.url}`,
+              `--remote-host=${started.url}`,
               "--remote-token=cmr_inline",
               "--json",
             ]),
@@ -119,7 +121,7 @@ async function withRemote(
       },
     });
   } finally {
-    await remote.close();
+    await remote?.close();
     await sandbox.cleanup();
   }
 }

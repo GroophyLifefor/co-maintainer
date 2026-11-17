@@ -10,7 +10,9 @@ import {
   clientToolSession,
   CLIENT_TOOL_RESULT_MAX_CHARS,
   declaredClientTools,
+  MAX_CLIENT_TOOL_DECLARATION_BYTES,
   MAX_CLIENT_TOOLS,
+  MAX_CLIENT_TOOLS_TOTAL_BYTES,
   shadowsBuiltInTool,
 } from "./declared_tools.ts";
 import {
@@ -266,5 +268,28 @@ test("the prompt's private results sentence names declared tools one by one", ()
       { name: "client-b", private: true },
     ]),
     `Results from mcp- tools and from the client tools client-a, client-b ${rule}`,
+  );
+});
+
+test("the declared tools together stay under the total limit", () => {
+  // Each one is just under the single limit, so only a few fit the total.
+  const big = (index: number) => ({
+    name: `client-big-${index}`,
+    description: "d".repeat(MAX_CLIENT_TOOL_DECLARATION_BYTES - 200),
+  });
+  const result = declaredClientTools(
+    Array.from({ length: 10 }, (_, index) => big(index)),
+    "on",
+  );
+  const size = result.tools.reduce(
+    (sum, tool) => sum + JSON.stringify(tool).length,
+    0,
+  );
+  assert.ok(result.tools.length >= 1 && result.tools.length < 10);
+  assert.ok(size <= MAX_CLIENT_TOOLS_TOTAL_BYTES + 10 * 1024);
+  assert.ok(
+    result.warnings.some((warning) =>
+      warning.message.includes("together are over"),
+    ),
   );
 });
