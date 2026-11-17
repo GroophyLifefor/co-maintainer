@@ -1,4 +1,4 @@
-import { closeAppDb, openAppDb } from "../store/app_db.ts";
+import { closeAppDb, getAppDb, openAppDb } from "../store/app_db.ts";
 import { activateRepo } from "../store/repos.ts";
 import {
   createReplyRequestAndJob,
@@ -6,7 +6,7 @@ import {
   setReplyStatus,
 } from "../store/replies.ts";
 import { getJob } from "../store/jobs.ts";
-import { runReplyJob, takeWithdrawLine } from "./replies.ts";
+import { findingRules, runReplyJob, takeWithdrawLine } from "./replies.ts";
 import { insertReview } from "../store/reviews.ts";
 import {
   insertFinding,
@@ -396,5 +396,113 @@ test("Stop before a reply asks the AI makes no call and posts nothing", async ()
     await runReplyJob(job, () => {}, github, ai, stop.signal);
     if (calls !== 0) throw new Error(`${calls} AI calls after Stop`);
     if (github.writes.length !== 0) throw new Error("posted after Stop");
+  });
+});
+
+test("a reply on a finding gets the rules the finding rests on, with their text and links", async () => {
+  await withEnv(async () => {
+    const github = new FakeGithub();
+    const job = requestJob("review_comment", "109", "10");
+    const findingId = postedFinding(job.id);
+    getAppDb()
+      .prepare(`UPDATE findings SET references_json = ? WHERE id = ?`)
+      .run(
+        JSON.stringify([
+          {
+            kind: "rule",
+            id: "R12",
+            sources: [
+              {
+                pr: 212,
+                url: "https://github.com/acme/widgets/pull/212#discussion_r1",
+                mergedAt: "2026-03-04",
+              },
+            ],
+          },
+        ]),
+        findingId,
+      );
+    await writeTextFile(
+      `${getEnv("CM_REPOS_DIR")}/acme/widgets/RULES.json`,
+      JSON.stringify({
+        schemaVersion: 1,
+        builtAt: "2026-11-01T00:00:00.000Z",
+        rules: {
+          R12: {
+            file: "PR_REVIEW_GUIDE.md",
+            text: "Percentages round half up",
+            sources: [{ pr: 212 }],
+          },
+        },
+      }),
+    );
+    let prompt = "";
+    const ai: AiProvider = {
+      complete: (request) => {
+        prompt = request.prompt;
+        return Promise.resolve({
+          text: "It follows Rules-12.",
+          tokensIn: 1,
+          tokensOut: 1,
+          model: "fake",
+          provider: "openrouter",
+        });
+      },
+    };
+    await runReplyJob(job, () => {}, github, ai);
+    for (const needle of [
+      "Percentages round half up",
+      "Rules-12",
+      "pull/212#discussion_r1",
+    ]) {
+      if (!prompt.includes(needle)) {
+        throw new Error(`the reply context lacks ${needle}`);
+      }
+    }
+  });
+});
+
+test("the rules a reply gets from a finding are capped", () => {
+  const references = Array.from({ length: 12 }, (_, index) => ({
+    kind: "rule",
+    id: `R${index + 1}`,
+    sources: [],
+  }));
+  const rules = {
+    schemaVersion: 1,
+    builtAt: "2026-11-01T00:00:00.000Z",
+    rules: {
+      R1: { file: "PR_REVIEW_GUIDE.md", text: "x".repeat(5000), sources: [] },
+    },
+  };
+  const out = findingRules(JSON.stringify(references), rules as never);
+  if (out.length !== 10) throw new Error(`${out.length} rules`);
+  if ((out[0]?.text?.length ?? 0) > 700) {
+    throw new Error(`a rule text of ${out[0]?.text?.length} chars`);
+  }
+});
+
+const DASH = String.fromCharCode(0x2014);
+const SEMI = String.fromCharCode(59);
+
+test("a reply's prose is posted without an em dash or a semicolon, code keeps its own", async () => {
+  await withEnv(async () => {
+    const github = new FakeGithub();
+    const job = requestJob("review_comment", "111", "10");
+    await runReplyJob(
+      job,
+      () => {},
+      github,
+      replyAi(
+        `It follows R3 ${DASH} Parse Error Consistency${SEMI} see below.\n\n\`\`\`js\nthrow new RangeError("x")${SEMI}\n\`\`\``,
+      ),
+    );
+    const body = (github.writes[0]!.body as { body: string }).body;
+    if (!body.includes("It follows R3, Parse Error Consistency. see below.")) {
+      throw new Error(body);
+    }
+    if (!body.includes(`throw new RangeError("x")${SEMI}`)) {
+      throw new Error(`code was changed: ${body}`);
+    }
   });
 });

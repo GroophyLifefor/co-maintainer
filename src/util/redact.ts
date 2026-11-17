@@ -37,6 +37,6 @@ export function outsideCode(
 export function safeCopy(text: string): string {
   // punctuation: code, this cleaner must name the semicolon it removes from AI text
   return outsideCode(redact(text), (prose) =>
-    prose.replaceAll("\u2014", ", ").replaceAll(";", "."),
+    prose.replace(/[ \t]*\u2014[ \t]*/g, ", ").replaceAll(";", "."),
   );
 }

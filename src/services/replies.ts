@@ -1,3 +1,6 @@
+import { safeCopy } from "../util/redact.ts";
+import { parseStoredReferences, referenceLine } from "../review/references.ts";
+import type { RulesFile } from "../knowledge/rules.ts";
 import { FakeAiProvider } from "../ai/fake.ts";
 import {
   completeWithMermaidTools,
@@ -64,6 +67,32 @@ async function githubFor(
   }
   return clientFor(installationId);
 }
+
+/** What a finding rested on when it was found, for the reply: each reference
+ * as the review printed it, with its pull request or file links, and a rule's
+ * text from `RULES.json` when the id is still there. Rule ids stay the same
+ * across syncs, so the text is the rule the finding cited. */
+export function findingRules(
+  referencesJson: string | null | undefined,
+  rules: RulesFile | null,
+): { reference: string; text?: string }[] {
+  // Capped, so a long rule list never crowds out the question.
+  return parseStoredReferences(referencesJson)
+    .slice(0, MAX_FINDING_RULES)
+    .map((reference) => {
+      const text =
+        reference.kind === "rule" || reference.kind === "instruction"
+          ? rules?.rules[reference.id]?.text
+          : undefined;
+      return {
+        reference: clip(referenceLine(reference), MAX_RULE_CHARS),
+        ...(text ? { text: clip(text, MAX_RULE_CHARS) } : {}),
+      };
+    });
+}
+
+const MAX_FINDING_RULES = 10;
+const MAX_RULE_CHARS = 600;
 
 async function replyContext(
   client: GitHubClient,
@@ -160,6 +189,7 @@ async function replyContext(
           severity: finding.severity,
           title: finding.title,
           body: finding.body_md,
+          restsOn: findingRules(finding.references_json, guides.rules),
         })
       : "None.",
     fileHint,
@@ -280,6 +310,7 @@ async function runReplyJobCore(
           "Return only the answer in concise Markdown. Do not add a findings heading. " +
           "Keep the reply concise unless the user asks for detailed reasoning. " +
           `${WITHDRAW_RULE} ` +
+          "When asked why a finding was raised or which rule it follows, name the rules in RELATED FINDING restsOn with their links. " +
           (diagrams
             ? (plantumlReplyRules(options) ??
               "Use zero Mermaid diagrams when prose is clearer. For a detailed " +
@@ -322,7 +353,11 @@ async function runReplyJobCore(
     log("info", "stopped before posting the reply, nothing was posted");
     return;
   }
-  const { text, withdrawn } = takeWithdrawLine(answer);
+  const taken = takeWithdrawLine(answer);
+  // The copy rule is asked of the model, and a model can still break it. A
+  // reply's prose loses its em dashes and semicolons here, code keeps them.
+  const text = safeCopy(taken.text);
+  const withdrawn = taken.withdrawn;
   const body = `${marker}\n${plainSuggestionFences(text)}`;
   setReplyStatus(request.id, "posting");
   const posted = await postReply(github, request, body);
