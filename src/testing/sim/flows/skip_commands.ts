@@ -77,7 +77,6 @@ function jobsIn(sim: Sim, step: string): string[] {
 }
 
 function checks(sim: Sim): CheckResult[] {
-  const pull = pullOf(sim);
   const failedHead = String(sim.state.failedHead ?? "");
   const pushedHead = String(sim.state.pushedHead ?? "");
   const memberWrites = writesIn(sim, STEP.member);
@@ -126,7 +125,9 @@ function checks(sim: Sim): CheckResult[] {
     check(
       "no reply carries an em dash or a semicolon",
       [...notePatch, ...offReplies, ...onReplies].every(
-        (body) => !body.includes("—") && !/[a-z]; /.test(body),
+        (body) =>
+          !body.includes(String.fromCharCode(0x2014)) &&
+          !body.includes(String.fromCharCode(59)),
       ),
       `${notePatch.length + offReplies.length + onReplies.length} replies read`,
     ),

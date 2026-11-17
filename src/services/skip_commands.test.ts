@@ -192,6 +192,11 @@ test("every reply is free of the em dash and the semicolon", () => {
     ALREADY_OFF_TEXT,
     reviewsOnText("owner"),
   ]) {
-    if (text.includes("—") || text.includes(";")) throw new Error(text);
+    if (
+      text.includes(String.fromCharCode(0x2014)) ||
+      text.includes(String.fromCharCode(59))
+    ) {
+      throw new Error(text);
+    }
   }
 });
