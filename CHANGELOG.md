@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.7] - 2026-11-17
+
+**Before you upgrade.** The database migrates once, as in 0.7.0: one migration adds two columns to the `subjects` table, after the same backup.
+
+### Added
+
+- **Skip a failed review, or turn reviews off for one pull request.** A failed App review ends its check run as failed, which blocks the merge where the check is required. `/co-maintainer skip-this-commit` on the pull request ends that commit's check as skipped and rewrites the failed note to say so, and the next commit is reviewed again. `/co-maintainer skip-this-pr` turns reviews off for the pull request: a running review stops and posts nothing, and every commit gets a skipped check. `/co-maintainer review` turns them back on, and the policy decides what happens next. The repository owner may always skip. Anyone else only when the repository's settings list their relation to the repository (`skippers` in the policy, off by default). Anyone else is ignored without a reply. A new `e2e:simulate` flow, `skip-commands`, covers it. (#112)
+
+### Changed
+
+- **A failed review says it reviewed nothing.** Its check run summary said "No actionable findings." It now says the commit was not reviewed, links the error on the dashboard and names the skip comment, and the failed note ends with the same paragraph.
+
 ## [0.7.6] - 2026-11-17
 
 ### Added

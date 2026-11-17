@@ -25,11 +25,15 @@ import { getWatchIssue } from "../store/watch.ts";
 import { canonicalRepoName } from "../util/repo_name.ts";
 import { isSha, isZeroSha, queuePush } from "./push_review.ts";
 import { WATCH_COMMENT_JOB } from "./watch_comments.ts";
+import { SKIP_JOB } from "./skip_commands.ts";
+import { prReviewsOff, setPrReviewsOff } from "../store/subjects.ts";
 import {
   carriesEarlierRequest,
   evaluatePolicy,
   isRequestCommand,
   legacyPolicy,
+  maySkip,
+  skipCommandOf,
   parsePolicy,
   type Association,
   type ReviewPolicy,
@@ -214,6 +218,25 @@ export function maybeEnqueueReview(input: {
     return {
       outcome: "skipped",
       reason: "repo-not-active",
+      repo: input.repo,
+      prNumber: input.prNumber,
+    };
+  }
+  // Turned off with skip-this-pr: no review. Each new commit gets a check
+  // run that passes as skipped, so a required check does not block the merge.
+  const off = prReviewsOff(input.repo, input.prNumber);
+  if (off) {
+    enqueue({
+      type: SKIP_JOB,
+      repo: input.repo,
+      prNumber: input.prNumber,
+      deliveryId: input.deliveryId,
+      args: { command: "pr-off", by: off.by, headSha: input.headSha ?? null },
+      queueKey: `skip:${input.repo}:${input.prNumber}:pr-off`,
+    });
+    return {
+      outcome: "skipped",
+      reason: "Reviews are off for this pull request.",
       repo: input.repo,
       prNumber: input.prNumber,
     };
@@ -628,6 +651,30 @@ function issueCommentEvent(
   const row = getRepo(repo);
   if (row?.active === 1) {
     const policy = policyForRepo(row);
+    const skip = skipCommandOf(body);
+    if (skip) {
+      const commenter = asString(comment?.author_association) ?? "NONE";
+      // Anyone else is ignored without a reply or a reaction.
+      if (!maySkip(policy, commenter)) {
+        return {
+          outcome: "skipped",
+          reason: `Not allowed to skip: ${commenter} is not the owner or one of ${(policy.skippers ?? []).join(", ") || "nobody else"}.`,
+          repo,
+          prNumber,
+        };
+      }
+      const installationId = asNumber(asRecord(payload.installation)?.id);
+      if (installationId !== undefined) setInstallationId(repo, installationId);
+      const { id } = enqueue({
+        type: SKIP_JOB,
+        repo,
+        prNumber,
+        deliveryId,
+        args: { command: skip, by: asString(author?.login) ?? null },
+        queueKey: `skip:${repo}:${prNumber}:${String(sourceId)}`,
+      });
+      return { outcome: "enqueued", repo, prNumber, jobId: id };
+    }
     if (isRequestCommand(body, policy.requestCommand)) {
       const commenter = asString(comment?.author_association) ?? "NONE";
       if (!policy.requesters.includes(commenter as Association)) {
@@ -640,6 +687,19 @@ function issueCommentEvent(
       }
       const installationId = asNumber(asRecord(payload.installation)?.id);
       if (installationId !== undefined) setInstallationId(repo, installationId);
+      // On a pull request turned off with skip-this-pr, the request turns
+      // reviews back on. The policy then decides as for any request.
+      if (prReviewsOff(repo, prNumber)) {
+        setPrReviewsOff(repo, prNumber, null);
+        enqueue({
+          type: SKIP_JOB,
+          repo,
+          prNumber,
+          deliveryId,
+          args: { command: "reviews-on", by: asString(author?.login) ?? null },
+          queueKey: `skip:${repo}:${prNumber}:${String(sourceId)}`,
+        });
+      }
       // An issue payload carries no head, base or diff size, so rules about
       // the fork, the target branch and the size do not match here.
       return maybeEnqueueReview({

@@ -160,10 +160,14 @@ function dashboardOrigin(): string {
 /** The one note a failed review leaves on the pull request: the short line a
  * maintainer sees and a link to the job on the dashboard, where the provider's
  * own reason is kept. Never the raw provider body, never a retry command. */
+/** The paragraph a failed review's note ends with. */
+export const SKIP_HINT =
+  "To merge without this review, the repository owner can comment `/co-maintainer skip-this-commit`. The next commit is reviewed again. `/co-maintainer skip-this-pr` turns reviews off for this pull request.";
+
 export function failedNoteBody(job: JobRow): string {
   return (
     `${REVIEW_FAILED_NOTE_START}. See the error on the dashboard: ` +
-    `${dashboardOrigin()}/activity/${job.id}`
+    `${dashboardOrigin()}/activity/${job.id}\n\n${SKIP_HINT}`
   );
 }
 
@@ -756,6 +760,8 @@ async function finishCheck(
   title: string,
   findings: ReturnType<typeof listFindingsForReview>,
   log: LogFn,
+  /** Replaces the findings count, for a check that reviewed nothing. */
+  summary?: string,
 ): Promise<void> {
   // A closed finding was fixed. Counting it would report work that is done.
   const open = findings.filter((finding) => finding.state !== "closed");
@@ -770,9 +776,10 @@ async function finishCheck(
       output: {
         title: humanCopy(title),
         summary: humanCopy(
-          open.length === 0
-            ? "No actionable findings."
-            : `${open.length} finding(s) reported.`,
+          summary ??
+            (open.length === 0
+              ? "No actionable findings."
+              : `${open.length} finding(s) reported.`),
         ),
         annotations: checkAnnotations(open),
       },
@@ -1009,6 +1016,7 @@ export async function runReviewJob(
         "Review job failed.",
         listFindingsForReview(review.id),
         log,
+        `This commit was not reviewed. See the error on the dashboard: ${dashboardOrigin()}/activity/${job.id}\n\n${SKIP_HINT}`,
       );
     }
     throw error;

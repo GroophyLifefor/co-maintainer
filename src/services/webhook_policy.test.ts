@@ -7,7 +7,8 @@ import {
   markKnowledgeBuilt,
   updateRepoSettings,
 } from "../store/repos.ts";
-import { getJob } from "../store/jobs.ts";
+import { getJob, listJobs } from "../store/jobs.ts";
+import { prReviewsOff, setPrReviewsOff } from "../store/subjects.ts";
 import { insertReview, setReviewStatus } from "../store/reviews.ts";
 import { dispatchGithubEvent, requestedReviewBlocked } from "./webhook.ts";
 import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
@@ -503,5 +504,89 @@ test("a comment request is checked again against the fetched pull request", asyn
       additions: 90_000,
     });
     if (huge !== "diff-too-large") throw new Error(String(huge));
+  });
+});
+
+test("skip commands: the owner always may, others only when the policy lists them, anyone else is ignored", async () => {
+  await withTempDb(() => {
+    readyRepo();
+    setPolicy("everyone");
+    const owner = dispatchGithubEvent(
+      "issue_comment",
+      commentPayload("/co-maintainer skip-this-commit", "OWNER", 910),
+      "s-1",
+    );
+    if (owner.outcome !== "enqueued") throw new Error(JSON.stringify(owner));
+    const args = jobArgs(owner.jobId);
+    if (args.command !== "skip-this-commit" || args.by !== "maintainer") {
+      throw new Error(JSON.stringify(args));
+    }
+    if (getJob(owner.jobId!)?.type !== "skip") {
+      throw new Error("the command did not start a skip job");
+    }
+
+    const member = dispatchGithubEvent(
+      "issue_comment",
+      commentPayload("/co-maintainer skip-this-pr", MEMBER, 911),
+      "s-2",
+    );
+    if (member.outcome !== "skipped" || member.jobId !== undefined) {
+      throw new Error(
+        `a member skipped without being listed: ${JSON.stringify(member)}`,
+      );
+    }
+
+    setPolicy({ default: "review", skippers: [MEMBER] });
+    const listed = dispatchGithubEvent(
+      "issue_comment",
+      commentPayload("/co-maintainer skip-this-pr", MEMBER, 912),
+      "s-3",
+    );
+    if (listed.outcome !== "enqueued") throw new Error(JSON.stringify(listed));
+    if (jobArgs(listed.jobId).command !== "skip-this-pr") {
+      throw new Error(JSON.stringify(jobArgs(listed.jobId)));
+    }
+  });
+});
+
+test("a pull request with reviews off gets no review, and a request turns them back on", async () => {
+  await withTempDb(() => {
+    readyRepo();
+    setPolicy("everyone");
+    setPrReviewsOff("acme/widgets", 7, "maintainer");
+    const push = dispatchGithubEvent(
+      "pull_request",
+      policyPayload("synchronize"),
+      "o-1",
+    );
+    if (push.outcome !== "skipped") throw new Error(JSON.stringify(push));
+    const offJobs = listJobs({}).filter((job) => job.type === "skip");
+    const offArgs = JSON.parse(offJobs.at(-1)?.args ?? "{}");
+    if (offArgs.command !== "pr-off" || offArgs.headSha !== "h1") {
+      throw new Error(
+        `no skipped check for the new commit: ${JSON.stringify(offArgs)}`,
+      );
+    }
+    if (listJobs({}).some((job) => job.type === "review")) {
+      throw new Error(
+        "a review was queued for a pull request with reviews off",
+      );
+    }
+
+    const request = dispatchGithubEvent(
+      "issue_comment",
+      commentPayload("/co-maintainer review", "OWNER", 920),
+      "o-2",
+    );
+    if (request.outcome !== "enqueued")
+      throw new Error(JSON.stringify(request));
+    if (prReviewsOff("acme/widgets", 7) !== undefined) {
+      throw new Error("the request did not turn reviews back on");
+    }
+    const on = listJobs({}).filter(
+      (job) =>
+        job.type === "skip" && JSON.parse(job.args).command === "reviews-on",
+    );
+    if (on.length !== 1) throw new Error(`${on.length} reviews-on replies`);
   });
 });
