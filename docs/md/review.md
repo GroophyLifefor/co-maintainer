@@ -329,6 +329,9 @@ The comment then ends each finding with a collapsed block:
 
     </details>
 
+With `--output=github`, each annotation ends with the rules instead, for
+example `(rule R3)` or `(rules R3, I1)`.
+
 Turning references on makes the next [`sync`](sync.md#references-and-comment-links)
 read every pull request again once, so its guide rules get links to their review
 comments.

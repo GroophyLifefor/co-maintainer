@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.9] - 2026-11-17
+
+### Added
+
+- **A CI annotation names the rules a finding rests on.** With `--output=github` and references turned on for the repository, each annotation ends with the guide and instruction rules behind the finding, for example `(rule R3)` or `(rules R3, I1)`, as the terminal output lists them. (#78)
+
 ## [0.7.8] - 2026-11-17
 
 **Before you upgrade.** Each repository's first `sync` after the upgrade rewrites the guide in full once, because the last build did not record which findings it was written from.

@@ -434,6 +434,8 @@ export async function runLocalReview(
           catchesUp: true,
           extensions,
           intent: Boolean(intentLoad.intent),
+          showReferences:
+            readConfig().repos?.[options.repo]?.reviewReferences === true,
         });
       } else {
         console.log(

@@ -453,6 +453,8 @@ export async function runRemoteReview(
             catchesUp: true,
             extensions,
             intent: intent !== null,
+            showReferences:
+              readConfig().repos?.[repo]?.reviewReferences === true,
           });
         } else {
           const resultGuide = payload.result.guide as

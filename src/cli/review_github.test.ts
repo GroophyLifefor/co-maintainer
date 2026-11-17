@@ -332,3 +332,27 @@ test("the job summary carries the coverage line and the not-reviewed list", () =
     throw new Error(fits);
   }
 });
+
+test("an annotation names the finding's rules when references are on", () => {
+  const references = [
+    { kind: "rule" as const, id: "R3", sources: [{ pr: 4 }] },
+    { kind: "instruction" as const, id: "I1", sources: [] },
+    { kind: "codebase" as const, section: "Tests" },
+  ];
+  const [on] = githubAnnotations([finding({ references })], undefined, true);
+  if (!on?.endsWith(" (rules R3, I1)")) throw new Error(on);
+  const [one] = githubAnnotations(
+    [finding({ references: [references[0]!] })],
+    undefined,
+    true,
+  );
+  if (!one?.endsWith(" (rule R3)")) throw new Error(one);
+  const [off] = githubAnnotations([finding({ references })]);
+  if (off?.includes("(rule")) throw new Error(`references off: ${off}`);
+  const [codebaseOnly] = githubAnnotations(
+    [finding({ references: [references[2]!] })],
+    undefined,
+    true,
+  );
+  if (codebaseOnly?.includes("(rule")) throw new Error(codebaseOnly);
+});

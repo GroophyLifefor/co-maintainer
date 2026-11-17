@@ -45,7 +45,19 @@ export function escapeProperty(value: string): string {
   return escapeData(value).replace(/:/g, "%3A").replace(/,/g, "%2C");
 }
 
-function annotation(row: HumanFinding): string {
+/** ` (rule R3)` or ` (rules R3, I1)`: the guide and instruction rules a
+ * finding rests on, so a CI annotation names them as the terminal does. */
+function rulesNote(row: HumanFinding): string {
+  const ids = (row.references ?? []).flatMap((reference) =>
+    reference.kind === "rule" || reference.kind === "instruction"
+      ? [reference.id]
+      : [],
+  );
+  if (ids.length === 0) return "";
+  return ` (${ids.length === 1 ? "rule" : "rules"} ${ids.join(", ")})`;
+}
+
+function annotation(row: HumanFinding, showReferences = false): string {
   const properties: string[] = [];
   if (row.path) {
     properties.push(`file=${escapeProperty(row.path)}`);
@@ -67,7 +79,8 @@ function annotation(row: HumanFinding): string {
     )}`,
   );
   const level = row.blocking ? "error" : "warning";
-  return `::${level} ${properties.join(",")}::${escapeData(row.body || row.title)}`;
+  const note = showReferences ? rulesNote(row) : "";
+  return `::${level} ${properties.join(",")}::${escapeData(`${row.body || row.title}${note}`)}`;
 }
 
 function active(findings: HumanFinding[]): HumanFinding[] {
@@ -91,6 +104,9 @@ function droppedAnnotation(coverage: Coverage | undefined): string | null {
 export function githubAnnotations(
   findings: HumanFinding[],
   coverage?: Coverage,
+  /** Name each finding's rules, only when the repository turned references
+   * on, as the terminal output does. */
+  showReferences = false,
 ): string[] {
   const rows = active(findings);
   const errors = rows.filter((row) => row.blocking);
@@ -100,7 +116,7 @@ export function githubAnnotations(
     ...errors.slice(0, MAX_ANNOTATIONS_PER_LEVEL),
     ...warnings.slice(0, MAX_ANNOTATIONS_PER_LEVEL - (dropped ? 1 : 0)),
   ];
-  const lines = shown.map(annotation);
+  const lines = shown.map((row) => annotation(row, showReferences));
   if (dropped) lines.push(dropped);
   const left = rows.length - shown.length;
   if (left > 0) {
@@ -145,6 +161,9 @@ export type GithubSummaryInput = {
   /** The extensions' results. Their findings join the table, and their
    * `markdown` follows the AI part. */
   extensions?: ExtensionReport;
+  /** Name each finding's rules in its annotation. On only when the
+   * repository turned references on. */
+  showReferences?: boolean;
   /** An intent file was given. The summary says so and never shows the text. */
   intent?: boolean;
 };
@@ -217,6 +236,7 @@ export function emitGithubOutput(input: GithubSummaryInput): void {
   for (const line of githubAnnotations(
     [...input.findings, ...located],
     input.coverage,
+    input.showReferences,
   )) {
     console.log(line);
   }
