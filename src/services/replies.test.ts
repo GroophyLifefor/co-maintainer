@@ -482,6 +482,9 @@ test("the rules a reply gets from a finding are capped", () => {
   }
 });
 
+const DASH = String.fromCharCode(0x2014);
+const SEMI = String.fromCharCode(59);
+
 test("a reply's prose is posted without an em dash or a semicolon, code keeps its own", async () => {
   await withEnv(async () => {
     const github = new FakeGithub();
@@ -491,14 +494,14 @@ test("a reply's prose is posted without an em dash or a semicolon, code keeps it
       () => {},
       github,
       replyAi(
-        'It follows R3 — Parse Error Consistency; see below.\n\n```js\nthrow new RangeError("x");\n```',
+        `It follows R3 ${DASH} Parse Error Consistency${SEMI} see below.\n\n\`\`\`js\nthrow new RangeError("x")${SEMI}\n\`\`\``,
       ),
     );
     const body = (github.writes[0]!.body as { body: string }).body;
     if (!body.includes("It follows R3, Parse Error Consistency. see below.")) {
       throw new Error(body);
     }
-    if (!body.includes('throw new RangeError("x");')) {
+    if (!body.includes(`throw new RangeError("x")${SEMI}`)) {
       throw new Error(`code was changed: ${body}`);
     }
   });
