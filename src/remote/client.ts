@@ -28,6 +28,7 @@ import { prepareLocalCodegraph } from "../local/codegraph_prepare.ts";
 import { canPrompt } from "../tools/codegraph.ts";
 import {
   runRemoteToolCalls,
+  runWithHeartbeat,
   toolHandlerMap,
   type RemoteToolCall,
 } from "./client_tools.ts";
@@ -348,11 +349,21 @@ export async function runRemoteReview(
     let afterLogSeq = 0;
     let toolResults: Awaited<ReturnType<typeof runRemoteToolCalls>> = [];
     let toolCallsRun = 0;
+    // Tool calls the server asked for that have not run yet. A sync sent
+    // while tools run can bring more, which run next.
+    let queuedCalls: RemoteToolCall[] = [];
     // A trustworthy server drives at most a few tool rounds. Cap the total so a
     // malicious one cannot make the client read its tree without limit.
     const MAX_REMOTE_TOOL_CALLS = 200;
     const intervalMs = hs.sync.intervalSeconds * 1000;
-    while (true) {
+    // While tools run, a sync with no results keeps the review alive. It
+    // goes at the poll interval, and at least three times per server timeout,
+    // so a slow batch is never taken for a client that went away.
+    const heartbeatMs = Math.min(
+      intervalMs,
+      ((hs.sync.timeoutSeconds ?? 10) * 1000) / 3,
+    );
+    const syncOnce = async (results: typeof toolResults) => {
       const sync = await remoteFetch(
         host,
         token,
@@ -362,11 +373,10 @@ export async function runRemoteReview(
           body: JSON.stringify({
             schemaVersion: REMOTE_SCHEMA_VERSION,
             afterLogSeq,
-            toolResults,
+            toolResults: results,
           }),
         },
       );
-      toolResults = [];
       if (!sync.ok) {
         die("remote_sync_failed", await readApiError(sync));
       }
@@ -387,15 +397,34 @@ export async function runRemoteReview(
           );
         }
       }
-      if (payload.toolCalls?.length) {
-        toolCallsRun += payload.toolCalls.length;
-        if (toolCallsRun > MAX_REMOTE_TOOL_CALLS) {
-          die(
-            "remote_tool_calls_exceeded",
-            `the server asked for more than ${MAX_REMOTE_TOOL_CALLS} tool calls`,
+      if (payload.toolCalls?.length) queuedCalls.push(...payload.toolCalls);
+      return payload;
+    };
+    while (true) {
+      const sent = toolResults;
+      toolResults = [];
+      const payload = await syncOnce(sent);
+      if (queuedCalls.length) {
+        while (queuedCalls.length) {
+          const batch = queuedCalls;
+          queuedCalls = [];
+          toolCallsRun += batch.length;
+          if (toolCallsRun > MAX_REMOTE_TOOL_CALLS) {
+            die(
+              "remote_tool_calls_exceeded",
+              `the server asked for more than ${MAX_REMOTE_TOOL_CALLS} tool calls`,
+            );
+          }
+          toolResults.push(
+            ...(await runWithHeartbeat(
+              runRemoteToolCalls(batch, localTools),
+              heartbeatMs,
+              async () => {
+                await syncOnce([]);
+              },
+            )),
           );
         }
-        toolResults = await runRemoteToolCalls(payload.toolCalls, localTools);
         continue;
       }
       if (payload.status === "done" && payload.result) {
