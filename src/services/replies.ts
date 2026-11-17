@@ -1,3 +1,5 @@
+import { parseStoredReferences, referenceLine } from "../review/references.ts";
+import type { RulesFile } from "../knowledge/rules.ts";
 import { FakeAiProvider } from "../ai/fake.ts";
 import {
   completeWithMermaidTools,
@@ -63,6 +65,23 @@ async function githubFor(
     throw new Error(`no GitHub App installation stored for ${job.repo}`);
   }
   return clientFor(installationId);
+}
+
+/** What a finding rested on when it was found, for the reply: each reference
+ * as the review printed it, with its pull request or file links, and a rule's
+ * text from `RULES.json` when the id is still there. Rule ids stay the same
+ * across syncs, so the text is the rule the finding cited. */
+export function findingRules(
+  referencesJson: string | null | undefined,
+  rules: RulesFile | null,
+): { reference: string; text?: string }[] {
+  return parseStoredReferences(referencesJson).map((reference) => {
+    const text =
+      reference.kind === "rule" || reference.kind === "instruction"
+        ? rules?.rules[reference.id]?.text
+        : undefined;
+    return { reference: referenceLine(reference), ...(text ? { text } : {}) };
+  });
 }
 
 async function replyContext(
@@ -160,6 +179,7 @@ async function replyContext(
           severity: finding.severity,
           title: finding.title,
           body: finding.body_md,
+          restsOn: findingRules(finding.references_json, guides.rules),
         })
       : "None.",
     fileHint,
@@ -280,6 +300,7 @@ async function runReplyJobCore(
           "Return only the answer in concise Markdown. Do not add a findings heading. " +
           "Keep the reply concise unless the user asks for detailed reasoning. " +
           `${WITHDRAW_RULE} ` +
+          "When asked why a finding was raised or which rule it follows, name the rules in RELATED FINDING restsOn with their links. " +
           (diagrams
             ? (plantumlReplyRules(options) ??
               "Use zero Mermaid diagrams when prose is clearer. For a detailed " +

@@ -1,4 +1,4 @@
-import { closeAppDb, openAppDb } from "../store/app_db.ts";
+import { closeAppDb, getAppDb, openAppDb } from "../store/app_db.ts";
 import { activateRepo } from "../store/repos.ts";
 import {
   createReplyRequestAndJob,
@@ -386,6 +386,49 @@ test("Stop before a reply asks the AI makes no call and posts nothing", async ()
         calls++;
         return Promise.resolve({
           text: "answer",
+test("a reply on a finding gets the rules the finding rests on, with their text and links", async () => {
+  await withEnv(async () => {
+    const github = new FakeGithub();
+    const job = requestJob("review_comment", "109", "10");
+    const findingId = postedFinding(job.id);
+    getAppDb()
+      .prepare(`UPDATE findings SET references_json = ? WHERE id = ?`)
+      .run(
+        JSON.stringify([
+          {
+            kind: "rule",
+            id: "R12",
+            sources: [
+              {
+                pr: 212,
+                url: "https://github.com/acme/widgets/pull/212#discussion_r1",
+                mergedAt: "2026-03-04",
+              },
+            ],
+          },
+        ]),
+        findingId,
+      );
+    await writeTextFile(
+      `${getEnv("CM_REPOS_DIR")}/acme/widgets/RULES.json`,
+      JSON.stringify({
+        schemaVersion: 1,
+        builtAt: "2026-11-01T00:00:00.000Z",
+        rules: {
+          R12: {
+            file: "PR_REVIEW_GUIDE.md",
+            text: "Percentages round half up",
+            sources: [{ pr: 212 }],
+          },
+        },
+      }),
+    );
+    let prompt = "";
+    const ai: AiProvider = {
+      complete: (request) => {
+        prompt = request.prompt;
+        return Promise.resolve({
+          text: "It follows Rules-12.",
           tokensIn: 1,
           tokensOut: 1,
           model: "fake",
@@ -396,5 +439,15 @@ test("Stop before a reply asks the AI makes no call and posts nothing", async ()
     await runReplyJob(job, () => {}, github, ai, stop.signal);
     if (calls !== 0) throw new Error(`${calls} AI calls after Stop`);
     if (github.writes.length !== 0) throw new Error("posted after Stop");
+    await runReplyJob(job, () => {}, github, ai);
+    for (const needle of [
+      "Percentages round half up",
+      "Rules-12",
+      "pull/212#discussion_r1",
+    ]) {
+      if (!prompt.includes(needle)) {
+        throw new Error(`the reply context lacks ${needle}`);
+      }
+    }
   });
 });
