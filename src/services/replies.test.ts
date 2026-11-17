@@ -373,3 +373,28 @@ test("the WITHDRAWN line counts only as the last line, alone", () => {
     }
   }
 });
+
+test("Stop before a reply asks the AI makes no call and posts nothing", async () => {
+  await withEnv(async () => {
+    const github = new FakeGithub();
+    const job = requestJob("review_comment", "110", "10");
+    const stop = new AbortController();
+    stop.abort();
+    let calls = 0;
+    const ai: AiProvider = {
+      complete: () => {
+        calls++;
+        return Promise.resolve({
+          text: "answer",
+          tokensIn: 1,
+          tokensOut: 1,
+          model: "fake",
+          provider: "openrouter",
+        });
+      },
+    };
+    await runReplyJob(job, () => {}, github, ai, stop.signal);
+    if (calls !== 0) throw new Error(`${calls} AI calls after Stop`);
+    if (github.writes.length !== 0) throw new Error("posted after Stop");
+  });
+});

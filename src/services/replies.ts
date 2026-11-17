@@ -1,5 +1,8 @@
 import { FakeAiProvider } from "../ai/fake.ts";
-import { completeWithMermaidTools } from "../ai/mermaid_loop.ts";
+import {
+  completeWithMermaidTools,
+  type StoppedLoopError,
+} from "../ai/mermaid_loop.ts";
 import type { AiProvider, GitHubClient, Json } from "../types.ts";
 import { MERMAID_GUIDANCE, NO_DIAGRAM_RULES } from "../pr/reviewer.ts";
 import {
@@ -252,6 +255,11 @@ async function runReplyJobCore(
 
   let answer = request.answer_md?.trim();
   if (!answer) {
+    // A Stop before the answer is asked for: no AI call is made.
+    if (signal?.aborted) {
+      log("info", "stopped before asking the AI, nothing was posted");
+      return;
+    }
     setReplyStatus(request.id, "generating");
     const options = replyOptions(request.repo, request.pr_number);
     const provider: AiProvider =
@@ -289,7 +297,17 @@ async function runReplyJobCore(
           (await replyContext(github, request)),
       },
       5,
-    );
+      [],
+      undefined,
+      { signal },
+    ).catch(async (error: unknown) => {
+      // A Stop between tool rounds still records the calls already made.
+      const partial = (error as StoppedLoopError).partial;
+      if (partial) {
+        await recordAiCost(request.repo, "reply_to_github_comment", partial);
+      }
+      throw error;
+    });
     // Every other server job keeps its AI cost, so a reply's must not go
     // unrecorded.
     await recordAiCost(request.repo, "reply_to_github_comment", response);

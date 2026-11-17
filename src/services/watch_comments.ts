@@ -10,7 +10,10 @@
  * finding. */
 import { createAiProvider } from "../ai/provider.ts";
 import { FakeAiProvider } from "../ai/fake.ts";
-import { completeWithMermaidTools } from "../ai/mermaid_loop.ts";
+import {
+  completeWithMermaidTools,
+  type StoppedLoopError,
+} from "../ai/mermaid_loop.ts";
 import { mermaidToolFields } from "../review/diagram.ts";
 import { loadGuides } from "../review/guides.ts";
 import { getEnv } from "../util/runtime.ts";
@@ -187,6 +190,11 @@ async function runWatchComment(
     return;
   }
 
+  // A Stop before the answer is asked for: no AI call is made.
+  if (signal?.aborted) {
+    log("info", "stopped before asking the AI, nothing was posted");
+    return;
+  }
   const guides = await loadGuides(job.repo);
   const content = issue.path
     ? await fileAt(client, job.repo, issue.path, "")
@@ -216,7 +224,15 @@ QUESTION from ${args.author ?? "a maintainer"}:
 ${args.body.slice(0, 6000)}`,
     },
     5,
-  );
+    [],
+    undefined,
+    { signal },
+  ).catch(async (error: unknown) => {
+    // A Stop between tool rounds still records the calls already made.
+    const partial = (error as StoppedLoopError).partial;
+    if (partial) await usage(partial);
+    throw error;
+  });
   await usage(answer);
   const text = humanCopy(answer.text).trim();
   if (!text) throw new Error("the AI returned an empty answer");
