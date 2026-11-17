@@ -15,7 +15,6 @@ import {
   SEARCH_LITERAL_TIMEOUT_MS,
   SEARCH_MAX_OUTPUT_BYTES,
   runGit,
-  SEARCH_REGEX_TIMEOUT_MS,
   type SearchOptions,
 } from "./search_non_code.ts";
 import { CODEGRAPH_EXTENSIONS } from "./codegraph.ts";
