@@ -59,6 +59,11 @@ export type JobRow = {
   error: string | null;
   superseded_by: string | null;
   cancel_reason: string | null;
+  /** When someone dismissed this failure on the Activity page. Optional so a
+   * hand-built fixture need not name it. */
+  seen_at?: string | null;
+  /** The review that later succeeded on the same pull request. */
+  resolved_by?: string | null;
 };
 
 export type JobLogRow = {
@@ -106,6 +111,11 @@ export type ReviewRow = {
   /** The pull request issue comment a failed review left, so a retry edits it
    * in place instead of posting a second note. */
   note_comment_id: string | null;
+  /** When someone dismissed this failure on the Activity page. Optional so a
+   * hand-built fixture need not name it. */
+  seen_at?: string | null;
+  /** The review that later succeeded on the same pull request. */
+  resolved_by?: string | null;
 };
 
 export type FindingRow = {

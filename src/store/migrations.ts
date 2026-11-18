@@ -438,4 +438,17 @@ export const migrations: string[][] = [
     )`,
     `CREATE INDEX idx_findings_carried_from ON findings(carried_from_finding_id)`,
   ],
+  // 22: a failure someone dismissed on the Activity page keeps its row and
+  // gets the time it was seen. A later successful review of the same pull
+  // request writes its own id into each earlier failure it resolved. Both
+  // stay NULL on older rows, which read as not seen and not resolved. A
+  // failed job that never wrote a review row carries the same two columns.
+  // And an index for the Activity list, which joins every job to its review.
+  [
+    `ALTER TABLE reviews ADD COLUMN seen_at TEXT`,
+    `ALTER TABLE reviews ADD COLUMN resolved_by TEXT`,
+    `ALTER TABLE jobs ADD COLUMN seen_at TEXT`,
+    `ALTER TABLE jobs ADD COLUMN resolved_by TEXT`,
+    `CREATE INDEX idx_reviews_job ON reviews(job_id)`,
+  ],
 ];

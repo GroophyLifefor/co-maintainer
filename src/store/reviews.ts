@@ -1,4 +1,5 @@
 import { getAppDb } from "./app_db.ts";
+import { resolveEarlierFailures } from "./failures.ts";
 import { nowIso } from "../util/time.ts";
 import type { ReviewRow } from "./rows.ts";
 
@@ -150,6 +151,8 @@ export function setReviewStatus(
       patch.note_comment_id ?? null,
       id,
     );
+  // A posted review resolves the earlier failures of its pull request.
+  if (status === "posted") resolveEarlierFailures(id);
 }
 
 /** The failure note another attempt already left for this exact push, so a
