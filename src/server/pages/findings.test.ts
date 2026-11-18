@@ -229,3 +229,20 @@ test("a hand-edited query keeps only the values that fit", () => {
   );
   assert.equal(findingsHref(undefined), "/findings");
 });
+
+test("a finding's title loses its severity bracket where badges show it", async () => {
+  const { displayTitle } = await import("./finding_bits.ts");
+  const want: [string, string][] = [
+    [
+      "[P1 · blocking] `src/index.js`: `formatDuration`",
+      "`src/index.js`: `formatDuration`",
+    ],
+    ["[P3 · non-blocking] Missing test", "Missing test"],
+    ["No bracket here", "No bracket here"],
+  ];
+  for (const [title, shown] of want) {
+    if (displayTitle(title) !== shown) {
+      throw new Error(`${title} -> ${displayTitle(title)}`);
+    }
+  }
+});

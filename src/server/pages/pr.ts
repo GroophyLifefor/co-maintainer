@@ -14,6 +14,7 @@ import { extensionCostNote, renderExtensionResults } from "./extensions.ts";
 import { referencesHtml } from "./references.ts";
 import { repoHeader } from "./ui.ts";
 import {
+  displayTitle,
   findingAnchor,
   isOpenFinding,
   locationLink,
@@ -79,7 +80,7 @@ export function renderPr(
           <div style="margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">${stateBadge(
             finding.state,
             finding.close_reason,
-          )}${severityBadge(finding.severity)}<b>${text(finding.title)}</b>${
+          )}${severityBadge(finding.severity)}<b>${text(displayTitle(finding.title))}</b>${
             finding.first_seen_review_id
               ? ` <span class="muted" style="font-size:13px">Seen in an earlier round</span>`
               : ""

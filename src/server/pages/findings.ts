@@ -12,6 +12,7 @@ import {
 } from "./layout.ts";
 import { icon, pageHeader, repoHeader, segmented, shortcutsBar } from "./ui.ts";
 import {
+  displayTitle,
   findingAnchor,
   locationLink,
   severityBadge,
@@ -147,8 +148,8 @@ function blockingLabel(
     config.repos?.[row.repo]?.reviewBlocking ?? config.reviewBlocking,
   );
   return isBlocking(mode, { severity: row.severity, text: row.title })
-    ? `<span class="st err">Blocking</span>`
-    : `<span class="muted">Not blocking</span>`;
+    ? `<span class="st err nowrap">Blocking</span>`
+    : `<span class="muted nowrap">Not blocking</span>`;
 }
 
 export function renderFindings(
@@ -262,7 +263,7 @@ export function renderFindings(
         <td>${blockingLabel(row, config)}</td>
         <td>${stateBadge(row.state, null)}</td>
         <td class="wrap"><a class="strong" href="${escapeHtml(target)}">${text(
-          row.title,
+          displayTitle(row.title),
         )}</a>${location ? `<span class="sub">${location}</span>` : ""}</td>
         <td class="wrap"><a href="${escapeHtml(prHref(row))}">${text(
           repo ? `#${row.pr_number}` : `${row.repo} #${row.pr_number}`,

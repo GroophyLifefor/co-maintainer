@@ -14,6 +14,13 @@ export const SEVERITY_TONE: Record<string, Tone> = {
 };
 
 /** "Critical", "High", "Medium", "Low", the words the PR comment uses. */
+/** A finding's title without its leading `[P1 · blocking]` bracket, for a
+ * row that already shows severity and blocking as badges. A title without
+ * the bracket comes back as it is. */
+export function displayTitle(title: string): string {
+  return title.replace(/^\s*\[P\d[^\]]*\]\s*/, "") || title;
+}
+
 export function severityName(level: string): string {
   return SEVERITY_LEGEND.find((entry) => entry.level === level)?.name ?? level;
 }
