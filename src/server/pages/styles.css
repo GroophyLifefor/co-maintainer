@@ -2912,11 +2912,13 @@ html.dark {
   padding: 6px 10px;
   font-size: 13px;
 }
+/* The sidebar scrolls, which clips anything wider than it, so the results
+   stay inside its width and their descriptions wrap. */
 .app .side .set-results {
   position: absolute;
   z-index: 30;
   left: 0;
-  right: -120px;
+  right: 0;
   top: calc(100% + 4px);
   display: flex;
   flex-direction: column;
@@ -2943,6 +2945,8 @@ html.dark {
 .app .side .set-results a span {
   color: var(--muted);
   font-size: 12px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .app .side .set-results .none {
   padding: 6px 8px;
