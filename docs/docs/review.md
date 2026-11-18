@@ -346,7 +346,7 @@ The file is read once and stored as `repos["owner/repo"].mcpServers` in
 
 | Key | Required | Meaning |
 | --- | -------- | ------- |
-| `command` | yes | The program to start. It runs directly, not through a shell, so give a full path when it is not on `PATH` |
+| `command` | yes | The program to start. It runs directly, not through a shell, so give a full path when it is not on `PATH`. On Windows a `.cmd` or `.bat` shim, such as `npx.cmd`, cannot start this way. Use `node` with the server's script as the first of `args` |
 | `args` | no | Its arguments |
 | `env` | no | Its environment. `set` never prints the values |
 | `tools` | yes | The tools offered to the model, by the server's own names. Only list read-only tools |

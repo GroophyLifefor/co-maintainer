@@ -548,7 +548,7 @@ they never appear in what the review prints, posts or stores.</p>
 <tbody><tr>
 <td><code>command</code></td>
 <td>yes</td>
-<td>The program to start. It runs directly, not through a shell, so give a full path when it is not on <code>PATH</code></td>
+<td>The program to start. It runs directly, not through a shell, so give a full path when it is not on <code>PATH</code>. On Windows a <code>.cmd</code> or <code>.bat</code> shim, such as <code>npx.cmd</code>, cannot start this way. Use <code>node</code> with the server&#39;s script as the first of <code>args</code></td>
 </tr>
 <tr>
 <td><code>args</code></td>
