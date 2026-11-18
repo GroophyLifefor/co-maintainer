@@ -10,7 +10,8 @@
 import { test } from "node:test";
 import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import {
   makeTempDir,
   mkdir,
@@ -32,6 +33,15 @@ import {
   LLMS_SUMMARY,
   SITE_ORIGIN,
   sitemapXml,
+  applyLandingSeo,
+  faqEntries,
+  faqJsonLd,
+  gitLastModified,
+  HAND_PAGES,
+  llmsFacts,
+  llmsTxt,
+  robotsTxt,
+  siteFacts,
 } from "./build_docs.ts";
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -51,17 +61,25 @@ async function copyStatic(from: string, to: string): Promise<void> {
 
 async function buildInto(): Promise<string> {
   const outDir = await makeTempDir({ prefix: "cm-docs-" });
-  // The hand written root pages are not built, so copy them like the assets.
-  for (const page of ["index.html", "privacy.html"]) {
-    await writeFile(join(outDir, page), await readFile(join(docsRoot, page)));
+  try {
+    // The hand written root pages are not built, so copy them like the
+    // assets.
+    for (const page of ["index.html", "privacy.html", "vs/coderabbit.html"]) {
+      await mkdir(dirname(join(outDir, page)), { recursive: true });
+      await writeFile(join(outDir, page), await readFile(join(docsRoot, page)));
+    }
+    await copyStatic(join(docsRoot, "assets"), join(outDir, "assets"));
+    await buildDocs({
+      outDir: new URL(`file://${outDir.replaceAll("\\", "/")}/`),
+      fetchAssets: false,
+      quiet: true,
+    });
+    return outDir;
+  } catch (error) {
+    // A setup that fails leaves no temp folder behind.
+    await remove(outDir, { recursive: true }).catch(() => {});
+    throw error;
   }
-  await copyStatic(join(docsRoot, "assets"), join(outDir, "assets"));
-  await buildDocs({
-    outDir: new URL(`file://${outDir.replaceAll("\\", "/")}/`),
-    fetchAssets: false,
-    quiet: true,
-  });
-  return outDir;
 }
 
 /** Every `.html` under a directory. */
@@ -265,6 +283,250 @@ test("sitemapXml lists the landing page first, then every slug", () => {
   const second = xml.indexOf(`${SITE_ORIGIN}/docs/a.html`);
   if (first < 0 || root < 0 || second < 0 || first > root || root > second) {
     throw new Error(`sitemap order is wrong:\n${xml}`);
+  }
+});
+
+test("sitemapXml gives an entry the date of its source, and none without one", () => {
+  const xml = sitemapXml(["init"], ["vs/coderabbit"], (source) =>
+    source === "md/init.md"
+      ? "2026-11-01"
+      : source === "index.html"
+        ? "2026-11-18"
+        : undefined,
+  );
+  for (const want of [
+    `<url><loc>${SITE_ORIGIN}/</loc><lastmod>2026-11-18</lastmod></url>`,
+    `<url><loc>${SITE_ORIGIN}/vs/coderabbit.html</loc></url>`,
+    `<url><loc>${SITE_ORIGIN}/docs/init.html</loc><lastmod>2026-11-01</lastmod></url>`,
+  ]) {
+    if (!xml.includes(want)) throw new Error(`missing ${want}\n${xml}`);
+  }
+});
+
+test("a source date is today when it has uncommitted changes, and none outside git", () => {
+  const dir = mkdtempSync(join(tmpdir(), "cm-nogit-"));
+  try {
+    if (gitLastModified(dir, "index.html") !== undefined) {
+      throw new Error("a folder outside git got a date");
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  const docs = join(projectRoot, "docs");
+  const date = gitLastModified(docs, "md/init.md", "2099-01-01");
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error(`no date for a committed page: ${date}`);
+  }
+});
+
+test("robots.txt allows every crawler, AI crawlers named, and announces the sitemap", () => {
+  const robots = robotsTxt();
+  for (const want of [
+    "User-agent: *\nAllow: /",
+    "User-agent: GPTBot\nAllow: /",
+    "User-agent: ClaudeBot\nAllow: /",
+    `Sitemap: ${SITE_ORIGIN}/sitemap.xml`,
+  ]) {
+    if (!robots.includes(want)) throw new Error(`missing ${want}\n${robots}`);
+  }
+  if (/Disallow/.test(robots)) throw new Error("robots.txt disallows a path");
+});
+
+test("the site facts are the newest released version in CHANGELOG.md, past Unreleased", () => {
+  const facts = siteFacts(
+    "# Changelog\n\n## [Unreleased]\n\n## [0.7.14] - 2026-11-18\n\n## [0.7.13] - 2026-11-17\n",
+  );
+  if (facts.version !== "0.7.14" || facts.date !== "2026-11-18") {
+    throw new Error(JSON.stringify(facts));
+  }
+  const lines = llmsFacts(facts, ["init", "sync"]).join("\n");
+  for (const want of [
+    "Latest version: 0.7.14, released 2026-11-18",
+    "License: MIT",
+    "Commands: `init`, `sync`.",
+    "GitHub only",
+  ]) {
+    if (!lines.includes(want)) throw new Error(`missing ${want}\n${lines}`);
+  }
+  if (!llmsTxt(llmsFacts(facts, ["init"])).includes("## Facts")) {
+    throw new Error("llms.txt has no facts");
+  }
+});
+
+test("the landing page's marked block gets canonical, Open Graph, Twitter and JSON-LD with the version", () => {
+  const html = "<head>\n<!-- seo:start -->\nold\n<!-- seo:end -->\n</head>";
+  const filled = applyLandingSeo(html, {
+    version: "0.7.14",
+    date: "2026-11-18",
+  });
+  for (const want of [
+    `<link rel="canonical" href="${SITE_ORIGIN}/">`,
+    `<meta property="og:image" content="${SITE_ORIGIN}/assets/og.png">`,
+    `<meta name="twitter:card" content="summary_large_image">`,
+    `"softwareVersion":"0.7.14"`,
+    `"dateModified":"2026-11-18"`,
+  ]) {
+    if (!filled.includes(want)) throw new Error(`missing ${want}\n${filled}`);
+  }
+  if (filled.includes("old")) throw new Error("the old block was kept");
+  // Filling it again changes nothing.
+  if (
+    applyLandingSeo(filled, { version: "0.7.14", date: "2026-11-18" }) !==
+    filled
+  ) {
+    throw new Error("the block is not stable");
+  }
+  if (
+    applyLandingSeo("<head></head>", { version: "1", date: undefined }) !==
+    "<head></head>"
+  ) {
+    throw new Error("a page without the markers changed");
+  }
+});
+
+test("the landing page in the repository has its block filled for the released version", async () => {
+  const html = readFileSync(join(projectRoot, "docs", "index.html"), "utf8");
+  const { version } = siteFacts(
+    readFileSync(join(projectRoot, "CHANGELOG.md"), "utf8"),
+  );
+  if (!html.includes(`"softwareVersion":"${version}"`)) {
+    throw new Error(
+      `docs/index.html does not state ${version}. Run npm run docs:build.`,
+    );
+  }
+});
+
+test("the init, sync and probe pages have a few words after their name in the title", async () => {
+  const outDir = await buildInto();
+  try {
+    const html = readFileSync(join(outDir, "docs", "init.html"), "utf8");
+    if (
+      !html.includes(
+        "<title>init: build review guides from your PR history · co-maintainer docs</title>",
+      )
+    ) {
+      throw new Error(html.match(/<title>[^<]*/)?.[0] ?? "no title");
+    }
+  } finally {
+    rmSync(outDir, { recursive: true, force: true });
+  }
+});
+
+test("the landing FAQ's JSON-LD holds each question with its answer, without the More links", () => {
+  const html = [
+    '<section class="faq" id="faq">',
+    "<details><summary>Is it free?</summary>",
+    '<p class="faq-a">Yes. It is <b>MIT</b> &amp; free.</p>',
+    '<p class="faq-more">More: <a href="docs/cost.html">Cost</a></p></details>',
+    "<details><summary>Does it work with GitLab?</summary>",
+    '<p class="faq-a">Not yet. It works with &lt;/script&gt; GitHub only.</p></details>',
+    "</section>",
+  ].join("\n");
+  const entries = faqEntries(html);
+  if (
+    JSON.stringify(entries) !==
+    JSON.stringify([
+      { question: "Is it free?", answer: "Yes. It is MIT & free." },
+      {
+        question: "Does it work with GitLab?",
+        answer: "Not yet. It works with </script> GitHub only.",
+      },
+    ])
+  ) {
+    throw new Error(JSON.stringify(entries));
+  }
+  const ld = faqJsonLd(html);
+  if (!ld.includes('"@type":"FAQPage"') || ld.includes("</script> GitHub")) {
+    throw new Error(ld);
+  }
+  if (faqJsonLd("<main></main>") !== "") {
+    throw new Error("a page without questions got FAQ JSON-LD");
+  }
+});
+
+test("the landing page in the repository has its FAQ questions in its JSON-LD", () => {
+  const html = readFileSync(join(projectRoot, "docs", "index.html"), "utf8");
+  const questions = html.match(/<summary>/g)?.length ?? 0;
+  const ld = /"@type":"FAQPage"[\s\S]*?<\/script>/.exec(html)?.[0] ?? "";
+  const named = ld.match(/"@type":"Question"/g)?.length ?? 0;
+  if (questions === 0 || named !== questions) {
+    throw new Error(
+      `${named} JSON-LD questions for ${questions} on the page. Run npm run docs:build.`,
+    );
+  }
+});
+
+/** The links of the `<nav>` inside a page's `<header>` or `<footer>`, as
+ * `text -> address`, with each address resolved against the page's own, so
+ * `privacy.html` on the landing page and `../privacy.html` on a vs page are
+ * the same link. */
+function navLinks(
+  html: string,
+  tag: "header" | "footer",
+  page: string,
+): string[] {
+  const block =
+    new RegExp(`<${tag}[\\s>][\\s\\S]*?</${tag}>`).exec(html)?.[0] ?? "";
+  const nav = /<nav>([\s\S]*?)<\/nav>/.exec(block)?.[1] ?? "";
+  return [...nav.matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)].map(
+    ([, href, text]) =>
+      `${text!.replace(/<[^>]+>/g, "").trim()} -> ${new URL(href!, `${SITE_ORIGIN}/${page}`).href}`,
+  );
+}
+
+test("every hand written page has the landing page's header and footer links, and links home", () => {
+  const read = (page: string) =>
+    readFileSync(join(projectRoot, "docs", page), "utf8");
+  const landing = read("index.html");
+  const want = {
+    header: navLinks(landing, "header", "index.html"),
+    footer: navLinks(landing, "footer", "index.html"),
+  };
+  if (want.header.length === 0 || want.footer.length === 0) {
+    throw new Error("the landing page has no header or footer links");
+  }
+  for (const page of [
+    ...MOVED_TO_ROOT.map((slug) => `${slug}.html`),
+    ...HAND_PAGES.map((path) => `${path}.html`),
+  ]) {
+    const html = read(page);
+    for (const tag of ["header", "footer"] as const) {
+      const got = navLinks(html, tag, page);
+      if (JSON.stringify(got) !== JSON.stringify(want[tag])) {
+        throw new Error(
+          `${page} ${tag} links differ from the landing page.\n` +
+            `landing: ${want[tag].join(" | ")}\n${page}: ${got.join(" | ")}\n` +
+            "See Site pages in CONTRIBUTING.md.",
+        );
+      }
+    }
+    const header = /<header[\s>][\s\S]*?<\/header>/.exec(html)?.[0] ?? "";
+    const home = [...header.matchAll(/href="([^"]+)"/g)].some(
+      ([, href]) =>
+        !href!.startsWith("#") &&
+        new URL(href!, `${SITE_ORIGIN}/${page}`).href.replace(
+          /index\.html$/,
+          "",
+        ) === `${SITE_ORIGIN}/`,
+    );
+    if (!home) throw new Error(`${page}: the header logo does not link home`);
+  }
+});
+
+test("no hand written page ships a draft or demo note", () => {
+  for (const page of [
+    "index.html",
+    ...MOVED_TO_ROOT.map((slug) => `${slug}.html`),
+    ...HAND_PAGES.map((path) => `${path}.html`),
+  ]) {
+    const html = readFileSync(join(projectRoot, "docs", page), "utf8");
+    const found =
+      /demo for review|not published|draft for review|demo-note/i.exec(html);
+    if (found) {
+      throw new Error(
+        `${page} still has "${found[0]}". See Site pages in CONTRIBUTING.md.`,
+      );
+    }
   }
 });
 

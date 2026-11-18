@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Getting started · co-maintainer docs</title>
-  <meta name="description" content="A tool that helps to review your changes.">
+  <meta name="description" content="An open source PR reviewer that learns how your repo is reviewed, then reviews like that.">
   <link rel="canonical" href="https://co-maintainer.com/docs/getting-started.html">
   <link rel="stylesheet" href="../assets/site.css">
   <link rel="icon" href="../assets/logo.png">
@@ -89,7 +89,7 @@
     <div class="content-column">
       <main class="doc-main">
         <article class="markdown prose"><h1>Getting started</h1>
-<p>A tool that helps to review your changes.</p>
+<p>An open source PR reviewer that learns how your repo is reviewed, then reviews like that.</p>
 <h2 id="overview">Overview</h2>
 <figure class="mermaid-figure">
 <div class="mermaid-viewport"><div class="mermaid">flowchart LR
@@ -107,11 +107,15 @@
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">--version</span>
 </code></pre>
 <h2 id="review-my-changes-now">Review my changes now</h2>
+<p>You need Node 24+, the GitHub CLI and a model key (OpenRouter, OpenAI, Anthropic or OpenCode). <code>init</code> calls your model and costs tokens. <code>probe</code> does not call the AI, and prints what <code>init</code> will cost before you run it.</p>
 <p>In a clone of the repository, replace <code>owner/repo</code> with your repository:</p>
 <pre class="shell-block"><code>gh auth login
-<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">init</span> <span class="sh-arg">owner/repo</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--auth=gh</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">probe</span> <span class="sh-arg">owner/repo</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">init</span> <span class="sh-arg">owner/repo</span> <span class="sh-flag">--include-codebase</span> <span class="sh-flag">--include-pull-requests</span> <span class="sh-flag">--max-pr-months=12</span> <span class="sh-flag">--max-commits=500</span>
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span>
 </code></pre>
+<p><code>probe</code> prints its own recommended <code>init</code> line for your repository. Use that one if it differs, and keep <code>--max-pr-months</code> on it.</p>
 <h2 id="ways-to-use-it">Ways to use it</h2>
 <table>
 <thead>

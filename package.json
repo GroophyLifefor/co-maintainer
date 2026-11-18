@@ -1,13 +1,23 @@
 {
   "name": "co-maintainer",
   "version": "0.7.14",
-  "description": "An imitator of yours, A PR review tool like co-maintainer.",
+  "description": "An imitator of yours, A PR review tool like co-maintainer. Open source AI code review that learns from your past PR reviews, on your own model key.",
   "keywords": [
     "ai",
+    "ai-code-review",
+    "ai-reviewer",
     "code-review",
+    "code-review-bot",
     "github",
+    "github-app",
+    "llm",
     "maintainer",
-    "pull-request"
+    "openrouter",
+    "pr-review",
+    "pull-request",
+    "pull-request-review",
+    "review-bot",
+    "self-hosted"
   ],
   "homepage": "https://co-maintainer.com",
   "bugs": {

@@ -140,3 +140,10 @@ jobs:
         run: node scripts/tag_release.ts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # A stable version gets a GitHub Release with its CHANGELOG section, so
+      # "Watch > Releases" notifies. A beta, or a release that exists, is
+      # skipped.
+      - name: Create the GitHub Release
+        run: node scripts/github_release.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
