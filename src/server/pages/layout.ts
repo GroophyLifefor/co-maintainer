@@ -267,6 +267,7 @@ const NAV_GROUPS: {
       { href: "/settings/remote", label: "Remote access", icon: "key-round" },
       { href: "/settings/server", label: "Server", icon: "server" },
       { href: "/settings/sign-in", label: "Sign-in", icon: "shield-check" },
+      { href: "/settings/audit", label: "Audit log", icon: "history" },
       {
         href: "/settings/danger",
         label: "Danger zone",

@@ -34,6 +34,12 @@ import {
 import { escapeHtml, html, notFound } from "./layout.ts";
 import { formatCostTotal } from "./cost.ts";
 import { readConfig, writeUserConfig } from "../../config.ts";
+import {
+  audit,
+  setAuditActor,
+  settingChanges,
+  settingsSnapshot,
+} from "../../services/audit.ts";
 import { type UserConfig } from "../../config.ts";
 import {
   appNameProblem,
@@ -74,6 +80,8 @@ import {
 } from "./activity_query.ts";
 import { renderAnalytics } from "./analytics.ts";
 import { parseUsageQuery } from "./usage_query.ts";
+import { AUDIT_PER_PAGE, parseAuditQuery, renderAudit } from "./audit.ts";
+import { auditActors, listAudit } from "../../store/audit.ts";
 import { usageCsv } from "./usage_csv.ts";
 import { renderSettings, renderSettingsPage } from "./settings.ts";
 import type { SettingsSection } from "./settings.ts";
@@ -231,6 +239,7 @@ export async function handlePageRequest(
   }
 
   const username = session.username;
+  setAuditActor(username);
   try {
     if (url.pathname === "/__ui" && request.method === "GET") {
       if (!deps.debug) return undefined;
@@ -355,6 +364,17 @@ export async function handlePageRequest(
         requestBaseUrl(request, url, Boolean(deps.trustProxy)),
         { port: deps.port, trustProxy: Boolean(deps.trustProxy) },
       );
+    }
+    if (url.pathname === "/settings/audit" && request.method === "GET") {
+      const query = parseAuditQuery(url.searchParams);
+      return renderAudit(username, query, {
+        ...listAudit(
+          { kind: query.kind, actor: query.actor },
+          AUDIT_PER_PAGE,
+          (query.page - 1) * AUDIT_PER_PAGE,
+        ),
+        actors: auditActors(),
+      });
     }
     const settingsMatch = /^\/settings\/([a-z-]+)$/.exec(url.pathname);
     if (settingsMatch && request.method === "GET") {
@@ -767,7 +787,11 @@ async function finishAppManifest(
   if (conversion.clientSecret && !config.githubOAuthClientSecret) {
     patch.githubOAuthClientSecret = conversion.clientSecret;
   }
+  const before = settingsSnapshot();
   await writeUserConfig(patch);
+  audit("settings", "Created the GitHub App from Settings", {
+    changes: settingChanges(before, settingsSnapshot()),
+  });
   const installUrl = conversion.slug
     ? `https://github.com/apps/${encodeURIComponent(
         conversion.slug,
@@ -805,6 +829,7 @@ async function handleLoginForm(
       hint: deps.loginHint,
     });
   }
+  audit("sign-in", "Signed in with the password", { actor: result.username });
   return new Response(null, {
     status: 303,
     headers: {
@@ -850,7 +875,10 @@ async function handleGithubCallback(
   if (!login || login.toLowerCase() !== githubOAuth.allowedUser.toLowerCase()) {
     return fail("This GitHub account is not allowed to sign in.");
   }
-  const result = await createSession();
+  // The session carries the GitHub login, so the menu and the audit log
+  // name the person.
+  const result = await createSession(login);
+  audit("sign-in", "Signed in with GitHub", { actor: login });
   return new Response(null, {
     status: 303,
     headers: {

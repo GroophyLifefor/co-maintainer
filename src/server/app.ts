@@ -30,6 +30,7 @@ import { handleRemoteTokensRoute } from "./api/remote_tokens.ts";
 import { handleRemoteRoute } from "../remote/server/routes.ts";
 import { handleWebhookRequest } from "./webhook/index.ts";
 import { handlePageRequest } from "./pages/router.ts";
+import { audit, inAuditScope, setAuditActor } from "../services/audit.ts";
 
 /** `password` seeds an in-memory store. `serve` passes `passwordStore` so the
  * password lives in config.json instead. */
@@ -103,6 +104,7 @@ async function handleLogin(
   const body = parsed.value as { password?: unknown };
   const result = await login(String(body.password ?? ""), passwords, ip);
   if (!result) return errorResponse(401, "unauthorized", "wrong password");
+  audit("sign-in", "Signed in with the password", { actor: result.username });
   return Response.json(result, {
     headers: {
       "set-cookie": sessionCookieHeader(
@@ -158,7 +160,7 @@ function liveGithubConfig() {
 export function createApp(deps: AppDeps): App {
   const passwords = deps.passwordStore ?? memoryPasswordStore(deps.password);
   setNavSource(() => navCounts(deps.webhookUrl ?? ""));
-  return {
+  const app: App = {
     async fetch(
       request: Request,
       socketAddress = "unknown",
@@ -222,6 +224,7 @@ export function createApp(deps: AppDeps): App {
         if (!session) {
           return errorResponse(401, "unauthorized", "sign in required");
         }
+        setAuditActor(session.username);
 
         if (deps.inject500 && mutating && url.pathname !== "/api/login") {
           return errorResponse(500, "injected", "The request failed.");
@@ -275,5 +278,11 @@ export function createApp(deps: AppDeps): App {
 
       return errorResponse(404, "not_found", `no route for ${url.pathname}`);
     },
+  };
+  // Each request has room for its signed-in user, so the audit log can name
+  // who did what without passing the session to every handler.
+  return {
+    fetch: (request, socketAddress) =>
+      inAuditScope(() => app.fetch(request, socketAddress)),
   };
 }

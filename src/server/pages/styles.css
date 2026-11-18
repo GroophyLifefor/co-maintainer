@@ -2956,3 +2956,14 @@ html.dark {
 .app .page-save-state[data-state="failed"] {
   color: var(--red-t);
 }
+
+/* The changed settings of one audit log row. */
+.app .audit-changes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.app .audit-changes li + li {
+  margin-top: 2px;
+}

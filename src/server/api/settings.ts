@@ -19,6 +19,11 @@ import type { PasswordStore } from "../auth.ts";
 import { passwordProblem } from "../../util/password.ts";
 import { readJsonObject } from "./json_body.ts";
 import { policyToStore } from "../../services/review_policy.ts";
+import {
+  audit,
+  settingChanges,
+  settingsSnapshot,
+} from "../../services/audit.ts";
 
 function validateWebhookUrl(value: unknown): string | undefined {
   if (typeof value !== "string" || !value.trim()) {
@@ -54,6 +59,7 @@ async function changePassword(
     );
   }
   await passwords.set(next);
+  audit("settings", "Changed the dashboard password");
   const token = readSessionToken(request);
   if (token) await revokeOtherSessions(token);
   return Response.json({ ok: true });
@@ -305,7 +311,12 @@ export async function handleSettingsRoute(
         return errorResponse(422, "app_access", app.message);
       }
     }
+    const before = settingsSnapshot();
     await writeUserConfig(patch);
+    const changes = settingChanges(before, settingsSnapshot());
+    if (changes.length > 0) {
+      audit("settings", "Changed settings", { changes });
+    }
     return Response.json({ ok: true });
   }
 

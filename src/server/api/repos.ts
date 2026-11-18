@@ -41,6 +41,7 @@ import {
   requireActiveRepo,
 } from "../../services/dashboard.ts";
 import { clearOneRepo } from "./knowledge.ts";
+import { audit, repoSnapshot, settingChanges } from "../../services/audit.ts";
 
 const REPO =
   /^\/api\/repos\/([^/]+)\/([^/]+)(?:\/(remake|knowledge|pulls)(?:\/(\d+)(?:\/(review))?)?)?$/;
@@ -240,6 +241,7 @@ export async function handleReposRoute(
     if (policyToKeep !== undefined) {
       updateRepoSettings(repo, { review_policy_json: policyToKeep });
     }
+    audit("repo", "Added a repository", { target: repo });
     try {
       const { id } = enqueueSetup(repo, "init");
       return Response.json({ jobId: id });
@@ -263,6 +265,7 @@ export async function handleReposRoute(
     }
     if (!sub && request.method === "PATCH") {
       requireActiveRepo(fullName);
+      const before = repoSnapshot(fullName);
       let body: Record<string, unknown>;
       try {
         body = await request.json();
@@ -482,11 +485,19 @@ export async function handleReposRoute(
       if (Object.keys(repoPatch).length > 0) {
         await writeRepoConfig(fullName, repoPatch);
       }
+      const changes = settingChanges(before, repoSnapshot(fullName));
+      if (changes.length > 0) {
+        audit("repo-settings", "Changed repository settings", {
+          target: fullName,
+          changes,
+        });
+      }
       return Response.json({ ok: true });
     }
     if (!sub && request.method === "DELETE") {
       requireActiveRepo(fullName);
       deactivateRepo(fullName);
+      audit("repo", "Removed a repository", { target: fullName });
       return Response.json({ ok: true });
     }
     if (sub === "remake" && request.method === "POST") {
@@ -531,6 +542,7 @@ export async function handleReposRoute(
       const { id } = enqueueManualReview(fullName, pr, {
         model: body.model as string | undefined,
       });
+      audit("review", `Started a review of #${pr}`, { target: fullName });
       return Response.json({ jobId: id });
     }
     if (sub === "pulls" && pr && request.method === "GET") {

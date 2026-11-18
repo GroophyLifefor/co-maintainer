@@ -29,6 +29,7 @@ const REMOTE = "/settings/remote";
 const SERVER = "/settings/server";
 const SIGN_IN = "/settings/sign-in";
 const DANGER = "/settings/danger";
+const AUDIT = "/settings/audit";
 
 export const SETTINGS_INDEX: SettingEntry[] = [
   entry(
@@ -205,6 +206,13 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     "pw-current",
     "Password",
     "Change the dashboard password.",
+  ),
+  entry(
+    "Audit log",
+    AUDIT,
+    "audit",
+    "Audit log",
+    "Who changed settings, tokens and repositories, who signed in, and when.",
   ),
   entry(
     "Danger zone",

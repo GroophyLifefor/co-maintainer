@@ -455,4 +455,20 @@ export const migrations: string[][] = [
   // can filter by author without asking GitHub. NULL on a pull request
   // reviewed before this, until its next review.
   [`ALTER TABLE pull_titles ADD COLUMN author TEXT`],
+  // 24: the audit log, who did what and when: settings changes, remote
+  // tokens, repositories added or removed, sign-ins, manual reviews,
+  // dismissed failures and updates. `changes_json` holds the changed
+  // settings with secrets already masked. Older servers have no rows.
+  [
+    `CREATE TABLE audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      at TEXT NOT NULL,
+      actor TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      target TEXT,
+      summary TEXT NOT NULL,
+      changes_json TEXT
+    )`,
+    `CREATE INDEX idx_audit_log_at ON audit_log(at)`,
+  ],
 ];

@@ -106,6 +106,8 @@ const SETTINGS_PAGES = [
   "/settings/remote",
   "/settings/server",
   "/settings/sign-in",
+  "/settings/audit",
+  "/settings/audit?kind=settings",
   "/settings/danger",
 ];
 

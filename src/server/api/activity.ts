@@ -1,4 +1,5 @@
 import { errorResponse } from "../errors.ts";
+import { audit } from "../../services/audit.ts";
 import { activityFeed, skippedDeliveries } from "../../services/dashboard.ts";
 import {
   dismissAll,
@@ -64,18 +65,40 @@ export async function handleActivityRoute(
         typeof body.repo === "string" && body.repo.trim()
           ? body.repo.trim()
           : undefined;
-      return Response.json({ dismissed: dismissAll(repo) });
+      const dismissed = dismissAll(repo);
+      if (dismissed > 0) {
+        audit("dismiss", "Dismissed all failures", { target: repo });
+      }
+      return Response.json({ dismissed });
     }
     const keys = keysOf(body);
     if (keys instanceof Response) return keys;
-    return Response.json({ dismissed: dismissRows(keys) });
+    const dismissed = dismissRows(keys);
+    if (dismissed > 0) {
+      audit(
+        "dismiss",
+        keys.length === 1
+          ? "Dismissed a failure"
+          : `Dismissed ${keys.length} failures`,
+      );
+    }
+    return Response.json({ dismissed });
   }
   if (url.pathname === "/api/activity/retry" && request.method === "POST") {
     const body = await readJsonObject(request);
     if (body instanceof Response) return body;
     const keys = keysOf(body);
     if (keys instanceof Response) return keys;
-    return Response.json(retryRows(keys));
+    const result = retryRows(keys);
+    if (result.jobIds.length > 0) {
+      audit(
+        "review",
+        result.jobIds.length === 1
+          ? "Retried a failure"
+          : `Retried ${result.jobIds.length} failures`,
+      );
+    }
+    return Response.json(result);
   }
   return errorResponse(404, "not_found", `no route for ${url.pathname}`);
 }
