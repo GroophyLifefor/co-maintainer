@@ -5,6 +5,38 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.15] - 2026-11-18
+
+### Added
+
+- **Findings lists.** A **Findings** item in the left menu lists every finding across repositories, and each repository has a **Findings** tab. Filters for severity, state, pull request, file, author and words live in the URL, each as a chip, and a row opens the pull request page at that finding.
+- **Activity filters, failures and bulk actions.** Activity filters by status, kind, repository, pull request, day range and words. Each failed row shows its reason with **Retry** and **Dismiss**, the failed list has **Dismiss all**, rows have checkboxes with **Retry** and **Dismiss** on the selection, and a later successful review resolves the earlier failures of its pull request. A migration adds the seen time and the resolving review.
+- **Keyboard shortcuts** on Activity, Findings and the Pull requests tab: `j` and `k` move, `Enter` opens, `x` selects, `/` searches and `?` shows the panel, with a bar that names them.
+- **Job warning banner.** A job that finished but logged a problem says what is wrong and how to fix it, for example a check run update that needs **Checks: Read and write**, and its Activity row gets a mark. The job page links the pull request page and the posted GitHub review.
+- **Usage filters and export.** Usage filters by repository and by pull request author next to the range, and **Export CSV** downloads one row per review: time, repository, pull request, author, model, tokens, cost, billing, findings and status. A review now stores the pull request title and author.
+- **Settings search and save state.** A search box above the Settings menu finds a setting by name or description and jumps to its field. Settings pages say **Unsaved changes**, **Saving**, **All changes saved** or **Not saved**.
+- **Audit log.** **Settings**, **Audit log** lists who changed settings and repository settings, created or deleted remote tokens, added or removed repositories, signed in, started reviews, dismissed failures and started updates, filterable by kind and person. Secrets only say that they changed. A migration adds the table.
+- **Setup wizard.** `/setup` is a step by step wizard with progress, **Back** and **Next**, and a **How reviews look** step whose review comment preview follows the blocking rule, diagram language and references. The settings API accepts the server's `reviewBlocking`.
+- **Newer version and update.** When the host sets `CM_UPDATE_URL`, the dashboard reads the latest stable release from GitHub at most once a day and shows "co-maintainer 0.7.15 is out. This instance runs 0.7.14." in the sidebar and in Settings, with an **Update** button that POSTs the version to the host. It never offers an older version. Without `CM_UPDATE_URL` nothing calls out and Settings shows the `docker pull` and restart lines. (#138)
+
+### Changed
+
+- **Activity shows one row per review** with its pull request, result, cost, time and status, and job kinds and skip reasons read as sentences. The open page polls a small change stamp and fetches the list only when something changed, instead of refetching it every 5 seconds.
+- **Every count opens the list it counts**: the Activity result, the job page **Found** card, the overview findings and severities, the recent pull request badges and the Usage cards.
+- **The pull request page** shows the title, a state badge on every finding, open and closed counts, anchors for rounds and findings, job log links, GitHub line links and review thread links.
+- **Open failures are one number.** The menu badge, the home list and the repository overview count failures of the last 30 days nobody dismissed and no review resolved, say "5 open failures", and open the failed list with that many rows.
+- **Commit watch setup moves to the Pushes tab.** The overview keeps a short status line that links there.
+- **The skipped list** has column headings, merges repeats within a minute and hides the bot's own comments behind a toggle.
+- **Settings and repository tabs.** Every repository tab shows the same breadcrumb, a click on a row of the Pull requests tab opens that pull request, and a GitHub sign-in names the GitHub login in the session.
+
+### Fixed
+
+- **The Pull requests tab** keeps the installation, its token and the open list for a minute, so a second visit makes no GitHub call. The overview reads the default branch stored at setup and sync instead of starting `git` on every visit.
+- **One cost format** on every page, with at most four decimals below a cent, and a stat card's big number never wraps.
+- **Plurals and labels.** "1 repository", and the overview, the home list and Usage each say whether a figure counts pull requests or reviews.
+- **Layout.** The Usage **By model** table fits its card, the Copy button of a long code block stays at its top right corner, empty states link the place they name, and the Knowledge tab hides the empty History card.
+- **A review logs GitHub permission problems as warnings,** such as a failed check run update, so the job page can say how to fix them.
+
 ## [0.7.14] - 2026-11-18
 
 ### Added

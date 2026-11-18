@@ -443,6 +443,12 @@ An empty value counts as not set.
 `config list` shows `env` as the source of `remote-host` and `remote-token` when
 their variable is set.
 
+## Update variable
+
+| Variable | Effect |
+| -------- | ------ |
+| `CM_UPDATE_URL` | On the server, the host's update address. With it, `serve` reads the latest stable release from GitHub at most once a day, and the dashboard shows a newer one and an **Update** button that POSTs `{"version","current"}` there. Unset or not an `http(s)` address, nothing calls out. See [Dashboard: Updates](dashboard.md#updates) |
+
 ## Extension variables
 
 | Variable | Effect |

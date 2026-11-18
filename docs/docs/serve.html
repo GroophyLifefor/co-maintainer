@@ -242,6 +242,10 @@ starts keep it.</p>
 <td><code>1</code> turns <a href="review.html#mcp-servers">MCP servers</a> off: <code>set --mcp-config</code> refuses and no review starts one. The Cloud image sets it from outside the container</td>
 </tr>
 <tr>
+<td><code>CM_UPDATE_URL</code></td>
+<td>The host&#39;s update address. Turns on the daily check for a newer stable release and the dashboard&#39;s <strong>Update</strong> button, which POSTs the target version there. Unset, nothing calls out, see <a href="dashboard.html#updates">Dashboard: Updates</a></td>
+</tr>
+<tr>
 <td><code>CM_LOGIN_HINT</code></td>
 <td>Text shown on the sign-in page instead of the default &quot;printed when <code>serve</code> started&quot; line. Useful when a deployment hands out its own password, as the Cloud image does. Escaped as plain text</td>
 </tr>
@@ -421,6 +425,11 @@ opened <code>app.db</code>.</p>
 </ol>
 <p>Restart after upgrading. Do not reinstall while the old process is still
 running. Same steps are listed on <a href="dashboard.html#updating">Dashboard: Updating</a>.</p>
+<p>A Docker server pulls the new image and starts the container again on the same
+volume, with the options it started with. <strong>Settings</strong>, <strong>Server</strong>, <strong>Updates</strong>
+shows those lines. When the host sets <code>CM_UPDATE_URL</code>, the dashboard also says
+when a newer release is out and offers an <strong>Update</strong> button, see
+<a href="dashboard.html#updates">Dashboard: Updates</a>.</p>
 </article>
         <footer class="doc-footer">
           <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/serve.md" data-umami-event="click-github">Edit this page</a> on GitHub

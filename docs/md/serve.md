@@ -84,6 +84,7 @@ starts keep it.
 | `CM_REMOTE_CLIENT_TOOLS_POLICY` | Whether a remote review offers the model the tools a client declares, such as its own MCP servers: `off` (the default) or `on`, see [client tools](remote-review.md#your-own-mcp-servers-as-client-tools) |
 | `CM_EXTENSIONS_DISABLED` | `1` turns [extensions](extensions.md) off: `register` refuses and no review runs one. The Cloud image sets it from outside the container |
 | `CM_MCP_DISABLED` | `1` turns [MCP servers](review.md#mcp-servers) off: `set --mcp-config` refuses and no review starts one. The Cloud image sets it from outside the container |
+| `CM_UPDATE_URL` | The host's update address. Turns on the daily check for a newer stable release and the dashboard's **Update** button, which POSTs the target version there. Unset, nothing calls out, see [Dashboard: Updates](dashboard.md#updates) |
 | `CM_LOGIN_HINT` | Text shown on the sign-in page instead of the default "printed when `serve` started" line. Useful when a deployment hands out its own password, as the Cloud image does. Escaped as plain text |
 
 Per-run `--disable-auth` / `--enable-auth` override values from `co-maintainer
@@ -272,3 +273,9 @@ opened `app.db`.
 
 Restart after upgrading. Do not reinstall while the old process is still
 running. Same steps are listed on [Dashboard: Updating](dashboard.md#updating).
+
+A Docker server pulls the new image and starts the container again on the same
+volume, with the options it started with. **Settings**, **Server**, **Updates**
+shows those lines. When the host sets `CM_UPDATE_URL`, the dashboard also says
+when a newer release is out and offers an **Update** button, see
+[Dashboard: Updates](dashboard.md#updates).
