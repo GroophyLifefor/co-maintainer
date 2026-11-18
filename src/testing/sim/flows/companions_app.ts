@@ -559,14 +559,16 @@ function companionFindingChecks(sim: Sim): CheckResult[] {
     item.path.endsWith("/reviews"),
   );
   const inline = ((write?.body as Json | undefined)?.comments ?? []) as Json[];
-  const rows = appRows<{ path: string | null; title: string }>(
-    sim,
-    `SELECT f.path, f.title FROM findings f JOIN reviews r ON r.id = f.review_id
-     WHERE r.job_id = ?`,
-    sim.trace.jobs.find(
-      (job) => job.step === STEP.onCompanion && job.type === "review",
-    )?.id ?? "",
-  );
+  const rowsOf = (step: string) =>
+    appRows<{ path: string | null; title: string; state: string }>(
+      sim,
+      `SELECT f.path, f.title, f.state FROM findings f JOIN reviews r ON r.id = f.review_id
+       WHERE r.job_id = ?`,
+      sim.trace.jobs.find((job) => job.step === step && job.type === "review")
+        ?.id ?? "",
+    );
+  const rows = rowsOf(STEP.onCompanion);
+  const after = rowsOf(STEP.after);
   const label = `\`${CLIENT}\`: \`src/session.ts`;
   const next = carryEntries(firstPrompts(sim, STEP.after)[0] ?? "");
   return [
@@ -582,8 +584,11 @@ function companionFindingChecks(sim: Sim): CheckResult[] {
     scriptedCheck(
       sim,
       "App: a finding on a companion file is not carried to the next round",
-      next.length === 1 && next[0]!.path === "src/math.ts",
-      JSON.stringify(next),
+      next.length === 1 &&
+        next[0]!.path === "src/math.ts" &&
+        after.length > 0 &&
+        after.every((row) => row.path === "src/math.ts"),
+      `${JSON.stringify(next)} · ${after.map((row) => `${row.state} ${row.path}`).join(", ")}`,
       "the carried findings are the model's",
     ),
   ];
