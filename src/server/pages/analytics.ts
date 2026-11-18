@@ -108,27 +108,29 @@ export function renderAnalytics(
   const byModel =
     data.byModel.length === 0
       ? empty("No models yet", "Each review records the model that wrote it.")
-      : `<table>
-        <thead><tr><th>Model</th><th class="num">Reviews</th><th class="num">Tokens in</th>
-          <th class="num">Tokens out</th><th class="num">Average review</th>
-          <th class="num">Per review</th><th class="num">Cost</th></tr></thead>
+      : // Four columns, each figure with its detail on a second line, so the
+        // table fits its half of the row at desktop width without scrolling.
+        `<table class="fit">
+        <thead><tr><th>Model</th><th class="num">Reviews</th><th class="num">Tokens</th>
+          <th class="num">Cost</th></tr></thead>
         <tbody>
           ${data.byModel
             .map(
               (row) =>
-                `<tr><td>${text(row.model)}</td>
+                `<tr><td class="wrap">${text(row.model)}<span class="sub">${text(
+                  `${duration(row.avgDurationMs)} average`,
+                )}</span></td>
             <td class="num">${row.reviews}</td>
-            <td class="num">${count(row.tokensIn)}</td>
-            <td class="num">${count(row.tokensOut)}</td>
-            <td class="num">${duration(row.avgDurationMs)}</td>
-            <td class="num">${
+            <td class="num">${count(row.tokensIn)} in<span class="sub">${count(
+              row.tokensOut,
+            )} out</span></td>
+            <td class="num">${text(formatCostTotal(row))}<span class="sub">${text(
               row.knownCount
-                ? money(row.cost / row.knownCount)
+                ? `${money(row.cost / row.knownCount)} per review`
                 : row.unknownCount
-                  ? "unknown"
-                  : money(0)
-            }</td>
-            <td class="num">${formatCostTotal(row)}</td></tr>`,
+                  ? "unknown per review"
+                  : `${money(0)} per review`,
+            )}</span></td></tr>`,
             )
             .join("")}
         </tbody>

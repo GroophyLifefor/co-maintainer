@@ -2387,6 +2387,11 @@ html.dark {
   }
 }
 
+/* A table that must fit its card: long names wrap instead of scrolling. */
+.app table.fit td.wrap {
+  overflow-wrap: anywhere;
+}
+
 /* Wide tables scroll inside their card instead of pushing the page. */
 .app .card .bd,
 .app .card .sec {
