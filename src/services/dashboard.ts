@@ -344,6 +344,6 @@ export function runningJobs(): JobRow[] {
   ];
 }
 
-export function skippedDeliveries(): DeliveryRow[] {
-  return listSkipped();
+export function skippedDeliveries(repo?: string): DeliveryRow[] {
+  return listSkipped(repo);
 }

@@ -279,7 +279,7 @@ export async function handlePageRequest(
         username,
         runningJobs(),
         activityFeed(query.page, ACTIVITY_PER_PAGE, activityStoreFilter(query)),
-        skippedDeliveries(),
+        skippedDeliveries(query.repo),
         query,
         listActiveRepos().map((repo) => repo.full_name),
       );

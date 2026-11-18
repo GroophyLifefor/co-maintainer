@@ -11,7 +11,7 @@ import {
   when,
 } from "./layout.ts";
 import { formatCost } from "./cost.ts";
-import { icon, segmented } from "./ui.ts";
+import { badge, icon, segmented } from "./ui.ts";
 import {
   failureExplanation,
   isWaitingForRequest,
@@ -38,7 +38,7 @@ import type {
   skippedDeliveries,
 } from "../../services/dashboard.ts";
 import type { ActivityRow } from "../../store/activity.ts";
-import type { ReviewRow } from "../../store/rows.ts";
+import type { DeliveryRow, ReviewRow } from "../../store/rows.ts";
 
 /** The label of a review row whose job row is gone. */
 function reviewKindText(review: ReviewRow): string {
@@ -161,10 +161,78 @@ function pager(feed: ReturnType<typeof activityFeed>, query: ActivityQuery) {
     }</div>`;
 }
 
-function skippedCard(skipped: ReturnType<typeof skippedDeliveries>): string {
-  const rows = skipped
+/** What GitHub event a skipped row was, for a row with no pull request. */
+const EVENT_WORDS: Record<string, string> = {
+  pull_request: "Pull request",
+  push: "Push",
+  issue_comment: "Comment",
+  issues: "Issue",
+  pull_request_review: "Review",
+  pull_request_review_comment: "Review comment",
+  installation: "GitHub App installation",
+  installation_repositories: "GitHub App repositories",
+};
+
+export type SkipGroup = { row: DeliveryRow; count: number };
+
+/** The skipped list as it is shown: the same skip repeated within one
+ * minute is one row with a count, the bot's own comments are left out
+ * unless asked for, and an ignored event that gave no reason is noise, not
+ * a skip. Rows come newest first. */
+export function skipGroups(
+  rows: DeliveryRow[],
+  options: { own?: boolean } = {},
+): { groups: SkipGroup[]; ownHidden: number } {
+  const groups: SkipGroup[] = [];
+  let ownHidden = 0;
+  for (const row of rows) {
+    if (row.outcome === "ignored" && !row.reason) continue;
+    if (row.reason === "own-comment" && !options.own) {
+      ownHidden++;
+      continue;
+    }
+    const last = groups[groups.length - 1]?.row;
+    if (
+      last &&
+      last.repo === row.repo &&
+      last.pr_number === row.pr_number &&
+      last.reason === row.reason &&
+      last.outcome === row.outcome &&
+      last.event === row.event &&
+      last.received_at.slice(0, 16) === row.received_at.slice(0, 16)
+    ) {
+      groups[groups.length - 1]!.count++;
+      continue;
+    }
+    groups.push({ row, count: 1 });
+  }
+  return { groups, ownHidden };
+}
+
+/** What a skipped row was about. A row with no repository says why it has
+ * none instead of showing an empty cell. */
+function skipSubject(row: DeliveryRow): string {
+  const event = EVENT_WORDS[row.event] ?? row.event.replace(/_/g, " ");
+  if (!row.repo) {
+    const why = row.event.startsWith("installation")
+      ? "about the whole installation, not one repository"
+      : "GitHub sent no repository with it";
+    return `${text(event)}<span class="sub">${text(`No repository: ${why}`)}</span>`;
+  }
+  const repoLink = `<a href="/repos/${text(row.repo)}">${text(row.repo)}</a>`;
+  return row.pr_number
+    ? `${repoLink} <a href="/repos/${text(row.repo)}/pulls/${row.pr_number}">#${row.pr_number}</a>`
+    : `${repoLink}<span class="sub">${text(event)}</span>`;
+}
+
+function skippedCard(
+  skipped: ReturnType<typeof skippedDeliveries>,
+  query: ActivityQuery,
+): string {
+  const { groups, ownHidden } = skipGroups(skipped, { own: query.own });
+  const rows = groups
     .slice(0, 20)
-    .map((row) => {
+    .map(({ row, count }) => {
       const label = `${row.repo ?? ""}${row.pr_number ? ` #${row.pr_number}` : ""}`;
       // A pull request waiting for a request is one click from a review, and
       // the person on the dashboard is already allowed to ask.
@@ -172,21 +240,32 @@ function skippedCard(skipped: ReturnType<typeof skippedDeliveries>): string {
         row.repo && row.pr_number && isWaitingForRequest(row.reason)
           ? `<button class="btn sm" type="button" data-post="/api/repos/${text(row.repo)}/pulls/${row.pr_number}/review" aria-label="Review ${text(label)} now">Review now</button>`
           : "";
-      return `<tr><td>${text(label)}</td>
-        <td class="muted">${text(reasonText(row.reason, row.outcome))}</td>
+      const times = count > 1 ? ` ${badge("neutral", `${count} times`)}` : "";
+      return `<tr><td class="wrap">${skipSubject(row)}</td>
+        <td class="muted wrap">${text(reasonText(row.reason, row.outcome))}${times}</td>
         <td class="muted" style="width:120px">${when(row.received_at)}</td>
         <td style="width:110px;text-align:right">${action}</td></tr>`;
     })
     .join("");
+  const ownToggle =
+    ownHidden > 0 || query.own
+      ? `<a class="btn out sm" href="${escapeHtml(
+          activityHref(query, { own: query.own ? undefined : 1 }),
+        )}">${
+          query.own ? "Hide own comments" : `Show own comments (${ownHidden})`
+        }</a>`
+      : "";
   return `<div class="card">
     <div class="hd"><h2>Pull requests we skipped</h2>
-      <span class="muted" style="margin-left:auto;font-size:13px">Why nothing happened</span></div>
+      <span class="muted" style="margin-left:auto;font-size:13px">Why nothing happened</span>${ownToggle}</div>
     <div class="bd flush">${
       rows
-        ? `<table><tbody>${rows}</tbody></table>`
+        ? `<table class="fit"><thead><tr><th>What</th><th>Reason</th><th>When</th><th aria-label="Action"></th></tr></thead><tbody>${rows}</tbody></table>`
         : empty(
             "No skips recorded",
-            "Skipped pull request deliveries appear here.",
+            ownHidden
+              ? "Only the bot's own comments were skipped. They are hidden."
+              : "Skipped pull request deliveries appear here.",
           )
     }</div>
   </div>`;
@@ -329,7 +408,7 @@ export function renderActivity(
     <div class="hd"><h2>Recent</h2></div>
     <div class="bd flush">${recent}</div>
   </div>
-  ${skippedCard(skipped)}
+  ${skippedCard(skipped, query)}
 </div>
 <script>
 document.addEventListener("click", function(event) {

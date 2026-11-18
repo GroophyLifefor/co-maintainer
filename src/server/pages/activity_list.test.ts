@@ -7,6 +7,10 @@ import { insertReview, setReviewStatus } from "../../store/reviews.ts";
 import { insertJob, setJobStatus } from "../../store/jobs.ts";
 import { rememberPullTitle } from "../../store/pull_titles.ts";
 import { KNOWN_COST } from "../../testing/fixtures/cost.ts";
+import { skipGroups } from "./activity_list.ts";
+import { recordDelivery } from "../../store/deliveries.ts";
+import { getAppDb } from "../../store/app_db.ts";
+import type { DeliveryRow } from "../../store/rows.ts";
 
 const REPO = "acme/widgets";
 
@@ -186,5 +190,118 @@ test("the chips keep the other filters and each active value can be taken off", 
     );
     assert.ok(html.includes(">Show all</a>"));
     assert.ok(html.includes(`name="q" value="x"`));
+  });
+});
+
+function delivery(
+  id: string,
+  at: string,
+  patch: Partial<DeliveryRow> = {},
+): DeliveryRow {
+  return {
+    delivery_id: id,
+    event: "pull_request",
+    action: "opened",
+    repo: REPO,
+    pr_number: 8,
+    received_at: at,
+    outcome: "skipped",
+    reason: "draft",
+    ...patch,
+  };
+}
+
+test("the same skip within one minute is one row with a count", () => {
+  const { groups } = skipGroups([
+    delivery("a", "2026-01-01T10:00:50.000Z"),
+    delivery("b", "2026-01-01T10:00:10.000Z"),
+    delivery("c", "2026-01-01T09:59:59.000Z"),
+    delivery("d", "2026-01-01T09:59:58.000Z", { pr_number: 9 }),
+  ]);
+  assert.deepEqual(
+    groups.map((group) => [group.row.delivery_id, group.count]),
+    [
+      ["a", 2],
+      ["c", 1],
+      ["d", 1],
+    ],
+  );
+});
+
+test("own comments are hidden until asked for, and ignored events without a reason are left out", () => {
+  const rows = [
+    delivery("own", "2026-01-01T10:00:00.000Z", { reason: "own-comment" }),
+    delivery("noise", "2026-01-01T09:00:00.000Z", {
+      outcome: "ignored",
+      reason: null,
+    }),
+    delivery("draft", "2026-01-01T08:00:00.000Z"),
+  ];
+  const hidden = skipGroups(rows);
+  assert.equal(hidden.ownHidden, 1);
+  assert.deepEqual(
+    hidden.groups.map((group) => group.row.delivery_id),
+    ["draft"],
+  );
+  const shown = skipGroups(rows, { own: true });
+  assert.deepEqual(
+    shown.groups.map((group) => group.row.delivery_id),
+    ["own", "draft"],
+  );
+});
+
+test("the skipped list has headings, says why a row has no repository and toggles own comments", async () => {
+  await withDashboard(async (get) => {
+    activateRepo(REPO, 1);
+    recordDelivery({
+      deliveryId: "d-own",
+      event: "issue_comment",
+      repo: REPO,
+      prNumber: 8,
+      outcome: "skipped",
+      reason: "own-comment",
+    });
+    recordDelivery({
+      deliveryId: "d-install",
+      event: "installation",
+      action: "created",
+      outcome: "ignored",
+      reason: "installation-created",
+    });
+    for (const id of ["d-1", "d-2", "d-3"]) {
+      recordDelivery({
+        deliveryId: id,
+        event: "pull_request",
+        repo: REPO,
+        prNumber: 9,
+        outcome: "skipped",
+        reason: "nothing-new-since-last-round",
+      });
+    }
+    // The three repeats share one minute however fast the test runs.
+    getAppDb()
+      .prepare(
+        `UPDATE deliveries SET received_at = '2026-01-01T10:00:00.000Z' WHERE delivery_id LIKE 'd-_'`,
+      )
+      .run();
+    const { html } = await get("/activity");
+    const card = html.slice(html.indexOf("Pull requests we skipped"));
+    assert.ok(card.includes("<th>Reason</th>"), "no column headings");
+    assert.ok(card.includes("No repository: about the whole installation"));
+    assert.ok(card.includes("The GitHub App was installed"));
+    assert.ok(card.includes("Skipped: nothing new since the last review"));
+    assert.ok(card.includes("3 times"), "the repeats were not merged");
+    assert.ok(!card.includes("own comment</td>"));
+    assert.ok(!card.includes("Skipped: the bot's own comment"));
+    assert.ok(card.includes("Show own comments (1)"));
+    const own = await get("/activity?own=1");
+    const ownCard = own.html.slice(
+      own.html.indexOf("Pull requests we skipped"),
+    );
+    assert.ok(
+      ownCard.includes("Skipped: the bot&#39;s own comment") ||
+        ownCard.includes("Skipped: the bot's own comment"),
+    );
+    assert.ok(ownCard.includes("Hide own comments"));
   });
 });
