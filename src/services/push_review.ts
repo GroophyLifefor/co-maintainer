@@ -587,7 +587,7 @@ async function startCheckRun(
     if (id) setReviewStatus(reviewId, "running", { check_run_id: id });
     return id || undefined;
   } catch (error) {
-    log("info", `GitHub Check Run unavailable: ${redact(String(error))}`);
+    log("warn", `GitHub Check Run unavailable: ${redact(String(error))}`);
     return undefined;
   }
 }
@@ -666,7 +666,7 @@ async function completeCheckRun(
       );
     }
   } catch (error) {
-    log("info", `GitHub Check Run update failed: ${redact(String(error))}`);
+    log("warn", `GitHub Check Run update failed: ${redact(String(error))}`);
   }
 }
 
