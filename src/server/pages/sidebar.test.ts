@@ -124,11 +124,11 @@ test("the sidebar badges show repo count, failed reviews and setup progress", as
       throw new Error("Repositories badge is not 2");
     }
     if (
-      !/<span class="r fail-count">1 failed<\/span>/.test(
-        navItem(nav, "/activity"),
+      !/<a class="r fail-count" href="\/activity\?status=failed"[^>]*>1 failed<\/a>/.test(
+        nav,
       )
     ) {
-      throw new Error("Activity badge is not 1 failed");
+      throw new Error("Activity badge is not 1 failed, linked to the list");
     }
     if (!/<span class="r tnum">1\/4<\/span>/.test(navItem(nav, "/setup"))) {
       throw new Error("Setup badge is not 1/4");

@@ -1,5 +1,6 @@
 import {
   empty,
+  escapeHtml,
   html,
   layout,
   layoutFocus,
@@ -178,7 +179,9 @@ export function renderHome(
             }</td>
             <td class="num">${text(row.reviews)}${
               row.failed > 0
-                ? `<span class="sub">${row.failed} failed</span>`
+                ? `<a class="sub fail-link" href="${escapeHtml(
+                    `/activity?repo=${encodeURIComponent(row.fullName)}&status=failed`,
+                  )}">${row.failed} failed</a>`
                 : ""
             }</td>
             <td class="num">${text(row.cost)}</td>

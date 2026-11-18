@@ -299,9 +299,6 @@ function navBadge(href: string, counts: NavCounts | undefined): string {
   if (href === "/" && counts.repos > 0) {
     return `<span class="r tnum">${counts.repos}</span>`;
   }
-  if (href === "/activity" && counts.failed > 0) {
-    return `<span class="r fail-count">${counts.failed} failed</span>`;
-  }
   if (href === "/setup")
     return `<span class="r tnum">${text(counts.setup)}</span>`;
   return "";
@@ -312,12 +309,17 @@ function navHtml(active: string | undefined): string {
   return `<nav class="nav">${NAV_GROUPS.map(
     (group) =>
       `<div class="grp"><p>${group.label}</p>${group.items
-        .map(
-          (item) =>
-            `<a class="item${item.href === active ? " on" : ""}" href="${
-              item.href
-            }">${ico(item.icon)}${item.label}${navBadge(item.href, counts)}</a>`,
-        )
+        .map((item) => {
+          const link = `<a class="item${item.href === active ? " on" : ""}" href="${
+            item.href
+          }">${ico(item.icon)}${item.label}${navBadge(item.href, counts)}</a>`;
+          // The failed count is a link of its own to the failed list. A link
+          // cannot sit inside another, so it sits beside the menu item.
+          if (item.href === "/activity" && counts && counts.failed > 0) {
+            return `<div class="item-pair">${link}<a class="r fail-count" href="/activity?status=failed" title="Open the failures nobody dismissed yet">${counts.failed} failed</a></div>`;
+          }
+          return link;
+        })
         .join("")}</div>`,
   ).join("")}</nav>`;
 }
