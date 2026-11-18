@@ -58,6 +58,7 @@ import {
 } from "../config.ts";
 import { outsideCode, redact } from "../util/redact.ts";
 import { getRepo, setInstallationId } from "../store/repos.ts";
+import { rememberPullTitle } from "../store/pull_titles.ts";
 import {
   findNoteCommentId,
   getReview,
@@ -1100,6 +1101,8 @@ async function runReviewJobCore(
   const pr = await github.request<Json>(
     `repos/${job.repo}/pulls/${job.pr_number}`,
   );
+  // The dashboard shows the title without asking GitHub again.
+  rememberPullTitle(job.repo, job.pr_number, pr.title);
   if (args.trigger === "request-comment" && !existing) {
     const blocked = requestedReviewBlocked(job.repo, pr);
     if (blocked) {

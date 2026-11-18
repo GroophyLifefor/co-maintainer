@@ -423,4 +423,19 @@ export const migrations: string[][] = [
   // synced, so the overview reads it instead of starting git on every visit.
   // NULL until then, and the page falls back to asking git once.
   [`ALTER TABLE repos ADD COLUMN default_branch TEXT`],
+  // 21: the title of each reviewed pull request, written when a review reads
+  // the pull request, so the dashboard shows it without asking GitHub. A pull
+  // request reviewed before this has no row until its next review or its
+  // first visit. And an index for the findings list, which keeps only the
+  // newest round's copy of a finding carried from round to round.
+  [
+    `CREATE TABLE pull_titles (
+      repo TEXT NOT NULL,
+      pr_number INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (repo, pr_number)
+    )`,
+    `CREATE INDEX idx_findings_carried_from ON findings(carried_from_finding_id)`,
+  ],
 ];
