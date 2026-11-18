@@ -220,6 +220,26 @@ its own address.
 - Reactions, labels and issues are kept, but only as far as the product uses
   them today.
 
+## Site pages
+
+The site has two kinds of pages. The docs are built from `docs/md/` by
+`npm run docs:build`. The hand written pages are the landing page
+`docs/index.html`, `docs/privacy.html` and every page in `HAND_PAGES` in
+`scripts/build_docs.ts`, such as `docs/vs/coderabbit.html`.
+
+- Every hand written page has the landing page's header and footer: the same
+  links, in the same order. A link added to one is added to all of them.
+- On every page but the landing page, the logo in the header links home.
+- Links between site pages are relative, so a page also works from a local
+  server.
+- A page made from a draft or demo loses its review note, such as "Demo for
+  review, not published", before it goes in.
+- A new hand written page goes into `HAND_PAGES`. That puts it in the sitemap
+  and in the checks below.
+
+`npm test` checks the header, footer, home link and review note rules. It
+fails with the page and what is wrong.
+
 ## Punctuation
 
 Text a person reads follows one rule. It is a product rule, so it applies to

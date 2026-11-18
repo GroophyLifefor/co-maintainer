@@ -37,6 +37,7 @@ import {
   faqEntries,
   faqJsonLd,
   gitLastModified,
+  HAND_PAGES,
   llmsFacts,
   llmsTxt,
   robotsTxt,
@@ -445,6 +446,80 @@ test("the landing page in the repository has its FAQ questions in its JSON-LD", 
     throw new Error(
       `${named} JSON-LD questions for ${questions} on the page. Run npm run docs:build.`,
     );
+  }
+});
+
+/** The links of the `<nav>` inside a page's `<header>` or `<footer>`, as
+ * `text -> address`, with each address resolved against the page's own, so
+ * `privacy.html` on the landing page and `../privacy.html` on a vs page are
+ * the same link. */
+function navLinks(
+  html: string,
+  tag: "header" | "footer",
+  page: string,
+): string[] {
+  const block =
+    new RegExp(`<${tag}[\\s>][\\s\\S]*?</${tag}>`).exec(html)?.[0] ?? "";
+  const nav = /<nav>([\s\S]*?)<\/nav>/.exec(block)?.[1] ?? "";
+  return [...nav.matchAll(/<a\b[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g)].map(
+    ([, href, text]) =>
+      `${text!.replace(/<[^>]+>/g, "").trim()} -> ${new URL(href!, `${SITE_ORIGIN}/${page}`).href}`,
+  );
+}
+
+test("every hand written page has the landing page's header and footer links, and links home", () => {
+  const read = (page: string) =>
+    readFileSync(join(projectRoot, "docs", page), "utf8");
+  const landing = read("index.html");
+  const want = {
+    header: navLinks(landing, "header", "index.html"),
+    footer: navLinks(landing, "footer", "index.html"),
+  };
+  if (want.header.length === 0 || want.footer.length === 0) {
+    throw new Error("the landing page has no header or footer links");
+  }
+  for (const page of [
+    ...MOVED_TO_ROOT.map((slug) => `${slug}.html`),
+    ...HAND_PAGES.map((path) => `${path}.html`),
+  ]) {
+    const html = read(page);
+    for (const tag of ["header", "footer"] as const) {
+      const got = navLinks(html, tag, page);
+      if (JSON.stringify(got) !== JSON.stringify(want[tag])) {
+        throw new Error(
+          `${page} ${tag} links differ from the landing page.\n` +
+            `landing: ${want[tag].join(" | ")}\n${page}: ${got.join(" | ")}\n` +
+            "See Site pages in CONTRIBUTING.md.",
+        );
+      }
+    }
+    const header = /<header[\s>][\s\S]*?<\/header>/.exec(html)?.[0] ?? "";
+    const home = [...header.matchAll(/href="([^"]+)"/g)].some(
+      ([, href]) =>
+        !href!.startsWith("#") &&
+        new URL(href!, `${SITE_ORIGIN}/${page}`).href.replace(
+          /index\.html$/,
+          "",
+        ) === `${SITE_ORIGIN}/`,
+    );
+    if (!home) throw new Error(`${page}: the header logo does not link home`);
+  }
+});
+
+test("no hand written page ships a draft or demo note", () => {
+  for (const page of [
+    "index.html",
+    ...MOVED_TO_ROOT.map((slug) => `${slug}.html`),
+    ...HAND_PAGES.map((path) => `${path}.html`),
+  ]) {
+    const html = readFileSync(join(projectRoot, "docs", page), "utf8");
+    const found =
+      /demo for review|not published|draft for review|demo-note/i.exec(html);
+    if (found) {
+      throw new Error(
+        `${page} still has "${found[0]}". See Site pages in CONTRIBUTING.md.`,
+      );
+    }
   }
 });
 

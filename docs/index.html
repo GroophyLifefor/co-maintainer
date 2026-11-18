@@ -1519,19 +1519,50 @@ Done in 2m 14s · 429,644 in, 6,413 out tokens · $0.4696"></div>
   window.addEventListener("scroll", markScrolled, { passive: true });
   markScrolled();
 
-  // Copy buttons: copy the command next to them, say "copied" for 2s.
+  // Copy buttons: copy the command next to them, say "copied" for 2s. A
+  // browser that refuses the clipboard API gets the older copy command, and
+  // when that fails too the command is selected, so Ctrl+C or Cmd+C copies it.
+  function copyWithCommand(text) {
+    const area = document.createElement("textarea");
+    area.textContent = text;
+    area.setAttribute("readonly", "");
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch { ok = false; }
+    area.remove();
+    return ok;
+  }
+  function selectCommand(span) {
+    const range = document.createRange();
+    range.selectNodeContents(span);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+  const copyKey = /Mac|iPhone|iPad/.test(navigator.platform) ? "Cmd+C" : "Ctrl+C";
   document.querySelectorAll(".cmd button").forEach((btn) => {
     let timer;
     btn.addEventListener("click", async () => {
-      const text = btn.parentElement.querySelector("span").textContent.trim();
+      const span = btn.parentElement.querySelector("span");
+      const text = span.textContent.trim();
+      let copied = false;
       try {
         await navigator.clipboard.writeText(text);
-        btn.textContent = "copied";
+        copied = true;
       } catch {
-        btn.textContent = "select it";
+        copied = copyWithCommand(text);
+      }
+      if (copied) {
+        btn.textContent = "copied";
+      } else {
+        selectCommand(span);
+        btn.textContent = `press ${copyKey}`;
       }
       clearTimeout(timer);
-      timer = setTimeout(() => { btn.textContent = "copy"; }, 2000);
+      timer = setTimeout(() => { btn.textContent = "copy"; }, copied ? 2000 : 4000);
     });
   });
 
