@@ -49,6 +49,19 @@ export async function createLocalReviewSandbox(
   options: { clean?: boolean } = {},
 ): Promise<LocalReviewSandbox> {
   const home = await tempDir({ prefix: "cm-local-review-" });
+  try {
+    return await fillSandbox(home, options);
+  } catch (error) {
+    // A setup that fails leaves no temp directory behind.
+    await removePath(home, { recursive: true }).catch(() => {});
+    throw error;
+  }
+}
+
+async function fillSandbox(
+  home: string,
+  options: { clean?: boolean },
+): Promise<LocalReviewSandbox> {
   const repo = "sandbox/local-review";
   const worktree = `${home}/worktree`;
   await mkdirPath(`${home}/repos/${repo}`, { recursive: true });
