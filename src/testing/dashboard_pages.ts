@@ -73,7 +73,7 @@ export async function withDashboard(
         },
       );
     } finally {
-      closeAppDb();
+      await closeAppDb();
     }
   });
 }

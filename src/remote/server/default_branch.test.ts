@@ -15,7 +15,7 @@ test("the default branch is read from the repository row, not from git", async (
       setDefaultBranch("acme/widgets", "trunk");
       assert.equal(await defaultBranchForRepo("acme/widgets"), "trunk");
     } finally {
-      closeAppDb();
+      await closeAppDb();
     }
   });
 });
@@ -29,7 +29,7 @@ test("a blank branch name never replaces a stored one", async () => {
       setDefaultBranch("acme/widgets", "  ");
       assert.equal(getRepo("acme/widgets")?.default_branch, "main");
     } finally {
-      closeAppDb();
+      await closeAppDb();
     }
   });
 });

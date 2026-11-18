@@ -32,9 +32,14 @@ test("a pull request keeps its author when a later call names none", async () =>
     rememberPullTitle("acme/widgets", 7, "Second title");
     assert.equal(author(), "octocat");
   } finally {
-    await closeAppDb();
-    if (original === undefined) deleteEnv("CM_APP_DB");
-    else setEnv("CM_APP_DB", original);
-    await removePath(dir, { recursive: true }).catch(() => {});
+    // The rest runs even when closing fails, so no state leaks into the
+    // next test.
+    try {
+      await closeAppDb();
+    } finally {
+      if (original === undefined) deleteEnv("CM_APP_DB");
+      else setEnv("CM_APP_DB", original);
+      await removePath(dir, { recursive: true }).catch(() => {});
+    }
   }
 });

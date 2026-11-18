@@ -28,10 +28,15 @@ async function withDb(fn: () => void | Promise<void>): Promise<void> {
     await openAppDb();
     await fn();
   } finally {
-    await closeAppDb();
-    if (original === undefined) deleteEnv("CM_APP_DB");
-    else setEnv("CM_APP_DB", original);
-    await removePath(dir, { recursive: true }).catch(() => {});
+    // The rest runs even when closing fails, so no state leaks into the
+    // next test.
+    try {
+      await closeAppDb();
+    } finally {
+      if (original === undefined) deleteEnv("CM_APP_DB");
+      else setEnv("CM_APP_DB", original);
+      await removePath(dir, { recursive: true }).catch(() => {});
+    }
   }
 }
 
