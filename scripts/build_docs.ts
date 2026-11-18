@@ -64,7 +64,6 @@ const NAV: NavSection[] = [
     title: "Getting started",
     items: [
       { slug: "getting-started", label: "Quickstart" },
-      { slug: "faq", label: "FAQ" },
       { slug: "probe", label: "Probe" },
       { slug: "init", label: "Init" },
       { slug: "sync", label: "Sync" },
@@ -599,7 +598,6 @@ export function docPageShell(
   toc: string,
   activeSlug: string,
   description: string,
-  extraHead = "",
 ): string {
   const canonical = `${SITE_ORIGIN}/docs/${activeSlug}.html`;
   return `<!DOCTYPE html>
@@ -609,7 +607,7 @@ export function docPageShell(
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${esc(title)} · co-maintainer docs</title>
   <meta name="description" content="${esc(description)}">
-  <link rel="canonical" href="${canonical}">${extraHead ? `\n  ${extraHead}` : ""}
+  <link rel="canonical" href="${canonical}">
   <link rel="stylesheet" href="${ASSET_PREFIX}site.css">
   <link rel="icon" href="${ASSET_PREFIX}logo.png">
   <script defer src="https://umami.ordu.dev/script.js" data-website-id="5c8e6df5-063d-4031-9eb6-f43138e09e2d"></script>
@@ -753,7 +751,7 @@ export function robotsTxt(): string {
  * Open Graph and Twitter tags, and the JSON-LD facts. */
 const LANDING_SEO = /<!-- seo:start -->[\s\S]*?<!-- seo:end -->/;
 
-export function landingSeoBlock(facts: SiteFacts): string {
+export function landingSeoBlock(facts: SiteFacts, faq = ""): string {
   const title =
     "co-maintainer · open source AI code review that learns your repo";
   const description =
@@ -791,6 +789,7 @@ export function landingSeoBlock(facts: SiteFacts): string {
     `<meta name="twitter:description" content="${esc(description)}">`,
     `<meta name="twitter:image" content="${image}">`,
     `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`,
+    ...(faq ? [faq] : []),
     "<!-- seo:end -->",
   ].join("\n");
 }
@@ -798,42 +797,48 @@ export function landingSeoBlock(facts: SiteFacts): string {
 /** The landing page with its marked block filled. A page without the
  * markers is returned as it is. */
 export function applyLandingSeo(html: string, facts: SiteFacts): string {
-  return html.replace(LANDING_SEO, () => landingSeoBlock(facts));
+  return html.replace(LANDING_SEO, () =>
+    landingSeoBlock(facts, faqJsonLd(html)),
+  );
 }
 
-/** The questions of the FAQ page, each `## ` heading with the paragraph
- * under it as plain text. The "More:" line of links is left out. */
+/** The questions of the landing page's FAQ section: each `<summary>` with
+ * the `<p class="faq-a">` after it, as plain text. The "More:" links sit in
+ * their own element and are left out. */
 export function faqEntries(
-  md: string,
+  html: string,
 ): Array<{ question: string; answer: string }> {
+  const section = /<section class="faq"[\s\S]*?<\/section>/.exec(html)?.[0];
+  if (!section) return [];
+  const plain = (text: string) =>
+    text
+      .replace(/<[^>]+>/g, "")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\s+/g, " ")
+      .trim();
   const entries: Array<{ question: string; answer: string }> = [];
-  for (const section of md.split(/^## /m).slice(1)) {
-    const [heading = "", ...rest] = section.split("\n");
-    const answer = rest
-      .join("\n")
-      .split(/\n\s*\n/)
-      .map((block) => block.trim())
-      .find((block) => block !== "" && !block.startsWith("More:"));
-    if (!answer) continue;
-    entries.push({
-      question: heading.trim(),
-      answer: answer
-        .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-        .replace(/`([^`]+)`/g, "$1")
-        .replace(/\s+/g, " ")
-        .trim(),
-    });
+  for (const item of section.matchAll(
+    /<summary>([\s\S]*?)<\/summary>[\s\S]*?<p class="faq-a">([\s\S]*?)<\/p>/g,
+  )) {
+    entries.push({ question: plain(item[1]!), answer: plain(item[2]!) });
   }
   return entries;
 }
 
-/** The FAQPage JSON-LD of the FAQ page, from its own questions, so the
- * structured copy can never say something the page does not. */
-export function faqJsonLd(md: string): string {
+/** The FAQPage JSON-LD of the landing page, from its own FAQ section, so the
+ * structured copy can never say something the page does not. Empty when the
+ * page has no questions. */
+export function faqJsonLd(html: string): string {
+  const entries = faqEntries(html);
+  if (entries.length === 0) return "";
   const data = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
-    mainEntity: faqEntries(md).map(({ question, answer }) => ({
+    mainEntity: entries.map(({ question, answer }) => ({
       "@type": "Question",
       name: question,
       acceptedAnswer: { "@type": "Answer", text: answer },
@@ -911,8 +916,7 @@ export async function buildDocs(options: BuildOptions = {}): Promise<void> {
     const name = titleMatch?.[1]?.trim() ?? slug;
     const tagline = TITLE_TAGLINES[slug];
     const title = tagline ? `${name}: ${tagline}` : name;
-    const extraHead = slug === "faq" ? faqJsonLd(md) : "";
-    const html = docPageShell(title, body, toc, slug, description, extraHead);
+    const html = docPageShell(title, body, toc, slug, description);
     await writeTextFile(new URL(`${slug}.html`, pagesDir), html);
     log(`wrote docs/${slug}.html`);
   }

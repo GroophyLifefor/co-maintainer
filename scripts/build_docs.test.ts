@@ -132,8 +132,8 @@ test("every page is written under docs/ with a description and canonical", async
       const html = await readTextFile(page);
       if (!html.includes('http-equiv="refresh"')) pages.push({ page, html });
     }
-    if (pages.length !== 27) {
-      throw new Error(`expected 27 doc pages, found ${pages.length}`);
+    if (pages.length !== 26) {
+      throw new Error(`expected 26 doc pages, found ${pages.length}`);
     }
     for (const { page, html } of pages) {
       if (!html.includes('name="description"')) {
@@ -404,28 +404,21 @@ test("the init, sync and probe pages have a few words after their name in the ti
   }
 });
 
-test("the FAQ's JSON-LD holds each question with the paragraph under it, without the links line", () => {
-  const md = [
-    "# FAQ",
-    "",
-    "Intro.",
-    "",
-    "## Is it free?",
-    "",
-    "Yes. See [the license](x.md) and `MIT`.",
-    "",
-    "More: [Cost](cost.md).",
-    "",
-    "## Does it work with GitLab?",
-    "",
-    "Not yet. It works with </script> GitHub only.",
-    "",
+test("the landing FAQ's JSON-LD holds each question with its answer, without the More links", () => {
+  const html = [
+    '<section class="faq" id="faq">',
+    "<details><summary>Is it free?</summary>",
+    '<p class="faq-a">Yes. It is <b>MIT</b> &amp; free.</p>',
+    '<p class="faq-more">More: <a href="docs/cost.html">Cost</a></p></details>',
+    "<details><summary>Does it work with GitLab?</summary>",
+    '<p class="faq-a">Not yet. It works with &lt;/script&gt; GitHub only.</p></details>',
+    "</section>",
   ].join("\n");
-  const entries = faqEntries(md);
+  const entries = faqEntries(html);
   if (
     JSON.stringify(entries) !==
     JSON.stringify([
-      { question: "Is it free?", answer: "Yes. See the license and MIT." },
+      { question: "Is it free?", answer: "Yes. It is MIT & free." },
       {
         question: "Does it work with GitLab?",
         answer: "Not yet. It works with </script> GitHub only.",
@@ -434,18 +427,23 @@ test("the FAQ's JSON-LD holds each question with the paragraph under it, without
   ) {
     throw new Error(JSON.stringify(entries));
   }
-  const ld = faqJsonLd(md);
+  const ld = faqJsonLd(html);
   if (!ld.includes('"@type":"FAQPage"') || ld.includes("</script> GitHub")) {
     throw new Error(ld);
   }
+  if (faqJsonLd("<main></main>") !== "") {
+    throw new Error("a page without questions got FAQ JSON-LD");
+  }
 });
 
-test("the FAQ page in the repository has a question in its JSON-LD for each heading", () => {
-  const md = readFileSync(join(projectRoot, "docs", "md", "faq.md"), "utf8");
-  const headings = md.match(/^## /gm)?.length ?? 0;
-  if (headings === 0 || faqEntries(md).length !== headings) {
+test("the landing page in the repository has its FAQ questions in its JSON-LD", () => {
+  const html = readFileSync(join(projectRoot, "docs", "index.html"), "utf8");
+  const questions = html.match(/<summary>/g)?.length ?? 0;
+  const ld = /"@type":"FAQPage"[\s\S]*?<\/script>/.exec(html)?.[0] ?? "";
+  const named = ld.match(/"@type":"Question"/g)?.length ?? 0;
+  if (questions === 0 || named !== questions) {
     throw new Error(
-      `${faqEntries(md).length} entries for ${headings} questions`,
+      `${named} JSON-LD questions for ${questions} on the page. Run npm run docs:build.`,
     );
   }
 });
@@ -619,7 +617,6 @@ test("llms.txt lists every page and llms-full.txt inlines them", async () => {
     }
     const slugs = [
       "getting-started",
-      "faq",
       "probe",
       "init",
       "sync",

@@ -16,7 +16,6 @@
 ## Getting started
 
 - [Quickstart](https://co-maintainer.com/docs/getting-started.md)
-- [FAQ](https://co-maintainer.com/docs/faq.md)
 - [Probe](https://co-maintainer.com/docs/probe.md)
 - [Init](https://co-maintainer.com/docs/init.md)
 - [Sync](https://co-maintainer.com/docs/sync.md)
