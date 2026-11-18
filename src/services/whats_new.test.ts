@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  shortItems,
   changelogSections,
   checkWhatsNew,
   CHANGELOG_URL,
@@ -103,4 +104,23 @@ test("a GitHub failure is an error, not an empty answer", async () => {
   const failing = (async () =>
     new Response("down", { status: 503 })) as unknown as typeof fetch;
   await assert.rejects(checkWhatsNew({ fetcher: failing }), /503/);
+});
+
+test("each change becomes one short line: the bold lead, or the first sentence", () => {
+  const body = [
+    "### Added",
+    "",
+    "- **App review and PR review read companion pull requests.** `set --repo` lists them. More text.",
+    "- **Output and carry-over.** The Metadata block gets a line.",
+    "",
+    "### Fixed",
+    "",
+    "- The App token for git keeps the environment's own git config. It replaced entry 0.",
+  ].join("\n");
+  assert.deepEqual(shortItems(body), [
+    "App review and PR review read companion pull requests.",
+    "Output and carry-over.",
+    "The App token for git keeps the environment's own git config.",
+  ]);
+  assert.deepEqual(changelogSections(CHANGELOG)[0]!.items, ["Sixteen."]);
 });

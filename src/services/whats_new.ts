@@ -25,6 +25,9 @@ export type ChangelogSection = {
   date: string | undefined;
   /** The section's Markdown, without its `## [x.y.z]` heading. */
   body: string;
+  /** One short line per change, for the dialog: each bullet's bold lead,
+   * or its first sentence when it has none. */
+  items: string[];
 };
 
 export type WhatsNew = {
@@ -41,6 +44,24 @@ export type WhatsNew = {
   changelogUrl: string;
 };
 
+/** One short line per bullet of a section: `- **Lead.** More text` gives
+ * `Lead.`, a bullet without a bold lead gives its first sentence. Markdown
+ * other than inline code is dropped. */
+export function shortItems(body: string): string[] {
+  const items: string[] = [];
+  for (const line of body.split("\n")) {
+    const bullet = /^\s*[-*] (.+)$/.exec(line);
+    if (!bullet) continue;
+    const text = bullet[1]!.trim();
+    const lead = /^\*\*(.+?)\*\*/.exec(text);
+    const short = lead
+      ? lead[1]!
+      : (/^(.+?[.!?])(\s|$)/.exec(text)?.[1] ?? text);
+    items.push(short.replace(/\*\*/g, "").trim());
+  }
+  return items;
+}
+
 /** Every released `## [x.y.z] - date` section of a changelog, in file order
  * (newest first in this repository). `Unreleased` is skipped. */
 export function changelogSections(changelog: string): ChangelogSection[] {
@@ -50,6 +71,7 @@ export function changelogSections(changelog: string): ChangelogSection[] {
   const close = () => {
     if (!current) return;
     current.body = lines.join("\n").trim().slice(0, MAX_SECTION_CHARS);
+    current.items = shortItems(current.body);
     out.push(current);
     lines.length = 0;
   };
@@ -58,7 +80,7 @@ export function changelogSections(changelog: string): ChangelogSection[] {
     if (heading) {
       close();
       current = parseStable(heading[1]!)
-        ? { version: heading[1]!, date: heading[2], body: "" }
+        ? { version: heading[1]!, date: heading[2], body: "", items: [] }
         : undefined;
       continue;
     }

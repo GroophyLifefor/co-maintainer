@@ -619,13 +619,10 @@ function startLogPanel(panel) {
   }
 }
 
-/** The Ctrl K palette. Every query gets a sequence number and only the
- * newest answer is drawn, so a slow reply to an older query never replaces
- * the results of the newer one. The highlighted row is the one Enter opens. */
 /** "Check for new versions" in the sidebar. The dialog says first that the
  * check reads from github.com, and asks only after "Check now". The answer
- * is the changelog sections newer than this version, drawn from Markdown
- * that is escaped before any formatting is added. */
+ * is one short line per change for each version newer than this one,
+ * escaped before inline code is formatted. */
 function wnInline(text) {
   return text
     .replace(/&/g, "&amp;")
@@ -637,31 +634,6 @@ function wnInline(text) {
       /\(#(\d+)\)/g,
       '(<a href="https://github.com/GroophyLifefor/co-maintainer/issues/$1" target="_blank" rel="noopener">#$1</a>)',
     );
-}
-
-function wnMarkdown(md) {
-  const out = [];
-  let list = false;
-  md.split("\n").forEach(function (line) {
-    const item = /^\s*[-*] (.*)$/.exec(line);
-    if (item) {
-      if (!list) {
-        out.push("<ul>");
-        list = true;
-      }
-      out.push("<li>" + wnInline(item[1]) + "</li>");
-      return;
-    }
-    if (list) {
-      out.push("</ul>");
-      list = false;
-    }
-    const heading = /^#{3,6} (.*)$/.exec(line);
-    if (heading) out.push("<h4>" + wnInline(heading[1]) + "</h4>");
-    else if (line.trim()) out.push("<p>" + wnInline(line) + "</p>");
-  });
-  if (list) out.push("</ul>");
-  return out.join("");
 }
 
 /** Only links into github.com are drawn, whatever the answer says. */
@@ -721,9 +693,13 @@ function startWhatsNew() {
           (section.date
             ? ' <span class="muted">' + wnInline(section.date) + "</span>"
             : "") +
-          "</h3>" +
-          wnMarkdown(section.body) +
-          "</section>",
+          "</h3><ul>" +
+          (section.items || [])
+            .map(function (item) {
+              return "<li>" + wnInline(item) + "</li>";
+            })
+            .join("") +
+          "</ul></section>",
       );
     });
     if (result.more) {
@@ -770,6 +746,9 @@ function startWhatsNew() {
   });
 }
 
+/** The Ctrl K palette. Every query gets a sequence number and only the
+ * newest answer is drawn, so a slow reply to an older query never replaces
+ * the results of the newer one. The highlighted row is the one Enter opens. */
 function startPalette() {
   const pal = document.getElementById("pal");
   const overlay = document.getElementById("pal-ov");
