@@ -167,12 +167,16 @@ async function withRemote(
     ) => Promise<{ code: number; stdout: string; stderr: string }>,
   ) => Promise<void>,
 ): Promise<void> {
-  const sandbox = await createLocalReviewSandbox();
-  const remote = await startFakeRemote({
-    repo: sandbox.repo,
-    handshake: features === undefined ? {} : { features },
-  });
+  let made: LocalReviewSandbox | undefined;
+  let started: FakeRemote | undefined;
   try {
+    const sandbox = await createLocalReviewSandbox();
+    made = sandbox;
+    const remote = await startFakeRemote({
+      repo: sandbox.repo,
+      handshake: features === undefined ? {} : { features },
+    });
+    started = remote;
     const docs = await docsCheckout(sandbox);
     const ca = await writeCaCert(sandbox.home);
     await fn(remote, async (json) => {
@@ -204,8 +208,8 @@ async function withRemote(
       };
     });
   } finally {
-    await remote.close();
-    await sandbox.cleanup();
+    await started?.close();
+    await made?.cleanup();
   }
 }
 

@@ -1,4 +1,5 @@
 import { VERSION } from "../version.ts";
+import type { CoverageWarning } from "../review/coverage.ts";
 import {
   parseStoredReferences,
   withResolvedReferences,
@@ -322,11 +323,24 @@ export function submitRemoteReview(
     jobId,
     revisionJson: JSON.stringify(storedRevision),
     // The companions travel with the capabilities, so a retry keeps them and
-    // a submit without any stores what it always did.
+    // a submit without any stores what it always did. Their patches are
+    // capped before they are stored, and the cap's warning is kept for the
+    // worker.
     capabilitiesJson: JSON.stringify(
       body.companions === undefined
         ? capabilities
-        : { ...(capabilities as object), companions: body.companions },
+        : (() => {
+            const capped = capCompanionPatches(
+              companionsFromSubmit(body.companions),
+            );
+            return {
+              ...(capabilities as object),
+              companions: capped.companions,
+              ...(capped.warnings.length > 0
+                ? { companionWarnings: capped.warnings }
+                : {}),
+            };
+          })(),
     ),
     requestId,
     tokenId: token.id,
@@ -427,10 +441,22 @@ export function registerRemoteReviewHandler(): void {
         const caps = JSON.parse(input.capabilities_json) as {
           tools?: { name: string }[];
           companions?: unknown;
+          companionWarnings?: CoverageWarning[];
         };
-        const companions = capCompanionPatches(
+        // The submit already capped the patches. Capping again here keeps a
+        // job stored by an older server within the limit too.
+        const capped = capCompanionPatches(
           companionsFromSubmit(caps.companions),
         );
+        const companions = {
+          companions: capped.companions,
+          warnings: [
+            ...(Array.isArray(caps.companionWarnings)
+              ? caps.companionWarnings
+              : []),
+            ...capped.warnings,
+          ],
+        };
         // Only the server's known tools. A declared tool never turns
         // codegraph on, whatever it is called.
         const allowed = new Set(

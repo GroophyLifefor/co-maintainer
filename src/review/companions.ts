@@ -15,8 +15,16 @@ export const MAX_COMPANIONS = 5;
 export const COMPANION_LIST_MAX_FILES = 200;
 
 /** The widest a listed path is padded to, so a line stays near 100
- * characters. A longer path is listed whole. */
+ * characters. A longer path is listed without padding. */
 const PATH_COLUMN_MAX = 72;
+
+/** The longest path a block lists. A longer one ends in `...`, and the model
+ * can still read it whole with `read-full-diff`. */
+export const COMPANION_PATH_MAX_CHARS = 200;
+
+/** The most characters of file lines in one block. Lines past it become the
+ * `and N more` line, so five blocks stay under 120,000 characters. */
+export const COMPANION_BLOCK_MAX_CHARS = 24_000;
 
 /** The most patch characters a remote server takes for all companions of a
  * review together. Above it the server keeps the file lists only. */
@@ -66,17 +74,29 @@ export function companionBlock(companion: Companion): string {
   const files = companion.files;
   if (files.length === 0) return `${head} · no changes on this branch`;
   const listed = files.slice(0, COMPANION_LIST_MAX_FILES);
-  const paths = listed.map((file) => oneLine(companionPath(repo, file.path)));
+  const paths = listed.map((file) => {
+    const path = oneLine(companionPath(repo, file.path));
+    return path.length > COMPANION_PATH_MAX_CHARS
+      ? `${path.slice(0, COMPANION_PATH_MAX_CHARS - 3)}...`
+      : path;
+  });
   const width = Math.min(
     PATH_COLUMN_MAX,
     Math.max(...paths.map((path) => path.length)),
   );
-  const lines = listed.map((file, index) => {
+  const lines: string[] = [];
+  let size = 0;
+  for (const [index, file] of listed.entries()) {
     const path = paths[index]!;
     const gap = " ".repeat(Math.max(3, width + 3 - path.length));
-    return `${path}${gap}${file.status.padEnd(10)}+${file.additions} -${file.deletions}`;
-  });
-  const rest = files.length - listed.length;
+    const line = `${path}${gap}${file.status.padEnd(10)}+${file.additions} -${file.deletions}`;
+    // Long paths stop the list early, so five companions stay within a
+    // known share of the prompt.
+    if (size + line.length + 1 > COMPANION_BLOCK_MAX_CHARS) break;
+    size += line.length + 1;
+    lines.push(line);
+  }
+  const rest = files.length - lines.length;
   if (rest > 0) lines.push(`and ${rest} more`);
   const count = `${files.length} ${files.length === 1 ? "file" : "files"} changed`;
   return [`${head} · ${count}`, ...lines].join("\n");

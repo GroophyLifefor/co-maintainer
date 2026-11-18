@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import {
   type Companion,
+  COMPANION_BLOCK_MAX_CHARS,
+  COMPANION_PATH_MAX_CHARS,
   companionBlock,
   companionHash,
   companionRecords,
@@ -74,6 +76,27 @@ test("a list stops at 200 files with and N more", () => {
   must(lines[0]!.endsWith("205 files changed"), lines[0]!);
   must(lines.length === 1 + 200 + 1, `${lines.length} lines`);
   must(lines.at(-1) === "and 5 more", lines.at(-1)!);
+});
+
+test("long paths are cut and stop the list within the block's character limit", () => {
+  const long = "d/".repeat(400);
+  const files = Array.from({ length: 200 }, (_, i) => file(`${long}${i}.md`));
+  const block = companionBlock(companion(files));
+  const lines = block.split("\n");
+  must(
+    lines.slice(1, -1).join("\n").length <= COMPANION_BLOCK_MAX_CHARS,
+    `${block.length} characters`,
+  );
+  must(
+    lines.slice(1, -1).every((line) => line.includes("... ")),
+    "paths not cut",
+  );
+  must(/^and \d+ more$/.test(lines.at(-1)!), lines.at(-1)!);
+  must(lines.length < 1 + 200 + 1, `${lines.length} lines`);
+  must(
+    lines[1]!.indexOf("...") === COMPANION_PATH_MAX_CHARS - 3,
+    lines[1]!.slice(0, 220),
+  );
 });
 
 test("a name that holds a line break stays on one line", () => {

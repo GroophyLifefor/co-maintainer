@@ -69,8 +69,9 @@ owner/vscode-ext:package.json            modified  +1 -1
 COMPANION owner/docs · branch main · no changes on this branch
 ```
 
-- **About 100 characters per file.** A list stops at 200 files with
-  `and N more`.
+- **About 100 characters per file.** A list stops at 200 files, or at
+  24,000 characters of file lines, with `and N more`. A path longer than 200
+  characters ends in `...`.
 - **No change is information.** A companion with nothing on its branch says
   `no changes on this branch`.
 - **One sentence comes first:** "COMPANION blocks list changes in other

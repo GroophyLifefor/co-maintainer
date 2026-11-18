@@ -75,14 +75,15 @@ function world(): {
   done: () => void;
 } {
   const root = tempDirSync();
-  const app = checkout(root, "app", "acme/app");
-  const docs = checkout(root, "docs", "owner/docs");
-  return {
-    root,
-    app,
-    docs,
-    done: () => rmSync(root, { recursive: true, force: true }),
-  };
+  const done = () => rmSync(root, { recursive: true, force: true });
+  try {
+    const app = checkout(root, "app", "acme/app");
+    const docs = checkout(root, "docs", "owner/docs");
+    return { root, app, docs, done };
+  } catch (error) {
+    done();
+    throw error;
+  }
 }
 
 test("--with is read from each flag, up to 5, and PR-style parsing drops it", async () => {
