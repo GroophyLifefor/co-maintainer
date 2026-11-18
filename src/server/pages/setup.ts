@@ -35,7 +35,7 @@ const SAMPLE = [
     path: "src/cache.ts",
     symbol: "readEntry",
     title: "The cache key leaves out the locale",
-    body: "Two users with different locales read each other's entry.",
+    body: "A user with another locale reads the wrong entry.",
     reference: "Guide rule: Cache keys name every input",
   },
   {
