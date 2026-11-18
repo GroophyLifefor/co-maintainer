@@ -10,7 +10,8 @@
 import { test } from "node:test";
 import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import {
   makeTempDir,
   mkdir,
@@ -32,6 +33,12 @@ import {
   LLMS_SUMMARY,
   SITE_ORIGIN,
   sitemapXml,
+  applyLandingSeo,
+  gitLastModified,
+  llmsFacts,
+  llmsTxt,
+  robotsTxt,
+  siteFacts,
 } from "./build_docs.ts";
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -265,6 +272,132 @@ test("sitemapXml lists the landing page first, then every slug", () => {
   const second = xml.indexOf(`${SITE_ORIGIN}/docs/a.html`);
   if (first < 0 || root < 0 || second < 0 || first > root || root > second) {
     throw new Error(`sitemap order is wrong:\n${xml}`);
+  }
+});
+
+test("sitemapXml gives an entry the date of its source, and none without one", () => {
+  const xml = sitemapXml(["init"], ["vs/coderabbit"], (source) =>
+    source === "md/init.md"
+      ? "2026-11-01"
+      : source === "index.html"
+        ? "2026-11-18"
+        : undefined,
+  );
+  for (const want of [
+    `<url><loc>${SITE_ORIGIN}/</loc><lastmod>2026-11-18</lastmod></url>`,
+    `<url><loc>${SITE_ORIGIN}/vs/coderabbit.html</loc></url>`,
+    `<url><loc>${SITE_ORIGIN}/docs/init.html</loc><lastmod>2026-11-01</lastmod></url>`,
+  ]) {
+    if (!xml.includes(want)) throw new Error(`missing ${want}\n${xml}`);
+  }
+});
+
+test("a source date is today when it has uncommitted changes, and none outside git", () => {
+  const dir = mkdtempSync(join(tmpdir(), "cm-nogit-"));
+  try {
+    if (gitLastModified(dir, "index.html") !== undefined) {
+      throw new Error("a folder outside git got a date");
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  const docs = join(projectRoot, "docs");
+  const date = gitLastModified(docs, "md/init.md", "2099-01-01");
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error(`no date for a committed page: ${date}`);
+  }
+});
+
+test("robots.txt allows every crawler, AI crawlers named, and announces the sitemap", () => {
+  const robots = robotsTxt();
+  for (const want of [
+    "User-agent: *\nAllow: /",
+    "User-agent: GPTBot\nAllow: /",
+    "User-agent: ClaudeBot\nAllow: /",
+    `Sitemap: ${SITE_ORIGIN}/sitemap.xml`,
+  ]) {
+    if (!robots.includes(want)) throw new Error(`missing ${want}\n${robots}`);
+  }
+  if (/Disallow/.test(robots)) throw new Error("robots.txt disallows a path");
+});
+
+test("the site facts are the newest released version in CHANGELOG.md, past Unreleased", () => {
+  const facts = siteFacts(
+    "# Changelog\n\n## [Unreleased]\n\n## [0.7.14] - 2026-11-18\n\n## [0.7.13] - 2026-11-17\n",
+  );
+  if (facts.version !== "0.7.14" || facts.date !== "2026-11-18") {
+    throw new Error(JSON.stringify(facts));
+  }
+  const lines = llmsFacts(facts, ["init", "sync"]).join("\n");
+  for (const want of [
+    "Latest version: 0.7.14, released 2026-11-18",
+    "License: MIT",
+    "Commands: `init`, `sync`.",
+    "GitHub only",
+  ]) {
+    if (!lines.includes(want)) throw new Error(`missing ${want}\n${lines}`);
+  }
+  if (!llmsTxt(llmsFacts(facts, ["init"])).includes("## Facts")) {
+    throw new Error("llms.txt has no facts");
+  }
+});
+
+test("the landing page's marked block gets canonical, Open Graph, Twitter and JSON-LD with the version", () => {
+  const html = "<head>\n<!-- seo:start -->\nold\n<!-- seo:end -->\n</head>";
+  const filled = applyLandingSeo(html, {
+    version: "0.7.14",
+    date: "2026-11-18",
+  });
+  for (const want of [
+    `<link rel="canonical" href="${SITE_ORIGIN}/">`,
+    `<meta property="og:image" content="${SITE_ORIGIN}/assets/og.png">`,
+    `<meta name="twitter:card" content="summary_large_image">`,
+    `"softwareVersion":"0.7.14"`,
+    `"dateModified":"2026-11-18"`,
+  ]) {
+    if (!filled.includes(want)) throw new Error(`missing ${want}\n${filled}`);
+  }
+  if (filled.includes("old")) throw new Error("the old block was kept");
+  // Filling it again changes nothing.
+  if (
+    applyLandingSeo(filled, { version: "0.7.14", date: "2026-11-18" }) !==
+    filled
+  ) {
+    throw new Error("the block is not stable");
+  }
+  if (
+    applyLandingSeo("<head></head>", { version: "1", date: undefined }) !==
+    "<head></head>"
+  ) {
+    throw new Error("a page without the markers changed");
+  }
+});
+
+test("the landing page in the repository has its block filled for the released version", async () => {
+  const html = readFileSync(join(projectRoot, "docs", "index.html"), "utf8");
+  const { version } = siteFacts(
+    readFileSync(join(projectRoot, "CHANGELOG.md"), "utf8"),
+  );
+  if (!html.includes(`"softwareVersion":"${version}"`)) {
+    throw new Error(
+      `docs/index.html does not state ${version}. Run npm run docs:build.`,
+    );
+  }
+});
+
+test("the init, sync and probe pages have a few words after their name in the title", async () => {
+  const outDir = await buildInto();
+  try {
+    const html = readFileSync(join(outDir, "docs", "init.html"), "utf8");
+    if (
+      !html.includes(
+        "<title>init: build review guides from your PR history · co-maintainer docs</title>",
+      )
+    ) {
+      throw new Error(html.match(/<title>[^<]*/)?.[0] ?? "no title");
+    }
+  } finally {
+    rmSync(outDir, { recursive: true, force: true });
   }
 });
 

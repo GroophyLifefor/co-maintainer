@@ -2,13 +2,24 @@
 
 > co-maintainer learns a GitHub repository from its code, pull requests, and history, then reviews pull requests and local changes against that knowledge.
 
+## Facts
+
+- Latest version: 0.7.14, released 2026-11-18. Changelog: https://github.com/GroophyLifefor/co-maintainer/blob/main/CHANGELOG.md
+- License: MIT. Source: https://github.com/GroophyLifefor/co-maintainer
+- Install: `npm install -g co-maintainer`. Needs Node 24 or newer.
+- Commands: `probe`, `init`, `sync`, `review`, `config`, `view`, `clear`, `uninstall`, `oauth`, `set`, `serve`, `extension`, `rollback`, `version`. `sync` keeps the review guides up to date (its old name was `remake`).
+- AI providers: OpenRouter, OpenAI, Anthropic and OpenCode, on your own model key.
+- Git platform: GitHub only.
+- Runs as a CLI on your machine, in CI, or as a self-hosted GitHub App with `serve`. A hosted service runs `serve` at cloud.co-maintainer.com.
+- Compared with CodeRabbit: https://co-maintainer.com/vs/coderabbit.html
+
 ---
 
 Source: https://co-maintainer.com/docs/getting-started.md
 
 # Getting started
 
-A tool that helps to review your changes.
+An open source PR reviewer that learns how your repo is reviewed, then reviews like that.
 
 ## Overview
 
@@ -30,13 +41,19 @@ co-maintainer --version
 
 ## Review my changes now
 
+You need Node 24+, the GitHub CLI and a model key (OpenRouter, OpenAI, Anthropic or OpenCode). `init` calls your model and costs tokens. `probe` does not call the AI, and prints what `init` will cost before you run it.
+
 In a clone of the repository, replace `owner/repo` with your repository:
 
 ```sh
 gh auth login
-co-maintainer init owner/repo
+co-maintainer set --auth=gh
+co-maintainer probe owner/repo
+co-maintainer init owner/repo --include-codebase --include-pull-requests --max-pr-months=12 --max-commits=500
 co-maintainer review
 ```
+
+`probe` prints its own recommended `init` line for your repository. Use that one if it differs, and keep `--max-pr-months` on it.
 
 ## Ways to use it
 

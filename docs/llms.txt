@@ -2,6 +2,17 @@
 
 > co-maintainer learns a GitHub repository from its code, pull requests, and history, then reviews pull requests and local changes against that knowledge.
 
+## Facts
+
+- Latest version: 0.7.14, released 2026-11-18. Changelog: https://github.com/GroophyLifefor/co-maintainer/blob/main/CHANGELOG.md
+- License: MIT. Source: https://github.com/GroophyLifefor/co-maintainer
+- Install: `npm install -g co-maintainer`. Needs Node 24 or newer.
+- Commands: `probe`, `init`, `sync`, `review`, `config`, `view`, `clear`, `uninstall`, `oauth`, `set`, `serve`, `extension`, `rollback`, `version`. `sync` keeps the review guides up to date (its old name was `remake`).
+- AI providers: OpenRouter, OpenAI, Anthropic and OpenCode, on your own model key.
+- Git platform: GitHub only.
+- Runs as a CLI on your machine, in CI, or as a self-hosted GitHub App with `serve`. A hosted service runs `serve` at cloud.co-maintainer.com.
+- Compared with CodeRabbit: https://co-maintainer.com/vs/coderabbit.html
+
 ## Getting started
 
 - [Quickstart](https://co-maintainer.com/docs/getting-started.md)

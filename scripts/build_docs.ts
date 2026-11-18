@@ -13,12 +13,18 @@
  *   docs/sitemap.xml         every page under the apex domain
  *   docs/llms.txt            the llmstxt.org index
  *   docs/llms-full.txt       every page combined for a model
+ *   docs/robots.txt          every crawler allowed, the sitemap announced
+ *   docs/index.html          only its `<!-- seo:start -->` block is filled
  *
  * Assets stay at docs/assets/, so a doc page reaches them through `../`.
  */
 import { marked } from "marked";
-import { pathToFileURL } from "node:url";
-import { registryToMarkdown } from "../src/cli/commands/registry.ts";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  registryToMarkdown,
+  visibleCommandNames,
+} from "../src/cli/commands/registry.ts";
 import { applySchemaBlock } from "../src/extensions/schema.ts";
 import { logo } from "../src/server/logo.ts";
 import { permissionTable, type TableKind } from "../src/github/permissions.ts";
@@ -148,10 +154,54 @@ export function searchJson(entries: readonly SearchEntry[]): string {
 export const LLMS_SUMMARY =
   "co-maintainer learns a GitHub repository from its code, pull requests, and history, then reviews pull requests and local changes against that knowledge.";
 
-/** `llms.txt` (llmstxt.org): the title, one summary line, and a link to the
- * Markdown copy of every page, grouped the way the sidebar is. */
-export function llmsTxt(): string {
-  const lines = [`# co-maintainer`, "", `> ${LLMS_SUMMARY}`, ""];
+/** The newest released version and its date, read from the first
+ * `## [x.y.z] - date` heading of CHANGELOG.md. A beta changes only
+ * package.json, so the site keeps stating the last stable release. */
+export type SiteFacts = { version: string; date: string | undefined };
+
+export function siteFacts(changelog: string): SiteFacts {
+  for (const line of changelog.split("\n")) {
+    const match = /^## \[(\d+\.\d+\.\d+)\](?: - (\d{4}-\d{2}-\d{2}))?/.exec(
+      line,
+    );
+    if (match) return { version: match[1]!, date: match[2] };
+  }
+  throw new Error("CHANGELOG.md has no released version");
+}
+
+/** The "Facts" block at the top of `llms.txt` and `llms-full.txt`: short,
+ * dated statements a model can quote instead of guessing from an old
+ * snapshot. The command list comes from the command registry. */
+export function llmsFacts(
+  facts: SiteFacts,
+  commands: readonly string[],
+): string[] {
+  const released = facts.date ? `, released ${facts.date}` : "";
+  return [
+    "## Facts",
+    "",
+    `- Latest version: ${facts.version}${released}. Changelog: https://github.com/GroophyLifefor/co-maintainer/blob/main/CHANGELOG.md`,
+    "- License: MIT. Source: https://github.com/GroophyLifefor/co-maintainer",
+    "- Install: `npm install -g co-maintainer`. Needs Node 24 or newer.",
+    `- Commands: ${commands.map((name) => `\`${name}\``).join(", ")}. \`sync\` keeps the review guides up to date (its old name was \`remake\`).`,
+    "- AI providers: OpenRouter, OpenAI, Anthropic and OpenCode, on your own model key.",
+    "- Git platform: GitHub only.",
+    "- Runs as a CLI on your machine, in CI, or as a self-hosted GitHub App with `serve`. A hosted service runs `serve` at cloud.co-maintainer.com.",
+    `- Compared with CodeRabbit: ${SITE_ORIGIN}/vs/coderabbit.html`,
+    "",
+  ];
+}
+
+/** `llms.txt` (llmstxt.org): the title, one summary line, the facts, and a
+ * link to the Markdown copy of every page, grouped the way the sidebar is. */
+export function llmsTxt(facts?: string[]): string {
+  const lines = [
+    `# co-maintainer`,
+    "",
+    `> ${LLMS_SUMMARY}`,
+    "",
+    ...(facts ?? []),
+  ];
   for (const section of NAV) {
     lines.push(`## ${section.title}`, "");
     for (const { slug, label } of section.items) {
@@ -166,8 +216,15 @@ export function llmsTxt(): string {
  * inlined below its link so a model can read the whole site in one request. */
 export function llmsFullTxt(
   pages: ReadonlyArray<{ slug: string; md: string }>,
+  facts?: string[],
 ): string {
-  const lines = [`# co-maintainer`, "", `> ${LLMS_SUMMARY}`, ""];
+  const lines = [
+    `# co-maintainer`,
+    "",
+    `> ${LLMS_SUMMARY}`,
+    "",
+    ...(facts ?? []),
+  ];
   for (const { slug, md } of pages) {
     lines.push(
       `---`,
@@ -619,22 +676,136 @@ export function movedToRootStub(slug: string): string {
 </html>`;
 }
 
+/** Hand written pages outside the docs, besides the ones in `MOVED_TO_ROOT`,
+ * listed in the sitemap by their path under the site root. */
+export const HAND_PAGES: readonly string[] = ["vs/coderabbit"];
+
 /** Every indexable address, for sitemap.xml: the landing page, the hand
- * written root pages, then every doc page. */
+ * written root pages, then every doc page. `lastmod` names the date a page's
+ * source last changed, by its path under `docs/` (`index.html`,
+ * `privacy.html`, `md/init.md`), and an entry without one has no date. */
 export function sitemapXml(
   slugs: readonly string[],
   rootPages: readonly string[] = [],
+  lastmod: (source: string) => string | undefined = () => undefined,
 ): string {
-  const urls = [`${SITE_ORIGIN}/`];
-  for (const page of rootPages) urls.push(`${SITE_ORIGIN}/${page}.html`);
-  for (const slug of slugs) urls.push(`${SITE_ORIGIN}/docs/${slug}.html`);
-  const entries = urls.map((url) => `  <url><loc>${esc(url)}</loc></url>`);
+  const urls: Array<{ url: string; source: string }> = [
+    { url: `${SITE_ORIGIN}/`, source: "index.html" },
+  ];
+  for (const page of rootPages) {
+    urls.push({ url: `${SITE_ORIGIN}/${page}.html`, source: `${page}.html` });
+  }
+  for (const slug of slugs) {
+    urls.push({
+      url: `${SITE_ORIGIN}/docs/${slug}.html`,
+      source: `md/${slug}.md`,
+    });
+  }
+  const entries = urls.map(({ url, source }) => {
+    const date = lastmod(source);
+    return `  <url><loc>${esc(url)}</loc>${date ? `<lastmod>${date}</lastmod>` : ""}</url>`;
+  });
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${entries.join("\n")}
 </urlset>
 `;
 }
+
+/** The date a file under `docs/` last changed: today when it has changes
+ * that are not committed, otherwise the date of the last commit that touched
+ * it. Without git, or for a file git does not know, there is no date. */
+export function gitLastModified(
+  docsDir: string,
+  source: string,
+  today = new Date().toISOString().slice(0, 10),
+): string | undefined {
+  const git = (args: string[]) => {
+    const result = spawnSync("git", args, { cwd: docsDir, encoding: "utf8" });
+    return result.status === 0 ? result.stdout.trim() : undefined;
+  };
+  const changed = git(["status", "--porcelain", "--", source]);
+  if (changed === undefined) return undefined;
+  if (changed !== "") return today;
+  const date = git(["log", "-1", "--format=%cs", "--", source]);
+  return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined;
+}
+
+/** robots.txt: every crawler may read the whole site, AI crawlers named
+ * too, and the sitemap is announced. */
+export function robotsTxt(): string {
+  const groups = [
+    "*",
+    "GPTBot",
+    "OAI-SearchBot",
+    "ChatGPT-User",
+    "ClaudeBot",
+    "Claude-SearchBot",
+    "PerplexityBot",
+    "Google-Extended",
+  ].map((agent) => `User-agent: ${agent}\nAllow: /\n`);
+  return `${groups.join("\n")}\nSitemap: ${SITE_ORIGIN}/sitemap.xml\n`;
+}
+
+/** The marked block in the landing page that the build fills: canonical,
+ * Open Graph and Twitter tags, and the JSON-LD facts. */
+const LANDING_SEO = /<!-- seo:start -->[\s\S]*?<!-- seo:end -->/;
+
+export function landingSeoBlock(facts: SiteFacts): string {
+  const title =
+    "co-maintainer · open source AI code review that learns your repo";
+  const description =
+    "An open source PR reviewer that learns how your repository is reviewed from its code and past PR reviews, then reviews like that, on your own model key.";
+  const image = `${SITE_ORIGIN}/assets/og.png`;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "co-maintainer",
+    description,
+    url: `${SITE_ORIGIN}/`,
+    applicationCategory: "DeveloperApplication",
+    operatingSystem: "Linux, macOS, Windows",
+    softwareVersion: facts.version,
+    ...(facts.date ? { dateModified: facts.date } : {}),
+    license: "https://opensource.org/licenses/MIT",
+    codeRepository: "https://github.com/GroophyLifefor/co-maintainer",
+    downloadUrl: "https://www.npmjs.com/package/co-maintainer",
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  };
+  return [
+    "<!-- seo:start -->",
+    `<link rel="canonical" href="${SITE_ORIGIN}/">`,
+    `<meta property="og:type" content="website">`,
+    `<meta property="og:site_name" content="co-maintainer">`,
+    `<meta property="og:title" content="${esc(title)}">`,
+    `<meta property="og:description" content="${esc(description)}">`,
+    `<meta property="og:url" content="${SITE_ORIGIN}/">`,
+    `<meta property="og:image" content="${image}">`,
+    `<meta property="og:image:width" content="1200">`,
+    `<meta property="og:image:height" content="630">`,
+    `<meta property="og:image:alt" content="co-maintainer logo with npm install -g co-maintainer">`,
+    `<meta name="twitter:card" content="summary_large_image">`,
+    `<meta name="twitter:title" content="${esc(title)}">`,
+    `<meta name="twitter:description" content="${esc(description)}">`,
+    `<meta name="twitter:image" content="${image}">`,
+    `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`,
+    "<!-- seo:end -->",
+  ].join("\n");
+}
+
+/** The landing page with its marked block filled. A page without the
+ * markers is returned as it is. */
+export function applyLandingSeo(html: string, facts: SiteFacts): string {
+  return html.replace(LANDING_SEO, () => landingSeoBlock(facts));
+}
+
+/** A few words after a page's name in its `<title>`, for pages whose name
+ * alone matches no search. */
+export const TITLE_TAGLINES: Readonly<Record<string, string>> = {
+  init: "build review guides from your PR history",
+  sync: "keep review guides up to date",
+  probe: "estimate cost before you run",
+};
 
 export type BuildOptions = {
   /** Where the site is written. Defaults to the repository `docs/` folder. */
@@ -693,7 +864,9 @@ export async function buildDocs(options: BuildOptions = {}): Promise<void> {
     } = buildToc(highlightShellBlocks(withMermaid));
     searchEntries.push(...searchEntriesFor(slug, headings));
     const titleMatch = md.match(/^#\s+`?([^`\n]+)`?/);
-    const title = titleMatch?.[1]?.trim() ?? slug;
+    const name = titleMatch?.[1]?.trim() ?? slug;
+    const tagline = TITLE_TAGLINES[slug];
+    const title = tagline ? `${name}: ${tagline}` : name;
     const html = docPageShell(title, body, toc, slug, description);
     await writeTextFile(new URL(`${slug}.html`, pagesDir), html);
     log(`wrote docs/${slug}.html`);
@@ -705,11 +878,36 @@ export async function buildDocs(options: BuildOptions = {}): Promise<void> {
   );
   log("wrote docs/search-index.json");
 
+  // The release facts come from CHANGELOG.md, so the site states the
+  // version that was released, with its date.
+  const facts = siteFacts(
+    await readTextFile(new URL("../CHANGELOG.md", import.meta.url)),
+  );
+  const factLines = llmsFacts(facts, visibleCommandNames());
+
   // The model-readable copies: a short index and one combined file.
-  await writeTextFile(new URL("llms.txt", out), llmsTxt());
+  await writeTextFile(new URL("llms.txt", out), llmsTxt(factLines));
   log("wrote llms.txt");
-  await writeTextFile(new URL("llms-full.txt", out), llmsFullTxt(builtPages));
+  await writeTextFile(
+    new URL("llms-full.txt", out),
+    llmsFullTxt(builtPages, factLines),
+  );
   log("wrote llms-full.txt");
+
+  await writeTextFile(new URL("robots.txt", out), robotsTxt());
+  log("wrote robots.txt");
+
+  // The landing page is hand written. Only its marked block is filled here,
+  // and an output folder without it (a test build) is left alone.
+  const landing = new URL("index.html", out);
+  if (await exists(landing)) {
+    const html = await readTextFile(landing);
+    const filled = applyLandingSeo(html, facts);
+    if (filled !== html) {
+      await writeTextFile(landing, filled);
+      log("wrote index.html (seo block)");
+    }
+  }
 
   for (const { from, to } of LEGACY_REDIRECTS) {
     await writeTextFile(new URL(`${from}.html`, out), redirectStub(from, to));
@@ -728,10 +926,22 @@ export async function buildDocs(options: BuildOptions = {}): Promise<void> {
     new URL("sitemap.xml", out),
     sitemapXml(
       ALL_PAGES.map(({ slug }) => slug),
-      MOVED_TO_ROOT,
+      [...MOVED_TO_ROOT, ...HAND_PAGES],
+      // Dates come from the sources in the repository's docs/ folder, also
+      // for a test build, which writes elsewhere.
+      (source) => gitLastModified(fileURLToPath(DEFAULT_OUT), source),
     ),
   );
   log("wrote sitemap.xml");
+}
+
+async function exists(url: URL): Promise<boolean> {
+  try {
+    await stat(url);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 const invokedDirectly =

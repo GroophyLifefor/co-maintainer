@@ -1,6 +1,6 @@
 # Getting started
 
-A tool that helps to review your changes.
+An open source PR reviewer that learns how your repo is reviewed, then reviews like that.
 
 ## Overview
 
@@ -22,13 +22,19 @@ co-maintainer --version
 
 ## Review my changes now
 
+You need Node 24+, the GitHub CLI and a model key (OpenRouter, OpenAI, Anthropic or OpenCode). `init` calls your model and costs tokens. `probe` does not call the AI, and prints what `init` will cost before you run it.
+
 In a clone of the repository, replace `owner/repo` with your repository:
 
 ```sh
 gh auth login
-co-maintainer init owner/repo
+co-maintainer set --auth=gh
+co-maintainer probe owner/repo
+co-maintainer init owner/repo --include-codebase --include-pull-requests --max-pr-months=12 --max-commits=500
 co-maintainer review
 ```
+
+`probe` prints its own recommended `init` line for your repository. Use that one if it differs, and keep `--max-pr-months` on it.
 
 ## Ways to use it
 
