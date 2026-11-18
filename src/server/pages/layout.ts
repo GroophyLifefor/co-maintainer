@@ -245,6 +245,7 @@ const NAV_GROUPS: {
     items: [
       { href: "/", label: "Repositories", icon: "layout-grid" },
       { href: "/activity", label: "Activity", icon: "activity" },
+      { href: "/findings", label: "Findings", icon: "flag" },
       { href: "/usage", label: "Usage", icon: "chart-no-axes-column" },
     ],
   },
@@ -432,6 +433,7 @@ export function repoTabs(fullName: string, on: string): string {
   const items = [
     { id: "overview", label: "Overview", path: href },
     { id: "pulls", label: "Pull requests", path: `${href}/pulls` },
+    { id: "findings", label: "Findings", path: `${href}/findings` },
     { id: "knowledge", label: "Knowledge", path: `${href}/knowledge` },
     { id: "remote", label: "Remote reviews", path: `${href}/remote` },
     { id: "pushes", label: "Pushes", path: `${href}/pushes` },

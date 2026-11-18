@@ -24,6 +24,11 @@ import {
   listFindingsForReview,
 } from "../store/findings.ts";
 import { daysAgoIso } from "../util/time.ts";
+import {
+  listFindingsPage,
+  repositoriesWithFindings,
+  type FindingFilter,
+} from "../store/finding_list.ts";
 import { loadExtensionReport } from "../store/extensions.ts";
 import { listPushReviewsForRepo, listWatchIssues } from "../store/watch.ts";
 import { pushVia } from "./watch_status.ts";
@@ -279,6 +284,22 @@ export async function repoKnowledge(fullName: string) {
     }
     return { repo, drift: await refreshDrift(fullName), docs };
   });
+}
+
+/** One page of the Findings list. The repository choices are only read for
+ * the all-repositories list, which passes `withRepos`. */
+export function findingsList(
+  filter: FindingFilter,
+  page: number,
+  per: number,
+  withRepos = false,
+) {
+  const { items, total } = listFindingsPage(filter, per, (page - 1) * per);
+  return {
+    items,
+    total,
+    repos: withRepos ? repositoriesWithFindings() : [],
+  };
 }
 
 export type ActivityItem =

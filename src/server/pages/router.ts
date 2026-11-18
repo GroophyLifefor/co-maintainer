@@ -17,6 +17,7 @@ import { readBoundedUtf8 } from "../../remote/server/body.ts";
 import { handleClient, handleLogo, handleStyles } from "../assets.ts";
 import {
   activityFeed,
+  findingsList,
   listReposForHome,
   prDetail,
   repoKnowledge,
@@ -54,6 +55,13 @@ import {
 import { watchStatus } from "../../services/watch_status.ts";
 import { defaultBranchForRepo } from "../../remote/server/routes.ts";
 import { renderPr } from "./pr.ts";
+import {
+  FINDINGS_PER_PAGE,
+  findingFilter,
+  parseFindingQuery,
+  renderFindings,
+} from "./findings.ts";
+import { daysAgoIso } from "../../util/time.ts";
 import { renderKnowledge } from "./knowledge.ts";
 import { renderRepoSettings } from "./repo_settings.ts";
 import { renderActivity, renderJob } from "./activity.ts";
@@ -112,7 +120,7 @@ function serverOrigin(webhookUrl: string, url: URL): string {
 }
 
 const REPO =
-  /^\/repos\/([^/]+)\/([^/]+)(?:\/(pulls|knowledge|settings|remote|pushes)(?:\/(\d+))?)?$/;
+  /^\/repos\/([^/]+)\/([^/]+)(?:\/(pulls|findings|knowledge|settings|remote|pushes)(?:\/(\d+))?)?$/;
 
 /** Matches a repository page URL. Only `pulls` is keyed by a number, so a stray
  * suffix such as `/repos/o/r/remote/7` must fall through to a 404 rather than
@@ -280,6 +288,18 @@ export async function handlePageRequest(
       }
       return renderJob(username, job, getLogsSince(job.id));
     }
+    if (url.pathname === "/findings" && request.method === "GET") {
+      const query = parseFindingQuery(url.searchParams);
+      return renderFindings(username, {
+        query,
+        ...findingsList(
+          findingFilter(query, query.repo, daysAgoIso),
+          query.page,
+          FINDINGS_PER_PAGE,
+          true,
+        ),
+      });
+    }
     if (url.pathname === "/analytics" && request.method === "GET") {
       return Response.redirect(`${url.origin}/usage${url.search}`, 303);
     }
@@ -334,6 +354,18 @@ export async function handlePageRequest(
           webhookUrl,
           commitWatchStatus(fullName, await watchStatus(fullName)),
         );
+      }
+      if (sub === "findings") {
+        const query = parseFindingQuery(url.searchParams);
+        return renderFindings(username, {
+          repo: fullName,
+          query: { ...query, repo: undefined },
+          ...findingsList(
+            findingFilter(query, fullName, daysAgoIso),
+            query.page,
+            FINDINGS_PER_PAGE,
+          ),
+        });
       }
       if (sub === "pushes") {
         const config = readConfig();
@@ -515,6 +547,7 @@ function isPagePath(pathname: string): boolean {
     pathname.startsWith("/activity/") ||
     pathname === "/analytics" ||
     pathname === "/usage" ||
+    pathname === "/findings" ||
     pathname === "/settings" ||
     pathname.startsWith("/settings/") ||
     pathname === "/repos/new" ||

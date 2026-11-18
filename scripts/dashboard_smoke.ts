@@ -72,6 +72,8 @@ const PAGES = [
   "/setup",
   "/repos/new",
   "/activity",
+  "/findings",
+  "/findings?state=all&severity=P1",
   "/analytics",
   "/settings",
   "/activity/job-fail",
@@ -82,6 +84,8 @@ const REPO_PAGES = [
   `/repos/${REPO}`,
   `/repos/${REPO}/pulls`,
   `/repos/${REPO}/pulls/7`,
+  `/repos/${REPO}/findings`,
+  `/repos/${REPO}/findings?state=all&pr=7&q=a`,
   `/repos/${REPO}/knowledge`,
   `/repos/${REPO}/settings`,
   `/repos/${REPO}/remote`,
@@ -111,6 +115,7 @@ function expectedActive(pathname: string): string | undefined {
     return "/activity";
   }
   if (pathname === "/usage") return "/usage";
+  if (pathname === "/findings") return "/findings";
   if (pathname.startsWith("/settings/")) return pathname;
   return undefined;
 }
@@ -1158,6 +1163,30 @@ try {
       }
       console.log(`visited ${path}`);
     }
+
+    // --- Tables that must fit their card at desktop width: Usage By model
+    // and the Findings list never scroll sideways.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    for (const [path, selector] of [
+      ["/usage", ".cols.c11 > .card:nth-child(2) .bd"],
+      [`/repos/${REPO}/findings?state=all`, ".card .bd.flush"],
+    ] as const) {
+      await page.goto(`${base}${path}`, { waitUntil: "load" });
+      await sleep(150);
+      const overflow = await page.evaluate((sel) => {
+        const box = document.querySelector(sel);
+        return box ? box.scrollWidth - box.clientWidth : -1;
+      }, selector);
+      if (overflow !== 0) {
+        issues.push({
+          path,
+          kind: "text",
+          text: `${selector} scrolls sideways by ${overflow}px at 1280px`,
+        });
+      }
+    }
+    await page.setViewportSize({ width: 1280, height: 720 });
+    console.log("wide tables fit at desktop width");
 
     // --- Server page: the status rows describe this process, not just the
     // saved config. The port and data directory are unique to this sandbox.
