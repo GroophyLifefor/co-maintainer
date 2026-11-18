@@ -132,8 +132,10 @@ function withQuery(
   return encoded ? `${base}?${encoded}` : base;
 }
 
-function blockingLabel(row: FindingListRow): string {
-  const config = readConfig();
+function blockingLabel(
+  row: FindingListRow,
+  config: ReturnType<typeof readConfig>,
+): string {
   const mode = reviewBlockingFrom(
     config.repos?.[row.repo]?.reviewBlocking ?? config.reviewBlocking,
   );
@@ -237,6 +239,8 @@ export function renderFindings(
   </form>
   <div class="filters">${severityChips}${stateChips}</div>
   ${chips}`;
+  // Read once for the page, not once per row.
+  const config = readConfig();
   const prHref = (row: FindingListRow) =>
     `/repos/${row.repo}/pulls/${row.pr_number}`;
   const rows = data.items
@@ -245,7 +249,7 @@ export function renderFindings(
       const location = locationLink(row.repo, row.head_sha, row);
       return `<tr data-href="${escapeHtml(target)}" style="cursor:pointer">
         <td>${severityBadge(row.severity)}</td>
-        <td>${blockingLabel(row)}</td>
+        <td>${blockingLabel(row, config)}</td>
         <td>${stateBadge(row.state, null)}</td>
         <td class="wrap"><a class="strong" href="${escapeHtml(target)}">${text(
           row.title,
