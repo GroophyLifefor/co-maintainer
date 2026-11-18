@@ -41,6 +41,25 @@ export function emptyMcpSession(): McpSession {
   };
 }
 
+/** Two sessions of private tools as one: the repository's MCP servers and a
+ * remote client's declared tools. The Metadata line names the first one's
+ * servers only. */
+export function joinMcpSessions(
+  first: McpSession,
+  second: McpSession,
+): McpSession {
+  return {
+    tools: [...first.tools, ...second.tools],
+    servers: first.servers,
+    warnings: () => [...first.warnings(), ...second.warnings()],
+    privateResults: () => [
+      ...first.privateResults(),
+      ...second.privateResults(),
+    ],
+    stop: () => Promise.all([first.stop(), second.stop()]).then(() => {}),
+  };
+}
+
 /** Tool names every provider accepts. */
 const TOOL_NAME = /^[A-Za-z0-9_-]{1,64}$/;
 

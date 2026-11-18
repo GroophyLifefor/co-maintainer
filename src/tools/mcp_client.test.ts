@@ -38,6 +38,7 @@ test("start lists every tool across pages, past a line that is not JSON and a pi
         "crash",
         "env",
         "fail",
+        "wait",
       ],
     );
     assert.equal(tools[1]?.annotations?.readOnlyHint, false);

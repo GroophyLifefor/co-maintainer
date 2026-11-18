@@ -11,6 +11,8 @@
  * - `crash`, exits with code 3
  * - `env`, answers the names in its environment
  * - `fail`, answers with `isError`
+ * - `wait`, read-only, answers `waited` after `FAKE_MCP_WAIT_MS`
+ *   milliseconds, 1000 by default
  *
  * With `FAKE_MCP_BIG_TOOLS` set it also lists `big_schema`, whose input
  * schema is about 17 KB, and `wide_1` to `wide_5`, about 15 KB each.
@@ -47,6 +49,7 @@ const page2 = [
   { name: "crash", inputSchema: { type: "object" } },
   { name: "env", inputSchema: { type: "object" } },
   { name: "fail", inputSchema: { type: "object" } },
+  { name: "wait", description: "Answer after a while.", inputSchema: { type: "object" }, annotations: { readOnlyHint: true } },
 ]
 if (process.env.FAKE_MCP_BIG_TOOLS) {
   const padded = (chars) => ({ type: "object", properties: { id: { type: "string", description: "x".repeat(chars) } } })
@@ -100,6 +103,8 @@ function handle(message) {
       process.exit(3)
     } else if (name === "env") {
       send({ id, result: text(Object.keys(process.env).sort().join(",")) })
+    } else if (name === "wait") {
+      setTimeout(() => send({ id, result: text("waited") }), Number(process.env.FAKE_MCP_WAIT_MS || 1000))
     } else if (name === "fail") {
       send({ id, result: { ...text("issue not found"), isError: true } })
     } else {

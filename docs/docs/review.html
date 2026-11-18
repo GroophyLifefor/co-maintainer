@@ -643,7 +643,7 @@ customer&#39;s name, or a paraphrase.</p>
 </tr>
 <tr>
 <td>Remote</td>
-<td>The server&#39;s config for the repository, as it runs its own extensions. The client&#39;s servers are not used</td>
+<td>The server&#39;s config for the repository, as it runs its own extensions. The client&#39;s servers join as <a href="remote-review.html#your-own-mcp-servers-as-client-tools">client tools</a> when the server&#39;s <code>remoteClientToolsPolicy</code> is <code>on</code></td>
 </tr>
 <tr>
 <td>Commit watch (<code>--remote --range</code>)</td>
@@ -679,6 +679,10 @@ called by the model during the review and adds no findings of its own.</p>
 <tr>
 <td><code>private_text_removed</code></td>
 <td>Passages copied from a private result were removed</td>
+</tr>
+<tr>
+<td><code>client_tools_refused</code></td>
+<td>A remote review did not use the client&#39;s own MCP servers, or the server left out a declared tool, see <a href="remote-review.html#your-own-mcp-servers-as-client-tools">client tools</a></td>
 </tr>
 </tbody></table>
 <p><code>byTool</code> in <a href="#tool-usage"><code>usage.tools</code></a> counts each MCP tool by its

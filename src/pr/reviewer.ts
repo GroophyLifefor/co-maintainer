@@ -17,9 +17,9 @@ import {
   type ReviewTools,
   type ReviewToolSource,
 } from "./review_tools.ts";
-import { emptyMcpSession, isMcpTool } from "../tools/mcp_tools.ts";
+import { emptyMcpSession } from "../tools/mcp_tools.ts";
 import {
-  MCP_PRIVATE_GUIDANCE,
+  privateToolsGuidance,
   privateTextWarning,
   removePrivateText,
 } from "../review/private_text.ts";
@@ -319,17 +319,16 @@ export const SEARCH_NON_CODE_GUIDANCE = `Use search-non-code for docs, configura
 
 /** The codegraph instructions, with the search sentence when search is one
  * of the tools the model can call, and the private results sentence when an
- * MCP tool is. A provider without tool support gets none, so it is passed no
- * tools. */
+ * MCP tool or a remote client's declared tool is. A provider without tool
+ * support gets none, so it is passed no tools. */
 function toolGuidance(tools: ToolHandler[]): string {
+  const privacy = privateToolsGuidance(tools);
   return [
     CODEGRAPH_DIFF_VERIFICATION,
     ...(tools.some((tool) => tool.name === SEARCH_NON_CODE)
       ? [SEARCH_NON_CODE_GUIDANCE]
       : []),
-    ...(tools.some((tool) => isMcpTool(tool.name))
-      ? [MCP_PRIVATE_GUIDANCE]
-      : []),
+    ...(privacy ? [privacy] : []),
   ].join("\n");
 }
 

@@ -11,6 +11,8 @@ export type PendingToolCall = {
 type PendingEntry = {
   resolve: (output: string) => void;
   reject: (err: Error) => void;
+  /** A lower cap for this call's result than the server's own. */
+  maxChars?: number;
 };
 
 const pendingByJob = new Map<string, Map<string, PendingEntry>>();
@@ -49,17 +51,24 @@ export function applyToolResults(
       continue;
     }
     const out = row.output ?? "";
+    const cap =
+      entry.maxChars === undefined
+        ? maxChars
+        : Math.min(maxChars, entry.maxChars);
     entry.resolve(
-      out.length > maxChars ? `${out.slice(0, maxChars)}\n...[truncated]` : out,
+      out.length > cap ? `${out.slice(0, cap)}\n...[truncated]` : out,
     );
   }
 }
 
-function queueToolCall(
+/** Queues one call for the client and waits for its result. `maxChars`
+ * lowers the cap on the result below the server's own. */
+export function queueToolCall(
   jobId: string,
   signal: AbortSignal,
   name: string,
   args: unknown,
+  maxChars?: number,
 ): Promise<string> {
   if (signal.aborted) throw new Error("aborted");
   const callId = crypto.randomUUID();
@@ -81,7 +90,11 @@ function queueToolCall(
       pending = new Map();
       pendingByJob.set(jobId, pending);
     }
-    pending.set(callId, { resolve, reject });
+    pending.set(callId, {
+      resolve,
+      reject,
+      ...(maxChars === undefined ? {} : { maxChars }),
+    });
     const onAbort = () => {
       pending!.delete(callId);
       reject(new Error("aborted"));

@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.12] - 2026-11-17
+
+### Added
+
+- **Your own MCP servers can join a remote review.** A server that allows it, with `set --remote-client-tools-policy=on` or `CM_REMOTE_CLIENT_TOOLS_POLICY=on`, offers the model the tools of the MCP servers in your own config for the repository. The CLI starts them, declares each read-only tool with its name, description and parameters as `client-<server>-<tool>`, and runs every call on your machine. The policy is `off` by default, and then, or on an older server, the CLI declares nothing and warns `client_tools_refused`. An older CLI with a newer server sends tool names only, as before. (#79)
+- **The server limits what a client declares.** At most 16 tools, 16 KB per declaration and 64 KB for all of them together, and a name of 2 to 64 lowercase letters, digits or dashes that is not a name of the server's own tools. Each declaration left out gives a `client_tools_refused` warning. Every result goes through the server's tool limits, is capped at 40,000 characters before them, comes behind the line that says it is outside data, and is private: the server removes a passage copied from it before the result comes back. (#79)
+
+### Fixed
+
+- **A slow tool batch no longer cancels a remote review.** The CLI sent no sync while it ran the server's tool calls, so a batch that took longer than the server's sync timeout, 10 seconds by default, was cancelled as a client timeout. The CLI now sends a sync with no results at the poll interval, and at least three times per timeout, until the batch ends.
+
 ## [0.7.11] - 2026-11-17
 
 ### Added

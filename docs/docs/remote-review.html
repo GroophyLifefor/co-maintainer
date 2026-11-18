@@ -95,7 +95,8 @@ once on <a href="serve.html"><code>serve</code></a>. Developers clone, set host 
 <p>The model runs on the server as part of that path. Codegraph tools (when enabled)
 and <a href="review.html#searching-docs-and-configuration"><code>search-non-code</code></a> still run on
 the laptop and return results through the tool bridge. A server older than
-0.7.10 ignores the search tool.</p>
+0.7.10 ignores the search tool. Your own MCP servers can join as
+<a href="#your-own-mcp-servers-as-client-tools">client tools</a> when the server allows it.</p>
 <p>Overview: <a href="review.html"><code>review</code></a>. Requires <a href="serve.html"><code>serve</code></a> and the
 <a href="dashboard.html">dashboard</a>.</p>
 <h2 id="before-you-run">Before you run</h2>
@@ -351,10 +352,45 @@ on your machine. Its findings, verdict and cost come back in the result.</p>
 <p>A remote review offers the model the tools of the
 <a href="review.html#mcp-servers">MCP servers</a> the server has for the repository, set on
 the <code>serve</code> host with <code>co-maintainer set --repo=owner/repo --mcp-config=...</code>.
-They run on the server, as its extensions do. The servers in your own
-<code>config.json</code> are not used. Their results stay on the server: the copied-passage
-check runs there before the result comes back, and the <code>mcp_*</code> and
-<code>private_text_removed</code> warnings come back with it.</p>
+They run on the server, as its extensions do. Their results stay on the server:
+the copied-passage check runs there before the result comes back, and the
+<code>mcp_*</code> and <code>private_text_removed</code> warnings come back with it.</p>
+<h3 id="your-own-mcp-servers-as-client-tools">Your own MCP servers as client tools</h3>
+<p>The MCP servers in your own <code>config.json</code> for the repository can take part too,
+when the server allows it. Your CLI starts them, declares their tools to the
+server, and runs each call the server&#39;s model makes, on your machine.</p>
+<ul>
+<li><strong>The server decides.</strong> The policy is <code>remoteClientToolsPolicy</code>, <code>off</code> by
+default or <code>on</code>. Set it on the <code>serve</code> host with
+<code>co-maintainer set --remote-client-tools-policy=on</code>, or with the
+<code>CM_REMOTE_CLIENT_TOOLS_POLICY</code> environment variable, which wins over the
+saved value, as the <a href="#on-the-server">BYOK policy</a> does.</li>
+<li><strong>The handshake says it.</strong> A server from 0.7.12 lists <code>client-tools</code> among its
+features and sends its policy. With <code>on</code>, the CLI starts your servers and the
+submit&#39;s <code>capabilities.tools</code> carries each tool&#39;s name, description and
+parameters. With <code>off</code>, or on an older server, the CLI starts none, declares
+nothing, and adds the warning <code>client_tools_refused</code>. The review runs. An
+older CLI with a newer server sends tool names only, and nothing changes.</li>
+<li><strong>Names.</strong> The model sees your tool <code>mcp-&lt;server&gt;-&lt;tool&gt;</code> as
+<code>client-&lt;server&gt;-&lt;tool&gt;</code> in lowercase, with any character other than a letter,
+a digit or a dash turned into a dash, for example <code>client-tracker-get-issue</code>.
+The same rules as on your machine apply first: only the tools in <code>tools</code>, and
+never one the MCP server marks as not read-only.</li>
+<li><strong>The server&#39;s limits.</strong> At most 16 declared tools, 64 KB for all of them
+together, at most 16 KB per
+declaration, and a name of 2 to 64 lowercase letters, digits or dashes that
+starts with a letter and is not a name of the server&#39;s own tools
+(<code>codegraph-*</code>, <code>search-non-code</code>, <code>read-full-diff</code>, <code>read-mermaid-syntaxes</code>,
+<code>mcp-*</code>). Each declaration it leaves out gives a <code>client_tools_refused</code>
+warning that names it.</li>
+<li><strong>Results.</strong> Every result goes through the server&#39;s
+<a href="review.html#tool-limits">tool limits</a> like any other tool&#39;s, behind the line
+that says it is data from outside the repository. The server takes at most
+40,000 characters of one result from the CLI. Every result is private: the
+prompt says so, and the server runs the copied-passage check on them before
+the result comes back.</li>
+<li><code>CM_MCP_DISABLED=1</code> on your machine starts none of your servers.</li>
+</ul>
 <h2 id="the-intent-file">The intent file</h2>
 <p><code>review --remote --intent-file=PATH</code> sends the text with the review. What it is
 and how the result records it is on <a href="review.html#intent">Review</a>. On a server the
@@ -417,7 +453,10 @@ hint. Everything else about the two codes is on
 <ul>
 <li>Submit body size is capped (handshake <code>limits.maxBodyBytes</code>).</li>
 <li>Concurrent remote reviews per token and job queue limits in dashboard Settings.</li>
-<li>If sync stops longer than <code>remoteSyncTimeoutSeconds</code>, the server cancels the job.</li>
+<li>If sync stops longer than <code>remoteSyncTimeoutSeconds</code>, the server cancels the job.
+While the CLI runs the server&#39;s tool calls it keeps sending a sync with no
+results, at the poll interval and at least three times per timeout, so a slow
+tool batch is not taken for a client that went away.</li>
 <li>The server plans a large diff, and a file it dropped is sent again in your next
 <code>review --remote</code>. See <a href="review.html#large-diffs">Large diffs</a>.</li>
 </ul>
