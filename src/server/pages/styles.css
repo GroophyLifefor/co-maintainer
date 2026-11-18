@@ -2967,3 +2967,149 @@ html.dark {
 .app .audit-changes li + li {
   margin-top: 2px;
 }
+
+/* The setup wizard: progress across the top, one step below. */
+.app .wz-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+.app .wz-progress li a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.app .wz-progress li a:hover {
+  text-decoration: none;
+  background: var(--hover);
+}
+.app .wz-progress li.on a {
+  border-color: var(--fg);
+  color: var(--fg);
+}
+.app .wz-progress .n {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  flex: none;
+}
+.app .wz-progress li.done .n {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-fg);
+}
+.app .wz-step .hd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.app .wz-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.app .wz-nav .sp {
+  flex: 1;
+}
+.app .wz-look {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 20px;
+}
+@media (max-width: 860px) {
+  .app .wz-look {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.app .wz-options fieldset {
+  border: 0;
+  margin: 0 0 16px;
+  padding: 0;
+}
+.app .wz-options legend {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.app .wz-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-weight: 400;
+}
+.app .wz-choice > span {
+  display: flex;
+  flex-direction: column;
+}
+.app .wz-choice .muted {
+  font-size: 13px;
+}
+/* The review comment preview. Every variant is in the page, the options
+ * switch which one shows. */
+.app .rv-preview {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  overflow: hidden;
+}
+.app .rv-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--head);
+  font-size: 13px;
+}
+.app .rv-body {
+  padding: 4px 14px 12px;
+  font-size: 14px;
+}
+.app .rv-body p {
+  margin: 8px 0;
+}
+.app .rv-finding {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+.app .rv-code {
+  margin: 8px 0;
+  padding: 10px;
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  font-size: 12px;
+  white-space: pre;
+  overflow-x: auto;
+}
+.app .rv-preview .when-model,
+.app .rv-preview .when-severity,
+.app .rv-preview .when-mermaid,
+.app .rv-preview .when-plantuml,
+.app .rv-preview .when-plantuml-server {
+  display: none;
+}
+.app .rv-preview[data-blocking="model"] .when-model,
+.app .rv-preview[data-blocking="severity"] .when-severity,
+.app .rv-preview[data-diagram="mermaid"] .when-mermaid,
+.app .rv-preview[data-diagram="plantuml"] .when-plantuml,
+.app .rv-preview[data-diagram="plantuml-server"] .when-plantuml-server {
+  display: block;
+}
+.app .rv-preview[data-refs="off"] .rv-refs {
+  display: none;
+}

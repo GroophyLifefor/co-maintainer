@@ -71,6 +71,7 @@ const GUIDE = [
 const PAGES = [
   "/",
   "/setup",
+  "/setup?step=look",
   "/repos/new",
   "/activity",
   "/activity?status=failed",
@@ -2024,6 +2025,26 @@ try {
       { timeout: 5_000 },
     );
     console.log("settings search and save state work");
+
+    // The setup wizard's last step: the preview follows the options.
+    await page.goto(`${base}/setup?step=look`, { waitUntil: "load" });
+    await page.check('input[name="blocking"][value="severity"]');
+    await page.check('input[name="refs"][value="on"]');
+    const shown = await page
+      .locator("#rv-preview .rv-h:visible")
+      .first()
+      .textContent();
+    if (!shown?.includes("[P1 · blocking]")) {
+      throw new Error(`the preview did not follow the blocking rule: ${shown}`);
+    }
+    if (!(await page.locator("#rv-preview .rv-refs:visible").count())) {
+      throw new Error("the preview did not show the references");
+    }
+    await Promise.all([
+      page.waitForURL(/step=repo/, { timeout: 5_000 }),
+      page.click('a[rel="prev"]'),
+    ]);
+    console.log("setup wizard works");
 
     // --- Job page and live log panel: append-only, selection, tail, jump,
     // pause/resume, clear, level colors, themes and overflow. These checks are

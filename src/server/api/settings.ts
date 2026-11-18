@@ -165,6 +165,19 @@ export async function handleSettingsRoute(
       }
       patch.remoteByokPolicy = policy;
     }
+    // The server default the setup wizard saves. A repository's own rule
+    // still wins.
+    if ("reviewBlocking" in body) {
+      const blocking = body.reviewBlocking;
+      if (blocking !== "model" && blocking !== "severity") {
+        return errorResponse(
+          422,
+          "invalid_setting",
+          "reviewBlocking must be model or severity",
+        );
+      }
+      patch.reviewBlocking = blocking;
+    }
     if (typeof body.passwordAuthDisabled === "boolean") {
       patch.passwordAuthDisabled = body.passwordAuthDisabled;
     }

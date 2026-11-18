@@ -272,6 +272,10 @@ export async function handlePageRequest(
       return renderSetup(
         username,
         setupChecklist(config.webhookUrl || deps.webhookUrl || ""),
+        {
+          step: url.searchParams.get("step") ?? undefined,
+          blocking: config.reviewBlocking,
+        },
       );
     }
     if (url.pathname === "/repos/new" && request.method === "GET") {
