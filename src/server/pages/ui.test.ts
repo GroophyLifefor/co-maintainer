@@ -1,4 +1,6 @@
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   alert,
   badge,
@@ -183,6 +185,26 @@ test("codeBlock is copyable and escapes its code", () => {
   must(html.includes("data-copy"), "copy button");
   must(html.includes('href="#i-copy"'), "copy icon");
   must(html.includes("&quot;acme/widgets&quot;"), "code not escaped");
+});
+
+test("a codeBlock of several lines keeps its Copy button out of the scroll", () => {
+  const html = codeBlock({ code: "name: a\non: push", attrs: "data-x" });
+  must(html.startsWith('<div class="code multi" data-x>'), "multi wrapper");
+  must(
+    !codeBlock({ code: "one line" }).includes("multi"),
+    "a one-line block changed its look",
+  );
+  const css = readFileSync(join(import.meta.dirname, "styles.css"), "utf8");
+  must(
+    /\.app \.code\.multi button,[^{]*\{[^}]*position: absolute;[^}]*top: 8px;[^}]*right: 8px;/.test(
+      css,
+    ),
+    "the multi-line Copy button is not pinned to the top right",
+  );
+  must(
+    /\.app \.code\.multi,[^{]*\{[^}]*overflow: hidden;/.test(css),
+    "the multi-line box itself scrolls, taking the button with it",
+  );
 });
 
 test("steps mark done and current steps", () => {

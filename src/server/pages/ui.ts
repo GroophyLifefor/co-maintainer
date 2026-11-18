@@ -280,8 +280,15 @@ export function alert(
   }<p>${opts.body}</p></div>${opts.action ?? ""}</div>`;
 }
 
-export function codeBlock(opts: { code: string; label?: string }): string {
-  return `<div class="code">${
+/** A copyable command or file. A block of several lines scrolls inside its
+ * own text, so the Copy button stays at the top right corner. */
+export function codeBlock(opts: {
+  code: string;
+  label?: string;
+  attrs?: string;
+}): string {
+  const multi = opts.code.includes("\n");
+  return `<div class="code${multi ? " multi" : ""}"${opts.attrs ? ` ${opts.attrs}` : ""}>${
     opts.label ? `<span class="lbl">${text(opts.label)}</span>` : ""
   }<span>${escapeHtml(opts.code)}</span><button type="button" data-copy title="Copy">${icon(
     "copy",

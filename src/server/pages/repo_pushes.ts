@@ -1,16 +1,8 @@
 /** Commit watch on the dashboard: the card on a repository's overview that
  * says whether pushes are watched and how to turn it on, and the Pushes tab
  * that lists each push review. */
-import {
-  escapeHtml,
-  empty,
-  html,
-  layout,
-  repoTabs,
-  text,
-  when,
-} from "./layout.ts";
-import { badge, icon, section } from "./ui.ts";
+import { empty, html, layout, repoTabs, text, when } from "./layout.ts";
+import { badge, codeBlock, icon, section } from "./ui.ts";
 import { formatCost } from "./cost.ts";
 import type { repoPushes } from "../../services/dashboard.ts";
 import type { WatchStatus } from "../../services/watch_status.ts";
@@ -102,9 +94,10 @@ function ciRow(serverUrl: string, branch: string): string {
     <p class="muted" style="font-size:13px">Add this workflow and a <code>CO_MAINTAINER_TOKEN</code>
     secret with a remote review token from Settings.</p>
   </div>
-  <div class="code" data-commit-watch-yaml><span style="white-space:pre;overflow-x:auto;display:block">${escapeHtml(
-    commitWatchWorkflow(serverUrl, branch),
-  )}</span><button type="button" data-copy title="Copy">${icon("copy")}</button></div></div>`;
+  ${codeBlock({
+    code: commitWatchWorkflow(serverUrl, branch),
+    attrs: "data-commit-watch-yaml",
+  })}</div>`;
 }
 
 /** The overview card. */

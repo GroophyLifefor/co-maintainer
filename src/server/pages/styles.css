@@ -1717,6 +1717,28 @@ svg.ic {
   width: 14px;
   height: 14px;
 }
+/* Several lines: the text scrolls on its own and the Copy button sits at the
+   top right corner, outside the scrolling area. */
+.app .code.multi,
+.focus .code.multi {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  padding: 10px 44px 10px 12px;
+}
+.app .code.multi span,
+.focus .code.multi span {
+  display: block;
+  white-space: pre;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+.app .code.multi button,
+.focus .code.multi button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
 .app .pre,
 .focus .pre {
   background: var(--code-bg);
