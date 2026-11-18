@@ -7,6 +7,7 @@ import {
   html,
   layout,
   money,
+  plural,
   text,
 } from "./layout.ts";
 import { formatCostTotal } from "./cost.ts";
@@ -229,7 +230,7 @@ export function renderAnalytics(
     ${statCard({
       label: "Spent",
       value: formatCostTotal(spent),
-      hint: `${count(data.totals.tokensIn + data.totals.tokensOut)} tokens · ${count(
+      hint: `${plural(count(data.totals.tokensIn + data.totals.tokensOut), "token")} · ${count(
         data.totals.tokensIn,
       )} in and ${count(data.totals.tokensOut)} out${delta(data.change.cost, data.days, true)}`,
       icon: "coins",
@@ -253,7 +254,7 @@ export function renderAnalytics(
     ${statCard({
       label: "Findings",
       value: String(data.totals.findings),
-      hint: `${data.totals.pullRequests} pull requests${delta(data.change.findings, data.days)}`,
+      hint: `${plural(data.totals.pullRequests, "pull request")}${delta(data.change.findings, data.days)}`,
       icon: "flag",
     })}
     ${statCard({
@@ -277,7 +278,7 @@ export function renderAnalytics(
     <div class="bd">
       ${bars(
         data.byDay.map((row) => ({
-          label: `${row.day} ${formatCostTotal(row)} over ${row.reviews} reviews`,
+          label: `${row.day} ${formatCostTotal(row)} over ${plural(row.reviews, "review")}`,
           value: row.cost,
         })),
       )}

@@ -136,6 +136,16 @@ export function money(value: number): string {
   return `${n < 0 ? "-" : ""}$${short}`;
 }
 
+/** "1 repository", "2 repositories". `n` may be a preformatted figure such as
+ * a capped "500+", which always reads as more than one. */
+export function plural(
+  n: number | string,
+  one: string,
+  many = `${one}s`,
+): string {
+  return `${n} ${n === 1 || n === "1" ? one : many}`;
+}
+
 const compactNumber = new Intl.NumberFormat("en", {
   notation: "compact",
   maximumFractionDigits: 1,

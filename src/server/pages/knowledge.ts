@@ -5,6 +5,7 @@ import {
   html,
   layout,
   markdown,
+  plural,
   repoTabs,
   skSlot,
   text,
@@ -29,13 +30,13 @@ export function renderKnowledge(
   const notice = data.repo.knowledge_built_at
     ? `<div class="notice"><div class="txt">Built ${when(data.repo.knowledge_built_at)}.${
         drift
-          ? ` Since then: <b>${drift.prs_since} new pull requests</b>, <b>${drift.prs_updated} changed pull requests</b>, <b>${capped(
-              drift.commits_since,
-              MAX_COMMITS_COUNTED,
-            )} new commits</b> and <b>${capped(
-              drift.files_changed,
-              COMPARE_FILE_CAP,
-            )} changed files</b>. <span class="muted">Checked ${when(drift.as_of)}.</span>`
+          ? ` Since then: <b>${plural(drift.prs_since, "new pull request")}</b>, <b>${plural(drift.prs_updated, "changed pull request")}</b>, <b>${plural(
+              capped(drift.commits_since, MAX_COMMITS_COUNTED),
+              "new commit",
+            )}</b> and <b>${plural(
+              capped(drift.files_changed, COMPARE_FILE_CAP),
+              "changed file",
+            )}</b>. <span class="muted">Checked ${when(drift.as_of)}.</span>`
           : ""
       }</div></div>`
     : `<div class="notice info"><div class="txt">Knowledge has not been built yet. Use Sync to build it.</div></div>`;

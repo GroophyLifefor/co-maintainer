@@ -535,7 +535,7 @@ test("the knowledge page counts new and changed pull requests apart", async () =
     ).text();
     for (const needle of [
       "2 new pull requests",
-      "1 changed pull requests",
+      "1 changed pull request<",
       "4 new commits",
       "3 changed files",
     ]) {

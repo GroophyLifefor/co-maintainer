@@ -3,6 +3,7 @@ import {
   html,
   layout,
   markdown,
+  plural,
   repoTabs,
   skSlot,
   text,
@@ -150,12 +151,10 @@ export function renderPr(
     </div>
     <div class="card">
       <div class="hd"><h2>Findings</h2>
-        <span class="muted" style="margin-left:auto;font-size:13px">${data.reviews.reduce(
-          (sum, review) => sum + review.findings.length,
-          0,
-        )} findings across ${data.reviews.length} review${
-          data.reviews.length === 1 ? "" : "s"
-        }</span></div>
+        <span class="muted" style="margin-left:auto;font-size:13px">${plural(
+          data.reviews.reduce((sum, review) => sum + review.findings.length, 0),
+          "finding",
+        )} across ${plural(data.reviews.length, "review")}</span></div>
       <div class="bd">${findingsBlock}</div>
     </div>
     <div class="card">

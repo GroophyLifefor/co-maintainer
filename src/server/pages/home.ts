@@ -3,6 +3,7 @@ import {
   html,
   layout,
   layoutFocus,
+  plural,
   skSlot,
   text,
   when,
@@ -87,7 +88,7 @@ export function renderHome(
   const lead =
     filter.total === 0
       ? "No repositories yet. Add one to start."
-      : `${filter.total} repositories · ${filter.reviewing} reviewing pull requests automatically`;
+      : `${plural(filter.total, "repository", "repositories")} · ${filter.reviewing} reviewing pull requests automatically`;
   const remaining = checklist.filter((item) => !item.done);
   // One compact banner pointing at /setup, where the steps live. It is
   // hidden entirely once everything is done, so a finished install is not
@@ -190,7 +191,7 @@ export function renderHome(
         </tbody>
       </table>
     </div>
-    <div class="ft"><span>Showing ${rows.length} of ${filter.total} repositories</span></div>
+    <div class="ft"><span>Showing ${rows.length} of ${plural(filter.total, "repository", "repositories")}</span></div>
   </div>`;
   return html(
     layout({

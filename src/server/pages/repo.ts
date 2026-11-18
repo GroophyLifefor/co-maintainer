@@ -3,6 +3,7 @@ import {
   empty,
   html,
   layout,
+  plural,
   repoTabs,
   skSlot,
   text,
@@ -90,10 +91,10 @@ export function renderRepo(
       ? `<div class="notice" data-async>
       ${skSlot()}
       <div class="txt"><b>Update recommended.</b> Since the guide was built:
-        ${drift.prs_since} new pull requests, ${drift.prs_updated} changed pull requests, ${capped(
-          drift.commits_since,
-          MAX_COMMITS_COUNTED,
-        )} commits, ${capped(drift.files_changed, COMPARE_FILE_CAP)} files changed. Use Sync to update it.</div>
+        ${plural(drift.prs_since, "new pull request")}, ${plural(drift.prs_updated, "changed pull request")}, ${plural(
+          capped(drift.commits_since, MAX_COMMITS_COUNTED),
+          "commit",
+        )}, ${plural(capped(drift.files_changed, COMPARE_FILE_CAP), "file")} changed. Use Sync to update it.</div>
     </div>`
       : "";
   const pulls =
