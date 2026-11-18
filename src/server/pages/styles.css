@@ -2074,7 +2074,18 @@ html.dark {
   position: sticky;
   top: 0;
   height: 100dvh;
+  /* Only the menu scrolls. The logo, search and the buttons at the bottom
+     stay on screen however short the window is. */
+  overflow: hidden;
+}
+.app > aside.side > * {
+  flex: none;
+}
+.app > aside.side > .nav {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .app .side .logo {
   display: flex;
@@ -3249,4 +3260,9 @@ dialog.wn[open] {
 }
 .wn-err {
   color: var(--red-t);
+}
+.app .wn-links a {
+  color: var(--sky-t);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
