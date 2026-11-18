@@ -75,7 +75,7 @@ import { renderAnalytics } from "./analytics.ts";
 import { renderSettings, renderSettingsPage } from "./settings.ts";
 import type { SettingsSection } from "./settings.ts";
 import { renderCatalog } from "./catalog.ts";
-import { getRepo } from "../../store/repos.ts";
+import { getRepo, listActiveRepos } from "../../store/repos.ts";
 import { cacheGet } from "../../store/cache_db.ts";
 import { getJob } from "../../store/jobs.ts";
 import { getLogsSince } from "../../services/jobs.ts";
@@ -281,6 +281,7 @@ export async function handlePageRequest(
         activityFeed(query.page, ACTIVITY_PER_PAGE, activityStoreFilter(query)),
         skippedDeliveries(),
         query,
+        listActiveRepos().map((repo) => repo.full_name),
       );
     }
     const jobMatch = /^\/activity\/([^/]+)$/.exec(url.pathname);

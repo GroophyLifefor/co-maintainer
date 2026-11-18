@@ -11,6 +11,7 @@ import {
   when,
 } from "./layout.ts";
 import { formatCost } from "./cost.ts";
+import { icon, segmented } from "./ui.ts";
 import {
   failureExplanation,
   isWaitingForRequest,
@@ -20,6 +21,7 @@ import {
   reviewResultHref,
 } from "./activity.ts";
 import {
+  ACTIVITY_KINDS,
   cancelReasonText,
   jobDetailText,
   jobKindText,
@@ -190,12 +192,103 @@ function skippedCard(skipped: ReturnType<typeof skippedDeliveries>): string {
   </div>`;
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  running: "Running",
+  done: "Done",
+  failed: "Failed",
+  canceled: "Canceled",
+  skipped: "Skipped",
+};
+
+/** The search box, the repository, PR and date fields, the status and kind
+ * chips, and one chip per active value that takes it off again. */
+function filtersBlock(query: ActivityQuery, repos: string[]): string {
+  const statusChips = segmented([
+    {
+      label: "All",
+      href: activityHref(query, { status: undefined }),
+      on: !query.status,
+    },
+    ...Object.entries(STATUS_LABELS).map(([status, label]) => ({
+      label,
+      href: activityHref(query, { status }),
+      on: query.status === status,
+    })),
+  ]);
+  const kindChips = segmented([
+    {
+      label: "Every kind",
+      href: activityHref(query, { kind: undefined }),
+      on: !query.kind,
+    },
+    ...ACTIVITY_KINDS.map((kind) => ({
+      label: kind.label,
+      href: activityHref(query, { kind: kind.id }),
+      on: query.kind === kind.id,
+    })),
+  ]);
+  const choices = [...new Set([...repos, ...(query.repo ? [query.repo] : [])])];
+  const repoSelect = `<select class="inp" name="repo" aria-label="Repository" style="width:auto">
+      <option value="">All repositories</option>
+      ${choices
+        .map(
+          (name) =>
+            `<option value="${escapeHtml(name)}"${
+              name === query.repo ? " selected" : ""
+            }>${text(name)}</option>`,
+        )
+        .join("")}
+    </select>`;
+  const hidden = (["status", "kind"] as const)
+    .map((name) =>
+      query[name]
+        ? `<input type="hidden" name="${name}" value="${escapeHtml(query[name])}">`
+        : "",
+    )
+    .join("");
+  const active: { label: string; drop: keyof ActivityQuery }[] = [];
+  if (query.repo) active.push({ label: query.repo, drop: "repo" });
+  if (query.pr) active.push({ label: `PR #${query.pr}`, drop: "pr" });
+  if (query.from) active.push({ label: `From ${query.from}`, drop: "from" });
+  if (query.to) active.push({ label: `To ${query.to}`, drop: "to" });
+  if (query.q) active.push({ label: `Search: ${query.q}`, drop: "q" });
+  const chips = active.length
+    ? `<div class="chips">${active
+        .map(
+          (chip) =>
+            `<a class="chip" href="${escapeHtml(
+              activityHref(query, { [chip.drop]: undefined }),
+            )}" aria-label="${escapeHtml(`Remove ${chip.label}`)}">${text(
+              chip.label,
+            )}${icon("circle-x")}</a>`,
+        )
+        .join("")}</div>`
+    : "";
+  return `<form class="filters" method="get" action="/activity" role="search" id="activity-filters">
+    <div class="sbox">${icon("search")}<input class="inp" type="search" name="q" value="${escapeHtml(
+      query.q ?? "",
+    )}" placeholder="Search repository, title, error" aria-label="Search repository, pull request title and error" data-kb-search></div>
+    ${repoSelect}
+    <input class="inp" type="number" min="1" step="1" name="pr" value="${
+      query.pr ?? ""
+    }" placeholder="PR" aria-label="Pull request number" style="width:90px">
+    <input class="inp" type="date" name="from" value="${escapeHtml(query.from ?? "")}" aria-label="From day" style="width:auto">
+    <input class="inp" type="date" name="to" value="${escapeHtml(query.to ?? "")}" aria-label="To day" style="width:auto">
+    ${hidden}
+    <button type="submit" class="btn out sm">Filter</button>
+  </form>
+  <div class="filters">${statusChips}</div>
+  <div class="filters">${kindChips}</div>
+  ${chips}`;
+}
+
 export function renderActivity(
   username: string,
   running: ReturnType<typeof runningJobs>,
   feed: ReturnType<typeof activityFeed>,
   skipped: ReturnType<typeof skippedDeliveries>,
   query: ActivityQuery = { page: 1 },
+  repos: string[] = [],
 ): Response {
   const filtered = isFiltered(query);
   const live = running.map(liveCard).join("");
@@ -214,11 +307,10 @@ export function renderActivity(
       </table>
       ${pager(feed, query)}`;
   const filterNotice = filtered
-    ? `<div class="notice info"><div class="txt">Showing ${text(
-        query.status === "failed"
-          ? "failed jobs and reviews"
-          : "jobs and reviews",
-      )}${query.repo ? ` of <b>${text(query.repo)}</b>` : ""}.</div><a class="btn out sm" href="/activity">Show all</a></div>`
+    ? `<div class="notice info"><div class="txt">Showing ${plural(
+        feed.total,
+        query.status === "failed" ? "failure" : "row",
+      )} that ${feed.total === 1 ? "fits" : "fit"} this filter.</div><a class="btn out sm" href="/activity">Show all</a></div>`
     : "";
   return html(
     layout({
@@ -231,6 +323,7 @@ export function renderActivity(
       <p class="lead">What is running now and what happened recently.</p></div>
   </div>
   ${live}
+  ${filtersBlock(query, repos)}
   ${filterNotice}
   <div class="card">
     <div class="hd"><h2>Recent</h2></div>

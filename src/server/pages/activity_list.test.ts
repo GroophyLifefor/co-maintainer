@@ -120,3 +120,71 @@ test("a skip job says what it skipped", async () => {
     assert.ok(!/>skip</.test(list), "the raw job type shows");
   });
 });
+
+test("filters in the URL narrow the list by status, kind, repository, PR, day and words", async () => {
+  await withDashboard(async (get) => {
+    activateRepo(REPO, 1);
+    activateRepo("acme/gadgets", 1);
+    rememberPullTitle(REPO, 136, "Rename format to formatDuration");
+    review("job-136", 136, "posted", 1);
+    review("job-bad", 137, "failed");
+    insertJob({ id: "job-sync", type: "remake", repo: "acme/gadgets" });
+    setJobStatus("job-sync", "canceled", { cancel_reason: "superseded" });
+    const keys = async (path: string) =>
+      rows((await get(path)).html).map((row) => row.slice(15, -1));
+    assert.deepEqual(await keys("/activity?status=failed"), [
+      "/activity/job-bad",
+    ]);
+    assert.deepEqual(await keys("/activity?status=canceled"), [
+      "/activity/job-sync",
+    ]);
+    assert.deepEqual(await keys("/activity?kind=setup"), [
+      "/activity/job-sync",
+    ]);
+    assert.equal((await keys("/activity?kind=review")).length, 2);
+    assert.deepEqual(await keys("/activity?pr=136"), ["/activity/job-136"]);
+    assert.deepEqual(await keys("/activity?q=formatDuration"), [
+      "/activity/job-136",
+    ]);
+    assert.deepEqual(await keys("/activity?q=timed%20out"), [
+      "/activity/job-bad",
+    ]);
+    assert.deepEqual(await keys("/activity?q=%23137"), ["/activity/job-bad"]);
+    assert.deepEqual(await keys("/activity?repo=acme%2Fgadgets"), [
+      "/activity/job-sync",
+    ]);
+    assert.equal(
+      (await keys("/activity?from=2000-01-01&to=2999-01-01")).length,
+      3,
+    );
+    assert.equal((await keys("/activity?to=2000-01-01")).length, 0);
+    // A value that does not fit is dropped, not an error.
+    const odd = await get("/activity?status=nope&kind=nope&from=yesterday");
+    assert.equal(odd.status, 200);
+    assert.equal(rows(odd.html).length, 3);
+  });
+});
+
+test("the chips keep the other filters and each active value can be taken off", async () => {
+  await withDashboard(async (get) => {
+    activateRepo(REPO, 1);
+    review("job-136", 136, "posted", 1);
+    const { html } = await get(
+      `/activity?repo=${encodeURIComponent(REPO)}&q=x&status=done`,
+    );
+    assert.ok(
+      html.includes(
+        `href="/activity?status=failed&amp;repo=acme%2Fwidgets&amp;q=x"`,
+      ),
+      "the Failed chip dropped the other filters",
+    );
+    assert.ok(
+      html.includes(
+        `href="/activity?status=done&amp;repo=acme%2Fwidgets" aria-label="Remove Search: x"`,
+      ),
+      "the search chip cannot be taken off",
+    );
+    assert.ok(html.includes(">Show all</a>"));
+    assert.ok(html.includes(`name="q" value="x"`));
+  });
+});
