@@ -227,6 +227,8 @@ Print exactly one JSON document on stdout. Log lines go to stderr.
 - One extension's `request_changes` makes the whole review Request changes
   and the CLI exit code blocking (1). A verdict always wins over a finding's
   own `blocking`.
+- Any other extension finding is non-blocking. It stays a comment and never
+  holds back the App's approval.
 - In the GitHub review, a finding on a diff line is posted inline, headed
   `[P2 · blocking] · extension: name`. A finding off the diff, or with no
   location, goes in the summary list with the same label. At most 50

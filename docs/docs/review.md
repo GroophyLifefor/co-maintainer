@@ -757,10 +757,15 @@ co-maintainer config set --review-blocking=model      # back to the default
 
 `CO_MAINTAINER_REVIEW_BLOCKING` overrides it for one environment.
 
-The automatic GitHub App review picks its type from the open findings only.
-With none open, including a re-review whose earlier findings were all fixed, it
-approves. With open findings, `model` requests changes, and `severity` requests
-changes for a P0 or P1 and comments otherwise.
+The automatic GitHub App review picks its type from the open findings, with the
+same rule as the exit code. With no open blocking finding it approves, and any
+non-blocking findings stay as comments on that approval. With an open blocking
+finding it requests changes. An approval also clears an earlier "changes
+requested" from the App, which a comment-only review could not.
+
+A bot approval counts toward a repository's required approvals, so a pull
+request with open non-blocking comments can become mergeable on the App's
+approval alone.
 
 ## JSON output
 

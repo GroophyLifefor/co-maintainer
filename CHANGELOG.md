@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.16] - 2026-11-18
+
+### Changed
+
+- **An App review with only non-blocking findings approves.** The review type now follows the same blocking rule as the exit code, in both `reviewBlocking` modes: no open blocking finding approves, and the non-blocking findings stay as comments, an open blocking finding requests changes. Under `model` a finding the model labeled non-blocking used to request changes, and under `severity` a review with only P2 and P3 findings only commented, which left an earlier "changes requested" standing. An approval clears it. An extension finding without `request_changes` no longer turns an approval into a comment. (#137)
+
 ## [0.7.15] - 2026-11-18
 
 ### Added

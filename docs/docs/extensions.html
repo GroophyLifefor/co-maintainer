@@ -527,6 +527,8 @@ for the dashboard.</li>
 <li>One extension&#39;s <code>request_changes</code> makes the whole review Request changes
 and the CLI exit code blocking (1). A verdict always wins over a finding&#39;s
 own <code>blocking</code>.</li>
+<li>Any other extension finding is non-blocking. It stays a comment and never
+holds back the App&#39;s approval.</li>
 <li>In the GitHub review, a finding on a diff line is posted inline, headed
 <code>[P2 · blocking] · extension: name</code>. A finding off the diff, or with no
 location, goes in the summary list with the same label. At most 50
