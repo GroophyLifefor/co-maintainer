@@ -287,6 +287,13 @@ export const ENDPOINTS: readonly Endpoint[] = [
     identities: [],
     feature: "Finish creating the App from the dashboard",
   },
+  {
+    method: "GET",
+    pattern: "repos/GroophyLifefor/co-maintainer/releases/latest",
+    identities: [],
+    feature:
+      "Read the latest co-maintainer release, only when the host sets CM_UPDATE_URL",
+  },
 ];
 
 function strongest(
