@@ -5,6 +5,7 @@ import type { ExtensionResult } from "./runner.ts";
 import {
   MAX_INLINE_EXTENSION_COMMENTS,
   reviewBodyWithExtensions,
+  reviewEventWithExtensions,
   splitExtensionFindings,
 } from "./render_review.ts";
 import {
@@ -410,4 +411,30 @@ test("thousands of findings: inline comments are capped and the body fits with a
   }
   if (!tight.includes("more, see the dashboard"))
     throw new Error("no and-more line");
+});
+
+test("only an extension's request_changes holds back an approval, another finding stays a comment (#137)", () => {
+  const finding = {
+    severity: "P2" as const,
+    blocking: false,
+    title: "Lint",
+    body: "b",
+  };
+  const commenting = buildReport([
+    result({ name: "lint", verdict: "comment", findings: [finding] }),
+  ]);
+  const blocking = buildReport([
+    result({ name: "secret", verdict: "request_changes", findings: [finding] }),
+  ]);
+  const want: [string, string][] = [
+    [reviewEventWithExtensions("APPROVE", commenting), "APPROVE"],
+    [reviewEventWithExtensions("APPROVE", blocking), "REQUEST_CHANGES"],
+    [
+      reviewEventWithExtensions("REQUEST_CHANGES", commenting),
+      "REQUEST_CHANGES",
+    ],
+  ];
+  for (const [got, wanted] of want) {
+    if (got !== wanted) throw new Error(`${got}, wanted ${wanted}`);
+  }
 });

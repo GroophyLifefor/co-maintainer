@@ -15,7 +15,7 @@ import {
   toJsonFinding,
 } from "../cli/review_result.ts";
 import { reviewExitCode } from "../cli/review_output.ts";
-import { appReviewEvent, reviewEvent } from "../services/review.ts";
+import { appReviewEvent } from "../services/review.ts";
 import { reviewBlockingFrom } from "../review/blocking.ts";
 import type { ResolvedFinding } from "../review/carry_over.ts";
 import type { Revision } from "../review/revision.ts";
@@ -106,34 +106,59 @@ Body
   must(reviewExitCode(markdown, "severity") === 1, "severity");
 });
 
-test("the App review event follows the mode", () => {
-  const stored = [{ severity: "P2", title: "[P2 · blocking] `a.ts`" }];
-  // `model` keeps 0.4.13: any finding requests changes.
-  must(
-    appReviewEvent(stored, "model") === "REQUEST_CHANGES",
-    "model requests changes",
-  );
-  must(
-    appReviewEvent(stored, "severity") === "COMMENT",
-    "severity does not request changes for a P2",
-  );
-  const high = [{ severity: "P1", title: "[P1 · non-blocking] `a.ts`" }];
-  must(
-    appReviewEvent(high, "severity") === "REQUEST_CHANGES",
-    "severity requests changes for a P1",
-  );
-  for (const mode of ["model", "severity"] as const) {
-    must(appReviewEvent([], mode) === "APPROVE", `${mode}: empty approves`);
-    // #45: a re-review that closed the last finding approves.
-    const closed = [{ ...high[0], state: "closed" }];
-    must(
-      appReviewEvent(closed, mode) === "APPROVE",
-      `${mode}: closed findings approve`,
-    );
+test("the App review event follows the same blocking rule as the exit code (#137)", () => {
+  const cases: [
+    string,
+    { severity: string; title: string; state?: string }[],
+    "model" | "severity",
+    string,
+  ][] = [
+    ["no finding", [], "model", "APPROVE"],
+    ["no finding", [], "severity", "APPROVE"],
+    [
+      "a P2 the model calls non-blocking",
+      [{ severity: "P2", title: "[P2 · non-blocking] `a.ts`" }],
+      "model",
+      "APPROVE",
+    ],
+    [
+      "a P2 the model calls blocking",
+      [{ severity: "P2", title: "[P2 · blocking] `a.ts`" }],
+      "model",
+      "REQUEST_CHANGES",
+    ],
+    [
+      "a P0 the model calls non-blocking",
+      [{ severity: "P0", title: "[P0 · non-blocking] `a.ts`" }],
+      "model",
+      "REQUEST_CHANGES",
+    ],
+    [
+      "a P2 under severity, whatever the label",
+      [{ severity: "P2", title: "[P2 · blocking] `a.ts`" }],
+      "severity",
+      "APPROVE",
+    ],
+    [
+      "a P1 under severity, whatever the label",
+      [{ severity: "P1", title: "[P1 · non-blocking] `a.ts`" }],
+      "severity",
+      "REQUEST_CHANGES",
+    ],
+    [
+      "a closed blocking finding next to an open non-blocking one",
+      [
+        { severity: "P1", title: "[P1 · blocking] `a.ts`", state: "closed" },
+        { severity: "P3", title: "[P3 · non-blocking] `b.ts`" },
+      ],
+      "model",
+      "APPROVE",
+    ],
+  ];
+  for (const [what, stored, mode, want] of cases) {
+    const got = appReviewEvent(stored, mode);
+    must(got === want, `${mode}, ${what}: ${got}, wanted ${want}`);
   }
-  // The old count-based rule is kept for its callers.
-  must(reviewEvent(0) === "COMMENT", "the old event rule is unchanged");
-  must(reviewEvent(1) === "REQUEST_CHANGES", "the old event rule is unchanged");
 });
 
 test("the human output labels the finding the way the exit code decided", () => {

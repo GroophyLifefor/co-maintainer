@@ -276,33 +276,24 @@ export function splitInline(
   return { inline, leftover };
 }
 
-export function reviewEvent(
-  findingsCount: number,
-): "REQUEST_CHANGES" | "COMMENT" {
-  return findingsCount > 0 ? "REQUEST_CHANGES" : "COMMENT";
-}
-
-/** The GitHub review event for a set of stored findings.
+/** The GitHub review event for a set of stored findings (#137).
  *
- * Only open findings count. A re-review that closed the last finding used to
- * request changes from the closed row while its body said "No actionable
- * findings", so a review with no open finding approves.
- *
- * `model` keeps the 0.4.13 behavior: any open finding requests changes, because
- * the model's label already decided. `severity` ignores that label and
- * requests changes only for a P0 or P1, so the same finding set always yields
- * the same event. */
+ * Only open findings count, and the event follows the same blocking rule as
+ * the exit code (`isBlocking`): `model` reads the model's own label, P0 always
+ * blocking, `severity` blocks on P0 and P1. A review with no open blocking
+ * finding approves, and its non-blocking findings stay as comments. An
+ * approval also clears an earlier "changes requested" from this bot, which a
+ * comment-only review never did. */
 export function appReviewEvent(
   findings: { severity: string; title: string; state?: string }[],
   mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
 ): "REQUEST_CHANGES" | "COMMENT" | "APPROVE" {
-  const open = findings.filter((row) => row.state !== "closed");
-  if (open.length === 0) return "APPROVE";
-  if (mode === "model") return "REQUEST_CHANGES";
-  const blocking = open.some((row) =>
-    isBlocking(mode, { severity: row.severity, text: row.title }),
+  const blocking = findings.some(
+    (row) =>
+      row.state !== "closed" &&
+      isBlocking(mode, { severity: row.severity, text: row.title }),
   );
-  return reviewEvent(blocking ? 1 : 0);
+  return blocking ? "REQUEST_CHANGES" : "APPROVE";
 }
 
 export interface ReviewMetadata {

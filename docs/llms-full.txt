@@ -4,7 +4,7 @@
 
 ## Facts
 
-- Latest version: 0.7.15, released 2026-11-18. Changelog: https://github.com/GroophyLifefor/co-maintainer/blob/main/CHANGELOG.md
+- Latest version: 0.7.16, released 2026-11-18. Changelog: https://github.com/GroophyLifefor/co-maintainer/blob/main/CHANGELOG.md
 - License: MIT. Source: https://github.com/GroophyLifefor/co-maintainer
 - Install: `npm install -g co-maintainer`. Needs Node 24 or newer.
 - Commands: `probe`, `init`, `sync`, `review`, `config`, `view`, `clear`, `uninstall`, `oauth`, `set`, `serve`, `extension`, `rollback`, `version`. `sync` keeps the review guides up to date (its old name was `remake`).
@@ -1608,10 +1608,15 @@ co-maintainer config set --review-blocking=model      # back to the default
 
 `CO_MAINTAINER_REVIEW_BLOCKING` overrides it for one environment.
 
-The automatic GitHub App review picks its type from the open findings only.
-With none open, including a re-review whose earlier findings were all fixed, it
-approves. With open findings, `model` requests changes, and `severity` requests
-changes for a P0 or P1 and comments otherwise.
+The automatic GitHub App review picks its type from the open findings, with the
+same rule as the exit code. With no open blocking finding it approves, and any
+non-blocking findings stay as comments on that approval. With an open blocking
+finding it requests changes. An approval also clears an earlier "changes
+requested" from the App, which a comment-only review could not.
+
+A bot approval counts toward a repository's required approvals, so a pull
+request with open non-blocking comments can become mergeable on the App's
+approval alone.
 
 ## JSON output
 
@@ -3023,6 +3028,8 @@ Print exactly one JSON document on stdout. Log lines go to stderr.
 - One extension's `request_changes` makes the whole review Request changes
   and the CLI exit code blocking (1). A verdict always wins over a finding's
   own `blocking`.
+- Any other extension finding is non-blocking. It stays a comment and never
+  holds back the App's approval.
 - In the GitHub review, a finding on a diff line is posted inline, headed
   `[P2 · blocking] · extension: name`. A finding off the diff, or with no
   location, goes in the summary list with the same label. At most 50
