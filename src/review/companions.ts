@@ -26,6 +26,10 @@ export const COMPANION_PATH_MAX_CHARS = 200;
  * `and N more` line, so five blocks stay under 120,000 characters. */
 export const COMPANION_BLOCK_MAX_CHARS = 24_000;
 
+/** The most files of one companion a remote server takes. A client cuts a
+ * longer list before it sends it. */
+export const COMPANION_MAX_FILES = 1000;
+
 /** The most patch characters a remote server takes for all companions of a
  * review together. Above it the server keeps the file lists only. */
 export const COMPANION_PATCH_MAX_CHARS = 500_000;

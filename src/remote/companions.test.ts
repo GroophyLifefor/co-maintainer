@@ -80,6 +80,17 @@ test("a server accepts up to 5 companions with valid files, and refuses the rest
       [companion({ files: [{ ...FILE, path: "../x" }] })],
       "companions[0].files[0].path: must stay inside the repository",
     ],
+    [
+      [
+        companion({
+          files: Array.from({ length: 1001 }, (_, i) => ({
+            ...FILE,
+            path: `f${i}.md`,
+          })),
+        }),
+      ],
+      "companions[0].files: at most 1000",
+    ],
   ];
   for (const [value, want] of cases) {
     const got = validateCompanionsPayload(value);

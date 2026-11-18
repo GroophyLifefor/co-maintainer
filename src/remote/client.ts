@@ -11,7 +11,7 @@ import {
   localCompanionSearch,
   readCompanionVisibility,
 } from "../cli/review_with.ts";
-import { companionsJson } from "../review/companions.ts";
+import { COMPANION_MAX_FILES, companionsJson } from "../review/companions.ts";
 import { companionSearchTool } from "../pr/companion_tools.ts";
 import { COMPANIONS_FEATURE } from "./companions.ts";
 import { exitWith } from "../cli/error.ts";
@@ -281,7 +281,21 @@ export async function runRemoteReview(
     // sent, and the run says it went without.
     const serverSupportsCompanions =
       hs.features?.includes(COMPANIONS_FEATURE) ?? false;
-    const sentCompanions = serverSupportsCompanions ? companions : [];
+    // The server takes at most COMPANION_MAX_FILES files of one companion,
+    // so a longer list is cut here and the run says so.
+    const sentCompanions = serverSupportsCompanions
+      ? companions.map((companion) => {
+          if (companion.files.length <= COMPANION_MAX_FILES) return companion;
+          clientWarnings.push({
+            code: "companion_list_cut",
+            message: `The companion ${companion.repo} changed ${companion.files.length} files, over the limit of ${COMPANION_MAX_FILES}, so the server read the first ${COMPANION_MAX_FILES}.`,
+          });
+          return {
+            ...companion,
+            files: companion.files.slice(0, COMPANION_MAX_FILES),
+          };
+        })
+      : [];
     if (companions.length > 0 && !serverSupportsCompanions) {
       clientWarnings.push({
         code: "companions_unsupported",

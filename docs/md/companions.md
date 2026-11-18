@@ -173,7 +173,9 @@ which companions are private.
   none, and nothing changes.
 - **The limit.** The server takes at most 500,000 characters of companion
   patches in total. Above that it keeps every file list, drops every patch, and
-  adds the warning `companion_list_cut`.
+  adds the warning `companion_list_cut`. It also takes at most 1,000 files of
+  one companion. The client sends the first 1,000 of a longer list, with the
+  same warning.
 - **Search** runs on your machine, in the companion checkout, through the same
   `search-non-code` tool call with its `repo` argument.
 

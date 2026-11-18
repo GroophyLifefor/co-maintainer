@@ -274,7 +274,9 @@ ran without them.&quot; The review runs. An older client with a newer server sen
 none, and nothing changes.</li>
 <li><strong>The limit.</strong> The server takes at most 500,000 characters of companion
 patches in total. Above that it keeps every file list, drops every patch, and
-adds the warning <code>companion_list_cut</code>.</li>
+adds the warning <code>companion_list_cut</code>. It also takes at most 1,000 files of
+one companion. The client sends the first 1,000 of a longer list, with the
+same warning.</li>
 <li><strong>Search</strong> runs on your machine, in the companion checkout, through the same
 <code>search-non-code</code> tool call with its <code>repo</code> argument.</li>
 </ul>

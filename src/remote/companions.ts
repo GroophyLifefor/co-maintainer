@@ -6,6 +6,7 @@
 import type { RevisionFile, RevisionFileStatus } from "../review/revision.ts";
 import {
   type Companion,
+  COMPANION_MAX_FILES,
   COMPANION_PATCH_MAX_CHARS,
   MAX_COMPANIONS,
 } from "../review/companions.ts";
@@ -51,6 +52,9 @@ export function validateCompanionsPayload(value: unknown): string | null {
       return `${field}.private: must be a boolean`;
     }
     if (!Array.isArray(item.files)) return `${field}.files: must be an array`;
+    if (item.files.length > COMPANION_MAX_FILES) {
+      return `${field}.files: at most ${COMPANION_MAX_FILES}`;
+    }
     const paths = new Set<string>();
     for (let j = 0; j < item.files.length; j++) {
       const err = validateRevisionFile(item.files[j], j, paths);
