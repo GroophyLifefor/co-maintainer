@@ -1591,3 +1591,21 @@ test("every repository tab has the same breadcrumb, title and tabs order", async
     }
   });
 });
+
+test("the knowledge page has no empty History card while no history is kept", async () => {
+  await withEnv(async () => {
+    seed();
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(
+        new Request("http://localhost/repos/acme/widgets/knowledge", {
+          headers: { cookie },
+        }),
+      )
+    ).text();
+    if (html.includes("<h2>History</h2>")) {
+      throw new Error("the empty History card is still shown");
+    }
+  });
+});

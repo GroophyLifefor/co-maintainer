@@ -98,13 +98,6 @@ export function renderKnowledge(
     ${notice}
     <div class="card"><div class="bd flush">${table}</div></div>
     ${viewer}
-    <div class="card">
-      <div class="hd"><h2>History</h2></div>
-      <div class="bd">${empty(
-        "Only the current knowledge is kept",
-        "Older versions are not stored yet.",
-      )}</div>
-    </div>
     <div class="card" data-async>
       ${skSlot()}
       <div class="hd"><h2>Clear</h2></div>
