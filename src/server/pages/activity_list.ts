@@ -191,6 +191,9 @@ function activityRow(row: ActivityRow): string {
   return `<tr data-href="${escapeHtml(href)}" data-key="${escapeHtml(row.key)}"${
     open ? ` data-dismiss="1"` : ""
   }${retry ? ` data-retry="1"` : ""}>
+    <td class="sel"><input type="checkbox" data-select aria-label="${escapeHtml(
+      `Select ${label}`,
+    )}"></td>
     <td class="wrap"><a class="strong" href="${escapeHtml(href)}">${text(label)}</a></td>
     <td class="wrap">${subjectCell(row)}</td>
     <td class="wrap">${resultCell(row)}${settledMark(row)}</td>
@@ -439,7 +442,7 @@ export function renderActivity(
           )
         : empty("Nothing yet", "Jobs and reviews will show up here.")
       : `<table class="fit">
-        <thead><tr><th>What</th><th>Repository</th><th>Result</th><th class="num">Cost</th><th>When</th><th>Status</th><th aria-label="Actions"></th></tr></thead>
+        <thead><tr><th class="sel"><input type="checkbox" data-select-all aria-label="Select every row on this page"></th><th>What</th><th>Repository</th><th>Result</th><th class="num">Cost</th><th>When</th><th>Status</th><th aria-label="Actions"></th></tr></thead>
         <tbody>${feed.items.map(activityRow).join("")}</tbody>
       </table>
       ${pager(feed, query)}`;
@@ -490,7 +493,15 @@ export function renderActivity(
   ${filterNotice}
   ${failedTools}
   <div class="card">
-    <div class="hd"><h2>Recent</h2></div>
+    <div class="hd"><h2>Recent</h2>${
+      feed.items.length
+        ? `<div class="bulk" data-bulk role="group" aria-label="Actions on the selected rows">
+        <span class="muted" data-bulk-count role="status">None selected</span>
+        <button class="btn sm" type="button" data-bulk-action="retry" disabled>Retry</button>
+        <button class="btn out sm" type="button" data-bulk-action="dismiss" disabled>Dismiss</button>
+      </div>`
+        : ""
+    }</div>
     <div class="bd flush">${recent}</div>
   </div>
   ${skippedCard(skipped, query)}

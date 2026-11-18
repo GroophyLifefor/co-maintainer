@@ -709,6 +709,82 @@ function startPalette() {
   });
 }
 
+/** Bulk select on the Activity list. Every listener is on the document, so
+ * a list the poll swapped in keeps working. An action is enabled only when a
+ * selected row allows it: `data-dismiss` for Dismiss, `data-retry` for
+ * Retry. */
+function startBulkSelect() {
+  function boxes() {
+    return document.querySelectorAll("tr[data-key] input[data-select]");
+  }
+  function chosen(flag) {
+    const keys = [];
+    boxes().forEach(function (box) {
+      const row = box.closest("tr[data-key]");
+      if (box.checked && row && (!flag || row.hasAttribute(flag))) {
+        keys.push(row.getAttribute("data-key"));
+      }
+    });
+    return keys;
+  }
+  function refresh() {
+    const bar = document.querySelector("[data-bulk]");
+    if (!bar) return;
+    const all = chosen("");
+    const count = bar.querySelector("[data-bulk-count]");
+    if (count) {
+      count.textContent = all.length
+        ? all.length + " selected"
+        : "None selected";
+    }
+    const dismiss = bar.querySelector('[data-bulk-action="dismiss"]');
+    const retry = bar.querySelector('[data-bulk-action="retry"]');
+    if (dismiss) dismiss.disabled = chosen("data-dismiss").length === 0;
+    if (retry) retry.disabled = chosen("data-retry").length === 0;
+    const head = document.querySelector("input[data-select-all]");
+    const total = boxes().length;
+    if (head) {
+      head.checked = total > 0 && all.length === total;
+      head.indeterminate = all.length > 0 && all.length < total;
+    }
+  }
+  document.addEventListener("change", function (ev) {
+    const target = ev.target;
+    if (!target || !target.matches) return;
+    if (target.matches("input[data-select-all]")) {
+      boxes().forEach(function (box) {
+        box.checked = target.checked;
+      });
+    }
+    if (target.matches("input[data-select-all], input[data-select]")) {
+      refresh();
+    }
+  });
+  document.addEventListener("click", function (ev) {
+    const btn =
+      ev.target && ev.target.closest
+        ? ev.target.closest("[data-bulk-action]")
+        : null;
+    if (!btn || btn.disabled) return;
+    ev.preventDefault();
+    const action = btn.getAttribute("data-bulk-action");
+    const keys = chosen(action === "retry" ? "data-retry" : "data-dismiss");
+    if (keys.length === 0) return;
+    const card = btn.closest(".card");
+    run(btn, card, async function () {
+      const result = await api("POST", "/api/activity/" + action, {
+        keys: keys,
+      });
+      if (action === "retry") {
+        const n = (result && result.jobIds && result.jobIds.length) || 0;
+        toast(n === 1 ? "1 retry queued" : n + " retries queued");
+      }
+      location.reload();
+    });
+  });
+  refresh();
+}
+
 function startLogPanels() {
   const panels = document.querySelectorAll("[data-log]");
   for (let index = 0; index < panels.length; index++) {
@@ -770,6 +846,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   startPalette();
+  startBulkSelect();
 
   document.addEventListener("click", function (ev) {
     const btn =

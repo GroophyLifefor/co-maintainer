@@ -2238,6 +2238,20 @@ html.dark {
 .app .side .nav a .r.fail-count {
   color: var(--red-t);
 }
+/* Bulk select on Activity: a checkbox per row and the actions on the
+   selection, each enabled only when it fits a selected row. */
+.app th.sel,
+.app td.sel {
+  width: 32px;
+  padding-right: 0;
+}
+.app .card .hd .bulk {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
 /* Retry and Dismiss on a failed Activity row. */
 .app td.row-acts {
   white-space: nowrap;

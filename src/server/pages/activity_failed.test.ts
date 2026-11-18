@@ -149,3 +149,24 @@ test("the action APIs check their keys", async () => {
     assert.equal(dismiss.status, 422);
   });
 });
+
+test("every row has a checkbox, and only a failed row allows the bulk Dismiss and Retry", async () => {
+  await withDashboard(async (get) => {
+    activateRepo(REPO, 1);
+    failedReview("job-bad", 7);
+    insertJob({ id: "job-ok", type: "remake", repo: REPO });
+    setJobStatus("job-ok", "done");
+    const html = (await get("/activity")).html;
+    assert.ok(html.includes("data-select-all"), "no select all");
+    assert.ok(html.includes(`data-bulk-action="dismiss" disabled`));
+    assert.ok(html.includes(`data-bulk-action="retry" disabled`));
+    const bad = /<tr [^>]*data-key="job:job-bad"[^>]*>/.exec(html)?.[0] ?? "";
+    const ok = /<tr [^>]*data-key="job:job-ok"[^>]*>/.exec(html)?.[0] ?? "";
+    assert.ok(bad.includes("data-dismiss") && bad.includes("data-retry"), bad);
+    assert.ok(!ok.includes("data-dismiss") && !ok.includes("data-retry"), ok);
+    assert.equal(
+      (recent(html).match(/data-select aria-label/g) ?? []).length,
+      2,
+    );
+  });
+});
