@@ -58,12 +58,24 @@ function referenceItem(reference: ResolvedReference): string {
   }
 }
 
+/** How many references a line lists: a rule or instruction names each of its
+ * sources, anything else is one. A rule learned from four pull requests is
+ * four references, so the count matches what opens. */
+export function referenceCount(references: ResolvedReference[]): number {
+  return references.reduce(
+    (sum, reference) =>
+      sum +
+      ("sources" in reference ? Math.max(1, reference.sources.length) : 1),
+    0,
+  );
+}
+
 /** The collapsed block, or `""` for a finding stored before references. */
 export function referencesHtml(stored: string | null | undefined): string {
   const references = parseStoredReferences(stored);
   if (references.length === 0) return "";
   return `<details style="margin-top:8px"><summary class="muted" style="font-size:13px;cursor:pointer">${text(
-    `References (${references.length})`,
+    `References (${referenceCount(references)})`,
   )}</summary><ul style="margin:6px 0 0 18px;font-size:13px">${references
     .map((reference) => `<li>${referenceItem(reference)}</li>`)
     .join("")}</ul></details>`;

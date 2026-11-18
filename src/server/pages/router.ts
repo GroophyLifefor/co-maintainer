@@ -66,7 +66,12 @@ import { cacheGet } from "../../store/cache_db.ts";
 import { getJob } from "../../store/jobs.ts";
 import { getLogsSince } from "../../services/jobs.ts";
 import { listInstallationsWithRepos } from "../../github/app.ts";
-import { cachedOpenPulls } from "../../github/open_pulls_cache.ts";
+import {
+  cachedOpenPulls,
+  cachedOpenPullTitle,
+  fetchPullTitle,
+} from "../../github/open_pulls_cache.ts";
+import { getPullTitle, rememberPullTitle } from "../../store/pull_titles.ts";
 import type { OpenPull } from "../../github/app.ts";
 import { setupChecklist } from "../../services/setup_checklist.ts";
 import {
@@ -347,7 +352,12 @@ export async function handlePageRequest(
         );
       }
       if (sub === "pulls" && pr) {
-        return renderPr(username, fullName, prDetail(fullName, pr));
+        return renderPr(
+          username,
+          fullName,
+          prDetail(fullName, pr),
+          await pullTitleFor(fullName, pr, deps.githubApp),
+        );
       }
       if (sub === "pulls") {
         const page = Number(url.searchParams.get("page") ?? 1);
@@ -534,6 +544,29 @@ async function openPullsFor(
     );
     return { pulls: undefined, appConfigured: true };
   }
+}
+
+/** A pull request's title: the one a review stored, then one from an open
+ * list fetched in the last minute, then GitHub once, stored for next time. */
+async function pullTitleFor(
+  fullName: string,
+  prNumber: number,
+  githubApp: PageDeps["githubApp"],
+): Promise<string | undefined> {
+  const stored = getPullTitle(fullName, prNumber);
+  if (stored) return stored;
+  const title =
+    cachedOpenPullTitle(fullName, prNumber) ??
+    (githubApp
+      ? await fetchPullTitle(
+          githubApp.appId,
+          githubApp.privateKeyPem,
+          fullName,
+          prNumber,
+        )
+      : undefined);
+  if (title) rememberPullTitle(fullName, prNumber, title);
+  return title;
 }
 
 async function sessionOf(request: Request) {

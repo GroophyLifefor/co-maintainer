@@ -13,63 +13,97 @@ import type { prDetail } from "../../services/dashboard.ts";
 import { extensionCostNote, renderExtensionResults } from "./extensions.ts";
 import { referencesHtml } from "./references.ts";
 import { repoHeader } from "./ui.ts";
+import {
+  findingAnchor,
+  isOpenFinding,
+  locationLink,
+  severityBadge,
+  stateBadge,
+  threadLink,
+} from "./finding_bits.ts";
+
+type Review = ReturnType<typeof prDetail>["reviews"][number];
+type Finding = Review["findings"][number];
+
+/** A finding carried into a later round has a newer copy there. Only the
+ * newest copy of each finding counts, so a finding open for three rounds is
+ * one open finding, not three. */
+export function latestFindings(reviews: Review[]): Finding[] {
+  const all = reviews.flatMap((review) => review.findings);
+  const carried = new Set(
+    all.flatMap((finding) =>
+      finding.carried_from_finding_id ? [finding.carried_from_finding_id] : [],
+    ),
+  );
+  return all.filter((finding) => !carried.has(finding.id));
+}
+
+/** The anchor of each round, `round-4`. When a round was attempted twice the
+ * newest attempt, listed first, keeps the plain anchor. */
+function roundAnchors(reviews: Review[]): Map<string, string> {
+  const anchors = new Map<string, string>();
+  const used = new Set<string>();
+  for (const review of reviews) {
+    let anchor = `round-${review.round}`;
+    for (let n = 2; used.has(anchor); n++)
+      anchor = `round-${review.round}-${n}`;
+    used.add(anchor);
+    anchors.set(review.id, anchor);
+  }
+  return anchors;
+}
 
 export function renderPr(
   username: string,
   fullName: string,
   data: ReturnType<typeof prDetail>,
+  /** The pull request's title, when it is known. */
+  title?: string,
 ): Response {
   const n = data.prNumber;
   const totalCost = totalOfRows(data.reviews);
-  const stateLabel = (state: string) => {
-    if (state === "closed") return "Closed";
-    if (state === "open") return "Still open";
-    return "New";
+  const anchors = roundAnchors(data.reviews);
+  const latest = latestFindings(data.reviews);
+  const openCount = latest.filter((f) => isOpenFinding(f.state)).length;
+  const closedCount = latest.length - openCount;
+  const findingItem = (review: Review, finding: Finding, last: boolean) => {
+    const location = locationLink(fullName, review.head_sha, finding);
+    const thread = threadLink(fullName, n, finding);
+    const links = [location, thread].filter(Boolean).join(" · ");
+    // punctuation: code, a CSS declaration list inside an inline style
+    return `<div class="finding" id="${text(findingAnchor(finding.id))}"${
+      last
+        ? ""
+        : ` style="padding-bottom:18px;border-bottom:1px solid var(--border2);margin-bottom:18px"`
+    }>
+          <div style="margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">${stateBadge(
+            finding.state,
+            finding.close_reason,
+          )}${severityBadge(finding.severity)}<b>${text(finding.title)}</b>${
+            finding.first_seen_review_id
+              ? ` <span class="muted" style="font-size:13px">Seen in an earlier round</span>`
+              : ""
+          }</div>
+          ${links ? `<div class="muted" style="font-size:13px;margin-bottom:8px">${links}</div>` : ""}
+          ${markdown(finding.body_md)}
+          ${referencesHtml(finding.references_json)}
+        </div>`;
   };
-  const findingList = (findings: (typeof data.reviews)[number]["findings"]) => {
-    if (findings.length === 0) {
+  const findingList = (review: Review) => {
+    if (review.findings.length === 0) {
       return empty(
         "No findings",
         "This review did not report anything to fix.",
       );
     }
-    const order = ["new", "open", "closed"];
-    const groups = order
-      .map((state) => ({
-        state,
-        items: findings.filter((f) => (f.state ?? "new") === state),
-      }))
-      .filter((group) => group.items.length > 0);
-    // punctuation: code, a CSS declaration list inside an inline style
-    return groups
-      .map(
-        (group) =>
-          `<div style="margin-bottom:20px">
-        <div class="muted" style="font-size:13px;font-weight:600;margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em">${text(
-          stateLabel(group.state),
-        )}</div>
-        ${group.items
-          .map(
-            (finding, index) =>
-              `<div${
-                index < group.items.length - 1
-                  ? ` style="padding-bottom:18px;border-bottom:1px solid var(--border2);margin-bottom:18px"`
-                  : ""
-              }>
-          <div style="margin-bottom:6px"><b>${text(finding.title)}</b>${
-            finding.first_seen_review_id
-              ? ` <span class="muted" style="font-size:13px">Seen in an earlier round</span>`
-              : ""
-          }</div>
-          <div class="mono muted" style="font-size:13px;margin-bottom:8px">${text(
-            finding.path ? `${finding.path}:${finding.line_from ?? ""}` : "",
-          )}</div>
-          ${markdown(finding.body_md)}
-          ${referencesHtml(finding.references_json)}
-        </div>`,
-          )
-          .join("")}
-      </div>`,
+    // Open first, then closed, each with its own badge.
+    const sorted = [
+      ...review.findings.filter((f) => isOpenFinding(f.state)),
+      ...review.findings.filter((f) => !isOpenFinding(f.state)),
+    ];
+    return sorted
+      .map((finding, index) =>
+        findingItem(review, finding, index === sorted.length - 1),
       )
       .join("");
   };
@@ -83,7 +117,7 @@ export function renderPr(
       : data.reviews
           .map(
             (review, index) =>
-              `<details${index === 0 ? " open" : ""} style="padding:14px 0${
+              `<details id="${text(anchors.get(review.id))}"${index === 0 ? " open" : ""} style="padding:14px 0${
                 index < data.reviews.length - 1
                   ? ";border-bottom:1px solid var(--border2)"
                   : ""
@@ -92,9 +126,9 @@ export function renderPr(
           <b>Round ${text(review.round)}</b>
           <span class="muted"> · ${text(
             (review.head_sha ?? "").slice(0, 7),
-          )} · ${review.findings.length} finding${review.findings.length === 1 ? "" : "s"}</span>
+          )} · ${plural(review.findings.length, "finding")}</span>
         </summary>
-        <div style="padding:16px 4px 4px">${findingList(review.findings)}${renderExtensionResults(review.extensions)}</div>
+        <div style="padding:16px 4px 4px">${findingList(review)}${renderExtensionResults(review.extensions)}</div>
       </details>`,
           )
           .join("");
@@ -111,7 +145,9 @@ export function renderPr(
             ${data.reviews
               .map(
                 (review) =>
-                  `<tr><td>${text(review.round)}</td>
+                  `<tr data-href="/activity/${text(review.job_id)}" style="cursor:pointer"><td><a href="/activity/${text(
+                    review.job_id,
+                  )}" title="Open the log of this round">Round ${text(review.round)}</a></td>
               <td>${when(review.created_at)}</td>
               <td class="mono">${text((review.head_sha ?? "").slice(0, 7))}</td>
               <td class="muted">${text(
@@ -119,22 +155,23 @@ export function renderPr(
                   ? "Changes since the last review"
                   : "Whole pull request",
               )}</td>
-              <td class="num">${review.findings_count}</td>
+              <td class="num"><a href="#${text(anchors.get(review.id))}">${review.findings_count}</a></td>
               <td class="num">${formatCost(review)}${extensionCostNote(review.extensions)}</td></tr>`,
               )
               .join("")}
           </tbody>
         </table>`;
+  const heading = title ? `#${n} ${title}` : `#${n}`;
   return html(
     layout({
-      title: `#${n} · co-maintainer`,
+      title: `${heading} · co-maintainer`,
       username,
       active: "/",
       body: `<div class="wrap">
   ${repoHeader({
     fullName,
     tab: "pulls",
-    title: `#${n}`,
+    title: heading,
     tabLabel: "Pull requests",
     deeper: [{ label: `#${n}` }],
     lead: `${plural(data.reviews.length, "review")} on record`,
@@ -143,12 +180,11 @@ export function renderPr(
   })}
   <div data-async>
     ${skSlot()}
-    <div class="card">
+    <div class="card" id="findings">
       <div class="hd"><h2>Findings</h2>
-        <span class="muted" style="margin-left:auto;font-size:13px">${plural(
-          data.reviews.reduce((sum, review) => sum + review.findings.length, 0),
-          "finding",
-        )} across ${plural(data.reviews.length, "review")}</span></div>
+        <span class="muted" style="margin-left:auto;font-size:13px">${text(
+          `${openCount} open, ${closedCount} closed`,
+        )}</span></div>
       <div class="bd">${findingsBlock}</div>
     </div>
     <div class="card">
@@ -166,6 +202,23 @@ document.getElementById("again").addEventListener("click", function() {
     fullName,
   )} + "/pulls/${n}/review", {}, "/activity", this);
 });
+document.querySelectorAll("tr[data-href]").forEach(function(row) {
+  row.addEventListener("click", function(event) {
+    if (event.target.closest("a")) return;
+    location.href = row.getAttribute("data-href");
+  });
+});
+// A link to a round or a finding opens the round it sits in.
+function openTarget() {
+  var id = decodeURIComponent(location.hash.slice(1));
+  var target = id ? document.getElementById(id) : null;
+  if (!target) return;
+  var round = target.tagName === "DETAILS" ? target : target.closest("details");
+  if (round) round.open = true;
+  target.scrollIntoView({ block: "start" });
+}
+openTarget();
+window.addEventListener("hashchange", openTarget);
 </script>`,
     }),
   );

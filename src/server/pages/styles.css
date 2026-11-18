@@ -2409,6 +2409,14 @@ html.dark {
   }
 }
 
+/* A finding a link pointed at. */
+.app .finding:target {
+  scroll-margin-top: 16px;
+  box-shadow:
+    -8px 0 0 var(--card),
+    -10px 0 0 var(--primary);
+}
+
 /* A table that must fit its card: long names wrap instead of scrolling. */
 .app table.fit td.wrap {
   overflow-wrap: anywhere;
