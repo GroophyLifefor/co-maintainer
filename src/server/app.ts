@@ -261,7 +261,7 @@ export function createApp(deps: AppDeps): App {
           );
         }
         if (url.pathname.startsWith("/api/activity")) {
-          return handleActivityRoute(request, url);
+          return await handleActivityRoute(request, url);
         }
         if (url.pathname === "/api/analytics") {
           return handleAnalyticsRoute(request, url);

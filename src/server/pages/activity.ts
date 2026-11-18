@@ -11,6 +11,7 @@ import { crumb, icon, pageHeader } from "./ui.ts";
 import { cancelReasonText, jobKindText } from "./activity_words.ts";
 import { readConfig, resolveAppPrivateKey } from "../../config.ts";
 import { getLogsSince } from "../../services/jobs.ts";
+import { modelOf } from "../../services/activity_actions.ts";
 import {
   listRateLimitWaits,
   summarizeRateLimitWaits,
@@ -458,9 +459,7 @@ export function failedModel(
   args: Record<string, unknown>,
   review: ReviewRow | undefined,
 ): string | undefined {
-  const fromReview =
-    review?.model && review.model !== "unknown" ? review.model : undefined;
-  return fromReview ?? asString(args.model);
+  return modelOf(args, review);
 }
 
 function failedBody(

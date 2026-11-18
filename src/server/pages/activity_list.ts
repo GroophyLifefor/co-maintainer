@@ -38,6 +38,10 @@ import type {
   skippedDeliveries,
 } from "../../services/dashboard.ts";
 import type { ActivityRow } from "../../store/activity.ts";
+import {
+  type RetryTarget,
+  retryTarget,
+} from "../../services/activity_actions.ts";
 import type { DeliveryRow, ReviewRow } from "../../store/rows.ts";
 
 /** The label of a review row whose job row is gone. */
@@ -123,6 +127,41 @@ function subjectCell(row: ActivityRow): string {
   }`;
 }
 
+/** The request a Retry button sends, the same one the job page sends. */
+function retryRequest(target: RetryTarget): {
+  url: string;
+  body: Record<string, string>;
+} {
+  if (target.kind === "sync") {
+    return { url: `/api/repos/${target.repo}/remake`, body: {} };
+  }
+  return {
+    url: `/api/repos/${target.repo}/pulls/${target.pr}/review`,
+    body: target.model ? { model: target.model } : {},
+  };
+}
+
+/** A failed row nobody dismissed and no later review resolved. */
+function isOpenFailure(row: ActivityRow): boolean {
+  return (
+    row.state === "failed" &&
+    !(row.job?.seen_at ?? row.review?.seen_at) &&
+    !(row.job?.resolved_by ?? row.review?.resolved_by)
+  );
+}
+
+/** What a failure became: dismissed, or resolved by a later review. */
+function settledMark(row: ActivityRow): string {
+  if (row.state !== "failed") return "";
+  if (row.job?.resolved_by ?? row.review?.resolved_by) {
+    return ` ${badge("emerald", "Resolved by a later review")}`;
+  }
+  if (row.job?.seen_at ?? row.review?.seen_at) {
+    return ` ${badge("neutral", "Dismissed")}`;
+  }
+  return "";
+}
+
 function activityRow(row: ActivityRow): string {
   const { job, review } = row;
   // Every row opens its log. A review whose job row is gone has no log left,
@@ -133,13 +172,32 @@ function activityRow(row: ActivityRow): string {
       ? reviewResultHref(review)
       : "/activity";
   const label = job ? jobKindText(job) : review ? reviewKindText(review) : "";
-  return `<tr data-href="${escapeHtml(href)}">
+  const resolved = Boolean(row.job?.resolved_by ?? row.review?.resolved_by);
+  const target = resolved ? undefined : retryTarget(job, review);
+  const open = isOpenFailure(row);
+  const retry = target ? retryRequest(target) : undefined;
+  const actions = [
+    retry
+      ? `<button class="btn sm" type="button" data-post="${escapeHtml(retry.url)}" data-body="${escapeHtml(
+          JSON.stringify(retry.body),
+        )}" data-next="here">Retry</button>`
+      : "",
+    open
+      ? `<button class="btn out sm" type="button" data-post="/api/activity/dismiss" data-body="${escapeHtml(
+          JSON.stringify({ keys: [row.key] }),
+        )}" data-next="here">Dismiss</button>`
+      : "",
+  ].join("");
+  return `<tr data-href="${escapeHtml(href)}" data-key="${escapeHtml(row.key)}"${
+    open ? ` data-dismiss="1"` : ""
+  }${retry ? ` data-retry="1"` : ""}>
     <td class="wrap"><a class="strong" href="${escapeHtml(href)}">${text(label)}</a></td>
     <td class="wrap">${subjectCell(row)}</td>
-    <td class="wrap">${resultCell(row)}</td>
+    <td class="wrap">${resultCell(row)}${settledMark(row)}</td>
     <td class="num">${review ? formatCost(review) : ""}</td>
     <td class="muted">${when(row.at)}</td>
     <td>${statusCell(row)}</td>
+    <td class="row-acts">${actions}</td>
   </tr>`;
 }
 
@@ -381,7 +439,7 @@ export function renderActivity(
           )
         : empty("Nothing yet", "Jobs and reviews will show up here.")
       : `<table class="fit">
-        <thead><tr><th>What</th><th>Repository</th><th>Result</th><th class="num">Cost</th><th>When</th><th>Status</th></tr></thead>
+        <thead><tr><th>What</th><th>Repository</th><th>Result</th><th class="num">Cost</th><th>When</th><th>Status</th><th aria-label="Actions"></th></tr></thead>
         <tbody>${feed.items.map(activityRow).join("")}</tbody>
       </table>
       ${pager(feed, query)}`;
@@ -391,6 +449,32 @@ export function renderActivity(
         query.status === "failed" ? "failure" : "row",
       )} that ${feed.total === 1 ? "fits" : "fit"} this filter.</div><a class="btn out sm" href="/activity">Show all</a></div>`
     : "";
+  // The failed list shows what still needs a look. Dismissed and resolved
+  // failures stay in the history, one click away.
+  const failedTools =
+    query.status === "failed"
+      ? `<div class="filters failed-tools">${
+          query.settled
+            ? `<a class="btn out sm" href="${escapeHtml(
+                activityHref(query, { settled: undefined }),
+              )}">Hide dismissed and resolved</a>`
+            : feed.settled > 0
+              ? `<a class="btn out sm" href="${escapeHtml(
+                  activityHref(query, { settled: 1 }),
+                )}">Show dismissed and resolved (${feed.settled})</a>`
+              : ""
+        }${
+          !query.settled && feed.total > 0
+            ? `<button class="btn out sm" type="button" data-post="/api/activity/dismiss" data-body="${escapeHtml(
+                JSON.stringify(
+                  query.repo ? { all: true, repo: query.repo } : { all: true },
+                ),
+              )}" data-next="here" data-confirm="${escapeHtml(
+                `Dismiss ${plural(feed.total, "failure")}${query.repo ? ` of ${query.repo}` : ""}? They stay in the history.`,
+              )}">Dismiss all</button>`
+            : ""
+        }</div>`
+      : "";
   return html(
     layout({
       title: "Activity · co-maintainer",
@@ -404,6 +488,7 @@ export function renderActivity(
   ${live}
   ${filtersBlock(query, repos)}
   ${filterNotice}
+  ${failedTools}
   <div class="card">
     <div class="hd"><h2>Recent</h2></div>
     <div class="bd flush">${recent}</div>

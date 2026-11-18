@@ -2238,6 +2238,14 @@ html.dark {
 .app .side .nav a .r.fail-count {
   color: var(--red-t);
 }
+/* Retry and Dismiss on a failed Activity row. */
+.app td.row-acts {
+  white-space: nowrap;
+  text-align: right;
+}
+.app td.row-acts .btn + .btn {
+  margin-left: 6px;
+}
 /* A failed count in a table opens the failed list. */
 .app a.sub.fail-link {
   color: var(--red-t);

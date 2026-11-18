@@ -834,11 +834,16 @@ document.addEventListener("DOMContentLoaded", function () {
       );
       return;
     }
+    const question = btn.getAttribute("data-confirm");
+    if (question && !confirm(question)) return;
     const body = btn.getAttribute("data-body");
+    // `data-next="here"` reloads the page the button is on, so a filtered
+    // list keeps its filter after a Retry or a Dismiss.
+    const next = btn.getAttribute("data-next");
     postAndGo(
       btn.getAttribute("data-post"),
       body ? JSON.parse(body) : {},
-      "/activity",
+      next === "here" ? location.href : next || "/activity",
       btn,
     );
   });

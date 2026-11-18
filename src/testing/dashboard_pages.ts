@@ -13,8 +13,15 @@ export type PageGet = (path: string) => Promise<{
   html: string;
 }>;
 
+/** A JSON call to the dashboard API as the signed-in user. */
+export type ApiSend = (
+  method: string,
+  path: string,
+  body?: unknown,
+) => Promise<{ status: number; json: Record<string, unknown> }>;
+
 export async function withDashboard(
-  fn: (get: PageGet) => Promise<void>,
+  fn: (get: PageGet, send: ApiSend) => Promise<void>,
   config: Record<string, unknown> = {},
 ): Promise<void> {
   await withIsolatedHome(async () => {
@@ -34,14 +41,37 @@ export async function withDashboard(
         /^cm=([^;]+)/,
       )?.[1];
       if (!token) throw new Error(`sign-in failed: ${login.status}`);
-      await fn(async (path) => {
-        const response = await app.fetch(
-          new Request(`http://localhost${path}`, {
-            headers: { cookie: `cm=${token}` },
-          }),
-        );
-        return { status: response.status, html: await response.text() };
-      });
+      await fn(
+        async (path) => {
+          const response = await app.fetch(
+            new Request(`http://localhost${path}`, {
+              headers: { cookie: `cm=${token}` },
+            }),
+          );
+          return { status: response.status, html: await response.text() };
+        },
+        async (method, path, body) => {
+          const response = await app.fetch(
+            new Request(`http://localhost${path}`, {
+              method,
+              headers: {
+                cookie: `cm=${token}`,
+                "content-type": "application/json",
+                "x-requested-with": "co-maintainer",
+              },
+              body: body === undefined ? undefined : JSON.stringify(body),
+            }),
+          );
+          const textBody = await response.text();
+          let json: Record<string, unknown> = {};
+          try {
+            json = textBody ? JSON.parse(textBody) : {};
+          } catch {
+            json = { text: textBody };
+          }
+          return { status: response.status, json };
+        },
+      );
     } finally {
       closeAppDb();
     }
