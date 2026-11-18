@@ -110,7 +110,7 @@ test("no sentence shows a raw code, a dash joined word or an underscore", () => 
     if (!sentence || /_|\b[a-z]+-[a-z]+-[a-z]+\b/.test(sentence)) {
       throw new Error(`not plain words: ${sentence}`);
     }
-    if (/;/.test(sentence) || sentence.includes("—")) {
+    if (/;/.test(sentence) || sentence.includes(String.fromCharCode(0x2014))) {
       throw new Error(`bad punctuation: ${sentence}`);
     }
   }
