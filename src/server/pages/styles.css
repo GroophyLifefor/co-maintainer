@@ -195,9 +195,21 @@ tr:last-child td {
 tbody tr:hover {
   background: #fafafb;
 }
-.num {
+.num,
+.app th.num,
+.focus th.num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+.nowrap {
+  white-space: nowrap;
+}
+.inline-lbl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
 }
 
 /* status text, not badges */
