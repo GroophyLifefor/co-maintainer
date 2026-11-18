@@ -402,6 +402,7 @@ type FindingRow = {
   line_from: number | null;
   line_to: number | null;
   body_md: string;
+  title: string;
   state: string;
   anchor_text: string | null;
   posted_comment_id: string | null;
@@ -570,16 +571,18 @@ function firstRound(sim: Sim): CheckResult[] {
   ];
 }
 
-/** The documented rule (docs/md/review.md): no open finding approves.
- * With open findings `model` requests changes, `severity` requests changes
- * for a P0 or P1 and comments otherwise. */
+/** The documented rule (docs/md/review.md, #137): a review with no open
+ * blocking finding approves, otherwise it requests changes. `model` reads the
+ * model's own label in the title, a P0 always blocking. `severity` blocks on
+ * P0 and P1. Written here rather than imported, so a product change fails. */
 function expectedEvent(rows: FindingRow[], mode: string): string {
-  const open = rows.filter((row) => row.state !== "closed");
-  if (open.length === 0) return "APPROVE";
-  if (mode !== "severity") return "REQUEST_CHANGES";
-  return open.some((row) => row.severity === "P0" || row.severity === "P1")
+  const blocks = (row: FindingRow) =>
+    mode === "severity"
+      ? row.severity === "P0" || row.severity === "P1"
+      : row.severity === "P0" || /·\s*blocking\]/i.test(row.title);
+  return rows.some((row) => row.state !== "closed" && blocks(row))
     ? "REQUEST_CHANGES"
-    : "COMMENT";
+    : "APPROVE";
 }
 
 function eventRule(sim: Sim): CheckResult[] {
@@ -603,7 +606,7 @@ function eventRule(sim: Sim): CheckResult[] {
     scriptedCheck(
       sim,
       "review event follows the blocking rule",
-      wrong.length === 0 && seen.length === steps.length && all.size === 3,
+      wrong.length === 0 && seen.length === steps.length && all.size === 2,
       detail,
       "the scripted findings make a review of each kind, and a real model's may not",
     ),
