@@ -213,7 +213,7 @@ export async function loadCompanions(
 }
 
 /** `true` private, `false` public, `null` when GitHub did not say. */
-async function visibility(
+export async function repoVisibility(
   client: Pick<GitHubClient, "request"> | undefined,
   repo: string,
 ): Promise<boolean | null> {
@@ -239,8 +239,8 @@ export async function readCompanionVisibility<T extends Companion>(
 ): Promise<T[]> {
   if (companions.length === 0) return companions;
   const [reviewed, ...each] = await Promise.all([
-    visibility(client, reviewedRepo),
-    ...companions.map((companion) => visibility(client, companion.repo)),
+    repoVisibility(client, reviewedRepo),
+    ...companions.map((companion) => repoVisibility(client, companion.repo)),
   ]);
   return companions.map((companion, index) => ({
     ...companion,

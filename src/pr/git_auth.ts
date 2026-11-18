@@ -7,6 +7,7 @@
  * written to `.git/config`, never on the command line where `ps` shows it, and
  * git does not print the header in its errors. */
 import { cloneDir } from "../config.ts";
+import { getEnv } from "../util/runtime.ts";
 
 type TokenSource = () => Promise<string>;
 
@@ -43,9 +44,13 @@ export async function gitAuthEnv(
     );
   }
   const basic = Buffer.from(`x-access-token:${token}`).toString("base64");
+  // After the `GIT_CONFIG_*` entries the environment already holds, so git
+  // keeps them. Replacing them dropped a URL rewrite set that way.
+  const held = Number(getEnv("GIT_CONFIG_COUNT") ?? "0");
+  const at = Number.isInteger(held) && held > 0 ? held : 0;
   return {
-    GIT_CONFIG_COUNT: "1",
-    GIT_CONFIG_KEY_0: "http.https://github.com/.extraheader",
-    GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${basic}`,
+    GIT_CONFIG_COUNT: String(at + 1),
+    [`GIT_CONFIG_KEY_${at}`]: "http.https://github.com/.extraheader",
+    [`GIT_CONFIG_VALUE_${at}`]: `AUTHORIZATION: basic ${basic}`,
   };
 }

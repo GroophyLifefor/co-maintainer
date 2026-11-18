@@ -415,4 +415,8 @@ export const migrations: string[][] = [
     `ALTER TABLE subjects ADD COLUMN reviews_off_at TEXT`,
     `ALTER TABLE subjects ADD COLUMN reviews_off_by TEXT`,
   ],
+  // 19: the companion pull requests an App review read (repository, branch
+  // and a hash of each), so a companion that changed rechecks the carried
+  // findings. NULL for a review without companions.
+  [`ALTER TABLE subject_revisions ADD COLUMN companions_json TEXT`],
 ];

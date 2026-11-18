@@ -104,6 +104,12 @@ import {
   referencesJson,
 } from "../review/references.ts";
 import { addExtensionCost } from "../extensions/cost.ts";
+import {
+  appReviewCompanions,
+  companionsChangedSince,
+} from "./review_companions.ts";
+import { rechecked } from "../cli/review_carry.ts";
+import type { ReviewCompanions } from "../pr/companion_tools.ts";
 
 const ACCESS_DENIED_BODY =
   "The App does not have access to review this pull request.";
@@ -311,6 +317,8 @@ export interface ReviewMetadata {
   tools?: ToolUsage;
   /** The MCP servers the review ran, by name only. */
   mcpServers?: string[];
+  /** The `- Companions:` line, `""` or left out without companions. */
+  companions?: string;
 }
 
 /** `- Tools: 11 calls · MCP: tracker`, or nothing when no tool ran and no
@@ -343,6 +351,7 @@ function metadataBlock({
   coverage,
   tools,
   mcpServers,
+  companions,
 }: ReviewMetadata): string {
   return (
     `\n\n<details>\n<summary>Metadata</summary>\n\n` +
@@ -352,6 +361,7 @@ function metadataBlock({
     `- Duration: ${formatDuration(durationMs)}\n` +
     (coverage ? `- Coverage: ${coverageCounts(coverage)}\n` : "") +
     toolsMetadataLine(tools, mcpServers) +
+    (companions ?? "") +
     `</details>`
   );
 }
@@ -1152,6 +1162,28 @@ async function runReviewJobCore(
   if (!checkRunId) {
     checkRunId = await startCheck(github, job, reviewId, headSha, log);
   }
+  // Companion pull requests, each read with the App client of its own
+  // installation. A companion that changed since the last round rechecks
+  // the carried findings, so the round covers the whole pull request.
+  const companions = await appReviewCompanions({
+    repo: job.repo,
+    pr,
+    github,
+    log,
+    clientFor: async (name) => {
+      const id = await resolveInstallationId(name);
+      return id === undefined ? undefined : clientFor(id);
+    },
+  });
+  const companionChanged = companionsChangedSince(
+    getSubjectRevision(subject.id),
+    companions.records,
+  );
+  if (companionChanged && scope === "incremental") {
+    log("info", "a companion changed, reviewing the whole pull request");
+    scope = "whole-pr";
+    reviewBase = mergeBase;
+  }
 
   let snapshot: Snapshot | undefined;
   let files: Json[] = [];
@@ -1235,7 +1267,13 @@ async function runReviewJobCore(
     resend?: Json[];
     signal?: AbortSignal;
     mcpForkRule?: boolean;
-  } = { catchesUp, signal, mcpForkRule: true };
+    companions?: ReviewCompanions;
+  } = {
+    catchesUp,
+    signal,
+    mcpForkRule: true,
+    ...(companions.extras ? { companions: companions.extras } : {}),
+  };
   // A guide rebuilt after the previous review invalidates that review's
   // verdicts and its "unchanged" suppression. Treat the run as
   // if it had started fresh: carry-over off, every changed file back in scope,
@@ -1265,9 +1303,10 @@ async function runReviewJobCore(
         return due.has(path) && !compared.has(path);
       });
     }
+    // A finding on a companion file has no path, and is never carried.
     const storedRows = listCarryableFindingsForReview(
       subjectRevision.review_id,
-    );
+    ).filter((row) => row.path !== null);
     const replies = await findingReplies(github, job, storedRows, log);
     carryPrevious = {
       files: prevFiles,
@@ -1288,11 +1327,14 @@ async function runReviewJobCore(
       })),
       guideBuiltAt: subjectRevision.guide_built_at,
     };
-    carryItems = classifyCarryItems(
-      carryPrevious,
-      revision,
-      carryPrevious.visiblePaths,
-      guidesBefore.guideBuiltAt,
+    carryItems = rechecked(
+      classifyCarryItems(
+        carryPrevious,
+        revision,
+        carryPrevious.visiblePaths,
+        guidesBefore.guideBuiltAt,
+      ),
+      companionChanged,
     );
     extras.carryPrompt = buildCarryPromptSection(carryItems, revision);
   }
@@ -1360,11 +1402,9 @@ async function runReviewJobCore(
   guideBuiltAt = response.guideBuiltAt;
   const visiblePaths = new Set(response.visiblePaths);
   if (carryPrevious) {
-    carryItems = classifyCarryItems(
-      carryPrevious,
-      revision,
-      visiblePaths,
-      guideBuiltAt,
+    carryItems = rechecked(
+      classifyCarryItems(carryPrevious, revision, visiblePaths, guideBuiltAt),
+      companionChanged,
     );
   }
   const { kept: parsed, dropped: repeatsOfWithdrawn } = withoutWithdrawn(
@@ -1473,6 +1513,21 @@ async function runReviewJobCore(
       });
     }
   }
+  // A finding the model placed on a companion file has no location: the
+  // summary lists it, labeled with the companion.
+  for (const row of response.companionFindings ?? []) {
+    insertFinding({
+      id: row.id,
+      reviewId,
+      severity: row.severity,
+      title: row.title,
+      bodyMd: redact(row.bodyMd),
+      anchorText: null,
+      state: "new",
+      referencesJson: referencesJson(row, job.repo, response.referenceContext),
+    });
+    totalFindings++;
+  }
   addExtensionCost(costTally, extensions);
   setReviewStatus(reviewId, "drafting", {
     findings_count: totalFindings,
@@ -1495,6 +1550,7 @@ async function runReviewJobCore(
       ),
     ],
     guideBuiltAt,
+    companions: companions.records,
   });
   log("info", `publishing ${totalFindings} finding(s) to GitHub`);
   await publish(
@@ -1512,6 +1568,7 @@ async function runReviewJobCore(
       catchesUp,
       tools: response.tools,
       mcpServers: response.mcpServers,
+      companions: companions.metadata,
     },
     options.reviewBlocking,
     extensions,

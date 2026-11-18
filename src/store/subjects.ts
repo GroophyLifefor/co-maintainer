@@ -1,6 +1,7 @@
 import { getAppDb } from "./app_db.ts";
 import { nowIso } from "../util/time.ts";
 import type { RevisionFile } from "../review/revision.ts";
+import type { CompanionRecord } from "../review/companions.ts";
 import type { SubjectRevisionRow, SubjectRow } from "./rows.ts";
 
 export function getOrCreateRemoteSubject(
@@ -83,19 +84,23 @@ export function saveSubjectRevision(input: {
   files: RevisionFile[];
   visiblePaths: string[];
   guideBuiltAt: string | null;
+  /** The companions the review read. Left out or empty, the column is
+   * NULL. */
+  companions?: CompanionRecord[];
 }): void {
   const createdAt = nowIso();
   getAppDb()
     .prepare(
       `INSERT INTO subject_revisions
-       (subject_id, review_id, files_json, visible_paths_json, guide_built_at, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)
+       (subject_id, review_id, files_json, visible_paths_json, guide_built_at, created_at, companions_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(subject_id) DO UPDATE SET
        review_id = excluded.review_id,
        files_json = excluded.files_json,
        visible_paths_json = excluded.visible_paths_json,
        guide_built_at = excluded.guide_built_at,
-       created_at = excluded.created_at`,
+       created_at = excluded.created_at,
+       companions_json = excluded.companions_json`,
     )
     .run(
       input.subjectId,
@@ -104,6 +109,7 @@ export function saveSubjectRevision(input: {
       JSON.stringify(input.visiblePaths),
       input.guideBuiltAt,
       createdAt,
+      input.companions?.length ? JSON.stringify(input.companions) : null,
     );
   getAppDb()
     .prepare(`UPDATE subjects SET updated_at = ? WHERE id = ?`)
@@ -116,6 +122,20 @@ export function parseRevisionFiles(row: SubjectRevisionRow): RevisionFile[] {
 
 export function parseVisiblePaths(row: SubjectRevisionRow): Set<string> {
   return new Set(JSON.parse(row.visible_paths_json) as string[]);
+}
+
+/** The companions a stored revision recorded, `undefined` when it has
+ * none. */
+export function parseCompanionRecords(
+  row: SubjectRevisionRow,
+): CompanionRecord[] | undefined {
+  if (!row.companions_json) return undefined;
+  try {
+    const parsed = JSON.parse(row.companions_json) as unknown;
+    return Array.isArray(parsed) ? (parsed as CompanionRecord[]) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Who turned reviews off for this pull request, or `undefined` while they

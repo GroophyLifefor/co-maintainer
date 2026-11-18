@@ -102,6 +102,10 @@ export type RepoConfig = {
    * in full, the others edit it. Unset means 10, `1` always rewrites, `0`
    * never rewrites after `init`. */
   guideFullEvery?: number;
+  /** Repositories, as `owner/repo`, whose pull requests a review of this one
+   * may read as companions: named by a `Companion:` line in the pull request
+   * body, or found by the same head branch name. At most 5. */
+  companions?: string[];
 };
 
 export type UserConfig = {
