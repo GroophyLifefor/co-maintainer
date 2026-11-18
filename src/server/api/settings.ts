@@ -19,6 +19,11 @@ import type { PasswordStore } from "../auth.ts";
 import { passwordProblem } from "../../util/password.ts";
 import { readJsonObject } from "./json_body.ts";
 import { policyToStore } from "../../services/review_policy.ts";
+import {
+  audit,
+  settingChanges,
+  settingsSnapshot,
+} from "../../services/audit.ts";
 
 function validateWebhookUrl(value: unknown): string | undefined {
   if (typeof value !== "string" || !value.trim()) {
@@ -54,6 +59,7 @@ async function changePassword(
     );
   }
   await passwords.set(next);
+  audit("settings", "Changed the dashboard password");
   const token = readSessionToken(request);
   if (token) await revokeOtherSessions(token);
   return Response.json({ ok: true });
@@ -158,6 +164,19 @@ export async function handleSettingsRoute(
         );
       }
       patch.remoteByokPolicy = policy;
+    }
+    // The server default the setup wizard saves. A repository's own rule
+    // still wins.
+    if ("reviewBlocking" in body) {
+      const blocking = body.reviewBlocking;
+      if (blocking !== "model" && blocking !== "severity") {
+        return errorResponse(
+          422,
+          "invalid_setting",
+          "reviewBlocking must be model or severity",
+        );
+      }
+      patch.reviewBlocking = blocking;
     }
     if (typeof body.passwordAuthDisabled === "boolean") {
       patch.passwordAuthDisabled = body.passwordAuthDisabled;
@@ -305,7 +324,12 @@ export async function handleSettingsRoute(
         return errorResponse(422, "app_access", app.message);
       }
     }
+    const before = settingsSnapshot();
     await writeUserConfig(patch);
+    const changes = settingChanges(before, settingsSnapshot());
+    if (changes.length > 0) {
+      audit("settings", "Changed settings", { changes });
+    }
     return Response.json({ ok: true });
   }
 

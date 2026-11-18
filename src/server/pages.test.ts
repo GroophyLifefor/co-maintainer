@@ -535,7 +535,7 @@ test("the knowledge page counts new and changed pull requests apart", async () =
     ).text();
     for (const needle of [
       "2 new pull requests",
-      "1 changed pull requests",
+      "1 changed pull request<",
       "4 new commits",
       "3 changed files",
     ]) {
@@ -1376,12 +1376,15 @@ test("the App manifest callback URL follows the trusted proxy host", async () =>
   });
 });
 
-test("money keeps sub-cent costs visible", () => {
+test("money keeps sub-cent costs visible with at most four decimals", () => {
   if (money(0) !== "$0.00") throw new Error(money(0));
   if (money(2.41) !== "$2.41") throw new Error(money(2.41));
   if (money(0.01) !== "$0.01") throw new Error(money(0.01));
-  if (money(0.0002118) !== "$0.0002118") throw new Error(money(0.0002118));
+  if (money(0.0002118) !== "$0.0002") throw new Error(money(0.0002118));
   if (money(0.001) !== "$0.001") throw new Error(money(0.001));
+  if (money(0.0096146) !== "$0.0096") throw new Error(money(0.0096146));
+  if (money(0.00996) !== "$0.01") throw new Error(money(0.00996));
+  if (money(0.00001) !== "<$0.0001") throw new Error(money(0.00001));
 });
 
 test("finding markdown renders safely", () => {
@@ -1544,4 +1547,100 @@ test("the stylesheet ships the design tokens, the embedded font and dark theme",
   if (css.includes("fonts.googleapis.com")) {
     throw new Error("styles still points at a font CDN");
   }
+});
+
+test("every repository tab has the same breadcrumb, title and tabs order", async () => {
+  await withEnv(async () => {
+    seed();
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const tabs: [string, string][] = [
+      ["", ""],
+      ["/pulls", "Pull requests"],
+      ["/pulls/7", "Pull requests"],
+      ["/knowledge", "Knowledge"],
+      ["/remote", "Remote reviews"],
+      ["/pushes", "Pushes"],
+      ["/settings", "Repository settings"],
+    ];
+    for (const [suffix, label] of tabs) {
+      const html = await (
+        await app.fetch(
+          new Request(`http://localhost/repos/acme/widgets${suffix}`, {
+            headers: { cookie },
+          }),
+        )
+      ).text();
+      const crumb = html.match(/<div class="crumb">([\s\S]*?)<\/div>/)?.[1];
+      if (!crumb?.startsWith('<a href="/">Repositories</a>')) {
+        throw new Error(`${suffix}: no Repositories crumb`);
+      }
+      if (!crumb.includes("acme/widgets")) {
+        throw new Error(`${suffix}: the crumb misses the repository`);
+      }
+      if (label && !crumb.includes(label)) {
+        throw new Error(`${suffix}: the crumb misses ${label}`);
+      }
+      if (html.includes('class="crumbs"')) {
+        throw new Error(`${suffix}: still the old slash breadcrumb`);
+      }
+      const h1 = html.indexOf("<h1>");
+      if (h1 < 0 || h1 > html.indexOf('<nav class="tabs">')) {
+        throw new Error(`${suffix}: the title is not above the tabs`);
+      }
+    }
+  });
+});
+
+test("the knowledge page has no empty History card while no history is kept", async () => {
+  await withEnv(async () => {
+    seed();
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const html = await (
+      await app.fetch(
+        new Request("http://localhost/repos/acme/widgets/knowledge", {
+          headers: { cookie },
+        }),
+      )
+    ).text();
+    if (html.includes("<h2>History</h2>")) {
+      throw new Error("the empty History card is still shown");
+    }
+  });
+});
+
+test("an empty state that names a place links to it", async () => {
+  await withEnv(async () => {
+    seed();
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const get = async (path: string) =>
+      await (
+        await app.fetch(
+          new Request(`http://localhost${path}`, { headers: { cookie } }),
+        )
+      ).text();
+    const remote = await get("/repos/acme/widgets/remote");
+    if (
+      !/a token from <a href="\/settings\/remote">Settings<\/a>/.test(remote)
+    ) {
+      throw new Error("the remote reviews empty state does not link Settings");
+    }
+    if (!remote.includes(">Create a token</a>")) {
+      throw new Error("the remote reviews empty state has no action");
+    }
+    const pushes = await get("/repos/acme/widgets/pushes");
+    if (
+      !pushes.includes('token from <a href="/settings/remote">Settings</a>')
+    ) {
+      throw new Error("the commit watch CI row does not link Settings");
+    }
+    const pulls = await get("/repos/acme/widgets/pulls");
+    if (!pulls.includes('<a href="/settings/github">Settings</a>')) {
+      throw new Error(
+        "the open pull requests empty state does not link Settings",
+      );
+    }
+  });
 });

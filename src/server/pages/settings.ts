@@ -1,4 +1,7 @@
 import { html, layout, skSlot, text } from "./layout.ts";
+import { SAVE_STATE } from "./ui.ts";
+import { UPDATES_SCRIPT, updatesCard } from "./updates.ts";
+import { updateNotice } from "../../services/update_check.ts";
 import type { UserConfig } from "../../config.ts";
 import {
   aiConfigured,
@@ -275,7 +278,7 @@ function runtimeCard(runtime: RuntimeInfo): string {
 }
 
 function serverCard(config: UserConfig, runtime: RuntimeInfo): string {
-  return `${runtimeCard(runtime)}<div class="card" id="server" data-async>
+  return `${runtimeCard(runtime)}${updatesCard(updateNotice())}<div class="card" id="server" data-async>
       ${skSlot()}
       <div class="hd"><h2>Job queue</h2></div>
       <div class="bd">
@@ -313,7 +316,7 @@ function remoteCard(config: UserConfig): string {
         <div id="remote-token-list" class="muted">Loading…</div>
         <div class="two" style="max-width:none;margin-top:16px">
           <div class="field"><label>New token name</label>
-            <input id="remote-token-name" placeholder="e.g. laptop"></div>
+            <input id="remote-token-name" placeholder="e.g. laptop" data-no-dirty></div>
         </div>
         <div class="field wide" style="margin-top:16px"><label>Client key policy (BYOK)</label>
           <select id="remote-byok-policy">
@@ -390,7 +393,7 @@ function dangerCard(): string {
       <div class="hd"><h2>Clear all knowledge</h2></div>
       <div class="bd">
         <p class="muted" style="margin:0 0 16px">Delete every repository's guides and saved settings on this server. Repository records, reviews and tokens stay, so this is not an uninstall.</p>
-        <div class="field wide"><label><input type="checkbox" id="clear-all-cache"> Also delete the cached evidence: pull request listings, costs, clones and worktrees</label></div>
+        <div class="field wide"><label><input type="checkbox" id="clear-all-cache" data-no-dirty> Also delete the cached evidence: pull request listings, costs, clones and worktrees</label></div>
       </div>
       <div class="ft"><button id="clear-all" style="color:var(--red)">Clear all knowledge</button></div>
     </div>`;
@@ -444,6 +447,7 @@ function cardForSection(
 const SCRIPT_COMMON = `
 function save(btn, body) {
   var card = btn.closest("[data-async]");
+  saveStarted(card);
   run(btn, card, async function() {
     await api("PUT", "/api/settings", body);
     saved(btn, card);
@@ -701,6 +705,7 @@ document.getElementById("save-password").addEventListener("click", function() {
     fail(card, "The two new passwords do not match.", function () {});
     return;
   }
+  saveStarted(card);
   run(btn, card, async function() {
     await api("POST", "/api/settings/password", {
       currentPassword: document.getElementById("pw-current").value,
@@ -709,6 +714,7 @@ document.getElementById("save-password").addEventListener("click", function() {
     ["pw-current", "pw-new", "pw-repeat"].forEach(function(id) {
       document.getElementById(id).value = "";
     });
+    markSaved(card);
     toast("Password changed");
   });
 });
@@ -731,7 +737,7 @@ const SCRIPT_BY_SECTION: Record<SettingsSection, string> = {
   github: SCRIPT_GITHUB,
   defaults: SCRIPT_DEFAULTS,
   remote: SCRIPT_REMOTE,
-  server: SCRIPT_SERVER,
+  server: SCRIPT_SERVER + UPDATES_SCRIPT,
   "sign-in": SCRIPT_SIGNIN,
   danger: SCRIPT_DANGER,
 };
@@ -825,7 +831,8 @@ function settingsPage(
       active,
       body: `<div class="wrap">
   <div class="pagehead"><div><h1>${text(heading)}</h1>
-    <p class="lead">Used by every repository unless it overrides them.</p></div></div>
+    <p class="lead">Used by every repository unless it overrides them.</p></div>
+    <div class="actions">${SAVE_STATE}</div></div>
   ${cards}
   ${about}
 </div>

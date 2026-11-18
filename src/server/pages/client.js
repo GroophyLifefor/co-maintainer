@@ -11,9 +11,26 @@ function toast(message) {
   }, 5000);
 }
 
+/** The same rule as `money` in `layout.ts`: two decimals from a cent up, at
+ * most four below a cent. Called from the pages' inline scripts, which the
+ * linter cannot see. */
+// oxlint-disable-next-line no-unused-vars
+function money(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n) || n === 0) return "$0.00";
+  if (Math.abs(n) >= 0.01) return "$" + n.toFixed(2);
+  const short = Math.abs(n).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+  if (Number(short) === 0) return "<$0.0001";
+  return (n < 0 ? "-" : "") + "$" + short;
+}
+
 function fail(card, message, retry) {
   toast(message);
   if (!card) return;
+  if (card.hasAttribute("data-saving")) {
+    card.removeAttribute("data-saving");
+    showSaveState("Not saved", "failed");
+  }
   let box = card.querySelector("[data-fail]");
   if (!box) {
     box = document.createElement("div");
@@ -122,7 +139,50 @@ async function run(btn, card, fn) {
   }
 }
 
+/** The save state at the top of a settings page: "Unsaved changes" once a
+ * field of a card changed, "Saving" while a save runs, "All changes saved"
+ * when no card has a change left, and "Not saved" when a save failed. */
+const dirtyCards = new Set();
+function showSaveState(words, state) {
+  const box = document.querySelector("[data-save-state]");
+  if (!box) return;
+  box.textContent = words;
+  box.setAttribute("data-state", state);
+}
+function refreshSaveState() {
+  if (dirtyCards.size > 0) showSaveState("Unsaved changes", "dirty");
+  else showSaveState("All changes saved", "saved");
+}
+function saveStarted(card) {
+  if (card) card.setAttribute("data-saving", "1");
+  showSaveState("Saving", "saving");
+}
+globalThis.saveStarted = saveStarted;
+function markSaved(card) {
+  if (card) {
+    dirtyCards.delete(card);
+    card.removeAttribute("data-saving");
+  }
+  refreshSaveState();
+}
+globalThis.markSaved = markSaved;
+function startSaveState() {
+  if (!document.querySelector("[data-save-state]")) return;
+  const changed = function (event) {
+    const target = event.target;
+    if (!target || !target.closest) return;
+    if (target.closest("[data-no-dirty], .side")) return;
+    const card = target.closest("main [data-async]");
+    if (!card) return;
+    dirtyCards.add(card);
+    refreshSaveState();
+  };
+  document.addEventListener("input", changed);
+  document.addEventListener("change", changed);
+}
+
 function saved(btn, card) {
+  markSaved(card);
   if (card) {
     let state = card.querySelector(".save-state");
     if (!state) {
@@ -423,6 +483,8 @@ function startLogPanel(panel) {
     baseClass =
       next === "failed" ? "failed" : next === "canceled" ? "warn" : "done";
     panel.setAttribute("data-status", baseStatus);
+    // A finished log stops growing, so Clear goes away with the job.
+    if (clear) clear.hidden = true;
     if (!paused && status) {
       status.className = "st " + baseClass;
       status.textContent = baseStatus;
@@ -555,6 +617,169 @@ function startLogPanel(panel) {
     connect();
     timers.push(setInterval(poll, 1000));
   }
+}
+
+/** "Check for new versions" in the sidebar. The dialog says first that the
+ * check reads from github.com, and asks only after "Check now". The answer
+ * is one short line per change for each version newer than this one,
+ * escaped before inline code is formatted. */
+function wnInline(text) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(
+      /\(#(\d+)\)/g,
+      '(<a href="https://github.com/GroophyLifefor/co-maintainer/issues/$1" target="_blank" rel="noopener">#$1</a>)',
+    );
+}
+
+/** "2026-11-18" as "November 18, 2026". */
+function wnDate(iso) {
+  const date = new Date(iso + "T00:00:00Z");
+  if (isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** The badge color of a changelog group. */
+function wnTagKind(title) {
+  const name = String(title).toLowerCase();
+  if (name === "added") return "add";
+  if (name === "changed") return "chg";
+  if (name === "fixed") return "fix";
+  if (name === "removed" || name === "security") return "rm";
+  return "other";
+}
+
+/** Only links into github.com are drawn, whatever the answer says. */
+function wnLink(url, label) {
+  return typeof url === "string" && url.indexOf("https://github.com/") === 0
+    ? '<a href="' +
+        url.replace(/"/g, "%22") +
+        '" target="_blank" rel="noopener">' +
+        label +
+        "</a>"
+    : "";
+}
+
+function startWhatsNew() {
+  const dialog = document.getElementById("wn");
+  const opener = document.querySelector("[data-whats-new]");
+  if (!dialog || !opener || typeof dialog.showModal !== "function") return;
+  const body = dialog.querySelector("[data-wn-body]");
+  const actions = dialog.querySelector("[data-wn-actions]");
+  const intro = body.innerHTML;
+  const introActions = actions.innerHTML;
+
+  function reset() {
+    body.innerHTML = intro;
+    actions.innerHTML = introActions;
+  }
+
+  function closeButton() {
+    actions.innerHTML =
+      '<button type="button" class="btn" data-wn-close>Close</button>';
+  }
+
+  function show(result) {
+    const parts = [];
+    if (result.newer) {
+      parts.push(
+        '<p class="wn-lead"><strong>co-maintainer ' +
+          wnInline(result.latest) +
+          " is out.</strong> This server runs " +
+          wnInline(result.running) +
+          ".</p>",
+      );
+    } else {
+      parts.push(
+        '<p class="wn-lead"><strong>You are on the latest version.</strong> This server runs ' +
+          wnInline(result.running) +
+          (result.latest
+            ? ", and the latest release is " + wnInline(result.latest)
+            : "") +
+          ".</p>",
+      );
+    }
+    (result.sections || []).forEach(function (section) {
+      const groups =
+        section.groups && section.groups.length
+          ? section.groups
+          : [{ title: "Changes", items: section.items || [] }];
+      parts.push(
+        '<section class="wn-sec"><h3>' +
+          wnInline(section.version) +
+          (section.date
+            ? '<span class="wn-date">' +
+              wnInline(wnDate(section.date)) +
+              "</span>"
+            : "") +
+          "</h3>" +
+          groups
+            .map(function (group) {
+              return (
+                '<span class="wn-tag ' +
+                wnTagKind(group.title) +
+                '">' +
+                wnInline(group.title) +
+                "</span><ul>" +
+                group.items
+                  .map(function (item) {
+                    return "<li>" + wnInline(item) + "</li>";
+                  })
+                  .join("") +
+                "</ul>"
+              );
+            })
+            .join("") +
+          "</section>",
+      );
+    });
+    if (result.more) {
+      parts.push(
+        '<p class="muted">Older changes are in the full changelog.</p>',
+      );
+    }
+    const changelog = wnLink(result.changelogUrl, "Full changelog");
+    if (changelog) parts.push('<p class="wn-links">' + changelog + "</p>");
+    body.innerHTML = parts.join("");
+    closeButton();
+  }
+
+  opener.addEventListener("click", function () {
+    reset();
+    dialog.showModal();
+  });
+  dialog.addEventListener("click", async function (ev) {
+    const target = ev.target;
+    if (
+      target === dialog ||
+      (target.closest && target.closest("[data-wn-close]"))
+    ) {
+      dialog.close();
+      return;
+    }
+    const check = target.closest && target.closest("[data-wn-check]");
+    if (!check) return;
+    check.disabled = true;
+    body.innerHTML = '<p class="muted">Asking github.com...</p>';
+    try {
+      show(await api("POST", "/api/whats-new", {}));
+    } catch (err) {
+      body.innerHTML =
+        '<p class="wn-err">' +
+        wnInline(err.message || "The check failed.") +
+        "</p>";
+      closeButton();
+    }
+  });
 }
 
 /** The Ctrl K palette. Every query gets a sequence number and only the
@@ -696,6 +921,190 @@ function startPalette() {
   });
 }
 
+/** Bulk select on the Activity list. Every listener is on the document, so
+ * a list the poll swapped in keeps working. An action is enabled only when a
+ * selected row allows it: `data-dismiss` for Dismiss, `data-retry` for
+ * Retry. */
+function startBulkSelect() {
+  function boxes() {
+    return document.querySelectorAll("tr[data-key] input[data-select]");
+  }
+  function chosen(flag) {
+    const keys = [];
+    boxes().forEach(function (box) {
+      const row = box.closest("tr[data-key]");
+      if (box.checked && row && (!flag || row.hasAttribute(flag))) {
+        keys.push(row.getAttribute("data-key"));
+      }
+    });
+    return keys;
+  }
+  function refresh() {
+    const bar = document.querySelector("[data-bulk]");
+    if (!bar) return;
+    const all = chosen("");
+    const count = bar.querySelector("[data-bulk-count]");
+    if (count) {
+      count.textContent = all.length
+        ? all.length + " selected"
+        : "None selected";
+    }
+    const dismiss = bar.querySelector('[data-bulk-action="dismiss"]');
+    const retry = bar.querySelector('[data-bulk-action="retry"]');
+    if (dismiss) dismiss.disabled = chosen("data-dismiss").length === 0;
+    if (retry) retry.disabled = chosen("data-retry").length === 0;
+    const head = document.querySelector("input[data-select-all]");
+    const total = boxes().length;
+    if (head) {
+      head.checked = total > 0 && all.length === total;
+      head.indeterminate = all.length > 0 && all.length < total;
+    }
+  }
+  document.addEventListener("change", function (ev) {
+    const target = ev.target;
+    if (!target || !target.matches) return;
+    if (target.matches("input[data-select-all]")) {
+      boxes().forEach(function (box) {
+        box.checked = target.checked;
+      });
+    }
+    if (target.matches("input[data-select-all], input[data-select]")) {
+      refresh();
+    }
+  });
+  document.addEventListener("click", function (ev) {
+    const btn =
+      ev.target && ev.target.closest
+        ? ev.target.closest("[data-bulk-action]")
+        : null;
+    if (!btn || btn.disabled) return;
+    ev.preventDefault();
+    const action = btn.getAttribute("data-bulk-action");
+    const keys = chosen(action === "retry" ? "data-retry" : "data-dismiss");
+    if (keys.length === 0) return;
+    const card = btn.closest(".card");
+    run(btn, card, async function () {
+      const result = await api("POST", "/api/activity/" + action, {
+        keys: keys,
+      });
+      if (action === "retry") {
+        const n = (result && result.jobIds && result.jobIds.length) || 0;
+        toast(n === 1 ? "1 retry queued" : n + " retries queued");
+      }
+      location.reload();
+    });
+  });
+  refresh();
+}
+
+/** Keyboard shortcuts on a list page: `j` and `k` move, Enter opens, `x`
+ * selects, `/` focuses the search box and `?` shows every shortcut. The rows
+ * are read on each key, so a list the poll swapped in keeps working, and the
+ * moved-to row is found again by its link. Nothing fires while a field has
+ * the focus, with a modifier key, or while the search palette is open. */
+function startListKeys() {
+  if (!document.querySelector("[data-kb-list]")) return;
+  const help = document.getElementById("kb-help");
+  let current = "";
+  let returnFocus = null;
+
+  function rows() {
+    return Array.prototype.slice.call(
+      document.querySelectorAll("[data-kb-list] tr[data-href]"),
+    );
+  }
+  function at() {
+    const list = rows();
+    for (let index = 0; index < list.length; index++) {
+      if (list[index].getAttribute("data-href") === current) return index;
+    }
+    return -1;
+  }
+  function mark(next) {
+    const list = rows();
+    if (list.length === 0) return;
+    const index = Math.max(0, Math.min(list.length - 1, next));
+    list.forEach(function (row, i) {
+      row.classList.toggle("kb-on", i === index);
+    });
+    current = list[index].getAttribute("data-href") || "";
+    list[index].scrollIntoView({ block: "nearest" });
+  }
+  function typing(target) {
+    if (!target || !target.tagName) return false;
+    return (
+      /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) ||
+      target.isContentEditable === true
+    );
+  }
+  function showHelp(open) {
+    if (!help) return;
+    if (open) {
+      returnFocus = document.activeElement;
+      help.hidden = false;
+      const close = help.querySelector("[data-kb-close]");
+      if (close) close.focus();
+    } else {
+      help.hidden = true;
+      if (returnFocus && returnFocus.focus) returnFocus.focus();
+    }
+  }
+
+  document.addEventListener("click", function (ev) {
+    if (
+      ev.target &&
+      ev.target.closest &&
+      ev.target.closest("[data-kb-close]")
+    ) {
+      showHelp(false);
+    }
+  });
+  document.addEventListener("keydown", function (ev) {
+    if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    if (typing(ev.target)) return;
+    const palette = document.getElementById("pal");
+    if (palette && !palette.hidden) return;
+    if (help && !help.hidden) {
+      if (ev.key === "Escape" || ev.key === "?") {
+        ev.preventDefault();
+        showHelp(false);
+      }
+      return;
+    }
+    if (ev.key === "j" || ev.key === "k") {
+      ev.preventDefault();
+      const index = at();
+      mark(index < 0 ? 0 : index + (ev.key === "j" ? 1 : -1));
+    } else if (ev.key === "Enter") {
+      const index = at();
+      if (index < 0) return;
+      // A focused link or button keeps its own Enter.
+      if (ev.target && ev.target.closest && ev.target.closest("a, button")) {
+        return;
+      }
+      ev.preventDefault();
+      location.href = rows()[index].getAttribute("data-href");
+    } else if (ev.key === "x") {
+      const index = at();
+      const box =
+        index < 0 ? null : rows()[index].querySelector("input[data-select]");
+      if (!box) return;
+      ev.preventDefault();
+      box.checked = !box.checked;
+      box.dispatchEvent(new Event("change", { bubbles: true }));
+    } else if (ev.key === "/") {
+      const search = document.querySelector("[data-kb-search]");
+      if (!search) return;
+      ev.preventDefault();
+      search.focus();
+      if (search.select) search.select();
+    } else if (ev.key === "?") {
+      ev.preventDefault();
+      showHelp(true);
+    }
+  });
+}
+
 function startLogPanels() {
   const panels = document.querySelectorAll("[data-log]");
   for (let index = 0; index < panels.length; index++) {
@@ -706,6 +1115,114 @@ function startLogPanels() {
 // The helper is inlined into `<head>` by `layout.ts`, before any page script
 // runs, so this is the one place that can close over both `toast()` and
 // `bindToggle` without depending on point-in-time globals.
+/** The search above the Settings menu: filters the settings by name and
+ * description as you type and jumps to the field. Arrow keys move, Enter
+ * opens, Escape closes. */
+function startSettingsSearch() {
+  const input = document.querySelector("[data-settings-search]");
+  const box = document.getElementById("set-results");
+  const data = document.getElementById("settings-index");
+  if (!input || !box || !data) return;
+  let entries = [];
+  try {
+    entries = JSON.parse(data.textContent || "[]");
+  } catch {
+    return;
+  }
+  let shown = [];
+  let at = 0;
+  const close = function () {
+    box.hidden = true;
+    input.setAttribute("aria-expanded", "false");
+  };
+  const paint = function () {
+    box.replaceChildren();
+    if (shown.length === 0) {
+      const none = document.createElement("div");
+      none.className = "none";
+      none.textContent = "No setting matches.";
+      box.appendChild(none);
+    }
+    shown.forEach(function (entry, index) {
+      const link = document.createElement("a");
+      link.href = entry.href;
+      link.setAttribute("role", "option");
+      link.className = index === at ? "on" : "";
+      const name = document.createElement("b");
+      name.textContent = entry.name;
+      const where = document.createElement("span");
+      where.textContent = entry.page + ". " + entry.description;
+      link.append(name, where);
+      box.appendChild(link);
+    });
+    box.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+  };
+  input.addEventListener("input", function () {
+    const words = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+      shown = [];
+      close();
+      return;
+    }
+    shown = entries
+      .filter(function (entry) {
+        const hay = (
+          entry.name +
+          " " +
+          entry.description +
+          " " +
+          entry.page
+        ).toLowerCase();
+        return words.every(function (word) {
+          return hay.indexOf(word) !== -1;
+        });
+      })
+      .slice(0, 8);
+    at = 0;
+    paint();
+  });
+  input.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") {
+      close();
+      input.blur();
+      return;
+    }
+    if (box.hidden || shown.length === 0) return;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      at =
+        (at + (event.key === "ArrowDown" ? 1 : -1) + shown.length) %
+        shown.length;
+      paint();
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      location.href = shown[at].href;
+    }
+  });
+  input.addEventListener("blur", function () {
+    setTimeout(close, 150);
+  });
+}
+
+/** A settings link that names a field, `#max-jobs`, scrolls to it, focuses
+ * it and marks it for a moment, so the search lands on the field itself. */
+function jumpToSetting() {
+  const id = decodeURIComponent(location.hash.replace(/^#/, ""));
+  if (!id || location.pathname.indexOf("/settings/") !== 0) return;
+  const field = document.getElementById(id);
+  if (!field || !field.closest("main")) return;
+  const holder = field.closest(".field") || field.closest(".card") || field;
+  holder.scrollIntoView({ block: "center" });
+  holder.classList.add("jumped");
+  setTimeout(function () {
+    holder.classList.remove("jumped");
+  }, 2000);
+  if (/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(field.tagName)) {
+    field.focus({ preventScroll: true });
+  }
+}
+
 document.addEventListener("DOMContentLoaded", function () {
   // Client errors bubble to `window` from `document`.
   addEventListener("error", function (ev) {
@@ -757,6 +1274,12 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   startPalette();
+  startWhatsNew();
+  startBulkSelect();
+  startListKeys();
+  startSettingsSearch();
+  startSaveState();
+  jumpToSetting();
 
   document.addEventListener("click", function (ev) {
     const btn =
@@ -821,11 +1344,16 @@ document.addEventListener("DOMContentLoaded", function () {
       );
       return;
     }
+    const question = btn.getAttribute("data-confirm");
+    if (question && !confirm(question)) return;
     const body = btn.getAttribute("data-body");
+    // `data-next="here"` reloads the page the button is on, so a filtered
+    // list keeps its filter after a Retry or a Dismiss.
+    const next = btn.getAttribute("data-next");
     postAndGo(
       btn.getAttribute("data-post"),
       body ? JSON.parse(body) : {},
-      "/activity",
+      next === "here" ? location.href : next || "/activity",
       btn,
     );
   });
@@ -879,14 +1407,34 @@ document.addEventListener("DOMContentLoaded", function () {
     setInterval(refreshJob, 2000);
     return;
   }
+  // The list polls a small stamp, "the newest change", and fetches the page
+  // only when it moved. It also waits while someone is choosing rows or
+  // typing in a field of the list, so a refresh never drops their work.
   setInterval(async function () {
     if (document.hidden) return;
     if (document.querySelector("[data-async].busy")) return;
     const root = document.getElementById("activity-root");
     if (!root) return;
+    if (root.querySelector("input[data-select]:checked")) return;
+    const active = document.activeElement;
+    if (
+      active &&
+      root.contains(active) &&
+      /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName)
+    ) {
+      return;
+    }
     try {
+      const stampRes = await fetch("/api/activity/stamp", {
+        headers: { "x-requested-with": "co-maintainer" },
+        cache: "no-store",
+      });
+      if (!stampRes.ok) return;
+      const stamp = (await stampRes.json()).stamp;
+      if (stamp === root.getAttribute("data-stamp")) return;
       const res = await fetch(location.pathname + location.search, {
         headers: { accept: "text/html" },
+        cache: "no-store",
       });
       if (!res.ok) return;
       const doc = new DOMParser().parseFromString(
@@ -894,7 +1442,11 @@ document.addEventListener("DOMContentLoaded", function () {
         "text/html",
       );
       const next = doc.getElementById("activity-root");
-      if (!next || next.innerHTML === root.innerHTML) return;
+      if (!next) return;
+      if (next.innerHTML === root.innerHTML) {
+        root.setAttribute("data-stamp", next.getAttribute("data-stamp") || "");
+        return;
+      }
       root.replaceWith(next);
     } catch {
       // a failed poll just waits for the next tick

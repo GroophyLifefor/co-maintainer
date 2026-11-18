@@ -4,6 +4,7 @@ import { client } from "./client.ts";
 import { sprite } from "./icons.ts";
 import { VERSION } from "../../version.ts";
 import type { NavCounts } from "../../services/nav_counts.ts";
+import { SETTINGS_INDEX } from "./settings_index.ts";
 
 export function escapeHtml(value: unknown): string {
   return String(value ?? "").replace(
@@ -123,11 +124,27 @@ export function markdown(value: unknown): string {
   return `<div class="markdown">${blocks.join("")}</div>`;
 }
 
+/** The one cost formatter of the dashboard. A cent or more shows two
+ * decimals. Below a cent it keeps at most four decimals, so `$0.0096146`
+ * reads as `$0.0096`, and an amount too small for that says so instead of
+ * printing zero. */
 export function money(value: number): string {
   const n = Number(value || 0);
   if (!Number.isFinite(n) || n === 0) return "$0.00";
   if (Math.abs(n) >= 0.01) return `$${n.toFixed(2)}`;
-  return `$${n.toFixed(7).replace(/0+$/, "").replace(/\.$/, "")}`;
+  const short = Math.abs(n).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+  if (Number(short) === 0) return "<$0.0001";
+  return `${n < 0 ? "-" : ""}$${short}`;
+}
+
+/** "1 repository", "2 repositories". `n` may be a preformatted figure such as
+ * a capped "500+", which always reads as more than one. */
+export function plural(
+  n: number | string,
+  one: string,
+  many = `${one}s`,
+): string {
+  return `${n} ${n === 1 || n === "1" ? one : many}`;
 }
 
 const compactNumber = new Intl.NumberFormat("en", {
@@ -229,6 +246,7 @@ const NAV_GROUPS: {
     items: [
       { href: "/", label: "Repositories", icon: "layout-grid" },
       { href: "/activity", label: "Activity", icon: "activity" },
+      { href: "/findings", label: "Findings", icon: "flag" },
       { href: "/usage", label: "Usage", icon: "chart-no-axes-column" },
     ],
   },
@@ -249,6 +267,7 @@ const NAV_GROUPS: {
       { href: "/settings/remote", label: "Remote access", icon: "key-round" },
       { href: "/settings/server", label: "Server", icon: "server" },
       { href: "/settings/sign-in", label: "Sign-in", icon: "shield-check" },
+      { href: "/settings/audit", label: "Audit log", icon: "history" },
       {
         href: "/settings/danger",
         label: "Danger zone",
@@ -282,27 +301,61 @@ function navBadge(href: string, counts: NavCounts | undefined): string {
   if (href === "/" && counts.repos > 0) {
     return `<span class="r tnum">${counts.repos}</span>`;
   }
-  if (href === "/activity" && counts.failed > 0) {
-    return `<span class="r fail-count">${counts.failed} failed</span>`;
-  }
   if (href === "/setup")
     return `<span class="r tnum">${text(counts.setup)}</span>`;
   return "";
 }
 
+/** The settings search above the Settings menu. The list it searches rides
+ * along as JSON, so typing needs no request. `client.js` wires it. */
+/** "Check for new versions": asks first, because the check reads from
+ * github.com, then shows the changelog sections newer than this version. */
+const WHATS_NEW_DIALOG = `<dialog class="wn" id="wn" aria-labelledby="wn-title">
+  <div class="wn-hd"><h2 id="wn-title">Check for new versions</h2><button type="button" class="wn-x" data-wn-close aria-label="Close">×</button></div>
+  <div class="wn-bd" data-wn-body>
+    <p>This asks github.com for the latest co-maintainer release and its CHANGELOG.md. Nothing about this server or its repositories is sent.</p>
+  </div>
+  <div class="wn-ft" data-wn-actions><button type="button" class="btn out" data-wn-close>Cancel</button><button type="button" class="btn pri" data-wn-check autofocus>Check now</button></div>
+</dialog>`;
+
+const SETTINGS_SEARCH = `<div class="set-search"><input class="inp" type="search" data-settings-search placeholder="Search settings" aria-label="Search settings" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="set-results"><div class="set-results" id="set-results" role="listbox" aria-label="Settings" hidden></div><script type="application/json" id="settings-index">${JSON.stringify(
+  SETTINGS_INDEX,
+).replace(/</g, "\\u003c")}</script></div>`;
+
 function navHtml(active: string | undefined): string {
   const counts = readNavCounts();
   return `<nav class="nav">${NAV_GROUPS.map(
     (group) =>
-      `<div class="grp"><p>${group.label}</p>${group.items
-        .map(
-          (item) =>
-            `<a class="item${item.href === active ? " on" : ""}" href="${
-              item.href
-            }">${ico(item.icon)}${item.label}${navBadge(item.href, counts)}</a>`,
-        )
+      `<div class="grp"><p>${group.label}</p>${
+        group.label === "Settings" ? SETTINGS_SEARCH : ""
+      }${group.items
+        .map((item) => {
+          const link = `<a class="item${item.href === active ? " on" : ""}" href="${
+            item.href
+          }">${ico(item.icon)}${item.label}${navBadge(item.href, counts)}</a>`;
+          // The failed count is a link of its own to the failed list. A link
+          // cannot sit inside another, so it sits beside the menu item.
+          if (item.href === "/activity" && counts && counts.failed > 0) {
+            return `<div class="item-pair">${link}<a class="r fail-count" href="${escapeHtml(counts.failedHref)}" title="Failures of the last 30 days nobody dismissed and no later review resolved">${plural(counts.failed, "open failure")}</a></div>`;
+          }
+          return link;
+        })
         .join("")}</div>`,
   ).join("")}</nav>`;
+}
+
+/** A small box under the menu when a newer release is known. Only a host
+ * that set `CM_UPDATE_URL` ever knows one. */
+function updateNoteHtml(): string {
+  const notice = readNavCounts()?.update;
+  if (!notice?.latest) return "";
+  return `<div class="update-note" role="status"><a href="/settings/server#updates">${text(
+    `co-maintainer ${notice.latest} is out. This instance runs ${notice.running}.`,
+  )}</a>${
+    notice.notesUrl
+      ? ` <a class="notes" href="${escapeHtml(notice.notesUrl)}" target="_blank" rel="noopener">Release notes</a>`
+      : ""
+  }</div>`;
 }
 
 /** The Ctrl K palette, hidden until `client.js` opens it. Results are filled
@@ -337,12 +390,19 @@ ${sprite}
       "search",
     )}<span>Search…</span><kbd>Ctrl K</kbd></button>
     ${navHtml(opts.active)}
+    ${updateNoteHtml()}
     <div class="sidefoot">
       <div class="me"><span class="av">${text(
         initials,
       )}</span><span class="who"><span class="u">${text(
         username,
       )}</span><span class="s">v${text(VERSION)}</span></span></div>
+      <button type="button" class="ghost" data-whats-new>${ico(
+        "refresh-cw",
+      )}<span>Check for new versions</span></button>
+      <a class="ghost" href="https://github.com/GroophyLifefor/co-maintainer" target="_blank" rel="noopener">${ico(
+        "github",
+      )}<span>Star Co-Maintainer</span></a>
       <button type="button" class="ghost" id="theme">${ico(
         "moon",
       )}<span>Dark mode</span></button>
@@ -358,6 +418,7 @@ ${sprite}
     )}</button>co-maintainer</div>
     ${opts.body}
   </main>
+  ${WHATS_NEW_DIALOG}
 </div>
 ${PALETTE}
 <div id="toasts"></div>
@@ -416,6 +477,7 @@ export function repoTabs(fullName: string, on: string): string {
   const items = [
     { id: "overview", label: "Overview", path: href },
     { id: "pulls", label: "Pull requests", path: `${href}/pulls` },
+    { id: "findings", label: "Findings", path: `${href}/findings` },
     { id: "knowledge", label: "Knowledge", path: `${href}/knowledge` },
     { id: "remote", label: "Remote reviews", path: `${href}/remote` },
     { id: "pushes", label: "Pushes", path: `${href}/pushes` },
@@ -435,8 +497,17 @@ export function repoTabs(fullName: string, on: string): string {
     .join("")}</nav>`;
 }
 
-export function empty(title: string, lead: string): string {
-  return `<div class="empty"><h2>${text(title)}</h2><p>${text(lead)}</p></div>`;
+/** An empty state. A lead that names a place passes `{ html }` with a link
+ * to it, and `action` is a button or link to the next step. */
+export function empty(
+  title: string,
+  lead: string | { html: string },
+  action = "",
+): string {
+  const body = typeof lead === "string" ? text(lead) : lead.html;
+  return `<div class="empty"><h2>${text(title)}</h2><p>${body}</p>${
+    action ? `<div class="a">${action}</div>` : ""
+  }</div>`;
 }
 
 export function statusClass(

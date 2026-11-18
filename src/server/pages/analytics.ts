@@ -4,23 +4,69 @@ import {
   delta,
   duration,
   empty,
+  escapeHtml,
   html,
   layout,
   money,
+  plural,
   text,
 } from "./layout.ts";
-import { formatCostTotal } from "./cost.ts";
+import { costTotalParts, formatCostCell, formatCostTotal } from "./cost.ts";
 import type { statsForRange } from "../../services/dashboard.ts";
 import { listJobs } from "../../store/jobs.ts";
-import { pageHeader, segmented, statCard } from "./ui.ts";
+import { icon, pageHeader, segmented, statCard } from "./ui.ts";
+import { findingsHref } from "./findings.ts";
+import { severityName } from "./finding_bits.ts";
+import { usageHref, type UsageQuery } from "./usage_query.ts";
+
+/** The Usage filters: a repository and an author beside the range. Each
+ * select submits on change, and the form works without the script too. */
+function usageFilters(
+  query: UsageQuery,
+  choices: { repos: string[]; authors: string[] },
+): string {
+  const select = (
+    name: "repo" | "author",
+    label: string,
+    all: string,
+    values: string[],
+  ) => {
+    // A value from a link that is not in this range still shows as chosen.
+    const current = query[name];
+    const options =
+      current && !values.includes(current) ? [current, ...values] : values;
+    return `<select class="inp" name="${name}" aria-label="${label}" style="width:auto" data-usage-filter>
+      <option value="">${all}</option>
+      ${options
+        .map(
+          (value) =>
+            `<option value="${escapeHtml(value)}"${
+              value === current ? " selected" : ""
+            }>${text(value)}</option>`,
+        )
+        .join("")}
+    </select>`;
+  };
+  return `<form class="filters" method="get" action="/usage" id="usage-filters">
+    <input type="hidden" name="range" value="${query.range}">
+    ${select("repo", "Repository", "All repositories", choices.repos)}
+    ${select("author", "Author", "All authors", choices.authors)}
+    <noscript><button type="submit" class="btn out sm">Filter</button></noscript>
+    <a class="btn out sm" href="${escapeHtml(
+      usageHref(query, {}, "/usage/export.csv"),
+    )}" download>${icon("download")}Export CSV</a>
+  </form>`;
+}
 
 export function renderAnalytics(
   username: string,
-  range: string,
+  query: UsageQuery,
   data: ReturnType<typeof statsForRange>,
 ): Response {
-  const failed = listJobs({ status: "failed" }).slice(0, 5);
-  const current = ["7d", "30d", "90d"].includes(range) ? range : "30d";
+  const failed = listJobs({ status: "failed", repo: query.repo }).slice(0, 5);
+  const current = query.range;
+  // The day the range starts on, for links to lists that filter by day.
+  const fromDay = data.since.slice(0, 10);
   const kind = (name: (typeof data.byKind)[number]["kind"]) =>
     data.byKind.find((row) => row.kind === name)!;
   // Every review kind costs money, so Spent sums all of them, not only the
@@ -43,24 +89,33 @@ export function renderAnalytics(
       byokUnknownCount: 0,
     },
   );
+  const spentParts = costTotalParts(spent);
   const kindRows: [string, string, string][] = [
-    ["init / sync", String(data.setupRuns), "Not recorded"],
+    ...(data.setupRuns === undefined
+      ? []
+      : [
+          ["init / sync", String(data.setupRuns), "Not recorded"] as [
+            string,
+            string,
+            string,
+          ],
+        ]),
     [
       "Pull request reviews",
       String(kind("posted").runs),
-      formatCostTotal(kind("posted")),
+      formatCostCell(kind("posted")),
     ],
     [
       "Not posted reviews",
       String(kind("not_posted").runs),
-      formatCostTotal(kind("not_posted")),
+      formatCostCell(kind("not_posted")),
     ],
     [
-      "Failed attempts",
+      "Failed review attempts",
       String(kind("failed").runs),
-      formatCostTotal(kind("failed")),
+      formatCostCell(kind("failed")),
     ],
-    ["CLI reviews", String(kind("cli").runs), formatCostTotal(kind("cli"))],
+    ["CLI reviews", String(kind("cli").runs), formatCostCell(kind("cli"))],
   ];
   const byKind = `<table>
         <thead><tr><th>Kind</th><th class="num">Runs</th><th class="num">Cost</th></tr></thead>
@@ -68,7 +123,7 @@ export function renderAnalytics(
           ${kindRows
             .map(
               ([label, runs, cost]) =>
-                `<tr><td>${text(label)}</td><td class="num">${runs}</td><td class="num">${text(cost)}</td></tr>`,
+                `<tr><td>${text(label)}</td><td class="num">${runs}</td><td class="num">${cost}</td></tr>`,
             )
             .join("")}
         </tbody>
@@ -98,7 +153,7 @@ export function renderAnalytics(
             }</td>
             <td class="num">${count(row.tokensIn + row.tokensOut)}</td>
             <td class="num">${duration(row.avgDurationMs)}</td>
-            <td class="num">${formatCostTotal(row)}</td></tr>`,
+            <td class="num">${formatCostCell(row)}</td></tr>`,
             )
             .join("")}
         </tbody>
@@ -106,34 +161,38 @@ export function renderAnalytics(
   const byModel =
     data.byModel.length === 0
       ? empty("No models yet", "Each review records the model that wrote it.")
-      : `<table>
-        <thead><tr><th>Model</th><th class="num">Reviews</th><th class="num">Tokens in</th>
-          <th class="num">Tokens out</th><th class="num">Average review</th>
-          <th class="num">Per review</th><th class="num">Cost</th></tr></thead>
+      : // Four columns, each figure with its detail on a second line, so the
+        // table fits its half of the row at desktop width without scrolling.
+        `<table class="fit">
+        <thead><tr><th>Model</th><th class="num">Reviews</th><th class="num">Tokens</th>
+          <th class="num">Cost</th></tr></thead>
         <tbody>
           ${data.byModel
             .map(
               (row) =>
-                `<tr><td>${text(row.model)}</td>
+                `<tr><td class="wrap">${text(row.model)}<span class="sub">${text(
+                  `${duration(row.avgDurationMs)} average`,
+                )}</span></td>
             <td class="num">${row.reviews}</td>
-            <td class="num">${count(row.tokensIn)}</td>
-            <td class="num">${count(row.tokensOut)}</td>
-            <td class="num">${duration(row.avgDurationMs)}</td>
-            <td class="num">${
+            <td class="num">${count(row.tokensIn)} in<span class="sub">${count(
+              row.tokensOut,
+            )} out</span></td>
+            <td class="num">${formatCostCell(row)}<span class="sub">${text(
               row.knownCount
-                ? money(row.cost / row.knownCount)
+                ? `${money(row.cost / row.knownCount)} per review`
                 : row.unknownCount
-                  ? "unknown"
-                  : money(0)
-            }</td>
-            <td class="num">${formatCostTotal(row)}</td></tr>`,
+                  ? "unknown per review"
+                  : `${money(0)} per review`,
+            )}</span></td></tr>`,
             )
             .join("")}
         </tbody>
       </table>`;
   const byRemoteToken =
     (data.byRemoteToken ?? []).length === 0
-      ? empty("No remote reviews yet", "Usage from CLI tokens appears here.")
+      ? empty("No remote reviews yet", {
+          html: `Usage from <a href="/settings/remote">CLI tokens</a> appears here.`,
+        })
       : `<table>
         <thead><tr><th>Token</th><th class="num">Reviews</th><th class="num">Findings</th>
           <th class="num">Cost</th></tr></thead>
@@ -144,7 +203,7 @@ export function renderAnalytics(
                 `<tr><td>${text(row.tokenName)}</td>
             <td class="num">${row.reviews}</td>
             <td class="num">${row.findings}</td>
-            <td class="num">${formatCostTotal(row)}</td></tr>`,
+            <td class="num">${formatCostCell(row)}</td></tr>`,
             )
             .join("")}
         </tbody>
@@ -162,8 +221,22 @@ export function renderAnalytics(
           ${data.bySeverity
             .map(
               (row) =>
-                `<tr><td>${text(row.severity)}</td>
-            <td class="num">${row.findings}</td>
+                `<tr><td><a href="${escapeHtml(
+                  findingsHref(query.repo, {
+                    severity: row.severity,
+                    state: "all",
+                    days: data.days,
+                    author: query.author,
+                  }),
+                )}">${text(row.severity)} ${text(severityName(row.severity))}</a></td>
+            <td class="num"><a href="${escapeHtml(
+              findingsHref(query.repo, {
+                severity: row.severity,
+                state: "all",
+                days: data.days,
+                author: query.author,
+              }),
+            )}">${row.findings}</a></td>
             <td class="num">${
               totalFindings
                 ? Math.round((row.findings / totalFindings) * 100)
@@ -201,7 +274,7 @@ export function renderAnalytics(
         <div class="txt"><b>${text(job.repo)}</b>. ${text(job.type)} failed${
           job.error ? `. ${text(job.error)}` : ""
         }.</div>
-        <a class="btn" href="/activity">See why</a>
+        <a class="btn" href="/activity/${text(job.id)}">See why</a>
         <button class="dismiss-worth" type="button" data-dismiss-worth="${text(
           job.id,
         )}" aria-label="Dismiss">×</button>
@@ -216,44 +289,69 @@ export function renderAnalytics(
       body: `<div class="wrap">
   ${pageHeader({
     title: "Usage",
-    lead: `Last ${data.days} days`,
+    lead: [
+      `Last ${data.days} days`,
+      query.repo ? query.repo : "",
+      query.author ? `pull requests by ${query.author}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · "),
     actions: segmented(
-      ["7d", "30d", "90d"].map((value) => ({
+      (["7d", "30d", "90d"] as const).map((value) => ({
         label: value,
-        href: `/usage?range=${value}`,
+        href: usageHref(query, { range: value }),
         on: value === current,
       })),
     ),
   })}
+  ${usageFilters(query, data.choices)}
   <div class="stats">
     ${statCard({
       label: "Spent",
-      value: formatCostTotal(spent),
-      hint: `${count(data.totals.tokensIn + data.totals.tokensOut)} tokens · ${count(
+      value: text(spentParts.value),
+      hint: `${spentParts.note ? `${text(spentParts.note)}<br>` : ""}${plural(count(data.totals.tokensIn + data.totals.tokensOut), "token")} · ${count(
         data.totals.tokensIn,
       )} in and ${count(data.totals.tokensOut)} out${delta(data.change.cost, data.days, true)}`,
       icon: "coins",
     })}
     ${statCard({
       label: "Reviews",
-      value: String(kind("posted").runs + kind("not_posted").runs),
-      hint:
-        [
-          kind("failed").runs > 0
-            ? `${kind("failed").runs} failed ${kind("failed").runs === 1 ? "attempt" : "attempts"}`
-            : "",
-          kind("not_posted").runs > 0
-            ? `${kind("not_posted").runs} not posted`
-            : "",
-        ]
-          .filter(Boolean)
-          .join(" · ") || undefined,
+      value: String(data.totals.completed),
+      hint: [
+        plural(data.totals.pullRequests, "pull request"),
+        // Every failed attempt of the range, dismissed ones too. Activity
+        // has no author filter, so with one set the figure stays text.
+        data.totals.failed > 0
+          ? query.author
+            ? plural(data.totals.failed, "failed attempt")
+            : `<a href="${escapeHtml(
+                `/activity?${new URLSearchParams({
+                  ...(query.repo ? { repo: query.repo } : {}),
+                  status: "failed",
+                  settled: "1",
+                  kind: "review",
+                  from: fromDay,
+                }).toString()}`,
+              )}">${plural(data.totals.failed, "failed attempt")}</a>`
+          : "",
+        data.totals.notPosted > 0 ? `${data.totals.notPosted} not posted` : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
       icon: "git-pull-request",
     })}
     ${statCard({
       label: "Findings",
-      value: String(data.totals.findings),
-      hint: `${data.totals.pullRequests} pull requests${delta(data.change.findings, data.days)}`,
+      // Counted the way the Findings list counts, so the number opens a list
+      // with exactly that many findings.
+      value: `<a href="${escapeHtml(
+        findingsHref(query.repo, {
+          state: "all",
+          days: data.days,
+          author: query.author,
+        }),
+      )}">${totalFindings}</a>`,
+      hint: delta(data.change.findings, data.days) || undefined,
       icon: "flag",
     })}
     ${statCard({
@@ -277,7 +375,7 @@ export function renderAnalytics(
     <div class="bd">
       ${bars(
         data.byDay.map((row) => ({
-          label: `${row.day} ${formatCostTotal(row)} over ${row.reviews} reviews`,
+          label: `${row.day} ${formatCostTotal(row)} over ${plural(row.reviews, "review")}`,
           value: row.cost,
         })),
       )}
@@ -306,6 +404,11 @@ export function renderAnalytics(
   </div>
 </div>
 <script>
+document.querySelectorAll("[data-usage-filter]").forEach(function(select) {
+  select.addEventListener("change", function() {
+    select.form.submit();
+  });
+});
 (function() {
   var key = "co-maintainer:dismissed-worth";
   var read = function() {

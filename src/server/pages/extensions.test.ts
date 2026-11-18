@@ -65,7 +65,7 @@ test("results show their outcome, reasons, media, findings and markdown", () => 
   const html = renderExtensionResults(report);
   for (const needle of [
     "<b>qa-vision</b>",
-    "request_changes · $0.4200",
+    "request_changes · $0.42",
     '<a href="https://cdn.test/main.mp4"',
     "cases: 4",
     "[P2 · blocking]",
@@ -80,7 +80,7 @@ test("results show their outcome, reasons, media, findings and markdown", () => 
   }
   if (html.includes('href="javascript:'))
     throw new Error("a script link was drawn");
-  if (!extensionCostNote(report).includes("incl. $0.4200 extensions")) {
+  if (!extensionCostNote(report).includes("incl. $0.42 extensions")) {
     throw new Error(extensionCostNote(report));
   }
   if (renderExtensionResults(buildReport([])) !== "") {

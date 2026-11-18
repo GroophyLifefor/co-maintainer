@@ -1,16 +1,8 @@
-/** Commit watch on the dashboard: the card on a repository's overview that
- * says whether pushes are watched and how to turn it on, and the Pushes tab
- * that lists each push review. */
-import {
-  escapeHtml,
-  empty,
-  html,
-  layout,
-  repoTabs,
-  text,
-  when,
-} from "./layout.ts";
-import { badge, icon, section } from "./ui.ts";
+/** Commit watch on the dashboard: the setup card on the Pushes tab that says
+ * whether pushes are watched and how to turn it on, the short status line the
+ * overview keeps, and the list of each push review. */
+import { empty, html, layout, plural, text, when } from "./layout.ts";
+import { badge, codeBlock, icon, repoHeader, section } from "./ui.ts";
 import { formatCost } from "./cost.ts";
 import type { repoPushes } from "../../services/dashboard.ts";
 import type { WatchStatus } from "../../services/watch_status.ts";
@@ -100,16 +92,16 @@ function ciRow(serverUrl: string, branch: string): string {
   return `<div class="row" style="display:block"><div class="b">
     <p class="strong">CI</p>
     <p class="muted" style="font-size:13px">Add this workflow and a <code>CO_MAINTAINER_TOKEN</code>
-    secret with a remote review token from Settings.</p>
+    secret with a remote review token from <a href="/settings/remote">Settings</a>.</p>
   </div>
-  <div class="code" data-commit-watch-yaml><span style="white-space:pre;overflow-x:auto;display:block">${escapeHtml(
-    commitWatchWorkflow(serverUrl, branch),
-  )}</span><button type="button" data-copy title="Copy">${icon("copy")}</button></div></div>`;
+  ${codeBlock({
+    code: commitWatchWorkflow(serverUrl, branch),
+    attrs: "data-commit-watch-yaml",
+  })}</div>`;
 }
 
-/** The overview card. */
+/** The setup card at the top of the Pushes tab. */
 export function commitWatchCard(
-  fullName: string,
   status: WatchStatus,
   serverUrl: string,
   branch: string,
@@ -119,10 +111,33 @@ export function commitWatchCard(
     {
       title: "Commit watch",
       lead: `Review pushes to ${branch}.`,
-      action: `${statusBadge(status)} <a class="btn gh sm" href="/repos/${text(
-        fullName,
-      )}/pushes">Pushes</a>`,
+      action: statusBadge(status),
     },
+  )}</div>`;
+}
+
+/** The overview's one line: whether pushes are watched, the last push, and
+ * a link to the setup on the Pushes tab. */
+export function commitWatchStatus(
+  fullName: string,
+  status: WatchStatus,
+): string {
+  const watching = status.app === "on" || status.ci;
+  const last = status.lastPush;
+  const detail = !watching
+    ? "Pushes to the default branch are not reviewed."
+    : last
+      ? `Last push <code>${text(short(last.head_sha))}</code> via ${text(
+          viaLabel(last.via),
+        )}, ${when(last.created_at)}.`
+      : "Waiting for the first push.";
+  return `<div class="card" id="commit-watch-status">${section(
+    `<div class="row"><div class="b"><p class="muted" style="font-size:13px">${detail}</p></div>${statusBadge(
+      status,
+    )}<a class="btn out sm" href="/repos/${text(fullName)}/pushes">${
+      watching ? "Pushes" : "Set up on Pushes"
+    }</a></div>`,
+    { title: "Commit watch" },
   )}</div>`;
 }
 
@@ -131,6 +146,8 @@ export function renderRepoPushes(
   fullName: string,
   data: ReturnType<typeof repoPushes>,
   status: WatchStatus,
+  /** The commit watch setup card, from `commitWatchCard`. */
+  setup = "",
 ): Response {
   const watched =
     status.app === "on" && status.ci
@@ -144,7 +161,7 @@ export function renderRepoPushes(
     data.items.length === 0
       ? empty(
           "No pushes reviewed yet",
-          "Turn on commit watch on the overview of this repository. Only pushes after that are reviewed.",
+          "Turn on commit watch one of the two ways above. Only pushes after that are reviewed.",
         )
       : `<table>
         <thead><tr><th>Push</th><th>Via</th><th>Status</th><th class="num">P0</th>
@@ -175,17 +192,15 @@ export function renderRepoPushes(
       username,
       active: "/",
       body: `<div class="wrap">
-  ${repoTabs(fullName, "pushes")}
+  ${repoHeader({
+    fullName,
+    tab: "pushes",
+    title: "Pushes",
+    tabLabel: "Pushes",
+    lead: `Commit watch reviews of pushes to the default branch. This repository is ${watched}. ${plural(data.openIssues, "open issue")}.`,
+  })}
   <div>
-    <div class="crumbs"><a href="/">Repositories</a> / ${text(fullName)}</div>
-    <div class="pagehead">
-      <div>
-        <h1>Pushes</h1>
-        <p class="lead">Commit watch reviews of pushes to the default branch. This repository is ${text(
-          watched,
-        )}. ${data.openIssues} open ${data.openIssues === 1 ? "issue" : "issues"}.</p>
-      </div>
-    </div>
+    ${setup}
     <div class="card"><div class="bd flush">${rows}</div></div>
   </div>
 </div>`,

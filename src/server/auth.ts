@@ -169,12 +169,15 @@ export async function revokeOtherSessions(keepToken: string): Promise<void> {
 }
 
 /** Issues a session for the one dashboard identity, bypassing the password
- * check, used after GitHub OAuth has already verified the caller. */
-export async function createSession(): Promise<LoginResult> {
+ * check, used after GitHub OAuth has already verified the caller. A GitHub
+ * sign-in passes the login, so the session names the person. */
+export async function createSession(
+  username: string = USERNAME,
+): Promise<LoginResult> {
   const token = randomToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
-  insertSession(await sha256Hex(token), USERNAME, expiresAt);
-  return { token, username: USERNAME, expiresAt };
+  insertSession(await sha256Hex(token), username, expiresAt);
+  return { token, username, expiresAt };
 }
 
 export async function verifySession(

@@ -1,4 +1,5 @@
 import { getAppDb } from "./app_db.ts";
+import { resolveEarlierFailures } from "./failures.ts";
 import { nowIso } from "../util/time.ts";
 import type { ReviewRow } from "./rows.ts";
 
@@ -150,6 +151,8 @@ export function setReviewStatus(
       patch.note_comment_id ?? null,
       id,
     );
+  // A posted review resolves the earlier failures of its pull request.
+  if (status === "posted") resolveEarlierFailures(id);
 }
 
 /** The failure note another attempt already left for this exact push, so a
@@ -253,7 +256,12 @@ function asCostTotals(row: Partial<CostTotals> | undefined): CostTotals {
 }
 
 export type ReviewStats = CostTotals & {
+  /** Every review row, failed attempts included. */
   reviews: number;
+  /** What every page calls "reviews": the rounds that did not fail. The
+   * overview, the home list and Usage all count with this one figure. */
+  completed: number;
+  notPosted: number;
   pullRequests: number;
   findings: number;
   tokensIn: number;
@@ -266,6 +274,8 @@ export type ReviewStats = CostTotals & {
  * new figure lands on the totals, the per repo table and the trend window at
  * the same time. */
 const STATS_COLUMNS = `COUNT(*) AS reviews,
+      COALESCE(SUM(status != 'failed'), 0) AS completed,
+      COALESCE(SUM(status = 'not_posted'), 0) AS notPosted,
       COUNT(DISTINCT pr_number) AS pullRequests,
       COALESCE(SUM(findings_count), 0) AS findings,
       ${COST_COLUMNS},
@@ -277,6 +287,8 @@ const STATS_COLUMNS = `COUNT(*) AS reviews,
 function asStats(row: Partial<ReviewStats> | undefined): ReviewStats {
   return {
     reviews: Number(row?.reviews ?? 0),
+    completed: Number(row?.completed ?? 0),
+    notPosted: Number(row?.notPosted ?? 0),
     pullRequests: Number(row?.pullRequests ?? 0),
     findings: Number(row?.findings ?? 0),
     ...asCostTotals(row),
@@ -287,12 +299,42 @@ function asStats(row: Partial<ReviewStats> | undefined): ReviewStats {
   };
 }
 
+/** What the Usage filters narrow every figure to: one repository, the
+ * pull requests one person opened, or both. The author comes from
+ * `pull_titles`, so a review with no known author is left out when an
+ * author is asked for. */
+export type UsageScope = { repo?: string; author?: string };
+
+function scopeWhere(scope: UsageScope): {
+  sql: string;
+  params: string[];
+} {
+  const clauses: string[] = [];
+  const params: string[] = [];
+  if (scope.repo) {
+    clauses.push("reviews.repo = ?");
+    params.push(scope.repo);
+  }
+  if (scope.author) {
+    clauses.push(
+      `EXISTS (SELECT 1 FROM pull_titles t WHERE t.repo = reviews.repo
+        AND t.pr_number = reviews.pr_number AND t.author = ?)`,
+    );
+    params.push(scope.author);
+  }
+  return {
+    sql: clauses.map((clause) => ` AND ${clause}`).join(""),
+    params,
+  };
+}
+
 /** `untilIso` is exclusive, which is what lets the trend row ask for the
  * window before the one on screen without double counting its edge. */
 export function reviewStats(
   sinceIso: string,
   repo?: string,
   untilIso?: string,
+  author?: string,
 ): ReviewStats {
   const where = ["created_at >= ?", "kind = 'pr'"];
   const params: (string | number)[] = [sinceIso];
@@ -300,30 +342,29 @@ export function reviewStats(
     where.push("created_at < ?");
     params.push(untilIso);
   }
-  if (repo) {
-    where.push("repo = ?");
-    params.push(repo);
-  }
+  const scope = scopeWhere({ repo, author });
   return asStats(
     getAppDb()
       .prepare<ReviewStats>(
-        `SELECT ${STATS_COLUMNS} FROM reviews WHERE ${where.join(" AND ")}`,
+        `SELECT ${STATS_COLUMNS} FROM reviews WHERE ${where.join(" AND ")}${scope.sql}`,
       )
-      .get(...params),
+      .get(...params, ...scope.params),
   );
 }
 
 export function reviewStatsByRepo(
   sinceIso: string,
+  usage: UsageScope = {},
 ): (ReviewStats & { repo: string })[] {
+  const scope = scopeWhere(usage);
   return getAppDb()
     .prepare<ReviewStats & { repo: string }>(
       `SELECT repo, ${STATS_COLUMNS}
-     FROM reviews WHERE created_at >= ?
+     FROM reviews WHERE created_at >= ?${scope.sql}
      GROUP BY repo
      ORDER BY cost DESC`,
     )
-    .all(sinceIso)
+    .all(sinceIso, ...scope.params)
     .map((row) => ({ ...asStats(row), repo: row.repo }));
 }
 
@@ -334,7 +375,9 @@ export type ReviewKindBucket = "posted" | "not_posted" | "failed" | "cli";
  * present, zero when nothing ran. */
 export function reviewStatsByKind(
   sinceIso: string,
+  usage: UsageScope = {},
 ): (CostTotals & { kind: ReviewKindBucket; runs: number })[] {
+  const scope = scopeWhere(usage);
   const rows = getAppDb()
     .prepare<CostTotals & { kind: string; runs: number }>(
       `SELECT CASE
@@ -344,10 +387,10 @@ export function reviewStatsByKind(
           ELSE 'posted' END AS kind,
         COUNT(*) AS runs,
         ${COST_COLUMNS}
-     FROM reviews WHERE created_at >= ?
+     FROM reviews WHERE created_at >= ?${scope.sql}
      GROUP BY 1`,
     )
-    .all(sinceIso);
+    .all(sinceIso, ...scope.params);
   return (["posted", "not_posted", "failed", "cli"] as const).map((kind) => {
     const row = rows.find((r) => r.kind === kind);
     return { ...asCostTotals(row), kind, runs: Number(row?.runs ?? 0) };
@@ -360,18 +403,22 @@ export type DayStats = CostTotals & {
   findings: number;
 };
 
-export function reviewStatsByDay(sinceIso: string): DayStats[] {
+export function reviewStatsByDay(
+  sinceIso: string,
+  usage: UsageScope = {},
+): DayStats[] {
+  const scope = scopeWhere(usage);
   return getAppDb()
     .prepare(
       `SELECT substr(created_at, 1, 10) AS day,
         COUNT(*) AS reviews,
         COALESCE(SUM(findings_count), 0) AS findings,
         ${COST_COLUMNS}
-     FROM reviews WHERE created_at >= ?
+     FROM reviews WHERE created_at >= ?${scope.sql}
      GROUP BY day
      ORDER BY day`,
     )
-    .all(sinceIso)
+    .all(sinceIso, ...scope.params)
     .map((row) => {
       const value = row as DayStats;
       return {
@@ -385,15 +432,17 @@ export function reviewStatsByDay(sinceIso: string): DayStats[] {
 
 export function reviewStatsByModel(
   sinceIso: string,
+  usage: UsageScope = {},
 ): (ReviewStats & { model: string })[] {
+  const scope = scopeWhere(usage);
   return getAppDb()
     .prepare<ReviewStats & { model: string }>(
       `SELECT model, ${STATS_COLUMNS}
-     FROM reviews WHERE created_at >= ?
+     FROM reviews WHERE created_at >= ?${scope.sql}
      GROUP BY model
      ORDER BY cost DESC`,
     )
-    .all(sinceIso)
+    .all(sinceIso, ...scope.params)
     .map((row) => ({ ...asStats(row), model: row.model }));
 }
 
@@ -493,12 +542,16 @@ export function remoteTokenUsageSince(
   };
 }
 
-export function reviewStatsByRemoteToken(sinceIso: string): (CostTotals & {
+export function reviewStatsByRemoteToken(
+  sinceIso: string,
+  usage: UsageScope = {},
+): (CostTotals & {
   tokenId: string;
   tokenName: string;
   reviews: number;
   findings: number;
 })[] {
+  const scope = scopeWhere(usage);
   return getAppDb()
     .prepare<
       CostTotals & {
@@ -513,11 +566,11 @@ export function reviewStatsByRemoteToken(sinceIso: string): (CostTotals & {
             ${COST_COLUMNS},
             COALESCE(SUM(findings_count), 0) AS findings
      FROM reviews
-     WHERE kind = 'remote' AND created_at >= ? AND token_id IS NOT NULL
+     WHERE kind = 'remote' AND created_at >= ? AND token_id IS NOT NULL${scope.sql}
      GROUP BY token_id, token_name
      ORDER BY cost DESC`,
     )
-    .all(sinceIso)
+    .all(sinceIso, ...scope.params)
     .map((row) => ({
       tokenId: row.token_id,
       tokenName: row.token_name,
@@ -544,4 +597,68 @@ export function listLatestReviewsForRepo(
      LIMIT ?`,
     )
     .all(repo, repo, limit);
+}
+
+/** One review for the Usage export, with the pull request author. */
+export type UsageExportRow = {
+  created_at: string;
+  repo: string;
+  pr_number: number | null;
+  author: string | null;
+  kind: string;
+  model: string;
+  tokens_in: number;
+  tokens_out: number;
+  cost: number | null;
+  cost_status: "known" | "unknown" | null;
+  billed_to: "server" | "byok" | null;
+  findings_count: number;
+  status: string;
+};
+
+/** Every review the Usage page counts for a range and its filters, oldest
+ * first, the rows its Export button downloads. */
+export function listUsageReviews(
+  sinceIso: string,
+  usage: UsageScope = {},
+): UsageExportRow[] {
+  const scope = scopeWhere(usage);
+  return getAppDb()
+    .prepare<UsageExportRow>(
+      `SELECT reviews.created_at, reviews.repo, reviews.pr_number, p.author,
+        reviews.kind, reviews.model, reviews.tokens_in, reviews.tokens_out,
+        reviews.cost, reviews.cost_status, reviews.billed_to,
+        reviews.findings_count, reviews.status
+     FROM reviews
+     LEFT JOIN pull_titles p
+       ON p.repo = reviews.repo AND p.pr_number = reviews.pr_number
+     WHERE reviews.created_at >= ?${scope.sql}
+     ORDER BY reviews.created_at, reviews.id`,
+    )
+    .all(sinceIso, ...scope.params);
+}
+
+/** The repositories and authors the Usage filters offer for a range. */
+export function usageChoices(sinceIso: string): {
+  repos: string[];
+  authors: string[];
+} {
+  const db = getAppDb();
+  return {
+    repos: db
+      .prepare<{ repo: string }>(
+        `SELECT DISTINCT repo FROM reviews WHERE created_at >= ? ORDER BY repo`,
+      )
+      .all(sinceIso)
+      .map((row) => row.repo),
+    authors: db
+      .prepare<{ author: string }>(
+        `SELECT DISTINCT p.author AS author FROM reviews r
+         INNER JOIN pull_titles p ON p.repo = r.repo AND p.pr_number = r.pr_number
+         WHERE r.created_at >= ? AND p.author IS NOT NULL
+         ORDER BY p.author COLLATE NOCASE`,
+      )
+      .all(sinceIso)
+      .map((row) => row.author),
+  };
 }

@@ -10,10 +10,15 @@ export type RepoChoice = {
 
 export function renderAddRepo(
   username: string,
-  picker: { repos: RepoChoice[]; error?: string },
+  picker: { repos: RepoChoice[]; error?: string; errorLink?: string },
 ): Response {
+  // An error that names a place gets a button to it.
   const notice = picker.error
-    ? `<div class="notice bad"><div class="txt">${text(picker.error)}</div></div>`
+    ? `<div class="notice bad"><div class="txt">${text(picker.error)}</div>${
+        picker.errorLink
+          ? `<a class="btn out sm" href="${text(picker.errorLink)}">Open Settings</a>`
+          : ""
+      }</div>`
     : "";
   const groups = new Map<string, RepoChoice[]>();
   for (const repo of picker.repos) {
@@ -118,7 +123,7 @@ function showPlan(data) {
     est.tokensOut[1].toLocaleString("en-US") + " out" +
     ". Time: " + Math.round(est.seconds[0]) + "-" + Math.round(est.seconds[1]) + "s" +
     (est.usd
-      ? ". Cost: $" + est.usd[0].toFixed(4) + "-$" + est.usd[1].toFixed(4)
+      ? ". Cost: " + money(est.usd[0]) + "-" + money(est.usd[1])
       : ". Cost: unknown") +
     ". Basis: " + (est.estimateBasis === "history"
       ? "this repository's recorded jobs"

@@ -105,6 +105,16 @@ export function setInstallationId(
     .run(installationId, fullName);
 }
 
+/** The default branch, as the repository metadata or git named it. A blank
+ * name is ignored so a bad answer never overwrites a good one. */
+export function setDefaultBranch(fullName: string, branch: string): void {
+  const name = branch.trim();
+  if (!name) return;
+  getAppDb()
+    .prepare(`UPDATE repos SET default_branch = ? WHERE full_name = ?`)
+    .run(name, fullName);
+}
+
 export function getRepo(fullName: string): RepoRow | undefined {
   return getAppDb()
     .prepare<RepoRow>(`SELECT * FROM repos WHERE full_name = ?`)

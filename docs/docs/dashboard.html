@@ -133,7 +133,15 @@ in the same process as the UI.</p>
 </tr>
 <tr>
 <td>Debug a failed job</td>
-<td><strong>Activity</strong> job detail</td>
+<td>The open failures count beside <strong>Activity</strong>, then the job page</td>
+</tr>
+<tr>
+<td>Find every finding of a kind</td>
+<td><strong>Findings</strong> in the left menu, or a repository&#39;s <strong>Findings</strong> tab</td>
+</tr>
+<tr>
+<td>See who changed what</td>
+<td><strong>Settings</strong>, <strong>Audit log</strong></td>
 </tr>
 </tbody></table>
 <h2 id="before-you-open">Before you open</h2>
@@ -197,20 +205,56 @@ OAuth setup lives on <a href="serve.html#sign-in-to-the-dashboard"><code>serve</
 </ul>
 <p>Sessions use an <code>HttpOnly</code>, <code>SameSite=Lax</code> cookie (<code>Secure</code> on HTTPS).</p>
 <h2 id="get-started-setup">Get started (<code>/setup</code>)</h2>
-<p>Onboarding checklist: models and API key, GitHub access, GitHub App. Each step
-links to <strong>Settings</strong> to fix gaps.</p>
-<p>The home page carries the same idea as a <strong>Finish setup</strong> card until an install
-is complete: models and API key, GitHub App, webhook reachable (see
-<a href="#webhook-reachability">Webhook reachability</a>), first repository, first review,
-and CLI connected (a remote token exists). Each row links to the settings card
-that fixes it, the header shows how many are done, and the card disappears once
-all six are. A fresh install therefore says what to do next on its landing
-page, not only on <code>/setup</code>.</p>
-<p>This page is <strong>not</strong> in the top bar. After sign-in, open
-<code>http://&lt;host&gt;:&lt;port&gt;/setup</code>, or use the <strong>Finish setup</strong> card on the home page.
-You can skip it and configure the same items under <strong>Settings</strong> at any time.</p>
+<p><code>/setup</code> is a step by step wizard. The progress across the top names every
+step and marks the done ones, and each step is its own URL (<code>/setup?step=ai</code>),
+so <strong>Back</strong> and <strong>Next</strong> are plain links.</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Done when</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Models and API key</td>
+<td>A provider and key are saved</td>
+</tr>
+<tr>
+<td>GitHub access</td>
+<td><code>gh</code> or a personal access token is set</td>
+</tr>
+<tr>
+<td>GitHub App and webhook</td>
+<td>The App is saved and GitHub has delivered a webhook (see <a href="#webhook-reachability">Webhook reachability</a>)</td>
+</tr>
+<tr>
+<td>First repository</td>
+<td>A repository has its guides</td>
+</tr>
+<tr>
+<td>How reviews look (optional)</td>
+<td>The blocking rule is saved</td>
+</tr>
+</tbody></table>
+<p>Without a step in the URL the wizard opens on the first step that is not done.
+A done step says <strong>Done</strong> and <strong>Next</strong>, a step that is not done offers its fix
+and <strong>Skip for now</strong>. The last step shows a review comment with two sample
+findings next to the options, and the preview follows them as you change them:</p>
+<ul>
+<li><strong>Blocking rule</strong>: the model decides, or by severity (P0 and P1 block). It is
+the server default, saved with <strong>Save blocking rule</strong>. A repository&#39;s own rule
+still wins.</li>
+<li><strong>Diagram language</strong>: Mermaid, PlantUML or a PlantUML server image.</li>
+<li><strong>References in the comment</strong>: shown or left out.</li>
+</ul>
+<p>Diagram language and references are set per repository in its <strong>Repository
+settings</strong>, so the wizard only previews them.</p>
+<p>The home page shows a <strong>Setup is not finished</strong> banner with the count of the
+four required steps until they are done, and the menu shows the same count
+(<code>2/4</code>). The optional step is not counted.</p>
 <h2 id="routes">Routes</h2>
-<p>Top bar: <strong>Activity</strong>, <strong>Usage</strong> (<code>/analytics</code>), <strong>Settings</strong>, signed-in user.</p>
+<p>The left menu holds <strong>Repositories</strong>, <strong>Activity</strong>, <strong>Findings</strong>, <strong>Usage</strong>,
+<strong>Setup</strong> and the <strong>Settings</strong> pages, with <strong>Audit log</strong> among them.</p>
 <table>
 <thead>
 <tr>
@@ -220,11 +264,11 @@ You can skip it and configure the same items under <strong>Settings</strong> at 
 </thead>
 <tbody><tr>
 <td><code>/</code></td>
-<td>Repository list, <strong>Finish setup</strong> checklist until complete, <strong>Add repository</strong>, auto-review toggles (they only apply to repositories on <strong>Simple switches</strong>)</td>
+<td>Repository list with reviews, open failures and cost of the last 30 days, the setup banner until setup is done, <strong>Add repository</strong></td>
 </tr>
 <tr>
 <td><code>/setup</code></td>
-<td>Same checklist as above (direct URL)</td>
+<td>The setup wizard</td>
 </tr>
 <tr>
 <td><code>/repos/new</code></td>
@@ -232,15 +276,19 @@ You can skip it and configure the same items under <strong>Settings</strong> at 
 </tr>
 <tr>
 <td><code>/repos/:owner/:repo</code></td>
-<td>Overview, 30-day stats, drift <strong>Update now</strong>, recent PRs, webhook reachability and last delivery</td>
+<td>Overview: 30-day stats, findings by severity, recent pull requests, drift <strong>Update now</strong>, a short commit watch status line, webhook reachability and last delivery</td>
 </tr>
 <tr>
 <td><code>/repos/:owner/:repo/pulls</code></td>
-<td>Open PR list with a <strong>Review</strong> button each, paged review history, manual <strong>Review</strong> by number when webhooks fail</td>
+<td>Open pull requests with a <strong>Review</strong> button each, paged review history, manual <strong>Review</strong> by number when webhooks fail. A click on a row opens that pull request</td>
 </tr>
 <tr>
 <td><code>/repos/:owner/:repo/pulls/:n</code></td>
-<td>Findings and cost for one PR, and each round&#39;s <a href="extensions.html">extension</a> results</td>
+<td>One pull request: title, rounds, findings with their state, references, job logs and each round&#39;s <a href="extensions.html">extension</a> results</td>
+</tr>
+<tr>
+<td><code>/repos/:owner/:repo/findings</code></td>
+<td>The <a href="#findings">Findings list</a> of this repository</td>
 </tr>
 <tr>
 <td><code>/repos/:owner/:repo/remote</code></td>
@@ -252,75 +300,263 @@ You can skip it and configure the same items under <strong>Settings</strong> at 
 </tr>
 <tr>
 <td><code>/repos/:owner/:repo/settings</code></td>
-<td><strong>Who gets a review</strong> (the <a href="review-policy.html">review policy</a>), review scope, codegraph, <a href="commit-watch-review.html">commit watch</a> issues and pushes in a row, analysis limits, schedule, remove repo</td>
+<td><strong>Who gets a review</strong> (the <a href="review-policy.html">review policy</a>), review scope, codegraph, analysis limits, schedule, remove repo</td>
 </tr>
 <tr>
 <td><code>/repos/:owner/:repo/pushes</code></td>
-<td><a href="commit-watch-review.html">Commit watch</a> push reviews: range, App or CI, status, findings by severity, issues opened, cost</td>
+<td><a href="commit-watch-review.html">Commit watch</a> setup and push reviews: range, App or CI, status, findings by severity, issues opened, cost</td>
+</tr>
+<tr>
+<td><code>/findings</code></td>
+<td>The <a href="#findings">Findings list</a> across every repository</td>
 </tr>
 <tr>
 <td><code>/activity</code></td>
-<td>Live and recent jobs (refreshes about every 5 seconds) and <strong>Pull requests we skipped</strong>, with the rule that skipped each and <strong>Review now</strong> for one that is waiting. <strong>Stop</strong> on a running job lets the AI call in progress finish, then the job writes and posts nothing</td>
+<td>Every job, one row per review, with <a href="#activity">filters</a>, the failed list and <strong>Pull requests we skipped</strong></td>
 </tr>
 <tr>
 <td><code>/activity/:id</code></td>
-<td>Single job log</td>
+<td>One job: its log, a <a href="#job-page">warning banner</a> when it finished with a problem, links to the pull request page and the posted review</td>
 </tr>
 <tr>
-<td><code>/analytics</code></td>
-<td>Usage for 7, 30, or 90 days</td>
+<td><code>/usage</code></td>
+<td><a href="#usage">Usage</a> for 7, 30 or 90 days, by repository and author, with <strong>Export CSV</strong>. <code>/analytics</code> redirects here</td>
 </tr>
 <tr>
-<td><code>/settings</code></td>
-<td>Global models, GitHub, App (<strong>Create GitHub App</strong>), webhook URL, review policy default, remote limits, tokens and key policy</td>
+<td><code>/settings/...</code></td>
+<td>One page per settings section, see <a href="#settings-global">Settings</a></td>
+</tr>
+<tr>
+<td><code>/settings/audit</code></td>
+<td>The <a href="#audit-log">Audit log</a></td>
 </tr>
 </tbody></table>
-<p>Per-repo tabs: <strong>Overview</strong>, <strong>Pull requests</strong>, <strong>Knowledge</strong>, <strong>Remote reviews</strong>, <strong>Pushes</strong>, <strong>Repository settings</strong>. The overview carries the <strong>Commit watch</strong> card.</p>
-<p>PR titles are not stored in <code>app.db</code>, so lists show <code>#number</code> only.</p>
-<h2 id="settings-global">Settings (global)</h2>
-<p>Single page with sections (anchor links in the sidebar):</p>
+<p>Every repository tab starts with the same breadcrumb, then the title, then the
+tabs: <strong>Overview</strong>, <strong>Pull requests</strong>, <strong>Findings</strong>, <strong>Knowledge</strong>, <strong>Remote
+reviews</strong>, <strong>Pushes</strong>, <strong>Repository settings</strong>. The commit watch setup lives on
+<strong>Pushes</strong>, and the overview keeps one status line that links there.</p>
+<p>A review stores the pull request title and author, so lists show
+<code>#136 Rename format to formatDuration</code> without asking GitHub. A pull request
+reviewed before 0.7.15 shows its number until its next review or first visit.</p>
+<h2 id="every-count-opens-its-list">Every count opens its list</h2>
+<p>No count of findings, failures or reviews is plain text. The <strong>Result</strong> column
+on <strong>Activity</strong> opens the pull request page at that round. The overview
+<strong>Findings</strong> card opens the repository&#39;s findings list, and each severity opens
+it filtered to that severity. The recent pull requests&#39; severity badges, the job
+page <strong>Found</strong> card, and the Usage cards and severity rows do the same.</p>
+<h2 id="findings">Findings</h2>
+<p><strong>Findings</strong> in the left menu lists every finding of every reviewed pull request,
+one row per finding, with a repository filter. Each repository has the same list
+on its <strong>Findings</strong> tab. A finding carried from round to round is one row, with
+the state it has now.</p>
 <table>
 <thead>
 <tr>
-<th>Section</th>
+<th>Column</th>
+<th>What it shows</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Severity</td>
+<td>P0 to P3</td>
+</tr>
+<tr>
+<td>Blocking</td>
+<td>Whether it blocks under the repository&#39;s blocking rule</td>
+</tr>
+<tr>
+<td>State</td>
+<td>Open or Closed</td>
+</tr>
+<tr>
+<td>Finding</td>
+<td>The title, the file and line, and the pull request with its title and round</td>
+</tr>
+<tr>
+<td>When</td>
+<td>When that round ran</td>
+</tr>
+</tbody></table>
+<p>Filters live in the URL, so a filtered list is a link: severity, state (open by
+default), pull request, file text, author, and a search over the title and body.
+Each value shows as a chip you can take off. A row opens the pull request page
+at that finding.</p>
+<h2 id="pull-request-page">Pull request page</h2>
+<p>The title shows the pull request title. Each round has an anchor (<code>#round-4</code>)
+and each finding one too, which the counts elsewhere link to. The findings header
+says how many are open and closed, and every finding carries its state badge.
+<code>file:line</code> opens the line on GitHub at the round&#39;s commit, and a finding that was
+posted links its GitHub review thread. <strong>References (N)</strong> counts the references it
+lists. Each row of the <strong>Reviews</strong> table opens that round&#39;s job log.</p>
+<h2 id="activity">Activity</h2>
+<p>Activity shows one row per review: the pull request, the result, the cost, the
+time and the status. Every row opens its log. Other jobs, such as init, sync,
+skip and reply, keep one row each. Job kinds, skip reasons and cancel reasons
+read as sentences, for example &quot;Skipped: nothing new since the last review&quot;.</p>
+<p>Filters live in the URL as chips: status (running, done, failed, canceled,
+skipped), kind, repository, pull request, a day range and a search box. The list
+is paged.</p>
+<p>The open page polls a small change stamp every 5 seconds and fetches the list
+only when something changed. It waits while rows are selected or a field of the
+list is in use, so a refresh never drops your work.</p>
+<p><strong>Pull requests we skipped</strong> has column headings, says why a row has no
+repository, merges repeats within the same minute into one row with a count, and
+hides the bot&#39;s own comments behind <strong>Show own comments</strong>.</p>
+<h3 id="failures">Failures</h3>
+<p>The red count beside <strong>Activity</strong> in the menu, for example <code>5 open failures</code>,
+counts failures of the last 30 days that nobody dismissed and no later review
+resolved. The home list and the repository overview show the same count for each
+repository. Each of them opens the failed list for the same window, so the count
+is the number of rows it opens.</p>
+<p>Each failed row shows its reason with <strong>Retry</strong> and <strong>Dismiss</strong>. <strong>Dismiss</strong>
+marks the failure as seen and keeps it in the history. <strong>Dismiss all</strong> does it
+for every failure the list shows. A later successful review of the same pull
+request resolves its earlier failures by itself. The failed list leaves out
+dismissed and resolved failures and links to them in one click.</p>
+<h3 id="bulk-select">Bulk select</h3>
+<p>Rows have checkboxes, and the header box selects every row on the page. The bar
+above the list offers <strong>Retry</strong> and <strong>Dismiss</strong> for the selection, each enabled
+only when a selected row allows it.</p>
+<h3 id="keyboard-shortcuts">Keyboard shortcuts</h3>
+<p>Activity, Findings and the Pull requests tab share these keys. A small bar at the
+bottom of the list names them, and they never fire while you type in a field.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>j</code> / <code>k</code></td>
+<td>Move down and up</td>
+</tr>
+<tr>
+<td><code>Enter</code></td>
+<td>Open the row</td>
+</tr>
+<tr>
+<td><code>x</code></td>
+<td>Select the row (Activity)</td>
+</tr>
+<tr>
+<td><code>/</code></td>
+<td>Focus the search box</td>
+</tr>
+<tr>
+<td><code>?</code></td>
+<td>Show the shortcuts panel</td>
+</tr>
+</tbody></table>
+<h2 id="job-page">Job page</h2>
+<p>A job that finished but logged a warning or an error gets a banner at the top
+that says what went wrong and how to fix it, for example a check run update that
+failed with 404 because the GitHub App lacks <strong>Checks: Read and write</strong>. Its
+Activity row gets a warning mark too. A review job links the pull request page
+and the GitHub review it posted. The log&#39;s <strong>Clear</strong> button shows only while the
+job runs.</p>
+<h2 id="usage">Usage</h2>
+<p>Usage covers 7, 30 or 90 days. A repository filter and an author filter sit next
+to the range, and the range links keep them. The author is the GitHub login that
+opened the pull request, so CLI reviews and init or sync runs, which have none,
+drop out when an author is chosen.</p>
+<p><strong>Export CSV</strong> downloads the reviews the page counts, one row per review:</p>
+<pre><code class="language-text">time,repository,pull_request,author,model,tokens_in,tokens_out,cost_usd,billed_to,findings,status
+</code></pre>
+<p>An unknown cost is an empty cell, never a zero. The failed attempts on the
+<strong>Reviews</strong> card open every failed review of the range, dismissed ones too.</p>
+<h2 id="settings-global">Settings (global)</h2>
+<p>Each section is its own page in the left menu:</p>
+<table>
+<thead>
+<tr>
+<th>Page</th>
 <th>What you configure</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>Models and API key</td>
+<td>AI models</td>
 <td>Provider (OpenRouter, OpenAI or Anthropic, see <a href="providers.html">AI providers</a>), token, high model (reviews and synthesis), low model (history extraction). No model is pre-filled</td>
 </tr>
 <tr>
 <td>GitHub</td>
-<td><code>gh</code> or PAT for init/sync and server-side Git reads</td>
+<td><code>gh</code> or PAT for init/sync and server-side Git reads, the GitHub App (<strong>Create GitHub App</strong>) and the webhook URL</td>
 </tr>
 <tr>
-<td>Defaults</td>
-<td>Auth and include/limit defaults for new work, and the <a href="review-policy.html">review policy</a> template new repositories start with</td>
+<td>Review defaults</td>
+<td>Limits for new repositories and the <a href="review-policy.html">review policy</a> template they start with</td>
+</tr>
+<tr>
+<td>Remote access</td>
+<td><code>cmr_…</code> tokens (secret shown once, with copy) and the <strong>Client key policy (BYOK)</strong>, see <a href="remote-review.html#your-own-ai-key">your own key</a></td>
 </tr>
 <tr>
 <td>Server</td>
-<td>Webhook URL shown to GitHub, queue and timeout knobs</td>
+<td>Version, port and data folder, <a href="#updates">Updates</a>, the job queue and remote limits</td>
 </tr>
 <tr>
-<td>Remote review</td>
-<td><code>cmr_…</code> tokens (secret shown once, with copy), per-token concurrency, sync timeout, and the <strong>Client key policy (BYOK)</strong>, see <a href="remote-review.html#your-own-ai-key">your own key</a></td>
+<td>Sign-in</td>
+<td>Password vs GitHub sign-in toggles (mirrors <code>serve</code> flags), and the password</td>
 </tr>
 <tr>
-<td>Access</td>
-<td>Password vs GitHub sign-in toggles (mirrors <code>serve</code> flags)</td>
+<td>Audit log</td>
+<td>Who did what, see <a href="#audit-log">Audit log</a></td>
 </tr>
 <tr>
-<td>Password</td>
-<td>Change the dashboard password and sign out other sessions</td>
-</tr>
-<tr>
-<td>About</td>
-<td>Version and source link</td>
+<td>Danger zone</td>
+<td><strong>Clear all knowledge</strong></td>
 </tr>
 </tbody></table>
 <p>Saving PAT, App key, or OAuth values is validated against GitHub first. Bad
 scopes return <strong>422</strong> and nothing is stored.</p>
+<p>A <strong>Search settings</strong> box above the Settings menu finds a setting by its name or
+description as you type. Arrow keys move, <code>Enter</code> opens, and the page scrolls to
+the field, focuses it and marks it for a moment.</p>
+<p>Settings pages and <strong>Repository settings</strong> show their save state at the top:
+<strong>Unsaved changes</strong> once a field changed, <strong>Saving</strong> while a save runs, <strong>All
+changes saved</strong> when nothing is left, and <strong>Not saved</strong> when a save failed.</p>
+<h2 id="audit-log">Audit log</h2>
+<p><strong>Settings</strong>, <strong>Audit log</strong> lists who did what and when:</p>
+<ul>
+<li>settings and repository settings changes, with each changed setting and its old
+and new value</li>
+<li>remote tokens created, turned on or off, and deleted</li>
+<li>repositories added and removed</li>
+<li>sign-ins, with the password or with GitHub</li>
+<li>reviews started by hand and failures retried</li>
+<li>failures dismissed</li>
+<li>updates started</li>
+</ul>
+<p>A secret never shows a value, old or new, only that it changed. A GitHub sign-in
+names the GitHub login, so the log names the person. The list filters by kind and
+person and is paged.</p>
+<h2 id="updates">Updates</h2>
+<p><strong>Check for new versions</strong> at the bottom of the sidebar checks by hand, on any
+server. It first says that it asks github.com, and only after <strong>Check now</strong> does
+it read the latest release and <code>CHANGELOG.md</code>. The dialog then lists each newer
+version with one short line per change, and a link to the full changelog.
+Nothing about the server is sent. <strong>Star Co-Maintainer</strong> below it opens
+the repository on GitHub.</p>
+<p>The automatic newer version check runs only when the host sets <code>CM_UPDATE_URL</code>.
+Without it the server never calls out on its own, and <strong>Settings</strong>, <strong>Server</strong>, <strong>Updates</strong> shows the
+lines that update a self-hosted Docker server:</p>
+<pre class="shell-block"><code>docker pull ghcr.io/groophylifefor/co-maintainer:latest
+docker stop co-maintainer
+docker rm co-maintainer
+<span class="sh-arg">docker</span> <span class="sh-arg">run</span> <span class="sh-arg">-d</span> <span class="sh-flag">--name</span> <span class="sh-arg">co-maintainer</span> <span class="sh-arg">-p</span> <span class="sh-arg">5000:5000</span> <span class="sh-arg">\</span>
+  -v co-maintainer-data:/data \
+  ghcr.io/groophylifefor/co-maintainer:latest
+</code></pre>
+<p>Start the container with the options you started it with, on the same volume.</p>
+<p>With <code>CM_UPDATE_URL</code> set, the server reads the latest stable release from GitHub
+at most once a day and keeps the answer beside <code>app.db</code>. When a newer one is out,
+the sidebar and the <strong>Updates</strong> card say &quot;co-maintainer 0.7.15 is out. This
+instance runs 0.7.14.&quot; with a link to its release notes. <strong>Update to 0.7.15</strong>
+POSTs <code>{&quot;version&quot;:&quot;0.7.15&quot;,&quot;current&quot;:&quot;0.7.14&quot;}</code> to <code>CM_UPDATE_URL</code>, the host
+restarts the instance on that image, and the card shows the update until the new
+version answers, then reloads. The button only offers the latest release newer
+than the running one, never an older version. Each update started is written to
+the <a href="#audit-log">Audit log</a>. See <a href="cloud.html#versions-and-updates">Cloud: Versions and updates</a>.</p>
 <h2 id="who-gets-a-review">Who gets a review</h2>
 <p>Each repository has a <strong>Who gets a review</strong> card under its <strong>Settings</strong>. It is
 where the <a href="review-policy.html">review policy</a> lives. The summary under <strong>In short</strong>
@@ -349,7 +585,7 @@ cost column notes <code>incl. $X extensions</code> when an extension reported a 
 guides and saved settings, and a checkbox also drops the cached evidence
 (pull request listings, costs, clones and worktrees). The next <strong>Sync</strong> builds
 the knowledge from scratch. See <a href="caching.html#clearing">Caching: Clearing</a>.</p>
-<p><strong>Settings</strong> ends with <strong>Clear all knowledge</strong>, which does the same for every
+<p><strong>Settings</strong>, <strong>Danger zone</strong> has <strong>Clear all knowledge</strong>, which does the same for every
 repository on the server. Repository records, review history and tokens stay.
 Both actions ask about work in flight first: queued jobs are canceled, a
 running review can be stopped, and a running sync is waited out because it
@@ -370,7 +606,7 @@ dashboard:</p>
 <li><code>serve</code> logs a one-line warning when not on Linux.</li>
 </ul>
 <h2 id="updating">Updating</h2>
-<p>Forward-only <code>app.db</code> migrations. Do not downgrade the CLI after a newer version
+<p>See <a href="#updates">Updates</a> for the notice and the button. Forward-only <code>app.db</code> migrations. Do not downgrade the CLI after a newer version
 has run.</p>
 <ol>
 <li>Stop <code>serve</code>.</li>
@@ -386,7 +622,7 @@ has run.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#what-it-is-for">What it is for</a></li><li><a href="#before-you-open">Before you open</a></li><li><a href="#webhook-reachability">Webhook reachability</a></li><li><a href="#adding-a-repository">Adding a repository</a></li><li><a href="#sign-in">Sign in</a></li><li><a href="#get-started-setup">Get started (/setup)</a></li><li><a href="#routes">Routes</a></li><li><a href="#settings-global">Settings (global)</a></li><li><a href="#who-gets-a-review">Who gets a review</a></li><li><a href="#custom-review-instructions">Custom review instructions</a></li><li><a href="#extension-results">Extension results</a></li><li><a href="#clearing-knowledge">Clearing knowledge</a></li><li><a href="#ui-behavior">UI behavior</a></li><li><a href="#linux">Linux</a></li><li><a href="#updating">Updating</a></li></ul></nav>
+      <ul><li><a href="#what-it-is-for">What it is for</a></li><li><a href="#before-you-open">Before you open</a></li><li><a href="#webhook-reachability">Webhook reachability</a></li><li><a href="#adding-a-repository">Adding a repository</a></li><li><a href="#sign-in">Sign in</a></li><li><a href="#get-started-setup">Get started (/setup)</a></li><li><a href="#routes">Routes</a></li><li><a href="#every-count-opens-its-list">Every count opens its list</a></li><li><a href="#findings">Findings</a></li><li><a href="#pull-request-page">Pull request page</a></li><li><a href="#activity">Activity</a></li><li><a href="#job-page">Job page</a></li><li><a href="#usage">Usage</a></li><li><a href="#settings-global">Settings (global)</a></li><li><a href="#audit-log">Audit log</a></li><li><a href="#updates">Updates</a></li><li><a href="#who-gets-a-review">Who gets a review</a></li><li><a href="#custom-review-instructions">Custom review instructions</a></li><li><a href="#extension-results">Extension results</a></li><li><a href="#clearing-knowledge">Clearing knowledge</a></li><li><a href="#ui-behavior">UI behavior</a></li><li><a href="#linux">Linux</a></li><li><a href="#updating">Updating</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

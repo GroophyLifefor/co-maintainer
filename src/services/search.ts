@@ -15,6 +15,7 @@ export type SearchResult = { groups: { label: string; items: SearchItem[] }[] };
 const PAGES: SearchItem[] = [
   { label: "Repositories", href: "/", icon: "layout-grid" },
   { label: "Activity", href: "/activity", icon: "activity" },
+  { label: "Findings", href: "/findings", icon: "flag" },
   { label: "Usage", href: "/usage", icon: "chart-no-axes-column" },
   { label: "Setup", href: "/setup", icon: "list-checks" },
   { label: "AI models", href: "/settings/ai", icon: "sparkles" },

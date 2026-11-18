@@ -58,6 +58,7 @@ import {
 } from "../config.ts";
 import { outsideCode, redact } from "../util/redact.ts";
 import { getRepo, setInstallationId } from "../store/repos.ts";
+import { rememberPullTitle } from "../store/pull_titles.ts";
 import {
   findNoteCommentId,
   getReview,
@@ -212,7 +213,7 @@ async function recordFailedReview(
       note_comment_id: String(posted.id ?? ""),
     });
   } catch (error) {
-    log("info", `could not post the failure note: ${redact(String(error))}`);
+    log("warn", `could not post the failure note: ${redact(String(error))}`);
   }
 }
 
@@ -238,7 +239,7 @@ async function resolveFailureNote(
     });
     setReviewStatus(reviewId, "posted", { note_comment_id: noteId });
   } catch (error) {
-    log("info", `could not update the failure note: ${redact(String(error))}`);
+    log("warn", `could not update the failure note: ${redact(String(error))}`);
   }
 }
 
@@ -504,7 +505,7 @@ async function postedCommentBodies(
     );
   } catch (error) {
     log(
-      "info",
+      "warn",
       `could not read the earlier comments: ${redact(String(error))}`,
     );
     return new Map();
@@ -534,7 +535,7 @@ async function findingReplies(
       `repos/${job.repo}/pulls/${job.pr_number}/comments`,
     );
   } catch (error) {
-    log("info", `could not read the review threads: ${redact(String(error))}`);
+    log("warn", `could not read the review threads: ${redact(String(error))}`);
     return replies;
   }
   const access = new Map<string, Promise<boolean>>();
@@ -732,7 +733,7 @@ async function startCheck(
     setReviewStatus(reviewId, "drafting", { check_run_id: id });
     return id;
   } catch (error) {
-    log("info", `GitHub Check Run unavailable: ${redact(String(error))}`);
+    log("warn", `GitHub Check Run unavailable: ${redact(String(error))}`);
     return undefined;
   }
 }
@@ -751,7 +752,7 @@ async function updateCheck(
       body,
     );
   } catch (error) {
-    log("info", `GitHub Check Run update failed: ${redact(String(error))}`);
+    log("warn", `GitHub Check Run update failed: ${redact(String(error))}`);
   }
 }
 
@@ -1100,6 +1101,14 @@ async function runReviewJobCore(
   const pr = await github.request<Json>(
     `repos/${job.repo}/pulls/${job.pr_number}`,
   );
+  // The dashboard shows the title and filters by author without asking
+  // GitHub again.
+  rememberPullTitle(
+    job.repo,
+    job.pr_number,
+    pr.title,
+    (pr.user as Json | undefined)?.login,
+  );
   if (args.trigger === "request-comment" && !existing) {
     const blocked = requestedReviewBlocked(job.repo, pr);
     if (blocked) {
@@ -1113,7 +1122,7 @@ async function runReviewJobCore(
     try {
       await post(github, args.requestReaction, { content: "eyes" });
     } catch (error) {
-      log("info", `could not react to the review request: ${String(error)}`);
+      log("warn", `could not react to the review request: ${String(error)}`);
     }
   }
   const headSha = String((pr.head as Json | undefined)?.sha ?? "");

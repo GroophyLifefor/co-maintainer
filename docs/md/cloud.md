@@ -73,6 +73,33 @@ can turn them on.
 service sets `CM_MCP_DISABLED=1` from outside the container, so
 `set --mcp-config` is refused and no review starts an MCP server.
 
+## Versions and updates
+
+An instance runs the image the host deployed. Each stable release publishes
+`ghcr.io/groophylifefor/co-maintainer:<version>` and `:latest`.
+
+The host sets `CM_UPDATE_URL` on the instance. With it, the dashboard reads the
+latest stable release from GitHub at most once a day and keeps the answer. When
+a newer one is out, admins see "co-maintainer 0.7.15 is out. This instance runs
+0.7.14." in the sidebar and under **Settings**, **Server**, **Updates**, with a
+link to the release notes.
+
+**Update to 0.7.15** sends a `POST` to `CM_UPDATE_URL` with a JSON body:
+
+```json
+{"version":"0.7.15","current":"0.7.14"}
+```
+
+Any `2xx` answer means the host took the request. The host restarts the instance
+on that image, and the card shows the update until the new version answers. Any
+other answer, or no answer, shows that the update did not start. The button only
+offers the latest stable release newer than the running one, never an older
+version, and every update started is written to the [Audit log](dashboard.md#audit-log).
+
+Without `CM_UPDATE_URL` the instance never asks for the latest release, and
+Settings shows the `docker pull` and restart lines a self-hosted server uses. See
+[Dashboard: Updates](dashboard.md#updates).
+
 ## Support and status
 
 The instance list, uptime, and any incident notes are published by the

@@ -1,13 +1,16 @@
 import {
   empty,
+  escapeHtml,
   html,
   layout,
   layoutFocus,
+  plural,
   skSlot,
   text,
   when,
 } from "./layout.ts";
 import type { SetupItem } from "../../services/setup_checklist.ts";
+import { openFailuresHref } from "../../services/open_failures.ts";
 import { alert, badge, icon, segmented } from "./ui.ts";
 import type { RepoState } from "../../services/repo_list.ts";
 
@@ -87,7 +90,7 @@ export function renderHome(
   const lead =
     filter.total === 0
       ? "No repositories yet. Add one to start."
-      : `${filter.total} repositories · ${filter.reviewing} reviewing pull requests automatically`;
+      : `${plural(filter.total, "repository", "repositories")} · ${filter.reviewing} reviewing pull requests automatically`;
   const remaining = checklist.filter((item) => !item.done);
   // One compact banner pointing at /setup, where the steps live. It is
   // hidden entirely once everything is done, so a finished install is not
@@ -145,6 +148,7 @@ export function renderHome(
       ? empty(
           "No repositories",
           "Add a repository to generate knowledge and review pull requests.",
+          `<a class="btn primary sm" href="/repos/new">${icon("plus")}Add repository</a>`,
         )
       : rows.length === 0
         ? `${filters}${empty("No repositories match", "Try another search or tab.")}`
@@ -176,7 +180,9 @@ export function renderHome(
             }</td>
             <td class="num">${text(row.reviews)}${
               row.failed > 0
-                ? `<span class="sub">${row.failed} failed</span>`
+                ? `<a class="sub fail-link" href="${escapeHtml(
+                    openFailuresHref(row.fullName),
+                  )}">${plural(row.failed, "open failure")}</a>`
                 : ""
             }</td>
             <td class="num">${text(row.cost)}</td>
@@ -190,7 +196,7 @@ export function renderHome(
         </tbody>
       </table>
     </div>
-    <div class="ft"><span>Showing ${rows.length} of ${filter.total} repositories</span></div>
+    <div class="ft"><span>Showing ${rows.length} of ${plural(filter.total, "repository", "repositories")}</span></div>
   </div>`;
   return html(
     layout({

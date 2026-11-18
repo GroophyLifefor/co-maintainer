@@ -110,12 +110,12 @@
     <div class="label">Privacy</div>
     <h1>Nothing is sent <span>to us.</span></h1>
     <p class="lede">co-maintainer runs on your machine or your own server. This page says what it stores, where, and what leaves the machine.</p>
-    <div class="updated">Last updated 2026-11-07 · To hear when this page changes, <a href="https://buttondown.com/murat" data-umami-event="newsletter-click">subscribe to the newsletter</a>.</div>
+    <div class="updated">Last updated 2026-11-18 · To hear when this page changes, <a href="https://buttondown.com/murat" data-umami-event="newsletter-click">subscribe to the newsletter</a>.</div>
   </div>
 
   <div class="promise">
     <b>No telemetry, no analytics endpoint, no call home.</b>
-    <p>The only hosts the product talks to are the ones you configured, plus your provider's price list when <code>probe</code> prices an estimate. This covers the CLI, <code>serve</code> and the dashboard.</p>
+    <p>The only hosts the product talks to are the ones you configured, plus your provider's price list when <code>probe</code> prices an estimate, GitHub's latest release when the host of a <code>serve</code> instance sets <code>CM_UPDATE_URL</code>, and GitHub's latest release and changelog when an admin presses <b>Check for new versions</b> in the dashboard. This covers the CLI, <code>serve</code> and the dashboard.</p>
   </div>
 
   <section class="part">
@@ -128,6 +128,8 @@
         <tr><td><code>review --remote</code></td><td>Your <code>serve</code> instance</td><td>The git diff, plus codegraph tool requests and results</td></tr>
         <tr><td><code>review --remote</code> with your own key</td><td>Your <code>serve</code> instance</td><td>Your AI key, kept in memory for that review and never stored</td></tr>
         <tr><td>GitHub App review</td><td>GitHub</td><td>The review comment, the check run and the inline comments</td></tr>
+        <tr><td>Dashboard <b>Check for new versions</b></td><td>GitHub</td><td>The latest release and CHANGELOG.md of co-maintainer, only when an admin presses the button and confirms. Nothing about the server is sent</td></tr>
+        <tr><td><code>serve</code> when the host sets <code>CM_UPDATE_URL</code></td><td>GitHub, then the host's update address</td><td>A request for the latest release at most once a day, and the target version when an admin presses Update. Without it, nothing is asked</td></tr>
       </tbody>
     </table></div>
   </section>

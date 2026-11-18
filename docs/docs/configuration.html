@@ -989,6 +989,19 @@ An empty value counts as not set.</p>
 </tbody></table>
 <p><code>config list</code> shows <code>env</code> as the source of <code>remote-host</code> and <code>remote-token</code> when
 their variable is set.</p>
+<h2 id="update-variable">Update variable</h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>CM_UPDATE_URL</code></td>
+<td>On the server, the host&#39;s update address. With it, <code>serve</code> reads the latest stable release from GitHub at most once a day, and the dashboard shows a newer one and an <strong>Update</strong> button that POSTs <code>{&quot;version&quot;,&quot;current&quot;}</code> there. Unset or not an <code>http(s)</code> address, nothing calls out. See <a href="dashboard.html#updates">Dashboard: Updates</a></td>
+</tr>
+</tbody></table>
 <h2 id="extension-variables">Extension variables</h2>
 <table>
 <thead>
@@ -1014,7 +1027,7 @@ their variable is set.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#precedence">Precedence</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#per-repo-memory">Per-repo memory</a></li><li><a href="#diagram-settings">Diagram settings</a></li><li><a href="#the-read-full-diff-cap">The read-full-diff cap</a></li><li><a href="#review-tool-limits">Review tool limits</a></li><li><a href="#mcp-servers">MCP servers</a></li><li><a href="#extensions-in-configjson">Extensions in config.json</a></li><li><a href="#secrets-on-disk">Secrets on disk</a></li><li><a href="#path-overrides">Path overrides</a></li><li><a href="#remote-review-variables">Remote review variables</a></li><li><a href="#extension-variables">Extension variables</a></li></ul></nav>
+      <ul><li><a href="#precedence">Precedence</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#per-repo-memory">Per-repo memory</a></li><li><a href="#diagram-settings">Diagram settings</a></li><li><a href="#the-read-full-diff-cap">The read-full-diff cap</a></li><li><a href="#review-tool-limits">Review tool limits</a></li><li><a href="#mcp-servers">MCP servers</a></li><li><a href="#extensions-in-configjson">Extensions in config.json</a></li><li><a href="#secrets-on-disk">Secrets on disk</a></li><li><a href="#path-overrides">Path overrides</a></li><li><a href="#remote-review-variables">Remote review variables</a></li><li><a href="#update-variable">Update variable</a></li><li><a href="#extension-variables">Extension variables</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

@@ -30,6 +30,7 @@ import { insertReview, setReviewStatus } from "../src/store/reviews.ts";
 import { KNOWN_COST } from "../src/testing/fixtures/cost.ts";
 import { insertFinding } from "../src/store/findings.ts";
 import { insertJob, setJobStatus } from "../src/store/jobs.ts";
+import { appendLog } from "../src/store/job_logs.ts";
 import { upsertDrift } from "../src/store/drift.ts";
 import { recordDelivery } from "../src/store/deliveries.ts";
 import {
@@ -70,11 +71,20 @@ const GUIDE = [
 const PAGES = [
   "/",
   "/setup",
+  "/setup?step=look",
   "/repos/new",
   "/activity",
+  "/activity?status=failed",
+  "/activity?status=failed&settled=1",
+  "/activity?kind=review&q=widgets&from=2000-01-01",
+  "/activity?own=1",
+  "/findings",
+  "/findings?state=all&severity=P1",
   "/analytics",
+  "/usage?range=90d&repo=acme%2Fwidgets&author=octocat",
   "/settings",
   "/activity/job-fail",
+  "/activity/job-rev",
   "/__ui",
 ];
 
@@ -82,6 +92,8 @@ const REPO_PAGES = [
   `/repos/${REPO}`,
   `/repos/${REPO}/pulls`,
   `/repos/${REPO}/pulls/7`,
+  `/repos/${REPO}/findings`,
+  `/repos/${REPO}/findings?state=all&pr=7&q=a`,
   `/repos/${REPO}/knowledge`,
   `/repos/${REPO}/settings`,
   `/repos/${REPO}/remote`,
@@ -95,6 +107,8 @@ const SETTINGS_PAGES = [
   "/settings/remote",
   "/settings/server",
   "/settings/sign-in",
+  "/settings/audit",
+  "/settings/audit?kind=settings",
   "/settings/danger",
 ];
 
@@ -111,6 +125,7 @@ function expectedActive(pathname: string): string | undefined {
     return "/activity";
   }
   if (pathname === "/usage") return "/usage";
+  if (pathname === "/findings") return "/findings";
   if (pathname.startsWith("/settings/")) return pathname;
   return undefined;
 }
@@ -207,6 +222,14 @@ async function seed(): Promise<void> {
   });
   insertJob({ id: "job-rev", type: "review", repo: REPO, prNumber: 7 });
   setJobStatus("job-rev", "done");
+  // A review that posted but could not update its check run: the job page
+  // warns and its Activity row carries a mark.
+  appendLog(
+    "job-rev",
+    "warn",
+    "GitHub Check Run update failed: Error: GitHub 404 Not Found",
+  );
+  appendLog("job-rev", "info", "posted review 4242");
   insertReview({
     id: "rev-old",
     repo: REPO,
@@ -1156,8 +1179,35 @@ try {
       if (path === `/repos/${REPO}/settings`) {
         await visionShot("repo-settings");
       }
+      if (path === "/findings") await visionShot("findings");
+      if (path === `/repos/${REPO}/pulls/7`) await visionShot("pr");
+      if (path === `/repos/${REPO}/pushes`) await visionShot("pushes");
       console.log(`visited ${path}`);
     }
+
+    // --- Tables that must fit their card at desktop width: Usage By model
+    // and the Findings list never scroll sideways.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    for (const [path, selector] of [
+      ["/usage", ".cols.c11 > .card:nth-child(2) .bd"],
+      [`/repos/${REPO}/findings?state=all`, ".card .bd.flush"],
+    ] as const) {
+      await page.goto(`${base}${path}`, { waitUntil: "load" });
+      await sleep(150);
+      const overflow = await page.evaluate((sel) => {
+        const box = document.querySelector(sel);
+        return box ? box.scrollWidth - box.clientWidth : -1;
+      }, selector);
+      if (overflow !== 0) {
+        issues.push({
+          path,
+          kind: "text",
+          text: `${selector} scrolls sideways by ${overflow}px at 1280px`,
+        });
+      }
+    }
+    await page.setViewportSize({ width: 1280, height: 720 });
+    console.log("wide tables fit at desktop width");
 
     // --- Server page: the status rows describe this process, not just the
     // saved config. The port and data directory are unique to this sandbox.
@@ -1852,6 +1902,149 @@ try {
       throw new Error("the Review now button must name its pull request");
     }
     console.log("review now button shown");
+
+    // --- Activity: the failed list, its row actions, bulk select and the
+    // keyboard shortcuts. Nothing is clicked that would start a job.
+    await page.goto(`${base}/activity?status=failed`, { waitUntil: "load" });
+    await sleep(300);
+    const failedRow = page.locator('tr[data-key="job:job-fail"]');
+    if ((await failedRow.count()) !== 1) {
+      throw new Error("the failed list misses the failed sync");
+    }
+    if (
+      (await failedRow.locator("button", { hasText: "Retry" }).count()) !== 1
+    ) {
+      throw new Error("a failed row needs a Retry button");
+    }
+    if (
+      (await failedRow.locator("button", { hasText: "Dismiss" }).count()) !== 1
+    ) {
+      throw new Error("a failed row needs a Dismiss button");
+    }
+    const bulkDismiss = page.locator('[data-bulk-action="dismiss"]');
+    if (!(await bulkDismiss.isDisabled())) {
+      throw new Error("bulk Dismiss must wait for a selection");
+    }
+    await page.keyboard.press("j");
+    if ((await page.locator("tr.kb-on").count()) !== 1) {
+      throw new Error("j did not move to a row");
+    }
+    await page.keyboard.press("x");
+    if (!(await failedRow.locator("input[data-select]").isChecked())) {
+      throw new Error("x did not select the row");
+    }
+    if (await bulkDismiss.isDisabled()) {
+      throw new Error("bulk Dismiss stayed off with a failed row selected");
+    }
+    if (await page.locator('[data-bulk-action="retry"]').isDisabled()) {
+      throw new Error("bulk Retry stayed off with a failed row selected");
+    }
+    await page.keyboard.press("x");
+    await page.keyboard.press("?");
+    if (!(await page.locator("#kb-help").isVisible())) {
+      throw new Error("? did not open the shortcuts panel");
+    }
+    await page.keyboard.press("Escape");
+    if (await page.locator("#kb-help").isVisible()) {
+      throw new Error("Escape did not close the shortcuts panel");
+    }
+    await page.keyboard.press("/");
+    const focused = await page.evaluate(() =>
+      document.activeElement?.hasAttribute("data-kb-search"),
+    );
+    if (!focused) throw new Error("/ did not focus the search box");
+    await page.keyboard.type("jk");
+    if ((await page.locator("[data-kb-search]").inputValue()) !== "jk") {
+      throw new Error("a shortcut fired inside the search box");
+    }
+    await page.goto(`${base}/activity`, { waitUntil: "load" });
+    await sleep(300);
+    if (
+      (await page.locator('tr[data-key="job:job-rev"] .warn-mark').count()) !==
+      1
+    ) {
+      throw new Error("a review that logged a problem has no warning mark");
+    }
+    await page.goto(`${base}/activity/job-rev`, { waitUntil: "load" });
+    if ((await page.locator(".job-warning").count()) !== 1) {
+      throw new Error("the job page does not warn about the check run");
+    }
+    if (
+      (await page
+        .locator('a[href$="/pull/7#pullrequestreview-4242"]')
+        .count()) !== 1
+    ) {
+      throw new Error("the job page does not link the posted review");
+    }
+    if ((await page.locator("[data-log-clear]").count()) !== 0) {
+      throw new Error("a finished job must not offer Clear");
+    }
+    await page.goto(`${base}/findings?state=all`, { waitUntil: "load" });
+    await sleep(200);
+    await page.keyboard.press("j");
+    await Promise.all([
+      page.waitForURL(/\/pulls\/7/, { timeout: 5_000 }),
+      page.keyboard.press("Enter"),
+    ]);
+    // A click on a row of the Pull requests tab opens that pull request.
+    await page.goto(`${base}/repos/${REPO}/pulls`, { waitUntil: "load" });
+    await Promise.all([
+      page.waitForURL(/\/pulls\/7$/, { timeout: 5_000 }),
+      page.locator('tr[data-href$="/pulls/7"] td.muted').first().click(),
+    ]);
+    console.log("activity actions and list shortcuts work");
+
+    // The settings search jumps to the field, and a settings page says when
+    // a change is not saved yet and when it is.
+    await page.goto(`${base}/settings/ai`, { waitUntil: "load" });
+    await page.fill("[data-settings-search]", "concurrent jobs");
+    await Promise.all([
+      page.waitForURL(/\/settings\/server#max-jobs$/, { timeout: 5_000 }),
+      page.keyboard.press("Enter"),
+    ]);
+    await sleep(300);
+    if (
+      (await page.evaluate(() => document.activeElement?.id)) !== "max-jobs"
+    ) {
+      throw new Error("the settings search did not land on the field");
+    }
+    const saveState = () => page.textContent("[data-save-state]");
+    if ((await saveState()) !== "All changes saved") {
+      throw new Error(`a fresh settings page says ${await saveState()}`);
+    }
+    await page.fill("#max-jobs", await page.inputValue("#max-jobs"));
+    if ((await saveState()) !== "Unsaved changes") {
+      throw new Error("an edited setting does not say Unsaved changes");
+    }
+    await page.click("#save-server");
+    await page.waitForFunction(
+      () =>
+        document.querySelector("[data-save-state]")?.textContent ===
+        "All changes saved",
+      null,
+      { timeout: 5_000 },
+    );
+    console.log("settings search and save state work");
+
+    // The setup wizard's last step: the preview follows the options.
+    await page.goto(`${base}/setup?step=look`, { waitUntil: "load" });
+    await page.check('input[name="blocking"][value="severity"]');
+    await page.check('input[name="refs"][value="on"]');
+    const shown = await page
+      .locator("#rv-preview .rv-h:visible")
+      .first()
+      .textContent();
+    if (!shown?.includes("[P1 · blocking]")) {
+      throw new Error(`the preview did not follow the blocking rule: ${shown}`);
+    }
+    if (!(await page.locator("#rv-preview .rv-refs:visible").count())) {
+      throw new Error("the preview did not show the references");
+    }
+    await Promise.all([
+      page.waitForURL(/step=repo/, { timeout: 5_000 }),
+      page.click('a[rel="prev"]'),
+    ]);
+    console.log("setup wizard works");
 
     // --- Job page and live log panel: append-only, selection, tail, jump,
     // pause/resume, clear, level colors, themes and overflow. These checks are

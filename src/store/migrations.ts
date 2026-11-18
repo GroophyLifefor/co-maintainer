@@ -419,4 +419,56 @@ export const migrations: string[][] = [
   // and a hash of each), so a companion that changed rechecks the carried
   // findings. NULL for a review without companions.
   [`ALTER TABLE subject_revisions ADD COLUMN companions_json TEXT`],
+  // 20: the default branch of a repository, written when it is set up or
+  // synced, so the overview reads it instead of starting git on every visit.
+  // NULL until then, and the page falls back to asking git once.
+  [`ALTER TABLE repos ADD COLUMN default_branch TEXT`],
+  // 21: the title of each reviewed pull request, written when a review reads
+  // the pull request, so the dashboard shows it without asking GitHub. A pull
+  // request reviewed before this has no row until its next review or its
+  // first visit. And an index for the findings list, which keeps only the
+  // newest round's copy of a finding carried from round to round.
+  [
+    `CREATE TABLE pull_titles (
+      repo TEXT NOT NULL,
+      pr_number INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (repo, pr_number)
+    )`,
+    `CREATE INDEX idx_findings_carried_from ON findings(carried_from_finding_id)`,
+  ],
+  // 22: a failure someone dismissed on the Activity page keeps its row and
+  // gets the time it was seen. A later successful review of the same pull
+  // request writes its own id into each earlier failure it resolved. Both
+  // stay NULL on older rows, which read as not seen and not resolved. A
+  // failed job that never wrote a review row carries the same two columns.
+  // And an index for the Activity list, which joins every job to its review.
+  [
+    `ALTER TABLE reviews ADD COLUMN seen_at TEXT`,
+    `ALTER TABLE reviews ADD COLUMN resolved_by TEXT`,
+    `ALTER TABLE jobs ADD COLUMN seen_at TEXT`,
+    `ALTER TABLE jobs ADD COLUMN resolved_by TEXT`,
+    `CREATE INDEX idx_reviews_job ON reviews(job_id)`,
+  ],
+  // 23: the author of each reviewed pull request, beside its title, so Usage
+  // can filter by author without asking GitHub. NULL on a pull request
+  // reviewed before this, until its next review.
+  [`ALTER TABLE pull_titles ADD COLUMN author TEXT`],
+  // 24: the audit log, who did what and when: settings changes, remote
+  // tokens, repositories added or removed, sign-ins, manual reviews,
+  // dismissed failures and updates. `changes_json` holds the changed
+  // settings with secrets already masked. Older servers have no rows.
+  [
+    `CREATE TABLE audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      at TEXT NOT NULL,
+      actor TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      target TEXT,
+      summary TEXT NOT NULL,
+      changes_json TEXT
+    )`,
+    `CREATE INDEX idx_audit_log_at ON audit_log(at)`,
+  ],
 ];

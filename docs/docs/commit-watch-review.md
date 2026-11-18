@@ -13,9 +13,10 @@ runs for you.
 ## Turn it on
 
 Commit watch is a feature of [`serve`](serve.md). The repository must be added
-and initialized on the server. On the repository's page in the
+and initialized on the server. On the repository's **Pushes** tab in the
 [dashboard](dashboard.md), the **Commit watch** card shows whether pushes are
-watched and the two ways to turn it on. Use either one, or both.
+watched and the two ways to turn it on. The overview keeps a short status line
+that links there. Use either one, or both.
 
 **GitHub App.** In the App's settings on GitHub open **Permissions & events**
 and tick **Push** under **Subscribe to events**. That is your explicit yes, and

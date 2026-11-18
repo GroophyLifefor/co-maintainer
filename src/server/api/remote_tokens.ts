@@ -1,5 +1,6 @@
 import { readJsonObject } from "./json_body.ts";
 import { errorResponse } from "../errors.ts";
+import { audit } from "../../services/audit.ts";
 import {
   createRemoteToken,
   deleteRemoteToken,
@@ -42,6 +43,9 @@ export async function handleRemoteTokensRoute(
     }
     try {
       const created = await createRemoteToken(body.name);
+      audit("token", "Created a remote review token", {
+        target: body.name.trim(),
+      });
       return Response.json(created, { status: 201 });
     } catch (error) {
       const message = String(error);
@@ -70,12 +74,20 @@ export async function handleRemoteTokensRoute(
     }
     setRemoteTokenActive(id, body.active);
     if (!body.active) cancelRemoteJobsForToken(id, "token_deactivated");
+    audit(
+      "token",
+      body.active
+        ? "Turned a remote review token on"
+        : "Turned a remote review token off",
+      { target: row.name },
+    );
     return Response.json({ ok: true });
   }
 
   if (request.method === "DELETE") {
     cancelRemoteJobsForToken(id, "token_deleted");
     deleteRemoteToken(id);
+    audit("token", "Deleted a remote review token", { target: row.name });
     return new Response(null, { status: 204 });
   }
 

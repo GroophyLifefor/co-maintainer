@@ -119,13 +119,30 @@ test("the overview shows four stat cards from real 30 day figures", async () => 
   if ((html.match(/<div class="stat">/g) ?? []).length !== 4) {
     throw new Error("want four stat cards");
   }
-  const reviewed = statCard(html, "Reviewed (30d)");
-  if (!/<div class="v">1<\/div>/.test(reviewed))
-    throw new Error("reviewed is not 1");
-  const findings = statCard(html, "Findings");
+  // One definition of a review on every page: the card counts pull
+  // requests and says how many reviews they took.
+  const reviewed = statCard(html, "Pull requests (30d)");
   if (
-    !/<div class="v">2<\/div>/.test(findings) ||
-    !findings.includes("1 high · 1 low")
+    !/<div class="v"><a href="\/activity\?repo=acme%2Fwidgets">1<\/a><\/div>/.test(
+      reviewed,
+    )
+  )
+    throw new Error(
+      `reviewed is not 1 linked to Activity: ${reviewed.slice(0, 300)}`,
+    );
+  if (!reviewed.includes("1 review<"))
+    throw new Error(`reviews hint wrong: ${reviewed.slice(0, 300)}`);
+  // Every count opens its list: the total the 30 day list, each severity
+  // that list filtered to it.
+  const findings = statCard(html, "Findings (30d)");
+  if (
+    !/<div class="v"><a href="\/repos\/acme\/widgets\/findings\?state=all&amp;days=30">2<\/a><\/div>/.test(
+      findings,
+    ) ||
+    !findings.replace(/<[^>]+>/g, "").includes("1 high · 1 low") ||
+    !findings.includes(
+      'href="/repos/acme/widgets/findings?severity=P1&amp;state=all&amp;days=30"',
+    )
   ) {
     throw new Error(`findings card wrong: ${findings.slice(0, 300)}`);
   }

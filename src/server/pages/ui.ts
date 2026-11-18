@@ -10,7 +10,7 @@
  * accessibility sweep honest: a control without an accessible name has no
  * place to hide here.
  */
-import { escapeHtml, text } from "./layout.ts";
+import { escapeHtml, repoTabs, text } from "./layout.ts";
 import { iconNames, sprite } from "./icons.ts";
 
 export { sprite as iconSprite, iconNames };
@@ -28,6 +28,9 @@ export function icon(name: string, cls = ""): string {
   )}"></use></svg>`;
 }
 
+/** The save state of a settings page, kept up to date by `client.js`. */
+export const SAVE_STATE = `<span class="page-save-state" data-save-state data-state="saved" role="status" aria-live="polite">All changes saved</span>`;
+
 export function pageHeader(opts: {
   title: string;
   lead?: string;
@@ -43,6 +46,44 @@ export function pageHeader(opts: {
   }</div>
   ${opts.actions ? `<div class="actions-row">${opts.actions}</div>` : ""}
 </div>`;
+}
+
+/** The head of every repository tab, in one order: the breadcrumb, the title
+ * with its actions, then the tabs. The breadcrumb always starts with
+ * Repositories and the repository, then the tab, then anything deeper. */
+export function repoHeader(opts: {
+  fullName: string;
+  tab: string;
+  title: string;
+  /** The tab's own crumb, left out on the overview. */
+  tabLabel?: string;
+  /** Crumbs past the tab, such as a pull request number. */
+  deeper?: { label: string; href?: string }[];
+  lead?: string;
+  leadHtml?: string;
+  actions?: string;
+}): string {
+  const repoHref = `/repos/${opts.fullName}`;
+  const items: { label: string; href?: string }[] = [
+    { label: "Repositories", href: "/" },
+    { label: opts.fullName, href: opts.tabLabel ? repoHref : undefined },
+  ];
+  if (opts.tabLabel) {
+    const deeper = opts.deeper ?? [];
+    items.push({
+      label: opts.tabLabel,
+      href: deeper.length ? `${repoHref}/${opts.tab}` : undefined,
+    });
+    items.push(...deeper);
+  }
+  return `${pageHeader({
+    title: opts.title,
+    lead: opts.lead,
+    leadHtml: opts.leadHtml,
+    crumb: crumb(items),
+    actions: opts.actions,
+  })}
+  ${repoTabs(opts.fullName, opts.tab)}`;
 }
 
 export function crumb(items: { label: string; href?: string }[]): string {
@@ -280,8 +321,15 @@ export function alert(
   }<p>${opts.body}</p></div>${opts.action ?? ""}</div>`;
 }
 
-export function codeBlock(opts: { code: string; label?: string }): string {
-  return `<div class="code">${
+/** A copyable command or file. A block of several lines scrolls inside its
+ * own text, so the Copy button stays at the top right corner. */
+export function codeBlock(opts: {
+  code: string;
+  label?: string;
+  attrs?: string;
+}): string {
+  const multi = opts.code.includes("\n");
+  return `<div class="code${multi ? " multi" : ""}"${opts.attrs ? ` ${opts.attrs}` : ""}>${
     opts.label ? `<span class="lbl">${text(opts.label)}</span>` : ""
   }<span>${escapeHtml(opts.code)}</span><button type="button" data-copy title="Copy">${icon(
     "copy",
@@ -325,4 +373,44 @@ export function timeline(
         }${item.body ? `<p class="muted">${item.body}</p>` : ""}</div></li>`,
     )
     .join("")}</ul>`;
+}
+
+/** The keyboard shortcuts of a list page: a small bar at the bottom that
+ * names them, and the panel `?` opens. `client.js` reads `data-kb-list` and
+ * `data-kb-search` on the page. `select` is for a list with checkboxes, and
+ * `searchLabel` names what `/` focuses. */
+export function shortcutsBar(
+  opts: { select?: boolean; searchLabel?: string } = {},
+): string {
+  const search = opts.searchLabel ?? "search";
+  const keys: [string[], string][] = [
+    [["j", "k"], "move down and up"],
+    [["Enter"], "open"],
+    ...(opts.select ? [[["x"], "select"] as [string[], string]] : []),
+    [["/"], search],
+    [["?"], "all shortcuts"],
+  ];
+  const kbd = (names: string[]) =>
+    names.map((name) => `<kbd>${text(name)}</kbd>`).join(" ");
+  const bar = keys
+    .map(
+      ([names, label]) =>
+        `<span>${kbd(names)} ${text(label === "move down and up" ? "move" : label)}</span>`,
+    )
+    .join("");
+  const rows = [
+    ...keys.slice(0, -1),
+    [["Esc"], "close this panel"] as [string[], string],
+  ]
+    .map(
+      ([names, label]) =>
+        `<tr><td>${kbd(names)}</td><td>${text(label)}</td></tr>`,
+    )
+    .join("");
+  return `<div class="kbbar" aria-label="Keyboard shortcuts">${bar}</div>
+<div class="kbhelp" id="kb-help" role="dialog" aria-modal="true" aria-labelledby="kb-help-title" hidden>
+  <div class="kbhelp-hd"><h2 id="kb-help-title">Keyboard shortcuts</h2><button class="btn out sm" type="button" data-kb-close>Close</button></div>
+  <table><tbody>${rows}</tbody></table>
+  <p class="muted">Shortcuts never fire while you type in a field.</p>
+</div>`;
 }

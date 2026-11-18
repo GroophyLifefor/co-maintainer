@@ -1,5 +1,10 @@
 import { test } from "node:test";
-import { formatCost, formatCostTotal, totalOfRows } from "./cost.ts";
+import {
+  costTotalParts,
+  formatCost,
+  formatCostTotal,
+  totalOfRows,
+} from "./cost.ts";
 import type { CostTotals } from "../../store/reviews.ts";
 
 function totals(patch: Partial<CostTotals> = {}): CostTotals {
@@ -99,4 +104,25 @@ test("totalOfRows folds a review list the same way the SQL aggregate does", () =
   if (formatCostTotal(totalOfRows([])) !== "$0.00") {
     throw new Error("an empty pull request has nothing to report");
   }
+});
+
+test("costTotalParts: the stat card keeps the amount alone and moves the rest below", () => {
+  const mixed = costTotalParts(
+    totals({ cost: 6.2, knownCount: 9, unknownCount: 2 }),
+  );
+  if (mixed.value !== "$6.20" || mixed.note !== "2 reviews with unknown cost") {
+    throw new Error(JSON.stringify(mixed));
+  }
+  const none = costTotalParts(totals({ unknownCount: 1 }));
+  if (none.value !== "unknown" || none.note !== "1 review with unknown cost") {
+    throw new Error(JSON.stringify(none));
+  }
+  const byok = costTotalParts(
+    totals({ cost: 1, knownCount: 1, byokUsd: 0.5, byokKnownCount: 1 }),
+  );
+  if (byok.value !== "$1.00" || byok.note !== "$0.50 BYOK") {
+    throw new Error(JSON.stringify(byok));
+  }
+  const plain = costTotalParts(totals({ cost: 2, knownCount: 3 }));
+  if (plain.note !== "") throw new Error(JSON.stringify(plain));
 });

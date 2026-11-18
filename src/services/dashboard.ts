@@ -5,11 +5,17 @@ import { getDrift } from "../store/drift.ts";
 import { refreshDrift } from "./drift.ts";
 import { listSkipped } from "../store/deliveries.ts";
 import { listJobs } from "../store/jobs.ts";
+import { warningsForJobs } from "./job_warnings.ts";
+import { openFailures, openFailuresByRepo } from "./open_failures.ts";
+import {
+  listActivity,
+  settledFailureCount,
+  type ActivityStoreFilter,
+} from "../store/activity.ts";
 import { getRepo, listActiveRepos } from "../store/repos.ts";
 import {
   listLatestReviewsForRepo,
   listPullSummaries,
-  listRecentReviews,
   listReviewsForPr,
   reviewStats,
   reviewStatsByDay,
@@ -18,16 +24,22 @@ import {
   reviewStatsByRemoteToken,
   listRemoteReviewsForRepo,
   reviewStatsByRepo,
+  listUsageReviews,
+  usageChoices,
+  type UsageScope,
 } from "../store/reviews.ts";
+import { listFindingsForReview } from "../store/findings.ts";
+import { daysAgoIso } from "../util/time.ts";
 import {
   findingStatsBySeverity,
-  listFindingsForReview,
-} from "../store/findings.ts";
-import { daysAgoIso } from "../util/time.ts";
+  listFindingsPage,
+  repositoriesWithFindings,
+  type FindingFilter,
+} from "../store/finding_list.ts";
 import { loadExtensionReport } from "../store/extensions.ts";
 import { listPushReviewsForRepo, listWatchIssues } from "../store/watch.ts";
 import { pushVia } from "./watch_status.ts";
-import type { DeliveryRow, JobRow, RepoRow, ReviewRow } from "../store/rows.ts";
+import type { DeliveryRow, JobRow, RepoRow } from "../store/rows.ts";
 import { isNotFound, readTextFile } from "../util/runtime.ts";
 
 export function requireActiveRepo(fullName: string): RepoRow {
@@ -80,14 +92,23 @@ function fillDays(
   return out;
 }
 
-export function statsForRange(range: string) {
+/** The Usage page for a range, narrowed to one repository, one pull request
+ * author, or both. */
+export function statsForRange(range: string, scope: UsageScope = {}) {
   const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
   const since = daysAgoIso(days);
-  const totals = reviewStats(since);
-  const previous = reviewStats(daysAgoIso(days * 2), undefined, since);
+  const totals = reviewStats(since, scope.repo, undefined, scope.author);
+  const previous = reviewStats(
+    daysAgoIso(days * 2),
+    scope.repo,
+    since,
+    scope.author,
+  );
   return {
     days,
     since,
+    scope,
+    choices: usageChoices(since),
     totals,
     previous,
     change: {
@@ -100,25 +121,45 @@ export function statsForRange(range: string) {
           ? undefined
           : percentChange(previous.cost, totals.cost),
     },
-    byRepo: reviewStatsByRepo(since),
-    byDay: fillDays(days, reviewStatsByDay(since)),
-    byModel: reviewStatsByModel(since),
-    byRemoteToken: reviewStatsByRemoteToken(since),
-    bySeverity: findingStatsBySeverity(since),
-    byKind: reviewStatsByKind(since),
-    // Init and sync record no cost, only that they ran.
-    setupRuns: listJobs().filter(
-      (job) =>
-        (job.type === "init" || job.type === "remake") &&
-        job.created_at >= since,
-    ).length,
+    byRepo: reviewStatsByRepo(since, scope),
+    byDay: fillDays(days, reviewStatsByDay(since, scope)),
+    byModel: reviewStatsByModel(since, scope),
+    byRemoteToken: reviewStatsByRemoteToken(since, scope),
+    // Counted the way the Findings list counts, so each row opens a list
+    // with its own number in it.
+    bySeverity: findingStatsBySeverity({
+      state: "all",
+      sinceIso: since,
+      repo: scope.repo,
+      author: scope.author,
+    }),
+    byKind: reviewStatsByKind(since, scope),
+    // Init and sync record no cost, only that they ran. They have no pull
+    // request author, so an author filter leaves them out.
+    setupRuns: scope.author
+      ? undefined
+      : listJobs().filter(
+          (job) =>
+            (job.type === "init" || job.type === "remake") &&
+            job.created_at >= since &&
+            (!scope.repo || job.repo === scope.repo),
+        ).length,
   };
+}
+
+/** The rows the Usage Export button downloads, the same range and filters
+ * as the page. */
+export function usageExportRows(range: string, scope: UsageScope = {}) {
+  const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
+  return listUsageReviews(daysAgoIso(days), scope);
 }
 
 export type RepoListItem = {
   repo: RepoRow;
   drift: ReturnType<typeof getDrift>;
   stats: ReturnType<typeof reviewStats>;
+  /** Open failures, the count the menu badge and the failed list share. */
+  openFailures: number;
   latestJob: JobRow | undefined;
 };
 
@@ -130,10 +171,12 @@ function latestSetupJob(fullName: string): JobRow | undefined {
 
 export function listReposForHome(): RepoListItem[] {
   const since = daysAgoIso(30);
+  const failures = openFailuresByRepo();
   return listActiveRepos().map((repo) => ({
     repo,
     drift: getDrift(repo.full_name),
     stats: reviewStats(since, repo.full_name),
+    openFailures: failures.get(repo.full_name) ?? 0,
     latestJob: latestSetupJob(repo.full_name),
   }));
 }
@@ -145,7 +188,12 @@ export function repoOverview(fullName: string) {
     repo,
     drift: getDrift(fullName),
     stats: reviewStats(since, fullName),
-    bySeverity: findingStatsBySeverity(since, fullName),
+    openFailures: openFailures(fullName),
+    bySeverity: findingStatsBySeverity({
+      repo: fullName,
+      state: "all",
+      sinceIso: since,
+    }),
     recentPulls: listLatestReviewsForRepo(fullName, 8).map((review) => ({
       ...review,
       severities: listFindingsForReview(review.id).map((f) => f.severity),
@@ -281,28 +329,58 @@ export async function repoKnowledge(fullName: string) {
   });
 }
 
-export type ActivityItem =
-  | { kind: "job"; at: string; job: JobRow }
-  | { kind: "review"; at: string; review: ReviewRow };
+/** One page of the Findings list. The repository choices are only read for
+ * the all-repositories list, which passes `withRepos`. */
+export function findingsList(
+  filter: FindingFilter,
+  page: number,
+  per: number,
+  withRepos = false,
+) {
+  const { items, total } = listFindingsPage(filter, per, (page - 1) * per);
+  return {
+    items,
+    total,
+    repos: withRepos ? repositoriesWithFindings() : [],
+  };
+}
 
-export function activityFeed(page: number, per: number) {
+/** One page of the Activity list: one row per review, one per other job. */
+export function activityFeed(
+  page: number,
+  per: number,
+  filter: ActivityStoreFilter = {},
+) {
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
   const safePer = Number.isFinite(per) && per > 0 ? Math.min(per, 50) : 20;
-  const items: ActivityItem[] = [
-    ...listJobs().map((job) => ({
-      kind: "job" as const,
-      at: job.created_at,
-      job,
-    })),
-    ...listRecentReviews(500).map((review) => ({
-      kind: "review" as const,
-      at: review.created_at,
-      review,
-    })),
-  ].sort((a, b) => b.at.localeCompare(a.at));
-  const total = items.length;
-  const slice = items.slice((safePage - 1) * safePer, safePage * safePer);
-  return { items: slice, page: safePage, per: safePer, total };
+  const { items, total } = listActivity(
+    filter,
+    safePer,
+    (safePage - 1) * safePer,
+  );
+  // A finished job that logged a problem gets a mark on its row.
+  const warnings = Object.fromEntries(
+    [
+      ...warningsForJobs(
+        items.flatMap((row) =>
+          row.job?.status === "done" ? [row.job.id] : [],
+        ),
+      ),
+    ].map(([id, warning]) => [id, warning.problem]),
+  );
+  return {
+    items,
+    warnings,
+    page: safePage,
+    per: safePer,
+    total,
+    // Only the failed list hides dismissed and resolved failures, and says
+    // how many it hid.
+    settled:
+      filter.state === "failed" && !filter.withSettled
+        ? settledFailureCount(filter)
+        : 0,
+  };
 }
 
 export function runningJobs(): JobRow[] {
@@ -312,6 +390,6 @@ export function runningJobs(): JobRow[] {
   ];
 }
 
-export function skippedDeliveries(): DeliveryRow[] {
-  return listSkipped();
+export function skippedDeliveries(repo?: string): DeliveryRow[] {
+  return listSkipped(repo);
 }

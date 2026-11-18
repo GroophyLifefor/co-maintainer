@@ -195,9 +195,21 @@ tr:last-child td {
 tbody tr:hover {
   background: #fafafb;
 }
-.num {
+.num,
+.app th.num,
+.focus th.num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+.nowrap {
+  white-space: nowrap;
+}
+.inline-lbl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted);
 }
 
 /* status text, not badges */
@@ -409,6 +421,10 @@ textarea {
 .notice.bad {
   background: #fdf3f3;
   border-color: #f3d0d0;
+}
+.notice.warn {
+  background: var(--am-bg);
+  border-color: var(--am-b);
 }
 .notice .txt {
   flex: 1;
@@ -1320,6 +1336,11 @@ svg.ic {
   font-size: 24px;
   font-weight: 600;
   letter-spacing: -0.01em;
+  /* The big figure is one short value. What it leaves out goes in the small
+     line below, so it never wraps. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .app .stat .h,
 .focus .stat .h {
@@ -1712,6 +1733,28 @@ svg.ic {
   width: 14px;
   height: 14px;
 }
+/* Several lines: the text scrolls on its own and the Copy button sits at the
+   top right corner, outside the scrolling area. */
+.app .code.multi,
+.focus .code.multi {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  padding: 10px 44px 10px 12px;
+}
+.app .code.multi span,
+.focus .code.multi span {
+  display: block;
+  white-space: pre;
+  overflow-x: auto;
+  line-height: 1.6;
+}
+.app .code.multi button,
+.focus .code.multi button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
 .app .pre,
 .focus .pre {
   background: var(--code-bg);
@@ -2031,7 +2074,18 @@ html.dark {
   position: sticky;
   top: 0;
   height: 100dvh;
+  /* Only the menu scrolls. The logo, search and the buttons at the bottom
+     stay on screen however short the window is. */
+  overflow: hidden;
+}
+.app > aside.side > * {
+  flex: none;
+}
+.app > aside.side > .nav {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .app .side .logo {
   display: flex;
@@ -2211,6 +2265,113 @@ html.dark {
 .app .side .nav a .r.fail-count {
   color: var(--red-t);
 }
+/* The warning mark on an Activity row that finished with a problem. */
+.app .warn-mark {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 6px;
+  color: var(--am-t);
+}
+.app .warn-mark svg {
+  width: 15px;
+  height: 15px;
+}
+/* Keyboard shortcuts on a list: the row j and k moved to, the bar that
+   names the keys, and the panel ? opens. */
+.app tr.kb-on > td {
+  background: var(--hover);
+}
+.app tr.kb-on > td:first-child {
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+/* Same width and centering as the page wrapper above it, so the bar starts
+   on the content's left edge. */
+.app .kbbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  max-width: 1152px;
+  margin: 4px auto 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.app .kbhelp {
+  position: fixed;
+  z-index: 60;
+  top: 15vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 32px));
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+}
+.app .kbhelp[hidden] {
+  display: none;
+}
+.app .kbhelp-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.app .kbhelp-hd h2 {
+  margin: 0;
+}
+.app .kbhelp td {
+  border: 0;
+  padding: 4px 8px 4px 0;
+}
+/* Bulk select on Activity: a checkbox per row and the actions on the
+   selection, each enabled only when it fits a selected row. */
+.app th.sel,
+.app td.sel {
+  width: 32px;
+  padding-right: 0;
+}
+.app .card .hd .bulk {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+/* Retry and Dismiss on a failed Activity row. */
+.app td.row-acts {
+  white-space: nowrap;
+  text-align: right;
+}
+.app td.row-acts .btn + .btn {
+  margin-left: 6px;
+}
+/* A failed count in a table opens the failed list. */
+.app a.sub.fail-link {
+  color: var(--red-t);
+}
+/* The failed count beside the Activity item is its own link. */
+.app .side .nav .item-pair {
+  position: relative;
+  display: flex;
+}
+.app .side .nav .item-pair > a.item {
+  flex: 1;
+  min-width: 0;
+}
+.app .side .nav .item-pair > a.fail-count {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--red-t);
+}
+.app .side .nav .item-pair > a.fail-count:hover {
+  text-decoration: underline;
+}
 
 /* Ctrl K palette */
 .pal-ov[hidden],
@@ -2380,6 +2541,57 @@ html.dark {
     flex-wrap: wrap;
     gap: 20px 32px;
   }
+}
+
+/* A stat figure that opens its list keeps the card's look. */
+.app .stat .v a,
+.app .stat .h a,
+.app a.badge-link {
+  color: inherit;
+  text-decoration: none;
+}
+.app .stat .v a:hover,
+.app .stat .h a:hover {
+  text-decoration: underline;
+}
+
+/* Filter chips: each active filter, a click takes it off. */
+.app .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.app .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  padding: 2px 10px;
+  font-size: 13px;
+  color: var(--text);
+  text-decoration: none;
+}
+.app .chip svg {
+  width: 13px;
+  height: 13px;
+  color: var(--muted);
+}
+
+/* A finding a link pointed at. */
+.app .finding:target {
+  scroll-margin-top: 16px;
+  box-shadow:
+    -8px 0 0 var(--card),
+    -10px 0 0 var(--primary);
+}
+
+/* A table that must fit its card: long names wrap instead of scrolling. */
+.app table.fit td.wrap {
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 /* Wide tables scroll inside their card instead of pushing the page. */
@@ -2606,6 +2818,18 @@ html.dark {
   color: var(--muted2);
   border-color: var(--border);
 }
+/* The plain (green) notice: dark text on a light green stays readable only
+   in light mode, so dark mode gets the dark green tokens. */
+.dark .app .notice,
+.dark .focus .notice {
+  background: var(--em-bg);
+  color: var(--fg);
+  border-color: var(--em-b);
+}
+.dark .app .notice .muted,
+.dark .focus .notice .muted {
+  color: var(--muted);
+}
 .dark .app .notice.info,
 .dark .focus .notice.info {
   background: var(--sky-bg);
@@ -2702,4 +2926,376 @@ html.dark {
 .dark .focus textarea,
 .dark .focus .inp {
   border-color: var(--ne-b);
+}
+
+/* The settings search above the Settings menu. */
+.app .side .set-search {
+  position: relative;
+  margin: 0 0 4px;
+}
+.app .side .set-search .inp {
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+/* The sidebar scrolls, which clips anything wider than it, so the results
+   stay inside its width and their descriptions wrap. */
+.app .side .set-results {
+  position: absolute;
+  z-index: 30;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+}
+.app .side .set-results[hidden] {
+  display: none;
+}
+.app .side .set-results a {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+.app .side .set-results a.on {
+  background: var(--hover);
+}
+.app .side .set-results a span {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.app .side .set-results .none {
+  padding: 6px 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+/* A field the settings search jumped to. */
+.app .jumped {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 6px;
+  transition: outline-color 0.6s;
+}
+/* The page save state of a settings page. */
+.app .page-save-state {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.app .page-save-state[data-state="dirty"] {
+  color: var(--am-t);
+}
+.app .page-save-state[data-state="failed"] {
+  color: var(--red-t);
+}
+
+/* The changed settings of one audit log row. */
+.app .audit-changes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.app .audit-changes li + li {
+  margin-top: 2px;
+}
+
+/* The setup wizard: progress across the top, one step below. */
+.app .wz-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+.app .wz-progress li a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.app .wz-progress li a:hover {
+  text-decoration: none;
+  background: var(--hover);
+}
+.app .wz-progress li.on a {
+  border-color: var(--fg);
+  color: var(--fg);
+}
+.app .wz-progress .n {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  flex: none;
+}
+.app .wz-progress li.done .n {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-fg);
+}
+.app .wz-step .hd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.app .wz-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.app .wz-nav .sp {
+  flex: 1;
+}
+.app .wz-look {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 20px;
+}
+@media (max-width: 860px) {
+  .app .wz-look {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.app .wz-options fieldset {
+  border: 0;
+  margin: 0 0 16px;
+  padding: 0;
+}
+.app .wz-options legend {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.app .wz-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-weight: 400;
+}
+.app .wz-choice > span {
+  display: flex;
+  flex-direction: column;
+}
+.app .wz-choice .muted {
+  font-size: 13px;
+}
+/* The review comment preview. Every variant is in the page, the options
+ * switch which one shows. */
+.app .rv-preview {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  overflow: hidden;
+}
+.app .rv-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--head);
+  font-size: 13px;
+}
+.app .rv-body {
+  padding: 4px 14px 12px;
+  font-size: 14px;
+}
+.app .rv-body p {
+  margin: 8px 0;
+}
+.app .rv-finding {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+.app .rv-code {
+  margin: 8px 0;
+  padding: 10px;
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  font-size: 12px;
+  white-space: pre;
+  overflow-x: auto;
+}
+.app .rv-preview .when-model,
+.app .rv-preview .when-severity,
+.app .rv-preview .when-mermaid,
+.app .rv-preview .when-plantuml,
+.app .rv-preview .when-plantuml-server {
+  display: none;
+}
+.app .rv-preview[data-blocking="model"] .when-model,
+.app .rv-preview[data-blocking="severity"] .when-severity,
+.app .rv-preview[data-diagram="mermaid"] .when-mermaid,
+.app .rv-preview[data-diagram="plantuml"] .when-plantuml,
+.app .rv-preview[data-diagram="plantuml-server"] .when-plantuml-server {
+  display: block;
+}
+.app .rv-preview[data-refs="off"] .rv-refs {
+  display: none;
+}
+
+/* The newer version notice under the menu. */
+.app .side .update-note {
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--sky-b);
+  border-radius: 8px;
+  background: var(--sky-bg);
+  color: var(--sky-t);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.app .side .update-note a {
+  color: inherit;
+}
+.app .side .update-note a.notes {
+  text-decoration: underline;
+}
+
+/* "Check for new versions" dialog. */
+dialog.wn {
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(80vh, 720px);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--fg);
+  box-shadow: 0 16px 48px rgb(0 0 0 / 20%);
+}
+dialog.wn::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+dialog.wn[open] {
+  display: flex;
+  flex-direction: column;
+}
+.wn-hd,
+.wn-ft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+}
+.wn-hd {
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.wn-hd h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.wn-x {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.wn-ft {
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+}
+.wn-bd {
+  padding: 16px 18px;
+  overflow-y: auto;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.wn-bd p {
+  margin: 0 0 10px;
+}
+.wn-sec {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.wn-sec h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 600;
+}
+.wn-date {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.wn-tag {
+  display: inline-block;
+  margin: 4px 0 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--ne-b);
+  border-radius: 6px;
+  background: var(--ne-bg);
+  color: var(--ne-t);
+  font-size: 12px;
+  font-weight: 600;
+}
+.wn-tag.add {
+  border-color: var(--em-b);
+  background: var(--em-bg);
+  color: var(--em-t);
+}
+.wn-tag.chg {
+  border-color: var(--sky-b);
+  background: var(--sky-bg);
+  color: var(--sky-t);
+}
+.wn-tag.fix {
+  border-color: var(--am-b);
+  background: var(--am-bg);
+  color: var(--am-t);
+}
+.wn-tag.rm {
+  border-color: var(--red-b);
+  background: var(--red-bg);
+  color: var(--red-t);
+}
+.wn-sec ul {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+.wn-sec li {
+  margin: 0 0 6px;
+}
+.wn-sec code {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12.5px;
+  background: var(--hover);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+.wn-err {
+  color: var(--red-t);
+}
+.app .wn-links a {
+  color: var(--sky-t);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }

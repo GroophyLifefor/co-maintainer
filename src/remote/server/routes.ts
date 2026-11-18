@@ -15,7 +15,11 @@ import {
 } from "../../server/auth.ts";
 import { errorResponse } from "../../server/errors.ts";
 import { lookupRemoteBearer } from "../../services/remote_tokens.ts";
-import { findRepoByFullName } from "../../store/repos.ts";
+import {
+  findRepoByFullName,
+  getRepo,
+  setDefaultBranch,
+} from "../../store/repos.ts";
 import type { RemoteTokenRow } from "../../store/rows.ts";
 import {
   MIN_CLIENT_SCHEMA,
@@ -65,10 +69,15 @@ async function authenticateRemote(
 export async function defaultBranchForRepo(
   fullName: string,
 ): Promise<string | null> {
+  // Stored at setup and sync. git is only the fallback, and its answer is
+  // kept so the next visit does not start it again.
+  const stored = getRepo(fullName)?.default_branch;
+  if (stored) return stored;
   try {
     const dir = cloneDir(fullName);
     await stat(dir);
     const name = await resolveDefaultBranchName(dir, "origin", runCommand);
+    if (name) setDefaultBranch(fullName, name);
     return name ?? null;
   } catch {
     return null;

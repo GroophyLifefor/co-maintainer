@@ -181,6 +181,25 @@ can turn them on.</p>
 <p><a href="review.html#mcp-servers">MCP servers</a> are always off in the cloud. The hosted
 service sets <code>CM_MCP_DISABLED=1</code> from outside the container, so
 <code>set --mcp-config</code> is refused and no review starts an MCP server.</p>
+<h2 id="versions-and-updates">Versions and updates</h2>
+<p>An instance runs the image the host deployed. Each stable release publishes
+<code>ghcr.io/groophylifefor/co-maintainer:&lt;version&gt;</code> and <code>:latest</code>.</p>
+<p>The host sets <code>CM_UPDATE_URL</code> on the instance. With it, the dashboard reads the
+latest stable release from GitHub at most once a day and keeps the answer. When
+a newer one is out, admins see &quot;co-maintainer 0.7.15 is out. This instance runs
+0.7.14.&quot; in the sidebar and under <strong>Settings</strong>, <strong>Server</strong>, <strong>Updates</strong>, with a
+link to the release notes.</p>
+<p><strong>Update to 0.7.15</strong> sends a <code>POST</code> to <code>CM_UPDATE_URL</code> with a JSON body:</p>
+<pre><code class="language-json">{&quot;version&quot;:&quot;0.7.15&quot;,&quot;current&quot;:&quot;0.7.14&quot;}
+</code></pre>
+<p>Any <code>2xx</code> answer means the host took the request. The host restarts the instance
+on that image, and the card shows the update until the new version answers. Any
+other answer, or no answer, shows that the update did not start. The button only
+offers the latest stable release newer than the running one, never an older
+version, and every update started is written to the <a href="dashboard.html#audit-log">Audit log</a>.</p>
+<p>Without <code>CM_UPDATE_URL</code> the instance never asks for the latest release, and
+Settings shows the <code>docker pull</code> and restart lines a self-hosted server uses. See
+<a href="dashboard.html#updates">Dashboard: Updates</a>.</p>
 <h2 id="support-and-status">Support and status</h2>
 <p>The instance list, uptime, and any incident notes are published by the
 co-maintainer maintainers. For a self-hosted deployment, the same pages under
@@ -196,7 +215,7 @@ instance stores.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#what-cloud-gives-you">What cloud gives you</a></li><li><a href="#connecting-the-cli">Connecting the CLI</a></li><li><a href="#putting-a-repository-on-the-instance">Putting a repository on the instance</a></li><li><a href="#mixing-cloud-with-local-cli">Mixing cloud with local CLI</a></li><li><a href="#extensions-are-off">Extensions are off</a></li><li><a href="#mcp-servers-are-off">MCP servers are off</a></li><li><a href="#support-and-status">Support and status</a></li></ul></nav>
+      <ul><li><a href="#what-cloud-gives-you">What cloud gives you</a></li><li><a href="#connecting-the-cli">Connecting the CLI</a></li><li><a href="#putting-a-repository-on-the-instance">Putting a repository on the instance</a></li><li><a href="#mixing-cloud-with-local-cli">Mixing cloud with local CLI</a></li><li><a href="#extensions-are-off">Extensions are off</a></li><li><a href="#mcp-servers-are-off">MCP servers are off</a></li><li><a href="#versions-and-updates">Versions and updates</a></li><li><a href="#support-and-status">Support and status</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

@@ -4,7 +4,7 @@
 
 ## Facts
 
-- Latest version: 0.7.14, released 2026-11-18. Changelog: https://github.com/GroophyLifefor/co-maintainer/blob/main/CHANGELOG.md
+- Latest version: 0.7.15, released 2026-11-18. Changelog: https://github.com/GroophyLifefor/co-maintainer/blob/main/CHANGELOG.md
 - License: MIT. Source: https://github.com/GroophyLifefor/co-maintainer
 - Install: `npm install -g co-maintainer`. Needs Node 24 or newer.
 - Commands: `probe`, `init`, `sync`, `review`, `config`, `view`, `clear`, `uninstall`, `oauth`, `set`, `serve`, `extension`, `rollback`, `version`. `sync` keeps the review guides up to date (its old name was `remake`).
@@ -2679,9 +2679,10 @@ runs for you.
 ## Turn it on
 
 Commit watch is a feature of [`serve`](serve.md). The repository must be added
-and initialized on the server. On the repository's page in the
+and initialized on the server. On the repository's **Pushes** tab in the
 [dashboard](dashboard.md), the **Commit watch** card shows whether pushes are
-watched and the two ways to turn it on. Use either one, or both.
+watched and the two ways to turn it on. The overview keeps a short status line
+that links there. Use either one, or both.
 
 **GitHub App.** In the App's settings on GitHub open **Permissions & events**
 and tick **Push** under **Subscribe to events**. That is your explicit yes, and
@@ -3448,6 +3449,7 @@ starts keep it.
 | `CM_REMOTE_CLIENT_TOOLS_POLICY` | Whether a remote review offers the model the tools a client declares, such as its own MCP servers: `off` (the default) or `on`, see [client tools](remote-review.md#your-own-mcp-servers-as-client-tools) |
 | `CM_EXTENSIONS_DISABLED` | `1` turns [extensions](extensions.md) off: `register` refuses and no review runs one. The Cloud image sets it from outside the container |
 | `CM_MCP_DISABLED` | `1` turns [MCP servers](review.md#mcp-servers) off: `set --mcp-config` refuses and no review starts one. The Cloud image sets it from outside the container |
+| `CM_UPDATE_URL` | The host's update address. Turns on the daily check for a newer stable release and the dashboard's **Update** button, which POSTs the target version there. Unset, nothing calls out, see [Dashboard: Updates](dashboard.md#updates) |
 | `CM_LOGIN_HINT` | Text shown on the sign-in page instead of the default "printed when `serve` started" line. Useful when a deployment hands out its own password, as the Cloud image does. Escaped as plain text |
 
 Per-run `--disable-auth` / `--enable-auth` override values from `co-maintainer
@@ -3637,6 +3639,12 @@ opened `app.db`.
 Restart after upgrading. Do not reinstall while the old process is still
 running. Same steps are listed on [Dashboard: Updating](dashboard.md#updating).
 
+A Docker server pulls the new image and starts the container again on the same
+volume, with the options it started with. **Settings**, **Server**, **Updates**
+shows those lines. When the host sets `CM_UPDATE_URL`, the dashboard also says
+when a newer release is out and offers an **Update** button, see
+[Dashboard: Updates](dashboard.md#updates).
+
 ---
 
 Source: https://co-maintainer.com/docs/dashboard.md
@@ -3668,7 +3676,9 @@ flowchart TD
 | Onboard a repo | **Add repository**, wait on **Activity** |
 | Refresh guides after `main` moves | Repo **Overview** or **Settings** (Sync), or a cron schedule in repo **Settings** ([Scheduled sync](sync.md#scheduled-sync)) |
 | Team laptops without local init | **Settings** remote tokens, repo **Remote** tab |
-| Debug a failed job | **Activity** job detail |
+| Debug a failed job | The open failures count beside **Activity**, then the job page |
+| Find every finding of a kind | **Findings** in the left menu, or a repository's **Findings** tab |
+| See who changed what | **Settings**, **Audit log** |
 
 ## Before you open
 
@@ -3723,63 +3733,260 @@ Sessions use an `HttpOnly`, `SameSite=Lax` cookie (`Secure` on HTTPS).
 
 ## Get started (`/setup`)
 
-Onboarding checklist: models and API key, GitHub access, GitHub App. Each step
-links to **Settings** to fix gaps.
+`/setup` is a step by step wizard. The progress across the top names every
+step and marks the done ones, and each step is its own URL (`/setup?step=ai`),
+so **Back** and **Next** are plain links.
 
-The home page carries the same idea as a **Finish setup** card until an install
-is complete: models and API key, GitHub App, webhook reachable (see
-[Webhook reachability](#webhook-reachability)), first repository, first review,
-and CLI connected (a remote token exists). Each row links to the settings card
-that fixes it, the header shows how many are done, and the card disappears once
-all six are. A fresh install therefore says what to do next on its landing
-page, not only on `/setup`.
+| Step | Done when |
+| ---- | --------- |
+| Models and API key | A provider and key are saved |
+| GitHub access | `gh` or a personal access token is set |
+| GitHub App and webhook | The App is saved and GitHub has delivered a webhook (see [Webhook reachability](#webhook-reachability)) |
+| First repository | A repository has its guides |
+| How reviews look (optional) | The blocking rule is saved |
 
-This page is **not** in the top bar. After sign-in, open
-`http://<host>:<port>/setup`, or use the **Finish setup** card on the home page.
-You can skip it and configure the same items under **Settings** at any time.
+Without a step in the URL the wizard opens on the first step that is not done.
+A done step says **Done** and **Next**, a step that is not done offers its fix
+and **Skip for now**. The last step shows a review comment with two sample
+findings next to the options, and the preview follows them as you change them:
+
+- **Blocking rule**: the model decides, or by severity (P0 and P1 block). It is
+  the server default, saved with **Save blocking rule**. A repository's own rule
+  still wins.
+- **Diagram language**: Mermaid, PlantUML or a PlantUML server image.
+- **References in the comment**: shown or left out.
+
+Diagram language and references are set per repository in its **Repository
+settings**, so the wizard only previews them.
+
+The home page shows a **Setup is not finished** banner with the count of the
+four required steps until they are done, and the menu shows the same count
+(`2/4`). The optional step is not counted.
 
 ## Routes
 
-Top bar: **Activity**, **Usage** (`/analytics`), **Settings**, signed-in user.
+The left menu holds **Repositories**, **Activity**, **Findings**, **Usage**,
+**Setup** and the **Settings** pages, with **Audit log** among them.
 
 | Path | Purpose |
 | ---- | ------- |
-| `/` | Repository list, **Finish setup** checklist until complete, **Add repository**, auto-review toggles (they only apply to repositories on **Simple switches**) |
-| `/setup` | Same checklist as above (direct URL) |
+| `/` | Repository list with reviews, open failures and cost of the last 30 days, the setup banner until setup is done, **Add repository** |
+| `/setup` | The setup wizard |
 | `/repos/new` | Pick an App-installed repo, **Preview** the plan, then confirm to start **init** |
-| `/repos/:owner/:repo` | Overview, 30-day stats, drift **Update now**, recent PRs, webhook reachability and last delivery |
-| `/repos/:owner/:repo/pulls` | Open PR list with a **Review** button each, paged review history, manual **Review** by number when webhooks fail |
-| `/repos/:owner/:repo/pulls/:n` | Findings and cost for one PR, and each round's [extension](extensions.md) results |
+| `/repos/:owner/:repo` | Overview: 30-day stats, findings by severity, recent pull requests, drift **Update now**, a short commit watch status line, webhook reachability and last delivery |
+| `/repos/:owner/:repo/pulls` | Open pull requests with a **Review** button each, paged review history, manual **Review** by number when webhooks fail. A click on a row opens that pull request |
+| `/repos/:owner/:repo/pulls/:n` | One pull request: title, rounds, findings with their state, references, job logs and each round's [extension](extensions.md) results |
+| `/repos/:owner/:repo/findings` | The [Findings list](#findings) of this repository |
 | `/repos/:owner/:repo/remote` | Remote CLI reviews for this repo (last 30 days) |
 | `/repos/:owner/:repo/knowledge` | Generated guides (including **Repository instructions** when the repository has an `INSTRUCTIONS.md`), **Sync**, **Clear** |
-| `/repos/:owner/:repo/settings` | **Who gets a review** (the [review policy](review-policy.md)), review scope, codegraph, [commit watch](commit-watch-review.md) issues and pushes in a row, analysis limits, schedule, remove repo |
-| `/repos/:owner/:repo/pushes` | [Commit watch](commit-watch-review.md) push reviews: range, App or CI, status, findings by severity, issues opened, cost |
-| `/activity` | Live and recent jobs (refreshes about every 5 seconds) and **Pull requests we skipped**, with the rule that skipped each and **Review now** for one that is waiting. **Stop** on a running job lets the AI call in progress finish, then the job writes and posts nothing |
-| `/activity/:id` | Single job log |
-| `/analytics` | Usage for 7, 30, or 90 days |
-| `/settings` | Global models, GitHub, App (**Create GitHub App**), webhook URL, review policy default, remote limits, tokens and key policy |
+| `/repos/:owner/:repo/settings` | **Who gets a review** (the [review policy](review-policy.md)), review scope, codegraph, analysis limits, schedule, remove repo |
+| `/repos/:owner/:repo/pushes` | [Commit watch](commit-watch-review.md) setup and push reviews: range, App or CI, status, findings by severity, issues opened, cost |
+| `/findings` | The [Findings list](#findings) across every repository |
+| `/activity` | Every job, one row per review, with [filters](#activity), the failed list and **Pull requests we skipped** |
+| `/activity/:id` | One job: its log, a [warning banner](#job-page) when it finished with a problem, links to the pull request page and the posted review |
+| `/usage` | [Usage](#usage) for 7, 30 or 90 days, by repository and author, with **Export CSV**. `/analytics` redirects here |
+| `/settings/...` | One page per settings section, see [Settings](#settings-global) |
+| `/settings/audit` | The [Audit log](#audit-log) |
 
-Per-repo tabs: **Overview**, **Pull requests**, **Knowledge**, **Remote reviews**, **Pushes**, **Repository settings**. The overview carries the **Commit watch** card.
+Every repository tab starts with the same breadcrumb, then the title, then the
+tabs: **Overview**, **Pull requests**, **Findings**, **Knowledge**, **Remote
+reviews**, **Pushes**, **Repository settings**. The commit watch setup lives on
+**Pushes**, and the overview keeps one status line that links there.
 
-PR titles are not stored in `app.db`, so lists show `#number` only.
+A review stores the pull request title and author, so lists show
+`#136 Rename format to formatDuration` without asking GitHub. A pull request
+reviewed before 0.7.15 shows its number until its next review or first visit.
+
+## Every count opens its list
+
+No count of findings, failures or reviews is plain text. The **Result** column
+on **Activity** opens the pull request page at that round. The overview
+**Findings** card opens the repository's findings list, and each severity opens
+it filtered to that severity. The recent pull requests' severity badges, the job
+page **Found** card, and the Usage cards and severity rows do the same.
+
+## Findings
+
+**Findings** in the left menu lists every finding of every reviewed pull request,
+one row per finding, with a repository filter. Each repository has the same list
+on its **Findings** tab. A finding carried from round to round is one row, with
+the state it has now.
+
+| Column | What it shows |
+| ------ | ------------- |
+| Severity | P0 to P3 |
+| Blocking | Whether it blocks under the repository's blocking rule |
+| State | Open or Closed |
+| Finding | The title, the file and line, and the pull request with its title and round |
+| When | When that round ran |
+
+Filters live in the URL, so a filtered list is a link: severity, state (open by
+default), pull request, file text, author, and a search over the title and body.
+Each value shows as a chip you can take off. A row opens the pull request page
+at that finding.
+
+## Pull request page
+
+The title shows the pull request title. Each round has an anchor (`#round-4`)
+and each finding one too, which the counts elsewhere link to. The findings header
+says how many are open and closed, and every finding carries its state badge.
+`file:line` opens the line on GitHub at the round's commit, and a finding that was
+posted links its GitHub review thread. **References (N)** counts the references it
+lists. Each row of the **Reviews** table opens that round's job log.
+
+## Activity
+
+Activity shows one row per review: the pull request, the result, the cost, the
+time and the status. Every row opens its log. Other jobs, such as init, sync,
+skip and reply, keep one row each. Job kinds, skip reasons and cancel reasons
+read as sentences, for example "Skipped: nothing new since the last review".
+
+Filters live in the URL as chips: status (running, done, failed, canceled,
+skipped), kind, repository, pull request, a day range and a search box. The list
+is paged.
+
+The open page polls a small change stamp every 5 seconds and fetches the list
+only when something changed. It waits while rows are selected or a field of the
+list is in use, so a refresh never drops your work.
+
+**Pull requests we skipped** has column headings, says why a row has no
+repository, merges repeats within the same minute into one row with a count, and
+hides the bot's own comments behind **Show own comments**.
+
+### Failures
+
+The red count beside **Activity** in the menu, for example `5 open failures`,
+counts failures of the last 30 days that nobody dismissed and no later review
+resolved. The home list and the repository overview show the same count for each
+repository. Each of them opens the failed list for the same window, so the count
+is the number of rows it opens.
+
+Each failed row shows its reason with **Retry** and **Dismiss**. **Dismiss**
+marks the failure as seen and keeps it in the history. **Dismiss all** does it
+for every failure the list shows. A later successful review of the same pull
+request resolves its earlier failures by itself. The failed list leaves out
+dismissed and resolved failures and links to them in one click.
+
+### Bulk select
+
+Rows have checkboxes, and the header box selects every row on the page. The bar
+above the list offers **Retry** and **Dismiss** for the selection, each enabled
+only when a selected row allows it.
+
+### Keyboard shortcuts
+
+Activity, Findings and the Pull requests tab share these keys. A small bar at the
+bottom of the list names them, and they never fire while you type in a field.
+
+| Key | Action |
+| --- | ------ |
+| `j` / `k` | Move down and up |
+| `Enter` | Open the row |
+| `x` | Select the row (Activity) |
+| `/` | Focus the search box |
+| `?` | Show the shortcuts panel |
+
+## Job page
+
+A job that finished but logged a warning or an error gets a banner at the top
+that says what went wrong and how to fix it, for example a check run update that
+failed with 404 because the GitHub App lacks **Checks: Read and write**. Its
+Activity row gets a warning mark too. A review job links the pull request page
+and the GitHub review it posted. The log's **Clear** button shows only while the
+job runs.
+
+## Usage
+
+Usage covers 7, 30 or 90 days. A repository filter and an author filter sit next
+to the range, and the range links keep them. The author is the GitHub login that
+opened the pull request, so CLI reviews and init or sync runs, which have none,
+drop out when an author is chosen.
+
+**Export CSV** downloads the reviews the page counts, one row per review:
+
+```text
+time,repository,pull_request,author,model,tokens_in,tokens_out,cost_usd,billed_to,findings,status
+```
+
+An unknown cost is an empty cell, never a zero. The failed attempts on the
+**Reviews** card open every failed review of the range, dismissed ones too.
 
 ## Settings (global)
 
-Single page with sections (anchor links in the sidebar):
+Each section is its own page in the left menu:
 
-| Section | What you configure |
-| ------- | ------------------ |
-| Models and API key | Provider (OpenRouter, OpenAI or Anthropic, see [AI providers](providers.md)), token, high model (reviews and synthesis), low model (history extraction). No model is pre-filled |
-| GitHub | `gh` or PAT for init/sync and server-side Git reads |
-| Defaults | Auth and include/limit defaults for new work, and the [review policy](review-policy.md) template new repositories start with |
-| Server | Webhook URL shown to GitHub, queue and timeout knobs |
-| Remote review | `cmr_…` tokens (secret shown once, with copy), per-token concurrency, sync timeout, and the **Client key policy (BYOK)**, see [your own key](remote-review.md#your-own-ai-key) |
-| Access | Password vs GitHub sign-in toggles (mirrors `serve` flags) |
-| Password | Change the dashboard password and sign out other sessions |
-| About | Version and source link |
+| Page | What you configure |
+| ---- | ------------------ |
+| AI models | Provider (OpenRouter, OpenAI or Anthropic, see [AI providers](providers.md)), token, high model (reviews and synthesis), low model (history extraction). No model is pre-filled |
+| GitHub | `gh` or PAT for init/sync and server-side Git reads, the GitHub App (**Create GitHub App**) and the webhook URL |
+| Review defaults | Limits for new repositories and the [review policy](review-policy.md) template they start with |
+| Remote access | `cmr_…` tokens (secret shown once, with copy) and the **Client key policy (BYOK)**, see [your own key](remote-review.md#your-own-ai-key) |
+| Server | Version, port and data folder, [Updates](#updates), the job queue and remote limits |
+| Sign-in | Password vs GitHub sign-in toggles (mirrors `serve` flags), and the password |
+| Audit log | Who did what, see [Audit log](#audit-log) |
+| Danger zone | **Clear all knowledge** |
 
 Saving PAT, App key, or OAuth values is validated against GitHub first. Bad
 scopes return **422** and nothing is stored.
+
+A **Search settings** box above the Settings menu finds a setting by its name or
+description as you type. Arrow keys move, `Enter` opens, and the page scrolls to
+the field, focuses it and marks it for a moment.
+
+Settings pages and **Repository settings** show their save state at the top:
+**Unsaved changes** once a field changed, **Saving** while a save runs, **All
+changes saved** when nothing is left, and **Not saved** when a save failed.
+
+## Audit log
+
+**Settings**, **Audit log** lists who did what and when:
+
+- settings and repository settings changes, with each changed setting and its old
+  and new value
+- remote tokens created, turned on or off, and deleted
+- repositories added and removed
+- sign-ins, with the password or with GitHub
+- reviews started by hand and failures retried
+- failures dismissed
+- updates started
+
+A secret never shows a value, old or new, only that it changed. A GitHub sign-in
+names the GitHub login, so the log names the person. The list filters by kind and
+person and is paged.
+
+## Updates
+
+**Check for new versions** at the bottom of the sidebar checks by hand, on any
+server. It first says that it asks github.com, and only after **Check now** does
+it read the latest release and `CHANGELOG.md`. The dialog then lists each newer
+version with one short line per change, and a link to the full changelog.
+Nothing about the server is sent. **Star Co-Maintainer** below it opens
+the repository on GitHub.
+
+The automatic newer version check runs only when the host sets `CM_UPDATE_URL`.
+Without it the server never calls out on its own, and **Settings**, **Server**, **Updates** shows the
+lines that update a self-hosted Docker server:
+
+```sh
+docker pull ghcr.io/groophylifefor/co-maintainer:latest
+docker stop co-maintainer
+docker rm co-maintainer
+docker run -d --name co-maintainer -p 5000:5000 \
+  -v co-maintainer-data:/data \
+  ghcr.io/groophylifefor/co-maintainer:latest
+```
+
+Start the container with the options you started it with, on the same volume.
+
+With `CM_UPDATE_URL` set, the server reads the latest stable release from GitHub
+at most once a day and keeps the answer beside `app.db`. When a newer one is out,
+the sidebar and the **Updates** card say "co-maintainer 0.7.15 is out. This
+instance runs 0.7.14." with a link to its release notes. **Update to 0.7.15**
+POSTs `{"version":"0.7.15","current":"0.7.14"}` to `CM_UPDATE_URL`, the host
+restarts the instance on that image, and the card shows the update until the new
+version answers, then reloads. The button only offers the latest release newer
+than the running one, never an older version. Each update started is written to
+the [Audit log](#audit-log). See [Cloud: Versions and updates](cloud.md#versions-and-updates).
 
 ## Who gets a review
 
@@ -3818,7 +4025,7 @@ guides and saved settings, and a checkbox also drops the cached evidence
 (pull request listings, costs, clones and worktrees). The next **Sync** builds
 the knowledge from scratch. See [Caching: Clearing](caching.md#clearing).
 
-**Settings** ends with **Clear all knowledge**, which does the same for every
+**Settings**, **Danger zone** has **Clear all knowledge**, which does the same for every
 repository on the server. Repository records, review history and tokens stay.
 Both actions ask about work in flight first: queued jobs are canceled, a
 running review can be stopped, and a running sync is waited out because it
@@ -3842,7 +4049,7 @@ dashboard:
 
 ## Updating
 
-Forward-only `app.db` migrations. Do not downgrade the CLI after a newer version
+See [Updates](#updates) for the notice and the button. Forward-only `app.db` migrations. Do not downgrade the CLI after a newer version
 has run.
 
 1. Stop `serve`.
@@ -4098,6 +4305,33 @@ can turn them on.
 [MCP servers](review.md#mcp-servers) are always off in the cloud. The hosted
 service sets `CM_MCP_DISABLED=1` from outside the container, so
 `set --mcp-config` is refused and no review starts an MCP server.
+
+## Versions and updates
+
+An instance runs the image the host deployed. Each stable release publishes
+`ghcr.io/groophylifefor/co-maintainer:<version>` and `:latest`.
+
+The host sets `CM_UPDATE_URL` on the instance. With it, the dashboard reads the
+latest stable release from GitHub at most once a day and keeps the answer. When
+a newer one is out, admins see "co-maintainer 0.7.15 is out. This instance runs
+0.7.14." in the sidebar and under **Settings**, **Server**, **Updates**, with a
+link to the release notes.
+
+**Update to 0.7.15** sends a `POST` to `CM_UPDATE_URL` with a JSON body:
+
+```json
+{"version":"0.7.15","current":"0.7.14"}
+```
+
+Any `2xx` answer means the host took the request. The host restarts the instance
+on that image, and the card shows the update until the new version answers. Any
+other answer, or no answer, shows that the update did not start. The button only
+offers the latest stable release newer than the running one, never an older
+version, and every update started is written to the [Audit log](dashboard.md#audit-log).
+
+Without `CM_UPDATE_URL` the instance never asks for the latest release, and
+Settings shows the `docker pull` and restart lines a self-hosted server uses. See
+[Dashboard: Updates](dashboard.md#updates).
 
 ## Support and status
 
@@ -5106,6 +5340,12 @@ An empty value counts as not set.
 
 `config list` shows `env` as the source of `remote-host` and `remote-token` when
 their variable is set.
+
+## Update variable
+
+| Variable | Effect |
+| -------- | ------ |
+| `CM_UPDATE_URL` | On the server, the host's update address. With it, `serve` reads the latest stable release from GitHub at most once a day, and the dashboard shows a newer one and an **Update** button that POSTs `{"version","current"}` there. Unset or not an `http(s)` address, nothing calls out. See [Dashboard: Updates](dashboard.md#updates) |
 
 ## Extension variables
 

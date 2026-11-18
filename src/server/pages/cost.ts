@@ -54,6 +54,39 @@ export function formatCostTotal(totals: CostTotals): string {
   return `${main} + ${byok} BYOK`;
 }
 
+/** The same total split for a stat card: the amount alone, which never
+ * wraps, and what it leaves out for the small line below. Plain text. */
+export function costTotalParts(totals: CostTotals): {
+  value: string;
+  note: string;
+} {
+  const notes: string[] = [];
+  let value: string;
+  if (totals.knownCount === 0 && totals.unknownCount > 0) {
+    value = "unknown";
+    notes.push(reviewsWord(totals.unknownCount));
+  } else {
+    value = money(totals.cost);
+    if (totals.unknownCount > 0) notes.push(reviewsWord(totals.unknownCount));
+  }
+  if (totals.byokKnownCount > 0) {
+    notes.push(`${money(totals.byokUsd)} BYOK`);
+  } else if (totals.byokUnknownCount > 0) {
+    notes.push(`BYOK: ${reviewsWord(totals.byokUnknownCount)}`);
+  }
+  return { value, note: notes.join(" · ") };
+}
+
+/** The same split for a table cell: the amount on one line that never
+ * wraps, and what it leaves out as a small line below. HTML, escaped. */
+export function formatCostCell(totals: CostTotals): string {
+  const { value, note } = costTotalParts(totals);
+  const amount = `<span class="nowrap">${escapeHtml(value)}</span>`;
+  return note
+    ? `${amount}<span class="sub">${escapeHtml(note)}</span>`
+    : amount;
+}
+
 /** Folds a handful of reviews (a pull request's rounds) into the same shape
  * `reviewStats` returns, so one review list and one SQL aggregate render
  * through the same `formatCostTotal`. */

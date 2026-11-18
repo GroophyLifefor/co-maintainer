@@ -1,13 +1,18 @@
-import { empty, html, layout, money, skSlot, text, when } from "./layout.ts";
-import { formatCost } from "./cost.ts";
+import {
+  escapeHtml,
+  html,
+  layout,
+  money,
+  skSlot,
+  text,
+  when,
+} from "./layout.ts";
 import { crumb, icon, pageHeader } from "./ui.ts";
+import { cancelReasonText, jobKindText } from "./activity_words.ts";
 import { readConfig, resolveAppPrivateKey } from "../../config.ts";
-import type {
-  activityFeed,
-  runningJobs,
-  skippedDeliveries,
-} from "../../services/dashboard.ts";
 import { getLogsSince } from "../../services/jobs.ts";
+import { modelOf } from "../../services/activity_actions.ts";
+import { type JobWarning, jobWarnings } from "../../services/job_warnings.ts";
 import {
   listRateLimitWaits,
   summarizeRateLimitWaits,
@@ -24,34 +29,13 @@ export function isWaitingForRequest(reason: string | null): boolean {
   return Boolean(reason?.endsWith("waiting for a maintainer request."));
 }
 
-function skipReason(reason: string | null): string {
-  switch (reason) {
-    case "draft":
-      return "Draft pull request";
-    case "bot-author":
-      return "Opened by a bot";
-    case "repo-not-active":
-      return "Repository not added yet";
-    case "auto-review-off":
-      return "Automatic review is off";
-    case "no-knowledge-yet":
-      return "Knowledge not built yet";
-    case "diff-too-large":
-      return "Diff too large";
-    case "no-code-changes":
-      return "No code changes";
-    default:
-      return reason ?? "Skipped";
-  }
-}
-
 export function jobLabel(job: JobRow): string {
   if (job.type === "init") return "Set up repository";
   if (job.type === "remake") return "Synced knowledge";
   if (job.type === "review") {
     return job.pr_number ? `Review #${job.pr_number}` : "Review";
   }
-  return job.type;
+  return jobKindText(job);
 }
 
 /** The job page title, "Init · widgets": the kind of job, then the
@@ -66,41 +50,18 @@ function jobTitle(job: JobRow): string {
           ? job.pr_number
             ? `Review #${job.pr_number}`
             : "Review"
-          : job.type;
+          : jobKindText(job);
   return `${kind} · ${job.repo.split("/").pop() ?? job.repo}`;
 }
 
-function cancelReasonLabel(reason: string | null): string {
-  switch (reason) {
-    case "dashboard_canceled":
-      return "Canceled from the dashboard";
-    case "superseded":
-      return "Replaced by a newer job";
-    case "client_timeout":
-      return "No sync from the CLI";
-    case "client_canceled":
-      return "Canceled from the CLI";
-    case "token_deactivated":
-      return "Token was deactivated";
-    case "token_deleted":
-      return "Token was deleted";
-    case "repo_deactivated":
-      return "Repository was removed from the dashboard";
-    case "server_restarted":
-      return "Server restarted during the job";
-    default:
-      return reason ?? "Canceled";
-  }
-}
-
-function jobStatus(job: JobRow): string {
+export function jobStatus(job: JobRow): string {
   if (job.status === "done") return `<span class="st ok">Done</span>`;
   if (job.status === "failed") {
     return `<a class="st err" href="/activity/${text(job.id)}">Failed</a>`;
   }
   if (job.status === "canceled") {
     const detail = job.cancel_reason
-      ? ` title="${text(cancelReasonLabel(job.cancel_reason))}"`
+      ? ` title="${text(cancelReasonText(job.cancel_reason))}"`
       : "";
     return `<span class="st warn"${detail}>Canceled</span>`;
   }
@@ -119,7 +80,7 @@ function logBlock(logs: JobLogRow[], emptyText: string): string {
   }</div>`;
 }
 
-function parseJobArgs(job: JobRow): Record<string, unknown> {
+export function parseJobArgs(job: JobRow): Record<string, unknown> {
   try {
     const parsed = JSON.parse(job.args || "{}");
     return parsed && typeof parsed === "object"
@@ -290,7 +251,13 @@ function logPanel(
       ? `<p class="log-empty">No log lines yet. New lines appear here as the job runs.</p>`
       : "";
   return `<div class="logpanel" data-log="${text(job.id)}" data-job="${text(job.id)}" data-live="${live ? "1" : "0"}" data-status="${text(status)}" data-seq="${lastSeq}">
-    <div class="lhd"><span class="st ${kind}">${text(status)}</span><h3>Log</h3><span class="cnt" role="status" aria-live="polite">${count}</span><button class="btn out" type="button" data-log-pause>Pause</button><button class="btn out" type="button" data-log-clear>Clear</button></div>
+    <div class="lhd"><span class="st ${kind}">${text(status)}</span><h3>Log</h3><span class="cnt" role="status" aria-live="polite">${count}</span><button class="btn out" type="button" data-log-pause>Pause</button>${
+      // Clear empties the view of a log that keeps growing. A finished log
+      // has nothing more to wait for, so it has no Clear.
+      live
+        ? `<button class="btn out" type="button" data-log-clear>Clear</button>`
+        : ""
+    }</div>
     <div class="logerr" data-log-error hidden></div>
     <div class="logwrap"><div class="log" tabindex="0" role="log" aria-live="off">${logLines(logs)}${emptyLog}</div><button class="jump" type="button" data-log-jump hidden>Jump to latest <span></span></button></div>
   </div>`;
@@ -440,10 +407,13 @@ function doneBody(
     !appConfigured && (job.type === "init" || job.type === "remake")
       ? `<a class="btn out" href="/settings/github">Connect the GitHub App</a>`
       : "";
+  // A review found findings, and the count opens them on the PR page. A
+  // setup job learned knowledge.
+  const producedValue = review
+    ? `<a href="${escapeHtml(reviewResultHref(review))}">${text(produced.label)}</a>`
+    : text(produced.label);
   return `<div class="stats three">
-    <div class="stat"><div class="top">Learned</div><div class="v">${text(
-      produced.label,
-    )}</div><div class="h">${text(produced.detail)}</div></div>
+    <div class="stat"><div class="top">${review ? "Found" : "Learned"}</div><div class="v">${producedValue}</div><div class="h">${text(produced.detail)}</div></div>
     <div class="stat"><div class="top">Took</div><div class="v tnum">${jobDuration(
       durationMs,
     )}</div><div class="h">${text(tookDetail)}</div></div>
@@ -472,7 +442,7 @@ function noteStatus(review: ReviewRow | undefined): string {
     : "could not post a note on the pull request";
 }
 
-function failureExplanation(error: string | null | undefined): string {
+export function failureExplanation(error: string | null | undefined): string {
   const value = (error ?? "").toLowerCase();
   if (/empty (answer|review)|returned an empty/.test(value)) {
     return "The model returned an empty answer, so no review was written.";
@@ -492,13 +462,11 @@ function failureExplanation(error: string | null | undefined): string {
 /** The model a failed job ran with. A manual or webhook review does not put
  * the model in its job args. The review row records the one it resolved.
  * "unknown" is what a review stores when no model was set. */
-function failedModel(
+export function failedModel(
   args: Record<string, unknown>,
   review: ReviewRow | undefined,
 ): string | undefined {
-  const fromReview =
-    review?.model && review.model !== "unknown" ? review.model : undefined;
-  return fromReview ?? asString(args.model);
+  return modelOf(args, review);
 }
 
 function failedBody(
@@ -556,7 +524,7 @@ function otherBody(job: JobRow, logs: JobLogRow[]): string {
   )}</div></div>`;
 }
 
-function liveCard(job: JobRow): string {
+export function liveCard(job: JobRow): string {
   const logs = getLogsSince(job.id).slice(-24);
   return `<div class="card" data-async>
     ${skSlot()}
@@ -572,109 +540,69 @@ function liveCard(job: JobRow): string {
   </div>`;
 }
 
-export function renderActivity(
-  username: string,
-  running: ReturnType<typeof runningJobs>,
-  feed: ReturnType<typeof activityFeed>,
-  skipped: ReturnType<typeof skippedDeliveries>,
-): Response {
-  const live = running.map(liveCard).join("");
-  const start = (feed.page - 1) * feed.per + 1;
-  const end = Math.min(feed.page * feed.per, feed.total);
-  const rows = feed.items
-    .map((item) => {
-      if (item.kind === "review") {
-        const review = item.review;
-        const result =
-          review.status === "failed"
-            ? `<span class="st err">Failed</span>`
-            : review.status === "access_denied"
-              ? `<span class="st err">Access denied</span>`
-              : `<span class="st ok">${review.findings_count} finding${
-                  review.findings_count === 1 ? "" : "s"
-                }</span>`;
-        return `<tr><td>Reviewed pull request</td>
-          <td><a href="/repos/${text(review.repo)}/pulls/${review.pr_number}">${text(
-            review.repo,
-          )} #${review.pr_number}</a></td>
-          <td class="muted">${when(review.created_at)}</td>
-          <td>${result}</td>
-          <td class="num">${formatCost(review)}</td></tr>`;
-      }
-      const job = item.job;
-      return `<tr><td><a href="/activity/${text(job.id)}">${text(jobLabel(job))}</a></td>
-          <td><a href="/repos/${text(job.repo)}">${text(job.repo)}</a></td>
-          <td class="muted">${when(job.created_at)}</td>
-          <td>${jobStatus(job)}</td>
-          <td class="num"></td></tr>`;
-    })
+/** Where a review's result opens: the round on the PR page, or the tab that
+ * lists a push or a CLI review. */
+export function reviewResultHref(review: ReviewRow): string {
+  if (review.kind === "push") return `/repos/${review.repo}/pushes`;
+  if (review.kind === "remote" || !review.pr_number) {
+    return `/repos/${review.repo}/remote`;
+  }
+  return `/repos/${review.repo}/pulls/${review.pr_number}#round-${review.round}`;
+}
+
+/** The GitHub review a job posted: the id on the review row, otherwise the
+ * one its log names. */
+function postedReviewId(
+  review: ReviewRow | undefined,
+  logs: JobLogRow[],
+): string | undefined {
+  if (review?.posted_review_id) return review.posted_review_id;
+  for (const line of logs) {
+    const match =
+      /^(?:posted review|reconciled existing GitHub review) (\d+)/.exec(
+        line.message,
+      );
+    if (match) return match[1];
+  }
+  return undefined;
+}
+
+/** Links from a pull request job to the dashboard's pull request page and
+ * to the review it posted on GitHub. */
+function jobLinks(
+  job: JobRow,
+  review: ReviewRow | undefined,
+  logs: JobLogRow[],
+): string {
+  if (!job.pr_number) return "";
+  const page = `<a class="btn out" href="/repos/${text(job.repo)}/pulls/${job.pr_number}${
+    review ? `#round-${review.round}` : ""
+  }">Pull request page</a>`;
+  const posted = postedReviewId(review, logs);
+  const github = posted
+    ? `<a class="btn out" href="https://github.com/${text(job.repo)}/pull/${job.pr_number}#pullrequestreview-${text(
+        posted,
+      )}" target="_blank" rel="noopener">${icon("external-link")}Review on GitHub</a>`
+    : "";
+  return `${page}${github}`;
+}
+
+/** One banner per problem a finished job logged, with the fix. */
+function warningBanners(warnings: JobWarning[]): string {
+  return warnings
+    .map(
+      (warning) =>
+        `<div class="notice warn job-warning" role="alert">${icon(
+          "triangle-alert",
+        )}<div class="txt"><b>Finished with a problem.</b> ${text(
+          warning.problem,
+        )} ${text(warning.fix)}</div>${
+          warning.fixHref
+            ? `<a class="btn out sm" href="${escapeHtml(warning.fixHref)}">Open the GitHub settings</a>`
+            : ""
+        }</div>`,
+    )
     .join("");
-  const recent =
-    feed.items.length === 0
-      ? empty("Nothing yet", "Jobs and reviews will show up here.")
-      : `<table>
-        <thead><tr><th>What</th><th>Repository</th><th>When</th><th>Result</th><th class="num">Cost</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-      <div class="pager"><span>${
-        feed.total === 0 ? "0 of 0" : `${start}-${end} of ${feed.total}`
-      }</span><span class="sp"></span>
-        ${
-          feed.page > 1
-            ? `<a class="btn sm" href="?page=${feed.page - 1}">Previous</a>`
-            : `<button class="btn sm" disabled>Previous</button>`
-        }
-        ${
-          end < feed.total
-            ? `<a class="btn sm" href="?page=${feed.page + 1}">Next</a>`
-            : `<button class="btn sm" disabled>Next</button>`
-        }</div>`;
-  const skippedRows = skipped
-    .slice(0, 20)
-    .map((row) => {
-      const label = `${row.repo ?? ""}${row.pr_number ? ` #${row.pr_number}` : ""}`;
-      // A pull request waiting for a request is one click from a review, and
-      // the person on the dashboard is already allowed to ask.
-      const action =
-        row.repo && row.pr_number && isWaitingForRequest(row.reason)
-          ? `<button class="btn sm" type="button" data-post="/api/repos/${text(row.repo)}/pulls/${row.pr_number}/review" aria-label="Review ${text(label)} now">Review now</button>`
-          : "";
-      return `<tr><td>${text(label)}</td>
-        <td class="muted">${text(skipReason(row.reason))}</td>
-        <td class="muted" style="width:120px">${when(row.received_at)}</td>
-        <td style="width:110px;text-align:right">${action}</td></tr>`;
-    })
-    .join("");
-  return html(
-    layout({
-      title: "Activity · co-maintainer",
-      username,
-      active: "/activity",
-      body: `<div class="wrap" id="activity-root">
-  <div class="pagehead">
-    <div><h1>Activity</h1>
-      <p class="lead">What is running now and what happened recently.</p></div>
-  </div>
-  ${live}
-  <div class="card">
-    <div class="hd"><h2>Recent</h2></div>
-    <div class="bd flush">${recent}</div>
-  </div>
-  <div class="card">
-    <div class="hd"><h2>Pull requests we skipped</h2>
-      <span class="muted" style="margin-left:auto;font-size:13px">Why nothing happened</span></div>
-    <div class="bd flush">${
-      skippedRows
-        ? `<table><tbody>${skippedRows}</tbody></table>`
-        : empty(
-            "No skips recorded",
-            "Skipped pull request deliveries appear here.",
-          )
-    }</div>
-  </div>
-</div>`,
-    }),
-  );
 }
 
 export function renderJob(
@@ -700,7 +628,7 @@ export function renderJob(
   const canceled =
     job.status === "canceled" && job.cancel_reason
       ? `<div class="notice warn"><div class="txt">${text(
-          cancelReasonLabel(job.cancel_reason),
+          cancelReasonText(job.cancel_reason),
         )}</div></div>`
       : "";
   // A queued job has not started a step yet: it waits, and can be cancelled
@@ -737,6 +665,9 @@ export function renderJob(
   const changeModel = failed
     ? `<a class="btn out" href="/settings/ai">Change default model</a>`
     : "";
+  const links = jobLinks(job, review, logs);
+  const warnings =
+    job.status === "done" ? warningBanners(jobWarnings(logs)) : "";
   let body: string;
   if (live) {
     body = runningBody(job, args, logs);
@@ -760,9 +691,9 @@ export function renderJob(
       { label: "Activity", href: "/activity" },
       { label: jobLabel(job) },
     ]),
-    actions: `${stop}${retry}${changeModel}`,
+    actions: `${stop}${retry}${changeModel}${links}`,
   })}
-  ${error}${canceled}
+  ${warnings}${error}${canceled}
   <div data-async>
     ${skSlot()}
     ${waitNotice}

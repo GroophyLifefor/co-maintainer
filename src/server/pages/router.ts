@@ -17,6 +17,7 @@ import { readBoundedUtf8 } from "../../remote/server/body.ts";
 import { handleClient, handleLogo, handleStyles } from "../assets.ts";
 import {
   activityFeed,
+  findingsList,
   listReposForHome,
   prDetail,
   repoKnowledge,
@@ -28,10 +29,17 @@ import {
   runningJobs,
   skippedDeliveries,
   statsForRange,
+  usageExportRows,
 } from "../../services/dashboard.ts";
 import { escapeHtml, html, notFound } from "./layout.ts";
 import { formatCostTotal } from "./cost.ts";
 import { readConfig, writeUserConfig } from "../../config.ts";
+import {
+  audit,
+  setAuditActor,
+  settingChanges,
+  settingsSnapshot,
+} from "../../services/audit.ts";
 import { type UserConfig } from "../../config.ts";
 import {
   appNameProblem,
@@ -46,22 +54,50 @@ import { renderAddRepo } from "./add_repo.ts";
 import { renderRepo } from "./repo.ts";
 import { renderRepoPulls } from "./repo_prs.ts";
 import { renderRepoRemote } from "./repo_remote.ts";
-import { commitWatchCard, renderRepoPushes } from "./repo_pushes.ts";
+import {
+  commitWatchCard,
+  commitWatchStatus,
+  renderRepoPushes,
+} from "./repo_pushes.ts";
 import { watchStatus } from "../../services/watch_status.ts";
 import { defaultBranchForRepo } from "../../remote/server/routes.ts";
 import { renderPr } from "./pr.ts";
+import {
+  FINDINGS_PER_PAGE,
+  findingFilter,
+  parseFindingQuery,
+  renderFindings,
+} from "./findings.ts";
+import { daysAgoIso } from "../../util/time.ts";
 import { renderKnowledge } from "./knowledge.ts";
 import { renderRepoSettings } from "./repo_settings.ts";
-import { renderActivity, renderJob } from "./activity.ts";
+import { renderJob } from "./activity.ts";
+import { renderActivity } from "./activity_list.ts";
+import {
+  ACTIVITY_PER_PAGE,
+  activityStoreFilter,
+  parseActivityQuery,
+} from "./activity_query.ts";
 import { renderAnalytics } from "./analytics.ts";
+import { parseUsageQuery } from "./usage_query.ts";
+import { AUDIT_PER_PAGE, parseAuditQuery, renderAudit } from "./audit.ts";
+import { auditActors, listAudit } from "../../store/audit.ts";
+import { usageCsv } from "./usage_csv.ts";
 import { renderSettings, renderSettingsPage } from "./settings.ts";
 import type { SettingsSection } from "./settings.ts";
 import { renderCatalog } from "./catalog.ts";
-import { getRepo } from "../../store/repos.ts";
+import { getRepo, listActiveRepos } from "../../store/repos.ts";
+import { activityStamp } from "../../store/activity.ts";
 import { cacheGet } from "../../store/cache_db.ts";
 import { getJob } from "../../store/jobs.ts";
 import { getLogsSince } from "../../services/jobs.ts";
-import { listInstallationsWithRepos, listOpenPulls } from "../../github/app.ts";
+import { listInstallationsWithRepos } from "../../github/app.ts";
+import {
+  cachedOpenPulls,
+  cachedOpenPullTitle,
+  fetchPullTitle,
+} from "../../github/open_pulls_cache.ts";
+import { getPullTitle, rememberPullTitle } from "../../store/pull_titles.ts";
 import type { OpenPull } from "../../github/app.ts";
 import { setupChecklist } from "../../services/setup_checklist.ts";
 import {
@@ -102,7 +138,7 @@ function serverOrigin(webhookUrl: string, url: URL): string {
 }
 
 const REPO =
-  /^\/repos\/([^/]+)\/([^/]+)(?:\/(pulls|knowledge|settings|remote|pushes)(?:\/(\d+))?)?$/;
+  /^\/repos\/([^/]+)\/([^/]+)(?:\/(pulls|findings|knowledge|settings|remote|pushes)(?:\/(\d+))?)?$/;
 
 /** Matches a repository page URL. Only `pulls` is keyed by a number, so a stray
  * suffix such as `/repos/o/r/remote/7` must fall through to a 404 rather than
@@ -203,6 +239,7 @@ export async function handlePageRequest(
   }
 
   const username = session.username;
+  setAuditActor(username);
   try {
     if (url.pathname === "/__ui" && request.method === "GET") {
       if (!deps.debug) return undefined;
@@ -235,6 +272,10 @@ export async function handlePageRequest(
       return renderSetup(
         username,
         setupChecklist(config.webhookUrl || deps.webhookUrl || ""),
+        {
+          step: url.searchParams.get("step") ?? undefined,
+          blocking: config.reviewBlocking,
+        },
       );
     }
     if (url.pathname === "/repos/new" && request.method === "GET") {
@@ -250,12 +291,18 @@ export async function handlePageRequest(
       return await finishAppManifest(request, url);
     }
     if (url.pathname === "/activity" && request.method === "GET") {
-      const page = Number(url.searchParams.get("page") ?? 1);
+      const query = parseActivityQuery(url.searchParams);
+      // Read before the list, so a change made while the page renders moves
+      // the stamp past this one and the next poll picks it up.
+      const stamp = activityStamp();
       return renderActivity(
         username,
         runningJobs(),
-        activityFeed(page, 20),
-        skippedDeliveries(),
+        activityFeed(query.page, ACTIVITY_PER_PAGE, activityStoreFilter(query)),
+        skippedDeliveries(query.repo),
+        query,
+        listActiveRepos().map((repo) => repo.full_name),
+        stamp,
       );
     }
     const jobMatch = /^\/activity\/([^/]+)$/.exec(url.pathname);
@@ -270,12 +317,47 @@ export async function handlePageRequest(
       }
       return renderJob(username, job, getLogsSince(job.id));
     }
+    if (url.pathname === "/findings" && request.method === "GET") {
+      const query = parseFindingQuery(url.searchParams);
+      return renderFindings(username, {
+        query,
+        ...findingsList(
+          findingFilter(query, query.repo, daysAgoIso),
+          query.page,
+          FINDINGS_PER_PAGE,
+          true,
+        ),
+      });
+    }
     if (url.pathname === "/analytics" && request.method === "GET") {
       return Response.redirect(`${url.origin}/usage${url.search}`, 303);
     }
     if (url.pathname === "/usage" && request.method === "GET") {
-      const range = url.searchParams.get("range") ?? "30d";
-      return renderAnalytics(username, range, statsForRange(range));
+      const query = parseUsageQuery(url.searchParams);
+      return renderAnalytics(
+        username,
+        query,
+        statsForRange(query.range, query),
+      );
+    }
+    if (url.pathname === "/usage/export.csv" && request.method === "GET") {
+      const query = parseUsageQuery(url.searchParams);
+      const name = [
+        "co-maintainer-usage",
+        query.range,
+        query.repo?.replace(/[^A-Za-z0-9._-]+/g, "-"),
+        query.author?.replace(/[^A-Za-z0-9._-]+/g, "-"),
+      ]
+        .filter(Boolean)
+        .join("-");
+      return new Response(usageCsv(usageExportRows(query.range, query)), {
+        headers: {
+          "content-type": "text/csv; charset=utf-8",
+          // punctuation: code, the Content-Disposition header separates its parts with a semicolon
+          "content-disposition": `attachment; filename="${name}.csv"`,
+          "cache-control": "no-store",
+        },
+      });
     }
     if (url.pathname === "/settings" && request.method === "GET") {
       const config = readConfig();
@@ -286,6 +368,17 @@ export async function handlePageRequest(
         requestBaseUrl(request, url, Boolean(deps.trustProxy)),
         { port: deps.port, trustProxy: Boolean(deps.trustProxy) },
       );
+    }
+    if (url.pathname === "/settings/audit" && request.method === "GET") {
+      const query = parseAuditQuery(url.searchParams);
+      return renderAudit(username, query, {
+        ...listAudit(
+          { kind: query.kind, actor: query.actor },
+          AUDIT_PER_PAGE,
+          (query.page - 1) * AUDIT_PER_PAGE,
+        ),
+        actors: auditActors(),
+      });
     }
     const settingsMatch = /^\/settings\/([a-z-]+)$/.exec(url.pathname);
     if (settingsMatch && request.method === "GET") {
@@ -322,24 +415,44 @@ export async function handlePageRequest(
           username,
           repoOverview(fullName),
           webhookUrl,
+          commitWatchStatus(fullName, await watchStatus(fullName)),
+        );
+      }
+      if (sub === "findings") {
+        const query = parseFindingQuery(url.searchParams);
+        return renderFindings(username, {
+          repo: fullName,
+          query: { ...query, repo: undefined },
+          ...findingsList(
+            findingFilter(query, fullName, daysAgoIso),
+            query.page,
+            FINDINGS_PER_PAGE,
+          ),
+        });
+      }
+      if (sub === "pushes") {
+        const config = readConfig();
+        const webhookUrl = config.webhookUrl || deps.webhookUrl || "";
+        const status = await watchStatus(fullName);
+        return renderRepoPushes(
+          username,
+          fullName,
+          repoPushes(fullName),
+          status,
           commitWatchCard(
-            fullName,
-            await watchStatus(fullName),
+            status,
             serverOrigin(webhookUrl, url),
             (await defaultBranchForRepo(fullName)) ?? "main",
           ),
         );
       }
-      if (sub === "pushes") {
-        return renderRepoPushes(
+      if (sub === "pulls" && pr) {
+        return renderPr(
           username,
           fullName,
-          repoPushes(fullName),
-          await watchStatus(fullName),
+          prDetail(fullName, pr),
+          await pullTitleFor(fullName, pr, deps.githubApp),
         );
-      }
-      if (sub === "pulls" && pr) {
-        return renderPr(username, fullName, prDetail(fullName, pr));
       }
       if (sub === "pulls") {
         const page = Number(url.searchParams.get("page") ?? 1);
@@ -436,8 +549,8 @@ function toHomeRow(
     fromCli: item.repo.added_from === "cli",
     knowledge,
     knowledgeAt,
-    reviews: String(item.stats.reviews),
-    failed: item.stats.failed,
+    reviews: String(item.stats.completed),
+    failed: item.openFailures,
     cost: formatCostTotal(item.stats),
   };
 }
@@ -451,11 +564,13 @@ function requireRepo(fullName: string) {
 async function repoPicker(githubApp: PageDeps["githubApp"]): Promise<{
   repos: { fullName: string; account: string; alreadyActive: boolean }[];
   error?: string;
+  errorLink?: string;
 }> {
   if (!githubApp) {
     return {
       repos: [],
       error: "Configure the GitHub App in Settings first.",
+      errorLink: "/settings/github",
     };
   }
   try {
@@ -495,6 +610,8 @@ function isPagePath(pathname: string): boolean {
     pathname.startsWith("/activity/") ||
     pathname === "/analytics" ||
     pathname === "/usage" ||
+    pathname === "/usage/export.csv" ||
+    pathname === "/findings" ||
     pathname === "/settings" ||
     pathname.startsWith("/settings/") ||
     pathname === "/repos/new" ||
@@ -511,7 +628,7 @@ async function openPullsFor(
 ): Promise<{ pulls: OpenPull[] | undefined; appConfigured: boolean }> {
   if (!githubApp) return { pulls: undefined, appConfigured: false };
   try {
-    const pulls = await listOpenPulls(
+    const pulls = await cachedOpenPulls(
       githubApp.appId,
       githubApp.privateKeyPem,
       fullName,
@@ -524,6 +641,29 @@ async function openPullsFor(
     );
     return { pulls: undefined, appConfigured: true };
   }
+}
+
+/** A pull request's title: the one a review stored, then one from an open
+ * list fetched in the last minute, then GitHub once, stored for next time. */
+async function pullTitleFor(
+  fullName: string,
+  prNumber: number,
+  githubApp: PageDeps["githubApp"],
+): Promise<string | undefined> {
+  const stored = getPullTitle(fullName, prNumber);
+  if (stored) return stored;
+  const title =
+    cachedOpenPullTitle(fullName, prNumber) ??
+    (githubApp
+      ? await fetchPullTitle(
+          githubApp.appId,
+          githubApp.privateKeyPem,
+          fullName,
+          prNumber,
+        )
+      : undefined);
+  if (title) rememberPullTitle(fullName, prNumber, title);
+  return title;
 }
 
 async function sessionOf(request: Request) {
@@ -651,7 +791,11 @@ async function finishAppManifest(
   if (conversion.clientSecret && !config.githubOAuthClientSecret) {
     patch.githubOAuthClientSecret = conversion.clientSecret;
   }
+  const before = settingsSnapshot();
   await writeUserConfig(patch);
+  audit("settings", "Created the GitHub App from Settings", {
+    changes: settingChanges(before, settingsSnapshot()),
+  });
   const installUrl = conversion.slug
     ? `https://github.com/apps/${encodeURIComponent(
         conversion.slug,
@@ -689,6 +833,7 @@ async function handleLoginForm(
       hint: deps.loginHint,
     });
   }
+  audit("sign-in", "Signed in with the password", { actor: result.username });
   return new Response(null, {
     status: 303,
     headers: {
@@ -734,7 +879,10 @@ async function handleGithubCallback(
   if (!login || login.toLowerCase() !== githubOAuth.allowedUser.toLowerCase()) {
     return fail("This GitHub account is not allowed to sign in.");
   }
-  const result = await createSession();
+  // The session carries the GitHub login, so the menu and the audit log
+  // name the person.
+  const result = await createSession(login);
+  audit("sign-in", "Signed in with GitHub", { actor: login });
   return new Response(null, {
     status: 303,
     headers: {

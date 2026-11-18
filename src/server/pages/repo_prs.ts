@@ -1,5 +1,6 @@
-import { empty, html, layout, repoTabs, skSlot, text, when } from "./layout.ts";
-import { formatCostTotal } from "./cost.ts";
+import { empty, html, layout, skSlot, text, when } from "./layout.ts";
+import { repoHeader, shortcutsBar } from "./ui.ts";
+import { formatCostCell } from "./cost.ts";
 import type { repoPulls } from "../../services/dashboard.ts";
 import type { OpenPull } from "../../github/app.ts";
 
@@ -34,19 +35,19 @@ export function renderRepoPulls(
           "No pull requests reviewed",
           "A review of an open pull request will show up here.",
         )
-      : `<table>
+      : `<table data-kb-list>
           <thead><tr><th>Pull request</th><th>Last reviewed</th>
             <th class="num">Findings</th><th class="num">Cost</th></tr></thead>
           <tbody>
             ${data.items
               .map(
                 (item) =>
-                  `<tr><td><a href="/repos/${text(
+                  `<tr data-href="/repos/${text(fullName)}/pulls/${item.pr_number}" style="cursor:pointer"><td><a href="/repos/${text(
                     fullName,
                   )}/pulls/${item.pr_number}">#${item.pr_number}</a></td>
               <td class="muted">${when(item.last_reviewed)}</td>
               <td class="num">${item.findings}</td>
-              <td class="num">${formatCostTotal(item)}</td></tr>`,
+              <td class="num">${formatCostCell(item)}</td></tr>`,
               )
               .join("")}
           </tbody>
@@ -62,14 +63,14 @@ export function renderRepoPulls(
   const openList = open.pulls
     ? open.pulls.length === 0
       ? `<div class="empty"><h2>No open pull requests</h2><p>Open one on GitHub and it will appear here.</p></div>`
-      : `<table>
+      : `<table data-kb-list>
           <thead><tr><th>Pull request</th><th>Author</th><th>Branch</th>
             <th>Updated</th><th></th></tr></thead>
           <tbody>
             ${open.pulls
               .map(
                 (pull) =>
-                  `<tr><td><a href="/repos/${text(
+                  `<tr data-href="/repos/${text(fullName)}/pulls/${pull.number}" style="cursor:pointer"><td><a href="/repos/${text(
                     fullName,
                   )}/pulls/${pull.number}">#${pull.number}</a>
               ${escape(pull.title)}</td>
@@ -84,21 +85,27 @@ export function renderRepoPulls(
         </table>`
     : open.appConfigured
       ? `<div class="empty"><h2>Open pull requests are unavailable</h2><p>GitHub did not return a list. You can still start a review by number below.</p></div>`
-      : `<div class="empty"><h2>Configure the GitHub App to list open pull requests</h2><p>Without it, start a review by number below.</p></div>`;
+      : empty(
+          "Configure the GitHub App to list open pull requests",
+          {
+            html: `Connect it in <a href="/settings/github">Settings</a>. Without it, start a review by number below.`,
+          },
+          `<a class="btn out sm" href="/settings/github">GitHub settings</a>`,
+        );
   return html(
     layout({
       title: `Pull requests · ${fullName}`,
       username,
       active: "/",
       body: `<div class="wrap">
-  ${repoTabs(fullName, "pulls")}
+  ${repoHeader({
+    fullName,
+    tab: "pulls",
+    title: "Pull requests",
+    tabLabel: "Pull requests",
+    lead: `${data.stats.pullRequests} reviewed in the last 30 days`,
+  })}
   <div>
-    <div class="crumbs"><a href="/">Repositories</a> /
-      <a href="/repos/${text(fullName)}">${text(fullName)}</a> / Pull requests</div>
-    <div class="pagehead">
-      <div><h1>Pull requests</h1>
-        <p class="lead">${data.stats.pullRequests} reviewed in the last 30 days</p></div>
-    </div>
     <div data-async>
       ${skSlot()}
       <div class="card"><div class="bd flush">${openList}</div></div>
@@ -111,13 +118,18 @@ export function renderRepoPulls(
         <form id="manual-review" style="display:flex;align-items:end;gap:8px;margin-top:14px">
           <div style="width:180px">
             <label for="pr-number">PR number</label>
-            <input id="pr-number" name="prNumber" type="number" min="1" step="1" required>
+            <input id="pr-number" name="prNumber" type="number" min="1" step="1" required data-kb-search>
           </div>
           <button class="primary" type="submit">Start review</button>
         </form>
       </div></div>
     </div>
     <div class="card"><div class="bd flush">${table}</div></div>
+    ${
+      data.items.length || open.pulls?.length
+        ? shortcutsBar({ searchLabel: "pull request number" })
+        : ""
+    }
   </div>
 </div>
 <script>
@@ -132,6 +144,14 @@ document.getElementById("manual-review").addEventListener("submit", function(eve
   postAndGo(${JSON.stringify(
     reviewBase,
   )} + number + "/review", {}, "/activity", this.querySelector("button"));
+});
+// A click anywhere on a row opens that pull request, the same page Enter
+// opens. Links and the Review button keep their own click.
+document.querySelectorAll("tr[data-href]").forEach(function(row) {
+  row.addEventListener("click", function(event) {
+    if (event.target.closest("a, button, input")) return;
+    location.href = row.getAttribute("data-href");
+  });
 });
 document.querySelectorAll("[data-review-pr]").forEach(function(btn) {
   btn.addEventListener("click", function() {

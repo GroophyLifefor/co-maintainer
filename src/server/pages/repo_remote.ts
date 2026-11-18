@@ -1,4 +1,5 @@
-import { empty, html, layout, repoTabs, text, when } from "./layout.ts";
+import { empty, html, layout, text, when } from "./layout.ts";
+import { repoHeader } from "./ui.ts";
 import { formatCost } from "./cost.ts";
 import type { repoRemoteReviews } from "../../services/dashboard.ts";
 
@@ -11,7 +12,10 @@ export function renderRepoRemote(
     data.items.length === 0
       ? empty(
           "No remote reviews yet",
-          "Developers run co-maintainer review --remote with a token from Settings.",
+          {
+            html: `Developers run <code>co-maintainer review --remote</code> with a token from <a href="/settings/remote">Settings</a>.`,
+          },
+          `<a class="btn out sm" href="/settings/remote">Create a token</a>`,
         )
       : `<table>
         <thead><tr><th>Branch</th><th>Token</th><th>Status</th><th class="num">Findings</th>
@@ -38,15 +42,14 @@ export function renderRepoRemote(
       username,
       active: "/",
       body: `<div class="wrap">
-  ${repoTabs(fullName, "remote")}
+  ${repoHeader({
+    fullName,
+    tab: "remote",
+    title: "Remote reviews",
+    tabLabel: "Remote reviews",
+    lead: "CLI reviews submitted from developer machines (last 30 days).",
+  })}
   <div>
-    <div class="crumbs"><a href="/">Repositories</a> / ${text(fullName)}</div>
-    <div class="pagehead">
-      <div>
-        <h1>Remote reviews</h1>
-        <p class="lead">CLI reviews submitted from developer machines (last 30 days).</p>
-      </div>
-    </div>
     <div class="card"><div class="bd flush">${rows}</div></div>
   </div>
 </div>`,

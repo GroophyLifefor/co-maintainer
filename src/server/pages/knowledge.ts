@@ -5,13 +5,14 @@ import {
   html,
   layout,
   markdown,
-  repoTabs,
+  plural,
   skSlot,
   text,
   when,
 } from "./layout.ts";
 import { COMPARE_FILE_CAP, MAX_COMMITS_COUNTED } from "../../services/drift.ts";
 import type { repoKnowledge } from "../../services/dashboard.ts";
+import { repoHeader } from "./ui.ts";
 
 function sizeLabel(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -29,13 +30,13 @@ export function renderKnowledge(
   const notice = data.repo.knowledge_built_at
     ? `<div class="notice"><div class="txt">Built ${when(data.repo.knowledge_built_at)}.${
         drift
-          ? ` Since then: <b>${drift.prs_since} new pull requests</b>, <b>${drift.prs_updated} changed pull requests</b>, <b>${capped(
-              drift.commits_since,
-              MAX_COMMITS_COUNTED,
-            )} new commits</b> and <b>${capped(
-              drift.files_changed,
-              COMPARE_FILE_CAP,
-            )} changed files</b>. <span class="muted">Checked ${when(drift.as_of)}.</span>`
+          ? ` Since then: <b>${plural(drift.prs_since, "new pull request")}</b>, <b>${plural(drift.prs_updated, "changed pull request")}</b>, <b>${plural(
+              capped(drift.commits_since, MAX_COMMITS_COUNTED),
+              "new commit",
+            )}</b> and <b>${plural(
+              capped(drift.files_changed, COMPARE_FILE_CAP),
+              "changed file",
+            )}</b>. <span class="muted">Checked ${when(drift.as_of)}.</span>`
           : ""
       }</div></div>`
     : `<div class="notice info"><div class="txt">Knowledge has not been built yet. Use Sync to build it.</div></div>`;
@@ -84,26 +85,19 @@ export function renderKnowledge(
       username,
       active: "/",
       body: `<div class="wrap">
-  ${repoTabs(name, "knowledge")}
+  ${repoHeader({
+    fullName: name,
+    tab: "knowledge",
+    title: "Knowledge",
+    tabLabel: "Knowledge",
+    lead: "What co-maintainer learned about this repository, and checks every pull request against.",
+    actions: `<button type="button" class="btn primary" id="update">Sync</button>`,
+  })}
   <div data-async>
     ${skSlot()}
-    <div class="crumbs"><a href="/">Repositories</a> /
-      <a href="/repos/${text(name)}">${text(name)}</a> / Knowledge</div>
-    <div class="pagehead">
-      <div><h1>Knowledge</h1>
-        <p class="lead">What co-maintainer learned about this repository, and checks every pull request against.</p></div>
-      <div class="actions"><button class="primary" id="update">Sync</button></div>
-    </div>
     ${notice}
     <div class="card"><div class="bd flush">${table}</div></div>
     ${viewer}
-    <div class="card">
-      <div class="hd"><h2>History</h2></div>
-      <div class="bd">${empty(
-        "Only the current knowledge is kept",
-        "Older versions are not stored yet.",
-      )}</div>
-    </div>
     <div class="card" data-async>
       ${skSlot()}
       <div class="hd"><h2>Clear</h2></div>
