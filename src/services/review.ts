@@ -27,6 +27,7 @@ import {
   withoutWithdrawn,
 } from "../review/carry_over.ts";
 import { runReviewEngine } from "../review/engine.ts";
+import type { ToolUsage } from "../ai/tool_gate.ts";
 import {
   coverageCounts,
   notReviewedLines,
@@ -306,6 +307,23 @@ export interface ReviewMetadata {
   coverage?: Coverage;
   /** Whether the next round sends the files this round dropped. */
   catchesUp?: boolean;
+  /** What the review's tools did, for the Tools line. */
+  tools?: ToolUsage;
+  /** The MCP servers the review ran, by name only. */
+  mcpServers?: string[];
+}
+
+/** `- Tools: 11 calls · MCP: tracker`, or nothing when no tool ran and no
+ * MCP server did. Server names only: what a server returned is private. */
+export function toolsMetadataLine(
+  tools: ToolUsage | undefined,
+  mcpServers: string[] = [],
+): string {
+  const calls = tools?.calls ?? 0;
+  if (calls === 0 && mcpServers.length === 0) return "";
+  return `- Tools: ${calls} ${calls === 1 ? "call" : "calls"}${
+    mcpServers.length ? ` · MCP: ${mcpServers.join(", ")}` : ""
+  }\n`;
 }
 
 export function formatDuration(ms: number): string {
@@ -323,6 +341,8 @@ function metadataBlock({
   model,
   durationMs,
   coverage,
+  tools,
+  mcpServers,
 }: ReviewMetadata): string {
   return (
     `\n\n<details>\n<summary>Metadata</summary>\n\n` +
@@ -331,6 +351,7 @@ function metadataBlock({
     `- Model: ${model}\n` +
     `- Duration: ${formatDuration(durationMs)}\n` +
     (coverage ? `- Coverage: ${coverageCounts(coverage)}\n` : "") +
+    toolsMetadataLine(tools, mcpServers) +
     `</details>`
   );
 }
@@ -1213,7 +1234,8 @@ async function runReviewJobCore(
     catchesUp?: boolean;
     resend?: Json[];
     signal?: AbortSignal;
-  } = { catchesUp, signal };
+    mcpForkRule?: boolean;
+  } = { catchesUp, signal, mcpForkRule: true };
   // A guide rebuilt after the previous review invalidates that review's
   // verdicts and its "unchanged" suppression. Treat the run as
   // if it had started fresh: carry-over off, every changed file back in scope,
@@ -1488,6 +1510,8 @@ async function runReviewJobCore(
       durationMs: Date.now() - startedAt,
       coverage: response.coverage,
       catchesUp,
+      tools: response.tools,
+      mcpServers: response.mcpServers,
     },
     options.reviewBlocking,
     extensions,

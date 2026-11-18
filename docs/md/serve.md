@@ -82,6 +82,7 @@ starts keep it.
 | `--inject-500` | Every mutating `/api/*` call returns 500 (failure UI testing, also `CM_INJECT_500=1`) |
 | `CM_REMOTE_BYOK_POLICY` | Whether a remote review may bring its own AI key: `off` (the default), `allow` or `require`, see [your own key](remote-review.md#your-own-ai-key) |
 | `CM_EXTENSIONS_DISABLED` | `1` turns [extensions](extensions.md) off: `register` refuses and no review runs one. The Cloud image sets it from outside the container |
+| `CM_MCP_DISABLED` | `1` turns [MCP servers](review.md#mcp-servers) off: `set --mcp-config` refuses and no review starts one. The Cloud image sets it from outside the container |
 | `CM_LOGIN_HINT` | Text shown on the sign-in page instead of the default "printed when `serve` started" line. Useful when a deployment hands out its own password, as the Cloud image does. Escaped as plain text |
 
 Per-run `--disable-auth` / `--enable-auth` override values from `co-maintainer
@@ -240,6 +241,24 @@ the `serve` host with `co-maintainer extension register`. The command runs as th
 user that runs `serve` and can read that user's files, `config.json` included.
 `CM_EXTENSIONS_DISABLED=1` turns them off. On start, `serve` removes the run
 folders of extensions that are no longer running, and nothing else.
+
+## MCP servers
+
+`serve` starts a repository's [MCP servers](review.md#mcp-servers) in the
+reviews it posts as the GitHub App and in remote reviews, from its own
+`config.json`. Set them on the `serve` host with
+`co-maintainer set --repo=owner/repo --mcp-config=./mcp.json`. The servers run
+as the user that runs `serve`, with only their own `env`, `PATH` and `HOME`.
+
+A pull request from a fork gets no MCP tools, because anyone can open one and
+its diff could try to steer the model toward the private context. Turn them on
+for one repository with:
+
+```sh
+co-maintainer set --repo=owner/repo --mcp-allow-forks=true
+```
+
+`CM_MCP_DISABLED=1` turns MCP off on the host.
 
 ## Updating
 
