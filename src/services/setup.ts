@@ -40,6 +40,7 @@ import {
   getRepo,
   markKnowledgeBuilt,
   registerCliRepo,
+  setDefaultBranch,
 } from "../store/repos.ts";
 import { nowIso } from "../util/time.ts";
 import type { AiResponse, GitHubClient, Options } from "../types.ts";
@@ -730,6 +731,7 @@ async function initOrRemake(
       // dashboard never sees what it built. A dashboard job already has one.
       registerCliRepo(options.repo);
       markKnowledgeBuilt(options.repo, baseSha);
+      setDefaultBranch(options.repo, String(source.repo.default_branch ?? ""));
       // The dashboard repo page lists guide rules a newer rule went against.
       recordContradictions(options.repo, rulesResult.contradicted);
     });
@@ -929,6 +931,11 @@ export function buildSetupHandler(
       if (!getRepo(job.repo)?.knowledge_built_at) {
         markKnowledgeBuilt(job.repo, await builtBaseSha(job.repo));
       }
+      const state = await readState(job.repo);
+      setDefaultBranch(
+        job.repo,
+        String(state?.source.repo.default_branch ?? ""),
+      );
     },
   };
 }

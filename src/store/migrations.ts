@@ -419,4 +419,8 @@ export const migrations: string[][] = [
   // and a hash of each), so a companion that changed rechecks the carried
   // findings. NULL for a review without companions.
   [`ALTER TABLE subject_revisions ADD COLUMN companions_json TEXT`],
+  // 20: the default branch of a repository, written when it is set up or
+  // synced, so the overview reads it instead of starting git on every visit.
+  // NULL until then, and the page falls back to asking git once.
+  [`ALTER TABLE repos ADD COLUMN default_branch TEXT`],
 ];

@@ -38,6 +38,9 @@ export type RepoRow = {
   /** Commit watch: `queue` reviews pushes in a row one by one,
    * `cancel-and-merge` folds a waiting or running review into the next. */
   watch_push_mode?: string;
+  /** Written when the repository is set up or synced. Optional so a
+   * hand-built fixture need not name it. */
+  default_branch?: string | null;
 };
 
 export type JobRow = {
