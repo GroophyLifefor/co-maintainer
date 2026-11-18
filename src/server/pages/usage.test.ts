@@ -99,8 +99,9 @@ function kindRow(html: string, label: string): string[] {
     new RegExp(`<tr><td>${label}</td>([\\s\\S]*?)</tr>`),
   )?.[1];
   if (!row) throw new Error(`no By kind row "${label}"`);
+  // The cell's text: a cost cell wraps its amount in a span.
   return [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) =>
-    m[1]!.trim(),
+    m[1]!.replace(/<[^>]+>/g, "").trim(),
   );
 }
 
@@ -174,7 +175,7 @@ test("By kind splits runs and cost, and says when a cost is not recorded", async
     ["init / sync", "1", "Not recorded"],
     ["Pull request reviews", "1", "$0.01"],
     ["Not posted reviews", "1", "$0.01"],
-    ["Failed attempts", "1", "$0.02"],
+    ["Failed review attempts", "1", "$0.02"],
     ["CLI reviews", "0", "$0.00"],
   ];
   for (const [label, runs, cost] of cases) {

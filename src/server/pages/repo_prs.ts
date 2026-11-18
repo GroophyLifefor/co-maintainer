@@ -1,6 +1,6 @@
 import { empty, html, layout, skSlot, text, when } from "./layout.ts";
 import { repoHeader, shortcutsBar } from "./ui.ts";
-import { formatCostTotal } from "./cost.ts";
+import { formatCostCell } from "./cost.ts";
 import type { repoPulls } from "../../services/dashboard.ts";
 import type { OpenPull } from "../../github/app.ts";
 
@@ -47,7 +47,7 @@ export function renderRepoPulls(
                   )}/pulls/${item.pr_number}">#${item.pr_number}</a></td>
               <td class="muted">${when(item.last_reviewed)}</td>
               <td class="num">${item.findings}</td>
-              <td class="num">${formatCostTotal(item)}</td></tr>`,
+              <td class="num">${formatCostCell(item)}</td></tr>`,
               )
               .join("")}
           </tbody>

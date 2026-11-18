@@ -11,7 +11,7 @@ import {
   plural,
   text,
 } from "./layout.ts";
-import { costTotalParts, formatCostTotal } from "./cost.ts";
+import { costTotalParts, formatCostCell, formatCostTotal } from "./cost.ts";
 import type { statsForRange } from "../../services/dashboard.ts";
 import { listJobs } from "../../store/jobs.ts";
 import { icon, pageHeader, segmented, statCard } from "./ui.ts";
@@ -103,19 +103,19 @@ export function renderAnalytics(
     [
       "Pull request reviews",
       String(kind("posted").runs),
-      formatCostTotal(kind("posted")),
+      formatCostCell(kind("posted")),
     ],
     [
       "Not posted reviews",
       String(kind("not_posted").runs),
-      formatCostTotal(kind("not_posted")),
+      formatCostCell(kind("not_posted")),
     ],
     [
-      "Failed attempts",
+      "Failed review attempts",
       String(kind("failed").runs),
-      formatCostTotal(kind("failed")),
+      formatCostCell(kind("failed")),
     ],
-    ["CLI reviews", String(kind("cli").runs), formatCostTotal(kind("cli"))],
+    ["CLI reviews", String(kind("cli").runs), formatCostCell(kind("cli"))],
   ];
   const byKind = `<table>
         <thead><tr><th>Kind</th><th class="num">Runs</th><th class="num">Cost</th></tr></thead>
@@ -123,7 +123,7 @@ export function renderAnalytics(
           ${kindRows
             .map(
               ([label, runs, cost]) =>
-                `<tr><td>${text(label)}</td><td class="num">${runs}</td><td class="num">${text(cost)}</td></tr>`,
+                `<tr><td>${text(label)}</td><td class="num">${runs}</td><td class="num">${cost}</td></tr>`,
             )
             .join("")}
         </tbody>
@@ -153,7 +153,7 @@ export function renderAnalytics(
             }</td>
             <td class="num">${count(row.tokensIn + row.tokensOut)}</td>
             <td class="num">${duration(row.avgDurationMs)}</td>
-            <td class="num">${formatCostTotal(row)}</td></tr>`,
+            <td class="num">${formatCostCell(row)}</td></tr>`,
             )
             .join("")}
         </tbody>
@@ -177,7 +177,7 @@ export function renderAnalytics(
             <td class="num">${count(row.tokensIn)} in<span class="sub">${count(
               row.tokensOut,
             )} out</span></td>
-            <td class="num">${text(formatCostTotal(row))}<span class="sub">${text(
+            <td class="num">${formatCostCell(row)}<span class="sub">${text(
               row.knownCount
                 ? `${money(row.cost / row.knownCount)} per review`
                 : row.unknownCount
@@ -203,7 +203,7 @@ export function renderAnalytics(
                 `<tr><td>${text(row.tokenName)}</td>
             <td class="num">${row.reviews}</td>
             <td class="num">${row.findings}</td>
-            <td class="num">${formatCostTotal(row)}</td></tr>`,
+            <td class="num">${formatCostCell(row)}</td></tr>`,
             )
             .join("")}
         </tbody>

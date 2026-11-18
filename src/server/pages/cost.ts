@@ -77,6 +77,16 @@ export function costTotalParts(totals: CostTotals): {
   return { value, note: notes.join(" · ") };
 }
 
+/** The same split for a table cell: the amount on one line that never
+ * wraps, and what it leaves out as a small line below. HTML, escaped. */
+export function formatCostCell(totals: CostTotals): string {
+  const { value, note } = costTotalParts(totals);
+  const amount = `<span class="nowrap">${escapeHtml(value)}</span>`;
+  return note
+    ? `${amount}<span class="sub">${escapeHtml(note)}</span>`
+    : amount;
+}
+
 /** Folds a handful of reviews (a pull request's rounds) into the same shape
  * `reviewStats` returns, so one review list and one SQL aggregate render
  * through the same `formatCostTotal`. */
