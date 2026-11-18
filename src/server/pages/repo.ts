@@ -21,7 +21,7 @@ import {
   statCard,
   type Tone,
 } from "./ui.ts";
-import { formatCostTotal } from "./cost.ts";
+import { costTotalParts } from "./cost.ts";
 import { COMPARE_FILE_CAP, MAX_COMMITS_COUNTED } from "../../services/drift.ts";
 import type { repoOverview } from "../../services/dashboard.ts";
 import { describePolicy } from "../../services/review_policy.ts";
@@ -168,6 +168,7 @@ export function renderRepo(
       ? when(data.repo.knowledge_built_at)
       : "not built yet"
   }`;
+  const costParts = costTotalParts(stats);
   const failedHint =
     stats.failed > 0
       ? `${stats.failed} failed ${stats.failed === 1 ? "attempt" : "attempts"}`
@@ -192,7 +193,7 @@ export function renderRepo(
   <div class="stats">
     ${statCard({ label: "Reviewed (30d)", value: String(stats.pullRequests), hint: failedHint, icon: "git-pull-request" })}
     ${statCard({ label: "Findings", value: String(stats.findings), hint: severityHint(data.bySeverity) || undefined, icon: "flag" })}
-    ${statCard({ label: "Cost (30d)", value: formatCostTotal(stats), icon: "coins" })}
+    ${statCard({ label: "Cost (30d)", value: text(costParts.value), hint: costParts.note ? text(costParts.note) : undefined, icon: "coins" })}
     ${statCard({ label: "Avg. review", value: seconds(stats.avgDurationMs), icon: "timer" })}
   </div>
   <div class="cols c11">

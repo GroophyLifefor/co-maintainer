@@ -10,7 +10,7 @@ import {
   plural,
   text,
 } from "./layout.ts";
-import { formatCostTotal } from "./cost.ts";
+import { costTotalParts, formatCostTotal } from "./cost.ts";
 import type { statsForRange } from "../../services/dashboard.ts";
 import { listJobs } from "../../store/jobs.ts";
 import { pageHeader, segmented, statCard } from "./ui.ts";
@@ -44,6 +44,7 @@ export function renderAnalytics(
       byokUnknownCount: 0,
     },
   );
+  const spentParts = costTotalParts(spent);
   const kindRows: [string, string, string][] = [
     ["init / sync", String(data.setupRuns), "Not recorded"],
     [
@@ -229,8 +230,8 @@ export function renderAnalytics(
   <div class="stats">
     ${statCard({
       label: "Spent",
-      value: formatCostTotal(spent),
-      hint: `${plural(count(data.totals.tokensIn + data.totals.tokensOut), "token")} · ${count(
+      value: text(spentParts.value),
+      hint: `${spentParts.note ? `${text(spentParts.note)}<br>` : ""}${plural(count(data.totals.tokensIn + data.totals.tokensOut), "token")} · ${count(
         data.totals.tokensIn,
       )} in and ${count(data.totals.tokensOut)} out${delta(data.change.cost, data.days, true)}`,
       icon: "coins",

@@ -1320,6 +1320,11 @@ svg.ic {
   font-size: 24px;
   font-weight: 600;
   letter-spacing: -0.01em;
+  /* The big figure is one short value. What it leaves out goes in the small
+     line below, so it never wraps. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .app .stat .h,
 .focus .stat .h {
