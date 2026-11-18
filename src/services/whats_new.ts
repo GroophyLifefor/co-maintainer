@@ -40,7 +40,6 @@ export type WhatsNew = {
   sections: ChangelogSection[];
   /** True when more newer sections exist than were returned. */
   more: boolean;
-  notesUrl: string | undefined;
   changelogUrl: string;
 };
 
@@ -137,7 +136,6 @@ export async function checkWhatsNew(
     newer,
     sections: shown,
     more: newer && unseen.length > MAX_SECTIONS,
-    notesUrl: release.notesUrl,
     changelogUrl: `${REPOSITORY_URL}/blob/main/CHANGELOG.md`,
   };
 }

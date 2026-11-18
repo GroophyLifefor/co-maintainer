@@ -308,8 +308,8 @@ person and is paged.
 **Check for new versions** at the bottom of the sidebar checks by hand, on any
 server. It first says that it asks github.com, and only after **Check now** does
 it read the latest release and `CHANGELOG.md`. The dialog then lists each newer
-version with one short line per change, and links to the full changelog and the
-release notes. Nothing about the server is sent. **Star Co-Maintainer** below it opens
+version with one short line per change, and a link to the full changelog.
+Nothing about the server is sent. **Star Co-Maintainer** below it opens
 the repository on GitHub.
 
 The automatic newer version check runs only when the host sets `CM_UPDATE_URL`.

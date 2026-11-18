@@ -707,12 +707,8 @@ function startWhatsNew() {
         '<p class="muted">Older changes are in the full changelog.</p>',
       );
     }
-    const links = [
-      wnLink(result.changelogUrl, "Full changelog"),
-      wnLink(result.notesUrl, "Release notes"),
-    ].filter(Boolean);
-    if (links.length)
-      parts.push('<p class="wn-links">' + links.join(" · ") + "</p>");
+    const changelog = wnLink(result.changelogUrl, "Full changelog");
+    if (changelog) parts.push('<p class="wn-links">' + changelog + "</p>");
     body.innerHTML = parts.join("");
     closeButton();
   }
