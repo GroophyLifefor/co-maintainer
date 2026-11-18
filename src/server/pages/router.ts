@@ -76,6 +76,7 @@ import { renderSettings, renderSettingsPage } from "./settings.ts";
 import type { SettingsSection } from "./settings.ts";
 import { renderCatalog } from "./catalog.ts";
 import { getRepo, listActiveRepos } from "../../store/repos.ts";
+import { activityStamp } from "../../store/activity.ts";
 import { cacheGet } from "../../store/cache_db.ts";
 import { getJob } from "../../store/jobs.ts";
 import { getLogsSince } from "../../services/jobs.ts";
@@ -275,6 +276,9 @@ export async function handlePageRequest(
     }
     if (url.pathname === "/activity" && request.method === "GET") {
       const query = parseActivityQuery(url.searchParams);
+      // Read before the list, so a change made while the page renders moves
+      // the stamp past this one and the next poll picks it up.
+      const stamp = activityStamp();
       return renderActivity(
         username,
         runningJobs(),
@@ -282,6 +286,7 @@ export async function handlePageRequest(
         skippedDeliveries(query.repo),
         query,
         listActiveRepos().map((repo) => repo.full_name),
+        stamp,
       );
     }
     const jobMatch = /^\/activity\/([^/]+)$/.exec(url.pathname);

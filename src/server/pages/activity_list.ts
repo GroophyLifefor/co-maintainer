@@ -429,6 +429,8 @@ export function renderActivity(
   skipped: ReturnType<typeof skippedDeliveries>,
   query: ActivityQuery = { page: 1 },
   repos: string[] = [],
+  /** The change stamp the page polls against, see `activityStamp`. */
+  stamp = "",
 ): Response {
   const filtered = isFiltered(query);
   const live = running.map(liveCard).join("");
@@ -483,7 +485,7 @@ export function renderActivity(
       title: "Activity · co-maintainer",
       username,
       active: "/activity",
-      body: `<div class="wrap" id="activity-root">
+      body: `<div class="wrap" id="activity-root" data-stamp="${escapeHtml(stamp)}">
   <div class="pagehead">
     <div><h1>Activity</h1>
       <p class="lead">What is running now and what happened recently.</p></div>

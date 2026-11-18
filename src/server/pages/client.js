@@ -974,14 +974,34 @@ document.addEventListener("DOMContentLoaded", function () {
     setInterval(refreshJob, 2000);
     return;
   }
+  // The list polls a small stamp, "the newest change", and fetches the page
+  // only when it moved. It also waits while someone is choosing rows or
+  // typing in a field of the list, so a refresh never drops their work.
   setInterval(async function () {
     if (document.hidden) return;
     if (document.querySelector("[data-async].busy")) return;
     const root = document.getElementById("activity-root");
     if (!root) return;
+    if (root.querySelector("input[data-select]:checked")) return;
+    const active = document.activeElement;
+    if (
+      active &&
+      root.contains(active) &&
+      /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName)
+    ) {
+      return;
+    }
     try {
+      const stampRes = await fetch("/api/activity/stamp", {
+        headers: { "x-requested-with": "co-maintainer" },
+        cache: "no-store",
+      });
+      if (!stampRes.ok) return;
+      const stamp = (await stampRes.json()).stamp;
+      if (stamp === root.getAttribute("data-stamp")) return;
       const res = await fetch(location.pathname + location.search, {
         headers: { accept: "text/html" },
+        cache: "no-store",
       });
       if (!res.ok) return;
       const doc = new DOMParser().parseFromString(
@@ -989,7 +1009,11 @@ document.addEventListener("DOMContentLoaded", function () {
         "text/html",
       );
       const next = doc.getElementById("activity-root");
-      if (!next || next.innerHTML === root.innerHTML) return;
+      if (!next) return;
+      if (next.innerHTML === root.innerHTML) {
+        root.setAttribute("data-stamp", next.getAttribute("data-stamp") || "");
+        return;
+      }
       root.replaceWith(next);
     } catch {
       // a failed poll just waits for the next tick

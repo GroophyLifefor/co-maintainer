@@ -6,6 +6,7 @@ import {
   retryRows,
 } from "../../services/activity_actions.ts";
 import { readJsonObject } from "./json_body.ts";
+import { activityStamp } from "../../store/activity.ts";
 import {
   ACTIVITY_PER_PAGE,
   activityStoreFilter,
@@ -41,6 +42,14 @@ export async function handleActivityRoute(
     const query = parseActivityQuery(url.searchParams);
     return Response.json(
       activityFeed(query.page, ACTIVITY_PER_PAGE, activityStoreFilter(query)),
+    );
+  }
+  // The open Activity page polls this and fetches the list only when it
+  // changed, instead of fetching the whole page every few seconds.
+  if (url.pathname === "/api/activity/stamp" && request.method === "GET") {
+    return Response.json(
+      { stamp: activityStamp() },
+      { headers: { "cache-control": "no-store" } },
     );
   }
   if (url.pathname === "/api/activity/skipped" && request.method === "GET") {
