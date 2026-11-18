@@ -520,7 +520,13 @@ async function main(): Promise<void> {
   await setup();
 
   await scenario("21 push event off, no CI: the card says off", async () => {
-    const html = await page(`/repos/${REPO}`);
+    // The setup card lives on the Pushes tab. The overview keeps one line.
+    const overview = await page(`/repos/${REPO}`);
+    check(
+      overview.includes("Set up on Pushes"),
+      "the overview does not link to the commit watch setup",
+    );
+    const html = await page(`/repos/${REPO}/pushes`);
     check(html.includes("Commit watch"), "no Commit watch card");
     check(
       html.includes("the Push event is off"),

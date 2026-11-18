@@ -1,6 +1,6 @@
-/** Commit watch on the dashboard: the card on a repository's overview that
- * says whether pushes are watched and how to turn it on, and the Pushes tab
- * that lists each push review. */
+/** Commit watch on the dashboard: the setup card on the Pushes tab that says
+ * whether pushes are watched and how to turn it on, the short status line the
+ * overview keeps, and the list of each push review. */
 import { empty, html, layout, plural, text, when } from "./layout.ts";
 import { badge, codeBlock, icon, repoHeader, section } from "./ui.ts";
 import { formatCost } from "./cost.ts";
@@ -100,9 +100,8 @@ function ciRow(serverUrl: string, branch: string): string {
   })}</div>`;
 }
 
-/** The overview card. */
+/** The setup card at the top of the Pushes tab. */
 export function commitWatchCard(
-  fullName: string,
   status: WatchStatus,
   serverUrl: string,
   branch: string,
@@ -112,10 +111,33 @@ export function commitWatchCard(
     {
       title: "Commit watch",
       lead: `Review pushes to ${branch}.`,
-      action: `${statusBadge(status)} <a class="btn gh sm" href="/repos/${text(
-        fullName,
-      )}/pushes">Pushes</a>`,
+      action: statusBadge(status),
     },
+  )}</div>`;
+}
+
+/** The overview's one line: whether pushes are watched, the last push, and
+ * a link to the setup on the Pushes tab. */
+export function commitWatchStatus(
+  fullName: string,
+  status: WatchStatus,
+): string {
+  const watching = status.app === "on" || status.ci;
+  const last = status.lastPush;
+  const detail = !watching
+    ? "Pushes to the default branch are not reviewed."
+    : last
+      ? `Last push <code>${text(short(last.head_sha))}</code> via ${text(
+          viaLabel(last.via),
+        )}, ${when(last.created_at)}.`
+      : "Waiting for the first push.";
+  return `<div class="card" id="commit-watch-status">${section(
+    `<div class="row"><div class="b"><p class="muted" style="font-size:13px">${detail}</p></div>${statusBadge(
+      status,
+    )}<a class="btn out sm" href="/repos/${text(fullName)}/pushes">${
+      watching ? "Pushes" : "Set up on Pushes"
+    }</a></div>`,
+    { title: "Commit watch" },
   )}</div>`;
 }
 
@@ -124,6 +146,8 @@ export function renderRepoPushes(
   fullName: string,
   data: ReturnType<typeof repoPushes>,
   status: WatchStatus,
+  /** The commit watch setup card, from `commitWatchCard`. */
+  setup = "",
 ): Response {
   const watched =
     status.app === "on" && status.ci
@@ -137,7 +161,7 @@ export function renderRepoPushes(
     data.items.length === 0
       ? empty(
           "No pushes reviewed yet",
-          "Turn on commit watch on the overview of this repository. Only pushes after that are reviewed.",
+          "Turn on commit watch one of the two ways above. Only pushes after that are reviewed.",
         )
       : `<table>
         <thead><tr><th>Push</th><th>Via</th><th>Status</th><th class="num">P0</th>
@@ -176,6 +200,7 @@ export function renderRepoPushes(
     lead: `Commit watch reviews of pushes to the default branch. This repository is ${watched}. ${plural(data.openIssues, "open issue")}.`,
   })}
   <div>
+    ${setup}
     <div class="card"><div class="bd flush">${rows}</div></div>
   </div>
 </div>`,

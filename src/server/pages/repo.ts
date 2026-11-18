@@ -77,7 +77,8 @@ export function renderRepo(
   username: string,
   data: ReturnType<typeof repoOverview>,
   webhookUrl: string,
-  /** The commit watch card, rendered by `repo_pushes.ts`. */
+  /** The commit watch status line, rendered by `repo_pushes.ts`. The setup
+   * lives on the Pushes tab. */
   commitWatch = "",
 ): Response {
   const name = data.repo.full_name;

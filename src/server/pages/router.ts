@@ -46,7 +46,11 @@ import { renderAddRepo } from "./add_repo.ts";
 import { renderRepo } from "./repo.ts";
 import { renderRepoPulls } from "./repo_prs.ts";
 import { renderRepoRemote } from "./repo_remote.ts";
-import { commitWatchCard, renderRepoPushes } from "./repo_pushes.ts";
+import {
+  commitWatchCard,
+  commitWatchStatus,
+  renderRepoPushes,
+} from "./repo_pushes.ts";
 import { watchStatus } from "../../services/watch_status.ts";
 import { defaultBranchForRepo } from "../../remote/server/routes.ts";
 import { renderPr } from "./pr.ts";
@@ -323,20 +327,23 @@ export async function handlePageRequest(
           username,
           repoOverview(fullName),
           webhookUrl,
-          commitWatchCard(
-            fullName,
-            await watchStatus(fullName),
-            serverOrigin(webhookUrl, url),
-            (await defaultBranchForRepo(fullName)) ?? "main",
-          ),
+          commitWatchStatus(fullName, await watchStatus(fullName)),
         );
       }
       if (sub === "pushes") {
+        const config = readConfig();
+        const webhookUrl = config.webhookUrl || deps.webhookUrl || "";
+        const status = await watchStatus(fullName);
         return renderRepoPushes(
           username,
           fullName,
           repoPushes(fullName),
-          await watchStatus(fullName),
+          status,
+          commitWatchCard(
+            status,
+            serverOrigin(webhookUrl, url),
+            (await defaultBranchForRepo(fullName)) ?? "main",
+          ),
         );
       }
       if (sub === "pulls" && pr) {
