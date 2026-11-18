@@ -636,6 +636,28 @@ function wnInline(text) {
     );
 }
 
+/** "2026-11-18" as "November 18, 2026". */
+function wnDate(iso) {
+  const date = new Date(iso + "T00:00:00Z");
+  if (isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** The badge color of a changelog group. */
+function wnTagKind(title) {
+  const name = String(title).toLowerCase();
+  if (name === "added") return "add";
+  if (name === "changed") return "chg";
+  if (name === "fixed") return "fix";
+  if (name === "removed" || name === "security") return "rm";
+  return "other";
+}
+
 /** Only links into github.com are drawn, whatever the answer says. */
 function wnLink(url, label) {
   return typeof url === "string" && url.indexOf("https://github.com/") === 0
@@ -687,19 +709,37 @@ function startWhatsNew() {
       );
     }
     (result.sections || []).forEach(function (section) {
+      const groups =
+        section.groups && section.groups.length
+          ? section.groups
+          : [{ title: "Changes", items: section.items || [] }];
       parts.push(
         '<section class="wn-sec"><h3>' +
           wnInline(section.version) +
           (section.date
-            ? ' <span class="muted">' + wnInline(section.date) + "</span>"
+            ? '<span class="wn-date">' +
+              wnInline(wnDate(section.date)) +
+              "</span>"
             : "") +
-          "</h3><ul>" +
-          (section.items || [])
-            .map(function (item) {
-              return "<li>" + wnInline(item) + "</li>";
+          "</h3>" +
+          groups
+            .map(function (group) {
+              return (
+                '<span class="wn-tag ' +
+                wnTagKind(group.title) +
+                '">' +
+                wnInline(group.title) +
+                "</span><ul>" +
+                group.items
+                  .map(function (item) {
+                    return "<li>" + wnInline(item) + "</li>";
+                  })
+                  .join("") +
+                "</ul>"
+              );
             })
             .join("") +
-          "</ul></section>",
+          "</section>",
       );
     });
     if (result.more) {

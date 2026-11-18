@@ -3234,19 +3234,52 @@ dialog.wn[open] {
   border-top: 1px solid var(--border);
 }
 .wn-sec h3 {
-  margin: 0 0 6px;
-  font-size: 15px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 600;
 }
-.wn-sec h4 {
-  margin: 10px 0 4px;
+.wn-date {
   font-size: 13px;
+  font-weight: 400;
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+}
+.wn-tag {
+  display: inline-block;
+  margin: 4px 0 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--ne-b);
+  border-radius: 6px;
+  background: var(--ne-bg);
+  color: var(--ne-t);
+  font-size: 12px;
+  font-weight: 600;
+}
+.wn-tag.add {
+  border-color: var(--em-b);
+  background: var(--em-bg);
+  color: var(--em-t);
+}
+.wn-tag.chg {
+  border-color: var(--sky-b);
+  background: var(--sky-bg);
+  color: var(--sky-t);
+}
+.wn-tag.fix {
+  border-color: var(--am-b);
+  background: var(--am-bg);
+  color: var(--am-t);
+}
+.wn-tag.rm {
+  border-color: var(--red-b);
+  background: var(--red-bg);
+  color: var(--red-t);
 }
 .wn-sec ul {
-  margin: 0 0 8px;
-  padding-left: 18px;
+  margin: 0 0 10px;
+  padding-left: 20px;
 }
 .wn-sec li {
   margin: 0 0 6px;

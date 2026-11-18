@@ -28,7 +28,12 @@ export type ChangelogSection = {
   /** One short line per change, for the dialog: each bullet's bold lead,
    * or its first sentence when it has none. */
   items: string[];
+  /** The same lines under their `### Added`, `### Changed`, `### Fixed`
+   * heading, in file order. Lines before any heading go under "Changes". */
+  groups: ChangeGroup[];
 };
+
+export type ChangeGroup = { title: string; items: string[] };
 
 export type WhatsNew = {
   running: string;
@@ -61,6 +66,28 @@ export function shortItems(body: string): string[] {
   return items;
 }
 
+/** The short lines of a section, grouped by their `###` heading. */
+export function groupedItems(body: string): ChangeGroup[] {
+  const groups: ChangeGroup[] = [];
+  let current: ChangeGroup | undefined;
+  for (const line of body.split("\n")) {
+    const heading = /^#{3,6} (.+)$/.exec(line);
+    if (heading) {
+      current = { title: heading[1]!.trim(), items: [] };
+      groups.push(current);
+      continue;
+    }
+    const [item] = shortItems(line);
+    if (item === undefined) continue;
+    if (!current) {
+      current = { title: "Changes", items: [] };
+      groups.push(current);
+    }
+    current.items.push(item);
+  }
+  return groups.filter((group) => group.items.length > 0);
+}
+
 /** Every released `## [x.y.z] - date` section of a changelog, in file order
  * (newest first in this repository). `Unreleased` is skipped. */
 export function changelogSections(changelog: string): ChangelogSection[] {
@@ -71,6 +98,7 @@ export function changelogSections(changelog: string): ChangelogSection[] {
     if (!current) return;
     current.body = lines.join("\n").trim().slice(0, MAX_SECTION_CHARS);
     current.items = shortItems(current.body);
+    current.groups = groupedItems(current.body);
     out.push(current);
     lines.length = 0;
   };
@@ -79,7 +107,13 @@ export function changelogSections(changelog: string): ChangelogSection[] {
     if (heading) {
       close();
       current = parseStable(heading[1]!)
-        ? { version: heading[1]!, date: heading[2], body: "", items: [] }
+        ? {
+            version: heading[1]!,
+            date: heading[2],
+            body: "",
+            items: [],
+            groups: [],
+          }
         : undefined;
       continue;
     }

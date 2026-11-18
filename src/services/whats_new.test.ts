@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  groupedItems,
   shortItems,
   changelogSections,
   checkWhatsNew,
@@ -123,4 +124,26 @@ test("each change becomes one short line: the bold lead, or the first sentence",
     "The App token for git keeps the environment's own git config.",
   ]);
   assert.deepEqual(changelogSections(CHANGELOG)[0]!.items, ["Sixteen."]);
+});
+
+test("the short lines keep their Added, Changed and Fixed headings, in file order", () => {
+  const body = [
+    "- Before any heading.",
+    "",
+    "### Added",
+    "",
+    "- **One.** More.",
+    "- **Two.** More.",
+    "",
+    "### Changed",
+    "",
+    "### Fixed",
+    "",
+    "- **Three.** More.",
+  ].join("\n");
+  assert.deepEqual(groupedItems(body), [
+    { title: "Changes", items: ["Before any heading."] },
+    { title: "Added", items: ["One.", "Two."] },
+    { title: "Fixed", items: ["Three."] },
+  ]);
 });
