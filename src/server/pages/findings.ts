@@ -10,7 +10,7 @@ import {
   text,
   when,
 } from "./layout.ts";
-import { icon, pageHeader, repoHeader, segmented } from "./ui.ts";
+import { icon, pageHeader, repoHeader, segmented, shortcutsBar } from "./ui.ts";
 import {
   findingAnchor,
   locationLink,
@@ -226,7 +226,7 @@ export function renderFindings(
   const filters = `<form class="filters" method="get" action="${escapeHtml(base)}" role="search" id="findings-filters">
     <div class="sbox">${icon("search")}<input class="inp" type="search" name="q" value="${escapeHtml(
       query.q ?? "",
-    )}" placeholder="Search titles and text" aria-label="Search titles and text"></div>
+    )}" placeholder="Search titles and text" aria-label="Search titles and text" data-kb-search></div>
     <input class="inp" type="text" name="file" value="${escapeHtml(
       query.file ?? "",
     )}" placeholder="File" aria-label="File path contains" style="width:160px">
@@ -279,7 +279,7 @@ export function renderFindings(
             ? `<a class="btn out sm" href="${escapeHtml(base)}">Clear filters</a>`
             : "",
         )
-      : `<table class="fit">
+      : `<table class="fit" data-kb-list>
         <thead><tr><th>Severity</th><th>Blocking</th><th>State</th><th>Finding</th>
           <th>Pull request</th><th class="num">Round</th><th>When</th></tr></thead>
         <tbody>${rows}</tbody>
@@ -320,6 +320,7 @@ export function renderFindings(
   ${head}
   ${filters}
   <div class="card"><div class="bd flush">${table}</div></div>
+  ${data.items.length ? shortcutsBar() : ""}
 </div>
 <script>
 document.querySelectorAll("tr[data-href]").forEach(function(row) {

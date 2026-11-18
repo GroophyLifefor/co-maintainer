@@ -787,6 +787,114 @@ function startBulkSelect() {
   refresh();
 }
 
+/** Keyboard shortcuts on a list page: `j` and `k` move, Enter opens, `x`
+ * selects, `/` focuses the search box and `?` shows every shortcut. The rows
+ * are read on each key, so a list the poll swapped in keeps working, and the
+ * moved-to row is found again by its link. Nothing fires while a field has
+ * the focus, with a modifier key, or while the search palette is open. */
+function startListKeys() {
+  if (!document.querySelector("[data-kb-list]")) return;
+  const help = document.getElementById("kb-help");
+  let current = "";
+  let returnFocus = null;
+
+  function rows() {
+    return Array.prototype.slice.call(
+      document.querySelectorAll("[data-kb-list] tr[data-href]"),
+    );
+  }
+  function at() {
+    const list = rows();
+    for (let index = 0; index < list.length; index++) {
+      if (list[index].getAttribute("data-href") === current) return index;
+    }
+    return -1;
+  }
+  function mark(next) {
+    const list = rows();
+    if (list.length === 0) return;
+    const index = Math.max(0, Math.min(list.length - 1, next));
+    list.forEach(function (row, i) {
+      row.classList.toggle("kb-on", i === index);
+    });
+    current = list[index].getAttribute("data-href") || "";
+    list[index].scrollIntoView({ block: "nearest" });
+  }
+  function typing(target) {
+    if (!target || !target.tagName) return false;
+    return (
+      /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) ||
+      target.isContentEditable === true
+    );
+  }
+  function showHelp(open) {
+    if (!help) return;
+    if (open) {
+      returnFocus = document.activeElement;
+      help.hidden = false;
+      const close = help.querySelector("[data-kb-close]");
+      if (close) close.focus();
+    } else {
+      help.hidden = true;
+      if (returnFocus && returnFocus.focus) returnFocus.focus();
+    }
+  }
+
+  document.addEventListener("click", function (ev) {
+    if (
+      ev.target &&
+      ev.target.closest &&
+      ev.target.closest("[data-kb-close]")
+    ) {
+      showHelp(false);
+    }
+  });
+  document.addEventListener("keydown", function (ev) {
+    if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    if (typing(ev.target)) return;
+    const palette = document.getElementById("pal");
+    if (palette && !palette.hidden) return;
+    if (help && !help.hidden) {
+      if (ev.key === "Escape" || ev.key === "?") {
+        ev.preventDefault();
+        showHelp(false);
+      }
+      return;
+    }
+    if (ev.key === "j" || ev.key === "k") {
+      ev.preventDefault();
+      const index = at();
+      mark(index < 0 ? 0 : index + (ev.key === "j" ? 1 : -1));
+    } else if (ev.key === "Enter") {
+      const index = at();
+      if (index < 0) return;
+      // A focused link or button keeps its own Enter.
+      if (ev.target && ev.target.closest && ev.target.closest("a, button")) {
+        return;
+      }
+      ev.preventDefault();
+      location.href = rows()[index].getAttribute("data-href");
+    } else if (ev.key === "x") {
+      const index = at();
+      const box =
+        index < 0 ? null : rows()[index].querySelector("input[data-select]");
+      if (!box) return;
+      ev.preventDefault();
+      box.checked = !box.checked;
+      box.dispatchEvent(new Event("change", { bubbles: true }));
+    } else if (ev.key === "/") {
+      const search = document.querySelector("[data-kb-search]");
+      if (!search) return;
+      ev.preventDefault();
+      search.focus();
+      if (search.select) search.select();
+    } else if (ev.key === "?") {
+      ev.preventDefault();
+      showHelp(true);
+    }
+  });
+}
+
 function startLogPanels() {
   const panels = document.querySelectorAll("[data-log]");
   for (let index = 0; index < panels.length; index++) {
@@ -849,6 +957,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   startPalette();
   startBulkSelect();
+  startListKeys();
 
   document.addEventListener("click", function (ev) {
     const btn =

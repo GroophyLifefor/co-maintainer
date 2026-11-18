@@ -1,5 +1,5 @@
 import { empty, html, layout, skSlot, text, when } from "./layout.ts";
-import { repoHeader } from "./ui.ts";
+import { repoHeader, shortcutsBar } from "./ui.ts";
 import { formatCostTotal } from "./cost.ts";
 import type { repoPulls } from "../../services/dashboard.ts";
 import type { OpenPull } from "../../github/app.ts";
@@ -35,14 +35,14 @@ export function renderRepoPulls(
           "No pull requests reviewed",
           "A review of an open pull request will show up here.",
         )
-      : `<table>
+      : `<table data-kb-list>
           <thead><tr><th>Pull request</th><th>Last reviewed</th>
             <th class="num">Findings</th><th class="num">Cost</th></tr></thead>
           <tbody>
             ${data.items
               .map(
                 (item) =>
-                  `<tr><td><a href="/repos/${text(
+                  `<tr data-href="/repos/${text(fullName)}/pulls/${item.pr_number}"><td><a href="/repos/${text(
                     fullName,
                   )}/pulls/${item.pr_number}">#${item.pr_number}</a></td>
               <td class="muted">${when(item.last_reviewed)}</td>
@@ -63,14 +63,14 @@ export function renderRepoPulls(
   const openList = open.pulls
     ? open.pulls.length === 0
       ? `<div class="empty"><h2>No open pull requests</h2><p>Open one on GitHub and it will appear here.</p></div>`
-      : `<table>
+      : `<table data-kb-list>
           <thead><tr><th>Pull request</th><th>Author</th><th>Branch</th>
             <th>Updated</th><th></th></tr></thead>
           <tbody>
             ${open.pulls
               .map(
                 (pull) =>
-                  `<tr><td><a href="/repos/${text(
+                  `<tr data-href="/repos/${text(fullName)}/pulls/${pull.number}"><td><a href="/repos/${text(
                     fullName,
                   )}/pulls/${pull.number}">#${pull.number}</a>
               ${escape(pull.title)}</td>
@@ -118,13 +118,18 @@ export function renderRepoPulls(
         <form id="manual-review" style="display:flex;align-items:end;gap:8px;margin-top:14px">
           <div style="width:180px">
             <label for="pr-number">PR number</label>
-            <input id="pr-number" name="prNumber" type="number" min="1" step="1" required>
+            <input id="pr-number" name="prNumber" type="number" min="1" step="1" required data-kb-search>
           </div>
           <button class="primary" type="submit">Start review</button>
         </form>
       </div></div>
     </div>
     <div class="card"><div class="bd flush">${table}</div></div>
+    ${
+      data.items.length || open.pulls?.length
+        ? shortcutsBar({ searchLabel: "pull request number" })
+        : ""
+    }
   </div>
 </div>
 <script>

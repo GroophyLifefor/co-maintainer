@@ -11,7 +11,7 @@ import {
   when,
 } from "./layout.ts";
 import { formatCost } from "./cost.ts";
-import { badge, icon, segmented } from "./ui.ts";
+import { badge, icon, segmented, shortcutsBar } from "./ui.ts";
 import {
   failureExplanation,
   isWaitingForRequest,
@@ -449,7 +449,7 @@ export function renderActivity(
             `<a class="btn out sm" href="/activity">Show all</a>`,
           )
         : empty("Nothing yet", "Jobs and reviews will show up here.")
-      : `<table class="fit">
+      : `<table class="fit" data-kb-list>
         <thead><tr><th class="sel"><input type="checkbox" data-select-all aria-label="Select every row on this page"></th><th>What</th><th>Repository</th><th>Result</th><th class="num">Cost</th><th>When</th><th>Status</th><th aria-label="Actions"></th></tr></thead>
         <tbody>${feed.items
           .map((row) =>
@@ -518,6 +518,7 @@ export function renderActivity(
   </div>
   ${skippedCard(skipped, query)}
 </div>
+${feed.items.length ? shortcutsBar({ select: true }) : ""}
 <script>
 document.addEventListener("click", function(event) {
   const row = event.target.closest("#activity-root tr[data-href]");

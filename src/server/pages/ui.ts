@@ -371,3 +371,43 @@ export function timeline(
     )
     .join("")}</ul>`;
 }
+
+/** The keyboard shortcuts of a list page: a small bar at the bottom that
+ * names them, and the panel `?` opens. `client.js` reads `data-kb-list` and
+ * `data-kb-search` on the page. `select` is for a list with checkboxes, and
+ * `searchLabel` names what `/` focuses. */
+export function shortcutsBar(
+  opts: { select?: boolean; searchLabel?: string } = {},
+): string {
+  const search = opts.searchLabel ?? "search";
+  const keys: [string[], string][] = [
+    [["j", "k"], "move down and up"],
+    [["Enter"], "open"],
+    ...(opts.select ? [[["x"], "select"] as [string[], string]] : []),
+    [["/"], search],
+    [["?"], "all shortcuts"],
+  ];
+  const kbd = (names: string[]) =>
+    names.map((name) => `<kbd>${text(name)}</kbd>`).join(" ");
+  const bar = keys
+    .map(
+      ([names, label]) =>
+        `<span>${kbd(names)} ${text(label === "move down and up" ? "move" : label)}</span>`,
+    )
+    .join("");
+  const rows = [
+    ...keys.slice(0, -1),
+    [["Esc"], "close this panel"] as [string[], string],
+  ]
+    .map(
+      ([names, label]) =>
+        `<tr><td>${kbd(names)}</td><td>${text(label)}</td></tr>`,
+    )
+    .join("");
+  return `<div class="kbbar" aria-label="Keyboard shortcuts">${bar}</div>
+<div class="kbhelp" id="kb-help" role="dialog" aria-modal="true" aria-labelledby="kb-help-title" hidden>
+  <div class="kbhelp-hd"><h2 id="kb-help-title">Keyboard shortcuts</h2><button class="btn out sm" type="button" data-kb-close>Close</button></div>
+  <table><tbody>${rows}</tbody></table>
+  <p class="muted">Shortcuts never fire while you type in a field.</p>
+</div>`;
+}

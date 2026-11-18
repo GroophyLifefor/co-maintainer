@@ -2253,6 +2253,51 @@ html.dark {
   width: 15px;
   height: 15px;
 }
+/* Keyboard shortcuts on a list: the row j and k moved to, the bar that
+   names the keys, and the panel ? opens. */
+.app tr.kb-on > td {
+  background: var(--hover);
+}
+.app tr.kb-on > td:first-child {
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+.app .kbbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.app .kbhelp {
+  position: fixed;
+  z-index: 60;
+  top: 15vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 32px));
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+}
+.app .kbhelp[hidden] {
+  display: none;
+}
+.app .kbhelp-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.app .kbhelp-hd h2 {
+  margin: 0;
+}
+.app .kbhelp td {
+  border: 0;
+  padding: 4px 8px 4px 0;
+}
 /* Bulk select on Activity: a checkbox per row and the actions on the
    selection, each enabled only when it fits a selected row. */
 .app th.sel,
