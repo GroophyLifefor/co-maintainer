@@ -2273,11 +2273,14 @@ html.dark {
 .app tr.kb-on > td:first-child {
   box-shadow: inset 3px 0 0 var(--primary);
 }
+/* Same width and centering as the page wrapper above it, so the bar starts
+   on the content's left edge. */
 .app .kbbar {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 16px;
-  margin-top: 4px;
+  max-width: 1152px;
+  margin: 4px auto 0;
   font-size: 12px;
   color: var(--muted);
 }
@@ -2804,6 +2807,18 @@ html.dark {
   color: var(--muted2);
   border-color: var(--border);
 }
+/* The plain (green) notice: dark text on a light green stays readable only
+   in light mode, so dark mode gets the dark green tokens. */
+.dark .app .notice,
+.dark .focus .notice {
+  background: var(--em-bg);
+  color: var(--fg);
+  border-color: var(--em-b);
+}
+.dark .app .notice .muted,
+.dark .focus .notice .muted {
+  color: var(--muted);
+}
 .dark .app .notice.info,
 .dark .focus .notice.info {
   background: var(--sky-bg);
@@ -3146,4 +3161,93 @@ html.dark {
 }
 .app .side .update-note a.notes {
   text-decoration: underline;
+}
+
+/* "Check for new versions" dialog. */
+.app ~ .wn,
+dialog.wn {
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(80vh, 720px);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--fg);
+  box-shadow: 0 16px 48px rgb(0 0 0 / 20%);
+}
+dialog.wn::backdrop {
+  background: rgb(0 0 0 / 40%);
+}
+dialog.wn[open] {
+  display: flex;
+  flex-direction: column;
+}
+.wn-hd,
+.wn-ft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+}
+.wn-hd {
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.wn-hd h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.wn-x {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.wn-ft {
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+}
+.wn-bd {
+  padding: 16px 18px;
+  overflow-y: auto;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.wn-bd p {
+  margin: 0 0 10px;
+}
+.wn-sec {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.wn-sec h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+.wn-sec h4 {
+  margin: 10px 0 4px;
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.wn-sec ul {
+  margin: 0 0 8px;
+  padding-left: 18px;
+}
+.wn-sec li {
+  margin: 0 0 6px;
+}
+.wn-sec code {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12.5px;
+  background: var(--hover);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+.wn-err {
+  color: var(--red-t);
 }
