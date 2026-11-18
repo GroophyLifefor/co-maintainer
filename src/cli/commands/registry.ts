@@ -1071,6 +1071,12 @@ export const COMMANDS: CommandSpec[] = [
               "Every N-th sync whose input changed rewrites the review guide in full, the others edit it. 1 always rewrites, 0 never after init. Needs --repo.",
           },
           {
+            name: "companions",
+            value: "owner/repo,...",
+            description:
+              "Repositories whose pull requests a review of this one may read as companions, up to 5. A Companion: owner/repo#N line in the pull request body names one, otherwise an open pull request with the same branch name is used. Needs --repo.",
+          },
+          {
             name: "review-blocking",
             value: "model|severity",
             default: "model",
@@ -1122,6 +1128,7 @@ export const COMMANDS: CommandSpec[] = [
       "co-maintainer set --repo=owner/repo --review-system-prompt='Focus on the parser.'",
       "co-maintainer set --repo=owner/repo --diagram-runtime=plantuml-server",
       "co-maintainer set --repo=owner/repo --mcp-config=./mcp.json",
+      "co-maintainer set --repo=owner/app --companions=owner/docs,owner/vscode-ext",
       "co-maintainer set --unset=token",
     ],
   },

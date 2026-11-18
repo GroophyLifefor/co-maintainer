@@ -11,6 +11,7 @@ import {
 } from "../../review/system_prompt.ts";
 import type { RepoConfig } from "../../config.ts";
 import { canonicalRepoName } from "../../util/repo_name.ts";
+import { parseCompanionsSetting } from "../../pr/companion_prs.ts";
 import {
   DiagramSettingError,
   diagramOptionsFrom,
@@ -129,6 +130,7 @@ export async function runSet(args: string[]): Promise<void> {
     "mcp-config",
     "mcp-allow-forks",
     "guide-full-every",
+    "companions",
     "password",
     "extension-rerun-on-restart",
     "unset",
@@ -156,6 +158,7 @@ export async function runSet(args: string[]): Promise<void> {
     "review-references",
     "mcp-config",
     "mcp-allow-forks",
+    "companions",
   ]) {
     if (text(args, name) !== undefined) die(`--${name} needs --repo`);
   }
@@ -482,6 +485,7 @@ const REPO_SCOPED_FLAGS = new Set([
   "mcp-allow-forks",
   "guide-full-every",
   "review-references",
+  "companions",
   "gh-concurrent",
   "ai-concurrent",
   "unset",
@@ -513,6 +517,7 @@ const REPO_SCOPED_UNSET = new Set([
   "aiConcurrent",
   "review-references",
   "reviewReferences",
+  "companions",
 ]);
 
 /** `set --repo=owner/repo [--review-system-prompt=... | --review-system-prompt-max-chars=N | --review-read-diff-max-chars=N | --review-tool-result-max-chars=N | --review-tool-budget-chars=N | --review-search-max-context-lines=N | --mcp-config=PATH | --mcp-allow-forks=true|false | --unset=name]`
@@ -705,13 +710,22 @@ async function runSetRepo(typed: string, args: string[]): Promise<void> {
       );
     }
   }
+  if (unset.has("companions")) patch.companions = undefined;
+  const companions = text(args, "companions");
+  if (companions !== undefined) {
+    try {
+      patch.companions = parseCompanionsSetting(companions, repo);
+    } catch (error) {
+      die(error instanceof Error ? error.message : String(error));
+    }
+  }
   const prompt = text(args, "review-system-prompt");
   if (prompt !== undefined) {
     patch.reviewSystemPrompt = prompt.trim() === "" ? undefined : prompt;
   }
   if (Object.keys(patch).length === 0) {
     die(
-      "Nothing to set. Pass --review-system-prompt=, --review-system-prompt-max-chars=N, --diagram-runtime=, --plantuml-server=, --plantuml-output-format=, --review-read-diff-max-chars=N, --review-tool-result-max-chars=N, --review-tool-budget-chars=N, --review-search-max-context-lines=N, --mcp-config=PATH, --mcp-allow-forks=true|false, --guide-full-every=N, --review-references=on|off, or --unset=name with --repo.",
+      "Nothing to set. Pass --review-system-prompt=, --review-system-prompt-max-chars=N, --diagram-runtime=, --plantuml-server=, --plantuml-output-format=, --review-read-diff-max-chars=N, --review-tool-result-max-chars=N, --review-tool-budget-chars=N, --review-search-max-context-lines=N, --mcp-config=PATH, --mcp-allow-forks=true|false, --guide-full-every=N, --review-references=on|off, --companions=owner/repo,..., or --unset=name with --repo.",
     );
   }
   // The values after this write are the ones given here, or the stored ones.
