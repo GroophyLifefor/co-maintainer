@@ -71,7 +71,7 @@ const SKIPPED_LIVE: Record<string, number> = {
   "cli-pr-carry": 27,
   "client-tools": 2,
   companions: 7,
-  "companions-app": 2,
+  "companions-app": 4,
   "diagram-runtime": 5,
   extensions: 2,
   "guide-sources": 4,

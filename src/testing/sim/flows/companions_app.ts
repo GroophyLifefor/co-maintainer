@@ -159,6 +159,33 @@ function reviewer(call: FakeCall): unknown {
   };
 }
 
+/** Put ahead of the others for one round: the model places a finding on the
+ * client companion's file and keeps the carried one open. */
+const ON_COMPANION: AiRule = {
+  name: "reviewer that places a finding on a companion file",
+  job: "review_pull_request",
+  times: 1,
+  reply: (call) => ({
+    json: {
+      findings: [
+        finding({
+          path: `${CLIENT}:src/session.ts`,
+          line: 3,
+          title: "The client still calls clamp",
+          body: "progress calls clamp, which this change renames.",
+        }),
+      ],
+      previousFindings: carryEntries(call.prompt).map((entry) => ({
+        id: entry.label,
+        state: "open",
+        path: entry.path,
+        lineFrom: LIMIT_LINE,
+        lineTo: LIMIT_LINE,
+      })),
+    },
+  }),
+};
+
 const AI: AiRule[] = [
   ...INIT_AI,
   {
@@ -196,6 +223,8 @@ const STEP = {
   first: "App: review with companion pull requests",
   push: "the docs pull request gets a second push",
   second: "App: second round, only the docs pull request changed",
+  onCompanion: "App: a finding placed on a companion file",
+  after: "App: the round after it",
   cliBody: "CLI pull request review: a body line",
   cliWith: "CLI pull request review: --with for the same repository",
 } as const;
@@ -209,6 +238,14 @@ function storedCompanions(sim: Sim, prNumber: number): string | null {
     prNumber,
   );
   return row?.companions_json ?? null;
+}
+
+/** A review of the App pull request that a maintainer asked for. */
+async function manualRound(sim: Sim): Promise<string> {
+  const { enqueueManualReview } = await import("../../../services/review.ts");
+  enqueueManualReview(APP_REPO, state(sim).app!.number);
+  const jobs = await sim.server.runJobs();
+  return jobs.map((job) => `${job.type} ${job.status}`).join(", ");
 }
 
 const steps: Step[] = [
@@ -291,15 +328,20 @@ const steps: Step[] = [
     name: STEP.second,
     async run(sim) {
       const s = state(sim);
-      const { enqueueManualReview } =
-        await import("../../../services/review.ts");
-      enqueueManualReview(APP_REPO, s.app!.number);
-      const jobs = await sim.server.runJobs();
+      const line = await manualRound(sim);
       s.stored.set(STEP.second, storedCompanions(sim, s.app!.number));
       s.heads.set(STEP.second, s.app!.headSha);
-      return jobs.map((job) => `${job.type} ${job.status}`).join(", ");
+      return line;
     },
   },
+  {
+    name: STEP.onCompanion,
+    async run(sim) {
+      sim.ai.use(ON_COMPANION);
+      return await manualRound(sim);
+    },
+  },
+  { name: STEP.after, run: (sim) => manualRound(sim) },
   {
     name: STEP.cliBody,
     async run(sim) {
@@ -511,6 +553,42 @@ function carryChecks(sim: Sim): CheckResult[] {
   ];
 }
 
+function companionFindingChecks(sim: Sim): CheckResult[] {
+  const body = postedReview(sim, STEP.onCompanion);
+  const write = writesIn(sim, STEP.onCompanion).find((item) =>
+    item.path.endsWith("/reviews"),
+  );
+  const inline = ((write?.body as Json | undefined)?.comments ?? []) as Json[];
+  const rows = appRows<{ path: string | null; title: string }>(
+    sim,
+    `SELECT f.path, f.title FROM findings f JOIN reviews r ON r.id = f.review_id
+     WHERE r.job_id = ?`,
+    sim.trace.jobs.find(
+      (job) => job.step === STEP.onCompanion && job.type === "review",
+    )?.id ?? "",
+  );
+  const label = `\`${CLIENT}\`: \`src/session.ts`;
+  const next = carryEntries(firstPrompts(sim, STEP.after)[0] ?? "");
+  return [
+    scriptedCheck(
+      sim,
+      "App: a finding placed on a companion file is in the review summary, labeled with the companion, with no inline comment",
+      body.includes(label) &&
+        !inline.some((comment) => String(comment.path).includes("session")) &&
+        rows.some((row) => row.path === null && row.title.includes(label)),
+      `${rows.map((row) => `${row.path} ${row.title}`).join(" | ")} · ${inline.length} inline`,
+      "the finding's place is the model's",
+    ),
+    scriptedCheck(
+      sim,
+      "App: a finding on a companion file is not carried to the next round",
+      next.length === 1 && next[0]!.path === "src/math.ts",
+      JSON.stringify(next),
+      "the carried findings are the model's",
+    ),
+  ];
+}
+
 function cliChecks(sim: Sim): CheckResult[] {
   const s = state(sim);
   const body = s.cli.get(STEP.cliBody);
@@ -572,5 +650,10 @@ export default defineFlow({
     "companion pull requests in App review and CLI pull request review: the companions setting, Companion body lines, the branch name lookup, a merged companion, an unreachable one, the Metadata line, carry-over through companions_json, and --with winning over a body line",
   ai: AI,
   steps,
-  checks: (sim) => [...appChecks(sim), ...carryChecks(sim), ...cliChecks(sim)],
+  checks: (sim) => [
+    ...appChecks(sim),
+    ...carryChecks(sim),
+    ...companionFindingChecks(sim),
+    ...cliChecks(sim),
+  ],
 });
