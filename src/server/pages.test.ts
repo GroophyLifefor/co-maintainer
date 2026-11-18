@@ -1548,3 +1548,46 @@ test("the stylesheet ships the design tokens, the embedded font and dark theme",
     throw new Error("styles still points at a font CDN");
   }
 });
+
+test("every repository tab has the same breadcrumb, title and tabs order", async () => {
+  await withEnv(async () => {
+    seed();
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const tabs: [string, string][] = [
+      ["", ""],
+      ["/pulls", "Pull requests"],
+      ["/pulls/7", "Pull requests"],
+      ["/knowledge", "Knowledge"],
+      ["/remote", "Remote reviews"],
+      ["/pushes", "Pushes"],
+      ["/settings", "Repository settings"],
+    ];
+    for (const [suffix, label] of tabs) {
+      const html = await (
+        await app.fetch(
+          new Request(`http://localhost/repos/acme/widgets${suffix}`, {
+            headers: { cookie },
+          }),
+        )
+      ).text();
+      const crumb = html.match(/<div class="crumb">([\s\S]*?)<\/div>/)?.[1];
+      if (!crumb?.startsWith('<a href="/">Repositories</a>')) {
+        throw new Error(`${suffix}: no Repositories crumb`);
+      }
+      if (!crumb.includes("acme/widgets")) {
+        throw new Error(`${suffix}: the crumb misses the repository`);
+      }
+      if (label && !crumb.includes(label)) {
+        throw new Error(`${suffix}: the crumb misses ${label}`);
+      }
+      if (html.includes('class="crumbs"')) {
+        throw new Error(`${suffix}: still the old slash breadcrumb`);
+      }
+      const h1 = html.indexOf("<h1>");
+      if (h1 < 0 || h1 > html.indexOf('<nav class="tabs">')) {
+        throw new Error(`${suffix}: the title is not above the tabs`);
+      }
+    }
+  });
+});

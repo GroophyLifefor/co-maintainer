@@ -1,4 +1,5 @@
-import { html, layout, repoTabs, skSlot, text } from "./layout.ts";
+import { html, layout, skSlot, text } from "./layout.ts";
+import { repoHeader } from "./ui.ts";
 import type { RepoRow } from "../../store/rows.ts";
 import { readConfig, type RepoConfig } from "../../config.ts";
 import { parseRemakeCron } from "../../services/remake_cron.ts";
@@ -246,11 +247,13 @@ export function renderRepoSettings(
       active: "/",
       // punctuation: code, a script the page runs in the browser
       body: `<div class="wrap">
-  ${repoTabs(name, "settings")}
+  ${repoHeader({
+    fullName: name,
+    tab: "settings",
+    title: "Settings",
+    tabLabel: "Repository settings",
+  })}
   <div>
-    <div class="crumbs"><a href="/">Repositories</a> /
-      <a href="/repos/${text(name)}">${text(name)}</a> / Settings</div>
-    <div class="pagehead"><div><h1>Settings</h1></div></div>
     ${waitNotice}
     <div class="card" data-async id="policy-card">
       ${skSlot()}

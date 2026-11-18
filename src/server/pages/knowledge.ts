@@ -6,13 +6,13 @@ import {
   layout,
   markdown,
   plural,
-  repoTabs,
   skSlot,
   text,
   when,
 } from "./layout.ts";
 import { COMPARE_FILE_CAP, MAX_COMMITS_COUNTED } from "../../services/drift.ts";
 import type { repoKnowledge } from "../../services/dashboard.ts";
+import { repoHeader } from "./ui.ts";
 
 function sizeLabel(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -85,16 +85,16 @@ export function renderKnowledge(
       username,
       active: "/",
       body: `<div class="wrap">
-  ${repoTabs(name, "knowledge")}
+  ${repoHeader({
+    fullName: name,
+    tab: "knowledge",
+    title: "Knowledge",
+    tabLabel: "Knowledge",
+    lead: "What co-maintainer learned about this repository, and checks every pull request against.",
+    actions: `<button type="button" class="btn primary" id="update">Sync</button>`,
+  })}
   <div data-async>
     ${skSlot()}
-    <div class="crumbs"><a href="/">Repositories</a> /
-      <a href="/repos/${text(name)}">${text(name)}</a> / Knowledge</div>
-    <div class="pagehead">
-      <div><h1>Knowledge</h1>
-        <p class="lead">What co-maintainer learned about this repository, and checks every pull request against.</p></div>
-      <div class="actions"><button class="primary" id="update">Sync</button></div>
-    </div>
     ${notice}
     <div class="card"><div class="bd flush">${table}</div></div>
     ${viewer}

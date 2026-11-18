@@ -4,7 +4,6 @@ import {
   layout,
   markdown,
   plural,
-  repoTabs,
   skSlot,
   text,
   when,
@@ -13,6 +12,7 @@ import { formatCost, formatCostTotal, totalOfRows } from "./cost.ts";
 import type { prDetail } from "../../services/dashboard.ts";
 import { extensionCostNote, renderExtensionResults } from "./extensions.ts";
 import { referencesHtml } from "./references.ts";
+import { repoHeader } from "./ui.ts";
 
 export function renderPr(
   username: string,
@@ -131,24 +131,18 @@ export function renderPr(
       username,
       active: "/",
       body: `<div class="wrap">
-  ${repoTabs(fullName, "pulls")}
+  ${repoHeader({
+    fullName,
+    tab: "pulls",
+    title: `#${n}`,
+    tabLabel: "Pull requests",
+    deeper: [{ label: `#${n}` }],
+    lead: `${plural(data.reviews.length, "review")} on record`,
+    actions: `<button type="button" class="btn out" id="again">Review again</button>
+        <a class="btn out" href="https://github.com/${text(fullName)}/pull/${n}">Open on GitHub</a>`,
+  })}
   <div data-async>
     ${skSlot()}
-    <div class="crumbs"><a href="/">Repositories</a> /
-      <a href="/repos/${text(fullName)}">${text(fullName)}</a> /
-      <a href="/repos/${text(fullName)}/pulls">Pull requests</a> / #${n}</div>
-    <div class="pagehead">
-      <div>
-        <h1>#${n}</h1>
-        <p class="lead">${data.reviews.length} review${
-          data.reviews.length === 1 ? "" : "s"
-        } on record</p>
-      </div>
-      <div class="actions">
-        <button id="again">Review again</button>
-        <a class="btn" href="https://github.com/${text(fullName)}/pull/${n}">Open on GitHub</a>
-      </div>
-    </div>
     <div class="card">
       <div class="hd"><h2>Findings</h2>
         <span class="muted" style="margin-left:auto;font-size:13px">${plural(

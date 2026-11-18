@@ -1,4 +1,5 @@
-import { empty, html, layout, repoTabs, text, when } from "./layout.ts";
+import { empty, html, layout, text, when } from "./layout.ts";
+import { repoHeader } from "./ui.ts";
 import { formatCost } from "./cost.ts";
 import type { repoRemoteReviews } from "../../services/dashboard.ts";
 
@@ -38,15 +39,14 @@ export function renderRepoRemote(
       username,
       active: "/",
       body: `<div class="wrap">
-  ${repoTabs(fullName, "remote")}
+  ${repoHeader({
+    fullName,
+    tab: "remote",
+    title: "Remote reviews",
+    tabLabel: "Remote reviews",
+    lead: "CLI reviews submitted from developer machines (last 30 days).",
+  })}
   <div>
-    <div class="crumbs"><a href="/">Repositories</a> / ${text(fullName)}</div>
-    <div class="pagehead">
-      <div>
-        <h1>Remote reviews</h1>
-        <p class="lead">CLI reviews submitted from developer machines (last 30 days).</p>
-      </div>
-    </div>
     <div class="card"><div class="bd flush">${rows}</div></div>
   </div>
 </div>`,

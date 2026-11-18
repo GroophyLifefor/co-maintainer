@@ -1,8 +1,8 @@
 /** Commit watch on the dashboard: the card on a repository's overview that
  * says whether pushes are watched and how to turn it on, and the Pushes tab
  * that lists each push review. */
-import { empty, html, layout, repoTabs, text, when } from "./layout.ts";
-import { badge, codeBlock, icon, section } from "./ui.ts";
+import { empty, html, layout, plural, text, when } from "./layout.ts";
+import { badge, codeBlock, icon, repoHeader, section } from "./ui.ts";
 import { formatCost } from "./cost.ts";
 import type { repoPushes } from "../../services/dashboard.ts";
 import type { WatchStatus } from "../../services/watch_status.ts";
@@ -168,17 +168,14 @@ export function renderRepoPushes(
       username,
       active: "/",
       body: `<div class="wrap">
-  ${repoTabs(fullName, "pushes")}
+  ${repoHeader({
+    fullName,
+    tab: "pushes",
+    title: "Pushes",
+    tabLabel: "Pushes",
+    lead: `Commit watch reviews of pushes to the default branch. This repository is ${watched}. ${plural(data.openIssues, "open issue")}.`,
+  })}
   <div>
-    <div class="crumbs"><a href="/">Repositories</a> / ${text(fullName)}</div>
-    <div class="pagehead">
-      <div>
-        <h1>Pushes</h1>
-        <p class="lead">Commit watch reviews of pushes to the default branch. This repository is ${text(
-          watched,
-        )}. ${data.openIssues} open ${data.openIssues === 1 ? "issue" : "issues"}.</p>
-      </div>
-    </div>
     <div class="card"><div class="bd flush">${rows}</div></div>
   </div>
 </div>`,

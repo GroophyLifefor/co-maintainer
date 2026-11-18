@@ -10,7 +10,7 @@
  * accessibility sweep honest: a control without an accessible name has no
  * place to hide here.
  */
-import { escapeHtml, text } from "./layout.ts";
+import { escapeHtml, repoTabs, text } from "./layout.ts";
 import { iconNames, sprite } from "./icons.ts";
 
 export { sprite as iconSprite, iconNames };
@@ -43,6 +43,44 @@ export function pageHeader(opts: {
   }</div>
   ${opts.actions ? `<div class="actions-row">${opts.actions}</div>` : ""}
 </div>`;
+}
+
+/** The head of every repository tab, in one order: the breadcrumb, the title
+ * with its actions, then the tabs. The breadcrumb always starts with
+ * Repositories and the repository, then the tab, then anything deeper. */
+export function repoHeader(opts: {
+  fullName: string;
+  tab: string;
+  title: string;
+  /** The tab's own crumb, left out on the overview. */
+  tabLabel?: string;
+  /** Crumbs past the tab, such as a pull request number. */
+  deeper?: { label: string; href?: string }[];
+  lead?: string;
+  leadHtml?: string;
+  actions?: string;
+}): string {
+  const repoHref = `/repos/${opts.fullName}`;
+  const items: { label: string; href?: string }[] = [
+    { label: "Repositories", href: "/" },
+    { label: opts.fullName, href: opts.tabLabel ? repoHref : undefined },
+  ];
+  if (opts.tabLabel) {
+    const deeper = opts.deeper ?? [];
+    items.push({
+      label: opts.tabLabel,
+      href: deeper.length ? `${repoHref}/${opts.tab}` : undefined,
+    });
+    items.push(...deeper);
+  }
+  return `${pageHeader({
+    title: opts.title,
+    lead: opts.lead,
+    leadHtml: opts.leadHtml,
+    crumb: crumb(items),
+    actions: opts.actions,
+  })}
+  ${repoTabs(opts.fullName, opts.tab)}`;
 }
 
 export function crumb(items: { label: string; href?: string }[]): string {

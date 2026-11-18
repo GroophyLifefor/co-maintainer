@@ -4,7 +4,6 @@ import {
   html,
   layout,
   plural,
-  repoTabs,
   skSlot,
   text,
   when,
@@ -13,10 +12,9 @@ import { contradictionLine } from "../../knowledge/rule_changes.ts";
 import type { RuleEventRow } from "../../store/rule_events.ts";
 import {
   badge,
-  crumb,
   dl,
   icon,
-  pageHeader,
+  repoHeader,
   section,
   statCard,
   type Tone,
@@ -181,15 +179,15 @@ export function renderRepo(
       username,
       active: "/",
       body: `<div class="wrap">
-  ${pageHeader({
+  ${repoHeader({
+    fullName: name,
+    tab: "overview",
     title: name,
     leadHtml: lead,
-    crumb: crumb([{ label: "Repositories", href: "/" }, { label: name }]),
     actions: `<button type="button" class="btn out" id="remake">${icon("refresh-cw")}Sync</button><a class="btn out" href="https://github.com/${text(
       name,
     )}">${icon("external-link")}GitHub</a>`,
   })}
-  ${repoTabs(name, "overview")}
   ${notice}
   ${webhookNotice}
   <div class="stats">

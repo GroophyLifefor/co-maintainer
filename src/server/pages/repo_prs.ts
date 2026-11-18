@@ -1,4 +1,5 @@
-import { empty, html, layout, repoTabs, skSlot, text, when } from "./layout.ts";
+import { empty, html, layout, skSlot, text, when } from "./layout.ts";
+import { repoHeader } from "./ui.ts";
 import { formatCostTotal } from "./cost.ts";
 import type { repoPulls } from "../../services/dashboard.ts";
 import type { OpenPull } from "../../github/app.ts";
@@ -91,14 +92,14 @@ export function renderRepoPulls(
       username,
       active: "/",
       body: `<div class="wrap">
-  ${repoTabs(fullName, "pulls")}
+  ${repoHeader({
+    fullName,
+    tab: "pulls",
+    title: "Pull requests",
+    tabLabel: "Pull requests",
+    lead: `${data.stats.pullRequests} reviewed in the last 30 days`,
+  })}
   <div>
-    <div class="crumbs"><a href="/">Repositories</a> /
-      <a href="/repos/${text(fullName)}">${text(fullName)}</a> / Pull requests</div>
-    <div class="pagehead">
-      <div><h1>Pull requests</h1>
-        <p class="lead">${data.stats.pullRequests} reviewed in the last 30 days</p></div>
-    </div>
     <div data-async>
       ${skSlot()}
       <div class="card"><div class="bd flush">${openList}</div></div>
