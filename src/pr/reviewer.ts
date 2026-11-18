@@ -37,6 +37,13 @@ import {
 } from "../review/system_prompt.ts";
 import { readDiffMaxChars } from "./diff_summary.ts";
 import { intentField, intentPromptNote } from "../review/intent.ts";
+import { companionSection } from "../review/companions.ts";
+import {
+  type ReviewCompanions,
+  splitCompanionFindings,
+  withCompanionTools,
+} from "./companion_tools.ts";
+import type { ResolvedFinding } from "../review/carry_over.ts";
 import {
   mermaidToolFields,
   plantumlPromptRules,
@@ -47,6 +54,7 @@ import {
   diffFileFromGithub,
   diffFileFromRevision,
   type DiffFile,
+  type PlannedFile,
 } from "./diff_plan.ts";
 import { prepareReviewDiff } from "./review_diff.ts";
 import {
@@ -151,7 +159,13 @@ export type ReviewExtras = {
   /** True in `serve`: a pull request from a fork gets no MCP tools unless
    * the repository sets `mcpAllowForks`. */
   mcpForkRule?: boolean;
+  /** `--with` companions: read as context, never reviewed. */
+  companions?: ReviewCompanions;
 };
+
+/** The review's tools, and the private text of its companions, which goes
+ * through the copied-passage check with the MCP results. */
+type PrivateTools = ReviewTools & { companionPrivate?: () => string[] };
 
 /** What a review run returns to every flow. */
 export type ReviewOutcome = AiResponse & {
@@ -174,6 +188,9 @@ export type ReviewOutcome = AiResponse & {
   mcpServers: string[];
   /** Every changed file of the subject, for the result's `revision` block. */
   diffStats: { files: number; additions: number; deletions: number };
+  /** Findings the model placed on a companion file, with no location. They
+   * are shown with the review and never carried to the next round. */
+  companionFindings?: ResolvedFinding[];
 };
 
 /** Summaries run on the low model, whatever provider the caller handed in for
@@ -350,17 +367,24 @@ async function stopMcp(opened: Promise<ReviewTools>[]): Promise<void> {
  * printed, posted or stored, in every mode. */
 function withoutPrivateText(
   reviewText: string,
-  reviewTools: ReviewTools,
+  reviewTools: PrivateTools,
 ): { text: string; warnings: CoverageWarning[] } {
   const privacy = removePrivateText(
     reviewText,
     reviewTools.mcp.privateResults(),
   );
+  // A private companion's patches and search results, counted on their own
+  // so the warning names where the passage came from.
+  const companion = removePrivateText(
+    privacy.text,
+    reviewTools.companionPrivate?.() ?? [],
+  );
   return {
-    text: privacy.text,
+    text: companion.text,
     warnings: [
       ...reviewTools.mcp.warnings(),
       ...privateTextWarning(privacy.removed),
+      ...privateTextWarning(companion.removed, "a private companion"),
     ],
   };
 }
@@ -370,10 +394,34 @@ function withoutPrivateText(
 function printDebugText(
   heading: string,
   text: string,
-  reviewTools: ReviewTools,
+  reviewTools: PrivateTools,
 ): void {
-  const kept = removePrivateText(text, reviewTools.mcp.privateResults()).text;
+  const kept = removePrivateText(text, [
+    ...reviewTools.mcp.privateResults(),
+    ...(reviewTools.companionPrivate?.() ?? []),
+  ]).text;
   console.log(`\n----- ${heading} -----\n${kept}\n`);
+}
+
+/** The prepared tools with what the review's companions add. Without
+ * companions they are the same tools. */
+function companionTools(
+  tools: ReviewTools,
+  prepared: { planned: PlannedFile[] },
+  options: Options,
+  extras: ReviewExtras | undefined,
+): PrivateTools {
+  if (!extras?.companions?.list.length) return tools;
+  const added = withCompanionTools(tools.tools, extras.companions, {
+    repo: options.repo,
+    planned: prepared.planned,
+    readDiffMaxChars: readDiffMaxChars(readConfig().repos?.[options.repo]),
+  });
+  return {
+    ...tools,
+    tools: added.tools,
+    companionPrivate: added.privateResults,
+  };
 }
 
 /** One review's tool gate, from the repository's settings. */
@@ -417,7 +465,7 @@ async function normalizeReviewResponse(
   report: ProgressSink,
   options: Options,
   gate: ToolGate,
-  reviewTools: ReviewTools,
+  reviewTools: PrivateTools,
   signal?: AbortSignal,
 ): Promise<string> {
   const direct = findingsMarkdownFromJson(response.text);
@@ -665,10 +713,11 @@ async function pullRequestReview(
         mcp: emptyMcpSession(),
       }));
   opened.push(preparingTools);
-  const [prepared, reviewTools] = await Promise.all([
+  const [prepared, preparedTools] = await Promise.all([
     preparing,
     preparingTools,
   ]);
+  const reviewTools = companionTools(preparedTools, prepared, options, extras);
   if (options.useCodegraph) {
     report(
       `codegraph tools · ${reviewTools.codegraph.length > 0 ? "ready" : "unavailable"}`,
@@ -758,7 +807,7 @@ ${JSON.stringify({
     String((comment as Json).body ?? ""),
   ),
   existingReviews: reviews.map((review) => String((review as Json).body ?? "")),
-})}${intentPromptNote(options.reviewIntent)}
+})}${intentPromptNote(options.reviewIntent)}${companionSection(extras?.companions?.list)}
 
 ${carryBlock}DIFF:
 ${diff}`;
@@ -893,9 +942,10 @@ ${reviewText}`,
     }
   }
   const kept = withoutPrivateText(reviewText, reviewTools);
+  const moved = splitCompanionFindings(kept.text, extras?.companions?.list);
   return {
     ...response,
-    text: `${severitySection()}\n${renderDiagrams(kept.text, options)}`,
+    text: `${severitySection()}\n${renderDiagrams(moved.text, options)}`,
     visiblePaths: prepared.seenPaths,
     guideBuiltAt: guides.guideBuiltAt,
     referenceContext: { rules: guides.rules, codebase: guides.codebase },
@@ -905,6 +955,7 @@ ${reviewText}`,
     tools: gate.usage(),
     mcpServers: reviewTools.mcp.servers,
     diffStats: diffStats(named.map(({ file }) => diffFileFromGithub(file))),
+    ...(moved.findings.length ? { companionFindings: moved.findings } : {}),
   };
 }
 
@@ -984,7 +1035,12 @@ async function workspaceReview(
     prepared.tools,
   );
   opened.push(preparingTools);
-  const reviewTools = await preparingTools;
+  const reviewTools = companionTools(
+    await preparingTools,
+    prepared,
+    options,
+    extras,
+  );
   const extraTools: ToolHandler[] = reviewTools.tools;
   const gate = reviewGate(options.repo);
   const totalDiffLines = ownFiles.reduce((sum, file) => sum + file.changes, 0);
@@ -1012,7 +1068,7 @@ ${JSON.stringify({
   branch: revision.baseLabel,
   ...intentField(revision.description),
   changedFiles: ownFiles.map(({ path }) => path),
-})}${intentPromptNote(revision.description)}
+})}${intentPromptNote(revision.description)}${companionSection(extras?.companions?.list)}
 
 ${carryBlock}DIFF:
 ${ownDiff}${unchangedListing}`;
@@ -1096,9 +1152,10 @@ ${reviewText}`,
     );
   }
   const kept = withoutPrivateText(reviewText, reviewTools);
+  const moved = splitCompanionFindings(kept.text, extras?.companions?.list);
   return {
     ...response,
-    text: `${severitySection()}\n${renderDiagrams(kept.text, options)}`,
+    text: `${severitySection()}\n${renderDiagrams(moved.text, options)}`,
     visiblePaths: prepared.seenPaths,
     guideBuiltAt: guides.guideBuiltAt,
     referenceContext: { rules: guides.rules, codebase: guides.codebase },
@@ -1108,5 +1165,6 @@ ${reviewText}`,
     tools: gate.usage(),
     mcpServers: reviewTools.mcp.servers,
     diffStats: diffStats(files),
+    ...(moved.findings.length ? { companionFindings: moved.findings } : {}),
   };
 }

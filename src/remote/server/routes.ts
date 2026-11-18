@@ -35,6 +35,7 @@ import {
   validateSubmitRequest,
 } from "../validate.ts";
 import { stat } from "../../util/runtime.ts";
+import { COMPANIONS_FEATURE } from "../companions.ts";
 
 const REPO_UNAVAILABLE = "Sorry, we could not access this repository.";
 
@@ -147,7 +148,7 @@ async function handleHandshake(
     // Additive advertisement: a 0.5.0 client ignores these, and an
     // older server never sends them, so the client gates on `features`. No key,
     // model, or other secret is ever echoed here.
-    features: ["byok", "push", "intent", "client-tools"],
+    features: ["byok", "push", "intent", "client-tools", COMPANIONS_FEATURE],
     byok: { policy },
     // Whether this server offers the model the tools a client declares. A
     // client that finds `off` declares none and says so in its warnings.

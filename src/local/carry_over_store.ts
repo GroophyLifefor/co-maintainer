@@ -1,6 +1,7 @@
 import { cacheDelete, cacheGet, cacheSet } from "../store/cache_db.ts";
 import type { RevisionFile } from "../review/revision.ts";
 import type { StoredFinding } from "../review/carry_over.ts";
+import type { CompanionRecord } from "../review/companions.ts";
 
 const NS = "local-review";
 
@@ -13,6 +14,9 @@ export type LocalCarrySnapshot = {
   /** The pull request head the findings were judged against. Only a pull
    * request snapshot has one: it is how a force-push is told from a push. */
   headSha?: string | null;
+  /** The `--with` companions the findings were judged with. A record saved
+   * before companions existed has none. */
+  companions?: CompanionRecord[];
 };
 
 function key(repo: string, root: string, branch: string): string {

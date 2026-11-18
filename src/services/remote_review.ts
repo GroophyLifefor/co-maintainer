@@ -37,6 +37,10 @@ import {
 import { REMOTE_KNOWN_TOOL_NAMES } from "../remote/schema.ts";
 import { revisionFromSubmitJson } from "../remote/revision_from_submit.ts";
 import {
+  capCompanionPatches,
+  companionsFromSubmit,
+} from "../remote/companions.ts";
+import {
   closeRemoteSession,
   openRemoteSession,
   setRemoteSyncResult,
@@ -317,7 +321,13 @@ export function submitRemoteReview(
   insertRemoteReviewInput({
     jobId,
     revisionJson: JSON.stringify(storedRevision),
-    capabilitiesJson: JSON.stringify(capabilities),
+    // The companions travel with the capabilities, so a retry keeps them and
+    // a submit without any stores what it always did.
+    capabilitiesJson: JSON.stringify(
+      body.companions === undefined
+        ? capabilities
+        : { ...(capabilities as object), companions: body.companions },
+    ),
     requestId,
     tokenId: token.id,
     billedTo,
@@ -416,7 +426,11 @@ export function registerRemoteReviewHandler(): void {
         );
         const caps = JSON.parse(input.capabilities_json) as {
           tools?: { name: string }[];
+          companions?: unknown;
         };
+        const companions = capCompanionPatches(
+          companionsFromSubmit(caps.companions),
+        );
         // Only the server's known tools. A declared tool never turns
         // codegraph on, whatever it is called.
         const allowed = new Set(
@@ -520,19 +534,34 @@ export function registerRemoteReviewHandler(): void {
         for (const tool of declared.tools) {
           log("info", `client tool offered: ${tool.name}`);
         }
+        const bridged = remoteBridgeToolHandlers(job.id, signal, allowed, [
+          ...codegraphToolHandlersForBridge(),
+          {
+            name: SEARCH_NON_CODE,
+            tool: SEARCH_NON_CODE_TOOL,
+            run: () => "",
+          },
+        ]);
         extras.tools = {
           kind: "bridge",
-          tools: remoteBridgeToolHandlers(job.id, signal, allowed, [
-            ...codegraphToolHandlersForBridge(),
-            {
-              name: SEARCH_NON_CODE,
-              tool: SEARCH_NON_CODE_TOOL,
-              run: () => "",
-            },
-          ]),
+          tools: bridged,
           mcp: true,
           clientTools: clientToolSession(job.id, signal, declared),
         };
+        if (companions.companions.length > 0) {
+          // A companion is searched on the client, in its checkout, through
+          // the same bridge call with a `repo` argument.
+          const search = bridged.find((tool) => tool.name === SEARCH_NON_CODE);
+          extras.companions = {
+            list: companions.companions,
+            ...(search
+              ? {
+                  search: async (repo: string, args: Record<string, unknown>) =>
+                    await search.run({ ...args, repo }),
+                }
+              : {}),
+          };
+        }
 
         const started = performance.now();
         let tokensIn = 0;
@@ -610,12 +639,19 @@ export function registerRemoteReviewHandler(): void {
           revision,
           result.coverage,
           result.warnings,
+          companions.warnings,
         );
+        // Findings on a companion file are shown and never stored for the
+        // next round.
+        const shown = sortResolvedFindings([
+          ...findings,
+          ...(result.companionFindings ?? []),
+        ]);
         // The client empties each `markdown` unless it asked for them.
         const joined = withExtensionsJson(
           {
-            summary: summaryCounts(findings, blockingMode),
-            findings: findings.map((row) => toJsonFinding(row, blockingMode)),
+            summary: summaryCounts(shown, blockingMode),
+            findings: shown.map((row) => toJsonFinding(row, blockingMode)),
             usage: {
               tokensIn,
               tokensOut,

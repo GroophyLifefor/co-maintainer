@@ -15,6 +15,7 @@ import {
 } from "../cli/review_result.ts";
 import {
   addAiMetrics,
+  clientFor,
   emptyAiMetrics,
   recordAiCost,
   runInitOrRemake,
@@ -30,6 +31,16 @@ import {
 } from "../cli/review_carry.ts";
 import { revisionHash } from "../review/revision.ts";
 import { intentRecord, loadIntentFlag } from "../cli/review_intent.ts";
+import {
+  loadCompanions,
+  localCompanionSearch,
+  readCompanionVisibility,
+} from "../cli/review_with.ts";
+import {
+  companionRecords,
+  companionsChanged,
+  companionsJson,
+} from "../review/companions.ts";
 import { type ReviewExtras, reviewWorkspaceRevision } from "../pr/reviewer.ts";
 import { runCommand } from "../pr/checkout.ts";
 import {
@@ -183,6 +194,13 @@ export async function runLocalReview(
         cli.intentFile,
         reviewSystemPromptLimitFor(repo),
       );
+      const companions = cli.with?.length
+        ? await readCompanionVisibility(
+            await loadCompanions(cli.with, { repo, root }),
+            repo,
+            clientFor(options),
+          )
+        : [];
 
       const guides = await loadGuides(repo);
       if (!hasGuides(guides)) {
@@ -284,10 +302,26 @@ export async function runLocalReview(
         await clearLocalCarry(repo, root, branch).catch(() => {});
         previous = null;
       }
-      const carryRun = startCarryRun(previous, revision, guides.guideBuiltAt);
+      // A companion that changed since the last round rechecks every carried
+      // finding, even when this repository did not change.
+      const companionState = companionRecords(companions);
+      const carryRun = startCarryRun(
+        previous,
+        revision,
+        guides.guideBuiltAt,
+        previous
+          ? companionsChanged(previous.companions, companionState)
+          : false,
+      );
       // Local carry-over leaves out what the last run saw, so a file this
       // run drops is sent by the next one.
       const extras: ReviewExtras = { ...carryRun.extras, catchesUp: true };
+      if (companions.length > 0) {
+        extras.companions = {
+          list: companions,
+          search: localCompanionSearch(companions),
+        };
+      }
 
       const sha = await headSha(root);
       const revisionHashBefore = await revisionHash(revision);
@@ -357,13 +391,15 @@ export async function runLocalReview(
       const codegraphState = codegraphPrep.state;
       warnings.push(...response.warnings);
 
-      const { resolved: allResolved, visiblePaths } = finishCarryRun(
+      const { resolved: carried, visiblePaths } = finishCarryRun(
         carryRun,
         revision,
         response,
         options.repo,
       );
-      const findingsToStore = storedFindings(allResolved);
+      const findingsToStore = storedFindings(carried);
+      // Findings on a companion file are shown and never carried.
+      const allResolved = [...carried, ...(response.companionFindings ?? [])];
 
       const afterBuilt = await buildLocalRevision(
         root,
@@ -388,6 +424,7 @@ export async function runLocalReview(
           visiblePaths: [...visiblePaths],
           findings: findingsToStore,
           guideBuiltAt: response.guideBuiltAt,
+          ...(companionState.length ? { companions: companionState } : {}),
         });
       } catch {
         warnings.push({
@@ -428,6 +465,9 @@ export async function runLocalReview(
             extensions,
             includeExtensionMarkdowns: cli.includeExtensionMarkdowns,
             intent: intentRecord(intentLoad.intent),
+            ...(companions.length
+              ? { companions: companionsJson(companions) }
+              : {}),
           }),
         );
       } else if (cli.output === "github") {
@@ -444,6 +484,9 @@ export async function runLocalReview(
           intent: Boolean(intentLoad.intent),
           showReferences:
             readConfig().repos?.[options.repo]?.reviewReferences === true,
+          ...(companions.length
+            ? { companions: companionsJson(companions) }
+            : {}),
         });
       } else {
         console.log(
@@ -461,6 +504,7 @@ export async function runLocalReview(
               Boolean(intentLoad.intent),
               readConfig().repos?.[options.repo]?.reviewReferences === true,
               response.tools,
+              companions.length ? companionsJson(companions) : undefined,
             ) +
             "\n",
         );

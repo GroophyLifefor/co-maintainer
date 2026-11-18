@@ -21,6 +21,10 @@ import {
   type CarryRun,
 } from "./review_carry.ts";
 import type { ReviewWarning } from "./review_result.ts";
+import {
+  type CompanionRecord,
+  companionsChanged,
+} from "../review/companions.ts";
 
 type EngineAnswer = {
   text: string;
@@ -72,12 +76,15 @@ async function whyNotContained(
  * local review, plus the force-push check: `--fresh`, a guide rebuilt since
  * the last run, and a head that no longer contains the last reviewed head each
  * start fresh. A cache or GitHub problem never fails the review. It only means
- * nothing is carried, and the run says so in a warning. */
+ * nothing is carried, and the run says so in a warning. `companions` are the
+ * run's `--with` companions: one that changed since the last run rechecks the
+ * carried findings. */
 export async function startPrCarry(
   client: GitHubClient,
   options: Options,
   fresh: boolean,
   log: (message: string) => void = () => {},
+  companions: CompanionRecord[] = [],
 ): Promise<PrCarry> {
   const repo = options.repo;
   const prNumber = options.prNumber!;
@@ -156,7 +163,12 @@ export async function startPrCarry(
     }
   }
 
-  const run: CarryRun = startCarryRun(previous, current, guides.guideBuiltAt);
+  const run: CarryRun = startCarryRun(
+    previous,
+    current,
+    guides.guideBuiltAt,
+    previous ? companionsChanged(previous.companions, companions) : false,
+  );
   return {
     extras: { ...run.extras, prefetched },
     warnings,
@@ -175,6 +187,7 @@ export async function startPrCarry(
           findings: storedFindings(resolved),
           guideBuiltAt: response.guideBuiltAt,
           headSha,
+          ...(companions.length ? { companions } : {}),
         });
       } catch {
         warnings.push({

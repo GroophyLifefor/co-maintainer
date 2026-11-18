@@ -40,6 +40,7 @@ export type CarryClass =
   | "unverifiable"
   | "verify_guide_changed"
   | "unchanged"
+  | "verify_companion_changed"
   | "verify_present"
   | "verify_likely_fixed"
   | "verify_unlocated";
@@ -277,6 +278,12 @@ export function classifyCarryItems(
   return items;
 }
 
+/** The finding's file is the same as last round, so its lines are found again
+ * by the anchor text. */
+function sameFile(klass: CarryClass): boolean {
+  return klass === "unchanged" || klass === "verify_companion_changed";
+}
+
 const VERIFY_HINT: Record<CarryClass, string> = {
   file_reverted: "",
   file_removed: "",
@@ -284,6 +291,8 @@ const VERIFY_HINT: Record<CarryClass, string> = {
   verify_guide_changed: "review guide was rebuilt",
   unchanged:
     "file unchanged since the last review, the fix may be in another file",
+  verify_companion_changed:
+    "file unchanged since the last review, but a companion repository changed",
   verify_present: "still present in changed code",
   verify_likely_fixed: "anchored code no longer found",
   verify_unlocated: "could not locate",
@@ -308,7 +317,7 @@ export function buildCarryPromptSection(
     (item as CarryItem & { promptId?: string }).promptId = label;
     let from = item.lineFrom;
     let to = item.lineTo;
-    if (item.class === "unchanged") {
+    if (sameFile(item.class)) {
       const file = current.files.find(
         (f) => normalizePath(f.path) === normalizePath(item.targetPath ?? ""),
       );
@@ -462,7 +471,7 @@ export function resolveCarryOutcomes(
       : undefined;
     let lineFrom = item.lineFrom;
     let lineTo = item.lineTo;
-    if (item.class === "unchanged" && file) {
+    if (sameFile(item.class) && file) {
       const moved = relocate(base.anchorText, lineFrom, file.patch);
       if (moved) {
         lineFrom = moved.from;
@@ -503,7 +512,7 @@ export function resolveCarryOutcomes(
             verdict.from ?? lineFrom,
             verdict.to ?? verdict.from ?? lineTo,
           )
-        : item.class === "unchanged" && file
+        : sameFile(item.class) && file
           ? anchorTextFromPatch(file.patch, lineFrom, lineTo)
           : base.anchorText;
     const row: ResolvedFinding = {
