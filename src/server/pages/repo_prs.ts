@@ -42,7 +42,7 @@ export function renderRepoPulls(
             ${data.items
               .map(
                 (item) =>
-                  `<tr data-href="/repos/${text(fullName)}/pulls/${item.pr_number}"><td><a href="/repos/${text(
+                  `<tr data-href="/repos/${text(fullName)}/pulls/${item.pr_number}" style="cursor:pointer"><td><a href="/repos/${text(
                     fullName,
                   )}/pulls/${item.pr_number}">#${item.pr_number}</a></td>
               <td class="muted">${when(item.last_reviewed)}</td>
@@ -70,7 +70,7 @@ export function renderRepoPulls(
             ${open.pulls
               .map(
                 (pull) =>
-                  `<tr data-href="/repos/${text(fullName)}/pulls/${pull.number}"><td><a href="/repos/${text(
+                  `<tr data-href="/repos/${text(fullName)}/pulls/${pull.number}" style="cursor:pointer"><td><a href="/repos/${text(
                     fullName,
                   )}/pulls/${pull.number}">#${pull.number}</a>
               ${escape(pull.title)}</td>
@@ -144,6 +144,14 @@ document.getElementById("manual-review").addEventListener("submit", function(eve
   postAndGo(${JSON.stringify(
     reviewBase,
   )} + number + "/review", {}, "/activity", this.querySelector("button"));
+});
+// A click anywhere on a row opens that pull request, the same page Enter
+// opens. Links and the Review button keep their own click.
+document.querySelectorAll("tr[data-href]").forEach(function(row) {
+  row.addEventListener("click", function(event) {
+    if (event.target.closest("a, button, input")) return;
+    location.href = row.getAttribute("data-href");
+  });
 });
 document.querySelectorAll("[data-review-pr]").forEach(function(btn) {
   btn.addEventListener("click", function() {

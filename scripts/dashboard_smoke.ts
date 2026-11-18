@@ -1982,6 +1982,12 @@ try {
       page.waitForURL(/\/pulls\/7/, { timeout: 5_000 }),
       page.keyboard.press("Enter"),
     ]);
+    // A click on a row of the Pull requests tab opens that pull request.
+    await page.goto(`${base}/repos/${REPO}/pulls`, { waitUntil: "load" });
+    await Promise.all([
+      page.waitForURL(/\/pulls\/7$/, { timeout: 5_000 }),
+      page.locator('tr[data-href$="/pulls/7"] td.muted').first().click(),
+    ]);
     console.log("activity actions and list shortcuts work");
 
     // --- Job page and live log panel: append-only, selection, tail, jump,
