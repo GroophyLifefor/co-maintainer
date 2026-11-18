@@ -1161,6 +1161,9 @@ try {
       if (path === `/repos/${REPO}/settings`) {
         await visionShot("repo-settings");
       }
+      if (path === "/findings") await visionShot("findings");
+      if (path === `/repos/${REPO}/pulls/7`) await visionShot("pr");
+      if (path === `/repos/${REPO}/pushes`) await visionShot("pushes");
       console.log(`visited ${path}`);
     }
 
