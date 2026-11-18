@@ -25,7 +25,7 @@ import {
 } from "./reviewer.ts";
 
 const FIXTURE = join(import.meta.dirname, "fixtures/review_requests.json");
-const PATCH = "@@ -1,1 +1,2 @@\n const a = 1;\n+retry();";
+const PATCH = "@@ -1,1 +1,2 @@\n const a = 1\n+retry()";
 
 /** Answers the first call with a Mermaid tool call, so the loop makes a second
  * round, and every later call with `answer`. Every request is kept. */
