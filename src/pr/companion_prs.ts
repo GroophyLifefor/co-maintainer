@@ -130,15 +130,34 @@ async function openPullByBranch(
   repo: string,
   branch: string,
 ): Promise<Json | undefined> {
-  const owner = repo.split("/")[0]!;
-  const list = await client.request<Json[]>(
-    `repos/${repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${branch}`)}&per_page=100`,
-  );
-  return (Array.isArray(list) ? list : []).find((pull) => {
-    const head = pull.head as Json | undefined;
-    return String(head?.ref ?? "") === branch && pull.state !== "closed";
+  // A pull request from a fork has its head in another owner's repository,
+  // so the open list is read without a head filter and matched by branch
+  // name. One from the companion repository itself wins over a fork's.
+  const matches: Json[] = [];
+  for (let page = 1; page <= BRANCH_LOOKUP_MAX_PAGES; page++) {
+    const list = await client.request<Json[]>(
+      `repos/${repo}/pulls?state=open&per_page=100&page=${page}`,
+    );
+    const rows = Array.isArray(list) ? list : [];
+    for (const pull of rows) {
+      const head = pull.head as Json | undefined;
+      if (String(head?.ref ?? "") === branch && pull.state !== "closed") {
+        matches.push(pull);
+      }
+    }
+    if (rows.length < 100) break;
+  }
+  const own = matches.find((pull) => {
+    const headRepo = (pull.head as Json | undefined)?.repo as Json | undefined;
+    return (
+      String(headRepo?.full_name ?? "").toLowerCase() === repo.toLowerCase()
+    );
   });
+  return own ?? matches[0];
 }
+
+/** Pages of open pull requests the branch name lookup reads, 100 each. */
+const BRANCH_LOOKUP_MAX_PAGES = 5;
 
 function unreachable(item: Planned): PrCompanion {
   return {

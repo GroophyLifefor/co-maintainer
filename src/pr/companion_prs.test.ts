@@ -73,6 +73,9 @@ type Pull = {
   merged?: boolean;
   ref: string;
   files: Json[];
+  /** The repository the head branch lives in, for a pull request from a
+   * fork. */
+  headRepo?: string;
 };
 
 /** GitHub for the companion repositories. Repositories missing from
@@ -131,7 +134,11 @@ class CompanionGithub implements GitHubClient {
       number: pull.number,
       state: pull.state,
       merged: pull.merged ?? false,
-      head: { ref: pull.ref, sha: `sha-${pull.number}` },
+      head: {
+        ref: pull.ref,
+        sha: `sha-${pull.number}`,
+        ...(pull.headRepo ? { repo: { full_name: pull.headRepo } } : {}),
+      },
     };
   }
 }
@@ -199,7 +206,7 @@ test("a body line wins over the branch name, and a listed repository without one
   );
   assert.ok(
     github.calls.includes(
-      "repos/owner/docs/pulls?state=open&head=owner%3Afeature%2Fsession-api&per_page=100",
+      "repos/owner/docs/pulls?state=open&per_page=100&page=1",
     ),
   );
 });
@@ -225,6 +232,30 @@ test("the branch name lookup finds an open pull request and reads its files", as
   assert.equal(docs?.files[0]?.path, "src/client/session.ts");
   // Visibility that cannot be read counts as private.
   assert.equal(docs?.private, true);
+});
+
+test("the branch name lookup finds a pull request from a fork, and one from the repository itself wins", async () => {
+  const fork = {
+    number: 20,
+    state: "open",
+    ref: "feature/session-api",
+    headRepo: "someone/docs",
+    files: [FILE],
+  };
+  const read = async (pulls: Pull[]) => {
+    const github = new CompanionGithub({ "owner/docs": pulls });
+    const result = await readPrCompanions({
+      repo: "owner/app",
+      pr: reviewedPr("No companion lines."),
+      listed: ["owner/docs"],
+      reviewed: github,
+      clientFor: () => Promise.resolve(github),
+    });
+    return result.companions[0];
+  };
+  assert.equal((await read([fork]))?.pr, 20);
+  const own = { ...fork, number: 21, headRepo: "owner/docs" };
+  assert.equal((await read([fork, own]))?.pr, 21);
 });
 
 test("a merged companion pull request is read with its final diff", async () => {

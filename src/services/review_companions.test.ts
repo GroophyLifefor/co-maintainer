@@ -46,18 +46,22 @@ export async function withAppEnv(fn: () => Promise<void>): Promise<void> {
   const saved = ["CM_APP_DB", "CM_REPOS_DIR", "CM_CONFIG_PATH"].map(
     (name) => [name, getEnv(name)] as const,
   );
-  const dir = tempDirSync();
-  setEnv("CM_APP_DB", `${dir}/app.db`);
-  setEnv("CM_REPOS_DIR", `${dir}/repos`);
-  setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
-  const offline = offlineEnv(dir);
-  await mkdirPath(`${dir}/repos/${REPO}`, { recursive: true });
-  await writeTextFile(
-    `${dir}/repos/${REPO}/PR_REVIEW_GUIDE.md`,
-    "# guide\nKeep helpers honest.\n",
-  );
+  let dir: string | undefined;
+  let offline: ReturnType<typeof offlineEnv> | undefined;
+  let opened = false;
   try {
+    dir = tempDirSync();
+    setEnv("CM_APP_DB", `${dir}/app.db`);
+    setEnv("CM_REPOS_DIR", `${dir}/repos`);
+    setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
+    offline = offlineEnv(dir);
+    await mkdirPath(`${dir}/repos/${REPO}`, { recursive: true });
+    await writeTextFile(
+      `${dir}/repos/${REPO}/PR_REVIEW_GUIDE.md`,
+      "# guide\nKeep helpers honest.\n",
+    );
     await openAppDb();
+    opened = true;
     await fn();
     if (offline.fetched.length) {
       throw new Error(
@@ -65,12 +69,19 @@ export async function withAppEnv(fn: () => Promise<void>): Promise<void> {
       );
     }
   } finally {
-    await closeAppDb();
-    offline.restore();
-    await removePath(dir, { recursive: true });
-    for (const [name, value] of saved) {
-      if (value === undefined) deleteEnv(name);
-      else setEnv(name, value);
+    // Each step runs even when one before it fails, so no state is left
+    // for the next test.
+    try {
+      if (opened) await closeAppDb();
+    } finally {
+      offline?.restore();
+      if (dir !== undefined) {
+        await removePath(dir, { recursive: true }).catch(() => {});
+      }
+      for (const [name, value] of saved) {
+        if (value === undefined) deleteEnv(name);
+        else setEnv(name, value);
+      }
     }
   }
 }

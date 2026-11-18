@@ -204,7 +204,9 @@ case-sensitive.</li>
 <code>companions</code> is ignored. Without that rule, a pull request from a fork could
 name any repository the App can read, private ones included.</li>
 <li><strong>The branch name.</strong> For a listed repository with no body line, the review
-looks for an open pull request with the same head branch name. When there is
+looks for an open pull request with the same head branch name, among the
+first 500 open ones. One from a fork counts, and one from the companion
+repository itself wins. When there is
 none, the companion&#39;s COMPANION block says <code>no changes on this branch</code>, and it
 has no checkout to search.</li>
 <li><strong>Body lines win</strong> over the branch name. At most 5 companions.</li>

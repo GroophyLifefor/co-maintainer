@@ -3160,7 +3160,9 @@ Companion: owner/docs#112
   `companions` is ignored. Without that rule, a pull request from a fork could
   name any repository the App can read, private ones included.
 - **The branch name.** For a listed repository with no body line, the review
-  looks for an open pull request with the same head branch name. When there is
+  looks for an open pull request with the same head branch name, among the
+  first 500 open ones. One from a fork counts, and one from the companion
+  repository itself wins. When there is
   none, the companion's COMPANION block says `no changes on this branch`, and it
   has no checkout to search.
 - **Body lines win** over the branch name. At most 5 companions.

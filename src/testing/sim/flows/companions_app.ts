@@ -486,7 +486,7 @@ function appChecks(sim: Sim): CheckResult[] {
       "App: the branch name lookup finds the open pull request with the same head branch",
       reads.some((line) =>
         line.startsWith(
-          `repos/${DOCS}/pulls?state=open&head=sim%3Afeature%2Flimit&per_page=100 200`,
+          `repos/${DOCS}/pulls?state=open&per_page=100&page=1 200`,
         ),
       ) && part.includes(`\n\n${DOCS_BLOCK(3)}\n\n`),
       reads.filter((line) => line.startsWith(`repos/${DOCS}`)).join(", "),
