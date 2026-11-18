@@ -27,6 +27,10 @@ function money(value) {
 function fail(card, message, retry) {
   toast(message);
   if (!card) return;
+  if (card.hasAttribute("data-saving")) {
+    card.removeAttribute("data-saving");
+    showSaveState("Not saved", "failed");
+  }
   let box = card.querySelector("[data-fail]");
   if (!box) {
     box = document.createElement("div");
@@ -135,7 +139,50 @@ async function run(btn, card, fn) {
   }
 }
 
+/** The save state at the top of a settings page: "Unsaved changes" once a
+ * field of a card changed, "Saving" while a save runs, "All changes saved"
+ * when no card has a change left, and "Not saved" when a save failed. */
+const dirtyCards = new Set();
+function showSaveState(words, state) {
+  const box = document.querySelector("[data-save-state]");
+  if (!box) return;
+  box.textContent = words;
+  box.setAttribute("data-state", state);
+}
+function refreshSaveState() {
+  if (dirtyCards.size > 0) showSaveState("Unsaved changes", "dirty");
+  else showSaveState("All changes saved", "saved");
+}
+function saveStarted(card) {
+  if (card) card.setAttribute("data-saving", "1");
+  showSaveState("Saving", "saving");
+}
+globalThis.saveStarted = saveStarted;
+function markSaved(card) {
+  if (card) {
+    dirtyCards.delete(card);
+    card.removeAttribute("data-saving");
+  }
+  refreshSaveState();
+}
+globalThis.markSaved = markSaved;
+function startSaveState() {
+  if (!document.querySelector("[data-save-state]")) return;
+  const changed = function (event) {
+    const target = event.target;
+    if (!target || !target.closest) return;
+    if (target.closest("[data-no-dirty], .side")) return;
+    const card = target.closest("main [data-async]");
+    if (!card) return;
+    dirtyCards.add(card);
+    refreshSaveState();
+  };
+  document.addEventListener("input", changed);
+  document.addEventListener("change", changed);
+}
+
 function saved(btn, card) {
+  markSaved(card);
   if (card) {
     let state = card.querySelector(".save-state");
     if (!state) {
@@ -905,6 +952,114 @@ function startLogPanels() {
 // The helper is inlined into `<head>` by `layout.ts`, before any page script
 // runs, so this is the one place that can close over both `toast()` and
 // `bindToggle` without depending on point-in-time globals.
+/** The search above the Settings menu: filters the settings by name and
+ * description as you type and jumps to the field. Arrow keys move, Enter
+ * opens, Escape closes. */
+function startSettingsSearch() {
+  const input = document.querySelector("[data-settings-search]");
+  const box = document.getElementById("set-results");
+  const data = document.getElementById("settings-index");
+  if (!input || !box || !data) return;
+  let entries = [];
+  try {
+    entries = JSON.parse(data.textContent || "[]");
+  } catch {
+    return;
+  }
+  let shown = [];
+  let at = 0;
+  const close = function () {
+    box.hidden = true;
+    input.setAttribute("aria-expanded", "false");
+  };
+  const paint = function () {
+    box.replaceChildren();
+    if (shown.length === 0) {
+      const none = document.createElement("div");
+      none.className = "none";
+      none.textContent = "No setting matches.";
+      box.appendChild(none);
+    }
+    shown.forEach(function (entry, index) {
+      const link = document.createElement("a");
+      link.href = entry.href;
+      link.setAttribute("role", "option");
+      link.className = index === at ? "on" : "";
+      const name = document.createElement("b");
+      name.textContent = entry.name;
+      const where = document.createElement("span");
+      where.textContent = entry.page + ". " + entry.description;
+      link.append(name, where);
+      box.appendChild(link);
+    });
+    box.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+  };
+  input.addEventListener("input", function () {
+    const words = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+      shown = [];
+      close();
+      return;
+    }
+    shown = entries
+      .filter(function (entry) {
+        const hay = (
+          entry.name +
+          " " +
+          entry.description +
+          " " +
+          entry.page
+        ).toLowerCase();
+        return words.every(function (word) {
+          return hay.indexOf(word) !== -1;
+        });
+      })
+      .slice(0, 8);
+    at = 0;
+    paint();
+  });
+  input.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") {
+      close();
+      input.blur();
+      return;
+    }
+    if (box.hidden || shown.length === 0) return;
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      at =
+        (at + (event.key === "ArrowDown" ? 1 : -1) + shown.length) %
+        shown.length;
+      paint();
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      location.href = shown[at].href;
+    }
+  });
+  input.addEventListener("blur", function () {
+    setTimeout(close, 150);
+  });
+}
+
+/** A settings link that names a field, `#max-jobs`, scrolls to it, focuses
+ * it and marks it for a moment, so the search lands on the field itself. */
+function jumpToSetting() {
+  const id = decodeURIComponent(location.hash.replace(/^#/, ""));
+  if (!id || location.pathname.indexOf("/settings/") !== 0) return;
+  const field = document.getElementById(id);
+  if (!field || !field.closest("main")) return;
+  const holder = field.closest(".field") || field.closest(".card") || field;
+  holder.scrollIntoView({ block: "center" });
+  holder.classList.add("jumped");
+  setTimeout(function () {
+    holder.classList.remove("jumped");
+  }, 2000);
+  if (/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(field.tagName)) {
+    field.focus({ preventScroll: true });
+  }
+}
+
 document.addEventListener("DOMContentLoaded", function () {
   // Client errors bubble to `window` from `document`.
   addEventListener("error", function (ev) {
@@ -958,6 +1113,9 @@ document.addEventListener("DOMContentLoaded", function () {
   startPalette();
   startBulkSelect();
   startListKeys();
+  startSettingsSearch();
+  startSaveState();
+  jumpToSetting();
 
   document.addEventListener("click", function (ev) {
     const btn =

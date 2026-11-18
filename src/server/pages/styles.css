@@ -2889,3 +2889,70 @@ html.dark {
 .dark .focus .inp {
   border-color: var(--ne-b);
 }
+
+/* The settings search above the Settings menu. */
+.app .side .set-search {
+  position: relative;
+  margin: 0 0 4px;
+}
+.app .side .set-search .inp {
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.app .side .set-results {
+  position: absolute;
+  z-index: 30;
+  left: 0;
+  right: -120px;
+  top: calc(100% + 4px);
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+}
+.app .side .set-results[hidden] {
+  display: none;
+}
+.app .side .set-results a {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+.app .side .set-results a.on {
+  background: var(--hover);
+}
+.app .side .set-results a span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.app .side .set-results .none {
+  padding: 6px 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+/* A field the settings search jumped to. */
+.app .jumped {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 6px;
+  transition: outline-color 0.6s;
+}
+/* The page save state of a settings page. */
+.app .page-save-state {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.app .page-save-state[data-state="dirty"] {
+  color: var(--am-t);
+}
+.app .page-save-state[data-state="failed"] {
+  color: var(--red-t);
+}

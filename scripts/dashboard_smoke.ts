@@ -1991,6 +1991,38 @@ try {
     ]);
     console.log("activity actions and list shortcuts work");
 
+    // The settings search jumps to the field, and a settings page says when
+    // a change is not saved yet and when it is.
+    await page.goto(`${base}/settings/ai`, { waitUntil: "load" });
+    await page.fill("[data-settings-search]", "concurrent jobs");
+    await Promise.all([
+      page.waitForURL(/\/settings\/server#max-jobs$/, { timeout: 5_000 }),
+      page.keyboard.press("Enter"),
+    ]);
+    await sleep(300);
+    if (
+      (await page.evaluate(() => document.activeElement?.id)) !== "max-jobs"
+    ) {
+      throw new Error("the settings search did not land on the field");
+    }
+    const saveState = () => page.textContent("[data-save-state]");
+    if ((await saveState()) !== "All changes saved") {
+      throw new Error(`a fresh settings page says ${await saveState()}`);
+    }
+    await page.fill("#max-jobs", await page.inputValue("#max-jobs"));
+    if ((await saveState()) !== "Unsaved changes") {
+      throw new Error("an edited setting does not say Unsaved changes");
+    }
+    await page.click("#save-server");
+    await page.waitForFunction(
+      () =>
+        document.querySelector("[data-save-state]")?.textContent ===
+        "All changes saved",
+      null,
+      { timeout: 5_000 },
+    );
+    console.log("settings search and save state work");
+
     // --- Job page and live log panel: append-only, selection, tail, jump,
     // pause/resume, clear, level colors, themes and overflow. These checks are
     // red until `renderJob` renders the live panel and the client wires it.

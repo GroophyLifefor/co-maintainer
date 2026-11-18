@@ -4,6 +4,7 @@ import { client } from "./client.ts";
 import { sprite } from "./icons.ts";
 import { VERSION } from "../../version.ts";
 import type { NavCounts } from "../../services/nav_counts.ts";
+import { SETTINGS_INDEX } from "./settings_index.ts";
 
 export function escapeHtml(value: unknown): string {
   return String(value ?? "").replace(
@@ -304,11 +305,19 @@ function navBadge(href: string, counts: NavCounts | undefined): string {
   return "";
 }
 
+/** The settings search above the Settings menu. The list it searches rides
+ * along as JSON, so typing needs no request. `client.js` wires it. */
+const SETTINGS_SEARCH = `<div class="set-search"><input class="inp" type="search" data-settings-search placeholder="Search settings" aria-label="Search settings" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="set-results"><div class="set-results" id="set-results" role="listbox" aria-label="Settings" hidden></div><script type="application/json" id="settings-index">${JSON.stringify(
+  SETTINGS_INDEX,
+).replace(/</g, "\\u003c")}</script></div>`;
+
 function navHtml(active: string | undefined): string {
   const counts = readNavCounts();
   return `<nav class="nav">${NAV_GROUPS.map(
     (group) =>
-      `<div class="grp"><p>${group.label}</p>${group.items
+      `<div class="grp"><p>${group.label}</p>${
+        group.label === "Settings" ? SETTINGS_SEARCH : ""
+      }${group.items
         .map((item) => {
           const link = `<a class="item${item.href === active ? " on" : ""}" href="${
             item.href

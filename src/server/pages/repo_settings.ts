@@ -1,5 +1,5 @@
 import { html, layout, skSlot, text } from "./layout.ts";
-import { repoHeader } from "./ui.ts";
+import { repoHeader, SAVE_STATE } from "./ui.ts";
 import type { RepoRow } from "../../store/rows.ts";
 import { readConfig, type RepoConfig } from "../../config.ts";
 import { parseRemakeCron } from "../../services/remake_cron.ts";
@@ -252,6 +252,7 @@ export function renderRepoSettings(
     tab: "settings",
     title: "Settings",
     tabLabel: "Repository settings",
+    actions: SAVE_STATE,
   })}
   <div>
     ${waitNotice}
@@ -720,6 +721,7 @@ if (P.current !== "legacy") queuePreview();
 
 function save(btn, body) {
   var card = btn.closest("[data-async]");
+  saveStarted(card);
   run(btn, card, async function() {
     await api("PATCH", "/api/repos/" + repo, body);
     saved(btn, card);

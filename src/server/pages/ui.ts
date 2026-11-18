@@ -28,6 +28,9 @@ export function icon(name: string, cls = ""): string {
   )}"></use></svg>`;
 }
 
+/** The save state of a settings page, kept up to date by `client.js`. */
+export const SAVE_STATE = `<span class="page-save-state" data-save-state data-state="saved" role="status" aria-live="polite">All changes saved</span>`;
+
 export function pageHeader(opts: {
   title: string;
   lead?: string;
