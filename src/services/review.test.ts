@@ -214,7 +214,9 @@ test("fake AI markdown becomes findings rows and a GitHub review POST", async ()
       body: string;
       comments: { path: string; line: number; body: string }[];
     };
-    if (body.event !== "REQUEST_CHANGES" || body.commit_id !== "head1") {
+    // The fake finding is a P2 the model labeled non-blocking, so the review
+    // approves with it as a comment (#137).
+    if (body.event !== "APPROVE" || body.commit_id !== "head1") {
       throw new Error(`payload ${JSON.stringify(body)}`);
     }
     if (
@@ -491,7 +493,8 @@ test("findings outside the diff stay on the review body", async () => {
       body: string;
       comments: unknown[];
     };
-    if (posted.event !== "REQUEST_CHANGES") {
+    // The only finding is non-blocking, so the review approves (#137).
+    if (posted.event !== "APPROVE") {
       throw new Error(`event ${posted.event}`);
     }
     if (posted.comments.length !== 0) {
