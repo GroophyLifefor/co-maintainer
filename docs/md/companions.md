@@ -4,12 +4,16 @@ Some changes span repositories: code and its docs, or a backend and the editor
 extension that calls it. A review sees one repository's diff, so it cannot tell
 whether the other side changed in step, or did not change at all.
 
-`--with` points a review at another checkout on your machine. The review reads
-that checkout's changes as context. A companion is read, never reviewed, and
-needs no `init`. The reviewed change keeps its whole diff budget.
+A companion is another repository's change for the same task, read as
+context. A companion is read, never reviewed, and needs no `init`. The reviewed
+change keeps its whole diff budget. There are two ways to name one:
 
-It works in [local review](local-review.md), [PR review](local-pr-review.md)
-and [remote review](remote-review.md).
+- **`--with`** points a review at another checkout on your machine. It works in
+  [local review](local-review.md), [PR review](local-pr-review.md) and
+  [remote review](remote-review.md).
+- **Companion pull requests** link pull requests that belong together. They work
+  in [App review](github-app.md) and [PR review](local-pr-review.md), see
+  [Companion pull requests](#companion-pull-requests).
 
 ```sh
 co-maintainer review --with=../docs
@@ -52,6 +56,68 @@ Every error is a usage error with exit code 2, before any model call:
 and the same `owner/repo` from the remote in every mode. A companion whose
 remote or default branch cannot be read is refused the same way, with
 `--with: PATH:` before the reason.
+
+## Companion pull requests
+
+```sh
+co-maintainer set --repo=owner/app --companions=owner/docs,owner/vscode-ext
+```
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `companions` | none | Repositories, as `owner/repo`, whose pull requests a review of this one may read, up to 5 |
+
+`--unset=companions` or a blank value clears it. `set` refuses a name that is
+not `owner/repo`, the repository itself, a name given twice, and more than 5.
+
+In the pull request body, one line per companion names its pull request:
+
+```
+Companion: owner/vscode-ext#45
+Companion: owner/docs#112
+```
+
+- **A line counts anywhere in the body**, on a line of its own. The key is not
+  case-sensitive.
+- **Only listed repositories are read.** A line for a repository missing from
+  `companions` is ignored. Without that rule, a pull request from a fork could
+  name any repository the App can read, private ones included.
+- **The branch name.** For a listed repository with no body line, the review
+  looks for an open pull request with the same head branch name. When there is
+  none, the companion's COMPANION block says `no changes on this branch`, and it
+  has no checkout to search.
+- **Body lines win** over the branch name. At most 5 companions.
+- **A closed or merged companion pull request** is still read, with its final
+  diff.
+- **Its files** come from the GitHub API, `pulls/N/files`, paginated.
+- **Search** runs in a worktree of the companion pull request's head, made the
+  same way as a pull request's own worktree: one blobless clone, reused. It is
+  made on the first search of that companion.
+
+In [PR review](local-pr-review.md) the companion pull requests are read with
+your own GitHub auth, and `--with` adds local checkouts to them. A repository
+given both ways is read once, from its checkout. `--with` companions come first
+and count toward the limit of 5.
+
+### In App review
+
+An App client reads one installation, so each companion is read with the App
+client of the installation that has the companion repository. The App must be
+installed on the companion repository too, in the same account or another one.
+
+When no installation can read a companion, or GitHub answers 403 or 404, the
+review goes on without it. The job log on the dashboard gets the warning
+`companion_unreachable`, which says "The companion owner/vscode-ext#45 could not
+be read, so the review ran without it."
+
+The GitHub review's Metadata block names the companions, body lines first:
+
+```
+- Companions: owner/vscode-ext#45, owner/docs (no matching pull request)
+```
+
+A companion that could not be read is shown as `owner/vscode-ext#45
+(unreachable)`.
 
 ## What the model gets
 
@@ -113,13 +179,17 @@ companion branch `owner/vscode-ext@feature/session-api` still calls it in
 ## Carry-over
 
 Local review and PR review keep each companion in their carry record: the
-repository, the branch, and a hash of its file list and patches.
+repository, the branch, and a hash of its file list and patches. App review
+keeps the same three in the stored round state, in `companions_json`.
 
 When a companion changes, carried findings are checked again, even if the
 reviewed repository did not change. Every file is sent again, and each carried
 finding in an unchanged file gets the hint "file unchanged since the last
 review, but a companion repository changed". Adding or leaving out a companion
-counts as a change too.
+counts as a change too. In App review a round where a companion changed
+reviews the whole pull request, even when the repository's review scope is
+incremental. Only a push or a review request starts an App round, so a change
+in the companion pull request alone waits for the next one.
 
 Remote review does not keep companions in its carry-over yet. A remote round
 where only a companion changed reviews only what changed in the reviewed
@@ -127,18 +197,21 @@ repository. Use `--fresh` then.
 
 ## Output
 
-- **`--json`** has `companions` when `--with` was given, and leaves it out
+- **`--json`** has `companions` when the review has any, and leaves it out
   otherwise:
 
   ```json
   "companions": [
     { "repo": "owner/vscode-ext", "branch": "feature/session-api", "source": "flag", "pr": null, "files": 3, "status": "read" },
-    { "repo": "owner/docs", "branch": "main", "source": "flag", "pr": null, "files": 0, "status": "empty" }
+    { "repo": "owner/docs", "branch": "feature/session-api", "source": "pr-body", "pr": 112, "files": 0, "status": "empty" }
   ]
   ```
 
-  `source` is `flag`. `status` is `read`, or `empty` when the branch has no
-  change.
+  `source` is `flag`, `pr-body` or `branch-name`. `pr` is the companion pull
+  request's number, or `null` for `--with` and when no pull request matched.
+  `status` is `read`, `empty` when the branch has no change, or `unreachable`,
+  with `branch` `null`. An unreachable companion also gives the warning
+  `companion_unreachable`.
 - **The terminal** prints one line under the header:
   `Companions: owner/vscode-ext@feature/session-api (3 files) · owner/docs@main (no changes)`.
 - **`--output=github`** prints the same line in the job summary.
@@ -146,8 +219,9 @@ repository. Use `--fresh` then.
 ## Privacy
 
 The visibility of the reviewed repository and of each companion is read from
-the GitHub API at review time, with your own GitHub auth. A companion whose
-visibility cannot be read counts as private.
+the GitHub API at review time, with your own GitHub auth. App review reads a
+companion's visibility with the App client that read the companion. A companion
+whose visibility cannot be read counts as private.
 
 A private companion in the review of a public repository is context and is
 never quoted. Its patches and its search results go through the
@@ -184,3 +258,6 @@ which companions are private.
 About 100 characters per companion file, sent again in every round. Reads of
 companion files are capped like any `read-full-diff` answer, and search results
 go through the [tool limits](review.md#tool-limits).
+
+A companion pull request costs a few GitHub API calls in every round: the pull
+request or the branch name lookup, its files, and its visibility.

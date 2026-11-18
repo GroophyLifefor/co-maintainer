@@ -367,6 +367,11 @@ provider, so both models are saved the first time. See
 <td><code>repos[owner/repo].mcpAllowForks</code></td>
 <td>Offers MCP tools in <code>serve</code> reviews of pull requests from forks. Needs <code>--repo</code>. Default <code>false</code></td>
 </tr>
+<tr>
+<td><code>--companions=owner/repo,...</code></td>
+<td><code>repos[owner/repo].companions</code></td>
+<td>Repositories whose pull requests a review may read as <a href="companions.html#companion-pull-requests">companions</a>, up to 5. Needs <code>--repo</code>. A blank value clears it</td>
+</tr>
 </tbody></table>
 <h3 id="app-private-key-inline-file-contents-or-path">App private key: inline, file contents, or path</h3>
 <p>Three flags set the GitHub App private key, and they differ in what lands in

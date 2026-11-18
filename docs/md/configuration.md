@@ -102,6 +102,7 @@ provider, so both models are saved the first time. See
 | `--review-search-max-context-lines=N` | `repos[owner/repo].reviewSearchMaxContextLines` | Most context lines `search-non-code` returns around a match. Needs `--repo`. `0` or `-1` means no limit. Default `3` |
 | `--mcp-config=PATH` | `repos[owner/repo].mcpServers` | Reads the repository's [MCP servers](#mcp-servers) from a JSON file and stores them. Needs `--repo`. Refused when `CM_MCP_DISABLED=1` |
 | `--mcp-allow-forks=true\|false` | `repos[owner/repo].mcpAllowForks` | Offers MCP tools in `serve` reviews of pull requests from forks. Needs `--repo`. Default `false` |
+| `--companions=owner/repo,...` | `repos[owner/repo].companions` | Repositories whose pull requests a review may read as [companions](companions.md#companion-pull-requests), up to 5. Needs `--repo`. A blank value clears it |
 
 ### App private key: inline, file contents, or path
 

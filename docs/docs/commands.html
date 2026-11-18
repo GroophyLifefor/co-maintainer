@@ -1249,6 +1249,11 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td>Every N-th sync whose input changed rewrites the review guide in full, the others edit it. 1 always rewrites, 0 never after init. Needs --repo.</td>
 </tr>
 <tr>
+<td><code>--companions=owner/repo,...</code></td>
+<td></td>
+<td>Repositories whose pull requests a review of this one may read as companions, up to 5. A Companion: owner/repo#N line in the pull request body names one, otherwise an open pull request with the same branch name is used. Needs --repo.</td>
+</tr>
+<tr>
 <td><code>--review-blocking=model|severity</code></td>
 <td>model</td>
 <td>How a review decides a blocking finding.</td>

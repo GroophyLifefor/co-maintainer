@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.14] - 2026-11-18
+
+### Added
+
+- **App review and PR review read companion pull requests.** `set --repo=owner/app --companions=owner/docs,owner/vscode-ext` lists up to 5 repositories whose pull requests a review may read as context. A `Companion: owner/docs#112` line anywhere in the pull request body names a companion pull request, and a listed repository without one is matched by an open pull request with the same head branch name. Body lines win, a line for a repository that is not listed is ignored, and a closed or merged companion pull request is read with its final diff. (#81)
+- **Each companion is read with the App client of its own installation.** Its files come from `pulls/N/files`, and `search-non-code` with `repo` searches a worktree of its head, made from one reused blobless clone. A companion no installation can read gives a `companion_unreachable` warning in the job log, and the review goes on without it. CLI PR review reads companion pull requests with your own GitHub auth, and `--with` wins for a repository given both ways. (#81)
+- **Output and carry-over.** The GitHub review's Metadata block gets `- Companions: owner/vscode-ext#45, owner/docs (no matching pull request)`. In `--json`, `source` is `flag`, `pr-body` or `branch-name`, `pr` is the pull request number or `null`, and `status` can be `unreachable`. App review stores the companions in a new `companions_json` column, and a companion that changed rechecks the carried findings over the whole pull request. A finding on a companion file is listed in the review summary and never carried. A repository without the setting sends the same request as before. (#81)
+
+### Fixed
+
+- **The App token for git keeps the environment's own git config.** It replaced `GIT_CONFIG_COUNT` and the first entry, so a URL rewrite set through `GIT_CONFIG_*` was lost for App clones.
+
 ## [0.7.13] - 2026-11-18
 
 ### Added

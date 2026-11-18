@@ -108,6 +108,19 @@ host, and the review body shows their results.
 
 `CM_EXTENSIONS_DISABLED=1` on the host turns all of this off.
 
+## Companions in App reviews
+
+A review can read the pull requests of other repositories that belong to the
+same change, such as the docs or an editor extension, as context. List them
+with `co-maintainer set --repo=owner/app --companions=owner/docs,owner/vscode-ext`,
+and link a pull request with a `Companion: owner/docs#112` line in its body. A
+listed repository without a line is matched by the same head branch name.
+
+The App must be installed on each companion repository. A companion no
+installation can read gives the warning `companion_unreachable` in the job log,
+and the review goes on without it. See
+[Companion pull requests](companions.md#companion-pull-requests).
+
 ## Manual setup
 
 If you would rather create the App by hand, use the same values:

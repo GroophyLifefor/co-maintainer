@@ -224,6 +224,16 @@ review is never cut.</li>
 starts, and only folders co-maintainer made.</li>
 </ul>
 <p><code>CM_EXTENSIONS_DISABLED=1</code> on the host turns all of this off.</p>
+<h2 id="companions-in-app-reviews">Companions in App reviews</h2>
+<p>A review can read the pull requests of other repositories that belong to the
+same change, such as the docs or an editor extension, as context. List them
+with <code>co-maintainer set --repo=owner/app --companions=owner/docs,owner/vscode-ext</code>,
+and link a pull request with a <code>Companion: owner/docs#112</code> line in its body. A
+listed repository without a line is matched by the same head branch name.</p>
+<p>The App must be installed on each companion repository. A companion no
+installation can read gives the warning <code>companion_unreachable</code> in the job log,
+and the review goes on without it. See
+<a href="companions.html#companion-pull-requests">Companion pull requests</a>.</p>
 <h2 id="manual-setup">Manual setup</h2>
 <p>If you would rather create the App by hand, use the same values:</p>
 <pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--github-app-id=...</span> <span class="sh-flag">--github-app-private-key-path=./app.pem</span>
@@ -287,7 +297,7 @@ See <a href="dashboard.html#webhook-reachability">Dashboard: Webhook reachabilit
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#create-it-from-the-dashboard">Create it from the dashboard</a></li><li><a href="#install-it-on-repositories">Install it on repositories</a></li><li><a href="#permissions">Permissions</a></li><li><a href="#events">Events</a></li><li><a href="#diagrams-in-app-reviews">Diagrams in App reviews</a></li><li><a href="#extensions-in-app-reviews">Extensions in App reviews</a></li><li><a href="#manual-setup">Manual setup</a></li><li><a href="#rotating-and-moving-the-key">Rotating and moving the key</a></li><li><a href="#troubleshooting">Troubleshooting</a></li></ul></nav>
+      <ul><li><a href="#create-it-from-the-dashboard">Create it from the dashboard</a></li><li><a href="#install-it-on-repositories">Install it on repositories</a></li><li><a href="#permissions">Permissions</a></li><li><a href="#events">Events</a></li><li><a href="#diagrams-in-app-reviews">Diagrams in App reviews</a></li><li><a href="#extensions-in-app-reviews">Extensions in App reviews</a></li><li><a href="#companions-in-app-reviews">Companions in App reviews</a></li><li><a href="#manual-setup">Manual setup</a></li><li><a href="#rotating-and-moving-the-key">Rotating and moving the key</a></li><li><a href="#troubleshooting">Troubleshooting</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>
