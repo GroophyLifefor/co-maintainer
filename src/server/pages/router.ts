@@ -500,7 +500,7 @@ function toHomeRow(
     knowledge,
     knowledgeAt,
     reviews: String(item.stats.completed),
-    failed: item.stats.failed,
+    failed: item.openFailures,
     cost: formatCostTotal(item.stats),
   };
 }

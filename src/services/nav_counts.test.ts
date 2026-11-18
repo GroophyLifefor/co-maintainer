@@ -79,7 +79,7 @@ test("the counts match the repository list and its 30 day failed column", async 
     failedReview("r3", "acme/widgets", 40);
     const counts = navCounts("");
     const rows = listReposForHome();
-    const listFailed = rows.reduce((sum, row) => sum + row.stats.failed, 0);
+    const listFailed = rows.reduce((sum, row) => sum + row.openFailures, 0);
     if (counts.repos !== rows.length || counts.repos !== 2) {
       throw new Error(`repos ${counts.repos}, list ${rows.length}`);
     }

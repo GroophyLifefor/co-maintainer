@@ -316,7 +316,7 @@ function navHtml(active: string | undefined): string {
           // The failed count is a link of its own to the failed list. A link
           // cannot sit inside another, so it sits beside the menu item.
           if (item.href === "/activity" && counts && counts.failed > 0) {
-            return `<div class="item-pair">${link}<a class="r fail-count" href="/activity?status=failed" title="Open the failures nobody dismissed yet">${counts.failed} failed</a></div>`;
+            return `<div class="item-pair">${link}<a class="r fail-count" href="${escapeHtml(counts.failedHref)}" title="Failures of the last 30 days nobody dismissed and no later review resolved">${plural(counts.failed, "open failure")}</a></div>`;
           }
           return link;
         })

@@ -7,6 +7,7 @@
  * neither seen nor resolved. */
 import { getAppDb } from "./app_db.ts";
 import { nowIso } from "../util/time.ts";
+import { countActivity, countActivityByRepo } from "./activity.ts";
 
 /** Marks failures as seen. Job ids also mark the review rows those jobs
  * wrote. Review ids are for a review row with no job row left. Returns how
@@ -77,23 +78,14 @@ export function resolveEarlierFailures(reviewId: string): void {
   ).run(reviewId, review.repo, review.pr_number, review.created_at);
 }
 
-/** Failed pull request reviews since `sinceIso` that nobody dismissed and no
- * later review resolved. A failed review job that wrote no failed review row
- * counts once on its own. */
-export function openFailureCount(sinceIso: string): number {
-  const row = getAppDb()
-    .prepare<{ n: number }>(
-      `SELECT
-        (SELECT COUNT(*) FROM reviews
-          WHERE kind = 'pr' AND status = 'failed' AND created_at >= ?
-            AND seen_at IS NULL AND resolved_by IS NULL)
-        + (SELECT COUNT(*) FROM jobs j
-          WHERE j.type = 'review' AND j.status = 'failed' AND j.created_at >= ?
-            AND j.seen_at IS NULL AND j.resolved_by IS NULL
-            AND NOT EXISTS (SELECT 1 FROM reviews r
-              WHERE r.job_id = j.id AND r.kind = 'pr' AND r.status = 'failed'))
-        AS n`,
-    )
-    .get(sinceIso, sinceIso);
-  return Number(row?.n ?? 0);
+/** Failures since `sinceIso` that nobody dismissed and no later review
+ * resolved: the rows the failed Activity list shows for the same window, so
+ * every count of open failures matches the list it opens. */
+export function openFailureCount(sinceIso: string, repo?: string): number {
+  return countActivity({ state: "failed", sinceIso, repo });
+}
+
+/** The same count for every repository at once. */
+export function openFailureCountsByRepo(sinceIso: string): Map<string, number> {
+  return countActivityByRepo({ state: "failed", sinceIso });
 }

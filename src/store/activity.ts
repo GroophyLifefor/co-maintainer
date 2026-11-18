@@ -172,6 +172,31 @@ export function listActivity(
   };
 }
 
+/** How many rows match a filter, the same number the list says. */
+export function countActivity(filter: ActivityStoreFilter): number {
+  const where = whereOf(filter);
+  return Number(
+    getAppDb()
+      .prepare<{ n: number }>(`SELECT COUNT(*) AS n ${FROM} ${where.sql}`)
+      .get(...where.params)?.n ?? 0,
+  );
+}
+
+/** The same count per repository, for lists that show one number a row. */
+export function countActivityByRepo(
+  filter: ActivityStoreFilter,
+): Map<string, number> {
+  const where = whereOf(filter);
+  const rows = getAppDb()
+    .prepare<{ repo: string | null; n: number }>(
+      `SELECT a.repo AS repo, COUNT(*) AS n ${FROM} ${where.sql} GROUP BY a.repo`,
+    )
+    .all(...where.params);
+  return new Map(
+    rows.flatMap((row) => (row.repo ? [[row.repo, Number(row.n)]] : [])),
+  );
+}
+
 /** How many failures of this filter are dismissed or resolved, for the
  * toggle that shows them on the failed list. */
 export function settledFailureCount(filter: ActivityStoreFilter): number {

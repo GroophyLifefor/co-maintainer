@@ -10,6 +10,7 @@ import {
   when,
 } from "./layout.ts";
 import type { SetupItem } from "../../services/setup_checklist.ts";
+import { openFailuresHref } from "../../services/open_failures.ts";
 import { alert, badge, icon, segmented } from "./ui.ts";
 import type { RepoState } from "../../services/repo_list.ts";
 
@@ -180,8 +181,8 @@ export function renderHome(
             <td class="num">${text(row.reviews)}${
               row.failed > 0
                 ? `<a class="sub fail-link" href="${escapeHtml(
-                    `/activity?repo=${encodeURIComponent(row.fullName)}&status=failed`,
-                  )}">${row.failed} failed</a>`
+                    openFailuresHref(row.fullName),
+                  )}">${plural(row.failed, "open failure")}</a>`
                 : ""
             }</td>
             <td class="num">${text(row.cost)}</td>

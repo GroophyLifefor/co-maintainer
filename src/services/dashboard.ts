@@ -6,6 +6,7 @@ import { refreshDrift } from "./drift.ts";
 import { listSkipped } from "../store/deliveries.ts";
 import { listJobs } from "../store/jobs.ts";
 import { warningsForJobs } from "./job_warnings.ts";
+import { openFailures, openFailuresByRepo } from "./open_failures.ts";
 import {
   listActivity,
   settledFailureCount,
@@ -129,6 +130,8 @@ export type RepoListItem = {
   repo: RepoRow;
   drift: ReturnType<typeof getDrift>;
   stats: ReturnType<typeof reviewStats>;
+  /** Open failures, the count the menu badge and the failed list share. */
+  openFailures: number;
   latestJob: JobRow | undefined;
 };
 
@@ -140,10 +143,12 @@ function latestSetupJob(fullName: string): JobRow | undefined {
 
 export function listReposForHome(): RepoListItem[] {
   const since = daysAgoIso(30);
+  const failures = openFailuresByRepo();
   return listActiveRepos().map((repo) => ({
     repo,
     drift: getDrift(repo.full_name),
     stats: reviewStats(since, repo.full_name),
+    openFailures: failures.get(repo.full_name) ?? 0,
     latestJob: latestSetupJob(repo.full_name),
   }));
 }
@@ -155,6 +160,7 @@ export function repoOverview(fullName: string) {
     repo,
     drift: getDrift(fullName),
     stats: reviewStats(since, fullName),
+    openFailures: openFailures(fullName),
     bySeverity: findingStatsBySeverity({
       repo: fullName,
       state: "all",

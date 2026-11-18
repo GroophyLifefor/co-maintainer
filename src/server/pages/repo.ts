@@ -24,6 +24,7 @@ import { findingsHref } from "./findings.ts";
 import { readConfig } from "../../config.ts";
 import { webhookReachabilityProblem } from "../../util/webhook_reachability.ts";
 import { lastDeliveryForRepo } from "../../store/deliveries.ts";
+import { openFailuresHref } from "../../services/open_failures.ts";
 
 /** "1 high · 1 low", most severe first, each a link to the findings list
  * filtered to that severity, so the number opens exactly those findings. */
@@ -168,10 +169,10 @@ export function renderRepo(
   const activityHref = `/activity?repo=${encodeURIComponent(name)}`;
   const reviewedHint = [
     plural(stats.completed, "review"),
-    stats.failed > 0
-      ? `<a href="${escapeHtml(`${activityHref}&status=failed`)}">${plural(
-          stats.failed,
-          "failed attempt",
+    data.openFailures > 0
+      ? `<a href="${escapeHtml(openFailuresHref(name))}">${plural(
+          data.openFailures,
+          "open failure",
         )}</a>`
       : "",
   ]

@@ -104,14 +104,13 @@ test("the job page says Found and links the findings of that round", async () =>
   });
 });
 
-test("the overview's failed attempts and severity badges open their lists", async () => {
+test("the overview's open failures and severity badges open their lists", async () => {
   await withDashboard(async (get) => {
     seed();
     const { html } = await get(`/repos/${REPO}`);
-    assert.ok(
-      html.includes(
-        `<a href="/activity?repo=acme%2Fwidgets&amp;status=failed">1 failed attempt</a>`,
-      ),
+    assert.match(
+      html,
+      /<a href="\/activity\?repo=acme%2Fwidgets&amp;status=failed&amp;from=\d{4}-\d{2}-\d{2}">1 open failure<\/a>/,
       "the failed part does not open the failed list",
     );
     assert.match(
