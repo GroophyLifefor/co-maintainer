@@ -1101,8 +1101,14 @@ async function runReviewJobCore(
   const pr = await github.request<Json>(
     `repos/${job.repo}/pulls/${job.pr_number}`,
   );
-  // The dashboard shows the title without asking GitHub again.
-  rememberPullTitle(job.repo, job.pr_number, pr.title);
+  // The dashboard shows the title and filters by author without asking
+  // GitHub again.
+  rememberPullTitle(
+    job.repo,
+    job.pr_number,
+    pr.title,
+    (pr.user as Json | undefined)?.login,
+  );
   if (args.trigger === "request-comment" && !existing) {
     const blocked = requestedReviewBlocked(job.repo, pr);
     if (blocked) {

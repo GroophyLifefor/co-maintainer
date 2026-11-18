@@ -451,4 +451,8 @@ export const migrations: string[][] = [
     `ALTER TABLE jobs ADD COLUMN resolved_by TEXT`,
     `CREATE INDEX idx_reviews_job ON reviews(job_id)`,
   ],
+  // 23: the author of each reviewed pull request, beside its title, so Usage
+  // can filter by author without asking GitHub. NULL on a pull request
+  // reviewed before this, until its next review.
+  [`ALTER TABLE pull_titles ADD COLUMN author TEXT`],
 ];
