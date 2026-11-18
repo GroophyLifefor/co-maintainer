@@ -240,6 +240,12 @@ co-maintainer review [options]
 |---|---|---|
 | `--intent-file=PATH` |  | Tell the review what the change is for, from a file or from standard input with -. It is context only, never a rule. Up to the repository's custom prompt cap. Not with --range. |
 
+### Companions
+
+| Flag | Default | Description |
+|---|---|---|
+| `--with=PATH[@BRANCH]` |  | Read the changes of another checkout as context, such as the docs or a client of this code. Without @BRANCH its current branch and working tree, with @BRANCH that branch against its default branch, without a checkout. Repeat it for each companion, up to 5. Not with --range. |
+
 ### Diagrams
 
 | Flag | Default | Description |

@@ -122,8 +122,8 @@ test("every page is written under docs/ with a description and canonical", async
       const html = await readTextFile(page);
       if (!html.includes('http-equiv="refresh"')) pages.push({ page, html });
     }
-    if (pages.length !== 25) {
-      throw new Error(`expected 25 doc pages, found ${pages.length}`);
+    if (pages.length !== 26) {
+      throw new Error(`expected 26 doc pages, found ${pages.length}`);
     }
     for (const { page, html } of pages) {
       if (!html.includes('name="description"')) {
@@ -449,6 +449,7 @@ test("llms.txt lists every page and llms-full.txt inlines them", async () => {
       "local-pr-review",
       "commit-watch-review",
       "extensions",
+      "companions",
       "serve",
       "dashboard",
       "github-app",

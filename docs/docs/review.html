@@ -54,6 +54,7 @@
           <li><a href="local-pr-review.html">PR review</a></li>
           <li><a href="commit-watch-review.html">Commit watch review</a></li>
           <li><a href="extensions.html">Extensions</a></li>
+          <li><a href="companions.html">Companions</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -926,6 +927,12 @@ the earlier findings and does not review unchanged files again. <strong>Use
 round. At the default cap that is at most about 2,000 tokens a round.</li>
 </ul>
 <p><a href="remote-review.html#the-intent-file">Remote review</a> says how the server treats it.</p>
+<h2 id="companions">Companions</h2>
+<p><code>--with=PATH[@BRANCH]</code> reads the changes of another checkout as context, such as
+the docs or a client of the code under review. Each companion gets a COMPANION
+block in the user prompt, and findings stay on the reviewed repository&#39;s files.
+It works in local review, PR review and <code>review --remote</code>, up to 5 companions.
+See <a href="companions.html">Companions</a>.</p>
 <h2 id="extensions">Extensions</h2>
 <p>An <a href="extensions.html">extension</a> is a command you register. Its findings, verdict,
 Markdown and cost join the review. Extensions run in local review, PR review,
@@ -1141,7 +1148,7 @@ disagree.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#which-mode-should-i-use">Which mode should I use?</a></li><li><a href="#how-the-three-modes-differ">How the three modes differ</a></li><li><a href="#depth-improve-matrix">Depth: --improve-matrix</a></li><li><a href="#large-diffs">Large diffs</a></li><li><a href="#review-tools">Review tools</a></li><li><a href="#diagrams">Diagrams</a></li><li><a href="#agent-instruction-rules">Agent instruction rules</a></li><li><a href="#references">References</a></li><li><a href="#repository-review-instructions">Repository review instructions</a></li><li><a href="#intent">Intent</a></li><li><a href="#extensions">Extensions</a></li><li><a href="#exit-codes">Exit codes</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#github-output">GitHub output</a></li><li><a href="#human-output">Human output</a></li><li><a href="#how-findings-are-produced">How findings are produced</a></li><li><a href="#before-any-review">Before any review</a></li></ul></nav>
+      <ul><li><a href="#which-mode-should-i-use">Which mode should I use?</a></li><li><a href="#how-the-three-modes-differ">How the three modes differ</a></li><li><a href="#depth-improve-matrix">Depth: --improve-matrix</a></li><li><a href="#large-diffs">Large diffs</a></li><li><a href="#review-tools">Review tools</a></li><li><a href="#diagrams">Diagrams</a></li><li><a href="#agent-instruction-rules">Agent instruction rules</a></li><li><a href="#references">References</a></li><li><a href="#repository-review-instructions">Repository review instructions</a></li><li><a href="#intent">Intent</a></li><li><a href="#companions">Companions</a></li><li><a href="#extensions">Extensions</a></li><li><a href="#exit-codes">Exit codes</a></li><li><a href="#json-output">JSON output</a></li><li><a href="#github-output">GitHub output</a></li><li><a href="#human-output">Human output</a></li><li><a href="#how-findings-are-produced">How findings are produced</a></li><li><a href="#before-any-review">Before any review</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

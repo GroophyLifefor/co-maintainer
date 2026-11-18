@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Companions · co-maintainer docs</title>
+  <meta name="description" content="Some changes span repositories: code and its docs, or a backend and the editor extension that calls it. A review sees one repository&#39;s diff, so it cannot...">
+  <link rel="canonical" href="https://co-maintainer.com/docs/companions.html">
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+  <script defer src="https://umami.ordu.dev/script.js" data-website-id="5c8e6df5-063d-4031-9eb6-f43138e09e2d"></script>
+  <script defer src="https://umami.ordu.dev/recorder.js" data-website-id="5c8e6df5-063d-4031-9eb6-f43138e09e2d"></script>
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer" data-umami-event="click-github">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="ci.html">CI</a></li>
+          <li><a href="review-policy.html">Review policy</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          <li><a href="commit-watch-review.html">Commit watch review</a></li>
+          <li><a href="extensions.html">Extensions</a></li>
+          <li><a href="companions.html" class="active">Companions</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="providers.html">AI providers</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          <li><a href="codegraph.html">Codegraph</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>Companions</h1>
+<p>Some changes span repositories: code and its docs, or a backend and the editor
+extension that calls it. A review sees one repository&#39;s diff, so it cannot tell
+whether the other side changed in step, or did not change at all.</p>
+<p><code>--with</code> points a review at another checkout on your machine. The review reads
+that checkout&#39;s changes as context. A companion is read, never reviewed, and
+needs no <code>init</code>. The reviewed change keeps its whole diff budget.</p>
+<p>It works in <a href="local-review.html">local review</a>, <a href="local-pr-review.html">PR review</a>
+and <a href="remote-review.html">remote review</a>.</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-flag">--with=../docs</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-flag">--with=../docs</span> <span class="sh-flag">--with=../vscode-ext@feature/session-api</span> <span class="sh-flag">--intent-file=task.md</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-arg">owner/repo</span> <span class="sh-arg">42</span> <span class="sh-flag">--with=../docs</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">review</span> <span class="sh-flag">--remote</span> <span class="sh-flag">--with=../vscode-ext@feature/session-api</span>
+</code></pre>
+<h2 id="the-flag">The flag</h2>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--with=PATH[@BRANCH]</code></td>
+<td>none</td>
+<td>A companion checkout. Repeat it for each companion, up to 5</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>Without <code>@BRANCH</code></strong> the companion&#39;s current branch and working tree are
+read, the same way local review reads its own checkout: committed, staged,
+unstaged and untracked changes against the merge base with its default
+branch.</li>
+<li><strong>With <code>@BRANCH</code></strong> that branch is diffed against its merge base with the
+companion&#39;s default branch. The checkout is never switched, and its working
+tree is not read. A local branch is tried first, then the remote&#39;s.</li>
+<li><strong>The repository name</strong> comes from the companion&#39;s git remote, <code>upstream</code>
+first, then <code>origin</code>. Only GitHub remotes work, as in local review.</li>
+<li><strong>A folder with <code>@</code> in its name</strong> works: a value that names a folder is a
+path whole. Otherwise the text after the last <code>@</code> is the branch.</li>
+<li><strong>Not with <code>--range</code>.</strong> A push review takes no companions.</li>
+</ul>
+<p>Every error is a usage error with exit code 2, before any model call:</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Message</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>PATH is not a git repository</td>
+<td><code>--with: PATH is not a git repository</code></td>
+</tr>
+<tr>
+<td>BRANCH does not exist there</td>
+<td><code>--with: no branch BRANCH in owner/repo</code></td>
+</tr>
+<tr>
+<td>PATH is the repository under review</td>
+<td><code>--with: PATH is the repository under review</code></td>
+</tr>
+<tr>
+<td>More than 5 companions</td>
+<td><code>--with: at most 5 companions</code></td>
+</tr>
+<tr>
+<td>The same repository twice</td>
+<td><code>--with: owner/repo is given more than once</code></td>
+</tr>
+<tr>
+<td>An empty value</td>
+<td><code>--with: give a path, as --with=PATH or --with=PATH@BRANCH</code></td>
+</tr>
+</tbody></table>
+<p>&quot;The repository under review&quot; means the same folder in local and remote review,
+and the same <code>owner/repo</code> from the remote in every mode. A companion whose
+remote or default branch cannot be read is refused the same way, with
+<code>--with: PATH:</code> before the reason.</p>
+<h2 id="what-the-model-gets">What the model gets</h2>
+<p>Each companion gets a COMPANION block in the user prompt, after the
+<code>WORKSPACE</code> or <code>PULL REQUEST</code> block and before the diff. It lists the changed
+files with their status and line counts. Paths carry the repository name, so
+they cannot collide with the reviewed change.</p>
+<pre><code>COMPANION owner/vscode-ext · branch feature/session-api · 3 files changed
+owner/vscode-ext:src/client/session.ts   modified  +12 -4
+owner/vscode-ext:src/client/api.ts       modified  +3 -1
+owner/vscode-ext:package.json            modified  +1 -1
+
+COMPANION owner/docs · branch main · no changes on this branch
+</code></pre>
+<ul>
+<li><strong>About 100 characters per file.</strong> A list stops at 200 files with
+<code>and N more</code>.</li>
+<li><strong>No change is information.</strong> A companion with nothing on its branch says
+<code>no changes on this branch</code>.</li>
+<li><strong>One sentence comes first:</strong> &quot;COMPANION blocks list changes in other
+repositories that belong to this change. They are context. Report findings
+only on this repository&#39;s files, and name the companion file in the body when
+it is the reason.&quot;</li>
+<li><strong>The system prompt is the same bytes.</strong> The cached prefix still hits, and a
+review without <code>--with</code> sends the same request as before.</li>
+<li><strong>The patches are not in the prompt.</strong> The model reads them with
+<code>read-full-diff</code>, which takes a companion path such as
+<code>owner/vscode-ext:src/client/session.ts</code>, with <code>offset</code> and <code>limit</code>, under
+the same <a href="review.html#reading-the-rest-of-a-file">cap on one answer</a>.</li>
+<li><strong>Search.</strong> <code>search-non-code</code> takes a <code>repo</code> argument. It is the repository
+under review when left out, or a companion&#39;s <code>owner/repo</code>. It searches the
+companion folder&#39;s tracked files as they are on disk, with that repository&#39;s
+own search settings, so the model can search a companion&#39;s docs even when the
+companion did not change. With <code>@BRANCH</code> the folder holds whatever branch is
+checked out, not <code>BRANCH</code>.</li>
+</ul>
+<p>Companion content is untrusted, like pull request text. The model gets it as
+data.</p>
+<h2 id="findings">Findings</h2>
+<p>A finding is anchored to the reviewed repository&#39;s files. For example, at the
+line that removes <code>startSession()</code>: &quot;This removes <code>startSession()</code>, but the
+companion branch <code>owner/vscode-ext@feature/session-api</code> still calls it in
+<code>src/client/session.ts</code>.&quot;</p>
+<ul>
+<li><strong>A finding the model places on a companion file</strong> has no location. It is
+shown with the other findings, without a path or lines, labeled with the
+companion&#39;s name, for example
+<code>[P2 · non-blocking] `owner/vscode-ext`: `src/client/session.ts:12` </code>. In
+<code>--output=github</code> its annotation names no file or line. It is not carried to
+the next round.</li>
+<li><strong>Findings on the companion&#39;s own files</strong> come from its own review, run in
+the companion with <code>--with</code> pointing back.</li>
+</ul>
+<h2 id="carry-over">Carry-over</h2>
+<p>Local review and PR review keep each companion in their carry record: the
+repository, the branch, and a hash of its file list and patches.</p>
+<p>When a companion changes, carried findings are checked again, even if the
+reviewed repository did not change. Every file is sent again, and each carried
+finding in an unchanged file gets the hint &quot;file unchanged since the last
+review, but a companion repository changed&quot;. Adding or leaving out a companion
+counts as a change too.</p>
+<p>Remote review does not keep companions in its carry-over yet. A remote round
+where only a companion changed reviews only what changed in the reviewed
+repository. Use <code>--fresh</code> then.</p>
+<h2 id="output">Output</h2>
+<ul>
+<li><p><strong><code>--json</code></strong> has <code>companions</code> when <code>--with</code> was given, and leaves it out
+otherwise:</p>
+<pre><code class="language-json">&quot;companions&quot;: [
+  { &quot;repo&quot;: &quot;owner/vscode-ext&quot;, &quot;branch&quot;: &quot;feature/session-api&quot;, &quot;source&quot;: &quot;flag&quot;, &quot;pr&quot;: null, &quot;files&quot;: 3, &quot;status&quot;: &quot;read&quot; },
+  { &quot;repo&quot;: &quot;owner/docs&quot;, &quot;branch&quot;: &quot;main&quot;, &quot;source&quot;: &quot;flag&quot;, &quot;pr&quot;: null, &quot;files&quot;: 0, &quot;status&quot;: &quot;empty&quot; }
+]
+</code></pre>
+<p><code>source</code> is <code>flag</code>. <code>status</code> is <code>read</code>, or <code>empty</code> when the branch has no
+change.</p>
+</li>
+<li><p><strong>The terminal</strong> prints one line under the header:
+<code>Companions: owner/vscode-ext@feature/session-api (3 files) · owner/docs@main (no changes)</code>.</p>
+</li>
+<li><p><strong><code>--output=github</code></strong> prints the same line in the job summary.</p>
+</li>
+</ul>
+<h2 id="privacy">Privacy</h2>
+<p>The visibility of the reviewed repository and of each companion is read from
+the GitHub API at review time, with your own GitHub auth. A companion whose
+visibility cannot be read counts as private.</p>
+<p>A private companion in the review of a public repository is context and is
+never quoted. Its patches and its search results go through the
+<a href="review.html#mcp-servers">copied-passage check</a>: any run of 8 or more words a
+finding copies from them is replaced with <code>[private context removed]</code>, and the
+review adds a <code>private_text_removed</code> warning that says the passage came from a
+private companion. A companion in the review of a private repository is not
+checked.</p>
+<p>File paths and names, such as <code>src/client/session.ts</code>, can appear in a finding.
+The COMPANION block lists them, and the check does not cover them.</p>
+<h2 id="remote-review">Remote review</h2>
+<p>The client builds the companion diffs from <code>--with</code> on your machine and sends
+them with the review. The client reads the visibility, and tells the server
+which companions are private.</p>
+<ul>
+<li><strong>The handshake</strong> lists <code>companions</code> among its features. A client that does
+not find it sends no companion and adds the warning <code>companions_unsupported</code>,
+which says &quot;This server (version X) does not read companions, so the review
+ran without them.&quot; The review runs. An older client with a newer server sends
+none, and nothing changes.</li>
+<li><strong>The limit.</strong> The server takes at most 500,000 characters of companion
+patches in total. Above that it keeps every file list, drops every patch, and
+adds the warning <code>companion_list_cut</code>.</li>
+<li><strong>Search</strong> runs on your machine, in the companion checkout, through the same
+<code>search-non-code</code> tool call with its <code>repo</code> argument.</li>
+</ul>
+<h2 id="cost">Cost</h2>
+<p>About 100 characters per companion file, sent again in every round. Reads of
+companion files are capped like any <code>read-full-diff</code> answer, and search results
+go through the <a href="review.html#tool-limits">tool limits</a>.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/companions.md" data-umami-event="click-github">Edit this page</a> on GitHub
+          · <a href="https://buttondown.com/murat" data-umami-event="newsletter-click">Get the newsletter</a>
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#the-flag">The flag</a></li><li><a href="#what-the-model-gets">What the model gets</a></li><li><a href="#findings">Findings</a></li><li><a href="#carry-over">Carry-over</a></li><li><a href="#output">Output</a></li><li><a href="#privacy">Privacy</a></li><li><a href="#remote-review">Remote review</a></li><li><a href="#cost">Cost</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

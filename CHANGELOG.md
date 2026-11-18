@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.13] - 2026-11-18
+
+### Added
+
+- **A review can read the changes of a companion repository.** Some changes span repositories, such as code and its docs, or a backend and the editor extension that calls it. `review --with=PATH[@BRANCH]` reads another checkout as context in local review, CLI pull request review and `review --remote`, up to 5 companions. Without `@BRANCH` the companion's current branch and working tree are read. With `@BRANCH` that branch is diffed against its merge base with the companion's default branch, and the checkout is never switched. The repository name comes from the companion's git remote. A companion is read, never reviewed, and needs no `init`. (#81)
+- **The model gets one COMPANION block per companion.** It lists the changed files with their status and line counts, as `owner/repo:path`, at most 200 of them, or says `no changes on this branch`. The system prompt is the same bytes, and a review without `--with` sends the same request as before. `read-full-diff` reads a companion file by its `owner/repo:path`, with `offset` and `limit`, and `search-non-code` takes a `repo` argument to search a companion checkout. (#81)
+- **Findings stay on the reviewed repository.** A finding the model places on a companion file is shown without a location, labeled with the companion's name, and is not carried to the next round. In local and CLI pull request review the carry record keeps each companion's repository, branch and a hash of its files, and a companion that changed rechecks the carried findings even when the reviewed repository did not change. (#81)
+- **A private companion is never quoted.** The visibility of the reviewed repository and of each companion is read from the GitHub API at review time, and a companion that cannot be read counts as private. In the review of a public repository, a private companion's patches and search results go through the copied-passage check, and a removed passage gives a `private_text_removed` warning. (#81)
+- **Output and remote review.** `--json` has `companions`, the terminal and the `--output=github` job summary print a `Companions:` line. A remote server lists the `companions` feature, takes at most 500,000 characters of companion patches and warns `companion_list_cut` above that, and searches a companion through the client. An older server gets no companion, and the CLI warns `companions_unsupported`. An older CLI with a newer server changes nothing. (#81)
+
 ## [0.7.12] - 2026-11-17
 
 ### Added
