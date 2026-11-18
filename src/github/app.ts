@@ -229,6 +229,17 @@ export async function listOpenPulls(
     fullName,
   );
   if (installationId === undefined) return undefined;
+  return await listOpenPullsVia(appId, privateKeyPem, installationId, fullName);
+}
+
+/** The open pull request list through an installation the caller already
+ * knows, so a cached installation id skips the installation lookup. */
+export async function listOpenPullsVia(
+  appId: string,
+  privateKeyPem: string,
+  installationId: number,
+  fullName: string,
+): Promise<OpenPull[]> {
   const client = new AppClient(appId, privateKeyPem, installationId);
   const [owner, repo] = fullName.split("/");
   const raw = await client.pages<Json>(

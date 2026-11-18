@@ -61,7 +61,8 @@ import { getRepo } from "../../store/repos.ts";
 import { cacheGet } from "../../store/cache_db.ts";
 import { getJob } from "../../store/jobs.ts";
 import { getLogsSince } from "../../services/jobs.ts";
-import { listInstallationsWithRepos, listOpenPulls } from "../../github/app.ts";
+import { listInstallationsWithRepos } from "../../github/app.ts";
+import { cachedOpenPulls } from "../../github/open_pulls_cache.ts";
 import type { OpenPull } from "../../github/app.ts";
 import { setupChecklist } from "../../services/setup_checklist.ts";
 import {
@@ -511,7 +512,7 @@ async function openPullsFor(
 ): Promise<{ pulls: OpenPull[] | undefined; appConfigured: boolean }> {
   if (!githubApp) return { pulls: undefined, appConfigured: false };
   try {
-    const pulls = await listOpenPulls(
+    const pulls = await cachedOpenPulls(
       githubApp.appId,
       githubApp.privateKeyPem,
       fullName,
