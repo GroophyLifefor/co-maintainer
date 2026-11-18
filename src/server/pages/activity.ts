@@ -1,24 +1,15 @@
 import {
-  empty,
   escapeHtml,
   html,
   layout,
   money,
-  plural,
   skSlot,
   text,
   when,
 } from "./layout.ts";
-import { formatCost } from "./cost.ts";
 import { crumb, icon, pageHeader } from "./ui.ts";
-import { cancelReasonText, jobKindText, reasonText } from "./activity_words.ts";
+import { cancelReasonText, jobKindText } from "./activity_words.ts";
 import { readConfig, resolveAppPrivateKey } from "../../config.ts";
-import type {
-  ActivityFilter,
-  activityFeed,
-  runningJobs,
-  skippedDeliveries,
-} from "../../services/dashboard.ts";
 import { getLogsSince } from "../../services/jobs.ts";
 import {
   listRateLimitWaits,
@@ -61,7 +52,7 @@ function jobTitle(job: JobRow): string {
   return `${kind} · ${job.repo.split("/").pop() ?? job.repo}`;
 }
 
-function jobStatus(job: JobRow): string {
+export function jobStatus(job: JobRow): string {
   if (job.status === "done") return `<span class="st ok">Done</span>`;
   if (job.status === "failed") {
     return `<a class="st err" href="/activity/${text(job.id)}">Failed</a>`;
@@ -87,7 +78,7 @@ function logBlock(logs: JobLogRow[], emptyText: string): string {
   }</div>`;
 }
 
-function parseJobArgs(job: JobRow): Record<string, unknown> {
+export function parseJobArgs(job: JobRow): Record<string, unknown> {
   try {
     const parsed = JSON.parse(job.args || "{}");
     return parsed && typeof parsed === "object"
@@ -443,7 +434,7 @@ function noteStatus(review: ReviewRow | undefined): string {
     : "could not post a note on the pull request";
 }
 
-function failureExplanation(error: string | null | undefined): string {
+export function failureExplanation(error: string | null | undefined): string {
   const value = (error ?? "").toLowerCase();
   if (/empty (answer|review)|returned an empty/.test(value)) {
     return "The model returned an empty answer, so no review was written.";
@@ -463,7 +454,7 @@ function failureExplanation(error: string | null | undefined): string {
 /** The model a failed job ran with. A manual or webhook review does not put
  * the model in its job args. The review row records the one it resolved.
  * "unknown" is what a review stores when no model was set. */
-function failedModel(
+export function failedModel(
   args: Record<string, unknown>,
   review: ReviewRow | undefined,
 ): string | undefined {
@@ -527,7 +518,7 @@ function otherBody(job: JobRow, logs: JobLogRow[]): string {
   )}</div></div>`;
 }
 
-function liveCard(job: JobRow): string {
+export function liveCard(job: JobRow): string {
   const logs = getLogsSince(job.id).slice(-24);
   return `<div class="card" data-async>
     ${skSlot()}
@@ -551,144 +542,6 @@ export function reviewResultHref(review: ReviewRow): string {
     return `/repos/${review.repo}/remote`;
   }
   return `/repos/${review.repo}/pulls/${review.pr_number}#round-${review.round}`;
-}
-
-export function renderActivity(
-  username: string,
-  running: ReturnType<typeof runningJobs>,
-  feed: ReturnType<typeof activityFeed>,
-  skipped: ReturnType<typeof skippedDeliveries>,
-  filter: ActivityFilter = {},
-): Response {
-  const filtered = Boolean(filter.repo || filter.status);
-  // The pager keeps the filter.
-  const pageHref = (page: number) => {
-    const params = new URLSearchParams();
-    if (filter.repo) params.set("repo", filter.repo);
-    if (filter.status) params.set("status", filter.status);
-    params.set("page", String(page));
-    return escapeHtml(`?${params.toString()}`);
-  };
-  const live = running.map(liveCard).join("");
-  const start = (feed.page - 1) * feed.per + 1;
-  const end = Math.min(feed.page * feed.per, feed.total);
-  const rows = feed.items
-    .map((item) => {
-      if (item.kind === "review") {
-        const review = item.review;
-        const result =
-          review.status === "failed"
-            ? `<span class="st err">Failed</span>`
-            : review.status === "access_denied"
-              ? `<span class="st err">Access denied</span>`
-              : `<a class="st ok" href="${escapeHtml(
-                  reviewResultHref(review),
-                )}">${plural(review.findings_count, "finding")}</a>`;
-        const subject = review.pr_number
-          ? `<a href="/repos/${text(review.repo)}/pulls/${review.pr_number}">${text(
-              review.repo,
-            )} #${review.pr_number}</a>`
-          : `<a href="${escapeHtml(reviewResultHref(review))}">${text(review.repo)}</a>`;
-        return `<tr><td>${text(
-          review.kind === "push"
-            ? "Reviewed push"
-            : review.kind === "remote"
-              ? "Reviewed from the CLI"
-              : "Reviewed pull request",
-        )}</td>
-          <td>${subject}</td>
-          <td class="muted">${when(review.created_at)}</td>
-          <td>${result}</td>
-          <td class="num">${formatCost(review)}</td></tr>`;
-      }
-      const job = item.job;
-      return `<tr><td><a href="/activity/${text(job.id)}">${text(jobLabel(job))}</a></td>
-          <td><a href="/repos/${text(job.repo)}">${text(job.repo)}</a></td>
-          <td class="muted">${when(job.created_at)}</td>
-          <td>${jobStatus(job)}</td>
-          <td class="num"></td></tr>`;
-    })
-    .join("");
-  const recent =
-    feed.items.length === 0
-      ? filtered
-        ? empty(
-            "Nothing matches",
-            "No job or review fits this filter.",
-            `<a class="btn out sm" href="/activity">Show all</a>`,
-          )
-        : empty("Nothing yet", "Jobs and reviews will show up here.")
-      : `<table>
-        <thead><tr><th>What</th><th>Repository</th><th>When</th><th>Result</th><th class="num">Cost</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-      <div class="pager"><span>${
-        feed.total === 0 ? "0 of 0" : `${start}-${end} of ${feed.total}`
-      }</span><span class="sp"></span>
-        ${
-          feed.page > 1
-            ? `<a class="btn sm" href="${pageHref(feed.page - 1)}">Previous</a>`
-            : `<button class="btn sm" disabled>Previous</button>`
-        }
-        ${
-          end < feed.total
-            ? `<a class="btn sm" href="${pageHref(feed.page + 1)}">Next</a>`
-            : `<button class="btn sm" disabled>Next</button>`
-        }</div>`;
-  const filterNotice = filtered
-    ? `<div class="notice info"><div class="txt">Showing ${text(
-        filter.status === "failed"
-          ? "failed jobs and reviews"
-          : "jobs and reviews",
-      )}${filter.repo ? ` of <b>${text(filter.repo)}</b>` : ""}.</div><a class="btn out sm" href="/activity">Show all</a></div>`
-    : "";
-  const skippedRows = skipped
-    .slice(0, 20)
-    .map((row) => {
-      const label = `${row.repo ?? ""}${row.pr_number ? ` #${row.pr_number}` : ""}`;
-      // A pull request waiting for a request is one click from a review, and
-      // the person on the dashboard is already allowed to ask.
-      const action =
-        row.repo && row.pr_number && isWaitingForRequest(row.reason)
-          ? `<button class="btn sm" type="button" data-post="/api/repos/${text(row.repo)}/pulls/${row.pr_number}/review" aria-label="Review ${text(label)} now">Review now</button>`
-          : "";
-      return `<tr><td>${text(label)}</td>
-        <td class="muted">${text(reasonText(row.reason, row.outcome))}</td>
-        <td class="muted" style="width:120px">${when(row.received_at)}</td>
-        <td style="width:110px;text-align:right">${action}</td></tr>`;
-    })
-    .join("");
-  return html(
-    layout({
-      title: "Activity · co-maintainer",
-      username,
-      active: "/activity",
-      body: `<div class="wrap" id="activity-root">
-  <div class="pagehead">
-    <div><h1>Activity</h1>
-      <p class="lead">What is running now and what happened recently.</p></div>
-  </div>
-  ${live}
-  ${filterNotice}
-  <div class="card">
-    <div class="hd"><h2>Recent</h2></div>
-    <div class="bd flush">${recent}</div>
-  </div>
-  <div class="card">
-    <div class="hd"><h2>Pull requests we skipped</h2>
-      <span class="muted" style="margin-left:auto;font-size:13px">Why nothing happened</span></div>
-    <div class="bd flush">${
-      skippedRows
-        ? `<table><tbody>${skippedRows}</tbody></table>`
-        : empty(
-            "No skips recorded",
-            "Skipped pull request deliveries appear here.",
-          )
-    }</div>
-  </div>
-</div>`,
-    }),
-  );
 }
 
 export function renderJob(

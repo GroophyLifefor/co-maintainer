@@ -64,7 +64,13 @@ import {
 import { daysAgoIso } from "../../util/time.ts";
 import { renderKnowledge } from "./knowledge.ts";
 import { renderRepoSettings } from "./repo_settings.ts";
-import { renderActivity, renderJob } from "./activity.ts";
+import { renderJob } from "./activity.ts";
+import { renderActivity } from "./activity_list.ts";
+import {
+  ACTIVITY_PER_PAGE,
+  activityStoreFilter,
+  parseActivityQuery,
+} from "./activity_query.ts";
 import { renderAnalytics } from "./analytics.ts";
 import { renderSettings, renderSettingsPage } from "./settings.ts";
 import type { SettingsSection } from "./settings.ts";
@@ -268,20 +274,13 @@ export async function handlePageRequest(
       return await finishAppManifest(request, url);
     }
     if (url.pathname === "/activity" && request.method === "GET") {
-      const page = Number(url.searchParams.get("page") ?? 1);
-      const filter = {
-        repo: url.searchParams.get("repo")?.trim() || undefined,
-        status:
-          url.searchParams.get("status") === "failed"
-            ? ("failed" as const)
-            : undefined,
-      };
+      const query = parseActivityQuery(url.searchParams);
       return renderActivity(
         username,
         runningJobs(),
-        activityFeed(page, 20, filter),
+        activityFeed(query.page, ACTIVITY_PER_PAGE, activityStoreFilter(query)),
         skippedDeliveries(),
-        filter,
+        query,
       );
     }
     const jobMatch = /^\/activity\/([^/]+)$/.exec(url.pathname);

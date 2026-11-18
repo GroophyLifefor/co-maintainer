@@ -5,11 +5,15 @@ import { getDrift } from "../store/drift.ts";
 import { refreshDrift } from "./drift.ts";
 import { listSkipped } from "../store/deliveries.ts";
 import { listJobs } from "../store/jobs.ts";
+import {
+  listActivity,
+  settledFailureCount,
+  type ActivityStoreFilter,
+} from "../store/activity.ts";
 import { getRepo, listActiveRepos } from "../store/repos.ts";
 import {
   listLatestReviewsForRepo,
   listPullSummaries,
-  listRecentReviews,
   listReviewsForPr,
   reviewStats,
   reviewStatsByDay,
@@ -30,7 +34,7 @@ import {
 import { loadExtensionReport } from "../store/extensions.ts";
 import { listPushReviewsForRepo, listWatchIssues } from "../store/watch.ts";
 import { pushVia } from "./watch_status.ts";
-import type { DeliveryRow, JobRow, RepoRow, ReviewRow } from "../store/rows.ts";
+import type { DeliveryRow, JobRow, RepoRow } from "../store/rows.ts";
 import { isNotFound, readTextFile } from "../util/runtime.ts";
 
 export function requireActiveRepo(fullName: string): RepoRow {
@@ -306,43 +310,31 @@ export function findingsList(
   };
 }
 
-export type ActivityItem =
-  | { kind: "job"; at: string; job: JobRow }
-  | { kind: "review"; at: string; review: ReviewRow };
-
-/** What the Activity list is narrowed to. The repository overview links here
- * with both, so its counts open the rows they count. */
-export type ActivityFilter = { repo?: string; status?: "failed" };
-
+/** One page of the Activity list: one row per review, one per other job. */
 export function activityFeed(
   page: number,
   per: number,
-  filter: ActivityFilter = {},
+  filter: ActivityStoreFilter = {},
 ) {
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
   const safePer = Number.isFinite(per) && per > 0 ? Math.min(per, 50) : 20;
-  const keep = (row: { repo: string; status: string }) =>
-    (!filter.repo || row.repo === filter.repo) &&
-    (!filter.status || row.status === filter.status);
-  const items: ActivityItem[] = [
-    ...listJobs()
-      .filter(keep)
-      .map((job) => ({
-        kind: "job" as const,
-        at: job.created_at,
-        job,
-      })),
-    ...listRecentReviews(500)
-      .filter(keep)
-      .map((review) => ({
-        kind: "review" as const,
-        at: review.created_at,
-        review,
-      })),
-  ].sort((a, b) => b.at.localeCompare(a.at));
-  const total = items.length;
-  const slice = items.slice((safePage - 1) * safePer, safePage * safePer);
-  return { items: slice, page: safePage, per: safePer, total };
+  const { items, total } = listActivity(
+    filter,
+    safePer,
+    (safePage - 1) * safePer,
+  );
+  return {
+    items,
+    page: safePage,
+    per: safePer,
+    total,
+    // Only the failed list hides dismissed and resolved failures, and says
+    // how many it hid.
+    settled:
+      filter.state === "failed" && !filter.withSettled
+        ? settledFailureCount(filter)
+        : 0,
+  };
 }
 
 export function runningJobs(): JobRow[] {
