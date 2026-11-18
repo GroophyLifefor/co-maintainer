@@ -437,7 +437,7 @@ function toHomeRow(
     fromCli: item.repo.added_from === "cli",
     knowledge,
     knowledgeAt,
-    reviews: String(item.stats.reviews),
+    reviews: String(item.stats.completed),
     failed: item.stats.failed,
     cost: formatCostTotal(item.stats),
   };

@@ -169,10 +169,12 @@ export function renderRepo(
       : "not built yet"
   }`;
   const costParts = costTotalParts(stats);
-  const failedHint =
-    stats.failed > 0
-      ? `${stats.failed} failed ${stats.failed === 1 ? "attempt" : "attempts"}`
-      : undefined;
+  const reviewedHint = [
+    plural(stats.completed, "review"),
+    stats.failed > 0 ? plural(stats.failed, "failed attempt") : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
   return html(
     layout({
       title: `${name} · co-maintainer`,
@@ -191,7 +193,7 @@ export function renderRepo(
   ${notice}
   ${webhookNotice}
   <div class="stats">
-    ${statCard({ label: "Reviewed (30d)", value: String(stats.pullRequests), hint: failedHint, icon: "git-pull-request" })}
+    ${statCard({ label: "Pull requests (30d)", value: String(stats.pullRequests), hint: reviewedHint, icon: "git-pull-request" })}
     ${statCard({ label: "Findings", value: String(stats.findings), hint: severityHint(data.bySeverity) || undefined, icon: "flag" })}
     ${statCard({ label: "Cost (30d)", value: text(costParts.value), hint: costParts.note ? text(costParts.note) : undefined, icon: "coins" })}
     ${statCard({ label: "Avg. review", value: seconds(stats.avgDurationMs), icon: "timer" })}

@@ -253,7 +253,12 @@ function asCostTotals(row: Partial<CostTotals> | undefined): CostTotals {
 }
 
 export type ReviewStats = CostTotals & {
+  /** Every review row, failed attempts included. */
   reviews: number;
+  /** What every page calls "reviews": the rounds that did not fail. The
+   * overview, the home list and Usage all count with this one figure. */
+  completed: number;
+  notPosted: number;
   pullRequests: number;
   findings: number;
   tokensIn: number;
@@ -266,6 +271,8 @@ export type ReviewStats = CostTotals & {
  * new figure lands on the totals, the per repo table and the trend window at
  * the same time. */
 const STATS_COLUMNS = `COUNT(*) AS reviews,
+      COALESCE(SUM(status != 'failed'), 0) AS completed,
+      COALESCE(SUM(status = 'not_posted'), 0) AS notPosted,
       COUNT(DISTINCT pr_number) AS pullRequests,
       COALESCE(SUM(findings_count), 0) AS findings,
       ${COST_COLUMNS},
@@ -277,6 +284,8 @@ const STATS_COLUMNS = `COUNT(*) AS reviews,
 function asStats(row: Partial<ReviewStats> | undefined): ReviewStats {
   return {
     reviews: Number(row?.reviews ?? 0),
+    completed: Number(row?.completed ?? 0),
+    notPosted: Number(row?.notPosted ?? 0),
     pullRequests: Number(row?.pullRequests ?? 0),
     findings: Number(row?.findings ?? 0),
     ...asCostTotals(row),

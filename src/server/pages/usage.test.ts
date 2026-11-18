@@ -146,9 +146,15 @@ test("four stat cards: Spent, Reviews, Findings, Avg. review", async () => {
   const reviews = card(html, "Reviews");
   if (
     !reviews.includes("1 failed attempt") ||
-    !reviews.includes("1 not posted")
+    !reviews.includes("1 not posted") ||
+    !reviews.includes("pull request")
   ) {
     throw new Error(`reviews hint wrong: ${reviews.slice(0, 300)}`);
+  }
+  // The same definition as the home list and the overview: every round
+  // that did not fail, the failed attempt left out.
+  if (!/<div class="v">2<\/div>/.test(reviews)) {
+    throw new Error(`reviews is not 2: ${reviews.slice(0, 300)}`);
   }
   card(html, "Findings");
   if (

@@ -238,24 +238,22 @@ export function renderAnalytics(
     })}
     ${statCard({
       label: "Reviews",
-      value: String(kind("posted").runs + kind("not_posted").runs),
-      hint:
-        [
-          kind("failed").runs > 0
-            ? `${kind("failed").runs} failed ${kind("failed").runs === 1 ? "attempt" : "attempts"}`
-            : "",
-          kind("not_posted").runs > 0
-            ? `${kind("not_posted").runs} not posted`
-            : "",
-        ]
-          .filter(Boolean)
-          .join(" · ") || undefined,
+      value: String(data.totals.completed),
+      hint: [
+        plural(data.totals.pullRequests, "pull request"),
+        data.totals.failed > 0
+          ? plural(data.totals.failed, "failed attempt")
+          : "",
+        data.totals.notPosted > 0 ? `${data.totals.notPosted} not posted` : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
       icon: "git-pull-request",
     })}
     ${statCard({
       label: "Findings",
       value: String(data.totals.findings),
-      hint: `${plural(data.totals.pullRequests, "pull request")}${delta(data.change.findings, data.days)}`,
+      hint: delta(data.change.findings, data.days) || undefined,
       icon: "flag",
     })}
     ${statCard({

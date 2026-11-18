@@ -119,9 +119,13 @@ test("the overview shows four stat cards from real 30 day figures", async () => 
   if ((html.match(/<div class="stat">/g) ?? []).length !== 4) {
     throw new Error("want four stat cards");
   }
-  const reviewed = statCard(html, "Reviewed (30d)");
+  // One definition of a review on every page: the card counts pull
+  // requests and says how many reviews they took.
+  const reviewed = statCard(html, "Pull requests (30d)");
   if (!/<div class="v">1<\/div>/.test(reviewed))
     throw new Error("reviewed is not 1");
+  if (!reviewed.includes("1 review<"))
+    throw new Error(`reviews hint wrong: ${reviewed.slice(0, 300)}`);
   const findings = statCard(html, "Findings");
   if (
     !/<div class="v">2<\/div>/.test(findings) ||
