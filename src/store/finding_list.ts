@@ -104,15 +104,25 @@ export function listFindingsPage(
   return { items, total };
 }
 
-/** How many findings the list would show, by severity, for a stat card whose
- * numbers must match the list they open. */
-export function countFindingsBySeverity(
-  filter: FindingFilter,
-): { severity: string; findings: number }[] {
+export type SeverityStats = {
+  severity: string;
+  findings: number;
+  /** Raised again after the author saw it: still open from an earlier round,
+   * or first seen in one. */
+  repeats: number;
+  posted: number;
+};
+
+/** How many findings the list would show, by severity, so a stat card or a
+ * table row opens a list with exactly its number in it. */
+export function findingStatsBySeverity(filter: FindingFilter): SeverityStats[] {
   const { sql, params } = whereOf(filter);
   return getAppDb()
-    .prepare<{ severity: string; findings: number }>(
-      `SELECT f.severity AS severity, COUNT(*) AS findings
+    .prepare<SeverityStats>(
+      `SELECT f.severity AS severity,
+        COUNT(*) AS findings,
+        COALESCE(SUM(f.state = 'open' OR f.first_seen_review_id IS NOT NULL), 0) AS repeats,
+        COALESCE(SUM(f.posted_comment_id IS NOT NULL AND f.posted_comment_id != ''), 0) AS posted
      FROM findings f
      INNER JOIN reviews r ON r.id = f.review_id
      WHERE ${sql}
@@ -123,6 +133,8 @@ export function countFindingsBySeverity(
     .map((row) => ({
       severity: String(row.severity),
       findings: Number(row.findings),
+      repeats: Number(row.repeats),
+      posted: Number(row.posted),
     }));
 }
 

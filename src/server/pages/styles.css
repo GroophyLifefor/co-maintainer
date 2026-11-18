@@ -2409,6 +2409,18 @@ html.dark {
   }
 }
 
+/* A stat figure that opens its list keeps the card's look. */
+.app .stat .v a,
+.app .stat .h a,
+.app a.badge-link {
+  color: inherit;
+  text-decoration: none;
+}
+.app .stat .v a:hover,
+.app .stat .h a:hover {
+  text-decoration: underline;
+}
+
 /* Filter chips: each active filter, a click takes it off. */
 .app .chips {
   display: flex;

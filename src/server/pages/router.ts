@@ -269,11 +269,19 @@ export async function handlePageRequest(
     }
     if (url.pathname === "/activity" && request.method === "GET") {
       const page = Number(url.searchParams.get("page") ?? 1);
+      const filter = {
+        repo: url.searchParams.get("repo")?.trim() || undefined,
+        status:
+          url.searchParams.get("status") === "failed"
+            ? ("failed" as const)
+            : undefined,
+      };
       return renderActivity(
         username,
         runningJobs(),
-        activityFeed(page, 20),
+        activityFeed(page, 20, filter),
         skippedDeliveries(),
+        filter,
       );
     }
     const jobMatch = /^\/activity\/([^/]+)$/.exec(url.pathname);

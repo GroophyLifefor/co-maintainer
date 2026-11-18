@@ -1,6 +1,7 @@
 import {
   capped,
   empty,
+  escapeHtml,
   html,
   layout,
   plural,
@@ -10,15 +11,7 @@ import {
 } from "./layout.ts";
 import { contradictionLine } from "../../knowledge/rule_changes.ts";
 import type { RuleEventRow } from "../../store/rule_events.ts";
-import {
-  badge,
-  dl,
-  icon,
-  repoHeader,
-  section,
-  statCard,
-  type Tone,
-} from "./ui.ts";
+import { badge, dl, icon, repoHeader, section, statCard } from "./ui.ts";
 import { costTotalParts } from "./cost.ts";
 import { COMPARE_FILE_CAP, MAX_COMMITS_COUNTED } from "../../services/drift.ts";
 import type { repoOverview } from "../../services/dashboard.ts";
@@ -26,45 +19,44 @@ import { describePolicy } from "../../services/review_policy.ts";
 import { policyForRepo } from "../../services/webhook.ts";
 import { reviewBlockingFrom } from "../../review/blocking.ts";
 import { SEVERITY_LEGEND } from "../../pr/review_copy.ts";
+import { SEVERITY_TONE, severityName } from "./finding_bits.ts";
+import { findingsHref } from "./findings.ts";
 import { readConfig } from "../../config.ts";
 import { webhookReachabilityProblem } from "../../util/webhook_reachability.ts";
 import { lastDeliveryForRepo } from "../../store/deliveries.ts";
 
-/** P0..P3 in legend order, with the words the PR comment uses. */
-const SEVERITY_TONE: Record<string, Tone> = {
-  P0: "red",
-  P1: "red",
-  P2: "amber",
-  P3: "neutral",
-};
-
-function severityName(level: string): string {
-  return (
-    SEVERITY_LEGEND.find((entry) => entry.level === level)?.name ?? level
-  ).toLowerCase();
-}
-
-/** "1 high · 1 low", most severe first. */
+/** "1 high · 1 low", most severe first, each a link to the findings list
+ * filtered to that severity, so the number opens exactly those findings. */
 function severityHint(
+  fullName: string,
   counts: { severity: string; findings: number }[],
 ): string {
   return SEVERITY_LEGEND.map((entry) => {
     const n = counts.find((c) => c.severity === entry.level)?.findings ?? 0;
-    return n > 0 ? `${n} ${entry.name.toLowerCase()}` : "";
+    return n > 0
+      ? `<a href="${escapeHtml(
+          findingsHref(fullName, {
+            severity: entry.level,
+            state: "all",
+            days: 30,
+          }),
+        )}">${n} ${text(entry.name.toLowerCase())}</a>`
+      : "";
   })
     .filter(Boolean)
     .join(" · ");
 }
 
-/** The most severe level among a review's findings, as a badge. */
-function topSeverity(levels: string[]): string {
+/** The most severe level among a review's findings, as a badge that opens
+ * that round on the PR page. */
+function topSeverity(href: string, levels: string[]): string {
   const top = SEVERITY_LEGEND.find((entry) => levels.includes(entry.level));
   if (!top) return "";
   const n = levels.filter((level) => level === top.level).length;
-  return badge(
+  return `<a href="${escapeHtml(href)}" class="badge-link">${badge(
     SEVERITY_TONE[top.level] ?? "neutral",
-    `${n} ${severityName(top.level)}`,
-  );
+    `${n} ${severityName(top.level).toLowerCase()}`,
+  )}</a>`;
 }
 
 function seconds(ms: number): string {
@@ -109,9 +101,11 @@ export function renderRepo(
               `<div class="row"><div class="b"><p class="strong"><a href="/repos/${text(
                 name,
               )}/pulls/${review.pr_number}">#${review.pr_number}</a></p>
-          <p class="muted" style="font-size:13px">Reviewed ${when(review.created_at)} · ${
-            review.findings_count
-          } ${review.findings_count === 1 ? "finding" : "findings"}</p></div>${topSeverity(
+          <p class="muted" style="font-size:13px">Reviewed ${when(review.created_at)} · ${plural(
+            review.findings_count,
+            "finding",
+          )}</p></div>${topSeverity(
+            `/repos/${name}/pulls/${review.pr_number}#round-${review.round}`,
             review.severities,
           )}</div>`,
           )
@@ -169,12 +163,24 @@ export function renderRepo(
       : "not built yet"
   }`;
   const costParts = costTotalParts(stats);
+  // Each figure opens the list it counts. The Activity filters read `repo`
+  // and `status`.
+  const activityHref = `/activity?repo=${encodeURIComponent(name)}`;
   const reviewedHint = [
     plural(stats.completed, "review"),
-    stats.failed > 0 ? plural(stats.failed, "failed attempt") : "",
+    stats.failed > 0
+      ? `<a href="${escapeHtml(`${activityHref}&status=failed`)}">${plural(
+          stats.failed,
+          "failed attempt",
+        )}</a>`
+      : "",
   ]
     .filter(Boolean)
     .join(" · ");
+  const findingTotal = data.bySeverity.reduce(
+    (sum, row) => sum + row.findings,
+    0,
+  );
   return html(
     layout({
       title: `${name} · co-maintainer`,
@@ -193,8 +199,8 @@ export function renderRepo(
   ${notice}
   ${webhookNotice}
   <div class="stats">
-    ${statCard({ label: "Pull requests (30d)", value: String(stats.pullRequests), hint: reviewedHint, icon: "git-pull-request" })}
-    ${statCard({ label: "Findings", value: String(stats.findings), hint: severityHint(data.bySeverity) || undefined, icon: "flag" })}
+    ${statCard({ label: "Pull requests (30d)", value: `<a href="${escapeHtml(activityHref)}">${stats.pullRequests}</a>`, hint: reviewedHint, icon: "git-pull-request" })}
+    ${statCard({ label: "Findings (30d)", value: `<a href="${escapeHtml(findingsHref(name, { state: "all", days: 30 }))}">${findingTotal}</a>`, hint: severityHint(name, data.bySeverity) || undefined, icon: "flag" })}
     ${statCard({ label: "Cost (30d)", value: text(costParts.value), hint: costParts.note ? text(costParts.note) : undefined, icon: "coins" })}
     ${statCard({ label: "Avg. review", value: seconds(stats.avgDurationMs), icon: "timer" })}
   </div>

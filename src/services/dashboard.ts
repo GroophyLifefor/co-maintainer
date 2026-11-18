@@ -19,12 +19,10 @@ import {
   listRemoteReviewsForRepo,
   reviewStatsByRepo,
 } from "../store/reviews.ts";
-import {
-  findingStatsBySeverity,
-  listFindingsForReview,
-} from "../store/findings.ts";
+import { listFindingsForReview } from "../store/findings.ts";
 import { daysAgoIso } from "../util/time.ts";
 import {
+  findingStatsBySeverity,
   listFindingsPage,
   repositoriesWithFindings,
   type FindingFilter,
@@ -109,7 +107,9 @@ export function statsForRange(range: string) {
     byDay: fillDays(days, reviewStatsByDay(since)),
     byModel: reviewStatsByModel(since),
     byRemoteToken: reviewStatsByRemoteToken(since),
-    bySeverity: findingStatsBySeverity(since),
+    // Counted the way the Findings list counts, so each row opens a list
+    // with its own number in it.
+    bySeverity: findingStatsBySeverity({ state: "all", sinceIso: since }),
     byKind: reviewStatsByKind(since),
     // Init and sync record no cost, only that they ran.
     setupRuns: listJobs().filter(
@@ -150,7 +150,11 @@ export function repoOverview(fullName: string) {
     repo,
     drift: getDrift(fullName),
     stats: reviewStats(since, fullName),
-    bySeverity: findingStatsBySeverity(since, fullName),
+    bySeverity: findingStatsBySeverity({
+      repo: fullName,
+      state: "all",
+      sinceIso: since,
+    }),
     recentPulls: listLatestReviewsForRepo(fullName, 8).map((review) => ({
       ...review,
       severities: listFindingsForReview(review.id).map((f) => f.severity),
@@ -306,20 +310,35 @@ export type ActivityItem =
   | { kind: "job"; at: string; job: JobRow }
   | { kind: "review"; at: string; review: ReviewRow };
 
-export function activityFeed(page: number, per: number) {
+/** What the Activity list is narrowed to. The repository overview links here
+ * with both, so its counts open the rows they count. */
+export type ActivityFilter = { repo?: string; status?: "failed" };
+
+export function activityFeed(
+  page: number,
+  per: number,
+  filter: ActivityFilter = {},
+) {
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
   const safePer = Number.isFinite(per) && per > 0 ? Math.min(per, 50) : 20;
+  const keep = (row: { repo: string; status: string }) =>
+    (!filter.repo || row.repo === filter.repo) &&
+    (!filter.status || row.status === filter.status);
   const items: ActivityItem[] = [
-    ...listJobs().map((job) => ({
-      kind: "job" as const,
-      at: job.created_at,
-      job,
-    })),
-    ...listRecentReviews(500).map((review) => ({
-      kind: "review" as const,
-      at: review.created_at,
-      review,
-    })),
+    ...listJobs()
+      .filter(keep)
+      .map((job) => ({
+        kind: "job" as const,
+        at: job.created_at,
+        job,
+      })),
+    ...listRecentReviews(500)
+      .filter(keep)
+      .map((review) => ({
+        kind: "review" as const,
+        at: review.created_at,
+        review,
+      })),
   ].sort((a, b) => b.at.localeCompare(a.at));
   const total = items.length;
   const slice = items.slice((safePage - 1) * safePer, safePage * safePer);

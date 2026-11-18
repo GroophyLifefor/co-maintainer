@@ -1,8 +1,19 @@
-import { empty, html, layout, money, skSlot, text, when } from "./layout.ts";
+import {
+  empty,
+  escapeHtml,
+  html,
+  layout,
+  money,
+  plural,
+  skSlot,
+  text,
+  when,
+} from "./layout.ts";
 import { formatCost } from "./cost.ts";
 import { crumb, icon, pageHeader } from "./ui.ts";
 import { readConfig, resolveAppPrivateKey } from "../../config.ts";
 import type {
+  ActivityFilter,
   activityFeed,
   runningJobs,
   skippedDeliveries,
@@ -440,10 +451,13 @@ function doneBody(
     !appConfigured && (job.type === "init" || job.type === "remake")
       ? `<a class="btn out" href="/settings/github">Connect the GitHub App</a>`
       : "";
+  // A review found findings, and the count opens them on the PR page. A
+  // setup job learned knowledge.
+  const producedValue = review
+    ? `<a href="${escapeHtml(reviewResultHref(review))}">${text(produced.label)}</a>`
+    : text(produced.label);
   return `<div class="stats three">
-    <div class="stat"><div class="top">Learned</div><div class="v">${text(
-      produced.label,
-    )}</div><div class="h">${text(produced.detail)}</div></div>
+    <div class="stat"><div class="top">${review ? "Found" : "Learned"}</div><div class="v">${producedValue}</div><div class="h">${text(produced.detail)}</div></div>
     <div class="stat"><div class="top">Took</div><div class="v tnum">${jobDuration(
       durationMs,
     )}</div><div class="h">${text(tookDetail)}</div></div>
@@ -572,12 +586,32 @@ function liveCard(job: JobRow): string {
   </div>`;
 }
 
+/** Where a review's result opens: the round on the PR page, or the tab that
+ * lists a push or a CLI review. */
+export function reviewResultHref(review: ReviewRow): string {
+  if (review.kind === "push") return `/repos/${review.repo}/pushes`;
+  if (review.kind === "remote" || !review.pr_number) {
+    return `/repos/${review.repo}/remote`;
+  }
+  return `/repos/${review.repo}/pulls/${review.pr_number}#round-${review.round}`;
+}
+
 export function renderActivity(
   username: string,
   running: ReturnType<typeof runningJobs>,
   feed: ReturnType<typeof activityFeed>,
   skipped: ReturnType<typeof skippedDeliveries>,
+  filter: ActivityFilter = {},
 ): Response {
+  const filtered = Boolean(filter.repo || filter.status);
+  // The pager keeps the filter.
+  const pageHref = (page: number) => {
+    const params = new URLSearchParams();
+    if (filter.repo) params.set("repo", filter.repo);
+    if (filter.status) params.set("status", filter.status);
+    params.set("page", String(page));
+    return escapeHtml(`?${params.toString()}`);
+  };
   const live = running.map(liveCard).join("");
   const start = (feed.page - 1) * feed.per + 1;
   const end = Math.min(feed.page * feed.per, feed.total);
@@ -590,13 +624,22 @@ export function renderActivity(
             ? `<span class="st err">Failed</span>`
             : review.status === "access_denied"
               ? `<span class="st err">Access denied</span>`
-              : `<span class="st ok">${review.findings_count} finding${
-                  review.findings_count === 1 ? "" : "s"
-                }</span>`;
-        return `<tr><td>Reviewed pull request</td>
-          <td><a href="/repos/${text(review.repo)}/pulls/${review.pr_number}">${text(
-            review.repo,
-          )} #${review.pr_number}</a></td>
+              : `<a class="st ok" href="${escapeHtml(
+                  reviewResultHref(review),
+                )}">${plural(review.findings_count, "finding")}</a>`;
+        const subject = review.pr_number
+          ? `<a href="/repos/${text(review.repo)}/pulls/${review.pr_number}">${text(
+              review.repo,
+            )} #${review.pr_number}</a>`
+          : `<a href="${escapeHtml(reviewResultHref(review))}">${text(review.repo)}</a>`;
+        return `<tr><td>${text(
+          review.kind === "push"
+            ? "Reviewed push"
+            : review.kind === "remote"
+              ? "Reviewed from the CLI"
+              : "Reviewed pull request",
+        )}</td>
+          <td>${subject}</td>
           <td class="muted">${when(review.created_at)}</td>
           <td>${result}</td>
           <td class="num">${formatCost(review)}</td></tr>`;
@@ -611,7 +654,13 @@ export function renderActivity(
     .join("");
   const recent =
     feed.items.length === 0
-      ? empty("Nothing yet", "Jobs and reviews will show up here.")
+      ? filtered
+        ? empty(
+            "Nothing matches",
+            "No job or review fits this filter.",
+            `<a class="btn out sm" href="/activity">Show all</a>`,
+          )
+        : empty("Nothing yet", "Jobs and reviews will show up here.")
       : `<table>
         <thead><tr><th>What</th><th>Repository</th><th>When</th><th>Result</th><th class="num">Cost</th></tr></thead>
         <tbody>${rows}</tbody>
@@ -621,14 +670,21 @@ export function renderActivity(
       }</span><span class="sp"></span>
         ${
           feed.page > 1
-            ? `<a class="btn sm" href="?page=${feed.page - 1}">Previous</a>`
+            ? `<a class="btn sm" href="${pageHref(feed.page - 1)}">Previous</a>`
             : `<button class="btn sm" disabled>Previous</button>`
         }
         ${
           end < feed.total
-            ? `<a class="btn sm" href="?page=${feed.page + 1}">Next</a>`
+            ? `<a class="btn sm" href="${pageHref(feed.page + 1)}">Next</a>`
             : `<button class="btn sm" disabled>Next</button>`
         }</div>`;
+  const filterNotice = filtered
+    ? `<div class="notice info"><div class="txt">Showing ${text(
+        filter.status === "failed"
+          ? "failed jobs and reviews"
+          : "jobs and reviews",
+      )}${filter.repo ? ` of <b>${text(filter.repo)}</b>` : ""}.</div><a class="btn out sm" href="/activity">Show all</a></div>`
+    : "";
   const skippedRows = skipped
     .slice(0, 20)
     .map((row) => {
@@ -656,6 +712,7 @@ export function renderActivity(
       <p class="lead">What is running now and what happened recently.</p></div>
   </div>
   ${live}
+  ${filterNotice}
   <div class="card">
     <div class="hd"><h2>Recent</h2></div>
     <div class="bd flush">${recent}</div>

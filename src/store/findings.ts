@@ -125,37 +125,3 @@ export function findFindingByPostedComment(
     )
     .get(repo, prNumber, commentId);
 }
-
-export type SeverityStats = {
-  severity: string;
-  findings: number;
-  repeats: number;
-  posted: number;
-};
-
-/** A repeat is a finding the previous round already raised, so the repeat
- * column reads as "raised again after the author saw it". */
-export function findingStatsBySeverity(
-  sinceIso: string,
-  repo?: string,
-): SeverityStats[] {
-  return getAppDb()
-    .prepare<SeverityStats>(
-      `SELECT f.severity AS severity,
-        COUNT(*) AS findings,
-        COALESCE(SUM(f.state = 'open' OR f.first_seen_review_id IS NOT NULL), 0) AS repeats,
-        COALESCE(SUM(f.posted_comment_id IS NOT NULL), 0) AS posted
-     FROM findings f
-     INNER JOIN reviews r ON r.id = f.review_id
-     WHERE r.created_at >= ?${repo ? " AND r.repo = ?" : ""}
-     GROUP BY f.severity
-     ORDER BY f.severity`,
-    )
-    .all(...(repo ? [sinceIso, repo] : [sinceIso]))
-    .map((row) => ({
-      severity: String(row.severity),
-      findings: Number(row.findings),
-      repeats: Number(row.repeats),
-      posted: Number(row.posted),
-    }));
-}

@@ -4,6 +4,7 @@ import {
   delta,
   duration,
   empty,
+  escapeHtml,
   html,
   layout,
   money,
@@ -14,6 +15,8 @@ import { costTotalParts, formatCostTotal } from "./cost.ts";
 import type { statsForRange } from "../../services/dashboard.ts";
 import { listJobs } from "../../store/jobs.ts";
 import { pageHeader, segmented, statCard } from "./ui.ts";
+import { findingsHref } from "./findings.ts";
+import { severityName } from "./finding_bits.ts";
 
 export function renderAnalytics(
   username: string,
@@ -168,8 +171,20 @@ export function renderAnalytics(
           ${data.bySeverity
             .map(
               (row) =>
-                `<tr><td>${text(row.severity)}</td>
-            <td class="num">${row.findings}</td>
+                `<tr><td><a href="${escapeHtml(
+                  findingsHref(undefined, {
+                    severity: row.severity,
+                    state: "all",
+                    days: data.days,
+                  }),
+                )}">${text(row.severity)} ${text(severityName(row.severity))}</a></td>
+            <td class="num"><a href="${escapeHtml(
+              findingsHref(undefined, {
+                severity: row.severity,
+                state: "all",
+                days: data.days,
+              }),
+            )}">${row.findings}</a></td>
             <td class="num">${
               totalFindings
                 ? Math.round((row.findings / totalFindings) * 100)
@@ -207,7 +222,7 @@ export function renderAnalytics(
         <div class="txt"><b>${text(job.repo)}</b>. ${text(job.type)} failed${
           job.error ? `. ${text(job.error)}` : ""
         }.</div>
-        <a class="btn" href="/activity">See why</a>
+        <a class="btn" href="/activity/${text(job.id)}">See why</a>
         <button class="dismiss-worth" type="button" data-dismiss-worth="${text(
           job.id,
         )}" aria-label="Dismiss">×</button>
@@ -246,7 +261,7 @@ export function renderAnalytics(
       hint: [
         plural(data.totals.pullRequests, "pull request"),
         data.totals.failed > 0
-          ? plural(data.totals.failed, "failed attempt")
+          ? `<a href="/activity?status=failed">${plural(data.totals.failed, "failed attempt")}</a>`
           : "",
         data.totals.notPosted > 0 ? `${data.totals.notPosted} not posted` : "",
       ]
@@ -256,7 +271,11 @@ export function renderAnalytics(
     })}
     ${statCard({
       label: "Findings",
-      value: String(data.totals.findings),
+      // Counted the way the Findings list counts, so the number opens a list
+      // with exactly that many findings.
+      value: `<a href="${escapeHtml(
+        findingsHref(undefined, { state: "all", days: data.days }),
+      )}">${totalFindings}</a>`,
       hint: delta(data.change.findings, data.days) || undefined,
       icon: "flag",
     })}
