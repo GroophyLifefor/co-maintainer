@@ -92,7 +92,7 @@ function ciRow(serverUrl: string, branch: string): string {
   return `<div class="row" style="display:block"><div class="b">
     <p class="strong">CI</p>
     <p class="muted" style="font-size:13px">Add this workflow and a <code>CO_MAINTAINER_TOKEN</code>
-    secret with a remote review token from Settings.</p>
+    secret with a remote review token from <a href="/settings/remote">Settings</a>.</p>
   </div>
   ${codeBlock({
     code: commitWatchWorkflow(serverUrl, branch),

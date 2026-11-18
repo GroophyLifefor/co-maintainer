@@ -10,10 +10,15 @@ export type RepoChoice = {
 
 export function renderAddRepo(
   username: string,
-  picker: { repos: RepoChoice[]; error?: string },
+  picker: { repos: RepoChoice[]; error?: string; errorLink?: string },
 ): Response {
+  // An error that names a place gets a button to it.
   const notice = picker.error
-    ? `<div class="notice bad"><div class="txt">${text(picker.error)}</div></div>`
+    ? `<div class="notice bad"><div class="txt">${text(picker.error)}</div>${
+        picker.errorLink
+          ? `<a class="btn out sm" href="${text(picker.errorLink)}">Open Settings</a>`
+          : ""
+      }</div>`
     : "";
   const groups = new Map<string, RepoChoice[]>();
   for (const repo of picker.repos) {

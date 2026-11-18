@@ -451,8 +451,17 @@ export function repoTabs(fullName: string, on: string): string {
     .join("")}</nav>`;
 }
 
-export function empty(title: string, lead: string): string {
-  return `<div class="empty"><h2>${text(title)}</h2><p>${text(lead)}</p></div>`;
+/** An empty state. A lead that names a place passes `{ html }` with a link
+ * to it, and `action` is a button or link to the next step. */
+export function empty(
+  title: string,
+  lead: string | { html: string },
+  action = "",
+): string {
+  const body = typeof lead === "string" ? text(lead) : lead.html;
+  return `<div class="empty"><h2>${text(title)}</h2><p>${body}</p>${
+    action ? `<div class="a">${action}</div>` : ""
+  }</div>`;
 }
 
 export function statusClass(

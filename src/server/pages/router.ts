@@ -459,11 +459,13 @@ function requireRepo(fullName: string) {
 async function repoPicker(githubApp: PageDeps["githubApp"]): Promise<{
   repos: { fullName: string; account: string; alreadyActive: boolean }[];
   error?: string;
+  errorLink?: string;
 }> {
   if (!githubApp) {
     return {
       repos: [],
       error: "Configure the GitHub App in Settings first.",
+      errorLink: "/settings/github",
     };
   }
   try {

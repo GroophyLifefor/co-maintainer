@@ -101,6 +101,7 @@ export function renderRepo(
       ? empty(
           "No reviews yet",
           "Reviews appear here after a pull request is opened.",
+          `<a class="btn out sm" href="/repos/${text(name)}/pulls">Review an open pull request</a>`,
         )
       : data.recentPulls
           .map(

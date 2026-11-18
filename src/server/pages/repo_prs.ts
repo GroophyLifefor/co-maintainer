@@ -85,7 +85,13 @@ export function renderRepoPulls(
         </table>`
     : open.appConfigured
       ? `<div class="empty"><h2>Open pull requests are unavailable</h2><p>GitHub did not return a list. You can still start a review by number below.</p></div>`
-      : `<div class="empty"><h2>Configure the GitHub App to list open pull requests</h2><p>Without it, start a review by number below.</p></div>`;
+      : empty(
+          "Configure the GitHub App to list open pull requests",
+          {
+            html: `Connect it in <a href="/settings/github">Settings</a>. Without it, start a review by number below.`,
+          },
+          `<a class="btn out sm" href="/settings/github">GitHub settings</a>`,
+        );
   return html(
     layout({
       title: `Pull requests · ${fullName}`,

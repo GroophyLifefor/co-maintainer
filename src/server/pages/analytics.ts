@@ -137,7 +137,9 @@ export function renderAnalytics(
       </table>`;
   const byRemoteToken =
     (data.byRemoteToken ?? []).length === 0
-      ? empty("No remote reviews yet", "Usage from CLI tokens appears here.")
+      ? empty("No remote reviews yet", {
+          html: `Usage from <a href="/settings/remote">CLI tokens</a> appears here.`,
+        })
       : `<table>
         <thead><tr><th>Token</th><th class="num">Reviews</th><th class="num">Findings</th>
           <th class="num">Cost</th></tr></thead>

@@ -1609,3 +1609,38 @@ test("the knowledge page has no empty History card while no history is kept", as
     }
   });
 });
+
+test("an empty state that names a place links to it", async () => {
+  await withEnv(async () => {
+    seed();
+    const app = createApp({ password: PASSWORD });
+    const cookie = await cookieSession(app);
+    const get = async (path: string) =>
+      await (
+        await app.fetch(
+          new Request(`http://localhost${path}`, { headers: { cookie } }),
+        )
+      ).text();
+    const remote = await get("/repos/acme/widgets/remote");
+    if (
+      !/a token from <a href="\/settings\/remote">Settings<\/a>/.test(remote)
+    ) {
+      throw new Error("the remote reviews empty state does not link Settings");
+    }
+    if (!remote.includes(">Create a token</a>")) {
+      throw new Error("the remote reviews empty state has no action");
+    }
+    const pushes = await get("/repos/acme/widgets/pushes");
+    if (
+      !pushes.includes('token from <a href="/settings/remote">Settings</a>')
+    ) {
+      throw new Error("the commit watch CI row does not link Settings");
+    }
+    const pulls = await get("/repos/acme/widgets/pulls");
+    if (!pulls.includes('<a href="/settings/github">Settings</a>')) {
+      throw new Error(
+        "the open pull requests empty state does not link Settings",
+      );
+    }
+  });
+});

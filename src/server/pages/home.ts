@@ -146,6 +146,7 @@ export function renderHome(
       ? empty(
           "No repositories",
           "Add a repository to generate knowledge and review pull requests.",
+          `<a class="btn primary sm" href="/repos/new">${icon("plus")}Add repository</a>`,
         )
       : rows.length === 0
         ? `${filters}${empty("No repositories match", "Try another search or tab.")}`

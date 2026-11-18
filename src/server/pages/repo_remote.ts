@@ -12,7 +12,10 @@ export function renderRepoRemote(
     data.items.length === 0
       ? empty(
           "No remote reviews yet",
-          "Developers run co-maintainer review --remote with a token from Settings.",
+          {
+            html: `Developers run <code>co-maintainer review --remote</code> with a token from <a href="/settings/remote">Settings</a>.`,
+          },
+          `<a class="btn out sm" href="/settings/remote">Create a token</a>`,
         )
       : `<table>
         <thead><tr><th>Branch</th><th>Token</th><th>Status</th><th class="num">Findings</th>
