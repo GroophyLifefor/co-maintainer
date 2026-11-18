@@ -118,7 +118,7 @@ function showPlan(data) {
     est.tokensOut[1].toLocaleString("en-US") + " out" +
     ". Time: " + Math.round(est.seconds[0]) + "-" + Math.round(est.seconds[1]) + "s" +
     (est.usd
-      ? ". Cost: $" + est.usd[0].toFixed(4) + "-$" + est.usd[1].toFixed(4)
+      ? ". Cost: " + money(est.usd[0]) + "-" + money(est.usd[1])
       : ". Cost: unknown") +
     ". Basis: " + (est.estimateBasis === "history"
       ? "this repository's recorded jobs"

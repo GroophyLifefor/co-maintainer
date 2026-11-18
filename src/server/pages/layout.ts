@@ -123,11 +123,17 @@ export function markdown(value: unknown): string {
   return `<div class="markdown">${blocks.join("")}</div>`;
 }
 
+/** The one cost formatter of the dashboard. A cent or more shows two
+ * decimals. Below a cent it keeps at most four decimals, so `$0.0096146`
+ * reads as `$0.0096`, and an amount too small for that says so instead of
+ * printing zero. */
 export function money(value: number): string {
   const n = Number(value || 0);
   if (!Number.isFinite(n) || n === 0) return "$0.00";
   if (Math.abs(n) >= 0.01) return `$${n.toFixed(2)}`;
-  return `$${n.toFixed(7).replace(/0+$/, "").replace(/\.$/, "")}`;
+  const short = Math.abs(n).toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+  if (Number(short) === 0) return "<$0.0001";
+  return `${n < 0 ? "-" : ""}$${short}`;
 }
 
 const compactNumber = new Intl.NumberFormat("en", {

@@ -2,7 +2,7 @@
  * skip reason, its media, metrics and findings, and its `markdown`, which the
  * dashboard always keeps even when the GitHub review dropped it for length.
  * Management stays in the CLI. */
-import { markdown, text } from "./layout.ts";
+import { markdown, money, text } from "./layout.ts";
 import { locationOf } from "../../extensions/render_cli.ts";
 import {
   effectiveBlocking,
@@ -28,7 +28,7 @@ function safeLink(url: string, label: string): string {
 export function extensionCostNote(report: ExtensionReport): string {
   const cost = extensionsCostUsd(report);
   return cost > 0
-    ? `<div class="muted" style="font-size:12px">incl. $${cost.toFixed(4)} extensions</div>`
+    ? `<div class="muted" style="font-size:12px">incl. ${money(cost)} extensions</div>`
     : "";
 }
 
@@ -41,7 +41,7 @@ export function renderExtensionResults(report: ExtensionReport): string {
     const head = `<div style="margin-bottom:6px"><b>${text(result.name)}</b>
       <span class="muted"> · ${text(outcome(result))}${
         result.usage?.costUsd !== undefined
-          ? ` · $${result.usage.costUsd.toFixed(4)}`
+          ? ` · ${money(result.usage.costUsd)}`
           : ""
       }</span></div>`;
     const reason = result.reason
@@ -86,7 +86,7 @@ export function renderExtensionResults(report: ExtensionReport): string {
   const cost = extensionsCostUsd(report);
   return `<div style="margin-top:12px">
     <div class="muted" style="font-size:13px;font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Extensions${
-      cost > 0 ? ` · $${cost.toFixed(4)}` : ""
+      cost > 0 ? ` · ${money(cost)}` : ""
     }</div>
     ${blocks.join("")}
   </div>`;

@@ -1376,12 +1376,15 @@ test("the App manifest callback URL follows the trusted proxy host", async () =>
   });
 });
 
-test("money keeps sub-cent costs visible", () => {
+test("money keeps sub-cent costs visible with at most four decimals", () => {
   if (money(0) !== "$0.00") throw new Error(money(0));
   if (money(2.41) !== "$2.41") throw new Error(money(2.41));
   if (money(0.01) !== "$0.01") throw new Error(money(0.01));
-  if (money(0.0002118) !== "$0.0002118") throw new Error(money(0.0002118));
+  if (money(0.0002118) !== "$0.0002") throw new Error(money(0.0002118));
   if (money(0.001) !== "$0.001") throw new Error(money(0.001));
+  if (money(0.0096146) !== "$0.0096") throw new Error(money(0.0096146));
+  if (money(0.00996) !== "$0.01") throw new Error(money(0.00996));
+  if (money(0.00001) !== "<$0.0001") throw new Error(money(0.00001));
 });
 
 test("finding markdown renders safely", () => {
