@@ -12,6 +12,7 @@ import { cancelReasonText, jobKindText } from "./activity_words.ts";
 import { readConfig, resolveAppPrivateKey } from "../../config.ts";
 import { getLogsSince } from "../../services/jobs.ts";
 import { modelOf } from "../../services/activity_actions.ts";
+import { type JobWarning, jobWarnings } from "../../services/job_warnings.ts";
 import {
   listRateLimitWaits,
   summarizeRateLimitWaits,
@@ -250,7 +251,13 @@ function logPanel(
       ? `<p class="log-empty">No log lines yet. New lines appear here as the job runs.</p>`
       : "";
   return `<div class="logpanel" data-log="${text(job.id)}" data-job="${text(job.id)}" data-live="${live ? "1" : "0"}" data-status="${text(status)}" data-seq="${lastSeq}">
-    <div class="lhd"><span class="st ${kind}">${text(status)}</span><h3>Log</h3><span class="cnt" role="status" aria-live="polite">${count}</span><button class="btn out" type="button" data-log-pause>Pause</button><button class="btn out" type="button" data-log-clear>Clear</button></div>
+    <div class="lhd"><span class="st ${kind}">${text(status)}</span><h3>Log</h3><span class="cnt" role="status" aria-live="polite">${count}</span><button class="btn out" type="button" data-log-pause>Pause</button>${
+      // Clear empties the view of a log that keeps growing. A finished log
+      // has nothing more to wait for, so it has no Clear.
+      live
+        ? `<button class="btn out" type="button" data-log-clear>Clear</button>`
+        : ""
+    }</div>
     <div class="logerr" data-log-error hidden></div>
     <div class="logwrap"><div class="log" tabindex="0" role="log" aria-live="off">${logLines(logs)}${emptyLog}</div><button class="jump" type="button" data-log-jump hidden>Jump to latest <span></span></button></div>
   </div>`;
@@ -543,6 +550,61 @@ export function reviewResultHref(review: ReviewRow): string {
   return `/repos/${review.repo}/pulls/${review.pr_number}#round-${review.round}`;
 }
 
+/** The GitHub review a job posted: the id on the review row, otherwise the
+ * one its log names. */
+function postedReviewId(
+  review: ReviewRow | undefined,
+  logs: JobLogRow[],
+): string | undefined {
+  if (review?.posted_review_id) return review.posted_review_id;
+  for (const line of logs) {
+    const match =
+      /^(?:posted review|reconciled existing GitHub review) (\d+)/.exec(
+        line.message,
+      );
+    if (match) return match[1];
+  }
+  return undefined;
+}
+
+/** Links from a pull request job to the dashboard's pull request page and
+ * to the review it posted on GitHub. */
+function jobLinks(
+  job: JobRow,
+  review: ReviewRow | undefined,
+  logs: JobLogRow[],
+): string {
+  if (!job.pr_number) return "";
+  const page = `<a class="btn out" href="/repos/${text(job.repo)}/pulls/${job.pr_number}${
+    review ? `#round-${review.round}` : ""
+  }">Pull request page</a>`;
+  const posted = postedReviewId(review, logs);
+  const github = posted
+    ? `<a class="btn out" href="https://github.com/${text(job.repo)}/pull/${job.pr_number}#pullrequestreview-${text(
+        posted,
+      )}" target="_blank" rel="noopener">${icon("external-link")}Review on GitHub</a>`
+    : "";
+  return `${page}${github}`;
+}
+
+/** One banner per problem a finished job logged, with the fix. */
+function warningBanners(warnings: JobWarning[]): string {
+  return warnings
+    .map(
+      (warning) =>
+        `<div class="notice warn job-warning" role="alert">${icon(
+          "triangle-alert",
+        )}<div class="txt"><b>Finished with a problem.</b> ${text(
+          warning.problem,
+        )} ${text(warning.fix)}</div>${
+          warning.fixHref
+            ? `<a class="btn out sm" href="${escapeHtml(warning.fixHref)}">Open the GitHub settings</a>`
+            : ""
+        }</div>`,
+    )
+    .join("");
+}
+
 export function renderJob(
   username: string,
   job: JobRow,
@@ -603,6 +665,9 @@ export function renderJob(
   const changeModel = failed
     ? `<a class="btn out" href="/settings/ai">Change default model</a>`
     : "";
+  const links = jobLinks(job, review, logs);
+  const warnings =
+    job.status === "done" ? warningBanners(jobWarnings(logs)) : "";
   let body: string;
   if (live) {
     body = runningBody(job, args, logs);
@@ -626,9 +691,9 @@ export function renderJob(
       { label: "Activity", href: "/activity" },
       { label: jobLabel(job) },
     ]),
-    actions: `${stop}${retry}${changeModel}`,
+    actions: `${stop}${retry}${changeModel}${links}`,
   })}
-  ${error}${canceled}
+  ${warnings}${error}${canceled}
   <div data-async>
     ${skSlot()}
     ${waitNotice}

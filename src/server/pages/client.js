@@ -436,6 +436,8 @@ function startLogPanel(panel) {
     baseClass =
       next === "failed" ? "failed" : next === "canceled" ? "warn" : "done";
     panel.setAttribute("data-status", baseStatus);
+    // A finished log stops growing, so Clear goes away with the job.
+    if (clear) clear.hidden = true;
     if (!paused && status) {
       status.className = "st " + baseClass;
       status.textContent = baseStatus;

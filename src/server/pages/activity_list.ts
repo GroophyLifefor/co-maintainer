@@ -162,7 +162,7 @@ function settledMark(row: ActivityRow): string {
   return "";
 }
 
-function activityRow(row: ActivityRow): string {
+function activityRow(row: ActivityRow, warning: string | undefined): string {
   const { job, review } = row;
   // Every row opens its log. A review whose job row is gone has no log left,
   // so it opens its result.
@@ -199,7 +199,13 @@ function activityRow(row: ActivityRow): string {
     <td class="wrap">${resultCell(row)}${settledMark(row)}</td>
     <td class="num">${review ? formatCost(review) : ""}</td>
     <td class="muted">${when(row.at)}</td>
-    <td>${statusCell(row)}</td>
+    <td>${statusCell(row)}${
+      warning
+        ? `<span class="warn-mark" role="img" aria-label="${escapeHtml(
+            `Finished with a problem: ${warning}`,
+          )}" title="${escapeHtml(`Finished with a problem: ${warning}`)}">${icon("triangle-alert")}</span>`
+        : ""
+    }</td>
     <td class="row-acts">${actions}</td>
   </tr>`;
 }
@@ -445,7 +451,11 @@ export function renderActivity(
         : empty("Nothing yet", "Jobs and reviews will show up here.")
       : `<table class="fit">
         <thead><tr><th class="sel"><input type="checkbox" data-select-all aria-label="Select every row on this page"></th><th>What</th><th>Repository</th><th>Result</th><th class="num">Cost</th><th>When</th><th>Status</th><th aria-label="Actions"></th></tr></thead>
-        <tbody>${feed.items.map(activityRow).join("")}</tbody>
+        <tbody>${feed.items
+          .map((row) =>
+            activityRow(row, row.job ? feed.warnings[row.job.id] : undefined),
+          )
+          .join("")}</tbody>
       </table>
       ${pager(feed, query)}`;
   const filterNotice = filtered

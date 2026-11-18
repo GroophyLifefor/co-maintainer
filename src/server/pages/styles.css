@@ -410,6 +410,10 @@ textarea {
   background: #fdf3f3;
   border-color: #f3d0d0;
 }
+.notice.warn {
+  background: var(--am-bg);
+  border-color: var(--am-b);
+}
 .notice .txt {
   flex: 1;
 }
@@ -2237,6 +2241,17 @@ html.dark {
 }
 .app .side .nav a .r.fail-count {
   color: var(--red-t);
+}
+/* The warning mark on an Activity row that finished with a problem. */
+.app .warn-mark {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 6px;
+  color: var(--am-t);
+}
+.app .warn-mark svg {
+  width: 15px;
+  height: 15px;
 }
 /* Bulk select on Activity: a checkbox per row and the actions on the
    selection, each enabled only when it fits a selected row. */

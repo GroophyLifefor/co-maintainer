@@ -5,6 +5,7 @@ import { getDrift } from "../store/drift.ts";
 import { refreshDrift } from "./drift.ts";
 import { listSkipped } from "../store/deliveries.ts";
 import { listJobs } from "../store/jobs.ts";
+import { warningsForJobs } from "./job_warnings.ts";
 import {
   listActivity,
   settledFailureCount,
@@ -323,8 +324,19 @@ export function activityFeed(
     safePer,
     (safePage - 1) * safePer,
   );
+  // A finished job that logged a problem gets a mark on its row.
+  const warnings = Object.fromEntries(
+    [
+      ...warningsForJobs(
+        items.flatMap((row) =>
+          row.job?.status === "done" ? [row.job.id] : [],
+        ),
+      ),
+    ].map(([id, warning]) => [id, warning.problem]),
+  );
   return {
     items,
+    warnings,
     page: safePage,
     per: safePer,
     total,
