@@ -305,8 +305,15 @@ person and is paged.
 
 ## Updates
 
-The newer version check runs only when the host sets `CM_UPDATE_URL`. Without it
-the server never calls out, and **Settings**, **Server**, **Updates** shows the
+**Check for new versions** at the bottom of the sidebar checks by hand, on any
+server. It first says that it asks github.com, and only after **Check now** does
+it read the latest release and `CHANGELOG.md`. The dialog then shows what is new
+since the running version, with links to the full changelog and the release
+notes. Nothing about the server is sent. **Star Co-Maintainer** below it opens
+the repository on GitHub.
+
+The automatic newer version check runs only when the host sets `CM_UPDATE_URL`.
+Without it the server never calls out on its own, and **Settings**, **Server**, **Updates** shows the
 lines that update a self-hosted Docker server:
 
 ```sh

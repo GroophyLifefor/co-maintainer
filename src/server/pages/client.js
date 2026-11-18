@@ -622,6 +622,154 @@ function startLogPanel(panel) {
 /** The Ctrl K palette. Every query gets a sequence number and only the
  * newest answer is drawn, so a slow reply to an older query never replaces
  * the results of the newer one. The highlighted row is the one Enter opens. */
+/** "Check for new versions" in the sidebar. The dialog says first that the
+ * check reads from github.com, and asks only after "Check now". The answer
+ * is the changelog sections newer than this version, drawn from Markdown
+ * that is escaped before any formatting is added. */
+function wnInline(text) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(
+      /\(#(\d+)\)/g,
+      '(<a href="https://github.com/GroophyLifefor/co-maintainer/issues/$1" target="_blank" rel="noopener">#$1</a>)',
+    );
+}
+
+function wnMarkdown(md) {
+  const out = [];
+  let list = false;
+  md.split("\n").forEach(function (line) {
+    const item = /^\s*[-*] (.*)$/.exec(line);
+    if (item) {
+      if (!list) {
+        out.push("<ul>");
+        list = true;
+      }
+      out.push("<li>" + wnInline(item[1]) + "</li>");
+      return;
+    }
+    if (list) {
+      out.push("</ul>");
+      list = false;
+    }
+    const heading = /^#{3,6} (.*)$/.exec(line);
+    if (heading) out.push("<h4>" + wnInline(heading[1]) + "</h4>");
+    else if (line.trim()) out.push("<p>" + wnInline(line) + "</p>");
+  });
+  if (list) out.push("</ul>");
+  return out.join("");
+}
+
+/** Only links into github.com are drawn, whatever the answer says. */
+function wnLink(url, label) {
+  return typeof url === "string" && url.indexOf("https://github.com/") === 0
+    ? '<a href="' +
+        url.replace(/"/g, "%22") +
+        '" target="_blank" rel="noopener">' +
+        label +
+        "</a>"
+    : "";
+}
+
+function startWhatsNew() {
+  const dialog = document.getElementById("wn");
+  const opener = document.querySelector("[data-whats-new]");
+  if (!dialog || !opener || typeof dialog.showModal !== "function") return;
+  const body = dialog.querySelector("[data-wn-body]");
+  const actions = dialog.querySelector("[data-wn-actions]");
+  const intro = body.innerHTML;
+  const introActions = actions.innerHTML;
+
+  function reset() {
+    body.innerHTML = intro;
+    actions.innerHTML = introActions;
+  }
+
+  function closeButton() {
+    actions.innerHTML =
+      '<button type="button" class="btn" data-wn-close>Close</button>';
+  }
+
+  function show(result) {
+    const parts = [];
+    if (result.newer) {
+      parts.push(
+        '<p class="wn-lead"><strong>co-maintainer ' +
+          wnInline(result.latest) +
+          " is out.</strong> This server runs " +
+          wnInline(result.running) +
+          ".</p>",
+      );
+    } else {
+      parts.push(
+        '<p class="wn-lead"><strong>You are on the latest version.</strong> This server runs ' +
+          wnInline(result.running) +
+          (result.latest
+            ? ", and the latest release is " + wnInline(result.latest)
+            : "") +
+          ".</p>",
+      );
+    }
+    (result.sections || []).forEach(function (section) {
+      parts.push(
+        '<section class="wn-sec"><h3>' +
+          wnInline(section.version) +
+          (section.date
+            ? ' <span class="muted">' + wnInline(section.date) + "</span>"
+            : "") +
+          "</h3>" +
+          wnMarkdown(section.body) +
+          "</section>",
+      );
+    });
+    if (result.more) {
+      parts.push(
+        '<p class="muted">Older changes are in the full changelog.</p>',
+      );
+    }
+    const links = [
+      wnLink(result.changelogUrl, "Full changelog"),
+      wnLink(result.notesUrl, "Release notes"),
+    ].filter(Boolean);
+    if (links.length)
+      parts.push('<p class="wn-links">' + links.join(" · ") + "</p>");
+    body.innerHTML = parts.join("");
+    closeButton();
+  }
+
+  opener.addEventListener("click", function () {
+    reset();
+    dialog.showModal();
+  });
+  dialog.addEventListener("click", async function (ev) {
+    const target = ev.target;
+    if (
+      target === dialog ||
+      (target.closest && target.closest("[data-wn-close]"))
+    ) {
+      dialog.close();
+      return;
+    }
+    const check = target.closest && target.closest("[data-wn-check]");
+    if (!check) return;
+    check.disabled = true;
+    body.innerHTML = '<p class="muted">Asking github.com...</p>';
+    try {
+      show(await api("POST", "/api/whats-new", {}));
+    } catch (err) {
+      body.innerHTML =
+        '<p class="wn-err">' +
+        wnInline(err.message || "The check failed.") +
+        "</p>";
+      closeButton();
+    }
+  });
+}
+
 function startPalette() {
   const pal = document.getElementById("pal");
   const overlay = document.getElementById("pal-ov");
@@ -1111,6 +1259,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   startPalette();
+  startWhatsNew();
   startBulkSelect();
   startListKeys();
   startSettingsSearch();

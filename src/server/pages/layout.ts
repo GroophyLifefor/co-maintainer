@@ -308,6 +308,16 @@ function navBadge(href: string, counts: NavCounts | undefined): string {
 
 /** The settings search above the Settings menu. The list it searches rides
  * along as JSON, so typing needs no request. `client.js` wires it. */
+/** "Check for new versions": asks first, because the check reads from
+ * github.com, then shows the changelog sections newer than this version. */
+const WHATS_NEW_DIALOG = `<dialog class="wn" id="wn" aria-labelledby="wn-title">
+  <div class="wn-hd"><h2 id="wn-title">Check for new versions</h2><button type="button" class="wn-x" data-wn-close aria-label="Close">×</button></div>
+  <div class="wn-bd" data-wn-body>
+    <p>This asks github.com for the latest co-maintainer release and its CHANGELOG.md. Nothing about this server or its repositories is sent.</p>
+  </div>
+  <div class="wn-ft" data-wn-actions><button type="button" class="btn out" data-wn-close>Cancel</button><button type="button" class="btn" data-wn-check>Check now</button></div>
+</dialog>`;
+
 const SETTINGS_SEARCH = `<div class="set-search"><input class="inp" type="search" data-settings-search placeholder="Search settings" aria-label="Search settings" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="set-results"><div class="set-results" id="set-results" role="listbox" aria-label="Settings" hidden></div><script type="application/json" id="settings-index">${JSON.stringify(
   SETTINGS_INDEX,
 ).replace(/</g, "\\u003c")}</script></div>`;
@@ -387,6 +397,12 @@ ${sprite}
       )}</span><span class="who"><span class="u">${text(
         username,
       )}</span><span class="s">v${text(VERSION)}</span></span></div>
+      <button type="button" class="ghost" data-whats-new>${ico(
+        "refresh-cw",
+      )}<span>Check for new versions</span></button>
+      <a class="ghost" href="https://github.com/GroophyLifefor/co-maintainer" target="_blank" rel="noopener">${ico(
+        "star",
+      )}<span>Star Co-Maintainer</span></a>
       <button type="button" class="ghost" id="theme">${ico(
         "moon",
       )}<span>Dark mode</span></button>
@@ -404,6 +420,7 @@ ${sprite}
   </main>
 </div>
 ${PALETTE}
+${WHATS_NEW_DIALOG}
 <div id="toasts"></div>
 </body></html>`;
 }

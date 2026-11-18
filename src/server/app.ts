@@ -273,7 +273,10 @@ export function createApp(deps: AppDeps): App {
         if (url.pathname.startsWith("/api/remote-tokens")) {
           return await handleRemoteTokensRoute(request, url);
         }
-        if (url.pathname === "/api/update") {
+        if (
+          url.pathname === "/api/update" ||
+          url.pathname === "/api/whats-new"
+        ) {
           return await handleUpdateRoute(request, url);
         }
 

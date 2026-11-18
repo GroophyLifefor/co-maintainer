@@ -531,8 +531,14 @@ and new value</li>
 names the GitHub login, so the log names the person. The list filters by kind and
 person and is paged.</p>
 <h2 id="updates">Updates</h2>
-<p>The newer version check runs only when the host sets <code>CM_UPDATE_URL</code>. Without it
-the server never calls out, and <strong>Settings</strong>, <strong>Server</strong>, <strong>Updates</strong> shows the
+<p><strong>Check for new versions</strong> at the bottom of the sidebar checks by hand, on any
+server. It first says that it asks github.com, and only after <strong>Check now</strong> does
+it read the latest release and <code>CHANGELOG.md</code>. The dialog then shows what is new
+since the running version, with links to the full changelog and the release
+notes. Nothing about the server is sent. <strong>Star Co-Maintainer</strong> below it opens
+the repository on GitHub.</p>
+<p>The automatic newer version check runs only when the host sets <code>CM_UPDATE_URL</code>.
+Without it the server never calls out on its own, and <strong>Settings</strong>, <strong>Server</strong>, <strong>Updates</strong> shows the
 lines that update a self-hosted Docker server:</p>
 <pre class="shell-block"><code>docker pull ghcr.io/groophylifefor/co-maintainer:latest
 docker stop co-maintainer
