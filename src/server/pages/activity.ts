@@ -11,6 +11,7 @@ import {
 } from "./layout.ts";
 import { formatCost } from "./cost.ts";
 import { crumb, icon, pageHeader } from "./ui.ts";
+import { cancelReasonText, jobKindText, reasonText } from "./activity_words.ts";
 import { readConfig, resolveAppPrivateKey } from "../../config.ts";
 import type {
   ActivityFilter,
@@ -35,34 +36,13 @@ export function isWaitingForRequest(reason: string | null): boolean {
   return Boolean(reason?.endsWith("waiting for a maintainer request."));
 }
 
-function skipReason(reason: string | null): string {
-  switch (reason) {
-    case "draft":
-      return "Draft pull request";
-    case "bot-author":
-      return "Opened by a bot";
-    case "repo-not-active":
-      return "Repository not added yet";
-    case "auto-review-off":
-      return "Automatic review is off";
-    case "no-knowledge-yet":
-      return "Knowledge not built yet";
-    case "diff-too-large":
-      return "Diff too large";
-    case "no-code-changes":
-      return "No code changes";
-    default:
-      return reason ?? "Skipped";
-  }
-}
-
 export function jobLabel(job: JobRow): string {
   if (job.type === "init") return "Set up repository";
   if (job.type === "remake") return "Synced knowledge";
   if (job.type === "review") {
     return job.pr_number ? `Review #${job.pr_number}` : "Review";
   }
-  return job.type;
+  return jobKindText(job);
 }
 
 /** The job page title, "Init · widgets": the kind of job, then the
@@ -77,31 +57,8 @@ function jobTitle(job: JobRow): string {
           ? job.pr_number
             ? `Review #${job.pr_number}`
             : "Review"
-          : job.type;
+          : jobKindText(job);
   return `${kind} · ${job.repo.split("/").pop() ?? job.repo}`;
-}
-
-function cancelReasonLabel(reason: string | null): string {
-  switch (reason) {
-    case "dashboard_canceled":
-      return "Canceled from the dashboard";
-    case "superseded":
-      return "Replaced by a newer job";
-    case "client_timeout":
-      return "No sync from the CLI";
-    case "client_canceled":
-      return "Canceled from the CLI";
-    case "token_deactivated":
-      return "Token was deactivated";
-    case "token_deleted":
-      return "Token was deleted";
-    case "repo_deactivated":
-      return "Repository was removed from the dashboard";
-    case "server_restarted":
-      return "Server restarted during the job";
-    default:
-      return reason ?? "Canceled";
-  }
 }
 
 function jobStatus(job: JobRow): string {
@@ -111,7 +68,7 @@ function jobStatus(job: JobRow): string {
   }
   if (job.status === "canceled") {
     const detail = job.cancel_reason
-      ? ` title="${text(cancelReasonLabel(job.cancel_reason))}"`
+      ? ` title="${text(cancelReasonText(job.cancel_reason))}"`
       : "";
     return `<span class="st warn"${detail}>Canceled</span>`;
   }
@@ -696,7 +653,7 @@ export function renderActivity(
           ? `<button class="btn sm" type="button" data-post="/api/repos/${text(row.repo)}/pulls/${row.pr_number}/review" aria-label="Review ${text(label)} now">Review now</button>`
           : "";
       return `<tr><td>${text(label)}</td>
-        <td class="muted">${text(skipReason(row.reason))}</td>
+        <td class="muted">${text(reasonText(row.reason, row.outcome))}</td>
         <td class="muted" style="width:120px">${when(row.received_at)}</td>
         <td style="width:110px;text-align:right">${action}</td></tr>`;
     })
@@ -757,7 +714,7 @@ export function renderJob(
   const canceled =
     job.status === "canceled" && job.cancel_reason
       ? `<div class="notice warn"><div class="txt">${text(
-          cancelReasonLabel(job.cancel_reason),
+          cancelReasonText(job.cancel_reason),
         )}</div></div>`
       : "";
   // A queued job has not started a step yet: it waits, and can be cancelled
