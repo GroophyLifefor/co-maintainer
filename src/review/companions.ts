@@ -34,8 +34,9 @@ export const COMPANION_MAX_FILES = 1000;
  * review together. Above it the server keeps the file lists only. */
 export const COMPANION_PATCH_MAX_CHARS = 500_000;
 
-/** Where a companion came from. Only `--with` in this release. */
-export type CompanionSource = "flag";
+/** Where a companion came from: `--with`, a `Companion:` line in the pull
+ * request body, or an open pull request with the same head branch name. */
+export type CompanionSource = "flag" | "pr-body" | "branch-name";
 
 /** One companion as a review reads it. */
 export type Companion = {
@@ -157,14 +158,16 @@ export function companionsChanged(
   return key(before ?? []) !== key(now);
 }
 
-/** One companion in a `--json` result. */
+/** One companion in a `--json` result. `pr` is the companion pull
+ * request's number, `null` for `--with` and when none matched. `branch` is
+ * `null` only for a companion that could not be read. */
 export type CompanionJson = {
   repo: string;
-  branch: string;
+  branch: string | null;
   source: CompanionSource;
-  pr: null;
+  pr: number | null;
   files: number;
-  status: "read" | "empty";
+  status: "read" | "empty" | "unreachable";
 };
 
 export function companionsJson(companions: Companion[]): CompanionJson[] {
@@ -182,11 +185,35 @@ export function companionsJson(companions: Companion[]): CompanionJson[] {
  * job summary. */
 export function companionsLine(companions: CompanionJson[]): string {
   const items = companions.map((companion) => {
+    if (companion.status === "unreachable") {
+      const pr = companion.pr === null ? "" : `#${companion.pr}`;
+      return `${oneLine(companion.repo)}${pr} (unreachable)`;
+    }
     const counted =
       companion.files === 0
         ? "no changes"
         : `${companion.files} ${companion.files === 1 ? "file" : "files"}`;
-    return `${oneLine(companion.repo)}@${oneLine(companion.branch)} (${counted})`;
+    return `${oneLine(companion.repo)}@${oneLine(companion.branch ?? "")} (${counted})`;
   });
   return `Companions: ${items.join(" · ")}`;
+}
+
+/** The line a GitHub review's Metadata block gets, such as
+ * `- Companions: owner/vscode-ext#45, owner/docs (no matching pull request)`.
+ * `""` without companions. */
+export function companionsMetadataLine(companions: CompanionJson[]): string {
+  if (companions.length === 0) return "";
+  const items = companions.map((companion) => {
+    const name = oneLine(companion.repo);
+    const at = companion.pr === null ? "" : `#${companion.pr}`;
+    if (companion.status === "unreachable") return `${name}${at} (unreachable)`;
+    if (companion.source === "branch-name" && companion.pr === null) {
+      return `${name} (no matching pull request)`;
+    }
+    if (companion.source === "flag") {
+      return `${name}@${oneLine(companion.branch ?? "")}`;
+    }
+    return `${name}${at}`;
+  });
+  return `- Companions: ${items.join(", ")}\n`;
 }

@@ -26,14 +26,9 @@ import {
   reviewExitCodeFromResolved,
 } from "../review_result.ts";
 import { intentRecord, type IntentLoad } from "../review_intent.ts";
-import {
-  loadCompanions,
-  localCompanionSearch,
-  readCompanionVisibility,
-} from "../review_with.ts";
+import { prReviewCompanions } from "../review_pr_companions.ts";
 import {
   companionRecords,
-  companionsJson,
   type CompanionJson,
 } from "../../review/companions.ts";
 import { startPrCarry } from "../pr_carry.ts";
@@ -105,17 +100,12 @@ async function runReviewPr(
       );
       log("review", modelSummary(options));
       const client = new GhClient(options.debug);
-      // The companions are local checkouts. Their visibility comes from the
-      // user's own GitHub auth, the same as the pull request.
-      const companions = cli.with?.length
-        ? await readCompanionVisibility(
-            await loadCompanions(cli.with, { repo: options.repo }),
-            options.repo,
-            client,
-          )
-        : [];
-      const companionJson: { companions?: CompanionJson[] } = companions.length
-        ? { companions: companionsJson(companions) }
+      // The `--with` checkouts and the companion pull requests the
+      // repository's `companions` setting allows.
+      const companionRead = await prReviewCompanions(client, options, cli.with);
+      const companions = companionRead.list;
+      const companionJson: { companions?: CompanionJson[] } = companionRead.json
+        ? { companions: companionRead.json }
         : {};
       const carry = await startPrCarry(
         client,
@@ -156,7 +146,7 @@ async function runReviewPr(
                   ? {
                       companions: {
                         list: companions,
-                        search: localCompanionSearch(companions),
+                        search: companionRead.search,
                       },
                     }
                   : {}),
@@ -185,6 +175,7 @@ async function runReviewPr(
       const warnings = [
         ...carry.warnings,
         ...(cli.intentLoad?.warnings ?? []),
+        ...companionRead.warnings,
         ...result.warnings,
       ];
       if (cli.json) {

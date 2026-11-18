@@ -55,7 +55,7 @@ export type CarryRun = {
 
 /** With `recheck`, a finding in an unchanged file is checked again: a
  * companion changed, and that can make it right or wrong. */
-function rechecked(items: CarryItem[], recheck: boolean): CarryItem[] {
+export function rechecked(items: CarryItem[], recheck: boolean): CarryItem[] {
   if (!recheck) return items;
   return items.map((item) =>
     item.class === "unchanged"

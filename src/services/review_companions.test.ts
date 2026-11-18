@@ -26,6 +26,14 @@ import {
   writeTextFile,
 } from "../testing/runtime.ts";
 import { offlineEnv } from "../testing/offline_env.ts";
+import { writeUserConfig } from "../config.ts";
+import {
+  getOrCreatePrSubject,
+  getSubjectRevision,
+  parseCompanionRecords,
+} from "../store/subjects.ts";
+import { companionsChangedSince } from "./review_companions.ts";
+import type { SubjectRevisionRow } from "../store/rows.ts";
 import { isolateTestFile } from "../testing/locations.ts";
 
 isolateTestFile();
@@ -106,8 +114,11 @@ export class RecordingGithub implements GitHubClient {
     return Promise.resolve([]);
   }
 
-  write<T>(endpoint: string): Promise<T> {
+  bodies: { endpoint: string; body: unknown }[] = [];
+
+  write<T>(endpoint: string, body?: unknown): Promise<T> {
     this.calls.push(`POST ${endpoint}`);
+    this.bodies.push({ endpoint, body });
     return Promise.resolve({ id: 1000 + this.calls.length } as T);
   }
 
@@ -197,5 +208,77 @@ test("an App review without the companions setting sends exactly the request and
     throw new Error(
       `App review changed at line ${at + 1}:\nnow: ${lines[at]}\nwas: ${old[at]}`,
     );
+  }
+});
+
+test("a companion the App cannot read is unreachable: the review warns, names it in the Metadata block and still posts", async () => {
+  await withAppEnv(async () => {
+    await writeUserConfig({ repos: { [REPO]: { companions: ["acme/docs"] } } });
+    const github = new RecordingGithub();
+    github.body = "Adds a retry.\n\nCompanion: acme/docs#4";
+    const ai = new RecordingAi();
+    const logs: string[] = [];
+    await runReviewJob(
+      seedJob(),
+      (level, message) => logs.push(`${level} ${message}`),
+      github,
+      ai,
+    );
+    const review = github.bodies.find(
+      (item) => item.endpoint === `repos/${REPO}/pulls/1/reviews`,
+    )?.body as { body?: string } | undefined;
+    const body = review?.body ?? "";
+    if (!body.includes("- Companions: acme/docs#4 (unreachable)\n</details>")) {
+      throw new Error(body);
+    }
+    if (
+      !logs.includes(
+        "warn companion_unreachable: The companion acme/docs#4 could not be read, so the review ran without it.",
+      )
+    ) {
+      throw new Error(logs.join("\n"));
+    }
+    if (
+      ai.requests.some((request) =>
+        JSON.stringify(request).includes("COMPANION"),
+      )
+    ) {
+      throw new Error("an unreachable companion reached the prompt");
+    }
+    const row = getSubjectRevision(getOrCreatePrSubject(REPO, 1).id);
+    if (!row || parseCompanionRecords(row) !== undefined) {
+      throw new Error(`companions_json: ${row?.companions_json}`);
+    }
+  });
+});
+
+test("a companion that changed, was added or was left out since the last round counts as a change", () => {
+  const row = (companions: string | null): SubjectRevisionRow => ({
+    subject_id: "s",
+    review_id: "r",
+    files_json: "[]",
+    visible_paths_json: "[]",
+    guide_built_at: null,
+    created_at: "",
+    companions_json: companions,
+  });
+  const docs = { repo: "acme/docs", branch: "b", hash: "1" };
+  const saved = row(JSON.stringify([docs]));
+  const cases: [SubjectRevisionRow | undefined, unknown[], boolean][] = [
+    [undefined, [docs], false],
+    [row(null), [], false],
+    [saved, [docs], false],
+    [saved, [{ ...docs, hash: "2" }], true],
+    [saved, [], true],
+    [row(null), [docs], true],
+  ];
+  for (const [previous, now, changed] of cases) {
+    const got = companionsChangedSince(
+      previous,
+      now as Parameters<typeof companionsChangedSince>[1],
+    );
+    if (got !== changed) {
+      throw new Error(`${previous?.companions_json} to ${JSON.stringify(now)}`);
+    }
   }
 });

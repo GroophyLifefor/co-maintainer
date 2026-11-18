@@ -147,6 +147,9 @@ export type SubjectRevisionRow = {
   visible_paths_json: string;
   guide_built_at: string | null;
   created_at: string;
+  /** The companions the review read, as JSON `[{ repo, branch, hash }]`.
+   * NULL without companions, and for a row saved before they existed. */
+  companions_json?: string | null;
 };
 
 export type ReplyRequestRow = {
