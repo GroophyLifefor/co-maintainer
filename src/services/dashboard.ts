@@ -24,6 +24,9 @@ import {
   reviewStatsByRemoteToken,
   listRemoteReviewsForRepo,
   reviewStatsByRepo,
+  listUsageReviews,
+  usageChoices,
+  type UsageScope,
 } from "../store/reviews.ts";
 import { listFindingsForReview } from "../store/findings.ts";
 import { daysAgoIso } from "../util/time.ts";
@@ -89,14 +92,23 @@ function fillDays(
   return out;
 }
 
-export function statsForRange(range: string) {
+/** The Usage page for a range, narrowed to one repository, one pull request
+ * author, or both. */
+export function statsForRange(range: string, scope: UsageScope = {}) {
   const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
   const since = daysAgoIso(days);
-  const totals = reviewStats(since);
-  const previous = reviewStats(daysAgoIso(days * 2), undefined, since);
+  const totals = reviewStats(since, scope.repo, undefined, scope.author);
+  const previous = reviewStats(
+    daysAgoIso(days * 2),
+    scope.repo,
+    since,
+    scope.author,
+  );
   return {
     days,
     since,
+    scope,
+    choices: usageChoices(since),
     totals,
     previous,
     change: {
@@ -109,21 +121,37 @@ export function statsForRange(range: string) {
           ? undefined
           : percentChange(previous.cost, totals.cost),
     },
-    byRepo: reviewStatsByRepo(since),
-    byDay: fillDays(days, reviewStatsByDay(since)),
-    byModel: reviewStatsByModel(since),
-    byRemoteToken: reviewStatsByRemoteToken(since),
+    byRepo: reviewStatsByRepo(since, scope),
+    byDay: fillDays(days, reviewStatsByDay(since, scope)),
+    byModel: reviewStatsByModel(since, scope),
+    byRemoteToken: reviewStatsByRemoteToken(since, scope),
     // Counted the way the Findings list counts, so each row opens a list
     // with its own number in it.
-    bySeverity: findingStatsBySeverity({ state: "all", sinceIso: since }),
-    byKind: reviewStatsByKind(since),
-    // Init and sync record no cost, only that they ran.
-    setupRuns: listJobs().filter(
-      (job) =>
-        (job.type === "init" || job.type === "remake") &&
-        job.created_at >= since,
-    ).length,
+    bySeverity: findingStatsBySeverity({
+      state: "all",
+      sinceIso: since,
+      repo: scope.repo,
+      author: scope.author,
+    }),
+    byKind: reviewStatsByKind(since, scope),
+    // Init and sync record no cost, only that they ran. They have no pull
+    // request author, so an author filter leaves them out.
+    setupRuns: scope.author
+      ? undefined
+      : listJobs().filter(
+          (job) =>
+            (job.type === "init" || job.type === "remake") &&
+            job.created_at >= since &&
+            (!scope.repo || job.repo === scope.repo),
+        ).length,
   };
+}
+
+/** The rows the Usage Export button downloads, the same range and filters
+ * as the page. */
+export function usageExportRows(range: string, scope: UsageScope = {}) {
+  const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
+  return listUsageReviews(daysAgoIso(days), scope);
 }
 
 export type RepoListItem = {

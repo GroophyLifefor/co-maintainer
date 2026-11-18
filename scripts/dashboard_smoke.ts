@@ -80,6 +80,7 @@ const PAGES = [
   "/findings",
   "/findings?state=all&severity=P1",
   "/analytics",
+  "/usage?range=90d&repo=acme%2Fwidgets&author=octocat",
   "/settings",
   "/activity/job-fail",
   "/activity/job-rev",

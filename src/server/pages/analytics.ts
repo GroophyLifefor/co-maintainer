@@ -14,17 +14,59 @@ import {
 import { costTotalParts, formatCostTotal } from "./cost.ts";
 import type { statsForRange } from "../../services/dashboard.ts";
 import { listJobs } from "../../store/jobs.ts";
-import { pageHeader, segmented, statCard } from "./ui.ts";
+import { icon, pageHeader, segmented, statCard } from "./ui.ts";
 import { findingsHref } from "./findings.ts";
 import { severityName } from "./finding_bits.ts";
+import { usageHref, type UsageQuery } from "./usage_query.ts";
+
+/** The Usage filters: a repository and an author beside the range. Each
+ * select submits on change, and the form works without the script too. */
+function usageFilters(
+  query: UsageQuery,
+  choices: { repos: string[]; authors: string[] },
+): string {
+  const select = (
+    name: "repo" | "author",
+    label: string,
+    all: string,
+    values: string[],
+  ) => {
+    // A value from a link that is not in this range still shows as chosen.
+    const current = query[name];
+    const options =
+      current && !values.includes(current) ? [current, ...values] : values;
+    return `<select class="inp" name="${name}" aria-label="${label}" style="width:auto" data-usage-filter>
+      <option value="">${all}</option>
+      ${options
+        .map(
+          (value) =>
+            `<option value="${escapeHtml(value)}"${
+              value === current ? " selected" : ""
+            }>${text(value)}</option>`,
+        )
+        .join("")}
+    </select>`;
+  };
+  return `<form class="filters" method="get" action="/usage" id="usage-filters">
+    <input type="hidden" name="range" value="${query.range}">
+    ${select("repo", "Repository", "All repositories", choices.repos)}
+    ${select("author", "Author", "All authors", choices.authors)}
+    <noscript><button type="submit" class="btn out sm">Filter</button></noscript>
+    <a class="btn out sm" href="${escapeHtml(
+      usageHref(query, {}, "/usage/export.csv"),
+    )}" download>${icon("download")}Export CSV</a>
+  </form>`;
+}
 
 export function renderAnalytics(
   username: string,
-  range: string,
+  query: UsageQuery,
   data: ReturnType<typeof statsForRange>,
 ): Response {
-  const failed = listJobs({ status: "failed" }).slice(0, 5);
-  const current = ["7d", "30d", "90d"].includes(range) ? range : "30d";
+  const failed = listJobs({ status: "failed", repo: query.repo }).slice(0, 5);
+  const current = query.range;
+  // The day the range starts on, for links to lists that filter by day.
+  const fromDay = data.since.slice(0, 10);
   const kind = (name: (typeof data.byKind)[number]["kind"]) =>
     data.byKind.find((row) => row.kind === name)!;
   // Every review kind costs money, so Spent sums all of them, not only the
@@ -49,7 +91,15 @@ export function renderAnalytics(
   );
   const spentParts = costTotalParts(spent);
   const kindRows: [string, string, string][] = [
-    ["init / sync", String(data.setupRuns), "Not recorded"],
+    ...(data.setupRuns === undefined
+      ? []
+      : [
+          ["init / sync", String(data.setupRuns), "Not recorded"] as [
+            string,
+            string,
+            string,
+          ],
+        ]),
     [
       "Pull request reviews",
       String(kind("posted").runs),
@@ -172,17 +222,19 @@ export function renderAnalytics(
             .map(
               (row) =>
                 `<tr><td><a href="${escapeHtml(
-                  findingsHref(undefined, {
+                  findingsHref(query.repo, {
                     severity: row.severity,
                     state: "all",
                     days: data.days,
+                    author: query.author,
                   }),
                 )}">${text(row.severity)} ${text(severityName(row.severity))}</a></td>
             <td class="num"><a href="${escapeHtml(
-              findingsHref(undefined, {
+              findingsHref(query.repo, {
                 severity: row.severity,
                 state: "all",
                 days: data.days,
+                author: query.author,
               }),
             )}">${row.findings}</a></td>
             <td class="num">${
@@ -237,15 +289,22 @@ export function renderAnalytics(
       body: `<div class="wrap">
   ${pageHeader({
     title: "Usage",
-    lead: `Last ${data.days} days`,
+    lead: [
+      `Last ${data.days} days`,
+      query.repo ? query.repo : "",
+      query.author ? `pull requests by ${query.author}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · "),
     actions: segmented(
-      ["7d", "30d", "90d"].map((value) => ({
+      (["7d", "30d", "90d"] as const).map((value) => ({
         label: value,
-        href: `/usage?range=${value}`,
+        href: usageHref(query, { range: value }),
         on: value === current,
       })),
     ),
   })}
+  ${usageFilters(query, data.choices)}
   <div class="stats">
     ${statCard({
       label: "Spent",
@@ -260,8 +319,20 @@ export function renderAnalytics(
       value: String(data.totals.completed),
       hint: [
         plural(data.totals.pullRequests, "pull request"),
+        // Every failed attempt of the range, dismissed ones too. Activity
+        // has no author filter, so with one set the figure stays text.
         data.totals.failed > 0
-          ? `<a href="/activity?status=failed">${plural(data.totals.failed, "failed attempt")}</a>`
+          ? query.author
+            ? plural(data.totals.failed, "failed attempt")
+            : `<a href="${escapeHtml(
+                `/activity?${new URLSearchParams({
+                  ...(query.repo ? { repo: query.repo } : {}),
+                  status: "failed",
+                  settled: "1",
+                  kind: "review",
+                  from: fromDay,
+                }).toString()}`,
+              )}">${plural(data.totals.failed, "failed attempt")}</a>`
           : "",
         data.totals.notPosted > 0 ? `${data.totals.notPosted} not posted` : "",
       ]
@@ -274,7 +345,11 @@ export function renderAnalytics(
       // Counted the way the Findings list counts, so the number opens a list
       // with exactly that many findings.
       value: `<a href="${escapeHtml(
-        findingsHref(undefined, { state: "all", days: data.days }),
+        findingsHref(query.repo, {
+          state: "all",
+          days: data.days,
+          author: query.author,
+        }),
       )}">${totalFindings}</a>`,
       hint: delta(data.change.findings, data.days) || undefined,
       icon: "flag",
@@ -329,6 +404,11 @@ export function renderAnalytics(
   </div>
 </div>
 <script>
+document.querySelectorAll("[data-usage-filter]").forEach(function(select) {
+  select.addEventListener("change", function() {
+    select.form.submit();
+  });
+});
 (function() {
   var key = "co-maintainer:dismissed-worth";
   var read = function() {

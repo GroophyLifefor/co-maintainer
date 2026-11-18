@@ -134,8 +134,10 @@ test("the Usage Findings card and severity rows open the findings list", async (
       html.includes(`href="/findings?severity=P2&amp;state=all&amp;days=30"`),
       "a severity row does not open its list",
     );
-    assert.ok(
-      html.includes(`<a href="/activity?status=failed">1 failed attempt</a>`),
+    // Every failed attempt of the range, dismissed ones included.
+    assert.match(
+      html,
+      /<a href="\/activity\?status=failed&amp;settled=1&amp;kind=review&amp;from=\d{4}-\d{2}-\d{2}">1 failed attempt<\/a>/,
     );
   });
 });

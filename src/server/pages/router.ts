@@ -29,6 +29,7 @@ import {
   runningJobs,
   skippedDeliveries,
   statsForRange,
+  usageExportRows,
 } from "../../services/dashboard.ts";
 import { escapeHtml, html, notFound } from "./layout.ts";
 import { formatCostTotal } from "./cost.ts";
@@ -72,6 +73,8 @@ import {
   parseActivityQuery,
 } from "./activity_query.ts";
 import { renderAnalytics } from "./analytics.ts";
+import { parseUsageQuery } from "./usage_query.ts";
+import { usageCsv } from "./usage_csv.ts";
 import { renderSettings, renderSettingsPage } from "./settings.ts";
 import type { SettingsSection } from "./settings.ts";
 import { renderCatalog } from "./catalog.ts";
@@ -317,8 +320,30 @@ export async function handlePageRequest(
       return Response.redirect(`${url.origin}/usage${url.search}`, 303);
     }
     if (url.pathname === "/usage" && request.method === "GET") {
-      const range = url.searchParams.get("range") ?? "30d";
-      return renderAnalytics(username, range, statsForRange(range));
+      const query = parseUsageQuery(url.searchParams);
+      return renderAnalytics(
+        username,
+        query,
+        statsForRange(query.range, query),
+      );
+    }
+    if (url.pathname === "/usage/export.csv" && request.method === "GET") {
+      const query = parseUsageQuery(url.searchParams);
+      const name = [
+        "co-maintainer-usage",
+        query.range,
+        query.repo?.replace(/[^A-Za-z0-9._-]+/g, "-"),
+        query.author?.replace(/[^A-Za-z0-9._-]+/g, "-"),
+      ]
+        .filter(Boolean)
+        .join("-");
+      return new Response(usageCsv(usageExportRows(query.range, query)), {
+        headers: {
+          "content-type": "text/csv; charset=utf-8",
+          "content-disposition": `attachment; filename="${name}.csv"`,
+          "cache-control": "no-store",
+        },
+      });
     }
     if (url.pathname === "/settings" && request.method === "GET") {
       const config = readConfig();
@@ -560,6 +585,7 @@ function isPagePath(pathname: string): boolean {
     pathname.startsWith("/activity/") ||
     pathname === "/analytics" ||
     pathname === "/usage" ||
+    pathname === "/usage/export.csv" ||
     pathname === "/findings" ||
     pathname === "/settings" ||
     pathname.startsWith("/settings/") ||
