@@ -3164,7 +3164,6 @@ html.dark {
 }
 
 /* "Check for new versions" dialog. */
-.app ~ .wn,
 dialog.wn {
   width: min(560px, calc(100vw - 32px));
   max-height: min(80vh, 720px);

@@ -315,7 +315,7 @@ const WHATS_NEW_DIALOG = `<dialog class="wn" id="wn" aria-labelledby="wn-title">
   <div class="wn-bd" data-wn-body>
     <p>This asks github.com for the latest co-maintainer release and its CHANGELOG.md. Nothing about this server or its repositories is sent.</p>
   </div>
-  <div class="wn-ft" data-wn-actions><button type="button" class="btn out" data-wn-close>Cancel</button><button type="button" class="btn" data-wn-check>Check now</button></div>
+  <div class="wn-ft" data-wn-actions><button type="button" class="btn out" data-wn-close>Cancel</button><button type="button" class="btn pri" data-wn-check autofocus>Check now</button></div>
 </dialog>`;
 
 const SETTINGS_SEARCH = `<div class="set-search"><input class="inp" type="search" data-settings-search placeholder="Search settings" aria-label="Search settings" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="set-results"><div class="set-results" id="set-results" role="listbox" aria-label="Settings" hidden></div><script type="application/json" id="settings-index">${JSON.stringify(
@@ -401,7 +401,7 @@ ${sprite}
         "refresh-cw",
       )}<span>Check for new versions</span></button>
       <a class="ghost" href="https://github.com/GroophyLifefor/co-maintainer" target="_blank" rel="noopener">${ico(
-        "star",
+        "github",
       )}<span>Star Co-Maintainer</span></a>
       <button type="button" class="ghost" id="theme">${ico(
         "moon",
@@ -418,9 +418,9 @@ ${sprite}
     )}</button>co-maintainer</div>
     ${opts.body}
   </main>
+  ${WHATS_NEW_DIALOG}
 </div>
 ${PALETTE}
-${WHATS_NEW_DIALOG}
 <div id="toasts"></div>
 </body></html>`;
 }
