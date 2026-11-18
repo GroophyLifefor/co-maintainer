@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FAQ · co-maintainer docs</title>
+  <meta name="description" content="Short answers to the questions people ask first. Each one links to the page with the details.">
+  <link rel="canonical" href="https://co-maintainer.com/docs/faq.html">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What does a review cost?","acceptedAnswer":{"@type":"Answer","text":"On our own repository, one review cost about $0.15 with a strong model and about $0.01 with a small one. Your pull requests will differ. Learning a repository the first time costs more, and co-maintainer can estimate that for free before you spend anything."}},{"@type":"Question","name":"What does it learn from?","acceptedAnswer":{"@type":"Answer","text":"It reads your code and your past pull request reviews, and writes down how your team reviews as plain text files you can read and edit. Comments your reviewers make again and again become rules. It updates these files as your repository changes."}},{"@type":"Question","name":"Is co-maintainer free?","acceptedAnswer":{"@type":"Answer","text":"Yes. It is open source under the MIT license and there is no fee. You pay your AI provider for what your reviews use."}},{"@type":"Question","name":"Does my code leave my machine?","acceptedAnswer":{"@type":"Answer","text":"Only to the AI provider you choose, when it learns your repository and when it reviews. co-maintainer itself collects nothing."}},{"@type":"Question","name":"Does it work with GitLab, Bitbucket or Azure DevOps?","acceptedAnswer":{"@type":"Answer","text":"Not yet. It works with GitHub only."}},{"@type":"Question","name":"Can I choose which PRs get reviewed?","acceptedAnswer":{"@type":"Answer","text":"Yes. For each repository you can review every pull request, only those from people you trust, or none until a maintainer asks for a review on the pull request."}},{"@type":"Question","name":"How is it different from CodeRabbit?","acceptedAnswer":{"@type":"Answer","text":"co-maintainer is open source, runs on your own AI key, and learns from your past reviews. CodeRabbit is a hosted product that supports more platforms and does more beyond review."}}]}</script>
+  <link rel="stylesheet" href="../assets/site.css">
+  <link rel="icon" href="../assets/logo.png">
+  <script defer src="https://umami.ordu.dev/script.js" data-website-id="5c8e6df5-063d-4031-9eb6-f43138e09e2d"></script>
+  <script defer src="https://umami.ordu.dev/recorder.js" data-website-id="5c8e6df5-063d-4031-9eb6-f43138e09e2d"></script>
+</head>
+<body class="layout-doc">
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="brand site-brand" href="../index.html"><img src="../assets/logo.png" alt="" width="32" height="32">co-maintainer</a>
+      <nav class="topnav" aria-label="Site">
+        <a class="toplink on" href="getting-started.html">Documentation</a>
+        <a class="toplink" href="https://www.npmjs.com/package/co-maintainer">npm</a>
+        <a class="toplink" href="https://github.com/GroophyLifefor/co-maintainer" data-umami-event="click-github">GitHub</a>
+      </nav>
+      <button type="button" class="sidebar-toggle" aria-label="Open menu" hidden></button>
+    </div>
+  </header>
+  <div class="layout-body">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-scroll">
+        <div class="search">
+          <label class="search-label" for="doc-search">Search docs</label>
+          <input id="doc-search" type="search" class="search-input"
+            placeholder="Search docs" autocomplete="off" spellcheck="false"
+            aria-controls="search-results" aria-expanded="false">
+          <ul id="search-results" class="search-results" hidden></ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Getting started</p>
+          <ul class="nav-list">
+          <li><a href="getting-started.html">Quickstart</a></li>
+          <li><a href="faq.html" class="active">FAQ</a></li>
+          <li><a href="probe.html">Probe</a></li>
+          <li><a href="init.html">Init</a></li>
+          <li><a href="sync.html">Sync</a></li>
+          <li><a href="view.html">View guides</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Review</p>
+          <ul class="nav-list">
+          <li><a href="review.html">Review</a></li>
+          <li><a href="local-review.html">Local review</a></li>
+          <li><a href="remote-review.html">Remote review</a></li>
+          <li><a href="ci.html">CI</a></li>
+          <li><a href="review-policy.html">Review policy</a></li>
+          <li><a href="local-pr-review.html">PR review</a></li>
+          <li><a href="commit-watch-review.html">Commit watch review</a></li>
+          <li><a href="extensions.html">Extensions</a></li>
+          <li><a href="companions.html">Companions</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Self-hosted</p>
+          <ul class="nav-list">
+          <li><a href="serve.html">Serve</a></li>
+          <li><a href="dashboard.html">Dashboard</a></li>
+          <li><a href="github-app.html">GitHub App</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Cloud</p>
+          <ul class="nav-list">
+          <li><a href="cloud.html">Cloud</a></li>
+          </ul>
+        </div>
+        <div class="nav-section">
+          <p class="nav-section-title">Reference</p>
+          <ul class="nav-list">
+          <li><a href="commands.html">Commands</a></li>
+          <li><a href="configuration.html">Configuration</a></li>
+          <li><a href="providers.html">AI providers</a></li>
+          <li><a href="authentication.html">Authentication</a></li>
+          <li><a href="caching.html">Caching</a></li>
+          <li><a href="codegraph.html">Codegraph</a></li>
+          <li><a href="cost.html">Cost</a></li>
+          <li><a href="troubleshooting.html">Troubleshooting</a></li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+    <div class="content-column">
+      <main class="doc-main">
+        <article class="markdown prose"><h1>FAQ</h1>
+<p>Short answers to the questions people ask first. Each one links to the page
+with the details.</p>
+<h2 id="what-does-a-review-cost">What does a review cost?</h2>
+<p>On our own repository, one review cost about $0.15 with a strong model and
+about $0.01 with a small one. Your pull requests will differ. Learning a
+repository the first time costs more, and co-maintainer can estimate that for
+free before you spend anything.</p>
+<p>More: <a href="cost.html">Cost</a> and <a href="probe.html">Probe</a>.</p>
+<h2 id="what-does-it-learn-from">What does it learn from?</h2>
+<p>It reads your code and your past pull request reviews, and writes down how your
+team reviews as plain text files you can read and edit. Comments your reviewers
+make again and again become rules. It updates these files as your repository
+changes.</p>
+<p>More: <a href="init.html">Init</a> and <a href="sync.html">Sync</a>.</p>
+<h2 id="is-co-maintainer-free">Is co-maintainer free?</h2>
+<p>Yes. It is open source under the MIT license and there is no fee. You pay your
+AI provider for what your reviews use.</p>
+<p>More: <a href="providers.html">AI providers</a>.</p>
+<h2 id="does-my-code-leave-my-machine">Does my code leave my machine?</h2>
+<p>Only to the AI provider you choose, when it learns your repository and when it
+reviews. co-maintainer itself collects nothing.</p>
+<p>More: <a href="../privacy.html">Data and privacy</a>.</p>
+<h2 id="does-it-work-with-gitlab-bitbucket-or-azure-devops">Does it work with GitLab, Bitbucket or Azure DevOps?</h2>
+<p>Not yet. It works with GitHub only.</p>
+<h2 id="can-i-choose-which-prs-get-reviewed">Can I choose which PRs get reviewed?</h2>
+<p>Yes. For each repository you can review every pull request, only those from
+people you trust, or none until a maintainer asks for a review on the pull
+request.</p>
+<p>More: <a href="review-policy.html">Review policy</a>.</p>
+<h2 id="how-is-it-different-from-coderabbit">How is it different from CodeRabbit?</h2>
+<p>co-maintainer is open source, runs on your own AI key, and learns from your past
+reviews. CodeRabbit is a hosted product that supports more platforms and does
+more beyond review.</p>
+<p>More: <a href="../vs/coderabbit.html">co-maintainer vs CodeRabbit</a>.</p>
+</article>
+        <footer class="doc-footer">
+          <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/faq.md" data-umami-event="click-github">Edit this page</a> on GitHub
+          · <a href="https://buttondown.com/murat" data-umami-event="newsletter-click">Get the newsletter</a>
+        </footer>
+      </main>
+      <nav class="toc" aria-label="On this page">
+      <p class="toc-title">On this page</p>
+      <ul><li><a href="#what-does-a-review-cost">What does a review cost?</a></li><li><a href="#what-does-it-learn-from">What does it learn from?</a></li><li><a href="#is-co-maintainer-free">Is co-maintainer free?</a></li><li><a href="#does-my-code-leave-my-machine">Does my code leave my machine?</a></li><li><a href="#does-it-work-with-gitlab-bitbucket-or-azure-devops">Does it work with GitLab, Bitbucket or Azure DevOps?</a></li><li><a href="#can-i-choose-which-prs-get-reviewed">Can I choose which PRs get reviewed?</a></li><li><a href="#how-is-it-different-from-coderabbit">How is it different from CodeRabbit?</a></li></ul></nav>
+    </div>
+  </div>
+  <script src="../assets/docs.js"></script>
+  <script src="../assets/mermaid.min.js"></script>
+  <script src="../assets/mermaid-init.js"></script>
+</body>
+</html>

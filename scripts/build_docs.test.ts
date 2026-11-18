@@ -34,6 +34,8 @@ import {
   SITE_ORIGIN,
   sitemapXml,
   applyLandingSeo,
+  faqEntries,
+  faqJsonLd,
   gitLastModified,
   llmsFacts,
   llmsTxt,
@@ -59,7 +61,8 @@ async function copyStatic(from: string, to: string): Promise<void> {
 async function buildInto(): Promise<string> {
   const outDir = await makeTempDir({ prefix: "cm-docs-" });
   // The hand written root pages are not built, so copy them like the assets.
-  for (const page of ["index.html", "privacy.html"]) {
+  for (const page of ["index.html", "privacy.html", "vs/coderabbit.html"]) {
+    await mkdir(dirname(join(outDir, page)), { recursive: true });
     await writeFile(join(outDir, page), await readFile(join(docsRoot, page)));
   }
   await copyStatic(join(docsRoot, "assets"), join(outDir, "assets"));
@@ -129,8 +132,8 @@ test("every page is written under docs/ with a description and canonical", async
       const html = await readTextFile(page);
       if (!html.includes('http-equiv="refresh"')) pages.push({ page, html });
     }
-    if (pages.length !== 26) {
-      throw new Error(`expected 26 doc pages, found ${pages.length}`);
+    if (pages.length !== 27) {
+      throw new Error(`expected 27 doc pages, found ${pages.length}`);
     }
     for (const { page, html } of pages) {
       if (!html.includes('name="description"')) {
@@ -401,6 +404,52 @@ test("the init, sync and probe pages have a few words after their name in the ti
   }
 });
 
+test("the FAQ's JSON-LD holds each question with the paragraph under it, without the links line", () => {
+  const md = [
+    "# FAQ",
+    "",
+    "Intro.",
+    "",
+    "## Is it free?",
+    "",
+    "Yes. See [the license](x.md) and `MIT`.",
+    "",
+    "More: [Cost](cost.md).",
+    "",
+    "## Does it work with GitLab?",
+    "",
+    "Not yet. It works with </script> GitHub only.",
+    "",
+  ].join("\n");
+  const entries = faqEntries(md);
+  if (
+    JSON.stringify(entries) !==
+    JSON.stringify([
+      { question: "Is it free?", answer: "Yes. See the license and MIT." },
+      {
+        question: "Does it work with GitLab?",
+        answer: "Not yet. It works with </script> GitHub only.",
+      },
+    ])
+  ) {
+    throw new Error(JSON.stringify(entries));
+  }
+  const ld = faqJsonLd(md);
+  if (!ld.includes('"@type":"FAQPage"') || ld.includes("</script> GitHub")) {
+    throw new Error(ld);
+  }
+});
+
+test("the FAQ page in the repository has a question in its JSON-LD for each heading", () => {
+  const md = readFileSync(join(projectRoot, "docs", "md", "faq.md"), "utf8");
+  const headings = md.match(/^## /gm)?.length ?? 0;
+  if (headings === 0 || faqEntries(md).length !== headings) {
+    throw new Error(
+      `${faqEntries(md).length} entries for ${headings} questions`,
+    );
+  }
+});
+
 test("the search index covers every page and is well formed", async () => {
   const outDir = await buildInto();
   try {
@@ -570,6 +619,7 @@ test("llms.txt lists every page and llms-full.txt inlines them", async () => {
     }
     const slugs = [
       "getting-started",
+      "faq",
       "probe",
       "init",
       "sync",

@@ -64,6 +64,7 @@ const NAV: NavSection[] = [
     title: "Getting started",
     items: [
       { slug: "getting-started", label: "Quickstart" },
+      { slug: "faq", label: "FAQ" },
       { slug: "probe", label: "Probe" },
       { slug: "init", label: "Init" },
       { slug: "sync", label: "Sync" },
@@ -598,6 +599,7 @@ export function docPageShell(
   toc: string,
   activeSlug: string,
   description: string,
+  extraHead = "",
 ): string {
   const canonical = `${SITE_ORIGIN}/docs/${activeSlug}.html`;
   return `<!DOCTYPE html>
@@ -607,7 +609,7 @@ export function docPageShell(
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${esc(title)} · co-maintainer docs</title>
   <meta name="description" content="${esc(description)}">
-  <link rel="canonical" href="${canonical}">
+  <link rel="canonical" href="${canonical}">${extraHead ? `\n  ${extraHead}` : ""}
   <link rel="stylesheet" href="${ASSET_PREFIX}site.css">
   <link rel="icon" href="${ASSET_PREFIX}logo.png">
   <script defer src="https://umami.ordu.dev/script.js" data-website-id="5c8e6df5-063d-4031-9eb6-f43138e09e2d"></script>
@@ -799,6 +801,48 @@ export function applyLandingSeo(html: string, facts: SiteFacts): string {
   return html.replace(LANDING_SEO, () => landingSeoBlock(facts));
 }
 
+/** The questions of the FAQ page, each `## ` heading with the paragraph
+ * under it as plain text. The "More:" line of links is left out. */
+export function faqEntries(
+  md: string,
+): Array<{ question: string; answer: string }> {
+  const entries: Array<{ question: string; answer: string }> = [];
+  for (const section of md.split(/^## /m).slice(1)) {
+    const [heading = "", ...rest] = section.split("\n");
+    const answer = rest
+      .join("\n")
+      .split(/\n\s*\n/)
+      .map((block) => block.trim())
+      .find((block) => block !== "" && !block.startsWith("More:"));
+    if (!answer) continue;
+    entries.push({
+      question: heading.trim(),
+      answer: answer
+        .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+        .replace(/`([^`]+)`/g, "$1")
+        .replace(/\s+/g, " ")
+        .trim(),
+    });
+  }
+  return entries;
+}
+
+/** The FAQPage JSON-LD of the FAQ page, from its own questions, so the
+ * structured copy can never say something the page does not. */
+export function faqJsonLd(md: string): string {
+  const data = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqEntries(md).map(({ question, answer }) => ({
+      "@type": "Question",
+      name: question,
+      acceptedAnswer: { "@type": "Answer", text: answer },
+    })),
+  };
+  // `<` is escaped, so no answer can close the script tag.
+  return `<script type="application/ld+json">${JSON.stringify(data).replaceAll("<", "\\u003c")}</script>`;
+}
+
 /** A few words after a page's name in its `<title>`, for pages whose name
  * alone matches no search. */
 export const TITLE_TAGLINES: Readonly<Record<string, string>> = {
@@ -867,7 +911,8 @@ export async function buildDocs(options: BuildOptions = {}): Promise<void> {
     const name = titleMatch?.[1]?.trim() ?? slug;
     const tagline = TITLE_TAGLINES[slug];
     const title = tagline ? `${name}: ${tagline}` : name;
-    const html = docPageShell(title, body, toc, slug, description);
+    const extraHead = slug === "faq" ? faqJsonLd(md) : "";
+    const html = docPageShell(title, body, toc, slug, description, extraHead);
     await writeTextFile(new URL(`${slug}.html`, pagesDir), html);
     log(`wrote docs/${slug}.html`);
   }
