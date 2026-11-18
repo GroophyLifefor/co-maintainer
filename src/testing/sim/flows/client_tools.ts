@@ -59,8 +59,8 @@ const DATA_LINE =
 const PRIVATE_SENTENCE = `from the client tools ${ISSUE}, ${WAIT} are private.`;
 /** The server's sync timeout in the slow step, and how long the slow tool
  * takes. The watchdog checks once a second. */
-const TIMEOUT_SECONDS = 3;
-const WAIT_MS = 4500;
+const TIMEOUT_SECONDS = 5;
+const WAIT_MS = 7500;
 
 const STEP = {
   server: "server with guides and an MCP server",

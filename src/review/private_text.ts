@@ -188,15 +188,19 @@ export function removePrivateText(
   return { text: out.join("\n"), removed };
 }
 
-/** `private_text_removed`, or nothing when no passage was removed. */
-export function privateTextWarning(removed: number): CoverageWarning[] {
+/** `private_text_removed`, or nothing when no passage was removed. `from`
+ * names where the passages came from. */
+export function privateTextWarning(
+  removed: number,
+  from = "a private MCP result",
+): CoverageWarning[] {
   if (removed === 0) return [];
   return [
     {
       code: "private_text_removed",
       message: `${removed} ${
         removed === 1 ? "passage" : "passages"
-      } copied from a private MCP result ${removed === 1 ? "was" : "were"} removed from this review.`,
+      } copied from ${from} ${removed === 1 ? "was" : "were"} removed from this review.`,
     },
   ];
 }

@@ -12,6 +12,7 @@
 import { appendFileSync } from "node:fs";
 import { stripControlChars } from "../util/sanitize.ts";
 import { formatRunSummary, type RunSummary } from "../util/run_summary.ts";
+import { type CompanionJson, companionsLine } from "../review/companions.ts";
 import {
   coverageLine,
   coverageMissing,
@@ -166,6 +167,8 @@ export type GithubSummaryInput = {
   showReferences?: boolean;
   /** An intent file was given. The summary says so and never shows the text. */
   intent?: boolean;
+  /** The `--with` companions the review read. */
+  companions?: CompanionJson[];
 };
 
 export function githubSummary(input: GithubSummaryInput): string {
@@ -175,6 +178,9 @@ export function githubSummary(input: GithubSummaryInput): string {
   const blocking = rows.filter((row) => row.blocking).length;
   const lines = ["## co-maintainer review", "", cell(input.title, 200)];
   if (input.intent) lines.push("", INTENT_LINE);
+  if (input.companions?.length) {
+    lines.push("", cell(companionsLine(input.companions), 1000));
+  }
   lines.push("");
   if (rows.length === 0) {
     lines.push(

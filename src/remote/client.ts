@@ -5,6 +5,15 @@ import {
   reviewSystemPromptLimitFor,
 } from "../cli/review_args.ts";
 import { intentRecord, loadIntentFlag } from "../cli/review_intent.ts";
+import {
+  configGitHubClient,
+  loadCompanions,
+  localCompanionSearch,
+  readCompanionVisibility,
+} from "../cli/review_with.ts";
+import { COMPANION_MAX_FILES, companionsJson } from "../review/companions.ts";
+import { companionSearchTool } from "../pr/companion_tools.ts";
+import { COMPANIONS_FEATURE } from "./companions.ts";
 import { exitWith } from "../cli/error.ts";
 import {
   formatHumanReview,
@@ -154,6 +163,13 @@ export async function runRemoteReview(
       cli.intentFile,
       reviewSystemPromptLimitFor(repo),
     );
+    const companions = cli.with?.length
+      ? await readCompanionVisibility(
+          await loadCompanions(cli.with, { repo, root }),
+          repo,
+          configGitHubClient(),
+        )
+      : [];
 
     const remotes = await runCommand("git", ["remote"], root);
     const remoteName =
@@ -261,6 +277,34 @@ export async function runRemoteReview(
         message: `This server (version ${hs.serverVersion}) does not support an intent, so the review ran without one.`,
       });
     }
+    // A server that predates companions would ignore them, so they are not
+    // sent, and the run says it went without.
+    const serverSupportsCompanions =
+      hs.features?.includes(COMPANIONS_FEATURE) ?? false;
+    // The server takes at most COMPANION_MAX_FILES files of one companion,
+    // so a longer list is cut here and the run says so.
+    const sentCompanions = serverSupportsCompanions
+      ? companions.map((companion) => {
+          if (companion.files.length <= COMPANION_MAX_FILES) return companion;
+          clientWarnings.push({
+            code: "companion_list_cut",
+            message: `The companion ${companion.repo} changed ${companion.files.length} files, over the limit of ${COMPANION_MAX_FILES}, so the server read the first ${COMPANION_MAX_FILES}.`,
+          });
+          return {
+            ...companion,
+            files: companion.files.slice(0, COMPANION_MAX_FILES),
+          };
+        })
+      : [];
+    if (companions.length > 0 && !serverSupportsCompanions) {
+      clientWarnings.push({
+        code: "companions_unsupported",
+        message: `This server (version ${hs.serverVersion}) does not read companions, so the review ran without them.`,
+      });
+    }
+    const companionOutput = sentCompanions.length
+      ? { companions: companionsJson(sentCompanions) }
+      : {};
     if (byokEnabled && !cli.json) {
       const warning = byokHttpWarning(host);
       if (warning) console.error(warning);
@@ -312,9 +356,18 @@ export async function runRemoteReview(
       clientWarnings.push(...declared.warnings);
       // The server asks for search the way it asks for codegraph, and the
       // client runs it in this checkout. An older server ignores the name.
+      // With companions, a call that names one searches its checkout.
+      const search = searchNonCodeTool(root, searchOptionsFor(repo));
       const localTools = toolHandlerMap([
         ...codegraphPrep.tools,
-        searchNonCodeTool(root, searchOptionsFor(repo)),
+        sentCompanions.length
+          ? companionSearchTool(
+              search,
+              repo,
+              sentCompanions,
+              localCompanionSearch(sentCompanions),
+            )
+          : search,
         ...declared.tools,
       ]);
       const capabilities = capabilityTools(
@@ -342,6 +395,16 @@ export async function runRemoteReview(
           files: built.revision.files,
         },
         capabilities: { tools: capabilities },
+        ...(sentCompanions.length
+          ? {
+              companions: sentCompanions.map((companion) => ({
+                repo: companion.repo,
+                branch: companion.branch,
+                files: companion.files,
+                private: companion.private,
+              })),
+            }
+          : {}),
         // Only present when this run turned BYOK on, `byokKey` is
         // known to be set here because of the earlier `byokEnabled` guard.
         ...(byokEnabled ? { byok: { key: byokKey! } } : {}),
@@ -506,6 +569,7 @@ export async function runRemoteReview(
                   ...withoutIntent(payload.result.subject),
                   ...(intent ? { intent: intentRecord(intent) } : {}),
                 },
+                ...companionOutput,
                 ...(ownWarnings.length > 0
                   ? {
                       warnings: [
@@ -529,6 +593,7 @@ export async function runRemoteReview(
               intent: intent !== null,
               showReferences:
                 readConfig().repos?.[repo]?.reviewReferences === true,
+              ...companionOutput,
             });
           } else {
             const resultGuide = payload.result.guide as
@@ -557,6 +622,7 @@ export async function runRemoteReview(
                     (payload.result.usage as { tools?: unknown } | undefined)
                       ?.tools,
                   ),
+                  ...companionOutput,
                 }) +
                 "\n",
             );

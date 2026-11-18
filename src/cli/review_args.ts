@@ -7,6 +7,7 @@ import {
   reviewSystemPromptLimit,
 } from "../review/system_prompt.ts";
 import { type IntentLoad, loadIntentFlag } from "./review_intent.ts";
+import { withFlagValues } from "./review_with.ts";
 import type { Options } from "../types.ts";
 
 export type ReviewMode = "local" | "remote" | "pr";
@@ -40,6 +41,9 @@ type ReviewFlags = {
   /** `--intent-file`: a file, or `-` for standard input, that says what the
    * change is for. Context for the prompt, never a rule. */
   intentFile?: string;
+  /** `--with=PATH[@BRANCH]`, each given: companion checkouts read as
+   * context. */
+  with?: string[];
   /** `--range=<before>..<after>`: review a push instead of the working tree
    * (commit watch). Only with `--remote`. */
   range?: { before: string; after: string };
@@ -124,6 +128,7 @@ function reviewFlags(rest: string[]): ReviewFlags {
     systemPromptFile: text("system-prompt-file"),
     systemPromptOverrideFile: text("system-prompt-override-file"),
     intentFile: text("intent-file"),
+    with: withFlagValues(rest),
     range: parseRange(text("range")),
     timeoutMinutes: parseTimeout(text("timeout-minutes")),
     includeExtensionMarkdowns: rest.includes("--include-extension-markdowns"),
@@ -157,6 +162,7 @@ export function filterReviewConfigArgs(raw: string[]): string[] {
       arg.startsWith("--system-prompt-file=") ||
       arg.startsWith("--system-prompt-override-file=") ||
       arg.startsWith("--intent-file=") ||
+      arg.startsWith("--with=") ||
       arg.startsWith("--range=") ||
       arg.startsWith("--timeout-minutes=")
     ) {
@@ -240,6 +246,9 @@ export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
   }
   if (flags.range && flags.intentFile !== undefined) {
     die("--intent-file is not supported with --range");
+  }
+  if (flags.range && flags.with?.length) {
+    die("--with is not supported with --range");
   }
   if (flags.range && (flags.fresh || flags.toBranch)) {
     die("--range cannot be used with --fresh or --to-branch");

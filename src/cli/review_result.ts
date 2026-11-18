@@ -13,6 +13,7 @@ import {
 } from "../review/blocking.ts";
 import type { Revision } from "../review/revision.ts";
 import type { IntentRecord } from "../review/intent.ts";
+import { type CompanionJson, companionsLine } from "../review/companions.ts";
 import {
   coverageLine,
   coverageMissing,
@@ -362,6 +363,8 @@ export type HumanReviewInput = {
   intent?: boolean;
   /** What the review's tools did. A run with no tool call prints nothing. */
   tools?: ToolUsage;
+  /** The `--with` companions the review read. */
+  companions?: CompanionJson[];
 };
 
 /** The single human-readable review format. Local,
@@ -386,6 +389,7 @@ export function formatHumanReview(input: HumanReviewInput): string {
   const meta = [input.stats, guideBit, cgBit].filter(Boolean).join(" · ");
   const lines: string[] = [input.title, meta];
   if (input.intent) lines.push(INTENT_LINE);
+  if (input.companions?.length) lines.push(companionsLine(input.companions));
   lines.push("");
 
   const sorted = sortHumanFindings(input.findings);
@@ -503,6 +507,7 @@ export function formatHumanLocalReview(
   intent?: boolean,
   showReferences?: boolean,
   tools?: ToolUsage,
+  companions?: CompanionJson[],
 ): string {
   const stats = revisionStats(revision);
   return formatHumanReview({
@@ -517,6 +522,7 @@ export function formatHumanLocalReview(
     intent,
     showReferences,
     tools,
+    companions,
   });
 }
 
@@ -563,6 +569,9 @@ export type LocalReviewJsonInput = {
    * none was given, so a review without the flag prints the result it always
    * printed. */
   intent?: IntentRecord | null;
+  /** `companions`: the `--with` companions. Left out of the result when none
+   * was given. */
+  companions?: CompanionJson[];
 };
 
 export type PrReviewJsonInput = {
@@ -587,6 +596,9 @@ export type PrReviewJsonInput = {
    * none was given, so a review without the flag prints the result it always
    * printed. */
   intent?: IntentRecord | null;
+  /** `companions`: the `--with` companions. Left out of the result when none
+   * was given. */
+  companions?: CompanionJson[];
 };
 
 /** The review JSON with the extensions joined in, serialised. */
@@ -627,6 +639,7 @@ export function buildPrReviewJson(input: PrReviewJsonInput): string {
       prNumber: input.prNumber,
       ...(input.intent ? { intent: input.intent } : {}),
     },
+    ...(input.companions ? { companions: input.companions } : {}),
     revision,
     guide: { builtAt: input.guideBuiltAt },
     codegraph: {
@@ -659,6 +672,7 @@ export function buildLocalReviewJson(input: LocalReviewJsonInput): string {
       prNumber: null,
       ...(input.intent ? { intent: input.intent } : {}),
     },
+    ...(input.companions ? { companions: input.companions } : {}),
     base: { toBranch: input.baseLabel, label: input.baseLabel },
     revision,
     guide: { builtAt: input.guideBuiltAt },

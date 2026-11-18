@@ -54,6 +54,7 @@
           <li><a href="local-pr-review.html">PR review</a></li>
           <li><a href="commit-watch-review.html">Commit watch review</a></li>
           <li><a href="extensions.html">Extensions</a></li>
+          <li><a href="companions.html">Companions</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -746,6 +747,21 @@ co-maintainer review [options]
 <td><code>--intent-file=PATH</code></td>
 <td></td>
 <td>Tell the review what the change is for, from a file or from standard input with -. It is context only, never a rule. Up to the repository&#39;s custom prompt cap. Not with --range.</td>
+</tr>
+</tbody></table>
+<h3 id="companions">Companions</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--with=PATH[@BRANCH]</code></td>
+<td></td>
+<td>Read the changes of another checkout as context, such as the docs or a client of this code. Without @BRANCH its current branch and working tree, with @BRANCH that branch against its default branch, without a checkout. Repeat it for each companion, up to 5. Not with --range.</td>
 </tr>
 </tbody></table>
 <h3 id="diagrams">Diagrams</h3>

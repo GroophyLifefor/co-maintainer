@@ -55,6 +55,7 @@ Same as [local review](local-review.md) for diff and output flags:
 | `--allow-tool-install` | Allow codegraph install without a prompt |
 | `--fresh` | No carry-over from a prior remote run |
 | `--intent-file=PATH` | What the change is for, from a file or `-` for standard input. Context only, see [The intent file](#the-intent-file). Not with `--range` |
+| `--with=PATH[@BRANCH]` | Send another checkout's changes as context, up to 5, see [Companions](companions.md#remote-review). Not with `--range` |
 | `--to-branch=<name>` | Diff base branch |
 | `--branch=<name>` | Branch when HEAD is detached |
 | `--repo=owner/repo` | Override remote detection |
@@ -255,6 +256,15 @@ text comes from a client, so it is treated as untrusted.
   The characters U+2028 and U+2029 reach the prompt as a newline escape.
 - **Push reviews** (`--range`) take no intent, and the server ignores a
   description sent with one.
+
+## Companions
+
+`review --remote --with=PATH[@BRANCH]` builds each companion's diff on your
+machine and sends it with the review. A server that lists `companions` among
+its features reads them, takes at most 500,000 characters of their patches in
+total, and asks your machine to search a companion. An older server gets none,
+and the run warns `companions_unsupported`. See
+[Companions](companions.md#remote-review).
 
 ## Errors from the server
 

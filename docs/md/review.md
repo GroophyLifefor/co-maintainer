@@ -646,6 +646,14 @@ instruction to the model.
 
 [Remote review](remote-review.md#the-intent-file) says how the server treats it.
 
+## Companions
+
+`--with=PATH[@BRANCH]` reads the changes of another checkout as context, such as
+the docs or a client of the code under review. Each companion gets a COMPANION
+block in the user prompt, and findings stay on the reviewed repository's files.
+It works in local review, PR review and `review --remote`, up to 5 companions.
+See [Companions](companions.md).
+
 ## Extensions
 
 An [extension](extensions.md) is a command you register. Its findings, verdict,

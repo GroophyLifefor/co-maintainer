@@ -333,6 +333,11 @@ default, and a value that is not an integer is refused. In remote review the
 server's result and budget limits apply, and the context limit is the one the
 CLI has for the repository, because the CLI runs the search.
 
+A search of a [companion](companions.md) uses the companion repository's own
+context limit and `agentInstructions`. A companion's `read-full-diff` answers
+use the cap of the repository under review, and its results count toward that
+repository's budget.
+
 ## MCP servers
 
 What the servers do in a review is in [Review tools](review.md#mcp-servers).

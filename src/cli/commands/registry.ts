@@ -672,6 +672,17 @@ export const COMMANDS: CommandSpec[] = [
         ],
       },
       {
+        title: "Companions",
+        flags: [
+          {
+            name: "with",
+            value: "PATH[@BRANCH]",
+            description:
+              "Read the changes of another checkout as context, such as the docs or a client of this code. Without @BRANCH its current branch and working tree, with @BRANCH that branch against its default branch, without a checkout. Repeat it for each companion, up to 5. Not with --range.",
+          },
+        ],
+      },
+      {
         title: "Diagrams",
         flags: [
           {
@@ -712,6 +723,7 @@ export const COMMANDS: CommandSpec[] = [
       "co-maintainer review owner/repo 42 --system-prompt-file=extra.md",
       "co-maintainer review --system-prompt-override-file=strict.md",
       "co-maintainer review --intent-file=task.md",
+      "co-maintainer review --with=../docs --with=../vscode-ext@feature/session-api",
       "co-maintainer review owner/repo 42 --diagram-runtime=plantuml-server --plantuml-output-format=png",
     ],
   },

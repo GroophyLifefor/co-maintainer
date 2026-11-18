@@ -39,6 +39,7 @@ co-maintainer review owner/repo 123 --disable-codegraph --debug
 | `--allow-tool-install` | Install pinned codegraph without a prompt |
 | `--improve-matrix=N` | Scales review depth (see CLI help) |
 | `--intent-file=PATH` | What the change is for, from a file or `-` for standard input. Context only, read into the `PULL REQUEST` block, see [Intent](review.md#intent) |
+| `--with=PATH[@BRANCH]` | Read a local checkout's changes as context, up to 5, see [Companions](companions.md) |
 | `--diagram-runtime`, `--plantuml-server`, `--plantuml-output-format` | The diagram language of the review, see [Diagrams](review.md#diagrams) |
 | `--include-extension-markdowns` | With `--json`, keep each extension's Markdown, which is empty otherwise |
 | `--debug` | Verbose logs on stderr |

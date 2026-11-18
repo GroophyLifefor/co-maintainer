@@ -54,6 +54,7 @@
           <li><a href="local-pr-review.html">PR review</a></li>
           <li><a href="commit-watch-review.html">Commit watch review</a></li>
           <li><a href="extensions.html">Extensions</a></li>
+          <li><a href="companions.html">Companions</a></li>
           </ul>
         </div>
         <div class="nav-section">
@@ -792,6 +793,10 @@ the same way as the <code>read-full-diff</code> cap:</p>
 default, and a value that is not an integer is refused. In remote review the
 server&#39;s result and budget limits apply, and the context limit is the one the
 CLI has for the repository, because the CLI runs the search.</p>
+<p>A search of a <a href="companions.html">companion</a> uses the companion repository&#39;s own
+context limit and <code>agentInstructions</code>. A companion&#39;s <code>read-full-diff</code> answers
+use the cap of the repository under review, and its results count toward that
+repository&#39;s budget.</p>
 <h2 id="mcp-servers">MCP servers</h2>
 <p>What the servers do in a review is in <a href="review.html#mcp-servers">Review tools</a>.
 <code>--mcp-config</code> reads a JSON file with an <code>mcpServers</code> object and stores it, so a

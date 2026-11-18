@@ -26,6 +26,16 @@ import {
   reviewExitCodeFromResolved,
 } from "../review_result.ts";
 import { intentRecord, type IntentLoad } from "../review_intent.ts";
+import {
+  loadCompanions,
+  localCompanionSearch,
+  readCompanionVisibility,
+} from "../review_with.ts";
+import {
+  companionRecords,
+  companionsJson,
+  type CompanionJson,
+} from "../../review/companions.ts";
 import { startPrCarry } from "../pr_carry.ts";
 import { exitWith } from "../error.ts";
 import { printRunSummary, summaryFromMetrics } from "../../util/run_summary.ts";
@@ -77,6 +87,7 @@ async function runReviewPr(
     | "output"
     | "fresh"
     | "includeExtensionMarkdowns"
+    | "with"
   > & { intentLoad?: IntentLoad },
 ): Promise<void> {
   setCliInteractive(!cli.json);
@@ -94,8 +105,24 @@ async function runReviewPr(
       );
       log("review", modelSummary(options));
       const client = new GhClient(options.debug);
-      const carry = await startPrCarry(client, options, cli.fresh, (message) =>
-        log("review", message),
+      // The companions are local checkouts. Their visibility comes from the
+      // user's own GitHub auth, the same as the pull request.
+      const companions = cli.with?.length
+        ? await readCompanionVisibility(
+            await loadCompanions(cli.with, { repo: options.repo }),
+            options.repo,
+            client,
+          )
+        : [];
+      const companionJson: { companions?: CompanionJson[] } = companions.length
+        ? { companions: companionsJson(companions) }
+        : {};
+      const carry = await startPrCarry(
+        client,
+        options,
+        cli.fresh,
+        (message) => log("review", message),
+        companionRecords(companions),
       );
       const { review: result, extensions } = await withExtensions(
         cliPrContext({
@@ -122,7 +149,18 @@ async function runReviewPr(
               undefined,
               // The stored run leaves out what it saw, so the next run sends
               // the files this one dropped.
-              { ...carry.extras, catchesUp: true },
+              {
+                ...carry.extras,
+                catchesUp: true,
+                ...(companions.length
+                  ? {
+                      companions: {
+                        list: companions,
+                        search: localCompanionSearch(companions),
+                      },
+                    }
+                  : {}),
+              },
             ),
           ),
         (review) => reviewResultJson(review.text, options.reviewBlocking),
@@ -138,7 +176,11 @@ async function runReviewPr(
       // the old `useCodegraph ? "used" : "disabled"` that claimed "used" while
       // stderr said codegraph was missing.
       const codegraphState = result.codegraphState;
-      const resolved = await carry.finish(result);
+      // Findings on a companion file are shown and never carried.
+      const resolved = [
+        ...(await carry.finish(result)),
+        ...(result.companionFindings ?? []),
+      ];
       const intent = cli.intentLoad?.intent ?? null;
       const warnings = [
         ...carry.warnings,
@@ -164,6 +206,7 @@ async function runReviewPr(
             extensions,
             includeExtensionMarkdowns: cli.includeExtensionMarkdowns,
             intent: intentRecord(intent),
+            ...companionJson,
           }),
         );
       } else if (cli.output === "github") {
@@ -180,6 +223,7 @@ async function runReviewPr(
           intent: intent !== null,
           showReferences:
             readConfig().repos?.[options.repo]?.reviewReferences === true,
+          ...companionJson,
         });
       } else {
         // One presentation layer for local, PR and remote reviews.
@@ -200,6 +244,7 @@ async function runReviewPr(
               showReferences:
                 readConfig().repos?.[options.repo]?.reviewReferences === true,
               tools: result.tools,
+              ...companionJson,
             }) +
             "\n",
         );

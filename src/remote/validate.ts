@@ -7,6 +7,7 @@ import {
   REMOTE_SCHEMA_VERSION,
   REMOTE_SYNC_STATUSES,
 } from "./schema.ts";
+import { validateCompanionsPayload } from "./companions.ts";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -46,7 +47,7 @@ export function assertClientSchema(version: number): string | null {
   return null;
 }
 
-function validateBranch(name: string, value: string): string | null {
+export function validateBranch(name: string, value: string): string | null {
   if (!value) return bad(name, "must not be empty");
   if (value.length > 255) return bad(name, "too long");
   if (/[\0\r\n]/.test(value)) return bad(name, "invalid characters");
@@ -72,7 +73,7 @@ export function validateRemotePath(field: string, path: string): string | null {
   return null;
 }
 
-function validateRevisionFile(
+export function validateRevisionFile(
   file: unknown,
   index: number,
   paths: Set<string>,
@@ -232,6 +233,8 @@ export function validateSubmitRequest(body: unknown): string | null {
 
   const revisionErr = validateRevisionPayload(body.revision);
   if (revisionErr) return revisionErr;
+  const companionsErr = validateCompanionsPayload(body.companions);
+  if (companionsErr) return companionsErr;
 
   if (body.push !== undefined) {
     if (!isRecord(body.push)) return bad("push", "must be an object");

@@ -48,13 +48,30 @@ export type CarryRun = {
   previous: CarryPrevious | null;
   items: CarryItem[];
   extras: { carryPrompt?: string; unchangedPaths?: string[] };
+  /** A companion changed since the last round, so every carried finding is
+   * checked again. */
+  recheck?: boolean;
 };
 
-/** `previous` is null on a first or fresh run, and then nothing is carried. */
+/** With `recheck`, a finding in an unchanged file is checked again: a
+ * companion changed, and that can make it right or wrong. */
+function rechecked(items: CarryItem[], recheck: boolean): CarryItem[] {
+  if (!recheck) return items;
+  return items.map((item) =>
+    item.class === "unchanged"
+      ? { ...item, class: "verify_companion_changed" }
+      : item,
+  );
+}
+
+/** `previous` is null on a first or fresh run, and then nothing is carried.
+ * `recheck` is true when a companion changed since the last round: every
+ * file is sent again and every carried finding is checked again. */
 export function startCarryRun(
   previous: PreviousRun | null,
   revision: Revision,
   currentGuideBuiltAt: string | null,
+  recheck = false,
 ): CarryRun {
   if (!previous) return { previous: null, items: [], extras: {} };
   const carryPrevious: CarryPrevious = {
@@ -68,19 +85,23 @@ export function startCarryRun(
     previous.files,
     carryPrevious.visiblePaths,
   );
-  const items = classifyCarryItems(
-    carryPrevious,
-    revision,
-    carryPrevious.visiblePaths,
-    currentGuideBuiltAt,
+  const items = rechecked(
+    classifyCarryItems(
+      carryPrevious,
+      revision,
+      carryPrevious.visiblePaths,
+      currentGuideBuiltAt,
+    ),
+    recheck,
   );
   return {
     previous: carryPrevious,
     items,
     extras: {
-      unchangedPaths: unchanged,
+      unchangedPaths: recheck ? [] : unchanged,
       carryPrompt: buildCarryPromptSection(items, revision),
     },
+    ...(recheck ? { recheck } : {}),
   };
 }
 
@@ -115,11 +136,14 @@ export function finishCarryRun(
       ),
     };
   }
-  const items = classifyCarryItems(
-    run.previous,
-    revision,
-    visiblePaths,
-    response.guideBuiltAt,
+  const items = rechecked(
+    classifyCarryItems(
+      run.previous,
+      revision,
+      visiblePaths,
+      response.guideBuiltAt,
+    ),
+    run.recheck ?? false,
   );
   return {
     resolved: withResolvedReferences(
