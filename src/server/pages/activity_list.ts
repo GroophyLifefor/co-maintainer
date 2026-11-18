@@ -194,11 +194,11 @@ function activityRow(row: ActivityRow, warning: string | undefined): string {
     <td class="sel"><input type="checkbox" data-select aria-label="${escapeHtml(
       `Select ${label}`,
     )}"></td>
-    <td class="wrap"><a class="strong" href="${escapeHtml(href)}">${text(label)}</a></td>
-    <td class="wrap">${subjectCell(row)}</td>
+    <td class="nowrap"><a class="strong" href="${escapeHtml(href)}">${text(label)}</a></td>
+    <td class="nowrap">${subjectCell(row)}</td>
     <td class="wrap">${resultCell(row)}${settledMark(row)}</td>
     <td class="num">${review ? formatCost(review) : ""}</td>
-    <td class="muted">${when(row.at)}</td>
+    <td class="muted nowrap">${when(row.at)}</td>
     <td>${statusCell(row)}${
       warning
         ? `<span class="warn-mark" role="img" aria-label="${escapeHtml(
@@ -418,8 +418,8 @@ function filtersBlock(query: ActivityQuery, repos: string[]): string {
     <input class="inp" type="number" min="1" step="1" name="pr" value="${
       query.pr ?? ""
     }" placeholder="PR" aria-label="Pull request number" style="width:90px">
-    <input class="inp" type="date" name="from" value="${escapeHtml(query.from ?? "")}" aria-label="From day" style="width:auto">
-    <input class="inp" type="date" name="to" value="${escapeHtml(query.to ?? "")}" aria-label="To day" style="width:auto">
+    <label class="inline-lbl">From <input class="inp" type="date" name="from" value="${escapeHtml(query.from ?? "")}" style="width:auto"></label>
+    <label class="inline-lbl">To <input class="inp" type="date" name="to" value="${escapeHtml(query.to ?? "")}" style="width:auto"></label>
     ${hidden}
     <button type="submit" class="btn out sm">Filter</button>
   </form>
