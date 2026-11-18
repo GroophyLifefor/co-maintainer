@@ -6,6 +6,16 @@ import { VERSION } from "../../version.ts";
 import type { NavCounts } from "../../services/nav_counts.ts";
 import { SETTINGS_INDEX } from "./settings_index.ts";
 
+/** The co-maintainer mark, the same drawing as the website header: a "C"
+ * around the bird's head. It is drawn in the text color, so it follows dark
+ * mode. */
+export function brandMark(className: string, label = ""): string {
+  const a11y = label
+    ? `role="img" aria-label="${label}"`
+    : `aria-hidden="true"`;
+  return `<svg class="${className}" viewBox="0 0 100 100" ${a11y}><path d="M78 28 A37 37 0 1 0 78 72" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round"/><path fill="currentColor" fill-rule="evenodd" d="M35 50 a15 15 0 1 0 30 0 a15 15 0 1 0 -30 0 Z M48.5 46 a3.5 3.5 0 1 0 7 0 a3.5 3.5 0 1 0 -7 0 Z"/><path fill="currentColor" d="M60 43 L90 50 L60 57 Z"/></svg>`;
+}
+
 export function escapeHtml(value: unknown): string {
   return String(value ?? "").replace(
     /[&<>"']/g,
@@ -385,7 +395,7 @@ export function layout(opts: {
 ${sprite}
 <div class="app">
   <aside class="side" id="side">
-    <a class="logo" href="/"><img class="mark" src="/logo.png" alt=""><span class="name"><span class="n">co-maintainer</span><span class="s">Dashboard</span></span></a>
+    <a class="logo" href="/">${brandMark("mark")}<span class="name"><span class="n">co-maintainer</span><span class="s">Dashboard</span></span></a>
     <button type="button" class="search" data-palette aria-keyshortcuts="Control+K Meta+K">${ico(
       "search",
     )}<span>Search…</span><kbd>Ctrl K</kbd></button>

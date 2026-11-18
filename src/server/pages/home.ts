@@ -1,4 +1,5 @@
 import {
+  brandMark,
   empty,
   escapeHtml,
   html,
@@ -58,7 +59,7 @@ export function renderLogin(opts: {
   return html(
     layoutFocus({
       title: "Sign in · co-maintainer",
-      body: `<img class="brand" src="/logo.png" alt="co-maintainer">
+      body: `${brandMark("brand", "co-maintainer")}
   <div class="pagehead"><div><h1>Sign in</h1>
     <p class="lead">${text(lead)}</p></div></div>
   ${err}

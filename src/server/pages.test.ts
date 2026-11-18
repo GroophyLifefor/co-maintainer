@@ -207,8 +207,16 @@ test("GET / without a session redirects to login", async () => {
     const login = await (
       await app.fetch(new Request("http://localhost/login"))
     ).text();
-    if (!login.includes('class="brand" src="/logo.png"')) {
+    // The mark is drawn as SVG in the text color, like the website header.
+    if (
+      !login.includes(
+        '<svg class="brand" viewBox="0 0 100 100" role="img" aria-label="co-maintainer">',
+      )
+    ) {
       throw new Error("login missed the logo");
+    }
+    if (login.includes('src="/logo.png" alt="co-maintainer"')) {
+      throw new Error("login still shows the old logo image");
     }
   });
 });
@@ -977,8 +985,9 @@ test("mutating pages ship a skeleton and a failure path", async () => {
       ) {
         throw new Error(`${path} missed the toast host or the inlined helper`);
       }
+      // The sidebar draws the mark as SVG, the tab icon stays the image.
       if (
-        !html.includes('src="/logo.png"') ||
+        !html.includes('<a class="logo" href="/"><svg class="mark"') ||
         !html.includes('rel="icon" href="/logo.png"')
       ) {
         throw new Error(`${path} missed the logo`);

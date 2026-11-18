@@ -62,11 +62,11 @@ code,
   object-fit: cover;
 }
 .brand {
-  width: 180px;
-  height: auto;
+  width: 64px;
+  height: 64px;
   display: block;
-  margin: 0 0 14px;
-  border-radius: 8px;
+  margin: 0 0 18px;
+  color: var(--fg);
 }
 
 /* layout */
@@ -2101,8 +2101,7 @@ html.dark {
 .app .side .logo .mark {
   width: 30px;
   height: 30px;
-  border-radius: 8px;
-  background: var(--hover);
+  color: var(--fg);
   display: flex;
   align-items: center;
   justify-content: center;
