@@ -12,7 +12,9 @@ function toast(message) {
 }
 
 /** The same rule as `money` in `layout.ts`: two decimals from a cent up, at
- * most four below a cent. */
+ * most four below a cent. Called from the pages' inline scripts, which the
+ * linter cannot see. */
+// oxlint-disable-next-line no-unused-vars
 function money(value) {
   const n = Number(value || 0);
   if (!Number.isFinite(n) || n === 0) return "$0.00";
