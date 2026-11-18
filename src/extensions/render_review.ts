@@ -225,20 +225,14 @@ export function reviewBodyWithExtensions(
   return text;
 }
 
-/** One extension's `request_changes` makes the review Request changes. A
- * review the AI would approve only comments while an extension finding
- * stands. */
+/** One extension's `request_changes` makes the review Request changes.
+ * Any other extension finding is non-blocking, so it stays a comment and
+ * never holds back an approval (#137). */
 export function reviewEventWithExtensions(
   event: "REQUEST_CHANGES" | "COMMENT" | "APPROVE",
   report: ExtensionReport,
 ): "REQUEST_CHANGES" | "COMMENT" | "APPROVE" {
   if (extensionsBlock(report)) return "REQUEST_CHANGES";
-  if (
-    event === "APPROVE" &&
-    report.findings.some((row) => row.state !== "closed")
-  ) {
-    return "COMMENT";
-  }
   return event;
 }
 
