@@ -17,6 +17,8 @@ export type FindingFilter = {
   q?: string;
   /** Only findings from reviews at or after this time. */
   sinceIso?: string;
+  /** Only findings on pull requests this GitHub login opened. */
+  author?: string;
 };
 
 export type FindingListRow = FindingRow & {
@@ -70,6 +72,13 @@ function whereOf(filter: FindingFilter): {
   if (filter.sinceIso) {
     where.push("r.created_at >= ?");
     params.push(filter.sinceIso);
+  }
+  if (filter.author) {
+    where.push(
+      `EXISTS (SELECT 1 FROM pull_titles a WHERE a.repo = r.repo
+        AND a.pr_number = r.pr_number AND a.author = ?)`,
+    );
+    params.push(filter.author);
   }
   return { sql: where.join(" AND "), params };
 }

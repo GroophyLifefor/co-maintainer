@@ -38,6 +38,8 @@ export type FindingQuery = {
   q?: string;
   repo?: string;
   days?: number;
+  /** The GitHub login that opened the pull request. */
+  author?: string;
   page: number;
 };
 
@@ -58,6 +60,7 @@ export function parseFindingQuery(params: URLSearchParams): FindingQuery {
     q: trimmed("q"),
     repo: trimmed("repo"),
     days: [7, 30, 90].includes(days) ? days : undefined,
+    author: trimmed("author")?.slice(0, 100),
     page: Number.isSafeInteger(page) && page > 0 ? page : 1,
   };
 }
@@ -77,6 +80,7 @@ export function findingFilter(
     file: query.file,
     q: query.q,
     sinceIso: query.days ? daysAgoIso(query.days) : undefined,
+    author: query.author,
   };
 }
 
@@ -90,6 +94,7 @@ export function findingsHref(
     state?: "open" | "closed" | "all";
     pr?: number;
     days?: number;
+    author?: string;
   } = {},
 ): string {
   const params = new URLSearchParams();
@@ -99,6 +104,7 @@ export function findingsHref(
   }
   if (filters.pr) params.set("pr", String(filters.pr));
   if (filters.days) params.set("days", String(filters.days));
+  if (filters.author) params.set("author", filters.author);
   const base = repo ? `/repos/${repo}/findings` : "/findings";
   const query = params.toString();
   return query ? `${base}?${query}` : base;
@@ -119,6 +125,7 @@ function withQuery(
     q: query.q,
     repo: query.repo,
     days: query.days,
+    author: query.author,
     page: undefined,
     ...patch,
   };
@@ -189,6 +196,9 @@ export function renderFindings(
   if (query.days) {
     active.push({ label: `Last ${query.days} days`, drop: "days" });
   }
+  if (query.author) {
+    active.push({ label: `Author: ${query.author}`, drop: "author" });
+  }
   const chips = active.length
     ? `<div class="chips">${active
         .map(
@@ -201,7 +211,7 @@ export function renderFindings(
         )
         .join("")}</div>`
     : "";
-  const hidden = (["severity", "state", "days"] as const)
+  const hidden = (["severity", "state", "days", "author"] as const)
     .map((name) => {
       const value =
         name === "state" && query.state === "open" ? undefined : query[name];

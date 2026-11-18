@@ -220,6 +220,7 @@ test("a hand-edited query keeps only the values that fit", () => {
     q: undefined,
     repo: undefined,
     days: undefined,
+    author: undefined,
     page: 1,
   });
   assert.equal(
