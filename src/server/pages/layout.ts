@@ -334,6 +334,20 @@ function navHtml(active: string | undefined): string {
   ).join("")}</nav>`;
 }
 
+/** A small box under the menu when a newer release is known. Only a host
+ * that set `CM_UPDATE_URL` ever knows one. */
+function updateNoteHtml(): string {
+  const notice = readNavCounts()?.update;
+  if (!notice?.latest) return "";
+  return `<div class="update-note" role="status"><a href="/settings/server#updates">${text(
+    `co-maintainer ${notice.latest} is out. This instance runs ${notice.running}.`,
+  )}</a>${
+    notice.notesUrl
+      ? ` <a class="notes" href="${escapeHtml(notice.notesUrl)}" target="_blank" rel="noopener">Release notes</a>`
+      : ""
+  }</div>`;
+}
+
 /** The Ctrl K palette, hidden until `client.js` opens it. Results are filled
  * from `/api/search`. */
 const PALETTE = `<div class="pal-ov" id="pal-ov" hidden></div>
@@ -366,6 +380,7 @@ ${sprite}
       "search",
     )}<span>Search…</span><kbd>Ctrl K</kbd></button>
     ${navHtml(opts.active)}
+    ${updateNoteHtml()}
     <div class="sidefoot">
       <div class="me"><span class="av">${text(
         initials,

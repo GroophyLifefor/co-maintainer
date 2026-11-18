@@ -7,6 +7,7 @@ import { listActiveRepos } from "../store/repos.ts";
 import { openFailures, openFailuresHref } from "./open_failures.ts";
 import { readConfig } from "../config.ts";
 import { setupChecklist } from "./setup_checklist.ts";
+import { updateNotice, type UpdateNotice } from "./update_check.ts";
 
 export type NavCounts = {
   repos: number;
@@ -16,6 +17,8 @@ export type NavCounts = {
   failedHref: string;
   /** "n/4", or "✓" once every required step is done. */
   setup: string;
+  /** The newer version notice. Optional so a test source need not name it. */
+  update?: UpdateNotice;
 };
 
 export function navCounts(webhookUrl: string): NavCounts {
@@ -27,5 +30,6 @@ export function navCounts(webhookUrl: string): NavCounts {
     failed: openFailures(undefined, now),
     failedHref: openFailuresHref(undefined, now),
     setup: done === steps.length ? "✓" : `${done}/${steps.length}`,
+    update: updateNotice(),
   };
 }

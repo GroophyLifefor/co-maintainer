@@ -208,6 +208,13 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     "Change the dashboard password.",
   ),
   entry(
+    "Server",
+    SERVER,
+    "updates",
+    "Updates",
+    "The version this server runs, a newer release and how to update.",
+  ),
+  entry(
     "Audit log",
     AUDIT,
     "audit",

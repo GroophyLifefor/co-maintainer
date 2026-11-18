@@ -1,5 +1,7 @@
 import { html, layout, skSlot, text } from "./layout.ts";
 import { SAVE_STATE } from "./ui.ts";
+import { UPDATES_SCRIPT, updatesCard } from "./updates.ts";
+import { updateNotice } from "../../services/update_check.ts";
 import type { UserConfig } from "../../config.ts";
 import {
   aiConfigured,
@@ -276,7 +278,7 @@ function runtimeCard(runtime: RuntimeInfo): string {
 }
 
 function serverCard(config: UserConfig, runtime: RuntimeInfo): string {
-  return `${runtimeCard(runtime)}<div class="card" id="server" data-async>
+  return `${runtimeCard(runtime)}${updatesCard(updateNotice())}<div class="card" id="server" data-async>
       ${skSlot()}
       <div class="hd"><h2>Job queue</h2></div>
       <div class="bd">
@@ -735,7 +737,7 @@ const SCRIPT_BY_SECTION: Record<SettingsSection, string> = {
   github: SCRIPT_GITHUB,
   defaults: SCRIPT_DEFAULTS,
   remote: SCRIPT_REMOTE,
-  server: SCRIPT_SERVER,
+  server: SCRIPT_SERVER + UPDATES_SCRIPT,
   "sign-in": SCRIPT_SIGNIN,
   danger: SCRIPT_DANGER,
 };

@@ -3113,3 +3113,21 @@ html.dark {
 .app .rv-preview[data-refs="off"] .rv-refs {
   display: none;
 }
+
+/* The newer version notice under the menu. */
+.app .side .update-note {
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--sky-b);
+  border-radius: 8px;
+  background: var(--sky-bg);
+  color: var(--sky-t);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.app .side .update-note a {
+  color: inherit;
+}
+.app .side .update-note a.notes {
+  text-decoration: underline;
+}

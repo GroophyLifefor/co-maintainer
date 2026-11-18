@@ -27,6 +27,7 @@ import { handleSettingsRoute } from "./api/settings.ts";
 import { handleActivityRoute } from "./api/activity.ts";
 import { handleAnalyticsRoute } from "./api/analytics.ts";
 import { handleRemoteTokensRoute } from "./api/remote_tokens.ts";
+import { handleUpdateRoute } from "./api/update.ts";
 import { handleRemoteRoute } from "../remote/server/routes.ts";
 import { handleWebhookRequest } from "./webhook/index.ts";
 import { handlePageRequest } from "./pages/router.ts";
@@ -271,6 +272,9 @@ export function createApp(deps: AppDeps): App {
         }
         if (url.pathname.startsWith("/api/remote-tokens")) {
           return await handleRemoteTokensRoute(request, url);
+        }
+        if (url.pathname === "/api/update") {
+          return await handleUpdateRoute(request, url);
         }
 
         return errorResponse(404, "not_found", `no route for ${url.pathname}`);
