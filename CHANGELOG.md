@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.17] - 2026-11-19
+
+### Fixed
+
+- **`probe` counts the pull requests `init` reads.** The estimate counted every pull request in the repository, even with `--max-pr-months`, so a large repository was estimated at many hours. It now counts only the pull requests in the recommended window, the way `init` does. AI time now accounts for `--ai-concurrent`, and the codebase job is counted from the recommended flags.
+
+### Added
+
+- **GitHub time and quota in the `probe` estimate.** The `init estimate` shows the GitHub calls the run makes, how long they take (measured from the probe's own calls) and whether they fit in the hourly quota from `/rate_limit`. A run that needs more than what is left either stays under the hourly limit as it runs or says how long it waits for it. The time is the GitHub time plus the AI time, and the line says which part decides it.
+- **A faster option.** When the recommended `init` would take more than 30 minutes, `probe` also shows a faster `init` with a shorter PR window and half the commits per step, with its own time, calls, cost and full command.
+- **Review estimate.** `probe` reads the files of the 10 newest pull requests a review would run on (no bots, no drafts, no empty diffs) and shows what one review costs, as the median and the highest. It follows the review's own rules: tool rounds that grow with the diff, summaries for very large files and the diff cap. It assumes one pass and no codebase graph.
+- **Clearer `probe` output.** Sections and options are colored on a terminal (off with `NO_COLOR`, in CI and with `--json`), each option has a full command to copy, and without models each cost line says which flags to add. `--json` gains `pullRequestsInWindow`, `totalSeconds`, `bottleneck`, `github`, `faster` and `review`.
+- **The dashboard's Add repository preview** shows the same time, GitHub calls, cost, faster option and review estimate as the CLI.
+
 ## [0.7.16] - 2026-11-18
 
 ### Changed
