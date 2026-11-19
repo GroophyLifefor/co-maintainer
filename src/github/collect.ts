@@ -55,7 +55,10 @@ function reviewCommentText(comment: Json): string {
   return path ? `${path}:${line} ${body}` : body;
 }
 
-function withinPrWindow(updatedAt: string, months?: number): boolean {
+/** Whether a pull request updated at `updatedAt` falls in the last `months`
+ * months. Unset or 0 is every month. The probe counts its window with this
+ * too, so the estimate counts what `init` reads. */
+export function withinPrWindow(updatedAt: string, months?: number): boolean {
   if (months === undefined || months === 0) return true;
   const cutoff = new Date();
   cutoff.setMonth(cutoff.getMonth() - months);
@@ -274,6 +277,31 @@ async function file(
   }
 }
 
+/** The files the codebase read fetches: the canonical project files, then
+ * up to 20 representative source files, 80 at most. Instruction files read
+ * on their own are left out. The probe counts its estimate with this too. */
+export function importantCodebasePaths(
+  tree: string[],
+  isInstruction: Set<string> = new Set(),
+): string[] {
+  const canonical = tree.filter(
+    (path) =>
+      !isInstruction.has(path) &&
+      /(^|\/)(README|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY|CHANGELOG)(\.[^/]*)?$|(^|\/)(package\.json|deno\.json|Cargo\.toml|Makefile|justfile|CODEOWNERS|build\.rs)$|^\.github\/(workflows\/.+\.(yml|yaml)|PULL_REQUEST_TEMPLATE.*)$/i.test(
+        path,
+      ),
+  );
+  const representative = tree
+    .filter(
+      (path) =>
+        !isInstruction.has(path) &&
+        /\.(rs|ts|tsx|js|jsx|py|go|java|cs|cpp|c|swift)$/i.test(path) &&
+        !/(^|\/)(test|tests|vendor|dist|target)\//i.test(path),
+    )
+    .slice(0, 20);
+  return [...new Set([...canonical, ...representative])].slice(0, 80);
+}
+
 /** What the codebase fetch saves while it runs. `instructionFiles` is always
  * named, even when missing: the blob SHAs it is checked against are saved in
  * the same write, so a checkpoint never pairs new SHAs with old contents. */
@@ -332,25 +360,7 @@ async function codebase(
     );
   }
   const isInstruction = new Set(Object.keys(instructionFiles ?? {}));
-  const canonical = tree.filter(
-    (path) =>
-      !isInstruction.has(path) &&
-      /(^|\/)(README|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY|CHANGELOG)(\.[^/]*)?$|(^|\/)(package\.json|deno\.json|Cargo\.toml|Makefile|justfile|CODEOWNERS|build\.rs)$|^\.github\/(workflows\/.+\.(yml|yaml)|PULL_REQUEST_TEMPLATE.*)$/i.test(
-        path,
-      ),
-  );
-  const representative = tree
-    .filter(
-      (path) =>
-        !isInstruction.has(path) &&
-        /\.(rs|ts|tsx|js|jsx|py|go|java|cs|cpp|c|swift)$/i.test(path) &&
-        !/(^|\/)(test|tests|vendor|dist|target)\//i.test(path),
-    )
-    .slice(0, 20);
-  const important = [...new Set([...canonical, ...representative])].slice(
-    0,
-    80,
-  );
+  const important = importantCodebasePaths(tree, isInstruction);
   const files: Record<string, string> = {};
   let completed = 0;
   let save = Promise.resolve();
