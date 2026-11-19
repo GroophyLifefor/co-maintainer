@@ -6,6 +6,8 @@
  * envelope as `review --json` and the CLI error. Progress stays on stderr.
  */
 import type { Estimate } from "../ai/estimate.ts";
+import type { InitOption, ProbeEstimate } from "../services/probe_estimate.ts";
+import type { ReviewCost } from "../ai/review_estimate.ts";
 import type { RunSummary } from "../util/run_summary.ts";
 import type { Contradiction, RuleChanges } from "../knowledge/rule_changes.ts";
 
@@ -14,6 +16,8 @@ export type ProbeJsonInput = {
   recommended: string;
   research: {
     pullRequests: number;
+    /** Pull requests in the recommended PR window, what `init` reads. */
+    pullRequestsInWindow?: number;
     sampledPullRequests: number;
     commits: number;
     usefulCommits: number;
@@ -25,6 +29,8 @@ export type ProbeJsonInput = {
   estimate: Estimate;
   /** The prose cost line, kept so a missing dollar range still says why. */
   costNote: string;
+  /** The GitHub, faster option and review parts of the estimate. */
+  probe?: ProbeEstimate;
   durationMs: number;
   /** Commit watch through the GitHub App. Left out when this machine has no
    * App configured, since nothing can be said then. */
@@ -49,10 +55,67 @@ export function buildProbeJson(input: ProbeJsonInput): string {
       usd: estimate.usd ?? null,
       cost: input.costNote,
       basis: estimate.basis,
+      ...(input.probe ? probeParts(input.probe) : {}),
     },
     ...(input.commitWatch ? { commitWatch: input.commitWatch } : {}),
     durationMs: input.durationMs,
   });
+}
+
+/** GitHub calls, the whole run time, the faster option and the review cost.
+ * `seconds` above stays the AI time, as it always was. */
+function probeParts(probe: ProbeEstimate) {
+  const option = (item: InitOption) => ({
+    command: item.command,
+    maxPrMonths: item.maxPrMonths ?? null,
+    maxCommits: item.maxCommits ?? null,
+    pullRequests: item.pullRequests,
+    commits: item.commits,
+    totalSeconds: item.seconds.map(Math.round),
+    bottleneck: item.bottleneck,
+    github: {
+      calls: item.github.calls,
+      seconds: item.github.seconds.map(Math.round),
+      callSeconds: Math.round(item.github.callSeconds),
+      quotaWaitSeconds: Math.round(item.github.quotaWaitSeconds),
+      quota: item.github.quota
+        ? {
+            limit: item.github.quota.limit,
+            remaining: item.github.quota.remaining,
+            resetAt: new Date(item.github.quota.resetAt).toISOString(),
+          }
+        : null,
+    },
+    ai: {
+      extract: item.ai.extract,
+      synth: item.ai.synth,
+      seconds: item.ai.seconds.map(Math.round),
+      usd: item.ai.usd ?? null,
+    },
+  });
+  const review = (cost: ReviewCost) => ({
+    pullRequest: cost.number,
+    changedLines: cost.changedLines,
+    rounds: cost.rounds,
+    summarized: cost.summarized,
+    tokensIn: cost.tokensIn,
+    tokensOut: cost.tokensOut,
+    usd: cost.usd ?? null,
+  });
+  const { recommended } = probe;
+  return {
+    totalSeconds: recommended.seconds.map(Math.round),
+    bottleneck: recommended.bottleneck,
+    github: option(recommended).github,
+    faster: probe.faster ? option(probe.faster) : null,
+    review: probe.review
+      ? {
+          sampled: probe.review.sampled,
+          median: review(probe.review.median),
+          highest: review(probe.review.highest),
+        }
+      : null,
+  };
 }
 
 export type SetupJsonInput = {

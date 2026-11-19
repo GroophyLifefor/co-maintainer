@@ -27,7 +27,7 @@ test("harness: probe runs in a real process and reads the fake gh", async () => 
     if (!/co-maintainer init fixture\/repo/.test(result.stdout)) {
       throw new Error(`no init command:\n${result.stdout}`);
     }
-    if (!result.stdout.includes("PRs: 1")) {
+    if (!result.stdout.includes("PRs 1")) {
       throw new Error(`fixture pull request not counted:\n${result.stdout}`);
     }
     const calls = await readTextFile(`${harness.home}/gh-calls.log`);
