@@ -172,6 +172,32 @@ test("probe estimate: GitHub calls past the quota wait for the reset", () => {
   }
 });
 
+test("probe estimate: an empty PR window still costs the listing page", () => {
+  const empty = estimateGithub({
+    includePullRequests: true,
+    pullRequests: 0,
+    includeChanges: true,
+    changeShare: 1,
+    includeCodebase: false,
+    commits: 0,
+    ghConcurrent: 1,
+    secondsPerCall: 0.1,
+  });
+  // metadata + the one listing page that shows the window is empty
+  if (empty.calls !== 2) throw new Error(`calls: ${empty.calls}`);
+  const off = estimateGithub({
+    includePullRequests: false,
+    pullRequests: 0,
+    includeChanges: false,
+    changeShare: 1,
+    includeCodebase: false,
+    commits: 0,
+    ghConcurrent: 1,
+    secondsPerCall: 0.1,
+  });
+  if (off.calls !== 1) throw new Error(`off calls: ${off.calls}`);
+});
+
 test("probe estimate: a run over 30 minutes gets a shorter, faster window", async () => {
   const estimate = await estimateProbe(bigPlan(), OPTIONS);
   const { recommended, faster } = estimate;

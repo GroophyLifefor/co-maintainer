@@ -88,12 +88,14 @@ Over 30 minutes, the **faster** option tries a 24, 12, 6 and then 3 month PR
 window, halving `--max-commits` each step, and shows the first one that fits
 in 30 minutes. It learns from less review history, and its cost line says so.
 
-The `review estimate` block reads the files of the 10 newest pull requests
-that a review would run on (no bots, no drafts, no empty diffs) and prices one
+The `review estimate` block takes the 30 most recently updated pull requests,
+keeps the ones a review would run on (no bots, no drafts, no empty diffs),
+reads the files of the newest 10 of those and prices one
 review of each: the diff the review would be given, summaries for very large
 files, and the tool rounds a review of that size takes. It shows the median
-and the highest. It assumes one pass and no codebase graph. With fewer than 5
-such pull requests there is no review estimate.
+and the highest, ordered by dollars when the models have prices. It assumes
+one pass and no codebase graph. With fewer than 5 such pull requests there is
+no review estimate.
 
 `--run` runs the recommended `init` in the same process after printing the
 plan, which is the "look then do" step in one command. It is the same code
@@ -123,7 +125,7 @@ would be two documents on one stdout. Run `probe --json`, then the
 - Repository metadata and latest release (if any)
 - Pull request list (updated time, sampling across years)
 - A bounded sample of PR diffs for size and activity
-- The changed files of the 10 newest reviewable pull requests, for the review
+- The changed files of up to 10 recent reviewable pull requests, for the review
   estimate
 - Default-branch commit history
 - The GitHub quota left this hour

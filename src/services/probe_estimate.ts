@@ -137,6 +137,7 @@ function initOption(
     aiConcurrent: options.aiConcurrent,
   });
   const github = estimateGithub({
+    includePullRequests: flags.includePullRequests,
     pullRequests,
     includeChanges: flags.includePullRequestChanges,
     changeShare: plan.changeShare,

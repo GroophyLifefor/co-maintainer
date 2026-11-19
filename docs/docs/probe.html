@@ -227,12 +227,14 @@ says which one it used.</li>
 <p>Over 30 minutes, the <strong>faster</strong> option tries a 24, 12, 6 and then 3 month PR
 window, halving <code>--max-commits</code> each step, and shows the first one that fits
 in 30 minutes. It learns from less review history, and its cost line says so.</p>
-<p>The <code>review estimate</code> block reads the files of the 10 newest pull requests
-that a review would run on (no bots, no drafts, no empty diffs) and prices one
+<p>The <code>review estimate</code> block takes the 30 most recently updated pull requests,
+keeps the ones a review would run on (no bots, no drafts, no empty diffs),
+reads the files of the newest 10 of those and prices one
 review of each: the diff the review would be given, summaries for very large
 files, and the tool rounds a review of that size takes. It shows the median
-and the highest. It assumes one pass and no codebase graph. With fewer than 5
-such pull requests there is no review estimate.</p>
+and the highest, ordered by dollars when the models have prices. It assumes
+one pass and no codebase graph. With fewer than 5 such pull requests there is
+no review estimate.</p>
 <p><code>--run</code> runs the recommended <code>init</code> in the same process after printing the
 plan, which is the &quot;look then do&quot; step in one command. It is the same code
 path the dashboard uses, not a re-spawn.</p>
@@ -257,7 +259,7 @@ would be two documents on one stdout. Run <code>probe --json</code>, then the
 <li>Repository metadata and latest release (if any)</li>
 <li>Pull request list (updated time, sampling across years)</li>
 <li>A bounded sample of PR diffs for size and activity</li>
-<li>The changed files of the 10 newest reviewable pull requests, for the review
+<li>The changed files of up to 10 recent reviewable pull requests, for the review
 estimate</li>
 <li>Default-branch commit history</li>
 <li>The GitHub quota left this hour</li>

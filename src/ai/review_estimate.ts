@@ -138,18 +138,41 @@ function cost(tokensIn: number, tokensOut: number, price: ModelPrice): number {
 }
 
 /** The median and the highest review cost over the sample, or nothing when
- * the sample is too small to say. */
+ * the sample is too small to say. Ordered by dollars when every review has
+ * a price, by tokens otherwise. With an even sample the median is the mean
+ * of the middle two. */
 export function estimateReview(
   sample: ReviewSamplePull[],
   prices: { low?: ModelPrice; high?: ModelPrice },
 ): ReviewEstimate | undefined {
   if (sample.length < REVIEW_SAMPLE_MIN) return undefined;
-  const costs = sample
-    .map((pull) => reviewCost(pull, prices))
-    .sort((a, b) => a.tokensIn - b.tokensIn);
+  const costs = sample.map((pull) => reviewCost(pull, prices));
+  const priced = costs.every((cost) => cost.usd !== undefined);
+  const key = (cost: ReviewCost) => (priced ? (cost.usd ?? 0) : cost.tokensIn);
+  costs.sort((a, b) => key(a) - key(b));
+  const upper = costs[Math.floor(costs.length / 2)];
+  const median =
+    costs.length % 2 === 1 ? upper : middle(costs[costs.length / 2 - 1], upper);
   return {
     sampled: costs.length,
-    median: costs[Math.floor((costs.length - 1) / 2)],
+    median,
     highest: costs[costs.length - 1],
+  };
+}
+
+/** The mean of two reviews, for the median of an even sample. */
+function middle(a: ReviewCost, b: ReviewCost): ReviewCost {
+  const mean = (x: number, y: number) => Math.round((x + y) / 2);
+  return {
+    number: b.number,
+    changedLines: mean(a.changedLines, b.changedLines),
+    rounds: mean(a.rounds, b.rounds),
+    summarized: mean(a.summarized, b.summarized),
+    tokensIn: mean(a.tokensIn, b.tokensIn),
+    tokensOut: mean(a.tokensOut, b.tokensOut),
+    usd:
+      a.usd === undefined || b.usd === undefined
+        ? undefined
+        : (a.usd + b.usd) / 2,
   };
 }

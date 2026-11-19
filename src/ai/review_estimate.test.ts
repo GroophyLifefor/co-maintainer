@@ -106,3 +106,23 @@ test("review estimate: fewer than five pull requests give no estimate", () => {
     throw new Error(`highest: ${estimate.highest.changedLines}`);
   }
 });
+
+test("review estimate: an even sample's median is the mean of the middle two, by dollars", () => {
+  const sample = [10, 20, 30, 40, 50, 60].map((lines, n) =>
+    pull(n, lines, [{ changes: lines, patchChars: lines * 40 }]),
+  );
+  const estimate = estimateReview(sample, { high: HIGH, low: LOW });
+  if (!estimate) throw new Error("six is enough");
+  const costs = sample.map((item) =>
+    reviewCost(item, { high: HIGH, low: LOW }),
+  );
+  const usd = costs.map((cost) => cost.usd ?? 0).sort((a, b) => a - b);
+  const want = (usd[2] + usd[3]) / 2;
+  if (Math.abs((estimate.median.usd ?? 0) - want) > 1e-12) {
+    throw new Error(`median ${estimate.median.usd} should be ${want}`);
+  }
+  if (estimate.median.changedLines !== 35) {
+    throw new Error(`median lines: ${estimate.median.changedLines}`);
+  }
+  if (estimate.highest.usd !== usd[5]) throw new Error("highest is by dollars");
+});

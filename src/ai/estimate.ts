@@ -34,8 +34,9 @@ const CALIBRATION = {
   tokensOut: 300,
 };
 
-/** The two guide jobs run after the sections, one after the other, so they
- * add their own time whatever the concurrency. */
+/** Two of the synth jobs are the guides. They run after the sections, one
+ * after the other, so they add their own time whatever the concurrency,
+ * and the rest of the jobs share it. */
 const GUIDE_JOBS = 2;
 const GUIDE_SECONDS = 55;
 
@@ -218,6 +219,9 @@ export type GithubQuota = {
 };
 
 export type GithubEstimateInput = {
+  /** Whether `init` reads pull requests at all. Unset follows
+   * `pullRequests`. */
+  includePullRequests?: boolean;
   /** Pull requests `init` would read, already cut to the PR window. */
   pullRequests: number;
   /** Whether `init` downloads each PR's changed files. */
@@ -267,8 +271,9 @@ const HOUR_SECONDS = 3_600;
 export function estimateGithub(input: GithubEstimateInput): GithubEstimate {
   let calls = 1; // repository metadata
   if (input.includeCodebase) calls += input.codebaseCalls ?? CODEBASE_CALLS;
-  if (input.pullRequests > 0) {
-    // The listing stops at the first page past the window.
+  if (input.includePullRequests ?? input.pullRequests > 0) {
+    // The listing stops at the first page past the window, and an empty
+    // window still takes the one page that shows it is empty.
     calls += Math.ceil(input.pullRequests / PAGE) + 1;
     const files = input.includeChanges
       ? Math.min(1, Math.max(0, input.changeShare))

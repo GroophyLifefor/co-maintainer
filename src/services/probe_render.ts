@@ -185,7 +185,7 @@ export function renderProbe(input: RenderInput): string {
   } else {
     out(
       `${p.head("review estimate")}  ${p.dim(
-        `per pull request, from the ${review.sampled} newest, bots and drafts left out`,
+        `per pull request, from ${review.sampled} of the 30 most recently updated, bots and drafts left out`,
       )}`,
     );
     if (review.median.usd === undefined) {
@@ -361,7 +361,7 @@ export function estimateSummary(
         : `median ${reviewLine(review.median, p)}, highest ${reviewLine(
             review.highest,
             p,
-          )}, per pull request from the ${review.sampled} newest, bots and drafts left out`,
+          )}, per pull request from ${review.sampled} of the 30 most recently updated, bots and drafts left out`,
     basis: `${
       rec.ai.basis === "history"
         ? "this repository's recorded jobs"
