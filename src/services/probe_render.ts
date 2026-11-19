@@ -34,7 +34,9 @@ function painter(color: boolean) {
   const code =
     (...codes: number[]): Paint =>
     (text) =>
-      color ? `\x1b[${codes.join(";")}m${text}\x1b[0m` : text;
+      color
+        ? `${codes.map((value) => `\x1b[${value}m`).join("")}${text}\x1b[0m`
+        : text;
   return {
     bold: code(1),
     dim: code(2),
