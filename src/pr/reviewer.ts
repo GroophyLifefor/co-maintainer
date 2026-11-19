@@ -1,3 +1,4 @@
+import { clampToolRounds } from "./tool_rounds.ts";
 import { createAiProvider } from "../ai/provider.ts";
 import { CliError, EXIT_USAGE } from "../cli/error.ts";
 import {
@@ -499,11 +500,7 @@ async function normalizeReviewResponse(
   return response.text.trim();
 }
 
-// Uncapped, a 100,000-line diff would ask for 1,000+ tool-loop rounds, each
-// able to spend multiple external calls.
-export function clampToolRounds(totalDiffLines: number): number {
-  return Math.min(Math.round(4 + totalDiffLines / 100), 8);
-}
+export { clampToolRounds };
 
 // Uncapped, --improve-matrix scales maxTokens past what most providers'
 // 128k-token context can hold on its own, before the prompt even counts.
