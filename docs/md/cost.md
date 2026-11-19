@@ -23,15 +23,19 @@ free.
 
 ## Estimate before you init
 
-Run [`probe`](probe.md) first. Its `estimate` block names the job count, a token
-range, a time range, and a dollar range, and says which basis it used:
+Run [`probe`](probe.md) first. Its `init estimate` block names the time, the
+GitHub calls and the dollar range of the recommended `init`, and its `review
+estimate` block says what one pull request review costs, as a median and the
+highest of the 10 newest pull requests. Each says which basis it used:
 
 - **This repository's own recorded jobs**, when at least four prior jobs exist
   for it. This is the closest to what the run will do.
 - **The calibration**, otherwise, taken from the maintainers' reference runs.
 
-If the provider's price list cannot be reached, the dollar line is omitted and
-the estimate says it is unavailable, rather than printing a made-up number. For
+Without `--low-model` and `--high-model`, each cost line says which flags to
+add. If the provider's price list cannot be reached, the dollar line is
+omitted and the estimate says it is unavailable, rather than printing a
+made-up number. For
 OpenAI and Anthropic, which publish no price list this way, it reads `estimate
 unavailable for this provider`. The line always ends with `an estimate, not a
 bill`.

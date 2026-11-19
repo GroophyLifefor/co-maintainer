@@ -22,7 +22,7 @@
 <meta name="twitter:title" content="co-maintainer · open source AI code review that learns your repo">
 <meta name="twitter:description" content="An open source PR reviewer that learns how your repository is reviewed from its code and past PR reviews, then reviews like that, on your own model key.">
 <meta name="twitter:image" content="https://co-maintainer.com/assets/og.png">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"co-maintainer","description":"An open source PR reviewer that learns how your repository is reviewed from its code and past PR reviews, then reviews like that, on your own model key.","url":"https://co-maintainer.com/","applicationCategory":"DeveloperApplication","operatingSystem":"Linux, macOS, Windows","softwareVersion":"0.7.16","dateModified":"2026-11-18","license":"https://opensource.org/licenses/MIT","codeRepository":"https://github.com/GroophyLifefor/co-maintainer","downloadUrl":"https://www.npmjs.com/package/co-maintainer","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"co-maintainer","description":"An open source PR reviewer that learns how your repository is reviewed from its code and past PR reviews, then reviews like that, on your own model key.","url":"https://co-maintainer.com/","applicationCategory":"DeveloperApplication","operatingSystem":"Linux, macOS, Windows","softwareVersion":"0.7.17","dateModified":"2026-11-19","license":"https://opensource.org/licenses/MIT","codeRepository":"https://github.com/GroophyLifefor/co-maintainer","downloadUrl":"https://www.npmjs.com/package/co-maintainer","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"}}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"What does a review cost?","acceptedAnswer":{"@type":"Answer","text":"On our own repository, one review cost about $0.15 with a strong model and about $0.01 with a small one. Your pull requests will differ. Learning a repository the first time costs more, and co-maintainer can estimate that for free before you spend anything."}},{"@type":"Question","name":"What does it learn from?","acceptedAnswer":{"@type":"Answer","text":"It reads your code and your past pull request reviews, and writes down how your team reviews as plain text files you can read and edit. Comments your reviewers make again and again become rules. It updates these files as your repository changes."}},{"@type":"Question","name":"Is co-maintainer free?","acceptedAnswer":{"@type":"Answer","text":"Yes. It is open source under the MIT license and there is no fee. You pay your AI provider for what your reviews use."}},{"@type":"Question","name":"Does my code leave my machine?","acceptedAnswer":{"@type":"Answer","text":"Only to the AI provider you choose, when it learns your repository and when it reviews. co-maintainer itself collects nothing."}},{"@type":"Question","name":"Does it work with GitLab, Bitbucket or Azure DevOps?","acceptedAnswer":{"@type":"Answer","text":"Not yet. It works with GitHub only."}},{"@type":"Question","name":"Can I choose which PRs get reviewed?","acceptedAnswer":{"@type":"Answer","text":"Yes. For each repository you can review every pull request, only those from people you trust, or none until a maintainer asks for a review on the pull request."}},{"@type":"Question","name":"How is it different from CodeRabbit?","acceptedAnswer":{"@type":"Answer","text":"co-maintainer is open source, runs on your own AI key, and learns from your past reviews. CodeRabbit is a hosted product that supports more platforms and does more beyond review."}}]}</script>
 <!-- seo:end -->
 <link rel="preload" href="assets/fonts/outfit-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -154,6 +154,8 @@
   .tty-pane { height: 420px; overflow-y: auto; padding: 20px 22px; font: 14px/1.7 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
   .tty-pane .dim { color: #7d8590; }
   .tty-pane .warn { color: #e3b341; }
+  .tty-pane .ok { color: #56d364; font-weight: 600; }
+  .tty-pane .alt { color: #79c0ff; font-weight: 600; }
   .tty-pane .sev-tag { color: #ff7b72; font-weight: 600; }
   .tty-pane b { color: #fff; font-weight: 600; }
   /* a block of its own, wrapping only between words, never inside a flag */
@@ -493,7 +495,7 @@
         <div class="tty-pane" role="tabpanel" id="tty-2" aria-labelledby="tab-2" hidden data-cmd="co-maintainer probe groophylifefor/co-maintainer --gh-concurrent=4" data-out="[probe] reading groophylifefor/co-maintainer via gh
 [probe] reading groophylifefor/co-maintainer metadata
 [probe] reading pull request list
-[probe] pull request listing · page 1 · fetched 41
+[probe] pull request listing · page 1 · fetched 91
 [probe] sampling 30 pull request details · concurrency=4
 [probe] PR detail sampling · 1/30
 [probe] PR detail sampling · 2/30
@@ -529,29 +531,39 @@
 [probe] commit history · page 1 · fetched 100
 [probe] commit history · page 2 · fetched 200
 [probe] commit history · page 3 · fetched 300
-[probe] commit history · page 4 · fetched 306
-
-recommended
-  co-maintainer init groophylifefor/co-maintainer --include-codebase --include-pull-requests --include-pull-request-changes --include-commit-history --include-how-repo-works --max-pull-request-change-lines=14100 --max-commits=100
+[probe] commit history · page 4 · fetched 400
+[probe] commit history · page 5 · fetched 500
+[probe] commit history · page 6 · fetched 600
+[probe] commit history · page 7 · fetched 700
+[probe] commit history · page 8 · fetched 744
+[probe] reading files of 10 recent pull requests
 
 research
-  PRs: 41 · sampled: 30
-  commits: 306 · useful: 267
-  windows: PR months=all · commits=100 · diff lines=14100
+  PRs 91 · sampled 30
+  commits 744 · useful 677
+  windows: PR months=all · commits=400 · diff lines=5600
   - Pull request volume or history span is small enough to keep all PR months.
-  - 267 non-merge commits contain enough signal to analyze commit conventions.
-  - The sampled diff p90 is 14100 lines. The cap keeps the largest outliers out while retaining about 90% of sampled diffs.
+  - 677 non-merge commits contain enough signal to analyze commit conventions.
+  - The sampled diff p90 is 5564 lines. The cap keeps the largest outliers out while retaining about 90% of sampled diffs.
 
-estimate
-  AI jobs: 42 extract + 10 synth
-  tokens: 865,766-1,442,943 in · 37,839-63,065 out
-  time: 421-702s
-  cost: $0.4910-$0.8183
-  basis: this repository's recorded jobs; an estimate, not a bill
+init estimate
 
-next
-  co-maintainer init groophylifefor/co-maintainer --include-codebase --include-pull-requests --include-pull-request-changes --include-commit-history --include-how-repo-works --max-pull-request-change-lines=14100 --max-commits=100
-  or run it now: co-maintainer probe groophylifefor/co-maintainer --run
+  ● recommended  all months · 400 commits
+    time    4m-6m  AI time decides
+    github  488 calls · fits in this hour&#x27;s quota (3,977 left)
+    cost    $0.60-$1.00 · 92 extract + 10 synth jobs
+
+review estimate  per pull request, from the 10 newest, bots and drafts left out
+    median  $0.68 · 2,680 changed lines, 2 files summarized
+    highest $1.25 · 11,842 changed lines, 3 files summarized
+
+  basis: this repository&#x27;s recorded jobs, an estimate, not a bill
+
+run
+  ● recommended
+       co-maintainer init groophylifefor/co-maintainer --include-codebase --include-pull-requests --include-pull-request-changes --include-commit-history --include-how-repo-works --max-pull-request-change-lines=5600 --max-commits=400
+
+  or run the recommended one now: co-maintainer probe groophylifefor/co-maintainer --run
   Probe only reads. It does not write guides."></div>
         <div class="tty-pane" role="tabpanel" id="tty-init" aria-labelledby="tab-init" hidden data-cmd="co-maintainer init groophylifefor/co-maintainer --include-codebase --include-pull-requests --include-pull-request-changes --include-commit-history --include-how-repo-works --max-pull-request-change-lines=14100 --max-commits=100 --gh-concurrent=6 --ai-concurrent=8" data-out="[ai] openrouter providers configured · low=openai/gpt-6-luna · high=openai/gpt-6.1-sol
 [fetch] groophylifefor/co-maintainer via gh
@@ -1352,12 +1364,19 @@ Done in 2m 14s · 429,644 in, 6,413 out tokens · $0.4696"></div>
     const paint = (line) => {
       if (/output rejected|dropping/.test(line)) return `<span class="warn">${esc(line)}</span>`;
       if (line.startsWith("[")) return `<span class="dim">${esc(line)}</span>`;
-      if (/^[a-z]+$/.test(line) || /^(Done in |No actionable findings|co-maintainer review · |New \(|Summary: )/.test(line)) return `<b>${esc(line)}</b>`;
+      if (/^[a-z]+$/.test(line) || /^(init estimate|run one)$/.test(line) || /^(Done in |No actionable findings|co-maintainer review · |New \(|Summary: )/.test(line)) return `<b>${esc(line)}</b>`;
+      // Probe: a heading with a note after it, the option marks, and the
+      // lines that ask for something.
+      const h = line.match(/^(review estimate|commit watch)(.*)$/);
+      if (h) return `<b>${esc(h[1])}</b><span class="dim">${esc(h[2])}</span>`;
+      const mark = line.match(/^(\s*)(● recommended|◆ faster)(.*)$/);
+      if (mark) return esc(mark[1]) + `<span class="${mark[2].startsWith("●") ? "ok" : "alt"}">${esc(mark[2])}</span>${esc(mark[3])}`;
+      if (/to see the cost estimate|hourly limit decides|are close/.test(line)) return `<span class="warn">${esc(line)}</span>`;
       // A finding line: location plain, severity tag in red.
       const f = line.match(/^(\s*• \S+\s+)(\[P\d · [a-z-]+\])(.*)$/);
       if (f) return esc(f[1]) + `<span class="sev-tag">${esc(f[2])}</span><b>${esc(f[3])}</b>`;
       const at = line.indexOf("co-maintainer ");
-      if (at !== -1 && /^\s*(or run it now: )?co-maintainer /.test(line)) {
+      if (at !== -1 && /^\s*(or run (it|the recommended one) now: )?co-maintainer /.test(line)) {
         return esc(line.slice(0, at)) + `<span class="cmdline">${command(line.slice(at))}</span>`;
       }
       return esc(line);

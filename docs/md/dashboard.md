@@ -57,8 +57,10 @@ host pass, and `serve` and `set` still accept every URL they did before.
 ## Adding a repository
 
 **Add repository** runs the same read-only probe the CLI runs, server side,
-then shows the recommended `init` command with an estimated job count, token
-range, time and cost. Nothing is written until **Add and start init** is
+then shows the recommended `init` command with its time, GitHub calls and
+cost, a faster option when the run would take more than 30 minutes, and what
+one pull request review costs. The numbers are the ones the CLI prints.
+Nothing is written until **Add and start init** is
 pressed, and that confirmation stores the plan's flags, limits and sources for
 the repo before the init job is queued, so the run matches what was approved.
 

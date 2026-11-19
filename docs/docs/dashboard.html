@@ -186,8 +186,10 @@ The check only inspects the host. A single-label internal name and any public
 host pass, and <code>serve</code> and <code>set</code> still accept every URL they did before.</p>
 <h2 id="adding-a-repository">Adding a repository</h2>
 <p><strong>Add repository</strong> runs the same read-only probe the CLI runs, server side,
-then shows the recommended <code>init</code> command with an estimated job count, token
-range, time and cost. Nothing is written until <strong>Add and start init</strong> is
+then shows the recommended <code>init</code> command with its time, GitHub calls and
+cost, a faster option when the run would take more than 30 minutes, and what
+one pull request review costs. The numbers are the ones the CLI prints.
+Nothing is written until <strong>Add and start init</strong> is
 pressed, and that confirmation stores the plan&#39;s flags, limits and sources for
 the repo before the init job is queued, so the run matches what was approved.</p>
 <p>The estimate says whether it used this repository&#39;s recorded jobs or the
