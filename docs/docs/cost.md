@@ -26,7 +26,7 @@ free.
 Run [`probe`](probe.md) first. Its `init estimate` block names the time, the
 GitHub calls and the dollar range of the recommended `init`, and its `review
 estimate` block says what one pull request review costs, as a median and the
-highest of up to 10 recent pull requests. Each says which basis it used:
+highest of the 10 newest pull requests. Each says which basis it used:
 
 - **This repository's own recorded jobs**, when at least four prior jobs exist
   for it. This is the closest to what the run will do.

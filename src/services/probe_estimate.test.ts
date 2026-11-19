@@ -5,7 +5,13 @@
 import { test } from "node:test";
 import { estimateGithub } from "../ai/estimate.ts";
 import { isolateTestFile } from "../testing/locations.ts";
-import { type ProbePlan, pullRequestsInWindow, reviewable } from "./probe.ts";
+import {
+  type ProbePlan,
+  pullRequestsInWindow,
+  reviewable,
+  sampleReviews,
+} from "./probe.ts";
+import type { GitHubClient, Json } from "../types.ts";
 import { estimateProbe, FASTER_TARGET_SECONDS } from "./probe_estimate.ts";
 import {
   duration,
@@ -107,6 +113,51 @@ test("probe estimate: bots, drafts and empty diffs are not reviewed", () => {
     throw new Error("a draft is skipped");
   if (reviewable({ ...base, additions: 0, deletions: 0 })) {
     throw new Error("an empty diff is skipped");
+  }
+});
+
+test("probe estimate: the review sample is the 10 newest reviewable pull requests", async () => {
+  // 30 pull requests, newest first: every 4th is a bot's, every 5th a draft,
+  // and #19 has no changes, so the next one is read in its place.
+  const pulls: Json[] = Array.from({ length: 30 }, (_, index) => {
+    const number = 30 - index;
+    return {
+      number,
+      updated_at: new Date(Date.now() - index * DAY).toISOString(),
+      draft: number % 5 === 0,
+      user:
+        number % 4 === 0
+          ? { login: "renovate[bot]", type: "Bot" }
+          : { login: "dev", type: "User" },
+    };
+  });
+  const read: number[] = [];
+  const client: GitHubClient = {
+    request: async () => {
+      throw new Error("not used");
+    },
+    pages: async <T>(endpoint: string): Promise<T[]> => {
+      const number = Number(endpoint.match(/pulls\/(\d+)\/files/)?.[1]);
+      read.push(number);
+      const changes = number === 19 ? 0 : number;
+      return [{ changes, patch: "x".repeat(changes) }] as T[];
+    },
+  };
+  const sample = await sampleReviews(client, "acme/big", pulls, 3, () => {});
+  const want = pulls
+    .map((pull) => Number(pull.number))
+    .filter((number) => number % 4 !== 0 && number % 5 !== 0 && number !== 19)
+    .slice(0, 10);
+  const got = sample.map((pull) => pull.number);
+  if (JSON.stringify(got) !== JSON.stringify(want)) {
+    throw new Error(`sample ${got} should be ${want}`);
+  }
+  if (!read.includes(19)) throw new Error("the empty one was read and skipped");
+  if (read.some((number) => number % 4 === 0 || number % 5 === 0)) {
+    throw new Error(`read a bot's or a draft's files: ${read}`);
+  }
+  if (sample[0].changedLines !== want[0]) {
+    throw new Error("changed lines come from the files");
   }
 });
 

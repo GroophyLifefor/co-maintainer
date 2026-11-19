@@ -34,10 +34,10 @@ const CALIBRATION = {
   tokensOut: 300,
 };
 
-/** Two of the synth jobs are the guides. They run after the sections, one
- * after the other, so they add their own time whatever the concurrency,
- * and the rest of the jobs share it. */
-const GUIDE_JOBS = 2;
+/** The synth jobs are the sections. The two guide jobs come after them, one
+ * after the other, so they add their own time whatever the concurrency.
+ * Their tokens are already in the per-job calibration, which was measured
+ * over every call of the run. */
 const GUIDE_SECONDS = 55;
 
 /** A spread around the point estimate, since a real run varies. */
@@ -178,8 +178,7 @@ export function estimateInit(input: EstimateInput): Estimate {
   const jobs = extract + synth;
   const per = input.history ?? CALIBRATION;
   const concurrent = Math.max(1, input.aiConcurrent ?? BUILTIN_CONCURRENCY.ai);
-  const parallel = Math.max(0, jobs - GUIDE_JOBS);
-  const seconds = band((parallel * per.seconds) / concurrent + GUIDE_SECONDS);
+  const seconds = band((jobs * per.seconds) / concurrent + GUIDE_SECONDS);
   const tokensIn = band(jobs * per.tokensIn);
   const tokensOut = band(jobs * per.tokensOut);
 

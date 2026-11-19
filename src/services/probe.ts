@@ -56,15 +56,20 @@ export function pullRequestsInWindow(
     .length;
 }
 
-/** A pull request review runs on: not a bot's, not a draft, with changes.
- * The App skips drafts and bot authors (`app.ts`, `webhook.ts`). */
-export function reviewable(detail: Json): boolean {
-  const user = (detail.user ?? {}) as Json;
+/** A pull request a review runs on, as far as the listing can tell: not a
+ * bot's and not a draft. The App skips both (`app.ts`, `webhook.ts`). */
+export function reviewCandidate(pull: Json): boolean {
+  const user = (pull.user ?? {}) as Json;
   const bot =
     String(user.type ?? "") === "Bot" ||
     String(user.login ?? "").endsWith("[bot]");
+  return !bot && pull.draft !== true;
+}
+
+/** A pull request review runs on: a candidate with changes. */
+export function reviewable(detail: Json): boolean {
   const lines = Number(detail.additions ?? 0) + Number(detail.deletions ?? 0);
-  return !bot && detail.draft !== true && lines > 0;
+  return reviewCandidate(detail) && lines > 0;
 }
 
 /** Counts the client's calls and how long they took. A paged read counts
@@ -244,7 +249,7 @@ export async function probePlan(
   );
 
   const reviewSample = await timedRun("probe review sample", () =>
-    sampleReviews(client, repo, detailSamples, opts.ghConcurrent, say),
+    sampleReviews(client, repo, pulls, opts.ghConcurrent, say),
   );
   const codebaseCalls = await countCodebaseCalls(client, repo, branch);
   const quota = await readQuota(githubClient);
@@ -335,57 +340,59 @@ async function countCodebaseCalls(
   }
 }
 
-/** The newest reviewable pull requests of the sample, with their files: the
- * diff a review would be given. A pull request whose files cannot be read is
- * left out. */
-async function sampleReviews(
+/** The newest reviewable pull requests, with their files: the diff a review
+ * would be given. The listing is newest first and says who opened each one
+ * and whether it is a draft. The files say whether it has changes, so a
+ * pull request with none is skipped and the next one is read, `concurrency`
+ * at a time, until there are 10. One whose files cannot be read is left out. */
+export async function sampleReviews(
   client: GitHubClient,
   repo: string,
-  details: Json[],
+  pulls: Json[],
   concurrency: number,
   say: (message: string) => void,
 ): Promise<ReviewSamplePull[]> {
-  const newest = details
-    .filter(reviewable)
+  const candidates = [...pulls]
+    .filter(reviewCandidate)
     .sort((a, b) =>
       String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")),
-    )
-    .slice(0, REVIEW_SAMPLE_SIZE);
-  say(`reading files of ${newest.length} recent pull requests`);
-  const sample: (ReviewSamplePull | undefined)[] = Array.from({
-    length: newest.length,
-  });
-  let cursor = 0;
-  const worker = async () => {
-    while (cursor < newest.length) {
-      const index = cursor++;
-      const detail = newest[index];
-      const number = Number(detail.number);
-      try {
-        const files = await client.pages<Json>(
-          `repos/${repo}/pulls/${number}/files`,
-        );
-        sample[index] = {
-          number,
-          changedLines:
-            Number(detail.additions ?? 0) + Number(detail.deletions ?? 0),
-          files: files.map((file) => ({
-            changes: Number(file.changes ?? 0),
-            patchChars: String(file.patch ?? "").length,
-          })),
-        };
-      } catch {
-        // One unreadable pull request leaves the rest of the sample.
-      }
+    );
+  say(`reading files of the newest reviewable pull requests`);
+  const sample: ReviewSamplePull[] = [];
+  const read = async (pull: Json): Promise<ReviewSamplePull | undefined> => {
+    const number = Number(pull.number);
+    try {
+      const files = await client.pages<Json>(
+        `repos/${repo}/pulls/${number}/files`,
+      );
+      const changedLines = files.reduce(
+        (sum, file) => sum + Number(file.changes ?? 0),
+        0,
+      );
+      if (changedLines === 0) return undefined;
+      return {
+        number,
+        changedLines,
+        files: files.map((file) => ({
+          changes: Number(file.changes ?? 0),
+          patchChars: String(file.patch ?? "").length,
+        })),
+      };
+    } catch {
+      return undefined;
     }
   };
-  await Promise.all(
-    Array.from(
-      { length: Math.min(Math.max(1, concurrency), newest.length) },
-      worker,
-    ),
-  );
-  return sample.filter((pull): pull is ReviewSamplePull => pull !== undefined);
+  let next = 0;
+  const width = Math.max(1, concurrency);
+  while (sample.length < REVIEW_SAMPLE_SIZE && next < candidates.length) {
+    const wanted = Math.min(width, REVIEW_SAMPLE_SIZE - sample.length);
+    const batch = candidates.slice(next, next + wanted);
+    next += batch.length;
+    for (const pull of await Promise.all(batch.map(read))) {
+      if (pull) sample.push(pull);
+    }
+  }
+  return sample;
 }
 
 /** The `RepoConfig` patch that matches a recommendation, so a confirmed
