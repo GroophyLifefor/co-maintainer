@@ -1873,8 +1873,38 @@ try {
           usd: null,
           estimateBasis: "history",
         },
+        summary: {
+          recommended: {
+            label: "24 months · 3200 commits",
+            time: "2h 9m-3h 34m, GitHub time decides",
+            github: "8,289 calls · stays under 5,000 per hour as it runs",
+            cost: "$0.38-$0.63 · 1,660 extract + 10 synth jobs",
+            command: "co-maintainer init acme/other --max-pr-months=24",
+          },
+          faster: {
+            label: "3 months · 400 commits",
+            time: "29m-48m, GitHub time decides",
+            github: "1,817 calls · fits in this hour's quota (3,374 left)",
+            cost: "$0.11-$0.19 · learns from 3 months of review history instead of 24",
+            command: "co-maintainer init acme/other --max-pr-months=3",
+            fits: false,
+          },
+          review: "median $0.0991 · 187 changed lines",
+          basis: "the cm-dx-lab calibration, an estimate, not a bill",
+        },
       });
     });
+    const estimateLists = await page.locator("#plan dl.estimate").count();
+    if (estimateLists !== 2) {
+      throw new Error(
+        `expected the recommended and faster estimates, found ${estimateLists}`,
+      );
+    }
+    if (
+      !(await page.locator("#plan").innerText()).includes("--max-pr-months=3")
+    ) {
+      throw new Error("the faster option's command is missing");
+    }
     const radios = await page.locator('input[name="policy"]').count();
     if (radios !== 3)
       throw new Error(`expected 3 policy choices, found ${radios}`);
