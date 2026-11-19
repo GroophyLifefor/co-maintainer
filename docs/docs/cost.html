@@ -150,15 +150,18 @@ estimate it before you start.</p>
 <p><code>gh</code> reads cost nothing beyond the API rate limit. Codegraph runs locally and is
 free.</p>
 <h2 id="estimate-before-you-init">Estimate before you init</h2>
-<p>Run <a href="probe.html"><code>probe</code></a> first. Its <code>estimate</code> block names the job count, a token
-range, a time range, and a dollar range, and says which basis it used:</p>
+<p>Run <a href="probe.html"><code>probe</code></a> first. Its <code>init estimate</code> block names the time, the
+GitHub calls and the dollar range of the recommended <code>init</code>, and its <code>review estimate</code> block says what one pull request review costs, as a median and the
+highest of up to 10 recent pull requests. Each says which basis it used:</p>
 <ul>
 <li><strong>This repository&#39;s own recorded jobs</strong>, when at least four prior jobs exist
 for it. This is the closest to what the run will do.</li>
 <li><strong>The calibration</strong>, otherwise, taken from the maintainers&#39; reference runs.</li>
 </ul>
-<p>If the provider&#39;s price list cannot be reached, the dollar line is omitted and
-the estimate says it is unavailable, rather than printing a made-up number. For
+<p>Without <code>--low-model</code> and <code>--high-model</code>, each cost line says which flags to
+add. If the provider&#39;s price list cannot be reached, the dollar line is
+omitted and the estimate says it is unavailable, rather than printing a
+made-up number. For
 OpenAI and Anthropic, which publish no price list this way, it reads <code>estimate unavailable for this provider</code>. The line always ends with <code>an estimate, not a bill</code>.</p>
 <p>The dashboard shows the same estimate when you add a repository, and nothing
 starts until you confirm.</p>

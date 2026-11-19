@@ -62,12 +62,11 @@ test("estimate: extract jobs are one per pull request plus the codebase read", (
   }
 });
 
-test("estimate: the calibrated run costs about what the calibration measured", () => {
-  // The calibration run measured 5 extract + 9 synth jobs over 151 s. The section list
-  // is the source of the 10 (so 9 was that run's dirty-section count), which
-  // is why the assertion is on the job total rather than the split.
+test("estimate: the calibrated run takes about what the calibration measured", () => {
+  // The calibration run: 14 extract jobs, the sections and the two guide
+  // jobs took about 85 s of AI time at --ai-concurrent=3, for $0.0664.
   const estimate = estimateInit({
-    pullRequests: 4,
+    pullRequests: 13,
     includeCodebase: true,
     lowModel: "low",
     highModel: "high",
@@ -76,22 +75,29 @@ test("estimate: the calibrated run costs about what the calibration measured", (
       ["high", PRICE],
     ]),
   });
-  if (estimate.extract !== 5) throw new Error(`extract: ${estimate.extract}`);
+  if (estimate.extract !== 14) throw new Error(`extract: ${estimate.extract}`);
   if (estimate.synth !== sectionKeys.length) {
     throw new Error(`synth: ${estimate.synth}`);
   }
-  const jobs = estimate.extract + estimate.synth;
-  if (jobs !== 15) throw new Error(`jobs: ${jobs}`);
-  // 15 jobs at 10.8 s is about 162 s, and the measured run was 151 s.
-  if (!(estimate.seconds[0] < 151 && estimate.seconds[1] > 151)) {
+  if (!(estimate.seconds[0] < 85 && estimate.seconds[1] > 85)) {
     throw new Error(`seconds: ${JSON.stringify(estimate.seconds)}`);
   }
-  // With $1/$2 per million and 15 jobs, the range is cents not dollars.
+  // With $1/$2 per million, the range is cents not dollars.
   if (!estimate.usd || estimate.usd[1] > 1) {
     throw new Error(`usd: ${JSON.stringify(estimate.usd)}`);
   }
   if (estimate.basis !== "calibration") {
     throw new Error(`basis: ${estimate.basis}`);
+  }
+  // More AI jobs at once shortens the time.
+  const wide = estimateInit({
+    pullRequests: 13,
+    includeCodebase: true,
+    prices: new Map(),
+    aiConcurrent: 12,
+  });
+  if (!(wide.seconds[1] < estimate.seconds[1])) {
+    throw new Error(`concurrency: ${wide.seconds} vs ${estimate.seconds}`);
   }
 });
 
@@ -161,10 +167,15 @@ test("estimate: recorded jobs for the repo replace the calibration", async () =>
     if (estimate.basis !== "history") {
       throw new Error(`basis: ${estimate.basis}`);
     }
-    // 12 jobs at 3 s is 36 s either side of the 25% spread.
-    if (estimate.seconds[1] > 50 || estimate.seconds[0] > 36) {
+    // Recorded 3 s jobs are faster than the 5 s calibration.
+    const calibrated = estimateInit({
+      pullRequests: 2,
+      includeCodebase: false,
+      prices: new Map(),
+    });
+    if (!(estimate.seconds[1] < calibrated.seconds[1])) {
       throw new Error(
-        `seconds from history: ${JSON.stringify(estimate.seconds)}`,
+        `seconds from history: ${JSON.stringify(estimate.seconds)} vs ${JSON.stringify(calibrated.seconds)}`,
       );
     }
     // Another repo's jobs must not leak in.
@@ -278,5 +289,16 @@ test("estimateCostLine: openrouter keeps its own two reasons", () => {
     throw new Error(unreachable);
   }
   const noModels = estimateCostLine(estimateWithout(undefined), "none", false);
-  if (!noModels.includes("set --ai=openrouter")) throw new Error(noModels);
+  if (!noModels.includes("--low-model=<id> --high-model=<id>")) {
+    throw new Error(noModels);
+  }
+  const unpriced = estimateCostLine(
+    estimateWithout(undefined),
+    "openrouter",
+    false,
+    true,
+  );
+  if (unpriced !== "no OpenRouter price for these models") {
+    throw new Error(unpriced);
+  }
 });

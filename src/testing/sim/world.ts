@@ -115,6 +115,7 @@ export const PRODUCT_ENV_PREFIXES = [
 /** Variables the product reads that no prefix above covers. */
 export const PRODUCT_ENV_NAMES = [
   "CI",
+  "NO_COLOR",
   "HOME",
   "USERPROFILE",
   "APPDATA",
