@@ -28,9 +28,9 @@ import { enqueueSetup } from "../../services/setup.ts";
 import { appReady, filterRepoList } from "../../services/repo_list.ts";
 import { enqueueManualReview } from "../../services/review.ts";
 import { probePlan, recommendationPatch } from "../../services/probe.ts";
-import { estimateInit, readJobHistory } from "../../ai/estimate.ts";
-import { loadPrices } from "../../ai/pricing.ts";
-import type { ModelPrice } from "../../ai/pricing.ts";
+import { estimateProbe } from "../../services/probe_estimate.ts";
+import { estimateSummary } from "../../services/probe_render.ts";
+import { resolveConcurrency } from "../../services/concurrency.ts";
 import {
   listReposForHome,
   prDetail,
@@ -139,28 +139,17 @@ export async function handleReposRoute(
         log: () => {},
       });
       const config = readConfig();
-      const needsPrices =
-        config.ai === "openrouter" &&
-        Boolean(config.lowModel && config.highModel);
-      const [prices, history] = await Promise.all([
-        needsPrices
-          ? loadPrices()
-          : Promise.resolve({
-              prices: new Map<string, ModelPrice>(),
-              source: "unavailable" as const,
-            }),
-        readJobHistory(repo),
-      ]);
-      const estimate = estimateInit({
-        pullRequests: plan.analysis.includePullRequests
-          ? Number(plan.analysis.report.pullRequests ?? 0)
-          : 0,
-        includeCodebase: plan.analysis.includePullRequests,
+      const concurrency = resolveConcurrency(repo, config);
+      const ai = config.ai ?? "none";
+      const probe = await estimateProbe(plan, {
+        repo,
+        ai,
         lowModel: config.lowModel,
         highModel: config.highModel,
-        prices: prices.prices,
-        history,
+        ghConcurrent: concurrency.gh,
+        aiConcurrent: concurrency.ai,
       });
+      const estimate = probe.recommended.ai;
       return Response.json({
         repo,
         command: plan.command,
@@ -170,6 +159,7 @@ export async function handleReposRoute(
         report: plan.report,
         estimate,
         estimateBasis: estimate.basis,
+        summary: estimateSummary(repo, probe, ai),
       });
     } catch (error) {
       return errorResponse(

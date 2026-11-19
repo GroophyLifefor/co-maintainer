@@ -112,23 +112,47 @@ function showPlan(data) {
   cmd.style.wordBreak = "break-all";
   cmd.textContent = data.command;
   box.appendChild(cmd);
-  var est = data.estimate;
-  var facts = document.createElement("p");
-  facts.className = "muted";
-  facts.textContent =
-    "AI jobs: " + est.extract + " extract + " + est.synth + " synth" +
-    ". Tokens: " + est.tokensIn[0].toLocaleString("en-US") + "-" +
-    est.tokensIn[1].toLocaleString("en-US") + " in, " +
-    est.tokensOut[0].toLocaleString("en-US") + "-" +
-    est.tokensOut[1].toLocaleString("en-US") + " out" +
-    ". Time: " + Math.round(est.seconds[0]) + "-" + Math.round(est.seconds[1]) + "s" +
-    (est.usd
-      ? ". Cost: " + money(est.usd[0]) + "-" + money(est.usd[1])
-      : ". Cost: unknown") +
-    ". Basis: " + (est.estimateBasis === "history"
-      ? "this repository's recorded jobs"
-      : "the cm-dx-lab calibration") + ", an estimate, not a bill.";
-  box.appendChild(facts);
+  var sum = data.summary;
+  function facts(option) {
+    var list = document.createElement("dl");
+    list.className = "estimate muted";
+    [["Time", option.time], ["GitHub", option.github], ["Cost", option.cost]]
+      .forEach(function(pair) {
+        var term = document.createElement("dt");
+        term.textContent = pair[0];
+        var value = document.createElement("dd");
+        value.textContent = pair[1];
+        list.appendChild(term);
+        list.appendChild(value);
+      });
+    return list;
+  }
+  var recTitle = document.createElement("p");
+  recTitle.innerHTML = "<b>Recommended</b> ";
+  recTitle.appendChild(document.createTextNode(sum.recommended.label));
+  box.appendChild(recTitle);
+  box.appendChild(facts(sum.recommended));
+  if (sum.faster) {
+    var fastTitle = document.createElement("p");
+    fastTitle.innerHTML = "<b>Faster</b> ";
+    fastTitle.appendChild(document.createTextNode(
+      sum.faster.label + (sum.faster.fits ? ", fits in 30 minutes" : "")));
+    box.appendChild(fastTitle);
+    box.appendChild(facts(sum.faster));
+    var fastCmd = document.createElement("p");
+    fastCmd.className = "mono";
+    fastCmd.style.wordBreak = "break-all";
+    fastCmd.textContent = sum.faster.command;
+    box.appendChild(fastCmd);
+  }
+  var review = document.createElement("p");
+  review.className = "muted";
+  review.textContent = "Review estimate: " + sum.review + ".";
+  box.appendChild(review);
+  var basis = document.createElement("p");
+  basis.className = "muted";
+  basis.textContent = "Basis: " + sum.basis + ".";
+  box.appendChild(basis);
   if (data.reasons && data.reasons.length) {
     var ul = document.createElement("ul");
     ul.className = "muted";

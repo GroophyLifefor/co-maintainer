@@ -1448,6 +1448,18 @@ svg.ic {
   background: rgba(0, 0, 0, 0.12);
 }
 
+/* the Add repository estimate */
+.app dl.estimate {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+.app dl.estimate dd {
+  margin: 0;
+}
+
 /* definition list + forms */
 .app .dl,
 .focus .dl {
