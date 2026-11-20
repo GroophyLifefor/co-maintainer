@@ -591,3 +591,32 @@ test("PATCH /api/repos refuses lowering the cap below the stored prompt", async 
     }
   });
 });
+
+test("PATCH /api/repos saves the review exclude pattern, refuses a broken one and clears a blank", async () => {
+  await withTempEnv(async () => {
+    const authed = await loggedInApp();
+    await authed("/api/repos", {
+      method: "POST",
+      body: JSON.stringify({ repo: "acme/widgets" }),
+    });
+    const saved = await patchRepo(authed, { reviewExclude: "^vendor/" });
+    if (saved.status !== 200) {
+      throw new Error(`status ${saved.status}: ${await saved.text()}`);
+    }
+    if (readConfig().repos?.["acme/widgets"]?.reviewExclude !== "^vendor/") {
+      throw new Error("the pattern was not saved");
+    }
+
+    const broken = await patchRepo(authed, { reviewExclude: "(" });
+    if (broken.status !== 422) throw new Error(`status ${broken.status}`);
+    if (readConfig().repos?.["acme/widgets"]?.reviewExclude !== "^vendor/") {
+      throw new Error("a refused pattern still changed the value");
+    }
+
+    const cleared = await patchRepo(authed, { reviewExclude: "" });
+    if (cleared.status !== 200) throw new Error(`status ${cleared.status}`);
+    if (readConfig().repos?.["acme/widgets"]?.reviewExclude !== undefined) {
+      throw new Error("a blank value did not clear it");
+    }
+  });
+});

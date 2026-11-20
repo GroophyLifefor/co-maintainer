@@ -385,6 +385,16 @@ export function renderRepoSettings(
     </div>
     <div class="card" data-async>
       ${skSlot()}
+      <div class="hd"><h2>Excluded files</h2></div>
+      <div class="bd">
+        <p class="muted" style="margin:0 0 18px">Changed files whose path matches this regular expression are left out of every review of this repository, before any diff or summary is made. The review notes how many were left out. Init and sync still read them. Leave blank for none.</p>
+        <div class="field wide"><label for="review-exclude">Exclude pattern</label>
+          <input id="review-exclude" class="mono" placeholder="For example: ^(vendor|dist)/|\\.lock$" value="${text(config.reviewExclude ?? "")}"></div>
+      </div>
+      <div class="ft"><button class="primary" id="save-exclude">Save</button></div>
+    </div>
+    <div class="card" data-async>
+      ${skSlot()}
       <div class="hd"><h2>What knowledge reads</h2></div>
       <div class="bd">
         <p class="muted" style="margin:0 0 18px">Used when the knowledge is rebuilt. Leave blank to use your account defaults.</p>
@@ -931,6 +941,9 @@ document.getElementById("save-prompt").addEventListener("click", function() {
     reviewSystemPromptMaxChars: max.value
   });
 });
+document.getElementById("save-exclude").addEventListener("click", function() {
+  save(this, { reviewExclude: document.getElementById("review-exclude").value });
+});
 document.getElementById("save-changes").addEventListener("click", function() {
   var max = promptMaxValue();
   if (!max.ok) {
@@ -950,6 +963,7 @@ document.getElementById("save-changes").addEventListener("click", function() {
     useCodegraph: document.getElementById("codegraph").classList.contains("on"),
     reviewSystemPrompt: document.getElementById("system-prompt").value,
     reviewSystemPromptMaxChars: max.value,
+    reviewExclude: document.getElementById("review-exclude").value,
     remakeCron: cron,
     reviewBlocking: selectedBlocking(),
     ghConcurrent: speedOverridden.gh ? selectedSpeed("gh") : null,

@@ -71,6 +71,9 @@ export type RepoConfig = {
   /** Cap on `reviewSystemPrompt` in characters for this repository. Unset
    * means the default, `0` or a negative number means no limit. */
   reviewSystemPromptMaxChars?: number;
+  /** A regular expression over changed file paths. A review drops matching
+   * files before any diff or summary is built. Unset or blank means none. */
+  reviewExclude?: string;
   /** Which diagram language this repository's reviews use. Unset means
    * `mermaid`. `set --repo` writes it, so App reviews can use it too. */
   diagramRuntime?: "mermaid" | "plantuml" | "plantuml-server";
