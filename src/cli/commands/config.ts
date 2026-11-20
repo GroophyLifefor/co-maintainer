@@ -5,7 +5,15 @@
  * The key list is derived from `UserConfig` at runtime where possible: a
  * kebab-case name maps to the camelCase JSON key, so a new field needs no
  * second place to be registered. `secretFields` decides what is masked. */
-import { configPath, getCacheDir, readConfig, reposDir } from "../../config.ts";
+import {
+  configPath,
+  getCacheDir,
+  providerKeyEnv,
+  readConfig,
+  reposDir,
+  resolveRepoSettings,
+  savedTokenFor,
+} from "../../config.ts";
 import type { UserConfig } from "../../config.ts";
 import { getEnv } from "../../util/runtime.ts";
 import { die } from "../error.ts";
@@ -43,7 +51,7 @@ export function maskSecret(value: string): string {
 
 /** Where a value came from, so `config list` can say why a field is what it
  * is. Env beats the file because env overrides it at run time. */
-export type Source = "env" | "file" | "default";
+export type Source = "env" | "file" | "repo" | "default";
 
 /** The env var that supplies each field, mirroring args.ts. Only the fields
  * that actually read env are listed. */
@@ -84,31 +92,89 @@ export const DEFAULTS: Record<string, string> = {
 
 type Row = { key: string; field: string; value: string; source: Source };
 
+/** The value a run would use for one field and where it came from, through
+ * the same resolver the run uses. `repo` adds that repository's own values.
+ * Without this `get token` printed whichever key variable was set first,
+ * even one the configured provider never reads. */
+export function effectiveField(
+  config: UserConfig,
+  field: string,
+  repo?: string,
+): { value: unknown; source: Source; envName?: string } {
+  const settings = resolveRepoSettings(config, repo);
+  const fromResolved = (
+    resolved: (typeof settings)[keyof typeof settings],
+  ): { value: unknown; source: Source; envName?: string } => ({
+    value:
+      resolved.source === "default" && resolved.value === undefined
+        ? DEFAULTS[field]
+        : resolved.value,
+    source:
+      resolved.source === "global"
+        ? "file"
+        : resolved.source === "repo"
+          ? "repo"
+          : resolved.source === "env"
+            ? "env"
+            : "default",
+    ...(resolved.envName ? { envName: resolved.envName } : {}),
+  });
+  if (
+    field === "ai" ||
+    field === "lowModel" ||
+    field === "highModel" ||
+    field === "reviewBlocking" ||
+    field === "auth"
+  ) {
+    const resolved = fromResolved(settings[field]);
+    // `ai` and `auth` fall back to a default only when nothing set them.
+    if (resolved.source === "default" && (field === "ai" || field === "auth")) {
+      return config[field] === undefined && !repo
+        ? { value: undefined, source: "default" }
+        : resolved;
+    }
+    return resolved;
+  }
+  if (field === "token") {
+    const ai = settings.ai.value;
+    const tokenEnv = getEnv("CO_MAINTAINER_TOKEN");
+    if (tokenEnv) {
+      return { value: tokenEnv, source: "env", envName: "CO_MAINTAINER_TOKEN" };
+    }
+    const providerEnv = providerKeyEnv(ai);
+    if (providerEnv) {
+      return {
+        value: providerEnv,
+        source: "env",
+        envName:
+          ai === "openrouter" ? "OPENROUTER_API_KEY" : "OPENCODE_API_KEY",
+      };
+    }
+    const saved = savedTokenFor(config, ai === "none" ? "openrouter" : ai);
+    return saved === undefined
+      ? { value: undefined, source: "default" }
+      : { value: saved, source: "file" };
+  }
+  const envName = (ENV_BY_FIELD[field] ?? []).find(
+    (name) => getEnv(name) !== undefined,
+  );
+  if (envName) return { value: getEnv(envName), source: "env", envName };
+  const fileValue = config[field as keyof UserConfig];
+  if (fileValue !== undefined) return { value: fileValue, source: "file" };
+  return { value: DEFAULTS[field], source: "default" };
+}
+
 /** Every top-level UserConfig key with a value and where it came from. */
-export function configRows(config: UserConfig): Row[] {
+export function configRows(config: UserConfig, repo?: string): Row[] {
   const rows: Row[] = [];
   for (const field of KNOWN_FIELDS) {
-    const fromEnv = (ENV_BY_FIELD[field] ?? []).find(
-      (name) => getEnv(name) !== undefined,
-    );
-    const fileValue = config[field as keyof UserConfig];
-    const value = fromEnv ? getEnv(fromEnv) : fileValue;
-    if (value === undefined) {
-      const fallback = DEFAULTS[field];
-      if (fallback === undefined) continue;
-      rows.push({
-        key: flagName(field),
-        field,
-        value: fallback,
-        source: "default",
-      });
-      continue;
-    }
+    const effective = effectiveField(config, field, repo);
+    if (effective.value === undefined) continue;
     rows.push({
       key: flagName(field),
       field,
-      value: displayValue(field, value),
-      source: fromEnv ? "env" : "file",
+      value: displayValue(field, effective.value),
+      source: effective.source,
     });
   }
   if (config.repos && Object.keys(config.repos).length > 0) {
@@ -122,8 +188,8 @@ export function configRows(config: UserConfig): Row[] {
   return rows.sort((a, b) => a.key.localeCompare(b.key));
 }
 
-function printList(config: UserConfig): void {
-  const rows = configRows(config);
+function printList(config: UserConfig, repo?: string): void {
+  const rows = configRows(config, repo);
   const width = Math.max(...rows.map((row) => row.key.length));
   for (const row of rows) {
     console.log(
@@ -197,8 +263,14 @@ export async function runConfig(args: string[]): Promise<void> {
     return;
   }
   const config = readConfig();
+  const repoArg = rest
+    .find((arg) => arg.startsWith("--repo="))
+    ?.slice("--repo=".length);
+  if (repoArg !== undefined && !/^[^/]+\/[^/]+$/.test(repoArg)) {
+    die("--repo must look like owner/repo");
+  }
   if (sub === "list") {
-    printList(config);
+    printList(config, repoArg);
     return;
   }
   if (sub === "path") {
@@ -213,18 +285,20 @@ export async function runConfig(args: string[]): Promise<void> {
     const name = rest.find((arg) => !arg.startsWith("-"));
     if (!name) die("Usage: co-maintainer config get <key>");
     const field = resolveField(name);
-    const fromEnv = (ENV_BY_FIELD[field] ?? []).find(
-      (envName) => getEnv(envName) !== undefined,
-    );
-    const effective = fromEnv
-      ? getEnv(fromEnv)
-      : (config[field as keyof UserConfig] ?? DEFAULTS[field]);
+    const effective = effectiveField(config, field, repoArg).value;
     if (effective === undefined) {
       die(`No value for ${name}.`);
     }
     // A machine reading this wants the real value, not a mask, which is why
-    // `get` prints it plainly and `list` is what a screen-share shows.
-    console.log(String(displayValue(field, effective)));
+    // `get` prints it plainly and `list` is what a screen-share shows. Only
+    // the password hash, which nobody can use, still says set or not set.
+    console.log(
+      field === "dashboardPasswordHash"
+        ? displayValue(field, effective)
+        : typeof effective === "object" && effective !== null
+          ? JSON.stringify(effective)
+          : String(effective),
+    );
     return;
   }
   if (sub === "unset") {
