@@ -35,7 +35,11 @@ import type {
   Json,
 } from "../types.ts";
 import { getEnv } from "../util/runtime.ts";
-import { outputLimitError, withoutRefusedPart } from "./provider.ts";
+import {
+  noteReasoningDropped,
+  outputLimitError,
+  withoutRefusedPart,
+} from "./provider.ts";
 import { interruptSignal } from "../util/interrupt.ts";
 import { aiTimeoutInit } from "./timeout.ts";
 import {
@@ -384,9 +388,13 @@ export class OpenAiProvider implements AiProvider {
     for (;;) {
       const response = await this.post(responsesBody(this.model, current));
       if (response.ok) {
-        return parseResponsesBody(
-          JSON.parse(await readBody(this.endpoint, response)) as Json,
-          this.model,
+        return noteReasoningDropped(
+          current,
+          request,
+          parseResponsesBody(
+            JSON.parse(await readBody(this.endpoint, response)) as Json,
+            this.model,
+          ),
         );
       }
       const detail = await readBody(this.endpoint, response);

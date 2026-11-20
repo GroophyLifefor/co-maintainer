@@ -1090,6 +1090,13 @@ export const COMMANDS: CommandSpec[] = [
               "How long one AI request may wait for the provider before it fails, in minutes.",
           },
           {
+            name: "global-reasoning-effort",
+            value: "none|low|default|high|xhigh|max",
+            default: "high",
+            description:
+              "How much the model reasons in every AI job. default sends no reasoning field and leaves it to the provider.",
+          },
+          {
             name: "codegraph-version",
             value: "SEMVER",
             description:

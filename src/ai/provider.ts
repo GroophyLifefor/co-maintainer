@@ -76,9 +76,11 @@ function createRawProvider(options: Options, model: string): AiProvider {
 }
 
 /** A 400 that names one optional part of the request earns one retry without
- * it: the JSON schema, which the prompt asks for anyway, or "thinking off",
- * which a model that always thinks refuses. Undefined when nothing is left to
- * drop, so the caller reports the error. */
+ * it: the JSON schema, which the prompt asks for anyway, or the reasoning
+ * level. Any level can be refused: "none" by a model that always thinks, and
+ * any level by a route that cannot carry the field (an OpenCode Go model
+ * behind the Responses API, for one). Undefined when nothing is left to drop,
+ * so the caller reports the error. */
 export function withoutRefusedPart(
   request: AiRequest,
   detail: string,
@@ -88,14 +90,25 @@ export function withoutRefusedPart(
     const { responseFormat: _dropped, ...rest } = request;
     return rest;
   }
-  if (
-    request.reasoningEffort === "none" &&
-    /reasoning|effort|thinking/i.test(detail)
-  ) {
+  if (request.reasoningEffort && /reasoning|effort|thinking/i.test(detail)) {
     const { reasoningEffort: _dropped, ...rest } = request;
     return rest;
   }
   return undefined;
+}
+
+/** Marks a response whose request lost its reasoning level on a retry, so the
+ * job can say the level it asked for was not used. */
+export function noteReasoningDropped(
+  sent: AiRequest,
+  original: AiRequest,
+  response: AiResponse,
+): AiResponse {
+  if (!original.reasoningEffort || sent.reasoningEffort) return response;
+  console.error(
+    `[ai] ${response.provider} refused the reasoning level ${original.reasoningEffort} for ${response.model}, retried without it`,
+  );
+  return { ...response, reasoningDropped: true };
 }
 
 /** The model stopped at its output limit before writing a word. Thinking counts

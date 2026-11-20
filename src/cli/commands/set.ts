@@ -41,6 +41,10 @@ import {
 } from "../../tools/mcp_config.ts";
 import { AI_PROVIDERS, rejectRetiredProvider } from "../../ai/provider.ts";
 import {
+  GLOBAL_REASONING_EFFORTS,
+  isGlobalReasoningEffort,
+} from "../../ai/reasoning.ts";
+import {
   MAX_CONCURRENCY,
   MIN_CONCURRENCY,
 } from "../../services/concurrency.ts";
@@ -119,6 +123,7 @@ export async function runSet(args: string[]): Promise<void> {
     "review-blocking",
     "review-references",
     "ai-timeout-minutes",
+    "global-reasoning-effort",
     "codegraph-version",
     "gh-concurrent",
     "ai-concurrent",
@@ -210,6 +215,7 @@ export async function runSet(args: string[]): Promise<void> {
     "review-policy": "reviewPolicy",
     "review-blocking": "reviewBlocking",
     "ai-timeout-minutes": "aiTimeoutMinutes",
+    "global-reasoning-effort": "globalReasoningEffort",
     "codegraph-version": "codegraphVersion",
     password: "dashboardPasswordHash",
     "extension-rerun-on-restart": "extensionRerunOnRestart",
@@ -339,6 +345,15 @@ export async function runSet(args: string[]): Promise<void> {
     }
     patch.aiTimeoutMinutes = minutes;
   }
+  const reasoning = text(args, "global-reasoning-effort");
+  if (reasoning !== undefined) {
+    if (!isGlobalReasoningEffort(reasoning)) {
+      die(
+        `--global-reasoning-effort must be one of: ${GLOBAL_REASONING_EFFORTS.join(", ")}`,
+      );
+    }
+    patch.globalReasoningEffort = reasoning;
+  }
   const rawCodegraphVersion = text(args, "codegraph-version");
   if (rawCodegraphVersion !== undefined && rawCodegraphVersion.trim() !== "") {
     // Match the reader: a leading `v` is accepted and dropped, so `set` and
@@ -391,7 +406,7 @@ export async function runSet(args: string[]): Promise<void> {
         "--github-oauth-client-id=, --github-oauth-client-secret=, --github-oauth-allowed-user=, " +
         "--remote-host=, --remote-token=, --remote-byok-policy=off|allow|require, " +
         "--remote-client-tools-policy=off|on, " +
-        "--review-blocking=model|severity, --ai-timeout-minutes=N, --codegraph-version=SEMVER, " +
+        "--review-blocking=model|severity, --ai-timeout-minutes=N, --global-reasoning-effort=LEVEL, --codegraph-version=SEMVER, " +
         "--password=, --disable-auth=password, --enable-auth=github, or --unset=name",
     );
   }

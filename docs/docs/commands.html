@@ -1264,6 +1264,11 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td>How long one AI request may wait for the provider before it fails, in minutes.</td>
 </tr>
 <tr>
+<td><code>--global-reasoning-effort=none|low|default|high|xhigh|max</code></td>
+<td>high</td>
+<td>How much the model reasons in every AI job. default sends no reasoning field and leaves it to the provider.</td>
+</tr>
+<tr>
 <td><code>--codegraph-version=SEMVER</code></td>
 <td></td>
 <td>The pinned codegraph version, overriding the built-in one. For a security fix without a release.</td>

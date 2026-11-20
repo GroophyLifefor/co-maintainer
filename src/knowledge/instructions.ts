@@ -6,6 +6,7 @@
  * files it was given, merges duplicates, applies the cap, numbers the rules
  * `I1`, `I2`, ... and writes the Markdown itself. The model never writes the
  * file, so nothing it says beyond a checked rule reaches a review. */
+import { reasoningFields } from "../ai/reasoning.ts";
 import { AiBatch } from "../ai/batch.ts";
 import type { AiProvider, AiRequest, AiResponse, Options } from "../types.ts";
 import { INSTRUCTIONS_FILE, type RuleEntry } from "./rules.ts";
@@ -64,7 +65,7 @@ export function instructionsRequest(files: Record<string, string>): AiRequest {
   return {
     job: "synth_instructions",
     maxTokens: 16_000,
-    reasoningEffort: "high",
+    ...reasoningFields(),
     system: SYSTEM,
     prompt: `Read the instruction files below and return only a JSON object:
 {"rules":[{"rule":"Format amounts with \`formatMoney()\`, never with number methods.","scope":"packages/billing/","sources":["packages/billing/AGENTS.md:8"]}]}

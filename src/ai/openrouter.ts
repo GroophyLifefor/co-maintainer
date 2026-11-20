@@ -1,4 +1,9 @@
-import { chatBody, parseChatResponse, withoutRefusedPart } from "./provider.ts";
+import {
+  chatBody,
+  noteReasoningDropped,
+  parseChatResponse,
+  withoutRefusedPart,
+} from "./provider.ts";
 import type { AiProvider, AiRequest, AiResponse, Json } from "../types.ts";
 import { getEnv } from "../util/runtime.ts";
 import { interruptSignal } from "../util/interrupt.ts";
@@ -137,10 +142,14 @@ export class OpenRouterProvider implements AiProvider {
     for (;;) {
       const response = await this.post(chatBody(this.model, current));
       if (response.ok) {
-        return parseChatResponse(
-          JSON.parse(await readBody(this.host.endpoint, response)) as Json,
-          this.host.provider,
-          this.model,
+        return noteReasoningDropped(
+          current,
+          request,
+          parseChatResponse(
+            JSON.parse(await readBody(this.host.endpoint, response)) as Json,
+            this.host.provider,
+            this.model,
+          ),
         );
       }
       const detail = await readBody(this.host.endpoint, response);

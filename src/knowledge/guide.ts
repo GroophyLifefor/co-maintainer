@@ -1,3 +1,4 @@
+import { reasoningFields } from "../ai/reasoning.ts";
 import {
   applyGuideEdits,
   GuideEditError,
@@ -258,7 +259,7 @@ function fullGuideRequest(material: string, previous = ""): AiRequest {
   return {
     job: "synth_guide",
     maxTokens: 16_000,
-    reasoningEffort: "high",
+    ...reasoningFields(),
     system: GUIDE_SYSTEM,
     prompt: `Write a Markdown review method from these review findings.
 - Start with one \`#\` title, one sentence of purpose, and one line on how to use the method.
@@ -276,7 +277,7 @@ function shortGuideRequest(material: string, full: string): AiRequest {
   return {
     job: "synth_guide_short",
     maxTokens: 8_000,
-    reasoningEffort: "high",
+    ...reasoningFields(),
     system: GUIDE_SYSTEM,
     prompt: `Write the short, reviewer-facing checklist from the full method below.
 - Start with one \`#\` title, one sentence, then a plain line (not a bullet) linking to
@@ -460,7 +461,7 @@ function editGuideRequest(
   return {
     job: "edit_guide",
     maxTokens: 8_000,
-    reasoningEffort: "high",
+    ...reasoningFields(),
     system: GUIDE_SYSTEM,
     prompt: `Update the review method below with the findings that changed since it was written. Return only this JSON object:
 {"add": [{"pass": "<the title of an existing pass>", "rule": "<rule> · <why it matters here> [<finding numbers>]", "example": "<the concrete case>"}],

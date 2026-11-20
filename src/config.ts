@@ -166,6 +166,9 @@ export type UserConfig = {
   /** How long one AI request may wait for the provider, in minutes. Unset
    * means 15. */
   aiTimeoutMinutes?: number;
+  /** The reasoning effort every AI job asks for: none, low, default, high,
+   * xhigh or max. `default` sends no reasoning field. Unset means high. */
+  globalReasoningEffort?: string;
   /** What a review uses to decide a blocking finding. `model` lets
    * the model's own severity decide, `severity` uses a fixed threshold. */
   reviewBlocking?: "model" | "severity";

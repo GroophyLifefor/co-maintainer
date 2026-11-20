@@ -1,3 +1,4 @@
+import { reasoningFields } from "../ai/reasoning.ts";
 import { AiBatch } from "../ai/batch.ts";
 import type { AiValidator } from "../ai/batch.ts";
 import { isPullRequestFact } from "./guide.ts";
@@ -357,9 +358,9 @@ function extractRequest(prompt: string, maxTokens: number): AiRequest {
     prompt,
     maxTokens,
     // Reading a discussion into structured findings is multi-step work: with no
-    // thinking the model returned an empty array for most pull requests, so a
-    // little reasoning is allowed (the answer still fits the token budget).
-    reasoningEffort: "low",
+    // thinking the model returned an empty array for most pull requests. The
+    // level is the global setting, like every other AI job.
+    ...reasoningFields(),
     system:
       'Extract only repository-specific facts and review findings. Never invent files, commands, or process. Never write a pull-request number, a commit id, a reviewer name, or quoted comment text in a claim. A review finding (sectionKey "review") states a concrete rule with an impact and an action.',
   };
@@ -610,7 +611,7 @@ export async function synthesizeSections(
     requests.push({
       job: "synth_section",
       maxTokens: 4_000,
-      reasoningEffort: "high",
+      ...reasoningFields(),
       system: `You synthesize contribution guidance for an unfamiliar open-source repository.
 Help developers make correct implementation, testing, review, debugging, and release
 decisions. Current repository evidence outranks history. A single historical

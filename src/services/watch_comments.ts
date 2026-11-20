@@ -8,6 +8,7 @@
  * information get a short "noted" and wait for the next sync, which puts the
  * note in the detailed review guide and, for ignore, stops reporting the
  * finding. */
+import { reasoningFields } from "../ai/reasoning.ts";
 import { createAiProvider } from "../ai/provider.ts";
 import { FakeAiProvider } from "../ai/fake.ts";
 import {
@@ -207,7 +208,7 @@ async function runWatchComment(
     aiFor(options),
     {
       job: "watch_comment_answer",
-      reasoningEffort: "high",
+      ...reasoningFields(),
       maxTokens: 6000,
       ...mermaidToolFields(options),
       system: `You are co-maintainer, the code reviewer that opened this issue. Answer the maintainer's question about the problem in plain prose. Write the answer in the same language as the question.

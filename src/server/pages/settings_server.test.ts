@@ -493,3 +493,55 @@ test("the AI request timeout is saved from the AI page, checked, and cleared by 
     }
   });
 });
+
+test("the global reasoning effort is chosen on the AI page, checked, and cleared by a blank", async () => {
+  await withEnv(async () => {
+    const app = createApp({
+      password: PASSWORD,
+      auth: { password: true, github: false },
+    });
+    const cookie = await cookieSession(app);
+    const put = (body: unknown) =>
+      app.fetch(
+        new Request("http://localhost/api/settings", {
+          method: "PUT",
+          headers: {
+            cookie,
+            "content-type": "application/json",
+            "x-requested-with": "co-maintainer",
+          },
+          body: JSON.stringify(body),
+        }),
+      );
+    const selected = async () => {
+      const html = await (
+        await app.fetch(
+          new Request("http://localhost/settings/ai", { headers: { cookie } }),
+        )
+      ).text();
+      const select = /<select id="reasoning-effort">([\s\S]*?)<\/select>/.exec(
+        html,
+      )?.[1];
+      return /<option value="([^"]+)" selected>/.exec(select ?? "")?.[1];
+    };
+
+    if ((await selected()) !== "high") {
+      throw new Error("nothing saved should show high");
+    }
+    const invalid = await put({ globalReasoningEffort: "medium" });
+    if (invalid.status !== 422) {
+      throw new Error(`an unknown level returned ${invalid.status}`);
+    }
+    const valid = await put({ globalReasoningEffort: "default" });
+    if (valid.status !== 200) {
+      throw new Error(`a valid level returned ${valid.status}`);
+    }
+    if ((await selected()) !== "default") {
+      throw new Error("the AI page does not show the saved level");
+    }
+    const cleared = await put({ globalReasoningEffort: null });
+    if (cleared.status !== 200 || (await selected()) !== "high") {
+      throw new Error("a cleared level does not fall back to high");
+    }
+  });
+});

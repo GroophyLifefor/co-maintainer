@@ -10,6 +10,11 @@ import {
 } from "../../config.ts";
 import { VERSION } from "../../version.ts";
 import { DEFAULT_AI_TIMEOUT_MINUTES } from "../../ai/timeout.ts";
+import {
+  DEFAULT_GLOBAL_REASONING_EFFORT,
+  GLOBAL_REASONING_EFFORTS,
+  globalReasoningEffort,
+} from "../../ai/reasoning.ts";
 import { appDbDir } from "../../store/app_db.ts";
 import { TEMPLATE_INFO } from "../../services/review_policy.ts";
 import {
@@ -144,6 +149,15 @@ function aiCard(config: UserConfig): string {
             config.aiTimeoutMinutes ?? "",
           )}" placeholder="${DEFAULT_AI_TIMEOUT_MINUTES}">
           <div class="hint">How long one AI request may wait for the provider before it fails. Leave blank for ${DEFAULT_AI_TIMEOUT_MINUTES} minutes.</div></div>
+        <div class="field"><label for="reasoning-effort">Reasoning effort</label>
+          <select id="reasoning-effort">${GLOBAL_REASONING_EFFORTS.map(
+            (level) =>
+              `<option value="${level}"${
+                level === globalReasoningEffort(config) ? " selected" : ""
+              }>${level}</option>`,
+          ).join("")}</select>
+          <div class="hint">How much the model reasons in every AI job: reviews, replies, guides and fact extraction. Unset means ${DEFAULT_GLOBAL_REASONING_EFFORT}. "default" sends no reasoning field and leaves it to the provider, for a model that refuses the field. A provider that refuses a level gets one retry without it.</div>
+          <div class="cli"><code>--global-reasoning-effort=…</code></div></div>
       </div>
       <div class="ft"><button class="primary" id="save-ai">Save</button></div>
     </div>`;
@@ -566,7 +580,8 @@ document.getElementById("save-ai").addEventListener("click", function() {
     token: document.getElementById("token").value,
     highModel: document.getElementById("high").value,
     lowModel: document.getElementById("low").value,
-    aiTimeoutMinutes: timeout.value
+    aiTimeoutMinutes: timeout.value,
+    globalReasoningEffort: document.getElementById("reasoning-effort").value
   });
 });
 `;

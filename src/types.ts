@@ -177,6 +177,9 @@ export type AiResponse = {
   /** The answer stopped at the output limit (`max_tokens`), so its text may be
    * cut mid-way. Set by each provider from its own stop reason. */
   cutOff?: true;
+  /** The provider refused the reasoning level, and the answer came from a
+   * retry without it. */
+  reasoningDropped?: true;
   model: string;
   provider:
     | "openrouter"

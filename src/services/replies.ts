@@ -1,3 +1,4 @@
+import { reasoningFields } from "../ai/reasoning.ts";
 import { safeCopy } from "../util/redact.ts";
 import { parseStoredReferences, referenceLine } from "../review/references.ts";
 import type { RulesFile } from "../knowledge/rules.ts";
@@ -300,7 +301,7 @@ async function runReplyJobCore(
       provider,
       {
         job: "reply_to_github_comment",
-        reasoningEffort: "high",
+        ...reasoningFields(),
         maxTokens: 6_000,
         ...mermaidToolFields(options),
         system:
