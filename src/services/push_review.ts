@@ -909,6 +909,8 @@ async function runPushReview(
   let completed = false;
   let client: GitHubClient | undefined;
   let checkRunId: string | undefined;
+  // Outside the try, so a failed or stopped review still records what it spent.
+  const costTally = emptyTally();
   try {
     client = await appClientFor(job.repo);
     checkRunId =
@@ -928,7 +930,6 @@ async function runPushReview(
       : [];
     const options = reviewOptions(job.repo, 0, (text) => log("info", text));
     const ai = aiFor(options);
-    const costTally = emptyTally();
     let tokensIn = 0;
     let tokensOut = 0;
     const started = performance.now();
@@ -1076,7 +1077,9 @@ async function runPushReview(
     log("info", `push review finished (${report.length} findings)`);
   } finally {
     if (!completed) {
-      setReviewStatus(review.id, signal.aborted ? "canceled" : "failed");
+      setReviewStatus(review.id, signal.aborted ? "canceled" : "failed", {
+        ...costColumns(settle(costTally)),
+      });
       if (!signal.aborted) deletePushInput(job.id);
       if (client && checkRunId) {
         await completeCheckRun(

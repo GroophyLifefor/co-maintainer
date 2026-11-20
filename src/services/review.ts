@@ -775,8 +775,12 @@ async function stoppedReview(
   reviewId: string,
   checkRunId: string | undefined,
   log: LogFn,
+  costTally?: CostTally,
 ): Promise<void> {
-  setReviewStatus(reviewId, "canceled");
+  // A stopped review still spent what its finished AI calls cost.
+  setReviewStatus(reviewId, "canceled", {
+    ...(costTally ? costColumns(settle(costTally)) : {}),
+  });
   await updateCheck(
     client,
     job,
@@ -1406,7 +1410,7 @@ async function runReviewJobCore(
     // one, and the pull request gets one note pointing at the dashboard.
     // A Stop is not a failure: nothing is posted.
     if (signal?.aborted) {
-      await stoppedReview(github, job, reviewId, checkRunId, log);
+      await stoppedReview(github, job, reviewId, checkRunId, log, costTally);
       return;
     }
     await recordFailedReview(github, job, reviewId, costTally, log);
@@ -1416,7 +1420,7 @@ async function runReviewJobCore(
   // nothing is posted or stored. Extensions it cut short would read as failed.
   // The remote job returns the same way.
   if (signal?.aborted) {
-    await stoppedReview(github, job, reviewId, checkRunId, log);
+    await stoppedReview(github, job, reviewId, checkRunId, log, costTally);
     return;
   }
   guideBuiltAt = response.guideBuiltAt;

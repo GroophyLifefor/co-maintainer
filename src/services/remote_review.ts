@@ -436,6 +436,8 @@ export function registerRemoteReviewHandler(): void {
       // instead of silently falling back to the server key.
       const billedTo = input.billed_to === "byok" ? "byok" : "server";
       const byokKey = billedTo === "byok" ? getByokKey(job.id) : undefined;
+      // Outside the try, so a failed or stopped review still records what it spent.
+      const costTally = emptyTally();
       try {
         if (billedTo === "byok" && byokKey === undefined) {
           throw new RemoteReviewError(
@@ -600,7 +602,6 @@ export function registerRemoteReviewHandler(): void {
         const started = performance.now();
         let tokensIn = 0;
         let tokensOut = 0;
-        const costTally = emptyTally();
         const { review: result, extensions } = await withExtensions(
           remoteContext({
             jobId: job.id,
@@ -782,6 +783,7 @@ export function registerRemoteReviewHandler(): void {
           // Reached on failure and on the aborted early return above.
           setReviewStatus(reviewId, signal.aborted ? "aborted" : "failed", {
             billed_to: billedTo,
+            ...costColumns(settle(costTally)),
           });
           deleteRemoteReviewInput(job.id);
           closeRemoteSession(job.id);
