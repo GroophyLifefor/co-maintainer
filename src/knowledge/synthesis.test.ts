@@ -90,7 +90,7 @@ test("a malformed section is left out, not failed", async () => {
   }
 });
 
-test("fact extraction allows a little thinking", async () => {
+test("fact extraction asks for the global reasoning level", async () => {
   const requests: AiRequest[] = [];
   const provider: AiProvider = {
     async complete(request) {
@@ -143,8 +143,9 @@ test("fact extraction allows a little thinking", async () => {
   }
   const extracts = requests.filter((item) => item.job === "extract_unit");
   if (extracts.length !== 2) throw new Error(`${extracts.length} extracts`);
-  if (extracts.some((item) => item.reasoningEffort !== "low")) {
-    throw new Error("an extraction did not ask for low reasoning");
+  // The global level, high when nothing is saved. It used to be a fixed low.
+  if (extracts.some((item) => item.reasoningEffort !== "high")) {
+    throw new Error("an extraction did not ask for the global high level");
   }
 });
 

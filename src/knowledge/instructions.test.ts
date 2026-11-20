@@ -10,6 +10,11 @@ import {
 } from "./instructions.ts";
 import { withIsolatedHome } from "../testing/isolated_home.ts";
 import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// A request reads the global reasoning level from the config. Keep it in a
+// temp home, never the developer's real one.
+isolateTestFile();
 
 const FILES = {
   "AGENTS.md": [

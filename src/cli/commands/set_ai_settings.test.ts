@@ -1,6 +1,6 @@
-/** `set --ai-timeout-minutes=N`, which `config set ai-timeout-minutes N`
- * also runs: a positive whole number is saved, anything else is refused, and
- * `--unset` clears it. */
+/** The global AI settings through `set`, which `config set` also runs:
+ * `--ai-timeout-minutes=N` and `--global-reasoning-effort=LEVEL`. A valid
+ * value is saved, anything else is refused, and `--unset` clears it. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readConfig } from "../../config.ts";
@@ -46,5 +46,20 @@ test("set --ai-timeout-minutes saves minutes, refuses a bad value and unsets", a
     assert.equal(readConfig().aiTimeoutMinutes, 20);
     await runSet(["--unset=ai-timeout-minutes"]);
     assert.equal(readConfig().aiTimeoutMinutes, undefined);
+  });
+});
+
+test("set --global-reasoning-effort saves a level, refuses an unknown one and unsets", async () => {
+  await withConfig(async () => {
+    await runSet(["--global-reasoning-effort=default"]);
+    assert.equal(readConfig().globalReasoningEffort, "default");
+    const message = await refused(["--global-reasoning-effort=medium"]);
+    assert.match(
+      message,
+      /must be one of: none, low, default, high, xhigh, max/,
+    );
+    assert.equal(readConfig().globalReasoningEffort, "default");
+    await runSet(["--unset=global-reasoning-effort"]);
+    assert.equal(readConfig().globalReasoningEffort, undefined);
   });
 });

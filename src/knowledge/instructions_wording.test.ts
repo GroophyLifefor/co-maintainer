@@ -5,6 +5,11 @@
 import { test } from "node:test";
 import { checkInstructionRules, instructionsRequest } from "./instructions.ts";
 import { repositoryInstructionsBlock } from "../review/system_prompt.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// A request reads the global reasoning level from the config. Keep it in a
+// temp home, never the developer's real one.
+isolateTestFile();
 
 test("the synthesis prompt treats the files as data", () => {
   const request = instructionsRequest({ "AGENTS.md": "# Rules\n" });

@@ -11,6 +11,11 @@ import {
 } from "../../config.ts";
 import { testAppAccess, testGithubAccess } from "../../services/credentials.ts";
 import {
+  GLOBAL_REASONING_EFFORTS,
+  globalReasoningEffort,
+  isGlobalReasoningEffort,
+} from "../../ai/reasoning.ts";
+import {
   checkPassword,
   readSessionToken,
   revokeOtherSessions,
@@ -96,6 +101,7 @@ export async function handleSettingsRoute(
       githubAuthEnabled: Boolean(config.githubAuthEnabled),
       maxConcurrentJobs: config.maxConcurrentJobs ?? null,
       aiTimeoutMinutes: config.aiTimeoutMinutes ?? null,
+      globalReasoningEffort: globalReasoningEffort(config),
       remoteSyncTimeoutSeconds: config.remoteSyncTimeoutSeconds ?? null,
       maxConcurrentRemoteReviewsPerToken:
         config.maxConcurrentRemoteReviewsPerToken ?? null,
@@ -243,6 +249,20 @@ export async function handleSettingsRoute(
     if (remoteToolOut) return remoteToolOut;
     const aiTimeout = positiveIntOrNull("aiTimeoutMinutes", "aiTimeoutMinutes");
     if (aiTimeout) return aiTimeout;
+    if ("globalReasoningEffort" in body) {
+      const level = body.globalReasoningEffort;
+      if (level === null || level === "") {
+        patch.globalReasoningEffort = undefined;
+      } else if (isGlobalReasoningEffort(level)) {
+        patch.globalReasoningEffort = level;
+      } else {
+        return errorResponse(
+          422,
+          "invalid_setting",
+          `globalReasoningEffort must be one of ${GLOBAL_REASONING_EFFORTS.join(", ")}`,
+        );
+      }
+    }
     if ("reviewPolicy" in body) {
       const stored = policyToStore(body.reviewPolicy, { allowLegacy: false });
       if (!stored.ok) {

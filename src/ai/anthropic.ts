@@ -40,7 +40,11 @@ import type {
   Json,
 } from "../types.ts";
 import { getEnv } from "../util/runtime.ts";
-import { outputLimitError } from "./provider.ts";
+import {
+  noteReasoningDropped,
+  outputLimitError,
+  withoutRefusedPart,
+} from "./provider.ts";
 import { interruptSignal } from "../util/interrupt.ts";
 import { aiTimeoutInit } from "./timeout.ts";
 import {
@@ -359,39 +363,35 @@ export class AnthropicProvider implements AiProvider {
   }
 
   async complete(request: AiRequest): Promise<AiResponse> {
-    let response = await this.post(messagesBody(this.model, request));
-    // A model may reject `output_config.format` next to tools. The schema is
-    // only a hint (the prompt also asks for a fenced JSON block), so one retry
-    // without it beats failing the review outright.
-    if (response.status === 400 && request.responseFormat) {
-      const detail = await readBody(this.endpoint, response);
-      if (/output_config|json_schema|structured/i.test(detail)) {
-        const { responseFormat: _dropped, ...withoutSchema } = request;
-        response = await this.post(messagesBody(this.model, withoutSchema));
-        if (response.ok) {
-          return parseMessagesBody(
+    // A model may reject `output_config.format` next to tools, or the effort
+    // level. The schema is only a hint (the prompt also asks for a fenced JSON
+    // block) and the level only a preference, so a 400 naming one gets a retry
+    // without it rather than failing the job. An error about the effort names
+    // `effort`, so it is not taken for a schema error.
+    let current = request;
+    for (;;) {
+      const response = await this.post(messagesBody(this.model, current));
+      if (response.ok) {
+        return noteReasoningDropped(
+          current,
+          request,
+          parseMessagesBody(
             JSON.parse(await readBody(this.endpoint, response)) as Json,
             this.model,
-          );
-        }
-        throw anthropicError(
-          this.model,
-          response.status,
-          await readBody(this.endpoint, response),
+          ),
         );
       }
-      throw anthropicError(this.model, response.status, detail);
+      const detail = await readBody(this.endpoint, response);
+      const lighter =
+        response.status === 400
+          ? withoutRefusedPart(
+              current,
+              detail,
+              /output_config(?!\.effort)|json_schema|structured/i,
+            )
+          : undefined;
+      if (!lighter) throw anthropicError(this.model, response.status, detail);
+      current = lighter;
     }
-    if (!response.ok) {
-      throw anthropicError(
-        this.model,
-        response.status,
-        await readBody(this.endpoint, response),
-      );
-    }
-    return parseMessagesBody(
-      JSON.parse(await readBody(this.endpoint, response)) as Json,
-      this.model,
-    );
   }
 }

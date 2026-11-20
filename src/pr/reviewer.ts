@@ -1,3 +1,4 @@
+import { reasoningFields } from "../ai/reasoning.ts";
 import { clampToolRounds } from "./tool_rounds.ts";
 import { createAiProvider } from "../ai/provider.ts";
 import { CliError, EXIT_USAGE } from "../cli/error.ts";
@@ -545,6 +546,12 @@ async function allInOrder<T extends readonly unknown[]>(values: {
   ) as unknown as T;
 }
 
+/** The log line for a review whose provider refused the reasoning level, so
+ * the setting is not silently ignored. */
+export function reasoningDroppedLine(request: AiRequest): string {
+  return `reasoning · the provider refused level ${request.reasoningEffort ?? "default"}, the review ran without it`;
+}
+
 export async function reviewPullRequest(
   client: GitHubClient,
   options: Options,
@@ -828,7 +835,7 @@ ${diff}`;
     system: `${reviewSystemPrompt(diagrams, options)}\n\n${reviewGuidesBlock(guide, detailed, codebase, guides.instructions)}${reviewSystemPromptBlock(options)}`,
     prompt,
     maxTokens: 24_000 * matrix,
-    reasoningEffort: "high",
+    ...reasoningFields(),
     responseFormat: FINDINGS_JSON_SCHEMA,
     ...mermaidToolFields(options),
   };
@@ -857,6 +864,7 @@ ${diff}`;
   report(
     `AI response · input=${response.tokensIn} tokens · output=${response.tokensOut} tokens`,
   );
+  if (response.reasoningDropped) report(reasoningDroppedLine(request));
   if (options.debug) {
     console.log(
       `[debug] initial review response · input=${response.tokensIn} tokens · output=${response.tokensOut} tokens`,
@@ -1092,7 +1100,7 @@ ${ownDiff}${unchangedListing}`;
     system: `${reviewSystemPrompt(diagrams, options)}\n\n${reviewGuidesBlock(guide, detailed, codebase, guides.instructions)}${reviewSystemPromptBlock(options)}`,
     prompt,
     maxTokens: 24_000 * matrix,
-    reasoningEffort: "high",
+    ...reasoningFields(),
     responseFormat: FINDINGS_JSON_SCHEMA,
     ...mermaidToolFields(options),
   };
@@ -1105,6 +1113,7 @@ ${ownDiff}${unchangedListing}`;
     usage,
   );
   if (usage) await usage(response);
+  if (response.reasoningDropped) report(reasoningDroppedLine(request));
   if (!response.text.trim()) {
     throw new Error(`${aiProviderName(options)} returned an empty review`);
   }
