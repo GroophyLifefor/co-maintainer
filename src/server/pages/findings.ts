@@ -2,6 +2,10 @@
  * every repository (the left menu). Filters live in the URL query, so a
  * filtered list is a link any count on the dashboard can open. */
 import {
+  FINDING_SOURCES,
+  type FindingSource,
+} from "../../store/finding_list.ts";
+import {
   empty,
   escapeHtml,
   html,
@@ -41,6 +45,8 @@ export type FindingQuery = {
   days?: number;
   /** The GitHub login that opened the pull request. */
   author?: string;
+  /** Where the findings came from, see `FindingSource`. */
+  source?: FindingSource;
   page: number;
 };
 
@@ -62,6 +68,11 @@ export function parseFindingQuery(params: URLSearchParams): FindingQuery {
     repo: trimmed("repo"),
     days: [7, 30, 90].includes(days) ? days : undefined,
     author: trimmed("author")?.slice(0, 100),
+    ...((FINDING_SOURCES as readonly string[]).includes(
+      params.get("source") ?? "",
+    )
+      ? { source: params.get("source") as FindingSource }
+      : {}),
     page: Number.isSafeInteger(page) && page > 0 ? page : 1,
   };
 }
@@ -82,6 +93,7 @@ export function findingFilter(
     q: query.q,
     sinceIso: query.days ? daysAgoIso(query.days) : undefined,
     author: query.author,
+    source: query.source,
   };
 }
 
@@ -127,6 +139,7 @@ function withQuery(
     repo: query.repo,
     days: query.days,
     author: query.author,
+    source: query.source,
     page: undefined,
     ...patch,
   };
@@ -181,6 +194,22 @@ export function renderFindings(
       on: query.severity === entry.level,
     })),
   ]);
+  const sourceChips = segmented(
+    (
+      [
+        [undefined, "All reviews"],
+        ["pr", "Pull requests"],
+        ["push", "Pushes"],
+        ["remote", "Remote"],
+        ["cli", "CLI"],
+        ["extension", "Extensions"],
+      ] as const
+    ).map(([source, label]) => ({
+      label,
+      href: withQuery(base, query, { source }),
+      on: query.source === source,
+    })),
+  );
   const stateChips = segmented(
     (["open", "closed", "all"] as const).map((state) => ({
       label: state === "open" ? "Open" : state === "closed" ? "Closed" : "All",
@@ -212,7 +241,7 @@ export function renderFindings(
         )
         .join("")}</div>`
     : "";
-  const hidden = (["severity", "state", "days", "author"] as const)
+  const hidden = (["severity", "state", "days", "author", "source"] as const)
     .map((name) => {
       const value =
         name === "state" && query.state === "open" ? undefined : query[name];
@@ -249,11 +278,18 @@ export function renderFindings(
     <button type="submit" class="btn out sm">Filter</button>
   </form>
   <div class="filters">${severityChips}${stateChips}</div>
+  <div class="filters">${sourceChips}</div>
   ${chips}`;
   // Read once for the page, not once per row.
   const config = readConfig();
+  // A finding with no pull request opens the review that found it: the
+  // Pushes tab for a push, the job page for a remote or CLI review.
   const prHref = (row: FindingListRow) =>
-    `/repos/${row.repo}/pulls/${row.pr_number}`;
+    row.pr_number !== null
+      ? `/repos/${row.repo}/pulls/${row.pr_number}`
+      : row.review_kind === "push"
+        ? `/repos/${row.repo}/pushes`
+        : `/activity/${row.job_id}`;
   const rows = data.items
     .map((row) => {
       const target = `${prHref(row)}#${findingAnchor(row.id)}`;
