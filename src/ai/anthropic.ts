@@ -42,6 +42,7 @@ import type {
 import { getEnv } from "../util/runtime.ts";
 import { outputLimitError } from "./provider.ts";
 import { interruptSignal } from "../util/interrupt.ts";
+import { aiTimeoutInit } from "./timeout.ts";
 import {
   CliError,
   EXIT_RUNTIME,
@@ -338,6 +339,8 @@ export class AnthropicProvider implements AiProvider {
   }
 
   private async post(body: Json): Promise<Response> {
+    // Outside the try: a config that cannot be read is not a network failure.
+    const timeout = aiTimeoutInit();
     try {
       return await fetch(this.endpoint, {
         method: "POST",
@@ -348,6 +351,7 @@ export class AnthropicProvider implements AiProvider {
         },
         body: JSON.stringify(body),
         signal: interruptSignal(),
+        ...timeout,
       });
     } catch (error) {
       throw networkFailure(this.endpoint, error);

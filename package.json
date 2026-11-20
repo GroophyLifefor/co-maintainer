@@ -73,6 +73,9 @@
     "dx:scenario": "node scripts/dx_scenario.ts",
     "dashboard:smoke": "node scripts/dashboard_smoke.ts"
   },
+  "dependencies": {
+    "undici": "^7.30.2"
+  },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "marked": "^15.0.7",

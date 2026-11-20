@@ -13,6 +13,11 @@ import type { AiRequest, Options } from "../types.ts";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { test } from "node:test";
+import { isolateTestFile } from "../testing/locations.ts";
+
+// Every AI call reads the configured timeout. Keep the config in a temp
+// home, never the developer's real one.
+isolateTestFile();
 
 const request: AiRequest = {
   job: "test",

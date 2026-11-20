@@ -2,6 +2,7 @@ import { chatBody, parseChatResponse, withoutRefusedPart } from "./provider.ts";
 import type { AiProvider, AiRequest, AiResponse, Json } from "../types.ts";
 import { getEnv } from "../util/runtime.ts";
 import { interruptSignal } from "../util/interrupt.ts";
+import { aiTimeoutInit } from "./timeout.ts";
 import {
   CliError,
   EXIT_RUNTIME,
@@ -107,6 +108,8 @@ export class OpenRouterProvider implements AiProvider {
   /** One POST. Returns the raw response so `complete` can decide whether the
    * failure is worth a retry without the schema. */
   private async post(body: Json): Promise<Response> {
+    // Outside the try: a config that cannot be read is not a network failure.
+    const timeout = aiTimeoutInit();
     try {
       return await fetch(this.host.endpoint, {
         method: "POST",
@@ -117,6 +120,7 @@ export class OpenRouterProvider implements AiProvider {
         },
         body: JSON.stringify(body),
         signal: interruptSignal(),
+        ...timeout,
       });
     } catch (error) {
       // `fetch failed` alone names neither the host nor the cause.

@@ -1,11 +1,16 @@
 /** Every API key provider sends the armed interrupt signal with its request,
  * so Ctrl-C in a local review stops the call in flight. */
 import { test } from "node:test";
+import { isolateTestFile } from "../testing/locations.ts";
 import { AnthropicProvider } from "./anthropic.ts";
 import { OpenAiProvider } from "./openai.ts";
 import { OpenRouterProvider } from "./openrouter.ts";
 import { armInterrupt, disarmInterrupt } from "../util/interrupt.ts";
 import type { AiProvider } from "../types.ts";
+
+// Every AI call reads the configured timeout. Keep the config in a temp
+// home, never the developer's real one.
+isolateTestFile();
 
 async function signalSent(provider: AiProvider): Promise<unknown> {
   const original = globalThis.fetch;

@@ -167,6 +167,7 @@ export const KNOWN_FIELDS = [
   "githubAuthEnabled",
   "dashboardPasswordHash",
   "maxConcurrentJobs",
+  "aiTimeoutMinutes",
   "reviewBlocking",
   "codegraphVersion",
   "remoteHost",

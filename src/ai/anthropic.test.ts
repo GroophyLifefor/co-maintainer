@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { isolateTestFile } from "../testing/locations.ts";
 import {
   AnthropicProvider,
   anthropicError,
@@ -11,6 +12,10 @@ import { startFakeAnthropic } from "../testing/fake_anthropic.ts";
 import { CliError, EXIT_RUNTIME, EXIT_USAGE } from "../cli/error.ts";
 import { deleteEnv, getEnv, setEnv } from "../util/runtime.ts";
 import type { AiRequest } from "../types.ts";
+
+// Every AI call reads the configured timeout. Keep the config in a temp
+// home, never the developer's real one.
+isolateTestFile();
 
 const request: AiRequest = { job: "test", prompt: "hello", maxTokens: 100 };
 

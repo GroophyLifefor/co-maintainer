@@ -443,3 +443,53 @@ test("an invalid server limit is rejected by the API and a valid save round-trip
     }
   });
 });
+
+test("the AI request timeout is saved from the AI page, checked, and cleared by a blank", async () => {
+  await withEnv(async () => {
+    const app = createApp({
+      password: PASSWORD,
+      auth: { password: true, github: false },
+    });
+    const cookie = await cookieSession(app);
+    const put = (body: unknown) =>
+      app.fetch(
+        new Request("http://localhost/api/settings", {
+          method: "PUT",
+          headers: {
+            cookie,
+            "content-type": "application/json",
+            "x-requested-with": "co-maintainer",
+          },
+          body: JSON.stringify(body),
+        }),
+      );
+    const page = async () =>
+      await (
+        await app.fetch(
+          new Request("http://localhost/settings/ai", { headers: { cookie } }),
+        )
+      ).text();
+
+    if (inputValue(await page(), "ai-timeout") !== "") {
+      throw new Error("an unset timeout should show blank with the default");
+    }
+    const invalid = await put({ aiTimeoutMinutes: 0 });
+    if (invalid.status !== 422) {
+      throw new Error(`a zero timeout returned ${invalid.status}`);
+    }
+    const valid = await put({ aiTimeoutMinutes: 25 });
+    if (valid.status !== 200) {
+      throw new Error(`a valid timeout returned ${valid.status}`);
+    }
+    if (inputValue(await page(), "ai-timeout") !== "25") {
+      throw new Error("the AI page does not show the saved timeout");
+    }
+    const cleared = await put({ aiTimeoutMinutes: null });
+    if (cleared.status !== 200) {
+      throw new Error(`clearing the timeout returned ${cleared.status}`);
+    }
+    if (inputValue(await page(), "ai-timeout") !== "") {
+      throw new Error("a cleared timeout still shows a value");
+    }
+  });
+});

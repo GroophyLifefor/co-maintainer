@@ -118,6 +118,7 @@ export async function runSet(args: string[]): Promise<void> {
     "review-policy-file",
     "review-blocking",
     "review-references",
+    "ai-timeout-minutes",
     "codegraph-version",
     "gh-concurrent",
     "ai-concurrent",
@@ -208,6 +209,7 @@ export async function runSet(args: string[]): Promise<void> {
     "remote-byok-default": "remoteByokDefault",
     "review-policy": "reviewPolicy",
     "review-blocking": "reviewBlocking",
+    "ai-timeout-minutes": "aiTimeoutMinutes",
     "codegraph-version": "codegraphVersion",
     password: "dashboardPasswordHash",
     "extension-rerun-on-restart": "extensionRerunOnRestart",
@@ -329,6 +331,14 @@ export async function runSet(args: string[]): Promise<void> {
     }
     patch.reviewBlocking = reviewBlocking;
   }
+  const aiTimeout = text(args, "ai-timeout-minutes");
+  if (aiTimeout !== undefined) {
+    const minutes = Number(aiTimeout);
+    if (!/^\d+$/.test(aiTimeout.trim()) || minutes <= 0) {
+      die("--ai-timeout-minutes must be a positive whole number of minutes");
+    }
+    patch.aiTimeoutMinutes = minutes;
+  }
   const rawCodegraphVersion = text(args, "codegraph-version");
   if (rawCodegraphVersion !== undefined && rawCodegraphVersion.trim() !== "") {
     // Match the reader: a leading `v` is accepted and dropped, so `set` and
@@ -381,7 +391,7 @@ export async function runSet(args: string[]): Promise<void> {
         "--github-oauth-client-id=, --github-oauth-client-secret=, --github-oauth-allowed-user=, " +
         "--remote-host=, --remote-token=, --remote-byok-policy=off|allow|require, " +
         "--remote-client-tools-policy=off|on, " +
-        "--review-blocking=model|severity, --codegraph-version=SEMVER, " +
+        "--review-blocking=model|severity, --ai-timeout-minutes=N, --codegraph-version=SEMVER, " +
         "--password=, --disable-auth=password, --enable-auth=github, or --unset=name",
     );
   }
