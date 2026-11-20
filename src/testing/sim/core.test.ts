@@ -377,6 +377,9 @@ test("a CLI run is a record: terminal output, its own calls, cwd and env", async
               "--json",
               "--auth=gh",
               `--token=${sim.world.secrets.aiKey}`,
+              // init no longer saves the models for the repository.
+              "--low-model=simulate/low",
+              "--high-model=simulate/high",
             ],
             { cwd: dir },
           );

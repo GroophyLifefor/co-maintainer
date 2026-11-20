@@ -1084,6 +1084,8 @@ function jobStates(sim: Sim): CheckResult {
   );
   const got = jobs.map((job) => `${job.type} ${job.status}`);
   const want = [
+    // The init before serve started, run the way the CLI runs it.
+    "init done",
     "review done",
     "review done",
     "review done",

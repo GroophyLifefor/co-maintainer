@@ -1158,7 +1158,8 @@ export const COMMANDS: CommandSpec[] = [
           {
             name: "remote-tool-output-max-chars",
             value: "N",
-            description: "The longest client tool result a remote review keeps.",
+            description:
+              "The longest client tool result a remote review keeps.",
           },
           {
             name: "no-verify",

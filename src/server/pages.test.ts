@@ -1093,7 +1093,7 @@ test("activity lists a job as a link and the job page shows the error", async ()
     ).text();
     if (
       !analytics.includes('data-worth-id="job-fail"') ||
-      !analytics.includes('data-dismiss-worth="job-fail"')
+      !analytics.includes('data-dismiss-worth="job:job-fail"')
     ) {
       throw new Error("usage missed dismissible failed job");
     }

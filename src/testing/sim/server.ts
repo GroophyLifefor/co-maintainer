@@ -200,6 +200,8 @@ export class SimServer {
       for (const job of listJobs().reverse()) {
         if (seen.has(job.id) || job.status === "queued") continue;
         if (job.status === "running") continue;
+        // A CLI run writes its own finished job row. serve never ran it.
+        if (job.args.includes('"source":"cli"')) continue;
         seen.add(job.id);
         this.trace.jobs.push({
           step: this.trace.step,

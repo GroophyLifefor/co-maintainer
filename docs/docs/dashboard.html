@@ -348,8 +348,11 @@ on <strong>Activity</strong> opens the pull request page at that round. The over
 it filtered to that severity. The recent pull requests&#39; severity badges, the job
 page <strong>Found</strong> card, and the Usage cards and severity rows do the same.</p>
 <h2 id="findings">Findings</h2>
-<p><strong>Findings</strong> in the left menu lists every finding of every reviewed pull request,
-one row per finding, with a repository filter. Each repository has the same list
+<p><strong>Findings</strong> in the left menu lists every finding of every review, one row per
+finding, with a repository filter. A source filter narrows it to pull request
+reviews, pushes, remote reviews, CLI reviews, or the findings
+<a href="extensions.html">extensions</a> added. A finding with no pull request opens the
+review that found it. Each repository has the same list
 on its <strong>Findings</strong> tab. A finding carried from round to round is one row, with
 the state it has now.</p>
 <table>
@@ -394,7 +397,9 @@ lists. Each row of the <strong>Reviews</strong> table opens that round&#39;s job
 <h2 id="activity">Activity</h2>
 <p>Activity shows one row per review: the pull request, the result, the cost, the
 time and the status. Every row opens its log. Other jobs, such as init, sync,
-skip and reply, keep one row each. Job kinds, skip reasons and cancel reasons
+skip and reply, keep one row each. A review, init or sync run from the CLI is a
+row too, once it is over, with its cost. The CLI writes it next to a running
+<code>serve</code>, so it shows up without a restart. Job kinds, skip reasons and cancel reasons
 read as sentences, for example &quot;Skipped: nothing new since the last review&quot;.</p>
 <p>Filters live in the URL as chips: status (running, done, failed, canceled,
 skipped), kind, repository, pull request, a day range and a search box. The list
@@ -463,9 +468,20 @@ job runs.</p>
 to the range, and the range links keep them. The author is the GitHub login that
 opened the pull request, so CLI reviews and init or sync runs, which have none,
 drop out when an author is chosen.</p>
-<p><strong>Export CSV</strong> downloads the reviews the page counts, one row per review:</p>
-<pre><code class="language-text">time,repository,pull_request,author,model,tokens_in,tokens_out,cost_usd,billed_to,findings,status
+<p>Every figure is the whole bill: <strong>Spent</strong>, each repository, each day and each
+model include knowledge builds, replies and watch comments next to the
+reviews. <strong>By kind</strong> lists them on their own rows, and keeps stopped reviews,
+push reviews, remote reviews and CLI reviews apart from the posted pull request
+reviews. A repository removed from the dashboard stays on Usage, marked
+removed. <strong>Worth a look</strong> shows the same open failures the menu badge counts,
+and dismissing one there dismisses it everywhere.</p>
+<p><strong>Export CSV</strong> downloads what the page counts, one row per review and one per
+knowledge build, reply or watch comment:</p>
+<pre><code class="language-text">time,repository,pull_request,author,model,tokens_in,tokens_out,cost_usd,billed_to,findings,status,kind,branch,extensions_cost_usd
 </code></pre>
+<p><code>kind</code> is <code>pr</code>, <code>push</code>, <code>remote</code>, <code>local</code>, <code>cli_pr</code>, <code>knowledge</code>, <code>reply</code> or
+<code>watch</code>. <code>extensions_cost_usd</code> is the part of <code>cost_usd</code> the review&#39;s
+extensions spent.</p>
 <p>An unknown cost is an empty cell, never a zero. The failed attempts on the
 <strong>Reviews</strong> card open every failed review of the range, dismissed ones too.</p>
 <h2 id="settings-global">Settings (global)</h2>
@@ -604,7 +620,8 @@ cost column notes <code>incl. $X extensions</code> when an extension reported a 
 <h2 id="clearing-knowledge">Clearing knowledge</h2>
 <p><strong>Knowledge</strong> carries a <strong>Clear knowledge</strong> card: it deletes that repository&#39;s
 guides and saved settings, and a checkbox also drops the cached evidence
-(pull request listings, costs, clones and worktrees). The next <strong>Sync</strong> builds
+(pull request listings, cost estimates, clones and worktrees). The spend
+history on Usage stays. The next <strong>Sync</strong> builds
 the knowledge from scratch. See <a href="caching.html#clearing">Caching: Clearing</a>.</p>
 <p><strong>Settings</strong>, <strong>Danger zone</strong> has <strong>Clear all knowledge</strong>, which does the same for every
 repository on the server. Repository records, review history and tokens stay.

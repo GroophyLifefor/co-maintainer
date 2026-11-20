@@ -170,8 +170,14 @@ starts until you confirm.</p>
 <pre><code>Done in 21.0s · 3,125 in, 1,308 out tokens · $0.0016
 </code></pre>
 <p>The same numbers appear in <code>--json</code> under <code>usage</code>, and the dashboard records
-cost per job on the Activity page and per repository on Usage. When a price list
-is unavailable the line reads <code>cost unknown</code> rather than a false zero.</p>
+cost per job on the Activity page and per repository on Usage. Every run that
+spends money is recorded: reviews from the App, from <code>review --remote</code>, from a
+push and from the CLI on your machine, and <code>init</code>, <code>sync</code>, replies in a thread
+and commit watch answers, from the dashboard and from the CLI alike. A review
+that failed or was stopped keeps what its finished AI calls cost. When a price
+list is unavailable the line reads <code>cost unknown</code> rather than a false zero.</p>
+<p>The spend history lives in the dashboard&#39;s database. Clearing knowledge, with
+or without its cache, never removes it.</p>
 <h2 id="what-unknown-means">What &quot;unknown&quot; means</h2>
 <p>A missing cost is never shown as <code>$0.00</code>. Zero is what a free model actually
 costs, unknown is a cost that was never learned, and the two are kept apart

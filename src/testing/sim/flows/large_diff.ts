@@ -846,7 +846,8 @@ function costCheck(sim: Sim): CheckResult {
     );
   const app = rows<{ tokens_in: number; tokens_out: number }>(
     sim.paths.appDb,
-    "SELECT tokens_in, tokens_out FROM reviews WHERE scope <> 'remote'",
+    // A review run from the CLI records its calls in the cost rows too.
+    "SELECT tokens_in, tokens_out FROM reviews WHERE scope <> 'remote' AND kind NOT IN ('local', 'cli_pr')",
   ).reduce(
     (sum, row) => ({
       in: sum.in + row.tokens_in,

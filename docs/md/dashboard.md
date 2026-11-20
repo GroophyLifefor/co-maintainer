@@ -159,8 +159,11 @@ page **Found** card, and the Usage cards and severity rows do the same.
 
 ## Findings
 
-**Findings** in the left menu lists every finding of every reviewed pull request,
-one row per finding, with a repository filter. Each repository has the same list
+**Findings** in the left menu lists every finding of every review, one row per
+finding, with a repository filter. A source filter narrows it to pull request
+reviews, pushes, remote reviews, CLI reviews, or the findings
+[extensions](extensions.md) added. A finding with no pull request opens the
+review that found it. Each repository has the same list
 on its **Findings** tab. A finding carried from round to round is one row, with
 the state it has now.
 
@@ -190,7 +193,9 @@ lists. Each row of the **Reviews** table opens that round's job log.
 
 Activity shows one row per review: the pull request, the result, the cost, the
 time and the status. Every row opens its log. Other jobs, such as init, sync,
-skip and reply, keep one row each. Job kinds, skip reasons and cancel reasons
+skip and reply, keep one row each. A review, init or sync run from the CLI is a
+row too, once it is over, with its cost. The CLI writes it next to a running
+`serve`, so it shows up without a restart. Job kinds, skip reasons and cancel reasons
 read as sentences, for example "Skipped: nothing new since the last review".
 
 Filters live in the URL as chips: status (running, done, failed, canceled,
@@ -254,11 +259,24 @@ to the range, and the range links keep them. The author is the GitHub login that
 opened the pull request, so CLI reviews and init or sync runs, which have none,
 drop out when an author is chosen.
 
-**Export CSV** downloads the reviews the page counts, one row per review:
+Every figure is the whole bill: **Spent**, each repository, each day and each
+model include knowledge builds, replies and watch comments next to the
+reviews. **By kind** lists them on their own rows, and keeps stopped reviews,
+push reviews, remote reviews and CLI reviews apart from the posted pull request
+reviews. A repository removed from the dashboard stays on Usage, marked
+removed. **Worth a look** shows the same open failures the menu badge counts,
+and dismissing one there dismisses it everywhere.
+
+**Export CSV** downloads what the page counts, one row per review and one per
+knowledge build, reply or watch comment:
 
 ```text
-time,repository,pull_request,author,model,tokens_in,tokens_out,cost_usd,billed_to,findings,status
+time,repository,pull_request,author,model,tokens_in,tokens_out,cost_usd,billed_to,findings,status,kind,branch,extensions_cost_usd
 ```
+
+`kind` is `pr`, `push`, `remote`, `local`, `cli_pr`, `knowledge`, `reply` or
+`watch`. `extensions_cost_usd` is the part of `cost_usd` the review's
+extensions spent.
 
 An unknown cost is an empty cell, never a zero. The failed attempts on the
 **Reviews** card open every failed review of the range, dismissed ones too.
@@ -392,7 +410,8 @@ cost column notes `incl. $X extensions` when an extension reported a cost.
 
 **Knowledge** carries a **Clear knowledge** card: it deletes that repository's
 guides and saved settings, and a checkbox also drops the cached evidence
-(pull request listings, costs, clones and worktrees). The next **Sync** builds
+(pull request listings, cost estimates, clones and worktrees). The spend
+history on Usage stays. The next **Sync** builds
 the knowledge from scratch. See [Caching: Clearing](caching.md#clearing).
 
 **Settings**, **Danger zone** has **Clear all knowledge**, which does the same for every
