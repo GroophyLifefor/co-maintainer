@@ -49,6 +49,8 @@ import type { DeliveryRow, ReviewRow } from "../../store/rows.ts";
 function reviewKindText(review: ReviewRow): string {
   if (review.kind === "push") return jobKindText({ type: "push_review" });
   if (review.kind === "remote") return jobKindText({ type: "remote_review" });
+  if (review.kind === "local") return jobKindText({ type: "review_local" });
+  if (review.kind === "cli_pr") return jobKindText({ type: "review_cli" });
   return jobKindText({ type: "review" });
 }
 

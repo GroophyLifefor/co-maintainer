@@ -1,3 +1,4 @@
+import { recordCliReview } from "../services/cli_review_record.ts";
 import { parseArgs } from "../cli/args.ts";
 import { readConfig } from "../config.ts";
 import {
@@ -510,6 +511,20 @@ export async function runLocalReview(
         );
         printRunSummary(run);
       }
+      // On the dashboard too, before the process exits.
+      await recordCliReview({
+        kind: "local",
+        repo,
+        branch,
+        headSha: sha,
+        model: options.highModel ?? "unknown",
+        tokensIn: aiMetrics.tokensIn,
+        tokensOut: aiMetrics.tokensOut,
+        tally: aiMetrics,
+        findings: allResolved.length,
+        startedAt: new Date(Date.now() - durationMs).toISOString(),
+        durationMs,
+      });
       exitWith(
         exitCodeWithExtensions(
           reviewExitCodeFromResolved(allResolved, options.reviewBlocking),
