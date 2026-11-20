@@ -1124,13 +1124,41 @@ export const COMMANDS: CommandSpec[] = [
           },
           {
             name: "disable-auth",
-            value: "password",
-            description: "Turn the dashboard password off.",
+            value: "password|github",
+            description:
+              "Turn a sign-in method off. Refused when it would leave no way in.",
           },
           {
             name: "enable-auth",
-            value: "github",
-            description: "Turn GitHub sign-in on.",
+            value: "password|github",
+            description:
+              "Turn a sign-in method on. A running serve picks it up on the next request.",
+          },
+          {
+            name: "webhook-url",
+            value: "URL",
+            description:
+              "The public webhook address GitHub posts to. --webhook-url on serve and CM_WEBHOOK_URL win over it.",
+          },
+          {
+            name: "max-concurrent-jobs",
+            value: "N",
+            description: "How many server jobs run at once.",
+          },
+          {
+            name: "remote-sync-timeout-seconds",
+            value: "N",
+            description: "How long a remote review waits for one sync.",
+          },
+          {
+            name: "max-concurrent-remote-reviews-per-token",
+            value: "N",
+            description: "Remote reviews one token may run at once.",
+          },
+          {
+            name: "remote-tool-output-max-chars",
+            value: "N",
+            description: "The longest client tool result a remote review keeps.",
           },
           {
             name: "no-verify",
@@ -1175,17 +1203,20 @@ export const COMMANDS: CommandSpec[] = [
           {
             name: "password",
             value: "TEXT",
-            description: "Set the dashboard password on first start.",
+            description:
+              "Replace the dashboard password on every start, which signs out every session. Leave it out of a service file and change the password in Settings instead.",
           },
           {
             name: "disable-auth",
-            value: "password",
-            description: "Turn the dashboard password off.",
+            value: "password|github",
+            description:
+              "Force a sign-in method off for this run, whatever Settings says.",
           },
           {
             name: "enable-auth",
-            value: "github",
-            description: "Turn GitHub sign-in on.",
+            value: "password|github",
+            description:
+              "Force a sign-in method on for this run, whatever Settings says.",
           },
           {
             name: "trust-proxy",

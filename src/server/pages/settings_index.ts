@@ -29,6 +29,7 @@ const REMOTE = "/settings/remote";
 const SERVER = "/settings/server";
 const SIGN_IN = "/settings/sign-in";
 const DANGER = "/settings/danger";
+const EXTENSIONS = "/settings/extensions";
 const AUDIT = "/settings/audit";
 
 export const SETTINGS_INDEX: SettingEntry[] = [
@@ -220,6 +221,20 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     "audit",
     "Audit log",
     "Who changed settings, tokens and repositories, who signed in, and when.",
+  ),
+  entry(
+    "Review defaults",
+    DEFAULTS,
+    "def-blocking",
+    "Blocking rule",
+    "Which findings block a pull request, for every repository without its own rule.",
+  ),
+  entry(
+    "Extensions",
+    EXTENSIONS,
+    "extensions",
+    "Extensions",
+    "Register, enable, disable and remove the commands that run around every review.",
   ),
   entry(
     "Danger zone",

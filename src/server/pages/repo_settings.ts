@@ -13,6 +13,7 @@ import { policySource } from "../../services/webhook.ts";
 import { DEFAULT_REVIEW_SYSTEM_PROMPT_MAX_CHARS } from "../../review/system_prompt.ts";
 import { latestSyncRateLimitWaits } from "../../services/rate_limit.ts";
 import { rateLimitWaitNotice } from "./rate_limit_waits.ts";
+import { mcpServersSummary } from "../../tools/mcp_config.ts";
 import {
   aiCeiling,
   concurrencyWarnings,
@@ -447,6 +448,74 @@ export function renderRepoSettings(
       </div>
       <div class="ft"><button class="primary" id="save-repo-ai">Save</button></div>
     </div>
+    <div class="card" data-async id="repo-tools">
+      ${skSlot()}
+      <div class="hd"><h2>Review tools and limits</h2></div>
+      <div class="bd">
+        <p class="muted" style="margin:0 0 18px">Leave a field blank for the default.</p>
+        <div class="two" style="max-width:none">
+          <div class="field"><label for="diagram-runtime">Diagrams</label>
+            <select id="diagram-runtime">
+              ${["", "mermaid", "plantuml", "plantuml-server"]
+                .map(
+                  (value) =>
+                    `<option value="${value}"${(config.diagramRuntime ?? "") === value ? " selected" : ""}>${value === "" ? "Default (Mermaid)" : value}</option>`,
+                )
+                .join("")}
+            </select>
+            <div class="cli"><code>--diagram-runtime=…</code></div></div>
+          <div class="field"><label for="plantuml-server">PlantUML server</label>
+            <input id="plantuml-server" value="${text(config.plantumlServer ?? "")}" placeholder="https://www.plantuml.com/plantuml">
+            <div class="cli"><code>--plantuml-server=…</code></div></div>
+          <div class="field"><label for="plantuml-format">PlantUML image format</label>
+            <select id="plantuml-format">
+              ${["", "svg", "png"]
+                .map(
+                  (value) =>
+                    `<option value="${value}"${(config.plantumlOutputFormat ?? "") === value ? " selected" : ""}>${value === "" ? "Default (svg)" : value}</option>`,
+                )
+                .join("")}
+            </select>
+            <div class="cli"><code>--plantuml-output-format=…</code></div></div>
+          <div class="field"><label for="companions">Companion repositories</label>
+            <input id="companions" value="${text((config.companions ?? []).join(","))}" placeholder="owner/repo,owner/other">
+            <div class="cli"><code>--companions=…</code></div></div>
+          <div class="field"><label for="read-diff-max">Read full diff, characters</label>
+            <input id="read-diff-max" value="${text(config.reviewReadDiffMaxChars ?? "")}">
+            <div class="cli"><code>--review-read-diff-max-chars=…</code></div></div>
+          <div class="field"><label for="tool-result-max">One tool result, characters</label>
+            <input id="tool-result-max" value="${text(config.reviewToolResultMaxChars ?? "")}">
+            <div class="cli"><code>--review-tool-result-max-chars=…</code></div></div>
+          <div class="field"><label for="tool-budget">All tool results, characters</label>
+            <input id="tool-budget" value="${text(config.reviewToolBudgetChars ?? "")}">
+            <div class="cli"><code>--review-tool-budget-chars=…</code></div></div>
+          <div class="field"><label for="search-context">Search context lines</label>
+            <input id="search-context" value="${text(config.reviewSearchMaxContextLines ?? "")}">
+            <div class="cli"><code>--review-search-max-context-lines=…</code></div></div>
+          <div class="field"><label for="guide-full-every">Rewrite the guide in full every N syncs</label>
+            <input id="guide-full-every" value="${text(config.guideFullEvery ?? "")}">
+            <div class="cli"><code>--guide-full-every=…</code></div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;margin-top:18px">
+          <button class="tg${config.reviewReferences === true ? " on" : ""}" id="review-references"></button>
+          <div>Link each guide rule to the review comments it came from</div>
+        </div>
+        <div class="cli"><code>--review-references=on|off</code></div>
+        <div class="field" style="margin-top:18px"><label>MCP servers</label>
+          <div class="hint">${
+            config.mcpServers && Object.keys(config.mcpServers).length > 0
+              ? text(mcpServersSummary(config.mcpServers))
+              : "None. Servers are read from a file with the command below, because their commands and secrets do not belong in a form."
+          }</div>
+          <div class="cli"><code>set --repo=${text(name)} --mcp-config=mcp.json</code></div></div>
+        <div style="display:flex;align-items:center;gap:14px;margin-top:10px">
+          <button class="tg${config.mcpAllowForks === true ? " on" : ""}" id="mcp-allow-forks"></button>
+          <div>Offer the MCP tools on pull requests from forks too</div>
+        </div>
+        <div class="cli"><code>--mcp-allow-forks=true|false</code></div>
+      </div>
+      <div class="ft"><button class="primary" id="save-repo-tools">Save</button></div>
+    </div>
     <div class="card" data-async>
       ${skSlot()}
       <div class="hd"><h2>What knowledge reads</h2></div>
@@ -454,13 +523,17 @@ export function renderRepoSettings(
         <p class="muted" style="margin:0 0 18px">Used when the knowledge is rebuilt. Leave blank to use your account defaults.</p>
         <div class="two">
           <div class="field"><label>Months of pull requests</label>
-            <input id="months" value="${text(config.maxPrMonths ?? "")}"></div>
+            <input id="months" value="${text(config.maxPrMonths ?? "")}">
+            <div class="cli"><code>--max-pr-months=…</code></div></div>
           <div class="field"><label>Commits</label>
-            <input id="commits" value="${text(config.maxCommits ?? "")}"></div>
+            <input id="commits" value="${text(config.maxCommits ?? "")}">
+            <div class="cli"><code>--max-commits=…</code></div></div>
           <div class="field"><label>Max lines per pull request</label>
-            <input id="lines" value="${text(config.maxPullRequestChangeLines ?? "")}"></div>
+            <input id="lines" value="${text(config.maxPullRequestChangeLines ?? "")}">
+            <div class="cli"><code>--max-pull-request-change-lines=…</code></div></div>
           <div class="field"><label>Max comments per pull request</label>
-            <input id="comments" value="${text(config.maxComments ?? "")}"></div>
+            <input id="comments" value="${text(config.maxComments ?? "")}">
+            <div class="cli"><code>--max-comment=…</code></div></div>
         </div>
         <div class="field" style="margin-top:14px">
           <label>Speed</label>
@@ -969,6 +1042,27 @@ function watchBody() {
 }
 document.getElementById("save-watch").addEventListener("click", function() {
   save(this, watchBody());
+});
+["review-references", "mcp-allow-forks"].forEach(function(id) {
+  document.getElementById(id).addEventListener("click", function() {
+    this.classList.toggle("on");
+  });
+});
+document.getElementById("save-repo-tools").addEventListener("click", function() {
+  var text = function(id) { return document.getElementById(id).value.trim() || null; };
+  save(this, {
+    diagramRuntime: text("diagram-runtime"),
+    plantumlServer: text("plantuml-server"),
+    plantumlOutputFormat: text("plantuml-format"),
+    companions: text("companions"),
+    reviewReadDiffMaxChars: initNumber("read-diff-max"),
+    reviewToolResultMaxChars: initNumber("tool-result-max"),
+    reviewToolBudgetChars: initNumber("tool-budget"),
+    reviewSearchMaxContextLines: initNumber("search-context"),
+    guideFullEvery: initNumber("guide-full-every"),
+    reviewReferences: document.getElementById("review-references").classList.contains("on"),
+    mcpAllowForks: document.getElementById("mcp-allow-forks").classList.contains("on")
+  });
 });
 document.getElementById("save-repo-ai").addEventListener("click", function() {
   save(this, {

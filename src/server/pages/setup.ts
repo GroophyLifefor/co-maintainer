@@ -119,13 +119,13 @@ readEntry -> cache
         ${option("diagram", "mermaid", "Mermaid", "GitHub draws it in the comment.", true)}
         ${option("diagram", "plantuml", "PlantUML", "A PlantUML block.", false)}
         ${option("diagram", "plantuml-server", "PlantUML server", "An image link from a PlantUML server.", false)}
-        <p class="hint">Set per repository in its Repository settings.</p>
+        <p class="hint">The preview only. Set it per repository in its Repository settings, under Review tools and limits, or with <span class="mono">set --repo</span>.</p>
       </fieldset>
       <fieldset>
         <legend>References in the comment</legend>
         ${option("refs", "off", "Leave them out", "They stay on the dashboard.", true)}
         ${option("refs", "on", "Show them", "Each finding names the rule it rests on.", false)}
-        <p class="hint">Set per repository in its Repository settings.</p>
+        <p class="hint">The preview only. Set it per repository in its Repository settings, under Review tools and limits, or with <span class="mono">set --repo</span>.</p>
       </fieldset>
       <button class="primary" type="button" id="save-look">Save blocking rule</button>
     </div>

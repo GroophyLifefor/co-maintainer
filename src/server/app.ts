@@ -12,6 +12,7 @@ import {
   verifySession,
 } from "./auth.ts";
 import { memoryPasswordStore } from "./auth.ts";
+import { type AuthOverrides, liveAuth } from "./live_auth.ts";
 import { clientAddress, forwardedHttps } from "./proxy_headers.ts";
 import type { AuthMethods, PasswordStore } from "./auth.ts";
 import { aiConfigured, readConfig, resolveAppPrivateKey } from "../config.ts";
@@ -28,6 +29,7 @@ import { handleActivityRoute } from "./api/activity.ts";
 import { handleAnalyticsRoute } from "./api/analytics.ts";
 import { handleRemoteTokensRoute } from "./api/remote_tokens.ts";
 import { handleUpdateRoute } from "./api/update.ts";
+import { handleExtensionsRoute } from "./api/extensions.ts";
 import { handleRemoteRoute } from "../remote/server/routes.ts";
 import { handleWebhookRequest } from "./webhook/index.ts";
 import { handlePageRequest } from "./pages/router.ts";
@@ -59,6 +61,9 @@ export type AppDeps = {
    * pre-dates GitHub sign-in. */
   auth?: AuthMethods;
   githubOAuth?: { clientId: string; clientSecret: string; allowedUser: string };
+  /** Set by `serve`: sign-in methods are read from config.json on every
+   * request, with these flag values winning. */
+  authOverrides?: AuthOverrides;
 };
 
 export type App = {
@@ -94,7 +99,7 @@ async function handleLogin(
   passwords: PasswordStore,
   ip: string,
 ): Promise<Response> {
-  if (deps.auth?.password === false) {
+  if (liveAuth(deps).auth.password === false) {
     return errorResponse(
       403,
       "password_disabled",
@@ -257,6 +262,10 @@ export function createApp(deps: AppDeps): App {
         }
         if (url.pathname === "/api/installations") {
           return await handleInstallationsRoute(request, githubApp);
+        }
+        if (url.pathname.startsWith("/api/extensions")) {
+          const handled = await handleExtensionsRoute(request, url);
+          if (handled) return handled;
         }
         if (url.pathname.startsWith("/api/settings")) {
           return await handleSettingsRoute(
