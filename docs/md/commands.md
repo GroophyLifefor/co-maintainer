@@ -435,6 +435,7 @@ co-maintainer set [options]
 | `--guide-full-every=N` | 10 | Every N-th sync whose input changed rewrites the review guide in full, the others edit it. 1 always rewrites, 0 never after init. Needs --repo. |
 | `--companions=owner/repo,...` |  | Repositories whose pull requests a review of this one may read as companions, up to 5. A Companion: owner/repo#N line in the pull request body names one, otherwise an open pull request with the same branch name is used. Needs --repo. |
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |
+| `--ai-timeout-minutes=N` | 15 | How long one AI request may wait for the provider before it fails, in minutes. |
 | `--codegraph-version=SEMVER` |  | The pinned codegraph version, overriding the built-in one. For a security fix without a release. |
 | `--password=TEXT` |  | Replace the dashboard password. |
 | `--extension-rerun-on-restart=true\|false` | true | Run an extension again when co-maintainer restarted while it ran. A registration's --rerun-on-restart wins. |

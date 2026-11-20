@@ -95,6 +95,7 @@ export async function handleSettingsRoute(
       passwordAuthDisabled: Boolean(config.passwordAuthDisabled),
       githubAuthEnabled: Boolean(config.githubAuthEnabled),
       maxConcurrentJobs: config.maxConcurrentJobs ?? null,
+      aiTimeoutMinutes: config.aiTimeoutMinutes ?? null,
       remoteSyncTimeoutSeconds: config.remoteSyncTimeoutSeconds ?? null,
       maxConcurrentRemoteReviewsPerToken:
         config.maxConcurrentRemoteReviewsPerToken ?? null,
@@ -240,6 +241,8 @@ export async function handleSettingsRoute(
       "remoteToolOutputMaxChars",
     );
     if (remoteToolOut) return remoteToolOut;
+    const aiTimeout = positiveIntOrNull("aiTimeoutMinutes", "aiTimeoutMinutes");
+    if (aiTimeout) return aiTimeout;
     if ("reviewPolicy" in body) {
       const stored = policyToStore(body.reviewPolicy, { allowLegacy: false });
       if (!stored.ok) {

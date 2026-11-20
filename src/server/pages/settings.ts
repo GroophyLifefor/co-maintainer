@@ -9,6 +9,7 @@ import {
   resolvedAiToken,
 } from "../../config.ts";
 import { VERSION } from "../../version.ts";
+import { DEFAULT_AI_TIMEOUT_MINUTES } from "../../ai/timeout.ts";
 import { appDbDir } from "../../store/app_db.ts";
 import { TEMPLATE_INFO } from "../../services/review_policy.ts";
 import {
@@ -138,6 +139,11 @@ function aiCard(config: UserConfig): string {
             <div class="hint">Extracts facts from history during init and sync. A cheap model is enough. Low model in the CLI.</div>
             <div class="cli"><code>--low-model=…</code></div></div>
         </div>
+        <div class="field"><label for="ai-timeout">AI request timeout (minutes)</label>
+          <input id="ai-timeout" value="${text(
+            config.aiTimeoutMinutes ?? "",
+          )}" placeholder="${DEFAULT_AI_TIMEOUT_MINUTES}">
+          <div class="hint">How long one AI request may wait for the provider before it fails. Leave blank for ${DEFAULT_AI_TIMEOUT_MINUTES} minutes.</div></div>
       </div>
       <div class="ft"><button class="primary" id="save-ai">Save</button></div>
     </div>`;
@@ -553,11 +559,14 @@ if (replaceKey) replaceKey.addEventListener("click", function() {
   replaceKey.closest(".actions-row").hidden = true;
 });
 document.getElementById("save-ai").addEventListener("click", function() {
+  var timeout = positiveOrNull(document.getElementById("ai-timeout").value.trim(), "AI request timeout");
+  if (!timeout.ok) { fail(this.closest("[data-async]"), timeout.message, function () {}); return; }
   save(this, {
     ai: document.getElementById("ai-provider").value,
     token: document.getElementById("token").value,
     highModel: document.getElementById("high").value,
-    lowModel: document.getElementById("low").value
+    lowModel: document.getElementById("low").value,
+    aiTimeoutMinutes: timeout.value
   });
 });
 `;

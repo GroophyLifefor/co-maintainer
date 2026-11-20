@@ -15,6 +15,7 @@ import {
   reviewSystemPromptLimit,
 } from "../../review/system_prompt.ts";
 import { parseRemakeCron } from "../../services/remake_cron.ts";
+import { excludePatternError } from "../../pr/exclude.ts";
 import {
   MAX_CONCURRENCY,
   MIN_CONCURRENCY,
@@ -319,6 +320,24 @@ export async function handleReposRoute(
             422,
             "invalid_review_system_prompt",
             "reviewSystemPrompt must be text or null",
+          );
+        }
+      }
+      if ("reviewExclude" in body) {
+        const raw = body.reviewExclude;
+        if (raw === null || (typeof raw === "string" && raw.trim() === "")) {
+          promptPatch.reviewExclude = undefined;
+        } else if (typeof raw === "string") {
+          const problem = excludePatternError(raw);
+          if (problem) {
+            return errorResponse(422, "invalid_review_exclude", problem);
+          }
+          promptPatch.reviewExclude = raw;
+        } else {
+          return errorResponse(
+            422,
+            "invalid_review_exclude",
+            "reviewExclude must be text or null",
           );
         }
       }

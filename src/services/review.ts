@@ -311,6 +311,9 @@ export interface ReviewMetadata {
   mcpServers?: string[];
   /** The `- Companions:` line, `""` or left out without companions. */
   companions?: string;
+  /** The files the repository's exclude pattern dropped, for the Excluded
+   * line. Left out when it dropped none. */
+  excluded?: { count: number; pattern: string };
 }
 
 /** `- Tools: 11 calls · MCP: tracker`, or nothing when no tool ran and no
@@ -324,6 +327,17 @@ export function toolsMetadataLine(
   return `- Tools: ${calls} ${calls === 1 ? "call" : "calls"}${
     mcpServers.length ? ` · MCP: ${mcpServers.join(", ")}` : ""
   }\n`;
+}
+
+/** `- Excluded: 12 files matching `^vendor/``. The pattern goes in a safe
+ * code span, the same as a path: it is typed by a maintainer but still must
+ * not break the Markdown or mention anyone. */
+export function excludedMetadataLine(excluded: {
+  count: number;
+  pattern: string;
+}): string {
+  const files = excluded.count === 1 ? "1 file" : `${excluded.count} files`;
+  return `- Excluded: ${files} matching ${postedPathSpan(excluded.pattern)}\n`;
 }
 
 export function formatDuration(ms: number): string {
@@ -344,6 +358,7 @@ function metadataBlock({
   tools,
   mcpServers,
   companions,
+  excluded,
 }: ReviewMetadata): string {
   return (
     `\n\n<details>\n<summary>Metadata</summary>\n\n` +
@@ -352,6 +367,7 @@ function metadataBlock({
     `- Model: ${model}\n` +
     `- Duration: ${formatDuration(durationMs)}\n` +
     (coverage ? `- Coverage: ${coverageCounts(coverage)}\n` : "") +
+    (excluded ? excludedMetadataLine(excluded) : "") +
     toolsMetadataLine(tools, mcpServers) +
     (companions ?? "") +
     `</details>`
@@ -551,7 +567,10 @@ async function findingReplies(
 }
 
 /** A review job's options: the config, with the job's pinned model (a
- * "Retry with the same model") over the configured one. */
+ * "Retry with the same model") over the configured one. The failed review
+ * shows one model, so the pin covers both the review and the per-file
+ * summaries. Pinning only the review model left the summaries on whatever
+ * the setting said by then, a mix nobody chose. */
 export function reviewOptionsForJob(
   repo: string,
   prNumber: number,
@@ -559,7 +578,9 @@ export function reviewOptionsForJob(
   warn?: (message: string) => void,
 ): Options {
   const options = reviewOptions(repo, prNumber, warn);
-  return args.model ? { ...options, highModel: args.model } : options;
+  return args.model
+    ? { ...options, highModel: args.model, lowModel: args.model }
+    : options;
 }
 
 export function reviewOptions(
@@ -1569,6 +1590,7 @@ async function runReviewJobCore(
       tools: response.tools,
       mcpServers: response.mcpServers,
       companions: companions.metadata,
+      ...(response.excluded ? { excluded: response.excluded } : {}),
     },
     options.reviewBlocking,
     extensions,

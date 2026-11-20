@@ -76,9 +76,13 @@ export function rowOfKey(key: string): {
 }
 
 /** Starts a retry for each failed row. Two rows of the same pull request
- * start one review. Returns the new job ids and how many rows had nothing to
- * retry. */
-export function retryRows(keys: string[]): {
+ * start one review. A review keeps the model it failed with, or with
+ * `defaultModel` runs on the configured one, for after the user changed it.
+ * Returns the new job ids and how many rows had nothing to retry. */
+export function retryRows(
+  keys: string[],
+  options: { defaultModel?: boolean } = {},
+): {
   jobIds: string[];
   skipped: number;
 } {
@@ -100,7 +104,9 @@ export function retryRows(keys: string[]): {
     started.add(once);
     const { id } =
       target.kind === "review"
-        ? enqueueManualReview(target.repo, target.pr, { model: target.model })
+        ? enqueueManualReview(target.repo, target.pr, {
+            model: options.defaultModel ? undefined : target.model,
+          })
         : enqueueSetup(target.repo, "remake");
     jobIds.push(id);
   }

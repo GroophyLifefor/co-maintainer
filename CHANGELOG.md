@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.18] - 2026-11-20
+
+### Fixed
+
+- **A slow model no longer fails at five minutes.** An AI request now waits up to 15 minutes for the provider, not Node's built-in 300 seconds. A thinking model on a large pull request used to fail with `UND_ERR_HEADERS_TIMEOUT`. The limit applies to OpenRouter, OpenCode Zen, OpenCode Go, OpenAI and Anthropic.
+- **Retry with the same model really uses one model.** It pinned only the review model, so the per-file summaries ran on whatever the setting said by then. Both now run on the model the failed review used.
+
+### Added
+
+- **AI request timeout setting.** **Settings**, **AI models** has an **AI request timeout (minutes)** field. Blank means 15. From the CLI: `co-maintainer set --ai-timeout-minutes=N` or `co-maintainer config set ai-timeout-minutes N`.
+- **Retry with the new default model.** After **Change default model**, a failed review also offers **Retry with** the new model, on its own page, on its Activity row and in the bulk actions for the selected rows. It shows only when the new model differs from the one that failed. The plain **Retry** still keeps the failed model and says which one on hover.
+- **Excluded files.** A repository's settings take a regular expression over changed file paths. A review drops matching files as soon as the file list loads, so they get no diff and no summary. A renamed file also matches by its old path. The prompt tells the model how many files were left out, and the review comment's **Metadata** shows the count and the pattern. Init and sync still read every file. An invalid pattern is refused when saved.
+
 ## [0.7.17] - 2026-11-19
 
 ### Fixed

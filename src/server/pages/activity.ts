@@ -654,13 +654,22 @@ export function renderJob(
   } else if (failed && job.type === "review" && job.pr_number) {
     // The model travels with the retry, so a config change since the
     // failure does not swap it for another one.
-    retry = `<button class="primary" type="button" data-post="/api/repos/${text(
-      job.repo,
-    )}/pulls/${job.pr_number}/review"${
+    const reviewUrl = `/api/repos/${text(job.repo)}/pulls/${job.pr_number}/review`;
+    retry = `<button class="primary" type="button" data-post="${reviewUrl}"${
       retryModel
         ? ` data-body="${text(JSON.stringify({ model: retryModel }))}"`
         : ""
     }>Retry with the same model</button>`;
+    // After "Change default model" the user comes back to this row, so it
+    // needs a retry that takes the new setting. Shown only when the setting
+    // now differs from the model that failed, or the two buttons would do
+    // the same thing.
+    const configured = readConfig().highModel;
+    if (retryModel && configured && configured !== retryModel) {
+      retry += `<button class="btn out" type="button" data-post="${reviewUrl}">Retry with ${text(
+        configured,
+      )}</button>`;
+    }
   }
   const changeModel = failed
     ? `<a class="btn out" href="/settings/ai">Change default model</a>`

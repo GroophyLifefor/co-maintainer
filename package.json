@@ -1,6 +1,6 @@
 {
   "name": "co-maintainer",
-  "version": "0.7.17",
+  "version": "0.7.18",
   "description": "An imitator of yours, A PR review tool like co-maintainer. Open source AI code review that learns from your past PR reviews, on your own model key.",
   "keywords": [
     "ai",
@@ -72,6 +72,9 @@
     "downgrade:check": "node scripts/downgrade_check.ts",
     "dx:scenario": "node scripts/dx_scenario.ts",
     "dashboard:smoke": "node scripts/dashboard_smoke.ts"
+  },
+  "dependencies": {
+    "undici": "^7.30.2"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

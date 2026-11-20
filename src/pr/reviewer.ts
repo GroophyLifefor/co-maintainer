@@ -64,6 +64,7 @@ import {
   type Coverage,
   type CoverageWarning,
 } from "../review/coverage.ts";
+import { applyExclude, excludedPromptNote } from "./exclude.ts";
 import { readConfig } from "../config.ts";
 import { FakeAiProvider } from "../ai/fake.ts";
 import { getEnv } from "../util/runtime.ts";
@@ -180,6 +181,9 @@ export type ReviewOutcome = AiResponse & {
   referenceContext: ReferenceContext;
   codegraphState: "used" | "disabled" | "unavailable";
   coverage: Coverage;
+  /** The files the repository's exclude pattern dropped before the diff was
+   * built, for the Metadata block. Left out when it dropped none. */
+  excluded?: { count: number; pattern: string };
   /** `diff_dropped`, `diff_withheld`, `summary_failed`,
    * `tool_budget_spent`, the MCP warnings and `private_text_removed`. */
   warnings: CoverageWarning[];
@@ -613,8 +617,16 @@ async function pullRequestReview(
       (await client.pages<Json>(
         `repos/${options.repo}/pulls/${number}/files`,
       )));
-  const files = withResent(listedFiles, extras?.resend);
+  const excludePattern = readConfig().repos?.[options.repo]?.reviewExclude;
+  const { kept: files, excluded } = applyExclude(
+    withResent(listedFiles, extras?.resend),
+    excludePattern,
+    report,
+  );
   report(`diff files loaded · ${files.length} files`);
+  if (excluded > 0) {
+    report(`excluded · ${excluded} files by the repository's exclude pattern`);
+  }
   if (!guide) {
     throw notInitializedError(options.repo);
   }
@@ -748,16 +760,17 @@ async function pullRequestReview(
         `- ${path} (+${Number(file.additions ?? 0)} -${Number(file.deletions ?? 0)})`,
     )
     .join("\n");
+  const excludedNote = excludedPromptNote(excluded);
   const diff =
     upstreamFiles.length === 0
-      ? `${ownDiff}${unchangedListing}`
+      ? `${ownDiff}${unchangedListing}${excludedNote}`
       : `${ownDiff}
 
 UPSTREAM CONTEXT: arrived via a merge this round, not authored by this pull
 request. Do not raise a finding located only in this code. Only note an
 interaction if the pull request's own change above relies on or conflicts with
 one of these files, and never mark that finding blocking:
-${upstreamListing}${unchangedListing}`;
+${upstreamListing}${unchangedListing}${excludedNote}`;
 
   report(diffReport(prepared.sections.length, prepared.coverage));
   const carryBlock = extras?.carryPrompt ? `${extras.carryPrompt}\n` : "";
@@ -953,6 +966,9 @@ ${reviewText}`,
     mcpServers: reviewTools.mcp.servers,
     diffStats: diffStats(named.map(({ file }) => diffFileFromGithub(file))),
     ...(moved.findings.length ? { companionFindings: moved.findings } : {}),
+    ...(excluded > 0 && excludePattern
+      ? { excluded: { count: excluded, pattern: excludePattern } }
+      : {}),
   };
 }
 

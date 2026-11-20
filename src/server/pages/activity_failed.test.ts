@@ -38,7 +38,7 @@ test("a failed row shows its reason, a Retry with the same model and a Dismiss",
     assert.ok(/timed out/.test(list), "no reason");
     assert.ok(
       list.includes(
-        `data-post="/api/repos/${REPO}/pulls/7/review" data-body="{&quot;model&quot;:&quot;vendor/model-a&quot;}" data-next="here">Retry</button>`,
+        `data-post="/api/repos/${REPO}/pulls/7/review" data-body="{&quot;model&quot;:&quot;vendor/model-a&quot;}" data-next="here" title="Retry with vendor/model-a">Retry</button>`,
       ),
       "no Retry with the same model",
     );
@@ -168,5 +168,59 @@ test("every row has a checkbox, and only a failed row allows the bulk Dismiss an
       (recent(html).match(/data-select aria-label/g) ?? []).length,
       2,
     );
+  });
+});
+
+test("after the default model changes, a failed row and the bulk bar also offer the new model", async () => {
+  await withDashboard(
+    async (get) => {
+      activateRepo(REPO, 1);
+      failedReview("job-bad", 7);
+      const html = (await get("/activity?status=failed")).html;
+      assert.ok(
+        recent(html).includes(
+          `data-post="/api/repos/${REPO}/pulls/7/review" data-body="{}" data-next="here">Retry with vendor/model-b</button>`,
+        ),
+        "no row retry with the new model",
+      );
+      assert.ok(
+        html.includes(
+          `data-bulk-action="retry-default" disabled>Retry with vendor/model-b</button>`,
+        ),
+        "no bulk retry with the new model",
+      );
+    },
+    { highModel: "vendor/model-b" },
+  );
+});
+
+test("when the default model is the one that failed, a row has only its Retry", async () => {
+  await withDashboard(
+    async (get) => {
+      activateRepo(REPO, 1);
+      failedReview("job-bad", 7);
+      const list = recent((await get("/activity?status=failed")).html);
+      // The bulk bar may still offer the setting for other rows. The row itself
+      // has no second retry.
+      assert.ok(
+        !list.includes('data-body="{}" data-next="here">Retry with'),
+        list,
+      );
+    },
+    { highModel: "vendor/model-a" },
+  );
+});
+
+test("the bulk retry with defaultModel queues reviews without a pinned model", async () => {
+  await withDashboard(async (_get, send) => {
+    activateRepo(REPO, 1);
+    failedReview("job-a", 7);
+    const result = await send("POST", "/api/activity/retry", {
+      keys: ["job:job-a"],
+      defaultModel: true,
+    });
+    assert.equal(result.status, 200);
+    const queued = listJobs({ status: "queued" })[0]!;
+    assert.equal(JSON.parse(queued.args).model, undefined);
   });
 });

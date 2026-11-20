@@ -12,6 +12,7 @@ import {
 } from "./layout.ts";
 import { formatCost } from "./cost.ts";
 import { badge, icon, segmented, shortcutsBar } from "./ui.ts";
+import { readConfig } from "../../config.ts";
 import {
   failureExplanation,
   isWaitingForRequest,
@@ -162,7 +163,11 @@ function settledMark(row: ActivityRow): string {
   return "";
 }
 
-function activityRow(row: ActivityRow, warning: string | undefined): string {
+function activityRow(
+  row: ActivityRow,
+  warning: string | undefined,
+  configured: string | undefined,
+): string {
   const { job, review } = row;
   // Every row opens its log. A review whose job row is gone has no log left,
   // so it opens its result.
@@ -176,11 +181,28 @@ function activityRow(row: ActivityRow, warning: string | undefined): string {
   const target = resolved ? undefined : retryTarget(job, review);
   const open = isOpenFailure(row);
   const retry = target ? retryRequest(target) : undefined;
+  // A review that failed on a model the setting no longer names also offers
+  // the configured one, the same as its own page. The plain Retry keeps the
+  // failed model, and its title says which.
+  const failedModel = target?.kind === "review" ? target.model : undefined;
+  const newModel =
+    failedModel && configured && configured !== failedModel
+      ? configured
+      : undefined;
   const actions = [
     retry
       ? `<button class="btn sm" type="button" data-post="${escapeHtml(retry.url)}" data-body="${escapeHtml(
           JSON.stringify(retry.body),
-        )}" data-next="here">Retry</button>`
+        )}" data-next="here"${
+          failedModel
+            ? ` title="${escapeHtml(`Retry with ${failedModel}`)}"`
+            : ""
+        }>Retry</button>`
+      : "",
+    retry && newModel
+      ? `<button class="btn out sm" type="button" data-post="${escapeHtml(retry.url)}" data-body="{}" data-next="here">Retry with ${text(
+          newModel,
+        )}</button>`
       : "",
     open
       ? `<button class="btn out sm" type="button" data-post="/api/activity/dismiss" data-body="${escapeHtml(
@@ -440,6 +462,7 @@ export function renderActivity(
 ): Response {
   const filtered = isFiltered(query);
   const live = running.map(liveCard).join("");
+  const configured = readConfig().highModel || undefined;
   const recent =
     feed.items.length === 0
       ? filtered
@@ -453,7 +476,11 @@ export function renderActivity(
         <thead><tr><th class="sel"><input type="checkbox" data-select-all aria-label="Select every row on this page"></th><th>What</th><th>Repository</th><th>Result</th><th class="num">Cost</th><th>When</th><th>Status</th><th aria-label="Actions"></th></tr></thead>
         <tbody>${feed.items
           .map((row) =>
-            activityRow(row, row.job ? feed.warnings[row.job.id] : undefined),
+            activityRow(
+              row,
+              row.job ? feed.warnings[row.job.id] : undefined,
+              configured,
+            ),
           )
           .join("")}</tbody>
       </table>
@@ -509,7 +536,12 @@ export function renderActivity(
       feed.items.length
         ? `<div class="bulk" data-bulk role="group" aria-label="Actions on the selected rows">
         <span class="muted" data-bulk-count role="status">None selected</span>
-        <button class="btn sm" type="button" data-bulk-action="retry" disabled>Retry</button>
+        <button class="btn sm" type="button" data-bulk-action="retry" disabled title="Each review retries with the model it failed with">Retry</button>${
+          configured
+            ? `
+        <button class="btn out sm" type="button" data-bulk-action="retry-default" disabled>Retry with ${text(configured)}</button>`
+            : ""
+        }
         <button class="btn out sm" type="button" data-bulk-action="dismiss" disabled>Dismiss</button>
       </div>`
         : ""

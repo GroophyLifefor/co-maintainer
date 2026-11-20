@@ -3,11 +3,16 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
+import { isolateTestFile } from "../testing/locations.ts";
 import { REVIEW_COPY_RULE } from "../pr/review_copy.ts";
 import type { AiProvider, AiRequest, Options } from "../types.ts";
 import { withCopyRule, withCopyRuleRequest } from "./copy_rule.ts";
 import { FakeAiProvider } from "./fake.ts";
 import { createAiProvider } from "./provider.ts";
+
+// Every AI call reads the configured timeout. Keep the config in a temp
+// home, never the developer's real one.
+isolateTestFile();
 
 const request: AiRequest = { job: "test", prompt: "hello", maxTokens: 10 };
 

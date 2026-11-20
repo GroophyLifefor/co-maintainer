@@ -1083,6 +1083,13 @@ export const COMMANDS: CommandSpec[] = [
             description: "How a review decides a blocking finding.",
           },
           {
+            name: "ai-timeout-minutes",
+            value: "N",
+            default: "15",
+            description:
+              "How long one AI request may wait for the provider before it fails, in minutes.",
+          },
+          {
             name: "codegraph-version",
             value: "SEMVER",
             description:

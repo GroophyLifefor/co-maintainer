@@ -4,7 +4,7 @@
 
 ## Facts
 
-- Latest version: 0.7.17, released 2026-11-19. Changelog: https://github.com/GroophyLifefor/co-maintainer/blob/main/CHANGELOG.md
+- Latest version: 0.7.18, released 2026-11-20. Changelog: https://github.com/GroophyLifefor/co-maintainer/blob/main/CHANGELOG.md
 - License: MIT. Source: https://github.com/GroophyLifefor/co-maintainer
 - Install: `npm install -g co-maintainer`. Needs Node 24 or newer.
 - Commands: `probe`, `init`, `sync`, `review`, `config`, `view`, `clear`, `uninstall`, `oauth`, `set`, `serve`, `extension`, `rollback`, `version`. `sync` keeps the review guides up to date (its old name was `remake`).
