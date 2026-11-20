@@ -1,4 +1,5 @@
-/** The Usage export: one CSV row per review the page counts. */
+/** The Usage export: one CSV row per review the page counts, and one per
+ * knowledge build, reply or watch comment that cost money. */
 import type { UsageExportRow } from "../../store/reviews.ts";
 
 export const USAGE_CSV_COLUMNS = [
@@ -13,6 +14,9 @@ export const USAGE_CSV_COLUMNS = [
   "billed_to",
   "findings",
   "status",
+  "kind",
+  "branch",
+  "extensions_cost_usd",
 ];
 
 /** A cell a spreadsheet will not read as a formula, quoted when it holds a
@@ -52,6 +56,11 @@ export function usageCsv(rows: UsageExportRow[]): string {
         cell(row.billed_to ?? "server"),
         cell(row.findings_count),
         cell(statusOf(row)),
+        cell(row.kind),
+        cell(row.branch),
+        row.extensions_cost === null || row.extensions_cost === undefined
+          ? ""
+          : cell(row.extensions_cost),
       ].join(","),
     );
   }

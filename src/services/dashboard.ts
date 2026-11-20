@@ -5,6 +5,13 @@ import { getDrift } from "../store/drift.ts";
 import { refreshDrift } from "./drift.ts";
 import { listSkipped } from "../store/deliveries.ts";
 import { listJobs } from "../store/jobs.ts";
+import { findingCountsByRepo } from "../store/finding_list.ts";
+import {
+  aiCostTotals,
+  aiCostsBy,
+  aiCostsByKind,
+  listAiCostsForExport,
+} from "../store/ai_costs.ts";
 import { warningsForJobs } from "./job_warnings.ts";
 import { openFailures, openFailuresByRepo } from "./open_failures.ts";
 import {
@@ -94,15 +101,85 @@ function fillDays(
 
 /** The Usage page for a range, narrowed to one repository, one pull request
  * author, or both. */
+type CostFields = {
+  cost: number;
+  knownCount: number;
+  unknownCount: number;
+  byokUsd: number;
+  byokKnownCount: number;
+  byokUnknownCount: number;
+};
+
+/** Adds the spend of knowledge builds, replies and watch comments to a row
+ * that holds review spend, so every Usage figure is the whole bill. */
+function withAiCost<T extends CostFields>(row: T, extra?: CostFields): T {
+  if (!extra) return row;
+  return {
+    ...row,
+    cost: row.cost + extra.cost,
+    knownCount: row.knownCount + extra.knownCount,
+    unknownCount: row.unknownCount + extra.unknownCount,
+  };
+}
+
+function emptyStats(): ReturnType<typeof reviewStats> {
+  return {
+    reviews: 0,
+    completed: 0,
+    notPosted: 0,
+    pullRequests: 0,
+    findings: 0,
+    cost: 0,
+    knownCount: 0,
+    unknownCount: 0,
+    byokUsd: 0,
+    byokKnownCount: 0,
+    byokUnknownCount: 0,
+    tokensIn: 0,
+    tokensOut: 0,
+    failed: 0,
+    avgDurationMs: 0,
+  };
+}
+
+/** Review rows keyed by `keyOf`, with the AI spend for the same key added and
+ * a row made for a key that has spend but no review. */
+function mergeBy<
+  T extends CostFields & { tokensIn?: number; tokensOut?: number },
+>(
+  rows: T[],
+  keyOf: (row: T) => string,
+  extra: (CostFields & { key: string; tokensIn: number; tokensOut: number })[],
+  make: (key: string) => T,
+): T[] {
+  const byKey = new Map(rows.map((row) => [keyOf(row), row]));
+  for (const spend of extra) {
+    const row = byKey.get(spend.key) ?? make(spend.key);
+    const merged = withAiCost(row, spend);
+    if (merged.tokensIn !== undefined) merged.tokensIn += spend.tokensIn;
+    if (merged.tokensOut !== undefined) merged.tokensOut += spend.tokensOut;
+    byKey.set(spend.key, merged);
+  }
+  return [...byKey.values()].sort((a, b) => b.cost - a.cost);
+}
+
 export function statsForRange(range: string, scope: UsageScope = {}) {
   const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
   const since = daysAgoIso(days);
-  const totals = reviewStats(since, scope.repo, undefined, scope.author);
-  const previous = reviewStats(
-    daysAgoIso(days * 2),
-    scope.repo,
-    since,
-    scope.author,
+  const aiNow = aiCostTotals(since, scope);
+  const aiBefore = aiCostTotals(daysAgoIso(days * 2), scope, since);
+  const reviewTotals = reviewStats(since, scope.repo, undefined, scope.author);
+  const totals = {
+    ...withAiCost(reviewTotals, aiNow),
+    tokensIn: reviewTotals.tokensIn + aiNow.tokensIn,
+    tokensOut: reviewTotals.tokensOut + aiNow.tokensOut,
+  };
+  const previous = withAiCost(
+    reviewStats(daysAgoIso(days * 2), scope.repo, since, scope.author),
+    aiBefore,
+  );
+  const aiByDay = new Map(
+    aiCostsBy("day", since, scope).map((row) => [row.key, row]),
   );
   return {
     days,
@@ -121,9 +198,31 @@ export function statsForRange(range: string, scope: UsageScope = {}) {
           ? undefined
           : percentChange(previous.cost, totals.cost),
     },
-    byRepo: reviewStatsByRepo(since, scope),
-    byDay: fillDays(days, reviewStatsByDay(since, scope)),
-    byModel: reviewStatsByModel(since, scope),
+    byRepo: (() => {
+      // Findings are counted the way the Findings list counts them, newest
+      // copy only, so each row opens a list with its own number in it.
+      const findings = findingCountsByRepo({
+        state: "all",
+        sinceIso: since,
+        repo: scope.repo,
+        author: scope.author,
+      });
+      return mergeBy(
+        reviewStatsByRepo(since, scope),
+        (row) => row.repo,
+        aiCostsBy("repo", since, scope),
+        (repo) => ({ ...emptyStats(), repo }),
+      ).map((row) => ({ ...row, findings: findings.get(row.repo) ?? 0 }));
+    })(),
+    byDay: fillDays(days, reviewStatsByDay(since, scope)).map((row) =>
+      withAiCost(row, aiByDay.get(row.day)),
+    ),
+    byModel: mergeBy(
+      reviewStatsByModel(since, scope),
+      (row) => row.model,
+      aiCostsBy("model", since, scope),
+      (model) => ({ ...emptyStats(), model }),
+    ),
     byRemoteToken: reviewStatsByRemoteToken(since, scope),
     // Counted the way the Findings list counts, so each row opens a list
     // with its own number in it.
@@ -134,8 +233,10 @@ export function statsForRange(range: string, scope: UsageScope = {}) {
       author: scope.author,
     }),
     byKind: reviewStatsByKind(since, scope),
-    // Init and sync record no cost, only that they ran. They have no pull
-    // request author, so an author filter leaves them out.
+    // Knowledge builds, replies and watch comments, with the spend each
+    // recorded. They have no pull request author, so an author filter leaves
+    // them out.
+    aiByKind: scope.author ? undefined : aiCostsByKind(since, scope),
     setupRuns: scope.author
       ? undefined
       : listJobs().filter(
@@ -149,9 +250,36 @@ export function statsForRange(range: string, scope: UsageScope = {}) {
 
 /** The rows the Usage Export button downloads, the same range and filters
  * as the page. */
-export function usageExportRows(range: string, scope: UsageScope = {}) {
+export function usageExportRows(
+  range: string,
+  scope: UsageScope = {},
+): ReturnType<typeof listUsageReviews> {
   const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
-  return listUsageReviews(daysAgoIso(days), scope);
+  const since = daysAgoIso(days);
+  // Knowledge builds, replies and watch comments are on the page's Spent
+  // figure, so they are rows here too.
+  const spend = listAiCostsForExport(since, scope).map((row) => ({
+    created_at: row.at,
+    repo: row.repo,
+    pr_number: null,
+    author: null,
+    kind: row.kind,
+    model: row.model ?? "unknown",
+    tokens_in: Number(row.tokens_in),
+    tokens_out: Number(row.tokens_out),
+    cost: row.cost_usd,
+    cost_status: (row.cost_usd === null ? "unknown" : "known") as
+      | "known"
+      | "unknown",
+    billed_to: "server" as const,
+    findings_count: 0,
+    status: "done",
+    branch: null,
+    extensions_cost: null,
+  }));
+  return [...listUsageReviews(since, scope), ...spend].sort((a, b) =>
+    a.created_at.localeCompare(b.created_at),
+  );
 }
 
 export type RepoListItem = {

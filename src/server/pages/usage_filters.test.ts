@@ -116,19 +116,19 @@ test("Export downloads one row per review with the filters on screen", async () 
     const lines = response.html.trim().split("\r\n");
     assert.equal(
       lines[0],
-      "time,repository,pull_request,author,model,tokens_in,tokens_out,cost_usd,billed_to,findings,status",
+      "time,repository,pull_request,author,model,tokens_in,tokens_out,cost_usd,billed_to,findings,status,kind,branch,extensions_cost_usd",
     );
     assert.equal(lines.length, 3, response.html);
     const widgets = lines.find((line) => line.includes("acme/widgets"));
     assert.match(
       widgets ?? "",
-      /,acme\/widgets,1,ada,m-1,100,20,0\.5,server,1,posted$/,
+      /,acme\/widgets,1,ada,m-1,100,20,0\.5,server,1,posted,pr,,$/,
     );
     // An unknown cost is an empty cell, never a zero.
     const gadgets = lines.find((line) => line.includes("acme/gadgets"));
     assert.match(
       gadgets ?? "",
-      /,acme\/gadgets,3,ada,m-1,100,20,,server,1,posted$/,
+      /,acme\/gadgets,3,ada,m-1,100,20,,server,1,posted,pr,,$/,
     );
   });
 });
@@ -149,6 +149,8 @@ test("a CSV cell never starts a formula and quotes what needs quoting", () => {
       billed_to: "byok",
       findings_count: 0,
       status: "posted",
+      branch: null,
+      extensions_cost: null,
     },
   ]);
   assert.ok(csv.includes(`,'=cmd,"a ""quoted"", model",1,2,0.1,byok,0,posted`));

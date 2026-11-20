@@ -274,7 +274,7 @@ export type ReviewStats = CostTotals & {
  * new figure lands on the totals, the per repo table and the trend window at
  * the same time. */
 const STATS_COLUMNS = `COUNT(*) AS reviews,
-      COALESCE(SUM(status != 'failed'), 0) AS completed,
+      COALESCE(SUM(status NOT IN ('failed', 'canceled', 'aborted', 'queued', 'drafting')), 0) AS completed,
       COALESCE(SUM(status = 'not_posted'), 0) AS notPosted,
       COUNT(DISTINCT pr_number) AS pullRequests,
       COALESCE(SUM(findings_count), 0) AS findings,
@@ -336,7 +336,9 @@ export function reviewStats(
   untilIso?: string,
   author?: string,
 ): ReviewStats {
-  const where = ["created_at >= ?", "kind = 'pr'"];
+  // Every kind of review, so the repository overview and Usage show the same
+  // cost for the same repository and range.
+  const where = ["created_at >= ?"];
   const params: (string | number)[] = [sinceIso];
   if (untilIso) {
     where.push("created_at < ?");
@@ -368,10 +370,19 @@ export function reviewStatsByRepo(
     .map((row) => ({ ...asStats(row), repo: row.repo }));
 }
 
-export type ReviewKindBucket = "posted" | "not_posted" | "failed" | "cli";
+export type ReviewKindBucket =
+  | "posted"
+  | "not_posted"
+  | "failed"
+  | "canceled"
+  | "running"
+  | "push"
+  | "cli"
+  | "local";
 
 /** Runs and cost per kind of review, for the Usage "By kind" table. A CLI
- * (remote) review is its own bucket whatever its status, and every bucket is
+ * (remote) review and a push review are each their own bucket whatever their
+ * status, a stopped review is not counted as posted, and every bucket is
  * present, zero when nothing ran. */
 export function reviewStatsByKind(
   sinceIso: string,
@@ -382,7 +393,11 @@ export function reviewStatsByKind(
     .prepare<CostTotals & { kind: string; runs: number }>(
       `SELECT CASE
           WHEN kind = 'remote' THEN 'cli'
+          WHEN kind IN ('local', 'cli_pr') THEN 'local'
+          WHEN kind = 'push' THEN 'push'
           WHEN status = 'failed' THEN 'failed'
+          WHEN status IN ('canceled', 'aborted') THEN 'canceled'
+          WHEN status IN ('queued', 'drafting') THEN 'running'
           WHEN status = 'not_posted' THEN 'not_posted'
           ELSE 'posted' END AS kind,
         COUNT(*) AS runs,
@@ -391,7 +406,18 @@ export function reviewStatsByKind(
      GROUP BY 1`,
     )
     .all(sinceIso, ...scope.params);
-  return (["posted", "not_posted", "failed", "cli"] as const).map((kind) => {
+  return (
+    [
+      "posted",
+      "not_posted",
+      "failed",
+      "canceled",
+      "running",
+      "push",
+      "cli",
+      "local",
+    ] as const
+  ).map((kind) => {
     const row = rows.find((r) => r.kind === kind);
     return { ...asCostTotals(row), kind, runs: Number(row?.runs ?? 0) };
   });
@@ -476,7 +502,7 @@ export function listPullSummaries(
   const total = Number(
     getAppDb()
       .prepare<{ n: number }>(
-        `SELECT COUNT(DISTINCT pr_number) AS n FROM reviews WHERE repo = ?`,
+        `SELECT COUNT(DISTINCT pr_number) AS n FROM reviews WHERE repo = ? AND pr_number IS NOT NULL`,
       )
       .get(repo)?.n ?? 0,
   );
@@ -487,7 +513,7 @@ export function listPullSummaries(
         COALESCE(SUM(findings_count), 0) AS findings,
         ${COST_COLUMNS},
         COUNT(*) AS review_count
-     FROM reviews WHERE repo = ?
+     FROM reviews WHERE repo = ? AND pr_number IS NOT NULL
      GROUP BY pr_number
      ORDER BY last_reviewed DESC
      LIMIT ? OFFSET ?`,
@@ -614,6 +640,9 @@ export type UsageExportRow = {
   billed_to: "server" | "byok" | null;
   findings_count: number;
   status: string;
+  branch: string | null;
+  /** What the review's extensions cost, part of `cost`. */
+  extensions_cost: number | null;
 };
 
 /** Every review the Usage page counts for a range and its filters, oldest
@@ -628,7 +657,9 @@ export function listUsageReviews(
       `SELECT reviews.created_at, reviews.repo, reviews.pr_number, p.author,
         reviews.kind, reviews.model, reviews.tokens_in, reviews.tokens_out,
         reviews.cost, reviews.cost_status, reviews.billed_to,
-        reviews.findings_count, reviews.status
+        reviews.findings_count, reviews.status, reviews.branch,
+        (SELECT SUM(e.cost) FROM extension_results e WHERE e.review_id = reviews.id)
+          AS extensions_cost
      FROM reviews
      LEFT JOIN pull_titles p
        ON p.repo = reviews.repo AND p.pr_number = reviews.pr_number

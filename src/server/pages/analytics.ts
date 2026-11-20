@@ -1,3 +1,6 @@
+import { listActivity } from "../../store/activity.ts";
+import { openFailureWindow } from "../../services/open_failures.ts";
+import { getRepo } from "../../store/repos.ts";
 import {
   bars,
   count,
@@ -13,7 +16,6 @@ import {
 } from "./layout.ts";
 import { costTotalParts, formatCostCell, formatCostTotal } from "./cost.ts";
 import type { statsForRange } from "../../services/dashboard.ts";
-import { listJobs } from "../../store/jobs.ts";
 import { icon, pageHeader, segmented, statCard } from "./ui.ts";
 import { findingsHref } from "./findings.ts";
 import { severityName } from "./finding_bits.ts";
@@ -63,15 +65,27 @@ export function renderAnalytics(
   query: UsageQuery,
   data: ReturnType<typeof statsForRange>,
 ): Response {
-  const failed = listJobs({ status: "failed", repo: query.repo }).slice(0, 5);
+  // The same open failures the menu badge counts: in the same window, and
+  // without the ones someone dismissed or a later review resolved.
+  const failed = listActivity(
+    {
+      state: "failed",
+      sinceIso: openFailureWindow().sinceIso,
+      repo: query.repo,
+    },
+    5,
+    0,
+  ).items.flatMap((row) => (row.job ? [{ ...row.job, key: row.key }] : []));
   const current = query.range;
   // The day the range starts on, for links to lists that filter by day.
   const fromDay = data.since.slice(0, 10);
   const kind = (name: (typeof data.byKind)[number]["kind"]) =>
     data.byKind.find((row) => row.kind === name)!;
-  // Every review kind costs money, so Spent sums all of them, not only the
-  // posted pull request reviews.
-  const spent = data.byKind.reduce(
+  const aiKind = (name: "knowledge" | "reply" | "watch") =>
+    data.aiByKind?.find((row) => row.kind === name);
+  // Every review kind costs money, and so do knowledge builds, replies and
+  // watch comments, so Spent sums all of them.
+  const spent = [...data.byKind, ...(data.aiByKind ?? [])].reduce(
     (sum, row) => ({
       cost: sum.cost + row.cost,
       knownCount: sum.knownCount + row.knownCount,
@@ -94,11 +108,21 @@ export function renderAnalytics(
     ...(data.setupRuns === undefined
       ? []
       : [
-          ["init / sync", String(data.setupRuns), "Not recorded"] as [
-            string,
-            string,
-            string,
-          ],
+          [
+            "init / sync",
+            String(data.setupRuns),
+            formatCostCell(aiKind("knowledge")!),
+          ] as [string, string, string],
+          [
+            "Replies to comments",
+            String(aiKind("reply")?.runs ?? 0),
+            formatCostCell(aiKind("reply")!),
+          ] as [string, string, string],
+          [
+            "Watch comments",
+            String(aiKind("watch")?.runs ?? 0),
+            formatCostCell(aiKind("watch")!),
+          ] as [string, string, string],
         ]),
     [
       "Pull request reviews",
@@ -115,7 +139,31 @@ export function renderAnalytics(
       String(kind("failed").runs),
       formatCostCell(kind("failed")),
     ],
-    ["CLI reviews", String(kind("cli").runs), formatCostCell(kind("cli"))],
+    [
+      "Stopped reviews",
+      String(kind("canceled").runs),
+      formatCostCell(kind("canceled")),
+    ],
+    ...(kind("running").runs > 0
+      ? [
+          [
+            "Running now",
+            String(kind("running").runs),
+            formatCostCell(kind("running")),
+          ] as [string, string, string],
+        ]
+      : []),
+    ["Push reviews", String(kind("push").runs), formatCostCell(kind("push"))],
+    [
+      "Remote reviews from the CLI",
+      String(kind("cli").runs),
+      formatCostCell(kind("cli")),
+    ],
+    [
+      "Local and pull request reviews from the CLI",
+      String(kind("local").runs),
+      formatCostCell(kind("local")),
+    ],
   ];
   const byKind = `<table>
         <thead><tr><th>Kind</th><th class="num">Runs</th><th class="num">Cost</th></tr></thead>
@@ -143,7 +191,13 @@ export function renderAnalytics(
           ${data.byRepo
             .map(
               (row) =>
-                `<tr><td><a href="/repos/${text(row.repo)}">${text(row.repo)}</a></td>
+                `<tr><td>${
+                  getRepo(row.repo)?.active === 1
+                    ? `<a href="/repos/${text(row.repo)}">${text(row.repo)}</a>`
+                    : getRepo(row.repo)
+                      ? `${text(row.repo)} <span class="muted">(removed)</span>`
+                      : `${text(row.repo)} <span class="muted">(not on the dashboard)</span>`
+                }</td>
             <td class="num">${row.pullRequests}</td>
             <td class="num">${row.findings}</td>
             <td class="num">${
@@ -276,7 +330,7 @@ export function renderAnalytics(
         }.</div>
         <a class="btn" href="/activity/${text(job.id)}">See why</a>
         <button class="dismiss-worth" type="button" data-dismiss-worth="${text(
-          job.id,
+          job.key,
         )}" aria-label="Dismiss">×</button>
       </div>`,
           )
@@ -410,31 +464,25 @@ document.querySelectorAll("[data-usage-filter]").forEach(function(select) {
   });
 });
 (function() {
-  var key = "co-maintainer:dismissed-worth";
-  var read = function() {
-    try {
-      var value = JSON.parse(localStorage.getItem(key) || "[]");
-      return Array.isArray(value) ? value : [];
-    } catch (_) {
-      return [];
-    }
-  };
-  var dismissed = read();
-  document.querySelectorAll("[data-worth-id]").forEach(function(item) {
-    if (dismissed.indexOf(item.getAttribute("data-worth-id")) !== -1) {
-      item.remove();
-    }
-  });
-  document.addEventListener("click", function(event) {
+  // Dismissing here is the same dismiss the Activity list does, so the
+  // failure leaves the menu badge and the failed list too.
+  document.addEventListener("click", async function(event) {
     var button = event.target.closest("[data-dismiss-worth]");
     if (!button) return;
-    var id = button.getAttribute("data-dismiss-worth");
-    if (!id) return;
-    var next = read();
-    if (next.indexOf(id) === -1) next.push(id);
+    var key = button.getAttribute("data-dismiss-worth");
+    if (!key) return;
+    button.disabled = true;
     try {
-      localStorage.setItem(key, JSON.stringify(next));
-    } catch (_) {}
+      var response = await fetch("/api/activity/dismiss", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-requested-with": "fetch" },
+        body: JSON.stringify({ keys: [key] })
+      });
+      if (!response.ok) throw new Error(String(response.status));
+    } catch (_) {
+      button.disabled = false;
+      return;
+    }
     var item = button.closest("[data-worth-id]");
     if (item) item.remove();
     if (!document.querySelector("[data-worth-id]")) {
