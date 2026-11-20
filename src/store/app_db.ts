@@ -192,3 +192,53 @@ export async function closeAppDb(): Promise<void> {
   db = undefined;
   await releaseLock();
 }
+
+/** Runs `fn` against `app.db` from a CLI command, whether `serve` is running
+ * or not, so a CLI review, init, sync or `set --repo` lands on the dashboard.
+ *
+ * - The database is already open in this process (`serve`, or `init` that
+ *   opened it): `fn` runs on it.
+ * - No `serve` holds it: it is opened the normal way, with the lock and the
+ *   migrations, and closed after.
+ * - A `serve` holds it: a second short connection writes next to it. SQLite in
+ *   WAL mode allows that, `busy_timeout` waits out the server's own writes,
+ *   and nothing is migrated: a database at another migration than this build
+ *   knows is left alone and the reason comes back instead.
+ *
+ * `fn` should only write finished records. It must not queue or run jobs,
+ * which belong to the `serve` that owns the database. */
+export async function withAppDb<T>(
+  fn: () => T | Promise<T>,
+): Promise<{ ok: true; value: T } | { ok: false; reason: string }> {
+  if (db) return { ok: true, value: await fn() };
+  if ((await liveLockPid()) === undefined) {
+    await openAppDb();
+    try {
+      return { ok: true, value: await fn() };
+    } finally {
+      await closeAppDb();
+    }
+  }
+  const database = new Database(appDbPath());
+  try {
+    database.exec("PRAGMA busy_timeout = 5000");
+    database.exec("PRAGMA foreign_keys = ON");
+    const version =
+      database.prepare<{ user_version: number }>("PRAGMA user_version").get()
+        ?.user_version ?? 0;
+    if (version !== migrations.length) {
+      return {
+        ok: false,
+        reason: `the running serve uses another version of the database (migration ${version}, this build knows ${migrations.length})`,
+      };
+    }
+    db = database;
+    try {
+      return { ok: true, value: await fn() };
+    } finally {
+      db = undefined;
+    }
+  } finally {
+    database.close();
+  }
+}

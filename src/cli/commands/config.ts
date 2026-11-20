@@ -251,6 +251,30 @@ export const KNOWN_FIELDS = [
   "extensionRerunOnRestart",
 ] as const satisfies readonly (keyof UserConfig)[];
 
+/** The `set` flag that writes `field`. Most share the field's kebab-case
+ * name. The sign-in switches are the `--enable-auth`/`--disable-auth` pair,
+ * and two fields are never typed in. */
+export function setArgsFor(field: string, value: string): string[] {
+  if (field === "passwordAuthDisabled" || field === "githubAuthEnabled") {
+    if (value !== "true" && value !== "false") {
+      die(`${flagName(field)} must be true or false`);
+    }
+    const method = field === "passwordAuthDisabled" ? "password" : "github";
+    const on =
+      field === "githubAuthEnabled" ? value === "true" : value === "false";
+    return [`--${on ? "enable" : "disable"}-auth=${method}`];
+  }
+  if (field === "dashboardPasswordHash") {
+    die("Set the dashboard password with: co-maintainer set --password=...");
+  }
+  if (field === "remoteNoticeShownFor") {
+    die(
+      "remote-notice-shown-for is kept by co-maintainer itself and cannot be set",
+    );
+  }
+  return [`--${flagName(field)}=${value}`];
+}
+
 /** `co-maintainer config <sub> ...`. `set` is handled by runSet, which this
  * command delegates to so there is one implementation of the write rules. */
 export async function runConfig(args: string[]): Promise<void> {
@@ -319,7 +343,7 @@ export async function runConfig(args: string[]): Promise<void> {
       const [name, ...valueParts] = positional;
       const field = resolveField(name);
       const value = valueParts.join(" ");
-      await runSet([`--${flagName(field)}=${value}`]);
+      await runSet(setArgsFor(field, value));
       return;
     }
     await runSet(rest);
