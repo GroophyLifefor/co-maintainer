@@ -66,8 +66,12 @@ export function isNotFound(error: unknown): boolean {
 
 // ---------------------------------------------------------------- environment
 
+/** An empty value counts as unset everywhere: a CI secret that did not
+ * resolve arrives as "", and it must fall through to the saved config
+ * instead of hiding it. */
 export function getEnv(name: string): string | undefined {
-  return process.env[name];
+  const value = process.env[name];
+  return value === "" ? undefined : value;
 }
 
 export function setEnv(name: string, value: string): void {
