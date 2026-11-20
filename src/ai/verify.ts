@@ -203,3 +203,22 @@ export async function verifyAnthropic(
   }
   return { status: "ok" };
 }
+
+/** Checks a key, and the model when one is given, with the provider it
+ * belongs to. `set` and the dashboard Settings page both run it before they
+ * save, so a value one of them refuses the other refuses too. A provider with
+ * no check (`none`) is `ok`. */
+export async function verifyAiKey(
+  ai: string,
+  key: string,
+  model?: string,
+): Promise<VerifyResult> {
+  if (ai === "openrouter") return await verifyOpenRouter(key, model);
+  if (ai === "openai") return await verifyOpenAi(key, model);
+  if (ai === "anthropic") return await verifyAnthropic(key, model);
+  if (ai === "opencode-zen" || ai === "opencode-go") {
+    const { verifyOpenCode } = await import("./opencode.ts");
+    return await verifyOpenCode(ai, key, model);
+  }
+  return { status: "ok" };
+}

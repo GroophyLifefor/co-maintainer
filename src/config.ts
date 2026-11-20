@@ -152,6 +152,10 @@ export type UserConfig = {
   /** When `set` last changed a sign-in credential. Dashboard sessions issued
    * before it are refused. */
   credentialsChangedAt?: string;
+  /** Values someone cleared, kept with the time they were cleared. Nothing
+   * reads them: no page shows them and no run uses them. They are kept so a
+   * cleared key or model is not lost for good by one click. */
+  clearedSettings?: Record<string, { value: unknown; clearedAt: string }>;
   defaults?: {
     maxCommits?: number;
     maxPrMonths?: number;
@@ -642,14 +646,35 @@ export async function removeAllRepoConfig(): Promise<boolean> {
 /** Merges `patch` into the top-level (global, cross-repo) config,
  * used by `co-maintainer set`. This is the only path allowed to persist
  * a token. */
+/** Bookkeeping fields that are cleared as part of normal work, not by a
+ * person, so they are not kept in `clearedSettings`. */
+const NOT_KEPT_WHEN_CLEARED = new Set([
+  "clearedSettings",
+  "credentialsChangedAt",
+  "remoteNoticeShownFor",
+  "repos",
+]);
+
 export async function writeUserConfig(
   patch: Partial<UserConfig>,
 ): Promise<void> {
   const config = readConfig();
+  // A setting that had a value and is cleared now is soft-deleted: it moves
+  // to `clearedSettings`, which nothing reads, instead of disappearing.
+  const cleared = { ...config.clearedSettings };
+  const now = new Date().toISOString();
+  for (const [key, value] of Object.entries(patch)) {
+    if (value !== undefined || NOT_KEPT_WHEN_CLEARED.has(key)) continue;
+    const previous = config[key as keyof UserConfig];
+    if (previous === undefined) continue;
+    cleared[key] = { value: previous, clearedAt: now };
+  }
   const merged = Object.fromEntries(
-    Object.entries({ ...config, ...patch }).filter(
-      ([, value]) => value !== undefined,
-    ),
+    Object.entries({
+      ...config,
+      ...patch,
+      ...(Object.keys(cleared).length > 0 ? { clearedSettings: cleared } : {}),
+    }).filter(([, value]) => value !== undefined),
   ) as UserConfig;
   await writeConfig(merged);
 }
