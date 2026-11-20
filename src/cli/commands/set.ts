@@ -30,6 +30,7 @@ import {
 } from "../../ai/verify.ts";
 import { verifyOpenCode } from "../../ai/opencode.ts";
 import { die } from "../error.ts";
+import { excludePatternError } from "../../pr/exclude.ts";
 import { parsePolicy } from "../../services/review_policy.ts";
 import { isCodegraphVersion } from "../../tools/codegraph.ts";
 import {
@@ -496,6 +497,19 @@ const TOOL_LIMIT_FLAGS = [
   ["review-search-max-context-lines", "reviewSearchMaxContextLines"],
 ] as const;
 
+/** Repository values that override the global one for this repository only.
+ * Without one the repository inherits the global value, so a later global
+ * change reaches it. */
+const REPO_TEXT_FLAGS = [
+  ["ai", "ai"],
+  ["low-model", "lowModel"],
+  ["high-model", "highModel"],
+  ["auth", "auth"],
+  ["review-blocking", "reviewBlocking"],
+  ["review-exclude", "reviewExclude"],
+  ["only-request-changed-pr", "onlyRequestChangedPr"],
+] as const;
+
 /** Flag names that make sense together with `--repo`. Anything else is a
  * global setting and is refused rather than silently written to the wrong
  * place. */
@@ -513,6 +527,7 @@ const REPO_SCOPED_FLAGS = new Set([
   "companions",
   "gh-concurrent",
   "ai-concurrent",
+  ...REPO_TEXT_FLAGS.map(([flag]) => flag),
   "unset",
   "no-verify",
 ]);
@@ -543,7 +558,34 @@ const REPO_SCOPED_UNSET = new Set([
   "review-references",
   "reviewReferences",
   "companions",
+  ...REPO_TEXT_FLAGS.flat(),
 ]);
+
+function repoTextProblem(flag: string, value: string): string | undefined {
+  if (flag === "ai") {
+    rejectRetiredProvider(value);
+    if (!(AI_PROVIDERS as readonly string[]).includes(value)) {
+      return `--ai must be one of: ${AI_PROVIDERS.join(", ")}`;
+    }
+  }
+  if (flag === "auth" && !["gh", "pat"].includes(value)) {
+    return "--auth must be gh or pat";
+  }
+  if (flag === "review-blocking" && !["model", "severity"].includes(value)) {
+    return "--review-blocking must be model or severity";
+  }
+  if (
+    flag === "only-request-changed-pr" &&
+    !["true", "false"].includes(value)
+  ) {
+    return "--only-request-changed-pr must be true or false with --repo";
+  }
+  if (flag === "review-exclude") {
+    const problem = excludePatternError(value);
+    if (problem) return `--review-exclude: ${problem}`;
+  }
+  return undefined;
+}
 
 /** `set --repo=owner/repo [--review-system-prompt=... | --review-system-prompt-max-chars=N | --review-read-diff-max-chars=N | --review-tool-result-max-chars=N | --review-tool-budget-chars=N | --review-search-max-context-lines=N | --mcp-config=PATH | --mcp-allow-forks=true|false | --unset=name]`
  * writes the repository-scoped settings to `repos[owner/repo]` in config.json
@@ -748,9 +790,23 @@ async function runSetRepo(typed: string, args: string[]): Promise<void> {
   if (prompt !== undefined) {
     patch.reviewSystemPrompt = prompt.trim() === "" ? undefined : prompt;
   }
+  for (const [flag, field] of REPO_TEXT_FLAGS) {
+    if (unset.has(flag) || unset.has(field)) patch[field] = undefined;
+    const raw = text(args, flag);
+    if (raw === undefined) continue;
+    const value = raw.trim();
+    if (value === "") {
+      patch[field] = undefined;
+      continue;
+    }
+    const problem = repoTextProblem(flag, value);
+    if (problem) die(problem);
+    (patch as Record<string, unknown>)[field] =
+      flag === "only-request-changed-pr" ? value === "true" : value;
+  }
   if (Object.keys(patch).length === 0) {
     die(
-      "Nothing to set. Pass --review-system-prompt=, --review-system-prompt-max-chars=N, --diagram-runtime=, --plantuml-server=, --plantuml-output-format=, --review-read-diff-max-chars=N, --review-tool-result-max-chars=N, --review-tool-budget-chars=N, --review-search-max-context-lines=N, --mcp-config=PATH, --mcp-allow-forks=true|false, --guide-full-every=N, --review-references=on|off, --companions=owner/repo,..., or --unset=name with --repo.",
+      "Nothing to set. Pass --review-system-prompt=, --review-system-prompt-max-chars=N, --diagram-runtime=, --plantuml-server=, --plantuml-output-format=, --review-read-diff-max-chars=N, --review-tool-result-max-chars=N, --review-tool-budget-chars=N, --review-search-max-context-lines=N, --mcp-config=PATH, --mcp-allow-forks=true|false, --guide-full-every=N, --review-references=on|off, --companions=owner/repo,..., --ai=, --low-model=, --high-model=, --auth=, --review-blocking=, --review-exclude=, --only-request-changed-pr=true|false, or --unset=name with --repo.",
     );
   }
   // The values after this write are the ones given here, or the stored ones.

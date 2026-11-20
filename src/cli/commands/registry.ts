@@ -107,6 +107,27 @@ const AI_FLAGS: FlagGroup = {
 
 /** `init` and `sync` author every guide with AI, so no provider is not a
  * choice there. */
+const PR_FILTER_FLAGS: FlagGroup = {
+  title: "Pull request filter",
+  flags: [
+    {
+      name: "pr-state",
+      value: "open,closed,merged",
+      description: "Which pull request states to read.",
+    },
+    {
+      name: "only-request-changed-pr",
+      description:
+        "Read only the pull requests with at least one CHANGES_REQUESTED review. Saved for the repository.",
+    },
+    {
+      name: "no-only-request-changed-pr",
+      description:
+        "Read every pull request again, turning a saved --only-request-changed-pr off.",
+    },
+  ],
+};
+
 const AI_FLAGS_REQUIRED: FlagGroup = {
   title: "AI",
   flags: [
@@ -391,21 +412,7 @@ export const COMMANDS: CommandSpec[] = [
           },
         ],
       },
-      {
-        title: "Pull request filter",
-        flags: [
-          {
-            name: "pr-state",
-            value: "open,closed,merged",
-            description: "Which pull request states to read.",
-          },
-          {
-            name: "only-request-changed-pr",
-            description:
-              "Read only the pull requests with at least one CHANGES_REQUESTED review.",
-          },
-        ],
-      },
+      PR_FILTER_FLAGS,
       AI_FLAGS_REQUIRED,
       EXPERIMENTAL_FLAGS,
       GITHUB_FLAGS,
@@ -511,6 +518,7 @@ export const COMMANDS: CommandSpec[] = [
           },
         ],
       },
+      PR_FILTER_FLAGS,
       AI_FLAGS_REQUIRED,
       EXPERIMENTAL_FLAGS,
       GITHUB_FLAGS,

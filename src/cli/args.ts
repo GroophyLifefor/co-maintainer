@@ -247,6 +247,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
       arg === "--run" ||
       arg === "--json" ||
       arg === "--only-request-changed-pr" ||
+      arg === "--no-only-request-changed-pr" ||
       arg === "--full-guide" ||
       arg === "--experimental-siwc"
     )
@@ -448,9 +449,11 @@ export async function parseArgs(args: string[]): Promise<Options> {
     includePullRequestChanges: enabled("include-pull-request-changes"),
     includeCommitHistory: enabled("include-commit-history"),
     includeHowRepoWorks: enabled("include-how-repo-works"),
-    onlyRequestChangedPr:
-      rest.includes("--only-request-changed-pr") ||
-      repoConfig.onlyRequestChangedPr === true,
+    // `--no-only-request-changed-pr` turns a saved `true` off for this run.
+    onlyRequestChangedPr: rest.includes("--no-only-request-changed-pr")
+      ? false
+      : rest.includes("--only-request-changed-pr") ||
+        repoConfig.onlyRequestChangedPr === true,
     prState: prStateOption(rest, repoConfig.prState),
     maxCommits:
       value("max-commits") ?? repoConfig.maxCommits ?? configDefault.maxCommits,
