@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.19] - 2026-11-20
+
+### Added
+
+- **Global reasoning effort.** **Settings**, **AI models** has a **Reasoning effort** choice for every AI job: reviews, replies, guides and fact extraction. The levels are `none`, `low`, `default`, `high`, `xhigh` and `max`, and unset means `high`. `default` sends no reasoning field and leaves the level to the provider. From the CLI: `co-maintainer set --global-reasoning-effort=LEVEL` or `co-maintainer config set global-reasoning-effort LEVEL`.
+
+### Changed
+
+- **Fact extraction reasons at the global level.** It used a fixed `low`, so with the default it now asks for `high`. Init and sync can take longer and cost more. Set the level lower to go back.
+
+### Fixed
+
+- **A provider that refuses the reasoning field no longer fails the job.** An OpenCode Go model behind the Responses API refused `reasoning` with a 400, and only a `none` level was retried. Now a 400 about reasoning at any level gets one retry without it, for OpenRouter, OpenCode Zen and Go, OpenAI and Anthropic. The review log says when that happened.
+
 ## [0.7.18] - 2026-11-20
 
 ### Fixed
