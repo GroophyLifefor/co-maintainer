@@ -7,6 +7,7 @@ import { readConfig } from "../../config.ts";
 import {
   deleteEnv,
   getEnv,
+  removePath,
   setEnv,
   tempDirSync,
 } from "../../testing/runtime.ts";
@@ -14,12 +15,14 @@ import { runSet } from "./set.ts";
 
 async function withConfig(fn: () => Promise<void>): Promise<void> {
   const original = getEnv("CM_CONFIG_PATH");
-  setEnv("CM_CONFIG_PATH", `${tempDirSync()}/config.json`);
+  const dir = tempDirSync();
+  setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
   try {
     await fn();
   } finally {
     if (original === undefined) deleteEnv("CM_CONFIG_PATH");
     else setEnv("CM_CONFIG_PATH", original);
+    await removePath(dir, { recursive: true }).catch(() => {});
   }
 }
 

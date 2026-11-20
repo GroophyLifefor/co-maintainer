@@ -4,7 +4,7 @@
  * count for the Metadata block. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseArgs, setCliInteractive } from "../cli/args.ts";
+import { isCliInteractive, parseArgs, setCliInteractive } from "../cli/args.ts";
 import { writeRepoConfig } from "../config.ts";
 import type {
   AiProvider,
@@ -17,6 +17,7 @@ import {
   deleteEnv,
   getEnv,
   mkdirPath,
+  removePath,
   setEnv,
   tempDirSync,
   writeTextFile,
@@ -80,19 +81,22 @@ async function review(pattern: string | undefined) {
   const saved = {
     config: getEnv("CM_CONFIG_PATH"),
     repos: getEnv("CM_REPOS_DIR"),
+    interactive: isCliInteractive(),
   };
-  setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
-  setEnv("CM_REPOS_DIR", `${dir}/repos`);
-  await mkdirPath(`${dir}/repos/acme/widgets`, { recursive: true });
-  await writeTextFile(
-    `${dir}/repos/acme/widgets/PR_REVIEW_GUIDE.md`,
-    "Review small changes.",
-  );
-  if (pattern !== undefined) {
-    await writeRepoConfig("acme/widgets", { reviewExclude: pattern });
-  }
-  setCliInteractive(false);
+  // Everything that changes shared state happens inside the try, so the
+  // finally puts it back even when the fixture fails to build.
   try {
+    setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
+    setEnv("CM_REPOS_DIR", `${dir}/repos`);
+    await mkdirPath(`${dir}/repos/acme/widgets`, { recursive: true });
+    await writeTextFile(
+      `${dir}/repos/acme/widgets/PR_REVIEW_GUIDE.md`,
+      "Review small changes.",
+    );
+    if (pattern !== undefined) {
+      await writeRepoConfig("acme/widgets", { reviewExclude: pattern });
+    }
+    setCliInteractive(false);
     const options = {
       ...(await parseArgs([
         "review",
@@ -114,7 +118,7 @@ async function review(pattern: string | undefined) {
     );
     return { result, provider };
   } finally {
-    setCliInteractive(true);
+    setCliInteractive(saved.interactive);
     for (const [name, value] of [
       ["CM_CONFIG_PATH", saved.config],
       ["CM_REPOS_DIR", saved.repos],
@@ -122,6 +126,7 @@ async function review(pattern: string | undefined) {
       if (value === undefined) deleteEnv(name);
       else setEnv(name, value);
     }
+    await removePath(dir, { recursive: true }).catch(() => {});
   }
 }
 

@@ -49,6 +49,11 @@ export function setCliInteractive(value: boolean): void {
   cliInteractive = value;
 }
 
+/** The current setting, so a test can put back what it found. */
+export function isCliInteractive(): boolean {
+  return cliInteractive;
+}
+
 async function ask(
   label: string,
   fallback?: string,
