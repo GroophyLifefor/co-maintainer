@@ -248,6 +248,110 @@ export function resolvedAiToken(
   );
 }
 
+/** Where an effective setting came from. */
+export type SettingSource = "env" | "repo" | "global" | "default";
+
+export type ResolvedSetting<T> = {
+  value: T;
+  source: SettingSource;
+  /** The variable that set it, when `source` is `env`. */
+  envName?: string;
+};
+
+function firstSet<T>(
+  candidates: [T | undefined, SettingSource, string?][],
+  fallback: T,
+): ResolvedSetting<T> {
+  for (const [value, source, envName] of candidates) {
+    if (value !== undefined && value !== null && value !== "") {
+      return envName ? { value, source, envName } : { value, source };
+    }
+  }
+  return { value: fallback, source: "default" };
+}
+
+/** The AI, model, blocking and auth settings one repository runs with, in the
+ * one order every surface uses: environment, then the repository's own value,
+ * then the global value, then the default. The CLI puts its flags in front of
+ * this, `serve` and the dashboard use it as is. Without one shared order the
+ * App, remote and push reviews read the global value while the CLI read the
+ * repository's, so one repository ran on two models. */
+export function resolveRepoSettings(
+  config: UserConfig,
+  repo: string | undefined,
+  env: (name: string) => string | undefined = getEnv,
+): {
+  ai: ResolvedSetting<string>;
+  lowModel: ResolvedSetting<string | undefined>;
+  highModel: ResolvedSetting<string | undefined>;
+  reviewBlocking: ResolvedSetting<string | undefined>;
+  auth: ResolvedSetting<string>;
+} {
+  const repoConfig = (repo ? config.repos?.[repo] : undefined) ?? {};
+  const ai = firstSet<string>(
+    [
+      [env("CO_MAINTAINER_AI"), "env", "CO_MAINTAINER_AI"],
+      [repoConfig.ai, "repo"],
+      [config.ai, "global"],
+    ],
+    "none",
+  );
+  // The OPENROUTER_ names would hand an OpenRouter model id to another
+  // provider, so they only count when OpenRouter is the one running.
+  const model = (level: "low" | "high") => {
+    const upper = level.toUpperCase();
+    const key = level === "low" ? "lowModel" : "highModel";
+    return firstSet<string | undefined>(
+      [
+        [
+          ai.value === "openrouter"
+            ? env(`OPENROUTER_${upper}_MODEL`)
+            : undefined,
+          "env",
+          `OPENROUTER_${upper}_MODEL`,
+        ],
+        [env(`${upper}_MODEL`), "env", `${upper}_MODEL`],
+        [repoConfig[key], "repo"],
+        [config[key], "global"],
+      ],
+      undefined,
+    );
+  };
+  return {
+    ai,
+    lowModel: model("low"),
+    highModel: model("high"),
+    reviewBlocking: firstSet<string | undefined>(
+      [
+        [
+          env("CO_MAINTAINER_REVIEW_BLOCKING"),
+          "env",
+          "CO_MAINTAINER_REVIEW_BLOCKING",
+        ],
+        [repoConfig.reviewBlocking, "repo"],
+        [config.reviewBlocking, "global"],
+      ],
+      undefined,
+    ),
+    auth: firstSet<string>(
+      [
+        [env("CO_MAINTAINER_AUTH"), "env", "CO_MAINTAINER_AUTH"],
+        [repoConfig.auth, "repo"],
+        [config.auth, "global"],
+      ],
+      "gh",
+    ),
+  };
+}
+
+/** The provider a review runs on. A review cannot run without AI, so `none`
+ * or nothing at all falls back to OpenRouter, as the CLI review does. The App,
+ * remote and push reviews all go through here, so `ai=none` means the same in
+ * each of them. */
+export function reviewAiProvider(ai: string): string {
+  return ai && ai !== "none" ? ai : "openrouter";
+}
+
 /** The provider the saved key belongs to. A config from before providers
  * were saved holds an OpenRouter key, and so does one where AI was switched
  * off, which the dashboard writes for such a config. */

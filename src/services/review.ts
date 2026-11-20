@@ -54,7 +54,9 @@ import type { Snapshot } from "../pr/snapshot.ts";
 import {
   readConfig,
   resolveAppPrivateKey,
+  resolveRepoSettings,
   resolvedAiToken,
+  reviewAiProvider,
 } from "../config.ts";
 import { outsideCode, redact } from "../util/redact.ts";
 import { getRepo, setInstallationId } from "../store/repos.ts";
@@ -589,6 +591,10 @@ export function reviewOptions(
   warn?: (message: string) => void,
 ): Options {
   const config = readConfig();
+  const settings = resolveRepoSettings(config, repo);
+  // With no provider saved the App review stays on OpenRouter, the same
+  // fallback the CLI review uses.
+  const ai = reviewAiProvider(settings.ai.value) as Options["ai"];
   return {
     command: "review",
     repo,
@@ -599,15 +605,10 @@ export function reviewOptions(
     ghConcurrent: 1,
     aiConcurrent: 1,
     auth: "gh",
-    // With no provider saved the App review stays on OpenRouter, the same
-    // fallback the CLI review uses.
-    ai: config.ai && config.ai !== "none" ? config.ai : "openrouter",
-    aiToken: resolvedAiToken(
-      config,
-      config.ai && config.ai !== "none" ? config.ai : "openrouter",
-    ),
-    highModel: config.highModel,
-    lowModel: config.lowModel,
+    ai,
+    aiToken: resolvedAiToken(config, ai),
+    highModel: settings.highModel.value,
+    lowModel: settings.lowModel.value,
     synthesisVersion: 17,
     includeCodebase: true,
     includePullRequests: true,
@@ -616,9 +617,7 @@ export function reviewOptions(
     includeHowRepoWorks: true,
     onlyRequestChangedPr: false,
     useCodegraph: getRepo(repo)?.use_codegraph === 1,
-    reviewBlocking: reviewBlockingFrom(
-      config.repos?.[repo]?.reviewBlocking ?? config.reviewBlocking,
-    ),
+    reviewBlocking: reviewBlockingFrom(settings.reviewBlocking.value),
     reviewSystemPrompt: config.repos?.[repo]?.reviewSystemPrompt,
     ...serverDiagramOptions(config.repos?.[repo] ?? {}, repo, warn),
   };

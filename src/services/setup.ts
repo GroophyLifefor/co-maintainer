@@ -26,6 +26,7 @@ import { codebaseSectionKeys } from "../knowledge/sections.ts";
 import {
   readConfig,
   reposDir,
+  resolveRepoSettings,
   resolvedAiToken,
   writeRepoConfig,
 } from "../config.ts";
@@ -752,11 +753,10 @@ async function initOrRemake(
     });
     // Remember everything but the token, so `sync owner/repo` alone
     // (no flags, no prompts) reuses what this run resolved.
+    // AI, models and auth are not copied: the repository inherits the global
+    // values until someone sets its own with `set --repo` or the dashboard.
+    // A copy here outranked every later global change without a word.
     await writeRepoConfig(options.repo, {
-      auth: options.auth,
-      ai: options.ai,
-      lowModel: options.lowModel,
-      highModel: options.highModel,
       maxCommits: options.maxCommits,
       maxPrMonths: options.maxPrMonths,
       maxPullRequestChangeLines: options.maxPullRequestChangeLines,
@@ -842,15 +842,16 @@ export function optionsFromConfig(
 ): Options {
   const config = readConfig();
   const repoConfig = config.repos?.[repo] ?? {};
-  const auth = repoConfig.auth ?? config.auth ?? "gh";
+  const settings = resolveRepoSettings(config, repo);
+  const auth = settings.auth.value as Options["auth"];
   if (auth === "pat" && !config.githubPat) {
     throw new Error(
       "auth=pat requires a GitHub PAT. Run: co-maintainer set --github-pat=...",
     );
   }
-  const ai = repoConfig.ai ?? config.ai ?? "none";
-  const lowModel = repoConfig.lowModel ?? config.lowModel;
-  const highModel = repoConfig.highModel ?? config.highModel;
+  const ai = settings.ai.value as Options["ai"];
+  const lowModel = settings.lowModel.value;
+  const highModel = settings.highModel.value;
   const aiToken = resolvedAiToken(config, ai);
   // Every guide is AI-authored: init and sync cannot run without a provider.
   if (ai === "none") {

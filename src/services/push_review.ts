@@ -34,7 +34,11 @@ import {
 import { reviewBlockingFrom } from "../review/blocking.ts";
 import { withLogSink } from "../util/log.ts";
 import { redact } from "../util/redact.ts";
-import { readConfig, resolveAppPrivateKey } from "../config.ts";
+import {
+  readConfig,
+  resolveAppPrivateKey,
+  resolveRepoSettings,
+} from "../config.ts";
 import {
   addResponseCost,
   costColumns,
@@ -296,7 +300,9 @@ export function queuePush(req: PushRequest): PushOutcome {
       jobId,
       beforeSha: before,
       afterSha: req.after,
-      model: readConfig().highModel ?? "unknown",
+      model:
+        resolveRepoSettings(readConfig(), req.repo).highModel.value ??
+        "unknown",
     });
     insertJob({
       id: jobId,
