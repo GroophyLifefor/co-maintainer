@@ -38,6 +38,7 @@ import { removeServeRunFolders } from "../../extensions/run_folder.ts";
 import { currentPlatform, getEnv, type Platform } from "../../util/runtime.ts";
 import { webhookUrlProblem } from "../../server/webhook_url.ts";
 import { die } from "../error.ts";
+import type { AuthOverrides } from "../../server/live_auth.ts";
 
 /** `undefined` on Linux, otherwise one line naming the platform. The
  * recommendation is spelled out rather than pointing at an internal
@@ -83,27 +84,39 @@ export async function ensureDashboardPassword(
   return generated;
 }
 
-/** `--disable-auth=password` / `--enable-auth=github` always win over the
- * config defaults `co-maintainer set` persisted. Dies if the result would
- * leave no sign-in method active. Pure so it is testable without a server. */
+/** What `--disable-auth=` and `--enable-auth=` force. Each takes `password`
+ * or `github`, and a method named by both is refused. */
+export function authOverridesFrom(args: string[]): AuthOverrides {
+  const value = (flag: string) =>
+    args.find((arg) => arg.startsWith(`--${flag}=`))?.slice(flag.length + 3);
+  const overrides: AuthOverrides = {};
+  for (const [flag, on] of [
+    ["disable-auth", false],
+    ["enable-auth", true],
+  ] as const) {
+    const method = value(flag);
+    if (method === undefined) continue;
+    if (method !== "password" && method !== "github") {
+      die(`--${flag} must be password or github`);
+    }
+    if (overrides[method] !== undefined) {
+      die(`--disable-auth and --enable-auth cannot name the same method`);
+    }
+    overrides[method] = on;
+  }
+  return overrides;
+}
+
+/** The `serve` flags always win over the config defaults `co-maintainer set`
+ * persisted. Dies if the result would leave no sign-in method active. Pure so
+ * it is testable without a server. */
 export function resolveAuthMethods(
   args: string[],
   config: Pick<UserConfig, "passwordAuthDisabled" | "githubAuthEnabled">,
 ): AuthMethods {
-  const disableAuth = args
-    .find((arg) => arg.startsWith("--disable-auth="))
-    ?.slice("--disable-auth=".length);
-  if (disableAuth && disableAuth !== "password") {
-    die("--disable-auth only supports: password");
-  }
-  const enableAuth = args
-    .find((arg) => arg.startsWith("--enable-auth="))
-    ?.slice("--enable-auth=".length);
-  if (enableAuth && enableAuth !== "github") {
-    die("--enable-auth only supports: github");
-  }
-  const password = disableAuth ? false : !config.passwordAuthDisabled;
-  const github = enableAuth ? true : Boolean(config.githubAuthEnabled);
+  const overrides = authOverridesFrom(args);
+  const password = overrides.password ?? !config.passwordAuthDisabled;
+  const github = overrides.github ?? Boolean(config.githubAuthEnabled);
   if (!password && !github) {
     die(
       "at least one sign-in method is required. Drop --disable-auth=password or pass --enable-auth=github",
@@ -293,6 +306,7 @@ export async function runServe(args: string[]): Promise<void> {
     trustProxy,
     auth,
     githubOAuth,
+    authOverrides: authOverridesFrom(args),
     debug,
     loginHint: getEnv("CM_LOGIN_HINT"),
   });

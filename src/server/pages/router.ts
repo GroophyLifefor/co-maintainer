@@ -1,4 +1,5 @@
 import { liveWebhookUrl } from "../webhook_url.ts";
+import { type AuthOverrides, liveAuth } from "../live_auth.ts";
 import {
   clearOauthStateCookieHeader,
   clearSessionCookieHeader,
@@ -116,6 +117,7 @@ export type PageDeps = {
   githubApp?: { appId: string; privateKeyPem: string };
   auth?: AuthMethods;
   githubOAuth?: { clientId: string; clientSecret: string; allowedUser: string };
+  authOverrides?: AuthOverrides;
   /** Behind a reverse proxy this process trusts, absolute URLs are built
    * from `x-forwarded-host` and `x-forwarded-proto`. */
   trustProxy?: boolean;
@@ -171,7 +173,9 @@ export async function handlePageRequest(
     return Response.redirect(`${url.origin}/`, 303);
   }
 
-  const auth = deps.auth ?? { password: true, github: false };
+  const live = liveAuth(deps);
+  const auth = live.auth;
+  const githubOAuth = live.githubOAuth;
 
   if (url.pathname === "/login" && request.method === "GET") {
     const session = await sessionOf(request);
@@ -190,13 +194,13 @@ export async function handlePageRequest(
   }
 
   if (url.pathname === "/auth/github" && request.method === "GET") {
-    if (!auth.github || !deps.githubOAuth) {
+    if (!auth.github || !githubOAuth) {
       return new Response("GitHub sign-in is not enabled.", { status: 404 });
     }
     const next = safeNext(url.searchParams.get("next"));
     const state = randomToken();
     const authorizeUrl = githubAuthorizeUrl(
-      deps.githubOAuth.clientId,
+      githubOAuth.clientId,
       `${url.origin}/auth/github/callback`,
       state,
     );
@@ -214,10 +218,10 @@ export async function handlePageRequest(
   }
 
   if (url.pathname === "/auth/github/callback" && request.method === "GET") {
-    if (!auth.github || !deps.githubOAuth) {
+    if (!auth.github || !githubOAuth) {
       return new Response("GitHub sign-in is not enabled.", { status: 404 });
     }
-    return await handleGithubCallback(request, url, deps.githubOAuth, deps);
+    return await handleGithubCallback(request, url, githubOAuth, deps);
   }
 
   if (url.pathname === "/logout" && request.method === "POST") {
