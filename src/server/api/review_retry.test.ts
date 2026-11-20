@@ -116,9 +116,14 @@ test("the review job runs with the job's model over the config's", async () => {
     if (pinned.highModel !== "failed/model") {
       throw new Error(`pinned: ${pinned.highModel}`);
     }
+    // The summaries run on the pinned model too, never on a newer setting
+    // mixed in with the old review model.
+    if (pinned.lowModel !== "failed/model") {
+      throw new Error(`pinned low: ${pinned.lowModel}`);
+    }
     const plain = reviewOptionsForJob("acme/widgets", 7, {});
-    if (plain.highModel !== "config/now") {
-      throw new Error(`plain: ${plain.highModel}`);
+    if (plain.highModel !== "config/now" || plain.lowModel !== "config/low") {
+      throw new Error(`plain: ${plain.highModel} ${plain.lowModel}`);
     }
   });
 });

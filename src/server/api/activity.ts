@@ -89,7 +89,10 @@ export async function handleActivityRoute(
     if (body instanceof Response) return body;
     const keys = keysOf(body);
     if (keys instanceof Response) return keys;
-    const result = retryRows(keys);
+    // `defaultModel: true` is the "Retry with <configured model>" action.
+    const result = retryRows(keys, {
+      defaultModel: body.defaultModel === true,
+    });
     if (result.jobIds.length > 0) {
       audit(
         "review",

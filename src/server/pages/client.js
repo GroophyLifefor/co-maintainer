@@ -951,8 +951,13 @@ function startBulkSelect() {
     }
     const dismiss = bar.querySelector('[data-bulk-action="dismiss"]');
     const retry = bar.querySelector('[data-bulk-action="retry"]');
+    const retryDefault = bar.querySelector(
+      '[data-bulk-action="retry-default"]',
+    );
+    const retryable = chosen("data-retry").length;
     if (dismiss) dismiss.disabled = chosen("data-dismiss").length === 0;
-    if (retry) retry.disabled = chosen("data-retry").length === 0;
+    if (retry) retry.disabled = retryable === 0;
+    if (retryDefault) retryDefault.disabled = retryable === 0;
     const head = document.querySelector("input[data-select-all]");
     const total = boxes().length;
     if (head) {
@@ -980,14 +985,20 @@ function startBulkSelect() {
     if (!btn || btn.disabled) return;
     ev.preventDefault();
     const action = btn.getAttribute("data-bulk-action");
-    const keys = chosen(action === "retry" ? "data-retry" : "data-dismiss");
+    // "retry-default" is Retry on the configured model, not the failed one.
+    const retrying = action === "retry" || action === "retry-default";
+    const keys = chosen(retrying ? "data-retry" : "data-dismiss");
     if (keys.length === 0) return;
     const card = btn.closest(".card");
     run(btn, card, async function () {
-      const result = await api("POST", "/api/activity/" + action, {
-        keys: keys,
-      });
-      if (action === "retry") {
+      const result = await api(
+        "POST",
+        "/api/activity/" + (retrying ? "retry" : action),
+        action === "retry-default"
+          ? { keys: keys, defaultModel: true }
+          : { keys: keys },
+      );
+      if (retrying) {
         const n = (result && result.jobIds && result.jobIds.length) || 0;
         toast(n === 1 ? "1 retry queued" : n + " retries queued");
       }

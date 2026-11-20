@@ -35,6 +35,7 @@ async function jobPage(
   status: string,
   args: Record<string, unknown> = {},
   seed?: () => void,
+  config: Parameters<typeof writeUserConfig>[0] = { auth: "gh", ai: "none" },
 ): Promise<string> {
   const keys = ["CM_APP_DB", "CM_CONFIG_PATH", "CM_REPOS_DIR"];
   const original = keys.map((key) => getEnv(key));
@@ -44,7 +45,7 @@ async function jobPage(
   setEnv("CM_REPOS_DIR", `${dir}/repos`);
   try {
     await openAppDb();
-    await writeUserConfig({ auth: "gh", ai: "none" });
+    await writeUserConfig(config);
     activateRepo("acme/widgets", 9);
     insertJob({
       id: "job-1",
@@ -133,6 +134,51 @@ test("a failed manual review shows the model its review ran with and retries wit
     )
   ) {
     throw new Error("Retry with the same model does not send that model");
+  }
+});
+
+function failedReviewSeed(): void {
+  insertReview({
+    id: "rev-1",
+    repo: "acme/widgets",
+    prNumber: 7,
+    jobId: "job-1",
+    headSha: "h",
+    baseSha: "b",
+    scope: "whole-pr",
+    model: "old/model",
+  });
+  setReviewStatus("rev-1", "failed", {});
+}
+
+test("after the default model changes, a failed review also offers a retry with the new one", async () => {
+  const html = await jobPage(
+    "review",
+    "failed",
+    { trigger: "manual" },
+    failedReviewSeed,
+    { auth: "gh", ai: "openrouter", highModel: "new/model" },
+  );
+  // No data-body: the API then runs the review on the configured model.
+  if (
+    !html.includes(
+      '<button class="btn out" type="button" data-post="/api/repos/acme/widgets/pulls/7/review">Retry with new/model</button>',
+    )
+  ) {
+    throw new Error("no retry with the new default model");
+  }
+});
+
+test("when the default model is still the one that failed, only one retry shows", async () => {
+  const html = await jobPage(
+    "review",
+    "failed",
+    { trigger: "manual" },
+    failedReviewSeed,
+    { auth: "gh", ai: "openrouter", highModel: "old/model" },
+  );
+  if (html.includes("Retry with old/model")) {
+    throw new Error("a second retry button that does the same thing");
   }
 });
 

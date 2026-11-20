@@ -551,7 +551,10 @@ async function findingReplies(
 }
 
 /** A review job's options: the config, with the job's pinned model (a
- * "Retry with the same model") over the configured one. */
+ * "Retry with the same model") over the configured one. The failed review
+ * shows one model, so the pin covers both the review and the per-file
+ * summaries. Pinning only the review model left the summaries on whatever
+ * the setting said by then, a mix nobody chose. */
 export function reviewOptionsForJob(
   repo: string,
   prNumber: number,
@@ -559,7 +562,9 @@ export function reviewOptionsForJob(
   warn?: (message: string) => void,
 ): Options {
   const options = reviewOptions(repo, prNumber, warn);
-  return args.model ? { ...options, highModel: args.model } : options;
+  return args.model
+    ? { ...options, highModel: args.model, lowModel: args.model }
+    : options;
 }
 
 export function reviewOptions(
