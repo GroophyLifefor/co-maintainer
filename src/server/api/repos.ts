@@ -1,3 +1,4 @@
+import { AI_PROVIDERS } from "../../ai/provider.ts";
 import { errorResponse } from "../errors.ts";
 import { canonicalRepoName } from "../../util/repo_name.ts";
 import { AppClient, findInstallationForRepo } from "../../github/app.ts";
@@ -473,6 +474,9 @@ export async function handleReposRoute(
         patch.watch_push_mode = body.watchPushMode;
       }
       updateRepoSettings(fullName, patch);
+      // Blank (null) clears the value so the account default applies again,
+      // as the form's hint promises. Anything else must be a positive whole
+      // number, the same rule the account defaults follow.
       const init: Record<string, number | undefined> = {};
       for (const key of [
         "maxPrMonths",
@@ -480,9 +484,52 @@ export async function handleReposRoute(
         "maxPullRequestChangeLines",
         "maxComments",
       ] as const) {
-        if (typeof body[key] === "number" && Number.isFinite(body[key])) {
-          init[key] = body[key] as number;
+        if (!(key in body)) continue;
+        const raw = body[key];
+        if (raw === null || raw === "") {
+          init[key] = undefined;
+        } else if (
+          typeof raw === "number" &&
+          Number.isInteger(raw) &&
+          raw > 0
+        ) {
+          init[key] = raw;
+        } else {
+          return errorResponse(
+            422,
+            "invalid_knowledge_limit",
+            `${key} must be a positive whole number, or blank for the account default`,
+          );
         }
+      }
+      // The repository's own AI and models. Blank clears them, so the
+      // repository inherits the global values again.
+      const aiPatch: RepoConfig = {};
+      for (const key of ["ai", "lowModel", "highModel"] as const) {
+        if (!(key in body)) continue;
+        const raw = body[key];
+        if (raw === null || (typeof raw === "string" && raw.trim() === "")) {
+          aiPatch[key] = undefined;
+          continue;
+        }
+        if (typeof raw !== "string") {
+          return errorResponse(
+            422,
+            `invalid_${key}`,
+            `${key} must be text or null`,
+          );
+        }
+        if (
+          key === "ai" &&
+          !(AI_PROVIDERS as readonly string[]).includes(raw.trim())
+        ) {
+          return errorResponse(
+            422,
+            "invalid_ai",
+            `ai must be one of: ${AI_PROVIDERS.join(", ")}`,
+          );
+        }
+        (aiPatch as Record<string, unknown>)[key] = raw.trim();
       }
       const repoPatch: RepoConfig = {
         ...init,
@@ -490,6 +537,7 @@ export async function handleReposRoute(
         ...promptPatch,
         ...speedPatch,
         ...blockingPatch,
+        ...aiPatch,
       };
       if (Object.keys(repoPatch).length > 0) {
         await writeRepoConfig(fullName, repoPatch);

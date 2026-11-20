@@ -1,7 +1,12 @@
 import { html, layout, skSlot, text } from "./layout.ts";
 import { repoHeader, SAVE_STATE } from "./ui.ts";
 import type { RepoRow } from "../../store/rows.ts";
-import { readConfig, type RepoConfig } from "../../config.ts";
+import {
+  readConfig,
+  type RepoConfig,
+  resolveRepoSettings,
+  type ResolvedSetting,
+} from "../../config.ts";
 import { parseRemakeCron } from "../../services/remake_cron.ts";
 import { nextCronRun } from "../../util/cron.ts";
 import { policySource } from "../../services/webhook.ts";
@@ -60,6 +65,18 @@ const POLICY_CHOICES: { value: string; label: string; sub: string }[] = [
 
 /** JSON for an inline script: `<` is escaped so a rule name can never close
  * the script tag. */
+/** "In use: X, from the account settings", so a blank field still says what
+ * runs. */
+function effectiveNote(setting: ResolvedSetting<string | undefined>): string {
+  const from = {
+    env: `the server environment (${setting.envName ?? ""})`,
+    repo: "this repository",
+    global: "the account settings",
+    default: "the default",
+  }[setting.source];
+  return `<div class="hint">In use: <span class="mono">${text(setting.value ?? "not set")}</span>, from ${text(from)}</div>`;
+}
+
 function scriptJson(value: unknown): string {
   return JSON.stringify(value).replace(/</g, "\\u003c");
 }
@@ -171,10 +188,11 @@ export function renderRepoSettings(
           : "none";
 
   const userConfig = readConfig();
-  const provider = config.ai ?? userConfig.ai ?? "none";
-  const lowModel = config.lowModel ?? userConfig.lowModel;
-  const highModel = config.highModel ?? userConfig.highModel;
-  const auth = config.auth ?? userConfig.auth ?? "gh";
+  const effective = resolveRepoSettings(userConfig, name);
+  const provider = effective.ai.value;
+  const lowModel = effective.lowModel.value;
+  const highModel = effective.highModel.value;
+  const auth = effective.auth.value as "gh" | "pat";
   const providerLabel = PROVIDER_LABEL[provider] ?? provider;
   const resolved = resolveConcurrency(name, userConfig);
   const serverDefaults = resolveConcurrency(name, {
@@ -392,6 +410,42 @@ export function renderRepoSettings(
           <input id="review-exclude" class="mono" placeholder="For example: ^(vendor|dist)/|\\.lock$" value="${text(config.reviewExclude ?? "")}"></div>
       </div>
       <div class="ft"><button class="primary" id="save-exclude">Save</button></div>
+    </div>
+    <div class="card" data-async id="repo-ai">
+      ${skSlot()}
+      <div class="hd"><h2>AI for this repository</h2></div>
+      <div class="bd">
+        <p class="muted" style="margin:0 0 18px">Leave blank to use the account settings. A value here is used only for this repository, by every review and every sync.</p>
+        <div class="field"><label for="repo-ai-provider">Provider</label>
+          <select id="repo-ai-provider">
+            <option value=""${config.ai ? "" : " selected"}>Account setting (${text(PROVIDER_LABEL[userConfig.ai ?? "none"] ?? userConfig.ai ?? "none")})</option>
+            ${[
+              "openrouter",
+              "openai",
+              "anthropic",
+              "opencode-zen",
+              "opencode-go",
+            ]
+              .map(
+                (value) =>
+                  `<option value="${value}"${config.ai === value ? " selected" : ""}>${text(PROVIDER_LABEL[value] ?? value)}</option>`,
+              )
+              .join("")}
+          </select>
+          ${effectiveNote(effective.ai)}
+          <div class="cli"><code>set --repo=${text(name)} --ai=…</code></div></div>
+        <div class="two" style="max-width:none">
+          <div class="field"><label for="repo-high">Review model</label>
+            <input id="repo-high" value="${text(config.highModel ?? "")}" placeholder="${text(userConfig.highModel ?? "")}">
+            ${effectiveNote(effective.highModel)}
+            <div class="cli"><code>set --repo=${text(name)} --high-model=…</code></div></div>
+          <div class="field"><label for="repo-low">Extraction model</label>
+            <input id="repo-low" value="${text(config.lowModel ?? "")}" placeholder="${text(userConfig.lowModel ?? "")}">
+            ${effectiveNote(effective.lowModel)}
+            <div class="cli"><code>set --repo=${text(name)} --low-model=…</code></div></div>
+        </div>
+      </div>
+      <div class="ft"><button class="primary" id="save-repo-ai">Save</button></div>
     </div>
     <div class="card" data-async>
       ${skSlot()}
@@ -860,7 +914,10 @@ function promptMaxValue() {
 }
 function initNumber(id) {
   var value = document.getElementById(id).value.trim();
-  return value === "" ? null : Number(value);
+  if (value === "") return null;
+  // Text that is not a number goes to the server as is, so it is refused
+  // with a message instead of turning into null and clearing the value.
+  return Number.isFinite(Number(value)) ? Number(value) : value;
 }
 function cronProblem(value) {
   if (!value) return "";
@@ -912,6 +969,13 @@ function watchBody() {
 }
 document.getElementById("save-watch").addEventListener("click", function() {
   save(this, watchBody());
+});
+document.getElementById("save-repo-ai").addEventListener("click", function() {
+  save(this, {
+    ai: document.getElementById("repo-ai-provider").value || null,
+    highModel: document.getElementById("repo-high").value.trim() || null,
+    lowModel: document.getElementById("repo-low").value.trim() || null
+  });
 });
 document.getElementById("save-init").addEventListener("click", function() {
   save(this, {
