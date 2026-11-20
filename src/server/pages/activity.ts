@@ -1,3 +1,4 @@
+import { aiCostForJob } from "../../store/ai_costs.ts";
 import {
   escapeHtml,
   html,
@@ -179,9 +180,17 @@ function jobDurationMs(
 function jobCost(
   args: Record<string, unknown>,
   review: ReviewRow | undefined,
+  jobId?: string,
 ): number | undefined {
   const fromArgs = asNumber(args.cost);
   if (fromArgs !== undefined) return fromArgs;
+  // A knowledge build, a reply or a watch comment keeps its spend in
+  // ai_costs, one row per AI call. A total with an unpriced call in it is not
+  // a total, so it shows as unknown.
+  if (jobId) {
+    const spent = aiCostForJob(jobId);
+    if (spent && spent.unknownCount === 0) return spent.cost;
+  }
   if (
     review &&
     (review.cost_status === "known" ||
@@ -386,7 +395,7 @@ function doneBody(
   );
   const produced = producedOf(args, job, review);
   const durationMs = jobDurationMs(job, args, review);
-  const cost = jobCost(args, review);
+  const cost = jobCost(args, review, job.id);
   const seconds = estimateSeconds(args);
   const usd = estimateUsd(args);
   const tookDetail = seconds.length
@@ -479,7 +488,7 @@ function failedBody(
   const model = failedModel(args, review);
   const note = noteStatus(review);
   const durationMs = jobDurationMs(job, args, review);
-  const cost = jobCost(args, review);
+  const cost = jobCost(args, review, job.id);
   const explanation = failureExplanation(job.error);
   const rows = [
     provider ? `<div><dt>Provider</dt><dd>${text(provider)}</dd></div>` : "",

@@ -30,6 +30,13 @@ import {
   resolvedAiToken,
   writeRepoConfig,
 } from "../config.ts";
+import {
+  aiCostKindOf,
+  attachAiCostsToJob,
+  insertAiCost,
+} from "../store/ai_costs.ts";
+import { insertFinishedJob } from "../store/jobs.ts";
+import { currentRateLimitJobId } from "./rate_limit.ts";
 import { readState, writeState } from "../store/skill_state.ts";
 import { cacheSet } from "../store/cache_db.ts";
 import { log, timed, withCliLogsToStderr, withLogSink } from "../util/log.ts";
@@ -93,6 +100,26 @@ export async function recordAiCost(
   job: string,
   response: AiResponse,
 ): Promise<void> {
+  // Spend that is not on a review row goes to app.db, which Usage reads and
+  // clearing knowledge never touches. app.db is open in serve and during a
+  // CLI init or sync. A CLI review records its spend on its own review row.
+  const kind = aiCostKindOf(job);
+  if (kind && isAppDbOpen()) {
+    const jobId = currentRateLimitJobId();
+    insertAiCost({
+      repo,
+      jobId,
+      kind,
+      job,
+      provider: response.provider,
+      model: response.model,
+      tokensIn: response.tokensIn,
+      tokensOut: response.tokensOut,
+      costUsd: response.cost,
+      source: jobId ? "server" : "cli",
+    });
+  }
+  // The cache keeps feeding the time and cost estimates.
   await cacheSet(
     "cost",
     `${repo}:${crypto.randomUUID()}`,
@@ -376,13 +403,46 @@ export async function runInitOrRemake(
 ): Promise<void> {
   const openedAppDb = !isAppDbOpen();
   if (openedAppDb) await openAppDb();
+  // A run outside a `serve` job is a CLI run. It gets its own finished job
+  // row, so the Activity list and Usage show it with its cost.
+  const fromCli = openedAppDb && currentRateLimitJobId() === undefined;
+  const startedAt = new Date().toISOString();
+  let failure: unknown;
   try {
     // With `--json` stdout carries the one document, so progress moves to
     // stderr.
     if (options.json) {
       await withCliLogsToStderr(() => initOrRemake(options, signal));
     } else await initOrRemake(options, signal);
+  } catch (error) {
+    failure = error;
+    throw error;
   } finally {
+    if (fromCli) {
+      try {
+        const jobId = crypto.randomUUID();
+        insertFinishedJob({
+          id: jobId,
+          type: options.command === "remake" ? "remake" : "init",
+          repo: options.repo,
+          args: { source: "cli" },
+          status: failure === undefined ? "done" : "failed",
+          startedAt,
+          error:
+            failure === undefined
+              ? undefined
+              : failure instanceof Error
+                ? failure.message
+                : String(failure),
+        });
+        attachAiCostsToJob(options.repo, startedAt, jobId);
+      } catch (error) {
+        log(
+          "setup",
+          `could not record this run for the dashboard: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
     if (openedAppDb) await closeAppDb();
   }
 }
