@@ -107,8 +107,9 @@ findings next to the options, and the preview follows them as you change them:
 - **Diagram language**: Mermaid, PlantUML or a PlantUML server image.
 - **References in the comment**: shown or left out.
 
-Diagram language and references are set per repository in its **Repository
-settings**, so the wizard only previews them.
+Diagram language and references are set per repository, in its **Repository
+settings** under **Review tools and limits** or with `set --repo`, so the
+wizard only previews them.
 
 The home page shows a **Setup is not finished** banner with the count of the
 four required steps until they are done, and the menu shows the same count
@@ -268,17 +269,35 @@ Each section is its own page in the left menu:
 
 | Page | What you configure |
 | ---- | ------------------ |
-| AI models | Provider (OpenRouter, OpenAI or Anthropic, see [AI providers](providers.md)), token, high model (reviews and synthesis), low model (history extraction). No model is pre-filled |
+| AI models | Provider (OpenRouter, OpenAI, Anthropic, OpenCode Zen or OpenCode Go, see [AI providers](providers.md)), token, high model (reviews and synthesis), low model (history extraction). No model is pre-filled |
 | GitHub | `gh` or PAT for init/sync and server-side Git reads, the GitHub App (**Create GitHub App**) and the webhook URL |
-| Review defaults | Limits for new repositories and the [review policy](review-policy.md) template they start with |
+| Review defaults | Limits for new repositories, the [review policy](review-policy.md) template they start with, and the blocking rule every repository uses unless it has its own |
 | Remote access | `cmr_…` tokens (secret shown once, with copy) and the **Client key policy (BYOK)**, see [your own key](remote-review.md#your-own-ai-key) |
 | Server | Version, port and data folder, [Updates](#updates), the job queue and remote limits |
-| Sign-in | Password vs GitHub sign-in toggles (mirrors `serve` flags), and the password |
+| Sign-in | Password vs GitHub sign-in toggles, and the password. A change applies to the next request, without a restart, and signs out the sessions opened before it. A `serve` flag (`--disable-auth`, `--enable-auth`) still wins |
+| Extensions | Register, enable, disable and remove [extensions](extensions.md) |
 | Audit log | Who did what, see [Audit log](#audit-log) |
 | Danger zone | **Clear all knowledge** |
 
 Saving PAT, App key, or OAuth values is validated against GitHub first. Bad
-scopes return **422** and nothing is stored.
+scopes return **422** and nothing is stored. A key or model is checked with
+the provider the same way `set` checks it, and a rejected one is not stored.
+
+Emptying a model, App ID or OAuth field clears it, and a saved key or secret
+has a **Remove** button. A cleared value is kept in `config.json` under
+`clearedSettings`, out of sight: no page shows it and no run uses it.
+
+A field that an environment variable or a `serve` flag sets is shown locked,
+with the name that sets it, because saving it here would change nothing.
+
+Every field shows its CLI flag under it, so what the dashboard does can be
+scripted with `set` and `set --repo`. **Repository settings** carries the
+repository's own provider and models (**AI for this repository**) and the
+review settings `set --repo` writes (**Review tools and limits**). The other
+way round, `set --repo` writes the switches the dashboard keeps:
+`--auto-review`, `--review-scope`, `--skip-drafts`, `--skip-bots`,
+`--codegraph`, `--watch-open-issues`, `--watch-push-mode`, `--review-policy`
+and `--remake-cron`, also while `serve` is running.
 
 A **Search settings** box above the Settings menu finds a setting by its name or
 description as you type. Arrow keys move, `Enter` opens, and the page scrolls to

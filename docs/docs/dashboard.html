@@ -249,8 +249,9 @@ still wins.</li>
 <li><strong>Diagram language</strong>: Mermaid, PlantUML or a PlantUML server image.</li>
 <li><strong>References in the comment</strong>: shown or left out.</li>
 </ul>
-<p>Diagram language and references are set per repository in its <strong>Repository
-settings</strong>, so the wizard only previews them.</p>
+<p>Diagram language and references are set per repository, in its <strong>Repository
+settings</strong> under <strong>Review tools and limits</strong> or with <code>set --repo</code>, so the
+wizard only previews them.</p>
 <p>The home page shows a <strong>Setup is not finished</strong> banner with the count of the
 four required steps until they are done, and the menu shows the same count
 (<code>2/4</code>). The optional step is not counted.</p>
@@ -478,7 +479,7 @@ drop out when an author is chosen.</p>
 </thead>
 <tbody><tr>
 <td>AI models</td>
-<td>Provider (OpenRouter, OpenAI or Anthropic, see <a href="providers.html">AI providers</a>), token, high model (reviews and synthesis), low model (history extraction). No model is pre-filled</td>
+<td>Provider (OpenRouter, OpenAI, Anthropic, OpenCode Zen or OpenCode Go, see <a href="providers.html">AI providers</a>), token, high model (reviews and synthesis), low model (history extraction). No model is pre-filled</td>
 </tr>
 <tr>
 <td>GitHub</td>
@@ -486,7 +487,7 @@ drop out when an author is chosen.</p>
 </tr>
 <tr>
 <td>Review defaults</td>
-<td>Limits for new repositories and the <a href="review-policy.html">review policy</a> template they start with</td>
+<td>Limits for new repositories, the <a href="review-policy.html">review policy</a> template they start with, and the blocking rule every repository uses unless it has its own</td>
 </tr>
 <tr>
 <td>Remote access</td>
@@ -498,7 +499,11 @@ drop out when an author is chosen.</p>
 </tr>
 <tr>
 <td>Sign-in</td>
-<td>Password vs GitHub sign-in toggles (mirrors <code>serve</code> flags), and the password</td>
+<td>Password vs GitHub sign-in toggles, and the password. A change applies to the next request, without a restart, and signs out the sessions opened before it. A <code>serve</code> flag (<code>--disable-auth</code>, <code>--enable-auth</code>) still wins</td>
+</tr>
+<tr>
+<td>Extensions</td>
+<td>Register, enable, disable and remove <a href="extensions.html">extensions</a></td>
 </tr>
 <tr>
 <td>Audit log</td>
@@ -510,7 +515,21 @@ drop out when an author is chosen.</p>
 </tr>
 </tbody></table>
 <p>Saving PAT, App key, or OAuth values is validated against GitHub first. Bad
-scopes return <strong>422</strong> and nothing is stored.</p>
+scopes return <strong>422</strong> and nothing is stored. A key or model is checked with
+the provider the same way <code>set</code> checks it, and a rejected one is not stored.</p>
+<p>Emptying a model, App ID or OAuth field clears it, and a saved key or secret
+has a <strong>Remove</strong> button. A cleared value is kept in <code>config.json</code> under
+<code>clearedSettings</code>, out of sight: no page shows it and no run uses it.</p>
+<p>A field that an environment variable or a <code>serve</code> flag sets is shown locked,
+with the name that sets it, because saving it here would change nothing.</p>
+<p>Every field shows its CLI flag under it, so what the dashboard does can be
+scripted with <code>set</code> and <code>set --repo</code>. <strong>Repository settings</strong> carries the
+repository&#39;s own provider and models (<strong>AI for this repository</strong>) and the
+review settings <code>set --repo</code> writes (<strong>Review tools and limits</strong>). The other
+way round, <code>set --repo</code> writes the switches the dashboard keeps:
+<code>--auto-review</code>, <code>--review-scope</code>, <code>--skip-drafts</code>, <code>--skip-bots</code>,
+<code>--codegraph</code>, <code>--watch-open-issues</code>, <code>--watch-push-mode</code>, <code>--review-policy</code>
+and <code>--remake-cron</code>, also while <code>serve</code> is running.</p>
 <p>A <strong>Search settings</strong> box above the Settings menu finds a setting by its name or
 description as you type. Arrow keys move, <code>Enter</code> opens, and the page scrolls to
 the field, focuses it and marks it for a moment.</p>

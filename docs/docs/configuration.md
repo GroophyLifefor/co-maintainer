@@ -190,7 +190,7 @@ hides the value.
 | `github-app-private-key` | PEM string | `--github-app-private-key`, `--github-app-private-key-file` | yes |
 | `github-app-private-key-path` | path string | `--github-app-private-key-path` | yes |
 | `github-webhook-secret` | string | `--github-webhook-secret` | yes |
-| `webhook-url` | URL string | Settings, Server | no |
+| `webhook-url` | URL string | `--webhook-url`, Settings, GitHub | no |
 | `github-oauth-client-id` | string | `--github-oauth-client-id` | no |
 | `github-oauth-client-secret` | string | `--github-oauth-client-secret` | yes |
 | `github-oauth-allowed-user` | string | `--github-oauth-allowed-user` | no |
@@ -198,7 +198,7 @@ hides the value.
 | `github-auth-enabled` | boolean | `--enable-auth=github`, `--disable-auth=github` | no |
 | `dashboard-password-hash` | scrypt hash | `--password` | reported as `set` or `not set` |
 | `defaults` | object | `init` / `sync` limits | no |
-| `max-concurrent-jobs` | number | Settings, or the field directly | no |
+| `max-concurrent-jobs` | number | `--max-concurrent-jobs`, Settings | no |
 | `review-blocking` | `model` or `severity` | `--review-blocking` | no |
 | `codegraph-version` | version string | `--codegraph-version`, or `CM_CODEGRAPH_VERSION` | no |
 | `remote-host` | URL string | `--remote-host` | no |
@@ -208,10 +208,11 @@ hides the value.
 | `remote-byok-policy` | `off`, `allow` or `require` | `--remote-byok-policy`, Settings, Remote review | no |
 | `remote-client-tools-policy` | `off` or `on` | `--remote-client-tools-policy`, or `CM_REMOTE_CLIENT_TOOLS_POLICY` | no |
 | `review-policy` | template name or policy object | `--review-policy`, `--review-policy-file`, Settings, Defaults | no |
-| `remote-sync-timeout-seconds` | number | Settings | no |
-| `max-concurrent-remote-reviews-per-token` | number | Settings | no |
-| `remote-tool-output-max-chars` | number | Settings | no |
-| `remote-notice-shown-for` | list of hosts | Written by `review --remote` | no |
+| `remote-sync-timeout-seconds` | number | `--remote-sync-timeout-seconds`, Settings | no |
+| `max-concurrent-remote-reviews-per-token` | number | `--max-concurrent-remote-reviews-per-token`, Settings | no |
+| `remote-tool-output-max-chars` | number | `--remote-tool-output-max-chars`, Settings | no |
+| `remote-notice-shown-for` | list of hosts | Written by `review --remote`, cannot be set | no |
+| `cleared-settings` | object | Values cleared in Settings or with `--unset`, kept and never used | not listed |
 | `repos` | object | Written by `init` and `sync` | no |
 | `extensions` | list of registrations | Written only by `co-maintainer extension`, see [Extensions in config.json](#extensions-in-configjson) | no |
 | `extension-rerun-on-restart` | boolean | `--extension-rerun-on-restart` | no |

@@ -75,7 +75,8 @@ co-maintainer init owner/repo [options]
 | Flag | Default | Description |
 |---|---|---|
 | `--pr-state=open,closed,merged` |  | Which pull request states to read. |
-| `--only-request-changed-pr` |  | Read only the pull requests with at least one CHANGES_REQUESTED review. |
+| `--only-request-changed-pr` |  | Read only the pull requests with at least one CHANGES_REQUESTED review. Saved for the repository. |
+| `--no-only-request-changed-pr` |  | Read every pull request again, turning a saved --only-request-changed-pr off. |
 
 ### AI
 
@@ -144,6 +145,14 @@ co-maintainer sync owner/repo [options]
 | `--max-pr-months=N` |  | Cap how far back pull requests are read. |
 | `--max-pull-request-change-lines=N` |  | Cap the diff size read. |
 | `--max-comment=N` |  | Cap the comments read per pull request. |
+
+### Pull request filter
+
+| Flag | Default | Description |
+|---|---|---|
+| `--pr-state=open,closed,merged` |  | Which pull request states to read. |
+| `--only-request-changed-pr` |  | Read only the pull requests with at least one CHANGES_REQUESTED review. Saved for the repository. |
+| `--no-only-request-changed-pr` |  | Read every pull request again, turning a saved --only-request-changed-pr off. |
 
 ### AI
 
@@ -440,8 +449,13 @@ co-maintainer set [options]
 | `--codegraph-version=SEMVER` |  | The pinned codegraph version, overriding the built-in one. For a security fix without a release. |
 | `--password=TEXT` |  | Replace the dashboard password. |
 | `--extension-rerun-on-restart=true\|false` | true | Run an extension again when co-maintainer restarted while it ran. A registration's --rerun-on-restart wins. |
-| `--disable-auth=password` |  | Turn the dashboard password off. |
-| `--enable-auth=github` |  | Turn GitHub sign-in on. |
+| `--disable-auth=password\|github` |  | Turn a sign-in method off. Refused when it would leave no way in. |
+| `--enable-auth=password\|github` |  | Turn a sign-in method on. A running serve picks it up on the next request. |
+| `--webhook-url=URL` |  | The public webhook address GitHub posts to. --webhook-url on serve and CM_WEBHOOK_URL win over it. |
+| `--max-concurrent-jobs=N` |  | How many server jobs run at once. |
+| `--remote-sync-timeout-seconds=N` |  | How long a remote review waits for one sync. |
+| `--max-concurrent-remote-reviews-per-token=N` |  | Remote reviews one token may run at once. |
+| `--remote-tool-output-max-chars=N` |  | The longest client tool result a remote review keeps. |
 | `--no-verify` |  | Do not check the key and model against the provider. |
 | `--unset=NAME` |  | Remove a stored value. |
 
@@ -459,9 +473,9 @@ co-maintainer serve --port=N [options]
 |---|---|---|
 | `--port=N` |  | The port to listen on. Required. |
 | `--webhook-url=URL` |  | The public webhook URL. Defaults to localhost. |
-| `--password=TEXT` |  | Set the dashboard password on first start. |
-| `--disable-auth=password` |  | Turn the dashboard password off. |
-| `--enable-auth=github` |  | Turn GitHub sign-in on. |
+| `--password=TEXT` |  | Replace the dashboard password on every start, which signs out every session. Leave it out of a service file and change the password in Settings instead. |
+| `--disable-auth=password\|github` |  | Force a sign-in method off for this run, whatever Settings says. |
+| `--enable-auth=password\|github` |  | Force a sign-in method on for this run, whatever Settings says. |
 | `--trust-proxy` |  | Trust x-forwarded-for and x-forwarded-proto. |
 | `--inject-500` |  | Return 500 for mutating requests. Debugging only. |
 

@@ -11,7 +11,11 @@ URL, dashboard auth defaults, and CLI remote-review targets.
 
 ## Precedence
 
-For CLI commands (`probe`, `init`, `sync`, `review`):
+For CLI commands (`probe`, `init`, `sync`, `review`). `serve` and the
+dashboard use the same order without the flags and the prompt: App, remote and
+push reviews and server syncs read the same environment variables, then the
+repository's values, then the global ones. A dashboard field that an
+environment variable or a `serve` flag sets is shown locked, with that name.
 
 ```mermaid
 flowchart BT
@@ -150,7 +154,17 @@ co-maintainer config path --all            # config, repos, and cache directorie
 ```
 
 `list` prints where each value came from: `env` (an environment variable
-overrides the file at run time), `file`, or nothing for an unset key. Secrets
+overrides the file at run time), `repo`, `file`, or `default`. An unset key is
+left out. Both show the value a run would really use, through the same order
+the run follows: `get token` prints the key the configured provider reads, not
+any key variable that happens to be set. Add `--repo=owner/repo` to include
+that repository's own values:
+
+```sh
+co-maintainer config get high-model --repo=owner/repo
+co-maintainer config list --repo=owner/repo
+```
+ Secrets
 are masked: twelve characters or more keep their last four, shorter ones show
 only `••••`, and the dashboard password reports `set` or `not set` rather than
 its hash. `get` prints the real value, so treat its output as a secret.
@@ -176,7 +190,7 @@ hides the value.
 | `github-app-private-key` | PEM string | `--github-app-private-key`, `--github-app-private-key-file` | yes |
 | `github-app-private-key-path` | path string | `--github-app-private-key-path` | yes |
 | `github-webhook-secret` | string | `--github-webhook-secret` | yes |
-| `webhook-url` | URL string | Settings, Server | no |
+| `webhook-url` | URL string | `--webhook-url`, Settings, GitHub | no |
 | `github-oauth-client-id` | string | `--github-oauth-client-id` | no |
 | `github-oauth-client-secret` | string | `--github-oauth-client-secret` | yes |
 | `github-oauth-allowed-user` | string | `--github-oauth-allowed-user` | no |
@@ -184,7 +198,7 @@ hides the value.
 | `github-auth-enabled` | boolean | `--enable-auth=github`, `--disable-auth=github` | no |
 | `dashboard-password-hash` | scrypt hash | `--password` | reported as `set` or `not set` |
 | `defaults` | object | `init` / `sync` limits | no |
-| `max-concurrent-jobs` | number | Settings, or the field directly | no |
+| `max-concurrent-jobs` | number | `--max-concurrent-jobs`, Settings | no |
 | `review-blocking` | `model` or `severity` | `--review-blocking` | no |
 | `codegraph-version` | version string | `--codegraph-version`, or `CM_CODEGRAPH_VERSION` | no |
 | `remote-host` | URL string | `--remote-host` | no |
@@ -194,10 +208,11 @@ hides the value.
 | `remote-byok-policy` | `off`, `allow` or `require` | `--remote-byok-policy`, Settings, Remote review | no |
 | `remote-client-tools-policy` | `off` or `on` | `--remote-client-tools-policy`, or `CM_REMOTE_CLIENT_TOOLS_POLICY` | no |
 | `review-policy` | template name or policy object | `--review-policy`, `--review-policy-file`, Settings, Defaults | no |
-| `remote-sync-timeout-seconds` | number | Settings | no |
-| `max-concurrent-remote-reviews-per-token` | number | Settings | no |
-| `remote-tool-output-max-chars` | number | Settings | no |
-| `remote-notice-shown-for` | list of hosts | Written by `review --remote` | no |
+| `remote-sync-timeout-seconds` | number | `--remote-sync-timeout-seconds`, Settings | no |
+| `max-concurrent-remote-reviews-per-token` | number | `--max-concurrent-remote-reviews-per-token`, Settings | no |
+| `remote-tool-output-max-chars` | number | `--remote-tool-output-max-chars`, Settings | no |
+| `remote-notice-shown-for` | list of hosts | Written by `review --remote`, cannot be set | no |
+| `cleared-settings` | object | Values cleared in Settings or with `--unset`, kept and never used | not listed |
 | `repos` | object | Written by `init` and `sync` | no |
 | `extensions` | list of registrations | Written only by `co-maintainer extension`, see [Extensions in config.json](#extensions-in-configjson) | no |
 | `extension-rerun-on-restart` | boolean | `--extension-rerun-on-restart` | no |
@@ -227,9 +242,9 @@ After each successful [`init`](init.md) or [`sync`](sync.md),
 
 | Stored | Not stored |
 | ------ | ---------- |
-| `auth`, `ai`, models | API token |
-| `max-*` limits | GitHub PAT (global only) |
-| `include-*` flags | |
+| `max-*` limits | API token |
+| `include-*` flags | `auth`, `ai`, models (inherited, see below) |
+| | GitHub PAT (global only) |
 | `only-request-changed-pr`, `pr-state` | |
 | `agent-instructions`, `agent-instructions-max-chars` | |
 | `review-system-prompt`, `review-system-prompt-max-chars` | |
@@ -240,8 +255,24 @@ After each successful [`init`](init.md) or [`sync`](sync.md),
 
 A plain `co-maintainer sync owner/repo` reuses those values. Pass new flags
 on `sync` or run `init` again to change includes, limits, or pull request
-filters permanently. `--only-request-changed-pr` stays on once saved. To
+filters permanently. `--only-request-changed-pr` stays on once saved, and
+`--no-only-request-changed-pr` turns it off again. To
 collect every pull request state again, pass `--pr-state=open,closed,merged`.
+`init` and `sync` do not save the provider, the models or `auth`: a
+repository inherits the global values, so a later global change reaches it.
+`--ai`, `--low-model` and `--high-model` on one run apply to that run only. To
+give one repository its own values, set them with `set --repo` or on the
+repository **Settings** page, under **AI for this repository**:
+
+```sh
+co-maintainer set --repo=owner/repo --high-model=anthropic/claude-sonnet-5.5
+co-maintainer set --repo=owner/repo --unset=high-model   # inherit again
+```
+
+`set --repo` also takes `--ai`, `--low-model`, `--auth`, `--review-blocking`,
+`--review-exclude` and `--only-request-changed-pr=true|false`. Every review
+and every sync of the repository uses them: CLI, App, remote and push.
+
 [`clear owner/repo`](caching.md#clearing) deletes this entry, so the repository
 goes back to "never inited" and the next build is an `init`. The two
 `agent-instructions` values are saved the same way, see

@@ -97,7 +97,11 @@ Generated guides sit under <code>repos/</code> in the same tree. Full paths:
 <p><a href="serve.html"><code>serve</code></a> reads the same <code>config.json</code> for the GitHub App, webhook
 URL, dashboard auth defaults, and CLI remote-review targets.</p>
 <h2 id="precedence">Precedence</h2>
-<p>For CLI commands (<code>probe</code>, <code>init</code>, <code>sync</code>, <code>review</code>):</p>
+<p>For CLI commands (<code>probe</code>, <code>init</code>, <code>sync</code>, <code>review</code>). <code>serve</code> and the
+dashboard use the same order without the flags and the prompt: App, remote and
+push reviews and server syncs read the same environment variables, then the
+repository&#39;s values, then the global ones. A dashboard field that an
+environment variable or a <code>serve</code> flag sets is shown locked, with that name.</p>
 <figure class="mermaid-figure">
 <div class="mermaid-viewport"><div class="mermaid">flowchart BT
   flags["Command-line flags"]
@@ -410,7 +414,15 @@ short form of <code>config set</code>, and its output and flags are unchanged.</
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">path</span> <span class="sh-flag">--all</span>            <span class="sh-comment"># config, repos, and cache directories</span>
 </code></pre>
 <p><code>list</code> prints where each value came from: <code>env</code> (an environment variable
-overrides the file at run time), <code>file</code>, or nothing for an unset key. Secrets
+overrides the file at run time), <code>repo</code>, <code>file</code>, or <code>default</code>. An unset key is
+left out. Both show the value a run would really use, through the same order
+the run follows: <code>get token</code> prints the key the configured provider reads, not
+any key variable that happens to be set. Add <code>--repo=owner/repo</code> to include
+that repository&#39;s own values:</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">get</span> <span class="sh-arg">high-model</span> <span class="sh-flag">--repo=owner/repo</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">list</span> <span class="sh-flag">--repo=owner/repo</span>
+</code></pre>
+<p> Secrets
 are masked: twelve characters or more keep their last four, shorter ones show
 only <code>••••</code>, and the dashboard password reports <code>set</code> or <code>not set</code> rather than
 its hash. <code>get</code> prints the real value, so treat its output as a secret.</p>
@@ -492,7 +504,7 @@ hides the value.</p>
 <tr>
 <td><code>webhook-url</code></td>
 <td>URL string</td>
-<td>Settings, Server</td>
+<td><code>--webhook-url</code>, Settings, GitHub</td>
 <td>no</td>
 </tr>
 <tr>
@@ -540,7 +552,7 @@ hides the value.</p>
 <tr>
 <td><code>max-concurrent-jobs</code></td>
 <td>number</td>
-<td>Settings, or the field directly</td>
+<td><code>--max-concurrent-jobs</code>, Settings</td>
 <td>no</td>
 </tr>
 <tr>
@@ -600,26 +612,32 @@ hides the value.</p>
 <tr>
 <td><code>remote-sync-timeout-seconds</code></td>
 <td>number</td>
-<td>Settings</td>
+<td><code>--remote-sync-timeout-seconds</code>, Settings</td>
 <td>no</td>
 </tr>
 <tr>
 <td><code>max-concurrent-remote-reviews-per-token</code></td>
 <td>number</td>
-<td>Settings</td>
+<td><code>--max-concurrent-remote-reviews-per-token</code>, Settings</td>
 <td>no</td>
 </tr>
 <tr>
 <td><code>remote-tool-output-max-chars</code></td>
 <td>number</td>
-<td>Settings</td>
+<td><code>--remote-tool-output-max-chars</code>, Settings</td>
 <td>no</td>
 </tr>
 <tr>
 <td><code>remote-notice-shown-for</code></td>
 <td>list of hosts</td>
-<td>Written by <code>review --remote</code></td>
+<td>Written by <code>review --remote</code>, cannot be set</td>
 <td>no</td>
+</tr>
+<tr>
+<td><code>cleared-settings</code></td>
+<td>object</td>
+<td>Values cleared in Settings or with <code>--unset</code>, kept and never used</td>
+<td>not listed</td>
 </tr>
 <tr>
 <td><code>repos</code></td>
@@ -663,16 +681,16 @@ is allowed again. Match <code>--unset=</code> to the field name or the flag name
 </tr>
 </thead>
 <tbody><tr>
-<td><code>auth</code>, <code>ai</code>, models</td>
+<td><code>max-*</code> limits</td>
 <td>API token</td>
 </tr>
 <tr>
-<td><code>max-*</code> limits</td>
-<td>GitHub PAT (global only)</td>
+<td><code>include-*</code> flags</td>
+<td><code>auth</code>, <code>ai</code>, models (inherited, see below)</td>
 </tr>
 <tr>
-<td><code>include-*</code> flags</td>
 <td></td>
+<td>GitHub PAT (global only)</td>
 </tr>
 <tr>
 <td><code>only-request-changed-pr</code>, <code>pr-state</code></td>
@@ -705,9 +723,21 @@ is allowed again. Match <code>--unset=</code> to the field name or the flag name
 </tbody></table>
 <p>A plain <code>co-maintainer sync owner/repo</code> reuses those values. Pass new flags
 on <code>sync</code> or run <code>init</code> again to change includes, limits, or pull request
-filters permanently. <code>--only-request-changed-pr</code> stays on once saved. To
+filters permanently. <code>--only-request-changed-pr</code> stays on once saved, and
+<code>--no-only-request-changed-pr</code> turns it off again. To
 collect every pull request state again, pass <code>--pr-state=open,closed,merged</code>.
-<a href="caching.html#clearing"><code>clear owner/repo</code></a> deletes this entry, so the repository
+<code>init</code> and <code>sync</code> do not save the provider, the models or <code>auth</code>: a
+repository inherits the global values, so a later global change reaches it.
+<code>--ai</code>, <code>--low-model</code> and <code>--high-model</code> on one run apply to that run only. To
+give one repository its own values, set them with <code>set --repo</code> or on the
+repository <strong>Settings</strong> page, under <strong>AI for this repository</strong>:</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--high-model=anthropic/claude-sonnet-5.5</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--unset=high-model</span>   <span class="sh-comment"># inherit again</span>
+</code></pre>
+<p><code>set --repo</code> also takes <code>--ai</code>, <code>--low-model</code>, <code>--auth</code>, <code>--review-blocking</code>,
+<code>--review-exclude</code> and <code>--only-request-changed-pr=true|false</code>. Every review
+and every sync of the repository uses them: CLI, App, remote and push.</p>
+<p><a href="caching.html#clearing"><code>clear owner/repo</code></a> deletes this entry, so the repository
 goes back to &quot;never inited&quot; and the next build is an <code>init</code>. The two
 <code>agent-instructions</code> values are saved the same way, see
 <a href="init.html#agent-instruction-files">Agent instruction files</a>.</p>

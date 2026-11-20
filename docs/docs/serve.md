@@ -74,7 +74,7 @@ starts keep it.
 | Flag | Meaning |
 | ------ | ----- |
 | `--port=N` | HTTP port (required, 1 to 65535) |
-| `--password=...` | Replace the stored dashboard password (a random one is generated on the first start if none exists) |
+| `--password=...` | Replace the stored dashboard password on every start, which signs every session out. A random one is generated on the first start if none exists. Leave it out of a service file and change the password in Settings |
 | `--webhook-url=...` | Public webhook URL GitHub should use (also `CM_WEBHOOK_URL` or saved in Settings) |
 | `--disable-auth=password` | Turn off password sign-in for this run |
 | `--enable-auth=github` | Turn on GitHub OAuth sign-in for this run |

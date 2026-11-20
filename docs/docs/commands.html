@@ -277,7 +277,12 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <tr>
 <td><code>--only-request-changed-pr</code></td>
 <td></td>
-<td>Read only the pull requests with at least one CHANGES_REQUESTED review.</td>
+<td>Read only the pull requests with at least one CHANGES_REQUESTED review. Saved for the repository.</td>
+</tr>
+<tr>
+<td><code>--no-only-request-changed-pr</code></td>
+<td></td>
+<td>Read every pull request again, turning a saved --only-request-changed-pr off.</td>
 </tr>
 </tbody></table>
 <h3 id="ai">AI</h3>
@@ -477,6 +482,31 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td><code>--max-comment=N</code></td>
 <td></td>
 <td>Cap the comments read per pull request.</td>
+</tr>
+</tbody></table>
+<h3 id="pull-request-filter-2">Pull request filter</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--pr-state=open,closed,merged</code></td>
+<td></td>
+<td>Which pull request states to read.</td>
+</tr>
+<tr>
+<td><code>--only-request-changed-pr</code></td>
+<td></td>
+<td>Read only the pull requests with at least one CHANGES_REQUESTED review. Saved for the repository.</td>
+</tr>
+<tr>
+<td><code>--no-only-request-changed-pr</code></td>
+<td></td>
+<td>Read every pull request again, turning a saved --only-request-changed-pr off.</td>
 </tr>
 </tbody></table>
 <h3 id="ai-2">AI</h3>
@@ -1284,14 +1314,39 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td>Run an extension again when co-maintainer restarted while it ran. A registration&#39;s --rerun-on-restart wins.</td>
 </tr>
 <tr>
-<td><code>--disable-auth=password</code></td>
+<td><code>--disable-auth=password|github</code></td>
 <td></td>
-<td>Turn the dashboard password off.</td>
+<td>Turn a sign-in method off. Refused when it would leave no way in.</td>
 </tr>
 <tr>
-<td><code>--enable-auth=github</code></td>
+<td><code>--enable-auth=password|github</code></td>
 <td></td>
-<td>Turn GitHub sign-in on.</td>
+<td>Turn a sign-in method on. A running serve picks it up on the next request.</td>
+</tr>
+<tr>
+<td><code>--webhook-url=URL</code></td>
+<td></td>
+<td>The public webhook address GitHub posts to. --webhook-url on serve and CM_WEBHOOK_URL win over it.</td>
+</tr>
+<tr>
+<td><code>--max-concurrent-jobs=N</code></td>
+<td></td>
+<td>How many server jobs run at once.</td>
+</tr>
+<tr>
+<td><code>--remote-sync-timeout-seconds=N</code></td>
+<td></td>
+<td>How long a remote review waits for one sync.</td>
+</tr>
+<tr>
+<td><code>--max-concurrent-remote-reviews-per-token=N</code></td>
+<td></td>
+<td>Remote reviews one token may run at once.</td>
+</tr>
+<tr>
+<td><code>--remote-tool-output-max-chars=N</code></td>
+<td></td>
+<td>The longest client tool result a remote review keeps.</td>
 </tr>
 <tr>
 <td><code>--no-verify</code></td>
@@ -1330,17 +1385,17 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <tr>
 <td><code>--password=TEXT</code></td>
 <td></td>
-<td>Set the dashboard password on first start.</td>
+<td>Replace the dashboard password on every start, which signs out every session. Leave it out of a service file and change the password in Settings instead.</td>
 </tr>
 <tr>
-<td><code>--disable-auth=password</code></td>
+<td><code>--disable-auth=password|github</code></td>
 <td></td>
-<td>Turn the dashboard password off.</td>
+<td>Force a sign-in method off for this run, whatever Settings says.</td>
 </tr>
 <tr>
-<td><code>--enable-auth=github</code></td>
+<td><code>--enable-auth=password|github</code></td>
 <td></td>
-<td>Turn GitHub sign-in on.</td>
+<td>Force a sign-in method on for this run, whatever Settings says.</td>
 </tr>
 <tr>
 <td><code>--trust-proxy</code></td>
