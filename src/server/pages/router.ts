@@ -1,3 +1,4 @@
+import { liveWebhookUrl } from "../webhook_url.ts";
 import {
   clearOauthStateCookieHeader,
   clearSessionCookieHeader,
@@ -109,6 +110,8 @@ import {
 export type PageDeps = {
   passwordStore: PasswordStore;
   webhookUrl?: string;
+  webhookUrlOverride?: string;
+  webhookUrlOverrideName?: string;
   secureCookie?: boolean;
   githubApp?: { appId: string; privateKeyPem: string };
   auth?: AuthMethods;
@@ -256,7 +259,7 @@ export async function handlePageRequest(
         filterRepoList(all, { q, status }, ready).map((item) =>
           toHomeRow(item, ready),
         ),
-        setupChecklist(config.webhookUrl || deps.webhookUrl || ""),
+        setupChecklist(liveWebhookUrl(config, deps)),
         {
           q,
           status,
@@ -271,7 +274,7 @@ export async function handlePageRequest(
       const config = readConfig();
       return renderSetup(
         username,
-        setupChecklist(config.webhookUrl || deps.webhookUrl || ""),
+        setupChecklist(liveWebhookUrl(config, deps)),
         {
           step: url.searchParams.get("step") ?? undefined,
           blocking: config.reviewBlocking,
@@ -364,9 +367,15 @@ export async function handlePageRequest(
       return renderSettings(
         username,
         config,
-        config.webhookUrl || deps.webhookUrl || "",
+        liveWebhookUrl(config, deps),
         requestBaseUrl(request, url, Boolean(deps.trustProxy)),
-        { port: deps.port, trustProxy: Boolean(deps.trustProxy) },
+        {
+          port: deps.port,
+          trustProxy: Boolean(deps.trustProxy),
+          webhookLockedBy: deps.webhookUrlOverride
+            ? (deps.webhookUrlOverrideName ?? "--webhook-url")
+            : undefined,
+        },
       );
     }
     if (url.pathname === "/settings/audit" && request.method === "GET") {
@@ -387,10 +396,16 @@ export async function handlePageRequest(
       const page = renderSettingsPage(
         username,
         config,
-        config.webhookUrl || deps.webhookUrl || "",
+        liveWebhookUrl(config, deps),
         requestBaseUrl(request, url, Boolean(deps.trustProxy)),
         section,
-        { port: deps.port, trustProxy: Boolean(deps.trustProxy) },
+        {
+          port: deps.port,
+          trustProxy: Boolean(deps.trustProxy),
+          webhookLockedBy: deps.webhookUrlOverride
+            ? (deps.webhookUrlOverrideName ?? "--webhook-url")
+            : undefined,
+        },
       );
       if (!page) {
         return notFound(
@@ -410,7 +425,7 @@ export async function handlePageRequest(
       const pr = match[4] ? Number(match[4]) : undefined;
       if (!sub) {
         const config = readConfig();
-        const webhookUrl = config.webhookUrl || deps.webhookUrl || "";
+        const webhookUrl = liveWebhookUrl(config, deps);
         return renderRepo(
           username,
           repoOverview(fullName),
@@ -432,7 +447,7 @@ export async function handlePageRequest(
       }
       if (sub === "pushes") {
         const config = readConfig();
-        const webhookUrl = config.webhookUrl || deps.webhookUrl || "";
+        const webhookUrl = liveWebhookUrl(config, deps);
         const status = await watchStatus(fullName);
         return renderRepoPushes(
           username,
@@ -725,7 +740,7 @@ async function beginAppManifest(
   if (problem) return new Response(problem, { status: 422 });
   const config = readConfig();
   const baseUrl = requestBaseUrl(request, url, Boolean(deps.trustProxy));
-  const webhookUrl = config.webhookUrl || deps.webhookUrl || "";
+  const webhookUrl = liveWebhookUrl(config, deps);
   const manifest = buildAppManifest({ name, baseUrl, webhookUrl });
   const state = beginManifestState();
   return html(`<!doctype html><html lang="en"><head><meta charset="utf-8">

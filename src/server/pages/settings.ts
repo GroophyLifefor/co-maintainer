@@ -1,3 +1,4 @@
+import { effectiveField } from "../../cli/commands/config.ts";
 import { html, layout, skSlot, text } from "./layout.ts";
 import { SAVE_STATE } from "./ui.ts";
 import { UPDATES_SCRIPT, updatesCard } from "./updates.ts";
@@ -93,6 +94,9 @@ function maskKey(key: string): string {
 
 function aiCard(config: UserConfig): string {
   const aiOk = aiConfigured(config);
+  const aiLock = envLockOf(config, "ai");
+  const highLock = envLockOf(config, "highModel");
+  const lowLock = envLockOf(config, "lowModel");
   return `<div class="card" id="ai" data-async>
       ${skSlot()}
       <div class="hd"><h2>Models and API key</h2>
@@ -101,7 +105,7 @@ function aiCard(config: UserConfig): string {
         }</span></div>
       <div class="bd">
         <div class="field"><label for="ai-provider">Provider</label>
-          <select id="ai-provider">
+          <select id="ai-provider"${lockAttr(aiLock)}>
             <option value="none"${
               !config.ai || config.ai === "none" ? " selected" : ""
             }>None</option>
@@ -121,6 +125,7 @@ function aiCard(config: UserConfig): string {
               config.ai === "opencode-go" ? " selected" : ""
             }>OpenCode Go</option>
           </select>
+        ${lockHint(aiLock)}
         <div class="cli"><code>--ai=${text(config.ai ?? "none")}</code></div></div>
         <div class="field"><label for="token">API key</label>${
           config.token
@@ -136,11 +141,13 @@ function aiCard(config: UserConfig): string {
           <div class="cli"><code>--ai-key=…</code></div></div>
         <div class="two" style="max-width:none">
           <div class="field"><label for="high">Review model</label>
-            <input id="high" value="${text(config.highModel ?? "")}">
+            <input id="high" value="${text(config.highModel ?? "")}"${lockAttr(highLock)}>
+            ${lockHint(highLock)}
             <div class="hint">Writes reviews and synthesizes the guides. High model in the CLI.</div>
             <div class="cli"><code>--high-model=…</code></div></div>
           <div class="field"><label for="low">Extraction model</label>
-            <input id="low" value="${text(config.lowModel ?? "")}">
+            <input id="low" value="${text(config.lowModel ?? "")}"${lockAttr(lowLock)}>
+            ${lockHint(lowLock)}
             <div class="hint">Extracts facts from history during init and sync. A cheap model is enough. Low model in the CLI.</div>
             <div class="cli"><code>--low-model=…</code></div></div>
         </div>
@@ -167,6 +174,7 @@ function githubCards(
   config: UserConfig,
   webhookUrl: string,
   host: string,
+  webhookLockedBy?: string,
 ): string {
   const ghOk = Boolean(
     config.auth === "gh" || (config.auth === "pat" && config.githubPat),
@@ -218,7 +226,8 @@ function githubCards(
           <div class="field"><label>App ID</label>
             <input id="app-id" value="${text(config.githubAppId ?? "")}"></div>
           <div class="field"><label>Webhook address</label>
-            <input id="webhook-url" value="${text(webhookUrl)}">
+            <input id="webhook-url" value="${text(webhookUrl)}"${lockAttr(webhookLockedBy)}>
+            ${lockHint(webhookLockedBy)}
             <div class="hint">Public URL GitHub uses to send webhook events</div></div>
         </div>
         <div class="field wide"><label>Private key</label>
@@ -280,7 +289,29 @@ function defaultsCard(config: UserConfig): string {
 export type RuntimeInfo = {
   port?: number;
   trustProxy?: boolean;
+  /** `--webhook-url` or `CM_WEBHOOK_URL` when one of them wins over the
+   * saved address. */
+  webhookLockedBy?: string;
 };
+
+/** A field the server's environment (or a startup flag) sets is shown locked,
+ * with the name that sets it. Saving it here would change nothing until that
+ * name is removed, and a field that looks editable but does nothing is worse
+ * than one that says why. */
+function envLockOf(config: UserConfig, field: string): string | undefined {
+  const effective = effectiveField(config, field);
+  return effective.source === "env" ? effective.envName : undefined;
+}
+
+function lockAttr(name: string | undefined): string {
+  return name ? " disabled" : "";
+}
+
+function lockHint(name: string | undefined): string {
+  return name
+    ? `<div class="hint warn">Set by <code>${text(name)}</code> on the server, which wins over this field. Remove it there to edit here.</div>`
+    : "";
+}
 
 function runtimeCard(runtime: RuntimeInfo): string {
   const port = runtime.port === undefined ? "unknown" : String(runtime.port);
@@ -339,7 +370,7 @@ function remoteCard(config: UserConfig): string {
             <input id="remote-token-name" placeholder="e.g. laptop" data-no-dirty></div>
         </div>
         <div class="field wide" style="margin-top:16px"><label>Client key policy (BYOK)</label>
-          <select id="remote-byok-policy">
+          <select id="remote-byok-policy"${lockAttr(envLockOf(config, "remoteByokPolicy"))}>
             <option value="off"${
               (config.remoteByokPolicy ?? "off") === "off" ? " selected" : ""
             }>off: reject a client key</option>
@@ -350,6 +381,7 @@ function remoteCard(config: UserConfig): string {
               config.remoteByokPolicy === "require" ? " selected" : ""
             }>require: a client key is mandatory</option>
           </select>
+          ${lockHint(envLockOf(config, "remoteByokPolicy"))}
           <div class="hint">Whether <code>review --remote</code> clients may send their own AI key. The <code>CM_REMOTE_BYOK_POLICY</code> env var overrides this.</div></div>
       </div>
       <div class="ft">
@@ -448,7 +480,7 @@ function cardForSection(
     case "ai":
       return aiCard(config);
     case "github":
-      return githubCards(config, webhookUrl, host);
+      return githubCards(config, webhookUrl, host, runtime.webhookLockedBy);
     case "defaults":
       return defaultsCard(config);
     case "remote":

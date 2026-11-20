@@ -36,6 +36,7 @@ import { serveHttp } from "../../server/http.ts";
 import { listJobs } from "../../store/jobs.ts";
 import { removeServeRunFolders } from "../../extensions/run_folder.ts";
 import { currentPlatform, getEnv, type Platform } from "../../util/runtime.ts";
+import { webhookUrlProblem } from "../../server/webhook_url.ts";
 import { die } from "../error.ts";
 
 /** `undefined` on Linux, otherwise one line naming the platform. The
@@ -116,44 +117,29 @@ export function resolveWebhookUrl(
   port: number,
   configured?: string,
 ): string {
-  const flag = args.find((arg) => arg.startsWith("--webhook-url="));
   const raw =
-    flag?.slice("--webhook-url=".length) ??
-    getEnv("CM_WEBHOOK_URL") ??
+    webhookUrlOverride(args)?.value ??
     configured ??
     `http://localhost:${port}/github/webhook`;
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    die(
-      "--webhook-url must be an absolute http(s) URL, e.g. " +
-        "--webhook-url=https://example.com/github/webhook",
-    );
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    die("--webhook-url must use http or https");
-  }
-  // `new URL` is lenient: "http://http://host/:5000/x" parses with host
-  // "http" and the real URL buried in the path, and "http:///x" treats "x"
-  // as the host. GitHub needs a routable host and a real webhook path, so
-  // reject a leaked scheme, an empty authority, and a path that is just "/".
-  // A single-label host (an internal Docker/k8s name) or an IPv6 literal is
-  // legitimate, and both are indistinguishable from the "http:///x" spelling
-  // once parsed, so the empty authority is caught on the raw string instead.
-  const hasAuthority = /^https?:\/\/[^/?#]+/.test(raw.trim());
-  if (
-    !hasAuthority ||
-    url.pathname.startsWith("//") ||
-    url.pathname.includes("://") ||
-    url.pathname === "/"
-  ) {
-    die(
-      "--webhook-url must be an absolute http(s) URL with a webhook path, " +
-        "e.g. --webhook-url=https://example.com/github/webhook",
-    );
-  }
-  return url.toString();
+  const problem = webhookUrlProblem(raw);
+  // The same wording as before, named after the flag a user can fix.
+  if (problem) die(problem.replace(/^webhook URL/, "--webhook-url"));
+  return new URL(raw.trim()).toString();
+}
+
+/** The flag, then `CM_WEBHOOK_URL`. Both are fixed for the process, so the
+ * dashboard shows the field locked while one of them is set. */
+export function webhookUrlOverride(
+  args: string[],
+): { value: string; name: string } | undefined {
+  const flag = args.find((arg) => arg.startsWith("--webhook-url="));
+  if (flag)
+    return {
+      value: flag.slice("--webhook-url=".length),
+      name: "--webhook-url",
+    };
+  const env = getEnv("CM_WEBHOOK_URL");
+  return env ? { value: env, name: "CM_WEBHOOK_URL" } : undefined;
 }
 
 /** `co-maintainer serve --port=N [--password=...] [--disable-auth=password]
@@ -174,6 +160,7 @@ export async function runServe(args: string[]): Promise<void> {
 
   const config = readConfig();
   const webhookUrl = resolveWebhookUrl(args, port, config.webhookUrl);
+  const override = webhookUrlOverride(args);
   if (!config.githubAppId || !resolveAppPrivateKey(config)) {
     console.log(
       "[serve] GitHub App is not configured yet. Add it in the dashboard settings or with co-maintainer set.",
@@ -294,7 +281,13 @@ export async function runServe(args: string[]): Promise<void> {
   const app = createApp({
     password: "",
     passwordStore,
-    webhookUrl,
+    webhookUrl: `http://localhost:${port}/github/webhook`,
+    ...(override
+      ? {
+          webhookUrlOverride: webhookUrl,
+          webhookUrlOverrideName: override.name,
+        }
+      : {}),
     inject500,
     port,
     trustProxy,

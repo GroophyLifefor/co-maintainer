@@ -1,3 +1,8 @@
+import {
+  liveWebhookUrl,
+  type WebhookUrlSource,
+  webhookUrlProblem,
+} from "../webhook_url.ts";
 import { errorResponse } from "../errors.ts";
 import {
   readConfig,
@@ -34,15 +39,9 @@ function validateWebhookUrl(value: unknown): string | undefined {
   if (typeof value !== "string" || !value.trim()) {
     return "webhook URL is required";
   }
-  try {
-    const url = new URL(value.trim());
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      return "webhook URL must use http or https";
-    }
-  } catch {
-    return "webhook URL must be an absolute http(s) URL";
-  }
-  return undefined;
+  // The same checks `serve` runs at start, so a saved URL cannot stop the
+  // next start.
+  return webhookUrlProblem(value);
 }
 
 async function changePassword(
@@ -73,7 +72,7 @@ async function changePassword(
 export async function handleSettingsRoute(
   request: Request,
   url: URL,
-  webhookUrl: string,
+  webhook: string | WebhookUrlSource,
   passwords: PasswordStore,
   ip: string,
 ): Promise<Response> {
@@ -93,7 +92,11 @@ export async function handleSettingsRoute(
       hasPat: Boolean(config.githubPat),
       hasAppKey: Boolean(config.githubAppPrivateKey),
       hasWebhookSecret: Boolean(config.githubWebhookSecret),
-      webhookUrl: config.webhookUrl || webhookUrl,
+      webhookUrl: liveWebhookUrl(config, webhook),
+      webhookUrlLockedBy:
+        typeof webhook === "object" && webhook.webhookUrlOverride
+          ? (webhook.webhookUrlOverrideName ?? "--webhook-url")
+          : null,
       githubOAuthClientId: config.githubOAuthClientId ?? "",
       hasOAuthClientSecret: Boolean(config.githubOAuthClientSecret),
       githubOAuthAllowedUser: config.githubOAuthAllowedUser ?? "",

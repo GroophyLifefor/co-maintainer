@@ -39,6 +39,9 @@ export type AppDeps = {
   password: string;
   passwordStore?: PasswordStore;
   webhookUrl?: string;
+  /** `--webhook-url` or `CM_WEBHOOK_URL`, which win over the saved value. */
+  webhookUrlOverride?: string;
+  webhookUrlOverrideName?: string;
   secureCookie?: boolean;
   /** The port `serve` is listening on, shown on the Server page. */
   port?: number;
@@ -160,7 +163,7 @@ function liveGithubConfig() {
 
 export function createApp(deps: AppDeps): App {
   const passwords = deps.passwordStore ?? memoryPasswordStore(deps.password);
-  setNavSource(() => navCounts(deps.webhookUrl ?? ""));
+  setNavSource(() => navCounts(deps));
   const app: App = {
     async fetch(
       request: Request,
@@ -259,7 +262,7 @@ export function createApp(deps: AppDeps): App {
           return await handleSettingsRoute(
             request,
             url,
-            deps.webhookUrl ?? "",
+            deps,
             passwords,
             remoteAddr,
           );
