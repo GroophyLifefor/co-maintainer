@@ -15,7 +15,20 @@ import type { McpServerConfig } from "./tools/mcp_config.ts";
  * token is never written to config.json, only ever taken from --token or
  * an env file. Remembering this lets `remake owner/repo` run with no
  * flags and no interactive prompts, reusing what `init` was told. */
+/** What the last init or sync of a repository ran with. It is used only
+ * where the account has no value of its own, so a later account change still
+ * reaches the repository, and a repository set up with flags alone keeps
+ * working without them. */
+export type InitFallback = {
+  ai?: RepoConfig["ai"];
+  lowModel?: string;
+  highModel?: string;
+  auth?: RepoConfig["auth"];
+};
+
 export type RepoConfig = {
+  /** Written by every init and sync, see `InitFallback`. */
+  initFallback?: InitFallback;
   auth?: "gh" | "pat";
   ai?:
     | "none"
@@ -156,6 +169,9 @@ export type UserConfig = {
    * reads them: no page shows them and no run uses them. They are kept so a
    * cleared key or model is not lost for good by one click. */
   clearedSettings?: Record<string, { value: unknown; clearedAt: string }>;
+  /** Set once the provider and models older releases copied into each
+   * repository were moved to `initFallback`. */
+  repoModelCopiesMoved?: boolean;
   defaults?: {
     maxCommits?: number;
     maxPrMonths?: number;
@@ -253,7 +269,7 @@ export function resolvedAiToken(
 }
 
 /** Where an effective setting came from. */
-export type SettingSource = "env" | "repo" | "global" | "default";
+export type SettingSource = "env" | "repo" | "global" | "init" | "default";
 
 export type ResolvedSetting<T> = {
   value: T;
@@ -276,7 +292,7 @@ function firstSet<T>(
 
 /** The AI, model, blocking and auth settings one repository runs with, in the
  * one order every surface uses: environment, then the repository's own value,
- * then the global value, then the default. The CLI puts its flags in front of
+ * then the global value, then what its last init ran with, then the default. The CLI puts its flags in front of
  * this, `serve` and the dashboard use it as is. Without one shared order the
  * App, remote and push reviews read the global value while the CLI read the
  * repository's, so one repository ran on two models. */
@@ -292,11 +308,13 @@ export function resolveRepoSettings(
   auth: ResolvedSetting<string>;
 } {
   const repoConfig = (repo ? config.repos?.[repo] : undefined) ?? {};
+  const fallback = repoConfig.initFallback ?? {};
   const ai = firstSet<string>(
     [
       [env("CO_MAINTAINER_AI"), "env", "CO_MAINTAINER_AI"],
       [repoConfig.ai, "repo"],
       [config.ai, "global"],
+      [fallback.ai, "init"],
     ],
     "none",
   );
@@ -317,6 +335,9 @@ export function resolveRepoSettings(
         [env(`${upper}_MODEL`), "env", `${upper}_MODEL`],
         [repoConfig[key], "repo"],
         [config[key], "global"],
+        // The init's model belongs to the init's provider, so it is only
+        // used with that provider.
+        [ai.value === fallback.ai ? fallback[key] : undefined, "init"],
       ],
       undefined,
     );
@@ -342,6 +363,7 @@ export function resolveRepoSettings(
         [env("CO_MAINTAINER_AUTH"), "env", "CO_MAINTAINER_AUTH"],
         [repoConfig.auth, "repo"],
         [config.auth, "global"],
+        [fallback.auth, "init"],
       ],
       "gh",
     ),
@@ -552,11 +574,43 @@ export function loadEnvFile(path: string): void {
  * give the same answer. */
 export function readConfig(): UserConfig {
   try {
-    return JSON.parse(readTextFileSync(configPath())) as UserConfig;
+    return movedRepoModelCopies(
+      JSON.parse(readTextFileSync(configPath())) as UserConfig,
+    );
   } catch (error) {
     if (isNotFound(error)) return {};
     throw new Error(`Could not read config ${configPath()}: ${String(error)}`);
   }
+}
+
+/** Before 0.7.20 only init and sync wrote a repository's provider, models
+ * and auth: they copied what each run used, and the copy then outranked every
+ * later account change. Read once more, those copies become the repository's
+ * init fallback. The marker goes into the next write of config.json, so a value
+ * set on purpose after that is never moved. */
+export function movedRepoModelCopies(config: UserConfig): UserConfig {
+  if (config.repoModelCopiesMoved) return config;
+  const repos: Record<string, RepoConfig> = {};
+  for (const [name, repo] of Object.entries(config.repos ?? {})) {
+    const { ai, lowModel, highModel, auth, ...rest } = repo;
+    const copied = { ai, lowModel, highModel, auth };
+    const hasCopy = Object.values(copied).some((value) => value !== undefined);
+    repos[name] = hasCopy
+      ? {
+          ...rest,
+          initFallback: Object.fromEntries(
+            Object.entries({ ...copied, ...rest.initFallback }).filter(
+              ([, value]) => value !== undefined,
+            ),
+          ) as InitFallback,
+        }
+      : { ...rest };
+  }
+  return {
+    ...config,
+    ...(config.repos ? { repos } : {}),
+    repoModelCopiesMoved: true,
+  };
 }
 
 /** The App private key to sign with. An inline `githubAppPrivateKey` wins,

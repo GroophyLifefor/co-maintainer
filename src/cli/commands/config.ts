@@ -51,7 +51,7 @@ export function maskSecret(value: string): string {
 
 /** Where a value came from, so `config list` can say why a field is what it
  * is. Env beats the file because env overrides it at run time. */
-export type Source = "env" | "file" | "repo" | "default";
+export type Source = "env" | "file" | "repo" | "init" | "default";
 
 /** The env var that supplies each field, mirroring args.ts. Only the fields
  * that actually read env are listed. */
@@ -114,9 +114,11 @@ export function effectiveField(
         ? "file"
         : resolved.source === "repo"
           ? "repo"
-          : resolved.source === "env"
-            ? "env"
-            : "default",
+          : resolved.source === "init"
+            ? "init"
+            : resolved.source === "env"
+              ? "env"
+              : "default",
     ...(resolved.envName ? { envName: resolved.envName } : {}),
   });
   if (

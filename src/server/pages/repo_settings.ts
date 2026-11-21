@@ -73,6 +73,7 @@ function effectiveNote(setting: ResolvedSetting<string | undefined>): string {
     env: `the server environment (${setting.envName ?? ""})`,
     repo: "this repository",
     global: "the account settings",
+    init: "the last init or sync of this repository, because the account has none",
     default: "the default",
   }[setting.source];
   return `<div class="hint">In use: <span class="mono">${text(setting.value ?? "not set")}</span>, from ${text(from)}</div>`;

@@ -495,7 +495,25 @@ const steps: Step[] = [
     name: STEP.appNoLow,
     async run(sim) {
       const low = sim.options().lowModel;
-      sim.world.writeConfig({ lowModel: undefined });
+      // No low model anywhere: not in the account, and not in the init
+      // fallback, which would otherwise stand in for it.
+      const before = sim.world.readConfig();
+      const repos = (before.repos ?? {}) as Record<
+        string,
+        Record<string, unknown> & { initFallback?: Record<string, unknown> }
+      >;
+      const repo = repos[APP_REPO] ?? {};
+      sim.world.writeConfig({
+        lowModel: undefined,
+        repoModelCopiesMoved: true,
+        repos: {
+          ...repos,
+          [APP_REPO]: {
+            ...repo,
+            initFallback: { ...repo.initFallback, lowModel: undefined },
+          },
+        },
+      });
       try {
         const round = await openPull(
           sim,
@@ -504,7 +522,7 @@ const steps: Step[] = [
         );
         return `#${round.pull.number} · ${round.jobs.map((job) => job.status).join(", ")}`;
       } finally {
-        sim.world.writeConfig({ lowModel: low });
+        sim.world.writeConfig({ lowModel: low, repos });
       }
     },
   },

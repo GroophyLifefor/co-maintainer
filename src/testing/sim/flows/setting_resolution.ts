@@ -22,6 +22,7 @@ const STEP = {
   webhook: "the dashboard shows the webhook URL serve uses",
   locks: "a field the environment sets is shown locked",
   noFilter: "--no-only-request-changed-pr turns a saved filter off",
+  lastInit: "the last init is the fallback where the account has no value",
 };
 
 const GLOBAL_HIGH = "sim-account-model-that-does-not-exist";
@@ -91,11 +92,13 @@ function checks(sim: Sim): CheckResult[] {
   const noFilter = (sim.state.noFilter ?? {}) as Record<string, boolean>;
   return [
     check(
-      "init does not copy the provider, the models or auth into the repository",
+      "init keeps the provider, the models and auth only as the init fallback, never as the repository's own values",
       !("ai" in afterInit) &&
         !("lowModel" in afterInit) &&
         !("highModel" in afterInit) &&
-        !("auth" in afterInit),
+        !("auth" in afterInit) &&
+        typeof (afterInit.initFallback as { highModel?: unknown } | undefined)
+          ?.highModel === "string",
       `repository keys after init: ${Object.keys(afterInit).join(", ") || "none"}`,
     ),
     check(
@@ -176,6 +179,28 @@ function checks(sim: Sim): CheckResult[] {
       noFilter.saved === true && noFilter.turnedOff === false,
       JSON.stringify(noFilter),
     ),
+    check(
+      "with no account model the last init's model runs, with one the account's wins",
+      (sim.state.lastInit as Record<string, unknown> | undefined)?.noAccount ===
+        "init-high" &&
+        (sim.state.lastInit as Record<string, unknown> | undefined)
+          ?.withAccount === "account-high",
+      JSON.stringify(sim.state.lastInit),
+    ),
+    check(
+      "the last init's model is never sent to another provider",
+      (sim.state.lastInit as Record<string, unknown> | undefined)
+        ?.otherProvider === undefined,
+      `other provider gets ${String((sim.state.lastInit as Record<string, unknown> | undefined)?.otherProvider)}`,
+    ),
+    check(
+      "a repository model an older release copied moves to the init fallback once, and a later set value stays",
+      (sim.state.lastInit as Record<string, unknown> | undefined)?.moved ===
+        "copied-high" &&
+        (sim.state.lastInit as Record<string, unknown> | undefined)?.kept ===
+          "set-high",
+      JSON.stringify(sim.state.lastInit),
+    ),
   ];
 }
 
@@ -205,6 +230,8 @@ export default defineFlow({
         >;
         sim.world.writeConfig({
           highModel: GLOBAL_HIGH,
+          // The value below is set on purpose, not an old init copy.
+          repoModelCopiesMoved: true,
           repos: {
             ...repos,
             [APP_REPO]: {
@@ -454,6 +481,7 @@ export default defineFlow({
         const base = [
           "sync",
           APP_REPO,
+          "--auth=gh",
           "--ai=openrouter",
           "--token=sim-unused-key",
           "--low-model=a",
@@ -466,6 +494,53 @@ export default defineFlow({
         ).onlyRequestChangedPr;
         sim.state.noFilter = { saved, turnedOff };
         return JSON.stringify(sim.state.noFilter);
+      },
+    },
+    {
+      name: STEP.lastInit,
+      async run(sim) {
+        const { resolveRepoSettings, movedRepoModelCopies } =
+          await import("../../../config.ts");
+        const repo = "sim/fallback";
+        const base = {
+          repoModelCopiesMoved: true,
+          repos: {
+            [repo]: {
+              initFallback: {
+                ai: "openrouter" as const,
+                highModel: "init-high",
+              },
+            },
+          },
+        };
+        const env = () => undefined;
+        const noAccount = resolveRepoSettings(base, repo, env).highModel.value;
+        const withAccount = resolveRepoSettings(
+          { ...base, highModel: "account-high" },
+          repo,
+          env,
+        ).highModel.value;
+        const otherProvider = resolveRepoSettings(
+          { ...base, ai: "anthropic" },
+          repo,
+          env,
+        ).highModel.value;
+        // An old config: the copy is moved. A marked one: the value stays.
+        const moved = movedRepoModelCopies({
+          repos: { [repo]: { highModel: "copied-high" } },
+        }).repos?.[repo]?.initFallback?.highModel;
+        const kept = movedRepoModelCopies({
+          repoModelCopiesMoved: true,
+          repos: { [repo]: { highModel: "set-high" } },
+        }).repos?.[repo]?.highModel;
+        sim.state.lastInit = {
+          noAccount,
+          withAccount,
+          otherProvider,
+          moved,
+          kept,
+        };
+        return JSON.stringify(sim.state.lastInit);
       },
     },
   ],

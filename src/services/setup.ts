@@ -813,10 +813,16 @@ async function initOrRemake(
     });
     // Remember everything but the token, so `sync owner/repo` alone
     // (no flags, no prompts) reuses what this run resolved.
-    // AI, models and auth are not copied: the repository inherits the global
-    // values until someone sets its own with `set --repo` or the dashboard.
-    // A copy here outranked every later global change without a word.
+    // AI, models and auth are not copied as the repository's own values: a
+    // copy outranked every later account change. They are kept as the init
+    // fallback instead, used only where the account has no value.
     await writeRepoConfig(options.repo, {
+      initFallback: {
+        ai: options.ai,
+        lowModel: options.lowModel,
+        highModel: options.highModel,
+        auth: options.auth,
+      },
       maxCommits: options.maxCommits,
       maxPrMonths: options.maxPrMonths,
       maxPullRequestChangeLines: options.maxPullRequestChangeLines,

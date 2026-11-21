@@ -101,11 +101,13 @@ test("--ai for another provider does not take the saved key", async () => {
   });
 });
 
-test("a repo pinned to an older provider does not take the new provider's key", async () => {
+test("a repo set to another provider does not take the account provider's key", async () => {
   await withConfig(
     {
       ai: "anthropic",
       token: "sk-ant-saved",
+      // Set on purpose with set --repo, not an old init copy.
+      repoModelCopiesMoved: true,
       repos: { "o/r": { ai: "openrouter" } },
     },
     async () => {
@@ -114,6 +116,22 @@ test("a repo pinned to an older provider does not take the new provider's key", 
       );
       if (!message.includes("Missing openrouter API key")) {
         throw new Error(message);
+      }
+    },
+  );
+});
+
+test("a provider an older init copied follows the account again", async () => {
+  await withConfig(
+    {
+      ai: "anthropic",
+      token: "sk-ant-saved",
+      repos: { "o/r": { ai: "openrouter" } },
+    },
+    async () => {
+      const options = await parseArgs(["sync", "o/r", ...MODELS]);
+      if (options.ai !== "anthropic" || options.aiToken !== "sk-ant-saved") {
+        throw new Error(`${options.ai} ${String(options.aiToken)}`);
       }
     },
   );

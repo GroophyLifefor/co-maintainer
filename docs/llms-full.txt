@@ -5163,7 +5163,8 @@ co-maintainer config path --all            # config, repos, and cache directorie
 ```
 
 `list` prints where each value came from: `env` (an environment variable
-overrides the file at run time), `repo`, `file`, or `default`. An unset key is
+overrides the file at run time), `repo`, `file`, `init` (the init fallback),
+or `default`. An unset key is
 left out. Both show the value a run would really use, through the same order
 the run follows: `get token` prints the key the configured provider reads, not
 any key variable that happens to be set. Add `--repo=owner/repo` to include
@@ -5252,7 +5253,8 @@ After each successful [`init`](init.md) or [`sync`](sync.md),
 | Stored | Not stored |
 | ------ | ---------- |
 | `max-*` limits | API token |
-| `include-*` flags | `auth`, `ai`, models (inherited, see below) |
+| `include-*` flags | |
+| `auth`, `ai`, models, as the init fallback (see below) | |
 | | GitHub PAT (global only) |
 | `only-request-changed-pr`, `pr-state` | |
 | `agent-instructions`, `agent-instructions-max-chars` | |
@@ -5267,16 +5269,26 @@ on `sync` or run `init` again to change includes, limits, or pull request
 filters permanently. `--only-request-changed-pr` stays on once saved, and
 `--no-only-request-changed-pr` turns it off again. To
 collect every pull request state again, pass `--pr-state=open,closed,merged`.
-`init` and `sync` do not save the provider, the models or `auth`: a
-repository inherits the global values, so a later global change reaches it.
-`--ai`, `--low-model` and `--high-model` on one run apply to that run only. To
-give one repository its own values, set them with `set --repo` or on the
-repository **Settings** page, under **AI for this repository**:
+`init` and `sync` keep the provider, the models and `auth` they ran with as
+the repository's **init fallback**, not as its own values. A repository uses,
+in this order: the environment, its own value, the account's value, then the
+init fallback. So a later account change reaches every repository, and a
+repository set up with flags alone keeps working without them while the
+account has no value. The fallback's models are used only with the fallback's
+provider. To give one repository values that win over the account, set them
+with `set --repo` or on the repository **Settings** page, under **AI for this
+repository**:
 
 ```sh
 co-maintainer set --repo=owner/repo --high-model=anthropic/claude-sonnet-5.5
-co-maintainer set --repo=owner/repo --unset=high-model   # inherit again
+co-maintainer set --repo=owner/repo --unset=high-model   # back to the account
 ```
+
+A provider, models or `auth` that a release before 0.7.20 saved for a
+repository were copies of an init. They are moved to the init fallback the
+first time 0.7.20 reads `config.json`, so they no longer outrank the account.
+`config get --repo` and the repository page show `init` as the source of a
+value that comes from the fallback.
 
 `set --repo` also takes `--ai`, `--low-model`, `--auth`, `--review-blocking`,
 `--review-exclude` and `--only-request-changed-pr=true|false`. Every review

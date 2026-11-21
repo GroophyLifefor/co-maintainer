@@ -414,7 +414,8 @@ short form of <code>config set</code>, and its output and flags are unchanged.</
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">path</span> <span class="sh-flag">--all</span>            <span class="sh-comment"># config, repos, and cache directories</span>
 </code></pre>
 <p><code>list</code> prints where each value came from: <code>env</code> (an environment variable
-overrides the file at run time), <code>repo</code>, <code>file</code>, or <code>default</code>. An unset key is
+overrides the file at run time), <code>repo</code>, <code>file</code>, <code>init</code> (the init fallback),
+or <code>default</code>. An unset key is
 left out. Both show the value a run would really use, through the same order
 the run follows: <code>get token</code> prints the key the configured provider reads, not
 any key variable that happens to be set. Add <code>--repo=owner/repo</code> to include
@@ -686,7 +687,11 @@ is allowed again. Match <code>--unset=</code> to the field name or the flag name
 </tr>
 <tr>
 <td><code>include-*</code> flags</td>
-<td><code>auth</code>, <code>ai</code>, models (inherited, see below)</td>
+<td></td>
+</tr>
+<tr>
+<td><code>auth</code>, <code>ai</code>, models, as the init fallback (see below)</td>
+<td></td>
 </tr>
 <tr>
 <td></td>
@@ -726,14 +731,23 @@ on <code>sync</code> or run <code>init</code> again to change includes, limits, 
 filters permanently. <code>--only-request-changed-pr</code> stays on once saved, and
 <code>--no-only-request-changed-pr</code> turns it off again. To
 collect every pull request state again, pass <code>--pr-state=open,closed,merged</code>.
-<code>init</code> and <code>sync</code> do not save the provider, the models or <code>auth</code>: a
-repository inherits the global values, so a later global change reaches it.
-<code>--ai</code>, <code>--low-model</code> and <code>--high-model</code> on one run apply to that run only. To
-give one repository its own values, set them with <code>set --repo</code> or on the
-repository <strong>Settings</strong> page, under <strong>AI for this repository</strong>:</p>
+<code>init</code> and <code>sync</code> keep the provider, the models and <code>auth</code> they ran with as
+the repository&#39;s <strong>init fallback</strong>, not as its own values. A repository uses,
+in this order: the environment, its own value, the account&#39;s value, then the
+init fallback. So a later account change reaches every repository, and a
+repository set up with flags alone keeps working without them while the
+account has no value. The fallback&#39;s models are used only with the fallback&#39;s
+provider. To give one repository values that win over the account, set them
+with <code>set --repo</code> or on the repository <strong>Settings</strong> page, under <strong>AI for this
+repository</strong>:</p>
 <pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--high-model=anthropic/claude-sonnet-5.5</span>
-<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--unset=high-model</span>   <span class="sh-comment"># inherit again</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--unset=high-model</span>   <span class="sh-comment"># back to the account</span>
 </code></pre>
+<p>A provider, models or <code>auth</code> that a release before 0.7.20 saved for a
+repository were copies of an init. They are moved to the init fallback the
+first time 0.7.20 reads <code>config.json</code>, so they no longer outrank the account.
+<code>config get --repo</code> and the repository page show <code>init</code> as the source of a
+value that comes from the fallback.</p>
 <p><code>set --repo</code> also takes <code>--ai</code>, <code>--low-model</code>, <code>--auth</code>, <code>--review-blocking</code>,
 <code>--review-exclude</code> and <code>--only-request-changed-pr=true|false</code>. Every review
 and every sync of the repository uses them: CLI, App, remote and push.</p>

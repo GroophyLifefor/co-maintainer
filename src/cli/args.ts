@@ -288,7 +288,11 @@ export async function parseArgs(args: string[]): Promise<Options> {
   if (experimentalSiwc && explicitAi) {
     die("--experimental-siwc cannot be combined with --ai");
   }
-  const configuredAiRaw = env("CO_MAINTAINER_AI") ?? repoConfig.ai ?? config.ai;
+  // The last init's values come after the account's, the same order serve
+  // uses (`resolveRepoSettings`).
+  const lastInit = repoConfig.initFallback ?? {};
+  const configuredAiRaw =
+    env("CO_MAINTAINER_AI") ?? repoConfig.ai ?? config.ai ?? lastInit.ai;
   rejectRetiredProvider(configuredAiRaw);
   if (
     configuredAiRaw &&
@@ -300,7 +304,10 @@ export async function parseArgs(args: string[]): Promise<Options> {
   }
   const configuredAi = configuredAiRaw as Options["ai"] | undefined;
   const configuredAuthRaw =
-    env("CO_MAINTAINER_AUTH") ?? repoConfig.auth ?? config.auth;
+    env("CO_MAINTAINER_AUTH") ??
+    repoConfig.auth ??
+    config.auth ??
+    lastInit.auth;
   if (configuredAuthRaw && !["gh", "pat"].includes(configuredAuthRaw)) {
     die("CO_MAINTAINER_AUTH/config.auth must be gh or pat");
   }
@@ -358,13 +365,15 @@ export async function parseArgs(args: string[]): Promise<Options> {
     openRouterModelEnv("OPENROUTER_LOW_MODEL") ??
     env("LOW_MODEL") ??
     repoConfig.lowModel ??
-    config.lowModel;
+    config.lowModel ??
+    (ai === lastInit.ai ? lastInit.lowModel : undefined);
   let highModel =
     text("high-model") ??
     openRouterModelEnv("OPENROUTER_HIGH_MODEL") ??
     env("HIGH_MODEL") ??
     repoConfig.highModel ??
-    config.highModel;
+    config.highModel ??
+    (ai === lastInit.ai ? lastInit.highModel : undefined);
   if (experimentalSiwc) {
     // No API key: the OAuth credentials cover the run. The models still come
     // from the user, but the account's own list is shown first so the value
