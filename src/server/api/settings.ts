@@ -230,6 +230,18 @@ export async function handleSettingsRoute(
       }
       patch.reviewBlocking = blocking;
     }
+    if ("reviewEvent" in body) {
+      const raw = body.reviewEvent;
+      if (raw === null || raw === "") patch.reviewEvent = undefined;
+      else if (raw === "auto" || raw === "comment") patch.reviewEvent = raw;
+      else {
+        return errorResponse(
+          422,
+          "invalid_setting",
+          "reviewEvent must be auto or comment",
+        );
+      }
+    }
     if (typeof body.passwordAuthDisabled === "boolean") {
       patch.passwordAuthDisabled = body.passwordAuthDisabled;
     }

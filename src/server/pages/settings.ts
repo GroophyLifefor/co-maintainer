@@ -358,6 +358,15 @@ function defaultsCard(config: UserConfig): string {
           <div class="hint">Every repository uses this unless its own settings choose another rule.</div>
           <div class="cli"><code>--review-blocking=${text(config.reviewBlocking ?? "model")}</code></div>
         </div>
+        <div class="field wide" style="margin-top:18px">
+          <label for="def-review-event">How the review is posted</label>
+          <select id="def-review-event">
+            <option value="auto"${config.reviewEvent === "comment" ? "" : " selected"}>Approve, or request changes when a finding blocks</option>
+            <option value="comment"${config.reviewEvent === "comment" ? " selected" : ""}>Comment only, people decide the merge</option>
+          </select>
+          <div class="hint">Every repository uses this unless its own settings choose another.</div>
+          <div class="cli"><code>--review-event=${text(config.reviewEvent ?? "auto")}</code></div>
+        </div>
       </div>
       <div class="ft"><button class="primary" id="save-def">Save</button></div>
     </div>`;
@@ -794,6 +803,7 @@ document.getElementById("save-def").addEventListener("click", function() {
   if (policy !== "__custom") body.reviewPolicy = policy === "" ? null : policy;
   var blocking = document.getElementById("def-blocking");
   if (!blocking.disabled) body.reviewBlocking = blocking.value;
+  body.reviewEvent = document.getElementById("def-review-event").value;
   save(this, body);
 });
 `;

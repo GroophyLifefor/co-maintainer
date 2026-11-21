@@ -1,3 +1,4 @@
+import { diffLimitsFrom } from "./diff_plan.ts";
 import { reasoningFields } from "../ai/reasoning.ts";
 import { clampToolRounds } from "./tool_rounds.ts";
 import { createAiProvider } from "../ai/provider.ts";
@@ -694,6 +695,7 @@ async function pullRequestReview(
     tools: diagrams,
     concurrency: options.aiConcurrent,
     readDiffMaxChars: readDiffMaxChars(readConfig().repos?.[options.repo]),
+    limits: diffLimitsFrom(readConfig().repos?.[options.repo]),
     summaryProvider: () => summaryProvider(options, provider, report, extras),
     usage,
     report,
@@ -1056,6 +1058,7 @@ async function workspaceReview(
     tools: diagrams,
     concurrency: options.aiConcurrent,
     readDiffMaxChars: readDiffMaxChars(readConfig().repos?.[options.repo]),
+    limits: diffLimitsFrom(readConfig().repos?.[options.repo]),
     summaryProvider: () => summaryProvider(options, provider, report, extras),
     usage,
     report,

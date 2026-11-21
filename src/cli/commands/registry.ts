@@ -1059,6 +1059,20 @@ export const COMMANDS: CommandSpec[] = [
               "The most lines search-non-code returns around a match. Needs --repo. 0 or -1 means no limit.",
           },
           {
+            name: "review-diff-max-chars",
+            value: "N",
+            default: "240000",
+            description:
+              "The DIFF section of a review prompt, in characters. Raise it for a model with a large context. Needs --repo. 0 or -1 means no limit.",
+          },
+          {
+            name: "review-file-patch-max-chars",
+            value: "N",
+            default: "12000",
+            description:
+              "Where one file's patch is cut and marked partial. Needs --repo. 0 or -1 means no limit.",
+          },
+          {
             name: "mcp-config",
             value: "PATH",
             description:
@@ -1088,7 +1102,15 @@ export const COMMANDS: CommandSpec[] = [
             name: "review-blocking",
             value: "model|severity",
             default: "model",
-            description: "How a review decides a blocking finding.",
+            description:
+              "How a review decides a blocking finding. With --repo, for that repository.",
+          },
+          {
+            name: "review-event",
+            value: "auto|comment",
+            default: "auto",
+            description:
+              "How the App posts a review: approve or request changes, or comment only. With --repo, for that repository.",
           },
           {
             name: "ai-timeout-minutes",

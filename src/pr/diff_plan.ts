@@ -143,6 +143,9 @@ export type RenderOptions = {
    * markers say the rest cannot be read, rather than pointing at a tool the
    * model does not have. */
   tools: boolean;
+  /** Where a partial patch is cut, the repository's
+   * `reviewFilePatchMaxChars`. Defaults to `MAX_FILE_PATCH_CHARS`. */
+  filePatchMax?: number;
   /** The file's summary, for a `summarized` file. */
   summary?: string;
 };
@@ -216,7 +219,7 @@ export function renderSection(
     case "full":
       return `${head}${file.patch === "" ? emptyLabel(file) : numberPatch(file.patch)}`;
     case "partial": {
-      const shown = cutAtLine(file.patch);
+      const shown = cutAtLine(file.patch, options.filePatchMax);
       // A short file lands here only when its summary failed. Nothing was
       // cut, so no marker claims otherwise.
       if (shown === file.patch) return `${head}${numberPatch(file.patch)}`;
@@ -428,13 +431,16 @@ export function dropUntilFits(
 
 /** The state a file has without a summary: its whole patch, or the first
  * `MAX_FILE_PATCH_CHARS` of it. */
-function shownState(file: DiffFile): FileState {
+function shownState(
+  file: DiffFile,
+  filePatchMax = MAX_FILE_PATCH_CHARS,
+): FileState {
   if (file.patch === "") {
     return file.empty === "withheld" || file.empty === undefined
       ? "withheld"
       : "full";
   }
-  return file.patch.length > MAX_FILE_PATCH_CHARS ? "partial" : "full";
+  return file.patch.length > filePatchMax ? "partial" : "full";
 }
 
 function summaryCandidate(file: DiffFile): boolean {
@@ -448,12 +454,13 @@ export function restoreIntoRoom(
   files: PlannedFile[],
   size: (file: PlannedFile) => number,
   max = MAX_REVIEW_DIFF_CHARS,
+  filePatchMax = MAX_FILE_PATCH_CHARS,
 ): void {
   const budget = new Budget(files, size);
   if (budget.total() >= max) return;
   const dropped = files
     .filter((file) => file.state === "dropped")
-    .map((file) => ({ file, state: shownState(file) }))
+    .map((file) => ({ file, state: shownState(file, filePatchMax) }))
     .map((item) => ({
       ...item,
       chars: size({ ...item.file, state: item.state }),
@@ -481,10 +488,11 @@ export function restoreIntoRoom(
 export function planDiff(
   files: DiffFile[],
   max = MAX_REVIEW_DIFF_CHARS,
+  filePatchMax = MAX_FILE_PATCH_CHARS,
 ): PlannedFile[] {
   const planned: PlannedFile[] = files.map((file) => ({
     ...file,
-    state: shownState(file),
+    state: shownState(file, filePatchMax),
   }));
   const overThreshold = planned
     .filter(
@@ -502,6 +510,7 @@ export function planDiff(
     const length = renderSection(file, {
       tools: true,
       summary: "x".repeat(PLANNED_SUMMARY_CHARS),
+      filePatchMax,
     }).length;
     cache.set(key, length);
     return length;
@@ -524,7 +533,7 @@ export function planDiff(
     summaries++;
   }
   dropUntilFits(planned, size, max);
-  restoreIntoRoom(planned, size, max);
+  restoreIntoRoom(planned, size, max, filePatchMax);
   return planned;
 }
 
@@ -542,5 +551,25 @@ export function coverageFromPlan(
     summarized: paths("summarized"),
     dropped: paths("dropped"),
     withheld: paths("withheld"),
+  };
+}
+
+/** A repository's diff limits from its saved values: the constants when
+ * unset, no limit for 0 or below, the same rule as the other review limits. */
+export function diffLimitsFrom(
+  repo: {
+    reviewDiffMaxChars?: number;
+    reviewFilePatchMaxChars?: number;
+  } = {},
+): { diff: number; filePatch: number } {
+  const pick = (value: number | undefined, fallback: number) =>
+    value === undefined
+      ? fallback
+      : value <= 0
+        ? Number.MAX_SAFE_INTEGER
+        : value;
+  return {
+    diff: pick(repo.reviewDiffMaxChars, MAX_REVIEW_DIFF_CHARS),
+    filePatch: pick(repo.reviewFilePatchMaxChars, MAX_FILE_PATCH_CHARS),
   };
 }

@@ -422,6 +422,20 @@ export async function handleReposRoute(
           );
         }
       }
+      if ("reviewEvent" in body) {
+        const raw = body.reviewEvent;
+        if (raw === null || raw === "") {
+          blockingPatch.reviewEvent = undefined;
+        } else if (raw === "auto" || raw === "comment") {
+          blockingPatch.reviewEvent = raw;
+        } else {
+          return errorResponse(
+            422,
+            "invalid_review_event",
+            "reviewEvent must be auto or comment",
+          );
+        }
+      }
       if (typeof body.autoReview === "boolean") {
         patch.auto_review = body.autoReview ? 1 : 0;
       }
@@ -625,6 +639,8 @@ export async function handleReposRoute(
         ["reviewToolResultMaxChars", -1],
         ["reviewToolBudgetChars", -1],
         ["reviewSearchMaxContextLines", -1],
+        ["reviewDiffMaxChars", -1],
+        ["reviewFilePatchMaxChars", -1],
         ["guideFullEvery", 0],
       ] as const) {
         if (!(key in body)) continue;

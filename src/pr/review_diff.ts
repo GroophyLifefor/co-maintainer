@@ -21,6 +21,7 @@ import {
   dropUntilFits,
   noDiffBlock,
   notShownBlock,
+  diffLimitsFrom,
   planDiff,
   renderSection,
   restoreIntoRoom,
@@ -58,6 +59,9 @@ export type PrepareDiffInput = {
   concurrency: number;
   /** The cap on one `read-full-diff` answer, `null` for none. */
   readDiffMaxChars: number | null;
+  /** The repository's DIFF section and per-file limits, see
+   * `diffLimitsFrom`. The constants when left out. */
+  limits?: { diff: number; filePatch: number };
   /** The low-model provider. Called only when a file is summarized, because
    * building a real provider needs a key a fake-AI run never has. */
   summaryProvider: () => AiProvider;
@@ -88,7 +92,8 @@ export async function mapWithLimit<T, R>(
 export async function prepareReviewDiff(
   input: PrepareDiffInput,
 ): Promise<PreparedDiff> {
-  const planned = planDiff(input.files);
+  const limits = input.limits ?? diffLimitsFrom();
+  const planned = planDiff(input.files, limits.diff, limits.filePatch);
   const summarize = planned.filter((file) => file.state === "summarized");
   const summaries = new Map<string, string>();
   const failed: string[] = [];
@@ -125,6 +130,7 @@ export async function prepareReviewDiff(
     renderSection(file, {
       tools: input.tools,
       summary: summaries.get(file.path),
+      filePatchMax: limits.filePatch,
     });
   // The plan counted a fixed size per summary. The real ones, and any file
   // that fell back to partial, may not fit, so check once more. Real
@@ -142,8 +148,8 @@ export async function prepareReviewDiff(
     return text;
   };
   const sizeOf = (file: PlannedFile) => textOf(file).length;
-  dropUntilFits(planned, sizeOf);
-  restoreIntoRoom(planned, sizeOf);
+  dropUntilFits(planned, sizeOf, limits.diff);
+  restoreIntoRoom(planned, sizeOf, limits.diff, limits.filePatch);
   const sections = planned
     .filter((file) => file.state !== "dropped" && !file.listed)
     .map(textOf)

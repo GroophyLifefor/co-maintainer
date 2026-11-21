@@ -363,6 +363,16 @@ export function renderRepoSettings(
           <div class="hint">Critical always blocks.</div>
           <div class="cli"><code>--review-blocking=model|severity</code></div>
         </div>
+        <div class="field">
+          <label for="review-event">How the review is posted</label>
+          <select id="review-event">
+            <option value=""${config.reviewEvent ? "" : " selected"}>Server default (${userConfig.reviewEvent === "comment" ? "comment only" : "approve or request changes"})</option>
+            <option value="auto"${config.reviewEvent === "auto" ? " selected" : ""}>Approve, or request changes when a finding blocks</option>
+            <option value="comment"${config.reviewEvent === "comment" ? " selected" : ""}>Comment only, people decide the merge</option>
+          </select>
+          <div class="hint">Comment only never approves and never blocks, so the bot does not count toward required approvals.</div>
+          <div class="cli"><code>set --repo=${text(name)} --review-event=auto|comment</code></div>
+        </div>
         <div style="display:flex;align-items:center;gap:14px;margin-top:22px">
           <button class="tg${repo.use_codegraph === 1 ? " on" : ""}" id="codegraph"></button>
           <div>Let the review query the codebase's call graph (codegraph)</div>
@@ -493,6 +503,12 @@ export function renderRepoSettings(
           <div class="field"><label for="search-context">Search context lines</label>
             <input id="search-context" value="${text(config.reviewSearchMaxContextLines ?? "")}">
             <div class="cli"><code>--review-search-max-context-lines=…</code></div></div>
+          <div class="field"><label for="diff-max">Diff shown to the model, characters</label>
+            <input id="diff-max" value="${text(config.reviewDiffMaxChars ?? "")}" placeholder="240000">
+            <div class="cli"><code>--review-diff-max-chars=…</code></div></div>
+          <div class="field"><label for="file-patch-max">One file's patch before it is cut, characters</label>
+            <input id="file-patch-max" value="${text(config.reviewFilePatchMaxChars ?? "")}" placeholder="12000">
+            <div class="cli"><code>--review-file-patch-max-chars=…</code></div></div>
           <div class="field"><label for="guide-full-every">Rewrite the guide in full every N syncs</label>
             <input id="guide-full-every" value="${text(config.guideFullEvery ?? "")}">
             <div class="cli"><code>--guide-full-every=…</code></div></div>
@@ -1060,6 +1076,8 @@ document.getElementById("save-repo-tools").addEventListener("click", function() 
     reviewToolResultMaxChars: initNumber("tool-result-max"),
     reviewToolBudgetChars: initNumber("tool-budget"),
     reviewSearchMaxContextLines: initNumber("search-context"),
+    reviewDiffMaxChars: initNumber("diff-max"),
+    reviewFilePatchMaxChars: initNumber("file-patch-max"),
     guideFullEvery: initNumber("guide-full-every"),
     reviewReferences: document.getElementById("review-references").classList.contains("on"),
     mcpAllowForks: document.getElementById("mcp-allow-forks").classList.contains("on")
@@ -1125,6 +1143,7 @@ document.getElementById("save-changes").addEventListener("click", function() {
     reviewExclude: document.getElementById("review-exclude").value,
     remakeCron: cron,
     reviewBlocking: selectedBlocking(),
+    reviewEvent: document.getElementById("review-event").value || null,
     ghConcurrent: speedOverridden.gh ? selectedSpeed("gh") : null,
     aiConcurrent: speedOverridden.ai ? selectedSpeed("ai") : null,
     maxPrMonths: initNumber("months"),

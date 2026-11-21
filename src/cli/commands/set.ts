@@ -122,6 +122,7 @@ export async function runSet(args: string[]): Promise<void> {
     "review-policy",
     "review-policy-file",
     "review-blocking",
+    "review-event",
     "review-references",
     "ai-timeout-minutes",
     "global-reasoning-effort",
@@ -219,6 +220,7 @@ export async function runSet(args: string[]): Promise<void> {
     "remote-byok-default": "remoteByokDefault",
     "review-policy": "reviewPolicy",
     "review-blocking": "reviewBlocking",
+    "review-event": "reviewEvent",
     "ai-timeout-minutes": "aiTimeoutMinutes",
     "global-reasoning-effort": "globalReasoningEffort",
     "codegraph-version": "codegraphVersion",
@@ -383,6 +385,13 @@ export async function runSet(args: string[]): Promise<void> {
       die("--review-blocking must be one of: model, severity");
     }
     patch.reviewBlocking = reviewBlocking;
+  }
+  const reviewEvent = text(args, "review-event");
+  if (reviewEvent) {
+    if (!["auto", "comment"].includes(reviewEvent)) {
+      die("--review-event must be one of: auto, comment");
+    }
+    patch.reviewEvent = reviewEvent;
   }
   const aiTimeout = text(args, "ai-timeout-minutes");
   if (aiTimeout !== undefined) {
@@ -565,6 +574,8 @@ const TOOL_LIMIT_FLAGS = [
   ["review-tool-result-max-chars", "reviewToolResultMaxChars"],
   ["review-tool-budget-chars", "reviewToolBudgetChars"],
   ["review-search-max-context-lines", "reviewSearchMaxContextLines"],
+  ["review-diff-max-chars", "reviewDiffMaxChars"],
+  ["review-file-patch-max-chars", "reviewFilePatchMaxChars"],
 ] as const;
 
 /** Server settings that are positive whole numbers. The dashboard wrote them
@@ -588,6 +599,7 @@ const REPO_TEXT_FLAGS = [
   ["high-model", "highModel"],
   ["auth", "auth"],
   ["review-blocking", "reviewBlocking"],
+  ["review-event", "reviewEvent"],
   ["review-exclude", "reviewExclude"],
   ["only-request-changed-pr", "onlyRequestChangedPr"],
 ] as const;
@@ -675,6 +687,9 @@ function repoTextProblem(flag: string, value: string): string | undefined {
   }
   if (flag === "auth" && !["gh", "pat"].includes(value)) {
     return "--auth must be gh or pat";
+  }
+  if (flag === "review-event" && !["auto", "comment"].includes(value)) {
+    return "--review-event must be auto or comment";
   }
   if (flag === "review-blocking" && !["model", "severity"].includes(value)) {
     return "--review-blocking must be model or severity";

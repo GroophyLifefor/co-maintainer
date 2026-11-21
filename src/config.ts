@@ -15,6 +15,18 @@ import type { McpServerConfig } from "./tools/mcp_config.ts";
  * token is never written to config.json, only ever taken from --token or
  * an env file. Remembering this lets `remake owner/repo` run with no
  * flags and no interactive prompts, reusing what `init` was told. */
+/** How the App posts a review: `auto` approves or requests changes by the
+ * blocking rule, `comment` only comments. */
+export type ReviewEventMode = "auto" | "comment";
+
+export function reviewEventMode(
+  config: UserConfig,
+  repo: string,
+): ReviewEventMode {
+  const raw = config.repos?.[repo]?.reviewEvent ?? config.reviewEvent;
+  return raw === "comment" ? "comment" : "auto";
+}
+
 /** What the last init or sync of a repository ran with. It is used only
  * where the account has no value of its own, so a later account change still
  * reaches the repository, and a repository set up with flags alone keeps
@@ -29,6 +41,10 @@ export type InitFallback = {
 export type RepoConfig = {
   /** Written by every init and sync, see `InitFallback`. */
   initFallback?: InitFallback;
+  /** `comment` posts every App review as a plain comment: the bot never
+   * approves and never requests changes, people decide the merge. Unset
+   * follows the server default, then `auto`. */
+  reviewEvent?: ReviewEventMode;
   auth?: "gh" | "pat";
   ai?:
     | "none"
@@ -105,6 +121,12 @@ export type RepoConfig = {
    * Codegraph is not counted yet. Unset means the default, `0` or a negative
    * number means no limit. */
   reviewToolBudgetChars?: number;
+  /** The DIFF section of a review prompt, in characters. Unset means
+   * 240000, `0` or a negative number means no limit. */
+  reviewDiffMaxChars?: number;
+  /** Where one file's patch is cut and marked partial, in characters. Unset
+   * means 12000, `0` or a negative number means no limit. */
+  reviewFilePatchMaxChars?: number;
   /** Most context lines `search-non-code` returns around a match. Unset means
    * the default, `0` or a negative number means no limit. */
   reviewSearchMaxContextLines?: number;
@@ -162,6 +184,8 @@ export type UserConfig = {
   githubAuthEnabled?: boolean;
   /** scrypt hash of the dashboard password, never the password itself. */
   dashboardPasswordHash?: string;
+  /** The server default for `RepoConfig.reviewEvent`. */
+  reviewEvent?: ReviewEventMode;
   /** When `set` last changed a sign-in credential. Dashboard sessions issued
    * before it are refused. */
   credentialsChangedAt?: string;
