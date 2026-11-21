@@ -46,6 +46,17 @@ export function baseUrl(host: string): string {
   return trimmed;
 }
 
+/** `--debug` and `--log-time` on a remote review: each call to the server
+ * is one stderr line, with its time. */
+let diagnostics = { debug: false, logTime: false };
+
+export function setRemoteDiagnostics(next: {
+  debug: boolean;
+  logTime: boolean;
+}): void {
+  diagnostics = next;
+}
+
 export async function remoteFetch(
   host: string,
   token: string,
@@ -59,7 +70,16 @@ export async function remoteFetch(
     headers.set("content-type", "application/json");
   }
   try {
+    const started = performance.now();
     const response = await fetch(url, { ...init, headers });
+    if (diagnostics.debug || diagnostics.logTime) {
+      console.error(
+        `[remote] ${init.method ?? "GET"} ${path} · ${response.status} · ${(
+          (performance.now() - started) /
+          1000
+        ).toFixed(2)}s`,
+      );
+    }
     // The server's 401 text is `invalid or missing token`, which does not say
     // where the token comes from or how to get another one.
     if (response.status === 401 || response.status === 403) {
