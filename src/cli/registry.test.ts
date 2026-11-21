@@ -222,15 +222,14 @@ test("registry: init and sync document the one-off concurrency flags", () => {
   }
 });
 
-test("registry: review lists every provider and init lists every accepted one", () => {
+test("registry: review and init list every accepted provider, never none", () => {
   const review = renderCommandHelp("review");
   const init = renderCommandHelp("init");
   if (!review || !init) throw new Error("missing help");
-  const every =
-    "--ai=none|openrouter|openai|anthropic|opencode-zen|opencode-go";
   const required = "--ai=openrouter|openai|anthropic|opencode-zen|opencode-go";
-  if (!review.includes(every)) {
-    throw new Error(`review should list every provider name:
+  // review refuses --ai=none, so its help does not offer it.
+  if (!review.includes(required) || review.includes("--ai=none")) {
+    throw new Error(`review should list every accepted provider name:
 ${review}`);
   }
   if (!init.includes(required)) {
