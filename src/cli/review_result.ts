@@ -533,7 +533,9 @@ export function formatHumanLocalReview(
 export function reviewExitCodeFromJsonFindings(
   findings: JsonReviewFinding[],
 ): number {
-  return findings.some((f) => f.blocking) ? 1 : 0;
+  // A finding the carry-over closed (fixed, or its file reverted) no longer
+  // blocks, the same rule the summary counts by.
+  return findings.some((f) => f.blocking && f.state !== "closed") ? 1 : 0;
 }
 
 /** `costUsd` is `null` when the cost is unknown, and `costStatus` and
