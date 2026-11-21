@@ -591,8 +591,7 @@ export async function runRemoteReview(
               catchesUp: true,
               extensions,
               intent: intent !== null,
-              showReferences:
-                readConfig().repos?.[repo]?.reviewReferences === true,
+              showReferences: serverShowsReferences(payload.result, repo),
               ...companionOutput,
             });
           } else {
@@ -616,8 +615,7 @@ export async function runRemoteReview(
                   coverage: coverageFromResult(payload.result),
                   extensions,
                   intent: intent !== null,
-                  showReferences:
-                    readConfig().repos?.[repo]?.reviewReferences === true,
+                  showReferences: serverShowsReferences(payload.result, repo),
                   tools: toolUsageFromJson(
                     (payload.result.usage as { tools?: unknown } | undefined)
                       ?.tools,
@@ -655,4 +653,16 @@ export async function runRemoteReview(
       await clientMcp.stop();
     }
   });
+}
+
+/** Whether the output names the rules each finding rests on: the server's
+ * setting for the repository. A server older than 0.7.20 does not send it,
+ * and then this machine's setting decides, as it always did. */
+export function serverShowsReferences(
+  result: Record<string, unknown>,
+  repo: string,
+): boolean {
+  const sent = (result.references as { show?: unknown } | undefined)?.show;
+  if (typeof sent === "boolean") return sent;
+  return readConfig().repos?.[repo]?.reviewReferences === true;
 }

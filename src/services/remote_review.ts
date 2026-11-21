@@ -707,6 +707,11 @@ export function registerRemoteReviewHandler(): void {
           revision: covered.revision,
           guide: { builtAt: result.guideBuiltAt },
           codegraph: { state: result.codegraphState },
+          // The server's repository setting, so a CI runner with no config
+          // shows the references the server would.
+          references: {
+            show: readConfig().repos?.[job.repo]?.reviewReferences === true,
+          },
           summary: joined.summary,
           findings: joined.findings,
           warnings: covered.warnings,
