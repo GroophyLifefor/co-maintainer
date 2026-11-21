@@ -470,6 +470,8 @@ GitHub.
 | -------- | ------ |
 | `CM_CONFIG_PATH` | Replace `config.json` location (tests) |
 | `CM_REPOS_DIR` | Replace generated guides root (must match `serve` for server init) |
+| `CO_MAINTAINER_AI` | The AI provider, the same as `--ai`, for the CLI and `serve` |
+| `CM_DEBUG` | On `serve`, `1` does what `--debug` does: the `/__ui` component gallery |
 
 More cache and database paths: [Caching](caching.md#overrides).
 

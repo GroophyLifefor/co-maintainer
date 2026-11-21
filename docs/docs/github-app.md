@@ -12,7 +12,7 @@ which is only for reading a repository locally. See
 ## Create it from the dashboard
 
 1. Start [`serve`](serve.md) and open the dashboard.
-2. Set a public webhook address under **Settings**, **Server**.
+2. Set a public webhook address under **Settings**, **GitHub**.
 3. In the GitHub App card, keep or edit the suggested name and press
    **Create GitHub App**.
 4. GitHub shows the permissions and events listed below and asks you to confirm.

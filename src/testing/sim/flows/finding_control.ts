@@ -30,6 +30,7 @@ const STEP = {
   commentMode: "a repository in comment mode",
   limits: "the diff limits follow the repository",
   flags: "--ai-key and a saved pat on a pull request review",
+  noneProvider: "init with --ai=none",
 };
 
 const AI: AiRule[] = [
@@ -174,6 +175,16 @@ function checks(sim: Sim): CheckResult[] {
       flags.key === "sim-ai-key-flag" && flags.auth === "gh",
       JSON.stringify(flags),
     ),
+    check(
+      "init with --ai=none stops with exit code 2 and says init and sync need a provider",
+      (sim.state.noneProvider as Record<string, unknown> | undefined)?.code ===
+        2 &&
+        String(
+          (sim.state.noneProvider as Record<string, unknown> | undefined)
+            ?.message,
+        ).includes("init and sync need an AI provider"),
+      JSON.stringify(sim.state.noneProvider),
+    ),
   ];
 }
 
@@ -316,7 +327,7 @@ export default defineFlow({
           await import("../../../pr/diff_plan.ts");
         const patch = `@@ -1,1 +1,40 @@\n${Array.from(
           { length: 40 },
-          (_, index) => `+export const value${index} = ${index};`,
+          (_, index) => `+export const value${index} = ${index}`,
         ).join("\n")}`;
         const file = {
           path: "src/values.ts",
@@ -363,6 +374,28 @@ export default defineFlow({
           });
         }
         return JSON.stringify(sim.state.flags);
+      },
+    },
+    {
+      name: STEP.noneProvider,
+      async run(sim) {
+        const { createAiProvider } = await import("../../../ai/provider.ts");
+        try {
+          // `none` parses, as it always did. The run stops where a provider
+          // is made, with words that say why.
+          createAiProvider(
+            { ...sim.options({ command: "init" }), ai: "none" },
+            "unused",
+          );
+          sim.state.noneProvider = { code: 0, message: "accepted" };
+        } catch (error) {
+          const failure = error as { exitCode?: number; message?: string };
+          sim.state.noneProvider = {
+            code: failure.exitCode,
+            message: failure.message,
+          };
+        }
+        return JSON.stringify(sim.state.noneProvider);
       },
     },
   ],

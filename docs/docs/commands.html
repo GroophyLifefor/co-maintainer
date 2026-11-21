@@ -180,6 +180,11 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td></td>
 <td>Print how long each phase took.</td>
 </tr>
+<tr>
+<td><code>--env=PATH</code></td>
+<td></td>
+<td>Read environment variables from a .env file first. A variable already set wins.</td>
+</tr>
 </tbody></table>
 <h2 id="co-maintainer-init"><code>co-maintainer init</code></h2>
 <p>Build the review guides for a repository for the first time.</p>
@@ -379,6 +384,11 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td></td>
 <td>Print how long each phase took.</td>
 </tr>
+<tr>
+<td><code>--env=PATH</code></td>
+<td></td>
+<td>Read environment variables from a .env file first. A variable already set wins.</td>
+</tr>
 </tbody></table>
 <h3 id="performance">Performance</h3>
 <table>
@@ -398,11 +408,6 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td><code>--ai-concurrent=N</code></td>
 <td>3</td>
 <td>Concurrent AI calls for this run only. It does not change the saved default.</td>
-</tr>
-<tr>
-<td><code>--improve-matrix=N</code></td>
-<td>1</td>
-<td>How many improvement passes to run. Capped at 4, and each pass costs more.</td>
 </tr>
 </tbody></table>
 <h2 id="co-maintainer-sync"><code>co-maintainer sync</code></h2>
@@ -602,6 +607,11 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td><code>--log-time</code></td>
 <td></td>
 <td>Print how long each phase took.</td>
+</tr>
+<tr>
+<td><code>--env=PATH</code></td>
+<td></td>
+<td>Read environment variables from a .env file first. A variable already set wins.</td>
 </tr>
 </tbody></table>
 <h3 id="performance-2">Performance</h3>
@@ -819,6 +829,26 @@ co-maintainer review [options]
 <td>The image format for plantuml-server.</td>
 </tr>
 </tbody></table>
+<h3 id="depth">Depth</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--improve-matrix=N</code></td>
+<td>1</td>
+<td>How many passes the review model makes over its own findings. Capped at 4, and each pass costs more.</td>
+</tr>
+<tr>
+<td><code>--review-upstream</code></td>
+<td></td>
+<td>On a pull request, review the code merged in from the base branch too, not only what the author wrote.</td>
+</tr>
+</tbody></table>
 <h3 id="ai-3">AI</h3>
 <table>
 <thead>
@@ -829,9 +859,9 @@ co-maintainer review [options]
 </tr>
 </thead>
 <tbody><tr>
-<td><code>--ai=none|openrouter|openai|anthropic|opencode-zen|opencode-go</code></td>
-<td>none</td>
-<td>Which provider writes the review. <code>none</code> turns AI off.</td>
+<td><code>--ai=openrouter|openai|anthropic|opencode-zen|opencode-go</code></td>
+<td></td>
+<td>Which provider writes the review. With none saved, OpenRouter. --ai=none is refused.</td>
 </tr>
 <tr>
 <td><code>--token=KEY</code></td>
@@ -912,6 +942,11 @@ co-maintainer review [options]
 <td><code>--log-time</code></td>
 <td></td>
 <td>Print how long each phase took.</td>
+</tr>
+<tr>
+<td><code>--env=PATH</code></td>
+<td></td>
+<td>Read environment variables from a .env file first. A variable already set wins.</td>
 </tr>
 <tr>
 <td><code>--output=github</code></td>
@@ -1219,6 +1254,11 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td>Server default for concurrent AI calls. With --repo, the repository override. 1..16.</td>
 </tr>
 <tr>
+<td><code>--review-references=on|off</code></td>
+<td></td>
+<td>Show the rules each finding rests on in review comments and the terminal. Needs --repo.</td>
+</tr>
+<tr>
 <td><code>--review-system-prompt=TEXT</code></td>
 <td></td>
 <td>A repository&#39;s own review instructions. Needs --repo. Empty clears it.</td>
@@ -1435,12 +1475,7 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <tbody><tr>
 <td><code>--debug</code></td>
 <td></td>
-<td>Print the underlying gh and HTTP calls.</td>
-</tr>
-<tr>
-<td><code>--log-time</code></td>
-<td></td>
-<td>Print how long each phase took.</td>
+<td>Turn on the /__ui component gallery. CM_DEBUG=1 does the same.</td>
 </tr>
 </tbody></table>
 <h2 id="co-maintainer-extension"><code>co-maintainer extension</code></h2>

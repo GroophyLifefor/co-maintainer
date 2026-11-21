@@ -13,12 +13,12 @@ flowchart TB
 
   config --> cfg["config.json"]
   config --> guides["repos/ owner-repo / guides"]
+  config --> tools["tools/ codegraph pins"]
 
   cache --> cdb["cache.db evidence AI jobs"]
   cache --> appdb["app.db serve only"]
   cache --> clones["clones/ bare repos"]
   cache --> wt["wt/ PR worktrees"]
-  cache --> tools["tools/ codegraph pins"]
 ```
 
 ### Config directory
@@ -34,6 +34,7 @@ flowchart TB
 | `config.json` | Global `set` values and `repos["owner/repo"]` memory |
 | `repos/<owner>/<repo>/` | Generated guides for one GitHub repo (see below) |
 | `extensions/<run-id>/` | Short-lived folder of one review's [extension](extensions.md) files, removed when the review ends |
+| `tools/` | Pinned helper binaries (for example codegraph), not on your PATH. `CM_TOOLS_DIR` moves it |
 
 Override: `CM_CONFIG_PATH` points at a different `config.json`.
 Override guides root: `CM_REPOS_DIR` (must match on laptops and `serve` when
@@ -53,9 +54,8 @@ using server-side init).
 | `app.db` | SQLite state for [`serve`](serve.md) (repos, jobs, reviews) |
 | `clones/` | Disposable bare clones for server jobs |
 | `wt/` | Short-lived worktrees per PR on the server |
-| `tools/` | Pinned helper binaries (for example codegraph), not on your PATH |
 
-Override: `CM_APP_DB`, `CM_CLONES_DIR`, `CM_TOOLS_DIR` (see [Overrides](#overrides)).
+Override: `CM_APP_DB`, `CM_CLONES_DIR` (see [Overrides](#overrides)).
 
 ### Tools directory
 

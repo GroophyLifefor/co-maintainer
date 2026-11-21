@@ -40,6 +40,7 @@ co-maintainer probe owner/repo [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+| `--env=PATH` |  | Read environment variables from a .env file first. A variable already set wins. |
 
 ## `co-maintainer init`
 
@@ -108,6 +109,7 @@ co-maintainer init owner/repo [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+| `--env=PATH` |  | Read environment variables from a .env file first. A variable already set wins. |
 
 ### Performance
 
@@ -115,7 +117,6 @@ co-maintainer init owner/repo [options]
 |---|---|---|
 | `--gh-concurrent=N` | 1 | Concurrent GitHub calls for this run only. It does not change the saved default. |
 | `--ai-concurrent=N` | 3 | Concurrent AI calls for this run only. It does not change the saved default. |
-| `--improve-matrix=N` | 1 | How many improvement passes to run. Capped at 4, and each pass costs more. |
 
 ## `co-maintainer sync`
 
@@ -184,6 +185,7 @@ co-maintainer sync owner/repo [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+| `--env=PATH` |  | Read environment variables from a .env file first. A variable already set wins. |
 
 ### Performance
 
@@ -263,11 +265,18 @@ co-maintainer review [options]
 | `--plantuml-server=URL` | https://www.plantuml.com | The PlantUML server for plantuml-server. An http or https URL. The diagram source travels in the image link. |
 | `--plantuml-output-format=svg\|png` | svg | The image format for plantuml-server. |
 
+### Depth
+
+| Flag | Default | Description |
+|---|---|---|
+| `--improve-matrix=N` | 1 | How many passes the review model makes over its own findings. Capped at 4, and each pass costs more. |
+| `--review-upstream` |  | On a pull request, review the code merged in from the base branch too, not only what the author wrote. |
+
 ### AI
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. `none` turns AI off. |
+| `--ai=openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` |  | Which provider writes the review. With none saved, OpenRouter. --ai=none is refused. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
@@ -293,6 +302,7 @@ co-maintainer review [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+| `--env=PATH` |  | Read environment variables from a .env file first. A variable already set wins. |
 | `--output=github` |  | Print GitHub workflow annotations and write the job summary instead of prose. Cannot be used with --json. |
 | `--include-extension-markdowns` |  | With --json, keep each extension's markdown. It is empty otherwise. |
 
@@ -430,6 +440,7 @@ co-maintainer set [options]
 | `--repo=owner/repo` |  | Write the repository-scoped settings below to this repository instead of the global config. |
 | `--gh-concurrent=N` |  | Server default for concurrent GitHub calls. With --repo, the repository override. 1..16. |
 | `--ai-concurrent=N` |  | Server default for concurrent AI calls. With --repo, the repository override. 1..16. |
+| `--review-references=on\|off` |  | Show the rules each finding rests on in review comments and the terminal. Needs --repo. |
 | `--review-system-prompt=TEXT` |  | A repository's own review instructions. Needs --repo. Empty clears it. |
 | `--review-system-prompt-max-chars=N` |  | Cap the repository's review instructions in characters. Needs --repo. 0 or -1 means no limit. |
 | `--diagram-runtime=mermaid\|plantuml\|plantuml-server` | mermaid | The diagram language for a repository's reviews, including App reviews. Needs --repo. |
@@ -486,8 +497,7 @@ co-maintainer serve --port=N [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--debug` |  | Print the underlying gh and HTTP calls. |
-| `--log-time` |  | Print how long each phase took. |
+| `--debug` |  | Turn on the /__ui component gallery. CM_DEBUG=1 does the same. |
 
 ## `co-maintainer extension`
 

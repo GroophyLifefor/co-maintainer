@@ -4240,7 +4240,7 @@ which is only for reading a repository locally. See
 ## Create it from the dashboard
 
 1. Start [`serve`](serve.md) and open the dashboard.
-2. Set a public webhook address under **Settings**, **Server**.
+2. Set a public webhook address under **Settings**, **GitHub**.
 3. In the GitHub App card, keep or edit the suggested name and press
    **Create GitHub App**.
 4. GitHub shows the permissions and events listed below and asks you to confirm.
@@ -4553,6 +4553,7 @@ co-maintainer probe owner/repo [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+| `--env=PATH` |  | Read environment variables from a .env file first. A variable already set wins. |
 
 ## `co-maintainer init`
 
@@ -4621,6 +4622,7 @@ co-maintainer init owner/repo [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+| `--env=PATH` |  | Read environment variables from a .env file first. A variable already set wins. |
 
 ### Performance
 
@@ -4628,7 +4630,6 @@ co-maintainer init owner/repo [options]
 |---|---|---|
 | `--gh-concurrent=N` | 1 | Concurrent GitHub calls for this run only. It does not change the saved default. |
 | `--ai-concurrent=N` | 3 | Concurrent AI calls for this run only. It does not change the saved default. |
-| `--improve-matrix=N` | 1 | How many improvement passes to run. Capped at 4, and each pass costs more. |
 
 ## `co-maintainer sync`
 
@@ -4697,6 +4698,7 @@ co-maintainer sync owner/repo [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+| `--env=PATH` |  | Read environment variables from a .env file first. A variable already set wins. |
 
 ### Performance
 
@@ -4776,11 +4778,18 @@ co-maintainer review [options]
 | `--plantuml-server=URL` | https://www.plantuml.com | The PlantUML server for plantuml-server. An http or https URL. The diagram source travels in the image link. |
 | `--plantuml-output-format=svg\|png` | svg | The image format for plantuml-server. |
 
+### Depth
+
+| Flag | Default | Description |
+|---|---|---|
+| `--improve-matrix=N` | 1 | How many passes the review model makes over its own findings. Capped at 4, and each pass costs more. |
+| `--review-upstream` |  | On a pull request, review the code merged in from the base branch too, not only what the author wrote. |
+
 ### AI
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. `none` turns AI off. |
+| `--ai=openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` |  | Which provider writes the review. With none saved, OpenRouter. --ai=none is refused. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
@@ -4806,6 +4815,7 @@ co-maintainer review [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+| `--env=PATH` |  | Read environment variables from a .env file first. A variable already set wins. |
 | `--output=github` |  | Print GitHub workflow annotations and write the job summary instead of prose. Cannot be used with --json. |
 | `--include-extension-markdowns` |  | With --json, keep each extension's markdown. It is empty otherwise. |
 
@@ -4943,6 +4953,7 @@ co-maintainer set [options]
 | `--repo=owner/repo` |  | Write the repository-scoped settings below to this repository instead of the global config. |
 | `--gh-concurrent=N` |  | Server default for concurrent GitHub calls. With --repo, the repository override. 1..16. |
 | `--ai-concurrent=N` |  | Server default for concurrent AI calls. With --repo, the repository override. 1..16. |
+| `--review-references=on\|off` |  | Show the rules each finding rests on in review comments and the terminal. Needs --repo. |
 | `--review-system-prompt=TEXT` |  | A repository's own review instructions. Needs --repo. Empty clears it. |
 | `--review-system-prompt-max-chars=N` |  | Cap the repository's review instructions in characters. Needs --repo. 0 or -1 means no limit. |
 | `--diagram-runtime=mermaid\|plantuml\|plantuml-server` | mermaid | The diagram language for a repository's reviews, including App reviews. Needs --repo. |
@@ -4999,8 +5010,7 @@ co-maintainer serve --port=N [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--debug` |  | Print the underlying gh and HTTP calls. |
-| `--log-time` |  | Print how long each phase took. |
+| `--debug` |  | Turn on the /__ui component gallery. CM_DEBUG=1 does the same. |
 
 ## `co-maintainer extension`
 
@@ -5551,6 +5561,8 @@ GitHub.
 | -------- | ------ |
 | `CM_CONFIG_PATH` | Replace `config.json` location (tests) |
 | `CM_REPOS_DIR` | Replace generated guides root (must match `serve` for server init) |
+| `CO_MAINTAINER_AI` | The AI provider, the same as `--ai`, for the CLI and `serve` |
+| `CM_DEBUG` | On `serve`, `1` does what `--debug` does: the `/__ui` component gallery |
 
 More cache and database paths: [Caching](caching.md#overrides).
 
@@ -5940,12 +5952,12 @@ flowchart TB
 
   config --> cfg["config.json"]
   config --> guides["repos/ owner-repo / guides"]
+  config --> tools["tools/ codegraph pins"]
 
   cache --> cdb["cache.db evidence AI jobs"]
   cache --> appdb["app.db serve only"]
   cache --> clones["clones/ bare repos"]
   cache --> wt["wt/ PR worktrees"]
-  cache --> tools["tools/ codegraph pins"]
 ```
 
 ### Config directory
@@ -5961,6 +5973,7 @@ flowchart TB
 | `config.json` | Global `set` values and `repos["owner/repo"]` memory |
 | `repos/<owner>/<repo>/` | Generated guides for one GitHub repo (see below) |
 | `extensions/<run-id>/` | Short-lived folder of one review's [extension](extensions.md) files, removed when the review ends |
+| `tools/` | Pinned helper binaries (for example codegraph), not on your PATH. `CM_TOOLS_DIR` moves it |
 
 Override: `CM_CONFIG_PATH` points at a different `config.json`.
 Override guides root: `CM_REPOS_DIR` (must match on laptops and `serve` when
@@ -5980,9 +5993,8 @@ using server-side init).
 | `app.db` | SQLite state for [`serve`](serve.md) (repos, jobs, reviews) |
 | `clones/` | Disposable bare clones for server jobs |
 | `wt/` | Short-lived worktrees per PR on the server |
-| `tools/` | Pinned helper binaries (for example codegraph), not on your PATH |
 
-Override: `CM_APP_DB`, `CM_CLONES_DIR`, `CM_TOOLS_DIR` (see [Overrides](#overrides)).
+Override: `CM_APP_DB`, `CM_CLONES_DIR` (see [Overrides](#overrides)).
 
 ### Tools directory
 
@@ -6410,7 +6422,7 @@ is the safe default.
 | `Missing low model` or `Missing high model` | No model is saved or passed, and there is no terminal to ask on | co-maintainer never picks a model. Pass `--low-model=` and `--high-model=`, or save them once with `co-maintainer set` |
 | `No low model is configured.` or `No high model is configured.` | A review reached a model that was never set | Run `co-maintainer set --low-model=...`, or pass `--low-model=...` on the command |
 | `review needs an AI provider` | `review --ai=none` | Pass a provider, or leave `--ai` out to use the saved one. See [AI providers](providers.md#where-each-provider-works) |
-| `init and sync need an AI provider` | `init` or `sync` ran with `--ai=none`, or no provider is saved | The guides are written by the provider. Save one with `co-maintainer set --ai=... --token=... --low-model=... --high-model=...` |
+| `init and sync need an AI provider` | `init` or `sync` ran with `--ai=none`, or `none` is saved. Exit code 2 | The guides are written by the provider. Pass `--ai=...`, or save one with `co-maintainer set --ai=... --token=... --low-model=... --high-model=...` |
 | `AI failed to generate the guides` | A non-provider error (for example a cache-write failure) broke the build | The provider path itself is not fatal: a failed unit is dropped and the run continues. Rerun [`sync`](sync.md), which continues from the cached fetch and extraction |
 | `GitHub refused <METHOD> <endpoint>` | The token or the App lacks a permission for that call | The message names the missing permission, for example `Pull requests: Read and write`. See [Authentication](authentication.md) and [GitHub App](github-app.md) |
 | `GitHub returned 404 for` | The repository does not exist, or the token or App cannot see it | The message repeats the permission the call needs |
@@ -6431,8 +6443,7 @@ is the safe default.
 | `clear needs one target` | `clear` was called with no repository and no `all` | Pass `owner/repo` or `all`. See [Caching](caching.md#clearing) |
 | `clear all needs your confirmation` | `clear all` has no terminal to ask on | Run it in a terminal, or pass `--yes` |
 | `Uninstall needs your confirmation` | `uninstall` has no terminal to ask on | Run it in a terminal, or pass `--yes` |
-| `A co-maintainer serve process (pid N) is using this data directory` | `clear`, `uninstall` or `rollback` needs exclusive access | Stop `serve`, then run the command again |
-| `serve is already running` | Two `serve` processes share one `app.db` | Stop the other one, or point `CM_APP_DB` elsewhere |
+| `A co-maintainer serve process (pid N) is using this data directory` | `init`, `sync`, `clear`, `uninstall`, `rollback` or a second `serve` needs the dashboard database for itself while a `serve` uses it | Run [`sync`](sync.md) from that server's dashboard, or stop `serve` and run the command again. A second `serve` can use its own `CM_APP_DB` |
 
 `init`, `sync`, and `review` also refuse to start when a required value is still
 missing and there is no terminal to prompt on. `--json` never prompts, so a

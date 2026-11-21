@@ -192,8 +192,8 @@ is the safe default.</p>
 </tr>
 <tr>
 <td><code>init and sync need an AI provider</code></td>
-<td><code>init</code> or <code>sync</code> ran with <code>--ai=none</code>, or no provider is saved</td>
-<td>The guides are written by the provider. Save one with <code>co-maintainer set --ai=... --token=... --low-model=... --high-model=...</code></td>
+<td><code>init</code> or <code>sync</code> ran with <code>--ai=none</code>, or <code>none</code> is saved. Exit code 2</td>
+<td>The guides are written by the provider. Pass <code>--ai=...</code>, or save one with <code>co-maintainer set --ai=... --token=... --low-model=... --high-model=...</code></td>
 </tr>
 <tr>
 <td><code>AI failed to generate the guides</code></td>
@@ -297,13 +297,8 @@ is the safe default.</p>
 </tr>
 <tr>
 <td><code>A co-maintainer serve process (pid N) is using this data directory</code></td>
-<td><code>clear</code>, <code>uninstall</code> or <code>rollback</code> needs exclusive access</td>
-<td>Stop <code>serve</code>, then run the command again</td>
-</tr>
-<tr>
-<td><code>serve is already running</code></td>
-<td>Two <code>serve</code> processes share one <code>app.db</code></td>
-<td>Stop the other one, or point <code>CM_APP_DB</code> elsewhere</td>
+<td><code>init</code>, <code>sync</code>, <code>clear</code>, <code>uninstall</code>, <code>rollback</code> or a second <code>serve</code> needs the dashboard database for itself while a <code>serve</code> uses it</td>
+<td>Run <a href="sync.html"><code>sync</code></a> from that server&#39;s dashboard, or stop <code>serve</code> and run the command again. A second <code>serve</code> can use its own <code>CM_APP_DB</code></td>
 </tr>
 </tbody></table>
 <p><code>init</code>, <code>sync</code>, and <code>review</code> also refuse to start when a required value is still

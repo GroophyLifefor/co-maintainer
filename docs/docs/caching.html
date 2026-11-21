@@ -100,12 +100,12 @@ layout is meant to be edited by hand.</p>
 
   config --> cfg["config.json"]
   config --> guides["repos/ owner-repo / guides"]
+  config --> tools["tools/ codegraph pins"]
 
   cache --> cdb["cache.db evidence AI jobs"]
   cache --> appdb["app.db serve only"]
   cache --> clones["clones/ bare repos"]
-  cache --> wt["wt/ PR worktrees"]
-  cache --> tools["tools/ codegraph pins"]</div></div>
+  cache --> wt["wt/ PR worktrees"]</div></div>
 </figure>
 
 
@@ -149,6 +149,10 @@ layout is meant to be edited by hand.</p>
 <tr>
 <td><code>extensions/&lt;run-id&gt;/</code></td>
 <td>Short-lived folder of one review&#39;s <a href="extensions.html">extension</a> files, removed when the review ends</td>
+</tr>
+<tr>
+<td><code>tools/</code></td>
+<td>Pinned helper binaries (for example codegraph), not on your PATH. <code>CM_TOOLS_DIR</code> moves it</td>
 </tr>
 </tbody></table>
 <p>Override: <code>CM_CONFIG_PATH</code> points at a different <code>config.json</code>.
@@ -198,12 +202,8 @@ using server-side init).</p>
 <td><code>wt/</code></td>
 <td>Short-lived worktrees per PR on the server</td>
 </tr>
-<tr>
-<td><code>tools/</code></td>
-<td>Pinned helper binaries (for example codegraph), not on your PATH</td>
-</tr>
 </tbody></table>
-<p>Override: <code>CM_APP_DB</code>, <code>CM_CLONES_DIR</code>, <code>CM_TOOLS_DIR</code> (see <a href="#overrides">Overrides</a>).</p>
+<p>Override: <code>CM_APP_DB</code>, <code>CM_CLONES_DIR</code> (see <a href="#overrides">Overrides</a>).</p>
 <h3 id="tools-directory">Tools directory</h3>
 <p><code>tools/</code> holds helper binaries downloaded by co-maintainer, each pinned by
 version so an upgrade never overwrites a working install:</p>
