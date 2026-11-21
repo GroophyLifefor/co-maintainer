@@ -439,11 +439,14 @@ co-maintainer set [options]
 | `--review-tool-result-max-chars=N` | 8000 | The most characters one review tool result returns before it is cut. Codegraph and read-full-diff are not cut by it. Needs --repo. 0 or -1 means no limit. |
 | `--review-tool-budget-chars=N` | 40000 | Tool result characters per review. Once they are spent, later tool calls get no answer. Codegraph is not counted. Needs --repo. 0 or -1 means no limit. |
 | `--review-search-max-context-lines=N` | 3 | The most lines search-non-code returns around a match. Needs --repo. 0 or -1 means no limit. |
+| `--review-diff-max-chars=N` | 240000 | The DIFF section of a review prompt, in characters. Raise it for a model with a large context. Needs --repo. 0 or -1 means no limit. |
+| `--review-file-patch-max-chars=N` | 12000 | Where one file's patch is cut and marked partial. Needs --repo. 0 or -1 means no limit. |
 | `--mcp-config=PATH` |  | Read the repository's MCP servers from this JSON file and store them. Reviews offer their listed read-only tools to the model. Needs --repo. Refused when CM_MCP_DISABLED=1. |
 | `--mcp-allow-forks=true\|false` | false | Offer MCP tools in serve reviews of pull requests from forks. Needs --repo. |
 | `--guide-full-every=N` | 10 | Every N-th sync whose input changed rewrites the review guide in full, the others edit it. 1 always rewrites, 0 never after init. Needs --repo. |
 | `--companions=owner/repo,...` |  | Repositories whose pull requests a review of this one may read as companions, up to 5. A Companion: owner/repo#N line in the pull request body names one, otherwise an open pull request with the same branch name is used. Needs --repo. |
-| `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |
+| `--review-blocking=model\|severity` | model | How a review decides a blocking finding. With --repo, for that repository. |
+| `--review-event=auto\|comment` | auto | How the App posts a review: approve or request changes, or comment only. With --repo, for that repository. |
 | `--ai-timeout-minutes=N` | 15 | How long one AI request may wait for the provider before it fails, in minutes. |
 | `--global-reasoning-effort=none\|low\|default\|high\|xhigh\|max` | high | How much the model reasons in every AI job. default sends no reasoning field and leaves it to the provider. |
 | `--codegraph-version=SEMVER` |  | The pinned codegraph version, overriding the built-in one. For a security fix without a release. |

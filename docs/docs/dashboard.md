@@ -163,7 +163,9 @@ page **Found** card, and the Usage cards and severity rows do the same.
 finding, with a repository filter. A source filter narrows it to pull request
 reviews, pushes, remote reviews, CLI reviews, or the findings
 [extensions](extensions.md) added. A finding with no pull request opens the
-review that found it. Each repository has the same list
+review that found it. **Close** closes a finding as accepted risk or will not
+fix and asks why, **Reopen** opens a closed or withdrawn one again, see
+[Closing a finding](review-policy.md#closing-a-finding). Each repository has the same list
 on its **Findings** tab. A finding carried from round to round is one row, with
 the state it has now.
 

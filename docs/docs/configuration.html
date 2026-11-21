@@ -362,6 +362,21 @@ provider, so both models are saved the first time. See
 <td>Most context lines <code>search-non-code</code> returns around a match. Needs <code>--repo</code>. <code>0</code> or <code>-1</code> means no limit. Default <code>3</code></td>
 </tr>
 <tr>
+<td><code>--review-diff-max-chars=N</code></td>
+<td><code>repos[owner/repo].reviewDiffMaxChars</code></td>
+<td>Most characters of the DIFF section a review prompt carries. Raise it for a model with a large context. Needs <code>--repo</code>. <code>0</code> or <code>-1</code> means no limit. Default <code>240000</code></td>
+</tr>
+<tr>
+<td><code>--review-file-patch-max-chars=N</code></td>
+<td><code>repos[owner/repo].reviewFilePatchMaxChars</code></td>
+<td>Where one file&#39;s patch is cut and marked partial. Needs <code>--repo</code>. <code>0</code> or <code>-1</code> means no limit. Default <code>12000</code></td>
+</tr>
+<tr>
+<td><code>--review-event=auto|comment</code></td>
+<td><code>reviewEvent</code>, <code>repos[owner/repo].reviewEvent</code></td>
+<td>How the App posts a review, see <a href="review-policy.html#comment-only">Comment only</a>. With <code>--repo</code>, for that repository. Default <code>auto</code></td>
+</tr>
+<tr>
 <td><code>--mcp-config=PATH</code></td>
 <td><code>repos[owner/repo].mcpServers</code></td>
 <td>Reads the repository&#39;s <a href="#mcp-servers">MCP servers</a> from a JSON file and stores them. Needs <code>--repo</code>. Refused when <code>CM_MCP_DISABLED=1</code></td>

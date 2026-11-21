@@ -195,7 +195,9 @@ installed, and installs the pinned version when you pass <code>--allow-tool-inst
 It never prompts: a PR review runs unattended. The question and its rules are in
 <a href="local-review.html#codegraph">local review</a>, and <a href="codegraph.html">Codegraph</a> lists
 the install table and the version-resolution order.</p>
-<p>Auth and models follow <a href="configuration.html"><code>configuration</code></a> and <code>co-maintainer set</code> like other commands (<code>--auth=pat</code> is not used for PR review).</p>
+<p>Auth and models follow <a href="configuration.html"><code>configuration</code></a> and <code>co-maintainer set</code> like other commands. PR review reads GitHub through <code>gh</code>: a saved
+<code>auth=pat</code> is left out and the review goes on with <code>gh</code>, and <code>--auth=pat</code> on
+the command line is refused.</p>
 <h2 id="carry-over">Carry-over</h2>
 <p>A PR review remembers its findings between runs. Each run is stored in the
 <a href="caching.html">cache</a>, keyed by repository and pull request number. The next run

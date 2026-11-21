@@ -1264,6 +1264,16 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td>The most lines search-non-code returns around a match. Needs --repo. 0 or -1 means no limit.</td>
 </tr>
 <tr>
+<td><code>--review-diff-max-chars=N</code></td>
+<td>240000</td>
+<td>The DIFF section of a review prompt, in characters. Raise it for a model with a large context. Needs --repo. 0 or -1 means no limit.</td>
+</tr>
+<tr>
+<td><code>--review-file-patch-max-chars=N</code></td>
+<td>12000</td>
+<td>Where one file&#39;s patch is cut and marked partial. Needs --repo. 0 or -1 means no limit.</td>
+</tr>
+<tr>
 <td><code>--mcp-config=PATH</code></td>
 <td></td>
 <td>Read the repository&#39;s MCP servers from this JSON file and store them. Reviews offer their listed read-only tools to the model. Needs --repo. Refused when CM_MCP_DISABLED=1.</td>
@@ -1286,7 +1296,12 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <tr>
 <td><code>--review-blocking=model|severity</code></td>
 <td>model</td>
-<td>How a review decides a blocking finding.</td>
+<td>How a review decides a blocking finding. With --repo, for that repository.</td>
+</tr>
+<tr>
+<td><code>--review-event=auto|comment</code></td>
+<td>auto</td>
+<td>How the App posts a review: approve or request changes, or comment only. With --repo, for that repository.</td>
 </tr>
 <tr>
 <td><code>--ai-timeout-minutes=N</code></td>

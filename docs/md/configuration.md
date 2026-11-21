@@ -104,6 +104,9 @@ provider, so both models are saved the first time. See
 | `--review-tool-result-max-chars=N` | `repos[owner/repo].reviewToolResultMaxChars` | Most characters one review tool result returns. Needs `--repo`. `0` or `-1` means no limit. Default `8000` |
 | `--review-tool-budget-chars=N` | `repos[owner/repo].reviewToolBudgetChars` | Tool result characters per review. Needs `--repo`. `0` or `-1` means no limit. Default `40000` |
 | `--review-search-max-context-lines=N` | `repos[owner/repo].reviewSearchMaxContextLines` | Most context lines `search-non-code` returns around a match. Needs `--repo`. `0` or `-1` means no limit. Default `3` |
+| `--review-diff-max-chars=N` | `repos[owner/repo].reviewDiffMaxChars` | Most characters of the DIFF section a review prompt carries. Raise it for a model with a large context. Needs `--repo`. `0` or `-1` means no limit. Default `240000` |
+| `--review-file-patch-max-chars=N` | `repos[owner/repo].reviewFilePatchMaxChars` | Where one file's patch is cut and marked partial. Needs `--repo`. `0` or `-1` means no limit. Default `12000` |
+| `--review-event=auto\|comment` | `reviewEvent`, `repos[owner/repo].reviewEvent` | How the App posts a review, see [Comment only](review-policy.md#comment-only). With `--repo`, for that repository. Default `auto` |
 | `--mcp-config=PATH` | `repos[owner/repo].mcpServers` | Reads the repository's [MCP servers](#mcp-servers) from a JSON file and stores them. Needs `--repo`. Refused when `CM_MCP_DISABLED=1` |
 | `--mcp-allow-forks=true\|false` | `repos[owner/repo].mcpAllowForks` | Offers MCP tools in `serve` reviews of pull requests from forks. Needs `--repo`. Default `false` |
 | `--companions=owner/repo,...` | `repos[owner/repo].companions` | Repositories whose pull requests a review may read as [companions](companions.md#companion-pull-requests), up to 5. Needs `--repo`. A blank value clears it |

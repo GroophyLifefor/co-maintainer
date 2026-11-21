@@ -2547,6 +2547,33 @@ dashboard, or `skippers` in the policy, lists their relation to the
 repository. A comment from anyone else is ignored, with no reply and no
 reaction.
 
+### Closing a finding
+
+The owner has the last word on a finding, the model does not have to agree. A
+reply of `/co-maintainer dismiss` in a finding's thread, with an optional
+reason after it, closes that finding as dismissed: accepted risk, will not fix.
+The same people who may skip may dismiss, and a comment from anyone else is
+ignored. The bot answers in the thread, and the finding is not raised again
+while its lines stay the same. The dashboard's **Findings** list has the same
+**Close** button, and **Reopen** opens a dismissed or withdrawn finding again.
+Each one goes to the audit log with its reason.
+
+When the bot agrees in a reply that a finding was wrong, it withdraws it. When
+a withdrawn or dismissed finding was the last blocking one, the review asked for
+changes, and the pull request is still on the commit that review read, the bot
+approves that commit with a fixed text, without an AI call. Otherwise the next
+round decides.
+
+### Comment only
+
+**How the review is posted** in a repository's settings, `--review-event` with
+`set --repo`, or the server default under **Settings**, **Review defaults**:
+
+| Value | What the App posts |
+| ----- | ------------------ |
+| `auto` | Approve, or request changes when a finding blocks. The default |
+| `comment` | A plain comment with the same findings. The bot never approves and never blocks, so it does not count toward required approvals and the merge is left to people |
+
 ### Round limit
 
 **Reviews per pull request** stops the webhook after that many reviews. A request
@@ -2711,7 +2738,9 @@ It never prompts: a PR review runs unattended. The question and its rules are in
 the install table and the version-resolution order.
 
 Auth and models follow [`configuration`](configuration.md) and `co-maintainer
-set` like other commands (`--auth=pat` is not used for PR review).
+set` like other commands. PR review reads GitHub through `gh`: a saved
+`auth=pat` is left out and the review goes on with `gh`, and `--auth=pat` on
+the command line is refused.
 
 ## Carry-over
 
@@ -3907,7 +3936,9 @@ page **Found** card, and the Usage cards and severity rows do the same.
 finding, with a repository filter. A source filter narrows it to pull request
 reviews, pushes, remote reviews, CLI reviews, or the findings
 [extensions](extensions.md) added. A finding with no pull request opens the
-review that found it. Each repository has the same list
+review that found it. **Close** closes a finding as accepted risk or will not
+fix and asks why, **Reopen** opens a closed or withdrawn one again, see
+[Closing a finding](review-policy.md#closing-a-finding). Each repository has the same list
 on its **Findings** tab. A finding carried from round to round is one row, with
 the state it has now.
 
@@ -4921,11 +4952,14 @@ co-maintainer set [options]
 | `--review-tool-result-max-chars=N` | 8000 | The most characters one review tool result returns before it is cut. Codegraph and read-full-diff are not cut by it. Needs --repo. 0 or -1 means no limit. |
 | `--review-tool-budget-chars=N` | 40000 | Tool result characters per review. Once they are spent, later tool calls get no answer. Codegraph is not counted. Needs --repo. 0 or -1 means no limit. |
 | `--review-search-max-context-lines=N` | 3 | The most lines search-non-code returns around a match. Needs --repo. 0 or -1 means no limit. |
+| `--review-diff-max-chars=N` | 240000 | The DIFF section of a review prompt, in characters. Raise it for a model with a large context. Needs --repo. 0 or -1 means no limit. |
+| `--review-file-patch-max-chars=N` | 12000 | Where one file's patch is cut and marked partial. Needs --repo. 0 or -1 means no limit. |
 | `--mcp-config=PATH` |  | Read the repository's MCP servers from this JSON file and store them. Reviews offer their listed read-only tools to the model. Needs --repo. Refused when CM_MCP_DISABLED=1. |
 | `--mcp-allow-forks=true\|false` | false | Offer MCP tools in serve reviews of pull requests from forks. Needs --repo. |
 | `--guide-full-every=N` | 10 | Every N-th sync whose input changed rewrites the review guide in full, the others edit it. 1 always rewrites, 0 never after init. Needs --repo. |
 | `--companions=owner/repo,...` |  | Repositories whose pull requests a review of this one may read as companions, up to 5. A Companion: owner/repo#N line in the pull request body names one, otherwise an open pull request with the same branch name is used. Needs --repo. |
-| `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |
+| `--review-blocking=model\|severity` | model | How a review decides a blocking finding. With --repo, for that repository. |
+| `--review-event=auto\|comment` | auto | How the App posts a review: approve or request changes, or comment only. With --repo, for that repository. |
 | `--ai-timeout-minutes=N` | 15 | How long one AI request may wait for the provider before it fails, in minutes. |
 | `--global-reasoning-effort=none\|low\|default\|high\|xhigh\|max` | high | How much the model reasons in every AI job. default sends no reasoning field and leaves it to the provider. |
 | `--codegraph-version=SEMVER` |  | The pinned codegraph version, overriding the built-in one. For a security fix without a release. |
@@ -5151,6 +5185,9 @@ provider, so both models are saved the first time. See
 | `--review-tool-result-max-chars=N` | `repos[owner/repo].reviewToolResultMaxChars` | Most characters one review tool result returns. Needs `--repo`. `0` or `-1` means no limit. Default `8000` |
 | `--review-tool-budget-chars=N` | `repos[owner/repo].reviewToolBudgetChars` | Tool result characters per review. Needs `--repo`. `0` or `-1` means no limit. Default `40000` |
 | `--review-search-max-context-lines=N` | `repos[owner/repo].reviewSearchMaxContextLines` | Most context lines `search-non-code` returns around a match. Needs `--repo`. `0` or `-1` means no limit. Default `3` |
+| `--review-diff-max-chars=N` | `repos[owner/repo].reviewDiffMaxChars` | Most characters of the DIFF section a review prompt carries. Raise it for a model with a large context. Needs `--repo`. `0` or `-1` means no limit. Default `240000` |
+| `--review-file-patch-max-chars=N` | `repos[owner/repo].reviewFilePatchMaxChars` | Where one file's patch is cut and marked partial. Needs `--repo`. `0` or `-1` means no limit. Default `12000` |
+| `--review-event=auto\|comment` | `reviewEvent`, `repos[owner/repo].reviewEvent` | How the App posts a review, see [Comment only](review-policy.md#comment-only). With `--repo`, for that repository. Default `auto` |
 | `--mcp-config=PATH` | `repos[owner/repo].mcpServers` | Reads the repository's [MCP servers](#mcp-servers) from a JSON file and stores them. Needs `--repo`. Refused when `CM_MCP_DISABLED=1` |
 | `--mcp-allow-forks=true\|false` | `repos[owner/repo].mcpAllowForks` | Offers MCP tools in `serve` reviews of pull requests from forks. Needs `--repo`. Default `false` |
 | `--companions=owner/repo,...` | `repos[owner/repo].companions` | Repositories whose pull requests a review may read as [companions](companions.md#companion-pull-requests), up to 5. Needs `--repo`. A blank value clears it |

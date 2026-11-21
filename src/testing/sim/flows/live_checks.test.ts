@@ -74,6 +74,8 @@ const SKIPPED_LIVE: Record<string, number> = {
   "companions-app": 4,
   "diagram-runtime": 5,
   extensions: 2,
+  // The withdrawal and the reopen that follows it depend on the model.
+  "finding-control": 2,
   "guide-sources": 4,
   "init-sync": 10,
   instructions: 7,

@@ -112,6 +112,33 @@ dashboard, or `skippers` in the policy, lists their relation to the
 repository. A comment from anyone else is ignored, with no reply and no
 reaction.
 
+### Closing a finding
+
+The owner has the last word on a finding, the model does not have to agree. A
+reply of `/co-maintainer dismiss` in a finding's thread, with an optional
+reason after it, closes that finding as dismissed: accepted risk, will not fix.
+The same people who may skip may dismiss, and a comment from anyone else is
+ignored. The bot answers in the thread, and the finding is not raised again
+while its lines stay the same. The dashboard's **Findings** list has the same
+**Close** button, and **Reopen** opens a dismissed or withdrawn finding again.
+Each one goes to the audit log with its reason.
+
+When the bot agrees in a reply that a finding was wrong, it withdraws it. When
+a withdrawn or dismissed finding was the last blocking one, the review asked for
+changes, and the pull request is still on the commit that review read, the bot
+approves that commit with a fixed text, without an AI call. Otherwise the next
+round decides.
+
+### Comment only
+
+**How the review is posted** in a repository's settings, `--review-event` with
+`set --repo`, or the server default under **Settings**, **Review defaults**:
+
+| Value | What the App posts |
+| ----- | ------------------ |
+| `auto` | Approve, or request changes when a finding blocks. The default |
+| `comment` | A plain comment with the same findings. The bot never approves and never blocks, so it does not count toward required approvals and the merge is left to people |
+
 ### Round limit
 
 **Reviews per pull request** stops the webhook after that many reviews. A request
