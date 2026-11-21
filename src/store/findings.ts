@@ -59,22 +59,64 @@ export function listCarryableFindingsForReview(reviewId: string): FindingRow[] {
 /** A finding the bot agreed was wrong, in a reply on its thread. It is
  * closed at once, so the next round does not carry it as still open. */
 export function withdrawFinding(id: string): void {
+  // The copies later rounds carried from it close too: the newest copy is the
+  // one the Findings list shows and the next review's event counts.
   getAppDb()
     .prepare(
-      `UPDATE findings SET state = 'closed', close_reason = 'withdrawn' WHERE id = ?`,
+      `WITH RECURSIVE chain(id) AS (
+         SELECT ?
+         UNION
+         SELECT f.id FROM findings f INNER JOIN chain c ON f.carried_from_finding_id = c.id
+       )
+       UPDATE findings SET state = 'closed', close_reason = 'withdrawn'
+       WHERE id IN (SELECT id FROM chain)`,
     )
     .run(id);
 }
 
-/** Every finding of a pull request the bot withdrew, so a later round does
- * not raise it again while its lines are unchanged. */
+/** Every finding of a pull request the bot withdrew or a maintainer
+ * dismissed, so a later round does not raise it again while its lines are
+ * unchanged. */
 export function listWithdrawnFindingsForPr(
   repo: string,
   prNumber: number,
 ): FindingRow[] {
   return listFindingsForPr(repo, prNumber).filter(
-    (row) => row.close_reason === "withdrawn",
+    (row) =>
+      row.close_reason === "withdrawn" || row.close_reason === "dismissed",
   );
+}
+
+/** A maintainer closes a finding (accepted risk, will not fix) or opens it
+ * again. Like a withdrawal it covers the copies later rounds carried from
+ * it. Reopening only undoes a close made on purpose, never a fix. */
+export function setFindingDismissed(id: string, dismissed: boolean): number {
+  const chain = `WITH RECURSIVE chain(id) AS (
+      SELECT ?
+      UNION
+      SELECT f.id FROM findings f INNER JOIN chain c ON f.carried_from_finding_id = c.id
+    )`;
+  const result = dismissed
+    ? getAppDb()
+        .prepare(
+          `${chain} UPDATE findings SET state = 'closed', close_reason = 'dismissed'
+           WHERE id IN (SELECT id FROM chain)`,
+        )
+        .run(id)
+    : getAppDb()
+        .prepare(
+          `${chain} UPDATE findings SET state = 'open', close_reason = NULL
+           WHERE id IN (SELECT id FROM chain)
+             AND close_reason IN ('dismissed', 'withdrawn')`,
+        )
+        .run(id);
+  return Number(result.changes ?? 0);
+}
+
+export function getFinding(id: string): FindingRow | undefined {
+  return getAppDb()
+    .prepare<FindingRow>(`SELECT * FROM findings WHERE id = ?`)
+    .get(id);
 }
 
 export function setFindingPosted(

@@ -1,4 +1,6 @@
 /** Review jobs: run the model, persist findings, post to GitHub. */
+import { extensionsBlock } from "../extensions/report.ts";
+import { loadExtensionReport } from "../store/extensions.ts";
 import { setGitHubAuth } from "../pr/git_auth.ts";
 import { VERSION } from "../version.ts";
 import { createAiProvider } from "../ai/provider.ts";
@@ -57,6 +59,7 @@ import {
   resolveRepoSettings,
   resolvedAiToken,
   reviewAiProvider,
+  reviewEventMode,
 } from "../config.ts";
 import { outsideCode, redact } from "../util/redact.ts";
 import { getRepo, setInstallationId } from "../store/repos.ts";
@@ -930,7 +933,12 @@ async function publish(
   const payload = {
     commit_id: headSha,
     body,
-    event: reviewEventWithExtensions(appReviewEvent(stored, mode), extensions),
+    // A repository in comment mode never approves or blocks, whatever the
+    // findings or the extensions say: people decide the merge.
+    event:
+      reviewEventMode(readConfig(), job.repo) === "comment"
+        ? ("COMMENT" as const)
+        : reviewEventWithExtensions(appReviewEvent(stored, mode), extensions),
     comments,
   };
   setReviewStatus(reviewId, "posting");
@@ -1660,4 +1668,71 @@ export function roundArgs(
     sinceCommit: incremental ? last!.head_sha! : undefined,
     round: last ? last.round + 1 : 1,
   };
+}
+
+/** After the bot withdrew a finding in a reply: when its latest review asked
+ * for changes, the pull request is still on the commit that review read, no
+ * blocking finding is left open and no extension asked for changes, it
+ * approves that commit with a fixed text. No AI call. Otherwise nothing: the
+ * next round decides (#144). Returns what it did, for the job log. */
+export async function approveAfterWithdrawal(
+  client: GitHubClient,
+  repo: string,
+  prNumber: number,
+  withdrawnPath: string | null,
+  log: LogFn,
+  /** Who closed it, for a maintainer's dismiss. The bot's own withdrawal
+   * leaves it out. */
+  closedBy?: string,
+): Promise<"approved" | "skipped"> {
+  // In comment mode the bot never approves.
+  if (reviewEventMode(readConfig(), repo) === "comment") return "skipped";
+  const review = latestPostedReview(repo, prNumber);
+  if (!review?.posted_review_id || !review.head_sha) return "skipped";
+  const mode = reviewBlockingFrom(
+    resolveRepoSettings(readConfig(), repo).reviewBlocking.value,
+  );
+  const findings = listFindingsForReview(review.id);
+  if (appReviewEvent(findings, mode) !== "APPROVE") return "skipped";
+  if (extensionsBlock(loadExtensionReport(review.id))) return "skipped";
+  const reviews = await client.pages<Json>(
+    `repos/${repo}/pulls/${prNumber}/reviews`,
+  );
+  const ours = reviews.find(
+    (item) => String(item.id ?? "") === review.posted_review_id,
+  );
+  if (String(ours?.state ?? "") !== "CHANGES_REQUESTED") return "skipped";
+  const pull = await client.request<Json>(`repos/${repo}/pulls/${prNumber}`);
+  const head = String((pull.head as Json | undefined)?.sha ?? "");
+  if (head !== review.head_sha) return "skipped";
+  const where = withdrawnPath ? ` on \`${withdrawnPath}\`` : "";
+  // A GitHub login is named as one, anything else (a dashboard password
+  // sign-in) in plain words.
+  const how = closedBy
+    ? /^[A-Za-z0-9-]+$/.test(closedBy)
+      ? `was closed by \`@${closedBy}\``
+      : `was closed by ${closedBy}`
+    : "was withdrawn";
+  await post(client, `repos/${repo}/pulls/${prNumber}/reviews`, {
+    commit_id: head,
+    body: humanCopy(
+      `The finding${where} ${how}, so no blocking finding is left open. Approving.`,
+    ),
+    event: "APPROVE",
+  });
+  const open = findings.filter((row) => row.state !== "closed");
+  await finishCheck(
+    client,
+    {
+      repo,
+      pr_number: prNumber,
+    } as JobRow,
+    review.check_run_id ?? undefined,
+    open.length === 0 ? "success" : "neutral",
+    open.length === 0 ? "Review completed" : "Review findings",
+    findings,
+    log,
+  );
+  log("info", "approved: the withdrawn finding was the last blocking one");
+  return "approved";
 }

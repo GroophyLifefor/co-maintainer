@@ -1,5 +1,6 @@
+import { approveAfterWithdrawal } from "./review.ts";
 import { reasoningFields } from "../ai/reasoning.ts";
-import { safeCopy } from "../util/redact.ts";
+import { redact, safeCopy } from "../util/redact.ts";
 import { parseStoredReferences, referenceLine } from "../review/references.ts";
 import type { RulesFile } from "../knowledge/rules.ts";
 import { FakeAiProvider } from "../ai/fake.ts";
@@ -382,6 +383,22 @@ async function runReplyJobCore(
         "info",
         `finding ${finding.id.slice(0, 8)} withdrawn, the reply agreed it was wrong`,
       );
+      // Nothing else would clear a "changes requested" this was the last
+      // reason for: no new round comes until the next push.
+      try {
+        await approveAfterWithdrawal(
+          github,
+          request.repo,
+          request.pr_number,
+          finding.path,
+          log,
+        );
+      } catch (error) {
+        log(
+          "warn",
+          `could not approve after the withdrawal: ${redact(String(error))}`,
+        );
+      }
     }
   }
 }
