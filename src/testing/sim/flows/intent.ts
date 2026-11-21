@@ -439,6 +439,10 @@ function registerProbe(sim: Sim): void {
       {
         name: "intent-probe",
         command: `${process.execPath} ${script} {{details_path}} {{review_result_path}} {{diff_path}} ${log}`,
+        // After the review, so the folder holds cm-review.json too. Running
+        // beside a real model it started before the review wrote it, and no
+        // folder it read was complete.
+        runAfter: "review",
       },
     ],
   });

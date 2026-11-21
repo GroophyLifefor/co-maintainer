@@ -770,17 +770,21 @@ function remoteChecks(sim: Sim): CheckResult[] {
       "the client's own key paid for its review, whatever it found",
       (byok?.exitCode === 0 || byok?.exitCode === 1) &&
         byokAi.length > 0 &&
-        byokAi.every((call) => call.key === "client key") &&
+        // Live, the client key is the run's own key, the server's too, so
+        // only the billing can say who paid.
+        (sim.mode === "live" ||
+          byokAi.every((call) => call.key === "client key")) &&
         byokReview?.billed_to === "byok" &&
         (byok.json?.usage as Json | undefined)?.billedTo === "byok",
       `exit ${byok?.exitCode} · keys ${JSON.stringify([...new Set(byokAi.map((call) => call.key))])} · billed ${byokReview?.billed_to ?? "?"}`,
     ),
-    check(
+    scripted(
       "the client's key was used, never stored",
       keyPlaces.stored.length === 0 &&
         keyPlaces.inTrace === 1 &&
         keyPlaces.held === 0,
       `stored in ${keyPlaces.stored.join(", ") || "nothing"} · ${keyPlaces.inTrace} trace entry (the submit) · ${keyPlaces.held} held in memory`,
+      "live, the client key is the run's own key, which every server call carries too",
     ),
     scripted(
       "push review exits 0 with a P1 and reports the range",
@@ -1084,9 +1088,15 @@ export default defineFlow({
         // Random per run, like the world's secrets. It stays out of
         // `world.secrets`: the core's leak check would find it in the one
         // submit body that must carry it. The flow checks it itself.
-        const key = `sim-client-key-${crypto.randomUUID().replaceAll("-", "")}`;
+        // A live run needs a key the provider accepts, and the run's own key
+        // is the only one there is. It is the server's key too, so which
+        // key paid cannot be told apart then, and those checks are scripted.
+        const key =
+          sim.mode === "live"
+            ? sim.world.secrets.aiKey
+            : `sim-client-key-${crypto.randomUUID().replaceAll("-", "")}`;
         state(sim).byokKey = key;
-        wire.keys.set("client key", key);
+        if (sim.mode !== "live") wire.keys.set("client key", key);
         const checkout = clientChange(sim, "byok", "sim/byok", {
           "src/math.ts": `${SAMPLE_REPO["src/math.ts"]}\nexport function ratioOf(a: number, b: number): number {\n  return a / b;\n}\n`,
         });
@@ -1248,7 +1258,11 @@ export default defineFlow({
           }
           const jobId = old.submits[0]?.jobId;
           if (!jobId) return;
-          for (let poll = 0; poll < 500; poll++) {
+          // Bounded by time, not by a count tuned to the fake AI: a real
+          // model takes minutes, the fake one milliseconds.
+          const deadline =
+            Date.now() + (sim.mode === "live" ? 20 * 60_000 : 30_000);
+          while (Date.now() < deadline) {
             const sync = await post(`/api/remote/reviews/${jobId}/sync`, {
               ...fixture("sync.request.json"),
               afterLogSeq: 0,
@@ -1262,7 +1276,9 @@ export default defineFlow({
             ) {
               break;
             }
-            await new Promise((resolve) => setTimeout(resolve, 5));
+            await new Promise((resolve) =>
+              setTimeout(resolve, sim.mode === "live" ? 1000 : 5),
+            );
           }
         });
         return `${old.submits.map((submit) => submit.status).join(", ")} · ${String(old.final?.status)}`;

@@ -83,7 +83,7 @@ const SKIPPED_LIVE: Record<string, number> = {
   "large-diff": 6,
   local: 17,
   mcp: 1,
-  remote: 13,
+  remote: 14,
   "review-checks": 2,
   "review-references": 3,
   "search-non-code": 2,

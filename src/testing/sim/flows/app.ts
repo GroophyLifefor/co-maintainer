@@ -528,9 +528,11 @@ function firstRound(sim: Sim): CheckResult[] {
     .filter((row) => row.path === "src/math.ts")
     .every((row) =>
       posted.some(
+        // A range comment sits on its last line, a one-line one on its only
+        // line. Either is the finding's place.
         (comment) =>
           String(comment.id) === row.posted_comment_id &&
-          comment.line === row.line_from,
+          (comment.line === row.line_from || comment.line === row.line_to),
       ),
     );
   const product = [
@@ -792,7 +794,8 @@ function anchors(sim: Sim): CheckResult {
     .filter((row) => row.path === "src/math.ts")
     .flatMap((row) => {
       const want = OPENED_MATH.split("\n")[(row.line_from ?? 0) - 1];
-      return row.anchor_text === want
+      // A live model may anchor a range: its first line is the one pointed at.
+      return row.anchor_text?.split("\n")[0] === want
         ? []
         : [`line ${row.line_from}: ${JSON.stringify(row.anchor_text)}`];
     });
