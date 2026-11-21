@@ -22,6 +22,11 @@ import {
   setEnv,
   statSync,
 } from "../../util/runtime.ts";
+import { isolateTestFile } from "../../testing/locations.ts";
+
+// A request reads the AI timeout from config.json, which must not be the
+// real one.
+isolateTestFile();
 
 function withEnv(names: string[], values: Record<string, string>): () => void {
   const previous = new Map(names.map((name) => [name, getEnv(name)]));
