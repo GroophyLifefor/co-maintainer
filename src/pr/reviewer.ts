@@ -1026,9 +1026,25 @@ async function workspaceReview(
   if (!guide) {
     throw notInitializedError(options.repo);
   }
-  const files = revision.files.map((file) =>
-    diffFileFromRevision(file, revision.producer),
+  // The repository's exclude pattern applies here too, the same as on a pull
+  // request: local, remote and push reviews all come through this path.
+  const excludePattern = readConfig().repos?.[options.repo]?.reviewExclude;
+  const exclusion = applyExclude(
+    revision.files
+      .map((file) => diffFileFromRevision(file, revision.producer))
+      .map((file) => ({
+        filename: file.path,
+        previous_filename: file.previousPath ?? undefined,
+        file,
+      })),
+    excludePattern,
+    report,
   );
+  const excluded = exclusion.excluded;
+  const files = exclusion.kept.map(({ file }) => file);
+  if (excluded > 0) {
+    report(`excluded · ${excluded} files by the repository's exclude pattern`);
+  }
   const unchanged = new Set(extras?.unchangedPaths ?? []);
   const ownFiles = files.filter(({ path }) => !unchanged.has(path));
   const provider = ai ?? reviewProvider(options, options.highModel, "high");
@@ -1092,7 +1108,7 @@ ${JSON.stringify({
 })}${intentPromptNote(revision.description)}${companionSection(extras?.companions?.list)}
 
 ${carryBlock}DIFF:
-${ownDiff}${unchangedListing}`;
+${ownDiff}${unchangedListing}${excludedPromptNote(excluded)}`;
 
   const matrix = clampImproveMatrix(options.improveMatrix);
   const request: AiRequest = {
@@ -1188,5 +1204,8 @@ ${reviewText}`,
     mcpServers: reviewTools.mcp.servers,
     diffStats: diffStats(files),
     ...(moved.findings.length ? { companionFindings: moved.findings } : {}),
+    ...(excluded > 0 && excludePattern
+      ? { excluded: { count: excluded, pattern: excludePattern } }
+      : {}),
   };
 }
