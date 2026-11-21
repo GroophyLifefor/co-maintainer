@@ -231,6 +231,8 @@ async function runReviewPr(
           intent: intent !== null,
           showReferences:
             readConfig().repos?.[options.repo]?.reviewReferences === true,
+          warnings,
+          codegraphState,
           ...companionJson,
         });
       } else {

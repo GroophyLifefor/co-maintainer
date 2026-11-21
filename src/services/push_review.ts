@@ -1053,7 +1053,7 @@ async function runPushReview(
         tokensIn,
         tokensOut,
         ...costUsage(costTally),
-        billedTo: "server",
+        billedTo: byok ? "byok" : "server",
         tools: response?.tools ?? emptyToolUsage(),
       },
       remote: { jobId: job.id, reviewId: review.id },

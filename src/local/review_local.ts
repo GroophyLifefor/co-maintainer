@@ -485,6 +485,8 @@ export async function runLocalReview(
           intent: Boolean(intentLoad.intent),
           showReferences:
             readConfig().repos?.[options.repo]?.reviewReferences === true,
+          warnings,
+          codegraphState,
           ...(companions.length
             ? { companions: companionsJson(companions) }
             : {}),
