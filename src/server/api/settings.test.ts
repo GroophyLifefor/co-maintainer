@@ -15,6 +15,9 @@ import { isolateTestFile } from "../../testing/locations.ts";
 // These tests resolve the config or cache directory. Keep both in a temp
 // home of this file's own, never the developer's real ones.
 isolateTestFile();
+// Saving a key asks its provider. These keys are made up, so the check stays
+// off and no test reaches the network.
+setEnv("CM_FAKE_AI", "1");
 
 const PASSWORD = "settings-api-test";
 
