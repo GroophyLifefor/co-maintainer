@@ -18,6 +18,8 @@
 #   PUSH_AFTER    github.event.after
 #   REF_NAME      github.ref_name, the pushed branch
 #   TIMEOUT_MINUTES  timeout-minutes input, how long a push review is waited on
+#   REVIEW_TIMEOUT_MINUTES  review-timeout-minutes input, how long a pull
+#                 request review may take before the step fails
 #
 # For tests only: CM_ACTION_PACKAGE replaces `co-maintainer@<version>`, and
 # CM_ACTION_DRY_RUN prints the command instead of running it.
@@ -89,6 +91,10 @@ if [ "${EVENT_NAME}" = "push" ]; then
   fi
   # A pull request's base branch means nothing for a push.
   TO_BRANCH=""
+elif [ -n "${REVIEW_TIMEOUT_MINUTES:-}" ]; then
+  if ! [[ "${REVIEW_TIMEOUT_MINUTES}" =~ ^[0-9]+$ ]] || [ "${REVIEW_TIMEOUT_MINUTES}" -lt 1 ]; then
+    fail 2 "review-timeout-minutes \"${REVIEW_TIMEOUT_MINUTES}\" is not a whole number of minutes."
+  fi
 fi
 
 if [ -n "${TO_BRANCH}" ]; then
@@ -108,6 +114,8 @@ fi
 ARGS=(review --remote --output=github)
 if [ -n "${PUSH_MODE}" ]; then
   ARGS+=("--range=${PUSH_BEFORE}..${PUSH_AFTER}" "--branch=${REF_NAME}" "--timeout-minutes=${TIMEOUT_MINUTES}")
+elif [ -n "${REVIEW_TIMEOUT_MINUTES:-}" ]; then
+  ARGS+=("--timeout-minutes=${REVIEW_TIMEOUT_MINUTES}")
 fi
 if [ -n "${TO_BRANCH}" ]; then
   ARGS+=("--to-branch=${TO_BRANCH}")

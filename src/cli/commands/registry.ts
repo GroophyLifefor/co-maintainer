@@ -664,7 +664,7 @@ export const COMMANDS: CommandSpec[] = [
             name: "timeout-minutes",
             value: "N",
             description:
-              "With --range: stop waiting after N minutes and leave the result to the dashboard. Default 10.",
+              "With --range: stop waiting after N minutes and leave the result to the dashboard, default 10. With --remote on a pull request: fail with exit code 3 after N minutes, no limit by default.",
           },
         ],
       },

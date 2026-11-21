@@ -296,8 +296,8 @@ export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
   if (flags.range && !flags.remote) {
     die("--range requires --remote");
   }
-  if (flags.timeoutMinutes !== undefined && !flags.range) {
-    die("--timeout-minutes requires --range");
+  if (flags.timeoutMinutes !== undefined && !flags.remote) {
+    die("--timeout-minutes requires --remote");
   }
   if (flags.range && flags.intentFile !== undefined) {
     die("--intent-file is not supported with --range");
