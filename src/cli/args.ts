@@ -228,6 +228,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
         "auth",
         "ai",
         "token",
+        "ai-key",
         "github-pat",
         "low-model",
         "high-model",
@@ -308,7 +309,14 @@ export async function parseArgs(args: string[]): Promise<Options> {
   if (configuredAuthRaw && !["gh", "pat"].includes(configuredAuthRaw)) {
     die("CO_MAINTAINER_AUTH/config.auth must be gh or pat");
   }
-  const configuredAuth = configuredAuthRaw as Options["auth"] | undefined;
+  // A pull request review reads GitHub through gh only. A saved `auth=pat`
+  // is for init, sync and the server, so it is not used here, as the docs
+  // say. An explicit --auth=pat on the command line is still refused.
+  const configuredAuth = (
+    command === "review" && prNumber !== undefined
+      ? undefined
+      : configuredAuthRaw
+  ) as Options["auth"] | undefined;
   const auth = choice("auth", ["gh", "pat"], configuredAuth ?? "gh");
   const githubPat =
     text("github-pat") ??
@@ -350,6 +358,8 @@ export async function parseArgs(args: string[]): Promise<Options> {
   }
   let aiToken =
     text("token") ??
+    // `--ai-key` is the same key under its own name, as `set` takes it.
+    text("ai-key") ??
     env("CO_MAINTAINER_TOKEN") ??
     providerKeyEnv(ai, env) ??
     savedTokenFor(config, ai);
