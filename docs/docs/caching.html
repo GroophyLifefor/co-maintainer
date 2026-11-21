@@ -336,6 +336,23 @@ the command prints <code>npm uninstall -g co-maintainer</code> when it is done.<
 </tbody></table>
 <p>Use the same <code>CM_REPOS_DIR</code> on a <code>serve</code> host and on developer machines when
 remote review should read guides the server built.</p>
+<h2 id="in-ci">In CI</h2>
+<p><code>review --remote</code> keeps every round on the server, so CI needs no cache for
+it. A local or pull request review (<code>review</code> without <code>--remote</code>) keeps its
+guides and its rounds on the machine. A fresh runner has neither: the review
+stops with <code>not_initialized</code> (exit 2), or every run is a first round. Cache the
+config and cache folders between runs to keep them:</p>
+<pre><code class="language-yaml">      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.config/co-maintainer
+            ~/.cache/co-maintainer
+          key: co-maintainer-${{ github.repository }}-${{ github.ref_name }}
+          restore-keys: co-maintainer-${{ github.repository }}-
+</code></pre>
+<p>Keep keys out of the cached config: pass them as secrets in the environment.
+The guides come from <code>init</code> or <code>sync</code> run on a machine that has them, or from
+a server, so <code>review --remote</code> stays the simpler choice in CI.</p>
 <h2 id="when-to-refresh-vs-delete">When to refresh vs delete</h2>
 <table>
 <thead>
@@ -381,7 +398,7 @@ remote review should read guides the server built.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#on-disk-layout">On disk layout</a></li><li><a href="#cachedb-cli">cache.db (CLI)</a></li><li><a href="#appdb-serve">app.db (serve)</a></li><li><a href="#generated-guides">Generated guides</a></li><li><a href="#clearing">Clearing</a></li><li><a href="#overrides">Overrides</a></li><li><a href="#when-to-refresh-vs-delete">When to refresh vs delete</a></li></ul></nav>
+      <ul><li><a href="#on-disk-layout">On disk layout</a></li><li><a href="#cachedb-cli">cache.db (CLI)</a></li><li><a href="#appdb-serve">app.db (serve)</a></li><li><a href="#generated-guides">Generated guides</a></li><li><a href="#clearing">Clearing</a></li><li><a href="#overrides">Overrides</a></li><li><a href="#in-ci">In CI</a></li><li><a href="#when-to-refresh-vs-delete">When to refresh vs delete</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

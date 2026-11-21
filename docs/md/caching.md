@@ -169,6 +169,28 @@ the command prints `npm uninstall -g co-maintainer` when it is done.
 Use the same `CM_REPOS_DIR` on a `serve` host and on developer machines when
 remote review should read guides the server built.
 
+## In CI
+
+`review --remote` keeps every round on the server, so CI needs no cache for
+it. A local or pull request review (`review` without `--remote`) keeps its
+guides and its rounds on the machine. A fresh runner has neither: the review
+stops with `not_initialized` (exit 2), or every run is a first round. Cache the
+config and cache folders between runs to keep them:
+
+```yaml
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.config/co-maintainer
+            ~/.cache/co-maintainer
+          key: co-maintainer-${{ github.repository }}-${{ github.ref_name }}
+          restore-keys: co-maintainer-${{ github.repository }}-
+```
+
+Keep keys out of the cached config: pass them as secrets in the environment.
+The guides come from `init` or `sync` run on a machine that has them, or from
+a server, so `review --remote` stays the simpler choice in CI.
+
 ## When to refresh vs delete
 
 | Goal | Action |

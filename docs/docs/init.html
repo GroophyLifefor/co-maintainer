@@ -460,8 +460,10 @@ was already current), <code>facts</code>, <code>pullRequests</code>, <code>commi
 <code>{ &quot;status&quot;: &quot;written&quot; | &quot;kept&quot; | &quot;empty&quot; | &quot;skipped&quot;, &quot;rules&quot;: N }</code>, with
 <code>reason</code> and <code>counts</code> (<code>unsupportedSource</code>, <code>unknownName</code>, <code>overCap</code>) when there
 is something to say. <code>ruleChanges</code> is described on <a href="sync.html#json-output"><code>sync</code></a>.</p>
-<p>Without a terminal or saved config, <code>--json</code> exits with code 2 instead of
-prompting. Errors with <code>--json</code> are JSON on stdout as well.</p>
+<p>Without a terminal, with or without <code>--json</code>, nothing prompts. A missing
+provider falls back to OpenRouter, the same default the prompt offers. A
+missing model or key exits with code 2. Errors with <code>--json</code> are JSON on stdout
+as well.</p>
 </article>
         <footer class="doc-footer">
           <a href="https://github.com/GroophyLifefor/co-maintainer/edit/main/docs/md/init.md" data-umami-event="click-github">Edit this page</a> on GitHub

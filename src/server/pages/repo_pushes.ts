@@ -37,7 +37,7 @@ jobs:
       - uses: GroophyLifefor/co-maintainer@v0
         with:
           remote-host: ${serverUrl || "https://your-server"}
-          remote-token: \${{ secrets.CO_MAINTAINER_TOKEN }}`;
+          remote-token: \${{ secrets.CO_MAINTAINER_REMOTE_TOKEN }}`;
 }
 
 function statusBadge(status: WatchStatus): string {
@@ -91,7 +91,7 @@ function appRow(status: WatchStatus): string {
 function ciRow(serverUrl: string, branch: string): string {
   return `<div class="row" style="display:block"><div class="b">
     <p class="strong">CI</p>
-    <p class="muted" style="font-size:13px">Add this workflow and a <code>CO_MAINTAINER_TOKEN</code>
+    <p class="muted" style="font-size:13px">Add this workflow and a <code>CO_MAINTAINER_REMOTE_TOKEN</code>
     secret with a remote review token from <a href="/settings/remote">Settings</a>.</p>
   </div>
   ${codeBlock({

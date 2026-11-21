@@ -241,7 +241,7 @@ co-maintainer review [options]
 | `--system-prompt-file=PATH` |  | Append this file's contents to the review instructions for this run only. |
 | `--system-prompt-override-file=PATH` |  | Replace the repository's review instructions with this file for this run only. The built-in instructions are kept. |
 | `--range=BEFORE..AFTER` |  | With --remote: review a push (commit watch). The server keeps the review going if this run stops waiting. |
-| `--timeout-minutes=N` |  | With --range: stop waiting after N minutes and leave the result to the dashboard. Default 10. |
+| `--timeout-minutes=N` |  | With --range: stop waiting after N minutes and leave the result to the dashboard, default 10. With --remote on a pull request: fail with exit code 3 after N minutes, no limit by default. |
 
 ### Intent
 

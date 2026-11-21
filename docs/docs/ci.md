@@ -15,7 +15,10 @@ from a laptop.
    token for CI.
 2. In the GitHub repository open **Settings**, **Secrets and variables**,
    **Actions**, and add two secrets. `CO_MAINTAINER_HOST` holds the URL of the
-   server and `CO_MAINTAINER_TOKEN` holds the token.
+   server and `CO_MAINTAINER_REMOTE_TOKEN` holds the token. Do not name it
+   `CO_MAINTAINER_TOKEN`: that name is the AI key variable of the CLI, and a
+   local review step that read it would send the remote token to the AI
+   provider.
 3. Add a workflow:
 
 ```yaml
@@ -25,6 +28,11 @@ on:
 
 permissions:
   contents: read
+
+# A new push to the pull request replaces the run still going for the last.
+concurrency:
+  group: co-maintainer-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   review:
@@ -36,8 +44,15 @@ jobs:
       - uses: GroophyLifefor/co-maintainer@v0
         with:
           remote-host: ${{ secrets.CO_MAINTAINER_HOST }}
-          remote-token: ${{ secrets.CO_MAINTAINER_TOKEN }}
+          remote-token: ${{ secrets.CO_MAINTAINER_REMOTE_TOKEN }}
 ```
+
+Without the `concurrency` block an older run still waiting is replaced on the
+server too: it ends with a notice and exit code 0, never as a failure. A
+pull request review fails with exit code 3 after `review-timeout-minutes`
+(30 by default), because the review needs the job to answer it. A server
+failure, such as the AI provider failing or a stopped review, is exit code 3
+too, so a retry can tell it apart from a wrong workflow (exit code 2).
 
 `fetch-depth: 0` gives the action the history it needs to find where the pull
 request branched off. Without it the action fetches what is missing, which is
@@ -54,6 +69,7 @@ slower.
 | `version` | no | the version at the action's own commit | The co-maintainer version to run |
 | `node-version` | no | `24` | The Node.js version to run it with |
 | `timeout-minutes` | no | `10` | On a push, how long to wait for the review, see [review pushes](#review-pushes-commit-watch) |
+| `review-timeout-minutes` | no | `30` | On a pull request, how long the review may take before the step fails with exit code 3 |
 
 Inputs are never removed or renamed within `v0`. A new input is only ever added,
 with a default that keeps the old behavior.
@@ -66,10 +82,14 @@ with a default that keeps the old behavior.
   warnings per step, so when there are more the action adds one notice that
   says how many were left out.
 - **Job summary.** A table of every finding with its severity, state and
-  location, the cost of the review, and how long it took. An unknown cost reads
-  `cost unknown` with the reason, never `$0`.
-- **Exit status.** The step fails when a finding blocks, the same rule as
-  `review` on the command line.
+  location, the cost of the review, and how long it took, a push review
+  included. An unknown cost reads `cost unknown` with the reason, never `$0`.
+  The warnings the terminal would print, such as a stale guide or an MCP
+  server that failed, follow as a list and as warning annotations, and a
+  review that ran without the call graph says so.
+- **Exit status.** The step fails when a finding that is still open blocks,
+  the same rule as `review` on the command line. A finding a later round
+  closed no longer counts.
 - **Extensions.** A finding from an [extension](extensions.md) that has a
   location is annotated with its `[P2 · blocking] · extension: name` label, inside
   the same ten per level. The job summary lists every extension finding and adds
@@ -125,7 +145,7 @@ jobs:
       - uses: GroophyLifefor/co-maintainer@v0
         with:
           remote-host: ${{ secrets.CO_MAINTAINER_HOST }}
-          remote-token: ${{ secrets.CO_MAINTAINER_TOKEN }}
+          remote-token: ${{ secrets.CO_MAINTAINER_REMOTE_TOKEN }}
 ```
 
 On a push the step never fails because of a finding. Findings are warnings, and
@@ -180,7 +200,7 @@ this.
       - uses: GroophyLifefor/co-maintainer@v0
         with:
           remote-host: ${{ secrets.CO_MAINTAINER_HOST }}
-          remote-token: ${{ secrets.CO_MAINTAINER_TOKEN }}
+          remote-token: ${{ secrets.CO_MAINTAINER_REMOTE_TOKEN }}
           remote-byok: ${{ secrets.OPENROUTER_API_KEY }}
 ```
 
