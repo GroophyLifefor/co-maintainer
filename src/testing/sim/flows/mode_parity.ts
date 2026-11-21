@@ -7,7 +7,13 @@
  * The checks read app.db, the prompt the product built and the exit codes,
  * never the model's answer, so a real model passes them too. */
 import type { AiRule } from "../fake_ai.ts";
-import { check, defineFlow, type CheckResult, type Sim } from "../flow.ts";
+import {
+  check,
+  defineFlow,
+  scriptedCheck,
+  type CheckResult,
+  type Sim,
+} from "../flow.ts";
 import { SAMPLE_REPO, SAMPLE_REPO_NAME } from "../sample_repo.ts";
 import { INIT_AI } from "./init.ts";
 import { clientCheckout } from "./remote_support.ts";
@@ -70,8 +76,15 @@ function checks(sim: Sim): CheckResult[] {
   return [
     check(
       "a push review sent with --remote-byok is billed to the client, and the key leaves memory after the job",
-      byok.exit === 0 && byok.billedTo === "byok" && byok.keysHeld === 0,
+      byok.billedTo === "byok" && byok.keysHeld === 0,
       JSON.stringify(byok),
+    ),
+    scriptedCheck(
+      sim,
+      "the push review with the client's own key ends with exit 0",
+      byok.exit === 0,
+      `exit ${String(byok.exit)}`,
+      "the client's key is a stand-in that a live provider refuses",
     ),
     check(
       "a push without a key is refused when the server requires one, and nothing is queued",

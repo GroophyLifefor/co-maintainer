@@ -74,8 +74,9 @@ const SKIPPED_LIVE: Record<string, number> = {
   "companions-app": 4,
   "diagram-runtime": 5,
   extensions: 2,
-  // The withdrawal and the reopen that follows it depend on the model.
-  "finding-control": 2,
+  // Whether the first finding blocks, the withdrawal, the reopen that follows
+  // it, and the approval after a dismissal depend on the model.
+  "finding-control": 4,
   "guide-sources": 4,
   "init-sync": 10,
   instructions: 7,
@@ -83,6 +84,8 @@ const SKIPPED_LIVE: Record<string, number> = {
   "large-diff": 6,
   local: 17,
   mcp: 1,
+  // The client's key is a stand-in that a live provider refuses.
+  "mode-parity": 1,
   remote: 15,
   "review-checks": 2,
   "review-references": 3,

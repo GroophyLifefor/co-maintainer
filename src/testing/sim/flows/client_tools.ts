@@ -278,7 +278,11 @@ const steps: Step[] = [
         if (typeof jobId !== "string") return;
         refused.jobId = jobId;
         let toolResults: Json[] = [];
-        for (let poll = 0; poll < 2000; poll++) {
+        // Bounded by time, not by a count tuned to the fake AI: a real
+        // model takes minutes, the fake one milliseconds.
+        const deadline =
+          Date.now() + (sim.mode === "live" ? 20 * 60_000 : 30_000);
+        while (Date.now() < deadline) {
           const sync = await post(`/api/remote/reviews/${jobId}/sync`, {
             ...fixture("sync.request.json"),
             afterLogSeq: 0,

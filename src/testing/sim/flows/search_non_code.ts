@@ -327,6 +327,21 @@ function offeredParameters(call: AiCall): string[] | undefined {
     : undefined;
 }
 
+/** True for the request that asks for an answer once the tool rounds are
+ * spent: its last message says no more tool calls are available. */
+function afterBudget(call: AiCall): boolean {
+  const messages = ((call.request as Json | null)?.messages ?? []) as {
+    role?: string;
+    content?: unknown;
+  }[];
+  const last = messages.at(-1);
+  return (
+    last?.role === "user" &&
+    typeof last.content === "string" &&
+    last.content.startsWith("No more tool calls are available.")
+  );
+}
+
 const MODES = [STEP.local, STEP.pr, STEP.app, STEP.remote] as const;
 const JSON_MODES = [STEP.local, STEP.pr, STEP.remote] as const;
 
@@ -337,6 +352,9 @@ function offerChecks(sim: Sim): CheckResult[] {
     const calls = reviewCalls(sim, step);
     if (calls.length === 0) missing.push(`${step}: no review request`);
     for (const call of calls) {
+      // The answer asked for after the tool round budget is spent offers no
+      // tools on purpose. Only a live model runs out of rounds.
+      if (afterBudget(call)) continue;
       const params = offeredParameters(call);
       if (JSON.stringify(params) !== '["context","path","pattern","regex"]') {
         missing.push(`${step}: ${JSON.stringify(params)}`);

@@ -120,10 +120,12 @@ function checks(sim: Sim): CheckResult[] {
   const limits = state.limits ?? {};
   const flags = state.flags ?? {};
   return [
-    check(
+    scriptedCheck(
+      sim,
       "the first review requests changes on its blocking finding",
       reviewEvents(sim, STEP.opened).includes("REQUEST_CHANGES"),
       reviewEvents(sim, STEP.opened).join(", "),
+      "a live model decides itself whether a finding blocks",
     ),
     scriptedCheck(
       sim,
@@ -148,12 +150,18 @@ function checks(sim: Sim): CheckResult[] {
       JSON.stringify(member),
     ),
     check(
-      "the owner's /co-maintainer dismiss closes the finding as dismissed, answers in the thread and approves",
+      "the owner's /co-maintainer dismiss closes the finding as dismissed and answers in the thread",
       dismissed.state === "closed" &&
         dismissed.reason === "dismissed" &&
-        dismissed.replied === true &&
-        reviewEvents(sim, STEP.dismissed).includes("APPROVE"),
-      `${JSON.stringify(dismissed)} · ${reviewEvents(sim, STEP.dismissed).join(", ") || "no review"}`,
+        dismissed.replied === true,
+      JSON.stringify(dismissed),
+    ),
+    scriptedCheck(
+      sim,
+      "dismissing the last blocking finding approves the reviewed commit",
+      reviewEvents(sim, STEP.dismissed).includes("APPROVE"),
+      reviewEvents(sim, STEP.dismissed).join(", ") || "no review",
+      "only a blocking finding left open makes the dismissal approve",
     ),
     check(
       "a repository in comment mode posts its review as a comment, never approving or blocking",

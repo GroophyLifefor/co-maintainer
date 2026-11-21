@@ -915,7 +915,9 @@ function appChecks(sim: Sim): CheckResult[] {
       "app: the review lists what it did not review, and the Metadata coverage",
       /^Not reviewed \(\d+\)$/m.test(whole) &&
         /^- and \d+ more$/m.test(whole) &&
-        /\n- Coverage: \d+ full · 0 partial · 0 summarized · \d+ dropped\n<\/details>$/.test(
+        // Tool and companion lines follow the coverage line when the model
+        // used tools, so only its place inside the block is fixed.
+        /<summary>Metadata<\/summary>[^]*\n- Coverage: \d+ full · 0 partial · 0 summarized · \d+ dropped\n[^]*<\/details>$/.test(
           whole,
         ),
       whole
