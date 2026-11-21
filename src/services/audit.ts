@@ -18,6 +18,11 @@ export function inAuditScope<T>(fn: () => T): T {
 }
 
 /** Called once the request's session is known. */
+/** Who the current request acts for, when known. */
+export function currentAuditActor(): string | undefined {
+  return scope.getStore()?.actor;
+}
+
 export function setAuditActor(actor: string): void {
   const store = scope.getStore();
   if (store) store.actor = actor;

@@ -77,6 +77,28 @@ export function parseFindingQuery(params: URLSearchParams): FindingQuery {
   };
 }
 
+/** What the review was about: the pull request, or the kind of review that
+ * had none. */
+function subjectLabel(row: FindingListRow): string {
+  if (row.pr_number !== null) return `#${row.pr_number}`;
+  if (row.review_kind === "push") return "Push";
+  if (row.review_kind === "remote") return "Remote review";
+  return "CLI review";
+}
+
+/** Close or Reopen, for review findings. An extension's finding is closed by
+ * the extension itself. */
+function findingAction(row: FindingListRow, source?: FindingSource): string {
+  if (source === "extension") return "";
+  if (row.state !== "closed") {
+    return `<button type="button" class="btn sm" data-finding="${escapeHtml(row.id)}" data-finding-action="close">Close</button>`;
+  }
+  if (row.close_reason === "dismissed" || row.close_reason === "withdrawn") {
+    return `<button type="button" class="btn sm" data-finding="${escapeHtml(row.id)}" data-finding-action="reopen">Reopen</button>`;
+  }
+  return "";
+}
+
 /** The store filter for a query. `repo` comes from the page for the
  * repository tab, from the query on the all-repositories list. */
 export function findingFilter(
@@ -302,10 +324,11 @@ export function renderFindings(
           displayTitle(row.title),
         )}</a>${location ? `<span class="sub">${location}</span>` : ""}</td>
         <td class="wrap"><a href="${escapeHtml(prHref(row))}">${text(
-          repo ? `#${row.pr_number}` : `${row.repo} #${row.pr_number}`,
+          (repo ? "" : `${row.repo} `) + subjectLabel(row),
         )}</a>${row.pr_title ? `<span class="sub">${text(row.pr_title)}</span>` : ""}</td>
         <td class="num">${row.round}</td>
         <td class="muted">${when(row.reviewed_at)}</td>
+        <td>${findingAction(row, query.source)}</td>
       </tr>`;
     })
     .join("");
@@ -328,7 +351,7 @@ export function renderFindings(
         )
       : `<table class="fit" data-kb-list>
         <thead><tr><th>Severity</th><th>Blocking</th><th>State</th><th>Finding</th>
-          <th>Pull request</th><th class="num">Round</th><th>When</th></tr></thead>
+          <th>Pull request</th><th class="num">Round</th><th>When</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
       <div class="pager"><span>${start}-${end} of ${data.total}</span><span class="sp"></span>
@@ -372,8 +395,37 @@ export function renderFindings(
 <script>
 document.querySelectorAll("tr[data-href]").forEach(function(row) {
   row.addEventListener("click", function(event) {
-    if (event.target.closest("a")) return;
+    if (event.target.closest("a, button")) return;
     location.href = row.getAttribute("data-href");
+  });
+});
+// Close a finding as accepted risk or will not fix, or open it again. The
+// reason goes to the audit log.
+document.querySelectorAll("[data-finding-action]").forEach(function(button) {
+  button.addEventListener("click", async function(event) {
+    event.stopPropagation();
+    var action = button.getAttribute("data-finding-action");
+    var reason = "";
+    if (action === "close") {
+      reason = window.prompt("Why is this finding closed? For example: accepted risk, will not fix.", "") || "";
+    }
+    button.disabled = true;
+    try {
+      var response = await fetch("/api/findings/" + encodeURIComponent(button.getAttribute("data-finding")), {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-requested-with": "fetch" },
+        body: JSON.stringify({ action: action, reason: reason })
+      });
+      if (!response.ok) {
+        var body = await response.json().catch(function() { return {}; });
+        window.alert((body.error && body.error.message) || "Not saved.");
+        button.disabled = false;
+        return;
+      }
+      location.reload();
+    } catch (_) {
+      button.disabled = false;
+    }
   });
 });
 </script>`,

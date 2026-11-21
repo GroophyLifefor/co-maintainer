@@ -30,6 +30,7 @@ import { handleAnalyticsRoute } from "./api/analytics.ts";
 import { handleRemoteTokensRoute } from "./api/remote_tokens.ts";
 import { handleUpdateRoute } from "./api/update.ts";
 import { handleExtensionsRoute } from "./api/extensions.ts";
+import { handleFindingsRoute } from "./api/findings.ts";
 import { handleRemoteRoute } from "../remote/server/routes.ts";
 import { handleWebhookRequest } from "./webhook/index.ts";
 import { handlePageRequest } from "./pages/router.ts";
@@ -262,6 +263,10 @@ export function createApp(deps: AppDeps): App {
         }
         if (url.pathname === "/api/installations") {
           return await handleInstallationsRoute(request, githubApp);
+        }
+        if (url.pathname.startsWith("/api/findings/")) {
+          const handled = await handleFindingsRoute(request, url);
+          if (handled) return handled;
         }
         if (url.pathname.startsWith("/api/extensions")) {
           const handled = await handleExtensionsRoute(request, url);

@@ -240,6 +240,18 @@ export function skipCommandOf(body: string): SkipCommand | undefined {
   return undefined;
 }
 
+/** `/co-maintainer dismiss [reason]` in a finding's thread: the reason, or
+ * an empty string when none was given. Undefined when the comment is not
+ * the command. The same people who may skip may dismiss. */
+export function dismissCommandOf(body: string): string | undefined {
+  if (!isRequestCommand(body, "/co-maintainer dismiss")) return undefined;
+  return body
+    .trim()
+    .slice("/co-maintainer dismiss".length)
+    .trim()
+    .slice(0, 500);
+}
+
 /** The repository owner always may skip. Anyone else only when the
  * repository's policy lists their association. */
 export function maySkip(policy: ReviewPolicy, association: string): boolean {
