@@ -397,16 +397,10 @@ try {
   const configWas = JSON.parse(configBefore) as Record<string, unknown>;
   const changed = [
     ...new Set([...Object.keys(configWas), ...Object.keys(configAfter)]),
-  ]
-    .filter(
-      // `serve --password=` re-salts the stored hash on every start, before the
-      // migration takes its backup, so the hash differs while the password is the same.
-      (key) => key !== "dashboardPasswordHash",
-    )
-    .filter(
-      (key) =>
-        JSON.stringify(configWas[key]) !== JSON.stringify(configAfter[key]),
-    );
+  ].filter(
+    (key) =>
+      JSON.stringify(configWas[key]) !== JSON.stringify(configAfter[key]),
+  );
   record(
     "rollback restored config.json",
     changed.length === 0,

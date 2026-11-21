@@ -187,8 +187,7 @@ export async function runServe(args: string[]): Promise<void> {
 
   const auth = resolveAuthMethods(args, config);
   let githubOAuth:
-    | { clientId: string; clientSecret: string; allowedUser: string }
-    | undefined;
+    { clientId: string; clientSecret: string; allowedUser: string } | undefined;
   if (auth.github) {
     if (
       !config.githubOAuthClientId ||
@@ -207,6 +206,12 @@ export async function runServe(args: string[]): Promise<void> {
     };
   }
 
+  // Before anything writes config.json: an upgrade's migration backs up the
+  // config as it was, and `rollback` must get that copy back, not one this
+  // version already rewrote.
+  await openAppDb();
+  console.log(`[serve] app.db ready at ${appDbPath()}`);
+
   const passwordStore = configPasswordStore();
   if (auth.password) {
     const generated = await ensureDashboardPassword(
@@ -224,8 +229,6 @@ export async function runServe(args: string[]): Promise<void> {
   const warning = platformWarning(currentPlatform());
   if (warning) console.log(`[serve] warning: ${warning}`);
 
-  await openAppDb();
-  console.log(`[serve] app.db ready at ${appDbPath()}`);
   if (args.some((arg) => arg.startsWith("--password="))) {
     // A password reset on the command line revokes every existing session, so a
     // leaked cookie cannot outlive it.
