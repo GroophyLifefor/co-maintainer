@@ -282,7 +282,8 @@ first time 0.7.20 reads `config.json`, so they no longer outrank the account.
 value that comes from the fallback.
 
 `set --repo` also takes `--ai`, `--low-model`, `--auth`, `--review-blocking`,
-`--review-exclude` and `--only-request-changed-pr=true|false`. Every review
+`--review-exclude` (a pattern of changed files every review leaves out: pull
+request, local, remote and push) and `--only-request-changed-pr=true|false`. Every review
 and every sync of the repository uses them: CLI, App, remote and push.
 
 [`clear owner/repo`](caching.md#clearing) deletes this entry, so the repository

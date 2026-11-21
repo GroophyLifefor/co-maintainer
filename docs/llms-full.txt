@@ -1470,7 +1470,9 @@ it off. See [Configuration](configuration.md#per-repo-memory) for where it is
 stored.
 
 For one run, without saving anything, two `review` flags add to or replace that
-section. Both work in every mode, PR, local and remote:
+section. Both work in PR, local and remote review. A push review
+(`review --remote --range`) refuses them with exit code 2, because it sends no
+instructions: save them for the repository instead:
 
 | Flag | Effect |
 | ---- | ------ |
@@ -1952,6 +1954,16 @@ Not supported with `--remote`: `--sync-before-review` (run
 code 2, because the server reviews with the diagram settings saved for the
 repository, see [Configuration](configuration.md#diagram-settings).
 
+The server reviews with its own provider, models and key, so `--ai`,
+`--token`, `--ai-key`, `--low-model`, `--high-model`, `--auth`, `--github-pat`
+and `--improve-matrix` are refused the same way, and so is any flag a remote
+review does not know, a typo included. `--debug` and `--log-time` print one
+stderr line per call to the server, with its status and time.
+
+The repository's exclude pattern applies to a remote review and a push review
+the same as to a pull request review: the matching files are left out and the
+prompt says so.
+
 ## Token scope
 
 A remote token is not tied to one repository: any token can review, and read
@@ -2371,6 +2383,10 @@ this.
 The key goes to the tool by environment variable, never on a command line, and
 both the token and the key are masked in the log. The server answers with an
 error and does not fall back to its own key when it does not accept yours.
+This holds for a push review too: the key goes with the push, the review is
+marked as billed to you, and a server that requires your key refuses a push
+without one. A server older than 0.7.20 cannot take your key for a push, and
+the run says so instead of letting the server pay.
 Use an `https://` host. The key travels with the request.
 
 ## Environment variables
@@ -5291,7 +5307,8 @@ first time 0.7.20 reads `config.json`, so they no longer outrank the account.
 value that comes from the fallback.
 
 `set --repo` also takes `--ai`, `--low-model`, `--auth`, `--review-blocking`,
-`--review-exclude` and `--only-request-changed-pr=true|false`. Every review
+`--review-exclude` (a pattern of changed files every review leaves out: pull
+request, local, remote and push) and `--only-request-changed-pr=true|false`. Every review
 and every sync of the repository uses them: CLI, App, remote and push.
 
 [`clear owner/repo`](caching.md#clearing) deletes this entry, so the repository

@@ -749,7 +749,8 @@ first time 0.7.20 reads <code>config.json</code>, so they no longer outrank the 
 <code>config get --repo</code> and the repository page show <code>init</code> as the source of a
 value that comes from the fallback.</p>
 <p><code>set --repo</code> also takes <code>--ai</code>, <code>--low-model</code>, <code>--auth</code>, <code>--review-blocking</code>,
-<code>--review-exclude</code> and <code>--only-request-changed-pr=true|false</code>. Every review
+<code>--review-exclude</code> (a pattern of changed files every review leaves out: pull
+request, local, remote and push) and <code>--only-request-changed-pr=true|false</code>. Every review
 and every sync of the repository uses them: CLI, App, remote and push.</p>
 <p><a href="caching.html#clearing"><code>clear owner/repo</code></a> deletes this entry, so the repository
 goes back to &quot;never inited&quot; and the next build is an <code>init</code>. The two

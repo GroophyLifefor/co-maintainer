@@ -228,6 +228,14 @@ are the same as <a href="local-review.html#codegraph">local review</a>.</p>
 <code>--plantuml-server</code> and <code>--plantuml-output-format</code>. Each is refused with exit
 code 2, because the server reviews with the diagram settings saved for the
 repository, see <a href="configuration.html#diagram-settings">Configuration</a>.</p>
+<p>The server reviews with its own provider, models and key, so <code>--ai</code>,
+<code>--token</code>, <code>--ai-key</code>, <code>--low-model</code>, <code>--high-model</code>, <code>--auth</code>, <code>--github-pat</code>
+and <code>--improve-matrix</code> are refused the same way, and so is any flag a remote
+review does not know, a typo included. <code>--debug</code> and <code>--log-time</code> print one
+stderr line per call to the server, with its status and time.</p>
+<p>The repository&#39;s exclude pattern applies to a remote review and a push review
+the same as to a pull request review: the matching files are left out and the
+prompt says so.</p>
 <h2 id="token-scope">Token scope</h2>
 <p>A remote token is not tied to one repository: any token can review, and read
 the guides of, every active repository on the server. Hand a token only to

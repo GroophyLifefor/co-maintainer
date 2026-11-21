@@ -77,6 +77,16 @@ Not supported with `--remote`: `--sync-before-review` (run
 code 2, because the server reviews with the diagram settings saved for the
 repository, see [Configuration](configuration.md#diagram-settings).
 
+The server reviews with its own provider, models and key, so `--ai`,
+`--token`, `--ai-key`, `--low-model`, `--high-model`, `--auth`, `--github-pat`
+and `--improve-matrix` are refused the same way, and so is any flag a remote
+review does not know, a typo included. `--debug` and `--log-time` print one
+stderr line per call to the server, with its status and time.
+
+The repository's exclude pattern applies to a remote review and a push review
+the same as to a pull request review: the matching files are left out and the
+prompt says so.
+
 ## Token scope
 
 A remote token is not tied to one repository: any token can review, and read

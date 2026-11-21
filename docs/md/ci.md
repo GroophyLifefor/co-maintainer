@@ -187,6 +187,10 @@ this.
 The key goes to the tool by environment variable, never on a command line, and
 both the token and the key are masked in the log. The server answers with an
 error and does not fall back to its own key when it does not accept yours.
+This holds for a push review too: the key goes with the push, the review is
+marked as billed to you, and a server that requires your key refuses a push
+without one. A server older than 0.7.20 cannot take your key for a push, and
+the run says so instead of letting the server pay.
 Use an `https://` host. The key travels with the request.
 
 ## Environment variables
