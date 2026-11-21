@@ -14,7 +14,7 @@ import {
 import { COMPANION_MAX_FILES, companionsJson } from "../review/companions.ts";
 import { companionSearchTool } from "../pr/companion_tools.ts";
 import { COMPANIONS_FEATURE } from "./companions.ts";
-import { exitWith } from "../cli/error.ts";
+import { EXIT_RUNTIME, exitWith } from "../cli/error.ts";
 import {
   formatHumanReview,
   humanFindingsFromJson,
@@ -473,7 +473,14 @@ export async function runRemoteReview(
           },
         );
         if (!sync.ok) {
-          die("remote_sync_failed", await readApiError(sync));
+          // The run broke, not the command: exit 3, so CI can tell a broken
+          // workflow (2) from a run worth retrying.
+          die(
+            "remote_sync_failed",
+            await readApiError(sync),
+            undefined,
+            EXIT_RUNTIME,
+          );
         }
         const payload = (await sync.json()) as {
           status: string;
@@ -495,7 +502,22 @@ export async function runRemoteReview(
         if (payload.toolCalls?.length) queuedCalls.push(...payload.toolCalls);
         return payload;
       };
+      // `--timeout-minutes` bounds a pull request review too. The client
+      // answers the server's tool calls, so leaving early ends the review:
+      // the run fails with exit 3 instead of waiting for the CI job limit.
+      const deadline =
+        cli.timeoutMinutes === undefined
+          ? undefined
+          : Date.now() + cli.timeoutMinutes * 60_000;
       while (true) {
+        if (deadline !== undefined && Date.now() >= deadline) {
+          die(
+            "remote_timeout",
+            `The remote review did not finish within ${cli.timeoutMinutes} minutes.`,
+            "Raise --timeout-minutes, or review-timeout-minutes in the action.",
+            EXIT_RUNTIME,
+          );
+        }
         const sent = toolResults;
         toolResults = [];
         const payload = await syncOnce(sent);
@@ -530,29 +552,10 @@ export async function runRemoteReview(
             payload.result,
           );
           const findings = aiFindings as JsonReviewFinding[];
-          const usage = payload.result.usage as
-            | {
-                tokensIn?: number;
-                tokensOut?: number;
-                costUsd?: number | null;
-                costNote?: CostReason | null;
-              }
-            | undefined;
-          const known =
-            usage !== undefined &&
-            usage.costUsd !== null &&
-            usage.costUsd !== undefined;
-          const run: RunSummary | undefined = usage
-            ? {
-                durationMs: performance.now() - reviewStarted,
-                tokensIn: usage.tokensIn ?? 0,
-                tokensOut: usage.tokensOut ?? 0,
-                costUsd: known ? usage.costUsd! : null,
-                ...(!known && usage.costNote
-                  ? { costNote: costReasonText(usage.costNote) }
-                  : {}),
-              }
-            : undefined;
+          const run = runFromResult(
+            payload.result,
+            performance.now() - reviewStarted,
+          );
           if (cli.json) {
             console.log(
               JSON.stringify({
@@ -592,6 +595,16 @@ export async function runRemoteReview(
               extensions,
               intent: intent !== null,
               showReferences: serverShowsReferences(payload.result, repo),
+              warnings: [
+                ...warningsFromJson(payload.result.warnings),
+                ...ownWarnings,
+              ],
+              codegraphState:
+                (
+                  payload.result.codegraph as
+                    | { state?: "used" | "disabled" | "unavailable" }
+                    | undefined
+                )?.state ?? null,
               ...companionOutput,
             });
           } else {
@@ -639,12 +652,38 @@ export async function runRemoteReview(
           // client reprints the result and re-requests forever.
           return;
         }
+        // A newer run of the same branch took over. That is not a failure of
+        // this one, the same as a push merged into a newer push.
+        if (
+          payload.status === "canceled" &&
+          payload.abort?.reason === "superseded"
+        ) {
+          const message = `${stripControlChars(payload.abort.message)} Its result will be on the dashboard.`;
+          if (cli.json) {
+            console.log(
+              JSON.stringify({
+                schemaVersion: 1,
+                ok: true,
+                mode: "remote",
+                message,
+              }),
+            );
+          } else if (cli.output === "github") {
+            console.log(`::notice title=co-maintainer::${message}`);
+          } else {
+            console.log(message);
+          }
+          exitWith(0);
+          return;
+        }
         if (payload.status === "failed" || payload.status === "canceled") {
           die(
             stripControlChars(payload.abort?.reason ?? "remote_failed"),
             stripControlChars(
               payload.abort?.message ?? "Remote review did not complete.",
             ),
+            undefined,
+            EXIT_RUNTIME,
           );
         }
         await new Promise((resolve) => setTimeout(resolve, intervalMs));
@@ -665,4 +704,31 @@ export function serverShowsReferences(
   const sent = (result.references as { show?: unknown } | undefined)?.show;
   if (typeof sent === "boolean") return sent;
   return readConfig().repos?.[repo]?.reviewReferences === true;
+}
+
+/** The cost and time line of a review the server ran, from the usage in its
+ * result. Undefined when the server sent no usage. */
+export function runFromResult(
+  result: Record<string, unknown>,
+  durationMs: number,
+): RunSummary | undefined {
+  const usage = result.usage as
+    | {
+        tokensIn?: number;
+        tokensOut?: number;
+        costUsd?: number | null;
+        costNote?: CostReason | null;
+      }
+    | undefined;
+  if (!usage) return undefined;
+  const known = usage.costUsd !== null && usage.costUsd !== undefined;
+  return {
+    durationMs,
+    tokensIn: usage.tokensIn ?? 0,
+    tokensOut: usage.tokensOut ?? 0,
+    costUsd: known ? usage.costUsd! : null,
+    ...(!known && usage.costNote
+      ? { costNote: costReasonText(usage.costNote) }
+      : {}),
+  };
 }

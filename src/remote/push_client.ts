@@ -12,10 +12,10 @@
  *   the commit a skipped check run: then it is a notice.
  * - a server that cannot be reached or rejects the token is red. */
 import { getEnv } from "../util/runtime.ts";
-import { serverShowsReferences } from "./client.ts";
+import { runFromResult, serverShowsReferences } from "./client.ts";
 import { VERSION } from "../version.ts";
 import type { ReviewCliArgs } from "../cli/review_args.ts";
-import { exitWith } from "../cli/error.ts";
+import { EXIT_RUNTIME, exitWith } from "../cli/error.ts";
 import { toolUsageFromJson } from "../ai/tool_gate.ts";
 import {
   formatHumanReview,
@@ -184,6 +184,7 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
   }
   setCliInteractive(!cli.json);
   await withCliLogsToStderr(async () => {
+    const reviewStarted = performance.now();
     // A push that creates the branch has no "before": there is nothing it
     // changed to compare with.
     if (ZERO.test(range.before)) {
@@ -381,7 +382,14 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
           }),
         },
       );
-      if (!sync.ok) die("remote_sync_failed", await readApiError(sync));
+      if (!sync.ok) {
+        die(
+          "remote_sync_failed",
+          await readApiError(sync),
+          undefined,
+          EXIT_RUNTIME,
+        );
+      }
       const payload = (await sync.json()) as {
         status: string;
         logs: Array<{ seq: number; message: string }>;
@@ -421,6 +429,12 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
             findings: human,
             coverage: coverageFromResult(payload.result),
             showReferences: serverShowsReferences(payload.result, repo),
+            // The cost and time line ci.md promises for every run.
+            run: runFromResult(
+              payload.result,
+              performance.now() - reviewStarted,
+            ),
+            warnings: warningsFromJson(payload.result.warnings),
           });
         } else {
           console.log(
@@ -458,6 +472,8 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
           stripControlChars(
             payload.abort?.message ?? "The push review did not complete.",
           ),
+          undefined,
+          EXIT_RUNTIME,
         );
       }
       if (Date.now() >= deadline) {

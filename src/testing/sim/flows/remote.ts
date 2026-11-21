@@ -905,7 +905,8 @@ function remoteChecks(sim: Sim): CheckResult[] {
       "a cancelled run stops the job and the client says so",
       deleted?.status === 204 &&
         deleted.jobId === cancel?.jobIds[0] &&
-        cancel?.exitCode === 2 &&
+        // A run that ended on the server, a cancel included, is exit 3.
+        cancel?.exitCode === 3 &&
         errorCode(cancel) === "client_canceled" &&
         cancelJob?.status === "canceled" &&
         cancelJob.cancel_reason === "client_canceled" &&
