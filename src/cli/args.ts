@@ -59,13 +59,10 @@ async function ask(
   fallback?: string,
   required = false,
 ): Promise<string> {
-  if (!cliInteractive) {
+  // No terminal to ask in, with or without `--json`: the same default either
+  // way, so the outcome never depends on the output format.
+  if (!cliInteractive || process.stdin.isTTY !== true) {
     if (fallback !== undefined && fallback !== "") return fallback;
-    die(
-      `Missing ${label}. Pass it as a CLI option when running without an interactive terminal`,
-    );
-  }
-  if (process.stdin.isTTY !== true) {
     die(
       `Missing ${label}. Pass it as a CLI option when running without an interactive terminal`,
     );
