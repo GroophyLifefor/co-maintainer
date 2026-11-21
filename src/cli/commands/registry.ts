@@ -45,13 +45,25 @@ const OUTPUT_FLAGS: FlagGroup = {
     },
     { name: "debug", description: "Print the underlying gh and HTTP calls." },
     { name: "log-time", description: "Print how long each phase took." },
+    {
+      name: "env",
+      value: "PATH",
+      description:
+        "Read environment variables from a .env file first. A variable already set wins.",
+    },
   ],
 };
 
 /** `serve` runs until stopped and prints no result, so it has no `--json`. */
 const SERVE_OUTPUT_FLAGS: FlagGroup = {
   title: OUTPUT_FLAGS.title,
-  flags: OUTPUT_FLAGS.flags.filter((flag) => flag.name !== "json"),
+  flags: [
+    {
+      name: "debug",
+      description:
+        "Turn on the /__ui component gallery. CM_DEBUG=1 does the same.",
+    },
+  ],
 };
 
 /** `review` alone can print for a CI run. */
@@ -105,8 +117,21 @@ const AI_FLAGS: FlagGroup = {
   ],
 };
 
-/** `init` and `sync` author every guide with AI, so no provider is not a
- * choice there. */
+/** A review cannot run without AI, so `none`, or nothing saved, means
+ * OpenRouter there, the provider every review used before providers. */
+const REVIEW_AI_FLAGS: FlagGroup = {
+  title: "AI",
+  flags: [
+    {
+      name: "ai",
+      value: AI_PROVIDERS.filter((provider) => provider !== "none").join("|"),
+      description:
+        "Which provider writes the review. With none saved, OpenRouter. --ai=none is refused.",
+    },
+    ...AI_KEY_FLAGS,
+  ],
+};
+
 const PR_FILTER_FLAGS: FlagGroup = {
   title: "Pull request filter",
   flags: [
@@ -128,6 +153,8 @@ const PR_FILTER_FLAGS: FlagGroup = {
   ],
 };
 
+/** `init` and `sync` author every guide with AI, so no provider is not a
+ * choice there. */
 const AI_FLAGS_REQUIRED: FlagGroup = {
   title: "AI",
   flags: [
@@ -434,13 +461,6 @@ export const COMMANDS: CommandSpec[] = [
             description:
               "Concurrent AI calls for this run only. It does not change the saved default.",
           },
-          {
-            name: "improve-matrix",
-            value: "N",
-            default: "1",
-            description:
-              "How many improvement passes to run. Capped at 4, and each pass costs more.",
-          },
         ],
       },
     ],
@@ -715,7 +735,24 @@ export const COMMANDS: CommandSpec[] = [
           },
         ],
       },
-      AI_FLAGS,
+      {
+        title: "Depth",
+        flags: [
+          {
+            name: "improve-matrix",
+            value: "N",
+            default: "1",
+            description:
+              "How many passes the review model makes over its own findings. Capped at 4, and each pass costs more.",
+          },
+          {
+            name: "review-upstream",
+            description:
+              "On a pull request, review the code merged in from the base branch too, not only what the author wrote.",
+          },
+        ],
+      },
+      REVIEW_AI_FLAGS,
       EXPERIMENTAL_FLAGS,
       GITHUB_FLAGS,
       REVIEW_OUTPUT_FLAGS,
@@ -997,6 +1034,12 @@ export const COMMANDS: CommandSpec[] = [
             value: "N",
             description:
               "Server default for concurrent AI calls. With --repo, the repository override. 1..16.",
+          },
+          {
+            name: "review-references",
+            value: "on|off",
+            description:
+              "Show the rules each finding rests on in review comments and the terminal. Needs --repo.",
           },
           {
             name: "review-system-prompt",
