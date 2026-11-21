@@ -126,7 +126,7 @@ const REVIEW_AI_FLAGS: FlagGroup = {
       name: "ai",
       value: AI_PROVIDERS.filter((provider) => provider !== "none").join("|"),
       description:
-        "Which provider writes the review. With none saved, OpenRouter. --ai=none is refused.",
+        "Which provider writes the review. With no provider saved, OpenRouter. A review cannot run without one.",
     },
     ...AI_KEY_FLAGS,
   ],
