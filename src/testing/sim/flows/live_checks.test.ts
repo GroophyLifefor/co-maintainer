@@ -72,6 +72,8 @@ const SKIPPED_LIVE: Record<string, number> = {
   "client-tools": 2,
   companions: 7,
   "companions-app": 4,
+  // Only the fake AI fails a call on purpose after a paid round.
+  "cost-recording": 1,
   "diagram-runtime": 5,
   extensions: 2,
   // Whether the first finding blocks, the withdrawal, the reopen that follows

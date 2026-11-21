@@ -6,16 +6,24 @@
  * The checks read app.db and the pages, never the model's answer, so a real
  * model passes them too. */
 import type { AiRule } from "../fake_ai.ts";
-import { check, defineFlow, type CheckResult, type Sim } from "../flow.ts";
+import {
+  check,
+  defineFlow,
+  scriptedCheck,
+  type CheckResult,
+  type Sim,
+} from "../flow.ts";
 import type { SimPull } from "../github.ts";
 import { APP_REPO, OPENED_MATH, appRows, serveRepo } from "./app.ts";
 import { INIT_AI } from "./init.ts";
 import { aiFlags } from "./cli_pr.ts";
+import { NO_CODEGRAPH, makeCheckout, runReview } from "./local.ts";
 
 const STEP = {
   built: "init from the CLI, then serve",
   appReview: "an App review",
   cliReview: "a pull request review from the CLI",
+  failedLocal: "a local review that fails after a paid round",
   pages: "Usage, the job page and the CSV read the same spend",
   cleared: "clearing the cache keeps the spend history",
 };
@@ -28,6 +36,24 @@ const AI: AiRule[] = [
     prompt: /[\s\S]*/,
     reply: { findings: [] },
   },
+  {
+    // The first round is paid and asks for a tool, the second fails, so the
+    // review fails after it already spent money.
+    name: "local review failing after a paid round",
+    job: "review_local",
+    prompt: /[\s\S]*/,
+    reply: (call) =>
+      call.round === 0
+        ? {
+            toolCalls: [
+              {
+                name: "read-mermaid-syntaxes",
+                arguments: { tools: ["flowchart"] },
+              },
+            ],
+          }
+        : { error: 401, message: "the key was revoked" },
+  },
 ];
 
 type CostRow = { kind: string; job_id: string | null; source: string };
@@ -36,6 +62,7 @@ function checks(sim: Sim): CheckResult[] {
   const state = sim.state as Record<string, Record<string, unknown>>;
   const built = state.built ?? {};
   const cli = state.cliReview ?? {};
+  const failedLocal = state.failedLocal ?? {};
   const pages = state.pages ?? {};
   const cleared = state.cleared ?? {};
   return [
@@ -57,6 +84,17 @@ function checks(sim: Sim): CheckResult[] {
         cli.reviewKind === "cli_pr" &&
         cli.reviewStatus === "done",
       JSON.stringify(cli),
+    ),
+    scriptedCheck(
+      sim,
+      "a local review that fails after a paid round writes a failed job and a failed review row with its cost",
+      failedLocal.exit !== 0 &&
+        failedLocal.jobType === "review_local" &&
+        failedLocal.jobStatus === "failed" &&
+        failedLocal.reviewStatus === "failed" &&
+        Number(failedLocal.tokensIn) > 0,
+      JSON.stringify(failedLocal),
+      "only the fake AI fails a call on purpose",
     ),
     check(
       "Usage prices init and sync instead of saying Not recorded, and lists CLI reviews",
@@ -161,6 +199,43 @@ export default defineFlow({
           reviewStatus: row?.status,
         };
         return JSON.stringify(sim.state.cliReview);
+      },
+    },
+    {
+      name: STEP.failedLocal,
+      async run(sim) {
+        const checkout = makeCheckout(sim, {
+          name: "failed-local",
+          branch: "feature/failed-local",
+          committed: { "src/limit.ts": "export const LIMIT = 10;\n" },
+        });
+        const run = await runReview(sim, checkout, STEP.failedLocal, [
+          "--json",
+          NO_CODEGRAPH,
+          ...aiFlags(sim),
+        ]);
+        const row = appRows<{
+          type: string;
+          job_status: string;
+          status: string;
+          tokens_in: number;
+        }>(
+          sim,
+          `SELECT j.type AS type, j.status AS job_status, r.status AS status,
+                  r.tokens_in AS tokens_in
+           FROM reviews r INNER JOIN jobs j ON j.id = r.job_id
+           WHERE r.kind = 'local' AND r.repo = ?
+           ORDER BY r.created_at DESC LIMIT 1`,
+          APP_REPO,
+        )[0];
+        sim.state.failedLocal = {
+          exit: run.cli.exitCode,
+          jobType: row?.type,
+          jobStatus: row?.job_status,
+          reviewStatus: row?.status,
+          tokensIn: row?.tokens_in,
+        };
+        return JSON.stringify(sim.state.failedLocal);
       },
     },
     {

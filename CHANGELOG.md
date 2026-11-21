@@ -37,7 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`config get` shows the value a run uses** and where it came from, with `--repo` for a repository's own values.
 - **`--ai-key` works on init, sync and review**, a pull request review no longer stops on a saved `auth=pat`, and `review --remote` refuses server-owned and unknown flags.
 - **The dashboard and `set` run the same checks** on keys, models, the PAT, the App and the sign-in methods, and `set --enable-auth=password` turns password sign-in back on.
-- **A failed or stopped review keeps its known cost**, and the GitHub job summary carries the run's warnings, the codegraph state, and a push review's cost.
+- **A failed or stopped review keeps its known cost**, a local review run from the CLI included, also when a call fails after paid tool rounds. The GitHub job summary carries the run's warnings, the codegraph state, and a push review's cost.
+- **`rollback` restores config.json as it was before the upgrade.** `serve` now takes the upgrade backup before it writes config.json.
 - **Simulate checks pass with a real AI too** (#121).
 
 ## [0.7.19] - 2026-11-20

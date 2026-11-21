@@ -173,6 +173,9 @@ export async function runLocalReview(
     json,
   );
   await withCliLogsToStderr(async () => {
+    // Set once the model is about to be called, so a review that fails or is
+    // stopped after spending money is on the dashboard too.
+    let recordFailure: ((reason: string) => Promise<void>) | undefined;
     try {
       const cwd = process.cwd();
       const root = await gitRoot(cwd);
@@ -349,6 +352,24 @@ export async function runLocalReview(
       const stopHeartbeat = startHeartbeat("reviewing local changes");
       const started = performance.now();
       const aiMetrics = emptyAiMetrics();
+      recordFailure = async (reason) => {
+        if (aiMetrics.calls === 0) return;
+        const durationMs = Math.round(performance.now() - started);
+        await recordCliReview({
+          kind: "local",
+          repo,
+          branch,
+          headSha: sha,
+          model: options.highModel ?? "unknown",
+          tokensIn: aiMetrics.tokensIn,
+          tokensOut: aiMetrics.tokensOut,
+          tally: aiMetrics,
+          findings: 0,
+          startedAt: new Date(Date.now() - durationMs).toISOString(),
+          durationMs,
+          failed: reason,
+        });
+      };
       let response;
       let extensions: ExtensionReport;
       try {
@@ -514,6 +535,7 @@ export async function runLocalReview(
         printRunSummary(run);
       }
       // On the dashboard too, before the process exits.
+      recordFailure = undefined;
       await recordCliReview({
         kind: "local",
         repo,
@@ -536,7 +558,13 @@ export async function runLocalReview(
     } catch (error) {
       // After Ctrl-C the aborted model call or sync throws. The handler has
       // already printed the one output and set the exit code.
-      if (interrupted()) return;
+      if (interrupted()) {
+        await recordFailure?.("stopped");
+        return;
+      }
+      await recordFailure?.(
+        error instanceof Error ? error.message : String(error),
+      );
       if (error instanceof ReviewCliError) {
         fail(error, json);
         return;
