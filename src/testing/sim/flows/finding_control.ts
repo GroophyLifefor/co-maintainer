@@ -2,7 +2,9 @@
  * the commit (#144), a maintainer closes a finding from the dashboard or with
  * `/co-maintainer dismiss` and opens it again, a member the policy does not
  * list cannot, a repository in comment mode never approves or blocks, and the
- * diff limits follow the repository's settings.
+ * diff limits follow the repository's settings. A maintainer who asks in
+ * plain words closes a finding even when the model disagrees, the bot asks
+ * what was wrong, and the answer is kept as feedback.
  *
  * The withdrawal checks depend on the scripted reply, so a live model that
  * keeps its finding skips them with a reason. The rest read what the product
@@ -27,6 +29,9 @@ const STEP = {
   reopened: "a maintainer opens it again from the dashboard",
   member: "a member the policy does not list tries to dismiss",
   dismissed: "the owner dismisses it in its thread",
+  memberAsks: "a member asks in plain words to close it",
+  ownerAsks: "the owner asks in plain words to close it",
+  feedback: "the owner says what was wrong with it",
   commentMode: "a repository in comment mode",
   limits: "the diff limits follow the repository",
   flags: "--ai-key and a saved pat on a pull request review",
@@ -51,6 +56,29 @@ const AI: AiRule[] = [
         }),
       ],
     },
+  },
+  // Each later reply's prompt carries the thread so far, so the rule for the
+  // newest comment comes first.
+  {
+    name: "thanks for the feedback",
+    job: "reply_to_github_comment",
+    prompt: /The caller validates b before divide runs/,
+    reply: "Thanks, that helps.",
+  },
+  {
+    name: "closed as the owner asked",
+    job: "reply_to_github_comment",
+    prompt: /This finding is wrong, close it/,
+    reply:
+      "Closed it. I still read it the other way, but you know this code better. What was the problem with the finding, so I can get better?\n\nCLOSED",
+  },
+  {
+    // The model writes the close line anyway: the product must not close.
+    name: "a member asks to close",
+    job: "reply_to_github_comment",
+    prompt: /Please close this finding, it does not apply/,
+    reply:
+      "A maintainer can close it with `/co-maintainer dismiss`. What was the problem with it?\n\nCLOSED",
   },
   {
     name: "the bot agrees it was wrong",
@@ -86,6 +114,48 @@ function findingState(sim: Sim): { state: string; reason: string | null } {
   );
 }
 
+/** The system text of the reply calls in a step. */
+function replySystems(sim: Sim, step: string): string[] {
+  return sim.trace.ai
+    .filter(
+      (call) => call.step === step && call.job === "reply_to_github_comment",
+    )
+    .map((call) => JSON.stringify(call.request ?? ""));
+}
+
+/** The reply bodies posted in a step's threads. */
+function threadReplies(sim: Sim, step: string): string[] {
+  return writesIn(sim, step)
+    .filter(
+      (write) =>
+        write.method === "POST" && /\/pulls\/\d+\/comments$/.test(write.path),
+    )
+    .map((write) => String((write.body as { body?: unknown }).body ?? ""));
+}
+
+/** Opens the newest finding again from the dashboard. */
+async function reopenLatest(sim: Sim): Promise<number | undefined> {
+  const { handleFindingsRoute } =
+    await import("../../../server/api/findings.ts");
+  const id = appRows<{ id: string }>(
+    sim,
+    "SELECT id FROM findings ORDER BY rowid DESC LIMIT 1",
+  )[0]?.id;
+  const path = `/api/findings/${id}`;
+  const response = await handleFindingsRoute(
+    new Request(`http://localhost${path}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-requested-with": "fetch",
+      },
+      body: JSON.stringify({ action: "reopen" }),
+    }),
+    new URL(`http://localhost${path}`),
+  );
+  return response?.status;
+}
+
 /** Someone replies in the finding's thread, and the jobs it queued run. */
 async function replyInThread(
   sim: Sim,
@@ -119,6 +189,12 @@ function checks(sim: Sim): CheckResult[] {
   const dismissed = state.dismissed ?? {};
   const limits = state.limits ?? {};
   const flags = state.flags ?? {};
+  const memberAsks = state.memberAsks ?? {};
+  const ownerAsks = state.ownerAsks ?? {};
+  const feedback = state.feedback ?? {};
+  const markerPosted = [STEP.memberAsks, STEP.ownerAsks].some((step) =>
+    threadReplies(sim, step).some((body) => /^CLOSED$/m.test(body)),
+  );
   return [
     scriptedCheck(
       sim,
@@ -162,6 +238,47 @@ function checks(sim: Sim): CheckResult[] {
       reviewEvents(sim, STEP.dismissed).includes("APPROVE"),
       reviewEvents(sim, STEP.dismissed).join(", ") || "no review",
       "only a blocking finding left open makes the dismissal approve",
+    ),
+    check(
+      "a member's plain request to close leaves the finding open, and the prompt says a maintainer can close it",
+      memberAsks.reopened === 200 &&
+        memberAsks.state !== "closed" &&
+        replySystems(sim, STEP.memberAsks).some((text) =>
+          text.includes("a maintainer can close it"),
+        ),
+      JSON.stringify(memberAsks),
+    ),
+    check(
+      "the owner's plain request to close reaches the model with the close and feedback rule",
+      replySystems(sim, STEP.ownerAsks).some(
+        (text) =>
+          text.includes("close it, even if you still think it is right") &&
+          text.includes("what the problem with the finding was"),
+      ),
+      `${replySystems(sim, STEP.ownerAsks).length} reply call(s)`,
+    ),
+    check(
+      "the close line is never posted",
+      !markerPosted,
+      markerPosted ? "posted" : "kept out of every reply",
+    ),
+    scriptedCheck(
+      sim,
+      "the owner's plain request closes the finding as dismissed, and the reply asks what was wrong",
+      ownerAsks.state === "closed" &&
+        ownerAsks.reason === "dismissed" &&
+        threadReplies(sim, STEP.ownerAsks).some((body) =>
+          body.includes("What was the problem with the finding"),
+        ),
+      JSON.stringify(ownerAsks),
+      "a live model decides itself whether the comment asks to close",
+    ),
+    scriptedCheck(
+      sim,
+      "the answer on a closed finding is kept in the audit log as feedback",
+      Number(feedback.kept) === 1,
+      JSON.stringify(feedback),
+      "only a finding the model closed gets feedback",
     ),
     check(
       "a repository in comment mode posts its review as a comment, never approving or blocking",
@@ -240,26 +357,9 @@ export default defineFlow({
     {
       name: STEP.reopened,
       async run(sim) {
-        const { handleFindingsRoute } =
-          await import("../../../server/api/findings.ts");
-        const id = appRows<{ id: string }>(
-          sim,
-          "SELECT id FROM findings ORDER BY rowid DESC LIMIT 1",
-        )[0]?.id;
-        const path = `/api/findings/${id}`;
-        const response = await handleFindingsRoute(
-          new Request(`http://localhost${path}`, {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-              "x-requested-with": "fetch",
-            },
-            body: JSON.stringify({ action: "reopen" }),
-          }),
-          new URL(`http://localhost${path}`),
-        );
+        const status = await reopenLatest(sim);
         sim.state.reopened = {
-          status: response?.status,
+          status,
           state: findingState(sim).state,
         };
         return JSON.stringify(sim.state.reopened);
@@ -300,6 +400,48 @@ export default defineFlow({
             ),
         );
         sim.state.dismissed = { ...after, replied };
+        return line;
+      },
+    },
+    {
+      name: STEP.memberAsks,
+      async run(sim) {
+        // Open again first: the dismissal above closed it.
+        const reopened = await reopenLatest(sim);
+        const line = await replyInThread(
+          sim,
+          "Please close this finding, it does not apply.",
+          "MEMBER",
+        );
+        sim.state.memberAsks = { reopened, ...findingState(sim) };
+        return line;
+      },
+    },
+    {
+      name: STEP.ownerAsks,
+      async run(sim) {
+        const line = await replyInThread(
+          sim,
+          "This finding is wrong, close it.",
+          "OWNER",
+        );
+        sim.state.ownerAsks = findingState(sim);
+        return line;
+      },
+    },
+    {
+      name: STEP.feedback,
+      async run(sim) {
+        const line = await replyInThread(
+          sim,
+          "The caller validates b before divide runs.",
+          "OWNER",
+        );
+        const kept = appRows<{ n: number }>(
+          sim,
+          "SELECT COUNT(*) AS n FROM audit_log WHERE summary = 'Feedback on a closed finding' AND changes_json LIKE '%validates b before divide%'",
+        )[0]?.n;
+        sim.state.feedback = { kept };
         return line;
       },
     },

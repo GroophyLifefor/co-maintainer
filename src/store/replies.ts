@@ -14,6 +14,8 @@ export type ReplyRequestInput = {
   sourcePath?: string;
   sourceLine?: number;
   sourceCommitId?: string;
+  /** The author may close the finding this reply answers. */
+  mayClose?: boolean;
   deliveryId?: string;
 };
 
@@ -39,8 +41,9 @@ export function createReplyRequestAndJob(input: ReplyRequestInput): {
       `INSERT INTO reply_requests
          (id, repo, pr_number, source_kind, source_comment_id,
           target_comment_id, source_body, source_author, source_path,
-          source_line, source_commit_id, status, job_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)`,
+          source_line, source_commit_id, may_close, status, job_id, created_at,
+          updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)`,
     ).run(
       requestId,
       input.repo,
@@ -53,6 +56,7 @@ export function createReplyRequestAndJob(input: ReplyRequestInput): {
       input.sourcePath ?? null,
       input.sourceLine ?? null,
       input.sourceCommitId ?? null,
+      input.mayClose ? 1 : 0,
       jobId,
       now,
       now,

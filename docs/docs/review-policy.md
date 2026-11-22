@@ -123,6 +123,13 @@ while its lines stay the same. The dashboard's **Findings** list has the same
 **Close** button, and **Reopen** opens a dismissed or withdrawn finding again.
 Each one goes to the audit log with its reason.
 
+Asking in plain words works too. When someone who may dismiss replies in a
+finding's thread that it is wrong or asks to close it, the bot closes it, even
+if it still reads the code the other way. It says so in one sentence and asks
+what the problem with the finding was. The answer to that question goes to the
+audit log as feedback on the closed finding. When someone else asks, the bot
+says a maintainer can close it and leaves it open.
+
 When the bot agrees in a reply that a finding was wrong, it withdraws it. When
 a withdrawn or dismissed finding was the last blocking one, the review asked for
 changes, and the pull request is still on the commit that review read, the bot

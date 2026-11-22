@@ -6,7 +6,13 @@ import {
   setReplyStatus,
 } from "../store/replies.ts";
 import { getJob } from "../store/jobs.ts";
-import { findingRules, runReplyJob, takeWithdrawLine } from "./replies.ts";
+import {
+  findingRules,
+  runReplyJob,
+  takeCloseLine,
+  takeWithdrawLine,
+} from "./replies.ts";
+import { listAudit } from "../store/audit.ts";
 import { insertReview } from "../store/reviews.ts";
 import {
   insertFinding,
@@ -125,6 +131,7 @@ function requestJob(
   sourceKind: "review_comment" | "issue_comment",
   sourceCommentId: string,
   targetCommentId?: string,
+  extra: { mayClose?: boolean; sourceBody?: string } = {},
 ): JobRow {
   const result = createReplyRequestAndJob({
     repo: "acme/widgets",
@@ -132,8 +139,9 @@ function requestJob(
     sourceKind,
     sourceCommentId,
     targetCommentId,
-    sourceBody: "Can you explain this?",
+    sourceBody: extra.sourceBody ?? "Can you explain this?",
     sourceAuthor: "octocat",
+    mayClose: extra.mayClose,
   });
   return getJob(result.request.job_id!)!;
 }
@@ -350,6 +358,112 @@ test("a reply that defends the finding leaves it open", async () => {
     );
     if (row?.state !== "new") throw new Error(`finding is ${row?.state}`);
   });
+});
+
+/** The AI request's system text, kept so a test can read the rules. */
+function capturingAi(text: string, seen: string[]): AiProvider {
+  return {
+    complete: (request) => {
+      seen.push(String(request.system ?? ""));
+      return Promise.resolve({
+        text,
+        tokensIn: 1,
+        tokensOut: 1,
+        model: "fake",
+        provider: "openrouter",
+      });
+    },
+  };
+}
+
+const CLOSING_ANSWER =
+  "Closed it. I still read it the other way, but you know this code better. What was the problem with the finding?\n\nCLOSED\n";
+
+test("a maintainer asking to close a finding closes it, the reply asks for feedback and never posts the marker", async () => {
+  await withEnv(async () => {
+    const github = new FakeGithub();
+    const job = requestJob("review_comment", "120", "10", {
+      mayClose: true,
+      sourceBody: "This finding is wrong, close it.",
+    });
+    const findingId = postedFinding(job.id);
+    const seen: string[] = [];
+    await runReplyJob(job, () => {}, github, capturingAi(CLOSING_ANSWER, seen));
+    if (!seen[0]?.includes("close it, even if you still think it is right")) {
+      throw new Error("the close rule was not asked");
+    }
+    const body = (github.writes[0]!.body as { body: string }).body;
+    if (body.includes("CLOSED") || !body.includes("What was the problem")) {
+      throw new Error(`posted body: ${body}`);
+    }
+    const row = listFindingsForPr("acme/widgets", 1).find(
+      (item) => item.id === findingId,
+    );
+    if (row?.state !== "closed" || row.close_reason !== "dismissed") {
+      throw new Error(`finding is ${row?.state}/${row?.close_reason}`);
+    }
+  });
+});
+
+test("someone who may not dismiss cannot close a finding by asking, whatever the model answers", async () => {
+  await withEnv(async () => {
+    const github = new FakeGithub();
+    const job = requestJob("review_comment", "121", "10", {
+      sourceBody: "Close this finding.",
+    });
+    const findingId = postedFinding(job.id);
+    const seen: string[] = [];
+    await runReplyJob(job, () => {}, github, capturingAi(CLOSING_ANSWER, seen));
+    if (!seen[0]?.includes("a maintainer can close it")) {
+      throw new Error("the maintainer rule was not asked");
+    }
+    const body = (github.writes[0]!.body as { body: string }).body;
+    if (body.includes("CLOSED")) throw new Error(`posted body: ${body}`);
+    const row = listFindingsForPr("acme/widgets", 1).find(
+      (item) => item.id === findingId,
+    );
+    if (row?.state !== "new") throw new Error(`finding is ${row?.state}`);
+  });
+});
+
+test("a reply on a closed finding is kept in the audit log as feedback", async () => {
+  await withEnv(async () => {
+    const github = new FakeGithub();
+    const first = requestJob("review_comment", "122", "10", {
+      mayClose: true,
+      sourceBody: "Close it.",
+    });
+    postedFinding(first.id);
+    await runReplyJob(first, () => {}, github, replyAi(CLOSING_ANSWER));
+    const second = requestJob("review_comment", "123", "10", {
+      sourceBody: "The value is checked by the caller before this runs.",
+    });
+    const seen: string[] = [];
+    await runReplyJob(
+      second,
+      () => {},
+      github,
+      capturingAi("Thanks, that helps.", seen),
+    );
+    if (!seen[0]?.includes("is already closed")) {
+      throw new Error("the closed note was not asked");
+    }
+    const feedback = listAudit({}, 50, 0).items.find(
+      (row) => row.summary === "Feedback on a closed finding",
+    );
+    if (
+      !JSON.stringify(feedback?.changes ?? []).includes("checked by the caller")
+    ) {
+      throw new Error(`audit: ${JSON.stringify(feedback)}`);
+    }
+  });
+});
+
+test("the CLOSED line counts only as the last line, alone", () => {
+  if (!takeCloseLine("Closed.\nCLOSED").closed) throw new Error("not taken");
+  if (takeCloseLine("CLOSED is the word.\nIt stays.").closed) {
+    throw new Error("taken from the middle");
+  }
 });
 
 test("the WITHDRAWN line counts only as the last line, alone", () => {

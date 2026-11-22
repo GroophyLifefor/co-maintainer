@@ -525,6 +525,7 @@ function enqueueReply(
   sourcePath?: string,
   sourceLine?: number,
   sourceCommitId?: string,
+  mayClose = false,
 ): WebhookResult {
   const installationId = asNumber(asRecord(payload.installation)?.id);
   if (installationId !== undefined) setInstallationId(repo, installationId);
@@ -548,6 +549,7 @@ function enqueueReply(
     sourcePath,
     sourceLine,
     sourceCommitId,
+    mayClose,
     deliveryId,
   });
   if (!result.created) {
@@ -628,6 +630,15 @@ function reviewCommentEvent(
     }
     const target = replyTarget(repo, prNumber, String(parentId));
     if (target) {
+      // The same people who may dismiss may close a finding by asking in
+      // its thread.
+      const policyRow = getRepo(repo);
+      const mayClose =
+        policyRow !== undefined &&
+        maySkip(
+          policyForRepo(policyRow),
+          asString(comment?.author_association) ?? "NONE",
+        );
       return enqueueReply(
         payload,
         deliveryId,
@@ -641,6 +652,7 @@ function reviewCommentEvent(
         asString(comment?.path),
         asNumber(comment?.line) ?? asNumber(comment?.original_line),
         asString(comment?.commit_id),
+        mayClose,
       );
     }
   }
