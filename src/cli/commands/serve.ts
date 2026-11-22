@@ -187,7 +187,8 @@ export async function runServe(args: string[]): Promise<void> {
 
   const auth = resolveAuthMethods(args, config);
   let githubOAuth:
-    { clientId: string; clientSecret: string; allowedUser: string } | undefined;
+    | { clientId: string; clientSecret: string; allowedUser: string }
+    | undefined;
   if (auth.github) {
     if (
       !config.githubOAuthClientId ||
