@@ -495,7 +495,7 @@ test("the remote server's routes answer at REMOTE_URL, traced on their own", asy
   );
 });
 
-test("a GitHub fault fails the next matching call once, then GitHub answers", async () => {
+test("a GitHub fault fails the next matching call once, and the retry gets the answer", async () => {
   const flow: Flow = {
     name: "fault-fixture",
     description: "test fixture",
@@ -538,11 +538,18 @@ test("a GitHub fault fails the next matching call once, then GitHub answers", as
     ],
     checks: (sim) => [
       {
-        name: "500 once, rate limit retried, slow answered",
+        name: "500 once retried, rate limit retried, slow answered",
         ok:
           JSON.stringify(sim.state.statuses) ===
-          JSON.stringify(["GitHub API 500", "ok", "ok", "ok"]),
+          JSON.stringify(["ok", "ok", "ok", "ok"]),
         detail: JSON.stringify(sim.state.statuses),
+      },
+      {
+        name: "the 500 fault fired once and its read was sent again",
+        ok:
+          sim.trace.github.filter((call) => call.url.includes("/git/trees"))
+            .length === 3,
+        detail: "",
       },
       {
         name: "the rate limited call was sent twice",

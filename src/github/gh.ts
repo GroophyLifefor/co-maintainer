@@ -1,8 +1,13 @@
 import {
+  isRetryableRead,
+  isTransientFailure,
   paginate,
   probeDelay,
   RATE_LIMIT_PROBE_MS,
   rateLimitError,
+  sleep,
+  transientDelay,
+  transientRetries,
   waitForRateLimit,
 } from "./client.ts";
 import type { GitHubClient } from "../types.ts";
@@ -273,6 +278,7 @@ export class GhClient implements GitHubClient {
     noteGhCall(this.debug);
     const started = Date.now();
     let spun = false;
+    let transient = 0;
     for (;;) {
       // A missing `gh` binary rejects the spawn instead of returning a failed
       // result, so the ENOENT case has to be caught here too.
@@ -303,6 +309,21 @@ export class GhClient implements GitHubClient {
       const limited = bucket
         ? bucket.remaining === 0
         : /rate limit/i.test(error);
+      const wait =
+        !limited &&
+        isRetryableRead(method, endpoint) &&
+        isTransientFailure(error)
+          ? transientDelay(transient)
+          : undefined;
+      if (wait !== undefined) {
+        transient++;
+        log(
+          "github",
+          `temporary GitHub error on ${endpoint}, retry ${transient} of ${transientRetries()} in ${wait / 1000}s: ${error.split("\n")[0]}`,
+        );
+        await sleep(wait);
+        continue;
+      }
       if (!limited) {
         throw (
           (await missingPullRequest(endpoint, error)) ??

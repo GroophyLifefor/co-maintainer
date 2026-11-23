@@ -113,6 +113,80 @@ export async function waitForRateLimit(
   await pauseForReset(resetAt, delay);
 }
 
+/** The waits before each retry of a temporary GitHub failure: a 5xx or a
+ * dropped connection. One such failure on a run of a thousand calls stopped
+ * the whole run. Only reads are retried, a write may already have landed. */
+const TRANSIENT_RETRY_DELAYS_MS = [2_000, 6_000];
+let transientDelays = TRANSIENT_RETRY_DELAYS_MS;
+
+/** Test seam: shorter waits. Unset puts the real ones back. */
+export function setTransientDelaysForTest(delays?: number[]): void {
+  transientDelays = delays ?? TRANSIENT_RETRY_DELAYS_MS;
+}
+
+/** The wait before retry number `retry` (0 based), or `undefined` once the
+ * retries are spent. */
+export function transientDelay(retry: number): number | undefined {
+  return transientDelays[retry];
+}
+
+export function transientRetries(): number {
+  return transientDelays.length;
+}
+
+/** A failure that is GitHub having a bad moment, not a wrong request: a 5xx,
+ * or the connection dropping on the way. Matched on `gh`'s stderr and on the
+ * fetch error text. */
+export function isTransientFailure(text: string): boolean {
+  return /HTTP 50[0234]\b|stream error|\bCANCEL\b|connection reset|unexpected EOF|i\/o timeout|TLS handshake timeout|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|fetch failed/i.test(
+    text,
+  );
+}
+
+/** Reads, and GraphQL, which is a read sent as a POST. */
+export function isRetryableRead(method: string, endpoint: string): boolean {
+  return (
+    method === "GET" || endpoint === "graphql" || endpoint.endsWith("/graphql")
+  );
+}
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** One `fetch`, retried while GitHub fails for a moment. A write is sent
+ * once. */
+async function fetchRetrying(
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  const read = isRetryableRead(init.method ?? "GET", url);
+  for (let retry = 0; ; retry++) {
+    const wait = read ? transientDelay(retry) : undefined;
+    let response: Response;
+    try {
+      response = await fetch(url, init);
+    } catch (error) {
+      if (wait === undefined) throw networkFailure(url, error);
+      log(
+        "github",
+        `temporary GitHub error, retry ${retry + 1} of ${transientRetries()} in ${wait / 1000}s: ${String(error)}`,
+      );
+      await sleep(wait);
+      continue;
+    }
+    if (wait !== undefined && [500, 502, 503, 504].includes(response.status)) {
+      log(
+        "github",
+        `temporary GitHub error (HTTP ${response.status}), retry ${retry + 1} of ${transientRetries()} in ${wait / 1000}s`,
+      );
+      await sleep(wait);
+      continue;
+    }
+    return response;
+  }
+}
+
 /** A secondary (abuse-detection) rate limit carries a short `retry-after`
  * and is retried in place, up to three attempts total. A primary limit at
  * zero remaining sleeps until its reset, probing at least every 30 minutes,
@@ -127,11 +201,7 @@ export async function githubFetch(
     let response: Response | undefined;
     let exhausted: RateLimit | undefined;
     for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        response = await fetch(url, init);
-      } catch (error) {
-        throw networkFailure(url, error);
-      }
+      response = await fetchRetrying(url, init);
       if (response.status !== 403 && response.status !== 429) return response;
       const retryAfterHeader = response.headers.get("retry-after");
       const retryAfter =

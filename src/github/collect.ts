@@ -1,4 +1,5 @@
 import { log, startHeartbeat } from "../util/log.ts";
+import { interrupted } from "../util/interrupt.ts";
 import { cacheGet, cacheSet, cacheValues } from "../store/cache_db.ts";
 import type { GitHubClient, Json, Options } from "../types.ts";
 import type { PullRequest, Source, State } from "../knowledge/types.ts";
@@ -703,9 +704,21 @@ async function pullRequests(
         options.maxPullRequestChangeLines === undefined ||
         lines <= options.maxPullRequestChangeLines
       ) {
-        const files = await client.pages<Json>(
-          `repos/${options.repo}/pulls/${number}/files`,
-        );
+        // A diff GitHub still cannot serve after its retries leaves this pull
+        // request without a diff instead of stopping the run. Nothing is
+        // cached for it, so the next run asks again.
+        let files: Json[] = [];
+        try {
+          files = await client.pages<Json>(
+            `repos/${options.repo}/pulls/${number}/files`,
+          );
+        } catch (error) {
+          if (interrupted()) throw error;
+          log(
+            "fetch",
+            `PR #${number} diff unavailable, kept without it: ${String(error)}`,
+          );
+        }
         current.changedFiles = files
           .map((item) => String(item.filename))
           .filter(Boolean);
