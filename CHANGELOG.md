@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.22] - 2026-11-23
+
+### Changed
+
+- **probe counts pull requests instead of listing them.** One GraphQL query gives the total, each year, each estimate window, and a sample with line counts. On nodejs/node that replaces 438 listing pages and 66 detail calls.
+- **init reads pull requests in GraphQL pages.** Each page of 20 brings the line counts, comments, review comments and reviews, so the four calls per pull request are gone. `--pr-state=merged` is filtered by GitHub, and the listing progress shows `fetched 8,800 / 14,333` instead of `total unknown`.
+- **init reads codebase files in GraphQL batches of 20** instead of one call each.
+- **The probe estimate counts these calls,** and only the REST ones count toward the hourly quota, since GraphQL has its own.
+- When a GraphQL call fails, that part is read with REST as before.
+
+### Fixed
+
+- **A temporary GitHub error no longer stops probe or init.** A 5xx or a dropped connection on a read is retried twice with a wait, and a pull request whose diff still fails is kept without it. Writes are still sent once.
+
 ## [0.7.21] - 2026-11-23
 
 ### Fixed
