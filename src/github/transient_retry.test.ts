@@ -115,7 +115,13 @@ test("gh retries a read that failed with a temporary server error", async () => 
       false,
       "gh: Server Error: Sorry, this diff is temporarily unavailable due to heavy server load. (HTTP 500)",
     ),
-    output(false, "stream error: stream ID 1; CANCEL; received from peer"),
+    // gh separates these parts with a semicolon.
+    output(
+      false,
+      ["stream error: stream ID 1", " CANCEL", " received from peer"].join(
+        String.fromCharCode(59),
+      ),
+    ),
     output(true, '{"ok":true}'),
   ]);
   const body = await new GhClient().request<{ ok: boolean }>("repos/a/b");
