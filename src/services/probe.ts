@@ -102,6 +102,20 @@ function measured(client: GitHubClient): {
         seconds += (performance.now() - started) / 1_000;
       }
     },
+    // GraphQL goes through `write`, so it is counted like any other call.
+    ...(client.write
+      ? {
+          write: async <T>(endpoint: string, body: unknown): Promise<T> => {
+            const started = performance.now();
+            try {
+              return await client.write!<T>(endpoint, body);
+            } finally {
+              calls++;
+              seconds += (performance.now() - started) / 1_000;
+            }
+          },
+        }
+      : {}),
   };
   return {
     client: wrapped,
