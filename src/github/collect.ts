@@ -1,5 +1,7 @@
 import { log, startHeartbeat } from "../util/log.ts";
 import { interrupted } from "../util/interrupt.ts";
+import { graphqlOr } from "./graphql.ts";
+import { countPullRequests } from "./pr_listing.ts";
 import { cacheGet, cacheSet, cacheValues } from "../store/cache_db.ts";
 import type { GitHubClient, Json, Options } from "../types.ts";
 import type { PullRequest, Source, State } from "../knowledge/types.ts";
@@ -148,6 +150,18 @@ async function listPullRequestPages(
   const concurrency = Math.max(1, options.ghConcurrent);
   const states = stateKey(options.prState) || "all";
   log("fetch", `pull request listing · ${states} · concurrency=${concurrency}`);
+  // One count first, so the progress line has a total. Without GraphQL it
+  // stays unknown, as before.
+  const total = await graphqlOr<number | undefined>(
+    client,
+    "counting pull requests",
+    () => countPullRequests(client, options),
+    async () => undefined,
+  );
+  const fetched = () =>
+    total === undefined
+      ? `fetched ${selected.length}`
+      : `fetched ${selected.length.toLocaleString("en-US")} / ${total.toLocaleString("en-US")}`;
 
   const fetchPage = async (page: number): Promise<Json[]> => {
     const pageItems = await client.request<Json[]>(
@@ -158,13 +172,13 @@ async function listPullRequestPages(
 
   const ingest = (page: number, pageItems: Json[]): boolean => {
     if (pageItems.length === 0) {
-      const message = `pull request listing · page ${page} · fetched ${selected.length} · done`;
+      const message = `pull request listing · page ${page} · ${fetched()} · done`;
       if (phase) phase.text = message;
       log("fetch", message);
       return true;
     }
     let stop = false;
-    let reason = "total unknown";
+    let reason = total === undefined ? "total unknown" : "listing";
     for (const pr of pageItems) {
       const updatedAt = String(pr.updated_at ?? "");
       if (!withinPrWindow(updatedAt, options.maxPrMonths)) {
@@ -183,7 +197,7 @@ async function listPullRequestPages(
         break;
       }
     }
-    const message = `pull request listing · page ${page} · fetched ${selected.length} · ${reason}`;
+    const message = `pull request listing · page ${page} · ${fetched()} · ${reason}`;
     if (phase) phase.text = message;
     log("fetch", message);
     return stop || pageItems.length < 100;
