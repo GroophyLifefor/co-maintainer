@@ -131,7 +131,10 @@ function reviewComments(threads: unknown): Json[] | undefined {
 
 /** A GraphQL pull request in the REST listing shape, with its discussion. */
 export function listedShape(node: Json): Json {
-  const labels = complete(node.labels) ?? [];
+  // Labels are kept even past the query's 50, unlike the discussion: a cut
+  // label list costs nothing a review reads.
+  const labelNodes = ((node.labels ?? {}) as Connection).nodes;
+  const labels = Array.isArray(labelNodes) ? labelNodes : [];
   const comments = complete(node.comments);
   const reviews = complete(node.reviews);
   const discussion: ListedDiscussion = {

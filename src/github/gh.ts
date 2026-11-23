@@ -12,6 +12,7 @@ import {
 } from "./client.ts";
 import type { GitHubClient } from "../types.ts";
 import { log } from "../util/log.ts";
+import { interrupted } from "../util/interrupt.ts";
 import { CliError, EXIT_RUNTIME, EXIT_USAGE } from "../cli/error.ts";
 import {
   commandOutput,
@@ -322,6 +323,8 @@ export class GhClient implements GitHubClient {
           `temporary GitHub error on ${endpoint}, retry ${transient} of ${transientRetries()} in ${wait / 1000}s: ${error.split("\n")[0]}`,
         );
         await sleep(wait);
+        // A Stop during the wait sends no retry.
+        if (interrupted()) throw ghFailure(method, endpoint, error);
         continue;
       }
       if (!limited) {

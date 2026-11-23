@@ -200,3 +200,29 @@ test("a pull request whose diff fails is kept without its diff", async () => {
   if (kept?.number !== 1) throw new Error("the pull request was dropped");
   if (kept.diff !== "") throw new Error("a diff came from nowhere");
 });
+
+test("a Stop during the wait sends no retry", async () => {
+  const { armInterrupt, disarmInterrupt } =
+    await import("../util/interrupt.ts");
+  armInterrupt().abort();
+  try {
+    await withFetch([failed(500), ok()], async (calls) => {
+      const response = await githubFetch("https://api.github.com/x", {});
+      if (response.status !== 500) throw new Error(`got ${response.status}`);
+      if (calls() !== 1) throw new Error(`expected 1 call, got ${calls()}`);
+    });
+    const ghCalls = ghAnswers([
+      output(false, "gh: Server Error (HTTP 500)"),
+      output(true, "{}"),
+    ]);
+    const failed500 = await new GhClient()
+      .request("repos/a/b")
+      .then(() => false)
+      .catch(() => true);
+    if (!failed500 || ghCalls() !== 1) {
+      throw new Error(`gh retried after Stop: ${ghCalls()} calls`);
+    }
+  } finally {
+    disarmInterrupt();
+  }
+});

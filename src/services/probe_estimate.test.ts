@@ -299,3 +299,37 @@ test("probe output: durations and dollars read naturally", () => {
     if (got !== want) throw new Error(`${got} should be ${want}`);
   }
 });
+
+test("probe estimate: instruction files are REST calls and count toward the quota", () => {
+  const quota = { limit: 5000, remaining: 3, resetAt: NOW + 30 * 60_000 };
+  const input = {
+    pullRequests: 0,
+    includePullRequests: false,
+    includeChanges: false,
+    changeShare: 0,
+    includeCodebase: true,
+    commits: 0,
+    ghConcurrent: 1,
+    secondsPerCall: 0.1,
+    quota,
+    now: NOW,
+  };
+  // The tree, 3 instruction files and 1 batch: 5 calls, 4 of them REST plus
+  // the metadata, more than the 3 left.
+  const withFiles = estimateGithub({
+    ...input,
+    codebaseCalls: 5,
+    codebaseGraphqlCalls: 1,
+  });
+  if (withFiles.calls !== 6) throw new Error(`calls: ${withFiles.calls}`);
+  if (withFiles.quotaWaitSeconds === 0) {
+    throw new Error("the instruction files were left out of the quota");
+  }
+  // Without them, the tree and the metadata fit in the 3 left.
+  const without = estimateGithub({
+    ...input,
+    codebaseCalls: 2,
+    codebaseGraphqlCalls: 1,
+  });
+  if (without.quotaWaitSeconds !== 0) throw new Error("2 REST calls waited");
+});

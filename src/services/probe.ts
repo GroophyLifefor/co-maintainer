@@ -50,6 +50,8 @@ export type ProbePlan = {
     /** The calls the codebase read would take: the tree, the instruction
      * files and the important files. Absent when the tree is unreadable. */
     codebaseCalls?: number;
+    /** The part of `codebaseCalls` that is GraphQL batches. */
+    codebaseGraphqlCalls?: number;
   };
 };
 
@@ -256,7 +258,7 @@ export async function probePlan(
   const reviewSample = await timedRun("probe review sample", () =>
     sampleReviews(client, repo, detailSamples, opts.ghConcurrent, say),
   );
-  const codebaseCalls = await countCodebaseCalls(client, repo, branch);
+  const codebase = await countCodebaseCalls(client, repo, branch);
   const quota = await readQuota(githubClient);
   const cap = analysis.maxPullRequestChangeLines;
   const sampledLines = detailSamples.map(
@@ -318,7 +320,16 @@ export async function probePlan(
     pullWindows: pullData.windows,
     changeShare,
     reviewSample,
-    github: { ...stats(), quota, codebaseCalls },
+    github: {
+      ...stats(),
+      quota,
+      ...(codebase
+        ? {
+            codebaseCalls: codebase.total,
+            codebaseGraphqlCalls: codebase.graphql,
+          }
+        : {}),
+    },
   };
 }
 
@@ -329,7 +340,7 @@ async function countCodebaseCalls(
   client: GitHubClient,
   repo: string,
   branch: string,
-): Promise<number | undefined> {
+): Promise<{ total: number; graphql: number } | undefined> {
   try {
     const response = await client.request<Json>(
       `repos/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
@@ -340,9 +351,10 @@ async function countCodebaseCalls(
     const pattern = agentInstructionsPattern(undefined);
     const instructions = pattern ? matchInstructionPaths(tree, pattern) : [];
     const important = importantCodebasePaths(tree, new Set(instructions));
-    // The tree, each instruction file with REST, and the important files in
-    // GraphQL batches.
-    return 1 + instructions.length + Math.ceil(important.length / FILE_BATCH);
+    // The tree and each instruction file with REST, and the important files
+    // in GraphQL batches, which have their own quota.
+    const graphql = Math.ceil(important.length / FILE_BATCH);
+    return { total: 1 + instructions.length + graphql, graphql };
   } catch {
     return undefined;
   }

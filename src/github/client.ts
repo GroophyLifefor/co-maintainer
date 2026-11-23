@@ -6,6 +6,7 @@ import { log } from "../util/log.ts";
 import { networkFailure } from "../cli/error.ts";
 import { missingHint, refusalHint } from "./permissions.ts";
 import { recordRateLimitWait } from "../services/rate_limit.ts";
+import { interrupted } from "../util/interrupt.ts";
 
 export class GitHubHttpError extends Error {
   readonly status: number;
@@ -173,6 +174,8 @@ async function fetchRetrying(
         `temporary GitHub error, retry ${retry + 1} of ${transientRetries()} in ${wait / 1000}s: ${String(error)}`,
       );
       await sleep(wait);
+      // A Stop during the wait sends no retry.
+      if (interrupted()) throw networkFailure(url, error);
       continue;
     }
     if (wait !== undefined && [500, 502, 503, 504].includes(response.status)) {
@@ -181,6 +184,7 @@ async function fetchRetrying(
         `temporary GitHub error (HTTP ${response.status}), retry ${retry + 1} of ${transientRetries()} in ${wait / 1000}s`,
       );
       await sleep(wait);
+      if (interrupted()) return response;
       continue;
     }
     return response;

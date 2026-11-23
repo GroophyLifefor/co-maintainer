@@ -236,6 +236,10 @@ export type GithubEstimateInput = {
   /** The calls that read takes, counted from the tree. Unset is the most it
    * can take. */
   codebaseCalls?: number;
+  /** The part of `codebaseCalls` that is GraphQL batches. The rest, the
+   * tree and the instruction files, is REST. Unset is every call after the
+   * tree. */
+  codebaseGraphqlCalls?: number;
   /** Commits `init` would read, already cut to `--max-commits`. 0 when the
    * commit history is not read. */
   commits: number;
@@ -273,8 +277,12 @@ export function estimateGithub(input: GithubEstimateInput): GithubEstimate {
   let graphqlCalls = 0;
   if (input.includeCodebase) {
     const codebase = input.codebaseCalls ?? CODEBASE_CALLS;
-    rest += 1; // the tree
-    graphqlCalls += Math.max(0, codebase - 1);
+    const batches = Math.min(
+      codebase,
+      input.codebaseGraphqlCalls ?? Math.max(0, codebase - 1),
+    );
+    rest += codebase - batches; // the tree and the instruction files
+    graphqlCalls += batches;
   }
   if (input.includePullRequests ?? input.pullRequests > 0) {
     // One count, then GraphQL pages that bring each pull request's line

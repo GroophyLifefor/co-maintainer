@@ -139,6 +139,7 @@ function initOption(
     changeShare: plan.changeShare,
     includeCodebase: flags.includeCodebase || flags.includeHowRepoWorks,
     codebaseCalls: plan.github.codebaseCalls,
+    codebaseGraphqlCalls: plan.github.codebaseGraphqlCalls,
     commits,
     ghConcurrent: options.ghConcurrent,
     secondsPerCall: plan.github.secondsPerCall,

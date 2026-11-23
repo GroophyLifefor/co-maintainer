@@ -268,3 +268,12 @@ test("a GraphQL listing that fails part way is listed again with REST", async ()
   if (JSON.stringify(numbers) !== "[9]")
     throw new Error(JSON.stringify(numbers));
 });
+
+test("labels past the query's limit are kept, not dropped", () => {
+  const item = listedShape(
+    graphqlPull(5, {
+      labels: { totalCount: 60, nodes: [{ name: "a" }, { name: "b" }] },
+    }),
+  );
+  if ((item.labels as Json[]).length !== 2) throw new Error("labels dropped");
+});
