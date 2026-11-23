@@ -1,5 +1,4 @@
-/** Test-only cross-runtime primitives, backed by `node:*` so the same test
- * file runs under both `deno test` and `node --test` during the migration.
+/** Test-only process and filesystem helpers, backed by `node:*`.
  * Production code never imports this. Filesystem/env helpers are re-exported
  * from the production shim so there is one implementation.
  */
@@ -44,7 +43,7 @@ export type CommandOutput = {
   stderr: Uint8Array;
 };
 
-/** Minimal stand-in for `Deno.Command(...).output()` used by tests. */
+/** Runs a command to completion and captures its output, for tests. */
 export class Command {
   readonly #command: string;
   readonly #options: CommandOptions;
@@ -92,18 +91,12 @@ export class Command {
   }
 }
 
-const isDeno = typeof (globalThis as { Deno?: unknown }).Deno !== "undefined";
-
-/** Path to the running runtime binary (deno or node). */
+/** Path to the running node binary. */
 export function runtimeExecPath(): string {
-  return isDeno
-    ? (
-        globalThis as unknown as { Deno: { execPath(): string } }
-      ).Deno.execPath()
-    : process.execPath;
+  return process.execPath;
 }
 
-/** Arguments that run a `.ts` entrypoint on the current runtime. */
+/** Arguments that run a `.ts` entrypoint with node. */
 export function runtimeRunArgs(script: string, args: string[]): string[] {
-  return isDeno ? ["run", "--allow-all", script, ...args] : [script, ...args];
+  return [script, ...args];
 }

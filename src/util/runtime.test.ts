@@ -16,9 +16,8 @@ import { test } from "node:test";
 test("makeTempFile creates the file directly in the temp dir", async () => {
   const file = await makeTempFile({ prefix: "cm-test-", suffix: ".json" });
   try {
-    // Deno.makeTempFile puts a single file under the temp dir. Creating a
-    // dedicated mkdtemp directory instead leaves that directory behind, since
-    // callers only remove the returned file.
+    // The file goes straight under the temp dir. A dedicated mkdtemp directory
+    // would be left behind, since callers only remove the returned file.
     if (dirname(file) !== tmpdir()) {
       throw new Error(`file was placed in ${dirname(file)}, not ${tmpdir()}`);
     }

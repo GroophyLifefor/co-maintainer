@@ -10,11 +10,9 @@ import {
   writeTextFile,
 } from "../src/util/runtime.ts";
 
-/** `deno run --allow-all <script>` or plain `node <script>`, depending on
- * which runtime is executing this file. */
+/** Arguments that run a `.ts` script with node. */
 function runtimeRunArgs(script: string, args: string[]): string[] {
-  const isDeno = typeof (globalThis as { Deno?: unknown }).Deno !== "undefined";
-  return isDeno ? ["run", "--allow-all", script, ...args] : [script, ...args];
+  return [script, ...args];
 }
 
 const REPO = "e2e-local/review-loop";

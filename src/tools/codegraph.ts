@@ -372,7 +372,7 @@ export async function ensureCodegraph(
   return after.path;
 }
 
-/** Review paths must not call `Deno.exit`. */
+/** Review paths must not call `process.exit`. */
 export async function ensureCodegraphForReview(
   options: EnsureOptions = {},
 ): Promise<{ path: string } | { reason: string }> {

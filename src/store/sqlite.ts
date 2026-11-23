@@ -2,8 +2,7 @@
  * surface the store layer was written against: a synchronous `Database`,
  * `prepare<T>()` generics, `.get()/.all()/.run()`, and `db.changes`.
  *
- * Three behaviours of the JSR driver must be reproduced on top of
- * `node:sqlite`:
+ * Three behaviours the store relies on are added on top of `node:sqlite`:
  *  - `undefined` parameters bind as SQL NULL (node:sqlite rejects undefined)
  *  - `boolean` parameters bind as 0/1 (node:sqlite rejects booleans)
  *  - `db.changes` reports the rows modified by the most recent `run()`, which
