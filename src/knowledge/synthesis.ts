@@ -352,11 +352,17 @@ function validateFacts(
   }
 }
 
-function extractRequest(prompt: string, maxTokens: number): AiRequest {
+/** The first try's output limit. Thinking counts toward it, and a thinking model
+ * spent all of 2,400 there for about half of the pull requests. A cut answer
+ * retries with 16k, then 32k, then the unit is skipped. */
+export const EXTRACT_MAX_TOKENS = 8_000;
+
+function extractRequest(prompt: string): AiRequest {
   return {
     job: "extract_unit",
     prompt,
-    maxTokens,
+    maxTokens: EXTRACT_MAX_TOKENS,
+    growOnCutOff: true,
     // Reading a discussion into structured findings is multi-step work: with no
     // thinking the model returned an empty array for most pull requests. The
     // level is the global setting, like every other AI job.
@@ -443,7 +449,7 @@ export async function extractAiFacts(
   const prs = options.includePullRequests ? source.pullRequests : [];
 
   for (const pr of prs) {
-    requests.push(extractRequest(extractPrompt(pr), 2_400));
+    requests.push(extractRequest(extractPrompt(pr)));
     linkIds.push(hasCommentLinks(pr) ? commentIds(pr) : undefined);
     prNumbers.push(pr.number);
     evidence.push(`PR #${pr.number}`);
@@ -473,7 +479,6 @@ Return at most 10 items. Keep each claim under 180 characters. Do not explain th
 
 FILES:
 ${files}`,
-          2_200,
         ),
       );
       evidence.push("repository files");

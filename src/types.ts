@@ -163,6 +163,10 @@ export type AiRequest = {
   // don't have, and requesting an unsupported one is the caller's mistake to
   // avoid, not something validated here.
   reasoningEffort?: "max" | "xhigh" | "high" | "medium" | "low" | "none";
+  /** An answer cut at the output limit is retried by the batch with twice the
+   * limit, up to its attempt count, instead of with the same limit. A thinking
+   * model can spend the whole limit thinking, and the same limit cuts it again. */
+  growOnCutOff?: boolean;
 };
 
 export type AiResponse = {

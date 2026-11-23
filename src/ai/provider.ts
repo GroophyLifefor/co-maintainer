@@ -5,6 +5,7 @@ import { openCodeHost } from "./opencode.ts";
 import { EXPERIMENTAL_OAUTH_PROVIDER, oauthOps } from "./oauth/registry.ts";
 import { withCopyRule } from "./copy_rule.ts";
 import { die } from "../cli/error.ts";
+import { OutputLimitError } from "./output_limit.ts";
 import type {
   AiMessage,
   AiProvider,
@@ -129,7 +130,7 @@ export function noteReasoningDropped(
  * toward that limit, so a thinking model can spend all of it there. Without
  * this the empty answer read as a normal one and failed later as "not JSON". */
 export function outputLimitError(provider: string, model: string): Error {
-  return new Error(
+  return new OutputLimitError(
     `${provider} model ${model} reached its output limit before writing an answer. Thinking counts toward that limit.`,
   );
 }

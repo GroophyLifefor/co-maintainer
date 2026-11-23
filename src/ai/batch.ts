@@ -5,6 +5,7 @@ import { formatError } from "../cli/error.ts";
 import { recordRateLimitWait } from "../services/rate_limit.ts";
 import { log } from "../util/log.ts";
 import { interrupted, interruptSignal } from "../util/interrupt.ts";
+import { OutputLimitError } from "./output_limit.ts";
 
 type JobRecord = {
   status: "done" | "quarantine";
@@ -195,10 +196,22 @@ export class AiBatch {
     usage: UsageSink | undefined,
     startedAt: number,
   ): Promise<void> {
+    // The request this attempt sends. It differs from `item.request` only when
+    // a cut answer doubled its output limit. The cache id stays the original's.
+    let request = item.request;
+    const grow = (): void => {
+      if (!request.growOnCutOff) return;
+      const doubled = request.maxTokens * 2;
+      log(
+        "ai",
+        `${request.job} ${item.id.slice(0, 8)} stopped at the output limit (${request.maxTokens} tokens), next try gets ${doubled}`,
+      );
+      request = { ...request, maxTokens: doubled };
+    };
     for (let attempt = 1; ; attempt++) {
       let response: AiResponse;
       try {
-        response = await this.provider.complete(item.request);
+        response = await this.provider.complete(request);
       } catch (error) {
         if (interrupted()) throw error;
         const reason = formatError(error);
@@ -210,6 +223,7 @@ export class AiBatch {
           `call failed ${attempt}/${limit} ${item.request.job} ${item.id.slice(0, 8)}: ${reason}`,
         );
         if (attempt < limit) {
+          if (error instanceof OutputLimitError) grow();
           const wait = retryDelayMs(reason, attempt);
           if (wait > 0) {
             recordRateLimitWait({
@@ -233,12 +247,13 @@ export class AiBatch {
         );
         return;
       }
-      const reason = this.validate?.(item.request, response) ?? null;
+      const reason = this.validate?.(request, response) ?? null;
       if (reason !== null && attempt < MAX_ATTEMPTS) {
         log(
           "ai",
           `output rejected ${attempt}/${MAX_ATTEMPTS} ${item.request.job} ${item.id.slice(0, 8)}: ${reason}`,
         );
+        if (response.cutOff) grow();
         continue;
       }
       if (reason !== null) {
