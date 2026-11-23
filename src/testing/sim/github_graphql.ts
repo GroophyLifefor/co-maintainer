@@ -191,11 +191,47 @@ function listing(
   };
 }
 
+const OBJECT = /(f\d+): object\(expression: ("(?:[^"\\]|\\.)*")\)/g;
+
+/** `repository { fN: object(expression: "<ref>:<path>") }`: each file's
+ * text from the repository's git, `null` for a path it does not have. */
+function objects(
+  github: SimGithub,
+  query: string,
+  body: Json,
+): Answer | undefined {
+  const matches = [...query.matchAll(OBJECT)];
+  if (!matches.length) return undefined;
+  const variables = (body.variables ?? {}) as Json;
+  const fullName = `${String(variables.owner)}/${String(variables.name)}`;
+  const repo = [...github.world.repos.values()].find(
+    (candidate) => candidate.fullName.toLowerCase() === fullName.toLowerCase(),
+  );
+  if (!repo) return { data: { repository: null } };
+  const repository: Json = {};
+  for (const [, alias, quoted] of matches) {
+    const expression = JSON.parse(quoted!) as string;
+    try {
+      const content = github.world.git(repo, ["show", expression]);
+      const binary = content.includes(0);
+      repository[alias!] = {
+        text: binary ? null : content.toString("utf8"),
+        isBinary: binary,
+        isTruncated: false,
+      };
+    } catch {
+      repository[alias!] = null;
+    }
+  }
+  return { data: { repository } };
+}
+
 /** GitHub's answer to one GraphQL request. */
 export function answerGraphql(github: SimGithub, body: Json): Answer {
   const query = String(body.query ?? "");
   return (
     listing(github, query, body) ??
+    objects(github, query, body) ??
     searches(github, query) ?? {
       errors: [{ message: "the simulation does not answer this query" }],
     }

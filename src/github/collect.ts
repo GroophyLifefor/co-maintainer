@@ -1,6 +1,7 @@
 import { log, startHeartbeat } from "../util/log.ts";
 import { interrupted } from "../util/interrupt.ts";
 import { graphqlOr } from "./graphql.ts";
+import { fileTexts } from "./graphql_files.ts";
 import {
   countPullRequests,
   DISCUSSION,
@@ -441,6 +442,18 @@ async function codebase(
     return save;
   };
   if (instructionFiles) await checkpoint();
+  // The files the cache cannot answer come in GraphQL batches first. One
+  // GraphQL could not give in full is read with REST below.
+  const unchanged = (path: string) =>
+    Boolean(previous?.treeSha?.[path]) &&
+    previous?.treeSha?.[path] === treeSha[path] &&
+    previous?.files[path] !== undefined;
+  const batched = await fileTexts(
+    client,
+    repo,
+    branch,
+    important.filter((path) => !unchanged(path)),
+  );
   await mapPool(important, concurrency, async (path) => {
     if (
       previous?.treeSha?.[path] &&
@@ -465,7 +478,9 @@ async function codebase(
       await checkpoint();
       return;
     }
-    const content = await file(client, repo, path, branch);
+    const content = batched.has(path)
+      ? batched.get(path)
+      : await file(client, repo, path, branch);
     if (content !== undefined && content.length <= 200_000) {
       files[path] = content;
     }
