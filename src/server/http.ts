@@ -1,7 +1,7 @@
 /** A manual `node:http` ↔ `fetch` bridge.
  *
- * The app is written against the Web `Request`/`Response` types, which Deno
- * served natively. Node has both types but no server that speaks them
+ * The app is written against the Web `Request`/`Response` types. Node has
+ * both types but no server that speaks them
  * directly, so this translates per request and streams responses, including
  * the SSE job feed, instead of buffering them. */
 import {

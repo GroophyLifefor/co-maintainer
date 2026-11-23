@@ -1,7 +1,7 @@
 /** Builds `.ts` modules that export static assets as strings.
  *
- * Deno's `with { type: "text" }` import has no Node equivalent for arbitrary
- * extensions, so assets are embedded at authoring time instead. Run after
+ * Node cannot import arbitrary extensions as text, so assets are embedded at
+ * authoring time instead. Run after
  * editing `src/server/pages/styles.css`, `client.js`, the SVGs under
  * `src/server/pages/icons/`, or the fonts under `src/server/pages/fonts/`:
  *   node scripts/embed_assets.mjs

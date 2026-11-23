@@ -1,10 +1,7 @@
-/** Production runtime helpers for the Node migration.
+/** Production filesystem, env and process helpers over `node:*`.
  *
- * These deliberately mirror the Deno API names and shapes the codebase was
- * written against, so the migration is a mechanical `Deno.foo(` → `foo(`
- * substitution and every deviation lives in exactly one file. Centralizes the
- * two silent-break classes too: `"windows"` vs `"win32"`, and
- * `Deno.errors.NotFound` vs `ENOENT`.
+ * Every platform difference lives in this one file: `"windows"` vs `"win32"`,
+ * and a missing file read as `ENOENT`.
  */
 import {
   chmod as fsChmod,
@@ -48,7 +45,7 @@ if (isWindows() && !process.env.NoDefaultCurrentDirectoryInExePath) {
 
 export type Platform = "windows" | "darwin" | "linux";
 
-/** The current OS in the vocabulary the config paths already used under Deno
+/** The current OS in the vocabulary the config paths use
  * (`"windows"`, not Node's `"win32"`). */
 export function currentPlatform(): Platform {
   return isWindows()
@@ -223,7 +220,7 @@ export function makeTempDirSync(options?: { prefix?: string }): string {
   return fsMkdtempSync(join(tmpdir(), options?.prefix ?? "cm-"));
 }
 
-/** A uniquely named temp file (created empty), mirroring `Deno.makeTempFile`.
+/** A uniquely named temp file (created empty), directly in the temp dir.
  *
  * `wx` fails on collision instead of truncating an existing file, so the retry
  * loop preserves `mkdtemp`'s uniqueness without leaving a directory behind,
@@ -331,8 +328,8 @@ function collect(
   });
 }
 
-/** `Deno.Command(...).output()` equivalent: run to completion, capture both
- * streams, never throw on a non-zero exit. */
+/** Runs a command to completion, captures both streams, and never throws on a
+ * non-zero exit. */
 export function commandOutput(
   command: string,
   options: CommandOptions = {},
@@ -344,7 +341,7 @@ export function commandOutput(
   return collect(child);
 }
 
-/** `Deno.Command(...).spawn()` then write to stdin: used by the `gh` client
+/** Spawns a command and writes to its stdin: used by the `gh` client
  * to pass a JSON body with `--input -`. */
 export function commandWithInput(
   command: string,
@@ -373,8 +370,7 @@ export function commandPipe(
   });
 }
 
-/** A spawned process that can be killed on timeout, mirroring
- * `Deno.Command(...).spawn()` + `proc.kill()`. */
+/** A spawned process that can be killed on timeout. */
 export function commandSpawn(
   command: string,
   options: CommandOptions = {},
