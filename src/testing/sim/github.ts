@@ -20,6 +20,7 @@ import {
 import { rmSync } from "node:fs";
 import { join } from "node:path";
 import type { SimRepo, World } from "./world.ts";
+import { answerGraphql } from "./github_graphql.ts";
 
 type Json = Record<string, unknown>;
 
@@ -962,11 +963,13 @@ export class SimGithub {
     const result = this.authenticate(request) ?? this.answer(request);
     const method = request.method;
     const path = request.url.pathname.replace(/^\/+/, "");
-    // Minting an installation token changes nothing anyone can see.
+    // Minting an installation token changes nothing anyone can see, and a
+    // GraphQL query is a read sent as a POST.
     if (
       result &&
       method !== "GET" &&
       method !== "HEAD" &&
+      path !== "graphql" &&
       !/^app\/installations\/\d+\/access_tokens$/.test(path)
     ) {
       const id = asNumber((result.body as Json | null)?.id);
@@ -1084,6 +1087,9 @@ export class SimGithub {
         private: false,
       }));
       return ok({ total_count: repositories.length, repositories });
+    }
+    if (method === "POST" && path === "graphql") {
+      return ok(answerGraphql(this, body));
     }
     if (method === "GET" && path === "search/issues") {
       return ok({ total_count: 0, incomplete_results: false, items: [] });

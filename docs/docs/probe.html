@@ -163,7 +163,7 @@ on a terminal only, and are off with <code>NO_COLOR</code>, in CI and with <code
 </tr>
 <tr>
 <td><code>--gh-concurrent=N</code></td>
-<td>Parallel GitHub requests while sampling PR details, and for the <code>init</code> time estimate (default <code>1</code>, minimum <code>1</code>)</td>
+<td>Parallel GitHub requests while reading the sampled pull requests&#39; files, and for the <code>init</code> time estimate (default <code>1</code>, minimum <code>1</code>)</td>
 </tr>
 <tr>
 <td><code>--ai-concurrent=N</code></td>
@@ -207,9 +207,12 @@ range for the recommended <code>init</code>. It is a <strong>planning estimate, 
 (<code>--max-pr-months</code>), the way <code>init</code> reads them, not the whole history.</li>
 <li><code>init</code> reads GitHub first and runs the AI jobs after, so the time is the
 two added together. The line says which part decides it.</li>
-<li>GitHub calls: about 4 per pull request (detail, comments, review comments,
-reviews), one more for its files when changes are read, the listing and
-commit pages, and the codebase files, counted from the repository tree. One call&#39;s duration is
+<li>GitHub calls: one GraphQL count, then one GraphQL page per 20 pull
+requests, which brings their line counts, comments, review comments and
+reviews. One more call per pull request for its files when changes are
+read, the commit pages, and the codebase files in GraphQL batches of 20,
+counted from the repository tree. GraphQL has its own quota, so only the
+REST calls count toward the one below. One call&#39;s duration is
 measured from the probe&#39;s own calls. The hourly quota comes from GitHub&#39;s
 <code>/rate_limit</code>, which costs nothing. A run that needs more than what is
 left waits for the reset, unless its calls take long enough that the
@@ -257,11 +260,14 @@ would be two documents on one stdout. Run <code>probe --json</code>, then the
 <h2 id="what-it-looks-at">What it looks at</h2>
 <ul>
 <li>Repository metadata and latest release (if any)</li>
-<li>Pull request list (updated time, sampling across years)</li>
-<li>A bounded sample of PR diffs for size and activity</li>
+<li>Pull request counts from one GraphQL query: the total, each year, and each
+window the estimate prices. No pull request is listed page by page</li>
+<li>A sample of pull requests with their line counts, the newest 30 and three
+from each year, from the same query</li>
 <li>The changed files of up to 10 recent reviewable pull requests, for the review
 estimate</li>
-<li>Default-branch commit history</li>
+<li>Default-branch commit history, every page, since the analysis reads every
+commit</li>
 <li>The GitHub quota left this hour</li>
 </ul>
 <p>Use the printed <code>init</code> line as-is for a first run, or tighten limits if the repo

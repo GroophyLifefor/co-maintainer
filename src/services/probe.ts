@@ -19,6 +19,8 @@ import {
   type ReviewSamplePull,
 } from "../ai/review_estimate.ts";
 import { timed } from "../util/log.ts";
+import { readProbePulls } from "./probe_pulls.ts";
+import { FILE_BATCH } from "../github/graphql_files.ts";
 import type { GitHubClient, Json } from "../types.ts";
 
 export type ProbePlan = {
@@ -30,8 +32,12 @@ export type ProbePlan = {
   /** The analysis report plus the recommendation and reasons, for storage. */
   report: Json;
   /** Every listed pull request's `updated_at`, newest first, so a window of
-   * any length can be counted the way `init` counts it. */
-  pullUpdatedAt: string[];
+   * any length can be counted the way `init` counts it. Only after a REST
+   * listing. */
+  pullUpdatedAt?: string[];
+  /** Pull requests updated in the last N months, by N, for the windows the
+   * estimate prices. */
+  pullWindows?: Record<number, number>;
   /** The share of sampled diffs that fit the recommended change line cap. */
   changeShare: number;
   /** The newest pull requests a review would see, with their files. */
@@ -44,8 +50,23 @@ export type ProbePlan = {
     /** The calls the codebase read would take: the tree, the instruction
      * files and the important files. Absent when the tree is unreadable. */
     codebaseCalls?: number;
+    /** The part of `codebaseCalls` that is GraphQL batches. */
+    codebaseGraphqlCalls?: number;
   };
 };
+
+/** Pull requests in a plan's window: from the listing when there is one,
+ * else from the counted windows, else the total. */
+export function pullsInWindow(
+  plan: Pick<ProbePlan, "pullUpdatedAt" | "pullWindows" | "analysis">,
+  months: number | undefined,
+): number {
+  if (plan.pullUpdatedAt)
+    return pullRequestsInWindow(plan.pullUpdatedAt, months);
+  const total = Number(plan.analysis.report.pullRequests ?? 0);
+  if (!months) return total;
+  return plan.pullWindows?.[months] ?? total;
+}
 
 /** Pull requests updated in the last `months` months, as `init` counts them. */
 export function pullRequestsInWindow(
@@ -102,6 +123,20 @@ function measured(client: GitHubClient): {
         seconds += (performance.now() - started) / 1_000;
       }
     },
+    // GraphQL goes through `write`, so it is counted like any other call.
+    ...(client.write
+      ? {
+          write: async <T>(endpoint: string, body: unknown): Promise<T> => {
+            const started = performance.now();
+            try {
+              return await client.write!<T>(endpoint, body);
+            } finally {
+              calls++;
+              seconds += (performance.now() - started) / 1_000;
+            }
+          },
+        }
+      : {}),
   };
   return {
     client: wrapped,
@@ -128,10 +163,6 @@ async function readQuota(
     return undefined;
   }
 }
-
-/** Samples this many pull requests for diff sizes, on top of a few per year. */
-const SAMPLE_HEAD = 30;
-const SAMPLE_PER_YEAR = 3;
 
 export async function probePlan(
   githubClient: GitHubClient,
@@ -164,36 +195,17 @@ export async function probePlan(
     // Release metadata is an optional probe signal.
   }
 
-  say("reading pull request list");
-  const pulls = await timedRun("probe pull request listing", () =>
-    client.pages<Json>(
-      `repos/${repo}/pulls?state=all&sort=updated&direction=desc`,
-      undefined,
-      (page, fetched) =>
-        say(`pull request listing · page ${page} · fetched ${fetched}`),
-    ),
+  const pullData = await timedRun("probe pull request counts", () =>
+    readProbePulls(client, repo, meta, say),
   );
+  const samplePulls = pullData.targets ?? [];
 
-  const yearBuckets = new Map<number, Json[]>();
-  for (const pull of pulls) {
-    const pullYear = new Date(String(pull.updated_at)).getFullYear();
-    yearBuckets.set(pullYear, [...(yearBuckets.get(pullYear) ?? []), pull]);
+  const detailSamples: Json[] = [...(pullData.details ?? [])];
+  if (samplePulls.length) {
+    say(
+      `sampling ${samplePulls.length} pull request details · concurrency=${opts.ghConcurrent}`,
+    );
   }
-  const sampleTargets = new Map<number, Json>();
-  for (const pull of pulls.slice(0, SAMPLE_HEAD)) {
-    sampleTargets.set(Number(pull.number), pull);
-  }
-  for (const yearPulls of yearBuckets.values()) {
-    for (const pull of yearPulls.slice(0, SAMPLE_PER_YEAR)) {
-      sampleTargets.set(Number(pull.number), pull);
-    }
-  }
-  const samplePulls = [...sampleTargets.values()];
-
-  const detailSamples: Json[] = [];
-  say(
-    `sampling ${samplePulls.length} pull request details · concurrency=${opts.ghConcurrent}`,
-  );
   await timedRun("probe PR detail sampling", async () => {
     const details: (Json | undefined)[] = new Array(samplePulls.length);
     let cursor = 0;
@@ -237,7 +249,7 @@ export async function probePlan(
   const analysis = await timedRun("probe analysis", async () =>
     analyzeProbe(
       { ...meta, latest_release_at: latestReleaseAt },
-      pulls,
+      pullData.counts,
       detailSamples,
       commits,
     ),
@@ -246,7 +258,7 @@ export async function probePlan(
   const reviewSample = await timedRun("probe review sample", () =>
     sampleReviews(client, repo, detailSamples, opts.ghConcurrent, say),
   );
-  const codebaseCalls = await countCodebaseCalls(client, repo, branch);
+  const codebase = await countCodebaseCalls(client, repo, branch);
   const quota = await readQuota(githubClient);
   const cap = analysis.maxPullRequestChangeLines;
   const sampledLines = detailSamples.map(
@@ -267,7 +279,7 @@ export async function probePlan(
   if (analysis.includeCommitHistory) {
     recommendation.push("--include-commit-history");
   }
-  if (pulls.length || Boolean(meta.has_issues)) {
+  if (pullData.counts.total || Boolean(meta.has_issues)) {
     recommendation.push("--include-how-repo-works");
   }
   if (analysis.maxPullRequestChangeLines) {
@@ -304,10 +316,20 @@ export async function probePlan(
     recommendation,
     command,
     report,
-    pullUpdatedAt: pulls.map((pull) => String(pull.updated_at ?? "")),
+    ...(pullData.updatedAt ? { pullUpdatedAt: pullData.updatedAt } : {}),
+    pullWindows: pullData.windows,
     changeShare,
     reviewSample,
-    github: { ...stats(), quota, codebaseCalls },
+    github: {
+      ...stats(),
+      quota,
+      ...(codebase
+        ? {
+            codebaseCalls: codebase.total,
+            codebaseGraphqlCalls: codebase.graphql,
+          }
+        : {}),
+    },
   };
 }
 
@@ -318,7 +340,7 @@ async function countCodebaseCalls(
   client: GitHubClient,
   repo: string,
   branch: string,
-): Promise<number | undefined> {
+): Promise<{ total: number; graphql: number } | undefined> {
   try {
     const response = await client.request<Json>(
       `repos/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
@@ -329,7 +351,10 @@ async function countCodebaseCalls(
     const pattern = agentInstructionsPattern(undefined);
     const instructions = pattern ? matchInstructionPaths(tree, pattern) : [];
     const important = importantCodebasePaths(tree, new Set(instructions));
-    return 1 + instructions.length + important.length;
+    // The tree and each instruction file with REST, and the important files
+    // in GraphQL batches, which have their own quota.
+    const graphql = Math.ceil(important.length / FILE_BATCH);
+    return { total: 1 + instructions.length + graphql, graphql };
   } catch {
     return undefined;
   }

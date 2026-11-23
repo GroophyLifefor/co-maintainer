@@ -26,6 +26,9 @@ export type Fault = {
   /** GitHub and remote: the endpoint, e.g. `/check-runs` or
    * `/pulls/1/reviews$`. A string matches anywhere in the path. */
   path?: string | RegExp;
+  /** GitHub: text in a GraphQL query, e.g. `pullRequests(states:`, so a
+   * fault can hit one GraphQL query and not the others. */
+  query?: string | RegExp;
   /** AI: the job name the product gave the call, e.g. `review_pull_request`. */
   job?: string | RegExp;
   /** AI: text in the prompt. */
@@ -41,6 +44,7 @@ export type FaultCall = {
   target: Fault["target"];
   method: string;
   path: string;
+  query?: string;
   job?: string;
   prompt?: string;
 };
@@ -76,6 +80,7 @@ export class Faults {
         (fault.method === undefined ||
           fault.method.toUpperCase() === call.method) &&
         matches(fault.path, call.path) &&
+        matches(fault.query, call.query) &&
         matches(fault.job, call.job) &&
         matches(fault.prompt, call.prompt),
     );

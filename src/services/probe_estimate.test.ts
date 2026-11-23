@@ -123,9 +123,9 @@ test("probe estimate: GitHub calls past the quota wait for the reset", () => {
     quota,
     now: NOW,
   });
-  // metadata + 2 listing pages + 10 x 5 calls
-  if (fits.calls !== 53) throw new Error(`calls: ${fits.calls}`);
-  if (fits.quotaWaitSeconds !== 0) throw new Error("53 calls fit in 100");
+  // metadata + 10 diffs, and a GraphQL count and one listing page
+  if (fits.calls !== 13) throw new Error(`calls: ${fits.calls}`);
+  if (fits.quotaWaitSeconds !== 0) throw new Error("11 REST calls fit in 100");
   const over = estimateGithub({
     pullRequests: 1000,
     includeChanges: true,
@@ -141,8 +141,9 @@ test("probe estimate: GitHub calls past the quota wait for the reset", () => {
   if (over.quotaWaitSeconds !== 30 * 60 - over.callSeconds) {
     throw new Error(`one reset: ${over.quotaWaitSeconds}`);
   }
+  // 6,000 diffs are more than the 100 left and the next hour's 5,000.
   const twoHours = estimateGithub({
-    pullRequests: 2000,
+    pullRequests: 6000,
     includeChanges: true,
     changeShare: 1,
     includeCodebase: false,
@@ -157,7 +158,7 @@ test("probe estimate: GitHub calls past the quota wait for the reset", () => {
   }
   // Calls slow enough to outlast the reset never wait for it.
   const slow = estimateGithub({
-    pullRequests: 1000,
+    pullRequests: 2000,
     includeChanges: true,
     changeShare: 1,
     includeCodebase: false,
@@ -183,8 +184,9 @@ test("probe estimate: an empty PR window still costs the listing page", () => {
     ghConcurrent: 1,
     secondsPerCall: 0.1,
   });
-  // metadata + the one listing page that shows the window is empty
-  if (empty.calls !== 2) throw new Error(`calls: ${empty.calls}`);
+  // metadata, the count, and the one listing page that shows the window is
+  // empty
+  if (empty.calls !== 3) throw new Error(`calls: ${empty.calls}`);
   const off = estimateGithub({
     includePullRequests: false,
     pullRequests: 0,
@@ -296,4 +298,38 @@ test("probe output: durations and dollars read naturally", () => {
   for (const [got, want] of cases) {
     if (got !== want) throw new Error(`${got} should be ${want}`);
   }
+});
+
+test("probe estimate: instruction files are REST calls and count toward the quota", () => {
+  const quota = { limit: 5000, remaining: 3, resetAt: NOW + 30 * 60_000 };
+  const input = {
+    pullRequests: 0,
+    includePullRequests: false,
+    includeChanges: false,
+    changeShare: 0,
+    includeCodebase: true,
+    commits: 0,
+    ghConcurrent: 1,
+    secondsPerCall: 0.1,
+    quota,
+    now: NOW,
+  };
+  // The tree, 3 instruction files and 1 batch: 5 calls, 4 of them REST plus
+  // the metadata, more than the 3 left.
+  const withFiles = estimateGithub({
+    ...input,
+    codebaseCalls: 5,
+    codebaseGraphqlCalls: 1,
+  });
+  if (withFiles.calls !== 6) throw new Error(`calls: ${withFiles.calls}`);
+  if (withFiles.quotaWaitSeconds === 0) {
+    throw new Error("the instruction files were left out of the quota");
+  }
+  // Without them, the tree and the metadata fit in the 3 left.
+  const without = estimateGithub({
+    ...input,
+    codebaseCalls: 2,
+    codebaseGraphqlCalls: 1,
+  });
+  if (without.quotaWaitSeconds !== 0) throw new Error("2 REST calls waited");
 });

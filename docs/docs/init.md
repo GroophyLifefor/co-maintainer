@@ -76,6 +76,16 @@ requests skip comment and diff downloads. The run logs
 cache is stored per state set, so a different set is not filled from the
 previous listing.
 
+**How pull requests are read:** one GraphQL count first, so the progress line
+shows `fetched 8,800 / 14,333`. Then GraphQL pages of 20 pull requests, each
+with its line counts, comments, review comments and reviews, and
+`--pr-state=merged` is filtered by GitHub. A pull request with more than fits
+in the query reads that part with REST. The diff is one REST call per pull
+request. Codebase files come in GraphQL batches of 20. When a GraphQL call
+fails, that part is read with REST as before. A temporary GitHub error (a 5xx
+or a dropped connection) on a read is retried twice, and a pull request whose
+diff still fails is kept without it.
+
 Both are saved for the repo. A later [`sync`](sync.md) without the flag
 keeps the saved choice. `--only-request-changed-pr` does not turn itself off.
 To collect every state again, pass `--pr-state=open,closed,merged`.

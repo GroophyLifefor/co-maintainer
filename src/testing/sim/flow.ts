@@ -367,6 +367,12 @@ export async function runFlow(
     const { setGhRunner } = await import("../../github/gh.ts");
     setGhRunner(ghStandIn({ github: world.github, trace, faults }));
     undo.push(() => setGhRunner(undefined));
+    // A temporary GitHub fault is retried twice. The waits are real seconds,
+    // so the sim retries at once.
+    const { setTransientDelaysForTest } =
+      await import("../../github/client.ts");
+    setTransientDelaysForTest([0, 0]);
+    undo.push(() => setTransientDelaysForTest());
     undo.push(await watchAi(trace));
     undo.push(resetProductState);
     const server = new SimServer(world, trace, {

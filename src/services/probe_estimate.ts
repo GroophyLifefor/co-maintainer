@@ -15,11 +15,7 @@ import {
 } from "../ai/estimate.ts";
 import { loadPrices, type ModelPrice } from "../ai/pricing.ts";
 import { estimateReview, type ReviewEstimate } from "../ai/review_estimate.ts";
-import {
-  type ProbePlan,
-  pullRequestsInWindow,
-  recommendationPatch,
-} from "./probe.ts";
+import { type ProbePlan, pullsInWindow, recommendationPatch } from "./probe.ts";
 
 /** Over this, the probe offers a faster option. */
 export const FASTER_TARGET_SECONDS = 30 * 60;
@@ -120,7 +116,7 @@ function initOption(
   );
   const flags = recommendationPatch(recommendation);
   const pullRequests = flags.includePullRequests
-    ? pullRequestsInWindow(plan.pullUpdatedAt, maxPrMonths)
+    ? pullsInWindow(plan, maxPrMonths)
     : 0;
   const totalCommits = Number(plan.analysis.report.commits ?? 0);
   const commits = flags.includeCommitHistory
@@ -143,6 +139,7 @@ function initOption(
     changeShare: plan.changeShare,
     includeCodebase: flags.includeCodebase || flags.includeHowRepoWorks,
     codebaseCalls: plan.github.codebaseCalls,
+    codebaseGraphqlCalls: plan.github.codebaseGraphqlCalls,
     commits,
     ghConcurrent: options.ghConcurrent,
     secondsPerCall: plan.github.secondsPerCall,

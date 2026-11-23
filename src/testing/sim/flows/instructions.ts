@@ -303,11 +303,21 @@ export default defineFlow({
       async run(sim) {
         commit(sim, AGENTS.afterCheckpoint, "docs: round half up");
         setAgents(sim, AGENTS.afterCheckpoint);
-        // The pull request listing comes after the codebase checkpoint.
+        // The pull request listing comes after the codebase checkpoint. A
+        // GitHub read is tried three times, and a failed GraphQL listing is
+        // listed again with REST, so both fail.
+        sim.faults.add({
+          target: "github",
+          kind: "500",
+          path: "/graphql",
+          query: "pullRequests(states:",
+          times: 3,
+        });
         sim.faults.add({
           target: "github",
           kind: "500",
           path: /\/repos\/sim\/sample\/pulls$/,
+          times: 3,
         });
         await runSync(sim);
       },
@@ -337,7 +347,8 @@ export default defineFlow({
           target: "github",
           kind: "500",
           path: /\/contents\/(packages\/billing\/)?AGENTS\.md$/,
-          times: 2,
+          // Two files, each tried three times.
+          times: 6,
         });
         return syncAndKeep(sim, "failedFetch");
       },

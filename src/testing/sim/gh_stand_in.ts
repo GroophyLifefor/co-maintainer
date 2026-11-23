@@ -113,8 +113,12 @@ export function ghStandIn(options: {
       return output(0, JSON.stringify(answer));
     }
 
+    const query =
+      body && typeof body === "object"
+        ? String((body as { query?: unknown }).query ?? "")
+        : undefined;
     const fault = faults.take(
-      { target: "github", method, path: url.pathname },
+      { target: "github", method, path: url.pathname, query },
       step,
     );
     if (fault?.kind === "slow") await sleep(fault.ms ?? 50);
