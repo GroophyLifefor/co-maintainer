@@ -1,7 +1,12 @@
 import { log, startHeartbeat } from "../util/log.ts";
 import { interrupted } from "../util/interrupt.ts";
 import { graphqlOr } from "./graphql.ts";
-import { countPullRequests } from "./pr_listing.ts";
+import {
+  countPullRequests,
+  DISCUSSION,
+  listingPage,
+  type ListedDiscussion,
+} from "./pr_listing.ts";
 import { cacheGet, cacheSet, cacheValues } from "../store/cache_db.ts";
 import type { GitHubClient, Json, Options } from "../types.ts";
 import type { PullRequest, Source, State } from "../knowledge/types.ts";
@@ -127,7 +132,9 @@ async function saveListing(
     JSON.stringify({
       maxPrMonths: maxPrMonths ?? 0,
       states: stateKey(states),
-      items,
+      // The discussion a GraphQL listing brought is read once, not cached
+      // in the listing.
+      items: items.map(({ [DISCUSSION]: _discussion, ...item }) => item),
     }),
   );
 }
@@ -170,7 +177,11 @@ async function listPullRequestPages(
     return Array.isArray(pageItems) ? pageItems : [];
   };
 
-  const ingest = (page: number, pageItems: Json[]): boolean => {
+  const ingest = (
+    page: number,
+    pageItems: Json[],
+    last = pageItems.length < 100,
+  ): boolean => {
     if (pageItems.length === 0) {
       const message = `pull request listing · page ${page} · ${fetched()} · done`;
       if (phase) phase.text = message;
@@ -200,12 +211,41 @@ async function listPullRequestPages(
     const message = `pull request listing · page ${page} · ${fetched()} · ${reason}`;
     if (phase) phase.text = message;
     log("fetch", message);
-    return stop || pageItems.length < 100;
+    return stop || last;
   };
 
-  const first = await fetchPage(1);
-  let done = ingest(1, first);
-  let page = 2;
+  // GraphQL pages bring each pull request's line counts and discussion, so
+  // the per pull request calls are not needed. A failure part way starts the
+  // listing over with REST.
+  const listedWithGraphql = await graphqlOr(
+    client,
+    "listing pull requests",
+    async () => {
+      let after: string | undefined;
+      for (let page = 1; ; page++) {
+        const { items, next } = await listingPage(
+          client,
+          options.repo,
+          options.prState,
+          after,
+        );
+        if (ingest(page, items, next === undefined)) return true;
+        after = next;
+      }
+    },
+    async () => {
+      selected.length = 0;
+      seen.clear();
+      return false;
+    },
+  );
+
+  let done = listedWithGraphql;
+  let page = 1;
+  if (!done) {
+    done = ingest(1, await fetchPage(1));
+    page = 2;
+  }
   while (!done) {
     const batch = Array.from(
       { length: concurrency },
@@ -635,10 +675,15 @@ async function pullRequests(
       cached?.updatedAt === current.updatedAt &&
       cached.changesRequested === false;
     let dropped = droppedFromCache;
+    // A GraphQL listing brought the discussion along. A part it could not
+    // fit is read with REST.
+    const listed = (pr[DISCUSSION] ?? {}) as ListedDiscussion;
     const loadComments = async () => {
-      const comments = await client.pages<Json>(
-        `repos/${options.repo}/issues/${number}/comments`,
-      );
+      const comments =
+        listed.comments ??
+        (await client.pages<Json>(
+          `repos/${options.repo}/issues/${number}/comments`,
+        ));
       const kept = textsWithLinks(
         comments,
         (comment) => String(comment.body ?? ""),
@@ -650,9 +695,11 @@ async function pullRequests(
     // Inline review comments carry most of the substantive feedback, and the
     // reviewer only sees them if they are read here.
     const loadReviewComments = async () => {
-      const comments = await client.pages<Json>(
-        `repos/${options.repo}/pulls/${number}/comments`,
-      );
+      const comments =
+        listed.reviewComments ??
+        (await client.pages<Json>(
+          `repos/${options.repo}/pulls/${number}/comments`,
+        ));
       const kept = textsWithLinks(
         comments,
         reviewCommentText,
@@ -662,9 +709,11 @@ async function pullRequests(
       current.reviewCommentUrls = kept.urls;
     };
     const loadReviews = async () => {
-      const reviews = await client.pages<Json>(
-        `repos/${options.repo}/pulls/${number}/reviews`,
-      );
+      const reviews =
+        listed.reviews ??
+        (await client.pages<Json>(
+          `repos/${options.repo}/pulls/${number}/reviews`,
+        ));
       const kept = reviewBodies(reviews);
       current.reviews = kept.texts;
       current.reviewUrls = kept.urls;

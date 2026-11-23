@@ -304,7 +304,15 @@ export default defineFlow({
         commit(sim, AGENTS.afterCheckpoint, "docs: round half up");
         setAgents(sim, AGENTS.afterCheckpoint);
         // The pull request listing comes after the codebase checkpoint. A
-        // GitHub read is tried three times before the run fails.
+        // GitHub read is tried three times, and a failed GraphQL listing is
+        // listed again with REST, so both fail.
+        sim.faults.add({
+          target: "github",
+          kind: "500",
+          path: "/graphql",
+          query: "pullRequests(states:",
+          times: 3,
+        });
         sim.faults.add({
           target: "github",
           kind: "500",

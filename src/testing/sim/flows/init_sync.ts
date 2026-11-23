@@ -934,6 +934,16 @@ function syncChecks(sim: Sim): CheckResult[] {
     return [check("sync ran", false, "an earlier step did not finish")];
   }
   const changed = [history.pulls.percent.number, moved.negative.number].sort();
+  // A GraphQL listing page brings its pull requests' discussions along, so
+  // the cost is pages, not pull requests.
+  const listingPages = sim.trace.github.filter(
+    (call) =>
+      call.step === STEP.sync &&
+      new URL(call.url).pathname === "/graphql" &&
+      String((call.request as { query?: unknown })?.query ?? "").includes(
+        "pullRequests(states:",
+      ),
+  );
   const discussions = githubGets(sim, /\/issues\/\d+\/comments$/, STEP.sync)
     .map((path) => Number(/\/issues\/(\d+)\//.exec(path)![1]))
     .sort();
@@ -981,11 +991,17 @@ function syncChecks(sim: Sim): CheckResult[] {
             .map(([key, value]) => `${key}=${value}`)
             .join(", ")}`,
     ),
-    check(
-      "sync fetched only the discussions that changed",
-      JSON.stringify(discussions) === JSON.stringify(changed),
-      `comments fetched for #${listOf(discussions)} · changed #${listOf(changed)}`,
-    ),
+    listingPages.length
+      ? check(
+          "sync fetched only the discussions that changed",
+          discussions.length === 0 && listingPages.length === 1,
+          `GraphQL listing pages ${listingPages.length}, each with its discussions · REST comment reads #${listOf(discussions)} · changed #${listOf(changed)}`,
+        )
+      : check(
+          "sync fetched only the discussions that changed",
+          JSON.stringify(discussions) === JSON.stringify(changed),
+          `comments fetched for #${listOf(discussions)} · changed #${listOf(changed)}`,
+        ),
     check(
       "sync sent fewer AI calls than init",
       syncCalls.length > 0 && syncCalls.length < initCalls.length,

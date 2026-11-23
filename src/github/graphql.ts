@@ -4,6 +4,7 @@
  * the REST path it used before. */
 import type { GitHubClient } from "../types.ts";
 import { log } from "../util/log.ts";
+import { interrupted } from "../util/interrupt.ts";
 
 /** Raised when GraphQL cannot answer: no `write`, an error list, or no
  * data. The caller logs it and takes the REST path. */
@@ -50,6 +51,7 @@ export async function graphqlOr<T>(
   try {
     return await fn();
   } catch (error) {
+    if (interrupted()) throw error;
     log(
       "github",
       `${what} with GraphQL failed, reading it with REST: ${error instanceof Error ? error.message : String(error)}`,
