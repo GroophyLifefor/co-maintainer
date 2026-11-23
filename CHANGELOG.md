@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.21] - 2026-11-23
+
+### Fixed
+
+- **Fact extraction no longer drops pull requests a thinking model could not finish.** Its output limit was 2,400 tokens and thinking counts toward it, so a model like `openai/gpt-6-luna` used it all before writing a word and about half the pull requests were skipped after three tries at the same limit. The first try now gets 8,000 tokens, and an answer cut at the limit is asked again with 16,000, then 32,000, before the pull request is skipped. The first sync after the update runs fact extraction again, since the cached answers were made with the old limit.
+
 ## [0.7.20] - 2026-11-21
 
 ### Added
