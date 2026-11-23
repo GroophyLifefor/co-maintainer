@@ -66,36 +66,50 @@ function recommendCommitWindow(commits: Json[]): number | undefined {
   return stableThrough < commits.length ? stableThrough : undefined;
 }
 
-function recommendPrWindow(
-  pulls: Json[],
-  latestReleaseAt?: string,
-): number | undefined {
-  if (!pulls.length) return undefined;
-  const years = new Map<number, number>();
+/** How many pull requests a repository has, and how many were last updated
+ * in each year. probe gets these from GraphQL counts without listing a
+ * single pull request, or from the REST listing when GraphQL fails. */
+export type PullCounts = { total: number; byYear: Map<number, number> };
+
+/** The counts of a listed set of pull requests, by `updated_at` year. */
+export function pullCountsFromList(pulls: Json[]): PullCounts {
+  const byYear = new Map<number, number>();
   for (const pull of pulls) {
     const itemYear = year(pull.updated_at);
-    years.set(itemYear, (years.get(itemYear) ?? 0) + 1);
+    byYear.set(itemYear, (byYear.get(itemYear) ?? 0) + 1);
   }
-  const oldest = Math.min(...years.keys());
+  return { total: pulls.length, byYear };
+}
+
+function recommendPrWindow(
+  counts: PullCounts,
+  latestReleaseAt?: string,
+): number | undefined {
+  if (!counts.total) return undefined;
+  const years = counts.byYear;
+  const oldest = Math.min(
+    ...[...years.entries()]
+      .filter(([, count]) => count > 0)
+      .map(([itemYear]) => itemYear),
+  );
   const current = new Date().getFullYear();
   const span = current - oldest + 1;
-  if (pulls.length <= 150 || span <= 3) return undefined;
+  if (counts.total <= 150 || span <= 3) return undefined;
 
-  const recentTwoYears = pulls.filter(
-    (pull) => year(pull.updated_at) >= current - 1,
-  ).length;
+  const recentTwoYears =
+    (years.get(current) ?? 0) + (years.get(current - 1) ?? 0);
   const releaseAgeMonths = latestReleaseAt
     ? (Date.now() - new Date(latestReleaseAt).getTime()) /
       (30.44 * 24 * 60 * 60 * 1_000)
     : Infinity;
   if (
     recentTwoYears >= 100 &&
-    (releaseAgeMonths <= 18 || recentTwoYears / pulls.length >= 0.35)
+    (releaseAgeMonths <= 18 || recentTwoYears / counts.total >= 0.35)
   ) {
     return 24;
   }
 
-  const target = pulls.length * 0.85;
+  const target = counts.total * 0.85;
   let covered = 0;
   let windowYears = 0;
   while (windowYears < span && (covered < target || windowYears < 2)) {
@@ -107,15 +121,16 @@ function recommendPrWindow(
 
 export function analyzeProbe(
   meta: Json,
-  pulls: Json[],
+  pullsOrCounts: Json[] | PullCounts,
   detailSamples: Json[],
   commits: Json[],
 ): ProbeResult {
-  const years = new Map<number, number>();
-  for (const pull of pulls) {
-    const itemYear = year(pull.updated_at);
-    years.set(itemYear, (years.get(itemYear) ?? 0) + 1);
-  }
+  const counts = Array.isArray(pullsOrCounts)
+    ? pullCountsFromList(pullsOrCounts)
+    : pullsOrCounts;
+  const years = new Map(
+    [...counts.byYear.entries()].filter(([, count]) => count > 0),
+  );
 
   const diffs = detailSamples
     .map(
@@ -126,13 +141,13 @@ export function analyzeProbe(
   const p90Diff = percentile(diffs, 0.9);
   const maxDiff = Math.max(...diffs, 0);
   const latestReleaseAt = String(meta.latest_release_at ?? "");
-  const maxPrMonths = recommendPrWindow(pulls, latestReleaseAt);
+  const maxPrMonths = recommendPrWindow(counts, latestReleaseAt);
   const maxCommits = recommendCommitWindow(commits);
   const commitSignal = commitStats(commits);
   const usefulCommits = commits.filter((commit) => !isMerge(commit)).length;
   const includeCommitHistory =
     usefulCommits >= 20 && commitSignal.mergeRatio < 0.75;
-  const includeChanges = pulls.length > 0 && diffs.length > 0;
+  const includeChanges = counts.total > 0 && diffs.length > 0;
   const maxChangeLines =
     includeChanges && diffs.length >= 10 && p90Diff < maxDiff
       ? Math.max(100, Math.ceil(p90Diff / 100) * 100)
@@ -152,7 +167,7 @@ export function analyzeProbe(
           )} is recent. Use the last ${maxPrMonths} months to prioritize the current contribution and release process.`
         : `The last ${maxPrMonths} months cover at least 85% of pull requests. Older history is a minority.`,
     );
-  } else if (pulls.length) {
+  } else if (counts.total) {
     reasons.push(
       "Pull request volume or history span is small enough to keep all PR months.",
     );
@@ -185,7 +200,7 @@ export function analyzeProbe(
   }
 
   return {
-    includePullRequests: pulls.length > 0,
+    includePullRequests: counts.total > 0,
     includePullRequestChanges: includeChanges,
     includeCommitHistory,
     maxPrMonths,
@@ -193,7 +208,7 @@ export function analyzeProbe(
     maxPullRequestChangeLines: maxChangeLines,
     reasons,
     report: {
-      pullRequests: pulls.length,
+      pullRequests: counts.total,
       pullRequestYears: Object.fromEntries([...years.entries()].sort()),
       sampledPullRequests: detailSamples.length,
       diffLines: {
