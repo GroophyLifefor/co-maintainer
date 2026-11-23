@@ -123,9 +123,9 @@ test("probe estimate: GitHub calls past the quota wait for the reset", () => {
     quota,
     now: NOW,
   });
-  // metadata + 2 listing pages + 10 x 5 calls
-  if (fits.calls !== 53) throw new Error(`calls: ${fits.calls}`);
-  if (fits.quotaWaitSeconds !== 0) throw new Error("53 calls fit in 100");
+  // metadata + 10 diffs, and a GraphQL count and one listing page
+  if (fits.calls !== 13) throw new Error(`calls: ${fits.calls}`);
+  if (fits.quotaWaitSeconds !== 0) throw new Error("11 REST calls fit in 100");
   const over = estimateGithub({
     pullRequests: 1000,
     includeChanges: true,
@@ -141,8 +141,9 @@ test("probe estimate: GitHub calls past the quota wait for the reset", () => {
   if (over.quotaWaitSeconds !== 30 * 60 - over.callSeconds) {
     throw new Error(`one reset: ${over.quotaWaitSeconds}`);
   }
+  // 6,000 diffs are more than the 100 left and the next hour's 5,000.
   const twoHours = estimateGithub({
-    pullRequests: 2000,
+    pullRequests: 6000,
     includeChanges: true,
     changeShare: 1,
     includeCodebase: false,
@@ -157,7 +158,7 @@ test("probe estimate: GitHub calls past the quota wait for the reset", () => {
   }
   // Calls slow enough to outlast the reset never wait for it.
   const slow = estimateGithub({
-    pullRequests: 1000,
+    pullRequests: 2000,
     includeChanges: true,
     changeShare: 1,
     includeCodebase: false,
@@ -183,8 +184,9 @@ test("probe estimate: an empty PR window still costs the listing page", () => {
     ghConcurrent: 1,
     secondsPerCall: 0.1,
   });
-  // metadata + the one listing page that shows the window is empty
-  if (empty.calls !== 2) throw new Error(`calls: ${empty.calls}`);
+  // metadata, the count, and the one listing page that shows the window is
+  // empty
+  if (empty.calls !== 3) throw new Error(`calls: ${empty.calls}`);
   const off = estimateGithub({
     includePullRequests: false,
     pullRequests: 0,

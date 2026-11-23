@@ -25,6 +25,8 @@ import { cacheValues } from "../store/cache_db.ts";
 import { sectionKeys } from "../knowledge/sections.ts";
 import { BUILTIN_CONCURRENCY } from "../services/concurrency.ts";
 import type { ModelPrice } from "./pricing.ts";
+import { LISTING_PAGE } from "../github/pr_listing.ts";
+import { FILE_BATCH } from "../github/graphql_files.ts";
 
 /** Measured averages used when no history exists (cm-dx-lab calibration).
  * `seconds` is one job's own duration, before concurrency. */
@@ -255,37 +257,42 @@ export type GithubEstimate = {
   quota?: GithubQuota;
 };
 
-/** The codebase read: the tree, then at most 80 important files
- * (`collect.ts`). */
-export const CODEBASE_CALLS = 81;
-/** Per pull request, before the files call: the detail, the issue comments,
- * the review comments and the reviews (`collect.ts`). */
-export const CALLS_PER_PULL_REQUEST = 4;
+/** The codebase read: the tree, then at most 80 important files in GraphQL
+ * batches (`collect.ts`). */
+export const CODEBASE_CALLS = 1 + Math.ceil(80 / FILE_BATCH);
 const PAGE = 100;
 const HOUR_SECONDS = 3_600;
 
 /** The GitHub calls `init` would make, and how long they take. Past the
  * remaining quota, the calls cannot finish before the reset plus one hourly
  * quota per further hour. A slow run reaches those resets anyway, so only
- * the part of that time beyond the calls' own time is waiting. */
+ * the part of that time beyond the calls' own time is waiting. GraphQL
+ * calls have their own quota, so only the REST calls count toward it. */
 export function estimateGithub(input: GithubEstimateInput): GithubEstimate {
-  let calls = 1; // repository metadata
-  if (input.includeCodebase) calls += input.codebaseCalls ?? CODEBASE_CALLS;
+  let rest = 1; // repository metadata
+  let graphqlCalls = 0;
+  if (input.includeCodebase) {
+    const codebase = input.codebaseCalls ?? CODEBASE_CALLS;
+    rest += 1; // the tree
+    graphqlCalls += Math.max(0, codebase - 1);
+  }
   if (input.includePullRequests ?? input.pullRequests > 0) {
-    // The listing stops at the first page past the window, and an empty
-    // window still takes the one page that shows it is empty.
-    calls += Math.ceil(input.pullRequests / PAGE) + 1;
+    // One count, then GraphQL pages that bring each pull request's line
+    // counts and discussion. An empty window still takes one page.
+    graphqlCalls +=
+      1 + Math.max(1, Math.ceil(input.pullRequests / LISTING_PAGE));
     const files = input.includeChanges
       ? Math.min(1, Math.max(0, input.changeShare))
       : 0;
-    calls += Math.round(input.pullRequests * (CALLS_PER_PULL_REQUEST + files));
+    rest += Math.round(input.pullRequests * files);
   }
-  if (input.commits > 0) calls += Math.ceil(input.commits / PAGE);
+  if (input.commits > 0) rest += Math.ceil(input.commits / PAGE);
+  const calls = rest + graphqlCalls;
 
   const callSeconds =
     (calls * Math.max(0, input.secondsPerCall)) /
     Math.max(1, input.ghConcurrent);
-  const earliest = quotaEarliest(calls, input.quota, input.now ?? Date.now());
+  const earliest = quotaEarliest(rest, input.quota, input.now ?? Date.now());
   const quotaWaitSeconds = Math.max(0, earliest - callSeconds);
   return {
     calls,

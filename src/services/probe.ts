@@ -20,6 +20,7 @@ import {
 } from "../ai/review_estimate.ts";
 import { timed } from "../util/log.ts";
 import { readProbePulls } from "./probe_pulls.ts";
+import { FILE_BATCH } from "../github/graphql_files.ts";
 import type { GitHubClient, Json } from "../types.ts";
 
 export type ProbePlan = {
@@ -339,7 +340,9 @@ async function countCodebaseCalls(
     const pattern = agentInstructionsPattern(undefined);
     const instructions = pattern ? matchInstructionPaths(tree, pattern) : [];
     const important = importantCodebasePaths(tree, new Set(instructions));
-    return 1 + instructions.length + important.length;
+    // The tree, each instruction file with REST, and the important files in
+    // GraphQL batches.
+    return 1 + instructions.length + Math.ceil(important.length / FILE_BATCH);
   } catch {
     return undefined;
   }

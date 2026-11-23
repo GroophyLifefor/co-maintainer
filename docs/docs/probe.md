@@ -43,7 +43,7 @@ on a terminal only, and are off with `NO_COLOR`, in CI and with `--json`.
 | `--auth=pat` | Use `GITHUB_TOKEN`, `GH_TOKEN`, `--github-pat=...`, or `set --github-pat=...` |
 | `--github-pat=...` | PAT for `--auth=pat` when not in env or config |
 | `--env=PATH` | Load env vars from a file (see [Configuration](configuration.md)) |
-| `--gh-concurrent=N` | Parallel GitHub requests while sampling PR details, and for the `init` time estimate (default `1`, minimum `1`) |
+| `--gh-concurrent=N` | Parallel GitHub requests while reading the sampled pull requests' files, and for the `init` time estimate (default `1`, minimum `1`) |
 | `--ai-concurrent=N` | AI jobs at once, for the `init` time estimate (default `3`) |
 | `--ai=openrouter` | Needed for dollars. Other providers have no public price list |
 | `--low-model=...` `--high-model=...` | The models to price. Without them each cost line says which flags to add |
@@ -67,9 +67,12 @@ range for the recommended `init`. It is a **planning estimate, not a bill**:
   (`--max-pr-months`), the way `init` reads them, not the whole history.
 - `init` reads GitHub first and runs the AI jobs after, so the time is the
   two added together. The line says which part decides it.
-- GitHub calls: about 4 per pull request (detail, comments, review comments,
-  reviews), one more for its files when changes are read, the listing and
-  commit pages, and the codebase files, counted from the repository tree. One call's duration is
+- GitHub calls: one GraphQL count, then one GraphQL page per 20 pull
+  requests, which brings their line counts, comments, review comments and
+  reviews. One more call per pull request for its files when changes are
+  read, the commit pages, and the codebase files in GraphQL batches of 20,
+  counted from the repository tree. GraphQL has its own quota, so only the
+  REST calls count toward the one below. One call's duration is
   measured from the probe's own calls. The hourly quota comes from GitHub's
   `/rate_limit`, which costs nothing. A run that needs more than what is
   left waits for the reset, unless its calls take long enough that the
@@ -123,11 +126,14 @@ would be two documents on one stdout. Run `probe --json`, then the
 ## What it looks at
 
 - Repository metadata and latest release (if any)
-- Pull request list (updated time, sampling across years)
-- A bounded sample of PR diffs for size and activity
+- Pull request counts from one GraphQL query: the total, each year, and each
+  window the estimate prices. No pull request is listed page by page
+- A sample of pull requests with their line counts, the newest 30 and three
+  from each year, from the same query
 - The changed files of up to 10 recent reviewable pull requests, for the review
   estimate
-- Default-branch commit history
+- Default-branch commit history, every page, since the analysis reads every
+  commit
 - The GitHub quota left this hour
 
 Use the printed `init` line as-is for a first run, or tighten limits if the repo
