@@ -256,6 +256,22 @@ export class AiBatch {
         if (response.cutOff) grow();
         continue;
       }
+      // A cut answer can still validate, for example a `[]` before the real
+      // array that the limit cut. It is incomplete either way, so a request
+      // that grows asks again. The last attempt keeps what it got.
+      if (
+        reason === null &&
+        response.cutOff &&
+        request.growOnCutOff &&
+        attempt < MAX_ATTEMPTS
+      ) {
+        log(
+          "ai",
+          `cut answer ${attempt}/${MAX_ATTEMPTS} ${item.request.job} ${item.id.slice(0, 8)}: it validated but stopped at the output limit`,
+        );
+        grow();
+        continue;
+      }
       if (reason !== null) {
         // The last attempt still failed its contract. Do not cache it, so a
         // later sync retries instead of replaying the same unusable output, and

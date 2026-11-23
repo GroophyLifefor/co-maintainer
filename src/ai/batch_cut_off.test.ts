@@ -7,7 +7,8 @@ import { isolateTestFile } from "../testing/locations.ts";
 
 isolateTestFile();
 
-type Step = "limit" | "cut" | "error" | "ok";
+/** `cut-valid` is an answer the validator accepts although the limit cut it. */
+type Step = "limit" | "cut" | "cut-valid" | "error" | "ok";
 
 /** Answers each call with the next step and records the limit it was sent. */
 class StepProvider implements AiProvider {
@@ -25,7 +26,9 @@ class StepProvider implements AiProvider {
     if (step === "error") throw new Error("server error 500");
     return {
       text: step === "cut" ? "[{" : "[]",
-      ...(step === "cut" ? { cutOff: true as const } : {}),
+      ...(step === "cut" || step === "cut-valid"
+        ? { cutOff: true as const }
+        : {}),
       tokensIn: 1,
       tokensOut: 1,
       model: "mock",
@@ -124,6 +127,39 @@ test("a request without growOnCutOff keeps its limit", async () => {
   const { limits, repo } = await run(["limit", "cut", "ok"], false);
   try {
     expectLimits(limits, [8_000, 8_000, 8_000]);
+  } finally {
+    await cacheDeletePrefix("ai-jobs", `${repo}:`);
+  }
+});
+
+test("a cut answer the validator accepts still retries with twice the limit", async () => {
+  const { limits, result, repo } = await run(["cut-valid", "ok"], true);
+  try {
+    expectLimits(limits, [8_000, 16_000]);
+    if (result?.cutOff) throw new Error("the cut answer was kept");
+  } finally {
+    await cacheDeletePrefix("ai-jobs", `${repo}:`);
+  }
+});
+
+test("a cut answer that validates on the last try is kept", async () => {
+  const { limits, result, repo } = await run(
+    ["cut-valid", "cut-valid", "cut-valid"],
+    true,
+  );
+  try {
+    expectLimits(limits, [8_000, 16_000, 32_000]);
+    if (!result?.cutOff) throw new Error("the last answer was not kept");
+  } finally {
+    await cacheDeletePrefix("ai-jobs", `${repo}:`);
+  }
+});
+
+test("a cut answer that validates is kept when the request does not grow", async () => {
+  const { limits, result, repo } = await run(["cut-valid"], false);
+  try {
+    expectLimits(limits, [8_000]);
+    if (!result?.cutOff) throw new Error("the answer was not kept");
   } finally {
     await cacheDeletePrefix("ai-jobs", `${repo}:`);
   }
