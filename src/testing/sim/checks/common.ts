@@ -214,10 +214,22 @@ function costCheck(input: CommonInput): CheckResult {
     in: reviews.reduce((sum, row) => sum + row.tokens_in, 0),
     out: reviews.reduce((sum, row) => sum + row.tokens_out, 0),
   };
+  // Since 0.7.20 app.db holds the spend that is not on a review row too, so
+  // the reviews table plus ai_costs is the dashboard's whole record.
+  const spend = readRows<{ tokens_in: number; tokens_out: number }>(
+    input.appDbPath,
+    "SELECT tokens_in, tokens_out FROM ai_costs",
+  );
+  const ai = {
+    in: spend.reduce((sum, row) => sum + row.tokens_in, 0),
+    out: spend.reduce((sum, row) => sum + row.tokens_out, 0),
+  };
   const same = (a: typeof reported) =>
     a.in === reported.in && a.out === reported.out;
   const ok =
-    same(cost) || same({ in: cost.in + review.in, out: cost.out + review.out });
+    same(cost) ||
+    same({ in: cost.in + review.in, out: cost.out + review.out }) ||
+    same({ in: ai.in + review.in, out: ai.out + review.out });
   return {
     name,
     ok,
@@ -229,7 +241,7 @@ function costCheck(input: CommonInput): CheckResult {
       reviews.length
         ? ` · ${reviews.length} reviews hold ${review.in} in, ${review.out} out`
         : ""
-    }`,
+    }${spend.length ? ` · ${spend.length} ai_costs rows hold ${ai.in} in, ${ai.out} out` : ""}`,
   };
 }
 

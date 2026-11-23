@@ -1,3 +1,9 @@
+import { AI_PROVIDERS } from "../../ai/provider.ts";
+import {
+  DiagramSettingError,
+  diagramOptionsFrom,
+} from "../../review/diagram.ts";
+import { parseCompanionsSetting } from "../../pr/companion_prs.ts";
 import { errorResponse } from "../errors.ts";
 import { canonicalRepoName } from "../../util/repo_name.ts";
 import { AppClient, findInstallationForRepo } from "../../github/app.ts";
@@ -416,6 +422,20 @@ export async function handleReposRoute(
           );
         }
       }
+      if ("reviewEvent" in body) {
+        const raw = body.reviewEvent;
+        if (raw === null || raw === "") {
+          blockingPatch.reviewEvent = undefined;
+        } else if (raw === "auto" || raw === "comment") {
+          blockingPatch.reviewEvent = raw;
+        } else {
+          return errorResponse(
+            422,
+            "invalid_review_event",
+            "reviewEvent must be auto or comment",
+          );
+        }
+      }
       if (typeof body.autoReview === "boolean") {
         patch.auto_review = body.autoReview ? 1 : 0;
       }
@@ -473,6 +493,9 @@ export async function handleReposRoute(
         patch.watch_push_mode = body.watchPushMode;
       }
       updateRepoSettings(fullName, patch);
+      // Blank (null) clears the value so the account default applies again,
+      // as the form's hint promises. Anything else must be a positive whole
+      // number, the same rule the account defaults follow.
       const init: Record<string, number | undefined> = {};
       for (const key of [
         "maxPrMonths",
@@ -480,16 +503,174 @@ export async function handleReposRoute(
         "maxPullRequestChangeLines",
         "maxComments",
       ] as const) {
-        if (typeof body[key] === "number" && Number.isFinite(body[key])) {
-          init[key] = body[key] as number;
+        if (!(key in body)) continue;
+        const raw = body[key];
+        if (raw === null || raw === "") {
+          init[key] = undefined;
+        } else if (
+          typeof raw === "number" &&
+          Number.isInteger(raw) &&
+          raw > 0
+        ) {
+          init[key] = raw;
+        } else {
+          return errorResponse(
+            422,
+            "invalid_knowledge_limit",
+            `${key} must be a positive whole number, or blank for the account default`,
+          );
+        }
+      }
+      // The repository's own AI and models. Blank clears them, so the
+      // repository inherits the global values again.
+      const aiPatch: RepoConfig = {};
+      for (const key of ["ai", "lowModel", "highModel"] as const) {
+        if (!(key in body)) continue;
+        const raw = body[key];
+        if (raw === null || (typeof raw === "string" && raw.trim() === "")) {
+          aiPatch[key] = undefined;
+          continue;
+        }
+        if (typeof raw !== "string") {
+          return errorResponse(
+            422,
+            `invalid_${key}`,
+            `${key} must be text or null`,
+          );
+        }
+        if (
+          key === "ai" &&
+          !(AI_PROVIDERS as readonly string[]).includes(raw.trim())
+        ) {
+          return errorResponse(
+            422,
+            "invalid_ai",
+            `ai must be one of: ${AI_PROVIDERS.join(", ")}`,
+          );
+        }
+        (aiPatch as Record<string, unknown>)[key] = raw.trim();
+      }
+      // The review settings `set --repo` wrote before the dashboard had a
+      // field for them. The same checks, so the two sides accept the same
+      // values.
+      const toolPatch: RepoConfig = {};
+      if (
+        "diagramRuntime" in body ||
+        "plantumlServer" in body ||
+        "plantumlOutputFormat" in body
+      ) {
+        const value = (key: string) => {
+          const raw = body[key];
+          return typeof raw === "string" && raw.trim() !== ""
+            ? raw.trim()
+            : undefined;
+        };
+        try {
+          const diagram = diagramOptionsFrom({
+            runtime: value("diagramRuntime"),
+            server: value("plantumlServer"),
+            format: value("plantumlOutputFormat"),
+          });
+          toolPatch.diagramRuntime = diagram.diagramRuntime;
+          toolPatch.plantumlServer = diagram.plantumlServer;
+          toolPatch.plantumlOutputFormat = diagram.plantumlOutputFormat;
+        } catch (error) {
+          if (error instanceof DiagramSettingError) {
+            return errorResponse(
+              422,
+              "invalid_diagram",
+              error.message.replace(
+                /--diagram-runtime|--plantuml-server|--plantuml-output-format/,
+                (flag) => flag.slice(2),
+              ),
+            );
+          }
+          throw error;
+        }
+      }
+      if ("reviewReferences" in body) {
+        const raw = body.reviewReferences;
+        if (raw === null) toolPatch.reviewReferences = undefined;
+        else if (typeof raw === "boolean") toolPatch.reviewReferences = raw;
+        else {
+          return errorResponse(
+            422,
+            "invalid_review_references",
+            "reviewReferences must be true, false or null",
+          );
+        }
+      }
+      if ("mcpAllowForks" in body) {
+        const raw = body.mcpAllowForks;
+        if (raw === null) toolPatch.mcpAllowForks = undefined;
+        else if (typeof raw === "boolean") toolPatch.mcpAllowForks = raw;
+        else {
+          return errorResponse(
+            422,
+            "invalid_mcp_allow_forks",
+            "mcpAllowForks must be true, false or null",
+          );
+        }
+      }
+      if ("companions" in body) {
+        const raw = body.companions;
+        if (raw === null || raw === "") {
+          toolPatch.companions = undefined;
+        } else if (typeof raw === "string") {
+          try {
+            toolPatch.companions = parseCompanionsSetting(raw, fullName);
+          } catch (error) {
+            return errorResponse(
+              422,
+              "invalid_companions",
+              error instanceof Error ? error.message : String(error),
+            );
+          }
+        } else {
+          return errorResponse(
+            422,
+            "invalid_companions",
+            "companions must be text or null",
+          );
+        }
+      }
+      for (const [key, min] of [
+        ["reviewReadDiffMaxChars", -1],
+        ["reviewToolResultMaxChars", -1],
+        ["reviewToolBudgetChars", -1],
+        ["reviewSearchMaxContextLines", -1],
+        ["reviewDiffMaxChars", -1],
+        ["reviewFilePatchMaxChars", -1],
+        ["guideFullEvery", 0],
+      ] as const) {
+        if (!(key in body)) continue;
+        const raw = body[key];
+        if (raw === null || raw === "") {
+          toolPatch[key] = undefined;
+        } else if (
+          typeof raw === "number" &&
+          Number.isInteger(raw) &&
+          raw >= min
+        ) {
+          toolPatch[key] = raw;
+        } else {
+          return errorResponse(
+            422,
+            `invalid_${key}`,
+            key === "guideFullEvery"
+              ? "guideFullEvery must be a whole number: 1 always rewrites the guide, 0 never does after init"
+              : `${key} must be a whole number (0 or -1 for no limit), or blank`,
+          );
         }
       }
       const repoPatch: RepoConfig = {
+        ...toolPatch,
         ...init,
         ...cronPatch,
         ...promptPatch,
         ...speedPatch,
         ...blockingPatch,
+        ...aiPatch,
       };
       if (Object.keys(repoPatch).length > 0) {
         await writeRepoConfig(fullName, repoPatch);

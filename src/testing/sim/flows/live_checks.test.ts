@@ -72,8 +72,14 @@ const SKIPPED_LIVE: Record<string, number> = {
   "client-tools": 2,
   companions: 7,
   "companions-app": 4,
+  // Only the fake AI fails a call on purpose after a paid round.
+  "cost-recording": 1,
   "diagram-runtime": 5,
   extensions: 2,
+  // Whether the first finding blocks, the withdrawal, the reopen that follows
+  // it, the approval after a dismissal, and closing on a plain request with
+  // the feedback after it depend on the model.
+  "finding-control": 6,
   "guide-sources": 4,
   "init-sync": 10,
   instructions: 7,
@@ -81,7 +87,9 @@ const SKIPPED_LIVE: Record<string, number> = {
   "large-diff": 6,
   local: 17,
   mcp: 1,
-  remote: 13,
+  // The client's key is a stand-in that a live provider refuses.
+  "mode-parity": 1,
+  remote: 15,
   "review-checks": 2,
   "review-references": 3,
   "search-non-code": 2,

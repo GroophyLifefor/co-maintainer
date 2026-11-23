@@ -52,8 +52,15 @@ Done in 21.0s · 3,125 in, 1,308 out tokens · $0.0016
 ```
 
 The same numbers appear in `--json` under `usage`, and the dashboard records
-cost per job on the Activity page and per repository on Usage. When a price list
-is unavailable the line reads `cost unknown` rather than a false zero.
+cost per job on the Activity page and per repository on Usage. Every run that
+spends money is recorded: reviews from the App, from `review --remote`, from a
+push and from the CLI on your machine, and `init`, `sync`, replies in a thread
+and commit watch answers, from the dashboard and from the CLI alike. A review
+that failed or was stopped keeps what its finished AI calls cost. When a price
+list is unavailable the line reads `cost unknown` rather than a false zero.
+
+The spend history lives in the dashboard's database. Clearing knowledge, with
+or without its cache, never removes it.
 
 ## What "unknown" means
 

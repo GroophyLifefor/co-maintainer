@@ -180,6 +180,11 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td></td>
 <td>Print how long each phase took.</td>
 </tr>
+<tr>
+<td><code>--env=PATH</code></td>
+<td></td>
+<td>Read environment variables from a .env file first. A variable already set wins.</td>
+</tr>
 </tbody></table>
 <h2 id="co-maintainer-init"><code>co-maintainer init</code></h2>
 <p>Build the review guides for a repository for the first time.</p>
@@ -277,7 +282,12 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <tr>
 <td><code>--only-request-changed-pr</code></td>
 <td></td>
-<td>Read only the pull requests with at least one CHANGES_REQUESTED review.</td>
+<td>Read only the pull requests with at least one CHANGES_REQUESTED review. Saved for the repository.</td>
+</tr>
+<tr>
+<td><code>--no-only-request-changed-pr</code></td>
+<td></td>
+<td>Read every pull request again, turning a saved --only-request-changed-pr off.</td>
 </tr>
 </tbody></table>
 <h3 id="ai">AI</h3>
@@ -374,6 +384,11 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td></td>
 <td>Print how long each phase took.</td>
 </tr>
+<tr>
+<td><code>--env=PATH</code></td>
+<td></td>
+<td>Read environment variables from a .env file first. A variable already set wins.</td>
+</tr>
 </tbody></table>
 <h3 id="performance">Performance</h3>
 <table>
@@ -393,11 +408,6 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td><code>--ai-concurrent=N</code></td>
 <td>3</td>
 <td>Concurrent AI calls for this run only. It does not change the saved default.</td>
-</tr>
-<tr>
-<td><code>--improve-matrix=N</code></td>
-<td>1</td>
-<td>How many improvement passes to run. Capped at 4, and each pass costs more.</td>
 </tr>
 </tbody></table>
 <h2 id="co-maintainer-sync"><code>co-maintainer sync</code></h2>
@@ -477,6 +487,31 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td><code>--max-comment=N</code></td>
 <td></td>
 <td>Cap the comments read per pull request.</td>
+</tr>
+</tbody></table>
+<h3 id="pull-request-filter-2">Pull request filter</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--pr-state=open,closed,merged</code></td>
+<td></td>
+<td>Which pull request states to read.</td>
+</tr>
+<tr>
+<td><code>--only-request-changed-pr</code></td>
+<td></td>
+<td>Read only the pull requests with at least one CHANGES_REQUESTED review. Saved for the repository.</td>
+</tr>
+<tr>
+<td><code>--no-only-request-changed-pr</code></td>
+<td></td>
+<td>Read every pull request again, turning a saved --only-request-changed-pr off.</td>
 </tr>
 </tbody></table>
 <h3 id="ai-2">AI</h3>
@@ -572,6 +607,11 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 <td><code>--log-time</code></td>
 <td></td>
 <td>Print how long each phase took.</td>
+</tr>
+<tr>
+<td><code>--env=PATH</code></td>
+<td></td>
+<td>Read environment variables from a .env file first. A variable already set wins.</td>
 </tr>
 </tbody></table>
 <h3 id="performance-2">Performance</h3>
@@ -731,7 +771,7 @@ co-maintainer review [options]
 <tr>
 <td><code>--timeout-minutes=N</code></td>
 <td></td>
-<td>With --range: stop waiting after N minutes and leave the result to the dashboard. Default 10.</td>
+<td>With --range: stop waiting after N minutes and leave the result to the dashboard, default 10. With --remote on a pull request: fail with exit code 3 after N minutes, no limit by default.</td>
 </tr>
 </tbody></table>
 <h3 id="intent">Intent</h3>
@@ -789,6 +829,26 @@ co-maintainer review [options]
 <td>The image format for plantuml-server.</td>
 </tr>
 </tbody></table>
+<h3 id="depth">Depth</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--improve-matrix=N</code></td>
+<td>1</td>
+<td>How many passes the review model makes over its own findings. Capped at 4, and each pass costs more.</td>
+</tr>
+<tr>
+<td><code>--review-upstream</code></td>
+<td></td>
+<td>On a pull request, review the code merged in from the base branch too, not only what the author wrote.</td>
+</tr>
+</tbody></table>
 <h3 id="ai-3">AI</h3>
 <table>
 <thead>
@@ -799,9 +859,9 @@ co-maintainer review [options]
 </tr>
 </thead>
 <tbody><tr>
-<td><code>--ai=none|openrouter|openai|anthropic|opencode-zen|opencode-go</code></td>
-<td>none</td>
-<td>Which provider writes the review. <code>none</code> turns AI off.</td>
+<td><code>--ai=openrouter|openai|anthropic|opencode-zen|opencode-go</code></td>
+<td></td>
+<td>Which provider writes the review. With no provider saved, OpenRouter. A review cannot run without one.</td>
 </tr>
 <tr>
 <td><code>--token=KEY</code></td>
@@ -882,6 +942,11 @@ co-maintainer review [options]
 <td><code>--log-time</code></td>
 <td></td>
 <td>Print how long each phase took.</td>
+</tr>
+<tr>
+<td><code>--env=PATH</code></td>
+<td></td>
+<td>Read environment variables from a .env file first. A variable already set wins.</td>
 </tr>
 <tr>
 <td><code>--output=github</code></td>
@@ -1189,6 +1254,11 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td>Server default for concurrent AI calls. With --repo, the repository override. 1..16.</td>
 </tr>
 <tr>
+<td><code>--review-references=on|off</code></td>
+<td></td>
+<td>Show the rules each finding rests on in review comments and the terminal. Needs --repo.</td>
+</tr>
+<tr>
 <td><code>--review-system-prompt=TEXT</code></td>
 <td></td>
 <td>A repository&#39;s own review instructions. Needs --repo. Empty clears it.</td>
@@ -1234,6 +1304,16 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td>The most lines search-non-code returns around a match. Needs --repo. 0 or -1 means no limit.</td>
 </tr>
 <tr>
+<td><code>--review-diff-max-chars=N</code></td>
+<td>240000</td>
+<td>The DIFF section of a review prompt, in characters. Raise it for a model with a large context. Needs --repo. 0 or -1 means no limit.</td>
+</tr>
+<tr>
+<td><code>--review-file-patch-max-chars=N</code></td>
+<td>12000</td>
+<td>Where one file&#39;s patch is cut and marked partial. Needs --repo. 0 or -1 means no limit.</td>
+</tr>
+<tr>
 <td><code>--mcp-config=PATH</code></td>
 <td></td>
 <td>Read the repository&#39;s MCP servers from this JSON file and store them. Reviews offer their listed read-only tools to the model. Needs --repo. Refused when CM_MCP_DISABLED=1.</td>
@@ -1256,7 +1336,12 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <tr>
 <td><code>--review-blocking=model|severity</code></td>
 <td>model</td>
-<td>How a review decides a blocking finding.</td>
+<td>How a review decides a blocking finding. With --repo, for that repository.</td>
+</tr>
+<tr>
+<td><code>--review-event=auto|comment</code></td>
+<td>auto</td>
+<td>How the App posts a review: approve or request changes, or comment only. With --repo, for that repository.</td>
 </tr>
 <tr>
 <td><code>--ai-timeout-minutes=N</code></td>
@@ -1284,14 +1369,39 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td>Run an extension again when co-maintainer restarted while it ran. A registration&#39;s --rerun-on-restart wins.</td>
 </tr>
 <tr>
-<td><code>--disable-auth=password</code></td>
+<td><code>--disable-auth=password|github</code></td>
 <td></td>
-<td>Turn the dashboard password off.</td>
+<td>Turn a sign-in method off. Refused when it would leave no way in.</td>
 </tr>
 <tr>
-<td><code>--enable-auth=github</code></td>
+<td><code>--enable-auth=password|github</code></td>
 <td></td>
-<td>Turn GitHub sign-in on.</td>
+<td>Turn a sign-in method on. A running serve picks it up on the next request.</td>
+</tr>
+<tr>
+<td><code>--webhook-url=URL</code></td>
+<td></td>
+<td>The public webhook address GitHub posts to. --webhook-url on serve and CM_WEBHOOK_URL win over it.</td>
+</tr>
+<tr>
+<td><code>--max-concurrent-jobs=N</code></td>
+<td></td>
+<td>How many server jobs run at once.</td>
+</tr>
+<tr>
+<td><code>--remote-sync-timeout-seconds=N</code></td>
+<td></td>
+<td>How long a remote review waits for one sync.</td>
+</tr>
+<tr>
+<td><code>--max-concurrent-remote-reviews-per-token=N</code></td>
+<td></td>
+<td>Remote reviews one token may run at once.</td>
+</tr>
+<tr>
+<td><code>--remote-tool-output-max-chars=N</code></td>
+<td></td>
+<td>The longest client tool result a remote review keeps.</td>
 </tr>
 <tr>
 <td><code>--no-verify</code></td>
@@ -1330,17 +1440,17 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <tr>
 <td><code>--password=TEXT</code></td>
 <td></td>
-<td>Set the dashboard password on first start.</td>
+<td>Replace the dashboard password on every start, which signs out every session. Leave it out of a service file and change the password in Settings instead.</td>
 </tr>
 <tr>
-<td><code>--disable-auth=password</code></td>
+<td><code>--disable-auth=password|github</code></td>
 <td></td>
-<td>Turn the dashboard password off.</td>
+<td>Force a sign-in method off for this run, whatever Settings says.</td>
 </tr>
 <tr>
-<td><code>--enable-auth=github</code></td>
+<td><code>--enable-auth=password|github</code></td>
 <td></td>
-<td>Turn GitHub sign-in on.</td>
+<td>Force a sign-in method on for this run, whatever Settings says.</td>
 </tr>
 <tr>
 <td><code>--trust-proxy</code></td>
@@ -1365,12 +1475,7 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <tbody><tr>
 <td><code>--debug</code></td>
 <td></td>
-<td>Print the underlying gh and HTTP calls.</td>
-</tr>
-<tr>
-<td><code>--log-time</code></td>
-<td></td>
-<td>Print how long each phase took.</td>
+<td>Turn on the /__ui component gallery. CM_DEBUG=1 does the same.</td>
 </tr>
 </tbody></table>
 <h2 id="co-maintainer-extension"><code>co-maintainer extension</code></h2>

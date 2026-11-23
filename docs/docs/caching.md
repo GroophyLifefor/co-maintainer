@@ -13,12 +13,12 @@ flowchart TB
 
   config --> cfg["config.json"]
   config --> guides["repos/ owner-repo / guides"]
+  config --> tools["tools/ codegraph pins"]
 
   cache --> cdb["cache.db evidence AI jobs"]
   cache --> appdb["app.db serve only"]
   cache --> clones["clones/ bare repos"]
   cache --> wt["wt/ PR worktrees"]
-  cache --> tools["tools/ codegraph pins"]
 ```
 
 ### Config directory
@@ -34,6 +34,7 @@ flowchart TB
 | `config.json` | Global `set` values and `repos["owner/repo"]` memory |
 | `repos/<owner>/<repo>/` | Generated guides for one GitHub repo (see below) |
 | `extensions/<run-id>/` | Short-lived folder of one review's [extension](extensions.md) files, removed when the review ends |
+| `tools/` | Pinned helper binaries (for example codegraph), not on your PATH. `CM_TOOLS_DIR` moves it |
 
 Override: `CM_CONFIG_PATH` points at a different `config.json`.
 Override guides root: `CM_REPOS_DIR` (must match on laptops and `serve` when
@@ -53,9 +54,8 @@ using server-side init).
 | `app.db` | SQLite state for [`serve`](serve.md) (repos, jobs, reviews) |
 | `clones/` | Disposable bare clones for server jobs |
 | `wt/` | Short-lived worktrees per PR on the server |
-| `tools/` | Pinned helper binaries (for example codegraph), not on your PATH |
 
-Override: `CM_APP_DB`, `CM_CLONES_DIR`, `CM_TOOLS_DIR` (see [Overrides](#overrides)).
+Override: `CM_APP_DB`, `CM_CLONES_DIR` (see [Overrides](#overrides)).
 
 ### Tools directory
 
@@ -168,6 +168,28 @@ the command prints `npm uninstall -g co-maintainer` when it is done.
 
 Use the same `CM_REPOS_DIR` on a `serve` host and on developer machines when
 remote review should read guides the server built.
+
+## In CI
+
+`review --remote` keeps every round on the server, so CI needs no cache for
+it. A local or pull request review (`review` without `--remote`) keeps its
+guides and its rounds on the machine. A fresh runner has neither: the review
+stops with `not_initialized` (exit 2), or every run is a first round. Cache the
+config and cache folders between runs to keep them:
+
+```yaml
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.config/co-maintainer
+            ~/.cache/co-maintainer
+          key: co-maintainer-${{ github.repository }}-${{ github.ref_name }}
+          restore-keys: co-maintainer-${{ github.repository }}-
+```
+
+Keep keys out of the cached config: pass them as secrets in the environment.
+The guides come from `init` or `sync` run on a machine that has them, or from
+a server, so `review --remote` stays the simpler choice in CI.
 
 ## When to refresh vs delete
 

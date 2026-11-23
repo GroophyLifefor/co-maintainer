@@ -471,4 +471,33 @@ export const migrations: string[][] = [
     )`,
     `CREATE INDEX idx_audit_log_at ON audit_log(at)`,
   ],
+  // 25: AI spend that is not a review: init and sync, replies and watch
+  // comments, from serve and from the CLI. One row per AI call. Before this
+  // the spend only reached the job log and a cache that clearing knowledge
+  // emptied, so Usage said "Not recorded". `cost_usd` NULL means the provider
+  // reported no price.
+  [
+    `CREATE TABLE ai_costs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      at TEXT NOT NULL,
+      repo TEXT NOT NULL,
+      job_id TEXT,
+      kind TEXT NOT NULL,
+      job TEXT NOT NULL,
+      provider TEXT,
+      model TEXT,
+      tokens_in INTEGER NOT NULL DEFAULT 0,
+      tokens_out INTEGER NOT NULL DEFAULT 0,
+      cost_usd REAL,
+      source TEXT NOT NULL
+    )`,
+    `CREATE INDEX idx_ai_costs_at ON ai_costs(at)`,
+    `CREATE INDEX idx_ai_costs_job ON ai_costs(job_id)`,
+  ],
+  // 26: whether the person who wrote a reply may close the finding it
+  // answers, decided when the webhook arrives: the same people who may skip
+  // and dismiss. A reply that asks to close the finding then closes it.
+  [
+    `ALTER TABLE reply_requests ADD COLUMN may_close INTEGER NOT NULL DEFAULT 0`,
+  ],
 ];

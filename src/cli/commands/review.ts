@@ -1,3 +1,4 @@
+import { recordCliReview } from "../../services/cli_review_record.ts";
 import { parseReviewArgs, type ReviewCliArgs } from "../review_args.ts";
 import { readConfig } from "../../config.ts";
 import { setCliInteractive } from "../args.ts";
@@ -88,8 +89,24 @@ async function runReviewPr(
   setCliInteractive(!cli.json);
   await withCliLogsToStderr(async () => {
     const operationStarted = performance.now();
+    const startedAt = new Date().toISOString();
     const aiMetrics = emptyAiMetrics();
     const stopHeartbeat = startHeartbeat("reviewing pull request");
+    const record = (findings: number, failed?: string) =>
+      recordCliReview({
+        kind: "cli_pr",
+        repo: options.repo,
+        prNumber: options.prNumber,
+        model: options.highModel ?? "unknown",
+        tokensIn: aiMetrics.tokensIn,
+        tokensOut: aiMetrics.tokensOut,
+        tally: aiMetrics,
+        findings,
+        startedAt,
+        durationMs: Math.round(performance.now() - operationStarted),
+        failed,
+      });
+    let recorded = false;
     try {
       if (options.auth !== "gh") {
         throw new Error("review supports gh authentication only");
@@ -214,6 +231,8 @@ async function runReviewPr(
           intent: intent !== null,
           showReferences:
             readConfig().repos?.[options.repo]?.reviewReferences === true,
+          warnings,
+          codegraphState,
           ...companionJson,
         });
       } else {
@@ -257,6 +276,9 @@ async function runReviewPr(
           );
         }
       }
+      // On the dashboard too, before the process exits.
+      recorded = true;
+      await record(resolved.length);
       // A blocking finding carried over from an earlier run still blocks, so
       // the resolved rows decide as well as the model's own text.
       exitWith(
@@ -270,6 +292,12 @@ async function runReviewPr(
           extensions,
         ),
       );
+    } catch (error) {
+      // A failed review that already spent money is on the dashboard too.
+      if (!recorded && aiMetrics.calls > 0) {
+        await record(0, error instanceof Error ? error.message : String(error));
+      }
+      throw error;
     } finally {
       // A heartbeat left running on the error path keeps the event loop alive
       // forever, so the process would never drain and the exit code would never

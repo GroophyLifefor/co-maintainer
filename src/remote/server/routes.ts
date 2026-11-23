@@ -1,3 +1,5 @@
+import { registerByokKey } from "./byok_keys.ts";
+import { markPushReviewByok } from "../../services/push_review.ts";
 import { VERSION } from "../../version.ts";
 import {
   cloneDir,
@@ -157,7 +159,14 @@ async function handleHandshake(
     // Additive advertisement: a 0.5.0 client ignores these, and an
     // older server never sends them, so the client gates on `features`. No key,
     // model, or other secret is ever echoed here.
-    features: ["byok", "push", "intent", "client-tools", COMPANIONS_FEATURE],
+    features: [
+      "byok",
+      "push",
+      "push-byok",
+      "intent",
+      "client-tools",
+      COMPANIONS_FEATURE,
+    ],
     byok: { policy },
     // Whether this server offers the model the tools a client declares. A
     // client that finds `off` declares none and says so in its warnings.
@@ -236,6 +245,28 @@ async function submitPush(record: Record<string, unknown>): Promise<Response> {
   } catch (error) {
     return errorResponse(400, "bad_request", String(error));
   }
+  // The same policy as a pull request remote review: a push never falls back
+  // to the server's key when the client must bring its own.
+  const byokRaw = record.byok as { key?: unknown } | undefined;
+  const byokKey =
+    byokRaw && typeof byokRaw.key === "string" && byokRaw.key !== ""
+      ? byokRaw.key
+      : undefined;
+  const policy = remoteByokPolicy();
+  if (policy === "off" && byokKey !== undefined) {
+    return errorResponse(
+      403,
+      "byok_not_allowed",
+      "This server does not accept your own key.",
+    );
+  }
+  if (policy === "require" && byokKey === undefined) {
+    return errorResponse(
+      403,
+      "byok_required",
+      "This server requires your own key. Run with --remote-byok.",
+    );
+  }
   const outcome = queuePush({
     repo: repoRow.full_name,
     before: push.before,
@@ -244,6 +275,13 @@ async function submitPush(record: Record<string, unknown>): Promise<Response> {
     source: "ci",
     revision,
   });
+  // The key lives only in this process's memory, tied to the job, as it
+  // does for a pull request review. A push that joined a review already on
+  // its way keeps that review's billing.
+  if (outcome.kind === "enqueued" && byokKey !== undefined) {
+    registerByokKey(outcome.jobId, byokKey);
+    markPushReviewByok(outcome.reviewId);
+  }
   switch (outcome.kind) {
     case "enqueued":
     case "attached":

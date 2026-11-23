@@ -44,9 +44,20 @@ async function runTool(
   }
 }
 
-/** A Stop between tool rounds. `partial` holds the merged usage of the calls
- * made before it, so their cost is not lost. */
+/** A Stop between tool rounds, or a failed call after paid rounds. `partial`
+ * holds the merged usage of the calls made before it, so their cost is not
+ * lost. */
 export type StoppedLoopError = DOMException & { partial?: AiResponse };
+
+/** A call that failed after earlier rounds were paid. Their merged usage
+ * rides on the error, as on a Stop, so a failed review keeps its known cost. */
+function withPartial(error: unknown, partial: AiResponse | undefined): unknown {
+  if (partial && error !== null && typeof error === "object") {
+    const carrier = error as { partial?: AiResponse };
+    carrier.partial ??= partial;
+  }
+  return error;
+}
 
 function stoppedWith(partial: AiResponse | undefined): StoppedLoopError {
   const error = new DOMException("Aborted", "AbortError") as StoppedLoopError;
@@ -115,7 +126,11 @@ export async function completeWithMermaidTools(
       // so the caller can still record their cost.
       throw stoppedWith(sofar);
     }
-    const response = await provider.complete({ ...request, messages, tools });
+    const response = await provider
+      .complete({ ...request, messages, tools })
+      .catch((error: unknown) => {
+        throw withPartial(error, sofar);
+      });
     if (options.onResponse) await options.onResponse(response);
     if (!response.toolCalls?.length) return merge(response);
     sofar = merge(response);
@@ -176,7 +191,11 @@ export async function completeWithMermaidTools(
     content:
       "No more tool calls are available. Answer now using only what you already found.",
   });
-  const final = await provider.complete({ ...request, messages });
+  const final = await provider
+    .complete({ ...request, messages })
+    .catch((error: unknown) => {
+      throw withPartial(error, sofar);
+    });
   if (options.onResponse) await options.onResponse(final);
   return merge(final);
 }

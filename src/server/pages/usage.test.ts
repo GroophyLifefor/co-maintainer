@@ -169,14 +169,15 @@ test("four stat cards: Spent, Reviews, Findings, Avg. review", async () => {
   }
 });
 
-test("By kind splits runs and cost, and says when a cost is not recorded", async () => {
+test("By kind splits runs and cost, knowledge builds included", async () => {
   const html = await usage();
   const cases: [string, string, string][] = [
-    ["init / sync", "1", "Not recorded"],
+    // A sync with no AI call recorded costs nothing known yet.
+    ["init / sync", "1", "$0.00"],
     ["Pull request reviews", "1", "$0.01"],
     ["Not posted reviews", "1", "$0.01"],
     ["Failed review attempts", "1", "$0.02"],
-    ["CLI reviews", "0", "$0.00"],
+    ["Remote reviews from the CLI", "0", "$0.00"],
   ];
   for (const [label, runs, cost] of cases) {
     const cells = kindRow(html, label);

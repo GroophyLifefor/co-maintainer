@@ -3,6 +3,10 @@
  * count is the open failures the home list, the overview and the failed
  * Activity list count too, and setup progress is the same four-step checklist the
  * home banner and /setup use. */
+import {
+  liveWebhookUrl,
+  type WebhookUrlSource,
+} from "../server/webhook_url.ts";
 import { listActiveRepos } from "../store/repos.ts";
 import { openFailures, openFailuresHref } from "./open_failures.ts";
 import { readConfig } from "../config.ts";
@@ -21,9 +25,9 @@ export type NavCounts = {
   update?: UpdateNotice;
 };
 
-export function navCounts(webhookUrl: string): NavCounts {
+export function navCounts(webhook: string | WebhookUrlSource): NavCounts {
   const now = Date.now();
-  const steps = setupChecklist(readConfig().webhookUrl || webhookUrl);
+  const steps = setupChecklist(liveWebhookUrl(readConfig(), webhook));
   const done = steps.filter((step) => step.done).length;
   return {
     repos: listActiveRepos().length,

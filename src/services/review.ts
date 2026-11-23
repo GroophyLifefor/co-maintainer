@@ -1,4 +1,6 @@
 /** Review jobs: run the model, persist findings, post to GitHub. */
+import { extensionsBlock } from "../extensions/report.ts";
+import { loadExtensionReport } from "../store/extensions.ts";
 import { setGitHubAuth } from "../pr/git_auth.ts";
 import { VERSION } from "../version.ts";
 import { createAiProvider } from "../ai/provider.ts";
@@ -54,7 +56,10 @@ import type { Snapshot } from "../pr/snapshot.ts";
 import {
   readConfig,
   resolveAppPrivateKey,
+  resolveRepoSettings,
   resolvedAiToken,
+  reviewAiProvider,
+  reviewEventMode,
 } from "../config.ts";
 import { outsideCode, redact } from "../util/redact.ts";
 import { getRepo, setInstallationId } from "../store/repos.ts";
@@ -589,6 +594,10 @@ export function reviewOptions(
   warn?: (message: string) => void,
 ): Options {
   const config = readConfig();
+  const settings = resolveRepoSettings(config, repo);
+  // With no provider saved the App review stays on OpenRouter, the same
+  // fallback the CLI review uses.
+  const ai = reviewAiProvider(settings.ai.value) as Options["ai"];
   return {
     command: "review",
     repo,
@@ -599,15 +608,10 @@ export function reviewOptions(
     ghConcurrent: 1,
     aiConcurrent: 1,
     auth: "gh",
-    // With no provider saved the App review stays on OpenRouter, the same
-    // fallback the CLI review uses.
-    ai: config.ai && config.ai !== "none" ? config.ai : "openrouter",
-    aiToken: resolvedAiToken(
-      config,
-      config.ai && config.ai !== "none" ? config.ai : "openrouter",
-    ),
-    highModel: config.highModel,
-    lowModel: config.lowModel,
+    ai,
+    aiToken: resolvedAiToken(config, ai),
+    highModel: settings.highModel.value,
+    lowModel: settings.lowModel.value,
     synthesisVersion: 17,
     includeCodebase: true,
     includePullRequests: true,
@@ -616,9 +620,7 @@ export function reviewOptions(
     includeHowRepoWorks: true,
     onlyRequestChangedPr: false,
     useCodegraph: getRepo(repo)?.use_codegraph === 1,
-    reviewBlocking: reviewBlockingFrom(
-      config.repos?.[repo]?.reviewBlocking ?? config.reviewBlocking,
-    ),
+    reviewBlocking: reviewBlockingFrom(settings.reviewBlocking.value),
     reviewSystemPrompt: config.repos?.[repo]?.reviewSystemPrompt,
     ...serverDiagramOptions(config.repos?.[repo] ?? {}, repo, warn),
   };
@@ -776,8 +778,12 @@ async function stoppedReview(
   reviewId: string,
   checkRunId: string | undefined,
   log: LogFn,
+  costTally?: CostTally,
 ): Promise<void> {
-  setReviewStatus(reviewId, "canceled");
+  // A stopped review still spent what its finished AI calls cost.
+  setReviewStatus(reviewId, "canceled", {
+    ...(costTally ? costColumns(settle(costTally)) : {}),
+  });
   await updateCheck(
     client,
     job,
@@ -927,7 +933,12 @@ async function publish(
   const payload = {
     commit_id: headSha,
     body,
-    event: reviewEventWithExtensions(appReviewEvent(stored, mode), extensions),
+    // A repository in comment mode never approves or blocks, whatever the
+    // findings or the extensions say: people decide the merge.
+    event:
+      reviewEventMode(readConfig(), job.repo) === "comment"
+        ? ("COMMENT" as const)
+        : reviewEventWithExtensions(appReviewEvent(stored, mode), extensions),
     comments,
   };
   setReviewStatus(reviewId, "posting");
@@ -1407,7 +1418,7 @@ async function runReviewJobCore(
     // one, and the pull request gets one note pointing at the dashboard.
     // A Stop is not a failure: nothing is posted.
     if (signal?.aborted) {
-      await stoppedReview(github, job, reviewId, checkRunId, log);
+      await stoppedReview(github, job, reviewId, checkRunId, log, costTally);
       return;
     }
     await recordFailedReview(github, job, reviewId, costTally, log);
@@ -1417,7 +1428,7 @@ async function runReviewJobCore(
   // nothing is posted or stored. Extensions it cut short would read as failed.
   // The remote job returns the same way.
   if (signal?.aborted) {
-    await stoppedReview(github, job, reviewId, checkRunId, log);
+    await stoppedReview(github, job, reviewId, checkRunId, log, costTally);
     return;
   }
   guideBuiltAt = response.guideBuiltAt;
@@ -1657,4 +1668,71 @@ export function roundArgs(
     sinceCommit: incremental ? last!.head_sha! : undefined,
     round: last ? last.round + 1 : 1,
   };
+}
+
+/** After the bot withdrew a finding in a reply: when its latest review asked
+ * for changes, the pull request is still on the commit that review read, no
+ * blocking finding is left open and no extension asked for changes, it
+ * approves that commit with a fixed text. No AI call. Otherwise nothing: the
+ * next round decides (#144). Returns what it did, for the job log. */
+export async function approveAfterWithdrawal(
+  client: GitHubClient,
+  repo: string,
+  prNumber: number,
+  withdrawnPath: string | null,
+  log: LogFn,
+  /** Who closed it, for a maintainer's dismiss. The bot's own withdrawal
+   * leaves it out. */
+  closedBy?: string,
+): Promise<"approved" | "skipped"> {
+  // In comment mode the bot never approves.
+  if (reviewEventMode(readConfig(), repo) === "comment") return "skipped";
+  const review = latestPostedReview(repo, prNumber);
+  if (!review?.posted_review_id || !review.head_sha) return "skipped";
+  const mode = reviewBlockingFrom(
+    resolveRepoSettings(readConfig(), repo).reviewBlocking.value,
+  );
+  const findings = listFindingsForReview(review.id);
+  if (appReviewEvent(findings, mode) !== "APPROVE") return "skipped";
+  if (extensionsBlock(loadExtensionReport(review.id))) return "skipped";
+  const reviews = await client.pages<Json>(
+    `repos/${repo}/pulls/${prNumber}/reviews`,
+  );
+  const ours = reviews.find(
+    (item) => String(item.id ?? "") === review.posted_review_id,
+  );
+  if (String(ours?.state ?? "") !== "CHANGES_REQUESTED") return "skipped";
+  const pull = await client.request<Json>(`repos/${repo}/pulls/${prNumber}`);
+  const head = String((pull.head as Json | undefined)?.sha ?? "");
+  if (head !== review.head_sha) return "skipped";
+  const where = withdrawnPath ? ` on \`${withdrawnPath}\`` : "";
+  // A GitHub login is named as one, anything else (a dashboard password
+  // sign-in) in plain words.
+  const how = closedBy
+    ? /^[A-Za-z0-9-]+$/.test(closedBy)
+      ? `was closed by \`@${closedBy}\``
+      : `was closed by ${closedBy}`
+    : "was withdrawn";
+  await post(client, `repos/${repo}/pulls/${prNumber}/reviews`, {
+    commit_id: head,
+    body: humanCopy(
+      `The finding${where} ${how}, so no blocking finding is left open. Approving.`,
+    ),
+    event: "APPROVE",
+  });
+  const open = findings.filter((row) => row.state !== "closed");
+  await finishCheck(
+    client,
+    {
+      repo,
+      pr_number: prNumber,
+    } as JobRow,
+    review.check_run_id ?? undefined,
+    open.length === 0 ? "success" : "neutral",
+    open.length === 0 ? "Review completed" : "Review findings",
+    findings,
+    log,
+  );
+  log("info", "approved: the withdrawn finding was the last blocking one");
+  return "approved";
 }

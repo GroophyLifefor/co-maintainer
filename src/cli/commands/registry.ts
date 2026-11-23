@@ -45,13 +45,25 @@ const OUTPUT_FLAGS: FlagGroup = {
     },
     { name: "debug", description: "Print the underlying gh and HTTP calls." },
     { name: "log-time", description: "Print how long each phase took." },
+    {
+      name: "env",
+      value: "PATH",
+      description:
+        "Read environment variables from a .env file first. A variable already set wins.",
+    },
   ],
 };
 
 /** `serve` runs until stopped and prints no result, so it has no `--json`. */
 const SERVE_OUTPUT_FLAGS: FlagGroup = {
   title: OUTPUT_FLAGS.title,
-  flags: OUTPUT_FLAGS.flags.filter((flag) => flag.name !== "json"),
+  flags: [
+    {
+      name: "debug",
+      description:
+        "Turn on the /__ui component gallery. CM_DEBUG=1 does the same.",
+    },
+  ],
 };
 
 /** `review` alone can print for a CI run. */
@@ -102,6 +114,42 @@ const AI_FLAGS: FlagGroup = {
       description: "Which provider writes the review. `none` turns AI off.",
     },
     ...AI_KEY_FLAGS,
+  ],
+};
+
+/** A review cannot run without AI, so `none`, or nothing saved, means
+ * OpenRouter there, the provider every review used before providers. */
+const REVIEW_AI_FLAGS: FlagGroup = {
+  title: "AI",
+  flags: [
+    {
+      name: "ai",
+      value: AI_PROVIDERS.filter((provider) => provider !== "none").join("|"),
+      description:
+        "Which provider writes the review. With no provider saved, OpenRouter. A review cannot run without one.",
+    },
+    ...AI_KEY_FLAGS,
+  ],
+};
+
+const PR_FILTER_FLAGS: FlagGroup = {
+  title: "Pull request filter",
+  flags: [
+    {
+      name: "pr-state",
+      value: "open,closed,merged",
+      description: "Which pull request states to read.",
+    },
+    {
+      name: "only-request-changed-pr",
+      description:
+        "Read only the pull requests with at least one CHANGES_REQUESTED review. Saved for the repository.",
+    },
+    {
+      name: "no-only-request-changed-pr",
+      description:
+        "Read every pull request again, turning a saved --only-request-changed-pr off.",
+    },
   ],
 };
 
@@ -391,21 +439,7 @@ export const COMMANDS: CommandSpec[] = [
           },
         ],
       },
-      {
-        title: "Pull request filter",
-        flags: [
-          {
-            name: "pr-state",
-            value: "open,closed,merged",
-            description: "Which pull request states to read.",
-          },
-          {
-            name: "only-request-changed-pr",
-            description:
-              "Read only the pull requests with at least one CHANGES_REQUESTED review.",
-          },
-        ],
-      },
+      PR_FILTER_FLAGS,
       AI_FLAGS_REQUIRED,
       EXPERIMENTAL_FLAGS,
       GITHUB_FLAGS,
@@ -426,13 +460,6 @@ export const COMMANDS: CommandSpec[] = [
             default: "3",
             description:
               "Concurrent AI calls for this run only. It does not change the saved default.",
-          },
-          {
-            name: "improve-matrix",
-            value: "N",
-            default: "1",
-            description:
-              "How many improvement passes to run. Capped at 4, and each pass costs more.",
           },
         ],
       },
@@ -511,6 +538,7 @@ export const COMMANDS: CommandSpec[] = [
           },
         ],
       },
+      PR_FILTER_FLAGS,
       AI_FLAGS_REQUIRED,
       EXPERIMENTAL_FLAGS,
       GITHUB_FLAGS,
@@ -656,7 +684,7 @@ export const COMMANDS: CommandSpec[] = [
             name: "timeout-minutes",
             value: "N",
             description:
-              "With --range: stop waiting after N minutes and leave the result to the dashboard. Default 10.",
+              "With --range: stop waiting after N minutes and leave the result to the dashboard, default 10. With --remote on a pull request: fail with exit code 3 after N minutes, no limit by default.",
           },
         ],
       },
@@ -707,7 +735,24 @@ export const COMMANDS: CommandSpec[] = [
           },
         ],
       },
-      AI_FLAGS,
+      {
+        title: "Depth",
+        flags: [
+          {
+            name: "improve-matrix",
+            value: "N",
+            default: "1",
+            description:
+              "How many passes the review model makes over its own findings. Capped at 4, and each pass costs more.",
+          },
+          {
+            name: "review-upstream",
+            description:
+              "On a pull request, review the code merged in from the base branch too, not only what the author wrote.",
+          },
+        ],
+      },
+      REVIEW_AI_FLAGS,
       EXPERIMENTAL_FLAGS,
       GITHUB_FLAGS,
       REVIEW_OUTPUT_FLAGS,
@@ -991,6 +1036,12 @@ export const COMMANDS: CommandSpec[] = [
               "Server default for concurrent AI calls. With --repo, the repository override. 1..16.",
           },
           {
+            name: "review-references",
+            value: "on|off",
+            description:
+              "Show the rules each finding rests on in review comments and the terminal. Needs --repo.",
+          },
+          {
             name: "review-system-prompt",
             value: "TEXT",
             description:
@@ -1051,6 +1102,20 @@ export const COMMANDS: CommandSpec[] = [
               "The most lines search-non-code returns around a match. Needs --repo. 0 or -1 means no limit.",
           },
           {
+            name: "review-diff-max-chars",
+            value: "N",
+            default: "240000",
+            description:
+              "The DIFF section of a review prompt, in characters. Raise it for a model with a large context. Needs --repo. 0 or -1 means no limit.",
+          },
+          {
+            name: "review-file-patch-max-chars",
+            value: "N",
+            default: "12000",
+            description:
+              "Where one file's patch is cut and marked partial. Needs --repo. 0 or -1 means no limit.",
+          },
+          {
             name: "mcp-config",
             value: "PATH",
             description:
@@ -1080,7 +1145,15 @@ export const COMMANDS: CommandSpec[] = [
             name: "review-blocking",
             value: "model|severity",
             default: "model",
-            description: "How a review decides a blocking finding.",
+            description:
+              "How a review decides a blocking finding. With --repo, for that repository.",
+          },
+          {
+            name: "review-event",
+            value: "auto|comment",
+            default: "auto",
+            description:
+              "How the App posts a review: approve or request changes, or comment only. With --repo, for that repository.",
           },
           {
             name: "ai-timeout-minutes",
@@ -1116,13 +1189,42 @@ export const COMMANDS: CommandSpec[] = [
           },
           {
             name: "disable-auth",
-            value: "password",
-            description: "Turn the dashboard password off.",
+            value: "password|github",
+            description:
+              "Turn a sign-in method off. Refused when it would leave no way in.",
           },
           {
             name: "enable-auth",
-            value: "github",
-            description: "Turn GitHub sign-in on.",
+            value: "password|github",
+            description:
+              "Turn a sign-in method on. A running serve picks it up on the next request.",
+          },
+          {
+            name: "webhook-url",
+            value: "URL",
+            description:
+              "The public webhook address GitHub posts to. --webhook-url on serve and CM_WEBHOOK_URL win over it.",
+          },
+          {
+            name: "max-concurrent-jobs",
+            value: "N",
+            description: "How many server jobs run at once.",
+          },
+          {
+            name: "remote-sync-timeout-seconds",
+            value: "N",
+            description: "How long a remote review waits for one sync.",
+          },
+          {
+            name: "max-concurrent-remote-reviews-per-token",
+            value: "N",
+            description: "Remote reviews one token may run at once.",
+          },
+          {
+            name: "remote-tool-output-max-chars",
+            value: "N",
+            description:
+              "The longest client tool result a remote review keeps.",
           },
           {
             name: "no-verify",
@@ -1167,17 +1269,20 @@ export const COMMANDS: CommandSpec[] = [
           {
             name: "password",
             value: "TEXT",
-            description: "Set the dashboard password on first start.",
+            description:
+              "Replace the dashboard password on every start, which signs out every session. Leave it out of a service file and change the password in Settings instead.",
           },
           {
             name: "disable-auth",
-            value: "password",
-            description: "Turn the dashboard password off.",
+            value: "password|github",
+            description:
+              "Force a sign-in method off for this run, whatever Settings says.",
           },
           {
             name: "enable-auth",
-            value: "github",
-            description: "Turn GitHub sign-in on.",
+            value: "password|github",
+            description:
+              "Force a sign-in method on for this run, whatever Settings says.",
           },
           {
             name: "trust-proxy",

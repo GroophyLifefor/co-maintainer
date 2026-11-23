@@ -856,7 +856,9 @@ per repository, never globally:</p>
 it off. See <a href="configuration.html#per-repo-memory">Configuration</a> for where it is
 stored.</p>
 <p>For one run, without saving anything, two <code>review</code> flags add to or replace that
-section. Both work in every mode, PR, local and remote:</p>
+section. Both work in PR, local and remote review. A push review
+(<code>review --remote --range</code>) refuses them with exit code 2, because it sends no
+instructions: save them for the repository instead:</p>
 <table>
 <thead>
 <tr>

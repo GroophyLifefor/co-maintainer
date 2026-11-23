@@ -169,6 +169,13 @@ export type GithubSummaryInput = {
   intent?: boolean;
   /** The `--with` companions the review read. */
   companions?: CompanionJson[];
+  /** What the terminal shows above the findings: a stale guide, an MCP
+   * server that failed, carry-over trouble. A CI run reads only this
+   * output, so it shows them too. */
+  warnings?: { code: string; message: string }[];
+  /** Whether the review queried the call graph. A local review in CI skips
+   * it, and the summary says so instead of looking like the same review. */
+  codegraphState?: "used" | "disabled" | "unavailable" | null;
 };
 
 export function githubSummary(input: GithubSummaryInput): string {
@@ -214,6 +221,21 @@ export function githubSummary(input: GithubSummaryInput): string {
     (path) => cell(path, 200),
   );
   if (notReviewed.length > 0) lines.push("", ...notReviewed);
+  if (input.codegraphState && input.codegraphState !== "used") {
+    lines.push(
+      "",
+      input.codegraphState === "unavailable"
+        ? "Codegraph: not available on this machine, the review ran without the call graph."
+        : "Codegraph: off for this review.",
+    );
+  }
+  if (input.warnings?.length) {
+    lines.push(
+      "",
+      "**Warnings**",
+      ...input.warnings.map((warning) => `- ${cell(warning.message, 500)}`),
+    );
+  }
   if (input.run) lines.push("", formatRunSummary(input.run));
   return jobSummaryWithExtensions(lines.join("\n"), input.extensions);
 }
@@ -246,6 +268,7 @@ export function emitGithubOutput(input: GithubSummaryInput): void {
   )) {
     console.log(line);
   }
+  // Warnings go to the job summary only. Coverage has its own annotation.
   appendStepSummary(githubSummary(input));
 }
 

@@ -95,7 +95,9 @@ export function handleRemoteSync(
           ? "No sync received for the configured timeout."
           : reason === "merged"
             ? "This push was merged into the review of a newer push."
-            : "Review was canceled.",
+            : reason === "superseded"
+              ? "A newer review of this branch replaced this one."
+              : "Review was canceled.",
     };
   } else if (status === "failed") {
     abort = {

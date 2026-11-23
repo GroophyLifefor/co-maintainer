@@ -1,3 +1,4 @@
+import { setRemoteDiagnostics } from "../remote/http.ts";
 import { parseArgs, setCliInteractive } from "./args.ts";
 import { die } from "./error.ts";
 import { readConfig } from "../config.ts";
@@ -208,6 +209,60 @@ export async function loadReviewSystemPromptFlags(
   return result;
 }
 
+/** Every flag a remote review reads. The rest were taken and dropped
+ * without a word before, a typo included. */
+const REMOTE_FLAGS = new Set([
+  "remote",
+  "remote-host",
+  "remote-token",
+  "remote-byok",
+  "no-remote-byok",
+  "json",
+  "output",
+  "debug",
+  "log-time",
+  "env",
+  "branch",
+  "repo",
+  "to-branch",
+  "fresh",
+  "range",
+  "timeout-minutes",
+  "system-prompt-file",
+  "system-prompt-override-file",
+  "intent-file",
+  "with",
+  "disable-codegraph",
+  "allow-tool-install",
+  "include-extension-markdowns",
+]);
+
+/** Settings that belong to the server for a remote review. */
+const SERVER_OWNED = new Set([
+  "ai",
+  "ai-key",
+  "token",
+  "low-model",
+  "high-model",
+  "auth",
+  "github-pat",
+  "improve-matrix",
+]);
+
+function checkRemoteFlags(args: string[]): void {
+  for (const arg of args) {
+    if (!arg.startsWith("--")) continue;
+    const name = arg.slice(2).split("=")[0]!;
+    if (REMOTE_FLAGS.has(name)) continue;
+    if (SERVER_OWNED.has(name)) {
+      die(
+        `--${name} cannot be used with --remote. The server reviews with its own settings for the repository.`,
+      );
+    }
+    die(`Unknown option for review --remote: ${arg.split("=")[0]}`);
+  }
+}
+
 /** Parses `co-maintainer review` after the `review` token. */
 export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
   const positional = args.filter((a) => !a.startsWith("--"));
@@ -241,8 +296,8 @@ export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
   if (flags.range && !flags.remote) {
     die("--range requires --remote");
   }
-  if (flags.timeoutMinutes !== undefined && !flags.range) {
-    die("--timeout-minutes requires --range");
+  if (flags.timeoutMinutes !== undefined && !flags.remote) {
+    die("--timeout-minutes requires --remote");
   }
   if (flags.range && flags.intentFile !== undefined) {
     die("--intent-file is not supported with --range");
@@ -252,6 +307,17 @@ export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
   }
   if (flags.range && (flags.fresh || flags.toBranch)) {
     die("--range cannot be used with --fresh or --to-branch");
+  }
+  // A push review sends no review instructions, so the files would be read
+  // and dropped without a word.
+  if (
+    flags.range &&
+    (flags.systemPromptFile !== undefined ||
+      flags.systemPromptOverrideFile !== undefined)
+  ) {
+    die(
+      "--system-prompt-file and --system-prompt-override-file are not supported with --range. Save the instructions for the repository with set --repo --review-system-prompt instead.",
+    );
   }
   // `--json` must never prompt. `parseArgs` only receives the
   // filtered args, and `--json` is stripped before it sees them, so the flag
@@ -302,7 +368,14 @@ export async function parseReviewArgs(args: string[]): Promise<ReviewCliArgs> {
     };
   }
   if (positional.length === 0) {
-    if (flags.remote) return { mode: "remote", rawArgs: args, ...flags };
+    if (flags.remote) {
+      checkRemoteFlags(args);
+      setRemoteDiagnostics({
+        debug: args.includes("--debug"),
+        logTime: args.includes("--log-time"),
+      });
+      return { mode: "remote", rawArgs: args, ...flags };
+    }
     return { mode: "local", rawArgs: args, ...flags };
   }
   die(

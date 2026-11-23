@@ -121,8 +121,8 @@ test("the cap is enforced against the value written in the same command", async 
 
 test("a global flag cannot be combined with --repo", async () => {
   await withConfig(async () => {
-    const message = await refused(["--repo=acme/widgets", "--ai=openrouter"]);
-    if (!/--ai cannot be used with --repo/.test(message)) {
+    const message = await refused(["--repo=acme/widgets", "--token=x"]);
+    if (!/--token cannot be used with --repo/.test(message)) {
       throw new Error(message);
     }
     const badRepo = await refused([
@@ -142,9 +142,9 @@ test("a global --unset name is refused with --repo", async () => {
     const message = await refused([
       "--repo=acme/widgets",
       "--review-system-prompt=x",
-      "--unset=ai",
+      "--unset=token",
     ]);
-    if (!/--unset=ai cannot be used with --repo/.test(message)) {
+    if (!/--unset=token cannot be used with --repo/.test(message)) {
       throw new Error(message);
     }
   });

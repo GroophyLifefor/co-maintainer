@@ -249,8 +249,9 @@ still wins.</li>
 <li><strong>Diagram language</strong>: Mermaid, PlantUML or a PlantUML server image.</li>
 <li><strong>References in the comment</strong>: shown or left out.</li>
 </ul>
-<p>Diagram language and references are set per repository in its <strong>Repository
-settings</strong>, so the wizard only previews them.</p>
+<p>Diagram language and references are set per repository, in its <strong>Repository
+settings</strong> under <strong>Review tools and limits</strong> or with <code>set --repo</code>, so the
+wizard only previews them.</p>
 <p>The home page shows a <strong>Setup is not finished</strong> banner with the count of the
 four required steps until they are done, and the menu shows the same count
 (<code>2/4</code>). The optional step is not counted.</p>
@@ -347,8 +348,13 @@ on <strong>Activity</strong> opens the pull request page at that round. The over
 it filtered to that severity. The recent pull requests&#39; severity badges, the job
 page <strong>Found</strong> card, and the Usage cards and severity rows do the same.</p>
 <h2 id="findings">Findings</h2>
-<p><strong>Findings</strong> in the left menu lists every finding of every reviewed pull request,
-one row per finding, with a repository filter. Each repository has the same list
+<p><strong>Findings</strong> in the left menu lists every finding of every review, one row per
+finding, with a repository filter. A source filter narrows it to pull request
+reviews, pushes, remote reviews, CLI reviews, or the findings
+<a href="extensions.html">extensions</a> added. A finding with no pull request opens the
+review that found it. <strong>Close</strong> closes a finding as accepted risk or will not
+fix and asks why, <strong>Reopen</strong> opens a closed or withdrawn one again, see
+<a href="review-policy.html#closing-a-finding">Closing a finding</a>. Each repository has the same list
 on its <strong>Findings</strong> tab. A finding carried from round to round is one row, with
 the state it has now.</p>
 <table>
@@ -393,7 +399,9 @@ lists. Each row of the <strong>Reviews</strong> table opens that round&#39;s job
 <h2 id="activity">Activity</h2>
 <p>Activity shows one row per review: the pull request, the result, the cost, the
 time and the status. Every row opens its log. Other jobs, such as init, sync,
-skip and reply, keep one row each. Job kinds, skip reasons and cancel reasons
+skip and reply, keep one row each. A review, init or sync run from the CLI is a
+row too, once it is over, with its cost. The CLI writes it next to a running
+<code>serve</code>, so it shows up without a restart. Job kinds, skip reasons and cancel reasons
 read as sentences, for example &quot;Skipped: nothing new since the last review&quot;.</p>
 <p>Filters live in the URL as chips: status (running, done, failed, canceled,
 skipped), kind, repository, pull request, a day range and a search box. The list
@@ -462,9 +470,20 @@ job runs.</p>
 to the range, and the range links keep them. The author is the GitHub login that
 opened the pull request, so CLI reviews and init or sync runs, which have none,
 drop out when an author is chosen.</p>
-<p><strong>Export CSV</strong> downloads the reviews the page counts, one row per review:</p>
-<pre><code class="language-text">time,repository,pull_request,author,model,tokens_in,tokens_out,cost_usd,billed_to,findings,status
+<p>Every figure is the whole bill: <strong>Spent</strong>, each repository, each day and each
+model include knowledge builds, replies and watch comments next to the
+reviews. <strong>By kind</strong> lists them on their own rows, and keeps stopped reviews,
+push reviews, remote reviews and CLI reviews apart from the posted pull request
+reviews. A repository removed from the dashboard stays on Usage, marked
+removed. <strong>Worth a look</strong> shows the same open failures the menu badge counts,
+and dismissing one there dismisses it everywhere.</p>
+<p><strong>Export CSV</strong> downloads what the page counts, one row per review and one per
+knowledge build, reply or watch comment:</p>
+<pre><code class="language-text">time,repository,pull_request,author,model,tokens_in,tokens_out,cost_usd,billed_to,findings,status,kind,branch,extensions_cost_usd
 </code></pre>
+<p><code>kind</code> is <code>pr</code>, <code>push</code>, <code>remote</code>, <code>local</code>, <code>cli_pr</code>, <code>knowledge</code>, <code>reply</code> or
+<code>watch</code>. <code>extensions_cost_usd</code> is the part of <code>cost_usd</code> the review&#39;s
+extensions spent.</p>
 <p>An unknown cost is an empty cell, never a zero. The failed attempts on the
 <strong>Reviews</strong> card open every failed review of the range, dismissed ones too.</p>
 <h2 id="settings-global">Settings (global)</h2>
@@ -478,7 +497,7 @@ drop out when an author is chosen.</p>
 </thead>
 <tbody><tr>
 <td>AI models</td>
-<td>Provider (OpenRouter, OpenAI or Anthropic, see <a href="providers.html">AI providers</a>), token, high model (reviews and synthesis), low model (history extraction). No model is pre-filled</td>
+<td>Provider (OpenRouter, OpenAI, Anthropic, OpenCode Zen or OpenCode Go, see <a href="providers.html">AI providers</a>), token, high model (reviews and synthesis), low model (history extraction). No model is pre-filled</td>
 </tr>
 <tr>
 <td>GitHub</td>
@@ -486,7 +505,7 @@ drop out when an author is chosen.</p>
 </tr>
 <tr>
 <td>Review defaults</td>
-<td>Limits for new repositories and the <a href="review-policy.html">review policy</a> template they start with</td>
+<td>Limits for new repositories, the <a href="review-policy.html">review policy</a> template they start with, and the blocking rule every repository uses unless it has its own</td>
 </tr>
 <tr>
 <td>Remote access</td>
@@ -498,7 +517,11 @@ drop out when an author is chosen.</p>
 </tr>
 <tr>
 <td>Sign-in</td>
-<td>Password vs GitHub sign-in toggles (mirrors <code>serve</code> flags), and the password</td>
+<td>Password vs GitHub sign-in toggles, and the password. A change applies to the next request, without a restart, and signs out the sessions opened before it. A <code>serve</code> flag (<code>--disable-auth</code>, <code>--enable-auth</code>) still wins</td>
+</tr>
+<tr>
+<td>Extensions</td>
+<td>Register, enable, disable and remove <a href="extensions.html">extensions</a></td>
 </tr>
 <tr>
 <td>Audit log</td>
@@ -510,7 +533,21 @@ drop out when an author is chosen.</p>
 </tr>
 </tbody></table>
 <p>Saving PAT, App key, or OAuth values is validated against GitHub first. Bad
-scopes return <strong>422</strong> and nothing is stored.</p>
+scopes return <strong>422</strong> and nothing is stored. A key or model is checked with
+the provider the same way <code>set</code> checks it, and a rejected one is not stored.</p>
+<p>Emptying a model, App ID or OAuth field clears it, and a saved key or secret
+has a <strong>Remove</strong> button. A cleared value is kept in <code>config.json</code> under
+<code>clearedSettings</code>, out of sight: no page shows it and no run uses it.</p>
+<p>A field that an environment variable or a <code>serve</code> flag sets is shown locked,
+with the name that sets it, because saving it here would change nothing.</p>
+<p>Every field shows its CLI flag under it, so what the dashboard does can be
+scripted with <code>set</code> and <code>set --repo</code>. <strong>Repository settings</strong> carries the
+repository&#39;s own provider and models (<strong>AI for this repository</strong>) and the
+review settings <code>set --repo</code> writes (<strong>Review tools and limits</strong>). The other
+way round, <code>set --repo</code> writes the switches the dashboard keeps:
+<code>--auto-review</code>, <code>--review-scope</code>, <code>--skip-drafts</code>, <code>--skip-bots</code>,
+<code>--codegraph</code>, <code>--watch-open-issues</code>, <code>--watch-push-mode</code>, <code>--review-policy</code>
+and <code>--remake-cron</code>, also while <code>serve</code> is running.</p>
 <p>A <strong>Search settings</strong> box above the Settings menu finds a setting by its name or
 description as you type. Arrow keys move, <code>Enter</code> opens, and the page scrolls to
 the field, focuses it and marks it for a moment.</p>
@@ -585,7 +622,8 @@ cost column notes <code>incl. $X extensions</code> when an extension reported a 
 <h2 id="clearing-knowledge">Clearing knowledge</h2>
 <p><strong>Knowledge</strong> carries a <strong>Clear knowledge</strong> card: it deletes that repository&#39;s
 guides and saved settings, and a checkbox also drops the cached evidence
-(pull request listings, costs, clones and worktrees). The next <strong>Sync</strong> builds
+(pull request listings, cost estimates, clones and worktrees). The spend
+history on Usage stays. The next <strong>Sync</strong> builds
 the knowledge from scratch. See <a href="caching.html#clearing">Caching: Clearing</a>.</p>
 <p><strong>Settings</strong>, <strong>Danger zone</strong> has <strong>Clear all knowledge</strong>, which does the same for every
 repository on the server. Repository records, review history and tokens stay.

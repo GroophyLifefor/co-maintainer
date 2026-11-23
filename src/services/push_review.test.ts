@@ -465,7 +465,7 @@ test("cancel-and-merge asks a CI step for the wider diff when no App can build i
   });
 });
 
-test("--range needs --remote, and --timeout-minutes needs --range", async () => {
+test("--range and --timeout-minutes need --remote", async () => {
   const ok = await parseReviewArgs([
     "--remote",
     `--range=${BEFORE}..${AFTER}`,
@@ -490,7 +490,7 @@ test("--range needs --remote, and --timeout-minutes needs --range", async () => 
     ["--remote", "--range=a...b"],
     ["--remote", "--range=a..-b"],
     [`--range=${BEFORE}..${AFTER}`],
-    ["--remote", "--timeout-minutes=5"],
+    ["--timeout-minutes=5"],
     ["--remote", "--range=abc"],
     ["--remote", "--range=--help..x"],
     ["--remote", `--range=${BEFORE}..${AFTER}`, "--timeout-minutes=0"],

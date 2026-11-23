@@ -60,7 +60,9 @@ It never prompts: a PR review runs unattended. The question and its rules are in
 the install table and the version-resolution order.
 
 Auth and models follow [`configuration`](configuration.md) and `co-maintainer
-set` like other commands (`--auth=pat` is not used for PR review).
+set` like other commands. PR review reads GitHub through `gh`: a saved
+`auth=pat` is left out and the review goes on with `gh`, and `--auth=pat` on
+the command line is refused.
 
 ## Carry-over
 

@@ -278,5 +278,7 @@ Two more fields appear only when the instruction files did something, see
 `reason` and `counts` (`unsupportedSource`, `unknownName`, `overCap`) when there
 is something to say. `ruleChanges` is described on [`sync`](sync.md#json-output).
 
-Without a terminal or saved config, `--json` exits with code 2 instead of
-prompting. Errors with `--json` are JSON on stdout as well.
+Without a terminal, with or without `--json`, nothing prompts. A missing
+provider falls back to OpenRouter, the same default the prompt offers. A
+missing model or key exits with code 2. Errors with `--json` are JSON on stdout
+as well.

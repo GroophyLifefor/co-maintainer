@@ -11,9 +11,11 @@
  * - a repository that is not initialized is red, unless the GitHub App gave
  *   the commit a skipped check run: then it is a notice.
  * - a server that cannot be reached or rejects the token is red. */
+import { getEnv } from "../util/runtime.ts";
+import { runFromResult, serverShowsReferences } from "./client.ts";
 import { VERSION } from "../version.ts";
 import type { ReviewCliArgs } from "../cli/review_args.ts";
-import { exitWith } from "../cli/error.ts";
+import { EXIT_RUNTIME, exitWith } from "../cli/error.ts";
 import { toolUsageFromJson } from "../ai/tool_gate.ts";
 import {
   formatHumanReview,
@@ -169,8 +171,20 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
       "set CM_REMOTE_HOST and CM_REMOTE_TOKEN, or pass --remote-host=... --remote-token=...",
     );
   }
+  // The client's own key, as `review --remote` sends it. Before this a push
+  // review read the flag and the key but never sent them, and the server paid.
+  const byokKey = getEnv("CM_REMOTE_BYOK") ?? config.remoteByok;
+  const byokEnabled = cli.remoteByok ?? config.remoteByokDefault ?? false;
+  if (byokEnabled && !byokKey) {
+    die(
+      "remote_byok_not_configured",
+      "No BYOK key is set.",
+      "co-maintainer config set remote-byok <key>",
+    );
+  }
   setCliInteractive(!cli.json);
   await withCliLogsToStderr(async () => {
+    const reviewStarted = performance.now();
     // A push that creates the branch has no "before": there is nothing it
     // changed to compare with.
     if (ZERO.test(range.before)) {
@@ -215,6 +229,7 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
       sync: { intervalSeconds: number };
       limits: { maxBodyBytes: number };
       features?: string[];
+      byok?: { policy?: string };
     };
     if (REMOTE_SCHEMA_VERSION < hs.minClientSchema) {
       die(
@@ -233,6 +248,25 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
         `This server (version ${hs.serverVersion}) cannot review pushes.`,
         "Upgrade the server to 0.6.10 or later.",
         4,
+      );
+    }
+    // Never fall back to the server's key without saying so.
+    const pushByok = hs.features?.includes("push-byok") ?? false;
+    if (byokEnabled && !pushByok) {
+      die(
+        "remote_byok_unsupported",
+        `This server (version ${hs.serverVersion}) does not take your own key for a push.`,
+        "Upgrade the server or run without --remote-byok.",
+      );
+    }
+    if (byokEnabled && hs.byok?.policy === "off") {
+      die("remote_byok_rejected", "This server does not accept your own key.");
+    }
+    if (pushByok && hs.byok?.policy === "require" && !byokEnabled) {
+      die(
+        "remote_byok_required",
+        "This server requires your own key.",
+        "co-maintainer review --remote --range=... --remote-byok",
       );
     }
 
@@ -265,6 +299,7 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
           files: built.revision.files,
         },
         push: { before, after, ref: `refs/heads/${branch}` },
+        ...(byokEnabled ? { byok: { key: byokKey! } } : {}),
       });
       if (body.length > hs.limits.maxBodyBytes) {
         die(
@@ -347,7 +382,14 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
           }),
         },
       );
-      if (!sync.ok) die("remote_sync_failed", await readApiError(sync));
+      if (!sync.ok) {
+        die(
+          "remote_sync_failed",
+          await readApiError(sync),
+          undefined,
+          EXIT_RUNTIME,
+        );
+      }
       const payload = (await sync.json()) as {
         status: string;
         logs: Array<{ seq: number; message: string }>;
@@ -386,6 +428,13 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
             title,
             findings: human,
             coverage: coverageFromResult(payload.result),
+            showReferences: serverShowsReferences(payload.result, repo),
+            // The cost and time line ci.md promises for every run.
+            run: runFromResult(
+              payload.result,
+              performance.now() - reviewStarted,
+            ),
+            warnings: warningsFromJson(payload.result.warnings),
           });
         } else {
           console.log(
@@ -397,6 +446,7 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
                 findings: human,
                 warnings: warningsFromJson(payload.result.warnings),
                 coverage: coverageFromResult(payload.result),
+                showReferences: serverShowsReferences(payload.result, repo),
                 tools: toolUsageFromJson(
                   (payload.result.usage as { tools?: unknown } | undefined)
                     ?.tools,
@@ -422,6 +472,8 @@ export async function runRemotePushReview(cli: Cli): Promise<void> {
           stripControlChars(
             payload.abort?.message ?? "The push review did not complete.",
           ),
+          undefined,
+          EXIT_RUNTIME,
         );
       }
       if (Date.now() >= deadline) {

@@ -488,6 +488,7 @@ export const SET_CASES: SetCase[] = [
       "--github-app-id=123",
       "--github-webhook-secret=whsec",
       "--github-app-private-key=KEY",
+      "--no-verify",
     ],
     config: {
       githubAppId: "123",
@@ -498,7 +499,11 @@ export const SET_CASES: SetCase[] = [
   },
   {
     name: "set stores the App key path without touching the file",
-    args: ["--github-app-id=123", "--github-app-private-key-path=./app.pem"],
+    args: [
+      "--github-app-id=123",
+      "--github-app-private-key-path=./app.pem",
+      "--no-verify",
+    ],
     config: {
       githubAppId: "123",
       githubAppPrivateKeyPath: "./app.pem",

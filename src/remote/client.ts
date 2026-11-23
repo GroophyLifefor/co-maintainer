@@ -14,7 +14,7 @@ import {
 import { COMPANION_MAX_FILES, companionsJson } from "../review/companions.ts";
 import { companionSearchTool } from "../pr/companion_tools.ts";
 import { COMPANIONS_FEATURE } from "./companions.ts";
-import { exitWith } from "../cli/error.ts";
+import { EXIT_RUNTIME, exitWith } from "../cli/error.ts";
 import {
   formatHumanReview,
   humanFindingsFromJson,
@@ -73,6 +73,7 @@ import {
   splitRemoteResult,
   stripExtensionMarkdowns,
 } from "../extensions/render_json.ts";
+import { startDeadline } from "./deadline.ts";
 import { exitCodeWithExtensions } from "../extensions/report.ts";
 import {
   MIN_SERVER_SCHEMA,
@@ -473,7 +474,14 @@ export async function runRemoteReview(
           },
         );
         if (!sync.ok) {
-          die("remote_sync_failed", await readApiError(sync));
+          // The run broke, not the command: exit 3, so CI can tell a broken
+          // workflow (2) from a run worth retrying.
+          die(
+            "remote_sync_failed",
+            await readApiError(sync),
+            undefined,
+            EXIT_RUNTIME,
+          );
         }
         const payload = (await sync.json()) as {
           status: string;
@@ -495,164 +503,240 @@ export async function runRemoteReview(
         if (payload.toolCalls?.length) queuedCalls.push(...payload.toolCalls);
         return payload;
       };
-      while (true) {
-        const sent = toolResults;
-        toolResults = [];
-        const payload = await syncOnce(sent);
-        if (queuedCalls.length) {
-          while (queuedCalls.length) {
-            const batch = queuedCalls;
-            queuedCalls = [];
-            toolCallsRun += batch.length;
-            if (toolCallsRun > MAX_REMOTE_TOOL_CALLS) {
-              die(
-                "remote_tool_calls_exceeded",
-                `the server asked for more than ${MAX_REMOTE_TOOL_CALLS} tool calls`,
+      // `--timeout-minutes` bounds a pull request review too. The client
+      // answers the server's tool calls, so leaving early ends the review:
+      // the run fails with exit 3 instead of waiting for the CI job limit.
+      const deadline =
+        cli.timeoutMinutes === undefined
+          ? undefined
+          : Date.now() + cli.timeoutMinutes * 60_000;
+      const timedOut = (): never =>
+        die(
+          "remote_timeout",
+          `The remote review did not finish within ${cli.timeoutMinutes} minutes.`,
+          "Raise --timeout-minutes, or review-timeout-minutes in the action.",
+          EXIT_RUNTIME,
+        );
+      const limit = startDeadline(deadline, timedOut);
+      try {
+        while (true) {
+          limit.check();
+          const sent = toolResults;
+          toolResults = [];
+          const payload = await limit.bounded(syncOnce(sent));
+          if (queuedCalls.length) {
+            while (queuedCalls.length) {
+              const batch = queuedCalls;
+              queuedCalls = [];
+              toolCallsRun += batch.length;
+              if (toolCallsRun > MAX_REMOTE_TOOL_CALLS) {
+                die(
+                  "remote_tool_calls_exceeded",
+                  `the server asked for more than ${MAX_REMOTE_TOOL_CALLS} tool calls`,
+                );
+              }
+              toolResults.push(
+                ...(await limit.bounded(
+                  runWithHeartbeat(
+                    runRemoteToolCalls(batch, localTools),
+                    heartbeatMs,
+                    async () => {
+                      await syncOnce([]);
+                    },
+                  ),
+                )),
               );
             }
-            toolResults.push(
-              ...(await runWithHeartbeat(
-                runRemoteToolCalls(batch, localTools),
-                heartbeatMs,
-                async () => {
-                  await syncOnce([]);
-                },
-              )),
-            );
+            continue;
           }
-          continue;
-        }
-        if (payload.status === "done" && payload.result) {
-          // The client's own MCP servers can stop answering during the review,
-          // so their warnings are read once it ended.
-          const ownWarnings = [...clientWarnings, ...clientMcp.warnings()];
-          const { aiFindings, report: extensions } = splitRemoteResult(
-            payload.result,
-          );
-          const findings = aiFindings as JsonReviewFinding[];
-          const usage = payload.result.usage as
-            | {
-                tokensIn?: number;
-                tokensOut?: number;
-                costUsd?: number | null;
-                costNote?: CostReason | null;
-              }
-            | undefined;
-          const known =
-            usage !== undefined &&
-            usage.costUsd !== null &&
-            usage.costUsd !== undefined;
-          const run: RunSummary | undefined = usage
-            ? {
-                durationMs: performance.now() - reviewStarted,
-                tokensIn: usage.tokensIn ?? 0,
-                tokensOut: usage.tokensOut ?? 0,
-                costUsd: known ? usage.costUsd! : null,
-                ...(!known && usage.costNote
-                  ? { costNote: costReasonText(usage.costNote) }
-                  : {}),
-              }
-            : undefined;
-          if (cli.json) {
-            console.log(
-              JSON.stringify({
-                schemaVersion: 1,
-                ok: true,
-                mode: "remote",
-                ...stripExtensionMarkdowns(
-                  payload.result,
-                  cli.includeExtensionMarkdowns ?? false,
-                ),
-                // The client knows how the intent came in, so a server cannot
-                // say otherwise.
-                subject: {
-                  ...withoutIntent(payload.result.subject),
-                  ...(intent ? { intent: intentRecord(intent) } : {}),
-                },
-                ...companionOutput,
-                ...(ownWarnings.length > 0
-                  ? {
-                      warnings: [
-                        ...warningsFromJson(payload.result.warnings),
-                        ...ownWarnings,
-                      ],
-                    }
-                  : {}),
-              }),
+          if (payload.status === "done" && payload.result) {
+            // The client's own MCP servers can stop answering during the review,
+            // so their warnings are read once it ended.
+            const ownWarnings = [...clientWarnings, ...clientMcp.warnings()];
+            const { aiFindings, report: extensions } = splitRemoteResult(
+              payload.result,
             );
-          } else if (cli.output === "github") {
-            emitGithubOutput({
-              title: `${repo} · ${branch} (remote)`,
-              findings: humanFindingsFromJson(findings),
-              run,
-              coverage: coverageFromResult(payload.result),
-              // The server keeps this branch's carry-over, so its next run
-              // sends the files this one dropped.
-              catchesUp: true,
-              extensions,
-              intent: intent !== null,
-              showReferences:
-                readConfig().repos?.[repo]?.reviewReferences === true,
-              ...companionOutput,
-            });
-          } else {
-            const resultGuide = payload.result.guide as
-              | { builtAt?: string | null }
-              | undefined;
-            const resultCodegraph = payload.result.codegraph as
-              | { state?: "used" | "disabled" | "unavailable" }
-              | undefined;
-            console.log(
-              "\n" +
-                formatHumanReview({
-                  title: `co-maintainer review · ${repo} · ${branch} (remote)`,
-                  guideBuiltAt: resultGuide?.builtAt ?? null,
-                  codegraphState: resultCodegraph?.state ?? null,
-                  findings: humanFindingsFromJson(findings),
-                  warnings: [
-                    ...warningsFromJson(payload.result.warnings),
-                    ...ownWarnings,
-                  ],
-                  coverage: coverageFromResult(payload.result),
-                  extensions,
-                  intent: intent !== null,
-                  showReferences:
-                    readConfig().repos?.[repo]?.reviewReferences === true,
-                  tools: toolUsageFromJson(
-                    (payload.result.usage as { tools?: unknown } | undefined)
-                      ?.tools,
+            const findings = aiFindings as JsonReviewFinding[];
+            const run = runFromResult(
+              payload.result,
+              performance.now() - reviewStarted,
+            );
+            if (cli.json) {
+              console.log(
+                JSON.stringify({
+                  schemaVersion: 1,
+                  ok: true,
+                  mode: "remote",
+                  ...stripExtensionMarkdowns(
+                    payload.result,
+                    cli.includeExtensionMarkdowns ?? false,
                   ),
+                  // The client knows how the intent came in, so a server cannot
+                  // say otherwise.
+                  subject: {
+                    ...withoutIntent(payload.result.subject),
+                    ...(intent ? { intent: intentRecord(intent) } : {}),
+                  },
                   ...companionOutput,
-                }) +
-                "\n",
-            );
-            if (run) printRunSummary(run);
-          }
-          exitWith(
-            exitCodeWithExtensions(
-              reviewExitCodeFromJsonFindings(
-                (payload.result.findings ?? []) as JsonReviewFinding[],
+                  ...(ownWarnings.length > 0
+                    ? {
+                        warnings: [
+                          ...warningsFromJson(payload.result.warnings),
+                          ...ownWarnings,
+                        ],
+                      }
+                    : {}),
+                }),
+              );
+            } else if (cli.output === "github") {
+              emitGithubOutput({
+                title: `${repo} · ${branch} (remote)`,
+                findings: humanFindingsFromJson(findings),
+                run,
+                coverage: coverageFromResult(payload.result),
+                // The server keeps this branch's carry-over, so its next run
+                // sends the files this one dropped.
+                catchesUp: true,
+                extensions,
+                intent: intent !== null,
+                showReferences: serverShowsReferences(payload.result, repo),
+                warnings: [
+                  ...warningsFromJson(payload.result.warnings),
+                  ...ownWarnings,
+                ],
+                codegraphState:
+                  (
+                    payload.result.codegraph as
+                      | { state?: "used" | "disabled" | "unavailable" }
+                      | undefined
+                  )?.state ?? null,
+                ...companionOutput,
+              });
+            } else {
+              const resultGuide = payload.result.guide as
+                | { builtAt?: string | null }
+                | undefined;
+              const resultCodegraph = payload.result.codegraph as
+                | { state?: "used" | "disabled" | "unavailable" }
+                | undefined;
+              console.log(
+                "\n" +
+                  formatHumanReview({
+                    title: `co-maintainer review · ${repo} · ${branch} (remote)`,
+                    guideBuiltAt: resultGuide?.builtAt ?? null,
+                    codegraphState: resultCodegraph?.state ?? null,
+                    findings: humanFindingsFromJson(findings),
+                    warnings: [
+                      ...warningsFromJson(payload.result.warnings),
+                      ...ownWarnings,
+                    ],
+                    coverage: coverageFromResult(payload.result),
+                    extensions,
+                    intent: intent !== null,
+                    showReferences: serverShowsReferences(payload.result, repo),
+                    tools: toolUsageFromJson(
+                      (payload.result.usage as { tools?: unknown } | undefined)
+                        ?.tools,
+                    ),
+                    ...companionOutput,
+                  }) +
+                  "\n",
+              );
+              if (run) printRunSummary(run);
+            }
+            exitWith(
+              exitCodeWithExtensions(
+                reviewExitCodeFromJsonFindings(
+                  (payload.result.findings ?? []) as JsonReviewFinding[],
+                ),
+                extensions,
               ),
-              extensions,
-            ),
-          );
-          // `done` is terminal. Without this return the loop polls `sync` again
-          // and, since the server keeps reporting the same finished job, the
-          // client reprints the result and re-requests forever.
-          return;
+            );
+            // `done` is terminal. Without this return the loop polls `sync` again
+            // and, since the server keeps reporting the same finished job, the
+            // client reprints the result and re-requests forever.
+            return;
+          }
+          // A newer run of the same branch took over. That is not a failure of
+          // this one, the same as a push merged into a newer push.
+          if (
+            payload.status === "canceled" &&
+            payload.abort?.reason === "superseded"
+          ) {
+            const message = `${stripControlChars(payload.abort.message)} Its result will be on the dashboard.`;
+            if (cli.json) {
+              console.log(
+                JSON.stringify({
+                  schemaVersion: 1,
+                  ok: true,
+                  mode: "remote",
+                  message,
+                }),
+              );
+            } else if (cli.output === "github") {
+              console.log(`::notice title=co-maintainer::${message}`);
+            } else {
+              console.log(message);
+            }
+            exitWith(0);
+            return;
+          }
+          if (payload.status === "failed" || payload.status === "canceled") {
+            die(
+              stripControlChars(payload.abort?.reason ?? "remote_failed"),
+              stripControlChars(
+                payload.abort?.message ?? "Remote review did not complete.",
+              ),
+              undefined,
+              EXIT_RUNTIME,
+            );
+          }
+          await new Promise((resolve) => setTimeout(resolve, intervalMs));
         }
-        if (payload.status === "failed" || payload.status === "canceled") {
-          die(
-            stripControlChars(payload.abort?.reason ?? "remote_failed"),
-            stripControlChars(
-              payload.abort?.message ?? "Remote review did not complete.",
-            ),
-          );
-        }
-        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      } finally {
+        limit.clear();
       }
     } finally {
       await clientMcp.stop();
     }
   });
+}
+
+/** Whether the output names the rules each finding rests on: the server's
+ * setting for the repository. A server older than 0.7.20 does not send it,
+ * and then this machine's setting decides, as it always did. */
+export function serverShowsReferences(
+  result: Record<string, unknown>,
+  repo: string,
+): boolean {
+  const sent = (result.references as { show?: unknown } | undefined)?.show;
+  if (typeof sent === "boolean") return sent;
+  return readConfig().repos?.[repo]?.reviewReferences === true;
+}
+
+/** The cost and time line of a review the server ran, from the usage in its
+ * result. Undefined when the server sent no usage. */
+export function runFromResult(
+  result: Record<string, unknown>,
+  durationMs: number,
+): RunSummary | undefined {
+  const usage = result.usage as
+    | {
+        tokensIn?: number;
+        tokensOut?: number;
+        costUsd?: number | null;
+        costNote?: CostReason | null;
+      }
+    | undefined;
+  if (!usage) return undefined;
+  const known = usage.costUsd !== null && usage.costUsd !== undefined;
+  return {
+    durationMs,
+    tokensIn: usage.tokensIn ?? 0,
+    tokensOut: usage.tokensOut ?? 0,
+    costUsd: known ? usage.costUsd! : null,
+    ...(!known && usage.costNote
+      ? { costNote: costReasonText(usage.costNote) }
+      : {}),
+  };
 }

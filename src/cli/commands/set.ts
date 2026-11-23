@@ -1,5 +1,6 @@
 import {
   readConfig,
+  resolveAppPrivateKey,
   configPath,
   savedKeyProvider,
   writeRepoConfig,
@@ -22,14 +23,14 @@ import { readTextFile, readTextFileCapped } from "../../util/runtime.ts";
 
 /** Largest MCP config file `set --mcp-config` reads. */
 const MCP_CONFIG_MAX_BYTES = 1024 * 1024;
-import {
-  verifyAnthropic,
-  verifyOpenAi,
-  verifyOpenRouter,
-  type VerifyResult,
-} from "../../ai/verify.ts";
-import { verifyOpenCode } from "../../ai/opencode.ts";
+import { verifyAiKey } from "../../ai/verify.ts";
+import { testAppAccess, testGithubAccess } from "../../services/credentials.ts";
 import { die } from "../error.ts";
+import { withAppDb } from "../../store/app_db.ts";
+import { getRepo, updateRepoSettings } from "../../store/repos.ts";
+import { parseRemakeCron } from "../../services/remake_cron.ts";
+import { webhookUrlProblem } from "../../server/webhook_url.ts";
+import { excludePatternError } from "../../pr/exclude.ts";
 import { parsePolicy } from "../../services/review_policy.ts";
 import { isCodegraphVersion } from "../../tools/codegraph.ts";
 import {
@@ -121,6 +122,7 @@ export async function runSet(args: string[]): Promise<void> {
     "review-policy",
     "review-policy-file",
     "review-blocking",
+    "review-event",
     "review-references",
     "ai-timeout-minutes",
     "global-reasoning-effort",
@@ -139,6 +141,10 @@ export async function runSet(args: string[]): Promise<void> {
     "companions",
     "password",
     "extension-rerun-on-restart",
+    "webhook-url",
+    ...SERVER_INT_FLAGS.map(([flag]) => flag),
+    ...Object.keys(REPO_DB_FLAGS),
+    "remake-cron",
     "unset",
   ];
   const verify = !args.includes("--no-verify");
@@ -214,11 +220,14 @@ export async function runSet(args: string[]): Promise<void> {
     "remote-byok-default": "remoteByokDefault",
     "review-policy": "reviewPolicy",
     "review-blocking": "reviewBlocking",
+    "review-event": "reviewEvent",
     "ai-timeout-minutes": "aiTimeoutMinutes",
     "global-reasoning-effort": "globalReasoningEffort",
     "codegraph-version": "codegraphVersion",
     password: "dashboardPasswordHash",
     "extension-rerun-on-restart": "extensionRerunOnRestart",
+    "webhook-url": "webhookUrl",
+    ...Object.fromEntries(SERVER_INT_FLAGS),
   };
   const unset = new Set(
     args
@@ -237,6 +246,22 @@ export async function runSet(args: string[]): Promise<void> {
   if (highModel) patch.highModel = highModel;
   const token = text(args, "token") ?? text(args, "ai-key");
   if (token) patch.token = token;
+  const webhookUrl = text(args, "webhook-url");
+  if (webhookUrl) {
+    const problem = webhookUrlProblem(webhookUrl);
+    if (problem) die(problem.replace(/^webhook URL/, "--webhook-url"));
+    patch.webhookUrl = webhookUrl.trim();
+  }
+  // Settings the dashboard already wrote, now writable from the CLI too.
+  for (const [flag, field] of SERVER_INT_FLAGS) {
+    const raw = text(args, flag);
+    if (raw === undefined) continue;
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value <= 0) {
+      die(`--${flag} must be a positive whole number`);
+    }
+    patch[field] = value;
+  }
   const githubPat = text(args, "github-pat");
   if (githubPat) patch.githubPat = githubPat;
   const githubAppId = text(args, "github-app-id");
@@ -269,16 +294,40 @@ export async function runSet(args: string[]): Promise<void> {
   if (oauthClientSecret) patch.githubOAuthClientSecret = oauthClientSecret;
   const oauthAllowedUser = text(args, "github-oauth-allowed-user");
   if (oauthAllowedUser) patch.githubOAuthAllowedUser = oauthAllowedUser;
-  const disableAuth = text(args, "disable-auth");
-  if (disableAuth) {
-    if (disableAuth !== "password")
-      die("--disable-auth only supports: password");
-    patch.passwordAuthDisabled = true;
+  // Both flags take either method, so password sign-in can be turned back on
+  // and GitHub sign-in off from the CLI too.
+  for (const [flag, on] of [
+    ["disable-auth", false],
+    ["enable-auth", true],
+  ] as const) {
+    const method = text(args, flag);
+    if (!method) continue;
+    if (method === "password") patch.passwordAuthDisabled = !on;
+    else if (method === "github") patch.githubAuthEnabled = on;
+    else die(`--${flag} must be password or github`);
   }
-  const enableAuth = text(args, "enable-auth");
-  if (enableAuth) {
-    if (enableAuth !== "github") die("--enable-auth only supports: github");
-    patch.githubAuthEnabled = true;
+  // The same check the dashboard runs before it saves, so a saved state can
+  // never stop the next `serve`.
+  if (
+    patch.passwordAuthDisabled !== undefined ||
+    patch.githubAuthEnabled !== undefined
+  ) {
+    const merged = { ...readConfig(), ...patch };
+    if (merged.passwordAuthDisabled && !merged.githubAuthEnabled) {
+      die(
+        "at least one sign-in method is required. Enable GitHub sign-in first with --enable-auth=github",
+      );
+    }
+    if (
+      merged.githubAuthEnabled &&
+      (!merged.githubOAuthClientId ||
+        !merged.githubOAuthClientSecret ||
+        !merged.githubOAuthAllowedUser)
+    ) {
+      die(
+        "GitHub sign-in needs --github-oauth-client-id, --github-oauth-client-secret and --github-oauth-allowed-user",
+      );
+    }
   }
   const remoteHost = text(args, "remote-host");
   if (remoteHost) patch.remoteHost = remoteHost;
@@ -336,6 +385,13 @@ export async function runSet(args: string[]): Promise<void> {
       die("--review-blocking must be one of: model, severity");
     }
     patch.reviewBlocking = reviewBlocking;
+  }
+  const reviewEvent = text(args, "review-event");
+  if (reviewEvent) {
+    if (!["auto", "comment"].includes(reviewEvent)) {
+      die("--review-event must be one of: auto, comment");
+    }
+    patch.reviewEvent = reviewEvent;
   }
   const aiTimeout = text(args, "ai-timeout-minutes");
   if (aiTimeout !== undefined) {
@@ -434,20 +490,21 @@ export async function runSet(args: string[]): Promise<void> {
   }
   const effectiveHighModel =
     switching && !("highModel" in patch) ? undefined : effective("highModel");
-  const verifiers: Record<
-    string,
-    (key: string, model?: string) => Promise<VerifyResult>
-  > = {
-    openrouter: verifyOpenRouter,
-    openai: verifyOpenAi,
-    anthropic: verifyAnthropic,
-    "opencode-zen": (key, model) => verifyOpenCode("opencode-zen", key, model),
-    "opencode-go": (key, model) => verifyOpenCode("opencode-go", key, model),
-  };
-  const verifyProvider =
-    typeof effectiveAi === "string" ? verifiers[effectiveAi] : undefined;
-  if (verify && verifyProvider && effectiveToken) {
-    const result = await verifyProvider(
+  // Only a run that changes the provider, the key or the review model asks
+  // the provider, as the dashboard does. A `set` of anything else must not
+  // reach the network.
+  const touchingAi =
+    patch.ai !== undefined ||
+    patch.token !== undefined ||
+    patch.highModel !== undefined;
+  if (
+    verify &&
+    touchingAi &&
+    effectiveToken &&
+    typeof effectiveAi === "string"
+  ) {
+    const result = await verifyAiKey(
+      effectiveAi,
       String(effectiveToken),
       effectiveHighModel === undefined ? undefined : String(effectiveHighModel),
     );
@@ -457,6 +514,29 @@ export async function runSet(args: string[]): Promise<void> {
         `[set] could not verify the key and model (${result.reason}). Saved anyway.`,
       );
     }
+  }
+  // The GitHub checks the dashboard runs before it saves, so a PAT or an App
+  // the dashboard would refuse is refused here too.
+  if (verify && (patch.auth !== undefined || patch.githubPat !== undefined)) {
+    const merged = { ...readConfig(), ...patch };
+    const github = await testGithubAccess({
+      auth: merged.auth === "pat" ? "pat" : "gh",
+      githubPat: merged.githubPat,
+    });
+    if (!github.ok) die(github.message);
+  }
+  if (
+    verify &&
+    (patch.githubAppId !== undefined ||
+      patch.githubAppPrivateKey !== undefined ||
+      patch.githubAppPrivateKeyPath !== undefined)
+  ) {
+    const merged = { ...readConfig(), ...patch };
+    const app = await testAppAccess({
+      appId: merged.githubAppId ?? "",
+      privateKeyPem: resolveAppPrivateKey(merged) ?? "",
+    });
+    if (!app.ok) die(app.message);
   }
 
   // A changed password, allowed user, or sign-in method must not leave old
@@ -494,7 +574,53 @@ const TOOL_LIMIT_FLAGS = [
   ["review-tool-result-max-chars", "reviewToolResultMaxChars"],
   ["review-tool-budget-chars", "reviewToolBudgetChars"],
   ["review-search-max-context-lines", "reviewSearchMaxContextLines"],
+  ["review-diff-max-chars", "reviewDiffMaxChars"],
+  ["review-file-patch-max-chars", "reviewFilePatchMaxChars"],
 ] as const;
+
+/** Server settings that are positive whole numbers. The dashboard wrote them
+ * long before `set` could. */
+const SERVER_INT_FLAGS = [
+  ["max-concurrent-jobs", "maxConcurrentJobs"],
+  ["remote-sync-timeout-seconds", "remoteSyncTimeoutSeconds"],
+  [
+    "max-concurrent-remote-reviews-per-token",
+    "maxConcurrentRemoteReviewsPerToken",
+  ],
+  ["remote-tool-output-max-chars", "remoteToolOutputMaxChars"],
+] as const;
+
+/** Repository values that override the global one for this repository only.
+ * Without one the repository inherits the global value, so a later global
+ * change reaches it. */
+const REPO_TEXT_FLAGS = [
+  ["ai", "ai"],
+  ["low-model", "lowModel"],
+  ["high-model", "highModel"],
+  ["auth", "auth"],
+  ["review-blocking", "reviewBlocking"],
+  ["review-event", "reviewEvent"],
+  ["review-exclude", "reviewExclude"],
+  ["only-request-changed-pr", "onlyRequestChangedPr"],
+] as const;
+
+/** Repository switches the dashboard keeps in app.db. `set --repo` writes
+ * them there too, next to a running `serve` if there is one. */
+const REPO_DB_FLAGS: Record<string, { values: string[]; describe: string }> = {
+  "auto-review": { values: ["on", "off"], describe: "on or off" },
+  "review-scope": {
+    values: ["whole-pr", "incremental"],
+    describe: "whole-pr or incremental",
+  },
+  "skip-drafts": { values: ["true", "false"], describe: "true or false" },
+  "skip-bots": { values: ["true", "false"], describe: "true or false" },
+  codegraph: { values: ["on", "off"], describe: "on or off" },
+  "watch-open-issues": { values: ["on", "off"], describe: "on or off" },
+  "watch-push-mode": {
+    values: ["queue", "cancel-and-merge"],
+    describe: "queue or cancel-and-merge",
+  },
+};
 
 /** Flag names that make sense together with `--repo`. Anything else is a
  * global setting and is refused rather than silently written to the wrong
@@ -513,6 +639,10 @@ const REPO_SCOPED_FLAGS = new Set([
   "companions",
   "gh-concurrent",
   "ai-concurrent",
+  ...REPO_TEXT_FLAGS.map(([flag]) => flag),
+  ...Object.keys(REPO_DB_FLAGS),
+  "remake-cron",
+  "review-policy",
   "unset",
   "no-verify",
 ]);
@@ -543,7 +673,39 @@ const REPO_SCOPED_UNSET = new Set([
   "review-references",
   "reviewReferences",
   "companions",
+  ...REPO_TEXT_FLAGS.flat(),
+  "remake-cron",
+  "remakeCron",
 ]);
+
+function repoTextProblem(flag: string, value: string): string | undefined {
+  if (flag === "ai") {
+    rejectRetiredProvider(value);
+    if (!(AI_PROVIDERS as readonly string[]).includes(value)) {
+      return `--ai must be one of: ${AI_PROVIDERS.join(", ")}`;
+    }
+  }
+  if (flag === "auth" && !["gh", "pat"].includes(value)) {
+    return "--auth must be gh or pat";
+  }
+  if (flag === "review-event" && !["auto", "comment"].includes(value)) {
+    return "--review-event must be auto or comment";
+  }
+  if (flag === "review-blocking" && !["model", "severity"].includes(value)) {
+    return "--review-blocking must be model or severity";
+  }
+  if (
+    flag === "only-request-changed-pr" &&
+    !["true", "false"].includes(value)
+  ) {
+    return "--only-request-changed-pr must be true or false with --repo";
+  }
+  if (flag === "review-exclude") {
+    const problem = excludePatternError(value);
+    if (problem) return `--review-exclude: ${problem}`;
+  }
+  return undefined;
+}
 
 /** `set --repo=owner/repo [--review-system-prompt=... | --review-system-prompt-max-chars=N | --review-read-diff-max-chars=N | --review-tool-result-max-chars=N | --review-tool-budget-chars=N | --review-search-max-context-lines=N | --mcp-config=PATH | --mcp-allow-forks=true|false | --unset=name]`
  * writes the repository-scoped settings to `repos[owner/repo]` in config.json
@@ -748,9 +910,106 @@ async function runSetRepo(typed: string, args: string[]): Promise<void> {
   if (prompt !== undefined) {
     patch.reviewSystemPrompt = prompt.trim() === "" ? undefined : prompt;
   }
+  for (const [flag, field] of REPO_TEXT_FLAGS) {
+    if (unset.has(flag) || unset.has(field)) patch[field] = undefined;
+    const raw = text(args, flag);
+    if (raw === undefined) continue;
+    const value = raw.trim();
+    if (value === "") {
+      patch[field] = undefined;
+      continue;
+    }
+    const problem = repoTextProblem(flag, value);
+    if (problem) die(problem);
+    (patch as Record<string, unknown>)[field] =
+      flag === "only-request-changed-pr" ? value === "true" : value;
+  }
+  if (unset.has("remake-cron") || unset.has("remakeCron")) {
+    patch.remakeCron = undefined;
+    patch.remakeCronDraft = undefined;
+  }
+  const cron = text(args, "remake-cron");
+  if (cron !== undefined) {
+    if (cron.trim() === "") {
+      patch.remakeCron = undefined;
+    } else {
+      try {
+        parseRemakeCron(cron);
+      } catch (error) {
+        die(
+          `--remake-cron: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      patch.remakeCron = cron.trim();
+    }
+    patch.remakeCronDraft = undefined;
+  }
+  const dbPatch: Parameters<typeof updateRepoSettings>[1] = {};
+  for (const [flag, rule] of Object.entries(REPO_DB_FLAGS)) {
+    const raw = text(args, flag);
+    if (raw === undefined) continue;
+    if (!rule.values.includes(raw)) die(`--${flag} must be ${rule.describe}`);
+    const on = raw === "on" || raw === "true";
+    if (flag === "auto-review") dbPatch.auto_review = on ? 1 : 0;
+    if (flag === "skip-drafts") dbPatch.skip_drafts = on ? 1 : 0;
+    if (flag === "skip-bots") dbPatch.skip_bots = on ? 1 : 0;
+    if (flag === "codegraph") dbPatch.use_codegraph = on ? 1 : 0;
+    if (flag === "watch-open-issues") dbPatch.watch_open_issues = on ? 1 : 0;
+    if (flag === "review-scope") {
+      dbPatch.review_scope = raw as "whole-pr" | "incremental";
+    }
+    if (flag === "watch-push-mode") {
+      dbPatch.watch_push_mode = raw as "queue" | "cancel-and-merge";
+    }
+  }
+  const repoPolicy = text(args, "review-policy");
+  if (repoPolicy !== undefined) {
+    if (repoPolicy === "legacy") {
+      dbPatch.review_policy_json = '"legacy"';
+    } else {
+      const checked = parsePolicy(repoPolicy);
+      if (!checked.ok) die(`--review-policy: ${checked.problem}`);
+      dbPatch.review_policy_json = JSON.stringify(repoPolicy);
+    }
+  }
+  if (Object.keys(dbPatch).length > 0) {
+    const switches =
+      dbPatch.auto_review !== undefined ||
+      dbPatch.skip_drafts !== undefined ||
+      dbPatch.skip_bots !== undefined;
+    const written = await withAppDb((): "missing" | "policy" | "ok" => {
+      const row = getRepo(repo);
+      if (!row) return "missing";
+      // The same rule as the dashboard: the simple switches only apply when
+      // the repository uses no review policy.
+      const policy = dbPatch.review_policy_json ?? row.review_policy_json;
+      if (switches && policy !== null && policy !== '"legacy"') return "policy";
+      if (switches) dbPatch.review_policy_json = '"legacy"';
+      updateRepoSettings(repo, dbPatch);
+      return "ok";
+    });
+    if (!written.ok)
+      die(`Could not write the dashboard settings: ${written.reason}`);
+    if (written.value === "missing") {
+      die(
+        `${repo} is not on the dashboard yet. Run init for it, or add it from the dashboard first.`,
+      );
+    }
+    if (written.value === "policy") {
+      die(
+        `${repo} uses a review policy, so --auto-review, --skip-drafts and --skip-bots do not apply. Pass --review-policy=legacy first, or change the policy.`,
+      );
+    }
+    console.log(
+      `[set] updated ${repo} on the dashboard: ${Object.entries(dbPatch)
+        .map(([key, value]) => `${key}=${String(value)}`)
+        .join(", ")}`,
+    );
+    if (Object.keys(patch).length === 0) return;
+  }
   if (Object.keys(patch).length === 0) {
     die(
-      "Nothing to set. Pass --review-system-prompt=, --review-system-prompt-max-chars=N, --diagram-runtime=, --plantuml-server=, --plantuml-output-format=, --review-read-diff-max-chars=N, --review-tool-result-max-chars=N, --review-tool-budget-chars=N, --review-search-max-context-lines=N, --mcp-config=PATH, --mcp-allow-forks=true|false, --guide-full-every=N, --review-references=on|off, --companions=owner/repo,..., or --unset=name with --repo.",
+      "Nothing to set. Pass --review-system-prompt=, --review-system-prompt-max-chars=N, --diagram-runtime=, --plantuml-server=, --plantuml-output-format=, --review-read-diff-max-chars=N, --review-tool-result-max-chars=N, --review-tool-budget-chars=N, --review-search-max-context-lines=N, --mcp-config=PATH, --mcp-allow-forks=true|false, --guide-full-every=N, --review-references=on|off, --companions=owner/repo,..., --ai=, --low-model=, --high-model=, --auth=, --review-blocking=, --review-exclude=, --only-request-changed-pr=true|false, or --unset=name with --repo.",
     );
   }
   // The values after this write are the ones given here, or the stored ones.

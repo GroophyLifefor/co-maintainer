@@ -28,6 +28,7 @@ const PAGES: SearchItem[] = [
   { label: "Remote access", href: "/settings/remote", icon: "key-round" },
   { label: "Server", href: "/settings/server", icon: "server" },
   { label: "Sign-in", href: "/settings/sign-in", icon: "shield-check" },
+  { label: "Extensions", href: "/settings/extensions", icon: "layers" },
   { label: "Danger zone", href: "/settings/danger", icon: "triangle-alert" },
 ];
 

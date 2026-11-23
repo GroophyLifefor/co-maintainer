@@ -15,6 +15,8 @@ import { prReviewsOff, setPrReviewsOff } from "../store/subjects.ts";
 import { cancel, registerHandler, type LogFn } from "./jobs.ts";
 import { clientFor, resolveInstallationId } from "./review.ts";
 import { redact } from "../util/redact.ts";
+import { findFindingByPostedComment } from "../store/findings.ts";
+import { setFindingClosed } from "./finding_actions.ts";
 
 export const SKIP_JOB = "skip";
 
@@ -22,9 +24,17 @@ export type SkipJobArgs = {
   /** The two comment commands, `reviews-on` for a request that turned a
    * pull request's reviews back on, and `pr-off` for a new commit on a pull
    * request whose reviews are off. */
-  command: "skip-this-commit" | "skip-this-pr" | "reviews-on" | "pr-off";
+  command:
+    | "skip-this-commit"
+    | "skip-this-pr"
+    | "reviews-on"
+    | "pr-off"
+    | "dismiss";
   by: string | null;
   headSha?: string | null;
+  /** `dismiss`: the bot's comment the command answered, and why. */
+  targetCommentId?: string;
+  reason?: string;
 };
 
 const CHECK_NAME = "co-maintainer review";
@@ -194,6 +204,45 @@ export async function runSkipJob(
     case "reviews-on": {
       await comment(github, job, reviewsOnText(args.by));
       log("info", "reviews are back on for this pull request");
+      return;
+    }
+    case "dismiss": {
+      const finding = args.targetCommentId
+        ? findFindingByPostedComment(
+            job.repo,
+            job.pr_number,
+            args.targetCommentId,
+          )
+        : undefined;
+      const reply = async (text: string) => {
+        if (!github.write || !args.targetCommentId) return;
+        // The same thread reply the reply job posts.
+        await github.write<Json>(
+          `repos/${job.repo}/pulls/${job.pr_number}/comments`,
+          { body: text, in_reply_to: Number(args.targetCommentId) },
+        );
+      };
+      if (!finding) {
+        await reply(
+          "Nothing to close here. `/co-maintainer dismiss` works as a reply to one of co-maintainer's findings.",
+        );
+        return;
+      }
+      const result = await setFindingClosed({
+        findingId: finding.id,
+        close: true,
+        reason: args.reason || undefined,
+        by: args.by ?? "a maintainer",
+        ...(args.by ? { auditActor: args.by } : {}),
+        client: github,
+        log,
+      });
+      await reply(
+        result.ok
+          ? `${who(args.by)} closed this finding${args.reason ? `: ${args.reason}` : ""}. It is not raised again while these lines stay the same.`
+          : result.reason,
+      );
+      log("info", result.ok ? "finding closed by a maintainer" : result.reason);
       return;
     }
   }

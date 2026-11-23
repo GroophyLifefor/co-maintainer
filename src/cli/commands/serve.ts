@@ -36,7 +36,9 @@ import { serveHttp } from "../../server/http.ts";
 import { listJobs } from "../../store/jobs.ts";
 import { removeServeRunFolders } from "../../extensions/run_folder.ts";
 import { currentPlatform, getEnv, type Platform } from "../../util/runtime.ts";
+import { webhookUrlProblem } from "../../server/webhook_url.ts";
 import { die } from "../error.ts";
+import type { AuthOverrides } from "../../server/live_auth.ts";
 
 /** `undefined` on Linux, otherwise one line naming the platform. The
  * recommendation is spelled out rather than pointing at an internal
@@ -82,27 +84,39 @@ export async function ensureDashboardPassword(
   return generated;
 }
 
-/** `--disable-auth=password` / `--enable-auth=github` always win over the
- * config defaults `co-maintainer set` persisted. Dies if the result would
- * leave no sign-in method active. Pure so it is testable without a server. */
+/** What `--disable-auth=` and `--enable-auth=` force. Each takes `password`
+ * or `github`, and a method named by both is refused. */
+export function authOverridesFrom(args: string[]): AuthOverrides {
+  const value = (flag: string) =>
+    args.find((arg) => arg.startsWith(`--${flag}=`))?.slice(flag.length + 3);
+  const overrides: AuthOverrides = {};
+  for (const [flag, on] of [
+    ["disable-auth", false],
+    ["enable-auth", true],
+  ] as const) {
+    const method = value(flag);
+    if (method === undefined) continue;
+    if (method !== "password" && method !== "github") {
+      die(`--${flag} must be password or github`);
+    }
+    if (overrides[method] !== undefined) {
+      die(`--disable-auth and --enable-auth cannot name the same method`);
+    }
+    overrides[method] = on;
+  }
+  return overrides;
+}
+
+/** The `serve` flags always win over the config defaults `co-maintainer set`
+ * persisted. Dies if the result would leave no sign-in method active. Pure so
+ * it is testable without a server. */
 export function resolveAuthMethods(
   args: string[],
   config: Pick<UserConfig, "passwordAuthDisabled" | "githubAuthEnabled">,
 ): AuthMethods {
-  const disableAuth = args
-    .find((arg) => arg.startsWith("--disable-auth="))
-    ?.slice("--disable-auth=".length);
-  if (disableAuth && disableAuth !== "password") {
-    die("--disable-auth only supports: password");
-  }
-  const enableAuth = args
-    .find((arg) => arg.startsWith("--enable-auth="))
-    ?.slice("--enable-auth=".length);
-  if (enableAuth && enableAuth !== "github") {
-    die("--enable-auth only supports: github");
-  }
-  const password = disableAuth ? false : !config.passwordAuthDisabled;
-  const github = enableAuth ? true : Boolean(config.githubAuthEnabled);
+  const overrides = authOverridesFrom(args);
+  const password = overrides.password ?? !config.passwordAuthDisabled;
+  const github = overrides.github ?? Boolean(config.githubAuthEnabled);
   if (!password && !github) {
     die(
       "at least one sign-in method is required. Drop --disable-auth=password or pass --enable-auth=github",
@@ -116,44 +130,29 @@ export function resolveWebhookUrl(
   port: number,
   configured?: string,
 ): string {
-  const flag = args.find((arg) => arg.startsWith("--webhook-url="));
   const raw =
-    flag?.slice("--webhook-url=".length) ??
-    getEnv("CM_WEBHOOK_URL") ??
+    webhookUrlOverride(args)?.value ??
     configured ??
     `http://localhost:${port}/github/webhook`;
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    die(
-      "--webhook-url must be an absolute http(s) URL, e.g. " +
-        "--webhook-url=https://example.com/github/webhook",
-    );
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    die("--webhook-url must use http or https");
-  }
-  // `new URL` is lenient: "http://http://host/:5000/x" parses with host
-  // "http" and the real URL buried in the path, and "http:///x" treats "x"
-  // as the host. GitHub needs a routable host and a real webhook path, so
-  // reject a leaked scheme, an empty authority, and a path that is just "/".
-  // A single-label host (an internal Docker/k8s name) or an IPv6 literal is
-  // legitimate, and both are indistinguishable from the "http:///x" spelling
-  // once parsed, so the empty authority is caught on the raw string instead.
-  const hasAuthority = /^https?:\/\/[^/?#]+/.test(raw.trim());
-  if (
-    !hasAuthority ||
-    url.pathname.startsWith("//") ||
-    url.pathname.includes("://") ||
-    url.pathname === "/"
-  ) {
-    die(
-      "--webhook-url must be an absolute http(s) URL with a webhook path, " +
-        "e.g. --webhook-url=https://example.com/github/webhook",
-    );
-  }
-  return url.toString();
+  const problem = webhookUrlProblem(raw);
+  // The same wording as before, named after the flag a user can fix.
+  if (problem) die(problem.replace(/^webhook URL/, "--webhook-url"));
+  return new URL(raw.trim()).toString();
+}
+
+/** The flag, then `CM_WEBHOOK_URL`. Both are fixed for the process, so the
+ * dashboard shows the field locked while one of them is set. */
+export function webhookUrlOverride(
+  args: string[],
+): { value: string; name: string } | undefined {
+  const flag = args.find((arg) => arg.startsWith("--webhook-url="));
+  if (flag)
+    return {
+      value: flag.slice("--webhook-url=".length),
+      name: "--webhook-url",
+    };
+  const env = getEnv("CM_WEBHOOK_URL");
+  return env ? { value: env, name: "CM_WEBHOOK_URL" } : undefined;
 }
 
 /** `co-maintainer serve --port=N [--password=...] [--disable-auth=password]
@@ -174,6 +173,7 @@ export async function runServe(args: string[]): Promise<void> {
 
   const config = readConfig();
   const webhookUrl = resolveWebhookUrl(args, port, config.webhookUrl);
+  const override = webhookUrlOverride(args);
   if (!config.githubAppId || !resolveAppPrivateKey(config)) {
     console.log(
       "[serve] GitHub App is not configured yet. Add it in the dashboard settings or with co-maintainer set.",
@@ -207,6 +207,12 @@ export async function runServe(args: string[]): Promise<void> {
     };
   }
 
+  // Before anything writes config.json: an upgrade's migration backs up the
+  // config as it was, and `rollback` must get that copy back, not one this
+  // version already rewrote.
+  await openAppDb();
+  console.log(`[serve] app.db ready at ${appDbPath()}`);
+
   const passwordStore = configPasswordStore();
   if (auth.password) {
     const generated = await ensureDashboardPassword(
@@ -224,8 +230,6 @@ export async function runServe(args: string[]): Promise<void> {
   const warning = platformWarning(currentPlatform());
   if (warning) console.log(`[serve] warning: ${warning}`);
 
-  await openAppDb();
-  console.log(`[serve] app.db ready at ${appDbPath()}`);
   if (args.some((arg) => arg.startsWith("--password="))) {
     // A password reset on the command line revokes every existing session, so a
     // leaked cookie cannot outlive it.
@@ -294,12 +298,19 @@ export async function runServe(args: string[]): Promise<void> {
   const app = createApp({
     password: "",
     passwordStore,
-    webhookUrl,
+    webhookUrl: `http://localhost:${port}/github/webhook`,
+    ...(override
+      ? {
+          webhookUrlOverride: webhookUrl,
+          webhookUrlOverrideName: override.name,
+        }
+      : {}),
     inject500,
     port,
     trustProxy,
     auth,
     githubOAuth,
+    authOverrides: authOverridesFrom(args),
     debug,
     loginHint: getEnv("CM_LOGIN_HINT"),
   });

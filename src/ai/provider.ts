@@ -72,7 +72,21 @@ function createRawProvider(options: Options, model: string): AiProvider {
       openCodeHost(options.ai),
     );
   }
-  die(`${options.ai} support is not finished yet. Use openrouter or none.`);
+  // `none` is a choice that parses, so a run gets this far with it. Every
+  // guide and every review is written by a provider, so say that plainly.
+  const usable = AI_PROVIDERS.filter((provider) => provider !== "none").join(
+    "|",
+  );
+  if (options.ai === "none") {
+    die(
+      options.command === "init" || options.command === "remake"
+        ? `init and sync need an AI provider. Pass --ai=${usable}, or save one with co-maintainer set --ai=...`
+        : `This run needs an AI provider. Pass --ai=${usable}`,
+    );
+  }
+  die(
+    `${options.ai} is not an AI provider this run can use. Use one of: ${usable}.`,
+  );
 }
 
 /** A 400 that names one optional part of the request earns one retry without

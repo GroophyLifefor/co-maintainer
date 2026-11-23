@@ -1,13 +1,19 @@
 import { html, layout, skSlot, text } from "./layout.ts";
 import { repoHeader, SAVE_STATE } from "./ui.ts";
 import type { RepoRow } from "../../store/rows.ts";
-import { readConfig, type RepoConfig } from "../../config.ts";
+import {
+  readConfig,
+  type RepoConfig,
+  resolveRepoSettings,
+  type ResolvedSetting,
+} from "../../config.ts";
 import { parseRemakeCron } from "../../services/remake_cron.ts";
 import { nextCronRun } from "../../util/cron.ts";
 import { policySource } from "../../services/webhook.ts";
 import { DEFAULT_REVIEW_SYSTEM_PROMPT_MAX_CHARS } from "../../review/system_prompt.ts";
 import { latestSyncRateLimitWaits } from "../../services/rate_limit.ts";
 import { rateLimitWaitNotice } from "./rate_limit_waits.ts";
+import { mcpServersSummary } from "../../tools/mcp_config.ts";
 import {
   aiCeiling,
   concurrencyWarnings,
@@ -60,6 +66,19 @@ const POLICY_CHOICES: { value: string; label: string; sub: string }[] = [
 
 /** JSON for an inline script: `<` is escaped so a rule name can never close
  * the script tag. */
+/** "In use: X, from the account settings", so a blank field still says what
+ * runs. */
+function effectiveNote(setting: ResolvedSetting<string | undefined>): string {
+  const from = {
+    env: `the server environment (${setting.envName ?? ""})`,
+    repo: "this repository",
+    global: "the account settings",
+    init: "the last init or sync of this repository, because the account has none",
+    default: "the default",
+  }[setting.source];
+  return `<div class="hint">In use: <span class="mono">${text(setting.value ?? "not set")}</span>, from ${text(from)}</div>`;
+}
+
 function scriptJson(value: unknown): string {
   return JSON.stringify(value).replace(/</g, "\\u003c");
 }
@@ -171,10 +190,11 @@ export function renderRepoSettings(
           : "none";
 
   const userConfig = readConfig();
-  const provider = config.ai ?? userConfig.ai ?? "none";
-  const lowModel = config.lowModel ?? userConfig.lowModel;
-  const highModel = config.highModel ?? userConfig.highModel;
-  const auth = config.auth ?? userConfig.auth ?? "gh";
+  const effective = resolveRepoSettings(userConfig, name);
+  const provider = effective.ai.value;
+  const lowModel = effective.lowModel.value;
+  const highModel = effective.highModel.value;
+  const auth = effective.auth.value as "gh" | "pat";
   const providerLabel = PROVIDER_LABEL[provider] ?? provider;
   const resolved = resolveConcurrency(name, userConfig);
   const serverDefaults = resolveConcurrency(name, {
@@ -343,6 +363,16 @@ export function renderRepoSettings(
           <div class="hint">Critical always blocks.</div>
           <div class="cli"><code>--review-blocking=model|severity</code></div>
         </div>
+        <div class="field">
+          <label for="review-event">How the review is posted</label>
+          <select id="review-event">
+            <option value=""${config.reviewEvent ? "" : " selected"}>Server default (${userConfig.reviewEvent === "comment" ? "comment only" : "approve or request changes"})</option>
+            <option value="auto"${config.reviewEvent === "auto" ? " selected" : ""}>Approve, or request changes when a finding blocks</option>
+            <option value="comment"${config.reviewEvent === "comment" ? " selected" : ""}>Comment only, people decide the merge</option>
+          </select>
+          <div class="hint">Comment only never approves and never blocks, so the bot does not count toward required approvals.</div>
+          <div class="cli"><code>set --repo=${text(name)} --review-event=auto|comment</code></div>
+        </div>
         <div style="display:flex;align-items:center;gap:14px;margin-top:22px">
           <button class="tg${repo.use_codegraph === 1 ? " on" : ""}" id="codegraph"></button>
           <div>Let the review query the codebase's call graph (codegraph)</div>
@@ -393,6 +423,116 @@ export function renderRepoSettings(
       </div>
       <div class="ft"><button class="primary" id="save-exclude">Save</button></div>
     </div>
+    <div class="card" data-async id="repo-ai">
+      ${skSlot()}
+      <div class="hd"><h2>AI for this repository</h2></div>
+      <div class="bd">
+        <p class="muted" style="margin:0 0 18px">Leave blank to use the account settings. A value here is used only for this repository, by every review and every sync.</p>
+        <div class="field"><label for="repo-ai-provider">Provider</label>
+          <select id="repo-ai-provider">
+            <option value=""${config.ai ? "" : " selected"}>Account setting (${text(PROVIDER_LABEL[userConfig.ai ?? "none"] ?? userConfig.ai ?? "none")})</option>
+            ${[
+              "openrouter",
+              "openai",
+              "anthropic",
+              "opencode-zen",
+              "opencode-go",
+            ]
+              .map(
+                (value) =>
+                  `<option value="${value}"${config.ai === value ? " selected" : ""}>${text(PROVIDER_LABEL[value] ?? value)}</option>`,
+              )
+              .join("")}
+          </select>
+          ${effectiveNote(effective.ai)}
+          <div class="cli"><code>set --repo=${text(name)} --ai=…</code></div></div>
+        <div class="two" style="max-width:none">
+          <div class="field"><label for="repo-high">Review model</label>
+            <input id="repo-high" value="${text(config.highModel ?? "")}" placeholder="${text(userConfig.highModel ?? "")}">
+            ${effectiveNote(effective.highModel)}
+            <div class="cli"><code>set --repo=${text(name)} --high-model=…</code></div></div>
+          <div class="field"><label for="repo-low">Extraction model</label>
+            <input id="repo-low" value="${text(config.lowModel ?? "")}" placeholder="${text(userConfig.lowModel ?? "")}">
+            ${effectiveNote(effective.lowModel)}
+            <div class="cli"><code>set --repo=${text(name)} --low-model=…</code></div></div>
+        </div>
+      </div>
+      <div class="ft"><button class="primary" id="save-repo-ai">Save</button></div>
+    </div>
+    <div class="card" data-async id="repo-tools">
+      ${skSlot()}
+      <div class="hd"><h2>Review tools and limits</h2></div>
+      <div class="bd">
+        <p class="muted" style="margin:0 0 18px">Leave a field blank for the default.</p>
+        <div class="two" style="max-width:none">
+          <div class="field"><label for="diagram-runtime">Diagrams</label>
+            <select id="diagram-runtime">
+              ${["", "mermaid", "plantuml", "plantuml-server"]
+                .map(
+                  (value) =>
+                    `<option value="${value}"${(config.diagramRuntime ?? "") === value ? " selected" : ""}>${value === "" ? "Default (Mermaid)" : value}</option>`,
+                )
+                .join("")}
+            </select>
+            <div class="cli"><code>--diagram-runtime=…</code></div></div>
+          <div class="field"><label for="plantuml-server">PlantUML server</label>
+            <input id="plantuml-server" value="${text(config.plantumlServer ?? "")}" placeholder="https://www.plantuml.com/plantuml">
+            <div class="cli"><code>--plantuml-server=…</code></div></div>
+          <div class="field"><label for="plantuml-format">PlantUML image format</label>
+            <select id="plantuml-format">
+              ${["", "svg", "png"]
+                .map(
+                  (value) =>
+                    `<option value="${value}"${(config.plantumlOutputFormat ?? "") === value ? " selected" : ""}>${value === "" ? "Default (svg)" : value}</option>`,
+                )
+                .join("")}
+            </select>
+            <div class="cli"><code>--plantuml-output-format=…</code></div></div>
+          <div class="field"><label for="companions">Companion repositories</label>
+            <input id="companions" value="${text((config.companions ?? []).join(","))}" placeholder="owner/repo,owner/other">
+            <div class="cli"><code>--companions=…</code></div></div>
+          <div class="field"><label for="read-diff-max">Read full diff, characters</label>
+            <input id="read-diff-max" value="${text(config.reviewReadDiffMaxChars ?? "")}">
+            <div class="cli"><code>--review-read-diff-max-chars=…</code></div></div>
+          <div class="field"><label for="tool-result-max">One tool result, characters</label>
+            <input id="tool-result-max" value="${text(config.reviewToolResultMaxChars ?? "")}">
+            <div class="cli"><code>--review-tool-result-max-chars=…</code></div></div>
+          <div class="field"><label for="tool-budget">All tool results, characters</label>
+            <input id="tool-budget" value="${text(config.reviewToolBudgetChars ?? "")}">
+            <div class="cli"><code>--review-tool-budget-chars=…</code></div></div>
+          <div class="field"><label for="search-context">Search context lines</label>
+            <input id="search-context" value="${text(config.reviewSearchMaxContextLines ?? "")}">
+            <div class="cli"><code>--review-search-max-context-lines=…</code></div></div>
+          <div class="field"><label for="diff-max">Diff shown to the model, characters</label>
+            <input id="diff-max" value="${text(config.reviewDiffMaxChars ?? "")}" placeholder="240000">
+            <div class="cli"><code>--review-diff-max-chars=…</code></div></div>
+          <div class="field"><label for="file-patch-max">One file's patch before it is cut, characters</label>
+            <input id="file-patch-max" value="${text(config.reviewFilePatchMaxChars ?? "")}" placeholder="12000">
+            <div class="cli"><code>--review-file-patch-max-chars=…</code></div></div>
+          <div class="field"><label for="guide-full-every">Rewrite the guide in full every N syncs</label>
+            <input id="guide-full-every" value="${text(config.guideFullEvery ?? "")}">
+            <div class="cli"><code>--guide-full-every=…</code></div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;margin-top:18px">
+          <button class="tg${config.reviewReferences === true ? " on" : ""}" id="review-references"></button>
+          <div>Link each guide rule to the review comments it came from</div>
+        </div>
+        <div class="cli"><code>--review-references=on|off</code></div>
+        <div class="field" style="margin-top:18px"><label>MCP servers</label>
+          <div class="hint">${
+            config.mcpServers && Object.keys(config.mcpServers).length > 0
+              ? text(mcpServersSummary(config.mcpServers))
+              : "None. Servers are read from a file with the command below, because their commands and secrets do not belong in a form."
+          }</div>
+          <div class="cli"><code>set --repo=${text(name)} --mcp-config=mcp.json</code></div></div>
+        <div style="display:flex;align-items:center;gap:14px;margin-top:10px">
+          <button class="tg${config.mcpAllowForks === true ? " on" : ""}" id="mcp-allow-forks"></button>
+          <div>Offer the MCP tools on pull requests from forks too</div>
+        </div>
+        <div class="cli"><code>--mcp-allow-forks=true|false</code></div>
+      </div>
+      <div class="ft"><button class="primary" id="save-repo-tools">Save</button></div>
+    </div>
     <div class="card" data-async>
       ${skSlot()}
       <div class="hd"><h2>What knowledge reads</h2></div>
@@ -400,13 +540,17 @@ export function renderRepoSettings(
         <p class="muted" style="margin:0 0 18px">Used when the knowledge is rebuilt. Leave blank to use your account defaults.</p>
         <div class="two">
           <div class="field"><label>Months of pull requests</label>
-            <input id="months" value="${text(config.maxPrMonths ?? "")}"></div>
+            <input id="months" value="${text(config.maxPrMonths ?? "")}">
+            <div class="cli"><code>--max-pr-months=…</code></div></div>
           <div class="field"><label>Commits</label>
-            <input id="commits" value="${text(config.maxCommits ?? "")}"></div>
+            <input id="commits" value="${text(config.maxCommits ?? "")}">
+            <div class="cli"><code>--max-commits=…</code></div></div>
           <div class="field"><label>Max lines per pull request</label>
-            <input id="lines" value="${text(config.maxPullRequestChangeLines ?? "")}"></div>
+            <input id="lines" value="${text(config.maxPullRequestChangeLines ?? "")}">
+            <div class="cli"><code>--max-pull-request-change-lines=…</code></div></div>
           <div class="field"><label>Max comments per pull request</label>
-            <input id="comments" value="${text(config.maxComments ?? "")}"></div>
+            <input id="comments" value="${text(config.maxComments ?? "")}">
+            <div class="cli"><code>--max-comment=…</code></div></div>
         </div>
         <div class="field" style="margin-top:14px">
           <label>Speed</label>
@@ -860,7 +1004,10 @@ function promptMaxValue() {
 }
 function initNumber(id) {
   var value = document.getElementById(id).value.trim();
-  return value === "" ? null : Number(value);
+  if (value === "") return null;
+  // Text that is not a number goes to the server as is, so it is refused
+  // with a message instead of turning into null and clearing the value.
+  return Number.isFinite(Number(value)) ? Number(value) : value;
 }
 function cronProblem(value) {
   if (!value) return "";
@@ -912,6 +1059,36 @@ function watchBody() {
 }
 document.getElementById("save-watch").addEventListener("click", function() {
   save(this, watchBody());
+});
+["review-references", "mcp-allow-forks"].forEach(function(id) {
+  document.getElementById(id).addEventListener("click", function() {
+    this.classList.toggle("on");
+  });
+});
+document.getElementById("save-repo-tools").addEventListener("click", function() {
+  var text = function(id) { return document.getElementById(id).value.trim() || null; };
+  save(this, {
+    diagramRuntime: text("diagram-runtime"),
+    plantumlServer: text("plantuml-server"),
+    plantumlOutputFormat: text("plantuml-format"),
+    companions: text("companions"),
+    reviewReadDiffMaxChars: initNumber("read-diff-max"),
+    reviewToolResultMaxChars: initNumber("tool-result-max"),
+    reviewToolBudgetChars: initNumber("tool-budget"),
+    reviewSearchMaxContextLines: initNumber("search-context"),
+    reviewDiffMaxChars: initNumber("diff-max"),
+    reviewFilePatchMaxChars: initNumber("file-patch-max"),
+    guideFullEvery: initNumber("guide-full-every"),
+    reviewReferences: document.getElementById("review-references").classList.contains("on"),
+    mcpAllowForks: document.getElementById("mcp-allow-forks").classList.contains("on")
+  });
+});
+document.getElementById("save-repo-ai").addEventListener("click", function() {
+  save(this, {
+    ai: document.getElementById("repo-ai-provider").value || null,
+    highModel: document.getElementById("repo-high").value.trim() || null,
+    lowModel: document.getElementById("repo-low").value.trim() || null
+  });
 });
 document.getElementById("save-init").addEventListener("click", function() {
   save(this, {
@@ -966,6 +1143,7 @@ document.getElementById("save-changes").addEventListener("click", function() {
     reviewExclude: document.getElementById("review-exclude").value,
     remakeCron: cron,
     reviewBlocking: selectedBlocking(),
+    reviewEvent: document.getElementById("review-event").value || null,
     ghConcurrent: speedOverridden.gh ? selectedSpeed("gh") : null,
     aiConcurrent: speedOverridden.ai ? selectedSpeed("ai") : null,
     maxPrMonths: initNumber("months"),

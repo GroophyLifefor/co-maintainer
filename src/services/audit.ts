@@ -18,6 +18,11 @@ export function inAuditScope<T>(fn: () => T): T {
 }
 
 /** Called once the request's session is known. */
+/** Who the current request acts for, when known. */
+export function currentAuditActor(): string | undefined {
+  return scope.getStore()?.actor;
+}
+
 export function setAuditActor(actor: string): void {
   const store = scope.getStore();
   if (store) store.actor = actor;
@@ -86,7 +91,13 @@ export function settingChanges(
 /** The global settings as the audit log compares them: every saved value
  * but the per repository ones, which have their own entries. */
 export function settingsSnapshot(): Record<string, unknown> {
-  const { repos: _repos, ...rest } = readConfig() as Record<string, unknown>;
+  // Cleared values are kept out of sight, the audit log included: one of them
+  // may be a key.
+  const {
+    repos: _repos,
+    clearedSettings: _cleared,
+    ...rest
+  } = readConfig() as Record<string, unknown>;
   return rest;
 }
 

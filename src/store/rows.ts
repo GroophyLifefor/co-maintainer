@@ -177,6 +177,8 @@ export type ReplyRequestRow = {
   source_path: string | null;
   source_line: number | null;
   source_commit_id: string | null;
+  /** 1 when the author may close the finding this reply answers. */
+  may_close: number;
   status: string;
   answer_md: string | null;
   posted_comment_id: string | null;

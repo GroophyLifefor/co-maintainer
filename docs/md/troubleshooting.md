@@ -34,7 +34,7 @@ is the safe default.
 | `Missing low model` or `Missing high model` | No model is saved or passed, and there is no terminal to ask on | co-maintainer never picks a model. Pass `--low-model=` and `--high-model=`, or save them once with `co-maintainer set` |
 | `No low model is configured.` or `No high model is configured.` | A review reached a model that was never set | Run `co-maintainer set --low-model=...`, or pass `--low-model=...` on the command |
 | `review needs an AI provider` | `review --ai=none` | Pass a provider, or leave `--ai` out to use the saved one. See [AI providers](providers.md#where-each-provider-works) |
-| `init and sync need an AI provider` | `init` or `sync` ran with `--ai=none`, or no provider is saved | The guides are written by the provider. Save one with `co-maintainer set --ai=... --token=... --low-model=... --high-model=...` |
+| `init and sync need an AI provider` | `init` or `sync` ran with `--ai=none`, or `none` is saved. Exit code 2 | The guides are written by the provider. Pass `--ai=...`, or save one with `co-maintainer set --ai=... --token=... --low-model=... --high-model=...` |
 | `AI failed to generate the guides` | A non-provider error (for example a cache-write failure) broke the build | The provider path itself is not fatal: a failed unit is dropped and the run continues. Rerun [`sync`](sync.md), which continues from the cached fetch and extraction |
 | `GitHub refused <METHOD> <endpoint>` | The token or the App lacks a permission for that call | The message names the missing permission, for example `Pull requests: Read and write`. See [Authentication](authentication.md) and [GitHub App](github-app.md) |
 | `GitHub returned 404 for` | The repository does not exist, or the token or App cannot see it | The message repeats the permission the call needs |
@@ -55,8 +55,7 @@ is the safe default.
 | `clear needs one target` | `clear` was called with no repository and no `all` | Pass `owner/repo` or `all`. See [Caching](caching.md#clearing) |
 | `clear all needs your confirmation` | `clear all` has no terminal to ask on | Run it in a terminal, or pass `--yes` |
 | `Uninstall needs your confirmation` | `uninstall` has no terminal to ask on | Run it in a terminal, or pass `--yes` |
-| `A co-maintainer serve process (pid N) is using this data directory` | `clear`, `uninstall` or `rollback` needs exclusive access | Stop `serve`, then run the command again |
-| `serve is already running` | Two `serve` processes share one `app.db` | Stop the other one, or point `CM_APP_DB` elsewhere |
+| `A co-maintainer serve process (pid N) is using this data directory` | `init`, `sync`, `clear`, `uninstall`, `rollback` or a second `serve` needs the dashboard database for itself while a `serve` uses it | Run [`sync`](sync.md) from that server's dashboard, or stop `serve` and run the command again. A second `serve` can use its own `CM_APP_DB` |
 
 `init`, `sync`, and `review` also refuse to start when a required value is still
 missing and there is no terminal to prompt on. `--json` never prompts, so a

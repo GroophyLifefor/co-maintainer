@@ -5,6 +5,42 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.20] - 2026-11-21
+
+### Added
+
+- **Close a finding yourself.** The **Findings** list has **Close** and **Reopen**, and a reply of `/co-maintainer dismiss` with an optional reason in a finding's thread closes it. The same people who may skip may dismiss. Each one goes to the audit log, and a closed finding is not raised again while its lines stay the same. Asking in plain words in the thread closes it too, even when the bot still disagrees: it says it closed the finding, asks what was wrong, and keeps the answer in the audit log as feedback.
+- **Comment only reviews.** `set --repo=owner/repo --review-event=comment`, the repository page, or the server default under **Review defaults**: the App posts its findings as a comment, never approving and never blocking.
+- **Every repository setting on both sides.** `set --repo` takes the provider, models, auth, blocking rule, exclude pattern, review mode, diff limits and the switches the dashboard kept (`--auto-review`, `--review-scope`, `--skip-drafts`, `--skip-bots`, `--codegraph`, `--watch-open-issues`, `--watch-push-mode`, `--review-policy`, `--remake-cron`), also next to a running `serve`. The repository page gets **AI for this repository** and **Review tools and limits**, and every dashboard field shows its CLI flag.
+- **Extensions on the dashboard.** **Settings**, **Extensions** lists, registers, enables, disables and removes them, with the same checks as the CLI.
+- **Diff limits per repository.** `--review-diff-max-chars` and `--review-file-patch-max-chars` raise or lift the DIFF section and per-file cut for a model with a large context.
+- **`review-timeout-minutes` in the action.** A pull request review that runs past it, 30 minutes by default, fails with exit code 3. `--timeout-minutes` bounds `review --remote` on a pull request too.
+- **`--no-only-request-changed-pr`** turns a saved filter off.
+
+### Changed
+
+- **One order for every setting, on every surface.** The environment, then the repository's own value, then the account's, then what the repository's last init ran with. App, remote and push reviews used the account's model and blocking rule while the CLI used the repository's, and `serve` ignored most of the variables the CLI reads.
+- **init and sync no longer pin the repository's provider and models.** They keep them as the init fallback, used only where the account has none, so a later account change reaches every repository. Values an older release copied move there once.
+- **Usage is the whole bill.** init, sync, replies and commit watch answers record their spend, from the dashboard and from the CLI, and CLI reviews, inits and syncs are Activity rows with their cost. Stopped, push and CLI reviews get their own rows, the CSV gains `kind`, `branch` and `extensions_cost_usd`, and clearing knowledge keeps the history.
+- **Findings covers every review.** Push, remote and CLI review findings are listed, and a source filter shows the findings extensions added.
+- **A cleared setting is kept out of sight.** Emptying a field or `--unset` moves the value to `clearedSettings`, which no page shows and no run uses.
+- **Exit codes in CI.** A server failure, a cancel or a failed sync is exit code 3, a run a newer one replaced is a notice with exit code 0, and a blocker a later round closed no longer fails the step.
+- **The secret name in the CI docs is `CO_MAINTAINER_REMOTE_TOKEN`**, so it cannot be mistaken for the AI key variable.
+
+### Fixed
+
+- **Withdrawing the last blocking finding approves the commit** the review read, with a fixed text and no AI call (#144).
+- **Sign-in changes apply without a restart**, and changing the allowed user signs old sessions out.
+- **A push review sends your own key** and the server enforces its key policy for pushes. Before, the server paid.
+- **The exclude pattern applies to local, remote and push reviews**, not only to pull requests.
+- **The dashboard shows the webhook URL `serve` uses** and refuses one `serve` would not start with. A field the environment sets is shown locked, with its name.
+- **`config get` shows the value a run uses** and where it came from, with `--repo` for a repository's own values.
+- **`--ai-key` works on init, sync and review**, a pull request review no longer stops on a saved `auth=pat`, and `review --remote` refuses server-owned and unknown flags.
+- **The dashboard and `set` run the same checks** on keys, models, the PAT, the App and the sign-in methods, and `set --enable-auth=password` turns password sign-in back on.
+- **A failed or stopped review keeps its known cost**, a local review run from the CLI included, also when a call fails after paid tool rounds. The GitHub job summary carries the run's warnings, the codegraph state, and a push review's cost.
+- **`rollback` restores config.json as it was before the upgrade.** `serve` now takes the upgrade backup before it writes config.json.
+- **Simulate checks pass with a real AI too** (#121).
+
 ## [0.7.19] - 2026-11-20
 
 ### Added

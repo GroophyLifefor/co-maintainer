@@ -495,7 +495,25 @@ const steps: Step[] = [
     name: STEP.appNoLow,
     async run(sim) {
       const low = sim.options().lowModel;
-      sim.world.writeConfig({ lowModel: undefined });
+      // No low model anywhere: not in the account, and not in the init
+      // fallback, which would otherwise stand in for it.
+      const before = sim.world.readConfig();
+      const repos = (before.repos ?? {}) as Record<
+        string,
+        Record<string, unknown> & { initFallback?: Record<string, unknown> }
+      >;
+      const repo = repos[APP_REPO] ?? {};
+      sim.world.writeConfig({
+        lowModel: undefined,
+        repoModelCopiesMoved: true,
+        repos: {
+          ...repos,
+          [APP_REPO]: {
+            ...repo,
+            initFallback: { ...repo.initFallback, lowModel: undefined },
+          },
+        },
+      });
       try {
         const round = await openPull(
           sim,
@@ -504,7 +522,7 @@ const steps: Step[] = [
         );
         return `#${round.pull.number} · ${round.jobs.map((job) => job.status).join(", ")}`;
       } finally {
-        sim.world.writeConfig({ lowModel: low });
+        sim.world.writeConfig({ lowModel: low, repos });
       }
     },
   },
@@ -846,7 +864,8 @@ function costCheck(sim: Sim): CheckResult {
     );
   const app = rows<{ tokens_in: number; tokens_out: number }>(
     sim.paths.appDb,
-    "SELECT tokens_in, tokens_out FROM reviews WHERE scope <> 'remote'",
+    // A review run from the CLI records its calls in the cost rows too.
+    "SELECT tokens_in, tokens_out FROM reviews WHERE scope <> 'remote' AND kind NOT IN ('local', 'cli_pr')",
   ).reduce(
     (sum, row) => ({
       in: sum.in + row.tokens_in,
@@ -896,7 +915,9 @@ function appChecks(sim: Sim): CheckResult[] {
       "app: the review lists what it did not review, and the Metadata coverage",
       /^Not reviewed \(\d+\)$/m.test(whole) &&
         /^- and \d+ more$/m.test(whole) &&
-        /\n- Coverage: \d+ full · 0 partial · 0 summarized · \d+ dropped\n<\/details>$/.test(
+        // Tool and companion lines follow the coverage line when the model
+        // used tools, so only its place inside the block is fixed.
+        /<summary>Metadata<\/summary>[^]*\n- Coverage: \d+ full · 0 partial · 0 summarized · \d+ dropped\n[^]*<\/details>$/.test(
           whole,
         ),
       whole

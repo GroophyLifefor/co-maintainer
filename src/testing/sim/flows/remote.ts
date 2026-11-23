@@ -371,6 +371,14 @@ function ranTools(runs: CodegraphRun[]): string[] {
 const sameList = (a: string[], b: string[]) =>
   JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
 
+/** The tool's name alone. The model's arguments and the argv the client
+ * built are two spellings of one call, so runs are compared by name and
+ * count. Only codegraph runs on the client as a process the stand-in sees. */
+const codegraphNames = (tools: string[]) =>
+  tools
+    .map((tool) => tool.split(" ")[0]!)
+    .filter((name) => name.startsWith("codegraph-"));
+
 const STEP = {
   first: "remote review, a tool round, --json",
   second: "second round, carry-over, human output",
@@ -648,7 +656,7 @@ function remoteChecks(sim: Sim): CheckResult[] {
     check(
       "the client ran exactly the tools the model asked for, whichever they were",
       sameList(asked, delivered) &&
-        sameList(asked, ran) &&
+        sameList(codegraphNames(asked), codegraphNames(ran)) &&
         (first?.toolRuns ?? []).every((run) =>
           sameFolder(run.cwd, first?.cwd ?? ""),
         ),
@@ -656,10 +664,10 @@ function remoteChecks(sim: Sim): CheckResult[] {
     ),
     check(
       "no tool ran on the client that the server did not send",
-      allRan.every(
+      codegraphNames(allRan).every(
         (tool) =>
-          allRan.filter((other) => other === tool).length <=
-          allDelivered.filter((other) => other === tool).length,
+          codegraphNames(allRan).filter((other) => other === tool).length <=
+          codegraphNames(allDelivered).filter((other) => other === tool).length,
       ),
       `${allRan.length} runs · ${allDelivered.length} sent over the whole flow`,
     ),
@@ -766,7 +774,7 @@ function remoteChecks(sim: Sim): CheckResult[] {
       `exit ${byok?.exitCode} · keys ${JSON.stringify([...new Set(byokAi.map((call) => call.key))])} · billed ${byokReview?.billed_to ?? "?"}`,
       "the exit code follows the findings the model reports",
     ),
-    check(
+    scripted(
       "the client's own key paid for its review, whatever it found",
       (byok?.exitCode === 0 || byok?.exitCode === 1) &&
         byokAi.length > 0 &&
@@ -774,13 +782,15 @@ function remoteChecks(sim: Sim): CheckResult[] {
         byokReview?.billed_to === "byok" &&
         (byok.json?.usage as Json | undefined)?.billedTo === "byok",
       `exit ${byok?.exitCode} · keys ${JSON.stringify([...new Set(byokAi.map((call) => call.key))])} · billed ${byokReview?.billed_to ?? "?"}`,
+      "a live run has one real key, so no second key can pay",
     ),
-    check(
+    scripted(
       "the client's key was used, never stored",
       keyPlaces.stored.length === 0 &&
         keyPlaces.inTrace === 1 &&
         keyPlaces.held === 0,
       `stored in ${keyPlaces.stored.join(", ") || "nothing"} · ${keyPlaces.inTrace} trace entry (the submit) · ${keyPlaces.held} held in memory`,
+      "a live run has one real key, so no second key can pay",
     ),
     scripted(
       "push review exits 0 with a P1 and reports the range",
@@ -905,7 +915,8 @@ function remoteChecks(sim: Sim): CheckResult[] {
       "a cancelled run stops the job and the client says so",
       deleted?.status === 204 &&
         deleted.jobId === cancel?.jobIds[0] &&
-        cancel?.exitCode === 2 &&
+        // A run that ended on the server, a cancel included, is exit 3.
+        cancel?.exitCode === 3 &&
         errorCode(cancel) === "client_canceled" &&
         cancelJob?.status === "canceled" &&
         cancelJob.cancel_reason === "client_canceled" &&
@@ -1083,6 +1094,10 @@ export default defineFlow({
         // Random per run, like the world's secrets. It stays out of
         // `world.secrets`: the core's leak check would find it in the one
         // submit body that must carry it. The flow checks it itself.
+        // A live run has one real key. A made-up client key would reach the
+        // provider and be refused, and the run's own key cannot stand for a
+        // second payer, so the step runs with the fake AI only.
+        if (sim.mode === "live") return "skipped live: a second key is needed";
         const key = `sim-client-key-${crypto.randomUUID().replaceAll("-", "")}`;
         state(sim).byokKey = key;
         wire.keys.set("client key", key);
@@ -1247,21 +1262,36 @@ export default defineFlow({
           }
           const jobId = old.submits[0]?.jobId;
           if (!jobId) return;
-          for (let poll = 0; poll < 500; poll++) {
+          // Bounded by time, not by a count tuned to the fake AI: a real
+          // model takes minutes, the fake one milliseconds.
+          const deadline =
+            Date.now() + (sim.mode === "live" ? 20 * 60_000 : 30_000);
+          // An old client answered the tool calls it got. This one says it
+          // cannot run them, so a real model that asks for a tool goes on
+          // without it instead of waiting for an answer forever.
+          let pending: { callId: string; error: string }[] = [];
+          while (Date.now() < deadline) {
             const sync = await post(`/api/remote/reviews/${jobId}/sync`, {
               ...fixture("sync.request.json"),
               afterLogSeq: 0,
-              toolResults: [],
+              toolResults: pending,
             });
+            pending = [];
             old.syncs++;
             old.final = (await sync.json()) as Json;
+            pending = ((old.final.toolCalls ?? []) as Json[]).map((call) => ({
+              callId: String(call.callId),
+              error: "this client cannot run tools",
+            }));
             if (
               old.final.status !== "queued" &&
               old.final.status !== "running"
             ) {
               break;
             }
-            await new Promise((resolve) => setTimeout(resolve, 5));
+            await new Promise((resolve) =>
+              setTimeout(resolve, sim.mode === "live" ? 1000 : 5),
+            );
           }
         });
         return `${old.submits.map((submit) => submit.status).join(", ")} · ${String(old.final?.status)}`;

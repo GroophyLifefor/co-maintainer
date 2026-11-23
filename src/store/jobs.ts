@@ -149,3 +149,38 @@ export function claimJob(id: string): boolean {
   ).run(nowIso(), id);
   return db.changes > 0;
 }
+
+/** A job that ran outside `serve`, from the CLI, written once it is over so
+ * the Activity list shows it. It is never written as queued or running: a
+ * `serve` that starts later must not take it for an interrupted job of its
+ * own and run it again. */
+export function insertFinishedJob(row: {
+  id: string;
+  type: string;
+  repo: string;
+  prNumber?: number;
+  args?: unknown;
+  status: "done" | "failed" | "canceled";
+  startedAt: string;
+  error?: string;
+}): void {
+  const now = nowIso();
+  getAppDb()
+    .prepare(
+      `INSERT INTO jobs
+       (id, type, repo, pr_number, status, args, created_at, started_at, finished_at, error)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      row.id,
+      row.type,
+      row.repo,
+      row.prNumber ?? null,
+      row.status,
+      JSON.stringify(row.args ?? {}),
+      row.startedAt,
+      row.startedAt,
+      now,
+      row.error ?? null,
+    );
+}

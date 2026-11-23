@@ -15,7 +15,36 @@ import type { McpServerConfig } from "./tools/mcp_config.ts";
  * token is never written to config.json, only ever taken from --token or
  * an env file. Remembering this lets `remake owner/repo` run with no
  * flags and no interactive prompts, reusing what `init` was told. */
+/** How the App posts a review: `auto` approves or requests changes by the
+ * blocking rule, `comment` only comments. */
+export type ReviewEventMode = "auto" | "comment";
+
+export function reviewEventMode(
+  config: UserConfig,
+  repo: string,
+): ReviewEventMode {
+  const raw = config.repos?.[repo]?.reviewEvent ?? config.reviewEvent;
+  return raw === "comment" ? "comment" : "auto";
+}
+
+/** What the last init or sync of a repository ran with. It is used only
+ * where the account has no value of its own, so a later account change still
+ * reaches the repository, and a repository set up with flags alone keeps
+ * working without them. */
+export type InitFallback = {
+  ai?: RepoConfig["ai"];
+  lowModel?: string;
+  highModel?: string;
+  auth?: RepoConfig["auth"];
+};
+
 export type RepoConfig = {
+  /** Written by every init and sync, see `InitFallback`. */
+  initFallback?: InitFallback;
+  /** `comment` posts every App review as a plain comment: the bot never
+   * approves and never requests changes, people decide the merge. Unset
+   * follows the server default, then `auto`. */
+  reviewEvent?: ReviewEventMode;
   auth?: "gh" | "pat";
   ai?:
     | "none"
@@ -92,6 +121,12 @@ export type RepoConfig = {
    * Codegraph is not counted yet. Unset means the default, `0` or a negative
    * number means no limit. */
   reviewToolBudgetChars?: number;
+  /** The DIFF section of a review prompt, in characters. Unset means
+   * 240000, `0` or a negative number means no limit. */
+  reviewDiffMaxChars?: number;
+  /** Where one file's patch is cut and marked partial, in characters. Unset
+   * means 12000, `0` or a negative number means no limit. */
+  reviewFilePatchMaxChars?: number;
   /** Most context lines `search-non-code` returns around a match. Unset means
    * the default, `0` or a negative number means no limit. */
   reviewSearchMaxContextLines?: number;
@@ -149,9 +184,18 @@ export type UserConfig = {
   githubAuthEnabled?: boolean;
   /** scrypt hash of the dashboard password, never the password itself. */
   dashboardPasswordHash?: string;
+  /** The server default for `RepoConfig.reviewEvent`. */
+  reviewEvent?: ReviewEventMode;
   /** When `set` last changed a sign-in credential. Dashboard sessions issued
    * before it are refused. */
   credentialsChangedAt?: string;
+  /** Values someone cleared, kept with the time they were cleared. Nothing
+   * reads them: no page shows them and no run uses them. They are kept so a
+   * cleared key or model is not lost for good by one click. */
+  clearedSettings?: Record<string, { value: unknown; clearedAt: string }>;
+  /** Set once the provider and models older releases copied into each
+   * repository were moved to `initFallback`. */
+  repoModelCopiesMoved?: boolean;
   defaults?: {
     maxCommits?: number;
     maxPrMonths?: number;
@@ -246,6 +290,116 @@ export function resolvedAiToken(
     (ai ? providerKeyEnv(ai) : undefined) ??
     savedTokenFor(config, ai ?? "openrouter")
   );
+}
+
+/** Where an effective setting came from. */
+export type SettingSource = "env" | "repo" | "global" | "init" | "default";
+
+export type ResolvedSetting<T> = {
+  value: T;
+  source: SettingSource;
+  /** The variable that set it, when `source` is `env`. */
+  envName?: string;
+};
+
+function firstSet<T>(
+  candidates: [T | undefined, SettingSource, string?][],
+  fallback: T,
+): ResolvedSetting<T> {
+  for (const [value, source, envName] of candidates) {
+    if (value !== undefined && value !== null && value !== "") {
+      return envName ? { value, source, envName } : { value, source };
+    }
+  }
+  return { value: fallback, source: "default" };
+}
+
+/** The AI, model, blocking and auth settings one repository runs with, in the
+ * one order every surface uses: environment, then the repository's own value,
+ * then the global value, then what its last init ran with, then the default. The CLI puts its flags in front of
+ * this, `serve` and the dashboard use it as is. Without one shared order the
+ * App, remote and push reviews read the global value while the CLI read the
+ * repository's, so one repository ran on two models. */
+export function resolveRepoSettings(
+  config: UserConfig,
+  repo: string | undefined,
+  env: (name: string) => string | undefined = getEnv,
+): {
+  ai: ResolvedSetting<string>;
+  lowModel: ResolvedSetting<string | undefined>;
+  highModel: ResolvedSetting<string | undefined>;
+  reviewBlocking: ResolvedSetting<string | undefined>;
+  auth: ResolvedSetting<string>;
+} {
+  const repoConfig = (repo ? config.repos?.[repo] : undefined) ?? {};
+  const fallback = repoConfig.initFallback ?? {};
+  const ai = firstSet<string>(
+    [
+      [env("CO_MAINTAINER_AI"), "env", "CO_MAINTAINER_AI"],
+      [repoConfig.ai, "repo"],
+      [config.ai, "global"],
+      [fallback.ai, "init"],
+    ],
+    "none",
+  );
+  // The OPENROUTER_ names would hand an OpenRouter model id to another
+  // provider, so they only count when OpenRouter is the one running.
+  const model = (level: "low" | "high") => {
+    const upper = level.toUpperCase();
+    const key = level === "low" ? "lowModel" : "highModel";
+    return firstSet<string | undefined>(
+      [
+        [
+          ai.value === "openrouter"
+            ? env(`OPENROUTER_${upper}_MODEL`)
+            : undefined,
+          "env",
+          `OPENROUTER_${upper}_MODEL`,
+        ],
+        [env(`${upper}_MODEL`), "env", `${upper}_MODEL`],
+        [repoConfig[key], "repo"],
+        [config[key], "global"],
+        // The init's model belongs to the init's provider, so it is only
+        // used with that provider.
+        [ai.value === fallback.ai ? fallback[key] : undefined, "init"],
+      ],
+      undefined,
+    );
+  };
+  return {
+    ai,
+    lowModel: model("low"),
+    highModel: model("high"),
+    reviewBlocking: firstSet<string | undefined>(
+      [
+        [
+          env("CO_MAINTAINER_REVIEW_BLOCKING"),
+          "env",
+          "CO_MAINTAINER_REVIEW_BLOCKING",
+        ],
+        [repoConfig.reviewBlocking, "repo"],
+        [config.reviewBlocking, "global"],
+      ],
+      undefined,
+    ),
+    auth: firstSet<string>(
+      [
+        [env("CO_MAINTAINER_AUTH"), "env", "CO_MAINTAINER_AUTH"],
+        [repoConfig.auth, "repo"],
+        [config.auth, "global"],
+        [fallback.auth, "init"],
+      ],
+      "gh",
+    ),
+  };
+}
+
+/** The provider a review runs on. A review cannot run without AI, so `none`
+ * or nothing at all falls back to OpenRouter, as the CLI review does. The App,
+ * remote and push reviews all go through here, so `ai=none` means the same in
+ * each of them. */
+export function reviewAiProvider(ai: string): string {
+  return ai && ai !== "none" ? ai : "openrouter";
 }
 
 /** The provider the saved key belongs to. A config from before providers
@@ -444,11 +598,43 @@ export function loadEnvFile(path: string): void {
  * give the same answer. */
 export function readConfig(): UserConfig {
   try {
-    return JSON.parse(readTextFileSync(configPath())) as UserConfig;
+    return movedRepoModelCopies(
+      JSON.parse(readTextFileSync(configPath())) as UserConfig,
+    );
   } catch (error) {
     if (isNotFound(error)) return {};
     throw new Error(`Could not read config ${configPath()}: ${String(error)}`);
   }
+}
+
+/** Before 0.7.20 only init and sync wrote a repository's provider, models
+ * and auth: they copied what each run used, and the copy then outranked every
+ * later account change. Read once more, those copies become the repository's
+ * init fallback. The marker goes into the next write of config.json, so a value
+ * set on purpose after that is never moved. */
+export function movedRepoModelCopies(config: UserConfig): UserConfig {
+  if (config.repoModelCopiesMoved) return config;
+  const repos: Record<string, RepoConfig> = {};
+  for (const [name, repo] of Object.entries(config.repos ?? {})) {
+    const { ai, lowModel, highModel, auth, ...rest } = repo;
+    const copied = { ai, lowModel, highModel, auth };
+    const hasCopy = Object.values(copied).some((value) => value !== undefined);
+    repos[name] = hasCopy
+      ? {
+          ...rest,
+          initFallback: Object.fromEntries(
+            Object.entries({ ...copied, ...rest.initFallback }).filter(
+              ([, value]) => value !== undefined,
+            ),
+          ) as InitFallback,
+        }
+      : { ...rest };
+  }
+  return {
+    ...config,
+    ...(config.repos ? { repos } : {}),
+    repoModelCopiesMoved: true,
+  };
 }
 
 /** The App private key to sign with. An inline `githubAppPrivateKey` wins,
@@ -538,14 +724,35 @@ export async function removeAllRepoConfig(): Promise<boolean> {
 /** Merges `patch` into the top-level (global, cross-repo) config,
  * used by `co-maintainer set`. This is the only path allowed to persist
  * a token. */
+/** Bookkeeping fields that are cleared as part of normal work, not by a
+ * person, so they are not kept in `clearedSettings`. */
+const NOT_KEPT_WHEN_CLEARED = new Set([
+  "clearedSettings",
+  "credentialsChangedAt",
+  "remoteNoticeShownFor",
+  "repos",
+]);
+
 export async function writeUserConfig(
   patch: Partial<UserConfig>,
 ): Promise<void> {
   const config = readConfig();
+  // A setting that had a value and is cleared now is soft-deleted: it moves
+  // to `clearedSettings`, which nothing reads, instead of disappearing.
+  const cleared = { ...config.clearedSettings };
+  const now = new Date().toISOString();
+  for (const [key, value] of Object.entries(patch)) {
+    if (value !== undefined || NOT_KEPT_WHEN_CLEARED.has(key)) continue;
+    const previous = config[key as keyof UserConfig];
+    if (previous === undefined) continue;
+    cleared[key] = { value: previous, clearedAt: now };
+  }
   const merged = Object.fromEntries(
-    Object.entries({ ...config, ...patch }).filter(
-      ([, value]) => value !== undefined,
-    ),
+    Object.entries({
+      ...config,
+      ...patch,
+      ...(Object.keys(cleared).length > 0 ? { clearedSettings: cleared } : {}),
+    }).filter(([, value]) => value !== undefined),
   ) as UserConfig;
   await writeConfig(merged);
 }

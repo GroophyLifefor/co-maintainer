@@ -160,8 +160,8 @@ test("--unset with a value in the same call sets the value", async () => {
 test("a diagram flag is still refused next to a global one with --repo", async () => {
   await withConfig(async () => {
     same(
-      await refused(["--repo=acme/widgets", "--review-blocking=severity"]),
-      "--review-blocking cannot be used with --repo",
+      await refused(["--repo=acme/widgets", "--github-pat=x"]),
+      "--github-pat cannot be used with --repo",
       "global flag",
     );
   });

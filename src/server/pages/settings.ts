@@ -1,3 +1,10 @@
+import { effectiveField } from "../../cli/commands/config.ts";
+import {
+  DISABLED_MESSAGE,
+  extensionsDisabled,
+  formatTimeout,
+  readRegistrations,
+} from "../../extensions/registry.ts";
 import { html, layout, skSlot, text } from "./layout.ts";
 import { SAVE_STATE } from "./ui.ts";
 import { UPDATES_SCRIPT, updatesCard } from "./updates.ts";
@@ -31,6 +38,7 @@ export type SettingsSection =
   | "remote"
   | "server"
   | "sign-in"
+  | "extensions"
   | "danger";
 
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
@@ -40,6 +48,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   "remote",
   "server",
   "sign-in",
+  "extensions",
   "danger",
 ];
 
@@ -50,6 +59,7 @@ const HEADING: Record<SettingsSection, string> = {
   remote: "Remote access",
   server: "Server",
   "sign-in": "Sign-in",
+  extensions: "Extensions",
   danger: "Danger zone",
 };
 
@@ -60,6 +70,7 @@ const NAV_HREF: Record<SettingsSection, string> = {
   remote: "/settings/remote",
   server: "/settings/server",
   "sign-in": "/settings/sign-in",
+  extensions: "/settings/extensions",
   danger: "/settings/danger",
 };
 
@@ -93,6 +104,9 @@ function maskKey(key: string): string {
 
 function aiCard(config: UserConfig): string {
   const aiOk = aiConfigured(config);
+  const aiLock = envLockOf(config, "ai");
+  const highLock = envLockOf(config, "highModel");
+  const lowLock = envLockOf(config, "lowModel");
   return `<div class="card" id="ai" data-async>
       ${skSlot()}
       <div class="hd"><h2>Models and API key</h2>
@@ -101,7 +115,7 @@ function aiCard(config: UserConfig): string {
         }</span></div>
       <div class="bd">
         <div class="field"><label for="ai-provider">Provider</label>
-          <select id="ai-provider">
+          <select id="ai-provider"${lockAttr(aiLock)}>
             <option value="none"${
               !config.ai || config.ai === "none" ? " selected" : ""
             }>None</option>
@@ -121,12 +135,13 @@ function aiCard(config: UserConfig): string {
               config.ai === "opencode-go" ? " selected" : ""
             }>OpenCode Go</option>
           </select>
+        ${lockHint(aiLock)}
         <div class="cli"><code>--ai=${text(config.ai ?? "none")}</code></div></div>
         <div class="field"><label for="token">API key</label>${
           config.token
             ? `<div class="actions-row"><span class="inp mono key-mask">${text(
                 maskKey(config.token),
-              )}</span><button type="button" class="btn gh sm" id="replace-key">Replace</button></div>`
+              )}</span><button type="button" class="btn gh sm" id="replace-key">Replace</button>${clearButton("token", "Remove")}</div>`
             : ""
         }
           <input id="token" type="password" placeholder="${
@@ -136,11 +151,13 @@ function aiCard(config: UserConfig): string {
           <div class="cli"><code>--ai-key=…</code></div></div>
         <div class="two" style="max-width:none">
           <div class="field"><label for="high">Review model</label>
-            <input id="high" value="${text(config.highModel ?? "")}">
+            <input id="high" value="${text(config.highModel ?? "")}"${lockAttr(highLock)}>
+            ${lockHint(highLock)}
             <div class="hint">Writes reviews and synthesizes the guides. High model in the CLI.</div>
             <div class="cli"><code>--high-model=…</code></div></div>
           <div class="field"><label for="low">Extraction model</label>
-            <input id="low" value="${text(config.lowModel ?? "")}">
+            <input id="low" value="${text(config.lowModel ?? "")}"${lockAttr(lowLock)}>
+            ${lockHint(lowLock)}
             <div class="hint">Extracts facts from history during init and sync. A cheap model is enough. Low model in the CLI.</div>
             <div class="cli"><code>--low-model=…</code></div></div>
         </div>
@@ -167,6 +184,7 @@ function githubCards(
   config: UserConfig,
   webhookUrl: string,
   host: string,
+  webhookLockedBy?: string,
 ): string {
   const ghOk = Boolean(
     config.auth === "gh" || (config.auth === "pat" && config.githubPat),
@@ -189,6 +207,7 @@ function githubCards(
           </select></div>
         <div class="field"><label>Personal access token</label>
           <input id="pat" type="password" placeholder="Leave blank to keep the current token">
+          ${config.githubPat ? clearButton("githubPat", "Remove the saved token") : ""}
           <div class="hint">Read-only is enough. <a href="https://co-maintainer.com/docs/authentication.html" target="_blank" rel="noopener">Which permissions to grant</a></div></div>
       </div>
       <div class="ft"><button class="primary" id="save-gh">Save</button></div>
@@ -218,7 +237,8 @@ function githubCards(
           <div class="field"><label>App ID</label>
             <input id="app-id" value="${text(config.githubAppId ?? "")}"></div>
           <div class="field"><label>Webhook address</label>
-            <input id="webhook-url" value="${text(webhookUrl)}">
+            <input id="webhook-url" value="${text(webhookUrl)}"${lockAttr(webhookLockedBy)}>
+            ${lockHint(webhookLockedBy)}
             <div class="hint">Public URL GitHub uses to send webhook events</div></div>
         </div>
         <div class="field wide"><label>Private key</label>
@@ -227,11 +247,64 @@ function githubCards(
             placeholder="-----BEGIN RSA PRIVATE KEY-----
 ...
 -----END RSA PRIVATE KEY-----
-Leave blank to keep the current key"></textarea></div>
+Leave blank to keep the current key"></textarea>
+          ${config.githubAppPrivateKey ? clearButton("githubAppPrivateKey", "Remove the saved key") : ""}</div>
         <div class="field"><label>Webhook secret</label>
-          <input id="hook-secret" type="password" placeholder="Leave blank to keep the current secret"></div>
+          <input id="hook-secret" type="password" placeholder="Leave blank to keep the current secret">
+          ${config.githubWebhookSecret ? clearButton("githubWebhookSecret", "Remove the saved secret") : ""}</div>
       </div>
       <div class="ft"><button class="primary" id="save-app">Save</button></div>
+    </div>`;
+}
+
+function extensionsCard(config: UserConfig): string {
+  if (extensionsDisabled()) {
+    return `<div class="card" id="extensions">
+      <div class="hd"><h2>Extensions</h2></div>
+      <div class="bd"><p class="muted">${text(DISABLED_MESSAGE)}</p></div>
+    </div>`;
+  }
+  const rows = readRegistrations(config, () => {});
+  const list =
+    rows.length === 0
+      ? `<p class="muted">No extension is registered.</p>`
+      : `<table class="tbl"><thead><tr><th>Name</th><th>Command</th><th>Repositories</th><th>Runs</th><th></th></tr></thead><tbody>${rows
+          .map(
+            (row) => `<tr data-ext="${text(row.name)}">
+              <td><b>${text(row.name)}</b>${row.disabled ? ' <span class="st warn">Disabled</span>' : ""}</td>
+              <td class="mono" style="word-break:break-all">${text(row.command)}</td>
+              <td class="mono">${text(row.repos)}</td>
+              <td>${text((row.reviewTypes ?? ["all"]).join(", "))}${row.runAfter ? ` · after ${text(row.runAfter)}` : ""} · ${text(formatTimeout(row.timeoutSeconds))}</td>
+              <td style="white-space:nowrap"><button type="button" class="btn sm" data-ext-toggle="${row.disabled ? "enable" : "disable"}">${row.disabled ? "Enable" : "Disable"}</button>
+                <button type="button" class="btn gh sm" data-ext-remove>Remove</button></td>
+            </tr>`,
+          )
+          .join("")}</tbody></table>`;
+  return `<div class="card" id="extensions" data-async>
+      ${skSlot()}
+      <div class="hd"><h2>Extensions</h2></div>
+      <div class="bd">
+        <p class="muted" style="margin:0 0 14px">Commands that run around every review and add their findings to it. See <a href="https://co-maintainer.com/docs/extensions.html" target="_blank" rel="noopener">Extensions</a>.</p>
+        ${list}
+        <h3 style="margin-top:22px">Register an extension</h3>
+        <div class="two" style="max-width:none">
+          <div class="field"><label for="ext-name">Name</label><input id="ext-name" placeholder="qa-vision">
+            <div class="cli"><code>--name=…</code></div></div>
+          <div class="field"><label for="ext-repos">Repositories</label><input id="ext-repos" placeholder="*">
+            <div class="cli"><code>--repos=…</code></div></div>
+          <div class="field"><label for="ext-types">Review types</label><input id="ext-types" placeholder="all, or local,pr,remote">
+            <div class="cli"><code>--review-types=…</code></div></div>
+          <div class="field"><label for="ext-run-after">Run after</label><input id="ext-run-after" placeholder="an extension name, or review">
+            <div class="cli"><code>--run-after=…</code></div></div>
+          <div class="field"><label for="ext-timeout">Timeout</label><input id="ext-timeout" placeholder="10m">
+            <div class="cli"><code>--timeout=…</code></div></div>
+        </div>
+        <div class="field wide"><label for="ext-command">Command</label>
+          <input id="ext-command" class="mono" placeholder="/usr/bin/node /opt/check.mjs {{details_path}}">
+          <div class="hint warn">The command runs on this server as the user that runs serve, and can read every file that user can, config.json included.</div>
+          <div class="cli"><code>--command=…</code></div></div>
+      </div>
+      <div class="ft"><button class="primary" id="ext-register">Register</button></div>
     </div>`;
 }
 
@@ -242,13 +315,16 @@ function defaultsCard(config: UserConfig): string {
       <div class="bd">
         <div class="two" style="max-width:none">
           <div class="field"><label>Months of pull requests</label>
-            <input id="def-months" value="${text(config.defaults?.maxPrMonths ?? "")}"></div>
+            <input id="def-months" value="${text(config.defaults?.maxPrMonths ?? "")}">
+            <div class="cli"><code>--max-pr-months=…</code></div></div>
           <div class="field"><label>Commits</label>
-            <input id="def-commits" value="${text(config.defaults?.maxCommits ?? "")}"></div>
+            <input id="def-commits" value="${text(config.defaults?.maxCommits ?? "")}">
+            <div class="cli"><code>--max-commits=…</code></div></div>
           <div class="field"><label>Max lines per pull request</label>
             <input id="def-lines" value="${text(
               config.defaults?.maxPullRequestChangeLines ?? "",
-            )}"></div>
+            )}">
+            <div class="cli"><code>--max-pull-request-change-lines=…</code></div></div>
         </div>
         <div class="field wide" style="margin-top:18px">
           <label for="def-policy">Who gets a review</label>
@@ -272,6 +348,25 @@ function defaultsCard(config: UserConfig): string {
           )}</div>
           <div class="hint">New repositories start with this. Each repository can change it in its own settings. Custom rules are set with <span class="mono">co-maintainer set --review-policy-file=policy.json</span>.</div>
         </div>
+        <div class="field wide" style="margin-top:18px">
+          <label for="def-blocking">A finding blocks the pull request when</label>
+          <select id="def-blocking"${lockAttr(envLockOf(config, "reviewBlocking"))}>
+            <option value="model"${(config.reviewBlocking ?? "model") === "model" ? " selected" : ""}>The model says so</option>
+            <option value="severity"${config.reviewBlocking === "severity" ? " selected" : ""}>Severity is Critical or High</option>
+          </select>
+          ${lockHint(envLockOf(config, "reviewBlocking"))}
+          <div class="hint">Every repository uses this unless its own settings choose another rule.</div>
+          <div class="cli"><code>--review-blocking=${text(config.reviewBlocking ?? "model")}</code></div>
+        </div>
+        <div class="field wide" style="margin-top:18px">
+          <label for="def-review-event">How the review is posted</label>
+          <select id="def-review-event">
+            <option value="auto"${config.reviewEvent === "comment" ? "" : " selected"}>Approve, or request changes when a finding blocks</option>
+            <option value="comment"${config.reviewEvent === "comment" ? " selected" : ""}>Comment only, people decide the merge</option>
+          </select>
+          <div class="hint">Every repository uses this unless its own settings choose another.</div>
+          <div class="cli"><code>--review-event=${text(config.reviewEvent ?? "auto")}</code></div>
+        </div>
       </div>
       <div class="ft"><button class="primary" id="save-def">Save</button></div>
     </div>`;
@@ -280,7 +375,35 @@ function defaultsCard(config: UserConfig): string {
 export type RuntimeInfo = {
   port?: number;
   trustProxy?: boolean;
+  /** `--webhook-url` or `CM_WEBHOOK_URL` when one of them wins over the
+   * saved address. */
+  webhookLockedBy?: string;
 };
+
+/** A field the server's environment (or a startup flag) sets is shown locked,
+ * with the name that sets it. Saving it here would change nothing until that
+ * name is removed, and a field that looks editable but does nothing is worse
+ * than one that says why. */
+function envLockOf(config: UserConfig, field: string): string | undefined {
+  const effective = effectiveField(config, field);
+  return effective.source === "env" ? effective.envName : undefined;
+}
+
+/** A button that clears one saved value. The value is kept out of sight,
+ * not destroyed, see `clearedSettings`. */
+function clearButton(field: string, label: string): string {
+  return `<button type="button" class="btn gh sm" data-clear="${text(field)}">${text(label)}</button>`;
+}
+
+function lockAttr(name: string | undefined): string {
+  return name ? " disabled" : "";
+}
+
+function lockHint(name: string | undefined): string {
+  return name
+    ? `<div class="hint warn">Set by <code>${text(name)}</code> on the server, which wins over this field. Remove it there to edit here.</div>`
+    : "";
+}
 
 function runtimeCard(runtime: RuntimeInfo): string {
   const port = runtime.port === undefined ? "unknown" : String(runtime.port);
@@ -339,7 +462,7 @@ function remoteCard(config: UserConfig): string {
             <input id="remote-token-name" placeholder="e.g. laptop" data-no-dirty></div>
         </div>
         <div class="field wide" style="margin-top:16px"><label>Client key policy (BYOK)</label>
-          <select id="remote-byok-policy">
+          <select id="remote-byok-policy"${lockAttr(envLockOf(config, "remoteByokPolicy"))}>
             <option value="off"${
               (config.remoteByokPolicy ?? "off") === "off" ? " selected" : ""
             }>off: reject a client key</option>
@@ -350,6 +473,7 @@ function remoteCard(config: UserConfig): string {
               config.remoteByokPolicy === "require" ? " selected" : ""
             }>require: a client key is mandatory</option>
           </select>
+          ${lockHint(envLockOf(config, "remoteByokPolicy"))}
           <div class="hint">Whether <code>review --remote</code> clients may send their own AI key. The <code>CM_REMOTE_BYOK_POLICY</code> env var overrides this.</div></div>
       </div>
       <div class="ft">
@@ -448,7 +572,7 @@ function cardForSection(
     case "ai":
       return aiCard(config);
     case "github":
-      return githubCards(config, webhookUrl, host);
+      return githubCards(config, webhookUrl, host, runtime.webhookLockedBy);
     case "defaults":
       return defaultsCard(config);
     case "remote":
@@ -457,6 +581,8 @@ function cardForSection(
       return serverCard(config, runtime);
     case "sign-in":
       return signInCards(config);
+    case "extensions":
+      return extensionsCard(config);
     case "danger":
       return dangerCard();
   }
@@ -473,6 +599,16 @@ function save(btn, body) {
     saved(btn, card);
   });
 }
+document.querySelectorAll("[data-clear]").forEach(function(btn) {
+  btn.addEventListener("click", function() {
+    var card = btn.closest("[data-async]");
+    saveStarted(card);
+    run(btn, card, async function() {
+      await api("PUT", "/api/settings", { clear: [btn.getAttribute("data-clear")] });
+      location.reload();
+    });
+  });
+});
 function positiveOrNull(raw, label) {
   if (raw === "") return { ok: true, value: null };
   var n = Number(raw);
@@ -665,6 +801,9 @@ document.getElementById("save-def").addEventListener("click", function() {
   };
   var policy = document.getElementById("def-policy").value;
   if (policy !== "__custom") body.reviewPolicy = policy === "" ? null : policy;
+  var blocking = document.getElementById("def-blocking");
+  if (!blocking.disabled) body.reviewBlocking = blocking.value;
+  body.reviewEvent = document.getElementById("def-review-event").value;
   save(this, body);
 });
 `;
@@ -756,6 +895,47 @@ document.getElementById("clear-all").addEventListener("click", function() {
 });
 `;
 
+const SCRIPT_EXTENSIONS = `
+(function() {
+  var card = document.getElementById("extensions");
+  if (!card || !document.getElementById("ext-register")) return;
+  function call(btn, method, path, body) {
+    saveStarted(card);
+    run(btn, card, async function() {
+      await api(method, path, body);
+      location.reload();
+    });
+  }
+  document.getElementById("ext-register").addEventListener("click", function() {
+    var value = function(id) { return document.getElementById(id).value.trim(); };
+    call(this, "POST", "/api/extensions", {
+      name: value("ext-name"),
+      command: value("ext-command"),
+      repos: value("ext-repos"),
+      reviewTypes: value("ext-types"),
+      runAfter: value("ext-run-after"),
+      timeout: value("ext-timeout")
+    });
+  });
+  card.querySelectorAll("[data-ext]").forEach(function(row) {
+    var name = encodeURIComponent(row.getAttribute("data-ext"));
+    var toggle = row.querySelector("[data-ext-toggle]");
+    toggle.addEventListener("click", function() {
+      call(toggle, "PATCH", "/api/extensions/" + name, { disabled: toggle.getAttribute("data-ext-toggle") === "disable" });
+    });
+    var remove = row.querySelector("[data-ext-remove]");
+    remove.addEventListener("click", function() {
+      if (remove.getAttribute("data-armed") !== "1") {
+        remove.setAttribute("data-armed", "1");
+        remove.textContent = "Click again to remove";
+        return;
+      }
+      call(remove, "DELETE", "/api/extensions/" + name);
+    });
+  });
+})();
+`;
+
 const SCRIPT_BY_SECTION: Record<SettingsSection, string> = {
   ai: SCRIPT_AI,
   github: SCRIPT_GITHUB,
@@ -763,6 +943,7 @@ const SCRIPT_BY_SECTION: Record<SettingsSection, string> = {
   remote: SCRIPT_REMOTE,
   server: SCRIPT_SERVER + UPDATES_SCRIPT,
   "sign-in": SCRIPT_SIGNIN,
+  extensions: SCRIPT_EXTENSIONS,
   danger: SCRIPT_DANGER,
 };
 
@@ -838,7 +1019,7 @@ function settingsPage(
     ai: "/settings/ai", github: "/settings/github", defaults: "/settings/defaults",
     remote: "/settings/remote", server: "/settings/server",
     access: "/settings/sign-in", signin: "/settings/sign-in", password: "/settings/sign-in",
-    danger: "/settings/danger"
+    extensions: "/settings/extensions", danger: "/settings/danger"
   };
   var id = location.hash.replace(/^#/, "").toLowerCase();
   if (map[id]) location.replace(map[id]);

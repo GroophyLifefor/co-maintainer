@@ -14,7 +14,9 @@ const JOB_KINDS: Record<string, string> = {
   reply: "Replied in a thread",
   push_review: "Reviewed a push",
   push_check: "Updated the commit watch check",
-  remote_review: "Reviewed from the CLI",
+  remote_review: "Reviewed remotely from the CLI",
+  review_local: "Reviewed local changes from the CLI",
+  review_cli: "Reviewed a pull request from the CLI",
   watch_comment: "Answered a commit watch issue",
 };
 
@@ -24,7 +26,11 @@ export const ACTIVITY_KINDS: { id: string; label: string; types: string[] }[] =
   [
     { id: "review", label: "Reviews", types: ["review"] },
     { id: "push", label: "Pushes", types: ["push_review", "push_check"] },
-    { id: "cli", label: "CLI", types: ["remote_review"] },
+    {
+      id: "cli",
+      label: "CLI",
+      types: ["remote_review", "review_local", "review_cli"],
+    },
     { id: "setup", label: "Setup and sync", types: ["init", "remake"] },
     { id: "skip", label: "Skips", types: ["skip"] },
     { id: "reply", label: "Replies", types: ["reply", "watch_comment"] },

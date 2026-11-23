@@ -851,7 +851,10 @@ export default defineFlow({
               `${name} extension failed, you can see details in dashboard`,
             ),
           ) &&
-          (s.ms.get(STEP.failures) ?? Infinity) < 15_000,
+          // The time includes the AI review, so it bounds only the fake AI's
+          // run. Nothing hanging is what the step timeout already checks.
+          (sim.mode === "live" ||
+            (s.ms.get(STEP.failures) ?? Infinity) < 15_000),
         `${JSON.stringify(failRows)} · ${s.ms.get(STEP.failures)} ms`,
       ),
     );

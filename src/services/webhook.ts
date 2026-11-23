@@ -32,6 +32,7 @@ import {
   evaluatePolicy,
   isRequestCommand,
   legacyPolicy,
+  dismissCommandOf,
   maySkip,
   skipCommandOf,
   parsePolicy,
@@ -524,6 +525,7 @@ function enqueueReply(
   sourcePath?: string,
   sourceLine?: number,
   sourceCommitId?: string,
+  mayClose = false,
 ): WebhookResult {
   const installationId = asNumber(asRecord(payload.installation)?.id);
   if (installationId !== undefined) setInstallationId(repo, installationId);
@@ -547,6 +549,7 @@ function enqueueReply(
     sourcePath,
     sourceLine,
     sourceCommitId,
+    mayClose,
     deliveryId,
   });
   if (!result.created) {
@@ -594,8 +597,48 @@ function reviewCommentEvent(
     (typeof sourceId === "number" || typeof sourceId === "string") &&
     (typeof parentId === "number" || typeof parentId === "string")
   ) {
+    // A maintainer closes the finding this thread is about. The model is not
+    // asked: the owner has the last word.
+    const dismissReason = dismissCommandOf(asString(comment?.body) ?? "");
+    const row = dismissReason === undefined ? undefined : getRepo(repo);
+    if (dismissReason !== undefined && row?.active === 1) {
+      const commenter = asString(comment?.author_association) ?? "NONE";
+      if (!maySkip(policyForRepo(row), commenter)) {
+        return {
+          outcome: "skipped",
+          reason: `Not allowed to dismiss: ${commenter} is not the owner or one of ${(policyForRepo(row).skippers ?? []).join(", ") || "nobody else"}.`,
+          repo,
+          prNumber,
+        };
+      }
+      const installationId = asNumber(asRecord(payload.installation)?.id);
+      if (installationId !== undefined) setInstallationId(repo, installationId);
+      const { id } = enqueue({
+        type: SKIP_JOB,
+        repo,
+        prNumber,
+        deliveryId,
+        args: {
+          command: "dismiss",
+          by: asString(author?.login) ?? null,
+          targetCommentId: String(parentId),
+          reason: dismissReason,
+        },
+        queueKey: `skip:${repo}:${prNumber}:${String(sourceId)}`,
+      });
+      return { outcome: "enqueued", repo, prNumber, jobId: id };
+    }
     const target = replyTarget(repo, prNumber, String(parentId));
     if (target) {
+      // The same people who may dismiss may close a finding by asking in
+      // its thread.
+      const policyRow = getRepo(repo);
+      const mayClose =
+        policyRow !== undefined &&
+        maySkip(
+          policyForRepo(policyRow),
+          asString(comment?.author_association) ?? "NONE",
+        );
       return enqueueReply(
         payload,
         deliveryId,
@@ -609,6 +652,7 @@ function reviewCommentEvent(
         asString(comment?.path),
         asNumber(comment?.line) ?? asNumber(comment?.original_line),
         asString(comment?.commit_id),
+        mayClose,
       );
     }
   }

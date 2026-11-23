@@ -1,7 +1,15 @@
+import {
+  liveWebhookUrl,
+  type WebhookUrlSource,
+  webhookUrlProblem,
+} from "../webhook_url.ts";
 import { errorResponse } from "../errors.ts";
+import { verifyAiKey } from "../../ai/verify.ts";
+import { getEnv } from "../../util/runtime.ts";
 import {
   readConfig,
   resolveAppPrivateKey,
+  resolvedAiToken,
   writeUserConfig,
 } from "../../config.ts";
 import {
@@ -30,19 +38,27 @@ import {
   settingsSnapshot,
 } from "../../services/audit.ts";
 
+/** Settings the dashboard may clear with an explicit `clear` entry. */
+const CLEARABLE = new Set([
+  "token",
+  "githubPat",
+  "githubAppPrivateKey",
+  "githubWebhookSecret",
+  "githubOAuthClientSecret",
+  "lowModel",
+  "highModel",
+  "githubAppId",
+  "githubOAuthClientId",
+  "githubOAuthAllowedUser",
+]);
+
 function validateWebhookUrl(value: unknown): string | undefined {
   if (typeof value !== "string" || !value.trim()) {
     return "webhook URL is required";
   }
-  try {
-    const url = new URL(value.trim());
-    if (url.protocol !== "http:" && url.protocol !== "https:") {
-      return "webhook URL must use http or https";
-    }
-  } catch {
-    return "webhook URL must be an absolute http(s) URL";
-  }
-  return undefined;
+  // The same checks `serve` runs at start, so a saved URL cannot stop the
+  // next start.
+  return webhookUrlProblem(value);
 }
 
 async function changePassword(
@@ -73,7 +89,7 @@ async function changePassword(
 export async function handleSettingsRoute(
   request: Request,
   url: URL,
-  webhookUrl: string,
+  webhook: string | WebhookUrlSource,
   passwords: PasswordStore,
   ip: string,
 ): Promise<Response> {
@@ -93,7 +109,11 @@ export async function handleSettingsRoute(
       hasPat: Boolean(config.githubPat),
       hasAppKey: Boolean(config.githubAppPrivateKey),
       hasWebhookSecret: Boolean(config.githubWebhookSecret),
-      webhookUrl: config.webhookUrl || webhookUrl,
+      webhookUrl: liveWebhookUrl(config, webhook),
+      webhookUrlLockedBy:
+        typeof webhook === "object" && webhook.webhookUrlOverride
+          ? (webhook.webhookUrlOverrideName ?? "--webhook-url")
+          : null,
       githubOAuthClientId: config.githubOAuthClientId ?? "",
       hasOAuthClientSecret: Boolean(config.githubOAuthClientSecret),
       githubOAuthAllowedUser: config.githubOAuthAllowedUser ?? "",
@@ -137,6 +157,31 @@ export async function handleSettingsRoute(
     text("githubOAuthClientId");
     text("githubOAuthClientSecret");
     text("githubOAuthAllowedUser");
+    // An emptied field clears its value. Secrets are never shown in a field,
+    // so an empty secret field means "keep it" and clearing one is an
+    // explicit `clear` entry, sent by its Remove button.
+    for (const key of [
+      "lowModel",
+      "highModel",
+      "githubAppId",
+      "githubOAuthClientId",
+      "githubOAuthAllowedUser",
+    ] as const) {
+      if (body[key] === "" && current[key] !== undefined)
+        patch[key] = undefined;
+    }
+    if (Array.isArray(body.clear)) {
+      for (const key of body.clear) {
+        if (typeof key !== "string" || !CLEARABLE.has(key)) {
+          return errorResponse(
+            422,
+            "invalid_setting",
+            `${String(key)} cannot be cleared here`,
+          );
+        }
+        (patch as Record<string, unknown>)[key] = undefined;
+      }
+    }
     // A key means nothing without the provider it belongs to: saving one
     // with no provider would read "A key is saved" next to "Not set".
     const provider = patch.ai ?? current.ai;
@@ -184,6 +229,18 @@ export async function handleSettingsRoute(
         );
       }
       patch.reviewBlocking = blocking;
+    }
+    if ("reviewEvent" in body) {
+      const raw = body.reviewEvent;
+      if (raw === null || raw === "") patch.reviewEvent = undefined;
+      else if (raw === "auto" || raw === "comment") patch.reviewEvent = raw;
+      else {
+        return errorResponse(
+          422,
+          "invalid_setting",
+          "reviewEvent must be auto or comment",
+        );
+      }
     }
     if (typeof body.passwordAuthDisabled === "boolean") {
       patch.passwordAuthDisabled = body.passwordAuthDisabled;
@@ -347,6 +404,41 @@ export async function handleSettingsRoute(
         return errorResponse(422, "app_access", app.message);
       }
     }
+    // The provider check `set` runs before it saves, so a key or model the
+    // CLI refuses is refused here too. An unreachable provider saves anyway,
+    // as `set` does. The fake AI used by tests has no provider to ask.
+    const touchingAi =
+      patch.token !== undefined ||
+      patch.ai !== undefined ||
+      patch.highModel !== undefined;
+    const aiProvider = merged.ai;
+    if (
+      touchingAi &&
+      aiProvider &&
+      aiProvider !== "none" &&
+      getEnv("CM_FAKE_AI") !== "1"
+    ) {
+      const key = resolvedAiToken(merged, aiProvider);
+      if (key) {
+        const result = await verifyAiKey(aiProvider, key, merged.highModel);
+        if (result.status === "rejected") {
+          return errorResponse(422, "ai_rejected", result.error.message);
+        }
+      }
+    }
+    // A changed allowed user or sign-in method must not leave old dashboard
+    // sessions valid, the same as `set` does.
+    const credentialChanged =
+      ("passwordAuthDisabled" in patch &&
+        Boolean(patch.passwordAuthDisabled) !==
+          Boolean(current.passwordAuthDisabled)) ||
+      ("githubAuthEnabled" in patch &&
+        Boolean(patch.githubAuthEnabled) !==
+          Boolean(current.githubAuthEnabled)) ||
+      ("githubOAuthAllowedUser" in patch &&
+        patch.githubOAuthAllowedUser !== current.githubOAuthAllowedUser);
+    if (credentialChanged)
+      patch.credentialsChangedAt = new Date().toISOString();
     const before = settingsSnapshot();
     await writeUserConfig(patch);
     const changes = settingChanges(before, settingsSnapshot());
@@ -366,8 +458,25 @@ export async function handleSettingsRoute(
       appId: config.githubAppId ?? "",
       privateKeyPem: resolveAppPrivateKey(config) ?? "",
     });
+    // The same provider check `set` runs, not only "a key is there".
+    let ai: { ok: boolean; message?: string } = { ok: aiConfigured(config) };
+    if (ai.ok && config.ai && getEnv("CM_FAKE_AI") !== "1") {
+      const result = await verifyAiKey(
+        config.ai,
+        resolvedAiToken(config) ?? "",
+        config.highModel,
+      );
+      if (result.status === "rejected") {
+        ai = { ok: false, message: result.error.message };
+      } else if (result.status === "unreachable") {
+        ai = {
+          ok: true,
+          message: `could not reach the provider: ${result.reason}`,
+        };
+      }
+    }
     return Response.json({
-      ai: { ok: aiConfigured(config) },
+      ai,
       github: github.ok
         ? { ok: true, login: github.login }
         : { ok: false, message: github.message },

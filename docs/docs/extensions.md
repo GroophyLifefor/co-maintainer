@@ -37,6 +37,12 @@ co-maintainer extension list
 | `--timeout` | `10m` | Such as `30s`, `10m` or `1h`, at most `6h` |
 | `--rerun-on-restart=true\|false` | `true` | Overrides the `extension-rerun-on-restart` config key |
 
+The dashboard manages them too, under **Settings**, **Extensions**: the list,
+**Register**, **Enable** or **Disable**, and **Remove**. It runs the same
+checks as the CLI, so a value one side refuses the other refuses too. A
+run-after name nobody registered is saved there without asking, as `--yes`
+does.
+
 `update` takes the same flags and changes only the ones given. `remove`,
 `disable` and `enable` take `--name`. Registrations live in `config.json` as an
 `extensions` array, and the array order is the registration order.

@@ -102,7 +102,10 @@ from a laptop.</p>
 token for CI.</li>
 <li>In the GitHub repository open <strong>Settings</strong>, <strong>Secrets and variables</strong>,
 <strong>Actions</strong>, and add two secrets. <code>CO_MAINTAINER_HOST</code> holds the URL of the
-server and <code>CO_MAINTAINER_TOKEN</code> holds the token.</li>
+server and <code>CO_MAINTAINER_REMOTE_TOKEN</code> holds the token. Do not name it
+<code>CO_MAINTAINER_TOKEN</code>: that name is the AI key variable of the CLI, and a
+local review step that read it would send the remote token to the AI
+provider.</li>
 <li>Add a workflow:</li>
 </ol>
 <pre><code class="language-yaml">name: co-maintainer
@@ -111,6 +114,11 @@ on:
 
 permissions:
   contents: read
+
+# A new push to the pull request replaces the run still going for the last.
+concurrency:
+  group: co-maintainer-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   review:
@@ -122,8 +130,14 @@ jobs:
       - uses: GroophyLifefor/co-maintainer@v0
         with:
           remote-host: ${{ secrets.CO_MAINTAINER_HOST }}
-          remote-token: ${{ secrets.CO_MAINTAINER_TOKEN }}
+          remote-token: ${{ secrets.CO_MAINTAINER_REMOTE_TOKEN }}
 </code></pre>
+<p>Without the <code>concurrency</code> block an older run still waiting is replaced on the
+server too: it ends with a notice and exit code 0, never as a failure. A
+pull request review fails with exit code 3 after <code>review-timeout-minutes</code>
+(30 by default), because the review needs the job to answer it. A server
+failure, such as the AI provider failing or a stopped review, is exit code 3
+too, so a retry can tell it apart from a wrong workflow (exit code 2).</p>
 <p><code>fetch-depth: 0</code> gives the action the history it needs to find where the pull
 request branched off. Without it the action fetches what is missing, which is
 slower.</p>
@@ -179,6 +193,12 @@ slower.</p>
 <td><code>10</code></td>
 <td>On a push, how long to wait for the review, see <a href="#review-pushes-commit-watch">review pushes</a></td>
 </tr>
+<tr>
+<td><code>review-timeout-minutes</code></td>
+<td>no</td>
+<td><code>30</code></td>
+<td>On a pull request, how long the review may take before the step fails with exit code 3</td>
+</tr>
 </tbody></table>
 <p>Inputs are never removed or renamed within <code>v0</code>. A new input is only ever added,
 with a default that keeps the old behavior.</p>
@@ -190,10 +210,14 @@ in the run&#39;s annotation list. GitHub shows at most ten errors and ten
 warnings per step, so when there are more the action adds one notice that
 says how many were left out.</li>
 <li><strong>Job summary.</strong> A table of every finding with its severity, state and
-location, the cost of the review, and how long it took. An unknown cost reads
-<code>cost unknown</code> with the reason, never <code>$0</code>.</li>
-<li><strong>Exit status.</strong> The step fails when a finding blocks, the same rule as
-<code>review</code> on the command line.</li>
+location, the cost of the review, and how long it took, a push review
+included. An unknown cost reads <code>cost unknown</code> with the reason, never <code>$0</code>.
+The warnings the terminal would print, such as a stale guide or an MCP
+server that failed, follow as a list and as warning annotations, and a
+review that ran without the call graph says so.</li>
+<li><strong>Exit status.</strong> The step fails when a finding that is still open blocks,
+the same rule as <code>review</code> on the command line. A finding a later round
+closed no longer counts.</li>
 <li><strong>Extensions.</strong> A finding from an <a href="extensions.html">extension</a> that has a
 location is annotated with its <code>[P2 · blocking] · extension: name</code> label, inside
 the same ten per level. The job summary lists every extension finding and adds
@@ -241,7 +265,7 @@ jobs:
       - uses: GroophyLifefor/co-maintainer@v0
         with:
           remote-host: ${{ secrets.CO_MAINTAINER_HOST }}
-          remote-token: ${{ secrets.CO_MAINTAINER_TOKEN }}
+          remote-token: ${{ secrets.CO_MAINTAINER_REMOTE_TOKEN }}
 </code></pre>
 <p>On a push the step never fails because of a finding. Findings are warnings, and
 after <code>timeout-minutes</code> the step ends green with a notice while the review
@@ -299,12 +323,16 @@ this.</p>
 <pre><code class="language-yaml">      - uses: GroophyLifefor/co-maintainer@v0
         with:
           remote-host: ${{ secrets.CO_MAINTAINER_HOST }}
-          remote-token: ${{ secrets.CO_MAINTAINER_TOKEN }}
+          remote-token: ${{ secrets.CO_MAINTAINER_REMOTE_TOKEN }}
           remote-byok: ${{ secrets.OPENROUTER_API_KEY }}
 </code></pre>
 <p>The key goes to the tool by environment variable, never on a command line, and
 both the token and the key are masked in the log. The server answers with an
 error and does not fall back to its own key when it does not accept yours.
+This holds for a push review too: the key goes with the push, the review is
+marked as billed to you, and a server that requires your key refuses a push
+without one. A server older than 0.7.20 cannot take your key for a push, and
+the run says so instead of letting the server pay.
 Use an <code>https://</code> host. The key travels with the request.</p>
 <h2 id="environment-variables">Environment variables</h2>
 <p>Outside the action the same settings can be given to the CLI by environment:

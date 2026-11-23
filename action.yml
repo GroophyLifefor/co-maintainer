@@ -37,6 +37,10 @@ inputs:
     description: On a push, how long to wait for the review. After that the step ends green with a notice, and the review finishes on the server.
     required: false
     default: "10"
+  review-timeout-minutes:
+    description: On a pull request, how long the review may take. After that the step fails with exit code 3. The review needs this job to answer it, so it cannot finish on the server alone.
+    required: false
+    default: "30"
 
 runs:
   using: composite
@@ -61,4 +65,5 @@ runs:
         PUSH_AFTER: ${{ github.event.after }}
         REF_NAME: ${{ github.ref_name }}
         TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+        REVIEW_TIMEOUT_MINUTES: ${{ inputs.review-timeout-minutes }}
       run: bash "$ACTION_PATH/scripts/action_run.sh"

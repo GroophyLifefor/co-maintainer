@@ -29,6 +29,7 @@ import {
   readBody,
 } from "../../cli/error.ts";
 import { getConfigDir } from "../../config.ts";
+import { aiTimeoutInit } from "../timeout.ts";
 import { writeTextFileAtomic } from "../../util/atomic.ts";
 import {
   getEnv,
@@ -719,6 +720,9 @@ export class SignInWithChatGptProvider implements AiProvider {
     request: AiRequest,
   ): Promise<Response> {
     const endpoint = responsesEndpoint();
+    // The same per-request limit every other provider uses, so
+    // `--ai-timeout-minutes` reaches this one too.
+    const timeout = aiTimeoutInit();
     try {
       return await fetch(endpoint, {
         method: "POST",
@@ -730,6 +734,7 @@ export class SignInWithChatGptProvider implements AiProvider {
           responsesBody(this.model, request, { planUsage: true }),
         ),
         signal: interruptSignal(),
+        ...timeout,
       });
     } catch (error) {
       throw networkFailure(endpoint, error);

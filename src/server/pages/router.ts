@@ -1,3 +1,5 @@
+import { liveWebhookUrl } from "../webhook_url.ts";
+import { type AuthOverrides, liveAuth } from "../live_auth.ts";
 import {
   clearOauthStateCookieHeader,
   clearSessionCookieHeader,
@@ -109,10 +111,13 @@ import {
 export type PageDeps = {
   passwordStore: PasswordStore;
   webhookUrl?: string;
+  webhookUrlOverride?: string;
+  webhookUrlOverrideName?: string;
   secureCookie?: boolean;
   githubApp?: { appId: string; privateKeyPem: string };
   auth?: AuthMethods;
   githubOAuth?: { clientId: string; clientSecret: string; allowedUser: string };
+  authOverrides?: AuthOverrides;
   /** Behind a reverse proxy this process trusts, absolute URLs are built
    * from `x-forwarded-host` and `x-forwarded-proto`. */
   trustProxy?: boolean;
@@ -168,7 +173,9 @@ export async function handlePageRequest(
     return Response.redirect(`${url.origin}/`, 303);
   }
 
-  const auth = deps.auth ?? { password: true, github: false };
+  const live = liveAuth(deps);
+  const auth = live.auth;
+  const githubOAuth = live.githubOAuth;
 
   if (url.pathname === "/login" && request.method === "GET") {
     const session = await sessionOf(request);
@@ -187,13 +194,13 @@ export async function handlePageRequest(
   }
 
   if (url.pathname === "/auth/github" && request.method === "GET") {
-    if (!auth.github || !deps.githubOAuth) {
+    if (!auth.github || !githubOAuth) {
       return new Response("GitHub sign-in is not enabled.", { status: 404 });
     }
     const next = safeNext(url.searchParams.get("next"));
     const state = randomToken();
     const authorizeUrl = githubAuthorizeUrl(
-      deps.githubOAuth.clientId,
+      githubOAuth.clientId,
       `${url.origin}/auth/github/callback`,
       state,
     );
@@ -211,10 +218,10 @@ export async function handlePageRequest(
   }
 
   if (url.pathname === "/auth/github/callback" && request.method === "GET") {
-    if (!auth.github || !deps.githubOAuth) {
+    if (!auth.github || !githubOAuth) {
       return new Response("GitHub sign-in is not enabled.", { status: 404 });
     }
-    return await handleGithubCallback(request, url, deps.githubOAuth, deps);
+    return await handleGithubCallback(request, url, githubOAuth, deps);
   }
 
   if (url.pathname === "/logout" && request.method === "POST") {
@@ -256,7 +263,7 @@ export async function handlePageRequest(
         filterRepoList(all, { q, status }, ready).map((item) =>
           toHomeRow(item, ready),
         ),
-        setupChecklist(config.webhookUrl || deps.webhookUrl || ""),
+        setupChecklist(liveWebhookUrl(config, deps)),
         {
           q,
           status,
@@ -271,7 +278,7 @@ export async function handlePageRequest(
       const config = readConfig();
       return renderSetup(
         username,
-        setupChecklist(config.webhookUrl || deps.webhookUrl || ""),
+        setupChecklist(liveWebhookUrl(config, deps)),
         {
           step: url.searchParams.get("step") ?? undefined,
           blocking: config.reviewBlocking,
@@ -364,9 +371,15 @@ export async function handlePageRequest(
       return renderSettings(
         username,
         config,
-        config.webhookUrl || deps.webhookUrl || "",
+        liveWebhookUrl(config, deps),
         requestBaseUrl(request, url, Boolean(deps.trustProxy)),
-        { port: deps.port, trustProxy: Boolean(deps.trustProxy) },
+        {
+          port: deps.port,
+          trustProxy: Boolean(deps.trustProxy),
+          webhookLockedBy: deps.webhookUrlOverride
+            ? (deps.webhookUrlOverrideName ?? "--webhook-url")
+            : undefined,
+        },
       );
     }
     if (url.pathname === "/settings/audit" && request.method === "GET") {
@@ -387,10 +400,16 @@ export async function handlePageRequest(
       const page = renderSettingsPage(
         username,
         config,
-        config.webhookUrl || deps.webhookUrl || "",
+        liveWebhookUrl(config, deps),
         requestBaseUrl(request, url, Boolean(deps.trustProxy)),
         section,
-        { port: deps.port, trustProxy: Boolean(deps.trustProxy) },
+        {
+          port: deps.port,
+          trustProxy: Boolean(deps.trustProxy),
+          webhookLockedBy: deps.webhookUrlOverride
+            ? (deps.webhookUrlOverrideName ?? "--webhook-url")
+            : undefined,
+        },
       );
       if (!page) {
         return notFound(
@@ -410,7 +429,7 @@ export async function handlePageRequest(
       const pr = match[4] ? Number(match[4]) : undefined;
       if (!sub) {
         const config = readConfig();
-        const webhookUrl = config.webhookUrl || deps.webhookUrl || "";
+        const webhookUrl = liveWebhookUrl(config, deps);
         return renderRepo(
           username,
           repoOverview(fullName),
@@ -432,7 +451,7 @@ export async function handlePageRequest(
       }
       if (sub === "pushes") {
         const config = readConfig();
-        const webhookUrl = config.webhookUrl || deps.webhookUrl || "";
+        const webhookUrl = liveWebhookUrl(config, deps);
         const status = await watchStatus(fullName);
         return renderRepoPushes(
           username,
@@ -725,7 +744,7 @@ async function beginAppManifest(
   if (problem) return new Response(problem, { status: 422 });
   const config = readConfig();
   const baseUrl = requestBaseUrl(request, url, Boolean(deps.trustProxy));
-  const webhookUrl = config.webhookUrl || deps.webhookUrl || "";
+  const webhookUrl = liveWebhookUrl(config, deps);
   const manifest = buildAppManifest({ name, baseUrl, webhookUrl });
   const state = beginManifestState();
   return html(`<!doctype html><html lang="en"><head><meta charset="utf-8">

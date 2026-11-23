@@ -577,7 +577,9 @@ it off. See [Configuration](configuration.md#per-repo-memory) for where it is
 stored.
 
 For one run, without saving anything, two `review` flags add to or replace that
-section. Both work in every mode, PR, local and remote:
+section. Both work in PR, local and remote review. A push review
+(`review --remote --range`) refuses them with exit code 2, because it sends no
+instructions: save them for the repository instead:
 
 | Flag | Effect |
 | ---- | ------ |

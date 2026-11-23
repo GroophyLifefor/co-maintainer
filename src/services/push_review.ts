@@ -11,6 +11,7 @@
  *
  * Issues need the App. Without it a push review still runs and reports to
  * CI, but opens, comments on and closes nothing. */
+import { dropByokKey, getByokKey } from "../remote/server/byok_keys.ts";
 import { setGitHubAuth } from "../pr/git_auth.ts";
 import { withResolvedReferences } from "../review/references.ts";
 import { parseFindings, type ParsedFinding } from "../pr/findings.ts";
@@ -34,7 +35,11 @@ import {
 import { reviewBlockingFrom } from "../review/blocking.ts";
 import { withLogSink } from "../util/log.ts";
 import { redact } from "../util/redact.ts";
-import { readConfig, resolveAppPrivateKey } from "../config.ts";
+import {
+  readConfig,
+  resolveAppPrivateKey,
+  resolveRepoSettings,
+} from "../config.ts";
 import {
   addResponseCost,
   costColumns,
@@ -296,7 +301,9 @@ export function queuePush(req: PushRequest): PushOutcome {
       jobId,
       beforeSha: before,
       afterSha: req.after,
-      model: readConfig().highModel ?? "unknown",
+      model:
+        resolveRepoSettings(readConfig(), req.repo).highModel.value ??
+        "unknown",
     });
     insertJob({
       id: jobId,
@@ -903,6 +910,8 @@ async function runPushReview(
   let completed = false;
   let client: GitHubClient | undefined;
   let checkRunId: string | undefined;
+  // Outside the try, so a failed or stopped review still records what it spent.
+  const costTally = emptyTally();
   try {
     client = await appClientFor(job.repo);
     checkRunId =
@@ -920,9 +929,22 @@ async function runPushReview(
     const checks = client
       ? await knownChecks(client, job.repo, revision, args.after, log)
       : [];
-    const options = reviewOptions(job.repo, 0, (text) => log("info", text));
+    // A client that brought its own key pays: the key is in this process's
+    // memory, tied to the job. A restart loses it, and then the review stops
+    // instead of falling back to the server's key.
+    const reviewRow = getReview(review.id);
+    const byok = reviewRow?.billed_to === "byok";
+    const byokKey = byok ? getByokKey(job.id) : undefined;
+    if (byok && byokKey === undefined) {
+      throw new Error(
+        "byok_key_lost: the key this push was sent with is gone, the server restarted. Run the review again.",
+      );
+    }
+    const options = {
+      ...reviewOptions(job.repo, 0, (text) => log("info", text)),
+      ...(byokKey !== undefined ? { aiToken: byokKey } : {}),
+    };
     const ai = aiFor(options);
-    const costTally = emptyTally();
     let tokensIn = 0;
     let tokensOut = 0;
     const started = performance.now();
@@ -1020,6 +1042,9 @@ async function runPushReview(
       revision: covered.revision,
       guide: { builtAt: response?.guideBuiltAt ?? null },
       codegraph: { state: response?.codegraphState ?? "disabled" },
+      references: {
+        show: readConfig().repos?.[job.repo]?.reviewReferences === true,
+      },
       summary: summaryCounts(report, blockingMode),
       findings: report.map((finding) => toJsonFinding(finding, blockingMode)),
       warnings: covered.warnings,
@@ -1028,7 +1053,7 @@ async function runPushReview(
         tokensIn,
         tokensOut,
         ...costUsage(costTally),
-        billedTo: "server",
+        billedTo: byok ? "byok" : "server",
         tools: response?.tools ?? emptyToolUsage(),
       },
       remote: { jobId: job.id, reviewId: review.id },
@@ -1041,7 +1066,7 @@ async function runPushReview(
       duration_ms: Math.round(performance.now() - started),
       tokens_in: tokensIn,
       tokens_out: tokensOut,
-      billed_to: "server",
+      billed_to: byok ? "byok" : "server",
       ...costColumns(settled),
     });
     deletePushInput(job.id);
@@ -1069,8 +1094,11 @@ async function runPushReview(
     }
     log("info", `push review finished (${report.length} findings)`);
   } finally {
+    dropByokKey(job.id);
     if (!completed) {
-      setReviewStatus(review.id, signal.aborted ? "canceled" : "failed");
+      setReviewStatus(review.id, signal.aborted ? "canceled" : "failed", {
+        ...costColumns(settle(costTally)),
+      });
       if (!signal.aborted) deletePushInput(job.id);
       if (client && checkRunId) {
         await completeCheckRun(
@@ -1220,4 +1248,11 @@ export function registerPushReviewHandlers(): void {
 /** For the sync route: the stored result of a finished push review. */
 export function pushJobStatus(jobId: string): JobRow | undefined {
   return getJob(jobId);
+}
+
+/** Marks a push review as paid with the client's own key, before its job
+ * runs. */
+export function markPushReviewByok(reviewId: string): void {
+  // A new push review row is `queued`, the same status it keeps here.
+  setReviewStatus(reviewId, "queued", { billed_to: "byok" });
 }

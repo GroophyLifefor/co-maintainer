@@ -48,7 +48,7 @@ test("resolveAuthMethods dies when both methods end up off", () => {
 test("resolveAuthMethods rejects an unknown --disable-auth value", () => {
   let threw = false;
   try {
-    resolveAuthMethods(["--disable-auth=github"], {});
+    resolveAuthMethods(["--disable-auth=nope"], {});
   } catch {
     threw = true;
   }

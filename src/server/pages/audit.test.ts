@@ -7,6 +7,11 @@ import { activateRepo } from "../../store/repos.ts";
 import { listAudit } from "../../store/audit.ts";
 import { insertJob, setJobStatus } from "../../store/jobs.ts";
 import { settingChanges } from "../../services/audit.ts";
+import { setEnv } from "../../testing/runtime.ts";
+
+// Saving a key asks its provider. These keys are made up, so the check stays
+// off and no test reaches the network.
+setEnv("CM_FAKE_AI", "1");
 
 test("settings, tokens, repositories, dismissals and sign-ins are written to the log", async () => {
   await withDashboard(async (get, send) => {

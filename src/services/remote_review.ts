@@ -50,7 +50,9 @@ import {
   readConfig,
   remoteByokPolicy,
   remoteClientToolsPolicy,
+  resolveRepoSettings,
   resolvedAiToken,
+  reviewAiProvider,
 } from "../config.ts";
 import {
   dropByokKey,
@@ -145,13 +147,17 @@ function isProviderAuthError(error: unknown): boolean {
   );
 }
 
-function reviewOptionsForRepo(
+export function reviewOptionsForRepo(
   repo: string,
   useCodegraph: boolean,
   aiToken?: string,
   warn?: (message: string) => void,
 ): Options {
   const config = readConfig();
+  const settings = resolveRepoSettings(config, repo);
+  // `ai=none` falls back to OpenRouter here as it does for App reviews, so a
+  // saved key keeps both kinds of review running.
+  const ai = reviewAiProvider(settings.ai.value) as Options["ai"];
   return {
     command: "review",
     repo,
@@ -161,12 +167,12 @@ function reviewOptionsForRepo(
     improveMatrix: 1,
     ghConcurrent: 1,
     aiConcurrent: 3,
-    auth: config.auth ?? "gh",
+    auth: settings.auth.value as Options["auth"],
     githubPat: config.githubPat,
-    ai: config.ai ?? "openrouter",
-    aiToken: aiToken ?? resolvedAiToken(config, config.ai ?? "openrouter"),
-    lowModel: config.lowModel,
-    highModel: config.highModel,
+    ai,
+    aiToken: aiToken ?? resolvedAiToken(config, ai),
+    lowModel: settings.lowModel.value,
+    highModel: settings.highModel.value,
     synthesisVersion: 17,
     includeCodebase: true,
     includePullRequests: true,
@@ -174,7 +180,7 @@ function reviewOptionsForRepo(
     includeCommitHistory: true,
     includeHowRepoWorks: true,
     onlyRequestChangedPr: false,
-    reviewBlocking: reviewBlockingFrom(config.reviewBlocking),
+    reviewBlocking: reviewBlockingFrom(settings.reviewBlocking.value),
     reviewSystemPrompt: config.repos?.[repo]?.reviewSystemPrompt,
     ...serverDiagramOptions(config.repos?.[repo] ?? {}, repo, warn),
   };
@@ -366,7 +372,9 @@ export function submitRemoteReview(
       tokenName: token.name,
       jobId,
       scope: "remote",
-      model: config.highModel ?? "unknown",
+      model:
+        resolveRepoSettings(config, repoRow.full_name).highModel.value ??
+        "unknown",
     });
 
     insertJob({
@@ -428,6 +436,8 @@ export function registerRemoteReviewHandler(): void {
       // instead of silently falling back to the server key.
       const billedTo = input.billed_to === "byok" ? "byok" : "server";
       const byokKey = billedTo === "byok" ? getByokKey(job.id) : undefined;
+      // Outside the try, so a failed or stopped review still records what it spent.
+      const costTally = emptyTally();
       try {
         if (billedTo === "byok" && byokKey === undefined) {
           throw new RemoteReviewError(
@@ -592,7 +602,6 @@ export function registerRemoteReviewHandler(): void {
         const started = performance.now();
         let tokensIn = 0;
         let tokensOut = 0;
-        const costTally = emptyTally();
         const { review: result, extensions } = await withExtensions(
           remoteContext({
             jobId: job.id,
@@ -698,6 +707,11 @@ export function registerRemoteReviewHandler(): void {
           revision: covered.revision,
           guide: { builtAt: result.guideBuiltAt },
           codegraph: { state: result.codegraphState },
+          // The server's repository setting, so a CI runner with no config
+          // shows the references the server would.
+          references: {
+            show: readConfig().repos?.[job.repo]?.reviewReferences === true,
+          },
           summary: joined.summary,
           findings: joined.findings,
           warnings: covered.warnings,
@@ -774,6 +788,7 @@ export function registerRemoteReviewHandler(): void {
           // Reached on failure and on the aborted early return above.
           setReviewStatus(reviewId, signal.aborted ? "aborted" : "failed", {
             billed_to: billedTo,
+            ...costColumns(settle(costTally)),
           });
           deleteRemoteReviewInput(job.id);
           closeRemoteSession(job.id);

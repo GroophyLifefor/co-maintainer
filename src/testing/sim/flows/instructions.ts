@@ -171,7 +171,13 @@ function rulesOnDisk(sim: Sim, repo = HISTORY_REPO): Record<string, RuleEntry> {
   const text = guideFile(sim, "RULES.json", repo);
   if (!text) return {};
   try {
-    return (JSON.parse(text) as { rules: Record<string, RuleEntry> }).rules;
+    // Guide rules (R1 and up) share the file since 0.7.1. This flow is about
+    // the instruction rules, the I ids.
+    const all = (JSON.parse(text) as { rules: Record<string, RuleEntry> })
+      .rules;
+    return Object.fromEntries(
+      Object.entries(all).filter(([id]) => /^I\d/.test(id)),
+    );
   } catch {
     return {};
   }

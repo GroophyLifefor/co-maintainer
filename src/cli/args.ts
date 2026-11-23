@@ -59,13 +59,10 @@ async function ask(
   fallback?: string,
   required = false,
 ): Promise<string> {
-  if (!cliInteractive) {
+  // No terminal to ask in, with or without `--json`: the same default either
+  // way, so the outcome never depends on the output format.
+  if (!cliInteractive || process.stdin.isTTY !== true) {
     if (fallback !== undefined && fallback !== "") return fallback;
-    die(
-      `Missing ${label}. Pass it as a CLI option when running without an interactive terminal`,
-    );
-  }
-  if (process.stdin.isTTY !== true) {
     die(
       `Missing ${label}. Pass it as a CLI option when running without an interactive terminal`,
     );
@@ -231,6 +228,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
         "auth",
         "ai",
         "token",
+        "ai-key",
         "github-pat",
         "low-model",
         "high-model",
@@ -247,6 +245,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
       arg === "--run" ||
       arg === "--json" ||
       arg === "--only-request-changed-pr" ||
+      arg === "--no-only-request-changed-pr" ||
       arg === "--full-guide" ||
       arg === "--experimental-siwc"
     )
@@ -287,7 +286,11 @@ export async function parseArgs(args: string[]): Promise<Options> {
   if (experimentalSiwc && explicitAi) {
     die("--experimental-siwc cannot be combined with --ai");
   }
-  const configuredAiRaw = env("CO_MAINTAINER_AI") ?? repoConfig.ai ?? config.ai;
+  // The last init's values come after the account's, the same order serve
+  // uses (`resolveRepoSettings`).
+  const lastInit = repoConfig.initFallback ?? {};
+  const configuredAiRaw =
+    env("CO_MAINTAINER_AI") ?? repoConfig.ai ?? config.ai ?? lastInit.ai;
   rejectRetiredProvider(configuredAiRaw);
   if (
     configuredAiRaw &&
@@ -299,11 +302,21 @@ export async function parseArgs(args: string[]): Promise<Options> {
   }
   const configuredAi = configuredAiRaw as Options["ai"] | undefined;
   const configuredAuthRaw =
-    env("CO_MAINTAINER_AUTH") ?? repoConfig.auth ?? config.auth;
+    env("CO_MAINTAINER_AUTH") ??
+    repoConfig.auth ??
+    config.auth ??
+    lastInit.auth;
   if (configuredAuthRaw && !["gh", "pat"].includes(configuredAuthRaw)) {
     die("CO_MAINTAINER_AUTH/config.auth must be gh or pat");
   }
-  const configuredAuth = configuredAuthRaw as Options["auth"] | undefined;
+  // A pull request review reads GitHub through gh only. A saved `auth=pat`
+  // is for init, sync and the server, so it is not used here, as the docs
+  // say. An explicit --auth=pat on the command line is still refused.
+  const configuredAuth = (
+    command === "review" && prNumber !== undefined
+      ? undefined
+      : configuredAuthRaw
+  ) as Options["auth"] | undefined;
   const auth = choice("auth", ["gh", "pat"], configuredAuth ?? "gh");
   const githubPat =
     text("github-pat") ??
@@ -345,6 +358,8 @@ export async function parseArgs(args: string[]): Promise<Options> {
   }
   let aiToken =
     text("token") ??
+    // `--ai-key` is the same key under its own name, as `set` takes it.
+    text("ai-key") ??
     env("CO_MAINTAINER_TOKEN") ??
     providerKeyEnv(ai, env) ??
     savedTokenFor(config, ai);
@@ -357,13 +372,15 @@ export async function parseArgs(args: string[]): Promise<Options> {
     openRouterModelEnv("OPENROUTER_LOW_MODEL") ??
     env("LOW_MODEL") ??
     repoConfig.lowModel ??
-    config.lowModel;
+    config.lowModel ??
+    (ai === lastInit.ai ? lastInit.lowModel : undefined);
   let highModel =
     text("high-model") ??
     openRouterModelEnv("OPENROUTER_HIGH_MODEL") ??
     env("HIGH_MODEL") ??
     repoConfig.highModel ??
-    config.highModel;
+    config.highModel ??
+    (ai === lastInit.ai ? lastInit.highModel : undefined);
   if (experimentalSiwc) {
     // No API key: the OAuth credentials cover the run. The models still come
     // from the user, but the account's own list is shown first so the value
@@ -448,9 +465,11 @@ export async function parseArgs(args: string[]): Promise<Options> {
     includePullRequestChanges: enabled("include-pull-request-changes"),
     includeCommitHistory: enabled("include-commit-history"),
     includeHowRepoWorks: enabled("include-how-repo-works"),
-    onlyRequestChangedPr:
-      rest.includes("--only-request-changed-pr") ||
-      repoConfig.onlyRequestChangedPr === true,
+    // `--no-only-request-changed-pr` turns a saved `true` off for this run.
+    onlyRequestChangedPr: rest.includes("--no-only-request-changed-pr")
+      ? false
+      : rest.includes("--only-request-changed-pr") ||
+        repoConfig.onlyRequestChangedPr === true,
     prState: prStateOption(rest, repoConfig.prState),
     maxCommits:
       value("max-commits") ?? repoConfig.maxCommits ?? configDefault.maxCommits,

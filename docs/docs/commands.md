@@ -40,6 +40,7 @@ co-maintainer probe owner/repo [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+| `--env=PATH` |  | Read environment variables from a .env file first. A variable already set wins. |
 
 ## `co-maintainer init`
 
@@ -75,7 +76,8 @@ co-maintainer init owner/repo [options]
 | Flag | Default | Description |
 |---|---|---|
 | `--pr-state=open,closed,merged` |  | Which pull request states to read. |
-| `--only-request-changed-pr` |  | Read only the pull requests with at least one CHANGES_REQUESTED review. |
+| `--only-request-changed-pr` |  | Read only the pull requests with at least one CHANGES_REQUESTED review. Saved for the repository. |
+| `--no-only-request-changed-pr` |  | Read every pull request again, turning a saved --only-request-changed-pr off. |
 
 ### AI
 
@@ -107,6 +109,7 @@ co-maintainer init owner/repo [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+| `--env=PATH` |  | Read environment variables from a .env file first. A variable already set wins. |
 
 ### Performance
 
@@ -114,7 +117,6 @@ co-maintainer init owner/repo [options]
 |---|---|---|
 | `--gh-concurrent=N` | 1 | Concurrent GitHub calls for this run only. It does not change the saved default. |
 | `--ai-concurrent=N` | 3 | Concurrent AI calls for this run only. It does not change the saved default. |
-| `--improve-matrix=N` | 1 | How many improvement passes to run. Capped at 4, and each pass costs more. |
 
 ## `co-maintainer sync`
 
@@ -145,6 +147,14 @@ co-maintainer sync owner/repo [options]
 | `--max-pull-request-change-lines=N` |  | Cap the diff size read. |
 | `--max-comment=N` |  | Cap the comments read per pull request. |
 
+### Pull request filter
+
+| Flag | Default | Description |
+|---|---|---|
+| `--pr-state=open,closed,merged` |  | Which pull request states to read. |
+| `--only-request-changed-pr` |  | Read only the pull requests with at least one CHANGES_REQUESTED review. Saved for the repository. |
+| `--no-only-request-changed-pr` |  | Read every pull request again, turning a saved --only-request-changed-pr off. |
+
 ### AI
 
 | Flag | Default | Description |
@@ -175,6 +185,7 @@ co-maintainer sync owner/repo [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+| `--env=PATH` |  | Read environment variables from a .env file first. A variable already set wins. |
 
 ### Performance
 
@@ -232,7 +243,7 @@ co-maintainer review [options]
 | `--system-prompt-file=PATH` |  | Append this file's contents to the review instructions for this run only. |
 | `--system-prompt-override-file=PATH` |  | Replace the repository's review instructions with this file for this run only. The built-in instructions are kept. |
 | `--range=BEFORE..AFTER` |  | With --remote: review a push (commit watch). The server keeps the review going if this run stops waiting. |
-| `--timeout-minutes=N` |  | With --range: stop waiting after N minutes and leave the result to the dashboard. Default 10. |
+| `--timeout-minutes=N` |  | With --range: stop waiting after N minutes and leave the result to the dashboard, default 10. With --remote on a pull request: fail with exit code 3 after N minutes, no limit by default. |
 
 ### Intent
 
@@ -254,11 +265,18 @@ co-maintainer review [options]
 | `--plantuml-server=URL` | https://www.plantuml.com | The PlantUML server for plantuml-server. An http or https URL. The diagram source travels in the image link. |
 | `--plantuml-output-format=svg\|png` | svg | The image format for plantuml-server. |
 
+### Depth
+
+| Flag | Default | Description |
+|---|---|---|
+| `--improve-matrix=N` | 1 | How many passes the review model makes over its own findings. Capped at 4, and each pass costs more. |
+| `--review-upstream` |  | On a pull request, review the code merged in from the base branch too, not only what the author wrote. |
+
 ### AI
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. `none` turns AI off. |
+| `--ai=openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` |  | Which provider writes the review. With no provider saved, OpenRouter. A review cannot run without one. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
@@ -284,6 +302,7 @@ co-maintainer review [options]
 | `--json` |  | Print machine-readable JSON instead of prose. |
 | `--debug` |  | Print the underlying gh and HTTP calls. |
 | `--log-time` |  | Print how long each phase took. |
+| `--env=PATH` |  | Read environment variables from a .env file first. A variable already set wins. |
 | `--output=github` |  | Print GitHub workflow annotations and write the job summary instead of prose. Cannot be used with --json. |
 | `--include-extension-markdowns` |  | With --json, keep each extension's markdown. It is empty otherwise. |
 
@@ -421,6 +440,7 @@ co-maintainer set [options]
 | `--repo=owner/repo` |  | Write the repository-scoped settings below to this repository instead of the global config. |
 | `--gh-concurrent=N` |  | Server default for concurrent GitHub calls. With --repo, the repository override. 1..16. |
 | `--ai-concurrent=N` |  | Server default for concurrent AI calls. With --repo, the repository override. 1..16. |
+| `--review-references=on\|off` |  | Show the rules each finding rests on in review comments and the terminal. Needs --repo. |
 | `--review-system-prompt=TEXT` |  | A repository's own review instructions. Needs --repo. Empty clears it. |
 | `--review-system-prompt-max-chars=N` |  | Cap the repository's review instructions in characters. Needs --repo. 0 or -1 means no limit. |
 | `--diagram-runtime=mermaid\|plantuml\|plantuml-server` | mermaid | The diagram language for a repository's reviews, including App reviews. Needs --repo. |
@@ -430,18 +450,26 @@ co-maintainer set [options]
 | `--review-tool-result-max-chars=N` | 8000 | The most characters one review tool result returns before it is cut. Codegraph and read-full-diff are not cut by it. Needs --repo. 0 or -1 means no limit. |
 | `--review-tool-budget-chars=N` | 40000 | Tool result characters per review. Once they are spent, later tool calls get no answer. Codegraph is not counted. Needs --repo. 0 or -1 means no limit. |
 | `--review-search-max-context-lines=N` | 3 | The most lines search-non-code returns around a match. Needs --repo. 0 or -1 means no limit. |
+| `--review-diff-max-chars=N` | 240000 | The DIFF section of a review prompt, in characters. Raise it for a model with a large context. Needs --repo. 0 or -1 means no limit. |
+| `--review-file-patch-max-chars=N` | 12000 | Where one file's patch is cut and marked partial. Needs --repo. 0 or -1 means no limit. |
 | `--mcp-config=PATH` |  | Read the repository's MCP servers from this JSON file and store them. Reviews offer their listed read-only tools to the model. Needs --repo. Refused when CM_MCP_DISABLED=1. |
 | `--mcp-allow-forks=true\|false` | false | Offer MCP tools in serve reviews of pull requests from forks. Needs --repo. |
 | `--guide-full-every=N` | 10 | Every N-th sync whose input changed rewrites the review guide in full, the others edit it. 1 always rewrites, 0 never after init. Needs --repo. |
 | `--companions=owner/repo,...` |  | Repositories whose pull requests a review of this one may read as companions, up to 5. A Companion: owner/repo#N line in the pull request body names one, otherwise an open pull request with the same branch name is used. Needs --repo. |
-| `--review-blocking=model\|severity` | model | How a review decides a blocking finding. |
+| `--review-blocking=model\|severity` | model | How a review decides a blocking finding. With --repo, for that repository. |
+| `--review-event=auto\|comment` | auto | How the App posts a review: approve or request changes, or comment only. With --repo, for that repository. |
 | `--ai-timeout-minutes=N` | 15 | How long one AI request may wait for the provider before it fails, in minutes. |
 | `--global-reasoning-effort=none\|low\|default\|high\|xhigh\|max` | high | How much the model reasons in every AI job. default sends no reasoning field and leaves it to the provider. |
 | `--codegraph-version=SEMVER` |  | The pinned codegraph version, overriding the built-in one. For a security fix without a release. |
 | `--password=TEXT` |  | Replace the dashboard password. |
 | `--extension-rerun-on-restart=true\|false` | true | Run an extension again when co-maintainer restarted while it ran. A registration's --rerun-on-restart wins. |
-| `--disable-auth=password` |  | Turn the dashboard password off. |
-| `--enable-auth=github` |  | Turn GitHub sign-in on. |
+| `--disable-auth=password\|github` |  | Turn a sign-in method off. Refused when it would leave no way in. |
+| `--enable-auth=password\|github` |  | Turn a sign-in method on. A running serve picks it up on the next request. |
+| `--webhook-url=URL` |  | The public webhook address GitHub posts to. --webhook-url on serve and CM_WEBHOOK_URL win over it. |
+| `--max-concurrent-jobs=N` |  | How many server jobs run at once. |
+| `--remote-sync-timeout-seconds=N` |  | How long a remote review waits for one sync. |
+| `--max-concurrent-remote-reviews-per-token=N` |  | Remote reviews one token may run at once. |
+| `--remote-tool-output-max-chars=N` |  | The longest client tool result a remote review keeps. |
 | `--no-verify` |  | Do not check the key and model against the provider. |
 | `--unset=NAME` |  | Remove a stored value. |
 
@@ -459,9 +487,9 @@ co-maintainer serve --port=N [options]
 |---|---|---|
 | `--port=N` |  | The port to listen on. Required. |
 | `--webhook-url=URL` |  | The public webhook URL. Defaults to localhost. |
-| `--password=TEXT` |  | Set the dashboard password on first start. |
-| `--disable-auth=password` |  | Turn the dashboard password off. |
-| `--enable-auth=github` |  | Turn GitHub sign-in on. |
+| `--password=TEXT` |  | Replace the dashboard password on every start, which signs out every session. Leave it out of a service file and change the password in Settings instead. |
+| `--disable-auth=password\|github` |  | Force a sign-in method off for this run, whatever Settings says. |
+| `--enable-auth=password\|github` |  | Force a sign-in method on for this run, whatever Settings says. |
 | `--trust-proxy` |  | Trust x-forwarded-for and x-forwarded-proto. |
 | `--inject-500` |  | Return 500 for mutating requests. Debugging only. |
 
@@ -469,8 +497,7 @@ co-maintainer serve --port=N [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--debug` |  | Print the underlying gh and HTTP calls. |
-| `--log-time` |  | Print how long each phase took. |
+| `--debug` |  | Turn on the /__ui component gallery. CM_DEBUG=1 does the same. |
 
 ## `co-maintainer extension`
 

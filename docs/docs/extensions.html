@@ -175,6 +175,11 @@ none.</p>
 <td>Overrides the <code>extension-rerun-on-restart</code> config key</td>
 </tr>
 </tbody></table>
+<p>The dashboard manages them too, under <strong>Settings</strong>, <strong>Extensions</strong>: the list,
+<strong>Register</strong>, <strong>Enable</strong> or <strong>Disable</strong>, and <strong>Remove</strong>. It runs the same
+checks as the CLI, so a value one side refuses the other refuses too. A
+run-after name nobody registered is saved there without asking, as <code>--yes</code>
+does.</p>
 <p><code>update</code> takes the same flags and changes only the ones given. <code>remove</code>,
 <code>disable</code> and <code>enable</code> take <code>--name</code>. Registrations live in <code>config.json</code> as an
 <code>extensions</code> array, and the array order is the registration order.</p>

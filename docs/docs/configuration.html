@@ -97,7 +97,11 @@ Generated guides sit under <code>repos/</code> in the same tree. Full paths:
 <p><a href="serve.html"><code>serve</code></a> reads the same <code>config.json</code> for the GitHub App, webhook
 URL, dashboard auth defaults, and CLI remote-review targets.</p>
 <h2 id="precedence">Precedence</h2>
-<p>For CLI commands (<code>probe</code>, <code>init</code>, <code>sync</code>, <code>review</code>):</p>
+<p>For CLI commands (<code>probe</code>, <code>init</code>, <code>sync</code>, <code>review</code>). <code>serve</code> and the
+dashboard use the same order without the flags and the prompt: App, remote and
+push reviews and server syncs read the same environment variables, then the
+repository&#39;s values, then the global ones. A dashboard field that an
+environment variable or a <code>serve</code> flag sets is shown locked, with that name.</p>
 <figure class="mermaid-figure">
 <div class="mermaid-viewport"><div class="mermaid">flowchart BT
   flags["Command-line flags"]
@@ -358,6 +362,21 @@ provider, so both models are saved the first time. See
 <td>Most context lines <code>search-non-code</code> returns around a match. Needs <code>--repo</code>. <code>0</code> or <code>-1</code> means no limit. Default <code>3</code></td>
 </tr>
 <tr>
+<td><code>--review-diff-max-chars=N</code></td>
+<td><code>repos[owner/repo].reviewDiffMaxChars</code></td>
+<td>Most characters of the DIFF section a review prompt carries. Raise it for a model with a large context. Needs <code>--repo</code>. <code>0</code> or <code>-1</code> means no limit. Default <code>240000</code></td>
+</tr>
+<tr>
+<td><code>--review-file-patch-max-chars=N</code></td>
+<td><code>repos[owner/repo].reviewFilePatchMaxChars</code></td>
+<td>Where one file&#39;s patch is cut and marked partial. Needs <code>--repo</code>. <code>0</code> or <code>-1</code> means no limit. Default <code>12000</code></td>
+</tr>
+<tr>
+<td><code>--review-event=auto|comment</code></td>
+<td><code>reviewEvent</code>, <code>repos[owner/repo].reviewEvent</code></td>
+<td>How the App posts a review, see <a href="review-policy.html#comment-only">Comment only</a>. With <code>--repo</code>, for that repository. Default <code>auto</code></td>
+</tr>
+<tr>
 <td><code>--mcp-config=PATH</code></td>
 <td><code>repos[owner/repo].mcpServers</code></td>
 <td>Reads the repository&#39;s <a href="#mcp-servers">MCP servers</a> from a JSON file and stores them. Needs <code>--repo</code>. Refused when <code>CM_MCP_DISABLED=1</code></td>
@@ -410,7 +429,16 @@ short form of <code>config set</code>, and its output and flags are unchanged.</
 <span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">path</span> <span class="sh-flag">--all</span>            <span class="sh-comment"># config, repos, and cache directories</span>
 </code></pre>
 <p><code>list</code> prints where each value came from: <code>env</code> (an environment variable
-overrides the file at run time), <code>file</code>, or nothing for an unset key. Secrets
+overrides the file at run time), <code>repo</code>, <code>file</code>, <code>init</code> (the init fallback),
+or <code>default</code>. An unset key is
+left out. Both show the value a run would really use, through the same order
+the run follows: <code>get token</code> prints the key the configured provider reads, not
+any key variable that happens to be set. Add <code>--repo=owner/repo</code> to include
+that repository&#39;s own values:</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">get</span> <span class="sh-arg">high-model</span> <span class="sh-flag">--repo=owner/repo</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">config</span> <span class="sh-arg">list</span> <span class="sh-flag">--repo=owner/repo</span>
+</code></pre>
+<p> Secrets
 are masked: twelve characters or more keep their last four, shorter ones show
 only <code>••••</code>, and the dashboard password reports <code>set</code> or <code>not set</code> rather than
 its hash. <code>get</code> prints the real value, so treat its output as a secret.</p>
@@ -492,7 +520,7 @@ hides the value.</p>
 <tr>
 <td><code>webhook-url</code></td>
 <td>URL string</td>
-<td>Settings, Server</td>
+<td><code>--webhook-url</code>, Settings, GitHub</td>
 <td>no</td>
 </tr>
 <tr>
@@ -540,7 +568,7 @@ hides the value.</p>
 <tr>
 <td><code>max-concurrent-jobs</code></td>
 <td>number</td>
-<td>Settings, or the field directly</td>
+<td><code>--max-concurrent-jobs</code>, Settings</td>
 <td>no</td>
 </tr>
 <tr>
@@ -600,26 +628,32 @@ hides the value.</p>
 <tr>
 <td><code>remote-sync-timeout-seconds</code></td>
 <td>number</td>
-<td>Settings</td>
+<td><code>--remote-sync-timeout-seconds</code>, Settings</td>
 <td>no</td>
 </tr>
 <tr>
 <td><code>max-concurrent-remote-reviews-per-token</code></td>
 <td>number</td>
-<td>Settings</td>
+<td><code>--max-concurrent-remote-reviews-per-token</code>, Settings</td>
 <td>no</td>
 </tr>
 <tr>
 <td><code>remote-tool-output-max-chars</code></td>
 <td>number</td>
-<td>Settings</td>
+<td><code>--remote-tool-output-max-chars</code>, Settings</td>
 <td>no</td>
 </tr>
 <tr>
 <td><code>remote-notice-shown-for</code></td>
 <td>list of hosts</td>
-<td>Written by <code>review --remote</code></td>
+<td>Written by <code>review --remote</code>, cannot be set</td>
 <td>no</td>
+</tr>
+<tr>
+<td><code>cleared-settings</code></td>
+<td>object</td>
+<td>Values cleared in Settings or with <code>--unset</code>, kept and never used</td>
+<td>not listed</td>
 </tr>
 <tr>
 <td><code>repos</code></td>
@@ -663,16 +697,20 @@ is allowed again. Match <code>--unset=</code> to the field name or the flag name
 </tr>
 </thead>
 <tbody><tr>
-<td><code>auth</code>, <code>ai</code>, models</td>
-<td>API token</td>
-</tr>
-<tr>
 <td><code>max-*</code> limits</td>
-<td>GitHub PAT (global only)</td>
+<td>API token</td>
 </tr>
 <tr>
 <td><code>include-*</code> flags</td>
 <td></td>
+</tr>
+<tr>
+<td><code>auth</code>, <code>ai</code>, models, as the init fallback (see below)</td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+<td>GitHub PAT (global only)</td>
 </tr>
 <tr>
 <td><code>only-request-changed-pr</code>, <code>pr-state</code></td>
@@ -705,9 +743,31 @@ is allowed again. Match <code>--unset=</code> to the field name or the flag name
 </tbody></table>
 <p>A plain <code>co-maintainer sync owner/repo</code> reuses those values. Pass new flags
 on <code>sync</code> or run <code>init</code> again to change includes, limits, or pull request
-filters permanently. <code>--only-request-changed-pr</code> stays on once saved. To
+filters permanently. <code>--only-request-changed-pr</code> stays on once saved, and
+<code>--no-only-request-changed-pr</code> turns it off again. To
 collect every pull request state again, pass <code>--pr-state=open,closed,merged</code>.
-<a href="caching.html#clearing"><code>clear owner/repo</code></a> deletes this entry, so the repository
+<code>init</code> and <code>sync</code> keep the provider, the models and <code>auth</code> they ran with as
+the repository&#39;s <strong>init fallback</strong>, not as its own values. A repository uses,
+in this order: the environment, its own value, the account&#39;s value, then the
+init fallback. So a later account change reaches every repository, and a
+repository set up with flags alone keeps working without them while the
+account has no value. The fallback&#39;s models are used only with the fallback&#39;s
+provider. To give one repository values that win over the account, set them
+with <code>set --repo</code> or on the repository <strong>Settings</strong> page, under <strong>AI for this
+repository</strong>:</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--high-model=anthropic/claude-sonnet-5.5</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--repo=owner/repo</span> <span class="sh-flag">--unset=high-model</span>   <span class="sh-comment"># back to the account</span>
+</code></pre>
+<p>A provider, models or <code>auth</code> that a release before 0.7.20 saved for a
+repository were copies of an init. They are moved to the init fallback the
+first time 0.7.20 reads <code>config.json</code>, so they no longer outrank the account.
+<code>config get --repo</code> and the repository page show <code>init</code> as the source of a
+value that comes from the fallback.</p>
+<p><code>set --repo</code> also takes <code>--ai</code>, <code>--low-model</code>, <code>--auth</code>, <code>--review-blocking</code>,
+<code>--review-exclude</code> (a pattern of changed files every review leaves out: pull
+request, local, remote and push) and <code>--only-request-changed-pr=true|false</code>. Every review
+and every sync of the repository uses them: CLI, App, remote and push.</p>
+<p><a href="caching.html#clearing"><code>clear owner/repo</code></a> deletes this entry, so the repository
 goes back to &quot;never inited&quot; and the next build is an <code>init</code>. The two
 <code>agent-instructions</code> values are saved the same way, see
 <a href="init.html#agent-instruction-files">Agent instruction files</a>.</p>
@@ -952,6 +1012,14 @@ GitHub.</p>
 <tr>
 <td><code>CM_REPOS_DIR</code></td>
 <td>Replace generated guides root (must match <code>serve</code> for server init)</td>
+</tr>
+<tr>
+<td><code>CO_MAINTAINER_AI</code></td>
+<td>The AI provider, the same as <code>--ai</code>, for the CLI and <code>serve</code></td>
+</tr>
+<tr>
+<td><code>CM_DEBUG</code></td>
+<td>On <code>serve</code>, <code>1</code> does what <code>--debug</code> does: the <code>/__ui</code> component gallery</td>
 </tr>
 </tbody></table>
 <p>More cache and database paths: <a href="caching.html#overrides">Caching</a>.</p>
