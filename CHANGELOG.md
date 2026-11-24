@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Secrets in code no longer reach the model.** Known secret shapes in every AI request are masked before it is sent: the diff, files a tool read, the pull request body, and the history and files `init` and `sync` read. GitHub, GitLab, npm, Slack, Stripe, Google, AWS, OpenAI, Anthropic and OpenRouter keys, private keys, passwords in URLs and JWT signatures become `[redacted:<kind>]`. Lines are kept, so line numbers stay true. A review that masked something says so with a `secrets_masked` warning, and a suggestion that holds a mask is not posted as an applicable suggestion. `set --mask-secrets=false` turns it off.
+- **e2e:simulate has a `secret-masking` flow.** Secrets in a README, a diff, a private key and a pull request body are on GitHub and in no AI request, and with masking off they are sent.
+
 ## [0.7.23] - 2026-11-24
 
 ### Fixed

@@ -169,6 +169,7 @@
   <section class="part">
     <h2>What a review sends to the model</h2>
     <p>The diff, the review guides, the codebase conventions, the pull request title and body, and any existing review comments. Codegraph results are added as text when a tool is used. It never contains your API keys, your <code>config.json</code> or your GitHub credentials.</p>
+    <p>Known secret shapes in that text are masked before it is sent, in every mode and in what <code>init</code> and <code>sync</code> read: GitHub, GitLab, npm, Slack, Stripe, Google, AWS, OpenAI, Anthropic and OpenRouter keys, private keys, passwords in URLs and JWT signatures. The model sees <code>[redacted:github-token]</code> and the like instead, and the review says how many were masked. A secret in a shape not on this list is sent as is. <code>co-maintainer set --mask-secrets=false</code> turns masking off.</p>
   </section>
 
   <section class="part">
