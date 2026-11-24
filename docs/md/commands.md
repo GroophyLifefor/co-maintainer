@@ -459,6 +459,7 @@ co-maintainer set [options]
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. With --repo, for that repository. |
 | `--review-event=auto\|comment` | auto | How the App posts a review: approve or request changes, or comment only. With --repo, for that repository. |
 | `--ai-timeout-minutes=N` | 15 | How long one AI request may wait for the provider before it fails, in minutes. |
+| `--mask-secrets=true\|false` | true | Mask known secret shapes, such as API keys, tokens and private keys, before any request reaches the model. |
 | `--global-reasoning-effort=none\|low\|default\|high\|xhigh\|max` | high | How much the model reasons in every AI job. default sends no reasoning field and leaves it to the provider. |
 | `--codegraph-version=SEMVER` |  | The pinned codegraph version, overriding the built-in one. For a security fix without a release. |
 | `--password=TEXT` |  | Replace the dashboard password. |

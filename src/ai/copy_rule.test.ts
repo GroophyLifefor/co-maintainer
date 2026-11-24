@@ -154,5 +154,7 @@ test("the judge and the factory wrap what they build", () => {
   const judge = readFileSync(join(root, "benchmark/core_v2/judge.ts"), "utf8");
   assert.ok(/withCopyRule\(new OpenRouterProvider\(/.test(judge));
   const factory = readFileSync(join(root, "src/ai/provider.ts"), "utf8");
-  assert.ok(/return withCopyRule\(createRawProvider\(/.test(factory));
+  assert.ok(
+    /return withCopyRule\(withSecretMask\(createRawProvider\(/.test(factory),
+  );
 });

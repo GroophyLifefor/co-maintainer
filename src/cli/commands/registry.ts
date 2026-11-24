@@ -1163,6 +1163,13 @@ export const COMMANDS: CommandSpec[] = [
               "How long one AI request may wait for the provider before it fails, in minutes.",
           },
           {
+            name: "mask-secrets",
+            value: "true|false",
+            default: "true",
+            description:
+              "Mask known secret shapes, such as API keys, tokens and private keys, before any request reaches the model.",
+          },
+          {
             name: "global-reasoning-effort",
             value: "none|low|default|high|xhigh|max",
             default: "high",

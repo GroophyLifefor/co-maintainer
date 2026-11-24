@@ -7,6 +7,9 @@ import {
   writeTextFile,
 } from "../testing/runtime.ts";
 import { test } from "node:test";
+import { isolateTestFile } from "../testing/locations.ts";
+
+isolateTestFile();
 
 test("FakeAiProvider reads CM_FAKE_REVIEW_FILE", async () => {
   const path = `${tempDirSync()}/custom.md`;

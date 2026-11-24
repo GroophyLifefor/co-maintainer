@@ -236,6 +236,7 @@ export const KNOWN_FIELDS = [
   "dashboardPasswordHash",
   "maxConcurrentJobs",
   "aiTimeoutMinutes",
+  "maskSecrets",
   "globalReasoningEffort",
   "reviewBlocking",
   "codegraphVersion",
