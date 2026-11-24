@@ -439,14 +439,25 @@ test("reconcile after a crash between posting and posted does not post again", a
     setReviewStatus(review.id, "posting");
     github.listedReviews = [
       {
+        id: 41,
+        commit_id: "head1",
+        user: { type: "Bot", login: "other-ci[bot]" },
+        body: "Lint passed.",
+      },
+      {
         id: 42,
         commit_id: "head1",
         user: { type: "Bot" },
+        body: "Review\n\n- Activity: job-rev\n",
       },
     ];
     const writesBefore = github.writes.length;
     await reconcileReview(job, () => {}, github);
-    if (github.writes.length !== writesBefore) {
+    // Only the check run is completed. No review and no comment is posted.
+    const posts = github.writes
+      .slice(writesBefore)
+      .filter((write) => !write.endpoint.includes("check-runs"));
+    if (posts.length !== 0) {
       throw new Error("reconcile posted again");
     }
     if (getReviewByJobId("job-rev")?.posted_review_id !== "42") {

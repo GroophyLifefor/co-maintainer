@@ -1026,11 +1026,14 @@ export async function reconcileReview(
   const listed = await client.pages<Json>(
     `repos/${job.repo}/pulls/${job.pr_number}/reviews`,
   );
+  // Our review names its job in the metadata. Another bot's review of the
+  // same commit is not ours.
   const match = listed.find((item) => {
     const user = item.user as Json | undefined;
     return (
       String(item.commit_id ?? "") === review.head_sha &&
-      String(user?.type ?? "") === "Bot"
+      String(user?.type ?? "") === "Bot" &&
+      String(item.body ?? "").includes(`- Activity: ${job.id}`)
     );
   });
   const findings = listFindingsForReview(review.id);
