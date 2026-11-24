@@ -125,8 +125,9 @@ with no server:
 
 Anyone with write access to the repository can dismiss a review, unless branch
 protection limits dismissals to listed people or teams. The dismissal and its
-message stay on the pull request. When the server is back, the next commit is
-reviewed as usual.
+message stay on the pull request. When the server is back, it also catches up
+on its own: a pull request pushed to while it was down gets a review of the new
+commit, see [`serve`: Updating](serve.md#updating).
 
 A check run the App left in progress or failed is not cleared by a dismissal.
 Where that check is required, wait for the server, or have someone allowed to
