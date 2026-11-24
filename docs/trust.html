@@ -138,7 +138,7 @@
   <section class="part">
     <h2>Known gaps</h2>
     <ul class="points">
-      <li><b>Secrets in code reach the model today.</b> If a secret is in content sent for review, it goes to your provider with the rest. Redaction before the model call is in progress.</li>
+      <li><b>Only known secret shapes are masked.</b> Since 0.7.24, API keys, tokens, private keys, passwords in URLs and JWT signatures are masked before content reaches your provider (see the <a href="privacy.html">privacy page</a> for the list). A secret in another shape is sent with the rest.</li>
       <li><b>No built-in data export beyond the usage CSV, and no erasure tool yet.</b> Today you remove data by deleting <code>app.db</code>, the config folder and the cloned repositories. This does not remove what your AI provider or GitHub already hold.</li>
       <li><b>No SOC 2 or similar certification.</b></li>
     </ul>
