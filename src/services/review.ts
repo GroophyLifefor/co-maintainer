@@ -6,7 +6,11 @@ import { VERSION } from "../version.ts";
 import { createAiProvider } from "../ai/provider.ts";
 import { FakeAiProvider } from "../ai/fake.ts";
 import { AppClient, findInstallationForRepo } from "../github/app.ts";
-import { GitHubHttpError, isAccessDenied } from "../github/client.ts";
+import {
+  GitHubHttpError,
+  isAccessDenied,
+  isRateLimited,
+} from "../github/client.ts";
 import { type ParsedFinding, parseFindings } from "../pr/findings.ts";
 import { type Anchor, anchorFor } from "../pr/hunks.ts";
 import {
@@ -989,7 +993,7 @@ async function publish(
       });
       return;
     }
-    if (isAccessDenied(error)) {
+    if (isAccessDenied(error) || isRateLimited(error)) {
       // The AI result and its cost are already stored. Only the post failed,
       // so this is not an AI failure and nothing claims the review was posted.
       setReviewStatus(reviewId, "not_posted");
@@ -1236,6 +1240,7 @@ async function runReviewJobCore(
         if (
           isAccessDenied(error) ||
           (error instanceof GitHubHttpError &&
+            !error.rateLimited &&
             (error.status === 403 || error.status === 404))
         ) {
           log("info", "incremental compare unavailable, reviewing whole PR");

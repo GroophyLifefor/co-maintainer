@@ -10,12 +10,37 @@ import { interrupted } from "../util/interrupt.ts";
 
 export class GitHubHttpError extends Error {
   readonly status: number;
+  /** GitHub refused the call for its rate limit, not for access. */
+  readonly rateLimited: boolean;
 
-  constructor(status: number, body: string, hint?: string) {
+  constructor(
+    status: number,
+    body: string,
+    hint?: string,
+    rateLimited = false,
+  ) {
     super(`GitHub API ${status}: ${body}${hint ? ` ${hint}` : ""}`);
     this.status = status;
+    this.rateLimited = rateLimited;
     this.name = "GitHubHttpError";
   }
+}
+
+/** A 403 or 429 GitHub sends for a rate limit: it carries `retry-after`,
+ * a primary limit at zero, or a body that says so. A rate limit that outlived
+ * the retries must not read as missing access. */
+export function isRateLimitResponse(
+  status: number,
+  headers: Headers,
+  body: string,
+) {
+  if (status === 429) return true;
+  if (status !== 403) return false;
+  return (
+    headers.get("retry-after") !== null ||
+    headers.get("x-ratelimit-remaining") === "0" ||
+    /rate limit/i.test(body)
+  );
 }
 
 /** A failed response as an error. A 403 or 404 names the endpoint and the
@@ -27,20 +52,31 @@ export async function httpError(
   who: "token" | "App",
 ): Promise<GitHubHttpError> {
   const body = await response.text();
-  const hint =
-    response.status === 403
+  const rateLimited = isRateLimitResponse(
+    response.status,
+    response.headers,
+    body,
+  );
+  const hint = rateLimited
+    ? "GitHub rate limited this call. It is temporary, try again later."
+    : response.status === 403
       ? refusalHint(method, endpoint, who)
       : response.status === 404
         ? missingHint(method, endpoint, who)
         : undefined;
-  return new GitHubHttpError(response.status, body, hint);
+  return new GitHubHttpError(response.status, body, hint, rateLimited);
 }
 
 export function isAccessDenied(error: unknown): boolean {
   return (
     error instanceof GitHubHttpError &&
+    !error.rateLimited &&
     (error.status === 403 || error.status === 404)
   );
+}
+
+export function isRateLimited(error: unknown): boolean {
+  return error instanceof GitHubHttpError && error.rateLimited;
 }
 
 type RateLimit = { remaining: number; resetAt: Date };
@@ -80,6 +116,21 @@ function resetLabel(resetAt: Date): string {
   return Number.isFinite(resetAt.getTime()) ? resetAt.toISOString() : "unknown";
 }
 
+/** How a rate limit wait sleeps. The simulate harness records the wait
+ * and returns at once. */
+const realRateLimitSleep = (ms: number) =>
+  new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+let rateLimitSleep = realRateLimitSleep;
+
+/** Test seam: replace the rate limit sleep. Unset puts the real one back. */
+export function setRateLimitSleepForTest(
+  fn?: (ms: number) => Promise<void>,
+): void {
+  rateLimitSleep = fn ?? realRateLimitSleep;
+}
+
 // ponytail: one process-wide sleep. A search limit (minutes) and a core
 // limit (an hour) exhausted together wait out the longer one.
 let rateLimitGate: Promise<void> | undefined;
@@ -90,9 +141,7 @@ function pauseForReset(resetAt: Date, delay: number): Promise<void> {
     "github",
     `rate limit, next probe in ${Math.ceil(delay / 60_000)}m (reset ${resetLabel(resetAt)})`,
   );
-  const pending = new Promise<void>((resolve) => {
-    setTimeout(resolve, delay);
-  });
+  const pending = rateLimitSleep(delay);
   rateLimitGate = pending.finally(() => {
     rateLimitGate = undefined;
   });
@@ -221,7 +270,9 @@ export async function githubFetch(
           "github",
           `secondary rate limit, waiting ${retryAfter}s (attempt ${attempt} of 3)`,
         );
-        await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
+        await rateLimitSleep(retryAfter * 1000);
+        // A Stop during the wait sends no retry.
+        if (interrupted()) return response;
         continue;
       }
       const limit = rateLimit(response.headers);
@@ -246,6 +297,7 @@ export async function githubFetch(
     });
     spun = false;
     await waitForRateLimit(exhausted.resetAt, started);
+    if (interrupted()) return response!;
   }
 }
 
