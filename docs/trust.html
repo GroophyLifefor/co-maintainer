@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Where co-maintainer sends data, what it keeps on your server, and what is still missing.">
+<title>co-maintainer · trust</title>
+<link rel="icon" href="assets/logo.png" type="image/png">
+<link rel="canonical" href="https://co-maintainer.com/trust.html">
+<!-- Hand written, like index.html. The docs build does not touch this page. -->
+<style>
+  @font-face { font-family: "Outfit"; src: url("assets/fonts/outfit-latin.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+  @font-face { font-family: "JetBrains Mono"; src: url("assets/fonts/jetbrains-mono-latin.woff2") format("woff2"); font-weight: 100 800; font-display: swap; }
+
+  /* Tokens and header/footer: same as index.html */
+  :root {
+    --paper: #f3efe6;
+    --card: #ffffff;
+    --ink: #101215;
+    --ink-2: #4f5560;
+    --blue: #0969da;
+    --blue-deep: #063e86;
+    --sky: #d6e6fb;
+    --rule: rgba(16, 18, 21, .16);
+    --sans: "Outfit", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+    --w: 880px;
+    --gut: 24px;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--paper); }
+  body { margin: 0; color: var(--ink); font: 400 18px/1.6 var(--sans); }
+  a { color: var(--blue); text-decoration: none; background: linear-gradient(currentColor, currentColor) left bottom / 0% 1.5px no-repeat; padding-bottom: 1px; transition: background-size .25s ease; }
+  a:hover, a:focus-visible { background-size: 100% 1.5px; }
+  code { font: 14px var(--mono); background: var(--card); border: 1px solid var(--rule); padding: 1px 5px; }
+  .w { max-width: calc(var(--w) + 2 * var(--gut)); margin: 0 auto; padding: 0 var(--gut); }
+  .wide { max-width: calc(1160px + 2 * var(--gut)); }
+  .label { font: 500 12px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); }
+
+  .top { --rule-c: transparent; display: flex; align-items: center; gap: 12px; height: 76px; position: sticky; top: 0; z-index: 20; border-image: linear-gradient(to bottom, var(--paper) calc(100% - 2px), var(--rule-c) 0) fill 0 / 0 / 0 100vmax 2px; }
+  .top.scrolled { --rule-c: var(--ink); }
+  .top .home { display: flex; align-items: center; gap: 12px; color: var(--ink); background: none; }
+  .top b { font: 600 19px var(--sans); }
+  .top nav { margin-left: auto; display: flex; align-items: center; gap: 28px; font-size: 16px; }
+  .top nav a { color: var(--ink); }
+  .top nav a.gh { border: 2px solid var(--ink); padding: 6px 12px; font-weight: 500; background: linear-gradient(var(--ink), var(--ink)) left / 0% 100% no-repeat; transition: background-size .25s ease, color .25s ease; }
+  .top nav a.gh:hover, .top nav a.gh:focus-visible { background-size: 100% 100%; color: var(--paper); }
+  .bird { color: var(--ink); display: block; }
+
+  .head { padding: 72px 0 40px; }
+  h1 { font: 800 clamp(40px, 6vw, 68px)/1 var(--sans); letter-spacing: -.04em; margin: 14px 0 20px; }
+  h1 span { color: var(--blue); }
+  .lede { color: var(--ink-2); font-size: 20px; margin: 0; max-width: 36em; }
+  .updated { margin-top: 16px; font: 13px var(--mono); color: var(--ink-2); }
+
+  .promise { border: 2px solid var(--ink); background: var(--card); box-shadow: 6px 6px 0 var(--blue); padding: 22px 24px; margin: 8px 0 56px; }
+  .promise b { display: block; font: 600 20px/1.3 var(--sans); margin-bottom: 8px; }
+  .promise p { margin: 0; color: var(--ink-2); font-size: 16px; }
+
+  section.part { padding: 0 0 56px; }
+  h2 { font: 800 30px/1.1 var(--sans); letter-spacing: -.02em; margin: 0 0 18px; }
+  section.part > p { margin: 0 0 16px; }
+  .table { overflow-x: auto; border: 2px solid var(--ink); background: var(--card); }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; vertical-align: top; padding: 12px 14px; border-bottom: 1px solid var(--rule); }
+  tr:last-child td { border-bottom: 0; }
+  th { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); background: var(--paper); border-bottom: 2px solid var(--ink); }
+  td:first-child { white-space: nowrap; }
+  .del td:first-child { white-space: normal; }
+  .del .note { color: var(--ink-2); font: 12px var(--mono); }
+  @media (min-width: 760px) { .del td:last-child code { white-space: nowrap; } }
+  .yes { color: #a40e26; font-weight: 600; }
+  ul.points { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--rule); }
+  ul.points li { padding: 12px 0 12px 26px; border-bottom: 1px solid var(--rule); position: relative; }
+  ul.points li::before { content: ""; position: absolute; left: 2px; top: 20px; width: 12px; height: 6px; border-left: 2px solid var(--blue); border-bottom: 2px solid var(--blue); transform: rotate(-45deg); }
+
+  footer { padding: 36px 0 48px; border-top: 2px solid var(--ink); margin-top: 40px; }
+  footer .w { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: center; font-size: 15px; color: var(--ink-2); }
+  footer nav { margin-left: auto; display: flex; gap: 22px; }
+  footer a { color: var(--ink); }
+
+  @media (max-width: 560px) {
+    :root { --gut: 16px; }
+    body { font-size: 17px; }
+    .top nav a:not(.gh) { display: none; }
+    .head { padding-top: 40px; }
+    td:first-child { white-space: normal; }
+  }
+</style>
+<!-- Same Umami website and events as the live co-maintainer.com. data-domains keeps local previews out of the stats. -->
+<script defer src="https://umami.ordu.dev/script.js" data-website-id="5c8e6df5-063d-4031-9eb6-f43138e09e2d" data-domains="co-maintainer.com"></script>
+<script defer src="https://umami.ordu.dev/recorder.js" data-website-id="5c8e6df5-063d-4031-9eb6-f43138e09e2d" data-domains="co-maintainer.com"></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mark" viewBox="0 0 100 100">
+    <path d="M78 28 A37 37 0 1 0 78 72" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round"/>
+    <path fill="currentColor" fill-rule="evenodd" d="M35 50 a15 15 0 1 0 30 0 a15 15 0 1 0 -30 0 Z M48.5 46 a3.5 3.5 0 1 0 7 0 a3.5 3.5 0 1 0 -7 0 Z"/>
+    <path fill="currentColor" d="M60 43 L90 50 L60 57 Z"/>
+  </symbol>
+</svg>
+
+<header class="w wide top">
+  <a class="home" href="index.html"><svg class="bird" width="30" height="30"><use href="#mark"/></svg><b>co-maintainer</b></a>
+  <nav><a href="docs/getting-started.html">Docs</a><a href="https://buttondown.com/murat" data-umami-event="newsletter-click">Newsletter</a><a class="gh" href="https://github.com/GroophyLifefor/co-maintainer" data-umami-event="click-github">GitHub</a></nav>
+</header>
+
+<main class="w">
+  <div class="head">
+    <div class="label">Trust</div>
+    <h1>Check it in <span>the code.</span></h1>
+    <p class="lede">co-maintainer is open source and runs on your own server. This page describes where data goes and what is still missing. The code is the final word: everything here can be checked in the repository.</p>
+    <div class="updated">Last updated 2026-11-24 · To hear when this page changes, <a href="https://buttondown.com/murat" data-umami-event="newsletter-click">subscribe to the newsletter</a>.</div>
+  </div>
+
+  <section class="part">
+    <h2>Where data goes</h2>
+    <ul class="points">
+      <li><b>Your server.</b> co-maintainer runs where you install it. It clones the repositories it reviews, and keeps reviews, guides, logs and its database (<code>app.db</code>) on that machine.</li>
+      <li><b>Your AI provider.</b> To build guides and write reviews, co-maintainer sends repository content to the provider you connect, with your key. This can include the diff, files from the clone, pull request history, comments, issues and the generated guides. That traffic goes from your server to your provider directly. It does not pass through us.</li>
+      <li><b>MCP servers you add.</b> If you register MCP servers for a repository, a review can call them, so data can reach them too. Pull requests from forks get no MCP tools unless you turn that on.</li>
+      <li><b>GitHub.</b> co-maintainer reads and writes GitHub through the GitHub App you create, with the permissions listed in the <a href="docs/github-app.html#permissions">GitHub App docs</a>.</li>
+      <li><b>Us.</b> The self-hosted version sends no telemetry, usage signal or crash report to us.</li>
+      <li><b>Version checks.</b> "Check for new versions" in the dashboard reads the public release and changelog from github.com when an admin clicks it. If you set <code>CM_UPDATE_URL</code>, the server checks daily and sends version numbers to the address you set. Requests include the co-maintainer version in the user agent. Diagrams use a PlantUML server only if you turn them on, and that can be your own.</li>
+    </ul>
+  </section>
+
+  <section class="part">
+    <h2>On your server</h2>
+    <ul class="points">
+      <li>Keys and secrets are stored in <code>config.json</code> in plain text, with file mode 0600. Protect the server and its backups like any secret store.</li>
+      <li>The dashboard password is stored as a scrypt hash. Repeated failed sign-ins lock the address out.</li>
+      <li>The audit log records settings changes, token changes, repository and review actions, dismissals and updates. Sign-ins are not in it yet.</li>
+      <li>One dashboard owner per installation, signing in with a password or with one allowed GitHub account. Users, teams and roles are designed and planned.</li>
+    </ul>
+  </section>
+
+  <section class="part">
+    <h2>Known gaps</h2>
+    <ul class="points">
+      <li><b>Secrets in code reach the model today.</b> If a secret is in content sent for review, it goes to your provider with the rest. Redaction before the model call is in progress.</li>
+      <li><b>No built-in data export beyond the usage CSV, and no erasure tool yet.</b> Today you remove data by deleting <code>app.db</code>, the config folder and the cloned repositories. This does not remove what your AI provider or GitHub already hold.</li>
+      <li><b>No SOC 2 or similar certification.</b></li>
+    </ul>
+  </section>
+
+  <section class="part">
+    <h2>Cloud</h2>
+    <p>Cloud at cloud.co-maintainer.com runs the same software for you on our server, with your own model key. Cloud may be shut down one day. If that happens, we intend to tell users well before. A separate page will describe Cloud data handling.</p>
+  </section>
+
+  <section class="part">
+    <h2>Reporting a vulnerability</h2>
+    <p>Use <a href="https://github.com/GroophyLifefor/co-maintainer/security">private vulnerability reporting on GitHub</a> or email <a href="mailto:cos@co-maintainer.com">cos@co-maintainer.com</a>. Our target is to confirm a report within 2 business days. The full policy is in <a href="https://github.com/GroophyLifefor/co-maintainer/blob/main/SECURITY.md">SECURITY.md</a>.</p>
+  </section>
+
+  <section class="part">
+    <h2>Status</h2>
+    <p>The parts we run are checked from a separate server: <a href="https://status.co-maintainer.com">status page</a>.</p>
+  </section>
+
+  <section class="part">
+    <h2>Responsibility</h2>
+    <p>A review points at possible problems. The person who writes and merges the code stays responsible for it.</p>
+  </section>
+
+  <section class="part">
+    <h2>Enterprise</h2>
+    <p>Security questionnaires, a CAIQ and data processing questions: <a href="mailto:cos@co-maintainer.com">cos@co-maintainer.com</a>.</p>
+  </section>
+</main>
+
+<footer>
+  <div class="w wide">
+    <svg class="bird" width="22" height="22"><use href="#mark"/></svg>
+    <span>Made by <a href="https://muratkirazkaya.com" target="_blank" rel="noopener">Murat Kirazkaya</a></span>
+    <nav><a href="vs/coderabbit.html">vs CodeRabbit</a><a href="privacy.html">Privacy</a><a href="trust.html">Trust</a><a href="https://github.com/GroophyLifefor/co-maintainer/blob/main/LICENSE">MIT License</a></nav>
+  </div>
+</footer>
+
+<script>
+  const topBar = document.querySelector(".top");
+  const markScrolled = () => topBar.classList.toggle("scrolled", scrollY > 4);
+  window.addEventListener("scroll", markScrolled, { passive: true });
+  markScrolled();
+</script>
+</body>
+</html>
