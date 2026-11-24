@@ -12,7 +12,7 @@
  * - a job cut off after GitHub took the review, before the answer was read,
  *   adopts that review and posts no second one
  * - a job cut off before GitHub took the review fails, says so on the check
- *   run, and can be retried
+ *   run, and can be retried, even when another bot reviewed that commit
  *
  * Every check reads GitHub's reviews and check runs, the job and review rows,
  * never what the model answered, so the flow passes with a real model too. */
@@ -28,7 +28,11 @@ const STEP = {
   drafting: "the process dies while the review reads the files",
   landed: "the process dies after GitHub took the review",
   lost: "the process dies before GitHub took the review",
+  otherBot:
+    "the process dies before GitHub took the review, and another bot reviewed that commit",
 };
+
+const OTHER_BOT = "other-ci[bot]";
 
 const AI: AiRule[] = [
   ...INIT_AI,
@@ -72,11 +76,13 @@ async function crashOn(
   key: string,
   title: string,
   hang: { method: string; path: RegExp; landed?: boolean },
+  whileDown?: (pull: SimPull) => void,
 ): Promise<string> {
   sim.faults.add({ target: "github", kind: "hang", ...hang });
   const pull = open(sim, key, title);
   await deliver(sim, pull);
   const crashed = await sim.server.crashDuringJob(sim.faults);
+  whileDown?.(pull);
   return `#${pull.number} · ${crashed} · ${await restartAndRun(sim)}`;
 }
 
@@ -138,6 +144,8 @@ function checks(sim: Sim): CheckResult[] {
   const lost = pullAt(sim, "lost");
   const landedRow = rowsOf(sim, landed)[0];
   const lostRow = rowsOf(sim, lost)[0];
+  const otherBot = pullAt(sim, "otherBot");
+  const otherRow = rowsOf(sim, otherBot)[0];
   const landedReview = botReviews(sim, landed)[0];
   const running = appRows<{ n: number }>(
     sim,
@@ -177,6 +185,14 @@ function checks(sim: Sim): CheckResult[] {
         allCompleted(sim, lost) &&
         checkRuns(sim, lost).every((run) => run.conclusion === "failure"),
       `${state(sim, lost)} · error ${lostRow?.error ?? "none"}`,
+    ),
+    check(
+      "another bot's review of the same commit is not taken for ours: the job fails and the row holds no id",
+      otherRow?.job_status === "failed" &&
+        otherRow.review_status === "failed" &&
+        !otherRow.posted_review_id &&
+        checkRuns(sim, otherBot).every((run) => run.conclusion === "failure"),
+      `${state(sim, otherBot)} · posted id ${otherRow?.posted_review_id ?? "none"}`,
     ),
     check(
       "no job is left running after the restart",
@@ -231,6 +247,24 @@ export default defineFlow({
           method: "POST",
           path: REVIEWS,
         }),
+    },
+    {
+      name: STEP.otherBot,
+      run: (sim) =>
+        crashOn(
+          sim,
+          "otherBot",
+          "Add divide and average a fifth time",
+          { method: "POST", path: REVIEWS },
+          (pull) => {
+            sim.github.review(pull, {
+              user: OTHER_BOT,
+              type: "Bot",
+              state: "COMMENTED",
+              body: "Lint passed.",
+            });
+          },
+        ),
     },
   ],
   checks,
