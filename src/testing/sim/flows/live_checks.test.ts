@@ -93,6 +93,9 @@ const SKIPPED_LIVE: Record<string, number> = {
   "review-checks": 2,
   "review-references": 3,
   "search-non-code": 2,
+  // The sweep acts on a blocking review: the first review blocking, the
+  // missed push it reviews, and the approval it owes depend on the model.
+  "startup-sweep": 3,
 };
 
 for (const [name, pending] of probes) {

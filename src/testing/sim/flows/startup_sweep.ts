@@ -12,7 +12,7 @@
  * Every check reads GitHub's reviews, the writes, the webhook deliveries and
  * app.db rows, never what the model answered, so the flow passes with a real
  * model too. That the first review blocks is the scripted model's doing, so
- * it is a `scriptedCheck`. */
+ * it and the two checks that need a blocking review are `scriptedCheck`. */
 import { finding } from "../fake_ai.ts";
 import type { AiRule } from "../fake_ai.ts";
 import {
@@ -158,13 +158,15 @@ function checks(sim: Sim): CheckResult[] {
       botReviews(sim, blocked)[0]?.state ?? "no review",
       "the scripted model reports one blocking finding",
     ),
-    check(
+    scriptedCheck(
+      sim,
       "a push while down: no webhook arrived, and the start reviewed the new head once",
       webhooksIn(sim, STEP.pushedDown) === 0 &&
         onNewHead.length === 1 &&
         rowHeads.filter((sha) => sha === head).length === 1 &&
         jobsIn(sim, STEP.pushedDown).includes("review done"),
       `${webhooksIn(sim, STEP.pushedDown)} webhooks · ${onNewHead.length} reviews on the new head · rows ${rowHeads.map((sha) => sha.slice(0, 7)).join(", ")} · ${jobsIn(sim, STEP.pushedDown).join(", ") || "no job"}`,
+      "the sweep acts only on a review that blocks, and the scripted model blocks",
     ),
     check(
       "the next start finds nothing to do: no write, no job",
@@ -191,12 +193,14 @@ function checks(sim: Sim): CheckResult[] {
         newChecks[0]!.status === "completed",
       `${movedReviews.length} reviews on ${movedReviews.map((r) => r.commitId.slice(0, 7)).join(", ") || "none"} · rows ${movedRows.map((sha) => sha.slice(0, 7)).join(", ")} · old checks ${oldChecks.map((run) => run.status).join(", ") || "none"} · new checks ${newChecks.map((run) => run.status).join(", ") || "none"}`,
     ),
-    check(
+    scriptedCheck(
+      sim,
       "the approval a closed finding owed is posted once over three starts",
       approvals.length === 1 &&
         approvals[0]!.commitId === owed.headSha &&
         writesIn(sim, STEP.startTwice).length === 0,
       `${approvals.length} approvals · ${writesIn(sim, STEP.startTwice).length} writes in the later starts`,
+      "an approval is owed only after a blocking review, and the scripted model blocks",
     ),
   ];
 }
