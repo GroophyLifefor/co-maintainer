@@ -22,9 +22,11 @@ const SHAPES: { kind: string; source: string }[] = [
   { kind: "npm-token", source: String.raw`npm_[A-Za-z0-9]{36}` },
 ];
 
-/** For the model, each prefix must start a word, so an identifier such as
- * `mask-radial-farthest-side` reaches it whole. Output redaction keeps
- * cutting any match, a stray cut there costs nothing. */
+/** For the model, a prefix right after a letter or a digit is inside a word
+ * and is left alone, so `mask-radial-farthest-side` reaches it whole. A
+ * prefix after `_` or `-` is still masked: the product builds slugs from
+ * text, and a key in `deploy-with-sk-or-...` is still a key. Output
+ * redaction cuts any match, a stray cut there costs nothing. */
 const WORD_START = "(?<![A-Za-z0-9])";
 const SECRETS = SHAPES.map(({ kind, source }) => ({
   kind,
