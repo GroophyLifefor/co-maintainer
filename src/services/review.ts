@@ -1755,7 +1755,6 @@ export async function closeStaleCheck(
     `repos/${job.repo}/check-runs/${review.check_run_id}`,
   );
   if (String(run.status ?? "") === "completed") return false;
-  setReviewStatus(review.id, "failed");
   await finishCheck(
     client,
     job,
@@ -1766,6 +1765,13 @@ export async function closeStaleCheck(
     log,
     `This commit was not reviewed. The server restarted before the review finished. See the dashboard: ${dashboardOrigin()}/activity/${job.id}\n\n${SKIP_HINT}`,
   );
+  // finishCheck logs a failed update instead of throwing. The row is marked
+  // only once GitHub shows the run completed, so a later start tries again.
+  const after = await client.request<Json>(
+    `repos/${job.repo}/check-runs/${review.check_run_id}`,
+  );
+  if (String(after.status ?? "") !== "completed") return false;
+  setReviewStatus(review.id, "failed");
   return true;
 }
 
