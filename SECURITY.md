@@ -14,11 +14,11 @@ Include what you can:
 
 ## What happens next
 
-| Step | Target time |
-| --- | --- |
-| We confirm we received your report | 2 business days |
-| We tell you whether we accept it as a vulnerability | 7 days |
-| A fix is released for an accepted report | 30 days, sooner for high severity |
+| Step                                                | Target time                       |
+| --------------------------------------------------- | --------------------------------- |
+| We confirm we received your report                  | 2 business days                   |
+| We tell you whether we accept it as a vulnerability | 7 days                            |
+| A fix is released for an accepted report            | 30 days, sooner for high severity |
 
 We keep you updated while we work on it. When the fix is out, we publish a GitHub Security Advisory and credit you, unless you ask us not to.
 
