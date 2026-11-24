@@ -83,7 +83,7 @@ co-maintainer init owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` |  | Which provider writes the guides. Required: init and sync cannot run without one. |
+| `--ai=openrouter\|openai\|anthropic\|opencode-zen\|opencode-go\|openai-compatible` |  | Which provider writes the guides. Required: init and sync cannot run without one. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
@@ -159,7 +159,7 @@ co-maintainer sync owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` |  | Which provider writes the guides. Required: init and sync cannot run without one. |
+| `--ai=openrouter\|openai\|anthropic\|opencode-zen\|opencode-go\|openai-compatible` |  | Which provider writes the guides. Required: init and sync cannot run without one. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
@@ -276,7 +276,7 @@ co-maintainer review [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` |  | Which provider writes the review. With no provider saved, OpenRouter. A review cannot run without one. |
+| `--ai=openrouter\|openai\|anthropic\|opencode-zen\|opencode-go\|openai-compatible` |  | Which provider writes the review. With no provider saved, OpenRouter. A review cannot run without one. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
@@ -404,11 +404,21 @@ co-maintainer set [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. `none` turns AI off. |
+| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go\|openai-compatible` | none | Which provider writes the review. `none` turns AI off. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
 | `--high-model=ID` |  | Model for the review itself. |
+
+### OpenAI-compatible server
+
+| Flag | Default | Description |
+|---|---|---|
+| `--ai-base-url=URL` |  | The server's Chat Completions base URL, for --ai=openai-compatible. A new address drops the saved key unless --ai-key comes with it. |
+| `--ai-preset=azure\|bedrock\|gemini\|ollama` |  | Fill the base URL for a known service. |
+| `--ai-resource=NAME` |  | The Azure OpenAI resource name, for --ai-preset=azure. |
+| `--ai-region=REGION` |  | The AWS region, for --ai-preset=bedrock. |
+| `--ai-allow-http=true\|false` | false | Allow plain http to another machine. The key is never sent there. |
 
 ### GitHub access
 

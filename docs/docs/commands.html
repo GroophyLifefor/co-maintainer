@@ -300,7 +300,7 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 </tr>
 </thead>
 <tbody><tr>
-<td><code>--ai=openrouter|openai|anthropic|opencode-zen|opencode-go</code></td>
+<td><code>--ai=openrouter|openai|anthropic|opencode-zen|opencode-go|openai-compatible</code></td>
 <td></td>
 <td>Which provider writes the guides. Required: init and sync cannot run without one.</td>
 </tr>
@@ -524,7 +524,7 @@ registry in the source, so it always matches <code>co-maintainer help</code> and
 </tr>
 </thead>
 <tbody><tr>
-<td><code>--ai=openrouter|openai|anthropic|opencode-zen|opencode-go</code></td>
+<td><code>--ai=openrouter|openai|anthropic|opencode-zen|opencode-go|openai-compatible</code></td>
 <td></td>
 <td>Which provider writes the guides. Required: init and sync cannot run without one.</td>
 </tr>
@@ -859,7 +859,7 @@ co-maintainer review [options]
 </tr>
 </thead>
 <tbody><tr>
-<td><code>--ai=openrouter|openai|anthropic|opencode-zen|opencode-go</code></td>
+<td><code>--ai=openrouter|openai|anthropic|opencode-zen|opencode-go|openai-compatible</code></td>
 <td></td>
 <td>Which provider writes the review. With no provider saved, OpenRouter. A review cannot run without one.</td>
 </tr>
@@ -1104,7 +1104,7 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 </tr>
 </thead>
 <tbody><tr>
-<td><code>--ai=none|openrouter|openai|anthropic|opencode-zen|opencode-go</code></td>
+<td><code>--ai=none|openrouter|openai|anthropic|opencode-zen|opencode-go|openai-compatible</code></td>
 <td>none</td>
 <td>Which provider writes the review. <code>none</code> turns AI off.</td>
 </tr>
@@ -1127,6 +1127,41 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td><code>--high-model=ID</code></td>
 <td></td>
 <td>Model for the review itself.</td>
+</tr>
+</tbody></table>
+<h3 id="openai-compatible-server">OpenAI-compatible server</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--ai-base-url=URL</code></td>
+<td></td>
+<td>The server&#39;s Chat Completions base URL, for --ai=openai-compatible. A new address drops the saved key unless --ai-key comes with it.</td>
+</tr>
+<tr>
+<td><code>--ai-preset=azure|bedrock|gemini|ollama</code></td>
+<td></td>
+<td>Fill the base URL for a known service.</td>
+</tr>
+<tr>
+<td><code>--ai-resource=NAME</code></td>
+<td></td>
+<td>The Azure OpenAI resource name, for --ai-preset=azure.</td>
+</tr>
+<tr>
+<td><code>--ai-region=REGION</code></td>
+<td></td>
+<td>The AWS region, for --ai-preset=bedrock.</td>
+</tr>
+<tr>
+<td><code>--ai-allow-http=true|false</code></td>
+<td>false</td>
+<td>Allow plain http to another machine. The key is never sent there.</td>
 </tr>
 </tbody></table>
 <h3 id="github-access-5">GitHub access</h3>

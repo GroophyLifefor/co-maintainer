@@ -124,11 +124,79 @@
 <td><code>opencode-go</code></td>
 <td>opencode.ai, with a Go subscription</td>
 </tr>
+<tr>
+<td>Any OpenAI-compatible server: Azure OpenAI, Amazon Bedrock, Gemini, Ollama, vLLM, LM Studio</td>
+<td><code>openai-compatible</code></td>
+<td>Your service&#39;s console, or none for a local server</td>
+</tr>
 </tbody></table>
 <p><code>--ai=none</code> is the default setting until you choose a provider. It turns AI off,
 which is enough for <a href="probe.html"><code>probe</code></a> because it needs no model. <a href="init.html"><code>init</code></a>,
 <a href="sync.html"><code>sync</code></a> and <a href="review.html"><code>review</code></a> all refuse it: the guides and the
 reviews are written by the provider, so there is nothing to build without one.</p>
+<h2 id="an-openai-compatible-server">An OpenAI-compatible server</h2>
+<p>Azure OpenAI, Amazon Bedrock, Gemini and local servers all speak OpenAI Chat
+Completions at their own address. Point co-maintainer at it with a preset or
+the whole address:</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--ai-preset=azure</span> <span class="sh-flag">--ai-resource=my-resource</span> <span class="sh-flag">--ai-key=...</span> <span class="sh-flag">--low-model=&lt;deployment&gt;</span> <span class="sh-flag">--high-model=&lt;deployment&gt;</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--ai-preset=bedrock</span> <span class="sh-flag">--ai-region=us-east-1</span> <span class="sh-flag">--ai-key=...</span> <span class="sh-flag">--low-model=&lt;model</span> <span class="sh-arg">id&gt;</span> <span class="sh-flag">--high-model=&lt;model</span> <span class="sh-arg">id&gt;</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--ai-preset=gemini</span> <span class="sh-flag">--ai-key=...</span> <span class="sh-flag">--low-model=&lt;model&gt;</span> <span class="sh-flag">--high-model=&lt;model&gt;</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--ai-preset=ollama</span> <span class="sh-flag">--low-model=&lt;model&gt;</span> <span class="sh-flag">--high-model=&lt;model&gt;</span>
+<span class="sh-cli">co-maintainer</span> <span class="sh-cmd">set</span> <span class="sh-flag">--ai-base-url=https://llm.example.com/v1</span> <span class="sh-flag">--ai-key=...</span> <span class="sh-flag">--low-model=&lt;model&gt;</span> <span class="sh-flag">--high-model=&lt;model&gt;</span>
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Preset</th>
+<th>Base URL it fills</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>azure</code></td>
+<td><code>https://&lt;resource&gt;.openai.azure.com/openai/v1</code></td>
+</tr>
+<tr>
+<td><code>bedrock</code></td>
+<td><code>https://bedrock-mantle.&lt;region&gt;.api.aws/v1</code></td>
+</tr>
+<tr>
+<td><code>gemini</code></td>
+<td><code>https://generativelanguage.googleapis.com/v1beta/openai</code></td>
+</tr>
+<tr>
+<td><code>ollama</code></td>
+<td><code>http://localhost:11434/v1</code></td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>The address.</strong> A trailing <code>/chat/completions</code> is fine and is cleaned off. A
+user name, a password or a query in it is refused. Plain http works for this
+machine only. For another machine pass <code>--ai-allow-http=true</code>, and then the key
+is never sent.</li>
+<li><strong>The key.</strong> It may be empty for a local server. A new address drops the saved
+key unless you pass <code>--ai-key</code> with it, so a key never follows an address it
+was not given for. Redirects are refused for the same reason. <code>serve</code> uses
+only the saved key for this provider, never one from the environment, and a
+remote review client cannot send its own key to it.</li>
+<li><strong>The check.</strong> <code>set</code> and the dashboard send one small request with a tool to
+the review model, and refuse a key or model the server refuses. When <code>set</code>
+finds a model that refuses tools, it saves that, and the model&#39;s reviews run
+without the codegraph and MCP tools. <code>--no-verify</code> skips the check.</li>
+<li><strong>Request fields.</strong> co-maintainer sends <code>max_completion_tokens</code>, <code>temperature</code>
+and <code>reasoning_effort</code>. A field the server refuses is left out and the request
+sent again, once per field, and what each model refused is remembered.</li>
+<li><strong>On a server.</strong> <code>serve</code> refuses an address that is, or resolves to, a private,
+loopback, link-local or cloud metadata address, checked on every request. The
+host who runs the server can allow it with <code>CM_AI_ALLOW_PRIVATE=1</code> in the
+environment. The dashboard cannot.</li>
+<li><strong>Cost.</strong> The price is unknown, so estimates give tokens and time without
+dollars.</li>
+<li><strong>Known limits.</strong> Ollama&#39;s default context is small and cuts long input
+silently: raise it in the model file or with <code>OLLAMA_CONTEXT_LENGTH</code>. Answers
+are not streamed, so a gateway with a short timeout can cut a long review.
+Gemini 3&#39;s thought signatures are not sent back between tool rounds yet. On
+Bedrock pick a model that takes Chat Completions.</li>
+</ul>
 <h2 id="where-each-provider-works">Where each provider works</h2>
 <table>
 <thead>
@@ -362,7 +430,7 @@ reports no dollar cost, so a review on it shows <code>unknown</code>.</p>
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#where-each-provider-works">Where each provider works</a></li><li><a href="#pick-a-provider-and-save-it-once">Pick a provider and save it once</a></li><li><a href="#there-is-no-default-model">There is no default model</a></li><li><a href="#keys">Keys</a></li><li><a href="#set-checks-the-key-and-the-model">set checks the key and the model</a></li><li><a href="#what-differs-between-providers">What differs between providers</a></li><li><a href="#experimental-sign-in-with-chatgpt">Experimental: Sign in with ChatGPT</a></li><li><a href="#errors">Errors</a></li></ul></nav>
+      <ul><li><a href="#an-openai-compatible-server">An OpenAI-compatible server</a></li><li><a href="#where-each-provider-works">Where each provider works</a></li><li><a href="#pick-a-provider-and-save-it-once">Pick a provider and save it once</a></li><li><a href="#there-is-no-default-model">There is no default model</a></li><li><a href="#keys">Keys</a></li><li><a href="#set-checks-the-key-and-the-model">set checks the key and the model</a></li><li><a href="#what-differs-between-providers">What differs between providers</a></li><li><a href="#experimental-sign-in-with-chatgpt">Experimental: Sign in with ChatGPT</a></li><li><a href="#errors">Errors</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>
