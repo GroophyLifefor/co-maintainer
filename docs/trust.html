@@ -121,7 +121,7 @@
       <li><b>MCP servers you add.</b> If you register MCP servers for a repository, a review can call them, so data can reach them too. Pull requests from forks get no MCP tools unless you turn that on.</li>
       <li><b>GitHub.</b> co-maintainer reads and writes GitHub through the GitHub App you create, with the permissions listed in the <a href="docs/github-app.html#permissions">GitHub App docs</a>.</li>
       <li><b>Us.</b> The self-hosted version sends no telemetry, usage signal or crash report to us.</li>
-      <li><b>Version checks.</b> "Check for new versions" in the dashboard reads the public release and changelog from github.com when an admin clicks it. If you set <code>CM_UPDATE_URL</code>, the server checks daily and sends version numbers to the address you set. Requests include the co-maintainer version in the user agent. Diagrams use a PlantUML server only if you turn them on, and that can be your own.</li>
+      <li><b>Version checks.</b> "Check for new versions" in the dashboard reads the public release and changelog from github.com when an admin clicks it. If you set <code>CM_UPDATE_URL</code>, the server reads the latest stable release from GitHub at most once a day, and the version numbers go to the address you set only when an admin presses <b>Update</b>. Requests include the co-maintainer version in the user agent. Diagrams use a PlantUML server only if you turn them on, and that can be your own.</li>
     </ul>
   </section>
 
@@ -130,7 +130,7 @@
     <ul class="points">
       <li>Keys and secrets are stored in <code>config.json</code> in plain text, with file mode 0600. Protect the server and its backups like any secret store.</li>
       <li>The dashboard password is stored as a scrypt hash. Repeated failed sign-ins lock the address out.</li>
-      <li>The audit log records settings changes, token changes, repository and review actions, dismissals and updates. Sign-ins are not in it yet.</li>
+      <li>The audit log records password and GitHub sign-ins, settings changes, token changes, repository and review actions, dismissals and updates.</li>
       <li>One dashboard owner per installation, signing in with a password or with one allowed GitHub account. Users, teams and roles are designed and planned.</li>
     </ul>
   </section>
