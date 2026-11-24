@@ -168,6 +168,7 @@ applies without a restart.
 | Settings save returns `422` | The key or token is missing a scope GitHub requires |
 | Webhook works but no review is posted | Check the Activity job log, then the AI key and models under **Settings** |
 | A failed review blocks the merge | The owner can comment `/co-maintainer skip-this-commit` on the pull request, see [Skipping a failed review](review-policy.md#skipping-a-failed-review) |
+| The server is down and its review blocks the merge | Dismiss the App's review on GitHub, see [When the server is down](review-policy.md#when-the-server-is-down) |
 | A private repository is reviewed from the diff alone | The review clones with the App's installation token. Check that the App is installed on the repository with **Contents: Read** |
 
 Webhook reachability problems are shown on each repository's **Overview** tab.

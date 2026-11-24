@@ -1,4 +1,10 @@
-import { outsideCode, redact, safeCopy } from "./redact.ts";
+import {
+  hasSecretMask,
+  maskSecrets,
+  outsideCode,
+  redact,
+  safeCopy,
+} from "./redact.ts";
 import { test } from "node:test";
 
 test("redact replaces known secret shapes", () => {
@@ -101,5 +107,101 @@ test("safeCopy keeps the line breaks around a dash", () => {
   );
   if (cleaned !== "First paragraph.\n\n, a list item\nnext, line") {
     throw new Error(JSON.stringify(cleaned));
+  }
+});
+
+// Fake values are built at runtime, so no secret shape sits in the source.
+const fake = (...parts: string[]) => parts.join("");
+
+test("maskSecrets names the kind of each secret it hides", () => {
+  const cases: [string, string][] = [
+    [fake("ghp", "_", "A".repeat(36)), "github-token"],
+    [fake("sk-or-", "v1-", "a".repeat(20)), "openrouter-key"],
+    [fake("sk-ant-", "api03-", "b".repeat(20)), "anthropic-key"],
+    [fake("sk-", "proj-", "c".repeat(24)), "openai-key"],
+    [fake("sk", "_live_", "d".repeat(24)), "stripe-key"],
+    [fake("AKIA", "ABCDEFGHIJKLMNOP"), "aws-access-key"],
+    [fake("xox", "b-", "1234567890-abcdef"), "slack-token"],
+    [fake("AIza", "e".repeat(35)), "google-key"],
+    [fake("glpat", "-", "f".repeat(20)), "gitlab-token"],
+    [fake("npm", "_", "g".repeat(36)), "npm-token"],
+    [fake("cmr", "_", "h".repeat(24)), "co-maintainer-token"],
+  ];
+  for (const [value, kind] of cases) {
+    const { text, count } = maskSecrets(`const key = "${value}"\n`);
+    if (text !== `const key = "[redacted:${kind}]"\n` || count !== 1) {
+      throw new Error(`${kind}: got ${text} (${count})`);
+    }
+  }
+});
+
+test("maskSecrets still masks a key inside a slug, after - or _", () => {
+  for (const before of ["deploy-with-", "deploy_with_"]) {
+    const key = fake("sk-or-", "v1-", "s".repeat(20));
+    const { text } = maskSecrets(`section-${before}${key}`);
+    if (text.includes(key)) throw new Error(`kept after ${before}: ${text}`);
+  }
+});
+
+test("maskSecrets keeps the text around a value secret", () => {
+  const cases: [string, string][] = [
+    [
+      fake("aws_secret_access_key = ", "A1b2".repeat(10)),
+      "aws_secret_access_key = [redacted:aws-secret-key]",
+    ],
+    [
+      fake("postgres://app:", "s3cret-pass", "@db:5432/app"),
+      "postgres://app:[redacted:url-password]@db:5432/app",
+    ],
+    [
+      fake(
+        "eyJhbGciOiJIUzI1NiJ9",
+        ".",
+        "eyJzdWIiOiIxMjM0NTY3ODkwIn0",
+        ".",
+        "x".repeat(43),
+      ),
+      "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.[redacted:jwt-signature]",
+    ],
+  ];
+  for (const [input, want] of cases) {
+    const { text } = maskSecrets(input);
+    if (text !== want) throw new Error(`got ${text}, want ${want}`);
+  }
+});
+
+test("maskSecrets keeps a private key's lines, also with its END cut off", () => {
+  const body = ["M".repeat(64), "N".repeat(64), "O".repeat(20)].join("\n");
+  const begin = fake("-----BEGIN ", "RSA PRIVATE KEY-----");
+  const end = fake("-----END ", "RSA PRIVATE KEY-----");
+  const whole = `+${begin}\n+${body.replaceAll("\n", "\n+")}\n+${end}\n+next line`;
+  const masked = maskSecrets(whole);
+  if (masked.text.split("\n").length !== whole.split("\n").length) {
+    throw new Error("the line count changed");
+  }
+  if (masked.text.includes("MMMM") || !masked.text.includes(end)) {
+    throw new Error(`body kept or END lost: ${masked.text}`);
+  }
+  if (masked.count !== 1) throw new Error(`one key counted ${masked.count}`);
+  if (!masked.text.includes("\n+[redacted:private-key]")) {
+    throw new Error(`a diff line lost its marker: ${masked.text}`);
+  }
+  const cut = maskSecrets(`${begin}\n${body}`);
+  if (cut.text.includes("NNNN")) throw new Error("a cut key kept its body");
+});
+
+test("maskSecrets leaves ordinary code alone and runs twice to the same text", () => {
+  const ordinary = [
+    'class="mask-radial-farthest-side task-runner-config-value"',
+    "commit 3f786850e387550fdab836ed7e6dc881de23001b",
+    "id 123e4567-e89b-12d3-a456-426614174000",
+    "const desk_live_wire = 1",
+    "https://example.com/path",
+  ].join("\n");
+  const { text, count } = maskSecrets(ordinary);
+  if (text !== ordinary || count !== 0) throw new Error(`changed: ${text}`);
+  const once = maskSecrets(fake("ghp", "_", "Z".repeat(36))).text;
+  if (maskSecrets(once).text !== once || !hasSecretMask(once)) {
+    throw new Error("not idempotent");
   }
 });

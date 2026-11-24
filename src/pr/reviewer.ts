@@ -1,7 +1,9 @@
+import { maskSecrets } from "../util/redact.ts";
 import { diffLimitsFrom } from "./diff_plan.ts";
 import { reasoningFields } from "../ai/reasoning.ts";
 import { clampToolRounds } from "./tool_rounds.ts";
 import { createAiProvider } from "../ai/provider.ts";
+import { countMasks, secretsMaskedWarning } from "../ai/mask_secrets.ts";
 import { CliError, EXIT_USAGE } from "../cli/error.ts";
 import {
   completeWithMermaidTools,
@@ -369,6 +371,15 @@ async function stopMcp(opened: Promise<ReviewTools>[]): Promise<void> {
   );
 }
 
+/** Private results as stored and as the model saw them, with secrets
+ * masked, so a copied passage that holds a mask is still found. */
+function asSent(results: string[]): string[] {
+  const masked = results
+    .map((result) => maskSecrets(result).text)
+    .filter((text, index) => text !== results[index]);
+  return [...results, ...masked];
+}
+
 /** The rendered review with every passage copied from a private MCP result
  * removed, and the review's MCP warnings. It runs before the text is
  * printed, posted or stored, in every mode. */
@@ -378,13 +389,13 @@ function withoutPrivateText(
 ): { text: string; warnings: CoverageWarning[] } {
   const privacy = removePrivateText(
     reviewText,
-    reviewTools.mcp.privateResults(),
+    asSent(reviewTools.mcp.privateResults()),
   );
   // A private companion's patches and search results, counted on their own
   // so the warning names where the passage came from.
   const companion = removePrivateText(
     privacy.text,
-    reviewTools.companionPrivate?.() ?? [],
+    asSent(reviewTools.companionPrivate?.() ?? []),
   );
   return {
     text: companion.text,
@@ -686,7 +697,10 @@ async function pullRequestReview(
     );
   }
 
-  const provider = ai ?? reviewProvider(options, options.highModel, "high");
+  const masks = countMasks(
+    ai ?? reviewProvider(options, options.highModel, "high"),
+  );
+  const provider = masks.provider;
   const diagrams = provider.supportsTools !== false;
   const preparing = prepareReviewDiff({
     files: ownFiles.map(({ file }) => diffFileFromGithub(file)),
@@ -971,7 +985,12 @@ ${reviewText}`,
     referenceContext: { rules: guides.rules, codebase: guides.codebase },
     codegraphState: codegraphState(options.useCodegraph, reviewTools.codegraph),
     coverage: prepared.coverage,
-    warnings: [...prepared.warnings, ...gate.warnings(), ...kept.warnings],
+    warnings: [
+      ...prepared.warnings,
+      ...gate.warnings(),
+      ...kept.warnings,
+      ...secretsMaskedWarning(masks.count()),
+    ],
     tools: gate.usage(),
     mcpServers: reviewTools.mcp.servers,
     diffStats: diffStats(named.map(({ file }) => diffFileFromGithub(file))),
@@ -1049,7 +1068,10 @@ async function workspaceReview(
   }
   const unchanged = new Set(extras?.unchangedPaths ?? []);
   const ownFiles = files.filter(({ path }) => !unchanged.has(path));
-  const provider = ai ?? reviewProvider(options, options.highModel, "high");
+  const masks = countMasks(
+    ai ?? reviewProvider(options, options.highModel, "high"),
+  );
+  const provider = masks.provider;
   const diagrams = provider.supportsTools !== false;
   const prepared = await prepareReviewDiff({
     files: ownFiles,
@@ -1202,7 +1224,12 @@ ${reviewText}`,
     referenceContext: { rules: guides.rules, codebase: guides.codebase },
     codegraphState: codegraphState(options.useCodegraph, reviewTools.codegraph),
     coverage: prepared.coverage,
-    warnings: [...prepared.warnings, ...gate.warnings(), ...kept.warnings],
+    warnings: [
+      ...prepared.warnings,
+      ...gate.warnings(),
+      ...kept.warnings,
+      ...secretsMaskedWarning(masks.count()),
+    ],
     tools: gate.usage(),
     mcpServers: reviewTools.mcp.servers,
     diffStats: diffStats(files),

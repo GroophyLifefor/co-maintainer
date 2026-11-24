@@ -125,6 +125,7 @@ export async function runSet(args: string[]): Promise<void> {
     "review-event",
     "review-references",
     "ai-timeout-minutes",
+    "mask-secrets",
     "global-reasoning-effort",
     "codegraph-version",
     "gh-concurrent",
@@ -222,6 +223,7 @@ export async function runSet(args: string[]): Promise<void> {
     "review-blocking": "reviewBlocking",
     "review-event": "reviewEvent",
     "ai-timeout-minutes": "aiTimeoutMinutes",
+    "mask-secrets": "maskSecrets",
     "global-reasoning-effort": "globalReasoningEffort",
     "codegraph-version": "codegraphVersion",
     password: "dashboardPasswordHash",
@@ -441,6 +443,13 @@ export async function runSet(args: string[]): Promise<void> {
     }
     patch.defaults = defaults;
   }
+  const maskSecrets = text(args, "mask-secrets");
+  if (maskSecrets !== undefined) {
+    if (!["true", "false"].includes(maskSecrets)) {
+      die("--mask-secrets must be true or false");
+    }
+    patch.maskSecrets = maskSecrets === "true";
+  }
   const rerunOnRestart = text(args, "extension-rerun-on-restart");
   if (rerunOnRestart !== undefined) {
     if (!["true", "false"].includes(rerunOnRestart)) {
@@ -462,7 +471,7 @@ export async function runSet(args: string[]): Promise<void> {
         "--github-oauth-client-id=, --github-oauth-client-secret=, --github-oauth-allowed-user=, " +
         "--remote-host=, --remote-token=, --remote-byok-policy=off|allow|require, " +
         "--remote-client-tools-policy=off|on, " +
-        "--review-blocking=model|severity, --ai-timeout-minutes=N, --global-reasoning-effort=LEVEL, --codegraph-version=SEMVER, " +
+        "--review-blocking=model|severity, --ai-timeout-minutes=N, --mask-secrets=true|false, --global-reasoning-effort=LEVEL, --codegraph-version=SEMVER, " +
         "--password=, --disable-auth=password, --enable-auth=github, or --unset=name",
     );
   }

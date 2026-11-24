@@ -1349,6 +1349,11 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td>How long one AI request may wait for the provider before it fails, in minutes.</td>
 </tr>
 <tr>
+<td><code>--mask-secrets=true|false</code></td>
+<td>true</td>
+<td>Mask known secret shapes, such as API keys, tokens and private keys, before any request reaches the model.</td>
+</tr>
+<tr>
 <td><code>--global-reasoning-effort=none|low|default|high|xhigh|max</code></td>
 <td>high</td>
 <td>How much the model reasons in every AI job. default sends no reasoning field and leaves it to the provider.</td>

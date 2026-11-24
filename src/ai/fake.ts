@@ -1,3 +1,4 @@
+import { maskSecretsOn, maskSecretsRequest } from "./mask_secrets.ts";
 import type { AiProvider, AiRequest, AiResponse } from "../types.ts";
 import { withCopyRuleRequest } from "./copy_rule.ts";
 import { getEnv, readTextFileSync } from "../util/runtime.ts";
@@ -68,7 +69,11 @@ export class FakeAiProvider implements AiProvider {
   }
 
   async complete(request: AiRequest): Promise<AiResponse> {
-    await this.record(withCopyRuleRequest(request));
+    await this.record(
+      withCopyRuleRequest(
+        maskSecretsOn() ? maskSecretsRequest(request).request : request,
+      ),
+    );
     return {
       text: this.jobText(request.job) ?? this.text,
       tokensIn: 10,

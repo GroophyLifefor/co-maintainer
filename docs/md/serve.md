@@ -298,6 +298,13 @@ One GitHub already took is kept, with no second review. One GitHub never got is
 marked failed, its check run says the commit was not reviewed, and **Retry** on
 the dashboard runs it again.
 
+GitHub does not send a webhook again when the server missed it. So on start,
+`serve` also looks at the pull requests it reviewed in the last 14 days, at
+most 50. When its review still asks for changes and the author pushed while it
+was down, the new commit is queued for review under the same rules as a push.
+When a blocking finding was closed but the approval never reached GitHub, the
+approval is posted once. A pull request closed while it was down is left alone.
+
 A Docker server pulls the new image and starts the container again on the same
 volume, with the options it started with. **Settings**, **Server**, **Updates**
 shows those lines. When the host sets `CM_UPDATE_URL`, the dashboard also says
