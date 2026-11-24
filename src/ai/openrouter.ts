@@ -106,7 +106,8 @@ export function openRouterError(
     );
   }
   if (
-    (status === 400 && /model/i.test(detail)) ||
+    // "tools are not supported by this model" is about tools, not the name.
+    (status === 400 && /model/i.test(detail) && !/\btools?\b/i.test(detail)) ||
     (status === 404 && host.notFoundIsUnknownModel)
   ) {
     return new CliError(

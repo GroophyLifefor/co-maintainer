@@ -263,3 +263,92 @@ export function openAiCompatibleHost(
     }),
   };
 }
+
+/** One small request with a `ping` tool, so `set` and the dashboard learn
+ * whether the address, key and model work and whether the model takes
+ * tools. Under 300 tokens. A refused key or model is `rejected`. A server
+ * that refuses tools still works: `tools` is false, and reviews run
+ * without them. */
+export async function verifyCompatible(
+  key: string,
+  model: string | undefined,
+  settings: CompatibleSettings,
+): Promise<
+  | { status: "ok"; tools?: boolean }
+  | { status: "unreachable"; reason: string }
+  | { status: "rejected"; error: import("../cli/error.ts").CliError }
+> {
+  const { CliError } = await import("../cli/error.ts");
+  const { OpenRouterProvider } = await import("./openrouter.ts");
+  if (!model) return { status: "ok" };
+  let host: ChatHost;
+  try {
+    host = openAiCompatibleHost(model, {
+      ...settings,
+      aiModelQuirks: undefined,
+    });
+  } catch (error) {
+    return {
+      status: "rejected",
+      error: new CliError(
+        "openai_compatible_base_url",
+        error instanceof Error ? error.message : String(error),
+      ),
+    };
+  }
+  const provider = new OpenRouterProvider(key, model, host);
+  const ping = {
+    type: "function",
+    function: {
+      name: "ping",
+      description: "Answers pong.",
+      parameters: { type: "object", properties: {} },
+    },
+  };
+  const ask = (tools: boolean) =>
+    provider.complete({
+      prompt: tools ? "Call the ping tool once." : "Reply with the word ok.",
+      maxTokens: 200,
+      job: "verify_ai_key",
+      ...(tools ? { tools: [ping] } : {}),
+    });
+  try {
+    const answer = await ask(true);
+    return {
+      status: "ok",
+      ...(answer.toolCalls?.length ? { tools: true } : {}),
+    };
+  } catch (error) {
+    if (error instanceof CliError) {
+      // Asked first: "tools are not supported by this model" names a model
+      // too, and the model is fine without tools.
+      if (
+        /tool/i.test(error.message) &&
+        !/unauthorized|redirect/.test(error.code)
+      ) {
+        try {
+          await ask(false);
+          return { status: "ok", tools: false };
+        } catch (second) {
+          if (
+            second instanceof CliError &&
+            /unauthorized|unknown_model/.test(second.code)
+          ) {
+            return { status: "rejected", error: second };
+          }
+          return {
+            status: "unreachable",
+            reason: second instanceof Error ? second.message : String(second),
+          };
+        }
+      }
+      if (/unauthorized|unknown_model|redirect/.test(error.code)) {
+        return { status: "rejected", error };
+      }
+    }
+    return {
+      status: "unreachable",
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
