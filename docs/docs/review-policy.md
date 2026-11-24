@@ -112,6 +112,26 @@ dashboard, or `skippers` in the policy, lists their relation to the
 repository. A comment from anyone else is ignored, with no reply and no
 reaction.
 
+### When the server is down
+
+The skip comments are read by the server, so they need it running. While it is
+down, a **Request changes** review from the App still blocks the merge where
+an approving review is required. GitHub's own **Dismiss review** gets past it
+with no server:
+
+1. Open the pull request and find the App's review on the **Conversation** tab.
+2. Open the review's **...** menu and choose **Dismiss review**.
+3. Write why, for example "co-maintainer is down", and confirm.
+
+Anyone with write access to the repository can dismiss a review, unless branch
+protection limits dismissals to listed people or teams. The dismissal and its
+message stay on the pull request. When the server is back, the next commit is
+reviewed as usual.
+
+A check run the App left in progress or failed is not cleared by a dismissal.
+Where that check is required, wait for the server, or have someone allowed to
+bypass branch protection merge.
+
 ### Closing a finding
 
 The owner has the last word on a finding, the model does not have to agree. A
