@@ -69,6 +69,8 @@ export function aiCeiling(input: {
   ) {
     return 4;
   }
+  // Often one machine serving one model, so fewer calls at once.
+  if (input.provider === "openai-compatible") return 2;
   return 0;
 }
 

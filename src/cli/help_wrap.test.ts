@@ -27,7 +27,7 @@ async function help(command: string): Promise<string[]> {
 test("a long option ends its line and the description starts on the next", async () => {
   const lines = await help("init");
   const at = lines.indexOf(
-    "  --ai=openrouter|openai|anthropic|opencode-zen|opencode-go",
+    "  --ai=openrouter|openai|anthropic|opencode-zen|opencode-go|openai-compatible",
   );
   if (at < 0)
     throw new Error(

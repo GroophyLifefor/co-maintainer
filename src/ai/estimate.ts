@@ -145,6 +145,7 @@ export function costReason(
   openRouterPricesUnavailable: boolean,
   modelsGiven: boolean,
 ): string {
+  if (ai === "openai-compatible") return "price unknown for this server";
   if (ai !== "none" && ai !== "openrouter") {
     return "estimate unavailable for this provider";
   }

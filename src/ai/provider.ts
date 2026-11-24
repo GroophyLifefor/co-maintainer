@@ -1,3 +1,4 @@
+import { openAiCompatibleHost } from "./openai_compatible.ts";
 import { OpenRouterProvider } from "./openrouter.ts";
 import { OpenAiProvider } from "./openai.ts";
 import { AnthropicProvider } from "./anthropic.ts";
@@ -25,6 +26,7 @@ export const AI_PROVIDERS = [
   "anthropic",
   "opencode-zen",
   "opencode-go",
+  "openai-compatible",
 ] as const;
 
 export { providerKeyEnv } from "../config.ts";
@@ -65,6 +67,13 @@ function createRawProvider(options: Options, model: string): AiProvider {
   }
   if (options.ai === "anthropic") {
     return new AnthropicProvider(options.aiToken ?? "", model);
+  }
+  if (options.ai === "openai-compatible") {
+    return new OpenRouterProvider(
+      options.aiToken ?? "",
+      model,
+      openAiCompatibleHost(model),
+    );
   }
   if (options.ai === "opencode-zen" || options.ai === "opencode-go") {
     return new OpenRouterProvider(

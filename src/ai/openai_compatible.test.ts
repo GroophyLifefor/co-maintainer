@@ -1,6 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseAiBaseUrl, presetBaseUrl } from "./openai_compatible.ts";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { OpenRouterProvider } from "./openrouter.ts";
+import {
+  compatibleBody,
+  openAiCompatibleHost,
+  refusedField,
+} from "./openai_compatible.ts";
+import { readConfig, writeUserConfig } from "../config.ts";
+import { isolateTestFile } from "../testing/locations.ts";
 
 const parsed = (raw: string, allowHttp = false) => {
   const result = parseAiBaseUrl(raw, { allowHttp });
@@ -76,4 +86,136 @@ test("presets fill the address and check what they put in the host", () => {
     false,
   );
   assert.equal(presetBaseUrl("nope").ok, false);
+});
+
+// The provider against a local Chat Completions server.
+
+isolateTestFile();
+
+test("the body sends max_completion_tokens, temperature and reasoning_effort, and drops what was refused", () => {
+  const request = {
+    prompt: "hi",
+    maxTokens: 50,
+    job: "t",
+    reasoningEffort: "high" as const,
+  };
+  const full = compatibleBody("m", request, new Set());
+  assert.equal(full.max_completion_tokens, 50);
+  assert.equal(full.temperature, 0);
+  assert.equal(full.reasoning_effort, "high");
+  assert.equal("reasoning" in full, false);
+  const lean = compatibleBody(
+    "m",
+    request,
+    new Set(["max_completion_tokens", "temperature", "reasoning_effort"]),
+  );
+  assert.equal(lean.max_tokens, 50);
+  assert.equal(
+    "max_completion_tokens" in lean ||
+      "temperature" in lean ||
+      "reasoning_effort" in lean,
+    false,
+  );
+  assert.equal(
+    refusedField("Unsupported parameter: 'temperature'", new Set()),
+    "temperature",
+  );
+  assert.equal(
+    refusedField(
+      "Unsupported parameter: 'temperature'",
+      new Set(["temperature"]),
+    ),
+    undefined,
+  );
+});
+
+test("each refused field is dropped once, the answer comes back, and the lesson is saved for the model", async () => {
+  const bodies: Record<string, unknown>[] = [];
+  const server = createServer((req, res) => {
+    let raw = "";
+    req.on("data", (chunk) => (raw += chunk));
+    req.on("end", () => {
+      const body = JSON.parse(raw) as Record<string, unknown>;
+      bodies.push(body);
+      res.setHeader("content-type", "application/json");
+      if ("temperature" in body) {
+        res.statusCode = 400;
+        return res.end(
+          JSON.stringify({
+            error: { message: "Unsupported parameter: 'temperature'" },
+          }),
+        );
+      }
+      if ("max_completion_tokens" in body) {
+        res.statusCode = 400;
+        return res.end(
+          JSON.stringify({
+            error: {
+              message: "Unrecognized request argument: max_completion_tokens",
+            },
+          }),
+        );
+      }
+      res.end(
+        JSON.stringify({
+          choices: [{ message: { content: "ok" } }],
+          usage: { prompt_tokens: 3, completion_tokens: 1 },
+        }),
+      );
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`;
+  try {
+    await writeUserConfig({ ai: "openai-compatible", aiBaseUrl: base });
+    const provider = new OpenRouterProvider(
+      "",
+      "local-model",
+      openAiCompatibleHost("local-model"),
+    );
+    const answer = await provider.complete({
+      prompt: "hi",
+      maxTokens: 20,
+      job: "t",
+    });
+    assert.equal(answer.text, "ok");
+    assert.equal(bodies.length, 3);
+    assert.equal(bodies[2]!.max_tokens, 20);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.deepEqual(readConfig().aiModelQuirks?.["local-model"]?.drop, [
+      "max_completion_tokens",
+      "temperature",
+    ]);
+    const again = new OpenRouterProvider(
+      "",
+      "local-model",
+      openAiCompatibleHost("local-model"),
+    );
+    await again.complete({ prompt: "hi", maxTokens: 20, job: "t" });
+    assert.equal(
+      bodies.length,
+      4,
+      "the second provider sends the right body at once",
+    );
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test("no base URL, or an unusable one, stops with a message that says how to set it", () => {
+  assert.throws(
+    () => openAiCompatibleHost("m", {}),
+    /--ai-base-url|--ai-preset/,
+  );
+  assert.throws(
+    () => openAiCompatibleHost("m", { aiBaseUrl: "http://ollama:11434/v1" }),
+    /http/,
+  );
+  assert.equal(
+    openAiCompatibleHost("m", {
+      aiBaseUrl: "http://ollama:11434/v1",
+      aiAllowHttp: true,
+    }).sendKey,
+    false,
+  );
 });

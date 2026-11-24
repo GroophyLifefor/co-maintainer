@@ -1,6 +1,11 @@
 /** `--ai=openai-compatible`: any server that speaks OpenAI Chat Completions
  * at its own address. Azure OpenAI, Amazon Bedrock, Gemini and local servers
  * such as Ollama all do. A preset only fills the address. */
+import { readConfig, type UserConfig, writeUserConfig } from "../config.ts";
+import type { AiMessage, AiRequest, Json } from "../types.ts";
+import type { ChatHost } from "./openrouter.ts";
+import { checkEgress, egressGuardActive, guardedDispatcher } from "./egress.ts";
+import { aiTimeoutMs } from "./timeout.ts";
 
 export const AI_PRESETS = ["azure", "bedrock", "gemini", "ollama"] as const;
 export type AiPreset = (typeof AI_PRESETS)[number];
@@ -121,5 +126,140 @@ export function parseAiBaseUrl(
       endpoint: `${base}/chat/completions`,
       plainRemote: url.protocol === "http:" && !local,
     },
+  };
+}
+
+// The provider itself.
+
+/** Body fields a server may refuse. Each is dropped once, on its own. */
+export const DROPPABLE = [
+  "max_completion_tokens",
+  "temperature",
+  "reasoning_effort",
+  "response_format",
+] as const;
+type Droppable = (typeof DROPPABLE)[number];
+
+/** Chat Completions as most compatible servers take it. A dropped
+ * `max_completion_tokens` falls back to `max_tokens`. */
+export function compatibleBody(
+  model: string,
+  request: AiRequest,
+  drop: ReadonlySet<string>,
+): Json {
+  const messages: AiMessage[] = request.messages ?? [
+    ...(request.system
+      ? [{ role: "system" as const, content: request.system }]
+      : []),
+    { role: "user" as const, content: request.prompt },
+  ];
+  return {
+    model,
+    messages,
+    ...(drop.has("max_completion_tokens")
+      ? { max_tokens: request.maxTokens }
+      : { max_completion_tokens: request.maxTokens }),
+    ...(drop.has("temperature") ? {} : { temperature: 0 }),
+    ...(request.reasoningEffort && !drop.has("reasoning_effort")
+      ? { reasoning_effort: request.reasoningEffort }
+      : {}),
+    ...(request.tools?.length
+      ? { tools: request.tools, tool_choice: "auto" }
+      : {}),
+    ...(request.responseFormat && !drop.has("response_format")
+      ? { response_format: request.responseFormat }
+      : {}),
+  };
+}
+
+/** The field a 400 or 422 refused, if it names one not dropped yet. */
+export function refusedField(
+  detail: string,
+  drop: ReadonlySet<string>,
+): Droppable | undefined {
+  const patterns: Record<Droppable, RegExp> = {
+    max_completion_tokens: /max_completion_tokens/i,
+    temperature: /temperature/i,
+    reasoning_effort: /reasoning_effort|reasoning/i,
+    response_format: /response_format|json_schema|structured/i,
+  };
+  return DROPPABLE.find(
+    (field) => !drop.has(field) && patterns[field].test(detail),
+  );
+}
+
+/** Saves what a model refused, so later requests leave it out from the
+ * start. Only while the base URL is the one the lesson came from. A failed
+ * write never fails the review. */
+async function remember(
+  baseUrl: string,
+  model: string,
+  drop: ReadonlySet<string>,
+): Promise<void> {
+  try {
+    const config = readConfig();
+    if (config.aiBaseUrl !== baseUrl) return;
+    const quirks = { ...config.aiModelQuirks };
+    quirks[model] = { ...quirks[model], drop: [...drop].sort() };
+    await writeUserConfig({ aiModelQuirks: quirks });
+  } catch {
+    // Learning again next time costs one retry.
+  }
+}
+
+export type CompatibleSettings = Pick<
+  UserConfig,
+  "aiBaseUrl" | "aiAllowHttp" | "aiModelQuirks"
+>;
+
+/** The host for `openai-compatible`, from the saved base URL. */
+export function openAiCompatibleHost(
+  model: string,
+  settings: CompatibleSettings = readConfig(),
+): ChatHost {
+  const raw = settings.aiBaseUrl ?? "";
+  const parsed = parseAiBaseUrl(raw, { allowHttp: settings.aiAllowHttp });
+  if (!parsed.ok) {
+    throw new Error(
+      raw
+        ? `The openai-compatible base URL is not usable: ${parsed.problem}`
+        : "openai-compatible needs a base URL. Set it with co-maintainer set --ai-base-url=... or --ai-preset=...",
+    );
+  }
+  const { base, endpoint, plainRemote } = parsed.value;
+  const learned = settings.aiModelQuirks?.[model];
+  const drop = new Set<string>(learned?.drop ?? []);
+  return {
+    provider: "openai-compatible",
+    name: `The AI server at ${new URL(endpoint).host}`,
+    code: "openai_compatible",
+    endpoint,
+    headers: {},
+    modelHint:
+      "Use the model or deployment name your endpoint expects, and set it with co-maintainer set --high-model=...",
+    keyHint: "Set the key with co-maintainer set --ai-key=...",
+    keyOptional: true,
+    sendKey: !plainRemote,
+    notFoundIsUnknownModel: true,
+    jsonErrorOnly: true,
+    supportsTools: learned?.tools ?? true,
+    body: (name, request) => compatibleBody(name, request, drop),
+    lighter: (request, detail, status) => {
+      if (status !== 400 && status !== 422) return undefined;
+      const field = refusedField(detail, drop);
+      if (!field) return undefined;
+      drop.add(field);
+      void remember(base, model, drop);
+      return request;
+    },
+    preflight: checkEgress,
+    init: () => ({
+      redirect: "error",
+      ...(egressGuardActive()
+        ? ({
+            dispatcher: guardedDispatcher(aiTimeoutMs()),
+          } as unknown as RequestInit)
+        : {}),
+    }),
   };
 }

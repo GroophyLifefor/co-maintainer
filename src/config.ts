@@ -52,7 +52,8 @@ export type RepoConfig = {
     | "openai"
     | "anthropic"
     | "opencode-zen"
-    | "opencode-go";
+    | "opencode-go"
+    | "openai-compatible";
   lowModel?: string;
   highModel?: string;
   maxCommits?: number;
@@ -147,6 +148,15 @@ export type RepoConfig = {
 };
 
 export type UserConfig = {
+  /** `openai-compatible` only: the server's base URL, without
+   * `/chat/completions`. Changing it drops the saved key. */
+  aiBaseUrl?: string;
+  /** `openai-compatible` only: plain http to another machine is allowed,
+   * and then the key is never sent. */
+  aiAllowHttp?: boolean;
+  /** `openai-compatible` only: what each model refused, learned on the way,
+   * so later requests leave it out from the start. Tied to `aiBaseUrl`. */
+  aiModelQuirks?: Record<string, { drop?: string[]; tools?: boolean }>;
   auth?: "gh" | "pat";
   ai?:
     | "none"
@@ -154,7 +164,8 @@ export type UserConfig = {
     | "openai"
     | "anthropic"
     | "opencode-zen"
-    | "opencode-go";
+    | "opencode-go"
+    | "openai-compatible";
   lowModel?: string;
   highModel?: string;
   /** Written only by `co-maintainer set --token=...`. Every other write
@@ -285,6 +296,9 @@ export function resolvedAiToken(
   config: Pick<UserConfig, "ai" | "token">,
   ai: string | undefined = config.ai,
 ): string | undefined {
+  // openai-compatible: only the saved key. It is dropped when the base URL
+  // changes, and a key from the environment would follow the new address.
+  if (ai === "openai-compatible") return savedTokenFor(config, ai);
   return (
     getEnv("CO_MAINTAINER_TOKEN") ??
     (ai ? providerKeyEnv(ai) : undefined) ??
@@ -420,8 +434,10 @@ export function savedTokenFor(
 
 /** True when a provider is chosen and a key reaches it from anywhere. */
 export function aiConfigured(
-  config: Pick<UserConfig, "ai" | "token">,
+  config: Pick<UserConfig, "ai" | "token" | "aiBaseUrl">,
 ): boolean {
+  // openai-compatible needs its address, and a key only if the server does.
+  if (config.ai === "openai-compatible") return Boolean(config.aiBaseUrl);
   return Boolean(config.ai && config.ai !== "none" && resolvedAiToken(config));
 }
 
@@ -730,6 +746,7 @@ const NOT_KEPT_WHEN_CLEARED = new Set([
   "clearedSettings",
   "credentialsChangedAt",
   "remoteNoticeShownFor",
+  "aiModelQuirks",
   "repos",
 ]);
 
