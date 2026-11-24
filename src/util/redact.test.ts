@@ -135,6 +135,14 @@ test("maskSecrets names the kind of each secret it hides", () => {
   }
 });
 
+test("maskSecrets still masks a key inside a slug, after - or _", () => {
+  for (const before of ["deploy-with-", "deploy_with_"]) {
+    const key = fake("sk-or-", "v1-", "s".repeat(20));
+    const { text } = maskSecrets(`section-${before}${key}`);
+    if (text.includes(key)) throw new Error(`kept after ${before}: ${text}`);
+  }
+});
+
 test("maskSecrets keeps the text around a value secret", () => {
   const cases: [string, string][] = [
     [

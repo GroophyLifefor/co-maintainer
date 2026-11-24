@@ -64,7 +64,12 @@ async function buildInto(): Promise<string> {
   try {
     // The hand written root pages are not built, so copy them like the
     // assets.
-    for (const page of ["index.html", "privacy.html", "vs/coderabbit.html"]) {
+    for (const page of [
+      "index.html",
+      "privacy.html",
+      "trust.html",
+      "vs/coderabbit.html",
+    ]) {
       await mkdir(dirname(join(outDir, page)), { recursive: true });
       await writeFile(join(outDir, page), await readFile(join(docsRoot, page)));
     }
