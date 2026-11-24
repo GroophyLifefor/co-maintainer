@@ -185,6 +185,9 @@ export type AiResponse = {
   /** The provider refused the reasoning level, and the answer came from a
    * retry without it. */
   reasoningDropped?: true;
+  /** How many distinct secrets were masked in the request before it was
+   * sent. Unset when none were. */
+  secretsMasked?: number;
   model: string;
   provider:
     | "openrouter"

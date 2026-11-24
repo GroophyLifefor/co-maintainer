@@ -234,8 +234,18 @@ export async function runServe(args: string[]): Promise<void> {
     );
   }
   registerJobHandlers();
-  const { orphans: recovered, replies: recoveredReplies } =
-    await recoverUnfinishedJobs();
+  const {
+    orphans: recovered,
+    replies: recoveredReplies,
+    sweep,
+  } = await recoverUnfinishedJobs((message) =>
+    console.log(`[serve] startup sweep: ${message}`),
+  );
+  if (sweep.queued + sweep.approved + sweep.closedChecks > 0) {
+    console.log(
+      `[serve] caught up while down: ${sweep.queued} review(s) queued, ${sweep.approved} approval(s), ${sweep.closedChecks} check run(s) closed`,
+    );
+  }
   if (recovered > 0) {
     console.log(
       `[serve] recovered ${recovered} orphaned job(s) from a previous run`,

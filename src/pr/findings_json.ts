@@ -80,6 +80,8 @@ Rules for the JSON:
   hunk of the same file. Omit it otherwise. Never wrap it in a code fence.
 - When a fix needs removed lines, another file, or more than one hunk, omit
   "suggestion".
+- A value shown as [redacted:<kind>] is a real secret co-maintainer hid from
+  you. Never write one in "suggestion".
 - "references" lists what the finding rests on: the bracketed id at the end
   of a guide or repository instruction line (such as R12 or I3),
   "codebase:<section title>" for a CODEBASE CONVENTIONS section, or "system"

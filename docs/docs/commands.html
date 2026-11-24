@@ -1384,6 +1384,11 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td>How long one AI request may wait for the provider before it fails, in minutes.</td>
 </tr>
 <tr>
+<td><code>--mask-secrets=true|false</code></td>
+<td>true</td>
+<td>Mask known secret shapes, such as API keys, tokens and private keys, before any request reaches the model.</td>
+</tr>
+<tr>
 <td><code>--global-reasoning-effort=none|low|default|high|xhigh|max</code></td>
 <td>high</td>
 <td>How much the model reasons in every AI job. default sends no reasoning field and leaves it to the provider.</td>
@@ -1652,6 +1657,25 @@ co-maintainer extension debug-run --name=NAME [--command=COMMAND]
 <td>Skip the confirmation. Needed when there is no terminal.</td>
 </tr>
 </tbody></table>
+<h2 id="co-maintainer-login-link"><code>co-maintainer login-link</code></h2>
+<p>Print a one-time dashboard sign-in link, valid for 5 minutes. Run it on the server.</p>
+<pre><code>co-maintainer login-link [--origin=URL]
+</code></pre>
+<h3 id="sign-in-link">Sign-in link</h3>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>--origin=URL</code></td>
+<td></td>
+<td>The address you open the dashboard on. Defaults to the origin of CM_WEBHOOK_URL or the saved webhook URL.</td>
+</tr>
+</tbody></table>
 <h2 id="co-maintainer-version"><code>co-maintainer version</code></h2>
 <p>Print the version.</p>
 <pre><code>co-maintainer version
@@ -1666,7 +1690,7 @@ co-maintainer extension debug-run --name=NAME [--command=COMMAND]
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#co-maintainer-probe">co-maintainer probe</a></li><li><a href="#co-maintainer-init">co-maintainer init</a></li><li><a href="#co-maintainer-sync">co-maintainer sync</a></li><li><a href="#co-maintainer-review">co-maintainer review</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#co-maintainer-view">co-maintainer view</a></li><li><a href="#co-maintainer-clear">co-maintainer clear</a></li><li><a href="#co-maintainer-uninstall">co-maintainer uninstall</a></li><li><a href="#co-maintainer-oauth">co-maintainer oauth</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-serve">co-maintainer serve</a></li><li><a href="#co-maintainer-extension">co-maintainer extension</a></li><li><a href="#co-maintainer-rollback">co-maintainer rollback</a></li><li><a href="#co-maintainer-version">co-maintainer version</a></li></ul></nav>
+      <ul><li><a href="#co-maintainer-probe">co-maintainer probe</a></li><li><a href="#co-maintainer-init">co-maintainer init</a></li><li><a href="#co-maintainer-sync">co-maintainer sync</a></li><li><a href="#co-maintainer-review">co-maintainer review</a></li><li><a href="#co-maintainer-config">co-maintainer config</a></li><li><a href="#co-maintainer-view">co-maintainer view</a></li><li><a href="#co-maintainer-clear">co-maintainer clear</a></li><li><a href="#co-maintainer-uninstall">co-maintainer uninstall</a></li><li><a href="#co-maintainer-oauth">co-maintainer oauth</a></li><li><a href="#co-maintainer-set">co-maintainer set</a></li><li><a href="#co-maintainer-serve">co-maintainer serve</a></li><li><a href="#co-maintainer-extension">co-maintainer extension</a></li><li><a href="#co-maintainer-rollback">co-maintainer rollback</a></li><li><a href="#co-maintainer-login-link">co-maintainer login-link</a></li><li><a href="#co-maintainer-version">co-maintainer version</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

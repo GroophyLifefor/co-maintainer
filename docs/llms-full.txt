@@ -4,10 +4,10 @@
 
 ## Facts
 
-- Latest version: 0.7.23, released 2026-11-24. Changelog: https://github.com/GroophyLifefor/co-maintainer/blob/main/CHANGELOG.md
+- Latest version: 0.7.27, released 2026-11-24. Changelog: https://github.com/GroophyLifefor/co-maintainer/blob/main/CHANGELOG.md
 - License: MIT. Source: https://github.com/GroophyLifefor/co-maintainer
 - Install: `npm install -g co-maintainer`. Needs Node 24 or newer.
-- Commands: `probe`, `init`, `sync`, `review`, `config`, `view`, `clear`, `uninstall`, `oauth`, `set`, `serve`, `extension`, `rollback`, `version`. `sync` keeps the review guides up to date (its old name was `remake`).
+- Commands: `probe`, `init`, `sync`, `review`, `config`, `view`, `clear`, `uninstall`, `oauth`, `set`, `serve`, `extension`, `rollback`, `login-link`, `version`. `sync` keeps the review guides up to date (its old name was `remake`).
 - AI providers: OpenRouter, OpenAI, Anthropic and OpenCode, on your own model key.
 - Git platform: GitHub only.
 - Runs as a CLI on your machine, in CI, or as a self-hosted GitHub App with `serve`. A hosted service runs `serve` at cloud.co-maintainer.com.
@@ -2563,6 +2563,27 @@ dashboard, or `skippers` in the policy, lists their relation to the
 repository. A comment from anyone else is ignored, with no reply and no
 reaction.
 
+### When the server is down
+
+The skip comments are read by the server, so they need it running. While it is
+down, a **Request changes** review from the App still blocks the merge where
+an approving review is required. GitHub's own **Dismiss review** gets past it
+with no server:
+
+1. Open the pull request and find the App's review on the **Conversation** tab.
+2. Open the review's **...** menu and choose **Dismiss review**.
+3. Write why, for example "co-maintainer is down", and confirm.
+
+Anyone with write access to the repository can dismiss a review, unless branch
+protection limits dismissals to listed people or teams. The dismissal and its
+message stay on the pull request. When the server is back, it also catches up
+on its own: a pull request pushed to while it was down gets a review of the new
+commit, see [`serve`: Updating](serve.md#updating).
+
+A check run the App left in progress or failed is not cleared by a dismissal.
+Where that check is required, wait for the server, or have someone allowed to
+bypass branch protection merge.
+
 ### Closing a finding
 
 The owner has the last word on a finding, the model does not have to agree. A
@@ -3612,6 +3633,24 @@ any time from **Settings**, which also signs out the other browser sessions.
 **GitHub sign-in (optional).** One allowed GitHub user can sign in with the App's
 OAuth client (no separate OAuth App).
 
+**A one-time link (from the server).** Anyone with a shell on the server, a
+script or an agent among them, can sign in without the password:
+
+```bash
+co-maintainer login-link
+```
+
+It prints one address, such as `https://review.example.com/login/link#...`.
+Open it, then press **Sign in**. The link works once, for 5 minutes, and only on
+that address. A new link replaces the old one, and a password change ends it.
+Opening the link only shows the button, so a chat or mail preview cannot use it
+up. The part after `#` never reaches the server or a proxy log. Making and
+using a link are in the audit log, the link itself never is. It works with
+password sign-in turned off too. The address comes from `CM_WEBHOOK_URL` or the
+saved webhook URL. `serve --webhook-url` is not visible to another command, so
+pass `--origin=https://your-address` then, or `--origin=http://localhost:PORT`
+on a local server. `serve` must be running, with the same version.
+
 1. On the GitHub App settings page, set **Redirect URL** to
    `http://<host>:<port>/auth/github/callback` (same host and port as `serve`).
 2. Copy client ID and client secret from that page.
@@ -3789,6 +3828,13 @@ before the server listens. One still reading the pull request is reviewed again.
 One GitHub already took is kept, with no second review. One GitHub never got is
 marked failed, its check run says the commit was not reviewed, and **Retry** on
 the dashboard runs it again.
+
+GitHub does not send a webhook again when the server missed it. So on start,
+`serve` also looks at the pull requests it reviewed in the last 14 days, at
+most 50. When its review still asks for changes and the author pushed while it
+was down, the new commit is queued for review under the same rules as a push.
+When a blocking finding was closed but the approval never reached GitHub, the
+approval is posted once. A pull request closed while it was down is left alone.
 
 A Docker server pulls the new image and starts the container again on the same
 volume, with the options it started with. **Settings**, **Server**, **Updates**
@@ -4329,6 +4375,16 @@ reviews pushes to each repository's default branch only.
 **not** in the subscription list: GitHub delivers both to every App without a
 subscription, which is why the webhook handler accepts them.
 
+A repository removed from the App's installation on GitHub stops being
+reviewed. When it is added back, or the App is uninstalled and installed again,
+it stays off: removing a repository usually means stopping its reviews and
+their cost, so it never comes back on without a word. The dashboard's
+**Repositories** page shows "This repository is back in the installation" with
+a **Resume reviews** button. Resume turns reviews on again with the knowledge it
+had, so no init runs, and opens its Knowledge page with what changed since and
+the usual Sync. A repository you removed from the dashboard yourself gets no
+such notice. The return and the resume are both in the audit log.
+
 ## Diagrams in App reviews
 
 An App review has no command line, so it reads the diagram settings saved for the
@@ -4415,6 +4471,7 @@ applies without a restart.
 | Settings save returns `422` | The key or token is missing a scope GitHub requires |
 | Webhook works but no review is posted | Check the Activity job log, then the AI key and models under **Settings** |
 | A failed review blocks the merge | The owner can comment `/co-maintainer skip-this-commit` on the pull request, see [Skipping a failed review](review-policy.md#skipping-a-failed-review) |
+| The server is down and its review blocks the merge | Dismiss the App's review on GitHub, see [When the server is down](review-policy.md#when-the-server-is-down) |
 | A private repository is reviewed from the diff alone | The review clones with the App's installation token. Check that the App is installed on the repository with **Contents: Read** |
 
 Webhook reachability problems are shown on each repository's **Overview** tab.
@@ -5011,6 +5068,7 @@ co-maintainer set [options]
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. With --repo, for that repository. |
 | `--review-event=auto\|comment` | auto | How the App posts a review: approve or request changes, or comment only. With --repo, for that repository. |
 | `--ai-timeout-minutes=N` | 15 | How long one AI request may wait for the provider before it fails, in minutes. |
+| `--mask-secrets=true\|false` | true | Mask known secret shapes, such as API keys, tokens and private keys, before any request reaches the model. |
 | `--global-reasoning-effort=none\|low\|default\|high\|xhigh\|max` | high | How much the model reasons in every AI job. default sends no reasoning field and leaves it to the provider. |
 | `--codegraph-version=SEMVER` |  | The pinned codegraph version, overriding the built-in one. For a security fix without a release. |
 | `--password=TEXT` |  | Replace the dashboard password. |
@@ -5112,6 +5170,20 @@ co-maintainer rollback [--yes]
 | Flag | Default | Description |
 |---|---|---|
 | `--yes` |  | Skip the confirmation. Needed when there is no terminal. |
+
+## `co-maintainer login-link`
+
+Print a one-time dashboard sign-in link, valid for 5 minutes. Run it on the server.
+
+```
+co-maintainer login-link [--origin=URL]
+```
+
+### Sign-in link
+
+| Flag | Default | Description |
+|---|---|---|
+| `--origin=URL` |  | The address you open the dashboard on. Defaults to the origin of CM_WEBHOOK_URL or the saved webhook URL. |
 
 ## `co-maintainer version`
 
@@ -6506,6 +6578,9 @@ is the safe default.
 | `Review guides are missing for owner/repo` | A review of a repository that has no guides. The code is `not_initialized`, in local, PR and remote review and in every output | Run [`init`](init.md) for that repo, or [`sync`](sync.md) if it was inited before. For `--remote` the text ends `on <host>` and the guides live on that server, so run `init` there. See [Errors](review.md#a-repository-without-guides) |
 | `The server at <host> does not have owner/repo available for review` | `review --remote` named a repository the server does not know, or one that is switched off. The code is `repo_unavailable` | Check the `owner/repo` name, or add the repository on that server first |
 | `GitHub rate limited this call` | A GitHub rate limit outlived the retries. A secondary limit is tried three times with its `retry-after` wait, a primary limit waits for its reset | It is temporary. Retry the review later from the dashboard. A rate limit never posts the "does not have access" comment |
+| `No dashboard address is known` | `login-link` found no `CM_WEBHOOK_URL` and no saved webhook URL | Pass `--origin=` with the address you open the dashboard on, see [`serve`: Sign in](serve.md#sign-in-to-the-dashboard) |
+| `No co-maintainer serve is running on this data directory` | `login-link` ran where no `serve` holds the database | Start `serve`, or run the command as the user and with the data directory `serve` uses |
+| `This link does not work` on the sign-in link page | The link was used, is older than 5 minutes, was replaced by a newer one, or was made for another address | Run `co-maintainer login-link` again on the server |
 | `Unknown command` / `Unknown option` | A typo in the command or flag | The message names the closest match. `co-maintainer help` lists every command |
 | `OpenRouter rejected the API key`, `OpenAI rejected the API key`, `Anthropic rejected the API key` | The provider refused the key | Replace it with `co-maintainer set --token=...`. See [AI providers](providers.md#keys) |
 | `does not know the model <name>` | The provider refused the model, for OpenRouter with `400` | Check the name on the provider's model list: [OpenRouter](https://openrouter.ai/models), [OpenAI](https://platform.openai.com/docs/models), [Anthropic](https://docs.anthropic.com/en/docs/about-claude/models) |

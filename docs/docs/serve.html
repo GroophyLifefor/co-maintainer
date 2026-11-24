@@ -259,6 +259,20 @@ or set it with <code>--password=...</code> or <code>co-maintainer set --password
 any time from <strong>Settings</strong>, which also signs out the other browser sessions.</p>
 <p><strong>GitHub sign-in (optional).</strong> One allowed GitHub user can sign in with the App&#39;s
 OAuth client (no separate OAuth App).</p>
+<p><strong>A one-time link (from the server).</strong> Anyone with a shell on the server, a
+script or an agent among them, can sign in without the password:</p>
+<pre class="shell-block"><code><span class="sh-cli">co-maintainer</span> <span class="sh-cmd">login-link</span>
+</code></pre>
+<p>It prints one address, such as <code>https://review.example.com/login/link#...</code>.
+Open it, then press <strong>Sign in</strong>. The link works once, for 5 minutes, and only on
+that address. A new link replaces the old one, and a password change ends it.
+Opening the link only shows the button, so a chat or mail preview cannot use it
+up. The part after <code>#</code> never reaches the server or a proxy log. Making and
+using a link are in the audit log, the link itself never is. It works with
+password sign-in turned off too. The address comes from <code>CM_WEBHOOK_URL</code> or the
+saved webhook URL. <code>serve --webhook-url</code> is not visible to another command, so
+pass <code>--origin=https://your-address</code> then, or <code>--origin=http://localhost:PORT</code>
+on a local server. <code>serve</code> must be running, with the same version.</p>
 <ol>
 <li>On the GitHub App settings page, set <strong>Redirect URL</strong> to
 <code>http://&lt;host&gt;:&lt;port&gt;/auth/github/callback</code> (same host and port as <code>serve</code>).</li>
@@ -430,6 +444,12 @@ before the server listens. One still reading the pull request is reviewed again.
 One GitHub already took is kept, with no second review. One GitHub never got is
 marked failed, its check run says the commit was not reviewed, and <strong>Retry</strong> on
 the dashboard runs it again.</p>
+<p>GitHub does not send a webhook again when the server missed it. So on start,
+<code>serve</code> also looks at the pull requests it reviewed in the last 14 days, at
+most 50. When its review still asks for changes and the author pushed while it
+was down, the new commit is queued for review under the same rules as a push.
+When a blocking finding was closed but the approval never reached GitHub, the
+approval is posted once. A pull request closed while it was down is left alone.</p>
 <p>A Docker server pulls the new image and starts the container again on the same
 volume, with the options it started with. <strong>Settings</strong>, <strong>Server</strong>, <strong>Updates</strong>
 shows those lines. When the host sets <code>CM_UPDATE_URL</code>, the dashboard also says

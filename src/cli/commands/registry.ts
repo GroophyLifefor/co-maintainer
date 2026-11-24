@@ -1197,6 +1197,13 @@ export const COMMANDS: CommandSpec[] = [
               "How long one AI request may wait for the provider before it fails, in minutes.",
           },
           {
+            name: "mask-secrets",
+            value: "true|false",
+            default: "true",
+            description:
+              "Mask known secret shapes, such as API keys, tokens and private keys, before any request reaches the model.",
+          },
+          {
             name: "global-reasoning-effort",
             value: "none|low|default|high|xhigh|max",
             default: "high",
@@ -1351,6 +1358,29 @@ export const COMMANDS: CommandSpec[] = [
       },
     ],
     examples: ["co-maintainer rollback", "co-maintainer rollback --yes"],
+  },
+  {
+    name: "login-link",
+    summary:
+      "Print a one-time dashboard sign-in link, valid for 5 minutes. Run it on the server.",
+    usage: ["co-maintainer login-link [--origin=URL]"],
+    groups: [
+      {
+        title: "Sign-in link",
+        flags: [
+          {
+            name: "origin",
+            value: "URL",
+            description:
+              "The address you open the dashboard on. Defaults to the origin of CM_WEBHOOK_URL or the saved webhook URL.",
+          },
+        ],
+      },
+    ],
+    examples: [
+      "co-maintainer login-link",
+      "co-maintainer login-link --origin=http://localhost:3000",
+    ],
   },
   {
     name: "version",

@@ -500,4 +500,24 @@ export const migrations: string[][] = [
   [
     `ALTER TABLE reply_requests ADD COLUMN may_close INTEGER NOT NULL DEFAULT 0`,
   ],
+  // 27: the one-time dashboard sign-in link `co-maintainer login-link` makes.
+  // Only its hash is kept, with the host it is valid on. A new link replaces
+  // the old one, so the table holds at most one row.
+  [
+    `CREATE TABLE login_links (
+      token_hash TEXT PRIMARY KEY,
+      host TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      used_at TEXT
+    )`,
+  ],
+  // 28: why a repository is off. GitHub removed it from the App's
+  // installation, and when it came back. Both empty means turned off by hand
+  // or never removed. A returned repository stays off until someone resumes
+  // it, and the dashboard says so.
+  [
+    `ALTER TABLE repos ADD COLUMN removed_by_github_at TEXT`,
+    `ALTER TABLE repos ADD COLUMN returned_at TEXT`,
+  ],
 ];

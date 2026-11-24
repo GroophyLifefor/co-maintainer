@@ -11,6 +11,7 @@ import { registerReviewJobHandler } from "./review.ts";
 import { registerSetupJobHandler } from "./setup.ts";
 import { registerSkipJobHandler } from "./skip_commands.ts";
 import { registerWatchCommentHandler } from "./watch_comments.ts";
+import { type SweepResult, sweepStuckReviews } from "./startup_sweep.ts";
 
 export function registerJobHandlers(): void {
   registerSetupJobHandler();
@@ -23,10 +24,14 @@ export function registerJobHandlers(): void {
 }
 
 /** Jobs a killed process left `running` are reconciled or run again, and
- * unfinished conversation replies are queued again. */
-export async function recoverUnfinishedJobs(): Promise<{
+ * unfinished conversation replies are queued again. Then pull requests
+ * left blocked while the server was down are caught up. */
+export async function recoverUnfinishedJobs(
+  log: (message: string) => void = () => {},
+): Promise<{
   orphans: number;
   replies: number;
+  sweep: SweepResult;
 }> {
   // Before the orphans run again: a job still marked running keeps its
   // extension folder, which tells its rerun what the restart cut off.
@@ -35,5 +40,7 @@ export async function recoverUnfinishedJobs(): Promise<{
   );
   const orphans = await recoverOrphans();
   const replies = recoverReplyRequests();
-  return { orphans, replies };
+  // Last: a pull request the restart already handled has a job by now.
+  const sweep = await sweepStuckReviews(log);
+  return { orphans, replies, sweep };
 }

@@ -69,6 +69,15 @@ test("suggestionAnchor rejects what GitHub could not apply as written", () => {
   const twice = finding("17");
   twice.excerpt += "\n```suggestion\nagain\n```";
   same(suggestionAnchor(twice, PATCH), undefined, "two blocks");
+  const masked = finding("17");
+  masked.excerpt = masked.excerpt.replace(
+    "threshold)",
+    'threshold, "[redacted:github-token]")',
+  );
+  same(suggestionAnchor(masked, PATCH), undefined, "a masked secret");
+  const redacted = finding("17");
+  redacted.excerpt = redacted.excerpt.replace("threshold)", '"[redacted]")');
+  same(suggestionAnchor(redacted, PATCH), undefined, "a redacted secret");
 });
 
 test("suggestionAnchor anchors a multi-line replacement on its whole range", () => {

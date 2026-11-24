@@ -4,6 +4,7 @@ import { OpenAiProvider } from "./openai.ts";
 import { AnthropicProvider } from "./anthropic.ts";
 import { openCodeHost } from "./opencode.ts";
 import { EXPERIMENTAL_OAUTH_PROVIDER, oauthOps } from "./oauth/registry.ts";
+import { withSecretMask } from "./mask_secrets.ts";
 import { withCopyRule } from "./copy_rule.ts";
 import { die } from "../cli/error.ts";
 import { OutputLimitError } from "./output_limit.ts";
@@ -45,12 +46,13 @@ export function aiProviderName(options: Options): string {
 }
 
 /** The provider for a run. Every one it returns is wrapped by
- * `withCopyRule`, so no job reaches a model without the punctuation rule. */
+ * `withCopyRule`, so no job reaches a model without the punctuation rule,
+ * and by `withSecretMask`, so no secret shape reaches it either. */
 export function createAiProvider(
   options: Options,
   model: string,
 ): AiProvider | undefined {
-  return withCopyRule(createRawProvider(options, model));
+  return withCopyRule(withSecretMask(createRawProvider(options, model)));
 }
 
 function createRawProvider(options: Options, model: string): AiProvider {

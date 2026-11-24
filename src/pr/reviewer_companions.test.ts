@@ -1,6 +1,7 @@
 /** What `--with` companions do to a review request. A review without them
  * sends exactly the request it sent before companions existed: the fixture
- * holds the requests of 8c445fb, byte for byte. With companions the system
+ * holds the requests of 8c445fb, byte for byte, plus the line that tells
+ * the model what a secret mask is. With companions the system
  * prompt stays the same bytes and only the user prompt gains the COMPANION
  * blocks. */
 import { test } from "node:test";

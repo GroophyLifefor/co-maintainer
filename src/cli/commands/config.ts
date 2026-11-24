@@ -238,6 +238,7 @@ export const KNOWN_FIELDS = [
   "aiTimeoutMinutes",
   "aiBaseUrl",
   "aiAllowHttp",
+  "maskSecrets",
   "globalReasoningEffort",
   "reviewBlocking",
   "codegraphVersion",

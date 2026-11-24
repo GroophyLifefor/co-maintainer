@@ -221,6 +221,9 @@ export type UserConfig = {
   /** How long one AI request may wait for the provider, in minutes. Unset
    * means 15. */
   aiTimeoutMinutes?: number;
+  /** Known secret shapes in code, tool results and pull request text are
+   * masked before a request reaches the model. Unset means on. */
+  maskSecrets?: boolean;
   /** The reasoning effort every AI job asks for: none, low, default, high,
    * xhigh or max. `default` sends no reasoning field. Unset means high. */
   globalReasoningEffort?: string;
