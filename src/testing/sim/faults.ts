@@ -37,6 +37,14 @@ export type Fault = {
   times?: number;
   /** `slow` only: the delay. Defaults to 50 ms. */
   ms?: number;
+  /** GitHub and remote: headers the failed answer carries, e.g.
+   * `retry-after` for GitHub's secondary limit. */
+  headers?: Record<string, string>;
+  /** GitHub and remote: the answer's `message` instead of the status text. */
+  message?: string;
+  /** GitHub `rate-limit` only: the reset this many seconds from now.
+   * Defaults to 0, a reset that already came. */
+  resetIn?: number;
 };
 
 /** What a matching call looks like, as far as a fault can tell. */
