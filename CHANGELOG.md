@@ -11,10 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A GitHub rate limit no longer reads as missing access.** A secondary limit that outlived its three tries, or a 403 that says it is a rate limit, posted "The App does not have access to review this pull request." and ended the review as access denied. It now fails as a temporary error you can retry, with no comment. A rate limit on the incremental compare call no longer widens the round to the whole pull request.
 - **A Stop during a GitHub rate limit wait sends no retry.**
+- **A review cut off by a server restart no longer leaves its check run in progress.** When GitHub had already taken the review, the restart kept it but never completed the check, so the pull request waited forever. When GitHub never got it, the job was marked done with nothing posted. The check run now completes in both cases, and a review that was not posted fails with a message, so the dashboard offers Retry.
 
 ### Added
 
 - **e2e:simulate has a `rate-limit` flow.** A primary limit on an App review and on `init`, a secondary limit once and three times, and a rate limit 403 with no limit headers. GitHub faults can now carry headers, a message and a reset time.
+- **e2e:simulate has a `restart` flow.** The server dies with a review queued, reading the files, and posting before and after GitHub took it, then starts again with the same startup code `serve` runs. A new `hang` fault freezes a GitHub call the way a killed process leaves it.
 
 ## [0.7.22] - 2026-11-23
 
