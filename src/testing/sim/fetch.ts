@@ -83,15 +83,23 @@ function cutResponse(body: unknown, text: string): Response {
 function faultResponse(fault: Fault, label: string): Response {
   const status = faultStatus(fault);
   if (status !== undefined) {
-    return json(status, { message: statusMessage(status), label });
+    return json(
+      status,
+      { message: fault.message ?? statusMessage(status), label },
+      fault.headers,
+    );
   }
-  // A primary limit at zero that resets now: GitHub's client retries at once.
+  // A primary limit at zero. With no `resetIn` it resets now and GitHub's
+  // client retries at once.
   return json(
     403,
-    { message: "API rate limit exceeded", label },
+    { message: fault.message ?? "API rate limit exceeded", label },
     {
       "x-ratelimit-remaining": "0",
-      "x-ratelimit-reset": String(Math.floor(Date.now() / 1000)),
+      "x-ratelimit-reset": String(
+        Math.floor(Date.now() / 1000) + (fault.resetIn ?? 0),
+      ),
+      ...fault.headers,
     },
   );
 }
@@ -177,6 +185,27 @@ export function installFetch({
         if (fault.kind === "timeout") {
           trace.github.push({ ...record, status: 0, ms: ms(), response: null });
           throw timeoutError();
+        }
+        if (fault.kind === "hang") {
+          // The process dies while it waits: no answer, no catch, no finally.
+          // With `landed` GitHub applied the call first.
+          const route = fault.landed
+            ? world.github.route({
+                method,
+                url,
+                body,
+                via: "fetch",
+                token: bearer(headers),
+                step,
+              })
+            : undefined;
+          trace.github.push({
+            ...record,
+            status: route?.status ?? 0,
+            ms: ms(),
+            response: null,
+          });
+          return new Promise<Response>(() => {});
         }
         const response = faultResponse(fault, describeFault(fault));
         trace.github.push({

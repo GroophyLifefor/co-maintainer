@@ -6,7 +6,11 @@ import { VERSION } from "../version.ts";
 import { createAiProvider } from "../ai/provider.ts";
 import { FakeAiProvider } from "../ai/fake.ts";
 import { AppClient, findInstallationForRepo } from "../github/app.ts";
-import { GitHubHttpError, isAccessDenied } from "../github/client.ts";
+import {
+  GitHubHttpError,
+  isAccessDenied,
+  isRateLimited,
+} from "../github/client.ts";
 import { type ParsedFinding, parseFindings } from "../pr/findings.ts";
 import { type Anchor, anchorFor } from "../pr/hunks.ts";
 import {
@@ -989,7 +993,7 @@ async function publish(
       });
       return;
     }
-    if (isAccessDenied(error)) {
+    if (isAccessDenied(error) || isRateLimited(error)) {
       // The AI result and its cost are already stored. Only the post failed,
       // so this is not an AI failure and nothing claims the review was posted.
       setReviewStatus(reviewId, "not_posted");
@@ -1022,22 +1026,54 @@ export async function reconcileReview(
   const listed = await client.pages<Json>(
     `repos/${job.repo}/pulls/${job.pr_number}/reviews`,
   );
+  // Our review names its job in the metadata. Another bot's review of the
+  // same commit is not ours.
   const match = listed.find((item) => {
     const user = item.user as Json | undefined;
     return (
       String(item.commit_id ?? "") === review.head_sha &&
-      String(user?.type ?? "") === "Bot"
+      String(user?.type ?? "") === "Bot" &&
+      String(item.body ?? "").includes(`- Activity: ${job.id}`)
     );
   });
+  const findings = listFindingsForReview(review.id);
   if (match) {
     setReviewStatus(review.id, "posted", {
       posted_review_id: String(match.id ?? ""),
+      findings_count: findings.length,
     });
     log("info", `reconciled existing GitHub review ${match.id}`);
+    // The process died before it closed the check run. Left as it is, the
+    // pull request waits on it forever.
+    const open = findings.filter((finding) => finding.state !== "closed");
+    await finishCheck(
+      client,
+      job,
+      review.check_run_id ?? undefined,
+      open.length === 0 ? "success" : "neutral",
+      open.length === 0 ? "Review completed" : "Review findings",
+      findings,
+      log,
+    );
     return;
   }
   setReviewStatus(review.id, "failed");
   log("info", "posting crashed and no matching GitHub review was found");
+  await finishCheck(
+    client,
+    job,
+    review.check_run_id ?? undefined,
+    "failure",
+    "Review job failed.",
+    findings,
+    log,
+    `This commit was not reviewed. The server restarted before the review was posted. See the dashboard: ${dashboardOrigin()}/activity/${job.id}\n\n${SKIP_HINT}`,
+  );
+  // A failed job, not a done one: the dashboard offers Retry, and the result
+  // is not lost without a word.
+  throw new Error(
+    "The server restarted before the review was posted, and GitHub has no review for this commit.",
+  );
 }
 
 export async function runReviewJob(
@@ -1236,6 +1272,7 @@ async function runReviewJobCore(
         if (
           isAccessDenied(error) ||
           (error instanceof GitHubHttpError &&
+            !error.rateLimited &&
             (error.status === 403 || error.status === 404))
         ) {
           log("info", "incremental compare unavailable, reviewing whole PR");

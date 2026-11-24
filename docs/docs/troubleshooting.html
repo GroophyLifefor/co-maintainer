@@ -161,6 +161,11 @@ is the safe default.</p>
 <td>Check the <code>owner/repo</code> name, or add the repository on that server first</td>
 </tr>
 <tr>
+<td><code>GitHub rate limited this call</code></td>
+<td>A GitHub rate limit outlived the retries. A secondary limit is tried three times with its <code>retry-after</code> wait, a primary limit waits for its reset</td>
+<td>It is temporary. Retry the review later from the dashboard. A rate limit never posts the &quot;does not have access&quot; comment</td>
+</tr>
+<tr>
 <td><code>Unknown command</code> / <code>Unknown option</code></td>
 <td>A typo in the command or flag</td>
 <td>The message names the closest match. <code>co-maintainer help</code> lists every command</td>

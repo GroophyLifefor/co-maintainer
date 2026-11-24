@@ -266,6 +266,14 @@ export function cancel(jobId: string, reason = "dashboard_canceled"): boolean {
   return false;
 }
 
+/** Test seam: forget the jobs this process was running, the way a killed
+ * process forgets them. Their rows stay as they are, `running` included. */
+export function resetJobRunnerForTest(): void {
+  inFlight.clear();
+  running.clear();
+  pendingCancelReason.clear();
+}
+
 export async function recoverOrphans(): Promise<number> {
   const orphans = listJobs({ status: "running" });
   for (const job of orphans) {

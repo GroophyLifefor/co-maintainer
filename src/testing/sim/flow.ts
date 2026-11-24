@@ -276,6 +276,10 @@ function baseOptions(settings: RunSettings, world: World): Options {
 /** The timer the runner itself uses, never shortened. */
 const realSetTimeout = globalThis.setTimeout;
 
+/** The trace log line a GitHub rate limit wait leaves, followed by the
+ * milliseconds the product asked to wait. */
+export const RATE_LIMIT_WAIT_LOG = "GitHub rate limit wait";
+
 /** After an AI rate-limit fault the product backs off for seconds before it
  * tries again. This makes the next wait of a second or more it starts fire
  * at once, once per fault, and logs the skip. Every other timer is left
@@ -304,6 +308,9 @@ function installFastWaits(faults: Faults, trace: Trace): () => void {
 async function resetProductState(): Promise<void> {
   (await import("../../remote/server/byok_keys.ts")).clearByokKeysForTest();
   (await import("../../services/watch_status.ts")).clearWatchStatusCache();
+  // A flow that crashed a job leaves it frozen. The next flow's runner
+  // starts empty, as a new process would.
+  (await import("../../services/jobs.ts")).resetJobRunnerForTest();
   // `--json` turns prompts off for the process. The next flow starts as a
   // fresh CLI would.
   (await import("../../cli/args.ts")).setCliInteractive(true);
@@ -369,10 +376,16 @@ export async function runFlow(
     undo.push(() => setGhRunner(undefined));
     // A temporary GitHub fault is retried twice. The waits are real seconds,
     // so the sim retries at once.
-    const { setTransientDelaysForTest } =
+    const { setTransientDelaysForTest, setRateLimitSleepForTest } =
       await import("../../github/client.ts");
     setTransientDelaysForTest([0, 0]);
     undo.push(() => setTransientDelaysForTest());
+    // A GitHub rate limit waits seconds to an hour. The sim logs the wait the
+    // product asked for, so a flow can check it, and goes on at once.
+    setRateLimitSleepForTest(async (ms) => {
+      trace.log("simulate", `${RATE_LIMIT_WAIT_LOG} ${Math.round(ms)} ms`);
+    });
+    undo.push(() => setRateLimitSleepForTest());
     undo.push(await watchAi(trace));
     undo.push(resetProductState);
     const server = new SimServer(world, trace, {

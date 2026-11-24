@@ -1,6 +1,10 @@
 import { mock, test } from "node:test";
 import {
+  GitHubHttpError,
   githubFetch,
+  httpError,
+  isAccessDenied,
+  isRateLimited,
   paginate,
   probeDelay,
   RATE_LIMIT_PROBE_MS,
@@ -151,5 +155,48 @@ test("paginate stops at a short page and respects a limit", async () => {
   );
   if (limited.length !== 10) {
     throw new Error(`expected the limit to cap at 10, got ${limited.length}`);
+  }
+});
+
+test("a rate limited 403 is not missing access, a plain 403 and a 404 are", async () => {
+  const cases: [Response, boolean][] = [
+    [
+      new Response("{}", { status: 403, headers: { "retry-after": "5" } }),
+      true,
+    ],
+    [
+      new Response("{}", {
+        status: 403,
+        headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1" },
+      }),
+      true,
+    ],
+    [
+      new Response('{"message":"You have exceeded a secondary rate limit."}', {
+        status: 403,
+      }),
+      true,
+    ],
+    [new Response("{}", { status: 429 }), true],
+    [
+      new Response('{"message":"Resource not accessible"}', { status: 403 }),
+      false,
+    ],
+    [new Response('{"message":"Not Found"}', { status: 404 }), false],
+  ];
+  for (const [res, limited] of cases) {
+    const error = await httpError(res, "GET", "repos/o/r/pulls/1/files", "App");
+    if (!(error instanceof GitHubHttpError))
+      throw new Error("not an http error");
+    if (isRateLimited(error) !== limited) {
+      throw new Error(`${res.status}: rate limited should be ${limited}`);
+    }
+    const denied = !limited && (res.status === 403 || res.status === 404);
+    if (isAccessDenied(error) !== denied) {
+      throw new Error(`${res.status}: access denied should be ${denied}`);
+    }
+    if (limited && error.message.includes("permission")) {
+      throw new Error("a rate limit carries a permissions hint");
+    }
   }
 });

@@ -139,7 +139,14 @@ file. The sandbox sets the environment first.
 - `sim.faults.add(...)` makes the next matching GitHub, AI or remote call fail
   with `"404"`, `"500"`, `"rate-limit"`, `"timeout"`, `"slow"` or any HTTP
   status such as `422`. After an AI rate limit the product's backoff wait is
-  skipped, so the flow does not sit through it.
+  skipped, so the flow does not sit through it. A GitHub fault can carry
+  `headers` (such as `retry-after`) and a `message`, and a GitHub
+  `"rate-limit"` can reset `resetIn` seconds from now. A GitHub rate limit wait
+  is never slept: the trace logs it as `GitHub rate limit wait <ms> ms`, and
+  the `rate-limit` flow reads it. A GitHub `"hang"` never answers, with
+  `landed: true` after GitHub applied the call, and
+  `sim.server.crashDuringJob(sim.faults)` then `sim.server.restart()` kill
+  `serve` on it and start it again, as the `restart` flow does.
 
 #### Checks and a real model
 

@@ -9,6 +9,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import type { SimComment, SimGithub, SimPull } from "./github.ts";
 import { REMOTE_URL } from "./fetch.ts";
+import type { Faults } from "./faults.ts";
 import type { Trace } from "./trace.ts";
 import type { World } from "./world.ts";
 
@@ -133,19 +134,7 @@ export class SimServer {
     await openAppDb();
     const { discoverCliRepos } = await import("../../services/cli_repos.ts");
     await discoverCliRepos();
-    (await import("../../services/setup.ts")).registerSetupJobHandler();
-    (await import("../../services/review.ts")).registerReviewJobHandler();
-    (
-      await import("../../services/remote_review.ts")
-    ).registerRemoteReviewHandler();
-    (await import("../../services/replies.ts")).registerReplyJobHandler();
-    (
-      await import("../../services/push_review.ts")
-    ).registerPushReviewHandlers();
-    (
-      await import("../../services/watch_comments.ts")
-    ).registerWatchCommentHandler();
-    (await import("../../services/skip_commands.ts")).registerSkipJobHandler();
+    (await import("../../services/serve_startup.ts")).registerJobHandlers();
     this.started = true;
   }
 
@@ -192,29 +181,81 @@ export class SimServer {
    * jobs that finished, in the order they finished. */
   async runJobs(): Promise<{ id: string; type: string; status: string }[]> {
     const { claimAndRun } = await import("../../services/jobs.ts");
-    const { listJobs } = await import("../../store/jobs.ts");
-    const seen = new Set(this.trace.jobs.map((job) => job.id));
     const finished: { id: string; type: string; status: string }[] = [];
     for (let guard = 0; guard < 100; guard++) {
       if (!(await claimAndRun())) break;
-      for (const job of listJobs().reverse()) {
-        if (seen.has(job.id) || job.status === "queued") continue;
-        if (job.status === "running") continue;
-        // A CLI run writes its own finished job row. serve never ran it.
-        if (job.args.includes('"source":"cli"')) continue;
-        seen.add(job.id);
-        this.trace.jobs.push({
-          step: this.trace.step,
-          id: job.id,
-          type: job.type,
-          repo: job.repo,
-          status: job.status,
-          error: job.error ?? null,
-        });
-        finished.push({ id: job.id, type: job.type, status: job.status });
-      }
+      finished.push(...(await this.collectFinished()));
     }
     return finished;
+  }
+
+  /** Jobs that finished since the last look, added to the trace. */
+  private async collectFinished(): Promise<
+    { id: string; type: string; status: string }[]
+  > {
+    const { listJobs } = await import("../../store/jobs.ts");
+    const seen = new Set(this.trace.jobs.map((job) => job.id));
+    const finished: { id: string; type: string; status: string }[] = [];
+    for (const job of listJobs().reverse()) {
+      if (seen.has(job.id) || job.status === "queued") continue;
+      if (job.status === "running") continue;
+      // A CLI run writes its own finished job row. serve never ran it.
+      if (job.args.includes('"source":"cli"')) continue;
+      seen.add(job.id);
+      this.trace.jobs.push({
+        step: this.trace.step,
+        id: job.id,
+        type: job.type,
+        repo: job.repo,
+        status: job.status,
+        error: job.error ?? null,
+      });
+      finished.push({ id: job.id, type: job.type, status: job.status });
+    }
+    return finished;
+  }
+
+  /** Runs the next queued job until the planned `hang` fault fires, then
+   * the process "dies": the job is frozen where it waits, its row stays
+   * `running`, and the job runner forgets it. Fails if the job ends first,
+   * so a step cannot believe it crashed a job it never reached. */
+  async crashDuringJob(faults: Faults): Promise<string> {
+    const { claimAndRun, resetJobRunnerForTest } =
+      await import("../../services/jobs.ts");
+    const fired = new Promise<string>((resolve) => {
+      faults.onFire = (fault) => {
+        if (fault.kind === "hang") resolve("crashed");
+      };
+    });
+    try {
+      const outcome = await Promise.race([
+        fired,
+        claimAndRun().then((ran) => (ran ? "finished" : "no job")),
+      ]);
+      if (outcome !== "crashed") {
+        throw new Error(
+          `e2e:simulate meant to crash a job, but the job ${outcome === "no job" ? "was not there" : "finished first"}`,
+        );
+      }
+      resetJobRunnerForTest();
+      return outcome;
+    } finally {
+      faults.onFire = undefined;
+    }
+  }
+
+  /** `serve` started again after a crash: what it does with jobs before it
+   * listens, from the product's own startup. Jobs it reconciles finish here
+   * and join the trace. The queue is run by `runJobs` after. */
+  async restart(): Promise<{
+    orphans: number;
+    replies: number;
+    finished: { id: string; type: string; status: string }[];
+  }> {
+    const { recoverUnfinishedJobs } =
+      await import("../../services/serve_startup.ts");
+    const recovered = await recoverUnfinishedJobs();
+    return { ...recovered, finished: await this.collectFinished() };
   }
 
   /** A remote review token, created the way the dashboard creates one. It
