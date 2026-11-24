@@ -446,8 +446,11 @@ export function aiConfigured(
  * policy by a config edit. An unset or unreadable value falls back to the
  * config, then to `off`. */
 export function remoteByokPolicy(
-  config: Pick<UserConfig, "remoteByokPolicy"> = readConfig(),
+  config: Pick<UserConfig, "remoteByokPolicy" | "ai"> = readConfig(),
 ): ByokPolicy {
+  // An openai-compatible server is an address the client cannot see. A
+  // client's own key must not be sent to it.
+  if (config.ai === "openai-compatible") return "off";
   // An env value that is not one of the three known policies is treated as
   // unreadable and falls back to the config, so a typo cannot silently turn a
   // configured `require` into `off`. An explicit `off` still overrides.
