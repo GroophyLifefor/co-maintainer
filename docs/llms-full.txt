@@ -4,7 +4,7 @@
 
 ## Facts
 
-- Latest version: 0.7.22, released 2026-11-23. Changelog: https://github.com/GroophyLifefor/co-maintainer/blob/main/CHANGELOG.md
+- Latest version: 0.7.23, released 2026-11-24. Changelog: https://github.com/GroophyLifefor/co-maintainer/blob/main/CHANGELOG.md
 - License: MIT. Source: https://github.com/GroophyLifefor/co-maintainer
 - Install: `npm install -g co-maintainer`. Needs Node 24 or newer.
 - Commands: `probe`, `init`, `sync`, `review`, `config`, `view`, `clear`, `uninstall`, `oauth`, `set`, `serve`, `extension`, `rollback`, `version`. `sync` keeps the review guides up to date (its old name was `remake`).
@@ -6439,6 +6439,7 @@ is the safe default.
 | `--auth=pat requires a GitHub token` | `--auth=pat` with no token anywhere | Pass `--github-pat=...`, set `GITHUB_TOKEN` or `GH_TOKEN`, or `co-maintainer set --github-pat=...` |
 | `Review guides are missing for owner/repo` | A review of a repository that has no guides. The code is `not_initialized`, in local, PR and remote review and in every output | Run [`init`](init.md) for that repo, or [`sync`](sync.md) if it was inited before. For `--remote` the text ends `on <host>` and the guides live on that server, so run `init` there. See [Errors](review.md#a-repository-without-guides) |
 | `The server at <host> does not have owner/repo available for review` | `review --remote` named a repository the server does not know, or one that is switched off. The code is `repo_unavailable` | Check the `owner/repo` name, or add the repository on that server first |
+| `GitHub rate limited this call` | A GitHub rate limit outlived the retries. A secondary limit is tried three times with its `retry-after` wait, a primary limit waits for its reset | It is temporary. Retry the review later from the dashboard. A rate limit never posts the "does not have access" comment |
 | `Unknown command` / `Unknown option` | A typo in the command or flag | The message names the closest match. `co-maintainer help` lists every command |
 | `OpenRouter rejected the API key`, `OpenAI rejected the API key`, `Anthropic rejected the API key` | The provider refused the key | Replace it with `co-maintainer set --token=...`. See [AI providers](providers.md#keys) |
 | `does not know the model <name>` | The provider refused the model, for OpenRouter with `400` | Check the name on the provider's model list: [OpenRouter](https://openrouter.ai/models), [OpenAI](https://platform.openai.com/docs/models), [Anthropic](https://docs.anthropic.com/en/docs/about-claude/models) |

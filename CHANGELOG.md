@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.23] - 2026-11-24
+
+### Fixed
+
+- **A GitHub rate limit no longer reads as missing access.** A secondary limit that outlived its three tries, or a 403 that says it is a rate limit, posted "The App does not have access to review this pull request." and ended the review as access denied. It now fails as a temporary error you can retry, with no comment. A rate limit on the incremental compare call no longer widens the round to the whole pull request.
+- **A Stop during a GitHub rate limit wait sends no retry.**
+
+### Added
+
+- **e2e:simulate has a `rate-limit` flow.** A primary limit on an App review and on `init`, a secondary limit once and three times, and a rate limit 403 with no limit headers. GitHub faults can now carry headers, a message and a reset time.
+
 ## [0.7.22] - 2026-11-23
 
 ### Changed
