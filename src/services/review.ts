@@ -74,6 +74,7 @@ import {
   getReviewByJobId,
   insertReview,
   latestPostedReview,
+  setReviewHead,
   setReviewScope,
   setReviewStatus,
 } from "../store/reviews.ts";
@@ -95,7 +96,7 @@ import {
 import { enqueue, type LogFn, registerHandler } from "./jobs.ts";
 import { requestedReviewBlocked } from "./webhook.ts";
 import type { AiProvider, GitHubClient, Json, Options } from "../types.ts";
-import type { FindingRow, JobRow } from "../store/rows.ts";
+import type { FindingRow, JobRow, ReviewRow } from "../store/rows.ts";
 import { getEnv } from "../util/runtime.ts";
 import { hasWriteAccess } from "../github/write_access.ts";
 import { withExtensions } from "../extensions/session.ts";
@@ -1227,6 +1228,29 @@ async function runReviewJobCore(
     });
   }
   let checkRunId = existing?.check_run_id;
+  // A rerun after a restart: the author pushed while the server was down.
+  // The row and its check run belong to the old commit. Close that check
+  // and review the head GitHub has now, on a check run of its own.
+  if (existing?.head_sha && existing.head_sha !== headSha) {
+    log(
+      "info",
+      `the head moved from ${(existing.head_sha ?? "").slice(0, 7)} to ${headSha.slice(0, 7)} while the server was down, reviewing the new head`,
+    );
+    if (checkRunId) {
+      await finishCheck(
+        github,
+        job,
+        checkRunId,
+        "neutral",
+        "Superseded by a newer commit",
+        [],
+        log,
+        "The server restarted during this review, and the newer commit on this pull request is reviewed instead.",
+      );
+    }
+    setReviewHead(reviewId, headSha, reviewBase, scope);
+    checkRunId = undefined;
+  }
   if (!checkRunId) {
     checkRunId = await startCheck(github, job, reviewId, headSha, log);
   }
@@ -1712,6 +1736,34 @@ export function roundArgs(
  * blocking finding is left open and no extension asked for changes, it
  * approves that commit with a fixed text. No AI call. Otherwise nothing: the
  * next round decides (#144). Returns what it did, for the job log. */
+/** A check run a review left open when its job ended without closing it,
+ * completed as failed, the way a failed job completes it. Only an open run
+ * is touched, so calling it twice writes once. */
+export async function closeStaleCheck(
+  client: GitHubClient,
+  job: JobRow,
+  review: ReviewRow,
+  log: LogFn,
+): Promise<boolean> {
+  if (!review.check_run_id) return false;
+  const run = await client.request<Json>(
+    `repos/${job.repo}/check-runs/${review.check_run_id}`,
+  );
+  if (String(run.status ?? "") === "completed") return false;
+  setReviewStatus(review.id, "failed");
+  await finishCheck(
+    client,
+    job,
+    review.check_run_id,
+    "failure",
+    "Review job failed.",
+    listFindingsForReview(review.id),
+    log,
+    `This commit was not reviewed. The server restarted before the review finished. See the dashboard: ${dashboardOrigin()}/activity/${job.id}\n\n${SKIP_HINT}`,
+  );
+  return true;
+}
+
 export async function approveAfterWithdrawal(
   client: GitHubClient,
   repo: string,
@@ -1721,6 +1773,10 @@ export async function approveAfterWithdrawal(
   /** Who closed it, for a maintainer's dismiss. The bot's own withdrawal
    * leaves it out. */
   closedBy?: string,
+  /** The startup sweep may call this on every start: skip when the App
+   * already approved after its blocking review. A finding reopened and closed
+   * again on purpose approves again, so the live paths leave this off. */
+  onlyOnce = false,
 ): Promise<"approved" | "skipped"> {
   // In comment mode the bot never approves.
   if (reviewEventMode(readConfig(), repo) === "comment") return "skipped";
@@ -1739,6 +1795,16 @@ export async function approveAfterWithdrawal(
     (item) => String(item.id ?? "") === review.posted_review_id,
   );
   if (String(ours?.state ?? "") !== "CHANGES_REQUESTED") return "skipped";
+  // A review keeps its own state after a later approval, so a second call
+  // would approve again.
+  const author = String((ours?.user as Json | undefined)?.login ?? "");
+  const later = reviews.some(
+    (item) =>
+      String((item.user as Json | undefined)?.login ?? "") === author &&
+      String(item.state ?? "") === "APPROVED" &&
+      Number(item.id ?? 0) > Number(ours?.id ?? 0),
+  );
+  if (onlyOnce && later) return "skipped";
   const pull = await client.request<Json>(`repos/${repo}/pulls/${prNumber}`);
   const head = String((pull.head as Json | undefined)?.sha ?? "");
   if (head !== review.head_sha) return "skipped";

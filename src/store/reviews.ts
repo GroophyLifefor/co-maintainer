@@ -182,6 +182,21 @@ export function setReviewScope(
     .run(scope, baseSha, id);
 }
 
+/** A review rerun after a restart found a newer head: the row moves to it,
+ * and its check run, which belongs to the old commit, is let go. */
+export function setReviewHead(
+  id: string,
+  headSha: string,
+  baseSha: string,
+  scope: string,
+): void {
+  getAppDb()
+    .prepare(
+      `UPDATE reviews SET head_sha = ?, base_sha = ?, scope = ?, check_run_id = NULL WHERE id = ?`,
+    )
+    .run(headSha, baseSha, scope, id);
+}
+
 export function getReview(id: string): ReviewRow | undefined {
   return getAppDb()
     .prepare<ReviewRow>(`SELECT * FROM reviews WHERE id = ?`)
@@ -216,6 +231,40 @@ export function latestPostedReview(
      ORDER BY round DESC, created_at DESC LIMIT 1`,
     )
     .get(repo, prNumber);
+}
+
+/** The startup sweep's candidates: per App pull request reviewed since
+ * `sinceIso`, its newest row. Newest first, at most `limit`. */
+export function latestPrReviewsSince(
+  sinceIso: string,
+  limit: number,
+): ReviewRow[] {
+  return getAppDb()
+    .prepare<ReviewRow>(
+      `SELECT r.* FROM reviews r
+        WHERE r.kind = 'pr' AND r.pr_number IS NOT NULL AND r.created_at >= ?
+          AND r.id = (
+            SELECT r2.id FROM reviews r2
+             WHERE r2.kind = 'pr' AND r2.repo = r.repo AND r2.pr_number = r.pr_number
+             ORDER BY r2.round DESC, r2.created_at DESC LIMIT 1)
+        ORDER BY r.created_at DESC LIMIT ?`,
+    )
+    .all(sinceIso, limit);
+}
+
+/** Whether any review row, in any status, exists for this head. */
+export function hasReviewForHead(
+  repo: string,
+  prNumber: number,
+  headSha: string,
+): boolean {
+  return (
+    getAppDb()
+      .prepare<{ n: number }>(
+        `SELECT COUNT(*) AS n FROM reviews WHERE repo = ? AND pr_number = ? AND head_sha = ?`,
+      )
+      .get(repo, prNumber, headSha)!.n > 0
+  );
 }
 
 /** `cost` adds up only the costs that are known and billed to the server.

@@ -250,11 +250,14 @@ export class SimServer {
   async restart(): Promise<{
     orphans: number;
     replies: number;
+    sweep: { queued: number; approved: number; closedChecks: number };
     finished: { id: string; type: string; status: string }[];
   }> {
     const { recoverUnfinishedJobs } =
       await import("../../services/serve_startup.ts");
-    const recovered = await recoverUnfinishedJobs();
+    const recovered = await recoverUnfinishedJobs((message) =>
+      this.trace.log("startup sweep", message),
+    );
     return { ...recovered, finished: await this.collectFinished() };
   }
 
