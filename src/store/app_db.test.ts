@@ -57,6 +57,7 @@ test("openAppDb creates every table and is idempotent to reopen", async () => {
       "installations",
       "job_logs",
       "jobs",
+      "login_links",
       "repos",
       "reviews",
       "sessions",

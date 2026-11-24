@@ -562,6 +562,20 @@ co-maintainer rollback [--yes]
 |---|---|---|
 | `--yes` |  | Skip the confirmation. Needed when there is no terminal. |
 
+## `co-maintainer login-link`
+
+Print a one-time dashboard sign-in link, valid for 5 minutes. Run it on the server.
+
+```
+co-maintainer login-link [--origin=URL]
+```
+
+### Sign-in link
+
+| Flag | Default | Description |
+|---|---|---|
+| `--origin=URL` |  | The address you open the dashboard on. Defaults to the origin of CM_WEBHOOK_URL or the saved webhook URL. |
+
 ## `co-maintainer version`
 
 Print the version.

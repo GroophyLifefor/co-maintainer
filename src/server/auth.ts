@@ -1,5 +1,6 @@
 /** Only a token's hash ever reaches `store/sessions.ts`. The raw token is
  * handed back once, at login, and never stored. */
+import { replaceLoginLink, spendLoginLink } from "../store/login_links.ts";
 import { readConfig, writeUserConfig } from "../config.ts";
 import { hashPassword, verifyPasswordHash } from "../util/password.ts";
 import {
@@ -161,6 +162,41 @@ export async function login(
   ip: string,
 ): Promise<LoginResult | undefined> {
   if (!(await checkPassword(password, store, ip))) return undefined;
+  return await createSession();
+}
+
+/** How long a sign-in link from `co-maintainer login-link` lives. */
+export const LOGIN_LINK_TTL_MS = 5 * 60 * 1000;
+
+/** A one-time sign-in link's token for `host`, 256 random bits. Only its
+ * hash is stored, and it replaces any older link. */
+export async function createLoginLink(host: string): Promise<string> {
+  const token = randomToken();
+  const expiresAt = new Date(Date.now() + LOGIN_LINK_TTL_MS).toISOString();
+  replaceLoginLink(await sha256Hex(token), host.toLowerCase(), expiresAt);
+  return token;
+}
+
+/** Spends a sign-in link and opens a session. A locked out address is
+ * refused before the link is touched, so it cannot burn it, and a wrong
+ * link counts toward the same lockout as a wrong password. */
+export async function loginWithLink(
+  token: string,
+  host: string,
+  ip: string,
+): Promise<LoginResult | undefined> {
+  if (
+    isLockedOut(ip) ||
+    !spendLoginLink(
+      await sha256Hex(token),
+      host.toLowerCase(),
+      readConfig().credentialsChangedAt,
+    )
+  ) {
+    recordFailure(ip);
+    return undefined;
+  }
+  recordSuccess(ip);
   return await createSession();
 }
 

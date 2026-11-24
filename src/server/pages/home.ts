@@ -69,6 +69,51 @@ export function renderLogin(opts: {
   );
 }
 
+/** Headers every sign-in link page carries: the address must not leak to
+ * another site, and no cache may keep the page. */
+export const LOGIN_LINK_HEADERS = {
+  "referrer-policy": "no-referrer",
+  "cache-control": "no-store",
+};
+
+/** The confirm page of a sign-in link. A GET never spends the link, so a
+ * chat or mail previewer that opens it cannot burn it. The token is in the
+ * fragment: the page copies it into the form and drops it from the address
+ * bar, and only the button press sends it. */
+export function renderLoginLink(error?: string, status = 200): Response {
+  const err = error
+    ? `<p class="notice bad"><span class="txt">${text(error)}</span></p>`
+    : "";
+  return html(
+    layoutFocus({
+      title: "Sign in · co-maintainer",
+      body: `<img class="brand" src="/logo.png" alt="co-maintainer">
+  <div class="pagehead"><div><h1>Sign in with a link</h1>
+    <p class="lead">This link was made on the server with co-maintainer login-link. It works once, for 5 minutes.</p></div></div>
+  ${err}
+  <div class="card"><div class="bd">
+    <form id="login-link" method="post" action="/login/link">
+      <input type="hidden" name="token" value="">
+      <button class="primary" type="submit" disabled>Sign in</button>
+    </form>
+  </div></div>
+  <script>
+    (function () {
+      var token = location.hash.slice(1);
+      var form = document.getElementById("login-link");
+      if (/^[0-9a-f]{64}$/.test(token)) {
+        form.elements.token.value = token;
+        form.querySelector("button").disabled = false;
+      }
+      history.replaceState(null, "", location.pathname);
+    })();
+  </script>`,
+    }),
+    status,
+    LOGIN_LINK_HEADERS,
+  );
+}
+
 export function renderHome(
   username: string,
   rows: {

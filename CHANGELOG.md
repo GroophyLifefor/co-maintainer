@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.26] - 2026-11-24
+
+### Added
+
+- **`co-maintainer login-link` signs in to the dashboard with a one-time link, made on the server.** A script, an agent or a person with a shell on the server opens the printed address and presses **Sign in**, with no password. The link works once, for 5 minutes, on one address. A new link replaces the old one, a password change ends it, and opening it only shows the button, so a link preview cannot use it up. The token rides after `#`, so it never reaches the server on the GET or a proxy log. Making and using a link are in the audit log, the link never is, and a wrong link counts toward the sign-in lockout.
+- **e2e:simulate has a `login-link` flow.** The confirm page, one sign-in, a replay, a replaced link and another address.
 ## [0.7.25] - 2026-11-24
 
 ### Added

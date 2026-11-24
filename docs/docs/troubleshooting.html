@@ -166,6 +166,21 @@ is the safe default.</p>
 <td>It is temporary. Retry the review later from the dashboard. A rate limit never posts the &quot;does not have access&quot; comment</td>
 </tr>
 <tr>
+<td><code>No dashboard address is known</code></td>
+<td><code>login-link</code> found no <code>CM_WEBHOOK_URL</code> and no saved webhook URL</td>
+<td>Pass <code>--origin=</code> with the address you open the dashboard on, see <a href="serve.html#sign-in-to-the-dashboard"><code>serve</code>: Sign in</a></td>
+</tr>
+<tr>
+<td><code>No co-maintainer serve is running on this data directory</code></td>
+<td><code>login-link</code> ran where no <code>serve</code> holds the database</td>
+<td>Start <code>serve</code>, or run the command as the user and with the data directory <code>serve</code> uses</td>
+</tr>
+<tr>
+<td><code>This link does not work</code> on the sign-in link page</td>
+<td>The link was used, is older than 5 minutes, was replaced by a newer one, or was made for another address</td>
+<td>Run <code>co-maintainer login-link</code> again on the server</td>
+</tr>
+<tr>
 <td><code>Unknown command</code> / <code>Unknown option</code></td>
 <td>A typo in the command or flag</td>
 <td>The message names the closest match. <code>co-maintainer help</code> lists every command</td>

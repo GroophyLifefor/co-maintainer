@@ -102,6 +102,24 @@ any time from **Settings**, which also signs out the other browser sessions.
 **GitHub sign-in (optional).** One allowed GitHub user can sign in with the App's
 OAuth client (no separate OAuth App).
 
+**A one-time link (from the server).** Anyone with a shell on the server, a
+script or an agent among them, can sign in without the password:
+
+```bash
+co-maintainer login-link
+```
+
+It prints one address, such as `https://review.example.com/login/link#...`.
+Open it, then press **Sign in**. The link works once, for 5 minutes, and only on
+that address. A new link replaces the old one, and a password change ends it.
+Opening the link only shows the button, so a chat or mail preview cannot use it
+up. The part after `#` never reaches the server or a proxy log. Making and
+using a link are in the audit log, the link itself never is. It works with
+password sign-in turned off too. The address comes from `CM_WEBHOOK_URL` or the
+saved webhook URL. `serve --webhook-url` is not visible to another command, so
+pass `--origin=https://your-address` then, or `--origin=http://localhost:PORT`
+on a local server. `serve` must be running, with the same version.
+
 1. On the GitHub App settings page, set **Redirect URL** to
    `http://<host>:<port>/auth/github/callback` (same host and port as `serve`).
 2. Copy client ID and client secret from that page.
