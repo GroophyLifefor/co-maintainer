@@ -29,6 +29,34 @@ export type ChatHost = {
   headers: Record<string, string>;
   /** The hint for a model the host refuses. */
   modelHint: string;
+  /** A local server may need no key: then none is required or sent. */
+  keyOptional?: boolean;
+  /** False keeps the key off the wire, for plain http to another machine. */
+  sendKey?: boolean;
+  /** The hint for a refused key. Defaults to `set --token`. */
+  keyHint?: string;
+  /** A 404 means the model or deployment is unknown, as on Azure. */
+  notFoundIsUnknownModel?: boolean;
+  /** Show only a JSON `error.message`, never a raw body: the address is the
+   * user's, and its pages are not ours to print. */
+  jsonErrorOnly?: boolean;
+  /** Tool calling, when the host has tried it and knows. Defaults to true. */
+  supportsTools?: boolean;
+  /** The request body, when the host speaks a different dialect of Chat
+   * Completions. Defaults to `chatBody`. */
+  body?: (model: string, request: AiRequest) => Json;
+  /** The request with the part the host refused dropped, or undefined. Asked
+   * before the shared schema and reasoning drop. */
+  lighter?: (
+    request: AiRequest,
+    detail: string,
+    status: number,
+  ) => AiRequest | undefined;
+  /** Runs before every request, e.g. the serve egress check. */
+  preflight?: (endpoint: string) => Promise<void>;
+  /** Extra fetch options, e.g. `redirect: "error"` and a guarded dispatcher.
+   * Replaces the plain AI timeout dispatcher when it carries one. */
+  init?: () => RequestInit;
 };
 
 /** `CM_OPENROUTER_URL` points the provider at a local fake in tests. It is
@@ -67,17 +95,20 @@ export function openRouterError(
     const parsed = JSON.parse(body) as { error?: { message?: string } };
     detail = String(parsed.error?.message ?? "");
   } catch {
-    detail = body.trim().slice(0, 200);
+    detail = host.jsonErrorOnly ? "" : body.trim().slice(0, 200);
   }
   if (status === 401 || status === 403) {
     return new CliError(
       `${host.code}_unauthorized`,
       `${host.name} rejected the API key.`,
-      "Set a new one with co-maintainer set --token=...",
+      host.keyHint ?? "Set a new one with co-maintainer set --token=...",
       EXIT_USAGE,
     );
   }
-  if (status === 400 && /model/i.test(detail)) {
+  if (
+    (status === 400 && /model/i.test(detail)) ||
+    (status === 404 && host.notFoundIsUnknownModel)
+  ) {
     return new CliError(
       `${host.code}_unknown_model`,
       `${host.name} does not know the model ${model}.`,
@@ -94,7 +125,7 @@ export function openRouterError(
 }
 
 export class OpenRouterProvider implements AiProvider {
-  readonly supportsTools = true;
+  readonly supportsTools: boolean;
   private readonly host: ChatHost;
   private readonly apiKey: string;
   private readonly model: string;
@@ -104,7 +135,10 @@ export class OpenRouterProvider implements AiProvider {
     model: string,
     host: ChatHost = openRouterHost(),
   ) {
-    if (!apiKey) throw new Error(`${host.name} requires an API key`);
+    if (!apiKey && !host.keyOptional) {
+      throw new Error(`${host.name} requires an API key`);
+    }
+    this.supportsTools = host.supportsTools ?? true;
     this.host = host;
     this.apiKey = apiKey;
     this.model = model;
@@ -115,19 +149,32 @@ export class OpenRouterProvider implements AiProvider {
   private async post(body: Json): Promise<Response> {
     // Outside the try: a config that cannot be read is not a network failure.
     const timeout = aiTimeoutInit();
+    await this.host.preflight?.(this.host.endpoint);
+    const sendKey = this.apiKey && this.host.sendKey !== false;
     try {
       return await fetch(this.host.endpoint, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${this.apiKey}`,
+          ...(sendKey ? { Authorization: `Bearer ${this.apiKey}` } : {}),
           "Content-Type": "application/json",
           ...this.host.headers,
         },
         body: JSON.stringify(body),
         signal: interruptSignal(),
         ...timeout,
+        ...this.host.init?.(),
       });
     } catch (error) {
+      // A redirect could carry the key to another address, so it is refused.
+      const cause = (error as { cause?: { message?: string } }).cause;
+      if (/redirect/i.test(String(cause?.message ?? ""))) {
+        throw new CliError(
+          `${this.host.code}_redirect`,
+          `${this.host.name} answered with a redirect, which co-maintainer does not follow.`,
+          "Set the final address with --ai-base-url.",
+          EXIT_USAGE,
+        );
+      }
       // `fetch failed` alone names neither the host nor the cause.
       throw networkFailure(this.host.endpoint, error);
     }
@@ -140,7 +187,11 @@ export class OpenRouterProvider implements AiProvider {
   async complete(request: AiRequest): Promise<AiResponse> {
     let current = request;
     for (;;) {
-      const response = await this.post(chatBody(this.model, current));
+      const response = await this.post(
+        this.host.body
+          ? this.host.body(this.model, current)
+          : chatBody(this.model, current),
+      );
       if (response.ok) {
         return noteReasoningDropped(
           current,
@@ -154,13 +205,14 @@ export class OpenRouterProvider implements AiProvider {
       }
       const detail = await readBody(this.host.endpoint, response);
       const lighter =
-        response.status === 400
+        this.host.lighter?.(current, detail, response.status) ??
+        (response.status === 400
           ? withoutRefusedPart(
               current,
               detail,
               /response_format|json_schema|structured/i,
             )
-          : undefined;
+          : undefined);
       if (!lighter) throw this.fail(response.status, detail);
       current = lighter;
     }
