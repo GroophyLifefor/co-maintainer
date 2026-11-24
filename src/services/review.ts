@@ -1033,15 +1033,44 @@ export async function reconcileReview(
       String(user?.type ?? "") === "Bot"
     );
   });
+  const findings = listFindingsForReview(review.id);
   if (match) {
     setReviewStatus(review.id, "posted", {
       posted_review_id: String(match.id ?? ""),
+      findings_count: findings.length,
     });
     log("info", `reconciled existing GitHub review ${match.id}`);
+    // The process died before it closed the check run. Left as it is, the
+    // pull request waits on it forever.
+    const open = findings.filter((finding) => finding.state !== "closed");
+    await finishCheck(
+      client,
+      job,
+      review.check_run_id ?? undefined,
+      open.length === 0 ? "success" : "neutral",
+      open.length === 0 ? "Review completed" : "Review findings",
+      findings,
+      log,
+    );
     return;
   }
   setReviewStatus(review.id, "failed");
   log("info", "posting crashed and no matching GitHub review was found");
+  await finishCheck(
+    client,
+    job,
+    review.check_run_id ?? undefined,
+    "failure",
+    "Review job failed.",
+    findings,
+    log,
+    `This commit was not reviewed. The server restarted before the review was posted. See the dashboard: ${dashboardOrigin()}/activity/${job.id}\n\n${SKIP_HINT}`,
+  );
+  // A failed job, not a done one: the dashboard offers Retry, and the result
+  // is not lost without a word.
+  throw new Error(
+    "The server restarted before the review was posted, and GitHub has no review for this commit.",
+  );
 }
 
 export async function runReviewJob(

@@ -1,4 +1,3 @@
-import { registerSkipJobHandler } from "../../services/skip_commands.ts";
 import {
   readConfig,
   resolveAppPrivateKey,
@@ -9,32 +8,21 @@ import { appDbPath, closeAppDb, openAppDb } from "../../store/app_db.ts";
 import { createApp } from "../../server/app.ts";
 import { configPasswordStore } from "../../server/auth.ts";
 import type { AuthMethods, PasswordStore } from "../../server/auth.ts";
-import {
-  recoverOrphans,
-  startWorkerLoop,
-  stopWorkerLoop,
-} from "../../services/jobs.ts";
-import { registerSetupJobHandler } from "../../services/setup.ts";
+import { startWorkerLoop, stopWorkerLoop } from "../../services/jobs.ts";
 import { setupChecklist } from "../../services/setup_checklist.ts";
-import { discoverCliRepos } from "../../services/cli_repos.ts";
-import { registerReviewJobHandler } from "../../services/review.ts";
 import {
-  recoverReplyRequests,
-  registerReplyJobHandler,
-} from "../../services/replies.ts";
+  recoverUnfinishedJobs,
+  registerJobHandlers,
+} from "../../services/serve_startup.ts";
+import { discoverCliRepos } from "../../services/cli_repos.ts";
 import {
   startRemakeScheduler,
   stopRemakeScheduler,
 } from "../../services/remake_cron.ts";
-import { registerRemoteReviewHandler } from "../../services/remote_review.ts";
-import { registerPushReviewHandlers } from "../../services/push_review.ts";
-import { registerWatchCommentHandler } from "../../services/watch_comments.ts";
 import { startRemoteWatchdog } from "../../remote/server/sessions.ts";
 import { passwordProblem } from "../../util/password.ts";
 import { deleteAllSessions } from "../../store/sessions.ts";
 import { serveHttp } from "../../server/http.ts";
-import { listJobs } from "../../store/jobs.ts";
-import { removeServeRunFolders } from "../../extensions/run_folder.ts";
 import { currentPlatform, getEnv, type Platform } from "../../util/runtime.ts";
 import { webhookUrlProblem } from "../../server/webhook_url.ts";
 import { die } from "../error.ts";
@@ -241,25 +229,14 @@ export async function runServe(args: string[]): Promise<void> {
       `[serve] added ${fromCli.length} repositor${fromCli.length === 1 ? "y" : "ies"} built from the CLI: ${fromCli.join(", ")}`,
     );
   }
-  registerSetupJobHandler();
-  registerReviewJobHandler();
-  registerRemoteReviewHandler();
-  registerReplyJobHandler();
-  registerPushReviewHandlers();
-  registerWatchCommentHandler();
-  registerSkipJobHandler();
-  // Before the orphans run again: a job still marked running keeps its
-  // extension folder, which tells its rerun what the restart cut off.
-  await removeServeRunFolders(
-    new Set(listJobs({ status: "running" }).map((job) => job.id)),
-  );
-  const recovered = await recoverOrphans();
+  registerJobHandlers();
+  const { orphans: recovered, replies: recoveredReplies } =
+    await recoverUnfinishedJobs();
   if (recovered > 0) {
     console.log(
       `[serve] recovered ${recovered} orphaned job(s) from a previous run`,
     );
   }
-  const recoveredReplies = recoverReplyRequests();
   if (recoveredReplies > 0) {
     console.log(
       `[serve] requeued ${recoveredReplies} unfinished conversation repl${

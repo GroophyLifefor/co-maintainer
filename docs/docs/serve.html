@@ -425,6 +425,11 @@ opened <code>app.db</code>.</p>
 </ol>
 <p>Restart after upgrading. Do not reinstall while the old process is still
 running. Same steps are listed on <a href="dashboard.html#updating">Dashboard: Updating</a>.</p>
+<p>A review that was running when <code>serve</code> stopped is picked up on the next start,
+before the server listens. One still reading the pull request is reviewed again.
+One GitHub already took is kept, with no second review. One GitHub never got is
+marked failed, its check run says the commit was not reviewed, and <strong>Retry</strong> on
+the dashboard runs it again.</p>
 <p>A Docker server pulls the new image and starts the container again on the same
 volume, with the options it started with. <strong>Settings</strong>, <strong>Server</strong>, <strong>Updates</strong>
 shows those lines. When the host sets <code>CM_UPDATE_URL</code>, the dashboard also says
