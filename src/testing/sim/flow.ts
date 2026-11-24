@@ -308,6 +308,9 @@ function installFastWaits(faults: Faults, trace: Trace): () => void {
 async function resetProductState(): Promise<void> {
   (await import("../../remote/server/byok_keys.ts")).clearByokKeysForTest();
   (await import("../../services/watch_status.ts")).clearWatchStatusCache();
+  // A flow that crashed a job leaves it frozen. The next flow's runner
+  // starts empty, as a new process would.
+  (await import("../../services/jobs.ts")).resetJobRunnerForTest();
   // `--json` turns prompts off for the process. The next flow starts as a
   // fresh CLI would.
   (await import("../../cli/args.ts")).setCliInteractive(true);

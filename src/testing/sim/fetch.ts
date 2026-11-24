@@ -186,6 +186,27 @@ export function installFetch({
           trace.github.push({ ...record, status: 0, ms: ms(), response: null });
           throw timeoutError();
         }
+        if (fault.kind === "hang") {
+          // The process dies while it waits: no answer, no catch, no finally.
+          // With `landed` GitHub applied the call first.
+          const route = fault.landed
+            ? world.github.route({
+                method,
+                url,
+                body,
+                via: "fetch",
+                token: bearer(headers),
+                step,
+              })
+            : undefined;
+          trace.github.push({
+            ...record,
+            status: route?.status ?? 0,
+            ms: ms(),
+            response: null,
+          });
+          return new Promise<Response>(() => {});
+        }
         const response = faultResponse(fault, describeFault(fault));
         trace.github.push({
           ...record,

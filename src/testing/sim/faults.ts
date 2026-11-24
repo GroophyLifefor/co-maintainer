@@ -15,7 +15,10 @@ export type FaultKind =
   /** No answer: the call fails as a connect timeout. */
   | "timeout"
   /** The real answer, `ms` late. */
-  | "slow";
+  | "slow"
+  /** GitHub: no answer ever, the way a call looks when the process dies
+   * while it waits. With `landed` GitHub applied the call first. */
+  | "hang";
 
 export type Fault = {
   target: "github" | "ai" | "remote";
@@ -42,6 +45,9 @@ export type Fault = {
   headers?: Record<string, string>;
   /** GitHub and remote: the answer's `message` instead of the status text. */
   message?: string;
+  /** GitHub `hang` only: GitHub applied the call before the process died,
+   * so a write landed and the product never read the answer. */
+  landed?: boolean;
   /** GitHub `rate-limit` only: the reset this many seconds from now.
    * Defaults to 0, a reset that already came. */
   resetIn?: number;
@@ -74,6 +80,8 @@ export class Faults {
    * still to be skipped. The product backs off for seconds after a 429, and
    * a flow should not sit through them. */
   waitsToSkip = 0;
+  /** Called when a fault fires, so a step can wait for it without polling. */
+  onFire?: (fault: Fault) => void;
 
   add(fault: Fault): void {
     this.pending.push({ fault, left: fault.times ?? 1 });
@@ -105,6 +113,7 @@ export class Faults {
       step,
       call: `${call.method} ${call.path}${call.job ? ` (${call.job})` : ""}`,
     });
+    this.onFire?.(entry.fault);
     return entry.fault;
   }
 
