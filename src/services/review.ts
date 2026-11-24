@@ -1754,7 +1754,12 @@ export async function closeStaleCheck(
   const run = await client.request<Json>(
     `repos/${job.repo}/check-runs/${review.check_run_id}`,
   );
-  if (String(run.status ?? "") === "completed") return false;
+  // Already closed, by an earlier start that stopped before it saved the
+  // row: only the row is behind.
+  if (String(run.status ?? "") === "completed") {
+    setReviewStatus(review.id, "failed");
+    return false;
+  }
   await finishCheck(
     client,
     job,
