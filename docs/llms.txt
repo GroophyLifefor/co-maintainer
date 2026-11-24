@@ -7,7 +7,7 @@
 - Latest version: 0.7.23, released 2026-11-24. Changelog: https://github.com/GroophyLifefor/co-maintainer/blob/main/CHANGELOG.md
 - License: MIT. Source: https://github.com/GroophyLifefor/co-maintainer
 - Install: `npm install -g co-maintainer`. Needs Node 24 or newer.
-- Commands: `probe`, `init`, `sync`, `review`, `config`, `view`, `clear`, `uninstall`, `oauth`, `set`, `serve`, `extension`, `rollback`, `version`. `sync` keeps the review guides up to date (its old name was `remake`).
+- Commands: `probe`, `init`, `sync`, `review`, `config`, `view`, `clear`, `uninstall`, `oauth`, `set`, `serve`, `extension`, `rollback`, `login-link`, `version`. `sync` keeps the review guides up to date (its old name was `remake`).
 - AI providers: OpenRouter, OpenAI, Anthropic and OpenCode, on your own model key.
 - Git platform: GitHub only.
 - Runs as a CLI on your machine, in CI, or as a self-hosted GitHub App with `serve`. A hosted service runs `serve` at cloud.co-maintainer.com.

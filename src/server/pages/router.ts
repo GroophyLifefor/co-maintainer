@@ -5,6 +5,8 @@ import {
   clearSessionCookieHeader,
   createSession,
   login,
+  loginWithLink,
+  recordAuthFailure,
   logout,
   oauthStateCookieHeader,
   randomToken,
@@ -50,7 +52,12 @@ import {
   consumeManifestState,
   convertManifest,
 } from "../../github/app_manifest.ts";
-import { renderHome, renderLogin } from "./home.ts";
+import {
+  LOGIN_LINK_HEADERS,
+  renderHome,
+  renderLogin,
+  renderLoginLink,
+} from "./home.ts";
 import { renderSetup } from "./setup.ts";
 import { renderAddRepo } from "./add_repo.ts";
 import { renderRepo } from "./repo.ts";
@@ -191,6 +198,14 @@ export async function handlePageRequest(
 
   if (url.pathname === "/login" && request.method === "POST") {
     return await handleLoginForm(request, deps, ip, auth);
+  }
+
+  if (url.pathname === "/login/link" && request.method === "GET") {
+    return renderLoginLink();
+  }
+
+  if (url.pathname === "/login/link" && request.method === "POST") {
+    return await handleLoginLink(request, url, deps, ip);
   }
 
   if (url.pathname === "/auth/github" && request.method === "GET") {
@@ -861,6 +876,47 @@ async function handleLoginForm(
         result.token,
         Boolean(deps.secureCookie),
       ),
+    },
+  });
+}
+
+/** Spends a sign-in link from `co-maintainer login-link`. It works whatever
+ * sign-in methods are on: whoever made it already has the server. */
+async function handleLoginLink(
+  request: Request,
+  url: URL,
+  deps: PageDeps,
+  ip: string,
+): Promise<Response> {
+  const bounded = await readBoundedUtf8(request, 4 * 1024);
+  const form = new URLSearchParams(bounded.ok ? bounded.text : "");
+  const token = String(form.get("token") ?? "");
+  const forwarded = deps.trustProxy
+    ? request.headers.get("x-forwarded-host")?.split(",")[0]?.trim()
+    : undefined;
+  const host = forwarded || url.host;
+  const result = /^[0-9a-f]{64}$/.test(token)
+    ? await loginWithLink(token, host, ip)
+    : undefined;
+  if (!result) {
+    if (!/^[0-9a-f]{64}$/.test(token)) recordAuthFailure(ip);
+    return renderLoginLink(
+      "This link does not work. It may be used, older than 5 minutes, replaced by a newer one, or made for another address. Run co-maintainer login-link again.",
+      401,
+    );
+  }
+  audit("sign-in", "Signed in with a sign-in link", {
+    actor: result.username,
+  });
+  return new Response(null, {
+    status: 303,
+    headers: {
+      location: "/",
+      "set-cookie": sessionCookieHeader(
+        result.token,
+        Boolean(deps.secureCookie),
+      ),
+      ...LOGIN_LINK_HEADERS,
     },
   });
 }
