@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **serve catches up on pull requests it left blocked while it was down.** GitHub does not send a missed webhook again, so a push while the server was down left the App's Request changes review on the old commit and the pull request locked. On start, `serve` now looks at the pull requests it reviewed in the last 14 days, at most 50. A blocking review whose head moved gets a review of the new head, under the same rules as a push. An approval a closed finding owed is posted once. A check run a crashed review left open is closed as failed. A rate limit stops the sweep.
 - **A review rerun after a restart follows a head that moved.** It kept the old commit on its row and check run while it posted on the new one, so the sweep would have reviewed the same commit again.
+- **A review that fails before it posts no longer shows as running.** Its row stayed `drafting`, which the dashboard counts as running, forever. It is now `failed`, or `canceled` when it was stopped.
 
 ## [0.7.24] - 2026-11-24
 

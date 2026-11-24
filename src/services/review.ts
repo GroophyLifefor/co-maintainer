@@ -1088,6 +1088,11 @@ export async function runReviewJob(
     await runReviewJobCore(job, log, client, ai, signal);
   } catch (error) {
     const review = getReviewByJobId(job.id);
+    // A review that stopped before it posted would read as running forever.
+    // A row that got as far as posting keeps the status the post path set.
+    if (review?.status === "drafting") {
+      setReviewStatus(review.id, signal?.aborted ? "canceled" : "failed");
+    }
     let github = client;
     if (!github && review?.check_run_id) {
       const repo = getRepo(job.repo);
