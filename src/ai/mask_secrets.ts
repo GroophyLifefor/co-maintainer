@@ -53,3 +53,40 @@ export function withSecretMask(provider: AiProvider): AiProvider {
     },
   };
 }
+
+/** The provider, and the most secrets any one of its requests masked. A
+ * later request carries the earlier conversation, so the highest count is
+ * the review's. */
+export function countMasks(provider: AiProvider): {
+  provider: AiProvider;
+  count: () => number;
+} {
+  let most = 0;
+  return {
+    provider: {
+      get supportsTools() {
+        return provider.supportsTools;
+      },
+      async complete(request) {
+        const response = await provider.complete(request);
+        most = Math.max(most, response.secretsMasked ?? 0);
+        return response;
+      },
+    },
+    count: () => most,
+  };
+}
+
+/** The review's warning when secrets were masked, so a finding that reads a
+ * mask is not a surprise. */
+export function secretsMaskedWarning(
+  count: number,
+): { code: string; message: string }[] {
+  if (count === 0) return [];
+  return [
+    {
+      code: "secrets_masked",
+      message: `${count} ${count === 1 ? "secret was" : "secrets were"} masked before the review reached the model.`,
+    },
+  ];
+}

@@ -175,6 +175,9 @@ test("maskSecrets keeps a private key's lines, also with its END cut off", () =>
     throw new Error(`body kept or END lost: ${masked.text}`);
   }
   if (masked.count !== 1) throw new Error(`one key counted ${masked.count}`);
+  if (!masked.text.includes("\n+[redacted:private-key]")) {
+    throw new Error(`a diff line lost its marker: ${masked.text}`);
+  }
   const cut = maskSecrets(`${begin}\n${body}`);
   if (cut.text.includes("NNNN")) throw new Error("a cut key kept its body");
 });
@@ -193,9 +196,4 @@ test("maskSecrets leaves ordinary code alone and runs twice to the same text", (
   if (maskSecrets(once).text !== once || !hasSecretMask(once)) {
     throw new Error("not idempotent");
   }
-});
-
-test("redact no longer cuts an identifier that only contains sk-", () => {
-  const text = "mask-radial-farthest-side-with-a-long-tail";
-  if (redact(text) !== text) throw new Error(redact(text));
 });

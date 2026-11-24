@@ -1,52 +1,36 @@
 /** Matches known secret shapes, not a generic "long random string"
- * heuristic, too many false positives on commit SHAs and hashes. Each
- * prefix must start a word, so `mask-radial-farthest-side` is not an
- * OpenAI key. More specific kinds come first. */
-const B = "(?<![A-Za-z0-9])";
-const SECRETS: { kind: string; pattern: RegExp }[] = [
+ * heuristic, too many false positives on commit SHAs and hashes. More
+ * specific kinds come first. */
+const SHAPES: { kind: string; source: string }[] = [
   // ghp_, gho_, ghu_, ghs_, ghr_ (classic GitHub PATs and tokens)
-  {
-    kind: "github-token",
-    pattern: new RegExp(`${B}gh[pousr]_[A-Za-z0-9]{20,}`, "g"),
-  },
-  {
-    kind: "github-token",
-    pattern: new RegExp(`${B}github_pat_[A-Za-z0-9_]{20,}`, "g"),
-  },
-  {
-    kind: "openrouter-key",
-    pattern: new RegExp(`${B}sk-or-[A-Za-z0-9-]{10,}`, "g"),
-  },
-  {
-    kind: "anthropic-key",
-    pattern: new RegExp(`${B}sk-ant-[A-Za-z0-9_-]{10,}`, "g"),
-  },
-  {
-    kind: "stripe-key",
-    pattern: new RegExp(`${B}(?:sk|rk)_live_[A-Za-z0-9]{16,}`, "g"),
-  },
+  { kind: "github-token", source: String.raw`gh[pousr]_[A-Za-z0-9]{20,}` },
+  { kind: "github-token", source: String.raw`github_pat_[A-Za-z0-9_]{20,}` },
+  { kind: "openrouter-key", source: String.raw`sk-or-[A-Za-z0-9-]{10,}` },
+  { kind: "anthropic-key", source: String.raw`sk-ant-[A-Za-z0-9_-]{10,}` },
+  { kind: "stripe-key", source: String.raw`(?:sk|rk)_live_[A-Za-z0-9]{16,}` },
   // OpenAI keys, old `sk-` and new `sk-proj-` alike
-  { kind: "openai-key", pattern: new RegExp(`${B}sk-[A-Za-z0-9_-]{20,}`, "g") },
+  { kind: "openai-key", source: String.raw`sk-[A-Za-z0-9_-]{20,}` },
   // remote review bearer tokens
-  {
-    kind: "co-maintainer-token",
-    pattern: new RegExp(`${B}cmr_[A-Za-z0-9_-]{20,}`, "g"),
-  },
+  { kind: "co-maintainer-token", source: String.raw`cmr_[A-Za-z0-9_-]{20,}` },
   {
     kind: "aws-access-key",
-    pattern: new RegExp(`${B}(?:AKIA|ASIA)[0-9A-Z]{16}(?![0-9A-Z])`, "g"),
+    source: String.raw`(?:AKIA|ASIA)[0-9A-Z]{16}(?![0-9A-Z])`,
   },
-  {
-    kind: "slack-token",
-    pattern: new RegExp(`${B}xox[abeprs]-[A-Za-z0-9-]{10,}`, "g"),
-  },
-  { kind: "google-key", pattern: new RegExp(`${B}AIza[A-Za-z0-9_-]{35}`, "g") },
-  {
-    kind: "gitlab-token",
-    pattern: new RegExp(`${B}glpat-[A-Za-z0-9_-]{20,}`, "g"),
-  },
-  { kind: "npm-token", pattern: new RegExp(`${B}npm_[A-Za-z0-9]{36}`, "g") },
+  { kind: "slack-token", source: String.raw`xox[abeprs]-[A-Za-z0-9-]{10,}` },
+  { kind: "google-key", source: String.raw`AIza[A-Za-z0-9_-]{35}` },
+  { kind: "gitlab-token", source: String.raw`glpat-[A-Za-z0-9_-]{20,}` },
+  { kind: "npm-token", source: String.raw`npm_[A-Za-z0-9]{36}` },
 ];
+
+/** For the model, each prefix must start a word, so an identifier such as
+ * `mask-radial-farthest-side` reaches it whole. Output redaction keeps
+ * cutting any match, a stray cut there costs nothing. */
+const WORD_START = "(?<![A-Za-z0-9])";
+const SECRETS = SHAPES.map(({ kind, source }) => ({
+  kind,
+  pattern: new RegExp(`${WORD_START}${source}`, "g"),
+}));
+const OUTPUT_SECRETS = SHAPES.map(({ source }) => new RegExp(source, "g"));
 
 /** Secrets that need the text around them: only the value is masked. */
 const VALUES: { kind: string; pattern: RegExp }[] = [
@@ -74,7 +58,7 @@ const PEM_BLOCK =
 /** For output: posted text, stored findings, logs. */
 export function redact(text: string): string {
   let result = text.replace(PEM_BLOCK, "[redacted]");
-  for (const { pattern } of SECRETS) {
+  for (const pattern of OUTPUT_SECRETS) {
     result = result.replace(pattern, "[redacted]");
   }
   for (const { pattern } of VALUES) {
@@ -110,7 +94,8 @@ export function maskSecrets(text: string): {
       // One key, however many lines its body has.
       seen.add(body);
       const masked = body.replace(
-        /[A-Za-z0-9+/=]{16,}/g,
+        // A run never starts with `+`, so a diff line keeps its marker.
+        /(?<![A-Za-z0-9/=])[A-Za-z0-9/][A-Za-z0-9+/=]{15,}/g,
         "[redacted:private-key]",
       );
       return `${begin}${masked}${end}`;

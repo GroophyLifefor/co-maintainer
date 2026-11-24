@@ -1,3 +1,4 @@
+import { hasSecretMask } from "../util/redact.ts";
 import type { ParsedFinding, Span } from "./findings.ts";
 import { type Anchor, anchorFor, rightLines } from "./hunks.ts";
 
@@ -59,6 +60,14 @@ export function suggestionAnchor(
 ): Anchor | undefined {
   const suggestion = readSuggestion(finding.excerpt);
   if (!suggestion || !patch || suggestion.path !== finding.path) {
+    return undefined;
+  }
+  // The model saw a secret as a mask. Applying the suggestion would write
+  // the mask into the file in place of the real value.
+  if (
+    hasSecretMask(suggestion.code) ||
+    suggestion.code.includes("[redacted]")
+  ) {
     return undefined;
   }
   const { from, to } = suggestion;
