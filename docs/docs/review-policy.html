@@ -299,6 +299,24 @@ when <strong>Who else can skip a failed review or turn reviews off</strong> in t
 dashboard, or <code>skippers</code> in the policy, lists their relation to the
 repository. A comment from anyone else is ignored, with no reply and no
 reaction.</p>
+<h3 id="when-the-server-is-down">When the server is down</h3>
+<p>The skip comments are read by the server, so they need it running. While it is
+down, a <strong>Request changes</strong> review from the App still blocks the merge where
+an approving review is required. GitHub&#39;s own <strong>Dismiss review</strong> gets past it
+with no server:</p>
+<ol>
+<li>Open the pull request and find the App&#39;s review on the <strong>Conversation</strong> tab.</li>
+<li>Open the review&#39;s <strong>...</strong> menu and choose <strong>Dismiss review</strong>.</li>
+<li>Write why, for example &quot;co-maintainer is down&quot;, and confirm.</li>
+</ol>
+<p>Anyone with write access to the repository can dismiss a review, unless branch
+protection limits dismissals to listed people or teams. The dismissal and its
+message stay on the pull request. When the server is back, it also catches up
+on its own: a pull request pushed to while it was down gets a review of the new
+commit, see <a href="serve.html#updating"><code>serve</code>: Updating</a>.</p>
+<p>A check run the App left in progress or failed is not cleared by a dismissal.
+Where that check is required, wait for the server, or have someone allowed to
+bypass branch protection merge.</p>
 <h3 id="closing-a-finding">Closing a finding</h3>
 <p>The owner has the last word on a finding, the model does not have to agree. A
 reply of <code>/co-maintainer dismiss</code> in a finding&#39;s thread, with an optional

@@ -194,9 +194,9 @@ function checks(sim: Sim): CheckResult[] {
       `${spentPosts.length} tries · waits ${spentWaits.join(", ") || "none"} ms · ${outcome(sim, STEP.secondarySpent, spent)}`,
     ),
     check(
-      "a rate limit 403 with no limit headers fails the review as temporary, not as missing access",
+      "a rate limit 403 with no limit headers fails the review as temporary, not as missing access, and the review row says failed",
       jobsIn(sim, STEP.bodyOnly).includes("review failed") &&
-        reviewStatus(sim, bodyOnly) !== "access_denied" &&
+        reviewStatus(sim, bodyOnly) === "failed" &&
         checkRun(sim, bodyOnly)?.output?.title !==
           "Review could not access the pull request files.",
       outcome(sim, STEP.bodyOnly, bodyOnly),
