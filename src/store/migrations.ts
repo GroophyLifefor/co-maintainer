@@ -512,4 +512,12 @@ export const migrations: string[][] = [
       used_at TEXT
     )`,
   ],
+  // 28: why a repository is off. GitHub removed it from the App's
+  // installation, and when it came back. Both empty means turned off by hand
+  // or never removed. A returned repository stays off until someone resumes
+  // it, and the dashboard says so.
+  [
+    `ALTER TABLE repos ADD COLUMN removed_by_github_at TEXT`,
+    `ALTER TABLE repos ADD COLUMN returned_at TEXT`,
+  ],
 ];

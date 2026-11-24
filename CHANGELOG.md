@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **`co-maintainer login-link` signs in to the dashboard with a one-time link, made on the server.** A script, an agent or a person with a shell on the server opens the printed address and presses **Sign in**, with no password. The link works once, for 5 minutes, on one address. A new link replaces the old one, a password change ends it, and opening it only shows the button, so a link preview cannot use it up. The token rides after `#`, so it never reaches the server on the GET or a proxy log. Making and using a link are in the audit log, the link never is, and a wrong link counts toward the sign-in lockout.
+- **A repository added back to the App stays off, says why, and resumes with one click.** It used to look like any repository turned off by hand. Now the Repositories page shows "This repository is back in the installation" with **Resume reviews**, which turns it on with the knowledge it had and no init. A reinstall of the App takes the same path, and the return and the resume are in the audit log.
+- **e2e:simulate has `probe`, `installation` and `lifecycle` flows.** probe reads and writes nothing it should not, and the recommended init makes no more GitHub calls than probe estimated. The installation webhooks, a repository added back and resumed, and a reinstall. `clear`, `rollback` with no backup and `uninstall`, inside the sandbox only.
 - **e2e:simulate has a `login-link` flow.** The confirm page, one sign-in, a replay, a replaced link and another address.
 
 ## [0.7.23] - 2026-11-24

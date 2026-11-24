@@ -22,6 +22,6 @@ test("installation: the flow passes, with no failing step or check", async () =>
     ...result.checks.filter((check) => !check.ok),
   ];
   assert.deepEqual(failed, []);
-  // The flow's own four checks ran, not only the inherited ones.
-  assert.ok(result.checks.length >= 10);
+  // The flow's own twelve checks ran, not only the inherited ones.
+  assert.ok(result.checks.length >= 18);
 });

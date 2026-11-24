@@ -85,6 +85,7 @@ test("GET shows the confirm page only, POST signs in once", async () => {
     assert.ok(rows()[0]!.used_at);
     const me = await app.fetch(
       new Request("http://localhost:3000/api/me", {
+        // punctuation: code, the cookie header's attribute separator
         headers: { cookie: cookie.split(";")[0]! },
       }),
       freshIp(),

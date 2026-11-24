@@ -192,6 +192,15 @@ reviews pushes to each repository&#39;s default branch only.</p>
 <p><code>installation</code> and <code>installation_repositories</code> are handled too, but they are
 <strong>not</strong> in the subscription list: GitHub delivers both to every App without a
 subscription, which is why the webhook handler accepts them.</p>
+<p>A repository removed from the App&#39;s installation on GitHub stops being
+reviewed. When it is added back, or the App is uninstalled and installed again,
+it stays off: removing a repository usually means stopping its reviews and
+their cost, so it never comes back on without a word. The dashboard&#39;s
+<strong>Repositories</strong> page shows &quot;This repository is back in the installation&quot; with
+a <strong>Resume reviews</strong> button. Resume turns reviews on again with the knowledge it
+had, so no init runs, and opens its Knowledge page with what changed since and
+the usual Sync. A repository you removed from the dashboard yourself gets no
+such notice. The return and the resume are both in the audit log.</p>
 <h2 id="diagrams-in-app-reviews">Diagrams in App reviews</h2>
 <p>An App review has no command line, so it reads the diagram settings saved for the
 repository: <code>co-maintainer set --repo=owner/repo --diagram-runtime=...</code>. With

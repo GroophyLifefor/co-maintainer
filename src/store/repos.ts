@@ -12,7 +12,8 @@ export function activateRepo(
       `INSERT INTO repos (full_name, installation_id, active, auto_review, created_at)
      VALUES (?, ?, 1, 1, ?)
      ON CONFLICT(full_name) DO UPDATE SET
-       installation_id = excluded.installation_id, active = 1`,
+       installation_id = excluded.installation_id, active = 1,
+       removed_by_github_at = NULL, returned_at = NULL`,
     )
     .run(fullName, installationId ?? null, nowIso());
 }
@@ -35,16 +36,64 @@ export function registerCliRepo(
   return Number(result.changes) > 0;
 }
 
+/** Turned off from the dashboard: not GitHub's doing, so no notice when it
+ * comes back. */
 export function deactivateRepo(fullName: string): void {
   getAppDb()
-    .prepare(`UPDATE repos SET active = 0 WHERE full_name = ?`)
+    .prepare(
+      `UPDATE repos SET active = 0, removed_by_github_at = NULL, returned_at = NULL WHERE full_name = ?`,
+    )
     .run(fullName);
+}
+
+/** GitHub removed it. Only a repository that was on gets the mark, so one
+ * turned off by hand stays unmarked. A return not resumed yet is forgotten. */
+const OFF_BY_GITHUB = `active = 0,
+  removed_by_github_at = CASE WHEN active = 1 THEN ? ELSE removed_by_github_at END,
+  returned_at = NULL`;
+
+export function deactivateRepoByGithub(fullName: string): void {
+  getAppDb()
+    .prepare(`UPDATE repos SET ${OFF_BY_GITHUB} WHERE full_name = ?`)
+    .run(nowIso(), fullName);
 }
 
 export function deactivateReposForInstallation(installationId: number): void {
   getAppDb()
-    .prepare(`UPDATE repos SET active = 0 WHERE installation_id = ?`)
-    .run(installationId);
+    .prepare(`UPDATE repos SET ${OFF_BY_GITHUB} WHERE installation_id = ?`)
+    .run(nowIso(), installationId);
+}
+
+/** A repository GitHub removed is back in the installation. True when this
+ * marked it, so the caller audits the return once. It stays off. */
+export function markRepoReturned(fullName: string): boolean {
+  const result = getAppDb()
+    .prepare(
+      `UPDATE repos SET returned_at = ?
+        WHERE full_name = ? AND active = 0 AND removed_by_github_at IS NOT NULL AND returned_at IS NULL`,
+    )
+    .run(nowIso(), fullName);
+  return Number(result.changes) === 1;
+}
+
+/** Repositories back in the installation and waiting to be resumed. */
+export function listReturnedRepos(): RepoRow[] {
+  return getAppDb()
+    .prepare<RepoRow>(
+      `SELECT * FROM repos WHERE active = 0 AND returned_at IS NOT NULL ORDER BY full_name`,
+    )
+    .all();
+}
+
+/** Turns a returned repository back on. False when it was not waiting. */
+export function resumeRepo(fullName: string): boolean {
+  const result = getAppDb()
+    .prepare(
+      `UPDATE repos SET active = 1, removed_by_github_at = NULL, returned_at = NULL
+        WHERE full_name = ? AND active = 0 AND returned_at IS NOT NULL`,
+    )
+    .run(fullName);
+  return Number(result.changes) === 1;
 }
 
 export function updateRepoSettings(

@@ -114,6 +114,8 @@ const NOT_SETTINGS = new Set([
   "added_from",
   "default_branch",
   "settings",
+  "removed_by_github_at",
+  "returned_at",
 ]);
 
 /** One repository's settings as the audit log compares them. */
