@@ -59,7 +59,6 @@ import { matchRepeat } from "../pr/rounds.ts";
 import type { Snapshot } from "../pr/snapshot.ts";
 import {
   readConfig,
-  resolveAppPrivateKey,
   resolveRepoSettings,
   resolvedAiToken,
   reviewAiProvider,
