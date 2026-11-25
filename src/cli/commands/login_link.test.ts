@@ -27,10 +27,10 @@ async function withSandbox(fn: () => Promise<void>): Promise<void> {
     webhook: getEnv("CM_WEBHOOK_URL"),
   };
   const dir = tempDirSync();
-  setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
-  setEnv("CM_APP_DB", `${dir}/app.db`);
-  deleteEnv("CM_WEBHOOK_URL");
   try {
+    setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
+    setEnv("CM_APP_DB", `${dir}/app.db`);
+    deleteEnv("CM_WEBHOOK_URL");
     await fn();
   } finally {
     try {

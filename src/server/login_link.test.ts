@@ -18,8 +18,8 @@ isolateTestFile();
 async function withTempDb(fn: () => Promise<void>): Promise<void> {
   const original = getEnv("CM_APP_DB");
   const dir = tempDirSync();
-  setEnv("CM_APP_DB", `${dir}/app.db`);
   try {
+    setEnv("CM_APP_DB", `${dir}/app.db`);
     await openAppDb();
     await fn();
   } finally {
