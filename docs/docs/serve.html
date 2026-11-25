@@ -182,6 +182,10 @@ CLI-only users can ignore <code>serve</code> until they need shared context or a
 <code>--github-app-private-key-path</code> stores only the path, so the key stays on disk
 and is read at startup. If that file is missing, <code>serve</code> warns and continues.
 See <a href="configuration.html#app-private-key-inline-file-contents-or-path">Configuration: App private key</a>.</p>
+<p>With the App configured, <strong>Add repository</strong> and the init, sync and remake jobs
+read the repository as the App, on the installation the repository belongs to.
+The server needs no <code>gh</code> login and no personal access token for them. A
+repository the App is not installed on still uses the saved <code>gh</code> or token login.</p>
 <p>On non-Linux platforms, <code>serve</code> logs a one-line warning that Linux (WSL
 included) is recommended, with a link to
 <a href="https://co-maintainer.com/docs/troubleshooting.html">docs</a>. Nothing is blocked.</p>

@@ -15,7 +15,12 @@ import { memoryPasswordStore } from "./auth.ts";
 import { type AuthOverrides, liveAuth } from "./live_auth.ts";
 import { clientAddress, forwardedHttps } from "./proxy_headers.ts";
 import type { AuthMethods, PasswordStore } from "./auth.ts";
-import { aiConfigured, readConfig, resolveAppPrivateKey } from "../config.ts";
+import {
+  aiConfigured,
+  githubAccessConfigured,
+  readConfig,
+  resolveAppPrivateKey,
+} from "../config.ts";
 import { listJobs } from "../store/jobs.ts";
 import { handleJobsRoute } from "./api/jobs.ts";
 import { handleReposRoute } from "./api/repos.ts";
@@ -74,9 +79,7 @@ export type App = {
 function setupStatus() {
   const config = readConfig();
   const ai = aiConfigured(config);
-  const github = Boolean(
-    config.auth === "gh" || (config.auth === "pat" && config.githubPat),
-  );
+  const github = githubAccessConfigured(config);
   const app = Boolean(config.githubAppId && resolveAppPrivateKey(config));
   const missing = [
     !ai && "ai",

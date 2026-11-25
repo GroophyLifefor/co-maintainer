@@ -5,7 +5,7 @@ import { setGitHubAuth } from "../pr/git_auth.ts";
 import { VERSION } from "../version.ts";
 import { createAiProvider } from "../ai/provider.ts";
 import { FakeAiProvider } from "../ai/fake.ts";
-import { AppClient, findInstallationForRepo } from "../github/app.ts";
+import { clientFor, resolveInstallationId } from "./app_access.ts";
 import {
   GitHubHttpError,
   isAccessDenied,
@@ -59,14 +59,13 @@ import { matchRepeat } from "../pr/rounds.ts";
 import type { Snapshot } from "../pr/snapshot.ts";
 import {
   readConfig,
-  resolveAppPrivateKey,
   resolveRepoSettings,
   resolvedAiToken,
   reviewAiProvider,
   reviewEventMode,
 } from "../config.ts";
 import { outsideCode, redact } from "../util/redact.ts";
-import { getRepo, setInstallationId } from "../store/repos.ts";
+import { getRepo } from "../store/repos.ts";
 import { rememberPullTitle } from "../store/pull_titles.ts";
 import {
   findNoteCommentId,
@@ -95,6 +94,7 @@ import {
 } from "../store/subjects.ts";
 import { enqueue, type LogFn, registerHandler } from "./jobs.ts";
 import { requestedReviewBlocked } from "./webhook.ts";
+export { clientFor, resolveInstallationId };
 import type { AiProvider, GitHubClient, Json, Options } from "../types.ts";
 import type { FindingRow, JobRow, ReviewRow } from "../store/rows.ts";
 import { getEnv } from "../util/runtime.ts";
@@ -640,32 +640,6 @@ export function aiFor(options: Options): AiProvider {
     );
   }
   return provider;
-}
-
-export function clientFor(installationId: number): GitHubClient {
-  const config = readConfig();
-  const privateKeyPem = resolveAppPrivateKey(config);
-  if (!config.githubAppId || !privateKeyPem) {
-    throw new Error("review jobs need the GitHub App configured");
-  }
-  return new AppClient(config.githubAppId, privateKeyPem, installationId);
-}
-
-export async function resolveInstallationId(
-  fullName: string,
-): Promise<number | undefined> {
-  const current = getRepo(fullName)?.installation_id;
-  if (current) return current;
-  const config = readConfig();
-  const privateKeyPem = resolveAppPrivateKey(config);
-  if (!config.githubAppId || !privateKeyPem) return undefined;
-  const installationId = await findInstallationForRepo(
-    config.githubAppId,
-    privateKeyPem,
-    fullName,
-  );
-  if (installationId !== undefined) setInstallationId(fullName, installationId);
-  return installationId;
 }
 
 async function denyAccess(

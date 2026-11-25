@@ -444,6 +444,17 @@ export function aiConfigured(
   return Boolean(config.ai && config.ai !== "none" && resolvedAiToken(config));
 }
 
+/** True when `serve` can read repositories: a `gh` login, a saved PAT, or the
+ * GitHub App. The App is enough on a server, because init, sync and remake
+ * read as the App when no other login is saved. */
+export function githubAccessConfigured(config: UserConfig): boolean {
+  return Boolean(
+    config.auth === "gh" ||
+    (config.auth === "pat" && config.githubPat) ||
+    (config.githubAppId && resolveAppPrivateKey(config)),
+  );
+}
+
 /** Who pays for a remote review's AI calls. `CM_REMOTE_BYOK_POLICY`
  * overrides the saved config, so a hosted server cannot be talked out of its
  * policy by a config edit. An unset or unreadable value falls back to the
