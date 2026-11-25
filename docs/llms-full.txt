@@ -4,7 +4,7 @@
 
 ## Facts
 
-- Latest version: 0.7.27, released 2026-11-25. Changelog: https://github.com/GroophyLifefor/co-maintainer/blob/main/CHANGELOG.md
+- Latest version: 0.7.28, released 2026-11-25. Changelog: https://github.com/GroophyLifefor/co-maintainer/blob/main/CHANGELOG.md
 - License: MIT. Source: https://github.com/GroophyLifefor/co-maintainer
 - Install: `npm install -g co-maintainer`. Needs Node 24 or newer.
 - Commands: `probe`, `init`, `sync`, `review`, `config`, `view`, `clear`, `uninstall`, `oauth`, `set`, `serve`, `extension`, `rollback`, `login-link`, `version`. `sync` keeps the review guides up to date (its old name was `remake`).
@@ -4682,7 +4682,7 @@ co-maintainer init owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` |  | Which provider writes the guides. Required: init and sync cannot run without one. |
+| `--ai=openrouter\|openai\|anthropic\|opencode-zen\|opencode-go\|openai-compatible` |  | Which provider writes the guides. Required: init and sync cannot run without one. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
@@ -4758,7 +4758,7 @@ co-maintainer sync owner/repo [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` |  | Which provider writes the guides. Required: init and sync cannot run without one. |
+| `--ai=openrouter\|openai\|anthropic\|opencode-zen\|opencode-go\|openai-compatible` |  | Which provider writes the guides. Required: init and sync cannot run without one. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
@@ -4875,7 +4875,7 @@ co-maintainer review [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` |  | Which provider writes the review. With no provider saved, OpenRouter. A review cannot run without one. |
+| `--ai=openrouter\|openai\|anthropic\|opencode-zen\|opencode-go\|openai-compatible` |  | Which provider writes the review. With no provider saved, OpenRouter. A review cannot run without one. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
@@ -5003,11 +5003,21 @@ co-maintainer set [options]
 
 | Flag | Default | Description |
 |---|---|---|
-| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go` | none | Which provider writes the review. `none` turns AI off. |
+| `--ai=none\|openrouter\|openai\|anthropic\|opencode-zen\|opencode-go\|openai-compatible` | none | Which provider writes the review. `none` turns AI off. |
 | `--token=KEY` |  | The provider API key. |
 | `--ai-key=KEY` |  | The same key as --token, named for what it is. |
 | `--low-model=ID` |  | Model for extraction work. |
 | `--high-model=ID` |  | Model for the review itself. |
+
+### OpenAI-compatible server
+
+| Flag | Default | Description |
+|---|---|---|
+| `--ai-base-url=URL` |  | The server's Chat Completions base URL, for --ai=openai-compatible. A new address drops the saved key unless --ai-key comes with it. |
+| `--ai-preset=azure\|bedrock\|gemini\|ollama` |  | Fill the base URL for a known service. |
+| `--ai-resource=NAME` |  | The Azure OpenAI resource name, for --ai-preset=azure. |
+| `--ai-region=REGION` |  | The AWS region, for --ai-preset=bedrock. |
+| `--ai-allow-http=true\|false` | false | Allow plain http to another machine. The key is never sent there. |
 
 ### GitHub access
 
@@ -5713,11 +5723,67 @@ co-maintainer asks an AI provider to write the guides in [`init`](init.md) and
 | [Anthropic](https://console.anthropic.com/) | `anthropic` | console.anthropic.com, under API keys |
 | [OpenCode Zen](https://opencode.ai/docs/zen) | `opencode-zen` | opencode.ai, after adding credit |
 | [OpenCode Go](https://opencode.ai/docs/go) | `opencode-go` | opencode.ai, with a Go subscription |
+| Any OpenAI-compatible server: Azure OpenAI, Amazon Bedrock, Gemini, Ollama, vLLM, LM Studio | `openai-compatible` | Your service's console, or none for a local server |
 
 `--ai=none` is the default setting until you choose a provider. It turns AI off,
 which is enough for [`probe`](probe.md) because it needs no model. [`init`](init.md),
 [`sync`](sync.md) and [`review`](review.md) all refuse it: the guides and the
 reviews are written by the provider, so there is nothing to build without one.
+
+## An OpenAI-compatible server
+
+Azure OpenAI, Amazon Bedrock, Gemini and local servers all speak OpenAI Chat
+Completions at their own address. Point co-maintainer at it with a preset or
+the whole address:
+
+```bash
+co-maintainer set --ai-preset=azure --ai-resource=my-resource --ai-key=... --low-model=<deployment> --high-model=<deployment>
+co-maintainer set --ai-preset=bedrock --ai-region=us-east-1 --ai-key=... --low-model=<model id> --high-model=<model id>
+co-maintainer set --ai-preset=gemini --ai-key=... --low-model=<model> --high-model=<model>
+co-maintainer set --ai-preset=ollama --low-model=<model> --high-model=<model>
+co-maintainer set --ai-base-url=https://llm.example.com/v1 --ai-key=... --low-model=<model> --high-model=<model>
+```
+
+| Preset | Base URL it fills |
+| ------ | ----------------- |
+| `azure` | `https://<resource>.openai.azure.com/openai/v1` |
+| `bedrock` | `https://bedrock-mantle.<region>.api.aws/v1` |
+| `gemini` | `https://generativelanguage.googleapis.com/v1beta/openai` |
+| `ollama` | `http://localhost:11434/v1` |
+
+- **The address.** A trailing `/chat/completions` is fine and is cleaned off. A
+  user name, a password or a query in it is refused. Plain http works for this
+  machine only. For another machine pass `--ai-allow-http=true`, and then the key
+  is never sent.
+- **The key.** It may be empty for a local server. A new address drops the saved
+  key unless you pass `--ai-key` with it, so a key never follows an address it
+  was not given for. Redirects are refused for the same reason. `serve` uses
+  only the saved key for this provider, never one from the environment, and a
+  remote review client cannot send its own key to it.
+- **The check.** `set` and the dashboard send one small request with a tool to
+  the review model, and refuse a key or model the server refuses. When `set`
+  finds a model that refuses tools, it saves that, and the model's reviews run
+  without the codegraph and MCP tools. `--no-verify` skips the check.
+- **Request fields.** co-maintainer sends `max_completion_tokens`, `temperature`
+  and `reasoning_effort`. A field the server refuses is left out and the request
+  sent again, once per field, and what each model refused is remembered.
+- **On a server.** `serve` refuses an address that is, or resolves to, a private,
+  loopback, link-local or cloud metadata address, checked on every request. The
+  host who runs the server can allow it with `CM_AI_ALLOW_PRIVATE=1` in the
+  environment. The dashboard cannot.
+- **Cost.** The price is unknown, so estimates give tokens and time without
+  dollars.
+- **What was tried.** The client was tested against a stand-in server that
+  speaks Chat Completions, in unit tests and in the `e2e:simulate`
+  `openai-compatible` flow. It has not been tried against a real Azure OpenAI,
+  Amazon Bedrock, Gemini or Ollama endpoint, so the presets and their addresses
+  follow each service's documentation and are not confirmed. If one fails for
+  you, run `set` with `--ai-base-url` and open an issue with the error.
+- **Known limits.** Ollama's default context is small and cuts long input
+  silently: raise it in the model file or with `OLLAMA_CONTEXT_LENGTH`. Answers
+  are not streamed, so a gateway with a short timeout can cut a long review.
+  Gemini 3's thought signatures are not sent back between tool rounds yet. On
+  Bedrock pick a model that takes Chat Completions.
 
 ## Where each provider works
 

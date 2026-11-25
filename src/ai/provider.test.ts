@@ -82,7 +82,7 @@ test("Hetzner is rejected by name and an unknown provider throws", () => {
 test("the provider list names every accepted --ai value", () => {
   if (
     AI_PROVIDERS.join(",") !==
-    "none,openrouter,openai,anthropic,opencode-zen,opencode-go"
+    "none,openrouter,openai,anthropic,opencode-zen,opencode-go,openai-compatible"
   ) {
     throw new Error(`provider list: ${AI_PROVIDERS.join(",")}`);
   }

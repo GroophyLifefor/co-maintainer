@@ -123,6 +123,8 @@ const MAY_BUILD = new Set([
   "src/ai/provider.ts",
   "src/ai/oauth/registry.ts",
   "benchmark/core_v2/judge.ts",
+  // The openai-compatible check `set` runs: one ping, never a review.
+  "src/ai/openai_compatible.ts",
 ]);
 
 function* sourceFiles(dir: string): Generator<string> {

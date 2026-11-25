@@ -1,5 +1,7 @@
+import { parseAiBaseUrl, presetBaseUrl } from "../../ai/openai_compatible.ts";
 import {
   readConfig,
+  type UserConfig,
   resolveAppPrivateKey,
   configPath,
   savedKeyProvider,
@@ -98,6 +100,11 @@ export async function runSet(args: string[]): Promise<void> {
   const known = [
     "token",
     "ai-key",
+    "ai-base-url",
+    "ai-preset",
+    "ai-resource",
+    "ai-region",
+    "ai-allow-http",
     "ai",
     "low-model",
     "high-model",
@@ -199,6 +206,8 @@ export async function runSet(args: string[]): Promise<void> {
   const fieldByFlag: Record<string, string> = {
     token: "token",
     "ai-key": "token",
+    "ai-base-url": "aiBaseUrl",
+    "ai-allow-http": "aiAllowHttp",
     ai: "ai",
     "low-model": "lowModel",
     "high-model": "highModel",
@@ -248,6 +257,33 @@ export async function runSet(args: string[]): Promise<void> {
   if (highModel) patch.highModel = highModel;
   const token = text(args, "token") ?? text(args, "ai-key");
   if (token) patch.token = token;
+  // openai-compatible: the address, from a preset or given whole.
+  const allowHttp = text(args, "ai-allow-http");
+  if (allowHttp !== undefined) {
+    if (!["true", "false"].includes(allowHttp)) {
+      die("--ai-allow-http must be true or false");
+    }
+    patch.aiAllowHttp = allowHttp === "true";
+  }
+  const preset = text(args, "ai-preset");
+  let baseUrl = text(args, "ai-base-url");
+  if (preset && baseUrl) die("Pass --ai-preset or --ai-base-url, not both.");
+  if (preset) {
+    const filled = presetBaseUrl(preset, {
+      resource: text(args, "ai-resource"),
+      region: text(args, "ai-region"),
+    });
+    if (!filled.ok) die(filled.problem);
+    baseUrl = filled.url;
+  }
+  if (baseUrl !== undefined) {
+    const parsed = parseAiBaseUrl(baseUrl, {
+      allowHttp: Boolean(patch.aiAllowHttp ?? readConfig().aiAllowHttp),
+    });
+    if (!parsed.ok) die(parsed.problem);
+    patch.aiBaseUrl = parsed.value.base;
+    patch.ai ??= "openai-compatible";
+  }
   const webhookUrl = text(args, "webhook-url");
   if (webhookUrl) {
     const problem = webhookUrlProblem(webhookUrl);
@@ -492,6 +528,23 @@ export async function runSet(args: string[]): Promise<void> {
     typeof patch.ai === "string" &&
     patch.ai !== "none" &&
     patch.ai !== previousAi;
+  // A key goes only to the address it was given for. A new address, or a
+  // switch to openai-compatible, drops the saved key unless a key comes
+  // with it, and what the old server taught about models with it.
+  const baseChanged =
+    "aiBaseUrl" in patch && patch.aiBaseUrl !== before.aiBaseUrl;
+  if (
+    (baseChanged || (switching && patch.ai === "openai-compatible")) &&
+    !("token" in patch)
+  ) {
+    if (before.token) {
+      console.error(
+        "[set] the AI address changed, so the saved key was dropped. Pass --ai-key= if the new server needs one.",
+      );
+    }
+    patch.token = undefined;
+  }
+  if (baseChanged) patch.aiModelQuirks = undefined;
   if (switching && !("token" in patch) && before.token) {
     die(
       `The saved key is for ${previousAi}. Pass --token= with the ${String(patch.ai)} key to switch providers.`,
@@ -505,18 +558,39 @@ export async function runSet(args: string[]): Promise<void> {
   const touchingAi =
     patch.ai !== undefined ||
     patch.token !== undefined ||
-    patch.highModel !== undefined;
+    patch.highModel !== undefined ||
+    patch.aiBaseUrl !== undefined;
   if (
     verify &&
     touchingAi &&
-    effectiveToken &&
+    (effectiveToken || effectiveAi === "openai-compatible") &&
     typeof effectiveAi === "string"
   ) {
     const result = await verifyAiKey(
       effectiveAi,
-      String(effectiveToken),
+      String(effectiveToken ?? ""),
       effectiveHighModel === undefined ? undefined : String(effectiveHighModel),
+      {
+        aiBaseUrl: effective("aiBaseUrl") as string | undefined,
+        aiAllowHttp: effective("aiAllowHttp") as boolean | undefined,
+      },
     );
+    // A model that refuses tools still reviews, without them.
+    if (
+      result.status === "ok" &&
+      result.tools === false &&
+      effectiveHighModel !== undefined
+    ) {
+      const quirks = {
+        ...(effective("aiModelQuirks") as UserConfig["aiModelQuirks"]),
+      };
+      const name = String(effectiveHighModel);
+      quirks[name] = { ...quirks[name], tools: false };
+      patch.aiModelQuirks = quirks;
+      console.error(
+        `[set] ${name} does not take tools here. Reviews run without the codegraph and MCP tools.`,
+      );
+    }
     if (result.status === "rejected") throw result.error;
     if (result.status === "unreachable") {
       console.error(

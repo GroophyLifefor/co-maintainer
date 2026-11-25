@@ -238,7 +238,7 @@ export const PARSE_CASES: ParseCase[] = [
     args: ["review", "owner/repo", "42", "--ai=none", "--token=tok"],
     expect: {
       error:
-        "review needs an AI provider. Pass --ai=openrouter|openai|anthropic|opencode-zen|opencode-go",
+        "review needs an AI provider. Pass --ai=openrouter|openai|anthropic|opencode-zen|opencode-go|openai-compatible",
     },
   },
   {
@@ -363,7 +363,7 @@ export const PARSE_CASES: ParseCase[] = [
     args: ["init", "owner/repo", "--ai=gemini"],
     expect: {
       error:
-        "ai must be one of: none, openrouter, openai, anthropic, opencode-zen, opencode-go",
+        "ai must be one of: none, openrouter, openai, anthropic, opencode-zen, opencode-go, openai-compatible",
     },
   },
   {

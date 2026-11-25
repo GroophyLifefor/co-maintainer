@@ -1,3 +1,4 @@
+import { parseAiBaseUrl } from "../../ai/openai_compatible.ts";
 import {
   liveWebhookUrl,
   type WebhookUrlSource,
@@ -157,6 +158,27 @@ export async function handleSettingsRoute(
     text("githubOAuthClientId");
     text("githubOAuthClientSecret");
     text("githubOAuthAllowedUser");
+    // openai-compatible: the address, with the same rules as set.
+    if (typeof body.aiBaseUrl === "string" && body.aiBaseUrl.trim() !== "") {
+      const parsed = parseAiBaseUrl(body.aiBaseUrl, {
+        allowHttp: Boolean(current.aiAllowHttp),
+      });
+      if (!parsed.ok) {
+        return errorResponse(422, "invalid_base_url", parsed.problem);
+      }
+      patch.aiBaseUrl = parsed.value.base;
+    } else if (body.aiBaseUrl === "" && current.aiBaseUrl !== undefined) {
+      // An emptied address clears it, but openai-compatible has nowhere to
+      // send a request without one.
+      if ((patch.ai ?? current.ai) === "openai-compatible") {
+        return errorResponse(
+          422,
+          "invalid_base_url",
+          "openai-compatible needs a base URL.",
+        );
+      }
+      patch.aiBaseUrl = undefined;
+    }
     // An emptied field clears its value. Secrets are never shown in a field,
     // so an empty secret field means "keep it" and clearing one is an
     // explicit `clear` entry, sent by its Remove button.
@@ -193,6 +215,17 @@ export async function handleSettingsRoute(
       );
     }
     const previousAi = savedKeyProvider(current);
+    // A key goes only to the address it was given for: a new address, or a
+    // switch to openai-compatible, drops the saved key unless one comes with
+    // it, and what the old server taught about its models.
+    const baseChanged =
+      patch.aiBaseUrl !== undefined && patch.aiBaseUrl !== current.aiBaseUrl;
+    const toCompatible =
+      patch.ai === "openai-compatible" && previousAi !== "openai-compatible";
+    if ((baseChanged || toCompatible) && !patch.token) {
+      patch.token = undefined;
+    }
+    if (baseChanged) patch.aiModelQuirks = undefined;
     if (
       patch.ai &&
       patch.ai !== "none" &&
@@ -410,7 +443,8 @@ export async function handleSettingsRoute(
     const touchingAi =
       patch.token !== undefined ||
       patch.ai !== undefined ||
-      patch.highModel !== undefined;
+      patch.highModel !== undefined ||
+      patch.aiBaseUrl !== undefined;
     const aiProvider = merged.ai;
     if (
       touchingAi &&
@@ -419,8 +453,16 @@ export async function handleSettingsRoute(
       getEnv("CM_FAKE_AI") !== "1"
     ) {
       const key = resolvedAiToken(merged, aiProvider);
-      if (key) {
-        const result = await verifyAiKey(aiProvider, key, merged.highModel);
+      if (key || aiProvider === "openai-compatible") {
+        const result = await verifyAiKey(
+          aiProvider,
+          key ?? "",
+          merged.highModel,
+          {
+            aiBaseUrl: merged.aiBaseUrl,
+            aiAllowHttp: merged.aiAllowHttp,
+          },
+        );
         if (result.status === "rejected") {
           return errorResponse(422, "ai_rejected", result.error.message);
         }

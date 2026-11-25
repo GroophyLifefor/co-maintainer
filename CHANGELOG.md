@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.28] - 2026-11-25
+
+### Added
+
+- **`--ai=openai-compatible` reaches Azure OpenAI, Amazon Bedrock, Gemini and local servers such as Ollama.** One Chat Completions client takes a base URL, set whole with `--ai-base-url` or filled by `--ai-preset=azure|bedrock|gemini|ollama`. The key may be empty for a local server. A new address drops the saved key, redirects are refused, and `serve` refuses addresses that resolve to private, loopback, link-local or metadata IPs unless the host sets `CM_AI_ALLOW_PRIVATE=1`. Fields a server refuses are dropped once each and remembered per model. `set` and the dashboard check the server with one tool call, and a model `set` finds without tools reviews without them.
+- **Not tried on a real endpoint.** `openai-compatible` was tested against a stand-in Chat Completions server, in unit tests and in the new simulate flow. Azure OpenAI, Amazon Bedrock, Gemini and Ollama have not been tried, so the presets follow each service's documentation.
+- **e2e:simulate has an `openai-compatible` flow.**
+
 ## [0.7.27] - 2026-11-25
 
 ### Added

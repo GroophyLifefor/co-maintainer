@@ -109,3 +109,29 @@ test("a key with a provider in the same request still saves", async () => {
     throw new Error("the key and provider were not saved");
   }
 });
+
+test("an emptied base URL is cleared, and refused while the provider is openai-compatible", async () => {
+  const base = "https://llm.example.test/v1";
+  const cleared = await put(
+    { ai: "openrouter", aiBaseUrl: base },
+    { aiBaseUrl: "" },
+  );
+  if (cleared.status !== 200 || cleared.after.aiBaseUrl !== undefined) {
+    throw new Error(
+      `clear: ${cleared.status} ${String(cleared.after.aiBaseUrl)}`,
+    );
+  }
+  const refused = await put(
+    { ai: "openai-compatible", aiBaseUrl: base },
+    { aiBaseUrl: "" },
+  );
+  if (
+    refused.status !== 422 ||
+    refused.code !== "invalid_base_url" ||
+    refused.after.aiBaseUrl !== base
+  ) {
+    throw new Error(
+      `refuse: ${refused.status} ${refused.code} ${String(refused.after.aiBaseUrl)}`,
+    );
+  }
+});

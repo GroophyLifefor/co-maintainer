@@ -134,9 +134,16 @@ function aiCard(config: UserConfig): string {
             <option value="opencode-go"${
               config.ai === "opencode-go" ? " selected" : ""
             }>OpenCode Go</option>
+            <option value="openai-compatible"${
+              config.ai === "openai-compatible" ? " selected" : ""
+            }>OpenAI-compatible server</option>
           </select>
         ${lockHint(aiLock)}
         <div class="cli"><code>--ai=${text(config.ai ?? "none")}</code></div></div>
+        <div class="field"><label for="ai-base-url">Base URL</label>
+          <input id="ai-base-url" type="url" value="${text(config.aiBaseUrl ?? "")}" placeholder="https://your-resource.openai.azure.com/openai/v1">
+          <div class="hint">For an OpenAI-compatible server: Azure OpenAI, Amazon Bedrock, Gemini or a local server such as Ollama. A new address drops the saved key unless you enter one with it.</div>
+          <div class="cli"><code>--ai-base-url=URL</code></div></div>
         <div class="field"><label for="token">API key</label>${
           config.token
             ? `<div class="actions-row"><span class="inp mono key-mask">${text(
@@ -713,6 +720,7 @@ document.getElementById("save-ai").addEventListener("click", function() {
   if (!timeout.ok) { fail(this.closest("[data-async]"), timeout.message, function () {}); return; }
   save(this, {
     ai: document.getElementById("ai-provider").value,
+    aiBaseUrl: document.getElementById("ai-base-url").value.trim(),
     token: document.getElementById("token").value,
     highModel: document.getElementById("high").value,
     lowModel: document.getElementById("low").value,

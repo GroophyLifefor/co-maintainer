@@ -47,6 +47,7 @@ const PROVIDER_LABEL: Record<string, string> = {
   anthropic: "Anthropic",
   "opencode-zen": "OpenCode Zen",
   "opencode-go": "OpenCode Go",
+  "openai-compatible": "OpenAI-compatible server",
   none: "No AI provider",
 };
 

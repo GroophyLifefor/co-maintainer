@@ -392,7 +392,10 @@ export async function parseArgs(args: string[]): Promise<Options> {
     lowModel ??= await ask("low model", undefined, true);
     highModel ??= await ask("high model", undefined, true);
   } else if (command === "review") {
-    aiToken ??= await ask(`${ai} API key`, undefined, true);
+    // A local openai-compatible server may need no key, so it is not asked.
+    if (ai !== "openai-compatible") {
+      aiToken ??= await ask(`${ai} API key`, undefined, true);
+    }
     // Review summarizes large files with the low model, so it needs one just
     // as init and sync do. Without a default to fall back on, ask here too.
     lowModel ??= await ask("low model", undefined, true);
@@ -401,7 +404,9 @@ export async function parseArgs(args: string[]): Promise<Options> {
     // No house pick for any provider: models go stale and a shipped build
     // cannot fetch a fresher one, so the model to use is the user's call,
     // set once in config or passed every time (Murat, 2026-09-28).
-    aiToken ??= await ask(`${ai} API key`, undefined, true);
+    if (ai !== "openai-compatible") {
+      aiToken ??= await ask(`${ai} API key`, undefined, true);
+    }
     lowModel ??= await ask("low model", undefined, true);
     highModel ??= await ask("high model", undefined, true);
   }
@@ -409,7 +414,7 @@ export async function parseArgs(args: string[]): Promise<Options> {
     !experimentalSiwc &&
     command !== "review" &&
     ai !== "none" &&
-    (!lowModel || !highModel || !aiToken)
+    (!lowModel || !highModel || (!aiToken && ai !== "openai-compatible"))
   ) {
     die(
       "--token, --low-model, and --high-model are required when AI is enabled",

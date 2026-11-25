@@ -927,6 +927,40 @@ export const COMMANDS: CommandSpec[] = [
     usage: ["co-maintainer set [options]"],
     groups: [
       AI_FLAGS,
+      {
+        title: "OpenAI-compatible server",
+        flags: [
+          {
+            name: "ai-base-url",
+            value: "URL",
+            description:
+              "The server's Chat Completions base URL, for --ai=openai-compatible. A new address drops the saved key unless --ai-key comes with it.",
+          },
+          {
+            name: "ai-preset",
+            value: "azure|bedrock|gemini|ollama",
+            description: "Fill the base URL for a known service.",
+          },
+          {
+            name: "ai-resource",
+            value: "NAME",
+            description:
+              "The Azure OpenAI resource name, for --ai-preset=azure.",
+          },
+          {
+            name: "ai-region",
+            value: "REGION",
+            description: "The AWS region, for --ai-preset=bedrock.",
+          },
+          {
+            name: "ai-allow-http",
+            value: "true|false",
+            default: "false",
+            description:
+              "Allow plain http to another machine. The key is never sent there.",
+          },
+        ],
+      },
       GITHUB_FLAGS,
       {
         title: "Server",

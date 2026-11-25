@@ -1,3 +1,4 @@
+import { openAiCompatibleHost } from "./openai_compatible.ts";
 import { OpenRouterProvider } from "./openrouter.ts";
 import { OpenAiProvider } from "./openai.ts";
 import { AnthropicProvider } from "./anthropic.ts";
@@ -26,6 +27,7 @@ export const AI_PROVIDERS = [
   "anthropic",
   "opencode-zen",
   "opencode-go",
+  "openai-compatible",
 ] as const;
 
 export { providerKeyEnv } from "../config.ts";
@@ -67,6 +69,13 @@ function createRawProvider(options: Options, model: string): AiProvider {
   }
   if (options.ai === "anthropic") {
     return new AnthropicProvider(options.aiToken ?? "", model);
+  }
+  if (options.ai === "openai-compatible") {
+    return new OpenRouterProvider(
+      options.aiToken ?? "",
+      model,
+      openAiCompatibleHost(model),
+    );
   }
   if (options.ai === "opencode-zen" || options.ai === "opencode-go") {
     return new OpenRouterProvider(
@@ -152,11 +161,15 @@ export function parseChatResponse(
   );
   const toolCalls = Array.isArray(message?.tool_calls)
     ? message.tool_calls
-        .map((call) => {
+        .map((call, index) => {
           const value = call as Json;
           const fn = value.function as Json | undefined;
           return {
-            id: String(value.id ?? ""),
+            // Some servers send no id. The next turn needs one to tie the
+            // tool's answer to its call, so one is made up.
+            id:
+              String(value.id ?? "") ||
+              `call_${index}_${Date.now().toString(36)}`,
             type: "function" as const,
             function: {
               name: String(fn?.name ?? ""),
@@ -164,7 +177,7 @@ export function parseChatResponse(
             },
           };
         })
-        .filter((call) => call.id && call.function.name)
+        .filter((call) => call.function.name)
     : undefined;
   const text = String(message?.content ?? "");
   if (

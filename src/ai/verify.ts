@@ -212,7 +212,13 @@ export async function verifyAiKey(
   ai: string,
   key: string,
   model?: string,
-): Promise<VerifyResult> {
+  /** openai-compatible only: the address being saved, not yet written. */
+  compatible?: { aiBaseUrl?: string; aiAllowHttp?: boolean },
+): Promise<VerifyResult & { tools?: boolean }> {
+  if (ai === "openai-compatible") {
+    const { verifyCompatible } = await import("./openai_compatible.ts");
+    return await verifyCompatible(key, model, compatible ?? {});
+  }
   if (ai === "openrouter") return await verifyOpenRouter(key, model);
   if (ai === "openai") return await verifyOpenAi(key, model);
   if (ai === "anthropic") return await verifyAnthropic(key, model);

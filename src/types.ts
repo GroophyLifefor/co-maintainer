@@ -37,7 +37,8 @@ export type Options = {
     | "openai"
     | "anthropic"
     | "opencode-zen"
-    | "opencode-go";
+    | "opencode-go"
+    | "openai-compatible";
   aiToken?: string;
   /** Experimental: run this command on the user's ChatGPT plan through Sign
    * in with ChatGPT (`--experimental-siwc`), instead of the API-key provider
@@ -194,6 +195,7 @@ export type AiResponse = {
     | "anthropic"
     | "opencode-zen"
     | "opencode-go"
+    | "openai-compatible"
     | "sign-in-with-chatgpt";
 };
 

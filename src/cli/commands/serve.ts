@@ -1,3 +1,4 @@
+import { setEgressGuard } from "../../ai/egress.ts";
 import {
   readConfig,
   resolveAppPrivateKey,
@@ -150,6 +151,9 @@ export function webhookUrlOverride(
  * or `co-maintainer set`. GitHub sign-in needs
  * `--github-oauth-client-id`/`-client-secret`/`-allowed-user` set. */
 export async function runServe(args: string[]): Promise<void> {
+  // The AI base URL is a setting here, so it must not reach a private
+  // address on this server's network. The CLI calls what its user set.
+  setEgressGuard(true);
   const portArg = args
     .find((arg) => arg.startsWith("--port="))
     ?.slice("--port=".length);
