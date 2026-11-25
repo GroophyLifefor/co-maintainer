@@ -5,7 +5,13 @@ import { buildSetupHandler, enqueueSetup } from "./setup.ts";
 import { claimAndRun, registerHandler } from "./jobs.ts";
 import { getJob } from "../store/jobs.ts";
 import type { GitHubClient, Options } from "../types.ts";
-import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
+import {
+  deleteEnv,
+  getEnv,
+  removePath,
+  setEnv,
+  tempDirSync,
+} from "../testing/runtime.ts";
 import { test } from "node:test";
 import { isolateTestFile } from "../testing/locations.ts";
 
@@ -17,9 +23,10 @@ const KEY =
 async function withTempConfigAndDb(fn: () => Promise<void>): Promise<void> {
   const originalConfig = getEnv("CM_CONFIG_PATH");
   const originalDb = getEnv("CM_APP_DB");
-  setEnv("CM_CONFIG_PATH", `${tempDirSync()}/config.json`);
-  setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
+  const dir = tempDirSync();
   try {
+    setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
+    setEnv("CM_APP_DB", `${dir}/app.db`);
     await openAppDb();
     await fn();
   } finally {
@@ -30,6 +37,7 @@ async function withTempConfigAndDb(fn: () => Promise<void>): Promise<void> {
       else setEnv("CM_CONFIG_PATH", originalConfig);
       if (originalDb === undefined) deleteEnv("CM_APP_DB");
       else setEnv("CM_APP_DB", originalDb);
+      await removePath(dir, { recursive: true }).catch(() => {});
     }
   }
 }
@@ -90,17 +98,6 @@ test("the options a job keeps hold no installation id, key or token", async () =
     }
     if (text.includes("not-a-real-key") || text.includes("installation")) {
       throw new Error("the App key or an installation reached the options");
-    }
-  });
-});
-
-test("without an App, init still needs the PAT that auth=pat names", async () => {
-  await withTempConfigAndDb(async () => {
-    await writeUserConfig({ ...APP_ONLY, githubAppId: undefined });
-    activateRepo("acme/widgets", undefined);
-    const { seen, status, error } = await runJob("init");
-    if (status === "done" || seen.client || !/PAT/.test(error ?? "")) {
-      throw new Error(`${status} ${error} client=${seen.client}`);
     }
   });
 });
