@@ -4,21 +4,32 @@ import { test } from "node:test";
 import { createApp } from "./app.ts";
 import { createLoginLink, LOGIN_LINK_TTL_MS } from "./auth.ts";
 import { closeAppDb, getAppDb, openAppDb } from "../store/app_db.ts";
-import { deleteEnv, getEnv, setEnv, tempDirSync } from "../testing/runtime.ts";
+import {
+  deleteEnv,
+  getEnv,
+  removePath,
+  setEnv,
+  tempDirSync,
+} from "../testing/runtime.ts";
 import { isolateTestFile } from "../testing/locations.ts";
 
 isolateTestFile();
 
 async function withTempDb(fn: () => Promise<void>): Promise<void> {
   const original = getEnv("CM_APP_DB");
-  setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
+  const dir = tempDirSync();
   try {
+    setEnv("CM_APP_DB", `${dir}/app.db`);
     await openAppDb();
     await fn();
   } finally {
-    await closeAppDb();
-    if (original === undefined) deleteEnv("CM_APP_DB");
-    else setEnv("CM_APP_DB", original);
+    try {
+      await closeAppDb();
+    } finally {
+      if (original === undefined) deleteEnv("CM_APP_DB");
+      else setEnv("CM_APP_DB", original);
+      await removePath(dir, { recursive: true }).catch(() => {});
+    }
   }
 }
 

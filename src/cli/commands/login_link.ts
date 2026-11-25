@@ -17,8 +17,11 @@ import { audit } from "../../services/audit.ts";
 /** The dashboard's origin: `--origin`, then `CM_WEBHOOK_URL`, then the saved
  * webhook URL, the order `serve` resolves its own webhook URL in. */
 function dashboardOrigin(flag: string | undefined): string | undefined {
-  const raw = flag || getEnv("CM_WEBHOOK_URL") || readConfig().webhookUrl;
-  if (!raw) return undefined;
+  const raw =
+    flag !== undefined
+      ? flag
+      : (getEnv("CM_WEBHOOK_URL") ?? readConfig().webhookUrl);
+  if (!raw || !raw.trim()) return undefined;
   try {
     const url = new URL(raw.trim());
     if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
@@ -38,7 +41,7 @@ export async function runLoginLink(args: string[]): Promise<void> {
   if (!origin) {
     throw new CliError(
       "usage",
-      originFlag
+      originFlag !== undefined
         ? `--origin must be an http or https address, got ${originFlag}`
         : "No dashboard address is known. serve's --webhook-url flag is not visible here.",
       "Pass the address you open the dashboard on, for example --origin=http://localhost:3000",
