@@ -11,7 +11,7 @@ import {
   setEgressGuard,
   setEgressResolverForTest,
 } from "./egress.ts";
-import { deleteEnv, setEnv } from "../testing/runtime.ts";
+import { deleteEnv, getEnv, setEnv } from "../testing/runtime.ts";
 
 test("private, loopback, link-local, metadata and mapped addresses are blocked", () => {
   for (const address of [
@@ -39,6 +39,7 @@ test("checkEgress refuses a name that resolves anywhere private, only while the 
   setEgressResolverForTest(async (host) =>
     host === "internal.test" ? ["20.1.2.3", "10.0.0.7"] : ["20.1.2.3"],
   );
+  const allowPrivate = getEnv("CM_AI_ALLOW_PRIVATE");
   try {
     await checkEgress("https://internal.test/v1");
     setEgressGuard(true);
@@ -59,7 +60,8 @@ test("checkEgress refuses a name that resolves anywhere private, only while the 
     setEnv("CM_AI_ALLOW_PRIVATE", "1");
     await checkEgress("https://internal.test/v1");
   } finally {
-    deleteEnv("CM_AI_ALLOW_PRIVATE");
+    if (allowPrivate === undefined) deleteEnv("CM_AI_ALLOW_PRIVATE");
+    else setEnv("CM_AI_ALLOW_PRIVATE", allowPrivate);
     setEgressGuard(false);
     setEgressResolverForTest();
   }
