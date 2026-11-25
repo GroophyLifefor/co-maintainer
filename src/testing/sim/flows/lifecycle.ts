@@ -6,7 +6,7 @@
  * it would delete is inside this flow's sandbox. The checks read exit codes,
  * what the CLI printed and which files exist, never a model's answer. */
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import {
   check,
   type CheckResult,
@@ -163,9 +163,10 @@ export default defineFlow({
       name: STEP.uninstall,
       async run(sim) {
         const root = resolve(sim.world.root);
-        const outside = (await uninstallPaths()).filter(
-          (path) => !resolve(path).startsWith(root),
-        );
+        const outside = (await uninstallPaths()).filter((path) => {
+          const rel = relative(root, resolve(path));
+          return rel.startsWith("..") || isAbsolute(rel);
+        });
         if (outside.length > 0) {
           throw new Error(
             `refusing to run uninstall, paths outside the sandbox: ${outside.join(", ")}`,
