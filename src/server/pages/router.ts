@@ -1,3 +1,4 @@
+import { listReturnedRepos } from "../../store/repos.ts";
 import { liveWebhookUrl } from "../webhook_url.ts";
 import { type AuthOverrides, liveAuth } from "../live_auth.ts";
 import {
@@ -287,6 +288,7 @@ export async function handlePageRequest(
             (item) => repoState(item, ready) === "reviewing",
           ).length,
         },
+        listReturnedRepos().map((row) => row.full_name),
       );
     }
     if (url.pathname === "/setup" && request.method === "GET") {

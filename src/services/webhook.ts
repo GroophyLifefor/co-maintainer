@@ -1,8 +1,10 @@
 /** Webhook dispatch: installation bookkeeping and the skip/enqueue rules
  * for pull_request events. HTTP parsing and HMAC live in server/webhook/. */
+import { audit } from "./audit.ts";
 import { enqueue } from "./jobs.ts";
 import {
-  deactivateRepo,
+  deactivateRepoByGithub,
+  markRepoReturned,
   deactivateReposForInstallation,
   getRepo,
   setInstallationId,
@@ -350,6 +352,15 @@ function applyInstallation(payload: Record<string, unknown>): WebhookResult {
         ? installation.events.map(String)
         : [],
     });
+    // A reinstall: repositories GitHub removed with the old installation are
+    // back under the new one, and stay off until someone resumes them.
+    const listed = payload.repositories;
+    if (Array.isArray(listed)) {
+      for (const item of listed) {
+        const fullName = asString(asRecord(item)?.full_name);
+        if (fullName) repoCameBack(canonicalRepoName(fullName), id);
+      }
+    }
     return { outcome: "ignored", reason: "installation-created" };
   }
   if (action === "deleted") {
@@ -368,6 +379,19 @@ function applyInstallation(payload: Record<string, unknown>): WebhookResult {
   return { outcome: "ignored" };
 }
 
+/** A repository in an installation again: it gets the installation id. One
+ * GitHub had removed is marked as returned, stays off, and the return is in
+ * the audit log once. */
+function repoCameBack(fullName: string, installationId: number): void {
+  setInstallationId(fullName, installationId);
+  if (markRepoReturned(fullName)) {
+    audit("repo", "A repository came back to the installation", {
+      target: fullName,
+      actor: "GitHub",
+    });
+  }
+}
+
 function applyInstallationRepositories(
   payload: Record<string, unknown>,
 ): WebhookResult {
@@ -378,9 +402,7 @@ function applyInstallationRepositories(
     if (Array.isArray(added)) {
       for (const item of added) {
         const fullName = asString(asRecord(item)?.full_name);
-        if (fullName) {
-          setInstallationId(canonicalRepoName(fullName), installationId);
-        }
+        if (fullName) repoCameBack(canonicalRepoName(fullName), installationId);
       }
     }
     return { outcome: "ignored", reason: "repositories-added" };
@@ -390,7 +412,7 @@ function applyInstallationRepositories(
     if (Array.isArray(removed)) {
       for (const item of removed) {
         const fullName = asString(asRecord(item)?.full_name);
-        if (fullName) deactivateRepo(canonicalRepoName(fullName));
+        if (fullName) deactivateRepoByGithub(canonicalRepoName(fullName));
       }
     }
     return { outcome: "ignored", reason: "repositories-removed" };

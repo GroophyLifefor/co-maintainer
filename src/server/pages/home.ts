@@ -131,6 +131,8 @@ export function renderHome(
   /** `rows` is already filtered, `total` and `reviewing` count every
    * repository so the lead and the tabs do not shrink with the filter. */
   filter: { q: string; status: string; total: number; reviewing: number },
+  /** Repositories GitHub put back in the App's installation, still off. */
+  returned: string[] = [],
 ): Response {
   const lead =
     filter.total === 0
@@ -151,6 +153,29 @@ export function renderHome(
           icon: "list-checks",
           action: `<a class="btn out sm" href="/setup">Continue${icon("arrow-right", "arr")}</a>`,
         })}</div>`;
+  // A repository back in the installation stays off until someone resumes
+  // it, so the owner is told here, where the list no longer shows it.
+  const returnedCards = returned
+    .map(
+      (name) =>
+        `<div class="returned">${alert("amber", {
+          title: name,
+          body: "This repository is back in the installation. Reviews stay off until you resume them.",
+          icon: "refresh-cw",
+          action: `<button class="btn out sm" type="button" data-resume="${text(name)}">Resume reviews</button>`,
+        })}</div>`,
+    )
+    .join("");
+  const returnedScript = returned.length
+    ? `<script>
+document.querySelectorAll("[data-resume]").forEach(function (button) {
+  button.addEventListener("click", function () {
+    var repo = button.getAttribute("data-resume");
+    postAndGo("/api/repos/" + repo + "/resume", {}, "/repos/" + repo + "/knowledge", button);
+  });
+});
+</script>`
+    : "";
   // Tabs keep the search and the search keeps the tab, so both filters
   // combine without JS.
   const tabHref = (status: string) => {
@@ -256,8 +281,9 @@ export function renderHome(
     }<a class="btn primary" href="/repos/new">${icon("plus")}Add repository</a></div>
   </div>
   ${setupCard}
+  ${returnedCards}
   ${body}
-</div>`,
+</div>${returnedScript}`,
     }),
   );
 }

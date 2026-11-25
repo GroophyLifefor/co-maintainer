@@ -41,6 +41,11 @@ export type RepoRow = {
   /** Written when the repository is set up or synced. Optional so a
    * hand-built fixture need not name it. */
   default_branch?: string | null;
+  /** When GitHub removed it from the App's installation, set only while it
+   * is off for that reason. */
+  removed_by_github_at?: string | null;
+  /** When it was added back to the installation, until it is resumed. */
+  returned_at?: string | null;
 };
 
 export type JobRow = {

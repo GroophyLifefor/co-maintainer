@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.27] - 2026-11-25
+
+### Added
+
+- **A repository added back to the App stays off, says why, and resumes with one click.** It used to look like any repository turned off by hand. Now the Repositories page shows "This repository is back in the installation" with **Resume reviews**, which turns it on with the knowledge it had and no init. A reinstall of the App takes the same path, and the return and the resume are in the audit log.
+- **e2e:simulate has `probe`, `installation` and `lifecycle` flows.** probe reads and writes nothing it should not, and the recommended init makes no more GitHub calls than probe estimated. The installation webhooks, a repository added back and resumed, and a reinstall. `clear`, `rollback` with no backup and `uninstall`, inside the sandbox only.
+
 ## [0.7.26] - 2026-11-24
 
 ### Added

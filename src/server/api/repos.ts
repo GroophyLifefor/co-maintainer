@@ -9,12 +9,15 @@ import { canonicalRepoName } from "../../util/repo_name.ts";
 import { AppClient, findInstallationForRepo } from "../../github/app.ts";
 import {
   activateRepo,
+  clearRepoKnowledge,
   deactivateRepo,
+  resumeRepo,
   getRepo,
   listActiveRepos,
   updateRepoSettings,
 } from "../../store/repos.ts";
-import { readConfig, writeRepoConfig } from "../../config.ts";
+import { readConfig, reposDir, writeRepoConfig } from "../../config.ts";
+import { existsSync } from "node:fs";
 import type { RepoConfig } from "../../config.ts";
 import {
   checkReviewSystemPrompt,
@@ -51,7 +54,7 @@ import { clearOneRepo } from "./knowledge.ts";
 import { audit, repoSnapshot, settingChanges } from "../../services/audit.ts";
 
 const REPO =
-  /^\/api\/repos\/([^/]+)\/([^/]+)(?:\/(remake|knowledge|pulls)(?:\/(\d+)(?:\/(review))?)?)?$/;
+  /^\/api\/repos\/([^/]+)\/([^/]+)(?:\/(remake|resume|knowledge|pulls)(?:\/(\d+)(?:\/(review))?)?)?$/;
 
 export async function handleReposRoute(
   request: Request,
@@ -688,6 +691,35 @@ export async function handleReposRoute(
       requireActiveRepo(fullName);
       deactivateRepo(fullName);
       audit("repo", "Removed a repository", { target: fullName });
+      return Response.json({ ok: true });
+    }
+    // A repository back in the App's installation stays off until this.
+    // Knowledge that is still on disk is kept, so no init runs: the
+    // Knowledge page then shows what changed since and the usual Sync.
+    if (sub === "resume" && request.method === "POST") {
+      const row = getRepo(fullName);
+      if (!row) return errorResponse(404, "not_found", "no such repository");
+      if (row.active === 1 || !row.returned_at) {
+        return errorResponse(
+          409,
+          "not_returned",
+          "This repository is not waiting to be resumed.",
+        );
+      }
+      // Guides deleted from disk meanwhile: say so, rather than claim
+      // knowledge that is gone. Which guide files exist depends on what init
+      // found, so only a missing folder counts.
+      if (row.knowledge_built_at && !existsSync(`${reposDir()}/${fullName}`)) {
+        clearRepoKnowledge(fullName);
+      }
+      if (!resumeRepo(fullName)) {
+        return errorResponse(
+          409,
+          "not_returned",
+          "This repository is not waiting to be resumed.",
+        );
+      }
+      audit("repo", "Resumed reviews on a repository", { target: fullName });
       return Response.json({ ok: true });
     }
     if (sub === "remake" && request.method === "POST") {
