@@ -167,6 +167,17 @@ export async function handleSettingsRoute(
         return errorResponse(422, "invalid_base_url", parsed.problem);
       }
       patch.aiBaseUrl = parsed.value.base;
+    } else if (body.aiBaseUrl === "" && current.aiBaseUrl !== undefined) {
+      // An emptied address clears it, but openai-compatible has nowhere to
+      // send a request without one.
+      if ((patch.ai ?? current.ai) === "openai-compatible") {
+        return errorResponse(
+          422,
+          "invalid_base_url",
+          "openai-compatible needs a base URL.",
+        );
+      }
+      patch.aiBaseUrl = undefined;
     }
     // An emptied field clears its value. Secrets are never shown in a field,
     // so an empty secret field means "keep it" and clearing one is an
