@@ -925,11 +925,7 @@ export function optionsFromConfig(
       "init and sync need an AI provider. Run: co-maintainer set --ai=openrouter --token=... --low-model=... --high-model=...",
     );
   }
-  if (
-    (!aiToken && ai !== "openai-compatible") ||
-    !lowModel ||
-    !highModel
-  ) {
+  if ((!aiToken && ai !== "openai-compatible") || !lowModel || !highModel) {
     throw new Error(
       "AI is enabled but token/low-model/high-model are not fully configured. Run: " +
         "co-maintainer set --token=... --low-model=... --high-model=...",

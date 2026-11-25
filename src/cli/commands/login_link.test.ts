@@ -27,22 +27,25 @@ async function withSandbox(fn: () => Promise<void>): Promise<void> {
     webhook: getEnv("CM_WEBHOOK_URL"),
   };
   const dir = tempDirSync();
-  setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
-  setEnv("CM_APP_DB", `${dir}/app.db`);
-  deleteEnv("CM_WEBHOOK_URL");
   try {
+    setEnv("CM_CONFIG_PATH", `${dir}/config.json`);
+    setEnv("CM_APP_DB", `${dir}/app.db`);
+    deleteEnv("CM_WEBHOOK_URL");
     await fn();
   } finally {
-    await closeAppDb();
-    for (const [name, value] of [
-      ["CM_CONFIG_PATH", keep.config],
-      ["CM_APP_DB", keep.db],
-      ["CM_WEBHOOK_URL", keep.webhook],
-    ] as const) {
-      if (value === undefined) deleteEnv(name);
-      else setEnv(name, value);
+    try {
+      await closeAppDb();
+    } finally {
+      for (const [name, value] of [
+        ["CM_CONFIG_PATH", keep.config],
+        ["CM_APP_DB", keep.db],
+        ["CM_WEBHOOK_URL", keep.webhook],
+      ] as const) {
+        if (value === undefined) deleteEnv(name);
+        else setEnv(name, value);
+      }
+      await removePath(dir, { recursive: true }).catch(() => {});
     }
-    await removePath(dir, { recursive: true }).catch(() => {});
   }
 }
 
@@ -126,6 +129,11 @@ test("login-link refuses with no serve running, and with no address known", asyn
     );
     await assert.rejects(
       runLoginLink(["--origin=ftp://x"]),
+      (error) => error instanceof CliError && error.code === "usage",
+    );
+    setEnv("CM_WEBHOOK_URL", "https://review.example.com/github/webhook");
+    await assert.rejects(
+      runLoginLink(["--origin="]),
       (error) => error instanceof CliError && error.code === "usage",
     );
   });

@@ -5,20 +5,27 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.7.27] - 2026-11-24
+## [0.7.28] - 2026-11-25
 
 ### Added
 
 - **`--ai=openai-compatible` reaches Azure OpenAI, Amazon Bedrock, Gemini and local servers such as Ollama.** One Chat Completions client takes a base URL, set whole with `--ai-base-url` or filled by `--ai-preset=azure|bedrock|gemini|ollama`. The key may be empty for a local server. A new address drops the saved key, redirects are refused, and `serve` refuses addresses that resolve to private, loopback, link-local or metadata IPs unless the host sets `CM_AI_ALLOW_PRIVATE=1`. Fields a server refuses are dropped once each and remembered per model. `set` and the dashboard check the server with one tool call, and a model `set` finds without tools reviews without them.
 - **e2e:simulate has an `openai-compatible` flow.**
+
+## [0.7.27] - 2026-11-25
+
+### Added
+
+- **A repository added back to the App stays off, says why, and resumes with one click.** It used to look like any repository turned off by hand. Now the Repositories page shows "This repository is back in the installation" with **Resume reviews**, which turns it on with the knowledge it had and no init. A reinstall of the App takes the same path, and the return and the resume are in the audit log.
+- **e2e:simulate has `probe`, `installation` and `lifecycle` flows.** probe reads and writes nothing it should not, and the recommended init makes no more GitHub calls than probe estimated. The installation webhooks, a repository added back and resumed, and a reinstall. `clear`, `rollback` with no backup and `uninstall`, inside the sandbox only.
+
 ## [0.7.26] - 2026-11-24
 
 ### Added
 
 - **`co-maintainer login-link` signs in to the dashboard with a one-time link, made on the server.** A script, an agent or a person with a shell on the server opens the printed address and presses **Sign in**, with no password. The link works once, for 5 minutes, on one address. A new link replaces the old one, a password change ends it, and opening it only shows the button, so a link preview cannot use it up. The token rides after `#`, so it never reaches the server on the GET or a proxy log. Making and using a link are in the audit log, the link never is, and a wrong link counts toward the sign-in lockout.
-- **A repository added back to the App stays off, says why, and resumes with one click.** It used to look like any repository turned off by hand. Now the Repositories page shows "This repository is back in the installation" with **Resume reviews**, which turns it on with the knowledge it had and no init. A reinstall of the App takes the same path, and the return and the resume are in the audit log.
-- **e2e:simulate has `probe`, `installation` and `lifecycle` flows.** probe reads and writes nothing it should not, and the recommended init makes no more GitHub calls than probe estimated. The installation webhooks, a repository added back and resumed, and a reinstall. `clear`, `rollback` with no backup and `uninstall`, inside the sandbox only.
 - **e2e:simulate has a `login-link` flow.** The confirm page, one sign-in, a replay, a replaced link and another address.
+
 ## [0.7.25] - 2026-11-24
 
 ### Added
