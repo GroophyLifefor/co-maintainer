@@ -464,10 +464,14 @@ export function notFound(
   );
 }
 
-export function html(body: string, status = 200): Response {
+export function html(
+  body: string,
+  status = 200,
+  headers: Record<string, string> = {},
+): Response {
   return new Response(body, {
     status,
-    headers: { "content-type": "text/html; charset=utf-8" },
+    headers: { "content-type": "text/html; charset=utf-8", ...headers },
   });
 }
 

@@ -1,5 +1,6 @@
 /** CLI dispatch only. Each branch parses nothing itself beyond `args[0]` and
  * calls straight into a command or a service. */
+import { runLoginLink } from "./commands/login_link.ts";
 import { parseArgs } from "./args.ts";
 import { runServe } from "./commands/serve.ts";
 import { runRollback } from "./commands/rollback.ts";
@@ -96,6 +97,10 @@ export async function run(args: string[]): Promise<void> {
   }
   if (args[0] === "rollback") {
     await runRollback(args.slice(1));
+    return;
+  }
+  if (args[0] === "login-link") {
+    await runLoginLink(args.slice(1));
     return;
   }
   if (args[0] === "review") {
