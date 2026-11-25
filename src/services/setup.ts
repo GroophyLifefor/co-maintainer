@@ -7,6 +7,10 @@ import { enrichFacts, synthesizeSections } from "../knowledge/synthesis.ts";
 import { collectSource } from "../github/collect.ts";
 import { GhClient } from "../github/gh.ts";
 import { PatClient } from "../github/pat.ts";
+import {
+  clientFor as appClientFor,
+  resolveInstallationId,
+} from "./app_access.ts";
 import { extractFacts } from "../knowledge/facts.ts";
 import {
   reviewSignalCount,
@@ -26,6 +30,7 @@ import { codebaseSectionKeys } from "../knowledge/sections.ts";
 import {
   readConfig,
   reposDir,
+  resolveAppPrivateKey,
   resolveRepoSettings,
   resolvedAiToken,
   writeRepoConfig,
@@ -400,6 +405,7 @@ function stopIfAsked(signal: AbortSignal | undefined, phase: string): void {
 export async function runInitOrRemake(
   options: Options,
   signal?: AbortSignal,
+  client?: GitHubClient,
 ): Promise<void> {
   const openedAppDb = !isAppDbOpen();
   if (openedAppDb) await openAppDb();
@@ -412,8 +418,8 @@ export async function runInitOrRemake(
     // With `--json` stdout carries the one document, so progress moves to
     // stderr.
     if (options.json) {
-      await withCliLogsToStderr(() => initOrRemake(options, signal));
-    } else await initOrRemake(options, signal);
+      await withCliLogsToStderr(() => initOrRemake(options, signal, client));
+    } else await initOrRemake(options, signal, client);
   } catch (error) {
     failure = error;
     throw error;
@@ -536,6 +542,7 @@ export async function guideEditInput(
 async function initOrRemake(
   options: Options,
   signal?: AbortSignal,
+  appClient?: GitHubClient,
 ): Promise<void> {
   const guideOutcome: { mode?: "full" | "edit" | "unchanged" } = {};
   // Turning review references on re-reads every pull request once, so the
@@ -565,7 +572,7 @@ async function initOrRemake(
       previous.options.maxPullRequestChangeLines;
   }
   const checkpoint = previous ?? emptyState(options);
-  const client = clientFor(options);
+  const client = appClient ?? clientFor(options);
   const lowAi = createAiProvider(options, options.lowModel ?? "");
   const highAi = createAiProvider(options, options.highModel ?? "");
   // Every guide is AI-authored: with no provider there is nothing to build.
@@ -579,7 +586,7 @@ async function initOrRemake(
     `${aiProviderName(options)} providers configured · low=${options.lowModel} · high=${options.highModel}`,
   );
 
-  log("fetch", `${options.repo} via ${options.auth}`);
+  log("fetch", `${options.repo} via ${appClient ? "app" : options.auth}`);
   const source = await timed("fetch repository data", options.logTime, () =>
     collectSource(client, options, previous, async (codebase) => {
       // `instructionFiles` is set even when missing: it is checked against
@@ -905,12 +912,13 @@ async function initOrRemake(
 export function optionsFromConfig(
   repo: string,
   command: "init" | "remake",
+  viaApp = false,
 ): Options {
   const config = readConfig();
   const repoConfig = config.repos?.[repo] ?? {};
   const settings = resolveRepoSettings(config, repo);
   const auth = settings.auth.value as Options["auth"];
-  if (auth === "pat" && !config.githubPat) {
+  if (auth === "pat" && !config.githubPat && !viaApp) {
     throw new Error(
       "auth=pat requires a GitHub PAT. Run: co-maintainer set --github-pat=...",
     );
@@ -965,6 +973,23 @@ export function optionsFromConfig(
   };
 }
 
+async function appClientForRepo(
+  repo: string,
+): Promise<GitHubClient | undefined> {
+  const config = readConfig();
+  if (!config.githubAppId || !resolveAppPrivateKey(config)) return undefined;
+  let installationId: number | undefined;
+  try {
+    installationId = await resolveInstallationId(repo);
+  } catch {
+    // The App could not be asked. Fall back to the saved gh or PAT login.
+    return undefined;
+  }
+  return installationId === undefined
+    ? undefined
+    : appClientFor(installationId);
+}
+
 /** `runner` defaults to the real `runInitOrRemake`. Tests substitute a fake
  * to check the option merging and log wiring without touching the network. */
 // The signal the queue passes to `run` reaches the phase checkpoints in
@@ -978,8 +1003,17 @@ export function buildSetupHandler(
   return {
     async run(job: JobRow, jobLog: LogFn, signal?: AbortSignal): Promise<void> {
       const overrides = JSON.parse(job.args || "{}") as Partial<Options>;
+      // A server with the App reads the repository as the App, so init, sync
+      // and remake need no `gh` login and no PAT. The id comes from the
+      // repository's own row, never from the job's arguments, and the token
+      // stays inside the client.
+      const appClient = await appClientForRepo(job.repo);
       const options: Options = {
-        ...optionsFromConfig(job.repo, job.type as "init" | "remake"),
+        ...optionsFromConfig(
+          job.repo,
+          job.type as "init" | "remake",
+          appClient !== undefined,
+        ),
         ...overrides,
         command: job.type as Options["command"],
         repo: job.repo,
@@ -993,7 +1027,7 @@ export function buildSetupHandler(
       }
       await withLogSink(
         (phase, message) => jobLog("info", `[${phase}] ${message}`),
-        () => runner(options, signal),
+        () => runner(options, signal, appClient),
       );
       if (!getRepo(job.repo)?.knowledge_built_at) {
         markKnowledgeBuilt(job.repo, await builtBaseSha(job.repo));

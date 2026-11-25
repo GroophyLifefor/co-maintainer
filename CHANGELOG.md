@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.29] - 2026-11-25
+
+### Fixed
+
+- **A server with the GitHub App runs init, sync and remake as the App.** They used the `gh` login or a PAT, so **Add repository** failed on a server that had only the App with "GitHub CLI (gh) was not found". They now read the repository on its installation, and fall back to the saved login when the App is not installed on it. The token stays in memory and never enters a job's options or arguments. Setup counts the App as GitHub access, so the checklist no longer asks for a login the server does not need.
+
 ## [0.7.28] - 2026-11-25
 
 ### Added

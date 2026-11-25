@@ -60,6 +60,11 @@ co-maintainer serve --port=5000 --webhook-url=https://example.com/github/webhook
 and is read at startup. If that file is missing, `serve` warns and continues.
 See [Configuration: App private key](configuration.md#app-private-key-inline-file-contents-or-path).
 
+With the App configured, **Add repository** and the init, sync and remake jobs
+read the repository as the App, on the installation the repository belongs to.
+The server needs no `gh` login and no personal access token for them. A
+repository the App is not installed on still uses the saved `gh` or token login.
+
 On non-Linux platforms, `serve` logs a one-line warning that Linux (WSL
 included) is recommended, with a link to
 [docs](https://co-maintainer.com/docs/troubleshooting.html). Nothing is blocked.

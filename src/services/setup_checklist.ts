@@ -5,7 +5,12 @@
  * list feeds every page, so home and /setup can never disagree on "n of 4".
  * Optional extras (first review, remote token) stay out of the count. The
  * webhook part of the App step reuses the existing reachability check. */
-import { aiConfigured, readConfig, resolveAppPrivateKey } from "../config.ts";
+import {
+  aiConfigured,
+  githubAccessConfigured,
+  readConfig,
+  resolveAppPrivateKey,
+} from "../config.ts";
 import { listActiveRepos } from "../store/repos.ts";
 import { lastDelivery } from "../store/deliveries.ts";
 import { webhookReachabilityProblem } from "../util/webhook_reachability.ts";
@@ -23,9 +28,7 @@ export type SetupItem = {
 export function setupChecklist(webhookUrl: string): SetupItem[] {
   const config = readConfig();
   const aiDone = aiConfigured(config);
-  const githubDone = Boolean(
-    config.auth === "gh" || (config.auth === "pat" && config.githubPat),
-  );
+  const githubDone = githubAccessConfigured(config);
   const appDone = Boolean(config.githubAppId && resolveAppPrivateKey(config));
   const builtCount = listActiveRepos().filter(
     (repo) => repo.knowledge_built_at,
