@@ -46,11 +46,12 @@ function checks(sim: Sim): CheckResult[] {
   const lines = [...byKind.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([k, n]) => `${n} x ${k}`);
+  const order = calls.map((c, i) => `${i + 1}. ${c.method} ${shape(c.url)}`);
   return [
     check(
       "a review happened",
       calls.length > 0,
-      `${calls.length} calls, ${writes.length} writes\n${lines.join("\n")}`,
+      `${calls.length} calls, ${writes.length} writes\n${lines.join("\n")}\n--- order\n${order.join("\n")}`,
     ),
   ];
 }
