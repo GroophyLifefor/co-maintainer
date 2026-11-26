@@ -29,6 +29,8 @@ const STEP = {
   secondaryOnce: "a secondary limit on the review post, once",
   secondarySpent: "a secondary limit on the review post, three times",
   bodyOnly: "a rate limit 403 on the files with no limit headers",
+  secondaryBare:
+    "a secondary limit on the files with neither retry-after nor limit headers",
   init: "init with a token meets a primary limit on the tree",
 };
 
@@ -36,6 +38,7 @@ const INIT_REPO = "sim/rate-limited";
 const ACCESS_DENIED =
   "The App does not have access to review this pull request.";
 const SECONDARY = "You have exceeded a secondary rate limit.";
+const PRIMARY_BODY = "API rate limit exceeded for installation.";
 
 const AI: AiRule[] = [
   ...INIT_AI,
@@ -146,6 +149,8 @@ function checks(sim: Sim): CheckResult[] {
   const once = pullAt(sim, "once");
   const spent = pullAt(sim, "spent");
   const bodyOnly = pullAt(sim, "bodyOnly");
+  const bare = pullAt(sim, "secondaryBare");
+  const bareWaits = waitsIn(sim, STEP.secondaryBare);
   const primaryFiles = callsTo(sim, STEP.primary, "GET", FILES);
   const primaryWaits = waitsIn(sim, STEP.primary);
   const onceWaits = waitsIn(sim, STEP.secondaryOnce);
@@ -156,6 +161,7 @@ function checks(sim: Sim): CheckResult[] {
   const allComments = [
     ...commentBodies(sim, STEP.secondarySpent),
     ...commentBodies(sim, STEP.bodyOnly),
+    ...commentBodies(sim, STEP.secondaryBare),
   ];
   return [
     check(
@@ -200,6 +206,15 @@ function checks(sim: Sim): CheckResult[] {
         checkRun(sim, bodyOnly)?.output?.title !==
           "Review could not access the pull request files.",
       outcome(sim, STEP.bodyOnly, bodyOnly),
+    ),
+    check(
+      "a secondary limit with no retry-after waits a minute and the review posts once, it does not fail",
+      bareWaits.length === 1 &&
+        bareWaits[0]! >= 60_000 &&
+        bareWaits[0]! <= 72_000 &&
+        reviewPosts(sim, STEP.secondaryBare, bare).length === 1 &&
+        jobsIn(sim, STEP.secondaryBare).includes("review done"),
+      `waits ${bareWaits.join(", ") || "none"} ms · ${outcome(sim, STEP.secondaryBare, bare)}`,
     ),
     check(
       "no rate limit posts the access-denied comment",
@@ -282,9 +297,26 @@ export default defineFlow({
           kind: 403,
           method: "GET",
           path: FILES,
-          message: SECONDARY,
+          message: PRIMARY_BODY,
         });
         return review(sim, "bodyOnly", "Add divide and average a fourth time");
+      },
+    },
+    {
+      name: STEP.secondaryBare,
+      run(sim) {
+        sim.faults.add({
+          target: "github",
+          kind: 403,
+          method: "GET",
+          path: FILES,
+          message: SECONDARY,
+        });
+        return review(
+          sim,
+          "secondaryBare",
+          "Add divide and average a fifth time",
+        );
       },
     },
     {

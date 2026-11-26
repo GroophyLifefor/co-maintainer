@@ -665,6 +665,7 @@ const TOOL_LIMIT_FLAGS = [
  * long before `set` could. */
 const SERVER_INT_FLAGS = [
   ["max-concurrent-jobs", "maxConcurrentJobs"],
+  ["queue-max-age-minutes", "queueMaxAgeMinutes"],
   ["remote-sync-timeout-seconds", "remoteSyncTimeoutSeconds"],
   [
     "max-concurrent-remote-reviews-per-token",

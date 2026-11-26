@@ -2,6 +2,7 @@
  * (pat.ts, and app.ts). `GhClient` shells out to the `gh` binary and does
  * not use `githubFetch`. Both paths share `paginate` and `waitForRateLimit`. */
 
+import { createHash } from "node:crypto";
 import { log } from "../util/log.ts";
 import { networkFailure } from "../cli/error.ts";
 import { missingHint, refusalHint } from "./permissions.ts";
@@ -131,21 +132,28 @@ export function setRateLimitSleepForTest(
   rateLimitSleep = fn ?? realRateLimitSleep;
 }
 
-// ponytail: one process-wide sleep. A search limit (minutes) and a core
-// limit (an hour) exhausted together wait out the longer one.
-let rateLimitGate: Promise<void> | undefined;
+// One wait per installation and rate limit resource (0.7.32). A limit that
+// one installation used up must not hold another installation's calls, and a
+// search limit (minutes) must not hold a core limit (an hour). Calls that
+// share a key wait out the same sleep.
+const rateLimitGates = new Map<string, Promise<void>>();
 
-function pauseForReset(resetAt: Date, delay: number): Promise<void> {
-  if (rateLimitGate) return rateLimitGate;
+function pauseForReset(
+  resetAt: Date,
+  delay: number,
+  key = "default",
+): Promise<void> {
+  const open = rateLimitGates.get(key);
+  if (open) return open;
   log(
     "github",
     `rate limit, next probe in ${Math.ceil(delay / 60_000)}m (reset ${resetLabel(resetAt)})`,
   );
-  const pending = rateLimitSleep(delay);
-  rateLimitGate = pending.finally(() => {
-    rateLimitGate = undefined;
+  const pending = rateLimitSleep(delay).finally(() => {
+    rateLimitGates.delete(key);
   });
-  return rateLimitGate;
+  rateLimitGates.set(key, pending);
+  return pending;
 }
 
 /** Sleep until `resetAt`, or at most `RATE_LIMIT_PROBE_MS`, whichever is
@@ -154,13 +162,14 @@ function pauseForReset(resetAt: Date, delay: number): Promise<void> {
 export async function waitForRateLimit(
   resetAt: Date,
   startedAt: number,
+  key = "default",
 ): Promise<void> {
   if (Date.now() - startedAt >= RATE_LIMIT_MAX_WAIT_MS) {
     throw rateLimitError(resetAt);
   }
   const delay = probeDelay(resetAt, Date.now());
   if (delay === 0) return;
-  await pauseForReset(resetAt, delay);
+  await pauseForReset(resetAt, delay, key);
 }
 
 /** The waits before each retry of a temporary GitHub failure: a 5xx or a
@@ -240,6 +249,40 @@ async function fetchRetrying(
   }
 }
 
+/** True when a 403 or 429 says it is a secondary (abuse detection) limit. The
+ * response is read from a copy, so the caller can still read it. */
+async function isSecondaryLimit(response: Response): Promise<boolean> {
+  if (response.status !== 403 && response.status !== 429) return false;
+  try {
+    const body = await response.clone().text();
+    return /secondary rate limit|abuse detection/i.test(body);
+  } catch {
+    return false;
+  }
+}
+
+/** The wait after attempt `attempt` (1 based) of a secondary limit that sent
+ * no `retry-after`: a minute, then two, with up to a fifth more at random so
+ * jobs that hit it together do not retry together. */
+export function secondaryWaitSeconds(
+  attempt: number,
+  random: () => number = Math.random,
+): number {
+  return Math.round(60 * 2 ** (attempt - 1) * (1 + random() * 0.2));
+}
+
+/** Which installation and which limit a wait belongs to: the credential the
+ * call carried, hashed so the wait table never holds it, and the limit
+ * GitHub says the call counted against. */
+function gateKey(init: RequestInit, response: Response): string {
+  const headers = new Headers(init.headers);
+  const credential = headers.get("authorization") ?? "";
+  const who = credential
+    ? createHash("sha256").update(credential).digest("hex").slice(0, 12)
+    : "anonymous";
+  return `${who}:${response.headers.get("x-ratelimit-resource") ?? "core"}`;
+}
+
 /** A secondary (abuse-detection) rate limit carries a short `retry-after`
  * and is retried in place, up to three attempts total. A primary limit at
  * zero remaining sleeps until its reset, probing at least every 30 minutes,
@@ -280,9 +323,28 @@ export async function githubFetch(
         exhausted = limit;
         break;
       }
+      // A secondary limit with no `retry-after` and requests left: GitHub says
+      // to wait at least a minute, and longer each time it repeats.
+      if (attempt < 3 && (await isSecondaryLimit(response))) {
+        const seconds = secondaryWaitSeconds(attempt);
+        recordRateLimitWait({
+          service: "github",
+          stage: "GitHub request",
+          reason: `secondary rate limit without retry-after (HTTP ${response.status})`,
+          seconds,
+        });
+        log(
+          "github",
+          `secondary rate limit without retry-after, waiting ${seconds}s (attempt ${attempt} of 3)`,
+        );
+        await rateLimitSleep(seconds * 1000);
+        if (interrupted()) return response;
+        continue;
+      }
       return response;
     }
     if (!exhausted) return response!;
+    const gate = gateKey(init, response!);
     const delay = probeDelay(exhausted.resetAt, Date.now());
     if (delay === 0) {
       if (spun) throw rateLimitError(exhausted.resetAt);
@@ -296,7 +358,7 @@ export async function githubFetch(
       seconds: delay / 1000,
     });
     spun = false;
-    await waitForRateLimit(exhausted.resetAt, started);
+    await waitForRateLimit(exhausted.resetAt, started, gate);
     if (interrupted()) return response!;
   }
 }

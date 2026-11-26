@@ -478,6 +478,7 @@ co-maintainer set [options]
 | `--enable-auth=password\|github` |  | Turn a sign-in method on. A running serve picks it up on the next request. |
 | `--webhook-url=URL` |  | The public webhook address GitHub posts to. --webhook-url on serve and CM_WEBHOOK_URL win over it. |
 | `--max-concurrent-jobs=N` |  | How many server jobs run at once. |
+| `--queue-max-age-minutes=N` | 1440 | A review that waited in the queue longer than this many minutes is skipped, and the pull request gets a note. Values under 60 count as 60. |
 | `--remote-sync-timeout-seconds=N` |  | How long a remote review waits for one sync. |
 | `--max-concurrent-remote-reviews-per-token=N` |  | Remote reviews one token may run at once. |
 | `--remote-tool-output-max-chars=N` |  | The longest client tool result a remote review keeps. |

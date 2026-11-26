@@ -1,6 +1,7 @@
 /** Retry and Dismiss for the failed rows of the Activity list, one row or a
  * selection. A row is named by its key: `job:<id>`, or `review:<id>` for a
  * review whose job row is gone. */
+import { isQueuedTooLong } from "./queue_age.ts";
 import { getJob } from "../store/jobs.ts";
 import { getRepo } from "../store/repos.ts";
 import { getReview, getReviewByJobId } from "../store/reviews.ts";
@@ -44,7 +45,11 @@ export function retryTarget(
   job: JobRow | undefined,
   review: ReviewRow | undefined,
 ): RetryTarget | undefined {
-  const failed = job?.status === "failed" || review?.status === "failed";
+  // A review skipped for waiting too long can be asked for again.
+  const skipped =
+    job?.status === "canceled" && isQueuedTooLong(job.cancel_reason);
+  const failed =
+    job?.status === "failed" || review?.status === "failed" || skipped;
   if (!failed) return undefined;
   const repo = job?.repo ?? review?.repo;
   if (!repo || getRepo(repo)?.active !== 1) return undefined;

@@ -121,6 +121,7 @@ export async function handleSettingsRoute(
       passwordAuthDisabled: Boolean(config.passwordAuthDisabled),
       githubAuthEnabled: Boolean(config.githubAuthEnabled),
       maxConcurrentJobs: config.maxConcurrentJobs ?? null,
+      queueMaxAgeMinutes: config.queueMaxAgeMinutes ?? null,
       aiTimeoutMinutes: config.aiTimeoutMinutes ?? null,
       globalReasoningEffort: globalReasoningEffort(config),
       remoteSyncTimeoutSeconds: config.remoteSyncTimeoutSeconds ?? null,
@@ -339,6 +340,11 @@ export async function handleSettingsRoute(
     if (remoteToolOut) return remoteToolOut;
     const aiTimeout = positiveIntOrNull("aiTimeoutMinutes", "aiTimeoutMinutes");
     if (aiTimeout) return aiTimeout;
+    const queueAge = positiveIntOrNull(
+      "queueMaxAgeMinutes",
+      "queueMaxAgeMinutes",
+    );
+    if (queueAge) return queueAge;
     if ("globalReasoningEffort" in body) {
       const level = body.globalReasoningEffort;
       if (level === null || level === "") {

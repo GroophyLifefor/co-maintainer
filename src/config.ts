@@ -221,6 +221,10 @@ export type UserConfig = {
   /** How long one AI request may wait for the provider, in minutes. Unset
    * means 15. */
   aiTimeoutMinutes?: number;
+  /** A review queued longer than this many minutes is skipped with a note on
+   * the pull request. Unset means 1440 (24 hours), and values under 60 are
+   * raised to 60. */
+  queueMaxAgeMinutes?: number;
   /** Known secret shapes in code, tool results and pull request text are
    * masked before a request reaches the model. Unset means on. */
   maskSecrets?: boolean;

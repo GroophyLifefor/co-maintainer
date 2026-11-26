@@ -1252,6 +1252,13 @@ export const COMMANDS: CommandSpec[] = [
             description: "How many server jobs run at once.",
           },
           {
+            name: "queue-max-age-minutes",
+            value: "N",
+            default: "1440",
+            description:
+              "A review that waited in the queue longer than this many minutes is skipped, and the pull request gets a note. Values under 60 count as 60.",
+          },
+          {
             name: "remote-sync-timeout-seconds",
             value: "N",
             description: "How long a remote review waits for one sync.",

@@ -92,7 +92,21 @@ import {
   parseVisiblePaths,
   saveSubjectRevision,
 } from "../store/subjects.ts";
-import { enqueue, type LogFn, registerHandler } from "./jobs.ts";
+import {
+  cancel as cancelJob,
+  enqueue,
+  type LogFn,
+  registerHandler,
+} from "./jobs.ts";
+import {
+  alreadyNoted,
+  claimNote,
+  QUEUED_TOO_LONG,
+  QUEUED_TOO_LONG_NO_NOTE,
+  QUEUED_TOO_LONG_NOTE,
+  releaseNote,
+  waitedTooLong,
+} from "./queue_age.ts";
 import { requestedReviewBlocked } from "./webhook.ts";
 export { clientFor, resolveInstallationId };
 import type { AiProvider, GitHubClient, Json, Options } from "../types.ts";
@@ -1097,6 +1111,42 @@ export async function runReviewJob(
   }
 }
 
+/** Says on the pull request that its review waited too long, once, and
+ * cancels the job with that reason. */
+async function skipQueuedTooLong(
+  job: JobRow,
+  github: GitHubClient,
+  log: LogFn,
+): Promise<void> {
+  const prNumber = job.pr_number!;
+  log(
+    "info",
+    "this review waited longer than the queue limit, so it is skipped",
+  );
+  // Only a note that is on the pull request counts. A job that could not
+  // claim the note, because another job is posting it, has not noted anything
+  // itself and leaves its skip as one that does not count: if the other post
+  // fails, a later job tries again.
+  let noted = alreadyNoted(job.repo, prNumber);
+  if (!noted && claimNote(job.repo, prNumber)) {
+    try {
+      await post(github, `repos/${job.repo}/issues/${prNumber}/comments`, {
+        body: QUEUED_TOO_LONG_NOTE,
+      });
+      noted = true;
+    } catch (error) {
+      log(
+        "warn",
+        `could not post the queued too long note: ${redact(String(error))}`,
+      );
+    } finally {
+      releaseNote(job.repo, prNumber);
+    }
+  }
+  // A note that failed leaves a skip that does not count as one.
+  cancelJob(job.id, noted ? QUEUED_TOO_LONG : QUEUED_TOO_LONG_NO_NOTE);
+}
+
 /** Triggers that mean a person asked for this review. They run even when the
  * head already has one. */
 const EXPLICIT_REQUESTS = new Set([
@@ -1123,6 +1173,13 @@ async function runReviewJobCore(
     throw new Error(`no GitHub App installation stored for ${job.repo}`);
   }
   const github = client ?? clientFor(installationId!);
+  // A review that waited longer than the queue limit is skipped before it
+  // asks GitHub for anything. A job that already has a review row is a rerun
+  // after a restart, not a late start.
+  if (!getReviewByJobId(job.id) && waitedTooLong(job)) {
+    await skipQueuedTooLong(job, github, log);
+    return;
+  }
   // The checkout for scope and codegraph clones with the App token, not the
   // machine's own git login, so a private repository keeps its scope.
   if (github.gitToken) setGitHubAuth(job.repo, () => github.gitToken!());

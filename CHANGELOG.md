@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.32] - 2026-11-26
+
+### Added
+
+- **A review that waited too long in the queue is skipped.** A review queued for more than `queueMaxAgeMinutes` (default 1440, which is 24 hours, never under 60) is canceled before it asks GitHub for anything, and the pull request gets one line: push again or ask for a review. A second old job for the same pull request adds no second note. Retry on the Activity page starts a fresh job that waits from zero. Set it with `set --queue-max-age-minutes=N` or on the Server settings page.
+
+### Fixed
+
+- **A secondary rate limit with no `retry-after` no longer fails the review.** GitHub sometimes answers 403 or 429 "secondary rate limit" without that header. The review stopped. It now waits a minute, then two, with a little jitter, as GitHub's guidance says, and tries again.
+- **One installation's rate limit no longer holds another's.** There was one wait for the whole server. Each installation and each limit (core, search, graphql) now has its own, so a quiet installation keeps reviewing while a busy one waits for its reset.
+
 ## [0.7.31] - 2026-11-26
 
 ### Changed
