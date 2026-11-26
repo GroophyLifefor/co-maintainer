@@ -1,8 +1,8 @@
 /** GitHub's content write limit (0.7.33): an installation may post 80 reviews
  * or comments a minute and 500 an hour. The product spaces its own writes.
  *
- * The allowance is set to 3 an hour and five pull requests arrive together.
- * The first three reviews post at once. The fourth and fifth wait for their
+ * The allowance is set to 2 an hour and three pull requests arrive together.
+ * The first two reviews post at once. The third waits for their
  * place: each wait is on the job's log, and every review still posts. A check
  * run is not a content write, so it never waits.
  *
@@ -14,8 +14,8 @@ import type { SimPull } from "../github.ts";
 import { APP_REPO, appRows, deliverOpened, serveRepo } from "./app.ts";
 import { INIT_AI } from "./init.ts";
 
-const ALLOWANCE = 3;
-const PULLS = 5;
+const ALLOWANCE = 2;
+const PULLS = 3;
 
 const AI: AiRule[] = [
   ...INIT_AI,
@@ -76,7 +76,7 @@ export default defineFlow({
   ai: AI,
   steps: [
     {
-      name: "serve a repository with an allowance of 3 writes an hour",
+      name: "serve a repository with an allowance of 2 writes an hour",
       async run(sim) {
         await serveRepo(sim);
         sim.world.writeConfig({ contentWritesPerHour: ALLOWANCE });

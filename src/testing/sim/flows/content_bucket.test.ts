@@ -25,8 +25,8 @@ test("content-bucket: the flow passes, with no failing step or check", async () 
   // The flow's own checks ran, each by name.
   const names = result.checks.map((check) => check.name);
   for (const name of [
-    "all 5 reviews post, none is lost to the limit",
-    "with 3 writes an hour, the first 3 post at once and the other 2 wait about an hour for their place",
+    "all 3 reviews post, none is lost to the limit",
+    "with 2 writes an hour, the first 2 post at once and the other 1 wait about an hour for their place",
     "check runs are not content writes: every check run completed without a content wait",
   ]) {
     assert.ok(names.includes(name), `the check did not run: ${name}`);

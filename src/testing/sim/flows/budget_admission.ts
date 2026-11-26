@@ -1,7 +1,7 @@
 /** A review starts only when its installation has the GitHub requests left
  * for it (0.7.33).
  *
- * The installation has 70 requests an hour and eight pull requests arrive
+ * The installation has 40 requests an hour and four pull requests arrive
  * together. Reviews start while what is left covers one more and the reserve,
  * then the rest stay queued: none fails, none stops halfway, and GitHub never
  * answers with a limit. When the hour resets they run.
@@ -14,8 +14,8 @@ import type { SimPull } from "../github.ts";
 import { APP_REPO, appRows, serveRepo } from "./app.ts";
 import { INIT_AI } from "./init.ts";
 
-const PULLS = 8;
-const LIMIT = 70;
+const PULLS = 4;
+const LIMIT = 40;
 
 const AI: AiRule[] = [
   ...INIT_AI,
@@ -53,7 +53,7 @@ function checks(sim: Sim): CheckResult[] {
   const reviewsAfter = pulls.map((pull) => botReviews(sim, pull));
   return [
     check(
-      "with 70 requests left, some reviews start and the rest stay queued: not all, not none",
+      "with 40 requests left, some reviews start and the rest stay queued: not all, not none",
       first.done > 0 && first.queued > 0 && first.done + first.queued === PULLS,
       `${first.done} done · ${first.queued} queued`,
     ),
@@ -78,7 +78,7 @@ export default defineFlow({
   ai: AI,
   steps: [
     {
-      name: "serve a repository whose installation has 70 requests an hour",
+      name: "serve a repository whose installation has 40 requests an hour",
       async run(sim) {
         await serveRepo(sim);
         sim.state.pulls = [];

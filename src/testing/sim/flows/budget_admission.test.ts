@@ -25,7 +25,7 @@ test("budget-admission: the flow passes, with no failing step or check", async (
   // The flow's own checks ran, each by name.
   const names = result.checks.map((check) => check.name);
   for (const name of [
-    "with 70 requests left, some reviews start and the rest stay queued: not all, not none",
+    "with 40 requests left, some reviews start and the rest stay queued: not all, not none",
     "nothing fails or meets a GitHub rate limit while the budget is low",
     "after the reset the queued reviews run, and every pull request has exactly one review",
   ]) {

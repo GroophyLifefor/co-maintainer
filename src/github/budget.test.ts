@@ -5,6 +5,7 @@ import {
   noteRateLimit,
   resetBudgetsForTest,
   REVIEW_COST,
+  RUNNING_REVIEW_UNFINISHED,
 } from "./budget.ts";
 
 const NOW = 1_800_000_000_000;
@@ -28,14 +29,27 @@ test("with nothing known, or after the reset, a review may start", () => {
   assert.equal(mayStartReview(undefined, 5, NOW), true);
 });
 
-test("a review needs its cost, the cost of the running reviews and a tenth of the hour in reserve", () => {
+test("a review needs its cost, what the running reviews have still to spend and a tenth of the hour in reserve", () => {
   resetBudgetsForTest();
   const reserve = 500;
   noteRateLimit(1, headers(reserve + REVIEW_COST));
   assert.equal(mayStartReview(1, 0, NOW), true);
   assert.equal(mayStartReview(1, 1, NOW), false);
-  noteRateLimit(1, headers(reserve + 2 * REVIEW_COST - 1, RESET));
+  // One running review has spent part of its cost already: only the rest is
+  // counted, not the whole cost again.
+  const needed = reserve + REVIEW_COST + RUNNING_REVIEW_UNFINISHED;
+  assert.ok(RUNNING_REVIEW_UNFINISHED < REVIEW_COST);
+  noteRateLimit(1, headers(needed - 1, RESET));
   assert.equal(mayStartReview(1, 1, NOW), false);
+  noteRateLimit(1, headers(needed - 2, RESET));
+  assert.equal(mayStartReview(1, 1, NOW), false);
+});
+
+test("exactly enough covers the running review's rest and one more", () => {
+  resetBudgetsForTest();
+  const needed = 500 + REVIEW_COST + RUNNING_REVIEW_UNFINISHED;
+  noteRateLimit(5, headers(needed));
+  assert.equal(mayStartReview(5, 1, NOW), true);
 });
 
 test("an answer that arrives late with a higher count does not undo a later one", () => {
@@ -63,4 +77,12 @@ test("other limits and answers without the headers are ignored", () => {
   noteRateLimit(4, search);
   noteRateLimit(4, new Headers());
   assert.equal(mayStartReview(4, 0, NOW), true);
+});
+
+test("a stale answer from an earlier hour does not replace the newer hour, even with a lower count", () => {
+  resetBudgetsForTest();
+  noteRateLimit(6, headers(5000, RESET + 3600));
+  noteRateLimit(6, headers(10, RESET));
+  assert.equal(mayStartReview(6, 0, (RESET + 1) * 1000), true);
+  assert.equal(mayStartReview(6, 0, NOW), true);
 });

@@ -12,6 +12,10 @@
 /** The requests one review is expected to make, with room for a large one.
  * The smallest review makes 9 (measured, `--flow=gh-calls`). */
 export const REVIEW_COST = 14;
+/** What a review that is already running is still expected to spend. Every
+ * answer updates the count, so what it has spent is already in it: on average
+ * about half of its cost is still to come. */
+export const RUNNING_REVIEW_UNFINISHED = Math.ceil(REVIEW_COST / 2);
 /** The part of the hour's allowance kept back for closing writes. */
 export const RESERVE_SHARE = 0.1;
 
@@ -33,8 +37,11 @@ export function noteRateLimit(installationId: number, headers: Headers): void {
   // reset is an earlier answer arriving late: it must not undo a later one. A
   // later reset is a new hour and replaces what was there.
   const known = budgets.get(installationId);
-  if (known && reset * 1000 <= known.resetAtMs && remaining > known.remaining) {
-    return;
+  if (known) {
+    // An answer from an earlier hour than the one on record is stale.
+    if (reset * 1000 < known.resetAtMs) return;
+    // Inside the same hour the count only goes down.
+    if (reset * 1000 === known.resetAtMs && remaining > known.remaining) return;
   }
   budgets.set(installationId, {
     limit,
@@ -55,7 +62,8 @@ export function mayStartReview(
   const budget = budgets.get(installationId);
   if (!budget || nowMs >= budget.resetAtMs) return true;
   const reserve = Math.ceil(budget.limit * RESERVE_SHARE);
-  return budget.remaining - (running + 1) * REVIEW_COST >= reserve;
+  const expected = running * RUNNING_REVIEW_UNFINISHED + REVIEW_COST;
+  return budget.remaining - expected >= reserve;
 }
 
 /** Test seam: forget what every installation had left. */
