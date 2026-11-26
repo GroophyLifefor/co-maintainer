@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **A review that waited too long in the queue is skipped.** A review queued for more than `queueMaxAgeHours` (default 24, never under 2) is canceled before it asks GitHub for anything, and the pull request gets one line: push again or ask for a review. A second old job for the same pull request adds no second note. Retry on the Activity page starts a fresh job that waits from zero. Set it with `set --queue-max-age-hours=N` or on the Server settings page.
+- **A review that waited too long in the queue is skipped.** A review queued for more than `queueMaxAgeMinutes` (default 1440, which is 24 hours, never under 60) is canceled before it asks GitHub for anything, and the pull request gets one line: push again or ask for a review. A second old job for the same pull request adds no second note. Retry on the Activity page starts a fresh job that waits from zero. Set it with `set --queue-max-age-minutes=N` or on the Server settings page.
 
 ### Fixed
 

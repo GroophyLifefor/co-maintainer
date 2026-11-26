@@ -7,10 +7,10 @@ import { readConfig, type UserConfig } from "../config.ts";
 import { getAppDb } from "../store/app_db.ts";
 import type { JobRow } from "../store/rows.ts";
 
-export const DEFAULT_QUEUE_MAX_AGE_HOURS = 24;
+export const DEFAULT_QUEUE_MAX_AGE_MINUTES = 1440;
 /** Below this the limit would skip a job that waits one GitHub content
  * window, an hour, for its turn. */
-export const MIN_QUEUE_MAX_AGE_HOURS = 2;
+export const MIN_QUEUE_MAX_AGE_MINUTES = 60;
 export const QUEUED_TOO_LONG = "queued_too_long";
 /** The same skip when the note could not be posted. It does not count as a
  * note, so the next old job for the pull request tries again. */
@@ -45,11 +45,11 @@ This pull request waited too long in the review queue, so it was not reviewed. P
 /** The limit in milliseconds. Unset, zero, negative or not a number means
  * the default, and a value under the minimum is raised to it. */
 export function queueMaxAgeMs(config: UserConfig = readConfig()): number {
-  const hours = config.queueMaxAgeHours;
+  const minutes = config.queueMaxAgeMinutes;
   const valid =
-    typeof hours === "number" && Number.isFinite(hours) && hours > 0;
-  const chosen = valid ? hours : DEFAULT_QUEUE_MAX_AGE_HOURS;
-  return Math.max(chosen, MIN_QUEUE_MAX_AGE_HOURS) * 3_600_000;
+    typeof minutes === "number" && Number.isFinite(minutes) && minutes > 0;
+  const chosen = valid ? minutes : DEFAULT_QUEUE_MAX_AGE_MINUTES;
+  return Math.max(chosen, MIN_QUEUE_MAX_AGE_MINUTES) * 60_000;
 }
 
 /** True when the job has waited longer than the limit. A job that already

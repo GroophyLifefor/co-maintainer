@@ -437,11 +437,11 @@ function serverCard(config: UserConfig, runtime: RuntimeInfo): string {
             config.maxConcurrentJobs ?? "",
           )}" placeholder="No limit">
           <div class="hint">Cap how many background jobs run at once across init, sync, and review. Leave blank for no limit.</div></div>
-        <div class="field" style="margin-top:16px"><label>Queue age limit (hours)</label>
+        <div class="field" style="margin-top:16px"><label>Queue age limit (minutes)</label>
           <input id="queue-age" value="${text(
-            config.queueMaxAgeHours ?? "",
-          )}" placeholder="24">
-          <div class="hint">A review that waited in the queue longer than this is skipped, and the pull request gets a note saying so. Leave blank for 24. Values under 2 count as 2.</div></div>
+            config.queueMaxAgeMinutes ?? "",
+          )}" placeholder="1440">
+          <div class="hint">A review that waited in the queue longer than this is skipped, and the pull request gets a note saying so. Leave blank for 1440 (24 hours). Values under 60 count as 60.</div></div>
         <div class="two" style="max-width:none;margin-top:16px">
           <div class="field"><label>Remote sync timeout (seconds)</label>
             <input id="remote-timeout" value="${text(
@@ -836,7 +836,7 @@ document.getElementById("save-server").addEventListener("click", function() {
   if (!toolChars.ok) { fail(card, toolChars.message, function () {}); return; }
   save(this, {
     maxConcurrentJobs: jobs.value,
-    queueMaxAgeHours: queueAge.value,
+    queueMaxAgeMinutes: queueAge.value,
     remoteSyncTimeoutSeconds: timeout.value,
     maxConcurrentRemoteReviewsPerToken: perToken.value,
     remoteToolOutputMaxChars: toolChars.value

@@ -124,7 +124,7 @@ function checks(sim: Sim): CheckResult[] {
       JSON.stringify([s.noteFails, s.noteAgain]),
     ),
     check(
-      "a limit of 5 hours skips a job 6 hours old, which the default 24 hours would run",
+      "a limit of 300 minutes skips a job 6 hours old, which the default 1440 minutes would run",
       s.short.canceled === true && s.short.defaultRan === true,
       JSON.stringify(s.short),
     ),
@@ -218,7 +218,7 @@ export default defineFlow({
         // 6 hours old with the default limit of 24: the job runs.
         const ran = await queueOld(sim, 6, { "docs/n3.md": "# 3\n" }, "qa-3");
         const defaultRan = jobsOf(sim).at(-1)?.status === "done";
-        sim.world.writeConfig({ queueMaxAgeHours: 5 });
+        sim.world.writeConfig({ queueMaxAgeMinutes: 300 });
         const skipped = await queueOld(
           sim,
           6,
