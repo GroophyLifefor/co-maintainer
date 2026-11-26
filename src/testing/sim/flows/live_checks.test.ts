@@ -70,6 +70,9 @@ const SKIPPED_LIVE: Record<string, number> = {
   "cli-pr": 21,
   "cli-pr-carry": 27,
   "client-tools": 2,
+  // The scripted model finds the flaw in the first push and nothing in the
+  // second.
+  "commit-watch": 2,
   companions: 7,
   "companions-app": 4,
   // Only the fake AI fails a call on purpose after a paid round.
