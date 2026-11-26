@@ -8,6 +8,7 @@ import {
   paginate,
   probeDelay,
   RATE_LIMIT_PROBE_MS,
+  secondaryWaitSeconds,
 } from "./client.ts";
 import { quotaLine } from "./gh.ts";
 
@@ -198,5 +199,108 @@ test("a rate limited 403 is not missing access, a plain 403 and a 404 are", asyn
     if (limited && error.message.includes("permission")) {
       throw new Error("a rate limit carries a permissions hint");
     }
+  }
+});
+
+test("a secondary rate limit with no retry-after waits a minute, then two, and succeeds", async () => {
+  mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const originalFetch = globalThis.fetch;
+  try {
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls++;
+      return calls < 3
+        ? new Response(
+            '{"message":"You have exceeded a secondary rate limit."}',
+            {
+              status: 403,
+              headers: { "x-ratelimit-remaining": "4000" },
+            },
+          )
+        : response(200);
+    };
+    const pending = githubFetch("https://api.github.com/x", {});
+    await yieldToFetch();
+    mock.timers.tick(73_000);
+    await yieldToFetch();
+    mock.timers.tick(145_000);
+    const result = await pending;
+    if (result.status !== 200)
+      throw new Error("did not succeed after the waits");
+    if (calls !== 3) throw new Error(`expected 3 calls, got ${calls}`);
+  } finally {
+    globalThis.fetch = originalFetch;
+    mock.timers.reset();
+  }
+});
+
+test("a 403 that is not a rate limit is returned at once", async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    let calls = 0;
+    globalThis.fetch = async () => {
+      calls++;
+      return new Response(
+        '{"message":"Resource not accessible by integration"}',
+        {
+          status: 403,
+          headers: { "x-ratelimit-remaining": "4000" },
+        },
+      );
+    };
+    const result = await githubFetch("https://api.github.com/x", {});
+    if (result.status !== 403 || calls !== 1) {
+      throw new Error(`status ${result.status} after ${calls} calls`);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("the secondary wait grows and carries at most a fifth of jitter", () => {
+  const first = secondaryWaitSeconds(1, () => 0);
+  const second = secondaryWaitSeconds(2, () => 0);
+  const jittered = secondaryWaitSeconds(1, () => 1);
+  if (first !== 60 || second !== 120 || jittered !== 72) {
+    throw new Error(`waits ${first}, ${second}, ${jittered}`);
+  }
+});
+
+test("an installation that used up its limit does not hold another installation's wait", async () => {
+  mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const originalFetch = globalThis.fetch;
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const calls = { a: 0, b: 0 };
+    globalThis.fetch = async (_url, init) => {
+      const who = new Headers(init?.headers).get("authorization") ?? "";
+      const key = who === "token a" ? "a" : "b";
+      calls[key]++;
+      // A resets in ten minutes, B in one.
+      const resetAt = now + (key === "a" ? 10 * 60 : 60);
+      return calls[key] === 1
+        ? response(403, {
+            "x-ratelimit-remaining": "0",
+            "x-ratelimit-reset": String(resetAt),
+          })
+        : response(200);
+    };
+    const a = githubFetch("https://api.github.com/x", {
+      headers: { authorization: "token a" },
+    });
+    await yieldToFetch();
+    const b = githubFetch("https://api.github.com/y", {
+      headers: { authorization: "token b" },
+    });
+    await yieldToFetch();
+    mock.timers.tick(61_000);
+    // B has waited its own minute. A still waits for its ten.
+    const first = await Promise.race([b.then(() => "b"), a.then(() => "a")]);
+    if (first !== "b") throw new Error("B waited for A's longer limit");
+    mock.timers.tick(10 * 60 * 1000);
+    await a;
+  } finally {
+    globalThis.fetch = originalFetch;
+    mock.timers.reset();
   }
 });

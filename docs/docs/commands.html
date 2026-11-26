@@ -1429,6 +1429,11 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td>How many server jobs run at once.</td>
 </tr>
 <tr>
+<td><code>--queue-max-age-hours=N</code></td>
+<td>24</td>
+<td>A review that waited in the queue longer than this many hours is skipped, and the pull request gets a note. Values under 2 count as 2.</td>
+</tr>
+<tr>
 <td><code>--remote-sync-timeout-seconds=N</code></td>
 <td></td>
 <td>How long a remote review waits for one sync.</td>
