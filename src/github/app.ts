@@ -1,4 +1,10 @@
-import { githubFetch, httpError, paginate } from "./client.ts";
+import {
+  githubFetch,
+  httpError,
+  paginate,
+  waitForContentSlot,
+} from "./client.ts";
+import { contentWriteDelay, isContentWrite } from "./content_bucket.ts";
 import { importAppPrivateKey, signAppJwt } from "./jwt.ts";
 import type { GitHubClient, Json } from "../types.ts";
 import { getEnv } from "../util/runtime.ts";
@@ -137,6 +143,12 @@ export class AppClient implements GitHubClient {
   }
 
   async write<T>(endpoint: string, body: unknown): Promise<T> {
+    // GitHub counts reviews and comments against 80 a minute and 500 an hour.
+    // The write waits for its place instead of meeting a secondary limit.
+    if (isContentWrite("POST", endpoint)) {
+      const delay = contentWriteDelay(this.installationId);
+      if (delay > 0) await waitForContentSlot(delay);
+    }
     return await call<T>(
       endpoint,
       await this.app.installationToken(this.installationId),

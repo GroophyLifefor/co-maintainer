@@ -442,6 +442,11 @@ function serverCard(config: UserConfig, runtime: RuntimeInfo): string {
             config.queueMaxAgeMinutes ?? "",
           )}" placeholder="1440">
           <div class="hint">A review that waited in the queue longer than this is skipped, and the pull request gets a note saying so. Leave blank for 1440 (24 hours). Values under 60 count as 60.</div></div>
+        <div class="field" style="margin-top:16px"><label>Content writes per hour</label>
+          <input id="content-writes" value="${text(
+            config.contentWritesPerHour ?? "",
+          )}" placeholder="450">
+          <div class="hint">How many reviews and comments one GitHub installation may post in an hour. GitHub allows 500, so more than 500 counts as 500. Leave blank for 450.</div></div>
         <div class="two" style="max-width:none;margin-top:16px">
           <div class="field"><label>Remote sync timeout (seconds)</label>
             <input id="remote-timeout" value="${text(
@@ -828,6 +833,8 @@ document.getElementById("save-server").addEventListener("click", function() {
   if (!jobs.ok) { fail(card, jobs.message, function () {}); return; }
   var queueAge = positiveOrNull(document.getElementById("queue-age").value.trim(), "Queue age limit");
   if (!queueAge.ok) { fail(card, queueAge.message, function () {}); return; }
+  var contentWrites = positiveOrNull(document.getElementById("content-writes").value.trim(), "Content writes per hour");
+  if (!contentWrites.ok) { fail(card, contentWrites.message, function () {}); return; }
   var timeout = positiveOrNull(document.getElementById("remote-timeout").value.trim(), "Remote sync timeout");
   if (!timeout.ok) { fail(card, timeout.message, function () {}); return; }
   var perToken = positiveOrNull(document.getElementById("remote-per-token").value.trim(), "Max remote reviews per token");
@@ -837,6 +844,7 @@ document.getElementById("save-server").addEventListener("click", function() {
   save(this, {
     maxConcurrentJobs: jobs.value,
     queueMaxAgeMinutes: queueAge.value,
+    contentWritesPerHour: contentWrites.value,
     remoteSyncTimeoutSeconds: timeout.value,
     maxConcurrentRemoteReviewsPerToken: perToken.value,
     remoteToolOutputMaxChars: toolChars.value

@@ -156,6 +156,23 @@ function pauseForReset(
   return pending;
 }
 
+/** A content write waits for its place in the installation's schedule. The
+ * wait is on the job's log, where Usage reads rate limit waits, and goes
+ * through the same sleep the simulate harness replaces. */
+export async function waitForContentSlot(ms: number): Promise<void> {
+  recordRateLimitWait({
+    service: "github",
+    stage: "content write",
+    reason: "content write limit (80 a minute, 500 an hour)",
+    seconds: ms / 1000,
+  });
+  log(
+    "github",
+    `content write limit, waiting ${Math.ceil(ms / 1000)}s for its place`,
+  );
+  await rateLimitSleep(ms);
+}
+
 /** Sleep until `resetAt`, or at most `RATE_LIMIT_PROBE_MS`, whichever is
  * sooner. Throws once this attempt has already waited two hours. A `0`
  * delay returns immediately so the caller can try once more. */
