@@ -20,6 +20,8 @@ const STEP = {
   again: "a second old job for the same pull request",
   retried: "Retry on the skipped job",
   setting: "a shorter limit in the settings",
+  noteFails: "an old job whose note cannot be posted",
+  noteAgain: "the next old job for that pull request",
 };
 
 const AI: AiRule[] = [
@@ -45,21 +47,22 @@ const botReviews = (sim: Sim) =>
       review.user.type === "Bot",
   ).length;
 
-const notes = (sim: Sim) =>
+const notes = (sim: Sim, pull: SimPull = pullOf(sim)) =>
   sim.github.comments.filter(
-    (comment) =>
-      comment.number === pullOf(sim).number && comment.body.includes(NOTE),
+    (comment) => comment.number === pull.number && comment.body.includes(NOTE),
   ).length;
 
 type JobRow = { id: string; status: string; cancel_reason: string | null };
 
-const jobsOf = (sim: Sim) =>
+const jobsOf = (sim: Sim, pull: SimPull = pullOf(sim)) =>
   appRows<JobRow>(
     sim,
     `SELECT id, status, cancel_reason FROM jobs WHERE repo = ? AND pr_number = ? AND type = 'review' ORDER BY rowid`,
     APP_REPO,
-    pullOf(sim).number,
+    pull.number,
   );
+
+const lastJob = (sim: Sim, pull: SimPull) => jobsOf(sim, pull).at(-1);
 
 /** Delivers a push and makes the queued job `hours` old, then runs it. */
 async function queueOld(
@@ -67,8 +70,8 @@ async function queueOld(
   hours: number,
   files: Record<string, string>,
   deliveryId: string,
+  pull: SimPull = pullOf(sim),
 ): Promise<string> {
-  const pull = pullOf(sim);
   sim.github.push(pull, files, "push");
   await sim.server.deliver(
     "pull_request",
@@ -111,6 +114,14 @@ function checks(sim: Sim): CheckResult[] {
       "Retry on the skipped job starts one job that reviews the pull request",
       s.retried.jobIds === 1 && s.retried.reviews === 1,
       `${s.retried.jobIds} jobs · ${s.retried.reviews} reviews`,
+    ),
+    check(
+      "a skip whose note failed does not count as a note: the next old job posts it",
+      s.noteFails.reason === "queued_too_long_no_note" &&
+        s.noteFails.notes === 0 &&
+        s.noteAgain.reason === "queued_too_long" &&
+        s.noteAgain.notes === 1,
+      JSON.stringify([s.noteFails, s.noteAgain]),
     ),
     check(
       "a limit of 5 hours skips a job 6 hours old, which the default 24 hours would run",
@@ -217,6 +228,52 @@ export default defineFlow({
         const canceled = jobsOf(sim).at(-1)?.status === "canceled";
         sim.state.short = { defaultRan, canceled };
         return `${ran} · ${skipped}`;
+      },
+    },
+    {
+      name: STEP.noteFails,
+      async run(sim) {
+        const pull2 = sim.github.openPull(APP_REPO, {
+          title: "Another note",
+          files: { "docs/m0.md": "# m\n" },
+        });
+        sim.state.pull2 = pull2;
+        sim.faults.add({
+          target: "github",
+          kind: 500,
+          method: "POST",
+          path: /\/issues\/\d+\/comments$/,
+        });
+        const detail = await queueOld(
+          sim,
+          25,
+          { "docs/m1.md": "# 1\n" },
+          "qb-1",
+          pull2,
+        );
+        sim.state.noteFails = {
+          reason: lastJob(sim, pull2)?.cancel_reason,
+          notes: notes(sim, pull2),
+        };
+        return detail;
+      },
+    },
+    {
+      name: STEP.noteAgain,
+      async run(sim) {
+        const pull2 = sim.state.pull2 as SimPull;
+        const detail = await queueOld(
+          sim,
+          26,
+          { "docs/m2.md": "# 2\n" },
+          "qb-2",
+          pull2,
+        );
+        sim.state.noteAgain = {
+          reason: lastJob(sim, pull2)?.cancel_reason,
+          notes: notes(sim, pull2),
+        };
+        return detail;
       },
     },
   ],

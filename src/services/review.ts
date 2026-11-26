@@ -100,8 +100,11 @@ import {
 } from "./jobs.ts";
 import {
   alreadyNoted,
+  claimNote,
   QUEUED_TOO_LONG,
+  QUEUED_TOO_LONG_NO_NOTE,
   QUEUED_TOO_LONG_NOTE,
+  releaseNote,
   waitedTooLong,
 } from "./queue_age.ts";
 import { requestedReviewBlocked } from "./webhook.ts";
@@ -1120,19 +1123,24 @@ async function skipQueuedTooLong(
     "info",
     "this review waited longer than the queue limit, so it is skipped",
   );
-  if (!alreadyNoted(job.repo, prNumber)) {
+  let noted = true;
+  if (!alreadyNoted(job.repo, prNumber) && claimNote(job.repo, prNumber)) {
     try {
       await post(github, `repos/${job.repo}/issues/${prNumber}/comments`, {
         body: QUEUED_TOO_LONG_NOTE,
       });
     } catch (error) {
+      noted = false;
       log(
         "warn",
         `could not post the queued too long note: ${redact(String(error))}`,
       );
+    } finally {
+      releaseNote(job.repo, prNumber);
     }
   }
-  cancelJob(job.id, QUEUED_TOO_LONG);
+  // A note that failed leaves a skip that does not count as one.
+  cancelJob(job.id, noted ? QUEUED_TOO_LONG : QUEUED_TOO_LONG_NO_NOTE);
 }
 
 /** Triggers that mean a person asked for this review. They run even when the

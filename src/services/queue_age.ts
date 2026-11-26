@@ -12,6 +12,30 @@ export const DEFAULT_QUEUE_MAX_AGE_HOURS = 24;
  * window, an hour, for its turn. */
 export const MIN_QUEUE_MAX_AGE_HOURS = 2;
 export const QUEUED_TOO_LONG = "queued_too_long";
+/** The same skip when the note could not be posted. It does not count as a
+ * note, so the next old job for the pull request tries again. */
+export const QUEUED_TOO_LONG_NO_NOTE = "queued_too_long_no_note";
+
+/** True for either reason: the job was skipped for waiting too long. */
+export function isQueuedTooLong(reason: string | null | undefined): boolean {
+  return reason === QUEUED_TOO_LONG || reason === QUEUED_TOO_LONG_NO_NOTE;
+}
+
+/** Pull requests a job is noting right now, so two old jobs that run at once
+ * do not both post. The cancellation that `alreadyNoted` reads comes later. */
+const noting = new Set<string>();
+
+/** Claims the note for this pull request. False when another job holds it. */
+export function claimNote(repo: string, prNumber: number): boolean {
+  const key = `${repo}#${String(prNumber)}`;
+  if (noting.has(key)) return false;
+  noting.add(key);
+  return true;
+}
+
+export function releaseNote(repo: string, prNumber: number): void {
+  noting.delete(`${repo}#${String(prNumber)}`);
+}
 /** Hidden in the note so a later reader can tell it from a person's comment. */
 export const QUEUED_TOO_LONG_MARKER = "<!-- co-maintainer:queued-too-long -->";
 
@@ -56,6 +80,7 @@ export function alreadyNoted(
        LIMIT 1`,
     )
     .get(repo, prNumber, QUEUED_TOO_LONG, since) as
-    { found: number } | undefined;
+    | { found: number }
+    | undefined;
   return row !== undefined;
 }
