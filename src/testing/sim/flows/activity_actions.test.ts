@@ -22,6 +22,15 @@ test("activity-actions: the flow passes, with no failing step or check", async (
     ...result.checks.filter((check) => !check.ok),
   ];
   assert.deepEqual(failed, []);
-  // The flow's own six checks ran, not only the inherited ones.
-  assert.ok(result.checks.length >= 8);
+  // The flow's own checks ran, each by name. A count would let inherited
+  // checks stand in for one that did not run.
+  const names = result.checks.map((check) => check.name);
+  for (const name of [
+    "Retry on a failed review starts one review job, and it posts a review",
+    "the job and the review of one failure start one review, not two",
+    "a row that did not fail has nothing to retry",
+    "Dismiss marks the failure as seen: something the first time, nothing the second",
+  ]) {
+    assert.ok(names.includes(name), `the check did not run: ${name}`);
+  }
 });

@@ -22,6 +22,14 @@ test("job-warnings: the flow passes, with no failing step or check", async () =>
     ...result.checks.filter((check) => !check.ok),
   ];
   assert.deepEqual(failed, []);
-  // The flow's own six checks ran, not only the inherited ones.
-  assert.ok(result.checks.length >= 5);
+  // The flow's own checks ran, each by name. A count would let inherited
+  // checks stand in for one that did not run.
+  const names = result.checks.map((check) => check.name);
+  for (const name of [
+    "the review posts and the job is done although GitHub refused the check run",
+    "the job carries a warning that names the Checks permission",
+    "a review with no refusal has no warning",
+  ]) {
+    assert.ok(names.includes(name), `the check did not run: ${name}`);
+  }
 });
