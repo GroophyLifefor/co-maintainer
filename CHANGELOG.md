@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.30] - 2026-11-26
+
+### Changed
+
+- **The provider docs say what was tried on Ollama.** The knowledge sync ran against a real Ollama with `qwen3:4b` and finished. A review on a CPU-only server hit the default 15 minute request limit, and the docs point to `--ai-timeout-minutes`. Azure OpenAI, Amazon Bedrock and Gemini are still not tried on a real endpoint.
+
 ## [0.7.29] - 2026-11-25
 
 ### Added
