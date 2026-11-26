@@ -182,10 +182,11 @@ test("each refused field is dropped once, the answer comes back, and the lesson 
     assert.equal(bodies.length, 3);
     assert.equal(bodies[2]!.max_tokens, 20);
     // The lesson is saved without anyone waiting for it, so a slow disk needs
-    // more than a fixed pause: wait for it, up to five seconds.
+    // more than a fixed pause: wait for both refused fields, up to five seconds.
     for (
       let waited = 0;
-      !readConfig().aiModelQuirks?.["local-model"] && waited < 5000;
+      (readConfig().aiModelQuirks?.["local-model"]?.drop?.length ?? 0) < 2 &&
+      waited < 5000;
       waited += 25
     ) {
       await new Promise((resolve) => setTimeout(resolve, 25));
