@@ -4,6 +4,7 @@ import {
   paginate,
   waitForContentSlot,
 } from "./client.ts";
+import { noteRateLimit } from "./budget.ts";
 import { contentWriteDelay, isContentWrite } from "./content_bucket.ts";
 import { importAppPrivateKey, signAppJwt } from "./jwt.ts";
 import type { GitHubClient, Json } from "../types.ts";
@@ -37,11 +38,15 @@ async function call<T>(
   endpoint: string,
   token: string,
   init: RequestInit = {},
+  installationId?: number,
 ): Promise<T> {
   const response = await githubFetch(`${API}/${endpoint}`, {
     ...init,
     headers: { ...headers(token), ...(init.headers ?? {}) },
   });
+  if (installationId !== undefined) {
+    noteRateLimit(installationId, response.headers);
+  }
   if (!response.ok) {
     throw await httpError(response, init.method ?? "GET", endpoint, "App");
   }
@@ -49,8 +54,12 @@ async function call<T>(
   return (await response.json()) as T;
 }
 
-async function get<T>(endpoint: string, token: string): Promise<T> {
-  return await call<T>(endpoint, token);
+async function get<T>(
+  endpoint: string,
+  token: string,
+  installationId?: number,
+): Promise<T> {
+  return await call<T>(endpoint, token, {}, installationId);
 }
 
 type TokenCache = { token: string; expiresAt: number };
@@ -121,6 +130,7 @@ export class AppClient implements GitHubClient {
     return await get<T>(
       endpoint,
       await this.app.installationToken(this.installationId),
+      this.installationId,
     );
   }
 
@@ -135,7 +145,7 @@ export class AppClient implements GitHubClient {
   ): Promise<T[]> {
     const token = await this.app.installationToken(this.installationId);
     return await paginate<T>(
-      (e) => get<T[]>(e, token),
+      (e) => get<T[]>(e, token, this.installationId),
       endpoint,
       limit,
       progress,
@@ -157,6 +167,7 @@ export class AppClient implements GitHubClient {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       },
+      this.installationId,
     );
   }
 
@@ -169,6 +180,7 @@ export class AppClient implements GitHubClient {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       },
+      this.installationId,
     );
   }
 
@@ -185,6 +197,7 @@ export class AppClient implements GitHubClient {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       },
+      this.installationId,
     );
   }
 }

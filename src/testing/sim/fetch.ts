@@ -240,7 +240,10 @@ export function installFetch({
         handled: route !== undefined,
         via: "fetch",
       });
-      return json(status, response, route?.headers);
+      return json(status, response, {
+        ...world.github.rateHeaders(),
+        ...route?.headers,
+      });
     }
 
     if (AI_HOST_SET.has(url.hostname)) {
