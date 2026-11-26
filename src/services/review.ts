@@ -1123,14 +1123,18 @@ async function skipQueuedTooLong(
     "info",
     "this review waited longer than the queue limit, so it is skipped",
   );
-  let noted = true;
-  if (!alreadyNoted(job.repo, prNumber) && claimNote(job.repo, prNumber)) {
+  // Only a note that is on the pull request counts. A job that could not
+  // claim the note, because another job is posting it, has not noted anything
+  // itself and leaves its skip as one that does not count: if the other post
+  // fails, a later job tries again.
+  let noted = alreadyNoted(job.repo, prNumber);
+  if (!noted && claimNote(job.repo, prNumber)) {
     try {
       await post(github, `repos/${job.repo}/issues/${prNumber}/comments`, {
         body: QUEUED_TOO_LONG_NOTE,
       });
+      noted = true;
     } catch (error) {
-      noted = false;
       log(
         "warn",
         `could not post the queued too long note: ${redact(String(error))}`,
