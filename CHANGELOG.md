@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.31] - 2026-11-26
+
+### Changed
+
+- **A review asks GitHub for fewer things.** An App review read the pull request and its file list twice and made a check run `queued` only to set it `in_progress` a moment later. It now reads each once and opens the check run `in_progress`. The smallest review went from 12 GitHub requests to 9. At 3000 pull requests a day that matters: one installation may make 5000 requests an hour.
+
 ## [0.7.30] - 2026-11-26
 
 ### Changed

@@ -256,7 +256,7 @@ test("review checks use annotations and the conclusion matrix", async () => {
     const findingsGithub = new FakeGithub();
     await runReviewJob(seed(), () => {}, findingsGithub, new FakeAiProvider());
     const created = findingsGithub.checkCreates[0]?.body as Json;
-    if (created.status !== "queued" || created.head_sha !== "head1") {
+    if (created.status !== "in_progress" || created.head_sha !== "head1") {
       throw new Error(`unexpected check creation ${JSON.stringify(created)}`);
     }
     const completed = findingsGithub.checkUpdates.find(

@@ -714,7 +714,10 @@ async function startCheck(
       {
         name: "co-maintainer review",
         head_sha: headSha,
-        status: "queued",
+        // The job has been claimed, so the check starts as in progress and
+        // needs no second call to say so.
+        status: "in_progress",
+        started_at: new Date().toISOString(),
         external_id: reviewId,
       },
     );
@@ -1230,8 +1233,10 @@ async function runReviewJobCore(
     setReviewHead(reviewId, headSha, reviewBase, scope);
     checkRunId = undefined;
   }
+  let checkInProgress = false;
   if (!checkRunId) {
     checkRunId = await startCheck(github, job, reviewId, headSha, log);
+    checkInProgress = checkRunId !== undefined;
   }
   // Companion pull requests, each read with the App client of its own
   // installation. A companion that changed since the last round rechecks
@@ -1311,16 +1316,18 @@ async function runReviewJobCore(
     setReviewScope(reviewId, scope, reviewBase);
   }
 
-  await updateCheck(
-    github,
-    job,
-    checkRunId,
-    {
-      status: "in_progress",
-      started_at: new Date().toISOString(),
-    },
-    log,
-  );
+  if (!checkInProgress) {
+    await updateCheck(
+      github,
+      job,
+      checkRunId,
+      {
+        status: "in_progress",
+        started_at: new Date().toISOString(),
+      },
+      log,
+    );
+  }
   log("info", `reviewing ${job.repo}#${job.pr_number}`);
   const baseLabel = `origin/${String((pr.base as Json | undefined)?.ref ?? "main")}`;
   const revision = githubPullRequestToRevision(publishFiles, pr, baseLabel);
@@ -1340,9 +1347,13 @@ async function runReviewJobCore(
     signal?: AbortSignal;
     mcpForkRule?: boolean;
     companions?: ReviewCompanions;
+    prefetched?: { pull: Json; files: Json[] };
   } = {
     catchesUp,
     signal,
+    // The reviewer reads the pull request and its files again unless it is
+    // given what this job already read, one request pair fewer per review.
+    prefetched: { pull: pr, files: publishFiles },
     mcpForkRule: true,
     ...(companions.extras ? { companions: companions.extras } : {}),
   };

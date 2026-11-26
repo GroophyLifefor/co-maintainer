@@ -3,11 +3,8 @@
     "GET repos/acme/widgets/pulls/1",
     "POST repos/acme/widgets/check-runs",
     "PAGES repos/acme/widgets/pulls/1/files",
-    "PATCH repos/acme/widgets/check-runs/9001",
-    "GET repos/acme/widgets/pulls/1",
     "PAGES repos/acme/widgets/issues/1/comments",
     "PAGES repos/acme/widgets/pulls/1/reviews",
-    "PAGES repos/acme/widgets/pulls/1/files",
     "POST repos/acme/widgets/pulls/1/reviews",
     "PAGES repos/acme/widgets/pulls/1/comments",
     "PATCH repos/acme/widgets/check-runs/9001"

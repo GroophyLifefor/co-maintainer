@@ -1,6 +1,7 @@
 /** Measures the GitHub calls one App review makes, for the load test design.
  * It runs only when named: `--flow=gh-calls`. It reports what it counted in
- * the checks' details and asserts only that a review happened. */
+ * the check's detail and fails when the smallest review makes more than 9
+ * calls, the count 0.7.31 reached. */
 import type { AiRule } from "../fake_ai.ts";
 import { finding } from "../fake_ai.ts";
 import { check, defineFlow, type CheckResult, type Sim } from "../flow.ts";
@@ -49,8 +50,8 @@ function checks(sim: Sim): CheckResult[] {
   const order = calls.map((c, i) => `${i + 1}. ${c.method} ${shape(c.url)}`);
   return [
     check(
-      "a review happened",
-      calls.length > 0,
+      "a small App review makes at most 9 GitHub calls (0.7.31 took it from 12)",
+      calls.length > 0 && calls.length <= 9,
       `${calls.length} calls, ${writes.length} writes\n${lines.join("\n")}\n--- order\n${order.join("\n")}`,
     ),
   ];
