@@ -437,6 +437,11 @@ function serverCard(config: UserConfig, runtime: RuntimeInfo): string {
             config.maxConcurrentJobs ?? "",
           )}" placeholder="No limit">
           <div class="hint">Cap how many background jobs run at once across init, sync, and review. Leave blank for no limit.</div></div>
+        <div class="field" style="margin-top:16px"><label>Queue age limit (hours)</label>
+          <input id="queue-age" value="${text(
+            config.queueMaxAgeHours ?? "",
+          )}" placeholder="24">
+          <div class="hint">A review that waited in the queue longer than this is skipped, and the pull request gets a note saying so. Leave blank for 24. Values under 2 count as 2.</div></div>
         <div class="two" style="max-width:none;margin-top:16px">
           <div class="field"><label>Remote sync timeout (seconds)</label>
             <input id="remote-timeout" value="${text(
@@ -821,6 +826,8 @@ document.getElementById("save-server").addEventListener("click", function() {
   var card = this.closest("[data-async]");
   var jobs = positiveOrNull(document.getElementById("max-jobs").value.trim(), "Max concurrent jobs");
   if (!jobs.ok) { fail(card, jobs.message, function () {}); return; }
+  var queueAge = positiveOrNull(document.getElementById("queue-age").value.trim(), "Queue age limit");
+  if (!queueAge.ok) { fail(card, queueAge.message, function () {}); return; }
   var timeout = positiveOrNull(document.getElementById("remote-timeout").value.trim(), "Remote sync timeout");
   if (!timeout.ok) { fail(card, timeout.message, function () {}); return; }
   var perToken = positiveOrNull(document.getElementById("remote-per-token").value.trim(), "Max remote reviews per token");
@@ -829,6 +836,7 @@ document.getElementById("save-server").addEventListener("click", function() {
   if (!toolChars.ok) { fail(card, toolChars.message, function () {}); return; }
   save(this, {
     maxConcurrentJobs: jobs.value,
+    queueMaxAgeHours: queueAge.value,
     remoteSyncTimeoutSeconds: timeout.value,
     maxConcurrentRemoteReviewsPerToken: perToken.value,
     remoteToolOutputMaxChars: toolChars.value
