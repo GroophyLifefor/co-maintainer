@@ -230,6 +230,22 @@ export class SimGithub {
   readonly reviews: SimReview[] = [];
   readonly checkRuns: SimCheckRun[] = [];
   readonly issues: SimIssue[] = [];
+  /** What the installation has left this hour. Unset, answers carry no limit
+   * headers, as before. Set, every answer carries them and spends one. */
+  budget: { limit: number; remaining: number; resetAt: number } | undefined;
+
+  /** The limit headers of the next answer, spending one request. */
+  rateHeaders(): Record<string, string> {
+    const budget = this.budget;
+    if (!budget) return {};
+    budget.remaining = Math.max(0, budget.remaining - 1);
+    return {
+      "x-ratelimit-limit": String(budget.limit),
+      "x-ratelimit-remaining": String(budget.remaining),
+      "x-ratelimit-reset": String(budget.resetAt),
+      "x-ratelimit-resource": "core",
+    };
+  }
   readonly labels = new Map<string, Set<string>>();
   readonly reactions: { path: string; content: string }[] = [];
   readonly writes: GithubWrite[] = [];

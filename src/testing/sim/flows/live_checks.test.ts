@@ -24,8 +24,38 @@ type Probe = {
   live: CheckResult[];
 };
 
-/** The probe of one flow, in its own process. All of them start at once. */
-function probe(name: string): Promise<Probe> {
+/** At most this many probe processes run at once. Every flow has one, and
+ * with dozens of flows starting together a Windows runner ran out of memory
+ * and a probe died with no message. */
+const PROBES_AT_ONCE = 6;
+let probesRunning = 0;
+const probesWaiting: (() => void)[] = [];
+
+async function takeProbeSlot(): Promise<void> {
+  if (probesRunning < PROBES_AT_ONCE) {
+    probesRunning++;
+    return;
+  }
+  await new Promise<void>((resolve) => probesWaiting.push(resolve));
+}
+
+function freeProbeSlot(): void {
+  const next = probesWaiting.shift();
+  if (next) next();
+  else probesRunning--;
+}
+
+/** The probe of one flow, in its own process, when a slot is free. */
+async function probe(name: string): Promise<Probe> {
+  await takeProbeSlot();
+  try {
+    return await runProbe(name);
+  } finally {
+    freeProbeSlot();
+  }
+}
+
+function runProbe(name: string): Promise<Probe> {
   return new Promise((resolve, reject) => {
     execFile(
       process.execPath,

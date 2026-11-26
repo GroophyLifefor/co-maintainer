@@ -225,6 +225,9 @@ export type UserConfig = {
    * the pull request. Unset means 1440 (24 hours), and values under 60 are
    * raised to 60. */
   queueMaxAgeMinutes?: number;
+  /** Content writes (reviews and comments) an installation may make in an
+   * hour. Unset means 450, and never more than GitHub's 500. */
+  contentWritesPerHour?: number;
   /** Known secret shapes in code, tool results and pull request text are
    * masked before a request reaches the model. Unset means on. */
   maskSecrets?: boolean;

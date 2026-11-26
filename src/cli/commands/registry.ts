@@ -1259,6 +1259,13 @@ export const COMMANDS: CommandSpec[] = [
               "A review that waited in the queue longer than this many minutes is skipped, and the pull request gets a note. Values under 60 count as 60.",
           },
           {
+            name: "content-writes-per-hour",
+            value: "N",
+            default: "450",
+            description:
+              "How many reviews and comments one GitHub installation may post in an hour. GitHub allows 500, so more than 500 counts as 500.",
+          },
+          {
             name: "remote-sync-timeout-seconds",
             value: "N",
             description: "How long a remote review waits for one sync.",

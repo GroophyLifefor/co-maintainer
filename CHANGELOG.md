@@ -5,6 +5,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.33] - 2026-11-26
+
+### Added
+
+- **A review starts only when its installation has the GitHub requests left for it.** GitHub gives an installation 5000 requests an hour, and a review makes at least 9. At 3000 pull requests a day that limit comes first. Each answer says how many requests are left. A queued review now starts when what is left covers it and the reviews already running, with a tenth kept back for the writes that close a review. Otherwise it stays queued and starts after the reset. It does not fail and does not stop halfway.
+- **Reviews and comments are spaced to GitHub's content limit.** GitHub allows an installation 80 content writes a minute and 500 an hour. The product now gives each review and comment its place, 450 an hour by default (`set --content-writes-per-hour=N`, never above 500), so a burst of finished reviews no longer meets a secondary rate limit. A write that has to wait is on the job's log, where Usage reads rate limit waits. Check runs are not content and never wait.
+
 ## [0.7.32] - 2026-11-26
 
 ### Added

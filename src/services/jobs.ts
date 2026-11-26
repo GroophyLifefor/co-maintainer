@@ -1,4 +1,6 @@
 import { readConfig } from "../config.ts";
+import { mayStartReview } from "../github/budget.ts";
+import { getRepo } from "../store/repos.ts";
 import {
   claimJob,
   getJob,
@@ -175,6 +177,12 @@ function claimNextEligible(): JobRow | undefined {
       .filter((job) => job.type === "push_review")
       .map((job) => job.repo),
   );
+  const runningReviews = new Map<number, number>();
+  for (const job of listJobs({ status: "running" })) {
+    if (job.type !== "review") continue;
+    const id = getRepo(job.repo)?.installation_id;
+    if (id) runningReviews.set(id, (runningReviews.get(id) ?? 0) + 1);
+  }
   for (const candidate of oldestFirst) {
     if (!handlers.has(candidate.type)) continue;
     if (candidate.queue_key) {
@@ -184,6 +192,13 @@ function claimNextEligible(): JobRow | undefined {
     if (candidate.type === "push_review") {
       if (pushRepos.has(candidate.repo)) continue;
       pushRepos.add(candidate.repo);
+    }
+    // A review starts only when its installation has the requests left for
+    // it. It stays queued otherwise, and the next pass looks again.
+    if (candidate.type === "review") {
+      const installation = getRepo(candidate.repo)?.installation_id;
+      const runningHere = runningReviews.get(installation ?? -1) ?? 0;
+      if (!mayStartReview(installation ?? undefined, runningHere)) continue;
     }
     if (perTokenLimit && candidate.type === "remote_review") {
       const review = getReviewByJobId(candidate.id);

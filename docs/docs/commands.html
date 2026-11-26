@@ -1434,6 +1434,11 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td>A review that waited in the queue longer than this many minutes is skipped, and the pull request gets a note. Values under 60 count as 60.</td>
 </tr>
 <tr>
+<td><code>--content-writes-per-hour=N</code></td>
+<td>450</td>
+<td>How many reviews and comments one GitHub installation may post in an hour. GitHub allows 500, so more than 500 counts as 500.</td>
+</tr>
+<tr>
 <td><code>--remote-sync-timeout-seconds=N</code></td>
 <td></td>
 <td>How long a remote review waits for one sync.</td>
