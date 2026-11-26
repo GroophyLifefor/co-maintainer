@@ -1,6 +1,6 @@
 # Getting started
 
-An open source PR reviewer that learns how your repo is reviewed, then reviews like that.
+Install co-maintainer, connect your model key and GitHub, and run your first AI review of a pull request on your own machine or server in a few minutes.
 
 ## Overview
 
