@@ -55,11 +55,14 @@ const POSIX_ONLY = new Set(["extensions"]);
 const posixOnly = (name: string) =>
   process.platform === "win32" && POSIX_ONLY.has(name);
 
+/** Measurement tools, run by name only. The load flow makes many pull
+ * requests, which takes minutes on the Windows runner. */
+const MEASUREMENT_ONLY = new Set(["load"]);
+
 const probes = new Map(
-  FLOWS.filter((flow) => flow.checks).map((flow) => [
-    flow.name,
-    posixOnly(flow.name) ? undefined : probe(flow.name),
-  ]),
+  FLOWS.filter((flow) => flow.checks && !MEASUREMENT_ONLY.has(flow.name)).map(
+    (flow) => [flow.name, posixOnly(flow.name) ? undefined : probe(flow.name)],
+  ),
 );
 
 /** How many checks of each flow a live run skips because of the model, and

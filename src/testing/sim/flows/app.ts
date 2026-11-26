@@ -368,10 +368,10 @@ const STEP = {
 
 const REVIEW_STEPS: string[] = [STEP.opened, STEP.whole, STEP.incremental];
 
-/** The four writes of one review, in order. */
+/** The three writes of one review, in order. The check run opens in progress,
+ * so no write says so a second time. */
 const REVIEW_WRITES = (number: number) => [
   `POST repos/${APP_REPO}/check-runs`,
-  `PATCH repos/${APP_REPO}/check-runs/:id`,
   `POST repos/${APP_REPO}/pulls/${number}/reviews`,
   `PATCH repos/${APP_REPO}/check-runs/:id`,
 ];
@@ -461,7 +461,7 @@ function writesInOrder(sim: Sim): CheckResult {
     wrong.length === 0,
     wrong.length
       ? wrong.join(" · ")
-      : `${REVIEW_STEPS.length} rounds, 4 writes each, as the App`,
+      : `${REVIEW_STEPS.length} rounds, 3 writes each, as the App`,
   );
 }
 
@@ -664,8 +664,7 @@ function checkRuns(sim: Sim): CheckResult {
     else if (run.headSha !== review.head_sha) {
       wrong.push(`round ${review.round}: head ${run.headSha}`);
     } else if (
-      JSON.stringify(statuses) !==
-      JSON.stringify(["queued", "in_progress", "completed"])
+      JSON.stringify(statuses) !== JSON.stringify(["in_progress", "completed"])
     ) {
       wrong.push(`round ${review.round}: ${JSON.stringify(statuses)}`);
     } else if (run.conclusion !== want) {
@@ -686,7 +685,7 @@ function checkRuns(sim: Sim): CheckResult {
     rows.length === 3 && wrong.length === 0,
     wrong.length
       ? wrong.join(" · ")
-      : `${rows.length} check runs, each queued, in progress, completed`,
+      : `${rows.length} check runs, each in progress, completed`,
   );
 }
 
@@ -1001,7 +1000,6 @@ async function failure(sim: Sim): Promise<CheckResult> {
   );
   const want = [
     `POST repos/${APP_REPO}/check-runs`,
-    `PATCH repos/${APP_REPO}/check-runs/:id`,
     `POST repos/${APP_REPO}/issues/${pull?.number}/comments`,
     `PATCH repos/${APP_REPO}/check-runs/:id`,
   ];
