@@ -68,7 +68,7 @@ function checks(sim: Sim): CheckResult[] {
   return [
     check(
       `${PRS} pull requests: each gets one review and no job fails`,
-      r.reviews === PRS && r.failed === 0,
+      PRS > 0 && r.reviews === PRS && r.failed === 0,
       `${r.reviews} reviews · ${r.failed} failed · ${r.wallMs} ms wall · ${perHour} reviews/hour at ${AI_MS} ms of model time · ${r.githubCalls} GitHub calls (${(r.githubCalls / PRS).toFixed(1)} per pull request) · peak queue ${r.peakQueued} · concurrent jobs ${r.jobsLimit}`,
     ),
   ];
