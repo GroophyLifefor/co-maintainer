@@ -31,14 +31,10 @@ test("a job waited too long only past the limit", () => {
   const limit = 90 * MINUTE;
   const at = (minutesAgo: number) => ({
     created_at: new Date(now - minutesAgo * MINUTE).toISOString(),
-    started_at: null,
   });
   assert.equal(waitedTooLong(at(89), now, limit), false);
   assert.equal(waitedTooLong(at(91), now, limit), true);
-  assert.equal(
-    waitedTooLong({ created_at: "garbage", started_at: null }, now, limit),
-    false,
-  );
+  assert.equal(waitedTooLong({ created_at: "garbage" }, now, limit), false);
 });
 
 test("both skip reasons read as queued too long, others do not", () => {
@@ -46,4 +42,15 @@ test("both skip reasons read as queued too long, others do not", () => {
   assert.equal(isQueuedTooLong("queued_too_long_no_note"), true);
   assert.equal(isQueuedTooLong("superseded"), false);
   assert.equal(isQueuedTooLong(null), false);
+});
+
+test("a claimed job is still skipped: its start does not count against the limit", () => {
+  // The worker sets started_at when it claims the job, before the handler
+  // asks. A rule that spared started jobs would never skip any.
+  const now = Date.parse("2030-01-02T00:00:00Z");
+  const claimed = {
+    created_at: new Date(now - 3 * 60 * MINUTE).toISOString(),
+    started_at: new Date(now - 1000).toISOString(),
+  };
+  assert.equal(waitedTooLong(claimed, now, 90 * MINUTE), true);
 });

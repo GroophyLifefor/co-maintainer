@@ -52,10 +52,13 @@ export function queueMaxAgeMs(config: UserConfig = readConfig()): number {
   return Math.max(chosen, MIN_QUEUE_MAX_AGE_MINUTES) * 60_000;
 }
 
-/** True when the job has waited longer than the limit. A job that already
- * started (a rerun after a restart) is not skipped. */
+/** True when the job has waited longer than the limit since it was queued.
+ * It does not look at `started_at`: a job is claimed, and so has a start,
+ * before its handler runs, so a start would never let a job be skipped. A
+ * rerun after a restart is told apart by its review row, which the caller
+ * checks. */
 export function waitedTooLong(
-  job: Pick<JobRow, "created_at" | "started_at">,
+  job: Pick<JobRow, "created_at">,
   nowMs: number = Date.now(),
   limitMs: number = queueMaxAgeMs(),
 ): boolean {
