@@ -4,7 +4,7 @@
 
 ## Facts
 
-- Latest version: 0.7.29, released 2026-11-25. Changelog: https://github.com/GroophyLifefor/co-maintainer/blob/main/CHANGELOG.md
+- Latest version: 0.7.30, released 2026-11-26. Changelog: https://github.com/GroophyLifefor/co-maintainer/blob/main/CHANGELOG.md
 - License: MIT. Source: https://github.com/GroophyLifefor/co-maintainer
 - Install: `npm install -g co-maintainer`. Needs Node 24 or newer.
 - Commands: `probe`, `init`, `sync`, `review`, `config`, `view`, `clear`, `uninstall`, `oauth`, `set`, `serve`, `extension`, `rollback`, `login-link`, `version`. `sync` keeps the review guides up to date (its old name was `remake`).
@@ -5780,10 +5780,15 @@ co-maintainer set --ai-base-url=https://llm.example.com/v1 --ai-key=... --low-mo
   dollars.
 - **What was tried.** The client was tested against a stand-in server that
   speaks Chat Completions, in unit tests and in the `e2e:simulate`
-  `openai-compatible` flow. It has not been tried against a real Azure OpenAI,
-  Amazon Bedrock, Gemini or Ollama endpoint, so the presets and their addresses
-  follow each service's documentation and are not confirmed. If one fails for
-  you, run `set` with `--ai-base-url` and open an issue with the error.
+  `openai-compatible` flow. It was also run against a real Ollama 0.40 with
+  `qwen3:4b` on a CPU-only server: the knowledge sync called it and finished.
+  A review of a small pull request did not finish, because the model took longer
+  than the default 15 minutes a request may wait. On a CPU, raise the limit with
+  `--ai-timeout-minutes` or use a smaller context and a faster model. Azure
+  OpenAI, Amazon Bedrock and Gemini have not been tried against a real
+  endpoint, so their presets and addresses follow each service's documentation
+  and are not confirmed. If one fails for you, run `set` with `--ai-base-url`
+  and open an issue with the error.
 - **Known limits.** Ollama's default context is small and cuts long input
   silently: raise it in the model file or with `OLLAMA_CONTEXT_LENGTH`. Answers
   are not streamed, so a gateway with a short timeout can cut a long review.

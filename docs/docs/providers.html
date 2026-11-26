@@ -193,10 +193,15 @@ environment. The dashboard cannot.</li>
 dollars.</li>
 <li><strong>What was tried.</strong> The client was tested against a stand-in server that
 speaks Chat Completions, in unit tests and in the <code>e2e:simulate</code>
-<code>openai-compatible</code> flow. It has not been tried against a real Azure OpenAI,
-Amazon Bedrock, Gemini or Ollama endpoint, so the presets and their addresses
-follow each service&#39;s documentation and are not confirmed. If one fails for
-you, run <code>set</code> with <code>--ai-base-url</code> and open an issue with the error.</li>
+<code>openai-compatible</code> flow. It was also run against a real Ollama 0.40 with
+<code>qwen3:4b</code> on a CPU-only server: the knowledge sync called it and finished.
+A review of a small pull request did not finish, because the model took longer
+than the default 15 minutes a request may wait. On a CPU, raise the limit with
+<code>--ai-timeout-minutes</code> or use a smaller context and a faster model. Azure
+OpenAI, Amazon Bedrock and Gemini have not been tried against a real
+endpoint, so their presets and addresses follow each service&#39;s documentation
+and are not confirmed. If one fails for you, run <code>set</code> with <code>--ai-base-url</code>
+and open an issue with the error.</li>
 <li><strong>Known limits.</strong> Ollama&#39;s default context is small and cuts long input
 silently: raise it in the model file or with <code>OLLAMA_CONTEXT_LENGTH</code>. Answers
 are not streamed, so a gateway with a short timeout can cut a long review.
