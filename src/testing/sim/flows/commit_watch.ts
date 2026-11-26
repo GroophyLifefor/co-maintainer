@@ -108,6 +108,7 @@ function checks(sim: Parameters<typeof writesIn>[0]): CheckResult[] {
       sim,
       "a push with nothing wrong opens no issue",
       issues.length === issuesAfterRisky &&
+        commitChecks(sim, clean).length > 0 &&
         commitChecks(sim, clean).every((status) => status === "completed"),
       `${issues.length} issues · checks ${commitChecks(sim, clean).join(", ") || "none"}`,
       "the scripted model finds nothing in the second push",
