@@ -28,6 +28,14 @@ export function noteRateLimit(installationId: number, headers: Headers): void {
   const reset = Number(headers.get("x-ratelimit-reset"));
   if (![limit, remaining, reset].every(Number.isFinite)) return;
   if (headers.get("x-ratelimit-remaining") === null) return;
+  // Answers to concurrent requests can arrive out of order, and inside one
+  // hour what is left only goes down. A higher count with the same or an older
+  // reset is an earlier answer arriving late: it must not undo a later one. A
+  // later reset is a new hour and replaces what was there.
+  const known = budgets.get(installationId);
+  if (known && reset * 1000 <= known.resetAtMs && remaining > known.remaining) {
+    return;
+  }
   budgets.set(installationId, {
     limit,
     remaining,
