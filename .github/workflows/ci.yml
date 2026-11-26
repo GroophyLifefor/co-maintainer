@@ -20,9 +20,9 @@ jobs:
           - ubuntu-latest
           - windows-latest
     runs-on: ${{ matrix.os }}
-    # The Windows runner is the slow one. Anything past this is a hang, not a
-    # slow test, and the budget is under twenty minutes.
-    timeout-minutes: 25
+    # The Windows runner is the slow one and takes 17 to 25 minutes. Anything
+    # past this is a hang, not a slow test.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
