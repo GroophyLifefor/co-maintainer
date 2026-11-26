@@ -246,7 +246,7 @@ test(
       setJobStatus("job-1", "done");
       const second = new FakeGithub();
       await runReviewJob(
-        job("job-2", "synchronize"),
+        job("job-2", "manual"),
         () => {},
         second,
         new FakeAiProvider(),

@@ -1097,6 +1097,14 @@ export async function runReviewJob(
   }
 }
 
+/** Triggers that mean a person asked for this review. They run even when the
+ * head already has one. */
+const EXPLICIT_REQUESTS = new Set([
+  "request-label",
+  "request-comment",
+  "manual",
+]);
+
 async function runReviewJobCore(
   job: JobRow,
   log: LogFn,
@@ -1172,9 +1180,12 @@ async function runReviewJobCore(
   if (!existing) {
     const last = latestPostedReview(job.repo, job.pr_number);
     // A review or comment that arrived while a review of this head was
-    // running queued this job. That review has posted by now.
+    // running queued this job. That review has posted by now. So does a
+    // second delivery of the same push, or a job that waited out a rate limit
+    // while another job reviewed the same head. Only a person's own request
+    // asks for a review of a head that has one.
     if (
-      (args.trigger === "review" || args.trigger === "review-comment") &&
+      !EXPLICIT_REQUESTS.has(args.trigger ?? "manual") &&
       last?.head_sha === headSha
     ) {
       log("info", "this head was already reviewed, nothing new to review");

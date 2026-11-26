@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **A review asks GitHub for fewer things.** An App review read the pull request and its file list twice and made a check run `queued` only to set it `in_progress` a moment later. It now reads each once and opens the check run `in_progress`. The smallest review went from 12 GitHub requests to 9. At 3000 pull requests a day that matters: one installation may make 5000 requests an hour.
+- **One head gets one automatic review.** A job that waited out a rate limit while another job reviewed the same head, or a push GitHub delivered twice, queued a second review of a head that already had one. Only a person's own request (a comment, a label, the dashboard) reviews a head that has a review.
 
 ## [0.7.30] - 2026-11-26
 

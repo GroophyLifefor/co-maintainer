@@ -768,9 +768,16 @@ function nextRound(job: JobRow): JobRow {
     type: "review",
     repo: "acme/widgets",
     prNumber: 1,
-    args: { trigger: "synchronize" },
+    // The fake pull request keeps one head, so a push round would find its
+    // head reviewed. A person's own request reviews it again, which is what
+    // these tests need: a second round on the first one's findings.
+    args: { trigger: "manual" },
   });
-  return { ...job, id: "job-rev-2" };
+  return {
+    ...job,
+    id: "job-rev-2",
+    args: JSON.stringify({ trigger: "manual" }),
+  };
 }
 
 for (const [name, markdown, fence] of [
@@ -1190,7 +1197,7 @@ test("an incremental round sends a file the last round dropped, though the compa
     // One file changes. The compare lists only it, the pull request all 500.
     const second = nextRound(job);
     second.args = JSON.stringify({
-      trigger: "synchronize",
+      trigger: "manual",
       scope: "incremental",
       sinceCommit: "oldsha",
       round: 2,
