@@ -22,6 +22,14 @@ test("duplicate-review: the flow passes, with no failing step or check", async (
     ...result.checks.filter((check) => !check.ok),
   ];
   assert.deepEqual(failed, []);
-  // The flow's own six checks ran, not only the inherited ones.
-  assert.ok(result.checks.length >= 5);
+  // The flow's own checks ran, each by name. A count would let inherited
+  // checks stand in for one that did not run.
+  const names = result.checks.map((check) => check.name);
+  for (const name of [
+    "the pull request is reviewed once",
+    "the same head delivered again is not reviewed again, and writes no review",
+    "the owner's own request on the same head still gets a review",
+  ]) {
+    assert.ok(names.includes(name), `the check did not run: ${name}`);
+  }
 });

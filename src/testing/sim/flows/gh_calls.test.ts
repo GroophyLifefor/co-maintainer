@@ -22,6 +22,12 @@ test("gh-calls: the flow passes, with no failing step or check", async () => {
     ...result.checks.filter((check) => !check.ok),
   ];
   assert.deepEqual(failed, []);
-  // The flow's own six checks ran, not only the inherited ones.
-  assert.ok(result.checks.length >= 5);
+  // The flow's own checks ran, each by name. A count would let inherited
+  // checks stand in for one that did not run.
+  const names = result.checks.map((check) => check.name);
+  for (const name of [
+    "a small App review makes at most 9 GitHub calls (0.7.31 took it from 12)",
+  ]) {
+    assert.ok(names.includes(name), `the check did not run: ${name}`);
+  }
 });

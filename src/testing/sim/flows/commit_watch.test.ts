@@ -22,6 +22,17 @@ test("commit-watch: the flow passes, with no failing step or check", async () =>
     ...result.checks.filter((check) => !check.ok),
   ];
   assert.deepEqual(failed, []);
-  // The flow's own six checks ran, not only the inherited ones.
-  assert.ok(result.checks.length >= 12);
+  // The flow's own checks ran, each by name. A count would let inherited
+  // checks stand in for one that did not run.
+  const names = result.checks.map((check) => check.name);
+  for (const name of [
+    "a push with a flaw opens one issue",
+    "the push review ran as a job and finished",
+    "the commit watch check run on the pushed commit is completed",
+    "the same delivery again makes no write and no new issue",
+    "a push with nothing wrong opens no issue",
+    "a push to another branch is ignored: no job, no write",
+  ]) {
+    assert.ok(names.includes(name), `the check did not run: ${name}`);
+  }
 });

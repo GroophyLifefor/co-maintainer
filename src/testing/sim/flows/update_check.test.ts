@@ -22,6 +22,17 @@ test("update-check: the flow passes, with no failing step or check", async () =>
     ...result.checks.filter((check) => !check.ok),
   ];
   assert.deepEqual(failed, []);
-  // The flow's own six checks ran, not only the inherited ones.
-  assert.ok(result.checks.length >= 8);
+  // The flow's own checks ran, each by name. A count would let inherited
+  // checks stand in for one that did not run.
+  const names = result.checks.map((check) => check.name);
+  for (const name of [
+    "a server with no update address offers no update",
+    "a newer stable release is offered with its notes link",
+    "a pre-release is not offered",
+    "the update request is one POST to the host's address naming the version",
+    "an older version and one that is not the latest are refused with nothing sent",
+    "What's new lists the sections after the running version, newest first, up to the latest",
+  ]) {
+    assert.ok(names.includes(name), `the check did not run: ${name}`);
+  }
 });
