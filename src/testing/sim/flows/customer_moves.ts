@@ -227,6 +227,7 @@ export default defineFlow({
           { deliveryId: "d-before-init" },
         );
         sim.state.dBefore = before.body;
+        sim.state.dReviewsBefore = botReviews(sim, d);
         // The customer builds the guides again, as the documentation says.
         const { runInitOrRemake } = await import("../../../services/setup.ts");
         await runInitOrRemake(sim.options({ command: "init", repo: APP_REPO }));
@@ -235,6 +236,7 @@ export default defineFlow({
         activateRepo(APP_REPO, undefined);
         updateRepoSettings(APP_REPO, { auto_review: 1 });
         const round = await deliverOpened(sim, d, "d-after-init");
+        sim.state.dJobs = roundOf(round.jobs);
         return `#${d.number} · before the guides: ${JSON.stringify(before.body)} · after: ${roundOf(round.jobs)}`;
       },
     },
@@ -276,8 +278,12 @@ export default defineFlow({
       ),
       check(
         "once the guides are built again the new pull request is reviewed once and the earlier ones are untouched",
-        reviews("d") === 1 && reviews("a") === 1 && reviews("b") === 1,
-        `reviews: ${["a", "b", "c", "d"].map((key) => `${key} ${reviews(key)}`).join(", ")}`,
+        sim.state.dReviewsBefore === 0 &&
+          String(sim.state.dJobs).includes("review done") &&
+          reviews("d") === 1 &&
+          reviews("a") === 1 &&
+          reviews("b") === 1,
+        `d before the guides: ${String(sim.state.dReviewsBefore)} reviews, after: ${String(sim.state.dJobs)} · reviews: ${["a", "b", "c", "d"].map((key) => `${key} ${reviews(key)}`).join(", ")}`,
       ),
       check(
         "no review job failed in the new database",
