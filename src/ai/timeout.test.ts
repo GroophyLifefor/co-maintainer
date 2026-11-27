@@ -44,9 +44,10 @@ test("the fetch option carries the dispatcher for the configured limit", () => {
 });
 
 test("fetch gives up after the dispatcher's limit, not Node's own", async () => {
-  const server = createServer((_request, response) => {
-    setTimeout(() => response.end("late"), 1_000);
-  });
+  // The server never answers. A late answer would race the client's timer,
+  // which undici runs on a coarse clock (about a second, worse on Windows), so
+  // the answer could arrive first and the request would not time out at all.
+  const server = createServer(() => {});
   await new Promise<void>((resolve) => server.listen(0, resolve));
   const { port } = server.address() as AddressInfo;
   try {
