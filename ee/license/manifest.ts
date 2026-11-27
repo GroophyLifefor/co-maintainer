@@ -81,7 +81,9 @@ export function verifyManifest(
   if (typeof files !== "object" || files === null || Array.isArray(files)) {
     return { ok: false, reason: "malformed" };
   }
-  const clean: Record<string, string> = {};
+  // A map with no prototype: a file named `__proto__` is a file like any
+  // other, and a lookup of `toString` finds nothing.
+  const clean: Record<string, string> = Object.create(null);
   for (const [path, hash] of Object.entries(files)) {
     if (typeof hash !== "string" || !HEX64.test(hash)) {
       return { ok: false, reason: "malformed" };
@@ -112,7 +114,7 @@ export function checkEeFiles(
   const changed: string[] = [];
   const missing: string[] = [];
   for (const [path, hash] of Object.entries(manifest.files)) {
-    const content = current[path];
+    const content = Object.hasOwn(current, path) ? current[path] : undefined;
     if (content === undefined) missing.push(path);
     else if (hashFile(content) !== hash) changed.push(path);
   }

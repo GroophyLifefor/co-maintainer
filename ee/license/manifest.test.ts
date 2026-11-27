@@ -81,6 +81,29 @@ test("a changed, a missing and an added file are each named", () => {
   });
 });
 
+test("files named like the language's own properties are compared like any other", () => {
+  const signer = makeTestManifestSigner();
+  const names = ["__proto__", "toString", "constructor", "hasOwnProperty"];
+  const files = Object.create(null) as Record<string, string>;
+  for (const name of names) files[name] = `content of ${name}`;
+  const result = verifyManifest(signer.sign(files), signer.keys);
+  assert.ok(result.ok);
+  assert.deepEqual(
+    Object.keys(result.manifest.files).sort(),
+    [...names].sort(),
+  );
+  // Nothing is there: each is missing, and none of them throws.
+  const none = checkEeFiles(result.manifest, {});
+  assert.deepEqual(none.missing, [...names].sort());
+  // All are there as shipped: clean.
+  const whole = Object.create(null) as Record<string, string>;
+  for (const name of names) whole[name] = `content of ${name}`;
+  assert.equal(checkEeFiles(result.manifest, whole).clean, true);
+  // One of them changed.
+  (whole as Record<string, unknown>)["toString"] = "changed";
+  assert.deepEqual(checkEeFiles(result.manifest, whole).changed, ["toString"]);
+});
+
 test("without a license there is no note, however the files differ", () => {
   const signer = makeTestManifestSigner();
   const result = verifyManifest(signer.sign(FILES), signer.keys);

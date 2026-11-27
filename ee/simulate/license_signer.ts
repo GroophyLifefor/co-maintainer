@@ -106,7 +106,7 @@ export function makeTestManifestSigner(kid = "manifest-test-1"): {
     keys,
     kid,
     sign: (files) => {
-      const hashes: Record<string, string> = {};
+      const hashes: Record<string, string> = Object.create(null);
       for (const [path, content] of Object.entries(files)) {
         hashes[path] = createHash("sha256").update(content).digest("hex");
       }
