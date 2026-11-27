@@ -258,8 +258,14 @@ export default defineFlow({
         `first pull request: ${reviews("a")} reviews, delivered again: ${String(sim.state.afterMoveRedelivery)}`,
       ),
       check(
-        "a restored backup keeps the product reviewing, and a pull request whose review it does not remember is reviewed once more at most",
-        reviews("c") >= 1 && reviews("c") <= 2,
+        "a restored backup does not remember the review made after it, so a webhook delivered again for that pull request is reviewed once more (today's behavior)",
+        // The restore really happened (the third pull request has no job in
+        // the restored database), the redelivery ran a review job, and the
+        // pull request ends with two reviews. When the product learns to see
+        // its own earlier review on GitHub, the last two become one.
+        sim.state.cJobsAfterRestore === 0 &&
+          String(sim.state.cRedelivery).includes("review done") &&
+          reviews("c") === 2,
         `third pull request: ${reviews("c")} reviews, ${String(sim.state.cJobsAfterRestore)} jobs in the restored app.db, delivered again: ${String(sim.state.cRedelivery)}`,
       ),
       check(
