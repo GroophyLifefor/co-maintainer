@@ -141,6 +141,7 @@ test("a signed payload with a bad field is refused with the field's name", () =>
     ["modules", { modules: "sso" }],
     ["expires_at", { expires_at: "2027-04-01" }],
     ["expires_at", { expires_at: "2027-02-01T00:00:00Z" }],
+    ["expires_at", { expires_at: "2027-02-30T00:00:00Z" }],
     ["install_id", { install_id: "" }],
     ["customer", { customer: { id: "", name: "x" } }],
   ];
@@ -164,6 +165,21 @@ test("the license holds no price, discount, credit or contact", () => {
 
 test("times are accepted in one form only", () => {
   assert.equal(parseUtc("2027-04-01T00:00:00Z"), END);
+  // Days and hours that do not exist are not moved to the next ones.
+  for (const bad of [
+    "2027-02-30T00:00:00Z",
+    "2027-02-29T00:00:00Z",
+    "2027-04-31T00:00:00Z",
+    "2027-04-01T24:00:00Z",
+    "2027-13-01T00:00:00Z",
+    "2027-04-01T00:60:00Z",
+  ]) {
+    assert.equal(parseUtc(bad), undefined, bad);
+  }
+  assert.equal(
+    parseUtc("2028-02-29T00:00:00Z"),
+    Date.parse("2028-02-29T00:00:00Z"),
+  );
   for (const bad of ["2027-04-01", "2027-04-01T00:00:00+03:00", 5, undefined]) {
     assert.equal(parseUtc(bad), undefined);
   }

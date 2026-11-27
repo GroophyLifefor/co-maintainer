@@ -62,11 +62,15 @@ const UTC_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const BASE64URL = /^[A-Za-z0-9_-]+$/;
 
 /** A UTC time as milliseconds, or undefined when it is not in the one
- * accepted form. */
+ * accepted form or is not a real moment. Date.parse moves a day that does not
+ * exist (February 30) to the next month and reads 24:00 as the next day, so
+ * the time is written back out and must come out the same. */
 export function parseUtc(value: unknown): number | undefined {
   if (typeof value !== "string" || !UTC_TIME.test(value)) return undefined;
   const ms = Date.parse(value);
-  return Number.isFinite(ms) ? ms : undefined;
+  if (!Number.isFinite(ms)) return undefined;
+  if (new Date(ms).toISOString().slice(0, 19) + "Z" !== value) return undefined;
+  return ms;
 }
 
 function fail(reason: VerifyFailure, detail?: string): VerifyResult {
