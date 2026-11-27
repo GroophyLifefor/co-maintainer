@@ -188,23 +188,32 @@ export function refusedField(
   );
 }
 
+/** Lessons are written one after another. Two writes in flight can finish in
+ * either order, and an older, smaller lesson that lands last would erase the
+ * newer one. Each write also reads the set when its turn comes, not when it
+ * was asked for, so the last write always holds everything learned. */
+let lessons: Promise<void> = Promise.resolve();
+
 /** Saves what a model refused, so later requests leave it out from the
  * start. Only while the base URL is the one the lesson came from. A failed
  * write never fails the review. */
-async function remember(
+function remember(
   baseUrl: string,
   model: string,
   drop: ReadonlySet<string>,
 ): Promise<void> {
-  try {
-    const config = readConfig();
-    if (config.aiBaseUrl !== baseUrl) return;
-    const quirks = { ...config.aiModelQuirks };
-    quirks[model] = { ...quirks[model], drop: [...drop].sort() };
-    await writeUserConfig({ aiModelQuirks: quirks });
-  } catch {
-    // Learning again next time costs one retry.
-  }
+  lessons = lessons.then(async () => {
+    try {
+      const config = readConfig();
+      if (config.aiBaseUrl !== baseUrl) return;
+      const quirks = { ...config.aiModelQuirks };
+      quirks[model] = { ...quirks[model], drop: [...drop].sort() };
+      await writeUserConfig({ aiModelQuirks: quirks });
+    } catch {
+      // Learning again next time costs one retry.
+    }
+  });
+  return lessons;
 }
 
 export type CompatibleSettings = Pick<
