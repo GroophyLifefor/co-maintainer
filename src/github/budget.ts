@@ -16,6 +16,14 @@ export const REVIEW_COST = 14;
  * answer updates the count, so what it has spent is already in it: on average
  * about half of its cost is still to come. */
 export const RUNNING_REVIEW_UNFINISHED = Math.ceil(REVIEW_COST / 2);
+/** How many finished reviews an installation's cost is learned from, and how
+ * many it takes before the learned cost replaces the default (0.7.34). */
+const COST_SAMPLES = 20;
+const COST_MIN_SAMPLES = 5;
+/** A learned cost never goes below what the smallest review makes, or above
+ * what a runaway review would otherwise reserve. */
+const COST_FLOOR = 9;
+const COST_CEILING = 60;
 /** The part of the hour's allowance kept back for closing writes. */
 export const RESERVE_SHARE = 0.1;
 
@@ -50,6 +58,43 @@ export function noteRateLimit(installationId: number, headers: Headers): void {
   });
 }
 
+const costSamples = new Map<number, number[]>();
+const jobRequests = new Map<string, number>();
+
+/** Counts one GitHub request for the job that is running it. */
+export function countJobRequest(jobId: string | undefined): void {
+  if (jobId === undefined) return;
+  jobRequests.set(jobId, (jobRequests.get(jobId) ?? 0) + 1);
+}
+
+/** Returns how many requests the job made, and forgets the count. */
+export function takeJobRequests(jobId: string): number {
+  const count = jobRequests.get(jobId) ?? 0;
+  jobRequests.delete(jobId);
+  return count;
+}
+
+/** Notes what a finished review of this installation cost in requests. */
+export function noteReviewCost(installationId: number, requests: number): void {
+  if (!Number.isFinite(requests) || requests <= 0) return;
+  const list = costSamples.get(installationId) ?? [];
+  list.push(requests);
+  if (list.length > COST_SAMPLES) list.shift();
+  costSamples.set(installationId, list);
+}
+
+/** What a review of this installation is expected to cost: the 90th
+ * percentile of its recent reviews once there are enough of them, the default
+ * before that. Large pull requests cost more, so the average would let the
+ * big ones start short. */
+export function reviewCost(installationId: number): number {
+  const list = costSamples.get(installationId);
+  if (!list || list.length < COST_MIN_SAMPLES) return REVIEW_COST;
+  const sorted = [...list].sort((a, b) => a - b);
+  const p90 = sorted[Math.ceil(sorted.length * 0.9) - 1]!;
+  return Math.min(COST_CEILING, Math.max(COST_FLOOR, p90));
+}
+
 /** True when a review may start on this installation. With nothing known, or
  * after the reset, it may. `running` is how many reviews of this installation
  * are already running: they have not spent their share yet. */
@@ -62,11 +107,14 @@ export function mayStartReview(
   const budget = budgets.get(installationId);
   if (!budget || nowMs >= budget.resetAtMs) return true;
   const reserve = Math.ceil(budget.limit * RESERVE_SHARE);
-  const expected = running * RUNNING_REVIEW_UNFINISHED + REVIEW_COST;
+  const cost = reviewCost(installationId);
+  const expected = running * Math.ceil(cost / 2) + cost;
   return budget.remaining - expected >= reserve;
 }
 
 /** Test seam: forget what every installation had left. */
 export function resetBudgetsForTest(): void {
   budgets.clear();
+  costSamples.clear();
+  jobRequests.clear();
 }

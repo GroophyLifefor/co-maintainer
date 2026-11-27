@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.34] - 2026-11-27
+
+### Changed
+
+- **A review's expected cost in GitHub requests is learned for each installation.** The start check used a fixed 14 requests for every review. It now counts the requests each finished review made and uses the 90th percentile of the last 20 for that installation, once it has 5. Until then it keeps 14. The cost stays between 9, the smallest review, and 60, so one runaway review cannot hold back the queue and large pull requests are not started short.
+
 ## [0.7.33] - 2026-11-26
 
 ### Added
