@@ -3,9 +3,11 @@ import {
   appPrivateKeyFileMissing,
   getCacheDir,
   getConfigDir,
+  isForkPull,
   loadEnvFile,
   resolveAppPrivateKey,
   resolvedAiToken,
+  reviewPostsAsComment,
 } from "./config.ts";
 import {
   deleteEnv,
@@ -15,6 +17,7 @@ import {
   tempDirSync,
   writeTextFile,
 } from "./testing/runtime.ts";
+import assert from "node:assert/strict";
 import { test } from "node:test";
 
 /** A fake env lookup so OS branches are tested without touching the real
@@ -253,4 +256,40 @@ test("resolvedAiToken: serve takes the key from its environment like the CLI doe
       else setEnv(name, value);
     }
   }
+});
+
+test("a pull request from a fork posts as a comment unless the repository chose auto-forks", () => {
+  const config = (event?: string, repoEvent?: string) =>
+    ({
+      ...(event ? { reviewEvent: event } : {}),
+      repos: repoEvent ? { "o/r": { reviewEvent: repoEvent } } : {},
+    }) as never;
+  assert.equal(reviewPostsAsComment(config(), "o/r", false), false);
+  assert.equal(reviewPostsAsComment(config(), "o/r", true), true);
+  assert.equal(reviewPostsAsComment(config("auto"), "o/r", true), true);
+  assert.equal(reviewPostsAsComment(config("auto-forks"), "o/r", true), false);
+  assert.equal(reviewPostsAsComment(config("auto-forks"), "o/r", false), false);
+  assert.equal(reviewPostsAsComment(config("comment"), "o/r", false), true);
+  // A repository's own choice wins over the server's.
+  assert.equal(
+    reviewPostsAsComment(config("auto", "auto-forks"), "o/r", true),
+    false,
+  );
+  assert.equal(
+    reviewPostsAsComment(config("auto-forks", "auto"), "o/r", true),
+    true,
+  );
+  assert.equal(
+    reviewPostsAsComment(config("auto-forks", "comment"), "o/r", false),
+    true,
+  );
+});
+
+test("a head outside the repository, or with no repository, is a fork's", () => {
+  const pull = (headRepo: unknown) => ({ head: { repo: headRepo } });
+  assert.equal(isForkPull(pull({ full_name: "O/R" }), "o/r"), false);
+  assert.equal(isForkPull(pull({ full_name: "ada/r" }), "o/r"), true);
+  assert.equal(isForkPull(pull(null), "o/r"), true);
+  assert.equal(isForkPull({}, "o/r"), true);
+  assert.equal(isForkPull(undefined, "o/r"), true);
 });

@@ -1374,9 +1374,9 @@ co-maintainer oauth list-models --provider=sign-in-with-chatgpt
 <td>How a review decides a blocking finding. With --repo, for that repository.</td>
 </tr>
 <tr>
-<td><code>--review-event=auto|comment</code></td>
+<td><code>--review-event=auto|comment|auto-forks</code></td>
 <td>auto</td>
-<td>How the App posts a review: approve or request changes, or comment only. With --repo, for that repository.</td>
+<td>How the App posts a review: approve or request changes (on pull requests from forks it only comments), or comment only. auto-forks approves or requests changes on forks too. With --repo, for that repository.</td>
 </tr>
 <tr>
 <td><code>--ai-timeout-minutes=N</code></td>

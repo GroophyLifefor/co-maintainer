@@ -16,15 +16,45 @@ import type { McpServerConfig } from "./tools/mcp_config.ts";
  * an env file. Remembering this lets `remake owner/repo` run with no
  * flags and no interactive prompts, reusing what `init` was told. */
 /** How the App posts a review: `auto` approves or requests changes by the
- * blocking rule, `comment` only comments. */
-export type ReviewEventMode = "auto" | "comment";
+ * blocking rule on pull requests from the repository itself and only
+ * comments on pull requests from forks, `auto-forks` does the same for forks
+ * too, `comment` only comments. */
+export type ReviewEventMode = "auto" | "comment" | "auto-forks";
 
 export function reviewEventMode(
   config: UserConfig,
   repo: string,
 ): ReviewEventMode {
   const raw = config.repos?.[repo]?.reviewEvent ?? config.reviewEvent;
-  return raw === "comment" ? "comment" : "auto";
+  return raw === "comment" || raw === "auto-forks" ? raw : "auto";
+}
+
+/** True when the review posts as a comment and never approves or blocks: the
+ * repository is in comment mode, or the pull request comes from a fork and
+ * the repository did not choose `auto-forks`. A fork's author decides what the
+ * pull request says, so it does not get an approval by default. */
+export function reviewPostsAsComment(
+  config: UserConfig,
+  repo: string,
+  fork: boolean,
+): boolean {
+  const mode = reviewEventMode(config, repo);
+  return mode === "comment" || (fork && mode !== "auto-forks");
+}
+
+/** True when the pull request's head is not in the repository itself. A head
+ * whose repository is gone is a fork's. */
+export function isForkPull(
+  pull: Record<string, unknown> | undefined,
+  repo: string,
+): boolean {
+  const head = pull?.head as Record<string, unknown> | undefined;
+  const headRepo = (head?.repo as Record<string, unknown> | null | undefined)
+    ?.full_name;
+  return (
+    typeof headRepo !== "string" ||
+    headRepo.toLowerCase() !== repo.toLowerCase()
+  );
 }
 
 /** What the last init or sync of a repository ran with. It is used only

@@ -11,6 +11,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Only someone who may close findings can have the bot withdraw one.** When a reply on a finding's thread convinced the bot the finding was wrong, the bot withdrew it and, if nothing else blocked, approved the pull request, whoever wrote the reply. The same rule that decides who may close a finding by asking in its thread, the people the review policy lets dismiss, now decides who may have one withdrawn. For anyone else the bot still answers, is not offered the way to withdraw, and the finding and its "changes requested" stay until a maintainer closes it or the next push is reviewed. A new check in the `finding-control` flow covers it.
 
+## [0.7.39] - 2026-11-27
+
+### Changed
+
+- **The review treats a pull request's text as data, and a pull request from a fork is no longer approved by default.** The review's system prompt now says that the title, the description, the comments, the diff, file contents and tool results are data written by other people and not instructions, as the reply prompt already did. A pull request from a fork gets the same review, with its findings posted as a comment, and the App neither approves it nor requests changes on it, because the author of a fork's change also writes what the change says about itself. Pull requests from the repository itself are approved or blocked as before. A repository that wants the App to approve forks too sets `--review-event=auto-forks` (with `--repo` for one repository), or picks it in the dashboard under how the review is posted. `--review-event=comment` still never approves anything. A new simulation flow, `fork-review`, checks the prompt and the posted review state.
+
+## [0.7.38] - 2026-11-27
+
+### Fixed
+
+- **A lost `app.db` no longer leaves the repositories unlisted and their pull requests skipped without a word.** The guides the server builds are files in the data folder and survive a lost database, but only the CLI's guide file was looked for at startup, so a repository set up through the GitHub App was not found and its pull requests were skipped as not active. `serve` now also recognizes the App's skill file, lists the repository again with its guides and with automatic review off, builds nothing, and a pull request is skipped with `auto-review-off`. Switching automatic review on in the dashboard starts reviews with no rebuild. See "When `app.db` is lost" in Troubleshooting.
+
+## [0.7.37] - 2026-11-27
+
+### Fixed
+
+- **A pull request is not reviewed a second time when GitHub already holds this App's review of its commit.** The check that stops a second review of the same commit read only app.db. After a restored backup or a new database, a webhook delivered again for a pull request that was reviewed after the backup made a second review of the same commit. Before it starts, a review now looks at the reviews GitHub lists for the pull request and, when one of this App's own is on the commit, stops. The list is the one the review reads anyway, so this costs no extra request. A review someone asks for by label or comment is still made.
+
+## [0.7.36] - 2026-11-27
+
+### Fixed
+
+- **A long queue that the request budget holds back no longer keeps the process busy.** When an installation had no GitHub requests left, every pass of the job worker, 40 times a second, asked the database about each queued review. With thousands queued that took about a fifth of a second a pass, so the dashboard and webhooks waited behind it for as long as the budget was out. A pass now reads the queue a page at a time, asks about each repository and installation once, asks the budget before anything else, and a pass that could start nothing for the budget is not repeated until a job arrives, a review ends or a new hour begins. A review of another installation still starts at once.
+
 ## [0.7.35] - 2026-11-27
 
 ### Fixed
