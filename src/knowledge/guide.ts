@@ -1,3 +1,4 @@
+import { UNTRUSTED_DATA_NOTE } from "../ai/untrusted.ts";
 import { reasoningFields } from "../ai/reasoning.ts";
 import {
   applyGuideEdits,
@@ -221,8 +222,9 @@ export function findingLinks(facts: Fact[]): { pr: number; url: string }[][] {
     .map((item) => item.links ?? []);
 }
 
-const GUIDE_SYSTEM = `You write a code-review method for an unfamiliar open-source repository.
-Ground every check in the supplied findings. Never invent a file, path, command, or policy. Never write a pull-request number, a commit id, a reviewer name, a mention, a quoted comment, or an attribution. Never add a priority tag. Never tell the reader to run a command.`;
+export const GUIDE_SYSTEM = `You write a code-review method for an unfamiliar open-source repository.
+Ground every check in the supplied findings. Never invent a file, path, command, or policy. Never write a pull-request number, a commit id, a reviewer name, a mention, a quoted comment, or an attribution. Never add a priority tag. Never tell the reader to run a command.
+${UNTRUSTED_DATA_NOTE}`;
 
 const CONSOLIDATE = `- Consolidate the findings into a small set of coherent passes: group related findings, merge near-duplicates, and use between 3 and 12 passes. Represent every finding. Never drop one to hit the pass count.
 - Name each pass in Title Case. Never a lowercase slug such as "test-cleanup".

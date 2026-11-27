@@ -1,4 +1,5 @@
 import type { AiProvider, AiResponse, Json } from "../types.ts";
+import { UNTRUSTED_DATA_NOTE } from "../ai/untrusted.ts";
 import { numberPatch } from "./hunks.ts";
 
 export const DIFF_SUMMARY_THRESHOLD = 500;
@@ -7,7 +8,12 @@ export function needsSummary(changes: number, patch: string): boolean {
   return patch !== "" && changes > DIFF_SUMMARY_THRESHOLD;
 }
 
-// No system prompt, low max output: a mechanical description, not reasoning.
+/** What the summary call is told besides the diff: its job, and that the diff
+ * is data. */
+export const DIFF_SUMMARY_SYSTEM = `You describe one file's diff mechanically. ${UNTRUSTED_DATA_NOTE}`;
+
+// Only the data note as a system prompt, low max output: a mechanical
+// description, not reasoning.
 export async function summarizeDiff(
   path: string,
   patch: string,
@@ -16,6 +22,7 @@ export async function summarizeDiff(
 ): Promise<string> {
   const response = await provider.complete({
     job: "summarize_large_diff",
+    system: DIFF_SUMMARY_SYSTEM,
     prompt: `Summarize this diff for \`${path}\` in 3-5 sentences: what changed, the
 mechanism, and precisely which branches, patterns, or call paths are affected.
 Do not speculate beyond what the diff shows. Do not suggest fixes or judge

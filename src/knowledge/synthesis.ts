@@ -1,3 +1,4 @@
+import { UNTRUSTED_DATA_NOTE } from "../ai/untrusted.ts";
 import { reasoningFields } from "../ai/reasoning.ts";
 import { AiBatch } from "../ai/batch.ts";
 import type { AiValidator } from "../ai/batch.ts";
@@ -357,7 +358,11 @@ function validateFacts(
  * retries with 16k, then 32k, then the unit is skipped. */
 export const EXTRACT_MAX_TOKENS = 8_000;
 
-function extractRequest(prompt: string): AiRequest {
+export const EXTRACT_SYSTEM =
+  'Extract only repository-specific facts and review findings. Never invent files, commands, or process. Never write a pull-request number, a commit id, a reviewer name, or quoted comment text in a claim. A review finding (sectionKey "review") states a concrete rule with an impact and an action. ' +
+  UNTRUSTED_DATA_NOTE;
+
+export function extractRequest(prompt: string): AiRequest {
   return {
     job: "extract_unit",
     prompt,
@@ -367,8 +372,7 @@ function extractRequest(prompt: string): AiRequest {
     // thinking the model returned an empty array for most pull requests. The
     // level is the global setting, like every other AI job.
     ...reasoningFields(),
-    system:
-      'Extract only repository-specific facts and review findings. Never invent files, commands, or process. Never write a pull-request number, a commit id, a reviewer name, or quoted comment text in a claim. A review finding (sectionKey "review") states a concrete rule with an impact and an action.',
+    system: EXTRACT_SYSTEM,
   };
 }
 
@@ -590,6 +594,14 @@ export async function enrichFacts(
   );
 }
 
+export const SECTION_SYSTEM = `You synthesize contribution guidance for an unfamiliar open-source repository.
+Help developers make correct implementation, testing, review, debugging, and release
+decisions. Current repository evidence outranks history. A single historical
+observation is not a repository-wide rule. If sources conflict and current evidence
+does not resolve the conflict, omit the claim. Never invent paths, commands,
+conventions, or policies. Do not summarize README prose or list incidental details.
+${UNTRUSTED_DATA_NOTE}`;
+
 export async function synthesizeSections(
   provider: AiProvider,
   repo: string,
@@ -617,12 +629,7 @@ export async function synthesizeSections(
       job: "synth_section",
       maxTokens: 4_000,
       ...reasoningFields(),
-      system: `You synthesize contribution guidance for an unfamiliar open-source repository.
-Help developers make correct implementation, testing, review, debugging, and release
-decisions. Current repository evidence outranks history. A single historical
-observation is not a repository-wide rule. If sources conflict and current evidence
-does not resolve the conflict, omit the claim. Never invent paths, commands,
-conventions, or policies. Do not summarize README prose or list incidental details.`,
+      system: SECTION_SYSTEM,
       prompt: `Write only the Markdown for the "${key}" section of a repository Agent Skill.
 Use only the facts below. Keep rules that change implementation, testing, review,
 debugging, or release decisions. Drop end-user README instructions, feature lists,

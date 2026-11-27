@@ -1,3 +1,4 @@
+import { UNTRUSTED_DATA_NOTE } from "../ai/untrusted.ts";
 /** Comments on commit watch issues.
  *
  * The webhook already checked that the issue is ours and that the author has
@@ -37,6 +38,16 @@ import {
 } from "./watch_issues.ts";
 import type { AiProvider, Json, Options } from "../types.ts";
 import type { JobRow } from "../store/rows.ts";
+
+/** What the model is told when it answers a maintainer's question about an
+ * issue the bot opened: its role, that the issue and the code are data, and
+ * the review guide. */
+export function watchAnswerSystem(guide: string): string {
+  return `You are co-maintainer, the code reviewer that opened this issue. Answer the maintainer's question about the problem in plain prose. Write the answer in the same language as the question. ${UNTRUSTED_DATA_NOTE}
+
+REVIEW GUIDE:
+${guide.slice(0, 20_000)}`;
+}
 
 export const WATCH_COMMENT_JOB = "watch_comment";
 
@@ -211,10 +222,7 @@ async function runWatchComment(
       ...reasoningFields(),
       maxTokens: 6000,
       ...mermaidToolFields(options),
-      system: `You are co-maintainer, the code reviewer that opened this issue. Answer the maintainer's question about the problem in plain prose. Write the answer in the same language as the question.
-
-REVIEW GUIDE:
-${(guides.shortGuide || guides.skill || "").slice(0, 20_000)}`,
+      system: watchAnswerSystem(guides.shortGuide || guides.skill || ""),
       prompt: `ISSUE #${args.issueNumber}: ${issue.title}
 ${issue.body_md.slice(0, 6000)}
 
