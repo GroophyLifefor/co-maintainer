@@ -30,6 +30,12 @@ export const RESERVE_SHARE = 0.1;
 type Budget = { limit: number; remaining: number; resetAtMs: number };
 
 const budgets = new Map<number, Budget>();
+let version = 0;
+/** Changes whenever what a pass of the scheduler concluded from the budget may
+ * no longer hold: a new hour began, or the budgets were forgotten. */
+export function budgetVersion(): number {
+  return version;
+}
 
 /** Reads the limit headers of an answer for this installation's core limit. */
 export function noteRateLimit(installationId: number, headers: Headers): void {
@@ -51,6 +57,8 @@ export function noteRateLimit(installationId: number, headers: Headers): void {
     // Inside the same hour the count only goes down.
     if (reset * 1000 === known.resetAtMs && remaining > known.remaining) return;
   }
+  // A later reset is a new hour: what was true of the old one is not.
+  if (!known || reset * 1000 > known.resetAtMs) version++;
   budgets.set(installationId, {
     limit,
     remaining,
@@ -115,6 +123,7 @@ export function mayStartReview(
 /** Test seam: forget what every installation had left. */
 export function resetBudgetsForTest(): void {
   budgets.clear();
+  version++;
   costSamples.clear();
   jobRequests.clear();
 }
