@@ -997,16 +997,25 @@ async function publish(
   }
 }
 
-/** True when this App's own review of this commit is among the reviews. Its
- * body names the job (`- Activity: <id>`), which another bot's review of the
- * same commit does not. */
-export function ownReviewOfHead(reviews: Json[], headSha: string): boolean {
+/** True when this App's own review of this commit is among the reviews.
+ * Its body names the job (`- Activity: <id>`) and the version, which another
+ * bot's review of the same commit does not carry, and its author is this
+ * App's bot when that login is known. Without the login the body alone
+ * decides. */
+export function ownReviewOfHead(
+  reviews: Json[],
+  headSha: string,
+  botLogin?: string,
+): boolean {
   return reviews.some((item) => {
     const user = item.user as Json | undefined;
+    const body = String(item.body ?? "");
     return (
       String(item.commit_id ?? "") === headSha &&
       String(user?.type ?? "") === "Bot" &&
-      String(item.body ?? "").includes("- Activity: ")
+      (botLogin === undefined || String(user?.login ?? "") === botLogin) &&
+      body.includes("- Activity: ") &&
+      body.includes("- co-maintainer version: ")
     );
   });
 }
@@ -1271,12 +1280,22 @@ async function runReviewJobCore(
       priorReviews = await github.pages<Json>(
         `repos/${job.repo}/pulls/${job.pr_number}/reviews`,
       );
+      // A review that looks like ours is on the commit. Only then is this
+      // App's login asked (once for each App), so a review with nothing on
+      // GitHub costs no request. When the login cannot be had the body
+      // decides.
       if (ownReviewOfHead(priorReviews, headSha)) {
-        log(
-          "info",
-          "GitHub already holds this app's review of this head, nothing new to review",
-        );
-        return;
+        const botLogin = await github.botLogin?.().catch(() => undefined);
+        if (
+          botLogin === undefined ||
+          ownReviewOfHead(priorReviews, headSha, botLogin)
+        ) {
+          log(
+            "info",
+            "GitHub already holds this app's review of this head, nothing new to review",
+          );
+          return;
+        }
       }
     }
     // Round and base come from the review that posted last, read now rather

@@ -189,6 +189,11 @@ export default defineFlow({
           "retry-of-third",
         );
         sim.state.cRedelivery = roundOf(again.jobs);
+        // The job says why it stopped: the lookup on GitHub found the review.
+        sim.state.cSkippedByLookup =
+          rows<{ n: number }>(
+            "SELECT COUNT(*) AS n FROM job_logs WHERE message LIKE '%GitHub already holds this app%'",
+          )[0]!.n === 1;
         return `third again: ${roundOf(again.jobs)}`;
       },
     },
@@ -269,8 +274,9 @@ export default defineFlow({
         // App's review of the commit on GitHub, and the pull request still
         // has one review.
         sim.state.cJobsAfterRestore === 0 &&
-          reviews("c") === 1 &&
-          botReviewCount(sim, "c") === 1,
+          String(sim.state.cRedelivery).includes("review done") &&
+          sim.state.cSkippedByLookup === true &&
+          reviews("c") === 1,
         `third pull request: ${reviews("c")} reviews, ${String(sim.state.cJobsAfterRestore)} jobs in the restored app.db, delivered again: ${String(sim.state.cRedelivery)}`,
       ),
       check(
