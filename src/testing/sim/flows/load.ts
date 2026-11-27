@@ -171,6 +171,9 @@ export default defineFlow({
     },
     {
       name: "arrive",
+      // Thousands of pull requests take longer than a flow step may. This flow
+      // only runs when it is named.
+      timeoutMs: 30 * 60_000,
       async run(sim) {
         sim.faults.add({
           target: "ai",
@@ -195,6 +198,7 @@ export default defineFlow({
     },
     {
       name: "drain",
+      timeoutMs: 60 * 60_000,
       async run(sim) {
         sim.state.result = await drain(sim);
         return JSON.stringify(sim.state.result);
