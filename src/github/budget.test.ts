@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  countJobRequest,
   mayStartReview,
   noteRateLimit,
+  noteReviewCost,
   resetBudgetsForTest,
+  reviewCost,
   REVIEW_COST,
   RUNNING_REVIEW_UNFINISHED,
+  takeJobRequests,
 } from "./budget.ts";
 
 const NOW = 1_800_000_000_000;
@@ -85,4 +89,40 @@ test("a stale answer from an earlier hour does not replace the newer hour, even 
   noteRateLimit(6, headers(10, RESET));
   assert.equal(mayStartReview(6, 0, (RESET + 1) * 1000), true);
   assert.equal(mayStartReview(6, 0, NOW), true);
+});
+
+test("the expected review cost is learned per installation from recent reviews", () => {
+  resetBudgetsForTest();
+  assert.equal(reviewCost(7), REVIEW_COST);
+  for (const n of [10, 10, 10, 10]) noteReviewCost(7, n);
+  assert.equal(reviewCost(7), REVIEW_COST, "four samples are not enough");
+  noteReviewCost(7, 10);
+  assert.equal(reviewCost(7), 10);
+  for (const n of [10, 10, 10, 10, 10, 10, 10, 10, 30]) noteReviewCost(7, n);
+  assert.equal(reviewCost(7), 10, "one large review in ten is under the p90");
+  noteReviewCost(7, 30);
+  noteReviewCost(7, 30);
+  assert.equal(reviewCost(7), 30, "the large ones now set the cost");
+  assert.equal(
+    reviewCost(8),
+    REVIEW_COST,
+    "another installation is unaffected",
+  );
+});
+
+test("a learned cost stays between the smallest review and a ceiling", () => {
+  resetBudgetsForTest();
+  for (let i = 0; i < 6; i++) noteReviewCost(1, 2);
+  assert.equal(reviewCost(1), 9);
+  for (let i = 0; i < 20; i++) noteReviewCost(1, 500);
+  assert.equal(reviewCost(1), 60);
+});
+
+test("job request counts are taken once and forgotten", () => {
+  resetBudgetsForTest();
+  countJobRequest("j1");
+  countJobRequest("j1");
+  countJobRequest(undefined);
+  assert.equal(takeJobRequests("j1"), 2);
+  assert.equal(takeJobRequests("j1"), 0);
 });

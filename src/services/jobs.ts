@@ -1,5 +1,9 @@
 import { readConfig } from "../config.ts";
-import { mayStartReview } from "../github/budget.ts";
+import {
+  mayStartReview,
+  noteReviewCost,
+  takeJobRequests,
+} from "../github/budget.ts";
 import { getRepo } from "../store/repos.ts";
 import {
   claimJob,
@@ -120,6 +124,14 @@ async function runJob(job: JobRow): Promise<void> {
       handler.run(job, logFn, controller.signal),
     );
     const status = controller.signal.aborted ? "canceled" : "done";
+    // What a finished review cost in GitHub requests teaches its
+    // installation's expected cost. A canceled one stopped early and says
+    // nothing about it.
+    const spent = takeJobRequests(job.id);
+    if (job.type === "review" && status === "done") {
+      const installation = getRepo(job.repo)?.installation_id;
+      if (installation) noteReviewCost(installation, spent);
+    }
     const cancelReason = pendingCancelReason.get(job.id);
     setJobStatus(
       job.id,
@@ -145,6 +157,7 @@ async function runJob(job: JobRow): Promise<void> {
     if (status === "failed") log(job.id, "error", message);
     log(job.id, "status", status);
   } finally {
+    takeJobRequests(job.id);
     running.delete(job.id);
     pendingCancelReason.delete(job.id);
   }

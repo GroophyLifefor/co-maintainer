@@ -6,7 +6,11 @@ import { createHash } from "node:crypto";
 import { log } from "../util/log.ts";
 import { networkFailure } from "../cli/error.ts";
 import { missingHint, refusalHint } from "./permissions.ts";
-import { recordRateLimitWait } from "../services/rate_limit.ts";
+import {
+  currentRateLimitJobId,
+  recordRateLimitWait,
+} from "../services/rate_limit.ts";
+import { countJobRequest } from "./budget.ts";
 import { interrupted } from "../util/interrupt.ts";
 
 export class GitHubHttpError extends Error {
@@ -314,6 +318,7 @@ export async function githubFetch(
     let response: Response | undefined;
     let exhausted: RateLimit | undefined;
     for (let attempt = 1; attempt <= 3; attempt++) {
+      countJobRequest(currentRateLimitJobId());
       response = await fetchRetrying(url, init);
       if (response.status !== 403 && response.status !== 429) return response;
       const retryAfterHeader = response.headers.get("retry-after");
