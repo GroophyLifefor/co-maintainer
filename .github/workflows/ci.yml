@@ -193,8 +193,14 @@ jobs:
           BLOCKING_OUTCOME: ${{ steps.blocking.outcome }}
           CLEAN_OUTCOME: ${{ steps.clean.outcome }}
           EMPTY_OUTCOME: ${{ steps.empty.outcome }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          test "$BLOCKING_OUTCOME" = failure
+          # A push is already in, so its review only warns and never blocks.
+          if [ "$EVENT_NAME" = push ]; then
+            test "$BLOCKING_OUTCOME" = success
+          else
+            test "$BLOCKING_OUTCOME" = failure
+          fi
           test "$CLEAN_OUTCOME" = success
           test "$EMPTY_OUTCOME" = failure
           sleep 1
