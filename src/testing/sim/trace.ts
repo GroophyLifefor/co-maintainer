@@ -229,11 +229,23 @@ export function readFiles(dir: string): FileEntry[] {
  * repositories, the databases are searched row by row, and git's object
  * store is compressed. */
 export const NOT_SEARCHED = [
-  "config.json",
+  "config.json, backups/*/config.json, volume-*/config.json",
   "github/",
   "*.db, *.db-wal, *.db-shm",
   ".git/objects/",
 ];
+
+/** The product's own config file, the copy it makes before a migration, and the
+ * config of a moved data folder (`volume-*`, which a flow makes on purpose)
+ * hold credentials by design. */
+function isSecretHolding(rel: string): boolean {
+  return (
+    rel === "config.json" ||
+    rel === "github" ||
+    /^backups\/[^/]+\/config\.json$/.test(rel) ||
+    /^volume-[A-Za-z0-9]+\/config\.json$/.test(rel)
+  );
+}
 
 /** Every file in the sandbox a leak could land in. */
 export function readSandbox(root: string): FileEntry[] {
@@ -243,7 +255,7 @@ export function readSandbox(root: string): FileEntry[] {
     for (const name of readdirSync(current)) {
       const path = join(current, name);
       const rel = relative(root, path).replaceAll("\\", "/");
-      if (rel === "config.json" || rel === "github") continue;
+      if (isSecretHolding(rel)) continue;
       if (/\.db(-wal|-shm)?$/.test(rel) || /\.git\/objects$/.test(rel)) {
         continue;
       }
