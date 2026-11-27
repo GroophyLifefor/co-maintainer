@@ -5,6 +5,7 @@
  * the budget was out. The count of statements is what is asserted, because a
  * timing would depend on the machine. */
 import assert from "node:assert/strict";
+import { rmSync } from "node:fs";
 import { test } from "node:test";
 import { closeAppDb, getAppDb, openAppDb } from "../store/app_db.ts";
 import { insertJob, getJob } from "../store/jobs.ts";
@@ -18,14 +19,21 @@ isolateTestFile();
 
 async function withTempDb(fn: () => Promise<void>): Promise<void> {
   const original = getEnv("CM_APP_DB");
-  setEnv("CM_APP_DB", `${tempDirSync()}/app.db`);
+  const dir = tempDirSync();
+  setEnv("CM_APP_DB", `${dir}/app.db`);
   try {
     await openAppDb();
     await fn();
   } finally {
-    await closeAppDb();
-    if (original === undefined) deleteEnv("CM_APP_DB");
-    else setEnv("CM_APP_DB", original);
+    // Each step is tried even when the one before it fails: the environment
+    // is put back and the folder is removed either way.
+    try {
+      await closeAppDb();
+    } finally {
+      if (original === undefined) deleteEnv("CM_APP_DB");
+      else setEnv("CM_APP_DB", original);
+      rmSync(dir, { recursive: true, force: true });
+    }
   }
 }
 
