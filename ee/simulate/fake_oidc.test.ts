@@ -249,7 +249,7 @@ test("sign out: the provider ends the session, sends the browser back, and nothi
 
 test("every kind of bad ID token is refused with its own reason", async () => {
   const cases: [keyof Setup["idp"]["faults"], string][] = [
-    ["badSignature", "unknown_key"],
+    ["badSignature", "signature"],
     ["wrongAudience", "audience"],
     ["wrongIssuer", "issuer"],
     ["wrongNonce", "nonce"],
@@ -279,6 +279,23 @@ test("a key that was replaced no longer verifies the tokens it signed", async ()
     );
     const again = await signIn(s);
     assert.equal(again.claims.sub, "u-1", "a new sign in uses the new key");
+  });
+});
+
+test("a form body over the limit is refused, the provider keeps answering", async () => {
+  await withIdp(async (s) => {
+    const big = await fetch(s.discovery.token_endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: `client_id=co-maintainer&junk=${"x".repeat(200_000)}`,
+    }).then(
+      (r) => r.status,
+      () => "closed",
+    );
+    assert.ok(big === "closed" || big === 500 || big === 413, String(big));
+    // Still alive afterwards.
+    const { claims } = await signIn(s);
+    assert.equal(claims.sub, "u-1");
   });
 });
 

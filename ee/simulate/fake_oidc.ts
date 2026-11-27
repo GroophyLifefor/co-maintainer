@@ -98,9 +98,18 @@ function b64url(input: Buffer | string): string {
   return Buffer.from(input).toString("base64url");
 }
 
+/** A form body is small. A client that sends more than this is refused before
+ * its bytes pile up in memory. */
+const MAX_FORM_BYTES = 64 * 1024;
+
 async function readForm(request: IncomingMessage): Promise<URLSearchParams> {
   const chunks: Buffer[] = [];
-  for await (const chunk of request) chunks.push(chunk as Buffer);
+  let size = 0;
+  for await (const chunk of request) {
+    size += (chunk as Buffer).length;
+    if (size > MAX_FORM_BYTES) throw new Error("form too large");
+    chunks.push(chunk as Buffer);
+  }
   return new URLSearchParams(Buffer.concat(chunks).toString("utf8"));
 }
 
@@ -178,8 +187,10 @@ export async function startFakeOidc(
 
   const idToken = (session: Session): string => {
     const iat = Math.floor(clock / 1000);
+    // A bad signature carries the published key's id, so the client finds the
+    // key and has to reject the signature itself.
     const signer = faults.badSignature ? strangerKey : key;
-    return sign(signer.privateKey, signer.kid, {
+    return sign(signer.privateKey, key.kid, {
       iss: faults.wrongIssuer ? `${issuer}/other` : issuer,
       sub: session.user.sub,
       aud: faults.wrongAudience ? "another-client" : session.clientId,
@@ -375,7 +386,14 @@ export async function startFakeOidc(
         return json(response, 200, { loggedOut: Boolean(session) });
       }
       json(response, 404, { error: "not_found" });
-    })();
+    })().catch(() => {
+      // A body over the limit, or anything else the handler could not finish.
+      // The connection is closed with the answer, so the next request starts
+      // on a fresh one.
+      if (!response.headersSent) {
+        json(response, 413, { error: "too_large" }, { connection: "close" });
+      }
+    });
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   issuer = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
