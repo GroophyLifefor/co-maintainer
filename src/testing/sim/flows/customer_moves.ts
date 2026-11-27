@@ -56,6 +56,9 @@ function botReviews(sim: Sim, pull: SimPull): number {
 }
 
 /** The database the server is using now: its place changes in a move. */
+const botReviewCount = (sim: Sim, key: string) =>
+  botReviews(sim, pullOf(sim, key));
+
 const dbPath = () => process.env.CM_APP_DB as string;
 
 function rows<T>(sql: string, ...params: (string | number)[]): T[] {
@@ -260,14 +263,14 @@ export default defineFlow({
         `first pull request: ${reviews("a")} reviews, delivered again: ${String(sim.state.afterMoveRedelivery)}`,
       ),
       check(
-        "a restored backup does not remember the review made after it, so a webhook delivered again for that pull request is reviewed once more (today's behavior)",
+        "a restored backup does not make the product review a commit it already reviewed: GitHub holds this App's review, so the webhook delivered again posts nothing",
         // The restore really happened (the third pull request has no job in
-        // the restored database), the redelivery ran a review job, and the
-        // pull request ends with two reviews. When the product learns to see
-        // its own earlier review on GitHub, the last two become one.
+        // the restored database), the redelivery ran its job and found this
+        // App's review of the commit on GitHub, and the pull request still
+        // has one review.
         sim.state.cJobsAfterRestore === 0 &&
-          String(sim.state.cRedelivery).includes("review done") &&
-          reviews("c") === 2,
+          reviews("c") === 1 &&
+          botReviewCount(sim, "c") === 1,
         `third pull request: ${reviews("c")} reviews, ${String(sim.state.cJobsAfterRestore)} jobs in the restored app.db, delivered again: ${String(sim.state.cRedelivery)}`,
       ),
       check(

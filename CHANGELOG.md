@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.37] - 2026-11-27
+
+### Fixed
+
+- **A pull request is not reviewed a second time when GitHub already holds this App's review of its commit.** The check that stops a second review of the same commit read only app.db. After a restored backup or a new database, a webhook delivered again for a pull request that was reviewed after the backup made a second review of the same commit. Before it starts, a review now looks at the reviews GitHub lists for the pull request and, when one of this App's own is on the commit, stops. The list is the one the review reads anyway, so this costs no extra request. A review someone asks for by label or comment is still made.
+
 ## [0.7.35] - 2026-11-27
 
 ### Fixed

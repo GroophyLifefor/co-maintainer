@@ -26,7 +26,7 @@ test("customer-moves: the flow passes, with no failing step or check", async () 
   for (const name of [
     "after the data is moved, the history came along and a new pull request is reviewed once",
     "a webhook delivered again after the move starts no second review",
-    "a restored backup does not remember the review made after it, so a webhook delivered again for that pull request is reviewed once more (today's behavior)",
+    "a restored backup does not make the product review a commit it already reviewed: GitHub holds this App's review, so the webhook delivered again posts nothing",
     "after the disk is lost a review waits for the guides, says so, and posts nothing",
     "once the guides are built again the new pull request is reviewed once and the earlier ones are untouched",
     "no review job failed in the new database",
