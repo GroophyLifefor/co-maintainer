@@ -186,7 +186,14 @@ export function currentLicense(
     if (good) {
       // Kept as it was when it last read well, with a note: it is not worked
       // out again, since the file it came from cannot be read now.
-      result = { ...good, notes: [...good.notes, "invalid_file"] };
+      result = {
+        ...good,
+        notes: good.notes.includes("invalid_file")
+          ? good.notes
+          : [...good.notes, "invalid_file"],
+      };
+      // Kept with its note, so a call between two checks shows the failure too.
+      store.setLastGood(result);
     }
   } else if (state.status !== "none") {
     store.setLastGood(state);
@@ -209,7 +216,8 @@ export function checkDue(store: LicenseStore, now: number): boolean {
 }
 
 /** The daily check: works the state out when it is due and otherwise answers
- * from the last good state. Never throws. */
+ * from the last state that was saved. Never throws, even when the store is
+ * the thing that fails. */
 export function dailyCheck(
   store: LicenseStore,
   keys: PublicKeys,
@@ -220,6 +228,10 @@ export function dailyCheck(
     return currentLicense(store, keys, now);
   } catch {
     // The product stays as it is: nothing about a license stops a review.
-    return store.getLastGood();
+    try {
+      return store.getLastGood();
+    } catch {
+      return undefined;
+    }
   }
 }

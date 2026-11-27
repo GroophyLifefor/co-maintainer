@@ -191,6 +191,29 @@ test("the daily check runs when it is due and answers from the last state otherw
   );
 });
 
+test("the note about an unreadable file is kept for the calls between checks", () => {
+  const { store, signer, id } = setup();
+  loadLicense(store, signer.keys, signer.sign({ install_id: id }), START);
+  dailyCheck(store, signer.keys, START + DAY);
+  const afterUpgrade = makeTestSigner("replaced").keys;
+  const due = dailyCheck(store, afterUpgrade, START + 3 * DAY);
+  assert.ok(due?.notes.includes("invalid_file"));
+  const between = dailyCheck(store, afterUpgrade, START + 3 * DAY + 1000);
+  assert.ok(between?.notes.includes("invalid_file"));
+  assert.equal(between?.notes.filter((n) => n === "invalid_file").length, 1);
+});
+
+test("a check never throws, even when the store fails on the fallback read too", () => {
+  const { signer } = setup();
+  const broken = memoryLicenseStore();
+  const down = () => {
+    throw new Error("the store is down");
+  };
+  broken.getLastChecked = down;
+  broken.getLastGood = down;
+  assert.equal(dailyCheck(broken, signer.keys, START), undefined);
+});
+
 test("a check never throws, the product stays as it is", () => {
   const { signer } = setup();
   const broken = memoryLicenseStore();
