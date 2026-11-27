@@ -56,9 +56,6 @@ function botReviews(sim: Sim, pull: SimPull): number {
 }
 
 /** The database the server is using now: its place changes in a move. */
-const botReviewCount = (sim: Sim, key: string) =>
-  botReviews(sim, pullOf(sim, key));
-
 const dbPath = () => process.env.CM_APP_DB as string;
 
 function rows<T>(sql: string, ...params: (string | number)[]): T[] {
