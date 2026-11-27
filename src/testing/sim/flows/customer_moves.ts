@@ -28,9 +28,9 @@ const STEP = {
   backedUp: "a backup is taken, then another pull request is reviewed",
   restored: "the backup is put back and the server starts",
   afterRestore: "the pull request reviewed after the backup is delivered again",
-  lost: "the disk is lost: app.db is gone, the server starts empty",
+  lost: "app.db is lost: it is gone, the server starts and finds the guides on disk",
   afterLoss:
-    "a new pull request waits for the guides, then is reviewed once the guides are built again",
+    "a new pull request is skipped with automatic review off, then reviewed once it is switched on, with no guides built",
 };
 
 const AI: AiRule[] = [
@@ -201,18 +201,21 @@ export default defineFlow({
         removeDb(dbPath());
         await sim.server.start();
         const restart = await sim.server.restart();
-        // The installation's repositories are made known again, the way the
-        // App's installation events do.
-        const { activateRepo, updateRepoSettings } =
-          await import("../../../store/repos.ts");
-        activateRepo(APP_REPO, undefined);
-        updateRepoSettings(APP_REPO, { auto_review: 1 });
+        // The server found the guides on disk when it started: the repository
+        // is listed again, with its guides, and with automatic review off.
+        const repoRows = rows<{
+          full_name: string;
+          active: number;
+          auto_review: number;
+          knowledge_built_at: string | null;
+          added_from: string | null;
+        }>(
+          "SELECT full_name, active, auto_review, knowledge_built_at, added_from FROM repos",
+        );
+        sim.state.repoAfterLoss = repoRows[0];
         const jobs = rows<{ n: number }>("SELECT COUNT(*) AS n FROM jobs")[0]!
           .n;
         sim.state.jobsAfterLoss = jobs;
-        const repoRows = rows<{ active: number; full_name: string }>(
-          "SELECT full_name, active FROM repos",
-        );
         return `repo rows ${JSON.stringify(repoRows)} · an empty app.db · ${jobs} jobs · recovered ${restart.orphans} · swept ${restart.sweep.queued} queued`;
       },
     },
@@ -224,25 +227,24 @@ export default defineFlow({
           files: FILES,
         });
         sim.state.d = d;
-        // The guides are recorded in app.db, so with it gone a review waits
-        // for them and says so, and posts nothing.
+        // With automatic review off nothing is posted, and the answer says why.
         const before = await sim.server.deliver(
           "pull_request",
           sim.server.payloads.pullRequest(d, "opened"),
-          { deliveryId: "d-before-init" },
+          { deliveryId: "d-before-switch" },
         );
         sim.state.dBefore = before.body;
         sim.state.dReviewsBefore = botReviews(sim, d);
-        // The customer builds the guides again, as the documentation says.
-        const { runInitOrRemake } = await import("../../../services/setup.ts");
-        await runInitOrRemake(sim.options({ command: "init", repo: APP_REPO }));
-        const { activateRepo, updateRepoSettings } =
-          await import("../../../store/repos.ts");
-        activateRepo(APP_REPO, undefined);
+        // The owner switches automatic review on. The guides are not built
+        // again.
+        const { updateRepoSettings } = await import("../../../store/repos.ts");
         updateRepoSettings(APP_REPO, { auto_review: 1 });
-        const round = await deliverOpened(sim, d, "d-after-init");
+        const round = await deliverOpened(sim, d, "d-after-switch");
         sim.state.dJobs = roundOf(round.jobs);
-        return `#${d.number} · before the guides: ${JSON.stringify(before.body)} · after: ${roundOf(round.jobs)}`;
+        sim.state.setupJobs = rows<{ n: number }>(
+          "SELECT COUNT(*) AS n FROM jobs WHERE type IN ('init', 'setup', 'remake')",
+        )[0]!.n;
+        return `#${d.number} · before the switch: ${JSON.stringify(before.body)} · after: ${roundOf(round.jobs)}`;
       },
     },
   ],
@@ -277,19 +279,35 @@ export default defineFlow({
         `third pull request: ${reviews("c")} reviews, ${String(sim.state.cJobsAfterRestore)} jobs in the restored app.db, delivered again: ${String(sim.state.cRedelivery)}`,
       ),
       check(
-        "after the disk is lost a review waits for the guides, says so, and posts nothing",
-        (sim.state.dBefore as { reason?: string })?.reason ===
-          "no-knowledge-yet",
-        `the delivery was answered ${JSON.stringify(sim.state.dBefore)}`,
+        "after app.db is lost the repository is listed again from the guides on disk with automatic review off, and a review is skipped and says so",
+        (
+          sim.state.repoAfterLoss as
+            | {
+                active?: number;
+                auto_review?: number;
+                knowledge_built_at?: string | null;
+              }
+            | undefined
+        )?.active === 1 &&
+          (sim.state.repoAfterLoss as { auto_review?: number }).auto_review ===
+            0 &&
+          Boolean(
+            (sim.state.repoAfterLoss as { knowledge_built_at?: string | null })
+              .knowledge_built_at,
+          ) &&
+          (sim.state.dBefore as { reason?: string })?.reason ===
+            "auto-review-off" &&
+          sim.state.dReviewsBefore === 0,
+        `repository ${JSON.stringify(sim.state.repoAfterLoss)} · the delivery was answered ${JSON.stringify(sim.state.dBefore)}`,
       ),
       check(
-        "once the guides are built again the new pull request is reviewed once and the earlier ones are untouched",
-        sim.state.dReviewsBefore === 0 &&
-          String(sim.state.dJobs).includes("review done") &&
+        "once automatic review is switched on the new pull request is reviewed once, no guides are built again, and the earlier ones are untouched",
+        String(sim.state.dJobs).includes("review done") &&
+          sim.state.setupJobs === 0 &&
           reviews("d") === 1 &&
           reviews("a") === 1 &&
           reviews("b") === 1,
-        `d before the guides: ${String(sim.state.dReviewsBefore)} reviews, after: ${String(sim.state.dJobs)} · reviews: ${["a", "b", "c", "d"].map((key) => `${key} ${reviews(key)}`).join(", ")}`,
+        `after the switch: ${String(sim.state.dJobs)} · setup jobs ${String(sim.state.setupJobs)} · reviews: ${["a", "b", "c", "d"].map((key) => `${key} ${reviews(key)}`).join(", ")}`,
       ),
       check(
         "no review job failed in the new database",
