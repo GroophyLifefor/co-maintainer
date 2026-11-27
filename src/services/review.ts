@@ -1001,6 +1001,29 @@ async function publish(
   }
 }
 
+/** True when this App's own review of this commit is among the reviews.
+ * Its body names the job (`- Activity: <id>`) and the version, which another
+ * bot's review of the same commit does not carry, and its author is this
+ * App's bot when that login is known. Without the login the body alone
+ * decides. */
+export function ownReviewOfHead(
+  reviews: Json[],
+  headSha: string,
+  botLogin?: string,
+): boolean {
+  return reviews.some((item) => {
+    const user = item.user as Json | undefined;
+    const body = String(item.body ?? "");
+    return (
+      String(item.commit_id ?? "") === headSha &&
+      String(user?.type ?? "") === "Bot" &&
+      (botLogin === undefined || String(user?.login ?? "") === botLogin) &&
+      body.includes("- Activity: ") &&
+      body.includes("- co-maintainer version: ")
+    );
+  });
+}
+
 export async function reconcileReview(
   job: JobRow,
   log: LogFn,
@@ -1238,6 +1261,7 @@ async function runReviewJobCore(
   }
   const headSha = String((pr.head as Json | undefined)?.sha ?? "");
   const mergeBase = String((pr.base as Json | undefined)?.sha ?? "");
+  let priorReviews: Json[] | undefined;
   if (!existing) {
     const last = latestPostedReview(job.repo, job.pr_number);
     // A review or comment that arrived while a review of this head was
@@ -1251,6 +1275,32 @@ async function runReviewJobCore(
     ) {
       log("info", "this head was already reviewed, nothing new to review");
       return;
+    }
+    // app.db may not remember a review that GitHub holds: a restored backup,
+    // a new database. This App's own review of this head, found on GitHub, is
+    // the same answer. The list is the one the reviewer reads anyway, so it
+    // is kept and handed over, and this costs no request.
+    if (!EXPLICIT_REQUESTS.has(args.trigger ?? "manual")) {
+      priorReviews = await github.pages<Json>(
+        `repos/${job.repo}/pulls/${job.pr_number}/reviews`,
+      );
+      // A review that looks like ours is on the commit. Only then is this
+      // App's login asked (once for each App), so a review with nothing on
+      // GitHub costs no request. When the login cannot be had the body
+      // decides.
+      if (ownReviewOfHead(priorReviews, headSha)) {
+        const botLogin = await github.botLogin?.().catch(() => undefined);
+        if (
+          botLogin === undefined ||
+          ownReviewOfHead(priorReviews, headSha, botLogin)
+        ) {
+          log(
+            "info",
+            "GitHub already holds this app's review of this head, nothing new to review",
+          );
+          return;
+        }
+      }
     }
     // Round and base come from the review that posted last, read now rather
     // than when the job was queued: a review may have posted in between.
@@ -1419,13 +1469,17 @@ async function runReviewJobCore(
     signal?: AbortSignal;
     mcpForkRule?: boolean;
     companions?: ReviewCompanions;
-    prefetched?: { pull: Json; files: Json[] };
+    prefetched?: { pull: Json; files: Json[]; reviews?: Json[] };
   } = {
     catchesUp,
     signal,
     // The reviewer reads the pull request and its files again unless it is
     // given what this job already read, one request pair fewer per review.
-    prefetched: { pull: pr, files: publishFiles },
+    prefetched: {
+      pull: pr,
+      files: publishFiles,
+      ...(priorReviews ? { reviews: priorReviews } : {}),
+    },
     mcpForkRule: true,
     ...(companions.extras ? { companions: companions.extras } : {}),
   };

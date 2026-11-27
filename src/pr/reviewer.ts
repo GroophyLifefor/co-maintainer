@@ -145,7 +145,7 @@ export type ReviewExtras = {
   tools?: ReviewToolSource;
   /** The pull request and its files, already read by the caller. The review
    * then makes neither request, so it judges what the caller stored. */
-  prefetched?: { pull: Json; files: Json[] };
+  prefetched?: { pull: Json; files: Json[]; reviews?: Json[] };
   /** The request's job name, `review_local` when left out. */
   job?: string;
   /** Pull request files to review although the compare of this round does
@@ -615,7 +615,8 @@ async function pullRequestReview(
     extras?.prefetched?.pull ??
       client.request<Json>(`repos/${options.repo}/pulls/${number}`),
     client.pages<Json>(`repos/${options.repo}/issues/${number}/comments`),
-    client.pages<Json>(`repos/${options.repo}/pulls/${number}/reviews`),
+    extras?.prefetched?.reviews ??
+      client.pages<Json>(`repos/${options.repo}/pulls/${number}/reviews`),
     loadGuides(options.repo),
   ]);
   const { shortGuide, detailed, codebase, skill } = guides;

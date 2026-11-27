@@ -113,6 +113,34 @@ test("serve finds built repos on disk once, and skips folders with no guide", as
   });
 });
 
+test("serve finds a repo whose guides the App built, after app.db was lost", async () => {
+  await withEnv(async (root) => {
+    // The App's setup leaves CODEBASE.md and SKILL.md, not the CLI's guide.
+    await mkdirPath(`${root}/repos/acme/app-built`, { recursive: true });
+    await writeTextFile(`${root}/repos/acme/app-built/SKILL.md`, "# skill\n");
+    await writeTextFile(`${root}/repos/acme/app-built/CODEBASE.md`, "# map\n");
+    // Only a codebase map is not a built set of guides.
+    await mkdirPath(`${root}/repos/acme/map-only`, { recursive: true });
+    await writeTextFile(`${root}/repos/acme/map-only/CODEBASE.md`, "# map\n");
+    const found = await discoverCliRepos();
+    if (found.join(",") !== "acme/app-built") {
+      throw new Error(`found: ${found.join(",")}`);
+    }
+    const row = getRepo("acme/app-built");
+    // Listed with its guides, and never switched to review on its own.
+    if (
+      !row ||
+      row.active !== 1 ||
+      !row.knowledge_built_at ||
+      row.auto_review !== 0
+    ) {
+      throw new Error(JSON.stringify(row));
+    }
+    if (getRepo("acme/map-only"))
+      throw new Error("a map alone was taken for guides");
+  });
+});
+
 test("serve does not bring back a repo that was removed from the dashboard", async () => {
   await withEnv(async (root) => {
     activateRepo("acme/removed", 9);
