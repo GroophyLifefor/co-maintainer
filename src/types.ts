@@ -121,6 +121,9 @@ export type GitHubClient = {
    * Only the App client has it, so a server with the App and no git login
    * can still clone a private repository. */
   gitToken?(): Promise<string>;
+  /** The login this App's reviews and comments carry (`<slug>[bot]`). Only
+   * the App client has it. */
+  botLogin?(): Promise<string>;
   /** GitHub Checks API operations. Optional so read-only test clients and
    * older integrations can continue to review without check runs. */
   createCheckRun?<T>(endpoint: string, body: unknown): Promise<T>;

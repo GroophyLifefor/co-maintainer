@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A pull request is not reviewed a second time when GitHub already holds this App's review of its commit.** The check that stops a second review of the same commit read only app.db. After a restored backup or a new database, a webhook delivered again for a pull request that was reviewed after the backup made a second review of the same commit. Before it starts, a review now looks at the reviews GitHub lists for the pull request and, when one of this App's own is on the commit, stops. The list is the one the review reads anyway, so this costs no extra request. A review someone asks for by label or comment is still made.
 
+## [0.7.36] - 2026-11-27
+
+### Fixed
+
+- **A long queue that the request budget holds back no longer keeps the process busy.** When an installation had no GitHub requests left, every pass of the job worker, 40 times a second, asked the database about each queued review. With thousands queued that took about a fifth of a second a pass, so the dashboard and webhooks waited behind it for as long as the budget was out. A pass now reads the queue a page at a time, asks about each repository and installation once, asks the budget before anything else, and a pass that could start nothing for the budget is not repeated until a job arrives, a review ends or a new hour begins. A review of another installation still starts at once.
+
 ## [0.7.35] - 2026-11-27
 
 ### Fixed

@@ -6,7 +6,7 @@ const HEAD = "a".repeat(40);
 const review = (over: Record<string, unknown> = {}) => ({
   commit_id: HEAD,
   user: { type: "Bot", login: "co-maintainer[bot]" },
-  body: "Summary\n\n- Activity: job-1\n",
+  body: "Summary\n\n- Activity: job-1\n- co-maintainer version: 0.7.37\n",
   ...over,
 });
 
@@ -31,6 +31,23 @@ test("another bot's review, a person's, and a review of another commit are not t
     "an earlier commit",
   );
   assert.equal(ownReviewOfHead([], HEAD), false);
+});
+
+test("with this App's login known, another bot that copies the metadata lines is not this App", () => {
+  const other = review({
+    user: { type: "Bot", login: "other-review-bot[bot]" },
+  });
+  assert.equal(ownReviewOfHead([other], HEAD, "co-maintainer[bot]"), false);
+  assert.equal(ownReviewOfHead([review()], HEAD, "co-maintainer[bot]"), true);
+  // Without the login the body alone decides, as it did.
+  assert.equal(ownReviewOfHead([other], HEAD), true);
+});
+
+test("the Activity line alone is not enough, the version line is needed too", () => {
+  assert.equal(
+    ownReviewOfHead([review({ body: "Notes\n\n- Activity: job-9\n" })], HEAD),
+    false,
+  );
 });
 
 test("one of several reviews is enough", () => {

@@ -64,6 +64,7 @@ async function get<T>(
 
 type TokenCache = { token: string; expiresAt: number };
 const installationTokens = new Map<number, TokenCache>();
+const botLogins = new Map<string, string>();
 
 /** App-level calls: list installations, mint an installation access token.
  * Not scoped to one installation, `AppClient` below is. */
@@ -79,6 +80,18 @@ export class AppJwtClient {
   private async jwt(): Promise<string> {
     const key = await importAppPrivateKey(this.privateKeyPem);
     return await signAppJwt(this.appId, key);
+  }
+
+  /** The login this App's own reviews carry. Asked once for each App. */
+  async botLogin(): Promise<string> {
+    const known = botLogins.get(this.appId);
+    if (known) return known;
+    const jwt = await this.jwt();
+    const app = await get<{ slug?: string }>("app", jwt);
+    if (!app.slug) throw new Error("GitHub did not name the App");
+    const login = `${app.slug}[bot]`;
+    botLogins.set(this.appId, login);
+    return login;
   }
 
   async listInstallations(): Promise<Installation[]> {
@@ -124,6 +137,10 @@ export class AppClient implements GitHubClient {
   constructor(appId: string, privateKeyPem: string, installationId: number) {
     this.app = new AppJwtClient(appId, privateKeyPem);
     this.installationId = installationId;
+  }
+
+  botLogin(): Promise<string> {
+    return this.app.botLogin();
   }
 
   async request<T>(endpoint: string): Promise<T> {

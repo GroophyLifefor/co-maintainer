@@ -1076,6 +1076,9 @@ export class SimGithub {
     if (method === "GET" && path === "user") {
       return ok({ login: this.tokenUser.login, type: "User" });
     }
+    if (method === "GET" && path === "app") {
+      return ok({ id: 1, slug: this.bot.login.replace(/\[bot\]$/, "") });
+    }
     if (method === "GET" && path === "app/installations") {
       return ok([this.installationJson()]);
     }

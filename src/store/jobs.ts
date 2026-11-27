@@ -86,6 +86,28 @@ export function listJobs(
     .all(...params);
 }
 
+/** Queued jobs, oldest first, a page at a time. The scheduler reads a page,
+ * not the whole queue, so a long queue does not cost a full read on every
+ * pass. */
+export function listQueuedOldestFirst(limit: number, offset: number): JobRow[] {
+  return getAppDb()
+    .prepare<JobRow>(
+      `SELECT * FROM jobs WHERE status = 'queued'
+       ORDER BY created_at ASC, rowid ASC LIMIT ? OFFSET ?`,
+    )
+    .all(limit, offset);
+}
+
+export function countQueuedJobs(): number {
+  return (
+    getAppDb()
+      .prepare<{ n: number }>(
+        `SELECT COUNT(*) AS n FROM jobs WHERE status = 'queued'`,
+      )
+      .get()?.n ?? 0
+  );
+}
+
 /** The queued job for this (repo, PR), if any, the unique partial index
  * guarantees there is at most one. */
 export function getQueuedJob(
