@@ -57,6 +57,14 @@ test("a license changed after it was signed opens nothing", () => {
   assert.deepEqual(state.modules, []);
 });
 
+test("tampering changes the file whatever the license holds", () => {
+  for (const seats of [0, 50, 51, 9999]) {
+    const state = stateOf(signer.tampered({ seats }), START + DAY);
+    assert.equal(state.status, "invalid", `seats ${seats}`);
+    assert.equal(state.invalidReason, "bad_signature", `seats ${seats}`);
+  }
+});
+
 test("a license for another installation keeps its modules and says so", () => {
   const state = stateOf(signer.sign({ install_id: "install-2" }), START + DAY);
   assert.equal(state.status, "active");
