@@ -3,8 +3,15 @@ import { test } from "node:test";
 import {
   ContentSchedule,
   contentPerHour,
+  contentWriteDelay,
   isContentWrite,
+  releaseJobSlot,
+  reserveJobSlot,
+  resetContentSchedulesForTest,
 } from "./content_bucket.ts";
+import { isolateTestFile } from "../testing/locations.ts";
+
+isolateTestFile();
 
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;
@@ -59,4 +66,35 @@ test("only reviews and comments are content writes, check runs and reads are not
   assert.equal(isContentWrite("POST", "repos/o/r/check-runs"), false);
   assert.equal(isContentWrite("GET", "repos/o/r/pulls/3/reviews"), false);
   assert.equal(isContentWrite("POST", "repos/o/r/pulls/3/files"), false);
+});
+
+test("reviews that start together take their places then, and a write that comes later waits for nothing", () => {
+  resetContentSchedulesForTest();
+  const start = 5_000_000;
+  for (let i = 0; i < 100; i++) reserveJobSlot(`job${i}`, 1, start);
+  // The first 80 hold a place now, the other 20 a minute from now.
+  assert.equal(contentWriteDelay(1, start + 5 * MINUTE, "job0"), 0);
+  assert.equal(contentWriteDelay(1, start + 5 * MINUTE, "job99"), 0);
+  // A write at the start moment shows the spread.
+  assert.equal(contentWriteDelay(1, start, "job1"), 0);
+  assert.equal(contentWriteDelay(1, start, "job95"), MINUTE);
+});
+
+test("a place is used once: the job's second write takes a new place", () => {
+  resetContentSchedulesForTest();
+  reserveJobSlot("a", 2, 0);
+  assert.equal(contentWriteDelay(2, 0, "a"), 0);
+  // 78 more, then the second write of "a" is the 81st, the ticket is gone so "a" now queues like any write.
+  for (let i = 0; i < 78; i++) contentWriteDelay(2, 0);
+  assert.equal(contentWriteDelay(2, 0, "a"), 0, "the 80th write of the minute");
+  assert.equal(contentWriteDelay(2, 0, "a"), MINUTE, "the 81st waits");
+});
+
+test("a place a job did not use is given back", () => {
+  resetContentSchedulesForTest();
+  for (let i = 0; i < 80; i++) reserveJobSlot(`j${i}`, 3, 0);
+  releaseJobSlot("j0");
+  assert.equal(contentWriteDelay(3, 0), 0, "the freed place is available");
+  assert.equal(contentWriteDelay(3, 0), MINUTE);
+  releaseJobSlot("nobody");
 });

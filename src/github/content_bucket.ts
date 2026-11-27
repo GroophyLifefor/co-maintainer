@@ -59,24 +59,74 @@ export class ContentSchedule {
     this.slots.sort((a, b) => a - b);
     return at;
   }
+
+  /** Gives back a slot that was reserved and never used. */
+  release(at: number): void {
+    const index = this.slots.indexOf(at);
+    if (index >= 0) this.slots.splice(index, 1);
+  }
 }
 
 const schedules = new Map<number, ContentSchedule>();
 
-/** The wait in milliseconds before a content write for this installation. */
-export function contentWriteDelay(
-  installationId: number,
-  now: number = Date.now(),
-): number {
+function scheduleFor(installationId: number): ContentSchedule {
   let schedule = schedules.get(installationId);
   if (!schedule) {
     schedule = new ContentSchedule();
     schedules.set(installationId, schedule);
   }
-  return Math.max(0, schedule.reserve(now) - now);
+  return schedule;
+}
+
+/** The place a running review holds for its first content write. */
+const tickets = new Map<string, { installationId: number; at: number }>();
+
+/** A review takes its place when it starts, before the model's work, so the
+ * reviews that start together are spread out then and not all at the moment
+ * they finish (0.7.35). The review's own write uses this place. */
+export function reserveJobSlot(
+  jobId: string,
+  installationId: number,
+  now: number = Date.now(),
+): void {
+  if (tickets.has(jobId)) return;
+  tickets.set(jobId, {
+    installationId,
+    at: scheduleFor(installationId).reserve(now),
+  });
+}
+
+/** Gives back the place a job did not use, such as a review that failed or
+ * posted nothing. Safe to call for a job with no place. */
+export function releaseJobSlot(jobId: string): void {
+  const ticket = tickets.get(jobId);
+  if (!ticket) return;
+  tickets.delete(jobId);
+  scheduleFor(ticket.installationId).release(ticket.at);
+}
+
+/** The wait in milliseconds before a content write for this installation.
+ * The first write of a job that holds a place uses it. Any other write takes
+ * a new place. */
+export function contentWriteDelay(
+  installationId: number,
+  now: number = Date.now(),
+  jobId?: string,
+): number {
+  const ticket = jobId === undefined ? undefined : tickets.get(jobId);
+  if (
+    jobId !== undefined &&
+    ticket &&
+    ticket.installationId === installationId
+  ) {
+    tickets.delete(jobId);
+    return Math.max(0, ticket.at - now);
+  }
+  return Math.max(0, scheduleFor(installationId).reserve(now) - now);
 }
 
 /** Test seam: forget every installation's writes. */
 export function resetContentSchedulesForTest(): void {
   schedules.clear();
+  tickets.clear();
 }

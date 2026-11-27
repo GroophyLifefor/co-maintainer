@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.35] - 2026-11-27
+
+### Changed
+
+- **A review takes its place in GitHub's content limit when it starts, not when the model has finished.** The 0.7.33 spacing gave each review and comment its place at the moment it was written. Reviews that start together also finish together, so a burst of them all asked at once and the later ones waited, holding their slot after the model had already been paid. A review now takes its place as it starts, the places are spread over the 80 a minute and 450 an hour, and its write uses that place. A place a review did not use, because it failed or posted nothing, is given back.
+
+### Fixed
+
+- **A model's refusals are saved in order.** When a model refused two request fields in a row, the two lessons were written to the settings file at the same time, and the older, smaller one could land last and erase the newer. The model was then asked for the refused field again. The lessons are now written one after another.
+
 ## [0.7.34] - 2026-11-27
 
 ### Changed

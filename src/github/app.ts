@@ -4,6 +4,7 @@ import {
   paginate,
   waitForContentSlot,
 } from "./client.ts";
+import { currentRateLimitJobId } from "../services/rate_limit.ts";
 import { noteRateLimit } from "./budget.ts";
 import { contentWriteDelay, isContentWrite } from "./content_bucket.ts";
 import { importAppPrivateKey, signAppJwt } from "./jwt.ts";
@@ -156,7 +157,11 @@ export class AppClient implements GitHubClient {
     // GitHub counts reviews and comments against 80 a minute and 500 an hour.
     // The write waits for its place instead of meeting a secondary limit.
     if (isContentWrite("POST", endpoint)) {
-      const delay = contentWriteDelay(this.installationId);
+      const delay = contentWriteDelay(
+        this.installationId,
+        Date.now(),
+        currentRateLimitJobId(),
+      );
       if (delay > 0) await waitForContentSlot(delay);
     }
     return await call<T>(
