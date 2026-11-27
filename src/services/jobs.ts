@@ -1,5 +1,6 @@
 import { readConfig } from "../config.ts";
 import {
+  budgetVersion,
   mayStartReview,
   noteReviewCost,
   takeJobRequests,
@@ -10,8 +11,10 @@ import {
   getJob,
   getQueuedJobByKey,
   getRunningJobByKey,
+  countQueuedJobs,
   insertJob,
   listJobs,
+  listQueuedOldestFirst,
   setJobStatus,
 } from "../store/jobs.ts";
 import { appendLog as storeAppendLog, listLogs } from "../store/job_logs.ts";
@@ -163,9 +166,9 @@ async function runJob(job: JobRow): Promise<void> {
   }
 }
 
-function runningRemoteReviewsPerToken(): Map<string, number> {
+function runningRemoteReviewsPerToken(running: JobRow[]): Map<string, number> {
   const counts = new Map<string, number>();
-  for (const job of listJobs({ status: "running" })) {
+  for (const job of running) {
     if (job.type !== "remote_review") continue;
     const review = getReviewByJobId(job.id);
     if (!review?.token_id) continue;
@@ -174,64 +177,115 @@ function runningRemoteReviewsPerToken(): Map<string, number> {
   return counts;
 }
 
-function claimNextEligible(): JobRow | undefined {
+/** How many queued jobs a pass reads at a time. A pass takes the first job it
+ * may start, so with a short queue it reads one page, and with a long queue
+ * that is blocked it still reads the queue a page at a time and never
+ * asks the database about each job. */
+const QUEUE_PAGE = 200;
+
+/** Set when a pass found queued reviews it could not start for the budget and
+ * nothing it could start: until the time is up the next passes would only
+ * repeat it. It holds only while the budget's version, the number of running
+ * reviews and the number of queued jobs are the ones the pass saw, so a new
+ * hour, a review that finished and a job that arrived each end it at once. */
+let budgetBlock: { until: number; signature: string } | undefined;
+/** How long a pass blocked by the budget stands, so a long queue that cannot
+ * start does not keep the process busy. */
+const BUDGET_BLOCK_MS = 1000;
+
+/** Exported for the test that counts what a pass asks the database. */
+export function claimNextEligible(
+  now: number = Date.now(),
+): JobRow | undefined {
   const config = readConfig();
   const perTokenLimit =
     config.maxConcurrentRemoteReviewsPerToken ??
     DEFAULT_MAX_REMOTE_REVIEWS_PER_TOKEN;
+  // Running jobs are read once: three counts come from the same list.
+  const running = listJobs({ status: "running" });
+  const signature = `${budgetVersion()}:${running.filter((j) => j.type === "review").length}:${countQueuedJobs()}`;
+  if (
+    budgetBlock &&
+    now < budgetBlock.until &&
+    budgetBlock.signature === signature
+  ) {
+    return undefined;
+  }
   const remoteRunning = perTokenLimit
-    ? runningRemoteReviewsPerToken()
+    ? runningRemoteReviewsPerToken(running)
     : undefined;
-  const oldestFirst = listJobs({ status: "queued" }).slice().reverse();
   // Push reviews of one repository run one after another, oldest first, so a
   // later push sees the issues an earlier one opened.
   const pushRepos = new Set(
-    listJobs({ status: "running" })
-      .filter((job) => job.type === "push_review")
-      .map((job) => job.repo),
+    running.filter((job) => job.type === "push_review").map((job) => job.repo),
   );
+  // What one pass asks about a repository or an installation is asked once.
+  const installationOf = new Map<string, number | undefined>();
+  const installation = (repo: string): number | undefined => {
+    if (!installationOf.has(repo)) {
+      installationOf.set(repo, getRepo(repo)?.installation_id ?? undefined);
+    }
+    return installationOf.get(repo);
+  };
   const runningReviews = new Map<number, number>();
-  for (const job of listJobs({ status: "running" })) {
+  for (const job of running) {
     if (job.type !== "review") continue;
-    const id = getRepo(job.repo)?.installation_id;
+    const id = installation(job.repo);
     if (id) runningReviews.set(id, (runningReviews.get(id) ?? 0) + 1);
   }
-  for (const candidate of oldestFirst) {
-    if (!handlers.has(candidate.type)) continue;
-    if (candidate.queue_key) {
-      const busy = getRunningJobByKey(candidate.queue_key);
-      if (busy) continue;
-    }
-    if (candidate.type === "push_review") {
-      if (pushRepos.has(candidate.repo)) continue;
-      pushRepos.add(candidate.repo);
-    }
-    // A review starts only when its installation has the requests left for
-    // it. It stays queued otherwise, and the next pass looks again.
-    if (candidate.type === "review") {
-      const installation = getRepo(candidate.repo)?.installation_id;
-      const runningHere = runningReviews.get(installation ?? -1) ?? 0;
-      if (!mayStartReview(installation ?? undefined, runningHere)) continue;
-    }
-    if (perTokenLimit && candidate.type === "remote_review") {
-      const review = getReviewByJobId(candidate.id);
-      const tokenId = review?.token_id;
-      if (tokenId && (remoteRunning!.get(tokenId) ?? 0) >= perTokenLimit) {
-        continue;
+  const mayStart = new Map<number, boolean>();
+  let skippedForBudget = false;
+  for (let offset = 0; ; offset += QUEUE_PAGE) {
+    const page = listQueuedOldestFirst(QUEUE_PAGE, offset);
+    if (page.length === 0) break;
+    for (const candidate of page) {
+      if (!handlers.has(candidate.type)) continue;
+      // A review starts only when its installation has the requests left for
+      // it. It stays queued otherwise, and the next pass looks again. This is
+      // asked before anything that reads the database, and once for every
+      // installation.
+      if (candidate.type === "review") {
+        const id = installation(candidate.repo);
+        const key = id ?? -1;
+        if (!mayStart.has(key)) {
+          mayStart.set(key, mayStartReview(id, runningReviews.get(key) ?? 0));
+        }
+        if (!mayStart.get(key)) {
+          skippedForBudget = true;
+          continue;
+        }
       }
-    }
-    if (!claimJob(candidate.id)) continue;
-    if (perTokenLimit && candidate.type === "remote_review") {
-      const review = getReviewByJobId(candidate.id);
-      if (review?.token_id) {
-        remoteRunning!.set(
-          review.token_id,
-          (remoteRunning!.get(review.token_id) ?? 0) + 1,
-        );
+      if (candidate.queue_key) {
+        const busy = getRunningJobByKey(candidate.queue_key);
+        if (busy) continue;
       }
+      if (candidate.type === "push_review") {
+        if (pushRepos.has(candidate.repo)) continue;
+        pushRepos.add(candidate.repo);
+      }
+      if (perTokenLimit && candidate.type === "remote_review") {
+        const review = getReviewByJobId(candidate.id);
+        const tokenId = review?.token_id;
+        if (tokenId && (remoteRunning!.get(tokenId) ?? 0) >= perTokenLimit) {
+          continue;
+        }
+      }
+      if (!claimJob(candidate.id)) continue;
+      if (perTokenLimit && candidate.type === "remote_review") {
+        const review = getReviewByJobId(candidate.id);
+        if (review?.token_id) {
+          remoteRunning!.set(
+            review.token_id,
+            (remoteRunning!.get(review.token_id) ?? 0) + 1,
+          );
+        }
+      }
+      return getJob(candidate.id);
     }
-    return getJob(candidate.id);
   }
+  budgetBlock = skippedForBudget
+    ? { until: now + BUDGET_BLOCK_MS, signature }
+    : undefined;
   return undefined;
 }
 

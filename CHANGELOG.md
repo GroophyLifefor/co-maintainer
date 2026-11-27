@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.36] - 2026-11-27
+
+### Fixed
+
+- **A long queue that the request budget holds back no longer keeps the process busy.** When an installation had no GitHub requests left, every pass of the job worker, 40 times a second, asked the database about each queued review. With thousands queued that took about a fifth of a second a pass, so the dashboard and webhooks waited behind it for as long as the budget was out. A pass now reads the queue a page at a time, asks about each repository and installation once, asks the budget before anything else, and a pass that could start nothing for the budget is not repeated until a job arrives, a review ends or a new hour begins. A review of another installation still starts at once.
+
+## [0.7.35] - 2026-11-27
+
+### Fixed
+
+- **`co-maintainer help` no longer runs `login-link` into its description.** The command column was ten characters wide and `login-link` is ten, so its summary touched the name. The column now follows the longest command name, with two spaces after it.
+
 ## [0.7.34] - 2026-11-27
 
 ### Changed
