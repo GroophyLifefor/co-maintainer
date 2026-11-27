@@ -367,12 +367,13 @@ export function renderRepoSettings(
         <div class="field">
           <label for="review-event">How the review is posted</label>
           <select id="review-event">
-            <option value=""${config.reviewEvent ? "" : " selected"}>Server default (${userConfig.reviewEvent === "comment" ? "comment only" : "approve or request changes"})</option>
-            <option value="auto"${config.reviewEvent === "auto" ? " selected" : ""}>Approve, or request changes when a finding blocks</option>
+            <option value=""${config.reviewEvent ? "" : " selected"}>Server default (${userConfig.reviewEvent === "comment" ? "comment only" : userConfig.reviewEvent === "auto-forks" ? "approve or request changes, forks included" : "approve or request changes, comment only on forks"})</option>
+            <option value="auto"${config.reviewEvent === "auto" ? " selected" : ""}>Approve, or request changes when a finding blocks (comment only on pull requests from forks)</option>
+            <option value="auto-forks"${config.reviewEvent === "auto-forks" ? " selected" : ""}>Approve, or request changes when a finding blocks, forks included</option>
             <option value="comment"${config.reviewEvent === "comment" ? " selected" : ""}>Comment only, people decide the merge</option>
           </select>
           <div class="hint">Comment only never approves and never blocks, so the bot does not count toward required approvals.</div>
-          <div class="cli"><code>set --repo=${text(name)} --review-event=auto|comment</code></div>
+          <div class="cli"><code>set --repo=${text(name)} --review-event=auto|comment|auto-forks</code></div>
         </div>
         <div style="display:flex;align-items:center;gap:14px;margin-top:22px">
           <button class="tg${repo.use_codegraph === 1 ? " on" : ""}" id="codegraph"></button>

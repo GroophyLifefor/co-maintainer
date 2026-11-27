@@ -1680,6 +1680,13 @@ A bot approval counts toward a repository's required approvals, so a pull
 request with open non-blocking comments can become mergeable on the App's
 approval alone.
 
+A pull request from a fork is the exception: its author also writes what the
+change says about itself, so the App reviews it and posts the findings as a
+comment, and never approves or requests changes on it. A repository that wants
+the App to approve forks too chooses it with `--review-event=auto-forks`
+(`--repo` for one repository), or in the dashboard under how the review is
+posted. `--review-event=comment` still never approves anything.
+
 ## JSON output
 
 With `--json`, stdout is a single JSON object (`schemaVersion` `1`). Fields
@@ -5071,7 +5078,7 @@ co-maintainer set [options]
 | `--guide-full-every=N` | 10 | Every N-th sync whose input changed rewrites the review guide in full, the others edit it. 1 always rewrites, 0 never after init. Needs --repo. |
 | `--companions=owner/repo,...` |  | Repositories whose pull requests a review of this one may read as companions, up to 5. A Companion: owner/repo#N line in the pull request body names one, otherwise an open pull request with the same branch name is used. Needs --repo. |
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. With --repo, for that repository. |
-| `--review-event=auto\|comment` | auto | How the App posts a review: approve or request changes, or comment only. With --repo, for that repository. |
+| `--review-event=auto\|comment\|auto-forks` | auto | How the App posts a review: approve or request changes (on pull requests from forks it only comments), or comment only. auto-forks approves or requests changes on forks too. With --repo, for that repository. |
 | `--ai-timeout-minutes=N` | 15 | How long one AI request may wait for the provider before it fails, in minutes. |
 | `--mask-secrets=true\|false` | true | Mask known secret shapes, such as API keys, tokens and private keys, before any request reaches the model. |
 | `--global-reasoning-effort=none\|low\|default\|high\|xhigh\|max` | high | How much the model reasons in every AI job. default sends no reasoning field and leaves it to the provider. |
@@ -6681,6 +6688,22 @@ cache. Pass `--yes` to skip the question. The files it replaced are kept in
 It refuses when there is no backup, when `serve` is running, and when the
 installed version is not the one that took the backup. If the copy cannot be
 made, the migration does not run and nothing is changed.
+
+## When `app.db` is lost
+
+`app.db` holds the repository list, the job history and the reviews' records.
+The guides the server built are files in the data folder, so they survive a lost
+or damaged `app.db`. When `serve` starts it finds those guides, lists each
+repository again with its guides and with automatic review off, and builds
+nothing. A pull request opened meanwhile is skipped with the reason
+`auto-review-off`. Switch automatic review on for the repository in the
+dashboard when you are ready. Nothing is rebuilt and no model is called.
+
+Reviews that GitHub already holds are not made again: before a review starts,
+the server looks at the pull request's reviews on GitHub and stops when its own
+review of that commit is there. Job history, finished reviews' records and cost
+rows are gone with the file. Restore a backup of `app.db` if you have one,
+together with `config.json`.
 
 ## Platform notes
 

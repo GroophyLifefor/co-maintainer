@@ -1049,6 +1049,12 @@ requested&quot; from the App, which a comment-only review could not.</p>
 <p>A bot approval counts toward a repository&#39;s required approvals, so a pull
 request with open non-blocking comments can become mergeable on the App&#39;s
 approval alone.</p>
+<p>A pull request from a fork is the exception: its author also writes what the
+change says about itself, so the App reviews it and posts the findings as a
+comment, and never approves or requests changes on it. A repository that wants
+the App to approve forks too chooses it with <code>--review-event=auto-forks</code>
+(<code>--repo</code> for one repository), or in the dashboard under how the review is
+posted. <code>--review-event=comment</code> still never approves anything.</p>
 <h2 id="json-output">JSON output</h2>
 <p>With <code>--json</code>, stdout is a single JSON object (<code>schemaVersion</code> <code>1</code>). Fields
 include <code>mode</code> (<code>local</code>, <code>remote</code>, or <code>pr</code>), <code>subject</code>, <code>summary</code>, <code>findings[]</code>,

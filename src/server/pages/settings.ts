@@ -368,7 +368,8 @@ function defaultsCard(config: UserConfig): string {
         <div class="field wide" style="margin-top:18px">
           <label for="def-review-event">How the review is posted</label>
           <select id="def-review-event">
-            <option value="auto"${config.reviewEvent === "comment" ? "" : " selected"}>Approve, or request changes when a finding blocks</option>
+            <option value="auto"${config.reviewEvent === "comment" || config.reviewEvent === "auto-forks" ? "" : " selected"}>Approve, or request changes when a finding blocks (comment only on pull requests from forks)</option>
+            <option value="auto-forks"${config.reviewEvent === "auto-forks" ? " selected" : ""}>Approve, or request changes when a finding blocks, forks included</option>
             <option value="comment"${config.reviewEvent === "comment" ? " selected" : ""}>Comment only, people decide the merge</option>
           </select>
           <div class="hint">Every repository uses this unless its own settings choose another.</div>
