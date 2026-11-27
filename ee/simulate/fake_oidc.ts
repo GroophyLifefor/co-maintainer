@@ -75,6 +75,8 @@ export type Faults = {
   wrongNonce: boolean;
   /** Leave the ID token out of the token answer. */
   omitIdToken: boolean;
+  /** Sign an ID token that has no exp and no iat. */
+  omitTimes: boolean;
 };
 
 export type FakeOidc = {
@@ -169,6 +171,7 @@ export async function startFakeOidc(
     wrongIssuer: false,
     wrongNonce: false,
     omitIdToken: false,
+    omitTimes: false,
   };
 
   let issuer = "";
@@ -180,8 +183,7 @@ export async function startFakeOidc(
       iss: faults.wrongIssuer ? `${issuer}/other` : issuer,
       sub: session.user.sub,
       aud: faults.wrongAudience ? "another-client" : session.clientId,
-      iat,
-      exp: iat + idSeconds,
+      ...(faults.omitTimes ? {} : { iat, exp: iat + idSeconds }),
       auth_time: Math.floor(session.authTime / 1000),
       nonce: faults.wrongNonce ? "nonce-it-never-sent" : session.nonce,
       email: session.user.email,

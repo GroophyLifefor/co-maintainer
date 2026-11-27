@@ -254,6 +254,7 @@ test("every kind of bad ID token is refused with its own reason", async () => {
     ["wrongIssuer", "issuer"],
     ["wrongNonce", "nonce"],
     ["omitIdToken", "no_id_token"],
+    ["omitTimes", "malformed"],
   ];
   for (const [fault, expected] of cases) {
     await withIdp(async (s) => {
