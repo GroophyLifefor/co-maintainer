@@ -11,7 +11,8 @@
  * failed, and reports the numbers in the check's detail. */
 import type { AiRule } from "../fake_ai.ts";
 import { check, defineFlow, type CheckResult, type Sim } from "../flow.ts";
-import { APP_REPO, serveRepo } from "./app.ts";
+import type { SimPull } from "../github.ts";
+import { APP_REPO, appRows, serveRepo } from "./app.ts";
 import { INIT_AI } from "./init.ts";
 
 const PRS = Number(process.env.LOAD_PRS ?? 20);
@@ -20,6 +21,24 @@ const AI_MS = Number(process.env.LOAD_AI_MS ?? 200);
  * fake GitHub has no limit. Set, the run spends it, waits when the product
  * holds reviews back, and each time it stalls the hour resets, so a run of
  * thousands of pull requests shows how many hours of budget they take. */
+/** `LOAD_BURST`: how many webhooks are delivered at the same moment. Unset,
+ * they arrive one after another. GitHub waits ten seconds for an answer, so
+ * the slowest answer of a burst must stay under that. */
+function burstFromEnv(): number | undefined {
+  const raw = process.env.LOAD_BURST;
+  if (raw === undefined) return undefined;
+  const value = Number(raw);
+  if (raw.trim() === "" || !Number.isInteger(value) || value < 1) {
+    throw new Error(
+      `LOAD_BURST must be a whole number of 1 or more, got "${raw}"`,
+    );
+  }
+  return value;
+}
+const BURST = burstFromEnv();
+/** GitHub gives up on a webhook that has not been answered in this time. */
+const WEBHOOK_LIMIT_MS = 10_000;
+
 function budgetFromEnv(): number | undefined {
   const raw = process.env.LOAD_BUDGET;
   if (raw === undefined) return undefined;
@@ -53,6 +72,15 @@ type Result = {
   githubCalls: number;
   peakQueued: number;
   jobsLimit: number;
+  /** The slowest webhook answer, and how many were delivered. */
+  slowestAnswerMs: number;
+  delivered: number;
+  /** The process's memory at the start, the highest and at the end, in MB, and
+   * how many log lines say the database was locked. */
+  rssStartMb: number;
+  rssPeakMb: number;
+  rssEndMb: number;
+  lockMessages: number;
   /** Hours of the budget the run used, and the most requests any one hour
    * took. Both 0 without a budget. */
   hours: number;
@@ -71,11 +99,15 @@ async function drain(sim: Sim): Promise<Result> {
   let callsAtHourStart = sim.trace.github.length;
   let lastProgress = performance.now();
   let lastDone = -1;
+  const mb = () => Math.round(process.memoryUsage().rss / 1_048_576);
+  const rssStartMb = mb();
+  let rssPeakMb = rssStartMb;
   startWorkerLoop(25);
   for (;;) {
     const queued = listJobs({ status: "queued" }).length;
     const running = listJobs({ status: "running" }).length;
     peakQueued = Math.max(peakQueued, queued);
+    rssPeakMb = Math.max(rssPeakMb, mb());
     if (queued === 0 && running === 0) break;
     const done = listJobs({ status: "done" }).length;
     if (done !== lastDone) {
@@ -122,6 +154,20 @@ async function drain(sim: Sim): Promise<Result> {
     jobsLimit: readConfig().maxConcurrentJobs ?? 4,
     hours,
     mostInAnHour,
+    ...((sim.state.arrival as {
+      slowestAnswerMs: number;
+      delivered: number;
+    }) ?? {
+      slowestAnswerMs: 0,
+      delivered: 0,
+    }),
+    rssStartMb,
+    rssPeakMb,
+    rssEndMb: mb(),
+    lockMessages: appRows<{ n: number }>(
+      sim,
+      `SELECT COUNT(*) AS n FROM job_logs WHERE message LIKE '%locked%' OR message LIKE '%SQLITE_BUSY%'`,
+    )[0]!.n,
   };
 }
 
@@ -134,6 +180,20 @@ function checks(sim: Sim): CheckResult[] {
       PRS > 0 && r.reviews === PRS && r.failed === 0,
       `${r.reviews} reviews · ${r.failed} failed · ${r.wallMs} ms wall · ${perHour} reviews/hour at ${AI_MS} ms of model time · ${r.githubCalls} GitHub calls (${(r.githubCalls / PRS).toFixed(1)} per pull request) · peak queue ${r.peakQueued} · concurrent jobs ${r.jobsLimit}`,
     ),
+    check(
+      "no database lock error in the jobs' logs",
+      r.lockMessages === 0,
+      `${r.lockMessages} log lines · memory ${r.rssStartMb} MB at the start, ${r.rssPeakMb} MB at the most, ${r.rssEndMb} MB at the end`,
+    ),
+    ...(BURST === undefined
+      ? []
+      : [
+          check(
+            `${BURST} webhooks at the same moment are all answered in under ${WEBHOOK_LIMIT_MS / 1000} seconds`,
+            r.slowestAnswerMs < WEBHOOK_LIMIT_MS,
+            `the slowest answer took ${r.slowestAnswerMs} ms of ${r.delivered} webhooks`,
+          ),
+        ]),
     ...(BUDGET === undefined
       ? []
       : [
@@ -179,17 +239,39 @@ export default defineFlow({
           job: "review_pull_request",
           times: PRS,
         });
+        const pulls: SimPull[] = [];
         for (let i = 0; i < PRS; i++) {
-          const pull = sim.github.openPull(APP_REPO, {
-            title: `Change ${i}`,
-            files: { [`docs/n${i}.md`]: `# ${i}\n` },
-          });
-          await sim.server.deliver(
-            "pull_request",
-            sim.server.payloads.pullRequest(pull, "opened"),
-            { deliveryId: `load-${i}` },
+          pulls.push(
+            sim.github.openPull(APP_REPO, {
+              title: `Change ${i}`,
+              files: { [`docs/n${i}.md`]: `# ${i}\n` },
+            }),
           );
         }
+        let slowest = 0;
+        const deliverOne = async (i: number) => {
+          const startedAt = performance.now();
+          await sim.server.deliver(
+            "pull_request",
+            sim.server.payloads.pullRequest(pulls[i]!, "opened"),
+            { deliveryId: `load-${i}` },
+          );
+          slowest = Math.max(slowest, performance.now() - startedAt);
+        };
+        // A burst delivers its webhooks at the same moment, one burst after
+        // another. Without one they arrive in turn.
+        const size = BURST ?? 1;
+        for (let from = 0; from < PRS; from += size) {
+          await Promise.all(
+            Array.from({ length: Math.min(size, PRS - from) }, (_, k) =>
+              deliverOne(from + k),
+            ),
+          );
+        }
+        sim.state.arrival = {
+          slowestAnswerMs: Math.round(slowest),
+          delivered: PRS,
+        };
         return `${PRS} webhooks delivered`;
       },
     },
