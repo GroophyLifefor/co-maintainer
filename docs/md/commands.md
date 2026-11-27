@@ -467,7 +467,7 @@ co-maintainer set [options]
 | `--guide-full-every=N` | 10 | Every N-th sync whose input changed rewrites the review guide in full, the others edit it. 1 always rewrites, 0 never after init. Needs --repo. |
 | `--companions=owner/repo,...` |  | Repositories whose pull requests a review of this one may read as companions, up to 5. A Companion: owner/repo#N line in the pull request body names one, otherwise an open pull request with the same branch name is used. Needs --repo. |
 | `--review-blocking=model\|severity` | model | How a review decides a blocking finding. With --repo, for that repository. |
-| `--review-event=auto\|comment` | auto | How the App posts a review: approve or request changes, or comment only. With --repo, for that repository. |
+| `--review-event=auto\|comment\|auto-forks` | auto | How the App posts a review: approve or request changes (on pull requests from forks it only comments), or comment only. auto-forks approves or requests changes on forks too. With --repo, for that repository. |
 | `--ai-timeout-minutes=N` | 15 | How long one AI request may wait for the provider before it fails, in minutes. |
 | `--mask-secrets=true\|false` | true | Mask known secret shapes, such as API keys, tokens and private keys, before any request reaches the model. |
 | `--global-reasoning-effort=none\|low\|default\|high\|xhigh\|max` | high | How much the model reasons in every AI job. default sends no reasoning field and leaves it to the provider. |

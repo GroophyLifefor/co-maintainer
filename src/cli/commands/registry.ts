@@ -1184,10 +1184,10 @@ export const COMMANDS: CommandSpec[] = [
           },
           {
             name: "review-event",
-            value: "auto|comment",
+            value: "auto|comment|auto-forks",
             default: "auto",
             description:
-              "How the App posts a review: approve or request changes, or comment only. With --repo, for that repository.",
+              "How the App posts a review: approve or request changes (on pull requests from forks it only comments), or comment only. auto-forks approves or requests changes on forks too. With --repo, for that repository.",
           },
           {
             name: "ai-timeout-minutes",

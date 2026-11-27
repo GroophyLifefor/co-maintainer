@@ -268,12 +268,13 @@ export async function handleSettingsRoute(
     if ("reviewEvent" in body) {
       const raw = body.reviewEvent;
       if (raw === null || raw === "") patch.reviewEvent = undefined;
-      else if (raw === "auto" || raw === "comment") patch.reviewEvent = raw;
+      else if (raw === "auto" || raw === "comment" || raw === "auto-forks")
+        patch.reviewEvent = raw;
       else {
         return errorResponse(
           422,
           "invalid_setting",
-          "reviewEvent must be auto or comment",
+          "reviewEvent must be auto, comment or auto-forks",
         );
       }
     }

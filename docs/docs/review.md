@@ -769,6 +769,13 @@ A bot approval counts toward a repository's required approvals, so a pull
 request with open non-blocking comments can become mergeable on the App's
 approval alone.
 
+A pull request from a fork is the exception: its author also writes what the
+change says about itself, so the App reviews it and posts the findings as a
+comment, and never approves or requests changes on it. A repository that wants
+the App to approve forks too chooses it with `--review-event=auto-forks`
+(`--repo` for one repository), or in the dashboard under how the review is
+posted. `--review-event=comment` still never approves anything.
+
 ## JSON output
 
 With `--json`, stdout is a single JSON object (`schemaVersion` `1`). Fields

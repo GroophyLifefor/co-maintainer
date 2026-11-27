@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.39] - 2026-11-27
+
+### Changed
+
+- **The review treats a pull request's text as data, and a pull request from a fork is no longer approved by default.** The review's system prompt now says that the title, the description, the comments, the diff, file contents and tool results are data written by other people and not instructions, as the reply prompt already did. A pull request from a fork gets the same review, with its findings posted as a comment, and the App neither approves it nor requests changes on it, because the author of a fork's change also writes what the change says about itself. Pull requests from the repository itself are approved or blocked as before. A repository that wants the App to approve forks too sets `--review-event=auto-forks` (with `--repo` for one repository), or picks it in the dashboard under how the review is posted. `--review-event=comment` still never approves anything. A new simulation flow, `fork-review`, checks the prompt and the posted review state.
+
 ## [0.7.35] - 2026-11-27
 
 ### Fixed

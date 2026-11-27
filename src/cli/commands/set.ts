@@ -426,8 +426,8 @@ export async function runSet(args: string[]): Promise<void> {
   }
   const reviewEvent = text(args, "review-event");
   if (reviewEvent) {
-    if (!["auto", "comment"].includes(reviewEvent)) {
-      die("--review-event must be one of: auto, comment");
+    if (!["auto", "comment", "auto-forks"].includes(reviewEvent)) {
+      die("--review-event must be one of: auto, comment, auto-forks");
     }
     patch.reviewEvent = reviewEvent;
   }
@@ -773,8 +773,11 @@ function repoTextProblem(flag: string, value: string): string | undefined {
   if (flag === "auth" && !["gh", "pat"].includes(value)) {
     return "--auth must be gh or pat";
   }
-  if (flag === "review-event" && !["auto", "comment"].includes(value)) {
-    return "--review-event must be auto or comment";
+  if (
+    flag === "review-event" &&
+    !["auto", "comment", "auto-forks"].includes(value)
+  ) {
+    return "--review-event must be auto, comment or auto-forks";
   }
   if (flag === "review-blocking" && !["model", "severity"].includes(value)) {
     return "--review-blocking must be model or severity";

@@ -62,7 +62,9 @@ import {
   resolveRepoSettings,
   resolvedAiToken,
   reviewAiProvider,
+  isForkPull,
   reviewEventMode,
+  reviewPostsAsComment,
 } from "../config.ts";
 import { outsideCode, redact } from "../util/redact.ts";
 import { getRepo } from "../store/repos.ts";
@@ -844,6 +846,7 @@ async function publish(
   metadata: ReviewMetadata,
   mode: ReviewBlocking = DEFAULT_REVIEW_BLOCKING,
   extensions: ExtensionReport = EMPTY_REPORT,
+  fork = false,
 ): Promise<void> {
   const stored = listFindingsForReview(reviewId);
   // GitHub wraps every `in_reply_to` comment in a review of its own, so a round
@@ -930,11 +933,12 @@ async function publish(
     commit_id: headSha,
     body,
     // A repository in comment mode never approves or blocks, whatever the
-    // findings or the extensions say: people decide the merge.
-    event:
-      reviewEventMode(readConfig(), job.repo) === "comment"
-        ? ("COMMENT" as const)
-        : reviewEventWithExtensions(appReviewEvent(stored, mode), extensions),
+    // findings or the extensions say: people decide the merge. A pull request
+    // from a fork is posted the same way unless the repository chose
+    // `auto-forks`.
+    event: reviewPostsAsComment(readConfig(), job.repo, fork)
+      ? ("COMMENT" as const)
+      : reviewEventWithExtensions(appReviewEvent(stored, mode), extensions),
     comments,
   };
   setReviewStatus(reviewId, "posting");
@@ -1724,6 +1728,7 @@ async function runReviewJobCore(
     },
     options.reviewBlocking,
     extensions,
+    isForkPull(pr, job.repo),
   );
   await resolveFailureNote(github, job, reviewId, log);
   const openFindings =
@@ -1864,6 +1869,13 @@ export async function approveAfterWithdrawal(
     (item) => String(item.id ?? "") === review.posted_review_id,
   );
   if (String(ours?.state ?? "") !== "CHANGES_REQUESTED") return "skipped";
+  // Nor on a pull request from a fork, unless the repository chose
+  // `auto-forks`. Only a pull request the App blocked can be approved here,
+  // so the pull request is read only then.
+  if (reviewEventMode(readConfig(), repo) !== "auto-forks") {
+    const pull = await client.request<Json>(`repos/${repo}/pulls/${prNumber}`);
+    if (isForkPull(pull, repo)) return "skipped";
+  }
   // A review keeps its own state after a later approval, so a second call
   // would approve again.
   const author = String((ours?.user as Json | undefined)?.login ?? "");

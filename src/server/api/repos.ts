@@ -429,13 +429,17 @@ export async function handleReposRoute(
         const raw = body.reviewEvent;
         if (raw === null || raw === "") {
           blockingPatch.reviewEvent = undefined;
-        } else if (raw === "auto" || raw === "comment") {
+        } else if (
+          raw === "auto" ||
+          raw === "comment" ||
+          raw === "auto-forks"
+        ) {
           blockingPatch.reviewEvent = raw;
         } else {
           return errorResponse(
             422,
             "invalid_review_event",
-            "reviewEvent must be auto or comment",
+            "reviewEvent must be auto, comment or auto-forks",
           );
         }
       }
