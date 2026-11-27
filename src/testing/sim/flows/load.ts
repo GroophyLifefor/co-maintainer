@@ -190,8 +190,10 @@ function checks(sim: Sim): CheckResult[] {
       : [
           check(
             `${BURST} webhooks at the same moment are all answered in under ${WEBHOOK_LIMIT_MS / 1000} seconds`,
-            r.slowestAnswerMs < WEBHOOK_LIMIT_MS,
-            `the slowest answer took ${r.slowestAnswerMs} ms of ${r.delivered} webhooks`,
+            PRS >= BURST &&
+              r.delivered === PRS &&
+              r.slowestAnswerMs < WEBHOOK_LIMIT_MS,
+            `the slowest answer took ${r.slowestAnswerMs} ms of ${r.delivered} webhooks${PRS < BURST ? `, fewer than the burst of ${BURST}` : ""}`,
           ),
         ]),
     ...(BUDGET === undefined
