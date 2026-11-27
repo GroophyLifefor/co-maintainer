@@ -120,13 +120,13 @@ async function runJob(job: JobRow): Promise<void> {
   }
   const controller = new AbortController();
   running.set(job.id, controller);
-  // A review takes its place in the installation's content schedule now, not
-  // when the model has finished.
-  if (job.type === "review") {
-    const installation = getRepo(job.repo)?.installation_id;
-    if (installation) reserveJobSlot(job.id, installation);
-  }
   try {
+    // A review takes its place in the installation's content schedule now, not
+    // when the model has finished.
+    if (job.type === "review") {
+      const installation = getRepo(job.repo)?.installation_id;
+      if (installation) reserveJobSlot(job.id, installation);
+    }
     await withRateLimitJob(job.id, () =>
       handler.run(job, logFn, controller.signal),
     );
