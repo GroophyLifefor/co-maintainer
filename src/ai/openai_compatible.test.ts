@@ -211,6 +211,35 @@ test("each refused field is dropped once, the answer comes back, and the lesson 
   }
 });
 
+test("two lessons asked for together are both saved, the older one never lands last", async () => {
+  await writeUserConfig({
+    ai: "openai-compatible",
+    aiBaseUrl: "http://127.0.0.1:9/v1",
+    aiAllowHttp: true,
+    aiModelQuirks: undefined,
+  });
+  const host = openAiCompatibleHost("two-lessons");
+  const request = { prompt: "hi", maxTokens: 20, job: "t" } as never;
+  host.lighter?.(request, "Unsupported parameter: 'temperature'", 400);
+  host.lighter?.(
+    request,
+    "Unrecognized request argument: max_completion_tokens",
+    400,
+  );
+  for (
+    let waited = 0;
+    (readConfig().aiModelQuirks?.["two-lessons"]?.drop?.length ?? 0) < 2 &&
+    waited < 5000;
+    waited += 25
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert.deepEqual(readConfig().aiModelQuirks?.["two-lessons"]?.drop, [
+    "max_completion_tokens",
+    "temperature",
+  ]);
+});
+
 test("no base URL, or an unusable one, stops with a message that says how to set it", () => {
   assert.throws(
     () => openAiCompatibleHost("m", {}),
