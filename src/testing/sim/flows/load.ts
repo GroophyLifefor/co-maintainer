@@ -20,9 +20,20 @@ const AI_MS = Number(process.env.LOAD_AI_MS ?? 200);
  * fake GitHub has no limit. Set, the run spends it, waits when the product
  * holds reviews back, and each time it stalls the hour resets, so a run of
  * thousands of pull requests shows how many hours of budget they take. */
-const BUDGET = process.env.LOAD_BUDGET
-  ? Number(process.env.LOAD_BUDGET)
-  : undefined;
+function budgetFromEnv(): number | undefined {
+  const raw = process.env.LOAD_BUDGET;
+  if (raw === undefined) return undefined;
+  const value = Number(raw);
+  // A value that is set but empty or not a positive number is a mistake, not
+  // "no budget": say so instead of running without the check.
+  if (raw.trim() === "" || !Number.isFinite(value) || value <= 0) {
+    throw new Error(
+      `LOAD_BUDGET must be a positive number of requests an hour, got "${raw}"`,
+    );
+  }
+  return value;
+}
+const BUDGET = budgetFromEnv();
 const JOBS = process.env.LOAD_JOBS ? Number(process.env.LOAD_JOBS) : undefined;
 
 const AI: AiRule[] = [
