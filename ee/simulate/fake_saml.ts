@@ -75,6 +75,9 @@ export type FakeSaml = {
   advance(ms: number): void;
   faults: SamlFaults;
   signInAs(nameId: string): void;
+  /** Whether a session the provider started is still on: not signed out and
+   * not past its end. */
+  isSessionActive(sessionIndex: string): boolean;
   /** The response an unprompted sign in (started at the provider) would post. */
   unsolicited(): { acsUrl: string; samlResponse: string };
   requests: string[];
@@ -139,7 +142,8 @@ export async function startFakeSaml(
   const stranger = rsaKey();
   let signedInAs = options.users[0]!.nameId;
   const requests: string[] = [];
-  const revoked = new Set<string>();
+  /** Every session the provider started, by session index. */
+  const sessions = new Map<string, { endsAt: number; signedOut: boolean }>();
   const faults: SamlFaults = {
     signedByStranger: false,
     wrongAudience: false,
@@ -222,6 +226,10 @@ export async function startFakeSaml(
     inResponseTo: string | undefined,
   ): string => {
     const sessionIndex = `_s${randomBytes(6).toString("hex")}`;
+    sessions.set(sessionIndex, {
+      endsAt: clock + sessionSeconds * 1000,
+      signedOut: false,
+    });
     const real = assertion(user, inResponseTo, sessionIndex);
     let assertions = real.xml;
     if (faults.wrapping) {
@@ -301,12 +309,17 @@ export async function startFakeSaml(
       );
     }
     if (url.pathname === "/slo") {
-      const index = url.searchParams.get("SessionIndex");
-      if (index) revoked.add(index);
+      const index = url.searchParams.get("SessionIndex") ?? "";
+      const session = sessions.get(index);
+      // Only a session that is on can be ended.
+      const ended = Boolean(
+        session && !session.signedOut && clock < session.endsAt,
+      );
+      if (session) session.signedOut = true;
       return send(
         200,
         "application/json",
-        JSON.stringify({ loggedOut: Boolean(index) }),
+        JSON.stringify({ loggedOut: ended }),
       );
     }
     send(404, "text/plain", "not found");
@@ -330,6 +343,10 @@ export async function startFakeSaml(
         throw new Error(`no such fake user: ${nameId}`);
       }
       signedInAs = nameId;
+    },
+    isSessionActive: (index) => {
+      const session = sessions.get(index);
+      return Boolean(session && !session.signedOut && clock < session.endsAt);
     },
     unsolicited: () => ({
       acsUrl: options.acsUrl,
