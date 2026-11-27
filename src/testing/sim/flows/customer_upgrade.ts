@@ -168,8 +168,32 @@ export default defineFlow({
           database.close();
         }
         const { backupPaths } = await import("../../../store/app_db.ts");
-        const previous = `${backupPaths().root}/previous`;
-        sim.state.backupMade = existsSync(previous);
+        // The backup is of the database as it was before the migration: at
+        // the old schema version, holding the old job.
+        const backupDb = `${backupPaths().root}/previous/app.db`;
+        let backupVersion = -1;
+        let backupHasOldJob = false;
+        if (existsSync(backupDb)) {
+          const backup = new DatabaseSync(backupDb, { readOnly: true });
+          try {
+            backupVersion = (
+              backup.prepare("PRAGMA user_version").get() as {
+                user_version: number;
+              }
+            ).user_version;
+            backupHasOldJob =
+              (
+                backup
+                  .prepare(
+                    "SELECT COUNT(*) AS n FROM jobs WHERE id = 'old-job-1'",
+                  )
+                  .get() as { n: number }
+              ).n === 1;
+          } finally {
+            backup.close();
+          }
+        }
+        sim.state.backupMade = backupVersion === OLD_VERSION && backupHasOldJob;
         sim.state.oldJob = rows<{ n: number }>(
           "SELECT COUNT(*) AS n FROM jobs WHERE id = 'old-job-1' AND status = 'done'",
         )[0]!.n;
@@ -209,13 +233,9 @@ export default defineFlow({
         rmSync(configFrom, { force: true });
         process.env.CM_APP_DB = join(toDir, "app.db");
         process.env.CM_CONFIG_PATH = join(toDir, "config.json");
-        // The config is read from the new place, so nothing is written to it
-        // here: `start` would write it again.
-        const { openAppDb } = await import("../../../store/app_db.ts");
-        await openAppDb();
-        const { registerJobHandlers } =
-          await import("../../../services/serve_startup.ts");
-        registerJobHandlers();
+        sim.state.originalGone = !existsSync(configFrom) && !existsSync(from);
+        // The server starts the way `serve` starts, from the new paths.
+        await sim.server.start();
         const { readConfig } = await import("../../../config.ts");
         sim.state.configFound = Boolean(readConfig().githubWebhookSecret);
         return `config.json and app.db moved to ${toDir} · webhook secret ${sim.state.configFound ? "found" : "missing"}`;
@@ -243,7 +263,7 @@ export default defineFlow({
           sim.state.backupMade === true &&
           sim.state.oldJob === 1 &&
           sim.state.repoKept === 1,
-        `migration ${String(sim.state.versionBefore)} -> ${String(sim.state.versionAfter)} · backup ${String(sim.state.backupMade)} · old job ${String(sim.state.oldJob)} · repository ${String(sim.state.repoKept)}`,
+        `migration ${String(sim.state.versionBefore)} -> ${String(sim.state.versionAfter)} · backup of the old schema ${String(sim.state.backupMade)} · old job ${String(sim.state.oldJob)} · repository ${String(sim.state.repoKept)}`,
       ),
       check(
         "reviews carry on after the upgrade: a new pull request is reviewed once",
