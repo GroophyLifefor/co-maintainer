@@ -100,8 +100,14 @@ async function drain(sim: Sim): Promise<Result> {
   let lastProgress = performance.now();
   let lastDone = -1;
   const mb = () => Math.round(process.memoryUsage().rss / 1_048_576);
-  const rssStartMb = mb();
-  let rssPeakMb = rssStartMb;
+  // The run's own start and its high-water mark so far: the serve step and
+  // the arrival of the webhooks come before this step.
+  const memory = (sim.state.memory as { startMb: number; peakMb: number }) ?? {
+    startMb: mb(),
+    peakMb: mb(),
+  };
+  const rssStartMb = memory.startMb;
+  let rssPeakMb = Math.max(memory.peakMb, mb());
   startWorkerLoop(25);
   for (;;) {
     const queued = listJobs({ status: "queued" }).length;
@@ -162,7 +168,7 @@ async function drain(sim: Sim): Promise<Result> {
       delivered: 0,
     }),
     rssStartMb,
-    rssPeakMb,
+    rssPeakMb: Math.max(rssPeakMb, mb()),
     rssEndMb: mb(),
     lockMessages: appRows<{ n: number }>(
       sim,
@@ -219,6 +225,8 @@ export default defineFlow({
       name: "serve",
       async run(sim) {
         await serveRepo(sim);
+        const now = Math.round(process.memoryUsage().rss / 1_048_576);
+        sim.state.memory = { startMb: now, peakMb: now };
         if (JOBS !== undefined)
           sim.world.writeConfig({ maxConcurrentJobs: JOBS });
         if (BUDGET !== undefined) {
@@ -273,6 +281,11 @@ export default defineFlow({
             ),
           );
         }
+        const memory = sim.state.memory as { startMb: number; peakMb: number };
+        memory.peakMb = Math.max(
+          memory.peakMb,
+          Math.round(process.memoryUsage().rss / 1_048_576),
+        );
         sim.state.arrival = {
           slowestAnswerMs: Math.round(slowest),
           delivered: PRS,
