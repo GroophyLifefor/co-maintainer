@@ -1529,8 +1529,12 @@ export function renderGlobalHelp(): string {
   lines.push("Usage: co-maintainer <command> owner/repo [options]");
   lines.push("");
   lines.push("Commands:");
-  for (const command of visibleCommands()) {
-    lines.push(`  ${command.name.padEnd(10)}${command.summary}`);
+  const commands = visibleCommands();
+  // The column follows the longest name, so a long one never touches its
+  // summary.
+  const width = Math.max(10, ...commands.map((c) => c.name.length + 2));
+  for (const command of commands) {
+    lines.push(`  ${command.name.padEnd(width)}${command.summary}`);
   }
   lines.push("");
   lines.push("Run co-maintainer help <command> for details.");

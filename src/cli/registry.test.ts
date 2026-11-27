@@ -147,6 +147,29 @@ test("registry: every visible command documents its usage and has no dupes", () 
   }
 });
 
+test("registry: in the global help every command is followed by at least two spaces and the summaries line up", () => {
+  const lines = renderGlobalHelp().split("\n");
+  const start = lines.indexOf("Commands:") + 1;
+  const rows = lines.slice(start, lines.indexOf("", start));
+  const columns = new Set<number>();
+  for (const command of visibleCommands()) {
+    const row = rows.find((line) => line.startsWith(`  ${command.name} `));
+    if (!row)
+      throw new Error(`${command.name} has no row with a space after it`);
+    const summaryAt = row.indexOf(command.summary);
+    const gap = row.slice(2 + command.name.length, summaryAt);
+    if (gap.length < 2 || gap.trim() !== "") {
+      throw new Error(
+        `${command.name} is not followed by two spaces: "${row}"`,
+      );
+    }
+    columns.add(summaryAt);
+  }
+  if (columns.size !== 1) {
+    throw new Error(`the summaries start in ${columns.size} columns`);
+  }
+});
+
 test("registry: the global help lists commands and points at per-command help", () => {
   const help = renderGlobalHelp();
   for (const command of visibleCommands()) {
