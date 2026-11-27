@@ -394,25 +394,32 @@ set it on the volume before the first start:</p>
   <span class="sh-arg">ghcr.io/groophylifefor/co-maintainer:latest</span> <span class="sh-arg">set</span> <span class="sh-flag">--password=your-dashboard-secret</span>
 </code></pre>
 <ul>
-<li><p>Everything lives in the <code>/data</code> volume: <code>config.json</code>, <code>app.db</code>, generated
-guides, and repository clones. Keep it to survive upgrades.</p>
-</li>
-<li><p>The container listens on port <code>5000</code> and runs as the non-root <code>node</code> user
-(uid 1000). A bind mounted host folder must be writable by that user.</p>
-</li>
-<li><p>The image runs <code>serve --port=5000</code> by default. Any other command works too,
-for example <code>... set --token=...</code>. The health check assumes port <code>5000</code>.</p>
-</li>
-<li><p>Run one container per volume. Only one <code>serve</code> may write to an <code>app.db</code>.</p>
-</li>
-<li><p>Upgrade by pulling the new tag and recreating the container with the same
-volume. Queued jobs that were interrupted are picked up again on start.</p>
-</li>
-<li><p><strong>Inline, file, and path.</strong> <code>set</code> writes the App private key three ways:
+<li>Everything lives in the <code>/data</code> volume: <code>config.json</code>, <code>app.db</code>, generated
+guides, and repository clones. Keep it to survive upgrades.</li>
+<li>The container listens on port <code>5000</code> and runs as the non-root <code>node</code> user
+(uid 1000). A bind mounted host folder must be writable by that user.</li>
+<li>The image runs <code>serve --port=5000</code> by default. Any other command works too,
+for example <code>... set --token=...</code>. The health check assumes port <code>5000</code>.</li>
+<li>Run one container per volume. Only one <code>serve</code> may write to an <code>app.db</code>.</li>
+<li>Upgrade by pulling the new tag and recreating the container with the same
+volume. Queued jobs that were interrupted are picked up again on start.</li>
+</ul>
+<p>To run a command inside the container that is already running, call Node on the
+built program. <code>co-maintainer</code> is not on the container&#39;s <code>PATH</code>, so this form is
+the one that works:</p>
+<pre class="shell-block"><code>docker exec co-maintainer node /app/dist/main.js login-link
+docker exec co-maintainer node /app/dist/main.js config
+</code></pre>
+<p><code>login-link</code> prints a one-time dashboard sign-in link, valid for 5 minutes. Run
+it where the server runs, so on a Docker server this is the way to get it. A
+command started with <code>docker exec</code> sees the <code>CM_WEBHOOK_URL</code> the container was
+created with, so the link uses it. If the container has none, or you open the
+dashboard on another address, add <code>--origin=https://your-address</code>.</p>
+<ul>
+<li><strong>Inline, file, and path.</strong> <code>set</code> writes the App private key three ways:
 inline, as file contents, or as a path. The path form keeps the key out of
 <code>config.json</code>, and a missing file is warned about at startup. See
-<a href="configuration.html#app-private-key-inline-file-contents-or-path">Configuration: App private key</a>.</p>
-</li>
+<a href="configuration.html#app-private-key-inline-file-contents-or-path">Configuration: App private key</a>.</li>
 </ul>
 <h2 id="extensions">Extensions</h2>
 <p><code>serve</code> runs the <a href="extensions.html">extensions</a> registered in its own <code>config.json</code>
