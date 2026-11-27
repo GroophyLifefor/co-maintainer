@@ -39,6 +39,21 @@ const BURST = burstFromEnv();
 /** GitHub gives up on a webhook that has not been answered in this time. */
 const WEBHOOK_LIMIT_MS = 10_000;
 
+/** `LOAD_MAX_CALLS_PER_PR`: the most GitHub requests a pull request may cost on
+ * average. Over it, a check fails. The weekly run sets 9. */
+function maxCallsFromEnv(): number | undefined {
+  const raw = process.env.LOAD_MAX_CALLS_PER_PR;
+  if (raw === undefined) return undefined;
+  const value = Number(raw);
+  if (raw.trim() === "" || !Number.isFinite(value) || value <= 0) {
+    throw new Error(
+      `LOAD_MAX_CALLS_PER_PR must be a positive number, got "${raw}"`,
+    );
+  }
+  return value;
+}
+const MAX_CALLS = maxCallsFromEnv();
+
 function budgetFromEnv(): number | undefined {
   const raw = process.env.LOAD_BUDGET;
   if (raw === undefined) return undefined;
@@ -200,6 +215,15 @@ function checks(sim: Sim): CheckResult[] {
               r.delivered === PRS &&
               r.slowestAnswerMs < WEBHOOK_LIMIT_MS,
             `the slowest answer took ${r.slowestAnswerMs} ms of ${r.delivered} webhooks${PRS < BURST ? `, fewer than the burst of ${BURST}` : ""}`,
+          ),
+        ]),
+    ...(MAX_CALLS === undefined
+      ? []
+      : [
+          check(
+            `a pull request costs at most ${MAX_CALLS} GitHub requests`,
+            r.githubCalls / PRS <= MAX_CALLS,
+            `${(r.githubCalls / PRS).toFixed(2)} per pull request over ${PRS}`,
           ),
         ]),
     ...(BUDGET === undefined
