@@ -18,6 +18,7 @@
     "main.ts",
     "mod.ts",
     "src/**/*.ts",
+    "ee/**/*.ts",
     "scripts/**/*.ts",
     "benchmark/**/*.ts"
   ],
