@@ -107,6 +107,16 @@ test("a wrong file stops with a message that quotes nothing from it", () => {
     const none = spawnSync(process.execPath, [SCRIPT], { encoding: "utf8" });
     assert.equal(none.status, 2);
     assert.throws(() => publicKeyFrom(privatePem().pem, "bad id!"), /key id/);
+    for (const bad of [
+      "__proto__",
+      "_x",
+      "constructor",
+      "prototype",
+      "",
+      "-k",
+    ]) {
+      assert.throws(() => publicKeyFrom(privatePem().pem, bad), /key id/, bad);
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

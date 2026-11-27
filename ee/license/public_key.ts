@@ -32,8 +32,16 @@ export function publicKeyFrom(privatePem: string, kid?: string): PublicKeyLine {
   const der = publicKey.export({ type: "spki", format: "der" });
   const id =
     kid ?? `k-${createHash("sha256").update(der).digest("hex").slice(0, 8)}`;
-  if (!/^[A-Za-z0-9._-]{1,40}$/.test(id)) {
-    throw new Error("the key id may hold letters, digits, . _ - only");
+  // It starts with a letter or digit, so `__proto__` cannot be a key id: in an
+  // object literal that line would change the object's prototype instead of
+  // adding the key, and the license would be refused as an unknown key.
+  if (
+    !/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/.test(id) ||
+    ["constructor", "prototype"].includes(id)
+  ) {
+    throw new Error(
+      "the key id starts with a letter or digit and holds letters, digits, . _ - only",
+    );
   }
   const snippet = `  "${id}": \`${pem}\n\`,`;
   return { kid: id, pem, snippet };
