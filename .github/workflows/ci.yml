@@ -68,6 +68,44 @@ jobs:
         if: runner.os == 'Linux' || contains(github.event.pull_request.labels.*.name, 'e2e:windows')
         run: npm run e2e:simulate
 
+  # A real PostgreSQL next to the checks, on every pull request, so the day the
+  # product talks to PostgreSQL its tests have a server that is already
+  # proven to come up. Linux only: service containers need Docker.
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: co_maintainer
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: co_maintainer_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U co_maintainer -d co_maintainer_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: The server answers and takes a write
+        env:
+          PGPASSWORD: ci-only-password
+        run: |
+          set -euo pipefail
+          psql -h 127.0.0.1 -U co_maintainer -d co_maintainer_test -v ON_ERROR_STOP=1 <<'SQL'
+          select version();
+          create table ci_probe (id serial primary key, note text not null);
+          insert into ci_probe (note) values ('up');
+          do $$ begin
+            if (select count(*) from ci_probe) <> 1 then
+              raise exception 'the probe row did not come back';
+            end if;
+          end $$;
+          drop table ci_probe;
+          SQL
+
   # Its own job on Linux only: `npx` and the fake `gh` both need a POSIX
   # spawn, and it downloads the published 0.4.13, so it must not slow the
   # matrix above.
