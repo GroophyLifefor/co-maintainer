@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.38] - 2026-11-27
+
+### Fixed
+
+- **A lost `app.db` no longer leaves the repositories unlisted and their pull requests skipped without a word.** The guides the server builds are files in the data folder and survive a lost database, but only the CLI's guide file was looked for at startup, so a repository set up through the GitHub App was not found and its pull requests were skipped as not active. `serve` now also recognizes the App's skill file, lists the repository again with its guides and with automatic review off, builds nothing, and a pull request is skipped with `auto-review-off`. Switching automatic review on in the dashboard starts reviews with no rebuild. See "When `app.db` is lost" in Troubleshooting.
+
 ## [0.7.37] - 2026-11-27
 
 ### Fixed
