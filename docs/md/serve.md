@@ -258,14 +258,15 @@ built program. `co-maintainer` is not on the container's `PATH`, so this form is
 the one that works:
 
 ```sh
-docker exec co-maintainer node /app/dist/main.js login-link --origin=https://example.com
+docker exec co-maintainer node /app/dist/main.js login-link
 docker exec co-maintainer node /app/dist/main.js config
 ```
 
 `login-link` prints a one-time dashboard sign-in link, valid for 5 minutes. Run
-it where the server runs, so on a Docker server this is the way to get it. Give
-the address you open the dashboard on with `--origin`, because a command started
-with `docker exec` does not see the `CM_WEBHOOK_URL` the server was started with.
+it where the server runs, so on a Docker server this is the way to get it. A
+command started with `docker exec` sees the `CM_WEBHOOK_URL` the container was
+created with, so the link uses it. If the container has none, or you open the
+dashboard on another address, add `--origin=https://your-address`.
 
 - **Inline, file, and path.** `set` writes the App private key three ways:
   inline, as file contents, or as a path. The path form keeps the key out of

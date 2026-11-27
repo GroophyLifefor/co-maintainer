@@ -407,13 +407,14 @@ volume. Queued jobs that were interrupted are picked up again on start.</li>
 <p>To run a command inside the container that is already running, call Node on the
 built program. <code>co-maintainer</code> is not on the container&#39;s <code>PATH</code>, so this form is
 the one that works:</p>
-<pre class="shell-block"><code><span class="sh-arg">docker</span> <span class="sh-arg">exec</span> <span class="sh-arg">co-maintainer</span> <span class="sh-arg">node</span> <span class="sh-arg">/app/dist/main.js</span> <span class="sh-arg">login-link</span> <span class="sh-flag">--origin=https://example.com</span>
+<pre class="shell-block"><code>docker exec co-maintainer node /app/dist/main.js login-link
 docker exec co-maintainer node /app/dist/main.js config
 </code></pre>
 <p><code>login-link</code> prints a one-time dashboard sign-in link, valid for 5 minutes. Run
-it where the server runs, so on a Docker server this is the way to get it. Give
-the address you open the dashboard on with <code>--origin</code>, because a command started
-with <code>docker exec</code> does not see the <code>CM_WEBHOOK_URL</code> the server was started with.</p>
+it where the server runs, so on a Docker server this is the way to get it. A
+command started with <code>docker exec</code> sees the <code>CM_WEBHOOK_URL</code> the container was
+created with, so the link uses it. If the container has none, or you open the
+dashboard on another address, add <code>--origin=https://your-address</code>.</p>
 <ul>
 <li><strong>Inline, file, and path.</strong> <code>set</code> writes the App private key three ways:
 inline, as file contents, or as a path. The path form keeps the key out of
