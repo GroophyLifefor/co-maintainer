@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.40] - 2026-11-27
+
+### Changed
+
+- **Only someone who may close findings can have the bot withdraw one.** When a reply on a finding's thread convinced the bot the finding was wrong, the bot withdrew it and, if nothing else blocked, approved the pull request, whoever wrote the reply. The same rule that decides who may close a finding by asking in its thread, the people the review policy lets dismiss, now decides who may have one withdrawn. For anyone else the bot still answers, is not offered the way to withdraw, and the finding and its "changes requested" stay until a maintainer closes it or the next push is reviewed. A new check in the `finding-control` flow covers it.
+
 ## [0.7.35] - 2026-11-27
 
 ### Fixed

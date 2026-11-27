@@ -321,7 +321,7 @@ function postedFinding(jobId: string): string {
 test("a reply that agrees the finding was wrong withdraws it and never posts the marker line", async () => {
   await withEnv(async () => {
     const github = new FakeGithub();
-    const job = requestJob("review_comment", "107", "10");
+    const job = requestJob("review_comment", "107", "10", { mayClose: true });
     const findingId = postedFinding(job.id);
     await runReplyJob(
       job,
@@ -338,6 +338,46 @@ test("a reply that agrees the finding was wrong withdraws it and never posts the
     );
     if (row?.state !== "closed" || row.close_reason !== "withdrawn") {
       throw new Error(`finding is ${row?.state}/${row?.close_reason}`);
+    }
+  });
+});
+
+test("a reply agreeing with someone who may not close findings does not withdraw the finding, and does not offer the way to", async () => {
+  await withEnv(async () => {
+    const github = new FakeGithub();
+    const job = requestJob("review_comment", "117", "10");
+    const findingId = postedFinding(job.id);
+    let system = "";
+    await runReplyJob(job, () => {}, github, {
+      complete: (request) => {
+        system = String(request.system ?? "");
+        return Promise.resolve({
+          text: "Agreed, the finding is incorrect.\n\nWITHDRAWN\n",
+          tokensIn: 1,
+          tokensOut: 1,
+          model: "fake",
+          provider: "openrouter",
+        });
+      },
+    });
+    const body = (github.writes[0]!.body as { body: string }).body;
+    if (body.includes("WITHDRAWN")) {
+      throw new Error(`the marker line was posted: ${body}`);
+    }
+    if (system.includes("WITHDRAWN")) {
+      throw new Error(
+        "the way to withdraw was offered to a commenter who may not close",
+      );
+    }
+    const row = listFindingsForPr("acme/widgets", 1).find(
+      (item) => item.id === findingId,
+    );
+    if (row?.state === "closed") {
+      throw new Error(`finding is ${row?.state}/${row?.close_reason}`);
+    }
+    // Nothing was approved or changed on GitHub besides the reply.
+    if (github.writes.length !== 1) {
+      throw new Error(`${github.writes.length} writes`);
     }
   });
 });
