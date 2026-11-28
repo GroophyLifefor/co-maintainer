@@ -391,7 +391,12 @@ const topBar = document.getElementById("top");
 const markScrolled = () => topBar.classList.toggle("scrolled", scrollY > 4);
 addEventListener("scroll", markScrolled, { passive: true }); markScrolled();
 
-window.addEventListener("hashchange", () => { sel = picked() || []; update(); });
+window.addEventListener("hashchange", () => {
+  // An anchor inside a demo, such as #r21, is not a new choice of reasons.
+  if (location.hash && !/reasons=/.test(location.hash)) return;
+  sel = picked() || [];
+  update();
+});
 update();
 </script>
 </body>
