@@ -19,14 +19,15 @@ const SECOND_END = Date.parse("2029-03-01T00:00:00Z");
 test("a license is renewed with one module less and then left to end, across restarts", () => {
   const dir = mkdtempSync(join(tmpdir(), "cm-license-life-"));
   const path = join(dir, "app.db");
-  const signer = makeTestSigner();
-  let db = new DatabaseSync(path);
+  let db: DatabaseSync | undefined;
   const restart = () => {
-    db.close();
+    db?.close();
     db = new DatabaseSync(path);
     return sqliteLicenseStore(db);
   };
   try {
+    const signer = makeTestSigner();
+    db = new DatabaseSync(path);
     const id = installId(sqliteLicenseStore(db));
     const first = signer.sign({
       id: "lic-one",
@@ -118,7 +119,10 @@ test("a license is renewed with one module less and then left to end, across res
     assert.equal(back.status, "active");
     assert.deepEqual(back.modules, ["sso"]);
   } finally {
-    db.close();
-    rmSync(dir, { recursive: true, force: true });
+    try {
+      db?.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   }
 });
