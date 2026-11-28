@@ -5,6 +5,12 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.43] - 2026-11-28
+
+### Changed
+
+- **The package description says what the tool does.** The npm page opened with a line that read like a joke. It now says that co-maintainer is an open source pull request reviewer that learns how a repository is reviewed from its code and past reviews, and runs on the user's own model key, the same sentence the site uses.
+
 ## [0.7.42] - 2026-11-28
 
 ### Changed
