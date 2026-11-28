@@ -64,8 +64,8 @@ Nothing is written until **Add and start init** is
 pressed, and that confirmation stores the plan's flags, limits and sources for
 the repo before the init job is queued, so the run matches what was approved.
 
-The estimate says whether it used this repository's recorded jobs or the
-cm-dx-lab calibration, and whether it priced dollars from OpenRouter. See
+The estimate says whether it used this repository's recorded jobs or typical
+job sizes measured on a sample repository, and whether it priced dollars from OpenRouter. See
 [`probe`](probe.md) for how the recommendation is derived.
 
 The same step asks who gets a review. It lists the [review policy](review-policy.md)

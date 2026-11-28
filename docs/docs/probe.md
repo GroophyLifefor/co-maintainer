@@ -84,7 +84,8 @@ range for the recommended `init`. It is a **planning estimate, not a bill**:
   from OpenRouter's public `/api/v1/models`, cached for 24 hours. With no
   price there is no dollar line rather than a guessed one.
 - Time and per-job tokens come from this repository's own recorded jobs when
-  four or more exist, and from the cm-dx-lab calibration otherwise. The line
+  four or more exist, and from typical job sizes measured on a sample
+  repository otherwise. The line
   says which one it used.
 
 Over 30 minutes, the **faster** option tries a 24, 12, 6 and then 3 month PR
