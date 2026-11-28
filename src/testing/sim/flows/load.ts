@@ -286,30 +286,42 @@ export default defineFlow({
           );
         }
         let slowest = 0;
+        const memory = sim.state.memory as { startMb: number; peakMb: number };
+        // Memory is read while webhooks are in flight, not only after the last
+        // one, so growth that is released before the end still counts.
+        const sample = () => {
+          memory.peakMb = Math.max(
+            memory.peakMb,
+            Math.round(process.memoryUsage().rss / 1_048_576),
+          );
+        };
+        const sampler = setInterval(sample, 50);
         const deliverOne = async (i: number) => {
           const startedAt = performance.now();
+          sample();
           await sim.server.deliver(
             "pull_request",
             sim.server.payloads.pullRequest(pulls[i]!, "opened"),
             { deliveryId: `load-${i}` },
           );
+          sample();
           slowest = Math.max(slowest, performance.now() - startedAt);
         };
         // A burst delivers its webhooks at the same moment, one burst after
         // another. Without one they arrive in turn.
         const size = BURST ?? 1;
-        for (let from = 0; from < PRS; from += size) {
-          await Promise.all(
-            Array.from({ length: Math.min(size, PRS - from) }, (_, k) =>
-              deliverOne(from + k),
-            ),
-          );
+        try {
+          for (let from = 0; from < PRS; from += size) {
+            await Promise.all(
+              Array.from({ length: Math.min(size, PRS - from) }, (_, k) =>
+                deliverOne(from + k),
+              ),
+            );
+          }
+        } finally {
+          clearInterval(sampler);
         }
-        const memory = sim.state.memory as { startMb: number; peakMb: number };
-        memory.peakMb = Math.max(
-          memory.peakMb,
-          Math.round(process.memoryUsage().rss / 1_048_576),
-        );
+        sample();
         sim.state.arrival = {
           slowestAnswerMs: Math.round(slowest),
           delivered: PRS,
