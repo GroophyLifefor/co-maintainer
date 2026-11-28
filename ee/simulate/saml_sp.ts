@@ -110,7 +110,12 @@ function time(value: string | undefined): number | undefined {
   if (!value || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value))
     return undefined;
   const ms = Date.parse(value);
-  return Number.isFinite(ms) ? ms : undefined;
+  // Date.parse rolls impossible dates such as February 30 over to March, so
+  // the instant must print back as the same text.
+  if (!Number.isFinite(ms)) return undefined;
+  return new Date(ms).toISOString().slice(0, 19) + "Z" === value
+    ? ms
+    : undefined;
 }
 
 export function verifyResponse(
