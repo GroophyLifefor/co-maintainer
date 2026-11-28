@@ -678,7 +678,11 @@ export function movedToRootStub(slug: string): string {
 
 /** Hand written pages outside the docs, besides the ones in `MOVED_TO_ROOT`,
  * listed in the sitemap by their path under the site root. */
-export const HAND_PAGES: readonly string[] = ["vs/coderabbit", "trust"];
+export const HAND_PAGES: readonly string[] = [
+  "vs/coderabbit",
+  "trust",
+  "why-should-i-choose-it",
+];
 
 /** Every indexable address, for sitemap.xml: the landing page, the hand
  * written root pages, then every doc page. `lastmod` names the date a page's

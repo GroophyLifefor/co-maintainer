@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>co-maintainer · why choose it</title>
+<meta name="description" content="The reasons that matter for your team, picked for you.">
+<link rel="icon" href="assets/logo.png" type="image/png">
+<link rel="canonical" href="https://co-maintainer.com/why-should-i-choose-it.html">
+<link rel="preload" href="assets/fonts/outfit-latin.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face{font-family:"Outfit";src:url("assets/fonts/outfit-latin.woff2") format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"JetBrains Mono";src:url("assets/fonts/jetbrains-mono-latin.woff2") format("woff2");font-weight:100 800;font-display:swap}
+/* co-maintainer.com/why-should-i-choose-it#reasons=1,2,6
+   Hand written, like index.html. The docs build does not touch this page.
+   One page, many links. The hash picks which reasons show and in what order.
+   No reasons in the hash shows all of them. */
+:root{--paper:#f3efe6;--card:#ffffff;--ink:#101215;--ink-2:#4f5560;--blue:#0969da;--blue-deep:#063e86;--sky:#d6e6fb;--rule:rgba(16,18,21,.16);
+--sans:"Outfit",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,Menlo,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.55 var(--sans)}
+a{color:var(--blue-deep)}
+.wrap{max-width:calc(1160px + 48px);margin:0 auto;padding:0 24px}
+@media (max-width:560px){.wrap{padding:0 16px}}
+/* Header and footer: the same markup and rules as the landing page (docs/index.html). */
+.top{--rule-c:transparent;display:flex;align-items:center;gap:12px;height:76px;position:sticky;top:0;z-index:20;border-image:linear-gradient(to bottom,var(--paper) calc(100% - 2px),var(--rule-c) 0) fill 0/0/0 100vmax 2px}
+.top.scrolled{--rule-c:var(--ink)}
+.top .home{display:flex;align-items:center;gap:12px;color:inherit;text-decoration:none}
+.bird{display:block;color:var(--blue)}.bird.ink{color:var(--ink)}
+.top b{font:600 19px var(--sans)}
+.top nav{margin-left:auto;display:flex;align-items:center;gap:28px;font-size:16px}
+.top nav a{color:var(--ink);text-decoration:none}
+.top nav a.gh{border:2px solid var(--ink);padding:6px 12px;font-weight:500;background:linear-gradient(var(--ink),var(--ink)) left/0% 100% no-repeat;transition:background-size .25s ease,color .25s ease}
+.top nav a.gh:hover,.top nav a.gh:focus-visible{background-size:100% 100%;color:var(--paper)}
+.hero{margin:56px 0 36px;max-width:760px}
+.eyebrow{font:600 13px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--blue)}
+h1{font-size:48px;line-height:1.05;letter-spacing:-.025em;margin:12px 0 14px}
+.lead{font-size:20px;color:var(--ink-2);margin:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:22px}
+.reason{min-width:0;background:var(--card);border:2px solid var(--ink);box-shadow:6px 6px 0 var(--ink);padding:22px 22px 18px;display:flex;flex-direction:column;gap:10px;opacity:0;transform:translateY(10px);animation:in .45s ease forwards}
+@keyframes in{to{opacity:1;transform:none}}
+.reason .n{font:600 13px var(--mono);color:var(--ink-2)}
+.reason h2{font-size:22px;line-height:1.2;margin:0;letter-spacing:-.01em}
+.reason p{margin:0;color:var(--ink-2)}
+.reason .proof{margin-top:auto;padding-top:10px;border-top:1px solid var(--rule);font:500 13px var(--mono);color:var(--ink-2)}
+.reason .proof a{color:var(--blue-deep)}
+.reason.feature{grid-column:1/-1;background:var(--ink);color:var(--paper);box-shadow:6px 6px 0 var(--blue)}
+.reason.feature p,.reason.feature .n,.reason.feature .proof{color:#c9ccd2}.reason.feature .proof{border-color:rgba(243,239,230,.2)}.reason.feature .proof a{color:var(--sky)}
+.start{margin-top:48px;background:var(--ink);color:var(--paper);border:2px solid var(--ink);box-shadow:8px 8px 0 var(--blue);padding:30px 32px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:28px;align-items:center}
+.start h2{font-size:30px;line-height:1.1;letter-spacing:-.02em;margin:0 0 8px}
+.start p{margin:0;color:#c9ccd2}
+.steps{display:flex;flex-direction:column;gap:12px}
+.cmdrow{display:flex;align-items:stretch;border:2px solid var(--paper);background:#1c1f24}
+.cmdrow code{flex:1;font:500 16px var(--mono);padding:14px 16px;color:var(--paper);white-space:nowrap;overflow-x:auto}
+.cmdrow code::before{content:"$ ";color:#8b919b}
+.cmdrow button{font:600 14px var(--sans);background:var(--paper);color:var(--ink);border:0;border-left:2px solid var(--paper);padding:0 16px;cursor:pointer;min-width:88px}
+.cmdrow button:hover{background:var(--sky)}
+.go{align-self:flex-start;font:600 17px var(--sans);text-decoration:none;background:var(--blue);color:#fff;border:2px solid var(--paper);padding:12px 20px;box-shadow:4px 4px 0 var(--paper);transition:transform .12s,box-shadow .12s}
+.go:hover{transform:translate(-2px,-2px);box-shadow:6px 6px 0 var(--paper)}
+.start .alt{font-size:14px;color:#c9ccd2;margin:4px 0 0}.start .alt a{color:var(--sky)}
+.go{display:inline-flex;align-items:center;gap:8px}
+@media (max-width:700px){.start{grid-template-columns:minmax(0,1fr);padding:24px 18px}.start h2{font-size:24px}.cmdrow code{font-size:13px;padding:12px 10px}.cmdrow button{min-width:64px;padding:0 10px}}
+.start>div{min-width:0}.cmdrow{min-width:0}.cmdrow code{min-width:0}
+.more{margin-top:40px;color:var(--ink-2);font-size:15px}
+.more button{font:500 15px var(--sans);background:none;border:0;color:var(--blue-deep);text-decoration:underline;cursor:pointer;padding:0}
+footer{margin-top:64px;padding:36px 0 48px}
+footer .fw{display:flex;flex-wrap:wrap;gap:16px 28px;align-items:center;font-size:15px;color:var(--ink-2)}
+footer nav{margin-left:auto;display:flex;gap:22px}
+footer a{color:var(--ink);text-decoration:none}
+@media (max-width:560px){.top nav a:not(.gh){display:none}}
+.reason .shot{display:block;width:100%;height:auto;border:2px solid var(--ink);background:#fff}
+.reason.wide{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.4fr);gap:26px;align-items:start}
+.reason.wide .txt{display:flex;flex-direction:column;gap:10px;height:100%}
+@media (max-width:700px){.reason.wide{grid-template-columns:minmax(0,1fr)}.term .t-body{font-size:10.5px;padding:12px}}
+.shotbtn{display:block;padding:0;border:0;background:none;cursor:zoom-in;text-align:left;position:relative}
+.shotbtn .zoom{position:absolute;right:10px;bottom:10px;font:600 12px var(--sans);background:var(--ink);color:var(--paper);padding:5px 9px}
+.lb{position:fixed;inset:0;background:rgba(16,18,21,.82);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:32px 16px;z-index:50}
+.lb img{max-width:min(1152px,100%);height:auto;border:2px solid var(--paper);background:#fff;box-shadow:8px 8px 0 var(--blue)}
+.lb button{position:fixed;top:14px;right:14px;font:600 14px var(--sans);background:var(--paper);color:var(--ink);border:2px solid var(--ink);padding:8px 12px;cursor:pointer}
+.logos{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.logos li{display:inline-flex;align-items:center;gap:6px;font:500 13px var(--sans);color:var(--ink);background:var(--paper);border:1px solid var(--rule);padding:4px 8px}
+.logos img{display:block}
+.finding{margin:0;border:2px solid var(--ink);background:#fff;font-size:14px}
+.f-bar{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:2px solid var(--ink);background:var(--paper);font:500 12px var(--mono);color:var(--ink-2)}
+.f-bar .dot{width:9px;height:9px;border:2px solid var(--ink);border-radius:50%}
+.f-body{padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.f-file{font:500 12px var(--mono);color:var(--ink-2)}
+.f-who{display:flex;align-items:center;gap:8px}.f-who svg{width:18px;height:18px;color:var(--blue)}.f-who b{font-size:14px}
+.f-sev{margin-left:auto;font:600 11px var(--mono);background:var(--sky);color:var(--blue-deep);padding:3px 7px}
+.f-txt{margin:0;color:var(--ink);line-height:1.5}.f-txt code{font:500 12.5px var(--mono);background:var(--paper);padding:1px 4px}
+.f-ref{font:700 12.5px var(--mono);color:#fff;background:var(--blue);padding:1px 6px;text-decoration:none}
+.f-refs{border:2px solid var(--blue);background:#f4f8fe;padding:10px 12px;display:flex;flex-direction:column;gap:6px;animation:refglow 1.6s ease 1s both}
+@keyframes refglow{from{border-color:var(--ink);background:#fff}to{border-color:var(--blue);background:#f4f8fe}}
+.f-h{font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--blue-deep)}
+.f-r{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:baseline}.f-r b{font:700 13px var(--mono);color:var(--blue-deep)}.f-r em{grid-column:2;font-style:normal;font-size:12px;color:var(--ink-2)}
+.finding .f-bar,.finding .f-body>:not(.f-refs),.finding figcaption{opacity:.8}
+.finding figcaption{padding:8px 12px;border-top:1px solid var(--rule);font-size:12px;color:var(--ink-2)}
+@media (prefers-reduced-motion:reduce){.f-refs{animation:none}}
+.learnd{margin:0;display:flex;flex-direction:column;align-items:center;gap:10px;padding:6px 0}
+.l-srcs{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.l-chip{font:500 14px var(--sans);background:var(--paper);border:2px solid var(--ink);padding:6px 10px;opacity:0;transform:translateY(8px);animation:in .4s ease var(--d) forwards}
+.l-arrow{width:24px;height:40px;color:var(--ink);opacity:0;animation:in .3s ease .8s forwards}
+.l-guide{width:100%;max-width:440px;background:var(--card);border:2px solid var(--ink);box-shadow:4px 4px 0 var(--blue);opacity:0;transform:translateY(8px);animation:in .45s ease 1s forwards}
+.l-h{font:500 12.5px var(--mono);color:var(--ink-2);padding:8px 12px;border-bottom:2px solid var(--ink)}
+.l-g{padding:12px;font-size:15.5px}
+.learnd figcaption{font-size:13px;color:var(--ink-2)}
+.still .l-chip,.still .l-arrow,.still .l-guide{animation:none;opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.l-chip,.l-arrow,.l-guide{animation:none;opacity:1;transform:none}}
+.revd{margin:0;display:flex;flex-direction:column;border:2px solid var(--ink);background:#fff}
+.rv{display:flex;align-items:center;gap:12px;padding:12px 14px;font-size:14.5px}
+.rv+.rv{border-top:1px solid var(--rule)}
+.rv b{font-weight:600}
+.rv em{margin-left:auto;font:600 11px var(--mono);font-style:normal;text-transform:uppercase;letter-spacing:.06em;padding:3px 7px}
+.rv.off{opacity:.45}.rv.off span:not(.rb){text-decoration:line-through;text-decoration-thickness:1.5px}
+.rv.off em{color:var(--ink-2);border:1px solid var(--rule)}
+.rv.on{background:#f6f8fa}.rv.on em{background:var(--ink);color:var(--paper)}
+.rb{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center}
+.rb svg{width:16px;height:16px;fill:currentColor}
+.rb.ok{background:#1f883d;color:#fff}.rb.bad{background:#cf222e;color:#fff}.rb.neutral{background:#eaeef2;color:#59636e;border:1px solid #d1d9e0}
+.term{margin:0;min-width:0;max-width:100%;border:2px solid var(--ink);background:#14171b;color:#e8e6df}
+.t-bar{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:2px solid var(--ink);background:var(--paper);font:500 12px var(--mono);color:var(--ink-2)}
+.t-bar .dot{width:9px;height:9px;border:2px solid var(--ink);border-radius:50%}
+.t-body{margin:0;padding:14px 16px;font:500 12.5px/1.65 var(--mono);white-space:normal;overflow-x:auto}
+.t-l{display:block;white-space:pre;min-height:1.65em;opacity:0;animation:in .25s ease var(--d) forwards}
+.t-box{outline:1.5px solid #7fb4f5;outline-offset:1px;padding:0 2px;color:#cfe2fb}
+.t-p{color:#8b919b}.t-body b{color:#7fb4f5;font-weight:600}.t-dim{color:#8b919b}
+.still .t-l{animation:none;opacity:1}
+@media (prefers-reduced-motion:reduce){.t-l{animation:none;opacity:1}}
+.more-btn{display:inline;font:600 14px var(--sans);color:var(--blue-deep);background:var(--sky);border:0;padding:2px 8px;margin-left:2px;cursor:pointer}
+.more-btn:hover{background:#c3dbf8}
+.more-txt{color:inherit;animation:fadein .6s ease both}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.more-txt{animation:none}}
+.mask{display:flex;flex-direction:column;border:2px solid var(--ink);font-size:12px}
+.m-row{display:flex;flex-direction:column;gap:3px;padding:8px 10px;background:var(--paper)}
+.m-row+.m-row{border-top:2px solid var(--ink)}
+.m-row.on{background:#fff}
+.reason.feature .mask,.reason.feature .m-row+.m-row{border-color:var(--paper)}
+.m-k{font:600 8.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.m-row code{font:500 10px var(--mono);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.m-row s{text-decoration-color:#cf222e;text-decoration-thickness:2px;color:var(--ink-2)}
+.m-row b{font-weight:600;color:var(--blue-deep);background:var(--sky);padding:0 3px}
+.still .reason{animation:none;opacity:1;transform:none}
+.picker{margin:0 0 28px;padding:16px 18px;background:var(--card);border:2px solid var(--ink)}
+.picker summary{display:flex;align-items:center;gap:10px;cursor:pointer;list-style:none}
+.picker summary::-webkit-details-marker{display:none}
+.picker summary{user-select:none;-webkit-user-select:none}.picker summary>*{pointer-events:none}
+.picker .cnt{font:500 13px var(--sans);color:var(--ink-2)}
+.picker .chev{margin-left:auto;transition:transform .15s}
+.picker[open] .chev{transform:rotate(180deg)}
+.picker[open] summary{margin-bottom:12px}
+.picker-h{display:flex;align-items:center;gap:12px;margin-bottom:12px}.picker-h .sp{flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font:500 14px var(--sans);color:var(--ink);background:var(--paper);border:2px solid var(--ink);padding:6px 11px;cursor:pointer;transition:transform .1s,box-shadow .1s,background .1s}
+.chip:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 var(--ink)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.chip .k{font:600 12px var(--mono);opacity:.7;margin-right:6px}
+.link{font:500 14px var(--sans);background:none;border:0;color:var(--blue-deep);text-decoration:underline;cursor:pointer;padding:0}
+.copy{font:600 14px var(--sans);background:var(--blue);color:#fff;border:2px solid var(--ink);padding:6px 12px;cursor:pointer;box-shadow:3px 3px 0 var(--ink)}
+.copy:active{transform:translate(3px,3px);box-shadow:none}
+button:focus-visible,a:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+@media (max-width:560px){h1{font-size:36px}.hero{margin-top:36px}@media (prefers-reduced-motion:reduce){.reason{animation:none;opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="mark" viewBox="0 0 100 100"><path d="M78 28 A37 37 0 1 0 78 72" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round"/><path fill="currentColor" fill-rule="evenodd" d="M35 50 a15 15 0 1 0 30 0 a15 15 0 1 0 -30 0 Z M48.5 46 a3.5 3.5 0 1 0 7 0 a3.5 3.5 0 1 0 -7 0 Z"/><path fill="currentColor" d="M60 43 L90 50 L60 57 Z"/></symbol><symbol id="bird" viewBox="0 0 100 100"><path d="M78 28 A37 37 0 1 0 78 72" fill="none" stroke="currentColor" stroke-width="12" stroke-linecap="round"/><circle cx="50" cy="50" r="15" fill="currentColor"/><path d="M60 43 L90 50 L60 57 Z" fill="currentColor"/><circle cx="52" cy="46" r="3.5" fill="#f3efe6"/></symbol></svg>
+<div class="wrap">
+  <header class="top" id="top">
+    <a class="home" href="index.html"><svg class="bird ink" width="30" height="30" aria-hidden="true"><use href="#mark"/></svg><b>co-maintainer</b></a>
+    <nav><a href="https://co-maintainer.com/docs/getting-started.html">Docs</a><a href="https://buttondown.com/murat" data-umami-event="newsletter-click">Newsletter</a><a class="gh" href="https://github.com/GroophyLifefor/co-maintainer" data-umami-event="click-github">GitHub</a></nav>
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow" id="eyebrow">Why co-maintainer</div>
+    <h1 id="title">The reasons that matter for your team</h1>
+    <p class="lead" id="lead">An open-source pull request reviewer that runs on your own server, with your own model key, and reviews the way your team already does.</p>
+  </section>
+
+  <details class="picker" id="picker">
+    <summary><span class="eyebrow">Pick what matters to you</span><span class="cnt" id="pickCount"></span><svg class="chev" aria-hidden="true" viewBox="0 0 16 16" width="16" height="16"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg></summary>
+    <div class="picker-h"><span class="sp"></span><button type="button" class="link" id="clear">Show all</button><button type="button" class="copy" id="copy">Copy link</button></div>
+    <div class="chips" id="chips"></div>
+  </details>
+
+  <section class="grid" id="grid" aria-live="polite"></section>
+
+  <section class="start" aria-label="Get started">
+    <div>
+      <h2>Try it on your own repository</h2>
+      <p>Free and open source. Bring your own model key, or point it at a local model.</p>
+    </div>
+    <div class="steps">
+      <div class="cmdrow"><code id="installCmd">npm install -g co-maintainer</code><button type="button" id="copyCmd">Copy</button></div>
+      <a class="go" href="https://co-maintainer.com/docs/getting-started.html">Read the setup guide<svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg></a>
+    </div>
+  </section>
+
+  <p class="more" id="more" hidden>These are the reasons picked for you. <button type="button" id="showAll">See every reason</button></p>
+
+  <footer>
+    <div class="fw">
+      <svg class="bird ink" width="22" height="22" aria-hidden="true"><use href="#mark"/></svg>
+      <span>Made by <a href="https://muratkirazkaya.com" target="_blank" rel="noopener">Murat Kirazkaya</a></span>
+      <nav><a href="https://co-maintainer.com/vs/coderabbit.html">vs CodeRabbit</a><a href="https://co-maintainer.com/privacy.html">Privacy</a><a href="https://co-maintainer.com/trust.html">Trust</a><a href="https://github.com/GroophyLifefor/co-maintainer/blob/main/LICENSE">MIT License</a></nav>
+    </div>
+  </footer>
+</div>
+
+
+<script>
+// Each reason is one claim the product can back. Numbers are stable: links in the wild depend on them.
+const REASONS = {
+  1: { t: "Open source, MIT", d: "The reviewer that reads your pull requests is code you can audit like any other dependency. No vendor agreement, no per-seat license to negotiate.", p: ["LICENSE", "https://github.com/GroophyLifefor/co-maintainer/blob/main/LICENSE"], logos: [["MIT License, OSI approved", "https://cdn.jsdelivr.net/npm/simple-icons@16.38.1/icons/opensourceinitiative.svg"]] },
+  2: { t: "Your server, your model key", d: "It runs as a GitHub App on your infrastructure. Reviews from the App are paid by a project key you control, never by one maintainer's personal quota.", p: ["Providers", "https://co-maintainer.com/docs/providers.html"], logos: [["OpenAI", "openai"], ["Anthropic", "anthropic"], ["OpenRouter", "openrouter"], ["OpenCode", "opencode"], ["Azure OpenAI", "azure"], ["Amazon Bedrock", "bedrock"], ["Gemini", "gemini"]] },
+  3: { t: "Local models too", d: "Point it at Ollama or any OpenAI-compatible endpoint. If a provider changes its terms or shuts down, you switch the endpoint, not the tool.", p: ["Providers", "https://co-maintainer.com/docs/providers.html"], logos: [["Ollama", "ollama"], ["vLLM", "vllm"], ["LM Studio", "lmstudio"]] },
+  4: { t: "Every finding shows its source", d: "Turn references on and each finding names the rule and past reviews it rests on, so you can see why it said something before you trust it.", p: ["How a review works", "https://co-maintainer.com/docs/review.html"], demo: "finding" },
+  5: { t: "Learns how your team reviews", d: "It reads your past reviews and keeps the rules your team actually follows, including the ones nobody wrote down.", p: ["Init", "https://co-maintainer.com/docs/init.html"], demo: "learn" },
+  6: { t: "You decide which pull requests get a review", d: "Skip drafts and bots, review members automatically, and let outside contributors wait until a maintainer adds a label. A pull request that waits is never sent to the model.", p: ["Review policy", "https://co-maintainer.com/docs/review-policy.html"], img: ["assets/why/policy.png", "The review policy screen: everyone, trusted authors or only when asked, with a plain summary of what happens to drafts, bots, members and everyone else"] },
+  7: { t: "Comment-only when you want it", d: "One setting and the bot never approves or blocks. Findings arrive as a comment and merging stays with people.", p: ["Comment only", "https://co-maintainer.com/docs/review-policy.html#comment-only"], demo: "review" },
+  8: { t: "See the cost before you spend", d: "A probe estimates what a review will cost on your repository before you run it. On our own repository the median review is about $0.07.", p: ["Cost", "https://co-maintainer.com/docs/cost.html"], demo: "probe", more: ["What are the low and high models?", "The low model does the high-volume, cheaper work: reading history and summarizing diffs. The high model writes your team's guides and the review itself. You pick both, so you choose where to save and where to spend."] },
+  9: { t: "Your keys stay on your server", d: "By default your model key lives only on your server. Known secret shapes in a diff are masked before anything reaches your provider, unless you turn masking off.", p: ["Trust", "https://co-maintainer.com/trust.html"], mini: "mask" },
+  10: { t: "No telemetry", d: "The self-hosted version sends no usage signal or crash report to us. Your traffic goes from your server to your provider directly.", p: ["Privacy", "https://co-maintainer.com/privacy.html"] },
+  11: { t: "Fits the GitHub flow you have", d: "A review starts when a pull request opens or gets a push, and leaves review comments and a check run where your team already looks.", p: ["GitHub App", "https://co-maintainer.com/docs/github-app.html"] },
+  12: { t: "Install in minutes", d: "One npm package, or one Docker image with all its data in a single volume. Moving servers means moving that volume.", p: ["Getting started", "https://co-maintainer.com/docs/getting-started.html"] },
+  13: { t: "Or let us run it: Cloud", d: "Rather not run a server? Cloud runs the same open-source software for you, still with your own model key. Ask for access with a short form. If Cloud ever closes, you move to your own server with the same software.", p: ["Cloud", "https://cloud.co-maintainer.com/?utm_source=why"] },
+};
+
+// A real finding from co-maintainer's own pull request #146, shown the way it reads on GitHub.
+const DEMOS = {
+  // Real probe output on co-maintainer's own repository, 27 Nov 2026 (same numbers as the brand ad).
+  // The run used the saved provider and models (openrouter, gpt-6-luna, gpt-6.1-sol), so the flags show the same run.
+  probe: `<figure class="term" aria-label="co-maintainer probe estimates the cost per pull request before any review runs: median 6.5 cents, highest 38 cents">
+    <div class="t-bar"><span class="dot"></span>terminal</div>
+<pre class="t-body"><span class="t-l" style="--d:.1s"><span class="t-p">$</span> co-maintainer probe \\</span>
+<span class="t-l" style="--d:.15s">    GroophyLifefor/co-maintainer \\</span>
+<span class="t-l" style="--d:.2s">    --ai=openrouter \\</span>
+<span class="t-l" style="--d:.3s">    --low-model=<span class="t-box">openai/gpt-6-luna</span> \\</span>
+<span class="t-l" style="--d:.4s">    --high-model=<span class="t-box">openai/gpt-6.1-sol</span></span>
+<span class="t-l" style="--d:.6s"> </span>
+<span class="t-l" style="--d:.7s">review estimate  per pull request</span>
+<span class="t-l" style="--d:.9s">    median  <b class="t-box">$0.0652</b> · 112 changed lines</span>
+<span class="t-l" style="--d:1.1s">    highest $0.38 · 807 changed lines</span>
+<span class="t-l" style="--d:1.3s"> </span>
+<span class="t-l t-dim" style="--d:1.4s">Probe only reads. It does not write guides.</span></pre>
+  </figure>`,
+  review: `<figure class="revd" aria-label="With comment-only on, the bot never approves or requests changes, it only leaves a review comment">
+    <div class="rv off"><span class="rb ok"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"/></svg></span><span><b>co-maintainer</b> approved these changes</span><em>off</em></div>
+    <div class="rv off"><span class="rb bad"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 1.75C1 .784 1.784 0 2.75 0h7.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16H2.75A1.75 1.75 0 0 1 1 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25V4.664a.25.25 0 0 0-.073-.177l-2.914-2.914a.25.25 0 0 0-.177-.073ZM8 3.25a.75.75 0 0 1 .75.75v1.5h1.5a.75.75 0 0 1 0 1.5h-1.5v1.5a.75.75 0 0 1-1.5 0V7h-1.5a.75.75 0 0 1 0-1.5h1.5V4A.75.75 0 0 1 8 3.25Zm-3 8a.75.75 0 0 1 .75-.75h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1-.75-.75Z"/></svg></span><span><b>co-maintainer</b> requested changes</span><em>off</em></div>
+    <div class="rv on"><span class="rb neutral"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2c1.981 0 3.671.992 4.933 2.078 1.27 1.091 2.187 2.345 2.637 3.023a1.62 1.62 0 0 1 0 1.798c-.45.678-1.367 1.932-2.637 3.023C11.67 13.008 9.981 14 8 14c-1.981 0-3.671-.992-4.933-2.078C1.797 10.83.88 9.576.43 8.898a1.62 1.62 0 0 1 0-1.798c.45-.677 1.367-1.931 2.637-3.022C4.33 2.992 6.019 2 8 2ZM1.679 7.932a.12.12 0 0 0 0 .136c.411.622 1.241 1.75 2.366 2.717C5.176 11.758 6.527 12.5 8 12.5c1.473 0 2.825-.742 3.955-1.715 1.124-.967 1.954-2.096 2.366-2.717a.12.12 0 0 0 0-.136c-.412-.621-1.242-1.75-2.366-2.717C10.824 4.242 9.473 3.5 8 3.5c-1.473 0-2.825.742-3.955 1.715-1.124.967-1.954 2.096-2.366 2.717ZM8 10a2 2 0 1 1-.001-3.999A2 2 0 0 1 8 10Z"/></svg></span><span><b>co-maintainer</b> reviewed and left 2 comments</span><em>on</em></div>
+  </figure>`,
+  learn: `<figure class="learnd" aria-label="Past reviews, diffs, commits, codebase and instructions become your team's review guide">
+    <div class="l-srcs">${["Past PR reviews", "PR diffs", "Commit history", "Codebase", "Instructions"].map((t, i) => `<span class="l-chip" style="--d:${i * 0.12}s">${t}</span>`).join("")}</div>
+    <svg class="l-arrow" viewBox="0 0 24 40" aria-hidden="true"><path d="M12 2 V34 M4 26 L12 36 L20 26" fill="none" stroke="currentColor" stroke-width="2.5"/></svg>
+    <div class="l-guide"><div class="l-h">review-guide.md</div><div class="l-g">Your team's rules, as plain Markdown you can read and edit.</div></div>
+  </figure>`,
+  finding: `<figure class="finding" aria-label="A finding with its reference">
+    <div class="f-bar"><span class="dot"></span>github.com/GroophyLifefor/co-maintainer/pull/146</div>
+    <div class="f-body">
+      <div class="f-file">src/util/runtime.ts · getEnv()</div>
+      <div class="f-who"><svg aria-hidden="true"><use href="#bird"/></svg><b>co-maintainer</b><span class="f-sev">P2 · non-blocking</span></div>
+      <p class="f-txt">This makes an explicitly empty setting indistinguishable from an unset one. An empty <code>CO_MAINTAINER_AI</code> can silently fall through to a saved provider, contrary to the setting contract in <a href="#r21" class="f-ref">R21</a>.</p>
+      <div class="f-refs" id="r21"><span class="f-h">References (1)</span><div class="f-r"><b>R21</b><span>Absent and explicitly empty settings are different</span></div></div>
+    </div>
+  </figure>`,
+};
+
+// Small visuals that live inside a normal card. "mask" is the real output of maskSecrets() for this line.
+const MINIS = {
+  mask: `<div class="mask" aria-label="A key in the diff reaches the model as a redacted placeholder">
+    <div class="m-row"><span class="m-k">In your diff</span><code>+ key = "<s>sk-or-v1-9f2cA81d77e0</s>"</code></div>
+    <div class="m-row on"><span class="m-k">Your provider sees</span><code>+ key = "<b>[redacted:openrouter-key]</b>"</code></div>
+  </div>`,
+};
+const ALL = Object.keys(REASONS).map(Number);
+
+function picked() {
+  const m = location.hash.match(/reasons=([\d,]+)/);
+  if (!m) return null;
+  const ids = [...new Set(m[1].split(",").map(Number).filter((n) => REASONS[n]))];
+  return ids.length ? ids : null;
+}
+
+function render(ids) {
+  const grid = document.getElementById("grid");
+  const list = ids || ALL;
+  // A reason with a screenshot always takes a full row: text left, picture right.
+  // Of the others, the first leads when their count is odd and the rest share one row width.
+  const plain = list.filter((id) => !REASONS[id].img && !REASONS[id].demo);
+  const leadId = ids && plain.length % 2 === 1 && plain.length > 1 ? plain[0] : null;
+  const rest = ids ? plain.length - (leadId ? 1 : 0) : plain.length;
+  const cols = ids ? (rest === 4 ? 2 : Math.min(Math.max(rest, 1), 3)) : 3;
+  const narrow = window.matchMedia("(max-width:700px)").matches;
+  // The grid has two tracks per column, so the cards of a short last row can widen to fill it.
+  grid.style.gridTemplateColumns = narrow ? "minmax(0,1fr)" : `repeat(${cols * 2},1fr)`;
+  const rowCards = plain.filter((id) => id !== leadId);
+  const tail = rowCards.length % cols;
+  const tailIds = new Set(tail ? rowCards.slice(-tail) : []);
+  const span = (id) => narrow ? "" : REASONS[id].img || REASONS[id].demo || id === leadId ? "grid-column:1/-1;" : `grid-column:span ${tailIds.has(id) ? (cols * 2) / tail : 2};`;
+  // A full-row card waits until the current row is full, so no row is left with a hole.
+  const order = [], waiting = [];
+  let fill = 0;
+  for (const id of list) {
+    const full = REASONS[id].img || REASONS[id].demo || id === leadId;
+    if (full) { if (fill === 0 || narrow) order.push(id); else waiting.push(id); continue; }
+    order.push(id);
+    fill = (fill + 1) % cols;
+    if (fill === 0) order.push(...waiting.splice(0));
+  }
+  order.push(...waiting);
+  grid.innerHTML = order.map((id, i) => {
+    const r = REASONS[id];
+    const cls = r.img || r.demo ? " wide" : id === leadId ? " feature" : "";
+    const text = `<span class="n">${String(i + 1).padStart(2, "0")}</span>
+      <h2>${r.t}</h2><p>${r.d}${r.more ? ` <button type="button" class="more-btn" data-more="${r.more[1].replace(/"/g, "&quot;")}">${r.more[0]}</button>` : ""}</p>${r.logos ? `<ul class="logos">${r.logos.map(([n, k]) => `<li>${n}</li>`).join("")}</ul>` : ""}
+      ${r.mini ? MINIS[r.mini] : ""}
+      <div class="proof">Check it: <a href="${r.p[1]}">${r.p[0]}</a></div>`;
+    if (r.demo) return `<article class="reason${cls}" style="${span(id)}animation-delay:${i * 60}ms"><div class="txt">${text}</div>${DEMOS[r.demo]}</article>`;
+    return `<article class="reason${cls}" style="${span(id)}animation-delay:${i * 60}ms">${r.img
+      ? `<div class="txt">${text}</div><button type="button" class="shotbtn" data-full="${r.img[0].replace(/\.png$/, "-full.png")}" aria-label="Open the full screenshot"><img class="shot" src="${r.img[0]}" alt="${r.img[1]}"><span class="zoom">Click to see the full screen</span></button>`
+      : text}</article>`;
+  }).join("");
+  document.getElementById("more").hidden = !ids;
+  document.getElementById("title").textContent = ids
+    ? (ids.length === 1 ? "One reason that fits your team" : `${["Two", "Three", "Four", "Five"][ids.length - 2] || ids.length} reasons that fit your team`)
+    : "The reasons that matter for your team";
+}
+
+// In-page picker: the chips and the URL hash are one state. Clicking a chip
+// rewrites the hash, so the page you see is always the link you can share.
+let sel = picked() || [];
+function setSel(next) {
+  sel = next;
+  const base = location.pathname + location.search;
+  history.replaceState(null, "", sel.length ? `${base}#reasons=${sel.join(",")}` : base);
+  update();
+}
+function chips() {
+  document.getElementById("pickCount").textContent = sel.length ? `${sel.length} picked` : "showing all";
+  document.getElementById("chips").innerHTML = ALL.map((id) =>
+    `<button type="button" class="chip" data-id="${id}" aria-pressed="${sel.includes(id)}"><span class="k">${id}</span>${REASONS[id].t}</button>`).join("");
+}
+// Cards animate in on first load only. A chip click swaps them without a fade.
+function update() { chips(); render(sel.length ? sel : null); if (update.done) document.body.classList.add("still"); update.done = true; }
+document.getElementById("chips").addEventListener("click", (e) => {
+  const b = e.target.closest(".chip"); if (!b) return;
+  const id = Number(b.dataset.id);
+  setSel(sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id]);
+});
+document.getElementById("copyCmd").onclick = async (e) => {
+  const b = e.currentTarget;
+  try { await navigator.clipboard.writeText(document.getElementById("installCmd").textContent); b.textContent = "Copied"; } catch { b.textContent = "Failed"; }
+  setTimeout(() => { b.textContent = "Copy"; }, 1600);
+};
+document.getElementById("clear").onclick = () => setSel([]);
+document.getElementById("showAll").onclick = () => setSel([]);
+document.getElementById("copy").onclick = async (e) => {
+  const b = e.currentTarget;
+  try { await navigator.clipboard.writeText(location.href); b.textContent = "Copied"; } catch { b.textContent = "Copy failed"; }
+  setTimeout(() => { b.textContent = "Copy link"; }, 1600);
+};
+
+// Screenshot lightbox: the card shows the top of the screen, a click opens the whole screen.
+document.getElementById("grid").addEventListener("click", (e) => {
+  const b = e.target.closest(".shotbtn"); if (!b) return;
+  const lb = document.createElement("div");
+  lb.className = "lb"; lb.setAttribute("role", "dialog"); lb.setAttribute("aria-modal", "true");
+  lb.innerHTML = `<button type="button">Close</button><img src="${b.dataset.full}" alt="${b.querySelector("img").alt}">`;
+  const close = () => { lb.remove(); document.removeEventListener("keydown", onKey); b.focus(); };
+  const onKey = (k) => { if (k.key === "Escape") close(); };
+  lb.addEventListener("click", (k) => { if (k.target === lb || k.target.tagName === "BUTTON") close(); });
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(lb); lb.querySelector("button").focus();
+});
+
+// "What are the low and high models?": the button gives way to the answer, in the same paragraph.
+document.getElementById("grid").addEventListener("click", (e) => {
+  const b = e.target.closest(".more-btn"); if (!b) return;
+  const p = b.closest("p"), from = p.offsetHeight;
+  const t = document.createElement("span");
+  t.className = "more-txt"; t.textContent = " " + b.dataset.more;
+  b.replaceWith(t);
+  // The paragraph grows smoothly to its new height while the words fade in.
+  if (matchMedia("(prefers-reduced-motion:reduce)").matches) return;
+  const to = p.offsetHeight;
+  p.style.overflow = "hidden"; p.style.height = from + "px";
+  requestAnimationFrame(() => { p.style.transition = "height .45s ease"; p.style.height = to + "px"; });
+  p.addEventListener("transitionend", () => { p.style.cssText = ""; }, { once: true });
+});
+// Sticky header: its bottom rule appears once the page has scrolled, as on the landing page.
+const topBar = document.getElementById("top");
+const markScrolled = () => topBar.classList.toggle("scrolled", scrollY > 4);
+addEventListener("scroll", markScrolled, { passive: true }); markScrolled();
+
+window.addEventListener("hashchange", () => { sel = picked() || []; update(); });
+update();
+</script>
+</body>
+</html>
