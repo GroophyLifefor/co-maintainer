@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { deflateRawSync } from "node:zlib";
 import { startFakeSaml, type FakeSaml, type SamlFaults } from "./fake_saml.ts";
 import {
   browse,
@@ -207,5 +208,17 @@ test("the provider refuses a sign in request it cannot read", async () => {
   await withIdp(async (s) => {
     assert.equal((await browse(`${s.idp.ssoUrl}?SAMLRequest=%%%`)).status, 400);
     assert.equal((await browse(s.idp.ssoUrl)).status, 400);
+    // A small request that expands to far more than a real one is refused.
+    const bomb = deflateRawSync(
+      Buffer.concat([
+        Buffer.from('<AuthnRequest ID="x"/>'),
+        Buffer.alloc(10 * 1024 * 1024, 65),
+      ]),
+    ).toString("base64");
+    assert.equal(
+      (await browse(`${s.idp.ssoUrl}?SAMLRequest=${encodeURIComponent(bomb)}`))
+        .status,
+      400,
+    );
   });
 });

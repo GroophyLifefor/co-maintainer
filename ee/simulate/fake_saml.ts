@@ -288,9 +288,9 @@ export async function startFakeSaml(
       const raw = url.searchParams.get("SAMLRequest");
       if (raw) {
         try {
-          const text = inflateRawSync(Buffer.from(raw, "base64")).toString(
-            "utf8",
-          );
+          const text = inflateRawSync(Buffer.from(raw, "base64"), {
+            maxOutputLength: 64 * 1024,
+          }).toString("utf8");
           requestId = /\bID="([^"]+)"/.exec(text)?.[1];
         } catch {
           return send(400, "text/plain", "bad request");
