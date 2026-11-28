@@ -106,6 +106,21 @@ jobs:
           drop table ci_probe;
           SQL
 
+  # The enterprise code and its simulations on their own, so a change under
+  # `ee/` shows its result as a separate line. It needs no install: the code
+  # uses only what Node ships with, and no model is reached.
+  ee:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: npm run ee:simulate
+        env:
+          CM_FAKE_AI: "1"
+
   # Its own job on Linux only: `npx` and the fake `gh` both need a POSIX
   # spawn, and it downloads the published 0.4.13, so it must not slow the
   # matrix above.
