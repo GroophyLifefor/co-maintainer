@@ -160,6 +160,18 @@ export async function verifyIdToken(
   const claims = JSON.parse(
     Buffer.from(body64, "base64url").toString("utf8"),
   ) as Claims;
+  // A correctly signed token can still lack a field. Missing times would make
+  // every comparison below false, so they are required first.
+  for (const field of ["iss", "sub", "aud"] as const) {
+    if (typeof claims[field] !== "string" || claims[field] === "") {
+      throw new RpError("malformed", `the ID token has no ${field}`);
+    }
+  }
+  for (const field of ["exp", "iat"] as const) {
+    if (typeof claims[field] !== "number" || !Number.isFinite(claims[field])) {
+      throw new RpError("malformed", `the ID token has no ${field}`);
+    }
+  }
   if (claims.iss !== checks.issuer) throw new RpError("issuer", "wrong issuer");
   if (claims.aud !== checks.audience)
     throw new RpError("audience", "wrong audience");
