@@ -201,7 +201,7 @@ export function renderProbe(input: RenderInput): string {
       `basis: ${
         rec.ai.basis === "history"
           ? "this repository's recorded jobs"
-          : "the cm-dx-lab calibration"
+          : "typical job sizes measured on a sample repository"
       }, an estimate, not a bill`,
     )}`,
   );
@@ -365,7 +365,7 @@ export function estimateSummary(
     basis: `${
       rec.ai.basis === "history"
         ? "this repository's recorded jobs"
-        : "the cm-dx-lab calibration"
+        : "typical job sizes measured on a sample repository"
     }, an estimate, not a bill`,
   };
 }

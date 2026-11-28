@@ -267,11 +267,20 @@ test("probe output: colors only when asked, commands whole and copyable", async 
   }
   if (!plain.includes("◆ faster"))
     throw new Error("the faster option is missing");
+  if (plain.includes("cm-dx-lab")) {
+    throw new Error("the output names an internal test repository");
+  }
+  if (!plain.includes("typical job sizes measured on a sample repository")) {
+    throw new Error("the basis line does not say where the figures come from");
+  }
   const colored = renderProbe({ ...input, color: true });
   if (!colored.includes("\x1b["))
     throw new Error("colored output has no escapes");
   // The dashboard gets the same numbers as plain sentences.
   const summary = estimateSummary("acme/big", estimate, "none");
+  if (summary.basis.includes("cm-dx-lab")) {
+    throw new Error(`summary basis: ${summary.basis}`);
+  }
   if (!summary.faster || summary.recommended.command.includes("\x1b[")) {
     throw new Error(`summary: ${JSON.stringify(summary)}`);
   }

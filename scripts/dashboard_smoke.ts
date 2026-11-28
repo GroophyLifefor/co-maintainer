@@ -1890,7 +1890,8 @@ try {
             fits: false,
           },
           review: "median $0.0991 · 187 changed lines",
-          basis: "the cm-dx-lab calibration, an estimate, not a bill",
+          basis:
+            "typical job sizes measured on a sample repository, an estimate, not a bill",
         },
       });
     });
