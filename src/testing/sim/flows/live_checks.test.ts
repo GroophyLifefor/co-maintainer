@@ -113,9 +113,10 @@ const SKIPPED_LIVE: Record<string, number> = {
   "diagram-runtime": 5,
   extensions: 2,
   // Whether the first finding blocks, the withdrawal, the reopen that follows
-  // it, the approval after a dismissal, and closing on a plain request with
-  // the feedback after it depend on the model.
-  "finding-control": 6,
+  // it, what a stranger's argument gets as an answer, the approval after a
+  // dismissal, and closing on a plain request with the feedback after it
+  // depend on the model.
+  "finding-control": 7,
   "guide-sources": 4,
   "init-sync": 10,
   instructions: 7,

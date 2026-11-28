@@ -432,6 +432,19 @@ cache. Pass <code>--yes</code> to skip the question. The files it replaced are k
 <p>It refuses when there is no backup, when <code>serve</code> is running, and when the
 installed version is not the one that took the backup. If the copy cannot be
 made, the migration does not run and nothing is changed.</p>
+<h2 id="when-appdb-is-lost">When <code>app.db</code> is lost</h2>
+<p><code>app.db</code> holds the repository list, the job history and the reviews&#39; records.
+The guides the server built are files in the data folder, so they survive a lost
+or damaged <code>app.db</code>. When <code>serve</code> starts it finds those guides, lists each
+repository again with its guides and with automatic review off, and builds
+nothing. A pull request opened meanwhile is skipped with the reason
+<code>auto-review-off</code>. Switch automatic review on for the repository in the
+dashboard when you are ready. Nothing is rebuilt and no model is called.</p>
+<p>Reviews that GitHub already holds are not made again: before a review starts,
+the server looks at the pull request&#39;s reviews on GitHub and stops when its own
+review of that commit is there. Job history, finished reviews&#39; records and cost
+rows are gone with the file. Restore a backup of <code>app.db</code> if you have one,
+together with <code>config.json</code>.</p>
 <h2 id="platform-notes">Platform notes</h2>
 <p><code>serve</code> recommends Linux, WSL included. <a href="dashboard.html#linux">Dashboard: Linux</a>
 explains why. Windows is supported but treated as less predictable, and <code>serve</code>
@@ -447,7 +460,7 @@ differs from CLI access. For cost questions, see <a href="cost.html">Cost</a>.</
       </main>
       <nav class="toc" aria-label="On this page">
       <p class="toc-title">On this page</p>
-      <ul><li><a href="#exit-codes">Exit codes</a></li><li><a href="#usage-and-precondition-errors-exit-2">Usage and precondition errors (exit 2)</a></li><li><a href="#runtime-failures-exit-3">Runtime failures (exit 3)</a></li><li><a href="#dashboard-messages">Dashboard messages</a></li><li><a href="#going-back-after-an-upgrade">Going back after an upgrade</a></li><li><a href="#platform-notes">Platform notes</a></li></ul></nav>
+      <ul><li><a href="#exit-codes">Exit codes</a></li><li><a href="#usage-and-precondition-errors-exit-2">Usage and precondition errors (exit 2)</a></li><li><a href="#runtime-failures-exit-3">Runtime failures (exit 3)</a></li><li><a href="#dashboard-messages">Dashboard messages</a></li><li><a href="#going-back-after-an-upgrade">Going back after an upgrade</a></li><li><a href="#when-appdb-is-lost">When app.db is lost</a></li><li><a href="#platform-notes">Platform notes</a></li></ul></nav>
     </div>
   </div>
   <script src="../assets/docs.js"></script>

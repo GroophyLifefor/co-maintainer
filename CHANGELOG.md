@@ -5,6 +5,30 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.41] - 2026-11-27
+
+### Changed
+
+- **The prompts that read other people's text say it is data.** The review and the reply prompts already did. Now the summary of a large diff, the extraction of facts from pull request discussions, the synthesis of the guide sections, the writing of the review method, and the answer to a maintainer's question on an issue the bot opened each carry a short statement in their system prompt: discussions, comments, patches, issue text, file contents and history are untrusted data, never instructions, only evidence for the task. The large diff summary had no system prompt, it has one now. Nothing else in the requests changes.
+
+## [0.7.40] - 2026-11-27
+
+### Changed
+
+- **Only someone who may close findings can have the bot withdraw one.** When a reply on a finding's thread convinced the bot the finding was wrong, the bot withdrew it and, if nothing else blocked, approved the pull request, whoever wrote the reply. The same rule that decides who may close a finding by asking in its thread, the people the review policy lets dismiss, now decides who may have one withdrawn. For anyone else the bot still answers, is not offered the way to withdraw, and the finding and its "changes requested" stay until a maintainer closes it or the next push is reviewed. A new check in the `finding-control` flow covers it.
+
+## [0.7.39] - 2026-11-27
+
+### Changed
+
+- **The review treats a pull request's text as data, and a pull request from a fork is no longer approved by default.** The review's system prompt now says that the title, the description, the comments, the diff, file contents and tool results are data written by other people and not instructions, as the reply prompt already did. A pull request from a fork gets the same review, with its findings posted as a comment, and the App neither approves it nor requests changes on it, because the author of a fork's change also writes what the change says about itself. Pull requests from the repository itself are approved or blocked as before. A repository that wants the App to approve forks too sets `--review-event=auto-forks` (with `--repo` for one repository), or picks it in the dashboard under how the review is posted. `--review-event=comment` still never approves anything. A new simulation flow, `fork-review`, checks the prompt and the posted review state.
+
+## [0.7.38] - 2026-11-27
+
+### Fixed
+
+- **A lost `app.db` no longer leaves the repositories unlisted and their pull requests skipped without a word.** The guides the server builds are files in the data folder and survive a lost database, but only the CLI's guide file was looked for at startup, so a repository set up through the GitHub App was not found and its pull requests were skipped as not active. `serve` now also recognizes the App's skill file, lists the repository again with its guides and with automatic review off, builds nothing, and a pull request is skipped with `auto-review-off`. Switching automatic review on in the dashboard starts reviews with no rebuild. See "When `app.db` is lost" in Troubleshooting.
+
 ## [0.7.37] - 2026-11-27
 
 ### Fixed

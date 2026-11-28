@@ -115,6 +115,22 @@ It refuses when there is no backup, when `serve` is running, and when the
 installed version is not the one that took the backup. If the copy cannot be
 made, the migration does not run and nothing is changed.
 
+## When `app.db` is lost
+
+`app.db` holds the repository list, the job history and the reviews' records.
+The guides the server built are files in the data folder, so they survive a lost
+or damaged `app.db`. When `serve` starts it finds those guides, lists each
+repository again with its guides and with automatic review off, and builds
+nothing. A pull request opened meanwhile is skipped with the reason
+`auto-review-off`. Switch automatic review on for the repository in the
+dashboard when you are ready. Nothing is rebuilt and no model is called.
+
+Reviews that GitHub already holds are not made again: before a review starts,
+the server looks at the pull request's reviews on GitHub and stops when its own
+review of that commit is there. Job history, finished reviews' records and cost
+rows are gone with the file. Restore a backup of `app.db` if you have one,
+together with `config.json`.
+
 ## Platform notes
 
 `serve` recommends Linux, WSL included. [Dashboard: Linux](dashboard.md#linux)

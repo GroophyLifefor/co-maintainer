@@ -43,6 +43,9 @@ const BLOCKING = {
 };
 
 const remote = await startFakeRemote({
+  // A push to main runs the action in push mode, which needs a server that
+  // reviews pushes.
+  handshake: { features: ["byok", "push"] },
   sync: [
     {
       schemaVersion: 1,

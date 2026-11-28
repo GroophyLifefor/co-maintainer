@@ -112,7 +112,7 @@ class FakeGithub implements GitHubClient {
         title: "Change",
         body: "",
         state: "open",
-        head: { sha: "head1" },
+        head: { sha: "head1", repo: { full_name: "acme/widgets" } },
         base: { sha: "base1", ref: "main" },
         ...this.prExtra,
       } as T);

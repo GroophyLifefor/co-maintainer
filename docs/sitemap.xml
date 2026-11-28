@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://co-maintainer.com/</loc><lastmod>2026-11-27</lastmod></url>
+  <url><loc>https://co-maintainer.com/</loc><lastmod>2026-11-28</lastmod></url>
   <url><loc>https://co-maintainer.com/privacy.html</loc><lastmod>2026-11-24</lastmod></url>
   <url><loc>https://co-maintainer.com/vs/coderabbit.html</loc><lastmod>2026-11-24</lastmod></url>
   <url><loc>https://co-maintainer.com/trust.html</loc><lastmod>2026-11-24</lastmod></url>
@@ -9,7 +9,7 @@
   <url><loc>https://co-maintainer.com/docs/init.html</loc><lastmod>2026-11-23</lastmod></url>
   <url><loc>https://co-maintainer.com/docs/sync.html</loc><lastmod>2026-11-17</lastmod></url>
   <url><loc>https://co-maintainer.com/docs/view.html</loc><lastmod>2026-11-15</lastmod></url>
-  <url><loc>https://co-maintainer.com/docs/review.html</loc><lastmod>2026-11-21</lastmod></url>
+  <url><loc>https://co-maintainer.com/docs/review.html</loc><lastmod>2026-11-27</lastmod></url>
   <url><loc>https://co-maintainer.com/docs/local-review.html</loc><lastmod>2026-11-18</lastmod></url>
   <url><loc>https://co-maintainer.com/docs/remote-review.html</loc><lastmod>2026-11-21</lastmod></url>
   <url><loc>https://co-maintainer.com/docs/ci.html</loc><lastmod>2026-11-21</lastmod></url>
@@ -18,16 +18,16 @@
   <url><loc>https://co-maintainer.com/docs/commit-watch-review.html</loc><lastmod>2026-11-18</lastmod></url>
   <url><loc>https://co-maintainer.com/docs/extensions.html</loc><lastmod>2026-11-21</lastmod></url>
   <url><loc>https://co-maintainer.com/docs/companions.html</loc><lastmod>2026-11-18</lastmod></url>
-  <url><loc>https://co-maintainer.com/docs/serve.html</loc><lastmod>2026-11-27</lastmod></url>
+  <url><loc>https://co-maintainer.com/docs/serve.html</loc><lastmod>2026-11-28</lastmod></url>
   <url><loc>https://co-maintainer.com/docs/dashboard.html</loc><lastmod>2026-11-21</lastmod></url>
   <url><loc>https://co-maintainer.com/docs/github-app.html</loc><lastmod>2026-11-24</lastmod></url>
   <url><loc>https://co-maintainer.com/docs/cloud.html</loc><lastmod>2026-11-18</lastmod></url>
-  <url><loc>https://co-maintainer.com/docs/commands.html</loc><lastmod>2026-11-26</lastmod></url>
+  <url><loc>https://co-maintainer.com/docs/commands.html</loc><lastmod>2026-11-27</lastmod></url>
   <url><loc>https://co-maintainer.com/docs/configuration.html</loc><lastmod>2026-11-21</lastmod></url>
   <url><loc>https://co-maintainer.com/docs/providers.html</loc><lastmod>2026-11-26</lastmod></url>
   <url><loc>https://co-maintainer.com/docs/authentication.html</loc><lastmod>2026-10-18</lastmod></url>
   <url><loc>https://co-maintainer.com/docs/caching.html</loc><lastmod>2026-11-21</lastmod></url>
   <url><loc>https://co-maintainer.com/docs/codegraph.html</loc><lastmod>2026-10-26</lastmod></url>
   <url><loc>https://co-maintainer.com/docs/cost.html</loc><lastmod>2026-11-21</lastmod></url>
-  <url><loc>https://co-maintainer.com/docs/troubleshooting.html</loc><lastmod>2026-11-24</lastmod></url>
+  <url><loc>https://co-maintainer.com/docs/troubleshooting.html</loc><lastmod>2026-11-27</lastmod></url>
 </urlset>
