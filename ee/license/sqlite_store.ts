@@ -19,18 +19,16 @@ const KEYS = {
 export function sqliteLicenseStore(
   db: DatabaseSync,
 ): LicenseStore & { events(): LicenseEvent[]; history(): StoredLicense[] } {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS license_kv (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS license_log (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      kind TEXT NOT NULL,
-      at INTEGER NOT NULL,
-      body TEXT NOT NULL
-    );
-  `);
+  db.exec(`CREATE TABLE IF NOT EXISTS license_kv (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  )`);
+  db.exec(`CREATE TABLE IF NOT EXISTS license_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,
+    at INTEGER NOT NULL,
+    body TEXT NOT NULL
+  )`);
   const read = <T>(key: string): T | undefined => {
     const row = db
       .prepare("SELECT value FROM license_kv WHERE key = ?")
