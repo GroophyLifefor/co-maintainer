@@ -121,7 +121,6 @@ jobs:
         env:
           CM_FAKE_AI: "1"
 
-
   # Its own job on Linux only: `npx` and the fake `gh` both need a POSIX
   # spawn, and it downloads the published 0.4.13, so it must not slow the
   # matrix above.
