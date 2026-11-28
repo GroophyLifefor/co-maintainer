@@ -1,0 +1,33 @@
+name: Load regression
+
+# Once a week and on request, never on a pull request: 100 pull requests go
+# through the product's own worker loop against the fake GitHub and the fake
+# model, with 5000 requests an hour. The run is red when a pull request costs
+# more than 9 GitHub requests, when a review fails or is missing, or when an
+# hour goes over the budget. No model is reached.
+on:
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      - name: 100 pull requests, 5000 requests an hour
+        run: npm run e2e:simulate -- --flow=load
+        env:
+          CM_FAKE_AI: "1"
+          LOAD_PRS: "100"
+          LOAD_AI_MS: "20"
+          LOAD_BUDGET: "5000"
+          LOAD_MAX_CALLS_PER_PR: "9"
