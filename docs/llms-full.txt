@@ -3792,6 +3792,21 @@ docker run --rm -v co-maintainer-data:/data \
 - Upgrade by pulling the new tag and recreating the container with the same
   volume. Queued jobs that were interrupted are picked up again on start.
 
+To run a command inside the container that is already running, call Node on the
+built program. `co-maintainer` is not on the container's `PATH`, so this form is
+the one that works:
+
+```sh
+docker exec co-maintainer node /app/dist/main.js login-link
+docker exec co-maintainer node /app/dist/main.js config
+```
+
+`login-link` prints a one-time dashboard sign-in link, valid for 5 minutes. Run
+it where the server runs, so on a Docker server this is the way to get it. A
+command started with `docker exec` sees the `CM_WEBHOOK_URL` the container was
+created with, so the link uses it. If the container has none, or you open the
+dashboard on another address, add `--origin=https://your-address`.
+
 - **Inline, file, and path.** `set` writes the App private key three ways:
   inline, as file contents, or as a path. The path form keeps the key out of
   `config.json`, and a missing file is warned about at startup. See
