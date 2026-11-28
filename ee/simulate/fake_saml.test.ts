@@ -165,17 +165,39 @@ test("an assertion that is checked late has ended, by the provider's clock", asy
   });
 });
 
-test("the session end time is carried, and the provider ends a session on sign out", async () => {
+test("a session is on until it is signed out or its time is up", async () => {
   await withIdp(
     async (s) => {
       const login = await signIn(s);
       assert.equal(login.sessionNotOnOrAfter, s.idp.now() + 1800_000);
+      assert.equal(s.idp.isSessionActive(login.sessionIndex), true);
+      // Sign out ends it, once.
       const out = await fetch(
         `${s.idp.sloUrl}?SessionIndex=${login.sessionIndex}`,
       );
       assert.deepEqual(await out.json(), { loggedOut: true });
-      const none = await fetch(s.idp.sloUrl);
-      assert.deepEqual(await none.json(), { loggedOut: false });
+      assert.equal(s.idp.isSessionActive(login.sessionIndex), false);
+      const again = await fetch(
+        `${s.idp.sloUrl}?SessionIndex=${login.sessionIndex}`,
+      );
+      assert.deepEqual(await again.json(), { loggedOut: false });
+      // A session nobody started cannot be ended, and no index ends nothing.
+      const unknown = await fetch(`${s.idp.sloUrl}?SessionIndex=_s-nobody`);
+      assert.deepEqual(await unknown.json(), { loggedOut: false });
+      assert.deepEqual(await (await fetch(s.idp.sloUrl)).json(), {
+        loggedOut: false,
+      });
+      // Another session ends by its own time.
+      const second = await signIn(s);
+      assert.equal(s.idp.isSessionActive(second.sessionIndex), true);
+      s.idp.advance(1800_000);
+      assert.equal(s.idp.isSessionActive(second.sessionIndex), false);
+      const late = await fetch(
+        `${s.idp.sloUrl}?SessionIndex=${second.sessionIndex}`,
+      );
+      assert.deepEqual(await late.json(), { loggedOut: false });
+      // The first one's session did not touch the second.
+      assert.equal(s.idp.isSessionActive("_s-nobody"), false);
     },
     { sessionSeconds: 1800 },
   );
