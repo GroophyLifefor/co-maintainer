@@ -1,7 +1,7 @@
 {
   "name": "co-maintainer",
-  "version": "0.7.42",
-  "description": "An imitator of yours, A PR review tool like co-maintainer. Open source AI code review that learns from your past PR reviews, on your own model key.",
+  "version": "0.7.43",
+  "description": "An open source PR reviewer that learns how your repository is reviewed from its code and past PR reviews, then reviews like that, on your own model key.",
   "keywords": [
     "ai",
     "ai-code-review",
